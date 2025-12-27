@@ -27,7 +27,7 @@ fn combat_input_system(
 ) {
     if mouse.just_pressed(MouseButton::Left) {
         if let Ok(player) = players.get_single() {
-            events.send(CombatAttackEvent(player, player));  // Placeholder target
+            events.send(CombatAttackEvent(player, player));  // Placeholder
         }
     }
 }
@@ -42,7 +42,6 @@ fn combat_damage_system(
             if target.health <= 0.0 {
                 target.health = 100.0;
                 target.mercy_shield += 50.0;
-                info!("Mercy forgiveness — shield renewed");
             }
         }
     }
