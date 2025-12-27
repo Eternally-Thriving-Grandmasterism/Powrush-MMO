@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::world::WorldPlugin;
-use crate::housing::HousingPlugin;  // New
+use crate::housing::HousingPlugin;
+use crate::weather::WeatherPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Housing Thriving".into(),
+                title: "Powrush-MMO — Housing & Weather".into(),
                 ..default()
             }),
             ..default()
@@ -31,7 +31,8 @@ fn main() {
         .add_plugins(CombatPlugin)
         .add_plugins(BossPlugin)
         .add_plugins(WorldPlugin)
-        .add_plugins(HousingPlugin)  // New
+        .add_plugins(HousingPlugin)
+        .add_plugins(WeatherPlugin)
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -67,7 +68,9 @@ fn main() {
             mercy_shield_system,
             boss_phase_system,
             boss_phase_effects,
-            housing_system,
+            housing_spawn_system,
+            housing_bonus_system,
+            weather_cycle_system,
         ))
         .run();
 }
