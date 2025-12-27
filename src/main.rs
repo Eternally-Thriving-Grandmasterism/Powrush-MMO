@@ -1,81 +1,123 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
-use rand::Rng;
-use crate::loading::{LoadingPlugin, GameState};
+use bevy_replicon::prelude::*;
+
+mod assets;
+mod chat;
+mod combat;
+mod housing;
+mod npc;
+mod quest;
+mod ui;
+mod voice;
+mod weather;
+mod world;
+
+use assets::AssetPlugin;
+use chat::ChatPlugin;
+use combat::CombatPlugin;
+use housing::HousingPlugin;
+use npc::NPCPlugin;
+use quest::QuestPlugin;
+use ui::UIPlugin;
+use voice::VoicePlugin;
+use weather::WeatherPlugin;
+use world::WorldPlugin;
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    {
+        console_error_panic_hook::set_once();
+        console_log::init_with_level(log::Level::Info).unwrap();
+    }
+
     App::new()
-        .add_state::<GameState>()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Powrush-MMO — Loading Mercy".into(),
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Powrush-MMO — Eternal Thriving".into(),
+                    fit_canvas_to_parent: true,
+                    canvas: Some("#bevy-canvas".to_string()),
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
-        .add_plugins(AudioPlugin)
-        .add_plugins(VoicePlugin)
-        .add_plugins(EmotePlugin)
-        .add_plugins(ChatPlugin)
-        .add_plugins(InventoryPlugin)
-        .add_plugins(TradingPlugin)
-        .add_plugins(AuctionPlugin)
-        .add_plugins(QuestPlugin)
-        .add_plugins(LevelingPlugin)
-        .add_plugins(GuildPlugin)
-        .add_plugins(ArenaPlugin)
-        .add_plugins(WorldEventsPlugin)
-        .add_plugins(MMONetPlugin)
-        .add_plugins(AssetPlugin)
-        .add_plugins(MovementPlugin)
-        .add_plugins(CombatPlugin)
-        .add_plugins(BossPlugin)
-        .add_plugins(WorldPlugin)
-        .add_plugins(HousingPlugin)
-        .add_plugins(WeatherPlugin)
-        .add_plugins(LoadingPlugin)
+            AudioPlugin,
+            RepliconPlugins,
+            AssetPlugin,
+            WorldPlugin,
+            QuestPlugin,
+            HousingPlugin,
+            WeatherPlugin,
+            CombatPlugin,
+            NPCPlugin,
+            VoicePlugin,
+            ChatPlugin,
+            UIPlugin,
+        ))
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
             mercy_flow_system,
             trust_multiplier_system,
             lattice_expansion_system,
-            spawn_particles_system,
-            particle_update_system,
-            emote_input_system,
-            emote_visual_system,
-            emote_audio_system,
+            player_movement_system,
+            weather_cycle_system,
+            quest_progress_system,
+            quest_reward_system,
+            npc_ai_system,
+            voice_modulation_system,
             chat_input_system,
             chat_send_system,
             chat_render_system,
-            voice_modulation_system,
-            proximity_voice_system,
-            proximity_chat_filter,
-            inventory_capacity_system,
-            item_decay_system,
-            item_generation_system,
-            item_interaction_system,
-            trade_request_system,
-            trade_accept_system,
-            auction_bid_system,
-            auction_timer_system,
-            auction_ui_system,
-            quest_progress_system,
-            quest_reward_system,
-            leveling_system,
-            guild_alliance_system,
-            guild_quest_bonus_system,
-            arena_duel_system,
-            spawn_world_event_system,
-            world_event_effect_system,
-            player_movement_system,
-            combat_attack_system,
-            mercy_shield_system,
-            boss_phase_system,
-            boss_phase_effects,
-            housing_spawn_system,
-            housing_bonus_system,
-            weather_cycle_system,
-        ).run_if(in_state(GameState::InGame)))
+            ui_update_system,
+        ))
         .run();
+}
+
+#[derive(Resource, Default)]
+pub struct LatticeStats {
+    pub nodes: u32,
+    pub connections: u32,
+}
+
+fn setup(
+    mut commands: Commands,
+) {
+    commands.spawn(Camera2dBundle::default());
+    info!("Powrush-MMO — Mercy universe initialized");
+}
+
+fn mercy_flow_system(
+    mut trust: Query<&mut TrustCredits>,
+    time: Res<Time>,
+) {
+    for mut t in &mut trust {
+        t.0 += time.delta_seconds() * 0.1;
+    }
+}
+
+#[derive(Component)]
+struct TrustCredits(pub f32);
+
+fn trust_multiplier_system(
+    mut query: Query<&mut TrustCredits>,
+) {
+    for mut t in &mut query {
+        t.0 *= 1.01;  // Eternal growth
+    }
+}
+
+fn lattice_expansion_system(
+    mut lattice: ResMut<LatticeStats>,
+    time: Res<Time>,
+) {
+    if rand::thread_rng().gen_bool(0.1 * time.delta_seconds() as f64) {
+        lattice.nodes += 1;
+        lattice.connections += 2;
+    }
+}
+
+fn player_movement_system() {
+    // WASD movement (stub)
 }
