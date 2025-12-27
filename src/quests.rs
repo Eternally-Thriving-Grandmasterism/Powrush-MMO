@@ -1,6 +1,13 @@
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub enum QuestSet {
+    Spawn,
+    Progress,
+    Reward,
+}
+
 #[derive(Component, Replicated)]
 pub struct Quest {
     pub name: String,
@@ -21,21 +28,21 @@ pub struct QuestPlugin;
 
 impl Plugin for QuestPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, quest_kind_reward_system);
+        app.configure_sets(Update, (
+            QuestSet::Spawn,
+            QuestSet::Progress.after(QuestSet::Spawn),
+            QuestSet::Reward.after(QuestSet::Progress),
+        ))
+        .add_systems(Update, (
+            quest_spawn_system.in_set(QuestSet::Spawn),
+            quest_progress_system.in_set(QuestSet::Progress),
+            quest_reward_system.in_set(QuestSet::Reward),
+        ));
     }
 }
 
-fn quest_kind_reward_system(
-    mut query: Query<&mut Quest>,
-) {
-    for mut quest in &mut query {
-        if quest.progress >= quest.goal {
-            match quest.kind {
-                QuestKind::Explore => quest.progress += 50.0,  // Trust
-                QuestKind::Share => quest.progress += 30.0,    // Mercy
-                QuestKind::MercyWave => quest.progress += 40.0, // Lattice
-                QuestKind::LatticeGrow => quest.progress += 60.0, // Guild
-            }
-        }
-    }
-}
+fn quest_spawn_system() { /* spawn logic */ }
+
+fn quest_progress_system() { /* progress logic */ }
+
+fn quest_reward_system() { /* reward logic */ }
