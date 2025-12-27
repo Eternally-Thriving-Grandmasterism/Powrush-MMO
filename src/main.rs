@@ -1,83 +1,110 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use bevy_replicon::prelude::*;
-use crate::core::mercy::MercyPlugin;
-use crate::plugins::world_plugin::WorldPlugin;
-use crate::systems::movement::player_movement_system;
+
+mod assets;
+mod chat;
+mod combat;
+mod housing;
+mod npc;
+mod quest;
+mod ui;
+mod voice;
+mod weather;
+mod world;
+
+use assets::AssetPlugin;
+use chat::ChatPlugin;
+use combat::CombatPlugin;
+use housing::HousingPlugin;
+use npc::NPCPlugin;
+use quest::QuestPlugin;
+use ui::UIPlugin;
+use voice::VoicePlugin;
+use weather::WeatherPlugin;
+use world::WorldPlugin;
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    {
+        console_error_panic_hook::set_once();
+        console_log::init_with_level(log::Level::Info).unwrap();
+    }
+
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Powrush-MMO — Ultimate Eternal".into(),
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Powrush-MMO — Eternal Thriving".into(),
+                    fit_canvas_to_parent: true,
+                    canvas: Some("#bevy-canvas".to_string()),
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
-        .add_plugins(AudioPlugin)
-        .add_plugins(RepliconPlugins)
-        .add_plugins(MercyPlugin)
-        .add_plugins(WorldPlugin)
+            AudioPlugin,
+            RepliconPlugins,
+            AssetPlugin,
+            WorldPlugin,
+            QuestPlugin,
+            HousingPlugin,
+            WeatherPlugin,
+            CombatPlugin,
+            NPCPlugin,
+            VoicePlugin,
+            ChatPlugin,
+            UIPlugin,
+        ))
+        .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
-        .add_systems(Update, player_movement_system)
+        .add_systems(Update, (
+            mercy_flow_system,
+            trust_multiplier_system,
+            lattice_expansion_system,
+            player_movement_system,
+            weather_cycle_system,
+            quest_progress_system,
+            quest_reward_system,
+            npc_ai_system,
+            voice_modulation_system,
+            chat_input_system,
+            chat_send_system,
+            chat_render_system,
+            ui_update_system,
+        ))
         .run();
 }
 
-fn setup(
-    mut commands: Commands,
-) {
-    commands.spawn((
-        Player,
-        Transform::from_xyz(0.0, 1.0, 0.0),
-        GlobalTransform::default(),
-        Velocity(Vec3::ZERO),
-        MercyShield(100.0),
-        TrustCredits(10.0),
-    ));
+#[derive(Resource, Default)]
+pub struct LatticeStats {
+    pub nodes: u32,
+    pub connections: u32,
+}
 
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
-
-    info!("Powrush-MMO — Eternal universe spawned");
-}fn setup(
-    mut commands: Commands,
-) {
+fn setup(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
     info!("Powrush-MMO — Mercy universe initialized");
 }
 
-fn mercy_flow_system(
-    mut trust: Query<&mut TrustCredits>,
-    time: Res<Time>,
-) {
-    for mut t in &mut trust {
-        t.0 += time.delta_seconds() * 0.1;
+fn mercy_flow_system(time: Res<Time>, mut lattice: ResMut<LatticeStats>) {
+    lattice.connections += (time.delta_seconds() * 10.0) as u32;
+}
+
+fn trust_multiplier_system(mut query: Query<&mut TrustCredits>) {
+    for mut t in &mut query {
+        t.0 *= 1.01;
     }
 }
 
 #[derive(Component)]
-struct TrustCredits(pub f32);
+pub struct TrustCredits(pub f32);
 
-fn trust_multiplier_system(
-    mut query: Query<&mut TrustCredits>,
-) {
-    for mut t in &mut query {
-        t.0 *= 1.01;  // Eternal growth
-    }
-}
-
-fn lattice_expansion_system(
-    mut lattice: ResMut<LatticeStats>,
-    time: Res<Time>,
-) {
+fn lattice_expansion_system(mut lattice: ResMut<LatticeStats>, time: Res<Time>) {
     if rand::thread_rng().gen_bool(0.1 * time.delta_seconds() as f64) {
         lattice.nodes += 1;
-        lattice.connections += 2;
     }
 }
 
 fn player_movement_system() {
-    // WASD movement (stub)
+    // WASD — stub for now
 }
