@@ -1,13 +1,22 @@
-// [Previous imports...]
-use crate::chat::{ChatPlugin, SendChatEvent, VoiceChatEvent};
+use bevy::prelude::*;
+use bevy_kira_audio::prelude::*;
+use rand::Rng;
+use crate::voice::VoicePlugin;  // New
+
+// [All previous components/systems unchanged]
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Powrush-MMO — Voice Thriving".into(),
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugins(AudioPlugin)
-        .add_plugins(ChatPlugin)  // Enhanced with voice/emote
-        .add_event::<SendChatEvent>()
-        .add_event::<VoiceChatEvent>()
+        .add_plugins(VoicePlugin)  // New
+        .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
             mercy_flow_system,
@@ -15,9 +24,7 @@ fn main() {
             lattice_expansion_system,
             spawn_particles_system,
             particle_update_system,
-            chat_input_system,
-            emote_system,
-            voice_chat_system,
+            // ... other systems
         ))
         .run();
 }
