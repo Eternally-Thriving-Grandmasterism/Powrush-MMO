@@ -5,50 +5,44 @@ pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, generate_biome_world);
+        app.add_systems(Startup, generate_enhanced_world);
     }
 }
 
-// Biome Generation Algorithm (Mercy-Style):
-// - Perlin: Base height (mountains/valleys)
-// - SuperSimplex: Moisture + temperature (slow scale)
-// - Rules:
-//   - Low height → Ocean (blue)
-//   - High moisture + warm → Forest (green)
-//   - Cold → Snow (white)
-//   - Dry → Desert (sand)
-// Infinite, seedable, mercy-balanced
-fn generate_biome_world(
+fn generate_enhanced_world(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let perlin = Perlin::new(42);
-    let simplex = SuperSimplex::new(43);
-    let size = 256;
+    let height = Perlin::new(42);
+    let moisture = SuperSimplex::new(43);
+    let temperature = SuperSimplex::new(44);
+    let size = 512;  // Larger world
 
     let mut vertices = Vec::new();
     let mut colors = Vec::new();
 
     for z in 0..size {
         for x in 0..size {
-            let nx = x as f64 / 50.0;
-            let nz = z as f64 / 50.0;
-            let height = perlin.get([nx, nz]) as f32 * 20.0 + 10.0;
-            let moisture = simplex.get([nx * 0.5, nz * 0.5]) as f32;
-            let temperature = simplex.get([nx * 0.3, nz * 0.3 + 100.0]) as f32;
+            let nx = x as f64 / 100.0;
+            let nz = z as f64 / 100.0;
+            let h = height.get([nx, nz]) as f32 * 30.0 + 15.0;
+            let m = (moisture.get([nx * 0.5, nz * 0.5]) + 1.0) / 2.0;
+            let t = (temperature.get([nx * 0.3, nz * 0.3 + 100.0]) + 1.0) / 2.0;
 
-            let color = if height < 5.0 {
-                Color::BLUE
-            } else if moisture > 0.5 && temperature > 0.0 {
-                Color::GREEN
-            } else if temperature < -0.5 {
-                Color::WHITE
+            let color = if h < 8.0 {
+                Color::rgb(0.0, 0.3, 0.8)  // Ocean
+            } else if m > 0.6 && t > 0.4 {
+                Color::rgb(0.0, 0.7, 0.0)  // Forest
+            } else if t < 0.3 {
+                Color::WHITE               // Snow
+            } else if m < 0.3 {
+                Color::rgb(0.9, 0.8, 0.4)  // Desert
             } else {
-                Color::rgb(0.8, 0.7, 0.4)
+                Color::rgb(0.6, 0.8, 0.4)  // Plains
             };
 
-            vertices.push([x as f32 - size as f32 / 2.0, height, z as f32 - size as f32 / 2.0]);
+            vertices.push([x as f32 - size as f32 / 2.0, h, z as f32 - size as f32 / 2.0]);
             colors.push([color.r(), color.g(), color.b()]);
         }
     }
@@ -71,4 +65,6 @@ fn generate_biome_world(
         material: materials.add(StandardMaterial::default()),
         ..default()
     });
+
+    info!("Enhanced world generated — 5 biomes, 512x512");
 }
