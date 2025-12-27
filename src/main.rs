@@ -7,12 +7,13 @@ use crate::inventory::InventoryPlugin;
 use crate::trading::TradingPlugin;
 use crate::auction::AuctionPlugin;
 use crate::quests::QuestPlugin;
+use crate::leveling::LevelingPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Quests Thriving".into(),
+                title: "Powrush-MMO — Leveling & Quests Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -24,7 +25,8 @@ fn main() {
         .add_plugins(InventoryPlugin)
         .add_plugins(TradingPlugin)
         .add_plugins(AuctionPlugin)
-        .add_plugins(QuestPlugin)  // New
+        .add_plugins(QuestPlugin)
+        .add_plugins(LevelingPlugin)  // New
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -48,6 +50,8 @@ fn main() {
             auction_timer_system,
             auction_ui_system,
             quest_progress_system,
+            quest_reward_system,
+            leveling_system,
         ))
         .run();
 }
