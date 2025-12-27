@@ -1,0 +1,8 @@
+node_modules/
+target/
+Library/
+Temp/
+Obj/
+Builds/
+*.csproj
+*.sln
