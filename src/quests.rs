@@ -25,17 +25,14 @@ pub struct QuestPlugin;
 
 impl Plugin for QuestPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, quest_spawn_system)
-           .add_systems(Update, (
-                quest_progress_system,
-                quest_reward_system,
-           ));
+        app.add_systems(Startup, spawn_initial_quests)
+           .add_systems(Update, (quest_progress_system, quest_reward_system));
     }
 }
 
-fn quest_spawn_system(
+fn spawn_initial_quests(
     mut commands: Commands,
-    players: Query<Entity, With<Player>>,
+    players: Query<Entity, Added<Player>>,
 ) {
     let mut rng = rand::thread_rng();
     for player in &players {
@@ -46,32 +43,30 @@ fn quest_spawn_system(
             3 => QuestKind::LatticeGrow,
             _ => QuestKind::Forgive,
         };
+        let goal = rng.gen_range(10.0..50.0);
         commands.entity(player).insert(Quest {
             name: format!("{:?} Quest", kind),
             kind,
             progress: 0.0,
-            goal: rng.gen_range(5.0..20.0),
+            goal,
             completed: false,
-            reward_mercy: rng.gen_range(20.0..100.0),
+            reward_mercy: goal * 3.0,
         });
     }
 }
 
 fn quest_progress_system(
     mut query: Query<&mut Quest>,
+    time: Res<Time>,
     combat_events: EventReader<CombatEvent>,
 ) {
     for mut quest in &mut query {
         if quest.completed { continue; }
 
-        match quest.kind {
-            QuestKind::MercyWave => {
-                quest.progress += combat_events.len() as f32 * 0.5;
-            }
-            QuestKind::Forgive => {
-                quest.progress += combat_events.len() as f32 * 1.0;
-            }
-            _ => {}
+        quest.progress += time.delta_seconds() * 0.2;
+
+        if matches!(quest.kind, QuestKind::MercyWave | QuestKind::Forgive) {
+            quest.progress += combat_events.len() as f32;
         }
 
         if quest.progress >= quest.goal {
@@ -86,8 +81,8 @@ fn quest_reward_system(
 ) {
     for quest in &query {
         if quest.completed {
-            if let Ok(mut player_trust) = trust.get_mut(quest.entity()) {
-                player_trust.0 += quest.reward_mercy;
+            if let Ok(mut t) = trust.get_mut(quest.entity()) {
+                t.0 += quest.reward_mercy;
             }
         }
     }
