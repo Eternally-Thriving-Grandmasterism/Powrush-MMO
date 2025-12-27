@@ -120,3 +120,37 @@ fn player_movement_system(
         trans.translation += dir.normalize_or_zero() * 5.0 * time.delta_seconds();
     }
 }
+fn mercy_flow_system(time: Res<Time>, mut lattice: ResMut<LatticeStats>) {
+    lattice.connections += (time.delta_seconds() * 10.0) as u32;
+}
+
+fn trust_multiplier_system(mut query: Query<&mut TrustCredits>) {
+    for mut t in &mut query {
+        t.0 *= 1.01;
+    }
+}
+
+#[derive(Component)]
+pub struct TrustCredits(pub f32);
+
+fn lattice_expansion_system(mut lattice: ResMut<LatticeStats>, time: Res<Time>) {
+    if rand::thread_rng().gen_bool(0.1 * time.delta_seconds() as f64) {
+        lattice.nodes += 1;
+    }
+}
+
+fn player_movement_system(
+    keyboard: Res<Input<KeyCode>>,
+    mut query: Query<&mut Transform, With<Player>>,
+    time: Res<Time>,
+) {
+    let mut dir = Vec3::ZERO;
+    if keyboard.pressed(KeyCode::W) { dir.z -= 1.0; }
+    if keyboard.pressed(KeyCode::S) { dir.z += 1.0; }
+    if keyboard.pressed(KeyCode::A) { dir.x -= 1.0; }
+    if keyboard.pressed(KeyCode::D) { dir.x += 1.0; }
+
+    for mut trans in &mut query {
+        trans.translation += dir.normalize_or_zero() * 5.0 * time.delta_seconds();
+    }
+}
