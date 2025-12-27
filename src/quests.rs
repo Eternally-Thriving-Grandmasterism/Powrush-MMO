@@ -1,12 +1,6 @@
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
-
-#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
-pub enum QuestSet {
-    Spawn,
-    Progress,
-    Reward,
-}
+use rand::Rng;
 
 #[derive(Component, Replicated)]
 pub struct Quest {
@@ -28,21 +22,42 @@ pub struct QuestPlugin;
 
 impl Plugin for QuestPlugin {
     fn build(&self, app: &mut App) {
-        app.configure_sets(Update, (
-            QuestSet::Spawn,
-            QuestSet::Progress.after(QuestSet::Spawn),
-            QuestSet::Reward.after(QuestSet::Progress),
-        ))
-        .add_systems(Update, (
-            quest_spawn_system.in_set(QuestSet::Spawn),
-            quest_progress_system.in_set(QuestSet::Progress),
-            quest_reward_system.in_set(QuestSet::Reward),
-        ));
+        app.add_systems(Startup, quest_spawn_system)
+           .add_systems(Update, quest_progress_system);
     }
 }
 
-fn quest_spawn_system() { /* spawn logic */ }
+fn quest_spawn_system(
+    mut commands: Commands,
+    players: Query<Entity, With<Player>>,
+) {
+    let mut rng = rand::thread_rng();
+    for player in &players {
+        let kind = match rng.gen_range(0..4) {
+            0 => QuestKind::Explore,
+            1 => QuestKind::Share,
+            2 => QuestKind::MercyWave,
+            _ => QuestKind::LatticeGrow,
+        };
+        commands.entity(player).insert(Quest {
+            name: format!("{:?} Quest", kind),
+            kind,
+            progress: 0.0,
+            goal: 10.0,
+        });
+        info!("Quest spawned — {:?}", kind);
+    }
+}
 
-fn quest_progress_system() { /* progress logic */ }
-
-fn quest_reward_system() { /* reward logic */ }
+fn quest_progress_system(
+    mut query: Query<&mut Quest>,
+    time: Res<Time>,
+) {
+    for mut quest in &mut query {
+        quest.progress += time.delta_seconds() * 0.2;
+        if quest.progress >= quest.goal {
+            quest.progress = quest.goal;
+            info!("Quest complete — mercy rewarded");
+        }
+    }
+}
