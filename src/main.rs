@@ -1,13 +1,13 @@
-// ... previous imports + lobby.rs
-use crate::lobby::LobbyPlugin;
+// [Previous imports...]
+use crate::chat::{ChatPlugin, SendChatEvent, VoiceChatEvent};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(AudioPlugin)
-        .add_plugins(MercyNetPlugin)
-        .add_plugins(LobbyPlugin)  // New
-        .insert_resource(LatticeStats::default())
+        .add_plugins(ChatPlugin)  // Enhanced with voice/emote
+        .add_event::<SendChatEvent>()
+        .add_event::<VoiceChatEvent>()
         .add_systems(Startup, setup)
         .add_systems(Update, (
             mercy_flow_system,
@@ -15,10 +15,9 @@ fn main() {
             lattice_expansion_system,
             spawn_particles_system,
             particle_update_system,
-            lobby_matchmake,
-            lobby_ready_system,
-            guild_alliance_system,
-            lobby_ui_visuals,
+            chat_input_system,
+            emote_system,
+            voice_chat_system,
         ))
         .run();
 }
