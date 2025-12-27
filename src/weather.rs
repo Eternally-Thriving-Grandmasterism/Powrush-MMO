@@ -1,18 +1,20 @@
 use bevy::prelude::*;
+use bevy_kira_audio::prelude::*;
 use rand::Rng;
 
 #[derive(Resource)]
 pub struct WorldWeather {
     pub kind: WeatherKind,
     pub timer: Timer,
+    pub intensity: f32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum WeatherKind {
     Clear,
-    MercyRain,   // +20% trust regen
-    LatticeStorm, // +50% lattice growth
-    GoldenSun,   // +30% item find
+    MercyRain,
+    LatticeStorm,
+    GoldenSun,
 }
 
 pub struct WeatherPlugin;
@@ -22,19 +24,17 @@ impl Plugin for WeatherPlugin {
         app.insert_resource(WorldWeather {
             kind: WeatherKind::Clear,
             timer: Timer::from_seconds(300.0, TimerMode::Once),
+            intensity: 0.0,
         })
-        .add_systems(Update, weather_cycle_system);
+        .add_systems(Update, (weather_cycle_system, weather_effects_system));
     }
 }
 
 fn weather_cycle_system(
     mut weather: ResMut<WorldWeather>,
     time: Res<Time>,
-    mut trust: Query<&mut TrustCredits>,
-    mut lattice: ResMut<LatticeStats>,
 ) {
     weather.timer.tick(time.delta());
-
     if weather.timer.finished() {
         let mut rng = rand::thread_rng();
         weather.kind = match rng.gen_range(0..4) {
@@ -43,24 +43,49 @@ fn weather_cycle_system(
             2 => WeatherKind::LatticeStorm,
             _ => WeatherKind::GoldenSun,
         };
+        weather.intensity = 1.0;
         weather.timer.reset();
+        info!("Weather changed — {:?}", weather.kind);
+    } else {
+        weather.intensity = 1.0 - weather.timer.percent();
+    }
+}
 
-        match weather.kind {
-            WeatherKind::MercyRain => {
-                for mut t in &mut trust {
-                    t.0 *= 1.2;
-                }
-                info!("Mercy Rain — trust flows");
+fn weather_effects_system(
+    weather: Res<WorldWeather>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
+) {
+    match weather.kind {
+        WeatherKind::MercyRain => {
+            // Rain particles + sound
+            if weather.intensity > 0.5 {
+                audio.play(asset_server.load("sounds/rain.ogg"));
             }
-            WeatherKind::LatticeStorm => {
-                lattice.nodes += 50;
-                lattice.connections += 100;
-                info!("Lattice Storm — connections bloom");
-            }
-            WeatherKind::GoldenSun => {
-                info!("Golden Sun — items shine");
-            }
-            WeatherKind::Clear => {}
         }
+        WeatherKind::LatticeStorm => {
+            // Lightning flash + lattice glow
+            commands.spawn(PointLightBundle {
+                point_light: PointLight {
+                    intensity: 10000.0 * weather.intensity,
+                    color: Color::CYAN,
+                    ..default()
+                },
+                ..default()
+            });
+        }
+        WeatherKind::GoldenSun => {
+            // Warm glow
+            commands.spawn(DirectionalLightBundle {
+                directional_light: DirectionalLight {
+                    illuminance: 50000.0 * weather.intensity,
+                    color: Color::rgb(1.0, 0.9, 0.7),
+                    ..default()
+                },
+                ..default()
+            });
+        }
+        WeatherKind::Clear => {}
     }
 }
