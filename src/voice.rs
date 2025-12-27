@@ -17,17 +17,17 @@ impl Plugin for VoicePlugin {
     }
 }
 
-// Advanced modulation — trust = pitch + clarity
+// Trust-based pitch + volume
 fn voice_modulation_system(
     mut audio: ResMut<Audio>,
-    players: Query<(&VoicePlayer, &Transform)>,
+    players: Query<(&VoicePlayer, &TrustCredits)>,
 ) {
-    for (voice, transform) in &players {
+    for (voice, trust) in &players {
         if voice.speaking {
-            let pitch = 1.0 + (voice.trust / 100.0);  // High trust = higher pitch
-            let volume = voice.trust / 100.0;
-            // Procedural voice (placeholder)
-            audio.play(/* mic input */).with_pitch(pitch).with_volume(volume);
+            let pitch = 0.8 + (trust.0 / 100.0);  // High trust = clearer/higher
+            let volume = trust.0 / 100.0;
+            // Placeholder — real mic input via cpal in production
+            audio.play(/* procedural mercy tone */).with_pitch(pitch).with_volume(volume);
         }
     }
 }
@@ -39,10 +39,10 @@ fn proximity_voice_system(
     let mut iter = players.iter_combinations();
     while let Some([(voice1, trans1), (voice2, trans2)]) = iter.fetch_next() {
         let dist = trans1.translation.distance(trans2.translation);
-        let volume = (50.0 - dist) / 50.0;  // 50m range
+        let volume = (30.0 - dist.clamp(0.0, 30.0)) / 30.0;  // 30m range
         if voice1.speaking {
-            // Adjust voice2 playback volume based on dist
-            // (pseudo — real with spatial audio)
+            // Adjust playback volume for voice2
+            // (real: spatial sink volume)
         }
     }
 }
