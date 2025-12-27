@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::ecs::ECSPlugin;
-use crate::world::WorldPlugin;
+use crate::weather::WeatherPlugin;
+use crate::npc::NPCPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Archetypes & World".into(),
+                title: "Powrush-MMO — Weather & NPCs Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -33,7 +33,7 @@ fn main() {
         .add_plugins(WorldPlugin)
         .add_plugins(HousingPlugin)
         .add_plugins(WeatherPlugin)
-        .add_plugins(ECSPlugin)
+        .add_plugins(NPCPlugin)
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -76,7 +76,8 @@ fn main() {
             housing_spawn_system,
             housing_bonus_system,
             weather_cycle_system,
-            hot_component_system,
+            weather_effects_system,
+            npc_ai_system,
         ))
         .run();
 }
