@@ -89,6 +89,14 @@ fn main() {
             cross_chain_mercy,
         ))
         .run();
+}            npc_mercy_system,
+            procedural_quest_generation,
+            dialogue_interaction_system,
+            mercy_mint_system,
+            token_redemption_system,
+            cross_chain_mercy,
+        ))
+        .run();
 }            dialogue_interaction_system,
             mercy_mint_system,
         ))
