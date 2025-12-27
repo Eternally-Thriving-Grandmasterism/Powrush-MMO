@@ -17,4 +17,20 @@ impl Plugin for CombatPlugin {
     }
 }
 
-fn combat
+fn combat_system(
+    mouse: Res<Input<MouseButton>>,
+    mut events: EventWriter<CombatEvent>,
+    players: Query<(Entity, &Transform)>,
+) {
+    if mouse.just_pressed(MouseButton::Left) {
+        // Simple duel trigger
+        if let Ok((attacker, _)) = players.get_single() {
+            // Target logic stub
+            events.send(CombatEvent {
+                attacker,
+                target: attacker, // placeholder
+                mercy_forgiven: true,
+            });
+        }
+    }
+}
