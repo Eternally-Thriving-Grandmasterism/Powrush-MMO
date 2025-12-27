@@ -9,7 +9,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Inventory UI Thriving".into(),
+                title: "Powrush-MMO — Item Interaction Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -35,7 +35,7 @@ fn main() {
             inventory_capacity_system,
             item_decay_system,
             item_generation_system,
-            item_ui_render_system,
+            item_interaction_system,
         ))
         .run();
 }
