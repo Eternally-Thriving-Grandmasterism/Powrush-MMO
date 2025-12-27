@@ -45,7 +45,6 @@ fn housing_spawn_system(
                     HomeStyle::FloatingIsland => 1.25,
                 },
             });
-            info!("Home built — {:?}", style);
         }
     }
 }
