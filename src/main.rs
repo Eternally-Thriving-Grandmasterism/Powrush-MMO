@@ -44,16 +44,16 @@ enum ErrorSeverity {
 }
 
 #[derive(Component)]
-struct ErrorVisualization {
-    timer: Timer,
-}
-
-#[derive(Component)]
 struct MercyParticle {
     lifetime: Timer,
     velocity: Vec3,
     radius: f32,
     color: Color,
+}
+
+#[derive(Component)]
+struct ErrorVisualization {
+    timer: Timer,
 }
 
 // === RESOURCES ===
@@ -65,9 +65,7 @@ struct LatticeStats {
 
 #[derive(Resource)]
 struct MercySounds {
-    warning_chime: Handle<AudioSource>,
-    critical_hum: Handle<AudioSource>,
-    mercy_wave: Handle<AudioSource>,
+    chime: Handle<AudioSource>,
 }
 
 // === SYSTEMS ===
@@ -85,41 +83,10 @@ fn setup(
         LatticeNode(0),
     ));
 
-    // Spawn guild
-    let guild_entity = commands.spawn((
-        GuildId(1),
-        GuildResources(0.0),
-        GuildTrust(1.0),
-    )).id();
-
     commands.insert_resource(LatticeStats::default());
 
-    // Procedural sound placeholders (or load if assets exist)
     commands.insert_resource(MercySounds {
-        warning_chime: asset_server.load("sounds/warning_chime.ogg"),
-        critical_hum: asset_server.load("sounds/critical_hum.ogg"),
-        mercy_wave: asset_server.load("sounds/mercy_wave.ogg"),
-    });
-}
-
-fn mercy_flow_system(
-    mut query: Query<(&Need, &mut Mercy        LatticeNode(0),
-    ));
-
-    // Spawn guild
-    let guild_entity = commands.spawn((
-        GuildId(1),
-        GuildResources(0.0),
-        GuildTrust(1.0),
-    )).id();
-
-    commands.insert_resource(LatticeStats::default());
-
-    // Load sounds (fallback procedural if missing)
-    commands.insert_resource(MercySounds {
-        warning_chime: asset_server.load("sounds/warning_chime.ogg"),
-        critical_hum: asset_server.load("sounds/critical_hum.ogg"),
-        mercy_wave: asset_server.load("sounds/mercy_wave.ogg"),
+        chime: asset_server.load("sounds/chime.ogg"),
     });
 }
 
@@ -130,7 +97,7 @@ fn mercy_flow_system(
     for (need, mut mp) in &mut query {
         let alloc = (need.0 * time.delta_seconds()).min(mp.0);
         mp.0 -= alloc;
-        info!("Mercy Flow: Allocated {:.2}", alloc);
+        info!("Mercy allocated: {:.2}", alloc);
     }
 }
 
@@ -140,120 +107,57 @@ fn trust_multiplier_system(mut query: Query<&mut TrustCredits>) {
     }
 }
 
-fn guild_contribute_system(
-    mut guild_query: Query<(&GuildId, &mut GuildResources)>,
-    player_query: Query<(&MemberOf, &MercyPoints)>,
-    time: Res<Time>,
-) {
-    for (member_of, mp) in player_query.iter() {
-        if let Ok((_, mut resources)) = guild_query.get_mut(member_of.0.0 as Entity) {
-            let contrib = mp.0 * 0.1 * time.delta_seconds();
-            resources.0 += contrib;
-            info!("Guild contrib +{:.2}", contrib);
-        }
-    }
-}
-
 fn lattice_expansion_system(
     mut stats: ResMut<LatticeStats>,
-    new_nodes: Query<&LatticeNode, Added<LatticeNode>>,
-    new_connections: Query<&LatticeConnection, Added<LatticeConnection>>,
+    time: Res<Time>,
 ) {
-    let nodes = new_nodes.iter().count();
-    let conns = new_connections.iter().count();
-    if nodes > 0 || conns > 0 {
-        stats.nodes += nodes;
-        stats.connections += conns;
-        info!("Lattice +{} nodes, +{} connections (total {}/{})", nodes, conns, stats.nodes, stats.connections);
-    }
+    stats.nodes += 1;
+    info!("Lattice node #{}", stats.nodes);
 }
 
-fn lattice_error_system(
+fn spawn_particles_system(
     mut commands: Commands,
-    query: Query<&LatticeNode>,
+    time: Res<Time>,
 ) {
-    if query.iter().count() == 0 {
-        error!("Lattice collapsed — zero nodes");
-        commands.spawn(LatticeError {
-            message: "Zero nodes".to_string(),
-            severity: ErrorSeverity::Critical,
-            attempts: 0,
-        });
-    }
-}
-
-fn lattice_recovery_system(
-    mut commands: Commands,
-    mut errors: Query<(Entity, &mut LatticeError)>,
-    mut stats: ResMut<LatticeStats>,
-) {
-    for (entity, mut error) in errors.iter_mut() {
-        error.attempts += 1;
-        match error.severity {
-            ErrorSeverity::Critical if error.message.contains("Zero") => {
-                commands.spawn(LatticeNode(stats.nodes as u64 + 1));
-                stats.nodes += 1;
-                info!("Mercy recovery: Emergency node spawned");
-            }
-            _ => {}
-        }
-        if error.attempts >= 3 {
-            commands.entity(entity).despawn();
-            info!("Error forgiven");
-        }
-    }
-}
-
-fn spawn_error_viz_system(
-    mut commands: Commands,
-    errors: Query<&LatticeError, Added<LatticeError>>,
-) {
-    for error in &errors {
+    let mut rng = rand::thread_rng();
+    for _ in 0..20 {
+        let angle = rng.gen_range(0.0..std::f32::consts::PI * 2.0);
+        let speed = rng.gen_range(50.0..150.0);
         commands.spawn((
-            ErrorVisualization { timer: Timer::from_seconds(5.0, TimerMode::Once) },
-            TextBundle::from_section(
-                &error.message,
-                TextStyle { font_size: 40.0, color: Color::RED, ..default() },
-            )
-            .with_style(Style {
-                position_type: PositionType::Absolute,
-                top: Val::Px(100.0),
-                left: Val::Px(100.0),
+            MercyParticle {
+                lifetime: Timer::from_seconds(1.5, TimerMode::Once),
+                velocity: Vec3::new(angle.cos() * speed, angle.sin() * speed, 0.0),
+                radius: rng.gen_range(4.0..12.0),
+                color: Color::CYAN,
+            },
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::CYAN,
+                    custom_size: Some(Vec2::splat(10.0)),
+                    ..default()
+                },
                 ..default()
-            }),
+            },
         ));
     }
 }
 
-fn update_error_viz_system(
+fn particle_update_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut viz: Query<(Entity, &mut ErrorVisualization, &mut Text)>,
+    mut particles: Query<(Entity, &mut MercyParticle, &mut Transform)>,
 ) {
-    for (entity, mut viz, mut text) in viz.iter_mut() {
-        viz.timer.tick(time.delta());
-        let alpha = viz.timer.percent_left();
-        text.sections[0].style.color = text.sections[0].style.color.with_a(alpha);
-        if viz.timer.finished() {
-            commands.entity(entity).despawn_recursive();
-        }
-    }
-}
+    for (entity, mut particle, mut transform) in particles.iter_mut() {
+        particle.lifetime.tick(time.delta());
 
-fn play_sound_system(
-    mut commands: Commands,
-    sounds: Res<MercySounds>,
-    errors: Query<&LatticeError, Added<LatticeError>>,
-) {
-    for error in &errors {
-        let sound = match error.severity {
-            ErrorSeverity::Warning => sounds.warning_chime.clone(),
-            ErrorSeverity::Critical => sounds.critical_hum.clone(),
-        };
-        commands.spawn(AudioBundle {
-            source: sound,
-            settings: PlaybackSettings::ONCE,
-        });
+        transform.translation += particle.velocity * time.delta_seconds();
+
+        let life = particle.lifetime.percent_left();
+        transform.scale = Vec3::splat(life * 1.5);
+
+        if particle.lifetime.finished() {
+            commands.entity(entity).despawn();
+        }
     }
 }
 
@@ -272,13 +176,9 @@ fn main() {
         .add_systems(Update, (
             mercy_flow_system,
             trust_multiplier_system,
-            guild_contribute_system,
             lattice_expansion_system,
-            lattice_error_system,
-            lattice_recovery_system,
-            spawn_error_viz_system,
-            update_error_viz_system,
-            play_sound_system,
+            spawn_particles_system,
+            particle_update_system,
         ))
         .run();
 }
