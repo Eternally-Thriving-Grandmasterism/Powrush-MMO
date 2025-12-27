@@ -38,7 +38,7 @@ impl Plugin for InventoryPlugin {
             inventory_capacity_system,
             item_decay_system,
             item_generation_system,
-            trading_system,
+            item_ui_render_system,
         ));
     }
 }
@@ -69,7 +69,7 @@ fn item_generation_system(
 ) {
     let mut rng = rand::thread_rng();
     for mut inv in &mut query {
-        if inv.items.len() < inv.capacity && rng.gen_bool(0.1 * time.delta_seconds()) {
+        if inv.items.len() < inv.capacity && rng.gen_bool(0.05 * time.delta_seconds()) {
             let item = Item {
                 id: rng.gen(),
                 name: format!("Mercy Crystal {}", rng.gen_range(1..100)),
@@ -82,29 +82,43 @@ fn item_generation_system(
                 mercy_value: rng.gen_range(5.0..50.0),
             };
             inv.items.push(item);
-            info!("Generated item: {:?} ({:?})", item.name, item.rarity);
         }
     }
 }
 
-fn trading_system(
-    mut query: Query<&mut Inventory>,
-    events: EventReader<TradeEvent>,
+fn item_ui_render_system(
+    mut commands: Commands,
+    query: Query<&Inventory>,
 ) {
-    for event in events.read() {
-        if let Ok(mut inv1) = query.get_mut(event.player1) {
-            if let Ok(mut inv2) = query.get_mut(event.player2) {
-                if let Some(item) = inv1.items.pop() {
-                    inv2.items.push(item.clone());
-                    info!("Trade complete — item moved");
-                }
+    commands.spawn(NodeBundle {
+        style: Style {
+            position_type: PositionType::Absolute,
+            right: Val::Px(20.0),
+            top: Val::Px(20.0),
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+        background_color: BackgroundColor(Color::rgba(0.1, 0.1, 0.2, 0.8)),
+        ..default()
+    }).with_children(|parent| {
+        parent.spawn(TextBundle::from_section(
+            "Inventory",
+            TextStyle { font_size: 32.0, color: Color::GOLD, ..default() },
+        ));
+
+        if let Ok(inv) = query.get_single() {
+            for item in &inv.items {
+                let color = match item.rarity {
+                    Rarity::Common => Color::WHITE,
+                    Rarity::Rare => Color::GREEN,
+                    Rarity::Epic => Color::PURPLE,
+                    Rarity::Legendary => Color::GOLD,
+                };
+                parent.spawn(TextBundle::from_section(
+                    format!("{} ({:?}) — {:.1}", item.name, item.rarity, item.mercy_value),
+                    TextStyle { font_size: 20.0, color, ..default() },
+                ));
             }
         }
-    }
-}
-
-#[derive(Event)]
-pub struct TradeEvent {
-    pub player1: Entity,
-    pub player2: Entity,
+    });
 }
