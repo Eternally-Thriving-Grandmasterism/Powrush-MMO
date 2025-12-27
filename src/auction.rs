@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
+use rand::Rng;
 
 #[derive(Event, Replicated)]
 pub struct BidEvent {
@@ -15,6 +16,7 @@ pub struct Auction {
     pub current_bid: f32,
     pub highest_bidder: Option<Entity>,
     pub timer: Timer,
+    pub min_increment: f32,
 }
 
 pub struct AuctionPlugin;
@@ -22,7 +24,7 @@ pub struct AuctionPlugin;
 impl Plugin for AuctionPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<BidEvent>()
-           .add_systems(Update, (auction_bid_system, auction_timer_system));
+           .add_systems(Update, (auction_bid_system, auction_timer_system, auction_ui_system));
     }
 }
 
@@ -33,13 +35,16 @@ fn auction_bid_system(
 ) {
     for event in events.read() {
         if let Ok(mut auction) = auctions.get_mut(event.auction_id as Entity) {
-            if event.amount > auction.current_bid {
+            let required = auction.current_bid + auction.min_increment;
+            if event.amount >= required {
                 auction.current_bid = event.amount;
                 auction.highest_bidder = Some(event.bidder);
                 if let Ok(mut bidder_trust) = trust.get_mut(event.bidder) {
                     bidder_trust.0 *= 1.05;  // Mercy for fair bid
                 }
-                info!("New bid: {:.2} MP — auction thriving", event.amount);
+                info!("Bid accepted — new high: {:.2} MP", event.amount);
+            } else {
+                info!("Bid too low — need {:.2}", required);
             }
         }
     }
@@ -60,4 +65,32 @@ fn auction_timer_system(
             commands.entity(entity).despawn();
         }
     }
+}
+
+fn auction_ui_system(
+    mut commands: Commands,
+    auctions: Query<&Auction>,
+) {
+    commands.spawn(NodeBundle {
+        style: Style {
+            position_type: PositionType::Absolute,
+            right: Val::Px(20.0),
+            bottom: Val::Px(20.0),
+            ..default()
+        },
+        background_color: BackgroundColor(Color::rgba(0.1, 0.1, 0.2, 0.9)),
+        ..default()
+    }).with_children(|parent| {
+        parent.spawn(TextBundle::from_section(
+            "Auction House",
+            TextStyle { font_size: 36.0, color: Color::GOLD, ..default() },
+        ));
+
+        for auction in auctions.iter() {
+            parent.spawn(TextBundle::from_section(
+                format!("{} — Current: {:.2}", auction.item.name, auction.current_bid),
+                TextStyle { font_size: 24.0, color: Color::CYAN, ..default() },
+            ));
+        }
+    });
 }
