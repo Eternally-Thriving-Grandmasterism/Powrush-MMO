@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::weather::WeatherPlugin;
 use crate::npc::NPCPlugin;
+use crate::quests::QuestPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Weather & NPCs Thriving".into(),
+                title = "Powrush-MMO — NPCs & Quests Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -76,8 +76,9 @@ fn main() {
             housing_spawn_system,
             housing_bonus_system,
             weather_cycle_system,
-            weather_effects_system,
             npc_ai_system,
+            npc_mercy_system,
+            procedural_quest_generation,
         ))
         .run();
 }
