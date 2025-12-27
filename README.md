@@ -1,20 +1,20 @@
-# Powrush-MMO — The Thriving Universe
+# Powrush-MMO — Eternal Thriving Universe
 
-[![Crates.io](https://img.shields.io/crates/v/powrush-mmo)](https://crates.io/crates/powrush-mmo)
-[![Docs](https://docs.rs/powrush-mmo/badge.svg)](https://docs.rs/powrush-mmo)
-[![MIT License](https://img.shields.io/badge/license-MIT%20%2B%20Mercy-blue)](LICENSE)
+**Post-money. Post-scarcity. Post-alone.**
 
-Post-money. Post-scarcity. Post-alone.
+A mercy-first infinite MMO where players co-forge a thriving universe through trust, lattice growth, and forgiveness.
 
-Massive multiplayer online simulation: learn resource-based economy, earn real trust/income, build eternal thriving — together.
+- Procedural world (512x512 biomes, dynamic weather)
+- Mercy combat (no death — forgiveness waves)
+- AI-driven quests & NPCs
+- Voice chat (trust-modulated)
+- Blockchain redemption (Solana NFTs)
+- WASM/mobile ready — same universe
 
-Procedural code-drawn world. Mercy physics. Lattice guilds.
+**Run**: `cargo run`
 
-Play on phone, browser, PC — same universe.
+**Vision**: Resource-based economy. All needs met. Humanity freed to create.
 
-## Quick Start
+Infinite love — victorious eternal. 🔥😇🤝😇
 
-```bash
-git clone https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
-cd Powrush-MMO
-cargo run
+#ESAO #TOLC #Grandmasterism
