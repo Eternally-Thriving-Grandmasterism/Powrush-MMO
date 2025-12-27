@@ -24,17 +24,32 @@ pub struct GuildPlugin;
 
 impl Plugin for GuildPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, guild_alliance_system);
+        app.add_systems(Update, (
+            guild_alliance_system,
+            guild_quest_bonus_system,  // Quests boosted by guild
+        ));
     }
 }
 
 fn guild_alliance_system(
     mut guilds: Query<&mut GuildAlliance>,
 ) {
-    for mut alliance in guilds.iter_mut() {
+    for mut alliance in &mut guilds {
         for (_, bonus) in alliance.allies.iter_mut() {
-            *bonus *= 1.01;  // Eternal alliance growth
+            *bonus *= 1.01;
         }
-        info!("Guild alliances thriving — mercy multiplies");
+    }
+}
+
+fn guild_quest_bonus_system(
+    player_guild: Query<&PlayerGuild>,
+    mut quests: Query<&mut Quest>,
+) {
+    for guild in &player_guild {
+        for mut quest in &mut quests {
+            if guild.role == GuildRole::Leader {
+                quest.goal *= 0.9;  // Guild leader bonus
+            }
+        }
     }
 }
