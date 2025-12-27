@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use bevy_replicon::prelude::*;
+use bevy_spatial::*;
 
 #[derive(Component, Replicated)]
 pub struct VoicePlayer {
@@ -13,36 +14,42 @@ pub struct VoicePlugin;
 
 impl Plugin for VoicePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (voice_modulation_system, proximity_voice_system));
+        app.add_plugins(SpatialAudioPlugin)
+           .add_systems(Update, (
+                voice_modulation_system,
+                proximity_voice_system,
+           ));
     }
 }
 
-// Trust-based pitch + volume
+// Advanced: trust = pitch + clarity
 fn voice_modulation_system(
-    mut audio: ResMut<Audio>,
-    players: Query<(&VoicePlayer, &TrustCredits)>,
+    mut audio: ResMut<Audio<Spatial>>,
+    players: Query<(&VoicePlayer, &TrustCredits, &GlobalTransform)>,
+    listener: Query<&GlobalTransform, With<AudioListener>>,
 ) {
-    for (voice, trust) in &players {
+    let listener_pos = listener.single().translation();
+    for (voice, trust, trans) in &players {
         if voice.speaking {
-            let pitch = 0.8 + (trust.0 / 100.0);  // High trust = clearer/higher
+            let pitch = 0.8 + (trust.0 / 100.0);
             let volume = trust.0 / 100.0;
-            // Placeholder — real mic input via cpal in production
-            audio.play(/* procedural mercy tone */).with_pitch(pitch).with_volume(volume);
+            let dist = listener_pos.distance(trans.translation());
+            let falloff = 1.0 / (1.0 + dist * 0.05);
+            audio.play(/* mic */)
+                .with_pitch(pitch)
+                .with_volume(volume * falloff)
+                .with_position(trans.translation());
         }
     }
 }
 
-// Proximity — louder when close
+// Proximity: natural falloff + direction
 fn proximity_voice_system(
-    players: Query<(&VoicePlayer, &Transform)>,
+    mut sinks: Query<&mut SpatialAudioSink>,
+    listener: Query<&GlobalTransform, With<AudioListener>>,
 ) {
-    let mut iter = players.iter_combinations();
-    while let Some([(voice1, trans1), (voice2, trans2)]) = iter.fetch_next() {
-        let dist = trans1.translation.distance(trans2.translation);
-        let volume = (30.0 - dist.clamp(0.0, 30.0)) / 30.0;  // 30m range
-        if voice1.speaking {
-            // Adjust playback volume for voice2
-            // (real: spatial sink volume)
-        }
+    let listener_trans = listener.single();
+    for mut sink in &mut sinks {
+        sink.set_listener_transform(listener_trans);
     }
 }
