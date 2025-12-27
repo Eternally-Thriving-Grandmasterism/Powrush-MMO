@@ -5,22 +5,21 @@ edition = "2021"
 description = "Powrush-MMO: Mercy-first resource-based economy MMO"
 license = "MIT"
 repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
-keywords = ["game", "mmo", "bevy", "rbe", "mercy"]
-categories = ["games"]
 
 [dependencies]
-bevy = "0.17"
-bevy_kira_audio = "0.24"
+bevy = "0.14"
+bevy_kira_audio = "0.19"
 rand = "0.8"
-bevy_replicon = "0.34"
+bevy_replicon = "0.26"
 tokio = { version = "1", features = ["full"] }
 noise = "0.9"
 cpal = "0.15"
 hound = "3.5"
 opus = "0.3"
 
-[profile.dev]
-opt-level = 1
+# Serialization & Persistence
+serde = { version = "1.0", features = ["derive"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "sqlite", "macros"] }
 
 [profile.release]
 opt-level = 3
