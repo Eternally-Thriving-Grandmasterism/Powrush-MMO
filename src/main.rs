@@ -1,14 +1,22 @@
 use bevy::prelude::*;
-use bevy_kira_audio::prelude::*;
-use rand::Rng;
-use crate::hud::HUDPlugin;
-use crate::sound::SoundPlugin;
+use wasm_bindgen::prelude::*;
+
+#[cfg(target_arch = "wasm32")]
+use console_error_panic_hook::set_once;
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    {
+        set_once();
+        console_log::init_with_level(log::Level::Info).unwrap();
+    }
+
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title = "Powrush-MMO — Ultimate Eternal".into(),
+                title: "Powrush-MMO — Mercy Eternal".into(),
+                canvas: Some("#bevy-canvas".to_string()),
+                fit_canvas_to_parent: true,
                 ..default()
             }),
             ..default()
@@ -82,6 +90,18 @@ fn main() {
             housing_spawn_system,
             housing_bonus_system,
             weather_cycle_system,
+            npc_ai_system,
+            npc_mercy_system,
+            procedural_quest_generation,
+            dialogue_interaction_system,
+            mercy_mint_system,
+            token_redemption_system,
+            cross_chain_mercy,
+            minimap_hud_system,
+            procedural_sound_system,
+        ))
+        .run();
+}            weather_cycle_system,
             npc_ai_system,
             npc_mercy_system,
             procedural_quest_generation,
