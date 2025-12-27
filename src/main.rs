@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::world::WorldPlugin;  // New
+use crate::world::WorldPlugin;
+use crate::net::MMONetPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — World Generated".into(),
+                title: "Powrush-MMO — Biomes & Sync".into(),
                 ..default()
             }),
             ..default()
@@ -29,7 +30,7 @@ fn main() {
         .add_plugins(MovementPlugin)
         .add_plugins(CombatPlugin)
         .add_plugins(BossPlugin)
-        .add_plugins(WorldPlugin)  // New
+        .add_plugins(WorldPlugin)
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
