@@ -13,3 +13,4 @@ noise = "0.9"
 cpal = "0.15"
 hound = "3.5"
 opus = "0.3"
+egui = "0.27"  # Emoji picker UI
