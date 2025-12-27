@@ -14,3 +14,4 @@ cpal = "0.15"
 hound = "3.5"
 opus = "0.3"
 egui = "0.27"
+bevy_spatial = "0.5"  # Spatial audio
