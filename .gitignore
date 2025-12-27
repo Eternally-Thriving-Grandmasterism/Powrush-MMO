@@ -1,8 +1,19 @@
-node_modules/
+# Rust
 target/
+Cargo.lock
+
+# Node
+node_modules/
+npm-debug.log
+
+# Unity/Unreal leftovers
 Library/
 Temp/
 Obj/
 Builds/
 *.csproj
 *.sln
+
+# OS
+.DS_Store
+Thumbs.db
