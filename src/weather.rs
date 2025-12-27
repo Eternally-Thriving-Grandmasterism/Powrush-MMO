@@ -11,7 +11,7 @@ pub struct WorldWeather {
 pub enum WeatherKind {
     Clear,
     MercyRain,   // +20% trust regen
-    LatticeStorm, // +50% connection speed
+    LatticeStorm, // +50% lattice growth
     GoldenSun,   // +30% item find
 }
 
@@ -31,8 +31,10 @@ fn weather_cycle_system(
     mut weather: ResMut<WorldWeather>,
     time: Res<Time>,
     mut trust: Query<&mut TrustCredits>,
+    mut lattice: ResMut<LatticeStats>,
 ) {
     weather.timer.tick(time.delta());
+
     if weather.timer.finished() {
         let mut rng = rand::thread_rng();
         weather.kind = match rng.gen_range(0..4) {
@@ -48,9 +50,17 @@ fn weather_cycle_system(
                 for mut t in &mut trust {
                     t.0 *= 1.2;
                 }
+                info!("Mercy Rain — trust flows");
             }
-            _ => {}
+            WeatherKind::LatticeStorm => {
+                lattice.nodes += 50;
+                lattice.connections += 100;
+                info!("Lattice Storm — connections bloom");
+            }
+            WeatherKind::GoldenSun => {
+                info!("Golden Sun — items shine");
+            }
+            WeatherKind::Clear => {}
         }
-        info!("Weather changed — {:?}", weather.kind);
     }
 }
