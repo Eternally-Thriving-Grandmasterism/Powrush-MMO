@@ -7,6 +7,6 @@ edition = "2021"
 bevy = "0.14"
 bevy_kira_audio = "0.19"
 rand = "0.8"
-bevy_replicon = "0.26"
+bevy_replicon = "0.26"  // Lobby multiplayer
 tokio = { version = "1", features = ["full"] }
 noise = "0.9"
