@@ -13,10 +13,3 @@ noise = "0.9"
 cpal = "0.15"
 hound = "3.5"
 opus = "0.3"
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
