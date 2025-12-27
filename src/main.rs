@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::log::{info, warn, error};
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
 
@@ -50,12 +49,11 @@ struct ErrorVisualization {
 }
 
 #[derive(Component)]
-struct TooltipTrigger;
-
-#[derive(Component)]
-struct TooltipAnimation {
-    timer: Timer,
-    pulse_timer: Timer,
+struct MercyParticle {
+    lifetime: Timer,
+    velocity: Vec3,
+    radius: f32,
+    color: Color,
 }
 
 // === RESOURCES ===
@@ -73,7 +71,10 @@ struct MercySounds {
 }
 
 // === SYSTEMS ===
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
     commands.spawn(Camera2dBundle::default());
 
     // Spawn player
@@ -82,6 +83,27 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Need(50.0),
         TrustCredits(1.0),
         LatticeNode(0),
+    ));
+
+    // Spawn guild
+    let guild_entity = commands.spawn((
+        GuildId(1),
+        GuildResources(0.0),
+        GuildTrust(1.0),
+    )).id();
+
+    commands.insert_resource(LatticeStats::default());
+
+    // Procedural sound placeholders (or load if assets exist)
+    commands.insert_resource(MercySounds {
+        warning_chime: asset_server.load("sounds/warning_chime.ogg"),
+        critical_hum: asset_server.load("sounds/critical_hum.ogg"),
+        mercy_wave: asset_server.load("sounds/mercy_wave.ogg"),
+    });
+}
+
+fn mercy_flow_system(
+    mut query: Query<(&Need, &mut Mercy        LatticeNode(0),
     ));
 
     // Spawn guild
