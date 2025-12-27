@@ -1,0 +1,9 @@
+[package]
+name = "powrush_mmo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.14", features = ["dynamic_linking"] }
+bevy_kira_audio = "0.19"
+rand = "0.8"
