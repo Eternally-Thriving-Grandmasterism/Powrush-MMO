@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::voice::VoicePlugin;
-use crate::chat::ChatPlugin;
+use crate::emote::EmotePlugin;
+use crate::nft::NFTPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title = "Powrush-MMO — Voice & Proximity Thriving".into(),
+                title = "Powrush-MMO — Emotes & NFTs Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -33,29 +33,62 @@ fn main() {
         .add_plugins(WorldPlugin)
         .add_plugins(HousingPlugin)
         .add_plugins(WeatherPlugin)
+        .add_plugins(NPCPlugin)
+        .add_plugins(DialoguePlugin)
+        .add_plugins(BlockchainPlugin)
+        .add_plugins(RedemptionPlugin)
+        .add_plugins(PolkadotPlugin)
+        .add_plugins(NFTPlugin)
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
             mercy_flow_system,
             trust_multiplier_system,
-            lattice_expansion            npc_mercy_system,
+            lattice_expansion_system,
+            spawn_particles_system,
+            particle_update_system,
+            emote_input_system,
+            emote_sync_system,
+            emote_audio_system,
+            chat_input_system,
+            chat_send_system,
+            chat_render_system,
+            voice_modulation_system,
+            proximity_voice_system,
+            proximity_chat_filter,
+            inventory_capacity_system,
+            item_decay_system,
+            item_generation_system,
+            item_interaction_system,
+            trade_request_system,
+            trade_accept_system,
+            auction_bid_system,
+            auction_timer_system,
+            auction_ui_system,
+            quest_progress_system,
+            quest_reward_system,
+            leveling_system,
+            guild_alliance_system,
+            guild_quest_bonus_system,
+            arena_duel_system,
+            spawn_world_event_system,
+            world_event_effect_system,
+            player_movement_system,
+            combat_attack_system,
+            mercy_shield_system,
+            boss_phase_system,
+            boss_phase_effects,
+            housing_spawn_system,
+            housing_bonus_system,
+            weather_cycle_system,
+            npc_ai_system,
+            npc_mercy_system,
             procedural_quest_generation,
             dialogue_interaction_system,
             mercy_mint_system,
             token_redemption_system,
             cross_chain_mercy,
-        ))
-        .run();
-}            npc_mercy_system,
-            procedural_quest_generation,
-            dialogue_interaction_system,
-            mercy_mint_system,
-            token_redemption_system,
-            cross_chain_mercy,
-        ))
-        .run();
-}            dialogue_interaction_system,
-            mercy_mint_system,
+            nft_mint_system,
         ))
         .run();
 }
