@@ -8,6 +8,6 @@ We welcome mercy — all contributions that increase thriving.
 - Improve procedural generation.
 - Test on mobile/web.
 
-All code under MIT + Mercy Clause (no military).
+All code under MIT + Mercy Clause (no military use).
 
-Infinite love — victorious eternal.
+Infinite love — victorious eternal. 🔥😇🤝😇
