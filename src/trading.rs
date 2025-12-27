@@ -1,87 +1,45 @@
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
-use rand::Rng;
 
 #[derive(Event, Replicated)]
-pub struct TradeRequest {
+pub struct PlayerTradeEvent {
     pub from: Entity,
     pub to: Entity,
-    pub item_from: Item,
-}
-
-#[derive(Event, Replicated)]
-pub struct TradeAccept {
-    pub trade_id: u64,
-    pub item_to: Item,
-}
-
-#[derive(Event, Replicated)]
-pub struct AuctionList {
     pub item: Item,
-    pub starting_price: f32,
-    pub duration: Timer,
 }
-
-#[derive(Component)]
-pub struct PendingTrade {
-    pub trade_id: u64,
-    pub other_player: Entity,
-    pub offered_item: Item,
-}
-
-#[derive(Component)]
-pub struct AuctionHouse;
 
 pub struct TradingPlugin;
 
 impl Plugin for TradingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<TradeRequest>()
-           .add_event::<TradeAccept>()
-           .add_event::<AuctionList>()
-           .add_systems(Update, (
-               trade_request_system,
-               trade_accept_system,
-               trade_complete_system,
-               auction_house_system,
-               trading_ui_system,
-           ));
+        app.add_event::<PlayerTradeEvent>()
+           .add_systems(Update, player_trade_system);
     }
 }
 
-fn trade_request_system(
-    mut events: EventReader<TradeRequest>,
-    mut commands: Commands,
-) {
-    for event in events.read() {
-        commands.entity(event.to).insert(PendingTrade {
-            trade_id: rand::thread_rng().gen(),
-            other_player: event.from,
-            offered_item: event.item_from.clone(),
-        });
-        info!("Trade request sent");
-    }
-}
-
-fn trade_accept_system(
-    mut commands: Commands,
-    mut events: EventReader<TradeAccept>,
-    pending: Query<(Entity, &PendingTrade)>,
+fn player_trade_system(
+    mut events: EventReader<PlayerTradeEvent>,
     mut inventories: Query<&mut Inventory>,
     mut trust: Query<&mut TrustCredits>,
 ) {
     for event in events.read() {
-        if let Ok((to_entity, pending)) = pending.iter().find(|p| p.1.trade_id == event.trade_id) {
-            if let Ok(mut inv_from) = inventories.get_mut(pending.other_player) {
-                if let Ok(mut inv_to) = inventories.get_mut(to_entity) {
-                    // Robust swap with validation
-                    if let Some(idx) = inv_from.items.iter().position(|i| i.id == pending.offered_item.id) {
-                        let item_from = inv_from.items.swap_remove(idx);
-                        inv_to.items.push(item_from);
-                        inv_to.items.push(event.item_to.clone());
-
-                        // Trust boost
-                        if let Ok(mut trust_from) = trust.get_mut(pending.other_player) {
+        if let Ok(mut from_inv) = inventories.get_mut(event.from) {
+            if let Some(idx) = from_inv.items.iter().position(|i| i.id == event.item.id) {
+                let item = from_inv.items.swap_remove(idx);
+                if let Ok(mut to_inv) = inventories.get_mut(event.to) {
+                    to_inv.items.push(item);
+                    if let Ok(mut from_trust) = trust.get_mut(event.from) {
+                        from_trust.0 *= 1.1;
+                    }
+                    if let Ok(mut to_trust) = trust.get_mut(event.to) {
+                        to_trust.0 *= 1.1;
+                    }
+                    info!("Player trade — mercy flows");
+                }
+            }
+        }
+    }
+}                        if let Ok(mut trust_from) = trust.get_mut(pending.other_player) {
                             trust_from.0 *= 1.1;
                         }
                         if let Ok(mut trust_to) = trust.get_mut(to_entity) {
