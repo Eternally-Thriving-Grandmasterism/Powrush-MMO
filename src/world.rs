@@ -9,6 +9,15 @@ impl Plugin for WorldPlugin {
     }
 }
 
+// Biome Generation Algorithm (Mercy-Style):
+// - Perlin: Base height (mountains/valleys)
+// - SuperSimplex: Moisture + temperature (slow scale)
+// - Rules:
+//   - Low height → Ocean (blue)
+//   - High moisture + warm → Forest (green)
+//   - Cold → Snow (white)
+//   - Dry → Desert (sand)
+// Infinite, seedable, mercy-balanced
 fn generate_biome_world(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -30,13 +39,13 @@ fn generate_biome_world(
             let temperature = simplex.get([nx * 0.3, nz * 0.3 + 100.0]) as f32;
 
             let color = if height < 5.0 {
-                Color::BLUE  // Ocean
+                Color::BLUE
             } else if moisture > 0.5 && temperature > 0.0 {
-                Color::GREEN  // Forest
+                Color::GREEN
             } else if temperature < -0.5 {
-                Color::WHITE  // Snow
+                Color::WHITE
             } else {
-                Color::rgb(0.8, 0.7, 0.4)  // Desert
+                Color::rgb(0.8, 0.7, 0.4)
             };
 
             vertices.push([x as f32 - size as f32 / 2.0, height, z as f32 - size as f32 / 2.0]);
@@ -44,7 +53,6 @@ fn generate_biome_world(
         }
     }
 
-    // Indices (same as before)
     let mut indices = Vec::new();
     for z in 0..size - 1 {
         for x in 0..size - 1 {
@@ -63,6 +71,4 @@ fn generate_biome_world(
         material: materials.add(StandardMaterial::default()),
         ..default()
     });
-
-    info!("Biome world generated — ocean, forest, snow, desert");
 }
