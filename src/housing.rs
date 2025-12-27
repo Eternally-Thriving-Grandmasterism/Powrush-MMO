@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_replicon::prelude::*;
 use rand::Rng;
 
 #[derive(Component, Replicated)]
@@ -6,22 +7,22 @@ pub struct PlayerHome {
     pub location: Vec3,
     pub style: HomeStyle,
     pub trust_bonus: f32,
-    pub mercy_shield: f32,
+    pub built: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Replicated)]
 pub enum HomeStyle {
-    Treehouse,      // +10% trust regen
-    Cave,           // +20% defense
-    LatticeTower,   // +15% lattice connection
-    FloatingIsland, // +25% exploration speed
+    Treehouse,
+    Cave,
+    LatticeTower,
+    FloatingIsland,
 }
 
 pub struct HousingPlugin;
 
 impl Plugin for HousingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (housing_spawn_system, housing_bonus_system));
+        app.add_systems(Update, housing_spawn_system);
     }
 }
 
@@ -48,20 +49,9 @@ fn housing_spawn_system(
                     HomeStyle::LatticeTower => 1.15,
                     HomeStyle::FloatingIsland => 1.25,
                 },
-                mercy_shield: 100.0,
+                built: true,
             });
-            info!("Home built — {} at {:?}", style as u8, transform.translation);
-        }
-    }
-}
-
-fn housing_bonus_system(
-    mut trust: Query<&mut TrustCredits>,
-    homes: Query<&PlayerHome>,
-) {
-    for home in &homes {
-        if let Ok(mut player_trust) = trust.get_mut(home.entity()) {
-            player_trust.0 *= home.trust_bonus;
+            info!("Home built — {:?}", style);
         }
     }
 }
