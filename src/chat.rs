@@ -12,7 +12,7 @@ pub struct ChatMessage {
 #[derive(Clone, Copy, PartialEq, Replicated)]
 pub enum ChatChannel {
     Global,
-    Proximity(f32),  // Radius in meters
+    Proximity(f32),
     Guild,
 }
 
@@ -20,22 +20,20 @@ pub struct ChatPlugin;
 
 impl Plugin for ChatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, proximity_chat_filter);
+        app.add_systems(Update, proximity_chat_system);
     }
 }
 
-fn proximity_chat_filter(
+fn proximity_chat_system(
     messages: Query<&ChatMessage>,
-    players: Query<&GlobalTransform, With<Player>>,
+    players: Query<&Transform, With<Player>>,
 ) {
-    let player_pos = players.single().translation();
+    let player_pos = players.single().translation;
     for msg in &messages {
         if let ChatChannel::Proximity(radius) = msg.channel {
             if player_pos.distance(msg.position) <= radius {
-                // Render message
+                // Render proximity chat
             }
-        } else {
-            // Global/guild always render
         }
     }
 }
