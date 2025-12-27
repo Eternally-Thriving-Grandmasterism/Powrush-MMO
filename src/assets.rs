@@ -1,27 +1,26 @@
 use bevy::prelude::*;
 
-pub struct AssetPlugin;
+#[derive(Resource)]
+pub struct MercyAssets {
+    pub chime: Handle<AudioSource>,
+    pub particle: Handle<Image>,
+}
 
-impl Plugin for AssetPlugin {
+pub struct AssetPipelinePlugin;
+
+impl Plugin for AssetPipelinePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_mercy_assets);
     }
 }
 
 fn load_mercy_assets(
-    asset_server: Res<AssetServer>,
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
 ) {
-    let chime = asset_server.load("sounds/chime.ogg");
-    let particle = asset_server.load("textures/gold_particle.png");
-    commands.insert_resource(MercyAssets {
-        chime,
-        particle,
-    });
-}
+    let chime: Handle<AudioSource> = asset_server.load("sounds/mercy_chime.ogg");
+    let particle: Handle<Image> = asset_server.load("textures/gold_particle.png");
 
-#[derive(Resource)]
-pub struct MercyAssets {
-    pub chime: Handle<AudioSource>,
-    pub particle: Handle<Image>,
+    commands.insert_resource(MercyAssets { chime, particle });
+    info!("Mercy assets loaded — hot-reload ready");
 }
