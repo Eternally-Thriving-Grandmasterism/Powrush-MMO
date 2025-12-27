@@ -18,39 +18,36 @@ pub enum QuestKind {
     Share,
     MercyWave,
     LatticeGrow,
-    Forgive,
 }
 
 pub struct QuestPlugin;
 
 impl Plugin for QuestPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_initial_quests)
+        app.add_systems(Startup, quest_spawn_system)
            .add_systems(Update, (quest_progress_system, quest_reward_system));
     }
 }
 
-fn spawn_initial_quests(
+fn quest_spawn_system(
     mut commands: Commands,
-    players: Query<Entity, Added<Player>>,
+    players: Query<Entity, With<Player>>,
 ) {
     let mut rng = rand::thread_rng();
     for player in &players {
-        let kind = match rng.gen_range(0..5) {
+        let kind = match rng.gen_range(0..4) {
             0 => QuestKind::Explore,
             1 => QuestKind::Share,
             2 => QuestKind::MercyWave,
-            3 => QuestKind::LatticeGrow,
-            _ => QuestKind::Forgive,
+            _ => QuestKind::LatticeGrow,
         };
-        let goal = rng.gen_range(10.0..50.0);
         commands.entity(player).insert(Quest {
             name: format!("{:?} Quest", kind),
             kind,
             progress: 0.0,
-            goal,
+            goal: rng.gen_range(10.0..50.0),
             completed: false,
-            reward_mercy: goal * 3.0,
+            reward_mercy: rng.gen_range(50.0..200.0),
         });
     }
 }
@@ -58,17 +55,10 @@ fn spawn_initial_quests(
 fn quest_progress_system(
     mut query: Query<&mut Quest>,
     time: Res<Time>,
-    combat_events: EventReader<CombatEvent>,
 ) {
     for mut quest in &mut query {
         if quest.completed { continue; }
-
         quest.progress += time.delta_seconds() * 0.2;
-
-        if matches!(quest.kind, QuestKind::MercyWave | QuestKind::Forgive) {
-            quest.progress += combat_events.len() as f32;
-        }
-
         if quest.progress >= quest.goal {
             quest.completed = true;
         }
@@ -86,4 +76,5 @@ fn quest_reward_system(
             }
         }
     }
+}    }
 }
