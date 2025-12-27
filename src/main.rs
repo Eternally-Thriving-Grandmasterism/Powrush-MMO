@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::emote::EmotePlugin;
-use crate::nft::NFTPlugin;
+use crate::hud::HUDPlugin;
+use crate::sound::SoundPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title = "Powrush-MMO — Emotes & NFTs Thriving".into(),
+                title = "Powrush-MMO — Ultimate Eternal".into(),
                 ..default()
             }),
             ..default()
@@ -38,7 +38,8 @@ fn main() {
         .add_plugins(BlockchainPlugin)
         .add_plugins(RedemptionPlugin)
         .add_plugins(PolkadotPlugin)
-        .add_plugins(NFTPlugin)
+        .add_plugins(HUDPlugin)
+        .add_plugins(SoundPlugin)
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -48,7 +49,7 @@ fn main() {
             spawn_particles_system,
             particle_update_system,
             emote_input_system,
-            emote_sync_system,
+            emote_visual_system,
             emote_audio_system,
             chat_input_system,
             chat_send_system,
@@ -88,7 +89,8 @@ fn main() {
             mercy_mint_system,
             token_redemption_system,
             cross_chain_mercy,
-            nft_mint_system,
+            minimap_hud_system,
+            procedural_sound_system,
         ))
         .run();
 }
