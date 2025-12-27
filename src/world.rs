@@ -1,32 +1,51 @@
 use bevy::prelude::*;
-use noise::{NoiseFn, Perlin};
+use noise::{NoiseFn, Perlin, SuperSimplex};
 
 pub struct WorldPlugin;
 
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, generate_procedural_world);
+        app.add_systems(Startup, generate_biome_world);
     }
 }
 
-fn generate_procedural_world(
+fn generate_biome_world(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let perlin = Perlin::new(42);
+    let simplex = SuperSimplex::new(43);
     let size = 256;
 
     let mut vertices = Vec::new();
-    let mut indices = Vec::new();
+    let mut colors = Vec::new();
 
     for z in 0..size {
         for x in 0..size {
-            let height = perlin.get([x as f64 / 50.0, z as f64 / 50.0]) as f32 * 20.0 + 10.0;
+            let nx = x as f64 / 50.0;
+            let nz = z as f64 / 50.0;
+            let height = perlin.get([nx, nz]) as f32 * 20.0 + 10.0;
+            let moisture = simplex.get([nx * 0.5, nz * 0.5]) as f32;
+            let temperature = simplex.get([nx * 0.3, nz * 0.3 + 100.0]) as f32;
+
+            let color = if height < 5.0 {
+                Color::BLUE  // Ocean
+            } else if moisture > 0.5 && temperature > 0.0 {
+                Color::GREEN  // Forest
+            } else if temperature < -0.5 {
+                Color::WHITE  // Snow
+            } else {
+                Color::rgb(0.8, 0.7, 0.4)  // Desert
+            };
+
             vertices.push([x as f32 - size as f32 / 2.0, height, z as f32 - size as f32 / 2.0]);
+            colors.push([color.r(), color.g(), color.b()]);
         }
     }
 
+    // Indices (same as before)
+    let mut indices = Vec::new();
     for z in 0..size - 1 {
         for x in 0..size - 1 {
             let i = (z * size + x) as u32;
@@ -36,17 +55,14 @@ fn generate_procedural_world(
 
     let mesh = Mesh::new(PrimitiveTopology::TriangleList)
         .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vertices)
-        .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, vec![[0.0, 1.0, 0.0]; vertices.len()])
+        .with_inserted_attribute(Mesh::ATTRIBUTE_COLOR, colors)
         .with_indices(Some(Indices::U32(indices)));
 
     commands.spawn(PbrBundle {
         mesh: meshes.add(mesh),
-        material: materials.add(StandardMaterial {
-            base_color: Color::GREEN,
-            ..default()
-        }),
+        material: materials.add(StandardMaterial::default()),
         ..default()
     });
 
-    info!("Procedural world generated — mercy biomes ready");
+    info!("Biome world generated — ocean, forest, snow, desert");
 }
