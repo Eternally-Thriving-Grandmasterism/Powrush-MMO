@@ -1,18 +1,27 @@
 use bevy::prelude::*;
 
-pub struct AssetManagementPlugin;
+pub struct AssetPlugin;
 
-impl Plugin for AssetManagementPlugin {
+impl Plugin for AssetPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, load_assets);
+        app.add_systems(Startup, load_mercy_assets);
     }
 }
 
-fn load_assets(
-    mut commands: Commands,
+fn load_mercy_assets(
     asset_server: Res<AssetServer>,
+    mut commands: Commands,
 ) {
-    // Procedural fallback — real assets if present
-    let _chime = asset_server.load("sounds/chime.ogg");
-    // Add more as needed
+    let chime = asset_server.load("sounds/chime.ogg");
+    let particle = asset_server.load("textures/gold_particle.png");
+    commands.insert_resource(MercyAssets {
+        chime,
+        particle,
+    });
+}
+
+#[derive(Resource)]
+pub struct MercyAssets {
+    pub chime: Handle<AudioSource>,
+    pub particle: Handle<Image>,
 }
