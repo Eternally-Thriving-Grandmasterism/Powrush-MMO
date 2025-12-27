@@ -1,23 +1,14 @@
 use bevy::prelude::*;
-use wasm_bindgen::prelude::*;
-
-#[cfg(target_arch = "wasm32")]
-use console_error_panic_hook::set_once;
+use bevy_kira_audio::prelude::*;
+use rand::Rng;
+use crate::quests::QuestPlugin;
+use crate::world::WorldPlugin;
 
 fn main() {
-    #[cfg(target_arch = "wasm32")]
-    {
-        set_once();
-        console_log::init_with_level(log::Level::Info).unwrap();
-    }
-
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Mercy Eternal".into(),
-                canvas: Some("#bevy-canvas".to_string()),
-                fit_canvas_to_parent: true,
-                prevent_default_event_handling: false,
+                title: "Powrush-MMO — Quests & World Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -42,13 +33,6 @@ fn main() {
         .add_plugins(WorldPlugin)
         .add_plugins(HousingPlugin)
         .add_plugins(WeatherPlugin)
-        .add_plugins(NPCPlugin)
-        .add_plugins(DialoguePlugin)
-        .add_plugins(BlockchainPlugin)
-        .add_plugins(RedemptionPlugin)
-        .add_plugins(PolkadotPlugin)
-        .add_plugins(HUDPlugin)
-        .add_plugins(SoundPlugin)
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -63,9 +47,6 @@ fn main() {
             chat_input_system,
             chat_send_system,
             chat_render_system,
-            voice_modulation_system,
-            proximity_voice_system,
-            proximity_chat_filter,
             inventory_capacity_system,
             item_decay_system,
             item_generation_system,
@@ -82,6 +63,18 @@ fn main() {
             guild_quest_bonus_system,
             arena_duel_system,
             spawn_world_event_system,
+            world_event_effect_system,
+            player_movement_system,
+            combat_attack_system,
+            mercy_shield_system,
+            boss_phase_system,
+            boss_phase_effects,
+            housing_spawn_system,
+            housing_bonus_system,
+            weather_cycle_system,
+        ))
+        .run();
+}            spawn_world_event_system,
             world_event_effect_system,
             player_movement_system,
             combat_attack_system,
