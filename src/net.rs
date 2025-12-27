@@ -1,15 +1,21 @@
 use bevy::prelude::*;
 use bevy_replicon::prelude::*;
 
-pub struct MercyNetPlugin;
+pub struct MMONetPlugin;
 
-impl Plugin for MercyNetPlugin {
+impl Plugin for MMONetPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(RepliconPlugins)
-            .replicate::<MercyPoints>()
-            .replicate::<TrustCredits>()
-            .replicate::<LatticeNode>()
-            .replicate::<Inventory>()
-            .replicate::<Item>();
+        app.add_plugins(RepliconPlugins.set(ServerPlugin {
+            tick_policy: TickPolicy::MaxTickRate(60),
+            ..default()
+        }))
+        .add_plugins(RepliconPlugins.set(ClientPlugin {
+            tick_policy: TickPolicy::EveryFrame,
+            ..default()
+        }))
+        .replicate::<MercyPoints>()
+        .replicate::<TrustCredits>()
+        .replicate::<Inventory>()
+        .replicate::<Quest>();
     }
 }
