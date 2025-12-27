@@ -76,5 +76,4 @@ fn quest_reward_system(
             }
         }
     }
-}    }
 }
