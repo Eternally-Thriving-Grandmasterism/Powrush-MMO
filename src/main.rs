@@ -4,12 +4,13 @@ use rand::Rng;
 use crate::emote::EmotePlugin;
 use crate::chat::ChatPlugin;
 use crate::inventory::InventoryPlugin;
+use crate::trading::TradingPlugin;  // New
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Item Interaction Thriving".into(),
+                title: "Powrush-MMO — Trading Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -19,6 +20,7 @@ fn main() {
         .add_plugins(EmotePlugin)
         .add_plugins(ChatPlugin)
         .add_plugins(InventoryPlugin)
+        .add_plugins(TradingPlugin)  // New
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -36,6 +38,9 @@ fn main() {
             item_decay_system,
             item_generation_system,
             item_interaction_system,
+            trade_request_system,
+            trade_accept_system,
+            trade_complete_system,
         ))
         .run();
 }
