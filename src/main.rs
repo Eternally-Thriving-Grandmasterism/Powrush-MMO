@@ -1,21 +1,20 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::voice::VoicePlugin;
-use crate::chat::ChatPlugin;
+use crate::lod::LODPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title = "Powrush-MMO — Spatial Voice Thriving".into(),
+                title = "Powrush-MMO — LOD & Scale Thriving".into(),
                 ..default()
             }),
             ..default()
         }))
         .add_plugins(AudioPlugin)
-        .add_plugins(SpatialAudioPlugin)
         .add_plugins(VoicePlugin)
+        .add_plugins(EmotePlugin)
         .add_plugins(ChatPlugin)
         .add_plugins(InventoryPlugin)
         .add_plugins(TradingPlugin)
@@ -33,6 +32,7 @@ fn main() {
         .add_plugins(WorldPlugin)
         .add_plugins(HousingPlugin)
         .add_plugins(WeatherPlugin)
+        .add_plugins(LODPlugin)
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -75,6 +75,7 @@ fn main() {
             housing_spawn_system,
             housing_bonus_system,
             weather_cycle_system,
+            lod_system,
         ))
         .run();
 }
