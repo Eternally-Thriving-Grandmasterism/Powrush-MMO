@@ -30,7 +30,7 @@ fn combat_attack_system(
             target.health -= 10.0;
             if target.health <= 0.0 {
                 target.health = target.max_health;
-                target.mercy_shield += 50.0;  // Forgiveness respawn
+                target.mercy_shield += 50.0;
                 info!("Mercy respawn — shield renewed");
             }
         }
@@ -42,7 +42,7 @@ fn mercy_shield_system(
     time: Res<Time>,
 ) {
     for mut player in &mut query {
-        player.mercy_shield += time.delta_seconds() * 20.0;  // Regen
+        player.mercy_shield += time.delta_seconds() * 20.0;
         player.mercy_shield = player.mercy_shield.min(100.0);
     }
 }
