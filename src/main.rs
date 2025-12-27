@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
+use crate::voice::VoicePlugin;
 use crate::chat::ChatPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Voice & Guild Chat Thriving".into(),
+                title = "Powrush-MMO — Proximity Voice Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -46,7 +47,9 @@ fn main() {
             chat_input_system,
             chat_send_system,
             chat_render_system,
-            voice_chat_system,
+            voice_modulation_system,
+            proximity_voice_system,
+            proximity_chat_filter,
             inventory_capacity_system,
             item_decay_system,
             item_generation_system,
