@@ -1,13 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::combat::CombatPlugin;  // New
+use crate::boss::BossPlugin;  // New
+use crate::modding::ModdingPlugin;  // New
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title = "Powrush-MMO — Combat Thriving".into(),
+                title = "Powrush-MMO — Boss & Mods Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -27,7 +28,9 @@ fn main() {
         .add_plugins(MMONetPlugin)
         .add_plugins(AssetPlugin)
         .add_plugins(MovementPlugin)
-        .add_plugins(CombatPlugin)  // New
+        .add_plugins(CombatPlugin)
+        .add_plugins(BossPlugin)  // New
+        .add_plugins(ModdingPlugin)  // New
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -61,6 +64,8 @@ fn main() {
             player_movement_system,
             combat_attack_system,
             mercy_shield_system,
+            boss_damage_system,
+            boss_phase_system,
         ))
         .run();
 }
