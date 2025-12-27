@@ -9,13 +9,14 @@ use crate::auction::AuctionPlugin;
 use crate::quests::QuestPlugin;
 use crate::leveling::LevelingPlugin;
 use crate::guild::GuildPlugin;
-use crate::arena::ArenaPlugin;  // New
+use crate::arena::ArenaPlugin;
+use crate::events::WorldEventsPlugin;  // New
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Arena & Quests Thriving".into(),
+                title: "Powrush-MMO — World Events Thriving".into(),
                 ..default()
             }),
             ..default()
@@ -30,7 +31,8 @@ fn main() {
         .add_plugins(QuestPlugin)
         .add_plugins(LevelingPlugin)
         .add_plugins(GuildPlugin)
-        .add_plugins(ArenaPlugin)  // New
+        .add_plugins(ArenaPlugin)
+        .add_plugins(WorldEventsPlugin)  // New
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -54,11 +56,13 @@ fn main() {
             auction_timer_system,
             auction_ui_system,
             quest_kind_progress_system,
-            quest_reward_system,
+            quest_kind_reward_system,
             leveling_system,
             guild_alliance_system,
             guild_quest_bonus_system,
             arena_duel_system,
+            spawn_world_event_system,
+            world_event_effect_system,
         ))
         .run();
 }
