@@ -38,7 +38,7 @@ impl Plugin for InventoryPlugin {
             inventory_capacity_system,
             item_decay_system,
             item_generation_system,
-            item_ui_render_system,
+            item_interaction_system,
         ));
     }
 }
@@ -86,39 +86,23 @@ fn item_generation_system(
     }
 }
 
-fn item_ui_render_system(
+fn item_interaction_system(
     mut commands: Commands,
-    query: Query<&Inventory>,
+    keyboard: Res<Input<KeyCode>>,
+    mut query: Query<&mut Inventory>,
 ) {
-    commands.spawn(NodeBundle {
-        style: Style {
-            position_type: PositionType::Absolute,
-            right: Val::Px(20.0),
-            top: Val::Px(20.0),
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-        background_color: BackgroundColor(Color::rgba(0.1, 0.1, 0.2, 0.8)),
-        ..default()
-    }).with_children(|parent| {
-        parent.spawn(TextBundle::from_section(
-            "Inventory",
-            TextStyle { font_size: 32.0, color: Color::GOLD, ..default() },
-        ));
-
-        if let Ok(inv) = query.get_single() {
-            for item in &inv.items {
-                let color = match item.rarity {
-                    Rarity::Common => Color::WHITE,
-                    Rarity::Rare => Color::GREEN,
-                    Rarity::Epic => Color::PURPLE,
-                    Rarity::Legendary => Color::GOLD,
-                };
-                parent.spawn(TextBundle::from_section(
-                    format!("{} ({:?}) — {:.1}", item.name, item.rarity, item.mercy_value),
-                    TextStyle { font_size: 20.0, color, ..default() },
+    if keyboard.just_pressed(KeyCode::I) {
+        if let Ok(mut inv) = query.get_single_mut() {
+            if let Some(item) = inv.items.pop() {
+                commands.spawn((
+                    MercyParticle { /* burst */ },
+                    TextBundle::from_section(
+                        format!("Used {}!", item.name),
+                        TextStyle { font_size: 40.0, color: Color::GOLD, ..default() },
+                    ),
                 ));
+                info!("Item used — mercy released");
             }
         }
-    });
+    }
 }
