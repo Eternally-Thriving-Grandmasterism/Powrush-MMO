@@ -1,14 +1,14 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
-use crate::dialogue::DialoguePlugin;
-use crate::blockchain::BlockchainPlugin;
+use crate::redemption::RedemptionPlugin;
+use crate::polkadot::PolkadotPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title = "Powrush-MMO — Dialogue & Blockchain Thriving".into(),
+                title = "Powrush-MMO — Redemption & Polkadot".into(),
                 ..default()
             }),
             ..default()
@@ -36,6 +36,8 @@ fn main() {
         .add_plugins(NPCPlugin)
         .add_plugins(DialoguePlugin)
         .add_plugins(BlockchainPlugin)
+        .add_plugins(RedemptionPlugin)
+        .add_plugins(PolkadotPlugin)
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -82,6 +84,12 @@ fn main() {
             npc_mercy_system,
             procedural_quest_generation,
             dialogue_interaction_system,
+            mercy_mint_system,
+            token_redemption_system,
+            cross_chain_mercy,
+        ))
+        .run();
+}            dialogue_interaction_system,
             mercy_mint_system,
         ))
         .run();
