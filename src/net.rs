@@ -8,6 +8,8 @@ impl Plugin for MercyNetPlugin {
         app.add_plugins(RepliconPlugins)
             .replicate::<MercyPoints>()
             .replicate::<TrustCredits>()
-            .replicate::<LatticeNode>();
+            .replicate::<LatticeNode>()
+            .replicate::<Inventory>()
+            .replicate::<Item>();
     }
 }
