@@ -83,7 +83,7 @@ pub struct LatticeStats {
 
 fn setup(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
-    info!("Powrush-MMO — Mercy universe initialized");
+    info!("Powrush-MMO — Mercy universe spawned");
 }
 
 fn mercy_flow_system(time: Res<Time>, mut lattice: ResMut<LatticeStats>) {
@@ -105,6 +105,18 @@ fn lattice_expansion_system(mut lattice: ResMut<LatticeStats>, time: Res<Time>) 
     }
 }
 
-fn player_movement_system() {
-    // WASD — stub for now
+fn player_movement_system(
+    keyboard: Res<Input<KeyCode>>,
+    mut query: Query<&mut Transform, With<Player>>,
+    time: Res<Time>,
+) {
+    let mut dir = Vec3::ZERO;
+    if keyboard.pressed(KeyCode::W) { dir.z -= 1.0; }
+    if keyboard.pressed(KeyCode::S) { dir.z += 1.0; }
+    if keyboard.pressed(KeyCode::A) { dir.x -= 1.0; }
+    if keyboard.pressed(KeyCode::D) { dir.x += 1.0; }
+
+    for mut trans in &mut query {
+        trans.translation += dir.normalize_or_zero() * 5.0 * time.delta_seconds();
+    }
 }
