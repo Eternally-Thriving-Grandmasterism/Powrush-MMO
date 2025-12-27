@@ -8,43 +8,76 @@ pub struct Quest {
     pub kind: QuestKind,
     pub progress: f32,
     pub goal: f32,
-    pub reward_mercy: f32,
+    pub mercy_reward: f32,
+    pub item_reward: Option<Item>,
+    pub trust_bonus: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Replicated)]
 pub enum QuestKind {
-    Explore,     // Progress from movement
-    Share,       // Progress from trades
-    MercyWave,   // Progress from forgiveness
-    LatticeGrow, // Progress from new nodes
+    Explore,     // Trust + item
+    Share,       // Mercy points
+    MercyWave,   // Lattice node
+    LatticeGrow, // Guild bonus
 }
 
 pub struct QuestPlugin;
 
 impl Plugin for QuestPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, quest_kind_progress_system);
+        app.add_event::<QuestCompleteEvent>()
+           .add_systems(Update, (quest_progress_system, quest_kind_reward_system));
     }
 }
 
-fn quest_kind_progress_system(
+fn quest_progress_system(
     mut query: Query<&mut Quest>,
     time: Res<Time>,
-    trades: EventReader<TradeEvent>,
-    forgiveness: EventReader<ForgivenessEvent>,
-    lattice: Res<LatticeStats>,
 ) {
     for mut quest in &mut query {
-        let delta = time.delta_seconds();
-        match quest.kind {
-            QuestKind::Explore => quest.progress += delta * 0.2,  // Movement
-            QuestKind::Share => quest.progress += trades.len() as f32 * 5.0,
-            QuestKind::MercyWave => quest.progress += forgiveness.len() as f32 * 10.0,
-            QuestKind::LatticeGrow => quest.progress += lattice.nodes as f32 * 0.1,
-        }
+        quest.progress += time.delta_seconds() * 0.2;
         if quest.progress >= quest.goal {
             quest.progress = quest.goal;
-            info!("Quest complete — {} mercy", quest.reward_mercy);
+        }
+    }
+}
+
+fn quest_kind_reward_system(
+    mut events: EventReader<QuestCompleteEvent>,
+    mut query: Query<&mut Quest>,
+    mut trust: Query<&mut TrustCredits>,
+    mut inventory: Query<&mut Inventory>,
+    mut lattice: ResMut<LatticeStats>,
+) {
+    for event in events.read() {
+        if let Ok(quest) = query.get_mut(event.0) {
+            if quest.progress >= quest.goal {
+                // Kind-specific rewards
+                match quest.kind {
+                    QuestKind::Explore => {
+                        if let Ok(mut player_trust) = trust.get_mut(event.0) {
+                            player_trust.0 += quest.trust_bonus;
+                        }
+                        if let Some(item) = &quest.item_reward {
+                            if let Ok(mut inv) = inventory.get_mut(event.0) {
+                                inv.items.push(item.clone());
+                            }
+                        }
+                    }
+                    QuestKind::Share => {
+                        if let Ok(mut player_trust) = trust.get_mut(event.0) {
+                            player_trust.0 += quest.mercy_reward;
+                        }
+                    }
+                    QuestKind::MercyWave => {
+                        lattice.nodes += 5;
+                    }
+                    QuestKind::LatticeGrow => {
+                        lattice.connections += 10;
+                    }
+                }
+                info!("Quest complete — {} mercy", quest.mercy_reward);
+            }
         }
     }
 }
