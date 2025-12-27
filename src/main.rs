@@ -2,13 +2,13 @@ use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use rand::Rng;
 use crate::quests::QuestPlugin;
-use crate::net::MMONetPlugin;  // New
+use crate::assets::AssetPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Polishing Complete".into(),
+                title: "Powrush-MMO — Polished Eternal".into(),
                 ..default()
             }),
             ..default()
@@ -25,7 +25,8 @@ fn main() {
         .add_plugins(GuildPlugin)
         .add_plugins(ArenaPlugin)
         .add_plugins(WorldEventsPlugin)
-        .add_plugins(MMONetPlugin)  // New
+        .add_plugins(MMONetPlugin)
+        .add_plugins(AssetPlugin)  // New
         .insert_resource(LatticeStats::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (
@@ -50,7 +51,6 @@ fn main() {
             auction_ui_system,
             quest_spawn_system,
             quest_progress_system,
-            quest_reward_system,
             leveling_system,
             guild_alliance_system,
             guild_quest_bonus_system,
