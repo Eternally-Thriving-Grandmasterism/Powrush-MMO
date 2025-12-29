@@ -1,0 +1,51 @@
+use rodio::{Decoder, OutputStream, Sink, Source};
+use rodio::source::SineWave;
+use std::f32::consts::PI;
+use std::time::Duration;
+
+// Procedural Diablo 2-style ambient (dark pads, low drones, epic swells)
+// Inspired by Matt Uelmen tracks — original, no copyright
+
+pub struct ProceduralSoundtrack {
+    sink: Sink,
+}
+
+impl ProceduralSoundtrack {
+    pub fn new() -> Self {
+        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+        let sink = Sink::try_new(&stream_handle).unwrap();
+        Self { sink }
+    }
+
+    pub fn play_diablo_ambient(&self) {
+        // Dark pad drone (low sine waves, inspired by Tristram/Harrogath)
+        let drone1 = SineWave::new(110.0).amplify(0.3); // A1
+        let drone2 = SineWave::new(165.0).amplify(0.2); // E2
+        let swell = SineWave::new(220.0).amplify(0.1); // A3 harmonic
+
+        let source = drone1.chain(drone2).chain(swell);
+        self.sink.append(source.take_duration(Duration::from_secs(300)));
+        self.sink.play();
+        println!("Diablo 2-style ambient playing — dark pads rising...");
+    }
+
+    pub fn play_battle_grind(&self) {
+        // Industrial grind (inspired by Siege/Harkonnen-style)
+        let grind = SineWave::new(55.0).amplify(0.4); // Low rumble
+        let percussion = SineWave::new(220.0).amplify(0.6).periodic(Duration::from_millis(200)); // Pulse
+        let source = grind.chain(percussion);
+        self.sink.append(source.take_duration(Duration::from_secs(120)));
+        self.sink.play();
+        println!("Battle grind activated — industrial war beats...");
+    }
+
+    pub fn stop(&self) {
+        self.sink.stop();
+    }
+}
+
+// Game integration
+pub fn init_soundtrack() {
+    let soundtrack = ProceduralSoundtrack::new();
+    soundtrack.play_diablo_ambient(); // Menu/ambient
+}
