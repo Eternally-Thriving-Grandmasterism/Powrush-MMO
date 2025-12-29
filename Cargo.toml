@@ -2,30 +2,12 @@
 name = "powrush-mmo"
 version = "0.1.0"
 edition = "2021"
-description = "Powrush-MMO — Mercy-first infinite thriving universe"
-license = "MIT"
-repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
+
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
-bevy = { version = "0.14", features = ["dynamic_linking"] }
-bevy_kira_audio = "0.19"
-bevy_replicon = "0.26"
-rand = "0.8"
-noise = "0.9"
-tokio = { version = "1", features = ["full"] }
-cpal = "0.15"
-hound = "3.5"
-opus = "0.3"
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
+leptos = { version = "0.6", features = ["csr"] }
 wasm-bindgen = "0.2"
 console_error_panic_hook = "0.1"
-console_log = "1.0"
-web-sys = { version = "0.3", features = ["Window"] }
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = true
+rodio = "0.17" # Procedural audio generation
