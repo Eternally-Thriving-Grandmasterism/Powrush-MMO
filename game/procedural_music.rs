@@ -1,133 +1,113 @@
-use rodio::{Decoder, OutputStream, Sink, Source};
-use rodio::source::{SineWave, SourcedSource};
-use std::f32::consts::PI;
+use bevy::prelude::*;
+use bevy_kira_audio::prelude::*;
+use rand::Rng;
 use std::time::Duration;
-use std::collections::HashMap;
 
-// Procedural Diablo 2 / WoW inspired soundtrack generator
-// Original waves — no copyright, high-quality modern synths/orchestral
+/// Procedural Music Plugin — event-triggered original tracks
+/// Inspired by attachment moods (Diablo 2/WoW/Light of the Seven)
 
-pub struct ProceduralMusic {
-    sink: Sink,
-    tracks: HashMap<String, Box<dyn Source<Item = f32> + Send>>,
-}
+pub struct ProceduralMusicPlugin;
 
-impl ProceduralMusic {
-    pub fn new() -> Self {
-        let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-        let sink = Sink::try_new(&stream_handle).unwrap();
-        let mut tracks = HashMap::new();
-        tracks.insert("light_of_seven".to_string(), Box::new(Self::generate_light_of_seven()));
-        tracks.insert("harrogath".to_string(), Box::new(Self::generate_harrogath()));
-        tracks.insert("siege".to_string(), Box::new(Self::generate_siege()));
-        tracks.insert("ice_caves".to_string(), Box::new(Self::generate_ice_caves()));
-        tracks.insert("kurast_docks".to_string(), Box::new(Self::generate_kurast_docks()));
-        tracks.insert("tristram".to_string(), Box::new(Self::generate_tristram()));
-        tracks.insert("wilderness".to_string(), Box::new(Self::generate_wilderness()));
-        tracks.insert("burning_legion".to_string(), Box::new(Self::generate_burning_legion()));
-        tracks.insert("shards_exodar".to_string(), Box::new(Self::generate_shards_exodar()));
-        tracks.insert("origins".to_string(), Box::new(Self::generate_origins()));
-        tracks.insert("bloodmyst".to_string(), Box::new(Self::generate_bloodmyst()));
-        Self { sink, tracks }
-    }
-
-    fn generate_light_of_seven() -> impl Source<Item = f32> + Send {
-        // Ramin Djawadi piano epic swell
-        let piano = SineWave::new(261.63).amplify(0.4); // C4
-        let swell = SineWave::new(523.25).amplify(0.2).periodic(Duration::from_secs(2)); // C5 rising
-        piano.chain(swell)
-    }
-
-    fn generate_harrogath() -> impl Source<Item = f32> + Send {
-        // Matt Uelmen dark ambient drone
-        let drone1 = SineWave::new(110.0).amplify(0.3); // A1
-        let drone2 = SineWave::new(82.41).amplify(0.25); // E1
-        drone1.chain(drone2)
-    }
-
-    fn generate_siege() -> impl Source<Item = f32> + Send {
-        // Industrial battle grind
-        let grind = SineWave::new(55.0).amplify(0.5); // A0 rumble
-        let percussion = SineWave::new(220.0).amplify(0.7).periodic(Duration::from_millis(150)); // A3 pulse
-        grind.chain(percussion)
-    }
-
-    fn generate_ice_caves() -> impl Source<Item = f32> + Send {
-        // Echoing cave ambience
-        let ice_drone = SineWave::new(130.81).amplify(0.35); // E2
-        let echo = SineWave::new(329.63).amplify(0.15).periodic(Duration::from_millis(800)); // E4 reverb
-        ice_drone.chain(echo)
-    }
-
-    fn generate_kurast_docks() -> impl Source<Item = f32> + Send {
-        // Mystical harbor pads
-        let pad1 = SineWave::new(196.0).amplify(0.3); // G3
-        let pad2 = SineWave::new(246.94).amplify(0.25); // B3
-        pad1.chain(pad2)
-    }
-
-    fn generate_tristram() -> impl Source<Item = f32> + Send {
-        // Haunting town theme
-        let haunt = SineWave::new(146.83).amplify(0.4); // D3
-        let melody = SineWave::new(293.66).amplify(0.2); // D4
-        haunt.chain(melody)
-    }
-
-    fn generate_wilderness() -> impl Source<Item = f32> + Send {
-        // Open field orchestral swell
-        let brass = SineWave::new(130.81).amplify(0.45); // E2
-        let strings = SineWave::new(164.81).amplify(0.3); // E3
-        brass.chain(strings)
-    }
-
-    fn generate_burning_legion() -> impl Source<Item = f32> + Send {
-        // WoW epic main title
-        let epic_horn = SineWave::new(98.0).amplify(0.5); // G2
-        let choir = SineWave::new(196.0).amplify(0.35); // G3
-        epic_horn.chain(choir)
-    }
-
-    fn generate_shards_exodar() -> impl Source<Item = f32> + Send {
-        // Ethereal space pads
-        let shard1 = SineWave::new(123.47).amplify(0.3); // B2
-        let shard2 = SineWave::new(155.56).amplify(0.25); // G3
-        shard1.chain(shard2)
-    }
-
-    fn generate_origins() -> impl Source<Item = f32> + Send {
-        // Mystical origins swell
-        let origin_drone = SineWave::new(65.41).amplify(0.4); // C2
-        let origin_melody = SineWave::new(261.63).amplify(0.2); // C4
-        origin_drone.chain(origin_melody)
-    }
-
-    fn generate_bloodmyst() -> impl Source<Item = f32> + Send {
-        // Dark mystic isle
-        let blood_drone = SineWave::new(87.31).amplify(0.35); // F2
-        let myst = SineWave::new(174.61).amplify(0.25); // F3
-        blood_drone.chain(myst)
-    }
-
-    pub fn play_track(&self, track_name: &str, loop_track: bool) {
-        if let Some(track) = self.tracks.get(track_name) {
-            self.sink.append(track.clone());
-            if loop_track {
-                self.sink.append(track.clone().repeat_infinite());
-            }
-            self.sink.play();
-            println!("Playing procedural track: {}", track_name);
-        } else {
-            println!("Track '{}' not found", track_name);
-        }
-    }
-
-    pub fn stop(&self) {
-        self.sink.stop();
+impl Plugin for ProceduralMusicPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<MusicEvent>()
+            .add_systems(Update, play_music_system);
     }
 }
 
-// Game integration
-pub fn init_soundtrack() {
-    let soundtrack = ProceduralMusic::new();
-    soundtrack.play_track("harrogath", true); // Dark ambient start
+#[derive(Event)]
+pub enum MusicEvent {
+    MenuStart,
+    Exploration,
+    BattleStart,
+    QuestComplete,
+    CouncilSession,
+    IncomeReward,
+    AmbientPad,
+}
+
+fn play_music_system(
+    mut events: EventReader<MusicEvent>,
+    audio: Res<Audio>,
+) {
+    let mut rng = rand::thread_rng();
+    for event in events.read() {
+        let source = match event {
+            MusicEvent::MenuStart => generate_light_of_the_seven(&mut rng),
+            MusicEvent::Exploration => generate_harrogath_drone(&mut rng),
+            MusicEvent::BattleStart => generate_siege_grind(&mut rng),
+            MusicEvent::QuestComplete => generate_growth_swell(&mut rng),
+            MusicEvent::CouncilSession => generate_harmony_pad(&mut rng),
+            MusicEvent::IncomeReward => generate_abundance_chime(&mut rng),
+            MusicEvent::AmbientPad => generate_desert_ambient(&mut rng),
+        };
+        audio.play(source.repeat_infinite());
+    }
+}
+
+// Generators (inspired moods — original synthesis)
+fn generate_light_of_the_seven(rng: &mut impl RngCore) -> AudioSource {
+    // Balanced piano epic ascent
+    let notes = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25]; // C major
+    let mut melody = Vec::new();
+    for _ in 0..60 {
+        let note = notes[rng.gen_range(0..notes.len())];
+        melody.extend(generate_sine_wave(note, 1.0, 0.5));
+        melody.extend(generate_sine_wave(note * 1.5, 0.5, 0.3)); // Harmony
+    }
+    AudioSource::from(melody.into_iter().collect::<Vec<_>>().into_source())
+}
+
+fn generate_harrogath_drone(rng: &mut impl RngCore) -> AudioSource {
+    // Dark ambient drone
+    let low = rng.gen_range(80.0..120.0);
+    AudioSource::from(generate_sine_wave(low, 300.0, 0.4)
+        .chain(generate_sine_wave(low * 1.5, 300.0, 0.3)))
+}
+
+fn generate_siege_grind(rng: &mut impl RngCore) -> AudioSource {
+    // Industrial battle grind
+    let rumble = rng.gen_range(40.0..80.0);
+    AudioSource::from(generate_noise(120.0, 0.8, rng)
+        .modulate(Duration::from_millis(150)))
+}
+
+fn generate_growth_swell(rng: &mut impl RngCore) -> AudioSource {
+    // Quest complete swell
+    let base = rng.gen_range(200.0..400.0);
+    AudioSource::from(generate_sine_wave(base, 60.0, 0.5)
+        .fade_in(Duration::from_secs(5)))
+}
+
+fn generate_harmony_pad(rng: &mut impl RngCore) -> AudioSource {
+    // Council unity pad
+    let chord = [523.25, 659.25, 783.99]; // C major
+    AudioSource::from(generate_sine_wave(chord[0], 300.0, 0.4)
+        .chain(generate_sine_wave(chord[1], 300.0, 0.3))
+        .chain(generate_sine_wave(chord[2], 300.0, 0.2)))
+}
+
+fn generate_abundance_chime(rng: &mut impl RngCore) -> AudioSource {
+    // Income reward chime
+    let high = rng.gen_range(800.0..1200.0);
+    AudioSource::from(generate_sine_wave(high, 30.0, 0.6))
+}
+
+fn generate_desert_ambient(rng: &mut impl RngCore) -> AudioSource {
+    // Desert wind pads
+    let wind = rng.gen_range(100.0..200.0);
+    AudioSource::from(generate_noise(300.0, 0.35, rng))
+}
+
+// Helpers
+fn generate_sine_wave(freq: f32, duration_secs: f32, volume: f32) -> impl AudioSource {
+    SineWave::new(freq)
+        .amplify(volume)
+        .take_duration(Duration::from_secs_f32(duration_secs))
+}
+
+fn generate_noise(duration_secs: f32, volume: f32, rng: &mut impl RngCore) -> impl AudioSource {
+    Noise::new(rng.gen())
+        .amplify(volume)
+        .take_duration(Duration::from_secs_f32(duration_secs))
 }
