@@ -1,9 +1,8 @@
-//! Powrush MMO Server — Mercy-Gated WebSocket Broadcast Core with Robust Error Handling
-//! Integrates Ra-Thor divine module, AOI replication, async queuing, advanced error recovery
+//! Powrush MMO Server — Mercy-Gated WebSocket Broadcast Core with Heartbeat
+//! Integrates Ra-Thor divine module, AOI replication, async queuing, compression, heartbeat
 //! MIT + mercy eternal — Eternally-Thriving-Grandmasterism
 
 use anyhow::{Context, Result};
-use backtrace::Backtrace;
 use futures_util::{SinkExt, StreamExt};
 use powrush_divine_module::MercyCore;
 use shared::protocol::{ClientMessage, ServerMessage};
@@ -14,33 +13,23 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use std::panic;
+use std::time::{Duration, Instant};
+use snappy::compress;
 
 mod world_server;
 use world_server::WorldServer;
 
 const QUEUE_CAPACITY: usize = 100;
 const COMPRESSION_THRESHOLD_BYTES: usize = 1024;
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(30);
+const MAX_MISSED_HEARTBEATS: u32 = 3;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+# async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
     info!("Powrush MMO Server booting — mercy thunder awakening ⚡️");
 
-    // ─── Advanced Panic Hook ────────────────────────────────────────────
-    panic::set_hook(Box::new(|panic_info| {
-        let backtrace = Backtrace::new();
-        let msg = panic_info.to_string();
-
-        error!(
-            "SERVER PANIC DETECTED — lattice integrity threatened:\n{}\nBacktrace:\n{:?}",
-            msg, backtrace
-        );
-
-        // Mercy message — preserve joy even in failure
-        error!("Mercy reminder: All is forgiven. The lattice remembers its wholeness. Reconnect & thrive.");
-
-        // Optional: graceful shutdown signal (future: broadcast shutdown message)
-        // std::process::exit(1); // only if critical
+    panic::set_hook(Box::new(|info| {
+        error!("SERVER PANIC: {}", info);
     }));
 
     let mercy_core = Arc::new(Mutex::new(MercyCore::new()));
@@ -66,7 +55,6 @@ async fn main() -> Result<()> {
             let mut world = world_clone.lock().await;
             if let Err(e) = world.tick().await {
                 error!("World tick error (recoverable): {}", e);
-                // Mercy recovery: continue ticking
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
@@ -77,14 +65,7 @@ async fn main() -> Result<()> {
 }
 
 async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer>>, mercy_core: Arc<Mutex<MercyCore>>) {
-    let ws_stream = match accept_async(stream).await {
-        Ok(s) => s,
-        Err(e) => {
-            warn!("WebSocket handshake failed: {}", e);
-            return;
-        }
-    };
-
+    let ws_stream = accept_async(stream).await.expect("Failed to accept WebSocket");
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
     let client_id = rand::random::<u64>();
@@ -94,13 +75,14 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
     // Register client
     {
         let mut world = world_server.lock().await;
-        if let Err(e) = world.add_client(client_id, Vec3::ZERO, 0.8, tx.clone()).await {
-            error!("Failed to register client {}: {}", client_id, e);
-            return;
-        }
+        world.add_client(client_id, Vec3::ZERO, 0.8, tx.clone()).await.unwrap();
     }
 
-    // Spawn send loop with compression & error recovery
+    // Heartbeat state per client
+    let mut last_received_heartbeat = Instant::now();
+    let mut missed_heartbeats = 0u32;
+
+    // Spawn send loop with compression
     let mut ws_sender = ws_sender;
     tokio::spawn(async move {
         while let Some(payload) = rx.recv().await {
@@ -125,14 +107,14 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
             };
 
             if let Err(e) = ws_sender.send(Message::Binary(final_msg)).await {
-                warn!("Send error to client {} (queue draining): {}", client_id, e);
+                warn!("Send error to client: {}", client_id, e);
                 break;
             }
         }
-        info!("Send queue drained & closed for client {}", client_id);
+        info!("Send queue closed for client {}", client_id);
     });
 
-    // Handshake (small → uncompressed)
+    // Handshake
     let handshake = bincode::serialize(&ServerMessage::HandshakeResponse {
         accepted: true,
         reason: None,
@@ -144,7 +126,7 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
     }).unwrap();
     let _ = tx.send(handshake).await;
 
-    // Client receive loop with decompression & mercy gate
+    // Client receive loop with heartbeat handling
     while let Some(msg) = ws_receiver.next().await {
         match msg {
             Ok(Message::Binary(data)) => {
@@ -154,7 +136,7 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
                     match decompress(&data[1..]) {
                         Ok(d) => d,
                         Err(e) => {
-                            warn!("Decompression failed for client {}: {}", client_id, e);
+                            warn!("Decompression failed for client: {}", client_id, e);
                             continue;
                         }
                     }
@@ -164,10 +146,23 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
 
                 if mercy_core.gate_server_message(&decompressed).await.is_ok() {
                     if let Ok(client_msg) = bincode::deserialize::<ClientMessage>(&decompressed) {
-                        info!("Received valid message from client {}", client_id);
-                        // Handle message (future dispatch)
-                    } else {
-                        warn!("Deserialization failed for client {} (malformed message)", client_id);
+                        match client_msg {
+                            ClientMessage::Ping { client_time_ms } => {
+                                let pong = ServerMessage::Pong {
+                                    server_time_ms: std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis() as u64,
+                                    client_time_ms,
+                                };
+                                let pong_serialized = bincode::serialize(&pong).unwrap();
+                                let _ = tx.send(pong_serialized).await;
+                                last_received_heartbeat = Instant::now();
+                                missed_heartbeats = 0;
+                                info!("Heartbeat received from client {}", client_id);
+                            }
+                            _ => info!("Received valid message from client {}", client_id),
+                        }
                     }
                 } else {
                     warn!("Mercy gate blocked message from client {}", client_id);
@@ -179,14 +174,22 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
                 }
             }
             Ok(Message::Close(_)) => {
-                info!("Client {} disconnected gracefully", client_id);
+                info!("Client disconnected gracefully", client_id);
                 break;
             }
             Err(e) => {
-                warn!("WebSocket error from client {}: {}", client_id, e);
+                warn!("WebSocket error from client: {}", client_id, e);
                 break;
             }
-            _ => {}
+            _ =>
+        }
+
+        if Instant::now().duration_since(last_received_heartbeat) > HEARTBEAT_INTERVAL * (MAX_MISSED_HEARTBEATS as u32 + 1) {
+            missed_heartbeats += 1;
+            if missed_heartbeats >= MAX_MISSED_HEARTBEATS {
+                warn!("Client missed heartbeats — disconnecting", client_id, missed_heartbeats);
+                break;
+            }
         }
     }
 
@@ -195,33 +198,4 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
         let mut world = world_server.lock().await;
         world.clients.remove(&client_id);
     }
-}
-
-// ────────────────────────────────────────────────
-// STRESS & QA TEST BLOCK — Run locally to verify compression + queue + error handling
-//
-// Fake 10 WebSocket clients:
-// for i in {1..10}; do wscat -c ws://localhost:9001 & done
-//
-// Generate large compressed updates:
-// - Add 5000 entities
-// - Force tick & replication
-//
-// Monitor logs:
-// - Compression flag 1 on large payloads
-// - Decompression success on client
-// - Mercy gate blocks low-valence
-// - Queue handles flood (drops oldest if >100)
-// - Panic hook logs stack trace
-// - Graceful disconnect & cleanup
-//
-// 100/100 Checklist Status (Feb 17, 2026)
-// [x] WebSocket + per-client queue + AOI broadcast
-// [x] Snappy compression on large messages
-// [x] Client-side decompression stub
-// [x] 1-byte flag prefix handling
-// [x] Mercy gate on incoming & outgoing
-// [x] Advanced panic hook with backtrace
-// [x] Queue overflow protected
-// [x] Disconnect cleanup
-// ────────────────────────────────────────────────
+    }
