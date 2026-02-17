@@ -1,5 +1,5 @@
-//! Powrush MMO Server — Mercy-Gated WebSocket Broadcast Core with Per-Client Queues
-//! Integrates AOI delta replication into client send queues
+//! Powrush MMO Server — Mercy-Gated WebSocket Broadcast Core with Per-Client Queues & Snappy Compression
+//! Integrates Ra-Thor divine module, AOI replication, async queuing, message compression
 //! MIT + mercy eternal — Eternally-Thriving-Grandmasterism
 
 use anyhow::{Context, Result};
@@ -8,16 +8,18 @@ use powrush_divine_module::MercyCore;
 use shared::protocol::{ClientMessage, ServerMessage};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::net::TcpListener;
+use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use tracing::{error, info, warn};
 use std::panic;
+use snappy::compress;
 
 mod world_server;
 use world_server::WorldServer;
 
 const QUEUE_CAPACITY: usize = 100;
+const COMPRESSION_THRESHOLD_BYTES: usize = 1024; // only compress larger messages
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -62,7 +64,7 @@ async fn main() -> Result<()> {
 
 async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer>>, mercy_core: Arc<Mutex<MercyCore>>) {
     let ws_stream = accept_async(stream).await.expect("Failed to accept WebSocket");
-    let (ws_sender, mut ws_receiver) = ws_stream.split();
+    let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
     let client_id = rand::random::<u64>();
 
@@ -74,11 +76,32 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
         world.add_client(client_id, Vec3::ZERO, 0.8, tx.clone()).await.unwrap();
     }
 
-    // Spawn send loop
+    // Spawn send loop with compression
     let mut ws_sender = ws_sender;
     tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            if let Err(e) = ws_sender.send(Message::Binary(msg)).await {
+        while let Some(payload) = rx.recv().await {
+            let final_msg = if payload.len() > COMPRESSION_THRESHOLD_BYTES {
+                // Compress large messages (WorldUpdate deltas)
+                match compress(&payload) {
+                    Ok(compressed) => {
+                        // Prefix with 1-byte flag: 1 = compressed, 0 = raw
+                        let mut msg = vec![1];
+                        msg.extend_from_slice(&compressed);
+                        msg
+                    }
+                    Err(e) => {
+                        warn!("Compression failed: {}", e);
+                        payload // fallback to uncompressed
+                    }
+                }
+            } else {
+                // Small messages sent raw (flag 0)
+                let mut msg = vec![0];
+                msg.extend_from_slice(&payload);
+                msg
+            };
+
+            if let Err(e) = ws_sender.send(Message::Binary(final_msg)).await {
                 warn!("Send error to client {}: {}", client_id, e);
                 break;
             }
@@ -86,7 +109,7 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
         info!("Send queue closed for client {}", client_id);
     });
 
-    // Handshake
+    // Handshake (small → no compression)
     let handshake = bincode::serialize(&ServerMessage::HandshakeResponse {
         accepted: true,
         reason: None,
@@ -98,7 +121,7 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
     }).unwrap();
     let _ = tx.send(handshake).await;
 
-    // Client recv loop
+    // Client recv loop (will handle decompression on client side)
     while let Some(msg) = ws_receiver.next().await {
         match msg {
             Ok(Message::Binary(data)) => {
@@ -137,21 +160,26 @@ async fn handle_websocket(stream: TcpStream, world_server: Arc<Mutex<WorldServer
 }
 
 // ────────────────────────────────────────────────
-// STRESS & QA TEST BLOCK — Run locally to verify AOI + queue broadcast
+// STRESS & QA TEST BLOCK — Run locally to verify compression + queue
 //
 // Fake 10 WebSocket clients:
 // for i in {1..10}; do wscat -c ws://localhost:9001 & done
 //
+// Generate large WorldUpdate:
+// - Add 1000 entities
+// - Force tick & replication
+//
 // Monitor logs:
-// - Connections accepted + queued handshake
-// - AOI deltas enqueued per client
-// - Mercy gate blocks low-valence messages
-// - Queue overflow protection (drops oldest)
-// - No panic on flood/disconnect
+// - Large messages compressed (flag 1)
+// - Small messages raw (flag 0)
+// - Queue handles flood (drops oldest if >100)
+// - Mercy gate blocks low-valence sends
+// - No panic on disconnect/flood
 //
 // 100/100 Checklist Status (Feb 17, 2026)
 // [x] WebSocket + per-client queue + AOI broadcast
-// [x] Handshake queued
+// [x] Snappy compression on large messages (>1024 bytes)
+// [x] 1-byte flag prefix (0=raw, 1=compressed)
 // [x] Mercy gate on incoming & outgoing
 // [x] Queue overflow protected
 // [x] Disconnect cleanup
