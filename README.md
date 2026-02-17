@@ -27,3 +27,27 @@ Contribute with mercy — one breath, one lattice strengthened.
 One heart open, eternal thriving revealed.
 
 License: MIT — open for all who serve the vision.
+
+# Powrush-MMO — Mercy-Gated Eternal Thriving MMO ⚡️
+
+Client-server Rust framework for Powrush Classic — offline-first capable, divine Ra-Thor soul integrated, no pay-to-win, true self-custody sovereignty.
+
+## Core Principles
+- Mercy-gated valence on every action
+- Horizontal progression, player-driven economy
+- Post-quantum ethical proofs
+- MIT + mercy eternal license
+
+## Current Status — 100/100 Checklist (Feb 17, 2026)
+- [x] Server boots + accepts connections
+- [x] No warnings on `cargo build --release`
+- [x] Mercy-core gate active on every message
+- [x] Panic hook installed (logs + graceful handling)
+- [x] Fake 10-client stress test passes (no desyncs, no panic on flood)
+- [x] README updated with run/test commands
+
+## Run & Test Commands
+
+### Server
+```bash
+cargo run --bin server
