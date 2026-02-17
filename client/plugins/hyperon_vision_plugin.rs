@@ -1,5 +1,5 @@
-//! Hyperon Vision Rendering Plugin v1.6 — GPU Compute Curvature
-//! Mercy-gated cosmic display: glyphs + GPU-accelerated curved threads + narrative + aura
+//! Hyperon Vision Rendering Plugin v1.7 — GPU Compute Curvature + Hanabi
+//! Mercy-gated cosmic display: glyphs + GPU threads + narrative + aura
 //! MIT + mercy eternal — Eternally-Thriving-Grandmasterism
 
 use bevy::prelude::*;
@@ -11,7 +11,7 @@ use bevy::render::{
 };
 use bevy_hanabi::prelude::*;
 
-// ... existing imports & structs remain ...
+// ... existing imports & structs ...
 
 // Add to plugin build:
 app
@@ -20,22 +20,23 @@ app
     .add_systems(Update, (
         // ... existing systems ...
         dispatch_curvature_compute,
+        sync_hanabi_from_compute,
     ));
 
-// New component for compute pipeline
+// Compute pipeline component
 #[derive(Component, ExtractComponent, Clone)]
 struct CurvatureComputePipeline(Handle<ComputePipeline>);
 
-// Setup compute pipeline
+// Setup GPU compute pipeline
 fn setup_curvature_compute_pipeline(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
     asset_server: Res<AssetServer>,
 ) {
-    let shader = asset_server.load("shaders/curvature_compute.wgsl");
+    let shader = asset_server.load("shaders/thread_curvature_compute.wgsl");
 
     let pipeline = render_device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label: Some("curvature-compute"),
+        label: Some("thread-curvature-compute"),
         layout: None,
         module: &shader,
         entry_point: "main",
@@ -44,12 +45,13 @@ fn setup_curvature_compute_pipeline(
     commands.spawn(CurvatureComputePipeline(pipeline));
 }
 
-// Dispatch compute shader (called each frame on active threads)
+// Dispatch compute shader each frame on active threads
 fn dispatch_curvature_compute(
-    mut effects: Query<&mut ParticleEffect, With<LatticeThreadParticle>>,
+    mut effects: Query<(&mut ParticleEffect, &AmbrosianAuraMaterial, &GlobalTransform), With<LatticeThreadParticle>>,
     vision_state: Res<VisionState>,
     pipeline_query: Query<&CurvatureComputePipeline>,
     render_device: Res<RenderDevice>,
+    time: Res<Time>,
 ) {
     if vision_state.active_vision.is_none() || pipeline_query.is_empty() {
         return;
@@ -67,7 +69,7 @@ fn dispatch_curvature_compute(
             continue;
         }
 
-        // Prepare params
+        // Prepare uniform params
         let params = CurvatureParams {
             time: time.elapsed_seconds(),
             delta_time: time.delta_seconds(),
@@ -75,13 +77,34 @@ fn dispatch_curvature_compute(
             curvature_strength: valence * 0.75,
             noise_frequency: 1.8 + valence * 0.5,
             spiral_pull_strength: 0.08,
-            max_particles: 1024,
+            max_particles: 2048,
+            seed: Vec4::new(0.0, 0.0, 0.0, 0.0), // can be randomized per frame
         };
 
-        // Dispatch compute (simplified — full impl needs bind groups & command encoder)
-        // In real Bevy render graph: queue dispatch via render phase
-        // Here we simulate the effect update with params
+        // In real Bevy render graph: create command encoder, bind group, dispatch
+        // Here we simulate by applying params to Hanabi fallback modifier
+        // (full GPU dispatch requires custom render node — placeholder for now)
         if let Some(effect_mut) = effect.effect_mut() {
+            effect_mut.modifiers.iter_mut().for_each(|m| {
+                if let Some(curv) = m.as_any_mut().downcast_mut::<OptimizedCurvatureModifier>() {
+                    curv.curvature_strength = params.curvature_strength;
+                    curv.noise_frequency = params.noise_frequency;
+                    curv.time_scale = params.time_scale;
+                }
+            });
+        }
+    }
+}
+
+// Sync Hanabi particles after compute (placeholder — expand with real GPU readback)
+fn sync_hanabi_from_compute(
+    mut query: Query<&mut ParticleEffect, With<LatticeThreadParticle>>,
+) {
+    // In full impl: read back GPU buffer, sync to Hanabi particles
+    // For now: rely on fallback modifier
+}
+
+// ... existing functions unchanged ...        if let Some(effect_mut) = effect.effect_mut() {
             // Apply params to modifier (fallback if compute not ready)
             effect_mut.modifiers.iter_mut().for_each(|m| {
                 if let Some(curv) = m.as_any_mut().downcast_mut::<OptimizedCurvatureModifier>() {
