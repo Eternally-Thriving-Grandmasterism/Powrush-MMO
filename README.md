@@ -4,7 +4,7 @@ A mercy-first infinite MMO where players co-forge a thriving, post-scarcity univ
 
 ## Licensing (Dual-Licensed — Mercy-Gated)
 
-Powrush-MMO is **dual-licensed** to keep the mercy-first infinite universe open while protecting sovereignty:
+Powrush-MMO is **dual-licensed** under Autonomicity Games Inc. to keep the mercy-first infinite universe open while protecting sovereignty:
 
 - **MIT License**  
   For individuals, researchers, students, hobbyists, non-profits, and non-commercial open-source use.  
