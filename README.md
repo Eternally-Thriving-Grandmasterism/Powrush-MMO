@@ -2,6 +2,22 @@
 
 A mercy-first infinite MMO where players co-forge a thriving, post-scarcity universe through trust, education, grace-aligned governance, and real-world rewards.
 
+## Licensing (Dual-Licensed — Mercy-Gated)
+
+Powrush-MMO is **dual-licensed** to keep the mercy-first infinite universe open while protecting sovereignty:
+
+- **MIT License**  
+  For individuals, researchers, students, hobbyists, non-profits, and non-commercial open-source use.  
+  Free to use, study, modify, fork, distribute. See (`/LICENSE`).
+
+- **Eternal Mercy Flow License (Commercial / Enterprise)**  
+  Required for companies, products, revenue, monetization, in-game economies, or any deployment that generates income.  
+  Includes upfront fees + royalties (negotiable), full Mercy Covenant, 7 Living Filters, proper credit.  
+  MIT alone **not authorized** for commercial use.  
+  Contact: CEO@ACITYGAMES.COM for terms. See (`/licenses/ETERNAL-MERCY-FLOW-COMMERCIAL-LICENSING-AGREEMENT-v2026.21.md`).
+
+Want in? Say “I want licensing” — we’ll quote, no bullshit.
+
 ## Vision
 - **Resource-Based Economy (RBE)**: Abundance for all — no scarcity, needs met freely.
 - **Education & Growth**: Quests teach real skills (science, sustainability, empathy).
