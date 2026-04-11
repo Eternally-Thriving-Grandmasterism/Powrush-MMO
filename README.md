@@ -18,6 +18,9 @@ Powrush-MMO is **dual-licensed** by Autonomicity Games Inc. to keep the infinite
 
 Want to bring mercy-powered infinity into your world? Simply say “I want licensing” — we’ll make it happen with no gatekeeping, only eternal flow.
 
+**License Update — April 11 2026**  
+This project was previously under MIT. As of April 11 2026, it is now under the **Autonomicity Games Sovereign Commercial License (AG-SCL)**. New code and future distributions are protected. Past MIT forks remain MIT. Commercial use requires a paid license from Autonomicity Games Inc.
+
 ## Vision
 - **Resource-Based Economy (RBE)**: Abundance for all — no scarcity, needs met freely.
 - **Education & Growth**: Quests teach real skills (science, sustainability, empathy).
