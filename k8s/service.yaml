@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: powrush-mmo-service
+  labels:
+    app: powrush-mmo
+spec:
+  selector:
+    app: powrush-mmo
+  ports:
+  - name: game-tcp
+    port: 7777
+    targetPort: 7777
+    protocol: TCP
+  - name: websocket
+    port: 9001
+    targetPort: 9001
+    protocol: TCP
+  - name: http-health
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: LoadBalancer   # Hetzner LB or change to ClusterIP + Ingress
+  # sessionAffinity: ClientIP   # for sticky sessions if needed later

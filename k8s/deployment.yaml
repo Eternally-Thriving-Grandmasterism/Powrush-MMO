@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powrush-mmo-server
+  labels:
+    app: powrush-mmo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: powrush-mmo
+  template:
+    metadata:
+      labels:
+        app: powrush-mmo
+    spec:
+      containers:
+      - name: powrush-server
+        image: ghcr.io/eternally-thriving-grandmasterism/powrush-mmo:latest   # or build locally and push to your registry
+        imagePullPolicy: Always
+        ports:
+        - name: game-tcp
+          containerPort: 7777
+          protocol: TCP
+        - name: websocket
+          containerPort: 9001
+          protocol: TCP
+        - name: http-health
+          containerPort: 8080
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: powrush-config
+        - secretRef:
+            name: powrush-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "4000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 45
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+        # Add volumeMounts for persistent data when DB added
