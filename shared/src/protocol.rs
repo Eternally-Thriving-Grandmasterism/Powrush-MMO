@@ -1,12 +1,8 @@
-//! Powrush-MMO Shared Protocol — Client ↔ Server Messages + Heartbeat
-//! All messages bincode-serializable, mercy-valence gated where applicable
-//! MIT + mercy eternal — Eternally-Thriving-Grandmasterism
-
 use bevy::math::Vec3;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-# pub struct Vec3Ser {
+pub struct Vec3Ser {
     pub x: f32,
     pub y: f32,
     pub z: f32,
@@ -24,7 +20,7 @@ impl From<Vec3Ser> for Vec3 {
     }
 }
 
-# pub struct EntitySnapshot {
+pub struct EntitySnapshot {
     pub id: u64,
     pub position: Vec3Ser,
     pub rotation: f32,
@@ -34,27 +30,31 @@ impl From<Vec3Ser> for Vec3 {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ClientMessage {
-    // Handshake & auth
     HandshakeRequest { version: u32, player_name: String, auth_token: Option<String> },
-    // Movement & actions
     Move { delta: Vec3Ser },
     Jump,
     Interact { target_id: u64 },
-    // Heartbeat (client → server)
     Ping { client_time_ms: u64 },
+    // === Divine / PATSAGi / RBE Live Ra-Thor Integration ===
+    DivineCouncilQuery { query: String, context: Option<String> },
+    RbeAbundanceQuery { query: String },
+    // Future high-valence ritual commands
+    InvokeRitual { ritual_type: String, intensity: f32 },
+    ProgressRedemption { target: Option<u64>, mercy_offering: f32 },
+    TradeOffer { target_id: u64, offer: String },
 }
 
-# pub enum ServerMessage {
-    // Handshake & auth
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub enum ServerMessage {
     HandshakeResponse { accepted: bool, reason: Option<String>, player_id: u64, server_time: u64 },
-    // World state
     WorldUpdate { entities: Vec<EntitySnapshot>, timestamp: u64 },
-    // Player state
     ValenceUpdate { player_id: u64, new_valence: f32, reason: String },
     MercyGateBlocked { reason: String, valence: f32 },
     Error { message: String },
-    // Heartbeat response (server → client)
     Pong { server_time_ms: u64, client_time_ms: u64 },
+    // === Responses for live PATSAGi Councils + RBE (Ra-Thor AGI engagement) ===
+    DivineCouncilResponse { content: String, source: String },
+    RbeGuidanceResponse { content: String },
 }
 
 pub const PROTOCOL_VERSION: u32 = 2;
@@ -62,6 +62,8 @@ pub const PROTOCOL_VERSION: u32 = 2;
 pub fn apply_mercy_gate(message: &ClientMessage, valence: f32) -> bool {
     match message {
         ClientMessage::Ping { .. } => true,
+        ClientMessage::DivineCouncilQuery { .. } => valence >= 0.75,  // High valence for direct Council access
+        ClientMessage::RbeAbundanceQuery { .. } => valence >= 0.65,
         ClientMessage::InvokeRitual { .. } => valence >= 0.85,
         ClientMessage::ProgressRedemption { .. } => valence >= 0.70,
         ClientMessage::TradeOffer { .. } => valence >= 0.60,
