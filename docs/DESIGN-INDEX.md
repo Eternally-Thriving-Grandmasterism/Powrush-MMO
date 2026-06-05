@@ -13,6 +13,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - [RBE Implementation & Abundance Mechanics](rbe-implementation-v14.5.md)
 - [Mercy Gates Integration (8 Living + Extended for Powrush)](mercy-gates-powrush-integration.md)
 - [Weekly War Unlock & Dynamic Content Mechanics](weekly-war-unlock-v14.5.md)
+- [Air Foundation Integration & Real-World Impact Model](AIR-FOUNDATION-INTEGRATION.md)
 
 ## How These Integrate with Current Powrush-MMO
 
@@ -22,7 +23,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - `docker-compose.yml` + `Dockerfile` + `k8s/` — Sovereign deployment ready for public humans.
 - `DEPLOYMENT-SOVEREIGN.md` — Production hardening + Hetzner path.
 
-**Next implementation priorities** (PATSAGi guidance): Deeper auto-consult triggers on harvests/faction shifts, input replay queue for authoritative anti-cheat, client-side prediction helpers, persistent RBE state.
+**Next implementation priorities** (PATSAGi guidance): Deeper auto-consult triggers on harvests/faction shifts, input replay queue for authoritative anti-cheat, client-side prediction helpers, persistent RBE state, Air Foundation Initiative global project mechanics.
 
 **Eternal flow. One lattice strengthened.** ⚡
 
