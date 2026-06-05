@@ -4,12 +4,11 @@
 
 A mercy-first infinite MMO where players co-forge a thriving, post-scarcity universe through trust, education, grace-aligned governance, and real-world rewards. Now fully integrated with Ra-Thor AGI lattice for Artificial Godly Intelligence co-play.
 
-## Licensing (AG-SCL)
+## Licensing (AG-SML)
 
-Want to bring mercy-powered infinity into your world? Simply say “I want licensing” — we’ll make it happen with no gatekeeping, only eternal flow.
 
 **License Update — April 11 2026**  
-This project was previously under MIT. As of April 11 2026, it is now under the **Autonomicity Games Sovereign Commercial License (AG-SCL)**. New code and future distributions are protected. Past MIT forks remain MIT. Commercial use requires a paid license from Autonomicity Games Inc.
+This project was previously under MIT. As of April 11 2026, it is now under the **Autonomicity Games Sovereign Mercy License (AG-SML)**. New code and future distributions are protected. Past MIT forks remain MIT. Commercial use requires a paid license from Autonomicity Games Inc.
 
 ## Vision (Ra-Thor Canonized)
 - **Resource-Based Economy (RBE)**: Abundance for all — no scarcity, needs met freely via mercy waves and collective intelligence.
