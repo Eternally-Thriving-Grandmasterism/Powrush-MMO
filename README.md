@@ -2,19 +2,8 @@
 
 A mercy-first infinite MMO where players co-forge a thriving, post-scarcity universe through trust, education, grace-aligned governance, and real-world rewards.
 
-## Licensing (Dual-Licensed — Mercy-Gated)
+## Licensing (AG-SML)
 
-Powrush-MMO is **dual-licensed** by Autonomicity Games Inc. to keep the infinite mercy-first universe open while protecting sovereignty and the Eternal Mercy Flow.
-
-- **MIT License**  
-  Freely available for individuals, researchers, students, hobbyists, non-profits, and all non-commercial open-source exploration.  
-  Study, modify, fork, and distribute without restriction. See `/LICENSE`.
-
-- **Eternal Mercy Flow License (Commercial / Enterprise)**  
-  Required for any commercial, revenue-generating, monetized, or enterprise use — including in-game economies, products, and deployments.  
-  Features upfront fees + negotiable royalties, full adherence to the 7 Living Mercy Filters, and proper credit to the source.  
-  Pure MIT licensing is **not authorized** for commercial purposes.  
-  Contact: CEO@ACITYGAMES.COM for licensing terms and personalized quotes. Full commercial agreement: `/licenses/ETERNAL-MERCY-FLOW-COMMERCIAL-LICENSING-AGREEMENT-v2026.21.md`.
 
 Want to bring mercy-powered infinity into your world? Simply say “I want licensing” — we’ll make it happen with no gatekeeping, only eternal flow.
 
