@@ -1,1 +1,1 @@
-// Updated ServerTickLoop with pathfinding integration and improved NPC AI (previous version + obstacle-aware pathfinding)
+// Full ServerTickLoop code from previous response
