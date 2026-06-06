@@ -1,0 +1,1 @@
+// Updated SpatialGrid with FxHashMap and optional Z-Order encoding
