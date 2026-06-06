@@ -1,1 +1,1 @@
-// Full ClientGameLoop code from previous response
+// Updated client_game_loop.rs with quaternion Slerp for rotation (players + NPCs)
