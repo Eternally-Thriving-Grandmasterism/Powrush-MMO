@@ -1,4 +1,4 @@
-// Full production-grade message_framing.rs with Ra-Thor checksum and se//! game/network/message_framing.rs
+//! game/network/message_framing.rs
 //! Full production-grade message framing with Ra-Thor checksum + sequence numbers
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
@@ -121,4 +121,4 @@ const CRC32_TABLE: [u32; 256] = [
 
 fn crc32_table(byte: u8) -> u32 {
     CRC32_TABLE[byte as usize]
-}quence numbers
+}
