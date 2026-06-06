@@ -1,36 +1,33 @@
-// ... existing imports ...
-use powrush_divine_module::MercyCore;
+//! server/main.rs
+//! Powrush-MMO Server Entry Point — Full Wiring
+//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
+
+use anyhow::Result;
+use powrush_server::game_server::GameServer;
+use powrush_server::network::tokio_transport::TokioTransport;
+use powrush_server::rbe_integration::RbeServerIntegration;
+use lattice_conductor::SovereignLattice;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let mut mercy_core = MercyCore::new();
+async fn main() -> Result<()> {
+    println!("🌍 Powrush-MMO Server v14.6.0+ starting...");
 
-    let listener = TcpListener::bind("0.0.0.0:8080").await?;
-    loop {
-        let (socket, _) = listener.accept().await?;
-        let mercy_clone = mercy_core.clone(); // or Arc<Mutex> if mutable state grows
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(socket, mercy_clone).await {
-                tracing::error!("Connection error: {}", e);
-            }
-        });
-    }
-}
+    // Initialize Lattice Conductor (ONE Organism)
+    let lattice = SovereignLattice::new();
 
-async fn handle_connection(mut socket: TcpStream, mut mercy_core: MercyCore) -> Result<()> {
-    // ... existing handshake / read loop ...
-    while let Some(msg) = read_message(&mut socket).await? {
-        // Mercy gate every incoming message
-        match mercy_core.gate_server_message(&msg).await {
-            Ok(gated) => {
-                // Process gated message
-                send_response(&mut socket, &gated).await?;
-            }
-            Err(e) => {
-                tracing::warn!("Mercy gate blocked: {}", e);
-                send_error(&mut socket, "Mercy gate violation").await?;
-            }
-        }
-    }
+    // Create core GameServer
+    let transport = TokioTransport::new();
+    let mut game_server = GameServer::new(transport);
+
+    // Integrate full RBE system (mercy-gated, derived from Ra-Thor)
+    let rbe = RbeServerIntegration::new(game_server.clone(), lattice);
+    game_server = game_server.with_rbe(rbe); // using the extension trait
+
+    // Start networking layer
+    let server_network = powrush_server::network::server_network::ServerNetwork::new(game_server);
+
+    // Launch server
+    server_network.start("0.0.0.0:8080").await?;
+
     Ok(())
 }
