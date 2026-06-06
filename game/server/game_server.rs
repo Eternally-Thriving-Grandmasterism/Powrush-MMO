@@ -1,1 +1,1 @@
-// GameServer wrapper implementation
+// Updated GameServer with DeltaCompressor integration
