@@ -1,9 +1,17 @@
 // game/hit_markers.rs
-// Powrush-MMO — Client-Side Hit Markers with 3D World Projection
+// Powrush-MMO — Hit Markers + Sound Effects
 // AG-SML v1.0 License
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HitSound {
+    Normal,
+    Critical,
+    Headshot,
+    WeakHit,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HitMarkerData {
@@ -12,6 +20,8 @@ pub struct HitMarkerData {
     pub is_critical: bool,
     pub hit_location: Option<(f32, f32, f32)>,
     pub target_id: u64,
+    pub play_sound: bool,
+    pub sound_type: Option<HitSound>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,50 +61,9 @@ impl HitMarker {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Camera {
-    pub view_matrix: [[f32; 4]; 4],
-    pub projection_matrix: [[f32; 4]; 4],
-    pub screen_width: f32,
-    pub screen_height: f32,
-}
-
-impl Camera {
-    pub fn world_to_screen(&self, world_pos: (f32, f32, f32)) -> Option<(f32, f32)> {
-        let world = [world_pos.0, world_pos.1, world_pos.2, 1.0];
-
-        let view_x = self.view_matrix[0][0] * world[0] + self.view_matrix[0][1] * world[1] +
-                     self.view_matrix[0][2] * world[2] + self.view_matrix[0][3] * world[3];
-        let view_y = self.view_matrix[1][0] * world[0] + self.view_matrix[1][1] * world[1] +
-                     self.view_matrix[1][2] * world[2] + self.view_matrix[1][3] * world[3];
-        let view_z = self.view_matrix[2][0] * world[0] + self.view_matrix[2][1] * world[1] +
-                     self.view_matrix[2][2] * world[2] + self.view_matrix[2][3] * world[3];
-        let view_w = self.view_matrix[3][0] * world[0] + self.view_matrix[3][1] * world[1] +
-                     self.view_matrix[3][2] * world[2] + self.view_matrix[3][3] * world[3];
-
-        let clip_x = self.projection_matrix[0][0] * view_x + self.projection_matrix[0][1] * view_y +
-                     self.projection_matrix[0][2] * view_z + self.projection_matrix[0][3] * view_w;
-        let clip_y = self.projection_matrix[1][0] * view_x + self.projection_matrix[1][1] * view_y +
-                     self.projection_matrix[1][2] * view_z + self.projection_matrix[1][3] * view_w;
-        let clip_w = self.projection_matrix[3][0] * view_x + self.projection_matrix[3][1] * view_y +
-                     self.projection_matrix[3][2] * view_z + self.projection_matrix[3][3] * view_w;
-
-        if clip_w <= 0.0 {
-            return None;
-        }
-
-        let ndc_x = clip_x / clip_w;
-        let ndc_y = clip_y / clip_w;
-
-        let screen_x = (ndc_x + 1.0) * 0.5 * self.screen_width;
-        let screen_y = (1.0 - ndc_y) * 0.5 * self.screen_height;
-
-        Some((screen_x, screen_y))
-    }
-}
-
 pub struct HitMarkerManager {
     markers: VecDeque<HitMarker>,
+    pending_sounds: VecDeque<HitSound>,
     max_markers: usize,
 }
 
@@ -102,23 +71,30 @@ impl HitMarkerManager {
     pub fn new(max_markers: usize) -> Self {
         Self {
             markers: VecDeque::with_capacity(max_markers),
+            pending_sounds: VecDeque::new(),
             max_markers,
         }
     }
 
     pub fn add_hit_marker(&mut self, data: &HitMarkerData, world_position: Option<(f32, f32, f32)>) {
-        if !data.show {
-            return;
+        if data.show {
+            let marker = HitMarker::new(data, world_position);
+            if self.markers.len() >= self.max_markers {
+                self.markers.pop_front();
+            }
+            self.markers.push_back(marker);
         }
 
-        let marker = HitMarker::new(data, world_position);
-        if self.markers.len() >= self.max_markers {
-            self.markers.pop_front();
+        if data.play_sound {
+            if let Some(sound_type) = data.sound_type {
+                self.pending_sounds.push_back(sound_type);
+            } else {
+                self.pending_sounds.push_back(HitSound::Normal);
+            }
         }
-        self.markers.push_back(marker);
     }
 
-    pub fn update(&mut self, delta_time: f32, camera: Option<&Camera>) {
+    pub fn update(&mut self, delta_time: f32, camera: Option<&crate::game::hit_markers::Camera>) {
         for marker in &mut self.markers {
             marker.update(delta_time);
 
@@ -130,11 +106,16 @@ impl HitMarkerManager {
         self.markers.retain(|m| m.is_alive());
     }
 
+    pub fn take_next_sound(&mut self) -> Option<HitSound> {
+        self.pending_sounds.pop_front()
+    }
+
     pub fn get_markers(&self) -> &VecDeque<HitMarker> {
         &self.markers
     }
 
     pub fn clear(&mut self) {
         self.markers.clear();
+        self.pending_sounds.clear();
     }
 }
