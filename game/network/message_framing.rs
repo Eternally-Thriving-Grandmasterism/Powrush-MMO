@@ -1,1 +1,1 @@
-// Final version of message_framing.rs with fixed checksum and sequence numbers
+// Final unified framing with sequence numbers and Ra-Thor checksum
