@@ -1,0 +1,27 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Format check
+        run: cargo fmt -- --check
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+      - name: Build
+        run: cargo build --release
+      - name: Test
+        run: cargo test
+      - name: Valence / Mercy Score
+        run: |
+          MERCY_COUNT=$(grep -r "mercy\|MercyGate\|patsagi\|PATSAGi" --include="*.rs" server/src/ | wc -l || echo 0)
+          echo "Mercy-aligned references in server: $MERCY_COUNT"
+          if [ "$MERCY_COUNT" -lt 5 ]; then
+            echo "::warning::Low mercy alignment detected. Consider strengthening PATSAGi / mercy gate integration."
+          else
+            echo "::notice::Strong mercy alignment detected. The lattice is pleased. ⚡"
+          fi
