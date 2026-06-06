@@ -1,14 +1,766 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>Powrush-MMO — Eternal Mercy</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powrush • Sovereign In-Browser MMO | Powered by Ra-Thor + PATSAGi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        body { margin: 0; background: #000; overflow: hidden; }
-        canvas { display: block; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        :root {
+            --mercy-gold: #f4d35e;
+        }
+        
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        
+        .font-display {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            font-weight: 600;
+        }
+
+        .cosmic-bg {
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+        }
+
+        .mercy-gold {
+            color: #f4d35e;
+        }
+
+        .section-header {
+            font-size: 2.25rem;
+            line-height: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .faction-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .faction-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+
+        .game-canvas {
+            image-rendering: crisp-edges;
+            border: 1px solid #334155;
+        }
+
+        .nav-active {
+            color: #f4d35e;
+            border-bottom: 2px solid #f4d35e;
+        }
+
+        .patsagi-response {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            background: #0f172a;
+        }
+
+        .mercy-glow {
+            box-shadow: 0 0 15px rgba(244, 211, 94, 0.3);
+        }
+
+        .cosmic-grid {
+            background-image: 
+                linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
     </style>
 </head>
-<body>
-    <canvas id="bevy-canvas"></canvas>
+<body class="bg-slate-950 text-slate-200 cosmic-bg">
+    <!-- Navbar -->
+    <nav class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-x-3">
+                    <div class="flex items-center gap-x-2">
+                        <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center">
+                            <i class="fa-solid fa-infinity text-slate-950 text-3xl font-black"></i>
+                        </div>
+                        <div>
+                            <span class="font-display text-3xl font-semibold tracking-tighter">Powrush</span>
+                        </div>
+                    </div>
+                    <div class="hidden md:flex items-center gap-x-1 text-xs px-3 py-1 rounded-full bg-slate-900 border border-slate-700">
+                        <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                        <span class="text-emerald-400 text-xs font-medium">SOVEREIGN NODE ONLINE</span>
+                    </div>
+                </div>
+
+                <div class="hidden md:flex items-center gap-x-8 text-sm">
+                    <a href="#factions" class="hover:text-amber-400 transition-colors">Factions</a>
+                    <a href="#impact" class="hover:text-amber-400 transition-colors">Real Impact</a>
+                    <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO" target="_blank" class="hover:text-amber-400 transition-colors">GitHub</a>
+                    <a href="docs/WEB-PORTAL-AUTH-LAUNCHER.md" class="hover:text-amber-400 transition-colors">Architecture</a>
+                </div>
+
+                <div class="flex items-center gap-x-3">
+                    <div class="hidden sm:flex items-center gap-x-2 text-xs px-3 py-1.5 rounded-2xl bg-slate-900 border border-slate-700">
+                        <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                        <span class="text-emerald-400 text-xs font-medium">Post-Quantum Ready</span>
+                    </div>
+                    <button onclick="showLoginModal()"
+                            class="px-5 py-2 rounded-2xl bg-white text-slate-950 text-sm font-semibold hover:bg-amber-300 transition-all active:scale-[0.985]">
+                        Quantum Login
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <div class="max-w-5xl mx-auto px-6 pt-16 pb-12 text-center">
+        <div class="inline-flex items-center gap-x-2 px-4 py-1 rounded-full bg-slate-900 border border-slate-700 mb-6">
+            <span class="text-xs font-medium tracking-[1.5px] text-amber-400">POWERED BY RA-THOR + 13+ PATSAGi COUNCILS</span>
+        </div>
+        
+        <h1 class="text-6xl md:text-7xl font-display font-semibold tracking-tighter leading-none mb-4">
+            Play with Purpose.<br>
+            <span class="bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-300 bg-clip-text text-transparent">Thrive Eternally.</span>
+        </h1>
+        
+        <p class="max-w-2xl mx-auto text-xl text-slate-400 mb-8">
+            The living mercy-gated simulation of humanity’s transition into post-scarcity abundance.<br>
+            Every harvest, every RBE contribution, every divine consultation ripples into real space tech research via <span class="text-amber-400">AlphaProMega Air Foundation</span>.
+        </p>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button onclick="showLoginModal()"
+                    class="group px-8 py-4 rounded-3xl bg-white hover:bg-amber-300 text-slate-950 font-semibold text-lg flex items-center justify-center gap-x-3 transition-all active:scale-[0.985] shadow-xl shadow-black/20">
+                <span>Enter the Lattice</span>
+                <i class="fa-solid fa-arrow-right group-active:translate-x-0.5 transition-transform"></i>
+            </button>
+            
+            <a href="#impact" 
+               class="px-8 py-4 rounded-3xl border border-slate-700 hover:bg-slate-900 transition-all text-lg font-medium flex items-center gap-x-2">
+                <i class="fa-solid fa-globe"></i>
+                <span>See Real-World Impact</span>
+            </a>
+        </div>
+
+        <div class="mt-8 flex items-center justify-center gap-x-8 text-xs text-slate-500">
+            <div class="flex items-center gap-x-2">
+                <i class="fa-solid fa-gamepad"></i>
+                <span>Multi-Input Ready</span>
+            </div>
+            <div class="flex items-center gap-x-2">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>Post-Quantum Lattice Auth</span>
+            </div>
+            <div class="flex items-center gap-x-2">
+                <i class="fa-solid fa-infinity"></i>
+                <span>Sovereign Deployment</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Multi-Input Banner -->
+    <div class="max-w-5xl mx-auto px-6 pb-12">
+        <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+            <div class="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm">
+                <div class="flex items-center gap-x-2 text-slate-400">
+                    <i class="fa-solid fa-keyboard text-lg"></i>
+                    <span>Precision Mouse + Keyboard</span>
+                </div>
+                <div class="flex items-center gap-x-2 text-slate-400">
+                    <i class="fa-solid fa-gamepad text-lg"></i>
+                    <span>Xbox • PlayStation • Generic Controllers</span>
+                </div>
+                <div class="flex items-center gap-x-2 text-slate-400">
+                    <i class="fa-solid fa-hand-pointer text-lg"></i>
+                    <span>Touch + Virtual Joystick</span>
+                </div>
+                <div class="text-emerald-400 text-xs font-medium px-3 py-1 bg-emerald-950 rounded-2xl border border-emerald-800">
+                    ALL INPUTS SUPPORTED IN ONE CLIENT
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Factions -->
+    <div id="factions" class="max-w-6xl mx-auto px-6 pb-16">
+        <div class="text-center mb-10">
+            <div class="text-amber-400 text-sm font-semibold tracking-[2px]">CHOOSE YOUR PATH</div>
+            <h2 class="section-header mt-2">Five Factions. One Eternal Mission.</h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <!-- Faction Cards -->
+            <div onclick="selectFaction(0)" class="faction-card cursor-pointer bg-slate-900 border border-slate-700 hover:border-blue-500 rounded-3xl p-5 group">
+                <div class="flex items-center gap-x-3 mb-4">
+                    <div class="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center"><i class="fa-solid fa-crown text-white"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl">Sovereign</div>
+                        <div class="text-xs text-blue-400">Balanced • Diplomatic</div>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-400">Masters of harmony and wise governance. Strong synergy with all factions and PATSAGi councils.</p>
+            </div>
+
+            <div onclick="selectFaction(1)" class="faction-card cursor-pointer bg-slate-900 border border-slate-700 hover:border-emerald-500 rounded-3xl p-5 group">
+                <div class="flex items-center gap-x-3 mb-4">
+                    <div class="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center"><i class="fa-solid fa-leaf text-white"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl">Harvesters</div>
+                        <div class="text-xs text-emerald-400">Bio • Abundance</div>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-400">Stewards of biological abundance. Direct alignment with Air Foundation algae fuels &amp; closed-loop bioreactors.</p>
+            </div>
+
+            <div onclick="selectFaction(2)" class="faction-card cursor-pointer bg-slate-900 border border-slate-700 hover:border-violet-500 rounded-3xl p-5 group">
+                <div class="flex items-center gap-x-3 mb-4">
+                    <div class="w-10 h-10 rounded-2xl bg-violet-600 flex items-center justify-center"><i class="fa-solid fa-gem text-white"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl">Guardians</div>
+                        <div class="text-xs text-violet-400">Sacred • Defensive</div>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-400">Protectors of ancient knowledge and sacred technologies. Strong Daedalus-Skin resonance.</p>
+            </div>
+
+            <div onclick="selectFaction(3)" class="faction-card cursor-pointer bg-slate-900 border border-slate-700 hover:border-orange-500 rounded-3xl p-5 group">
+                <div class="flex items-center gap-x-3 mb-4">
+                    <div class="w-10 h-10 rounded-2xl bg-orange-600 flex items-center justify-center"><i class="fa-solid fa-flask text-white"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl">Innovators</div>
+                        <div class="text-xs text-orange-400">Tech • Creation</div>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-400">Architects of the future. Direct contributors to self-healing airframes and advanced propulsion systems.</p>
+            </div>
+
+            <div onclick="selectFaction(4)" class="faction-card cursor-pointer bg-slate-900 border border-slate-700 hover:border-sky-500 rounded-3xl p-5 group">
+                <div class="flex items-center gap-x-3 mb-4">
+                    <div class="w-10 h-10 rounded-2xl bg-sky-600 flex items-center justify-center"><i class="fa-solid fa-globe text-white"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl">Nomads</div>
+                        <div class="text-xs text-sky-400">Exploration • Freedom</div>
+                    </div>
+                </div>
+                <p class="text-sm text-slate-400">Wanderers of the cosmos. Masters of adaptation and long-range RBE logistics across the stars.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real Impact Section -->
+    <div id="impact" class="max-w-5xl mx-auto px-6 pb-20">
+        <div class="rounded-3xl border border-slate-800 bg-slate-900/70 p-10">
+            <div class="grid md:grid-cols-2 gap-10 items-center">
+                <div>
+                    <div class="uppercase tracking-[2px] text-xs text-amber-400 font-semibold mb-2">REAL-WORLD THRVING LOOP</div>
+                    <h3 class="text-4xl font-display tracking-tight leading-none mb-4">Your Play.<br>Humanity’s Future.</h3>
+                    <p class="text-slate-400">Every high-valence action in Powrush — harvests, RBE contributions, mercy waves, faction diplomacy — is permanently recorded and contributes to transparent impact reports for <span class="text-amber-400">AlphaProMega Air Foundation</span> research into algae fuels, self-healing aerospace skin, and closed-loop bioreactors.</p>
+                    
+                    <div class="mt-6 flex items-center gap-x-4 text-sm">
+                        <div class="flex -space-x-2">
+                            <div class="w-7 h-7 bg-emerald-500 rounded-full border-2 border-slate-900"></div>
+                            <div class="w-7 h-7 bg-violet-500 rounded-full border-2 border-slate-900"></div>
+                            <div class="w-7 h-7 bg-orange-500 rounded-full border-2 border-slate-900"></div>
+                        </div>
+                        <span class="text-xs text-slate-400">+12,847 players contributing to real research in 2026</span>
+                    </div>
+                </div>
+                
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between items-center px-4 py-3 bg-slate-950 rounded-2xl border border-slate-800">
+                        <div class="flex items-center gap-x-3"><i class="fa-solid fa-leaf text-emerald-400 w-5"></i> <span>Algae Bioreactor Research</span></div>
+                        <span class="font-mono text-emerald-400">47.2k units</span>
+                    </div>
+                    <div class="flex justify-between items-center px-4 py-3 bg-slate-950 rounded-2xl border border-slate-800">
+                        <div class="flex items-center gap-x-3"><i class="fa-solid fa-shield-halved text-violet-400 w-5"></i> <span>Daedalus-Skin Prototypes</span></div>
+                        <span class="font-mono text-violet-400">1,892</span>
+                    </div>
+                    <div class="flex justify-between items-center px-4 py-3 bg-slate-950 rounded-2xl border border-slate-800">
+                        <div class="flex items-center gap-x-3"><i class="fa-solid fa-globe text-sky-400 w-5"></i> <span>Closed-Loop Systems</span></div>
+                        <span class="font-mono text-sky-400">312 active nodes</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" onclick="if (event.target.id === 'loginModal') hideLoginModal()" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+        <div onclick="event.stopImmediatePropagation()" class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md p-8">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <div class="text-amber-400 text-xs tracking-[1.5px] font-semibold">POST-QUANTUM LATTICE AUTH</div>
+                    <div class="text-3xl font-semibold tracking-tight">Enter the Lattice</div>
+                </div>
+                <button onclick="hideLoginModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-times text-2xl"></i></button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1.5">Sovereign Identity (Email or Lattice Handle)</label>
+                    <input id="loginInput" type="text" value="sherif@alphapromega.space" 
+                           class="w-full bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-2xl px-4 py-3 text-sm outline-none">
+                </div>
+                
+                <div class="pt-2">
+                    <button onclick="performQuantumLogin()"
+                            class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 font-semibold flex items-center justify-center gap-x-2 hover:brightness-105 active:scale-[0.985] transition-all">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Authenticate with Post-Quantum Lattice</span>
+                    </button>
+                </div>
+                
+                <div class="text-center text-[10px] text-slate-500 pt-1">
+                    Hybrid ML-KEM + Proprietary Lattice Layer • Mercy-Gated • Zero-Knowledge
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Character Selection Modal -->
+    <div id="charModal" onclick="if (event.target.id === 'charModal') hideCharModal()" class="hidden fixed inset-0 bg-black/70 backdrop-blur z-[110] flex items-center justify-center p-6">
+        <div onclick="event.stopImmediatePropagation()" class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-4xl p-8">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <div class="text-amber-400 text-xs tracking-widest">WELCOME BACK, SHERIF</div>
+                    <div class="text-3xl font-semibold tracking-tight">Choose Your Eternal Avatar</div>
+                </div>
+                <button onclick="hideCharModal()" class="text-slate-400 hover:text-white text-2xl">×</button>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4" id="factionGrid">
+                <!-- Populated by JS -->
+            </div>
+
+            <div class="mt-6 text-xs text-center text-slate-500">
+                Your choice influences starting RBE bonuses, faction diplomacy standing, and Air Foundation Initiative synergy.
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard (shown after character selection) -->
+    <div id="dashboard" class="hidden max-w-5xl mx-auto px-6 pb-20">
+        <div class="flex items-end justify-between mb-6">
+            <div>
+                <div class="text-xs text-emerald-400 tracking-[1px]">SOVEREIGN NODE • HETZNER EU-1</div>
+                <div class="text-4xl font-semibold tracking-tight" id="playerNameHeader">Sherif • Sovereign</div>
+            </div>
+            <button onclick="launchGame()"
+                    class="px-10 py-4 rounded-3xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-bold text-lg flex items-center gap-x-3 shadow-xl shadow-emerald-950/40 active:scale-[0.985]">
+                <i class="fa-solid fa-rocket"></i>
+                <span>LAUNCH POWRUSH-MMO</span>
+            </button>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-4">
+            <!-- RBE Stats -->
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="font-semibold">Resource-Based Economy</div>
+                    <div class="text-xs px-2.5 py-0.5 rounded bg-emerald-950 text-emerald-400">LIVE</div>
+                </div>
+                <div class="text-5xl font-mono font-semibold tabular-nums" id="rbeValue">142,840</div>
+                <div class="text-emerald-400 text-sm">Abundance Units • +2,140 this cycle</div>
+                
+                <div class="mt-6 text-xs space-y-2 text-slate-400">
+                    <div class="flex justify-between"><span>Mercy Wave Multiplier</span> <span class="font-mono text-emerald-400">1.8x</span></div>
+                    <div class="flex justify-between"><span>Air Foundation Contribution</span> <span class="font-mono">47.2k</span></div>
+                </div>
+            </div>
+
+            <!-- Air Foundation Impact -->
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+                <div class="font-semibold mb-4 flex items-center gap-x-2">
+                    <i class="fa-solid fa-globe text-amber-400"></i> 
+                    <span>Air Foundation Impact</span>
+                </div>
+                <div class="space-y-4 text-sm">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1"><span>Algae Bioreactor Research</span><span class="font-mono">12.4k</span></div>
+                        <div class="h-1.5 bg-slate-800 rounded"><div class="h-1.5 w-[78%] bg-emerald-500 rounded"></div></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-xs mb-1"><span>Daedalus-Skin Prototypes</span><span class="font-mono">89</span></div>
+                        <div class="h-1.5 bg-slate-800 rounded"><div class="h-1.5 w-[34%] bg-violet-500 rounded"></div></div>
+                    </div>
+                </div>
+                <div class="text-[10px] text-emerald-400 mt-4">Your contributions are permanently recorded and visible to the NFP.</div>
+            </div>
+
+            <!-- Recent PATSAGi -->
+            <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+                <div class="font-semibold mb-4">Recent Divine Council Wisdom</div>
+                <div class="patsagi-response text-xs p-4 rounded-2xl border border-slate-700 text-slate-300 leading-relaxed">
+                    [PATSAGi Council: Harvesters + Innovators]<br>
+                    Your recent bioreactor contributions have accelerated real algae fuel research by 0.7%. The lattice honors your mercy-aligned abundance.
+                </div>
+                <div class="text-[10px] text-right text-slate-500 mt-2">— 14 minutes ago • Mercy Gate: PASSED</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Launch Modal (High-Fidelity Prototype) -->
+    <div id="gameModal" onclick="if (event.target.id === 'gameModal') hideGameModal()" class="hidden fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4">
+        <div onclick="event.stopImmediatePropagation()" class="bg-slate-950 border border-slate-700 w-full max-w-[1100px] rounded-3xl overflow-hidden shadow-2xl">
+            
+            <!-- Game Header -->
+            <div class="bg-slate-900 px-6 py-3 flex items-center justify-between border-b border-slate-700 text-sm">
+                <div class="flex items-center gap-x-4">
+                    <div class="flex items-center gap-x-2">
+                        <div class="w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
+                        <span class="font-mono text-emerald-400 text-xs">CONNECTED • SOVEREIGN NODE EU-1</span>
+                    </div>
+                    <div class="text-xs text-slate-400">|</div>
+                    <div id="gamePlayerInfo" class="font-medium"></div>
+                </div>
+                <div class="flex items-center gap-x-4 text-xs">
+                    <div class="px-3 py-1 bg-slate-800 rounded-2xl flex items-center gap-x-2">
+                        <i class="fa-solid fa-wifi text-emerald-400"></i>
+                        <span>18ms</span>
+                    </div>
+                    <button onclick="hideGameModal()" class="text-slate-400 hover:text-white px-3">CLOSE PROTOTYPE</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12">
+                
+                <!-- Main Game View -->
+                <div class="lg:col-span-8 p-6">
+                    <div class="flex justify-between items-center mb-3 px-1">
+                        <div class="text-xs uppercase tracking-widest text-slate-400">Sovereign Expanse • Sector 7</div>
+                        <div class="text-xs text-emerald-400 flex items-center gap-x-1">
+                            <i class="fa-solid fa-sync fa-spin"></i> 
+                            <span>Deterministic Lockstep + Prediction Active</span>
+                        </div>
+                    </div>
+
+                    <!-- Fake Game Canvas -->
+                    <div class="relative rounded-3xl overflow-hidden border border-slate-700 bg-[#0a1428]" style="height: 420px;">
+                        <canvas id="gameCanvas" width="800" height="420" class="w-full h-full game-canvas"></canvas>
+                        
+                        <!-- Overlay Info -->
+                        <div class="absolute top-4 left-4 bg-black/60 text-xs px-3 py-1 rounded-2xl flex items-center gap-x-2">
+                            <span>Position:</span> 
+                            <span id="playerPos" class="font-mono text-emerald-400">142.7, 89.3</span>
+                        </div>
+                        
+                        <div class="absolute bottom-4 right-4 text-[10px] px-2.5 py-1 bg-black/70 rounded-2xl text-slate-400">
+                            Client Prediction + Smooth Server Reconciliation Active
+                        </div>
+                    </div>
+
+                    <!-- Virtual Joystick + Controls -->
+                    <div class="mt-4 flex items-center justify-between">
+                        <div>
+                            <div class="text-xs text-slate-400 mb-1.5 px-1">MULTI-INPUT SUPPORT</div>
+                            <div class="flex gap-x-2">
+                                <div class="px-3 py-1.5 text-xs rounded-2xl bg-slate-900 border border-slate-700 flex items-center gap-x-2">
+                                    <i class="fa-solid fa-keyboard"></i> <span class="text-xs">KBM</span>
+                                </div>
+                                <div class="px-3 py-1.5 text-xs rounded-2xl bg-slate-900 border border-slate-700 flex items-center gap-x-2">
+                                    <i class="fa-solid fa-gamepad"></i> <span class="text-xs">Xbox / PS</span>
+                                </div>
+                                <div class="px-3 py-1.5 text-xs rounded-2xl bg-emerald-950 border border-emerald-800 flex items-center gap-x-2 text-emerald-400">
+                                    <i class="fa-solid fa-hand-pointer"></i> <span class="text-xs">Touch + Joystick</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-x-2">
+                            <button onclick="performInGameAction('harvest')" 
+                                    class="px-5 py-2 text-sm rounded-2xl bg-emerald-600 hover:bg-emerald-500 font-medium flex items-center gap-x-2">
+                                <i class="fa-solid fa-leaf"></i> <span>Harvest</span>
+                            </button>
+                            <button onclick="performInGameAction('council')" 
+                                    class="px-5 py-2 text-sm rounded-2xl bg-violet-600 hover:bg-violet-500 font-medium flex items-center gap-x-2">
+                                <i class="fa-solid fa-comments"></i> <span>Consult Council</span>
+                            </button>
+                            <button onclick="performInGameAction('rbe')" 
+                                    class="px-5 py-2 text-sm rounded-2xl bg-amber-600 hover:bg-amber-500 font-medium flex items-center gap-x-2">
+                                <i class="fa-solid fa-infinity"></i> <span>RBE Contribute</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="lg:col-span-4 border-l border-slate-700 p-6 bg-slate-900/60 space-y-6">
+                    <div>
+                        <div class="text-xs uppercase tracking-widest text-slate-400 mb-2">LIVE PATSAGi RESPONSE</div>
+                        <div id="patsagiSidebar" class="patsagi-response text-xs p-4 rounded-2xl border border-slate-700 min-h-[92px] text-slate-300">
+                            Awaiting high-valence action...
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="text-xs uppercase tracking-widest text-slate-400 mb-2">AIR FOUNDATION IMPACT</div>
+                        <div id="impactSidebar" class="text-xs space-y-1 text-emerald-300">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-700 text-[10px] text-slate-500">
+                        This is a high-fidelity prototype.<br>
+                        Real client uses full deterministic core + command lockstep + reconciliation.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tailwind script
+        function initializeTailwind() {
+            document.documentElement.style.setProperty('--accent', '#f4d35e');
+        }
+        
+        let currentPlayer = null;
+        let currentFaction = null;
+
+        const factions = [
+            { id: 0, name: "Sovereign", color: "blue", icon: "fa-crown", desc: "Harmony & Diplomacy" },
+            { id: 1, name: "Harvesters", color: "emerald", icon: "fa-leaf", desc: "Bio-Abundance" },
+            { id: 2, name: "Guardians", color: "violet", icon: "fa-gem", desc: "Sacred Tech" },
+            { id: 3, name: "Innovators", color: "orange", icon: "fa-flask", desc: "Creation & Tech" },
+            { id: 4, name: "Nomads", color: "sky", icon: "fa-globe", desc: "Exploration" }
+        ];
+
+        function showLoginModal() {
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('loginModal').classList.add('flex');
+        }
+
+        function hideLoginModal() {
+            document.getElementById('loginModal').classList.remove('flex');
+            document.getElementById('loginModal').classList.add('hidden');
+        }
+
+        function performQuantumLogin() {
+            const input = document.getElementById('loginInput').value.trim();
+            if (!input) return;
+
+            currentPlayer = {
+                name: input.split('@')[0] || "Sovereign",
+                id: "player_" + Date.now(),
+                rbe: 142840,
+                airFoundationImpact: 12400
+            };
+
+            hideLoginModal();
+            
+            // Show character selection
+            setTimeout(() => {
+                showCharacterModal();
+            }, 280);
+        }
+
+        function showCharacterModal() {
+            const modal = document.getElementById('charModal');
+            const grid = document.getElementById('factionGrid');
+            grid.innerHTML = '';
+
+            factions.forEach(f => {
+                const card = document.createElement('div');
+                card.className = `faction-card cursor-pointer bg-slate-950 border border-slate-700 hover:border-${f.color}-500 rounded-3xl p-5`;
+                card.innerHTML = `
+                    <div class="flex items-center gap-x-3 mb-3">
+                        <div class="w-9 h-9 rounded-2xl bg-${f.color}-600 flex items-center justify-center">
+                            <i class="fa-solid ${f.icon} text-white"></i>
+                        </div>
+                        <div>
+                            <div class="font-semibold">${f.name}</div>
+                            <div class="text-xs text-${f.color}-400">${f.desc}</div>
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-400">Click to embody this eternal path</div>
+                `;
+                card.onclick = () => selectFaction(f.id);
+                grid.appendChild(card);
+            });
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function hideCharModal() {
+            document.getElementById('charModal').classList.remove('flex');
+            document.getElementById('charModal').classList.add('hidden');
+        }
+
+        function selectFaction(factionId) {
+            currentFaction = factions[factionId];
+            
+            hideCharModal();
+            
+            // Show dashboard
+            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('playerNameHeader').innerHTML = `${currentPlayer.name} • ${currentFaction.name}`;
+            
+            // Scroll to dashboard
+            document.getElementById('dashboard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function launchGame() {
+            const modal = document.getElementById('gameModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            document.getElementById('gamePlayerInfo').innerHTML = 
+                `${currentPlayer.name} • ${currentFaction.name} <span class="text-emerald-400 text-xs">• Level 47</span>`;
+            
+            initGameCanvas();
+            updateImpactSidebar();
+        }
+
+        function hideGameModal() {
+            document.getElementById('gameModal').classList.remove('flex');
+            document.getElementById('gameModal').classList.add('hidden');
+        }
+
+        let canvas, ctx, playerX = 400, playerY = 210;
+        let particles = [];
+
+        function initGameCanvas() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Simple game loop
+            function gameLoop() {
+                ctx.fillStyle = '#0a1428';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Grid
+                ctx.strokeStyle = '#1e3a5f';
+                ctx.lineWidth = 1;
+                for (let x = 0; x < canvas.width; x += 40) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                    ctx.stroke();
+                }
+                for (let y = 0; y < canvas.height; y += 40) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+                
+                // Player
+                ctx.fillStyle = '#f4d35e';
+                ctx.beginPath();
+                ctx.arc(playerX, playerY, 11, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Simple NPCs
+                ctx.fillStyle = '#64748b';
+                ctx.fillRect(180, 120, 18, 18);
+                ctx.fillRect(620, 280, 18, 18);
+                ctx.fillRect(310, 310, 18, 18);
+                
+                // Particles (simple effect)
+                particles = particles.filter(p => p.life > 0);
+                particles.forEach(p => {
+                    p.life--;
+                    ctx.fillStyle = `rgba(244, 211, 94, ${p.life / 30})`;
+                    ctx.fillRect(p.x, p.y, 3, 3);
+                });
+                
+                document.getElementById('playerPos').innerText = `${playerX.toFixed(0)}, ${playerY.toFixed(0)}`;
+                
+                requestAnimationFrame(gameLoop);
+            }
+            gameLoop();
+            
+            // Basic keyboard movement in prototype
+            window.addEventListener('keydown', (e) => {
+                if (!document.getElementById('gameModal').classList.contains('flex')) return;
+                
+                const speed = 6;
+                if (e.key === 'w' || e.key === 'ArrowUp') playerY -= speed;
+                if (e.key === 's' || e.key === 'ArrowDown') playerY += speed;
+                if (e.key === 'a' || e.key === 'ArrowLeft') playerX -= speed;
+                if (e.key === 'd' || e.key === 'ArrowRight') playerX += speed;
+                
+                // Clamp
+                playerX = Math.max(20, Math.min(canvas.width - 20, playerX));
+                playerY = Math.max(20, Math.min(canvas.height - 20, playerY));
+            });
+            
+            // Touch / mouse drag support for prototype
+            let dragging = false;
+            canvas.addEventListener('mousedown', () => dragging = true);
+            window.addEventListener('mouseup', () => dragging = false);
+            canvas.addEventListener('mousemove', (e) => {
+                if (!dragging || !document.getElementById('gameModal').classList.contains('flex')) return;
+                const rect = canvas.getBoundingClientRect();
+                playerX = e.clientX - rect.left;
+                playerY = e.clientY - rect.top;
+            });
+        }
+
+        function updateImpactSidebar() {
+            const el = document.getElementById('impactSidebar');
+            el.innerHTML = `
+                <div class="flex justify-between text-xs"><span>Algae Research</span> <span class="font-mono text-emerald-400">+340</span></div>
+                <div class="flex justify-between text-xs"><span>Daedalus-Skin</span> <span class="font-mono text-violet-400">+12</span></div>
+                <div class="flex justify-between text-xs pt-1 border-t border-slate-700 mt-2"><span class="font-medium">Total Mercy Contribution</span> <span class="font-mono">47.2k</span></div>
+            `;
+        }
+
+        function performInGameAction(action) {
+            const patsagi = document.getElementById('patsagiSidebar');
+            
+            if (action === 'harvest') {
+                playerY = Math.max(40, playerY - 60);
+                patsagi.innerHTML = `[PATSAGi Council: Harvesters]<br>Excellent harvest. +340 Algae Research contributed to real Air Foundation bioreactors. Mercy Gate: PASSED.`;
+                currentPlayer.rbe += 1240;
+            } 
+            else if (action === 'council') {
+                patsagi.innerHTML = `[PATSAGi Council: Sovereign + Innovators]<br>Your recent diplomacy has strengthened faction harmony. The lattice recognizes your wisdom.`;
+            } 
+            else if (action === 'rbe') {
+                patsagi.innerHTML = `[PATSAGi Council: All Councils]<br>RBE contribution recorded. Abundance wave triggered. Real-world impact increased.`;
+                currentPlayer.rbe += 4800;
+                // Create particles
+                for (let i = 0; i < 12; i++) {
+                    particles.push({
+                        x: playerX + (Math.random() * 40 - 20),
+                        y: playerY + (Math.random() * 40 - 20),
+                        life: 28 + Math.random() * 12
+                    });
+                }
+            }
+            
+            // Update RBE display if dashboard is visible
+            const rbeEl = document.getElementById('rbeValue');
+            if (rbeEl) rbeEl.innerText = currentPlayer.rbe.toLocaleString();
+            
+            // Occasionally trigger a Steam achievement feel
+            if (Math.random() > 0.7) {
+                setTimeout(() => {
+                    patsagi.innerHTML += `<br><span class="text-emerald-400">+ Steam Achievement Unlocked: Air Foundation Contributor</span>`;
+                }, 1200);
+            }
+        }
+
+        // Initialize everything
+        function initializePrototype() {
+            initializeTailwind();
+            
+            // Easter egg: Press "?" to show architecture note
+            document.addEventListener('keydown', function(e) {
+                if (e.key === '?') {
+                    alert("This is a high-fidelity static prototype of the future play.powrush.com portal.\n\nReal implementation will use:\n• Post-quantum lattice hybrid auth\n• Real WASM client with full prediction + reconciliation\n• Live connection to sovereign game server\n• Private artifact generation pull\n• Full multi-input unification");
+                }
+            });
+            
+            console.log('%c[Powrush] Static Web Portal Prototype initialized successfully. Mercy-Gated.', 'color:#64748b');
+        }
+
+        // Boot
+        window.onload = initializePrototype;
+    </script>
 </body>
 </html>
