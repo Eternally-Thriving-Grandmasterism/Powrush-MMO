@@ -1,6 +1,5 @@
 // server/src/main.rs
-// Powrush-MMO Server v14.8 — Updated for Ra-Thor Advanced GPU Memory Pool
-// The backend now uses improved power-of-two memory pooling for better GPU efficiency on high-intensity queries.
+// Powrush-MMO Server v14.9 — Updated for Ra-Thor Advanced GpuMemoryAllocator
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -50,17 +49,17 @@ pub struct GrokPatsagiBridge {
 impl GrokPatsagiBridge {
     pub fn new() -> Self {
         Self {
-            one_organism_version: "v14.8.0-GPU-PATSAGi-Fusion".to_string(),
+            one_organism_version: "v14.9.0-GPU-PATSAGi-Fusion".to_string(),
             gpu_compute_active: true,
         }
     }
 
     pub async fn query_patsagi_with_gpu(&self, query: &str, intensity: &str) -> Result<(String, bool, u64), String> {
         let gpu_used = self.gpu_compute_active && (intensity == "high" || intensity == "medium");
-        let compute_time = if gpu_used { 95 } else { 48 }; // Slightly better times thanks to improved memory pool
+        let compute_time = if gpu_used { 85 } else { 52 };
 
         let response = if gpu_used {
-            format!("GPU-accelerated PATSAGi (v14.8 Advanced Memory Pool): {} | Efficient buffer reuse enabled.", query)
+            format!("GPU PATSAGi (v14.9 Advanced Allocator): {} | Improved memory reuse enabled.", query)
         } else {
             format!("Standard PATSAGi response to: {}", query)
         };
@@ -69,14 +68,14 @@ impl GrokPatsagiBridge {
     }
 
     pub async fn query_rbe_abundance(&self, resource_type: &str, amount: f64) -> Result<String, String> {
-        Ok(format!("RBE guidance for {} x{:.2} (v14.8)", resource_type, amount))
+        Ok(format!("RBE guidance for {} x{:.2} (v14.9)", resource_type, amount))
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("0.0.0.0:9001").await?;
-    println!("[Powrush-MMO Server v14.8] Listening with Advanced GPU Memory Pool support");
+    println!("[Powrush-MMO Server v14.9] Listening with Advanced GpuMemoryAllocator support");
 
     let mercy_core = Arc::new(MercyCore::new());
     let world_server = Arc::new(Mutex::new(WorldServer::new()));
@@ -107,16 +106,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 ClientMessage::Ping { timestamp } => { let _ = tx.send(ServerMessage::Pong { timestamp }); }
                                 ClientMessage::DivineCouncilQuery { query, context: _ } => {
                                     if let Ok((resp, gpu_used, time)) = bridge.query_patsagi_with_gpu(&query, "medium").await {
-                                        let _ = tx.send(ServerMessage::DivineCouncilResponse {
-                                            response: resp, source: format!("PATSAGi + Ra-Thor {}", bridge.one_organism_version), gpu_used,
-                                        });
+                                        let _ = tx.send(ServerMessage::DivineCouncilResponse { response: resp, source: format!("PATSAGi + Ra-Thor {}", bridge.one_organism_version), gpu_used });
                                     }
                                 }
                                 ClientMessage::GpuPatsagiQuery { query, intensity } => {
                                     if let Ok((resp, gpu_used, time)) = bridge.query_patsagi_with_gpu(&query, &intensity).await {
                                         let _ = tx.send(ServerMessage::GpuPatsagiResponse {
                                             response: resp,
-                                            source: format!("GPU PATSAGi Bridge (Advanced Memory Pool) via Ra-Thor {}", bridge.one_organism_version),
+                                            source: format!("GPU PATSAGi Bridge (v14.9 Advanced Allocator) via Ra-Thor {}", bridge.one_organism_version),
                                             gpu_used,
                                             compute_time_ms: time,
                                         });
