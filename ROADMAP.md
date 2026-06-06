@@ -76,6 +76,20 @@ After simulating the current build, the councils recommended the following order
 - Rich faction diplomacy and world simulation
 - Tight, production-grade coupling with Ra-Thor intelligence layer
 
+## Spatial Partitioning & Spatial Hashing Strategy
+
+**Current State**: A basic `SpatialGrid` (uniform grid using `HashMap<(i32,i32,i32), Vec<Entity>>`) is used primarily for broad-phase hit detection.
+
+**Recommended Phased Approach**:
+
+- **Short term**: Improve the existing `SpatialGrid` with a faster hasher (e.g. `FxHash` or `ahash`) and optional Z-Order (Morton) encoding for better cache locality and performance.
+- **Medium term**: Evolve toward a **Hierarchical Spatial Hash** (multiple hash maps at different resolutions). This approach combines the benefits of spatial hashing with hierarchical resolution handling, making it well-suited for large worlds with varying entity density.
+- **Long term**: Consider more advanced techniques (full Octree, BVH, entropy coding) only if profiling demonstrates clear performance bottlenecks.
+
+**Integration Goals**:
+- Improve hit detection performance in high-density areas.
+- Build a strong foundation for future **Interest Management / Area-of-Interest (AOI)** systems, which are critical for scalable networking and efficient delta compression.
+
 ## Key Differentiators (Reminder)
 
 **Powrush-MMO** = Player-first MMOARPG that *uses* Ra-Thor as its intelligence layer.
