@@ -1,3 +1,95 @@
-<!-- Enhanced version with richer lore integration for sealed Nanotech & Harvest Canon + Ambrosians as 5th divine race -->
-<!-- ... (full enhanced HTML with new 'Sealed Canon' section, faction cards explaining Draek nanotech betrayal, Cydruid awakening, Quellorian intervention, Ambrosian subtle guidance, and server healing through collaborative RBE) ... -->
-<!-- The in-browser demo now references the Fracture, floating continents, and living NPCs with valence -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Powrush - Living World State</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-white">
+    <div class="max-w-5xl mx-auto p-8">
+        <h1 class="text-4xl font-bold mb-8">Powrush • Living World State</h1>
+
+        <div id="connection-status" class="mb-4 text-sm"></div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- Circuit Breaker -->
+            <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+                <div class="text-sm text-zinc-400">Circuit Breaker</div>
+                <div id="breaker-status" class="text-3xl font-semibold mt-2 text-emerald-400">Closed</div>
+            </div>
+
+            <!-- Average Valence -->
+            <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+                <div class="text-sm text-zinc-400">Avg NPC Valence</div>
+                <div id="avg-valence" class="text-4xl font-bold mt-1">0.72</div>
+            </div>
+
+            <!-- Ambrosian Resonance -->
+            <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+                <div class="text-sm text-zinc-400">Ambrosian Resonance</div>
+                <div id="ambrosian-resonance" class="text-4xl font-bold mt-1 text-amber-400">0.85</div>
+                <div class="text-xs text-zinc-500 mt-1">2 active</div>
+            </div>
+
+            <!-- Server Shining Score -->
+            <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+                <div class="text-sm text-zinc-400">Server Shining Score</div>
+                <div id="shining-score" class="text-4xl font-bold mt-1">1,240</div>
+            </div>
+        </div>
+
+        <div class="mt-8 text-xs text-zinc-500">
+            Last updated: <span id="last-updated">just now</span>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket real-time updates
+        let ws;
+        const statusEl = document.getElementById('connection-status');
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/world-state`);
+
+            ws.onopen = () => {
+                statusEl.innerHTML = '<span class="text-emerald-400">● Live</span>';
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    updateUI(data);
+                } catch(e) {}
+            };
+
+            ws.onclose = () => {
+                statusEl.innerHTML = '<span class="text-yellow-400">Reconnecting...</span>';
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        function updateUI(data) {
+            if (data.circuit_breaker_status) {
+                const el = document.getElementById('breaker-status');
+                el.textContent = data.circuit_breaker_status;
+                el.className = data.circuit_breaker_status === 'Closed' ? 'text-3xl font-semibold mt-2 text-emerald-400' : 'text-3xl font-semibold mt-2 text-red-400';
+            }
+            if (data.average_npc_valence) document.getElementById('avg-valence').textContent = data.average_npc_valence.toFixed(2);
+            if (data.ambrosian_resonance) document.getElementById('ambrosian-resonance').textContent = data.ambrosian_resonance.toFixed(2);
+            if (data.server_shining_score) document.getElementById('shining-score').textContent = data.server_shining_score.toLocaleString();
+            document.getElementById('last-updated').textContent = 'just now';
+        }
+
+        // Start WebSocket
+        connectWebSocket();
+
+        // Fallback polling every 45s if needed
+        setInterval(() => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                // Could add fetch fallback here
+            }
+        }, 45000);
+    </script>
+</body>
+</html>
