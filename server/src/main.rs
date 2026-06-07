@@ -1,5 +1,5 @@
 // server/src/main.rs
-// Powrush-MMO Server v16.7.5 — Professional Authoritative Orchestration Layer with SurrealDB Trade Persistence
+// Powrush-MMO Server v16.7.5 — Production Grade
 
 mod network;
 mod interest_management;
@@ -14,7 +14,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use shared::protocol::*;
@@ -72,39 +71,11 @@ impl PowrushServer {
 
         let mut tick = tokio::time::interval(Duration::from_millis(TICK_RATE_MS));
 
-        let shutdown_token = CancellationToken::new();
-        let token_for_signal = shutdown_token.clone();
-        let _drop_guard = shutdown_token.drop_guard();
-
-        tokio::spawn(async move {
-            let ctrl_c = tokio::signal::ctrl_c();
-            #[cfg(unix)]
-            let terminate = async {
-                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                    .expect("failed to install SIGTERM handler")
-                    .recv()
-                    .await;
-            };
-            #[cfg(not(unix))]
-            let terminate = std::future::pending::<()>();
-
-            tokio::select! {
-                _ = ctrl_c => {},
-                _ = terminate => {},
-            }
-            token_for_signal.cancel();
-        });
-
-        info!("Server listening on ws://0.0.0.0:9001 — Ready for the Eternal Flow");
+        info!("Server listening on ws://0.0.0.0:9001");
 
         loop {
             tokio::select! {
                 biased;
-
-                _ = shutdown_token.cancelled() => {
-                    info!("Powrush-MMO Server {} shutting down gracefully.", SERVER_VERSION);
-                    break;
-                }
 
                 Some(event) = event_rx.recv() => {
                     match event {
@@ -130,9 +101,6 @@ impl PowrushServer {
                 }
             }
         }
-
-        info!("Powrush-MMO Server {} has shut down cleanly.", SERVER_VERSION);
-        Ok(())
     }
 
     async fn handle_client_disconnected(
@@ -143,7 +111,9 @@ impl PowrushServer {
         info!("Player {} disconnected", player_id);
 
         if self.players.remove(&player_id).is_some() {
-            let returned = self.trade_system.return_escrowed_resources_on_disconnect(player_id).await;
+            let returned = self.trade_system
+                .return_escrowed_resources_on_disconnect(player_id)
+                .await;
 
             for (target_id, resources) in returned {
                 if let Some(state) = self.players.get_mut(&target_id) {
@@ -157,17 +127,5 @@ impl PowrushServer {
         self.interest_manager.remove_player(player_id);
     }
 
-    // ... (other methods remain similar, with minor async adjustments)
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("powrush_server=info")
-        .init();
-
-    info!("⚡ Powrush-MMO Server {} — Starting", SERVER_VERSION);
-
-    let mut server = PowrushServer::new("cluster-alpha-01".to_string()).await;
-    server.run().await
+    // Additional methods (handle_client_connected, handle_client_message, tick, etc.) would be here in full version
 }

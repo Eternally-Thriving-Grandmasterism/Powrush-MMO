@@ -1,14 +1,14 @@
 // server/src/trade_system.rs
-// Powrush-MMO TradeSystem v16.7.5 — Production Grade with SurrealDB Hybrid D1
-// Fast in-memory + SurrealDB (RocksDB) durable persistence
-// Every high-valence path is mercy-aligned (Boundless Mercy + Service)
+// Powrush-MMO TradeSystem v16.7.5 — Production Grade
+// Hybrid D1: In-Memory hot path + SurrealDB (RocksDB) durable persistence
 
 use std::collections::HashMap;
 use surrealdb::engine::local::RocksDb;
 use surrealdb::Surreal;
-use tracing::{info, warn};
+use tracing::{info, error};
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Trade {
     pub trade_id: u64,
     pub offeror_id: u64,
@@ -30,9 +30,21 @@ impl TradeSystem {
     pub async fn new() -> Self {
         let db = Surreal::new::<RocksDb>("data/trades.db")
             .await
-            .expect("Failed to open SurrealDB RocksDB backend");
+            .expect("Failed to initialize SurrealDB RocksDB backend");
 
-        db.use_ns("powrush").use_db("trades").await.unwrap();
+        db.use_ns("powrush").use_db("trades").await.expect("Failed to select namespace");
+
+        let _ = db.query(r#"
+            DEFINE TABLE trade SCHEMAFULL;
+            DEFINE FIELD trade_id ON TABLE trade TYPE int;
+            DEFINE FIELD offeror_id ON TABLE trade TYPE int;
+            DEFINE FIELD target_id ON TABLE trade TYPE int;
+            DEFINE FIELD offered ON TABLE trade TYPE object;
+            DEFINE FIELD requested ON TABLE trade TYPE object;
+            DEFINE FIELD status ON TABLE trade TYPE string;
+            DEFINE FIELD created_at ON TABLE trade TYPE int;
+            DEFINE FIELD expires_at ON TABLE trade TYPE option<int>;
+        "#).await;
 
         let mut system = Self {
             active_trades: HashMap::new(),
@@ -45,11 +57,26 @@ impl TradeSystem {
     }
 
     async fn load_active_trades_from_db(&mut self) {
-        // In production this would load from SurrealDB
-        info!("TradeSystem initialized with SurrealDB persistence");
+        if let Ok(trades) = self.db.select::<Vec<Trade>>("trade").await {
+            for trade in trades {
+                if trade.status == "pending" {
+                    self.active_trades.insert(trade.trade_id, trade.clone());
+                    if trade.trade_id >= self.next_trade_id {
+                        self.next_trade_id = trade.trade_id + 1;
+                    }
+                }
+            }
+            info!("Loaded {} active trades from SurrealDB", self.active_trades.len());
+        }
     }
 
-    pub async fn initiate_trade(&mut self, offeror_id: u64, target_id: u64, offered: HashMap<String, f32>, requested: HashMap<String, f32>) -> Result<u64, String> {
+    pub async fn initiate_trade(
+        &mut self,
+        offeror_id: u64,
+        target_id: u64,
+        offered: HashMap<String, f32>,
+        requested: HashMap<String, f32>,
+    ) -> Result<u64, String> {
         let trade_id = self.next_trade_id;
         self.next_trade_id += 1;
 
@@ -60,19 +87,24 @@ impl TradeSystem {
             offered,
             requested,
             status: "pending".to_string(),
-            created_at: std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_millis() as u64,
-            expires_at: Some(std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_millis() as u64 + 300_000),
+            created_at: std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_secs(),
+            expires_at: Some(std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_secs() + 300),
         };
 
-        self.active_trades.insert(trade_id, trade.clone());
+        if let Err(e) = self.db.create::<Option<Trade>>(("trade", trade_id)).content(trade.clone()).await {
+            error!("Failed to persist trade {}: {}", trade_id, e);
+            return Err(format!("Failed to persist trade: {}", e));
+        }
 
-        // Persist to SurrealDB
-        let _ = self.db.create::<Option<Trade>>(("trade", trade_id)).content(trade).await;
-
+        self.active_trades.insert(trade_id, trade);
+        info!("Trade {} created", trade_id);
         Ok(trade_id)
     }
 
-    pub async fn return_escrowed_resources_on_disconnect(&mut self, player_id: u64) -> Vec<(u64, HashMap<String, f32>)> {
+    pub async fn return_escrowed_resources_on_disconnect(
+        &mut self,
+        player_id: u64,
+    ) -> Vec<(u64, HashMap<String, f32>)> {
         let mut resources_to_return = Vec::new();
         let mut trades_to_remove = Vec::new();
 
@@ -101,7 +133,7 @@ impl TradeSystem {
         for trade_id in trades_to_remove {
             if let Some(_) = self.active_trades.remove(&trade_id) {
                 let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
-                info!("Trade {} cancelled due to player {} disconnect (mercy-aligned).", trade_id, player_id);
+                info!("Trade {} cancelled due to disconnect of player {}", trade_id, player_id);
             }
         }
 
