@@ -1,6 +1,6 @@
 // server/src/main.rs
-// Powrush-MMO Server v16.12 — Player Account & Session System Integrated
-// Foundation wired into main loop
+// Powrush-MMO Server v16.12 — Player Account & Session System (Production Wiring)
+// Clean integration with AccountSystem
 // AG-SML v1.0
 
 mod network;
@@ -27,7 +27,7 @@ use crate::player_account::AccountSystem;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter("powrush_server=info").init();
 
-    info!("⚡ Powrush-MMO Server v16.12 — Player Account & Session System Integrated");
+    info!("⚡ Powrush-MMO Server v16.12 — Player Account & Session System");
 
     let persistence = match PersistenceManager::with_surreal("ws://127.0.0.1:8000", "powrush", "main").await {
         Ok(p) => p,
@@ -63,25 +63,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     network::TransportEvent::ClientConnected { info } => {
                         info!("Player {} connected", info.player_id);
 
-                        // === Account + Session Creation ===
-                        // For now, auto-create account if needed (future: proper login flow)
-                        let account_id = if account_system.accounts.is_empty() {
-                            account_system.create_account(info.player_name.clone())
-                        } else {
-                            // In real flow we would look up or create based on credentials
-                            1 // placeholder
-                        };
+                        // Create or get account
+                        let account_id = account_system.get_or_create_account(info.player_name.clone());
 
+                        // Create runtime session
                         let _ = account_system.create_session(account_id, info.player_id);
 
-                        // Load or create default inventory via persistence
+                        // Load inventory into session
                         let loaded_inventory = match persistence.load_inventory(info.player_id).await {
                             Ok(inv) => inv,
                             Err(_) => ServerInventoryComponent::default(),
                         };
 
                         if let Some(session) = account_system.get_session_mut(info.player_id) {
-                            session.inventory = loaded_inventory.clone();
+                            session.inventory = loaded_inventory;
                         }
 
                         players.insert(info.player_id, (info.player_name.clone(), Vec3Ser::default(), HealthComponent { current: 100.0, max: 100.0 }));
@@ -91,12 +86,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     network::TransportEvent::ClientDisconnected { player_id } => {
                         info!("Player {} disconnected", player_id);
 
-                        // Save inventory from session if available
+                        // Save inventory from session
                         if let Some(session) = account_system.get_session(player_id) {
                             let _ = persistence.save_inventory(player_id, &session.inventory).await;
                         }
 
-                        account_system.sessions.remove(&player_id);
+                        account_system.remove_session(player_id);
                         players.remove(&player_id);
                     }
 
