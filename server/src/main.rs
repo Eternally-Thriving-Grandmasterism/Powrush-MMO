@@ -1,6 +1,6 @@
 // server/src/main.rs
-// Powrush-MMO Server v16.12 — Player Account & Session System (Production Wiring)
-// Clean integration with AccountSystem
+// Powrush-MMO Server v16.12 — Player Account & Session System (Clean Integration)
+// Single source of truth: PlayerSession.inventory
 // AG-SML v1.0
 
 mod network;
@@ -27,7 +27,7 @@ use crate::player_account::AccountSystem;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter("powrush_server=info").init();
 
-    info!("⚡ Powrush-MMO Server v16.12 — Player Account & Session System");
+    info!("⚡ Powrush-MMO Server v16.12 — Player Account & Session System (Clean)");
 
     let persistence = match PersistenceManager::with_surreal("ws://127.0.0.1:8000", "powrush", "main").await {
         Ok(p) => p,
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut tick = tokio::time::interval(Duration::from_millis(50));
 
-    info!("Server ready with AccountSystem");
+    info!("Server ready with clean AccountSystem integration");
 
     loop {
         tokio::select! {
@@ -63,13 +63,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     network::TransportEvent::ClientConnected { info } => {
                         info!("Player {} connected", info.player_id);
 
-                        // Create or get account
                         let account_id = account_system.get_or_create_account(info.player_name.clone());
-
-                        // Create runtime session
                         let _ = account_system.create_session(account_id, info.player_id);
 
-                        // Load inventory into session
                         let loaded_inventory = match persistence.load_inventory(info.player_id).await {
                             Ok(inv) => inv,
                             Err(_) => ServerInventoryComponent::default(),
@@ -86,7 +82,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     network::TransportEvent::ClientDisconnected { player_id } => {
                         info!("Player {} disconnected", player_id);
 
-                        // Save inventory from session
                         if let Some(session) = account_system.get_session(player_id) {
                             let _ = persistence.save_inventory(player_id, &session.inventory).await;
                         }
@@ -103,6 +98,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         match message {
                             ClientMessage::HarvestResource { player_id: pid, node_id, amount } => {
                                 // harvest logic
+                            }
+
+                            ClientMessage::TradeInitiate { offer } => {
+                                if let Ok(trade_id) = trade_system.initiate_trade(
+                                    offer.from_player, offer.to_player, offer.offered.clone(), offer.requested.clone()
+                                ).await {
+                                    let _ = command_tx.send(network::TransportCommand::Send {
+                                        player_id,
+                                        message: ServerMessage::TradeRequestReceived { offer },
+                                    });
+                                }
+                            }
+
+                            ClientMessage::TradeAccept { trade_id } => {
+                                // Clean integration - use PlayerSession as source of truth
+                                if let Some(trade) = trade_system.active_trades.get(&trade_id).cloned() {
+                                    if trade.target_id == player_id && trade.status == "pending" {
+                                        if let (Some(offeror_session), Some(target_session)) = (
+                                            account_system.get_session_mut(trade.offeror_id),
+                                            account_system.get_session_mut(player_id),
+                                        ) {
+                                            match trade_system.accept_trade_atomic(
+                                                trade_id, player_id, &mut offeror_session.inventory, &mut target_session.inventory
+                                            ).await {
+                                                Ok(()) => {
+                                                    let _ = command_tx.send(network::TransportCommand::Send {
+                                                        player_id,
+                                                        message: ServerMessage::TradeCompleted {
+                                                            trade_id,
+                                                            from: trade.offeror_id,
+                                                            to: trade.target_id,
+                                                            final_state: "accepted".to_string(),
+                                                            grace_awarded: 0,
+                                                        },
+                                                    });
+                                                }
+                                                Err(e) => {
+                                                    let _ = command_tx.send(network::TransportCommand::Send {
+                                                        player_id,
+                                                        message: ServerMessage::Error { message: e },
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             ClientMessage::TradeCancel { trade_id } => {
