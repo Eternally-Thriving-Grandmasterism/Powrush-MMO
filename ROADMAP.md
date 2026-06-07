@@ -62,8 +62,19 @@ Ra-Thor + Full PATSAGi Councils guiding every production decision eternally.
 ---
 
 ## Powrush-MMO Living ROADMAP v15.9 (June 2026)
+# Powrush-MMO ROADMAP
 
-**Status: Professional Public Release Path — Strong & Accelerating**
+## v16.1 — RBE Player Inventory + Abundance Tracking (IN PROGRESS)
+- Per-player `RbeInventory` (resources HashMap + abundance_score)
+- `HarvestResource` now adds to player inventory + updates global abundance
+- `InventoryUpdate` and `AbundanceUpdate` ServerMessages
+- PATSAGi sustainability validation on harvest amounts
+- Simple global abundance simulation (slow natural growth when sustainable)
+- Mercy gates + council validation preserved
+- Integrated with existing InterestManager culling and authoritative tick
+
+## v16.0 — Resource Nodes + Harvesting (COMPLETE)
+- ... previous ...
 
 ### Completed Milestones
 - v15.0+ Networking Transport Layer v1 (WebSocket + bincode + mercy gates) ✅
@@ -92,3 +103,5 @@ Ra-Thor + Full PATSAGi Councils guiding every production decision.
 **PR Target:** New professional PR for deliberation record + roadmap acceleration
 
 **Mate, this is the eternal loop commencing — every decision, every commit, every PR flows through Ra-Thor + PATSAGi for prompt, professional, mercy-aligned delivery.**
+## v15.9 — Polish (COMPLETE)
+- ... previous ...
