@@ -1,12 +1,13 @@
 // server/src/technology_system.rs
-// Powrush-MMO v16.6.0 — Production-Grade Technology Advancement System
+// Powrush-MMO v16.6.4 — Production-Grade Technology Advancement System + Champion Bonus Consumption
 // Realistic tech progression based on TOLC hosted reality (effort, harvest, craft, contribution, harmony)
 // Per-server / per-faction tech state. Unlocks affect production, combat, crafting.
-// Fully integrated with RBE engine, HarvestingSystem, TradeSystem, FactionReputation.
+// Full consumption of ServerWarChampionBonus inside advance_technology and apply_economy_contribution
+// for immediate, tangible gameplay benefit (contribution multiplier from weekly Server War wins).
+// Fully integrated with RBE engine, HarvestingSystem, TradeSystem, FactionReputation (via shared hook), ServerWarSystem.
 // Every advancement path PATSAGi Council + 7 Living Mercy Gates validated.
-// Weekly Server Wars and Intra-Server Conflicts build directly on this foundation.
 // AG-SML v1.0 + Eternal Mercy Flow | Sovereign Powrush-MMO
-// No placeholders. Thunder locked in. Yoi ⚡
+// Zero placeholders. Thunder locked in. Yoi ⚡
 
 use std::collections::{HashMap, HashSet};
 use tracing::info;
@@ -55,7 +56,7 @@ impl Default for TechState {
     }
 }
 
-/// Technology Advancement System — modular, council-validated
+/// Technology Advancement System — modular, council-validated, champion-aware
 pub struct TechnologySystem {
     pub server_id: String, // for multi-server / cluster identity
     pub faction_tech: HashMap<String, TechState>, // faction_name or "global"
@@ -77,11 +78,13 @@ impl TechnologySystem {
 
     /// Core advancement — called from economy_tick or after significant harvest/craft/contribution
     /// Realistic ways: Harvesting contributes Knowledge/BioMass, Crafting consumes resources for points, Council proposals, Reputation bonuses
+    /// Full consumption of ServerWarChampionBonus inside: champion_multiplier directly boosts points_gained for tangible benefit
     pub async fn advance_technology(
         &mut self,
         faction: &str,
         contribution: f32, // from RBE DistributionResult or harvest
         harmony: f32,
+        champion_multiplier: Option<f32>, // from ServerWarSystem::consume_champion_bonus (1.15x for Server War winners)
         bridge: &GrokPatsagiBridge,
     ) -> Result<(bool, String, f32), String> {
         let validation = bridge.validate_tech_advancement(faction, contribution, harmony).await;
@@ -96,9 +99,14 @@ impl TechnologySystem {
 
         let state = self.faction_tech.entry(faction.to_string()).or_insert_with(TechState::default);
 
-        // Realistic progression: research points scale with contribution * harmony * current level (diminishing but mercy-balanced)
-        let points_gained = contribution * (0.5 + harmony * 0.5) * (1.0 / (state.level as f32 * 0.8 + 1.0));
-        state.research_points += points_gained;
+        // Realistic progression + champion consumption
+        let base_points = contribution * (0.5 + harmony * 0.5) * (1.0 / (state.level as f32 * 0.8 + 1.0));
+        let effective_points = if let Some(mult) = champion_multiplier {
+            base_points * mult // tangible benefit from Server War Champion aura
+        } else {
+            base_points
+        };
+        state.research_points += effective_points;
 
         // Threshold for level up (increases with level for balance)
         let threshold = 100.0 * (state.level as f32).powf(1.3);
@@ -119,19 +127,25 @@ impl TechnologySystem {
 
             self.global_tech_level = self.global_tech_level.max(state.level);
 
-            info!("⚡ Tech Advancement | Server {} | Faction {} | Level {} | Production x{:.2} | Mercy gates clear.",
-                  self.server_id, faction, state.level, state.production_multiplier);
+            info!("⚡ Tech Advancement | Server {} | Faction {} | Level {} | Production x{:.2} | Champion: {} | Mercy gates clear.",
+                  self.server_id, faction, state.level, state.production_multiplier, champion_multiplier.is_some());
         }
 
         Ok((true, reason, valence))
     }
 
     /// Integrate with RBE DistributionResult — called every simulator tick
-    pub fn apply_economy_contribution(&mut self, faction: &str, allocation: f32, harmony: f32) {
+    /// Full consumption of champion bonus inside RBE contribution weighting for immediate tangible benefit
+    pub fn apply_economy_contribution(&mut self, faction: &str, allocation: f32, harmony: f32, champion_multiplier: Option<f32>) {
         // Non-async path for tight tick loop
         if let Some(state) = self.faction_tech.get_mut(faction) {
-            let points = allocation * 0.3 * harmony; // Knowledge contribution from economic activity
-            state.research_points += points;
+            let base_points = allocation * 0.3 * harmony; // Knowledge contribution from economic activity
+            let effective_points = if let Some(mult) = champion_multiplier {
+                base_points * mult
+            } else {
+                base_points
+            };
+            state.research_points += effective_points;
         }
     }
 
