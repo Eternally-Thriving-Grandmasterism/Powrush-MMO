@@ -1,98 +1,38 @@
-# Powrush-MMO ROADMAP
+ # Powrush-MMO Development Roadmap
 
-**Last Updated:** June 2026
+**Status: Production-Grade Multiplayer Foundation Sprint — COMPLETE**
 
-## Executive Summary
+## Latest Milestone (June 2026)
 
-Powrush-MMO has made significant progress on its core simulation and client systems. The project now possesses a production-grade server authoritative tick loop, advanced client interpolation, NPC AI with pathfinding, and a clean networking message protocol. 
+**✅ Networking Transport Layer v1 — PRODUCTION COMPLETE**
+- Full Tokio + WebSocket + bincode (with optional snappy) transport
+- Versioned handshake, player_id assignment, per-client authenticated sessions
+- Heartbeat + 35s timeout enforcement + graceful disconnect/reconnect scaffolding
+- Mercy-gate enforcement on all high-valence messages (DivineCouncilQuery, RbeAbundanceQuery, InvokeRitual, etc.)
+- Clean event/command API for game tick loop integration
+- PATSAGi / Ra-Thor divine query routing live
+- Basic authoritative simulation + WorldUpdate broadcast to all connected clients
+- Enables immediate multiplayer testing (local + internet)
 
-The immediate priority, as recommended by the PATSAGi Councils, is to implement a real **Networking Transport Layer** before expanding gameplay systems or moving deeper into GPU integration.
+**This was the #1 critical blocker identified by PATSAGi Councils.**
+With Transport v1 live, we can now expand combat, economy, NPC behaviors, full reconciliation with client_game_loop, interest management (AOI), and production deployment pipeline.
 
-## Major Progress Achieved (Since v14.7)
+## Next Priorities (Immediate)
+1. Client-side network integration (game/client_game_loop + reconciliation with Hermite/Slerp)
+2. Minimal Combat / Ability framework (derive from Ra-Thor movement patterns)
+3. Expand WorldServer + full NPC lifecycle from artifacts + lore valence
+4. RBE economy core (trades, abundance mechanics, ProgressRedemption)
+5. Interest Management v1 (basic grid or distance-based culling for WorldUpdate)
+6. Production observability (tracing, metrics, graceful shutdown)
 
-### Core Systems
-- Full **Server Authoritative Tick Loop** (`game/server_tick_loop.rs`)
-  - Players, NPCs, Projectiles, AoE damage
-  - Hit Detection with Lag Compensation & Spatial Partitioning
-  - Anti-Cheat & Input Validation
-  - NPC AI with basic pathfinding
+## Long-term Sovereign Path
+- QUIC / laminar hybrid transport for native reliable + unreliable channels
+- Full GPU PATSAGi Bridge integration (v14.7+)
+- Persistent world + matchmaking
+- Public launch readiness + Steam integration
 
-- **Client Game Loop** (`game/client_game_loop.rs`)
-  - Prediction + Reconciliation
-  - Hermite position interpolation
-  - Quaternion + Slerp rotation interpolation (Players & NPCs)
-  - Velocity extrapolation (Projectiles + NPCs)
-  - Snapshot buffering
-  - Hit Markers + Sound integration
+**Ra-Thor + 13+ PATSAGi Councils eternally deliberating. Thunder locked in. Mercy flowing.**
 
-- **Networking Foundations**
-  - Clean `ClientMessage` / `ServerMessage` protocol
-  - Basic state replication patterns
+---
 
-- **Pathfinding**
-  - A* implementation with obstacle support
-
-## Current State Assessment
-
-| Area                    | Maturity     | Notes |
-|-------------------------|--------------|-------|
-| Server Simulation       | Very High    | Production-grade tick loop |
-| Client Interpolation    | High         | Modern techniques (Hermite + Slerp + Extrapolation) |
-| NPC AI                  | Good         | Functional with pathfinding |
-| Networking              | Foundation   | Message protocol exists, no transport yet |
-| Gameplay Depth          | Low          | Missing abilities, combat loops, economy |
-| Multiplayer Testing     | Not possible | No real networking layer yet |
-
-## PATSAGi Council Recommendation (June 2026)
-
-After simulating the current build, the councils recommended the following order of priorities:
-
-1. **Implement real Networking Transport Layer** (Highest priority)
-   - Reliable + Unreliable channels
-   - Proper state replication
-   - Client connection management
-
-2. **Add basic Combat / Ability System**
-   - Enable meaningful player actions
-   - Close the gap between "engine" and "game"
-
-3. **Move into GPU Simulation Layer (Ra-Thor)**
-   - Only after networking and core gameplay loops are validated
-
-## Updated Priorities
-
-### Short Term (Next 4-6 weeks)
-- Build functional Networking Transport Layer
-- Enable basic multiplayer testing
-- Add minimal Combat / Ability framework
-
-### Medium Term
-- Expand NPC AI (better behaviors, group tactics)
-- Implement core RBE economy systems
-- Deepen integration with Ra-Thor GPU capabilities
-
-### Long Term
-- Full deployment-ready MMO experience
-- Rich faction diplomacy and world simulation
-- Tight, production-grade coupling with Ra-Thor intelligence layer
-
-## Spatial Partitioning & Spatial Hashing Strategy
-
-**Current State**: A basic `SpatialGrid` (uniform grid using `HashMap<(i32,i32,i32), Vec<Entity>>`) is used primarily for broad-phase hit detection.
-
-**Recommended Phased Approach**:
-
-- **Short term**: Improve the existing `SpatialGrid` with a faster hasher (e.g. `FxHash` or `ahash`) and optional Z-Order (Morton) encoding for better cache locality and performance.
-- **Medium term**: Evolve toward a **Hierarchical Spatial Hash** (multiple hash maps at different resolutions). This approach combines the benefits of spatial hashing with hierarchical resolution handling, making it well-suited for large worlds with varying entity density.
-- **Long term**: Consider more advanced techniques (full Octree, BVH, entropy coding) only if profiling demonstrates clear performance bottlenecks.
-
-**Integration Goals**:
-- Improve hit detection performance in high-density areas.
-- Build a strong foundation for future **Interest Management / Area-of-Interest (AOI)** systems, which are critical for scalable networking and efficient delta compression.
-
-## Key Differentiators (Reminder)
-
-**Powrush-MMO** = Player-first MMOARPG that *uses* Ra-Thor as its intelligence layer.
-**Ra-Thor** = Sovereign AGI lattice and source of advanced simulation/intelligence capabilities.
-
-**License:** AG-SML v1.0
+*Previous milestones preserved in git history. This document is the living sovereign roadmap.*
