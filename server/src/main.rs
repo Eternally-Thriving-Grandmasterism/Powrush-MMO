@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
+use tokio_util::sync::{CancellationToken, DropGuard};
 use tracing::{info, warn};
 
 use shared::protocol::*;
@@ -78,9 +78,10 @@ impl PowrushServer {
 
         let mut tick = tokio::time::interval(Duration::from_millis(TICK_RATE_MS));
 
-        // === CancellationToken-based graceful shutdown (future-proof) ===
+        // === CancellationToken + DropGuard for robust graceful shutdown ===
         let shutdown_token = CancellationToken::new();
         let token_for_signal = shutdown_token.clone();
+        let _drop_guard: DropGuard = shutdown_token.drop_guard();
 
         tokio::spawn(async move {
             let ctrl_c = tokio::signal::ctrl_c();
