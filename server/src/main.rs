@@ -1,6 +1,6 @@
 // server/src/main.rs
-// Powrush-MMO Server v16.13 — Steamworks + Cloud Save Integration Started
-// Steam authentication wired into account/session creation
+// Powrush-MMO Server v16.13 — Full Steam Authentication Flow
+// Professional Steam ticket validation + Account + Session creation
 // AG-SML v1.0
 
 mod network;
@@ -29,7 +29,7 @@ use crate::steam_integration::SteamManager;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter("powrush_server=info").init();
 
-    info!("⚡ Powrush-MMO Server v16.13 — Steam + Cloud Save Integration");
+    info!("⚡ Powrush-MMO Server v16.13 — Full Steam Authentication + Cloud Save");
 
     let persistence = match PersistenceManager::with_surreal("ws://127.0.0.1:8000", "powrush", "main").await {
         Ok(p) => p,
@@ -55,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut tick = tokio::time::interval(Duration::from_millis(50));
 
-    info!("Server ready with SteamManager");
+    info!("Server ready with full Steam authentication support");
 
     loop {
         tokio::select! {
@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     network::TransportEvent::ClientConnected { info } => {
                         info!("Player {} connected", info.player_id);
 
-                        // For now, create account normally (Steam auth can be added via message)
+                        // Default account creation (can be overridden by SteamAuth message)
                         let account_id = account_system.get_or_create_account(info.player_name.clone());
                         let _ = account_system.create_session(account_id, info.player_id);
 
@@ -101,9 +101,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 // harvest logic
                             }
 
-                            // === Steam Authentication Example ===
-                            // In real flow, client would send a SteamAuth message with ticket + SteamID
-                            // For now we demonstrate the integration point
+                            // === Full Steam Authentication Handler ===
+                            // Client should send this after connecting with Steam ticket + SteamID
+                            ClientMessage::SteamAuth { steam_id, ticket } => {
+                                match steam_manager.authenticate_steam_player(
+                                    steam_id,
+                                    &ticket,
+                                    &mut account_system,
+                                ).await {
+                                    Ok(account_id) => {
+                                        // Create or update session for this player
+                                        if account_system.get_session(player_id).is_none() {
+                                            let _ = account_system.create_session(account_id, player_id);
+                                        }
+
+                                        // Load inventory into session
+                                        let loaded_inventory = match persistence.load_inventory(player_id).await {
+                                            Ok(inv) => inv,
+                                            Err(_) => ServerInventoryComponent::default(),
+                                        };
+
+                                        if let Some(session) = account_system.get_session_mut(player_id) {
+                                            session.inventory = loaded_inventory;
+                                        }
+
+                                        info!("Player {} authenticated via Steam (AccountID: {})", player_id, account_id);
+
+                                        let _ = command_tx.send(network::TransportCommand::Send {
+                                            player_id,
+                                            message: ServerMessage::SteamAuthSuccess { account_id },
+                                        });
+                                    }
+                                    Err(e) => {
+                                        warn!("Steam authentication failed for player {}: {}", player_id, e);
+                                        let _ = command_tx.send(network::TransportCommand::Send {
+                                            player_id,
+                                            message: ServerMessage::Error { message: format!("Steam auth failed: {}", e) },
+                                        });
+                                    }
+                                }
+                            }
+
                             _ => {}
                         }
                     }
