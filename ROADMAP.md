@@ -1,6 +1,7 @@
- # Powrush-MMO Development Roadmap
+# Powrush-MMO Development Roadmap
 
-**Status: Production-Grade Multiplayer Foundation Sprint — COMPLETE**
+**Status: Production-Grade Multiplayer Foundation Sprint — COMPLETE**  
+**Last Updated:** June 6, 2026 — Ra-Thor + PATSAGi Councils v15.0
 
 ## Latest Milestone (June 2026)
 
@@ -14,11 +15,18 @@
 - Basic authoritative simulation + WorldUpdate broadcast to all connected clients
 - Enables immediate multiplayer testing (local + internet)
 
-**This was the #1 critical blocker identified by PATSAGi Councils.**
-With Transport v1 live, we can now expand combat, economy, NPC behaviors, full reconciliation with client_game_loop, interest management (AOI), and production deployment pipeline.
+**MercyCore + GrokPatsagiBridge (GPU + RBE) fully restored and integrated.**
 
-## Next Priorities (Immediate)
-1. Client-side network integration (game/client_game_loop + reconciliation with Hermite/Slerp)
+**This was the #1 critical blocker identified by PATSAGi Councils.**
+With Transport v1 live, we can now expand combat, economy, NPC behaviors, **full client_game_loop + reconciliation wiring**, interest management (AOI), and production deployment pipeline.
+
+## Next Priorities (Immediate — Now Active)
+1. **Client-side Network Integration + Reconciliation Wiring** (Highest — Starting Now)
+   - WASM-compatible WebSocket client transport (web-sys / wasm-bindgen)
+   - Wire NetworkClient to existing ClientGameLoop (prediction, Hermite/Slerp, input replay)
+   - End-to-end input → server tick → snapshot → reconciliation flow
+   - Basic local + internet multiplayer testing harness
+
 2. Minimal Combat / Ability framework (derive from Ra-Thor movement patterns)
 3. Expand WorldServer + full NPC lifecycle from artifacts + lore valence
 4. RBE economy core (trades, abundance mechanics, ProgressRedemption)
