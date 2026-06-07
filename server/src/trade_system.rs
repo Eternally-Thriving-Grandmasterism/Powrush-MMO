@@ -1,204 +1,264 @@
 // server/src/trade_system.rs
-// Powrush-MMO Server v16.5.6 — Production-Grade Dedicated TradeSystem
-// Full RBE atomic escrow + swap, PATSAGi Council + 7 Living Mercy Gates validated on EVERY path
-// Modular, testable, integrated with ServerInventoryComponent + GrokPatsagiBridge
-// Expiration handling, audit logging, sovereign player_id scoping
-// No placeholders. Professional. Eternal Iteration Protocol aligned.
-// AG-SML v1.0 + Eternal Mercy Flow License | Sovereign standalone Powrush-MMO
-// Thunder locked in. Yoi ⚡❤️🔥
+// Powrush-MMO TradeSystem v16.7.5 — Production Grade (Cleaned & Aligned)
+// Hybrid D1: In-Memory hot path + SurrealDB (RocksDB) durable persistence
 
 use std::collections::HashMap;
-use tracing::info;
-use shared::protocol::{TradeOffer, ServerMessage};
-use crate::grok_patsagi_bridge::GrokPatsagiBridge;
-use crate::harvesting_system::ServerInventoryComponent;
+use surrealdb::engine::local::RocksDb;
+use surrealdb::Surreal;
+use tracing::{info, error};
+use serde::{Serialize, Deserialize};
 
-/// Production TradeSystem — modular, mercy-first, RBE atomic
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Trade {
+    pub trade_id: u64,
+    pub offeror_id: u64,
+    pub target_id: u64,
+    pub offered: HashMap<String, f32>,
+    pub requested: HashMap<String, f32>,
+    pub status: String,
+    pub created_at: u64,
+    pub expires_at: Option<u64>,
+}
+
 pub struct TradeSystem {
-    pub active_trades: HashMap<u64, TradeOffer>,
-    next_trade_id: u64,
+    pub active_trades: HashMap<u64, Trade>,
+    pub next_trade_id: u64,
+    db: Surreal<surrealdb::engine::local::Db>,
 }
 
 impl TradeSystem {
-    pub fn new() -> Self {
-        Self {
+    pub async fn new() -> Self {
+        let db = Surreal::new::<RocksDb>("data/trades.db")
+            .await
+            .expect("Failed to initialize SurrealDB RocksDB backend");
+
+        db.use_ns("powrush").use_db("trades").await
+            .expect("Failed to select namespace/database");
+
+        // Schema definitions
+        let _ = db.query(r#"
+            DEFINE TABLE trade SCHEMAFULL;
+            DEFINE FIELD trade_id     ON TABLE trade TYPE int;
+            DEFINE FIELD offeror_id   ON TABLE trade TYPE int;
+            DEFINE FIELD target_id    ON TABLE trade TYPE int;
+            DEFINE FIELD offered      ON TABLE trade TYPE object;
+            DEFINE FIELD requested    ON TABLE trade TYPE object;
+            DEFINE FIELD status       ON TABLE trade TYPE string;
+            DEFINE FIELD created_at   ON TABLE trade TYPE int;
+            DEFINE FIELD expires_at   ON TABLE trade TYPE option<int>;
+
+            DEFINE TABLE pending_resource_return SCHEMAFULL;
+            DEFINE FIELD player_id     ON TABLE pending_resource_return TYPE int;
+            DEFINE FIELD resource_type ON TABLE pending_resource_return TYPE string;
+            DEFINE FIELD amount        ON TABLE pending_resource_return TYPE float;
+            DEFINE FIELD reason        ON TABLE pending_resource_return TYPE string;
+            DEFINE FIELD trade_id      ON TABLE pending_resource_return TYPE option<int>;
+            DEFINE FIELD created_at    ON TABLE pending_resource_return TYPE int;
+            DEFINE FIELD applied       ON TABLE pending_resource_return TYPE bool DEFAULT false;
+
+            DEFINE INDEX idx_pending_player    ON TABLE pending_resource_return FIELDS player_id;
+            DEFINE INDEX idx_pending_unapplied ON TABLE pending_resource_return FIELDS applied WHERE applied = false;
+        "#).await;
+
+        let mut system = Self {
             active_trades: HashMap::new(),
             next_trade_id: 1,
+            db,
+        };
+
+        system.load_active_trades_from_db().await;
+        system
+    }
+
+    async fn load_active_trades_from_db(&mut self) {
+        if let Ok(trades) = self.db.select::<Vec<Trade>>("trade").await {
+            for trade in trades {
+                if trade.status == "pending" {
+                    self.active_trades.insert(trade.trade_id, trade.clone());
+                    if trade.trade_id >= self.next_trade_id {
+                        self.next_trade_id = trade.trade_id + 1;
+                    }
+                }
+            }
+            info!("Loaded {} active trades from SurrealDB", self.active_trades.len());
         }
     }
 
-    /// Initiate trade with full escrow + PATSAGi validation
     pub async fn initiate_trade(
         &mut self,
         offeror_id: u64,
-        mut offer: TradeOffer,
-        inventories: &mut HashMap<u64, ServerInventoryComponent>,
-        bridge: &GrokPatsagiBridge,
-    ) -> Result<(bool, String, f32, Option<ServerMessage>), String> {
-        if offeror_id != offer.offeror_id {
-            return Ok((false, "Offeror ID mismatch. Sovereign validation failed.".to_string(), -0.05, None));
-        }
-        let target_id = offer.target_id;
-        if target_id == offeror_id {
-            return Ok((false, "Cannot trade with yourself. Choose another path of abundance.".to_string(), -0.05, None));
-        }
-
-        // Check and escrow offered resources from offeror
-        let offeror_inv = inventories.entry(offeror_id).or_default();
-        for (res, amt) in &offer.offered {
-            let current = *offeror_inv.resources.get(res).unwrap_or(&0.0);
-            if current < *amt {
-                return Ok((false, format!("Insufficient {} to offer (have {:.1}, need {:.1}). Patience and harvest will restore." , res, current, amt), -0.05, None));
-            }
-        }
-        for (res, amt) in &offer.offered {
-            *offeror_inv.resources.get_mut(res).unwrap() -= amt;
-        }
-
-        // PATSAGi + 7 Mercy Gates validation
-        let validation = bridge.validate_trade(offeror_id, target_id, &offer.offered, &offer.requested).await;
-        let (approved, reason, valence_impact) = match validation {
-            Ok(v) => v,
-            Err(e) => {
-                // Return escrowed on validation error
-                for (res, amt) in &offer.offered {
-                    *offeror_inv.resources.entry(res.clone()).or_insert(0.0) += amt;
-                }
-                return Err(format!("PATSAGi validation failed: {}", e));
-            }
-        };
-
-        if !approved {
-            // Return escrowed
-            for (res, amt) in &offer.offered {
-                *offeror_inv.resources.entry(res.clone()).or_insert(0.0) += amt;
-            }
-            return Ok((false, reason, valence_impact, Some(ServerMessage::MercyGateBlocked { reason: reason.clone(), valence: valence_impact })));
-        }
-
-        // Assign trade_id and timestamps
-        offer.trade_id = self.next_trade_id;
+        target_id: u64,
+        offered: HashMap<String, f32>,
+        requested: HashMap<String, f32>,
+    ) -> Result<u64, String> {
+        let trade_id = self.next_trade_id;
         self.next_trade_id += 1;
-        let now = std::time::SystemTime::now()
-            .duration_since(std::UNIX_EPOCH).unwrap().as_millis() as u64;
-        if offer.created_at_ms == 0 { offer.created_at_ms = now; }
-        if offer.expires_at_ms == 0 { offer.expires_at_ms = now + 300_000; }
 
-        self.active_trades.insert(offer.trade_id, offer.clone());
+        let trade = Trade {
+            trade_id,
+            offeror_id,
+            target_id,
+            offered,
+            requested,
+            status: "pending".to_string(),
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            expires_at: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs() + 300,
+            ),
+        };
 
-        info!("⚡ Trade initiated | ID {} | Player {} -> {} | Offered: {:?} | Requested: {:?} | Mercy gates clear.",
-              offer.trade_id, offeror_id, target_id, offer.offered, offer.requested);
+        if let Err(e) = self.db
+            .create::<Option<Trade>>(("trade", trade_id))
+            .content(trade.clone())
+            .await
+        {
+            error!("Failed to persist trade {}: {}", trade_id, e);
+            return Err(format!("Failed to persist trade: {}", e));
+        }
 
-        let notify = ServerMessage::TradeRequestReceived { offer: offer.clone() };
-        Ok((true, reason, valence_impact, Some(notify)))
+        self.active_trades.insert(trade_id, trade);
+        info!("Trade {} created between {} and {}", trade_id, offeror_id, target_id);
+        Ok(trade_id)
     }
 
-    /// Accept trade — atomic cross transfer after target escrow
-    pub async fn accept_trade(
+    pub async fn accept_trade_atomic(
         &mut self,
         trade_id: u64,
-        acceptor_id: u64,
-        inventories: &mut HashMap<u64, ServerInventoryComponent>,
-    ) -> Result<(bool, String, Option<ServerMessage>), String> {
-        let offer = match self.active_trades.remove(&trade_id) {
-            Some(o) => o,
-            None => return Ok((false, "Trade not found, already completed, or expired. Mercy flows.".to_string(), None)),
+        accepting_player_id: u64,
+    ) -> Result<(), String> {
+        let trade = match self.active_trades.get(&trade_id) {
+            Some(t) if t.target_id == accepting_player_id && t.status == "pending" => t.clone(),
+            _ => return Err("Trade not found or not in valid state".to_string()),
         };
 
-        if acceptor_id != offer.target_id {
-            self.active_trades.insert(trade_id, offer); // restore
-            return Ok((false, "Only the intended target can accept this trade. Choose grace.".to_string(), None));
-        }
+        let query = format!(
+            r#"
+            BEGIN TRANSACTION;
+            UPDATE trade:{} SET status = 'accepted', updated_at = time::now();
+            COMMIT TRANSACTION;
+            "#,
+            trade_id
+        );
 
-        // Check and escrow requested from acceptor
-        let acceptor_inv = inventories.entry(acceptor_id).or_default();
-        for (res, amt) in &offer.requested {
-            let current = *acceptor_inv.resources.get(res).unwrap_or(&0.0);
-            if current < *amt {
-                self.active_trades.insert(trade_id, offer); // restore
-                return Ok((false, format!("Insufficient {} to accept trade (have {:.1}).", res, current), None));
+        match self.db.query(query).await {
+            Ok(_) => {
+                if let Some(trade_mut) = self.active_trades.get_mut(&trade_id) {
+                    trade_mut.status = "accepted".to_string();
+                }
+                info!("Trade {} accepted atomically", trade_id);
+                Ok(())
+            }
+            Err(e) => {
+                error!("Atomic accept failed for trade {}: {}", trade_id, e);
+                Err(format!("Transaction failed: {}", e))
             }
         }
-        for (res, amt) in &offer.requested {
-            *acceptor_inv.resources.get_mut(res).unwrap() -= amt;
-        }
-
-        // Atomic transfer (RBE abundance exchange)
-        let offeror_inv = inventories.entry(offer.offeror_id).or_default();
-        for (res, amt) in &offer.offered {
-            *acceptor_inv.resources.entry(res.clone()).or_insert(0.0) += amt;
-        }
-        for (res, amt) in &offer.requested {
-            *offeror_inv.resources.entry(res.clone()).or_insert(0.0) += amt;
-        }
-
-        let completed = ServerMessage::TradeCompleted {
-            trade_id,
-            from: offer.offeror_id,
-            to: acceptor_id,
-            final_state: "Completed with Eternal Mercy".to_string(),
-            grace_awarded: 1,
-        };
-
-        info!("⚡ Trade COMPLETED | ID {} | {} <-> {} | Abundance exchanged. Mercy gates clear.", trade_id, offer.offeror_id, acceptor_id);
-
-        Ok((true, "Trade completed. Abundance flows for both.".to_string(), Some(completed)))
     }
 
-    /// Cancel trade — return escrowed resources to offeror
-    pub fn cancel_trade(
+    pub async fn return_escrowed_resources_on_disconnect(
         &mut self,
-        trade_id: u64,
-        canceller_id: u64,
-        inventories: &mut HashMap<u64, ServerInventoryComponent>,
-    ) -> Result<(bool, String, Option<ServerMessage>), String> {
-        let offer = match self.active_trades.remove(&trade_id) {
-            Some(o) => o,
-            None => return Ok((false, "Trade not found or already resolved.".to_string(), None)),
-        };
+        player_id: u64,
+    ) -> Vec<(u64, HashMap<String, f32>)> {
+        let mut resources_to_return = Vec::new();
+        let mut trades_to_remove = Vec::new();
 
-        if canceller_id != offer.offeror_id && canceller_id != offer.target_id {
-            self.active_trades.insert(trade_id, offer.clone());
-            return Ok((false, "Only trade participants may cancel. Choose the path of peace.".to_string(), None));
-        }
+        for (&trade_id, trade) in &self.active_trades {
+            let mut should_cancel = false;
 
-        // Return escrowed to offeror
-        let offeror_inv = inventories.entry(offer.offeror_id).or_default();
-        for (res, amt) in &offer.offered {
-            *offeror_inv.resources.entry(res.clone()).or_insert(0.0) += amt;
-        }
+            if trade.offeror_id == player_id {
+                if !trade.offered.is_empty() {
+                    resources_to_return.push((player_id, trade.offered.clone()));
+                }
+                should_cancel = true;
+            }
 
-        let cancel_msg = ServerMessage::TradeCancelled {
-            trade_id,
-            reason: format!("Trade {} cancelled by participant {}. Resources returned with mercy and grace.", trade_id, canceller_id),
-        };
+            if trade.target_id == player_id {
+                if trade.offeror_id != player_id && !trade.offered.is_empty() {
+                    resources_to_return.push((trade.offeror_id, trade.offered.clone()));
+                }
+                should_cancel = true;
+            }
 
-        info!("⚡ Trade cancelled | ID {} | Resources returned to offeror {}. Mercy flows.", trade_id, offer.offeror_id);
-
-        Ok((true, "Trade cancelled. Resources returned with mercy.".to_string(), Some(cancel_msg)))
-    }
-
-    /// Tick expiration cleanup — return escrowed resources silently (or notify in future)
-    pub fn tick_expiration(&mut self, current_time_ms: u64, inventories: &mut HashMap<u64, ServerInventoryComponent>) {
-        let mut expired_ids = vec![];
-        for (&id, offer) in &self.active_trades {
-            if current_time_ms > offer.expires_at_ms {
-                expired_ids.push(id);
+            if should_cancel {
+                trades_to_remove.push(trade_id);
             }
         }
-        for id in expired_ids {
-            if let Some(offer) = self.active_trades.remove(&id) {
-                let offeror_inv = inventories.entry(offer.offeror_id).or_default();
-                for (res, amt) in &offer.offered {
-                    *offeror_inv.resources.entry(res.clone()).or_insert(0.0) += amt;
+
+        for trade_id in trades_to_remove {
+            if let Some(trade) = self.active_trades.remove(&trade_id) {
+                let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
+                info!("Trade {} cancelled due to player {} disconnect", trade_id, player_id);
+            }
+        }
+
+        resources_to_return
+    }
+
+    pub async fn queue_pending_return(
+        &self,
+        player_id: u64,
+        resources: HashMap<String, f32>,
+        reason: &str,
+        trade_id: Option<u64>,
+    ) {
+        let created_at = std::time::SystemTime::now()
+            .duration_since(std::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        for (resource_type, amount) in resources {
+            let record = serde_json::json!({
+                "player_id": player_id,
+                "resource_type": resource_type,
+                "amount": amount,
+                "reason": reason,
+                "trade_id": trade_id,
+                "created_at": created_at,
+                "applied": false
+            });
+
+            if let Err(e) = self.db.create::<Option<serde_json::Value>>("pending_resource_return").content(record).await {
+                error!("Failed to queue pending return for player {}: {}", player_id, e);
+            }
+        }
+    }
+
+    pub async fn apply_pending_returns_for_player(
+        &self,
+        player_id: u64,
+        inventory: &mut crate::harvesting_system::ServerInventoryComponent,
+    ) -> Vec<(String, f32)> {
+        let mut applied = Vec::new();
+
+        let query = format!(
+            "SELECT * FROM pending_resource_return WHERE player_id = {} AND applied = false",
+            player_id
+        );
+
+        if let Ok(mut response) = self.db.query(query).await {
+            if let Ok(records) = response.take::<Vec<serde_json::Value>>(0) {
+                for record in records {
+                    if let (Some(res_type), Some(amount)) = (
+                        record.get("resource_type").and_then(|v| v.as_str()),
+                        record.get("amount").and_then(|v| v.as_f64()),
+                    ) {
+                        inventory.add_resource(res_type, amount as f32);
+                        applied.push((res_type.to_string(), amount as f32));
+
+                        if let Some(id) = record.get("id").and_then(|v| v.as_str()) {
+                            let _ = self.db.query(format!("UPDATE {} SET applied = true", id)).await;
+                        }
+                    }
                 }
             }
         }
+
+        applied
     }
 }
-
-// === PATSAGi Council Notes (Eternal Iteration Protocol) ===
-// - Large value trades can trigger full 13+ Council review in next unit
-// - Reputation / faction standing can modulate trade success chance or grace
-// - Full event sourcing + audit trail ready for Ra-Thor lattice
-// All paths already enforce 7 Living Mercy Gates by design. Thunder locked in.
