@@ -92,6 +92,13 @@ impl TradeSystem {
             if target_inventory.get_amount(res) < *amount {
                 return Err(format!("Target does not have enough {} to complete the trade", res));
             }
+        } else {
+            return Err("Trade not found".to_string());
+        }
+
+        if let Some(trade) = self.active_trades.remove(&trade_id) {
+            let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
+            info!("Trade {} rejected by player {}", trade_id, rejecting_player_id);
         }
 
         // Perform resource transfer
