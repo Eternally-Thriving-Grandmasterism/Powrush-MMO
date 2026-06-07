@@ -95,7 +95,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         network::TokioTransport::new("0.0.0.0:9001").await?;
     tokio::spawn(async move { transport.run().await; });
 
-    // Extended player state: (name, position, health)
     let mut players: HashMap<u64, (String, Vec3Ser, HealthComponent)> = HashMap::new();
     let mut interest_manager = InterestManager::new(120.0);
     let mut cooldowns: HashMap<u64, HashMap<u32, u64>> = HashMap::new();
@@ -135,6 +134,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         players.remove(&player_id);
                         cooldowns.remove(&player_id);
                         player_inventories.remove(&player_id);
+                        // Future: return any escrowed trades for disconnected player (Eternal Iteration)
                     }
                     network::TransportEvent::MessageReceived { player_id, message } => {
                         if mercy_core.gate_server_message(&message).is_err() {
@@ -182,7 +182,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     });
                                     continue;
                                 }
-
                                 let inv = player_inventories.entry(player_id).or_default();
 
                                 match harvesting_system.process_harvest(player_id, node_id, amount, inv, &bridge).await {
