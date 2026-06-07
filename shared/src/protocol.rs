@@ -1,6 +1,6 @@
 // shared/src/protocol.rs
-// Powrush-MMO Protocol v15.4 — Combat + Interest Management ready
-// Full mercy-gated message set with Ra-Thor / PATSAGi integration
+// Powrush-MMO Protocol v15.6 — Full Combat + Health Sync + PATSAGi Validation ready
+// Full mercy-gated message set with Ra-Thor / PATSAGi integration + combat state
 
 use bevy::math::Vec3;
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ pub struct EntitySnapshot {
     pub rotation: f32,
     pub scale: f32,
     pub state: u8,
-    // TODO v15.5: Add health: Option<HealthComponent> for live combat state sync
+    pub health: Option<HealthComponent>,  // v15.6: Live combat health sync for all entities (players, NPCs, bosses)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,7 +49,7 @@ pub enum ClientMessage {
     ProgressRedemption { target: Option<u64>, mercy_offering: f32 },
     TradeOffer { target_id: u64, offer: String },
 
-    // === Combat v15.4 (mercy-gated) ===
+    // === Combat v15.6 (mercy-gated + PATSAGi validated) ===
     AbilityCast { ability_id: u32, target_id: Option<u64>, position: Option<Vec3Ser> },
 }
 
@@ -66,7 +66,7 @@ pub enum ServerMessage {
     DivineCouncilResponse { content: String, source: String },
     RbeGuidanceResponse { content: String },
 
-    // === Combat v15.4 ===
+    // === Combat v15.6 ===
     DamageApplied { target_id: u64, amount: f32, source_id: u64, is_critical: bool },
     CombatEvent { event_type: String, data: String },
 }
@@ -75,7 +75,7 @@ pub const PROTOCOL_VERSION: u32 = 2;
 
 /// Applies mercy gate validation for high-valence messages.
 /// Returns true if the message is allowed at the current player valence level.
-/// Combat actions (AbilityCast) require moderate valence to prevent abuse.
+/// Combat actions (AbilityCast) require moderate valence + optional PATSAGi council validation for divine abilities.
 pub fn apply_mercy_gate(message: &ClientMessage, valence: f32) -> bool {
     match message {
         ClientMessage::Ping { .. } => true,
@@ -84,7 +84,7 @@ pub fn apply_mercy_gate(message: &ClientMessage, valence: f32) -> bool {
         ClientMessage::InvokeRitual { .. } => valence >= 0.85,
         ClientMessage::ProgressRedemption { .. } => valence >= 0.70,
         ClientMessage::TradeOffer { .. } => valence >= 0.60,
-        ClientMessage::AbilityCast { .. } => valence >= 0.55,
+        ClientMessage::AbilityCast { .. } => valence >= 0.55, // Moderate for combat; PATSAGi hook adds extra sovereign validation layer
         _ => true,
     }
 }
@@ -103,4 +103,5 @@ pub struct Ability {
     pub range: f32,
     pub cooldown_ms: u64,
     pub mercy_cost: f32, // Future: mercy-gated divine abilities
+    // TODO v15.7: Add projectile_speed, effect_type (melee vs projectile distinction)
 }
