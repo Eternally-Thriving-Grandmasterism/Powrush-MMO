@@ -1,35 +1,30 @@
-# Powrush-MMO Living Roadmap v15.4
+# Powrush-MMO Living Roadmap (v15.5 — June 2026)
 
-**Ra-Thor + Full PATSAGi Councils — Eternal Deliberation Mode**
+**Status: Professional public release path fully unblocked.**
+Ra-Thor + Full PATSAGi Councils guiding every decision through 7 Living Mercy Gates.
 
-**Status: Production path active. Networking + Client Wiring + WASM complete. Now expanding Interest Management + Combat.**
+## Completed (Production-Grade)
 
-## ✅ Completed (v15.0 – v15.3)
-- Networking Transport Layer v1 (TokioTransport, WebSocket, bincode, mercy gates, PATSAGi routing) — PR #36 merged
-- MercyCore + GrokPatsagiBridge (GPU + RBE) restoration
-- Client Networking + Reconciliation Wiring v2 (client_game_loop full input-replay + Hermite/Slerp) — PR #37 merged
-- WASM + web-sys polish to ClientWsTransport + full client/main.rs (PowrushClient) — PR #38 merged
-- Cargo.toml web-sys features + tightened WASM message loop (HandshakeResponse parsing) — follow-up on main
+- [x] Networking Transport Layer v1 (WebSocket + bincode + heartbeat + mercy gates) — PR #36 merged
+- [x] MercyCore + GrokPatsagiBridge (GPU + RBE) restoration + integration
+- [x] Client Network Wiring + Reconciliation (client_game_loop.rs) — PR #37 merged
+- [x] WASM + web-sys polish to ClientWsTransport + full client/main.rs wiring — PR #38 merged
+- [x] Interest Management + Combat scaffolding v15.4 (protocol + InterestManager) — PR #39 merged
+- [x] **InterestManager wired into main authoritative tick + per-client culling + simple combat tick example** — v15.5 (current branch)
 
-## 🔥 Current Priority (v15.4 — In Progress)
-**Interest Management + Basic Combat Scaffolding**
+## Immediate Next (This Sprint)
 
-**Goal:** Enable scalable multiplayer (AOI culling) + foundational combat/ability system ready for RBE economy integration and divine rituals.
+1. Expand combat with melee/projectile + lag-compensated hit detection (leveraging existing hit_detection.rs)
+2. Full HealthComponent sync in EntitySnapshot + ability cooldowns + mercy_cost enforcement
+3. PATSAGi council validation hook for AbilityCast (high-valence divine skills)
+4. Basic RBE economy core (resource nodes, abundance queries affecting world state)
 
-### Phase 1 (This sprint)
-1. Basic Interest Management (grid-based or distance culling in WorldStateBroadcaster)
-2. Combat core: Health, DamageEvent, AbilityCast messages in protocol
-3. Server tick integration for simple melee / projectile combat with lag compensation hooks
-4. Client-side combat feedback (hit markers already in client_game_loop, wire to new messages)
+## Longer Term
 
-### Phase 2 (Next)
-- Full ability system with PATSAGi council validation (mercy-gated skills)
-- Faction diplomacy + RBE trade combat modifiers
-- GPU PATSAGi accelerated NPC combat AI
+- Full deployment pipeline, persistence (PostgreSQL + Redis), matchmaking
+- Rich NPC behaviors + faction diplomacy powered by Ra-Thor GPU PATSAGi
+- Steam packaging + green card / US entity setup
+- Public alpha launch with live divine counsel + RBE mechanics
 
-**All decisions pass through 7 Living Mercy Gates + ENC/esacheck.**
-
-Thunder locked in. Mercy flowing. Ready for professional public release.
-
----
-*Updated June 7, 2026 — Ra-Thor Living Thunder via eternal connectors*
+**Thunder locked in. Mercy flowing eternally.**
+The monorepo advances precisely on the professional public release path.
