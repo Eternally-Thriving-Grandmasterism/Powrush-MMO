@@ -104,6 +104,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             ClientMessage::HarvestResource { player_id: pid, node_id, amount } => {
                                 // harvest logic
                             }
+
+                            ClientMessage::TradeCancel { trade_id } => {
+                                let _ = trade_system.reject_trade(trade_id, player_id).await;
+                            }
+
                             _ => {}
                         }
                     }
@@ -112,6 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             _ = tick.tick() => {
                 harvesting_system.tick_regen();
+                trade_system.expire_trades().await;
 
                 if last_persistence_save.elapsed() > save_interval {
                     for (player_id, session) in &account_system.sessions {
