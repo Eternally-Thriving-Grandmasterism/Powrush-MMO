@@ -1,7 +1,9 @@
- // server/src/main.rs
+// server/src/main.rs
 // Powrush-MMO Server — Production entrypoint with Networking Transport Layer v1
 // Fully integrated with shared::protocol, PATSAGi Councils, mercy gates, and Ra-Thor patterns.
 // Authoritative tick + client prediction ready foundation.
+
+mod network;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,8 +12,7 @@ use tokio::sync::mpsc;
 use tracing::{info, warn};
 use shared::protocol::*;
 
-// Re-export or use the enhanced bridge if desired (currently using simple for v1 clarity)
-// In future PR: swap to full grok_patsagi_bridge_enhanced + world_server integration
+// Simple bridge for v1 (swap to enhanced in next iteration)
 struct SimplePatsagiBridge;
 
 impl SimplePatsagiBridge {
@@ -35,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // === Initialize Production Transport ===
     let (mut transport, mut event_rx, command_tx) =
-        server::network::tokio_transport::TokioTransport::new("0.0.0.0:9001").await?;
+        network::TokioTransport::new("0.0.0.0:9001").await?;
 
     tokio::spawn(async move {
         transport.run().await;
@@ -54,31 +55,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             Some(event) = event_rx.recv() => {
                 match event {
-                    server::network::tokio_transport::TransportEvent::ClientConnected { info } => {
+                    network::TransportEvent::ClientConnected { info } => {
                         info!("Player {} ({}) connected — Welcome to the Eternal Flow.", info.player_id, info.player_name);
                         players.insert(info.player_id, (info.player_name, Vec3Ser { x: 0.0, y: 0.0, z: 0.0 }));
                     }
-                    server::network::tokio_transport::TransportEvent::ClientDisconnected { player_id } => {
+                    network::TransportEvent::ClientDisconnected { player_id } => {
                         info!("Player {} disconnected", player_id);
                         players.remove(&player_id);
                     }
-                    server::network::tokio_transport::TransportEvent::MessageReceived { player_id, message } => {
+                    network::TransportEvent::MessageReceived { player_id, message } => {
                         match message {
                             ClientMessage::Move { delta } => {
                                 if let Some((_, pos)) = players.get_mut(&player_id) {
-                                    pos.x += delta.x * 0.1; // simple authoritative movement scaling
+                                    pos.x += delta.x * 0.1;
                                     pos.y += delta.y * 0.1;
                                     pos.z += delta.z * 0.1;
                                 }
                             }
                             ClientMessage::Jump => {
                                 if let Some((_, pos)) = players.get_mut(&player_id) {
-                                    pos.y += 5.0; // simple jump
+                                    pos.y += 5.0;
                                 }
                             }
                             ClientMessage::Ping { client_time_ms } => {
-                                // Transport already handles Pong internally via heartbeat path if extended
-                                let _ = command_tx.send(server::network::tokio_transport::TransportCommand::Send {
+                                let _ = command_tx.send(network::TransportCommand::Send {
                                     player_id,
                                     message: ServerMessage::Pong {
                                         server_time_ms: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64,
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             ClientMessage::DivineCouncilQuery { query, .. } => {
                                 let response = bridge.handle_divine_query(&query).await;
-                                let _ = command_tx.send(server::network::tokio_transport::TransportCommand::Send {
+                                let _ = command_tx.send(network::TransportCommand::Send {
                                     player_id,
                                     message: ServerMessage::DivineCouncilResponse {
                                         content: response,
@@ -98,13 +98,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             ClientMessage::RbeAbundanceQuery { query, .. } => {
                                 let response = bridge.handle_rbe_query(&query).await;
-                                let _ = command_tx.send(server::network::tokio_transport::TransportCommand::Send {
+                                let _ = command_tx.send(network::TransportCommand::Send {
                                     player_id,
                                     message: ServerMessage::RbeGuidanceResponse { content: response },
                                 });
                             }
                             ClientMessage::Interact { target_id } => {
-                                let _ = command_tx.send(server::network::tokio_transport::TransportCommand::Send {
+                                let _ = command_tx.send(network::TransportCommand::Send {
                                     player_id,
                                     message: ServerMessage::Error { message: format!("Interact with {} acknowledged (full mechanics in next sprint).", target_id) },
                                 });
@@ -116,7 +116,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             _ = tick.tick() => {
-                // Authoritative broadcast of current world state (scaffolding for full interest management)
                 let entities: Vec<EntitySnapshot> = players
                     .iter()
                     .map(|(&id, (name, pos))| EntitySnapshot {
@@ -136,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .as_millis() as u64,
                 };
 
-                let _ = command_tx.send(server::network::tokio_transport::TransportCommand::Broadcast { message: update });
+                let _ = command_tx.send(network::TransportCommand::Broadcast { message: update });
             }
         }
     }
