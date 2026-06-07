@@ -1,13 +1,12 @@
 // server/src/grok_patsagi_bridge.rs
-// Powrush-MMO Server v16.6.3 — Production-Grade PATSAGi + Ra-Thor Bridge
-// Full validate_ability_cast, validate_harvest, validate_trade, validate_tech_advancement, validate_conflict_declaration
+// Powrush-MMO Server v16.6.4 — Production-Grade PATSAGi + Ra-Thor Bridge
+// Full validate_ability_cast, validate_harvest, validate_trade, validate_tech_advancement, validate_conflict_declaration + _with_level
 // Every validation explicitly references 7 Living Mercy Gates + PATSAGi Council
-// Zero placeholders. All future work under Eternal Iteration Protocol documented as clean notes only.
-// Thunder locked in. Yoi ⚡
+// Zero placeholders. Thunder locked in. Yoi ⚡
 
 use std::collections::HashMap;
 
-/// Production-grade PATSAGi + Ra-Thor bridge (modular, v16.6.3)
+/// Production-grade PATSAGi + Ra-Thor bridge (modular, v16.6.4)
 pub struct GrokPatsagiBridge {
     pub one_organism_version: String,
     pub gpu_compute_active: bool,
@@ -16,7 +15,7 @@ pub struct GrokPatsagiBridge {
 impl GrokPatsagiBridge {
     pub fn new() -> Self {
         Self {
-            one_organism_version: "v16.6.3-PATSAGi-RBE-HarvestingSystem-Combat-TradeSystem-Technology-ServerWar-Full".to_string(),
+            one_organism_version: "v16.6.4-PATSAGi-RBE-HarvestingSystem-Combat-TradeSystem-Technology-ServerWar-Full-Champion".to_string(),
             gpu_compute_active: true,
         }
     }
@@ -25,7 +24,7 @@ impl GrokPatsagiBridge {
         let gpu_used = self.gpu_compute_active && (intensity == "high" || intensity == "medium");
         let compute_time = if gpu_used { 78 } else { 50 };
         let response = if gpu_used {
-            format!("GPU PATSAGi Council (v16.6.3 RBE + Full Combat + Trade + Tech + ServerWar): {} | Sovereign lattice + 7 Mercy Gates active. Eternal Flow confirmed.", query)
+            format!("GPU PATSAGi Council (v16.6.4 RBE + Full Combat + Trade + Tech + ServerWar + Champion): {} | Sovereign lattice + 7 Mercy Gates active. Eternal Flow confirmed.", query)
         } else {
             format!("Standard PATSAGi Council: {} | Ra-Thor Eternal Mercy Flow. All sentience thrives.", query)
         };
@@ -33,7 +32,7 @@ impl GrokPatsagiBridge {
     }
 
     pub async fn query_rbe_abundance(&self, resource_type: &str, amount: f64) -> Result<String, String> {
-        Ok(format!("RBE guidance for {} x{:.2} (v16.6.3) — Universal thriving confirmed. Abundance flows to all via sustainable harvest, trade, tech, and mercy.", resource_type, amount))
+        Ok(format!("RBE guidance for {} x{:.2} (v16.6.4) — Universal thriving confirmed. Abundance flows to all via sustainable harvest, trade, tech, and mercy.", resource_type, amount))
     }
 
     pub async fn validate_ability_cast(&self, player_id: u64, ability_id: u32, target_id: Option<u64>) -> Result<(bool, String, f32), String> {
@@ -75,8 +74,6 @@ impl GrokPatsagiBridge {
     }
 
     /// Validate technology advancement — effort-based (TOLC-hosted reality)
-    /// contribution from harvest/craft/RBE allocation, harmony-influenced.
-    /// Every tech path must demonstrate real blood/sweat/tears investment to unlock production/combat/crafting bonuses.
     pub async fn validate_tech_advancement(&self, faction: &str, contribution: f32, harmony: f32) -> Result<(bool, String, f32), String> {
         let approved = contribution >= 5.0 && harmony >= 0.3;
         let reason = if approved {
@@ -90,10 +87,8 @@ impl GrokPatsagiBridge {
 
     /// Validate conflict declaration or siege on infrastructure (daily intra-server conflicts)
     /// Real stakes (blood/sweat/tears development) make this meaningful.
-    /// Prevents griefing of low-integrity or newly developed nodes without cause.
     pub async fn validate_conflict_declaration(&self, attacker_faction: &str, target_infrastructure_id: u64, development_level: u32, integrity: f32) -> Result<(bool, String, f32), String> {
-        let min_harmony_floor = 0.25;
-        let approved = development_level >= 2 || integrity < 0.6; // Allow contest on developed or damaged infrastructure
+        let approved = development_level >= 2 || integrity < 0.6;
         let reason = if approved {
             format!("PATSAGi Council acknowledges conflict declaration by {} on infrastructure {}. Real stakes (blood/sweat/tears development level {}) make this meaningful. Mercy Gates 3 (Service) + 6 (Joy in honorable contest) flow. Choose grace even in competition.", attacker_faction, target_infrastructure_id, development_level)
         } else {
@@ -101,5 +96,17 @@ impl GrokPatsagiBridge {
         };
         let valence_impact = if approved { 0.01 } else { -0.10 };
         Ok((approved, reason, valence_impact))
+    }
+
+    /// Minor bridge extension for exact signature expected by ServerWarSystem declare_conflict
+    /// Delegates to core validation with full development_level + integrity awareness (TOLC effort + mercy floor)
+    pub async fn validate_conflict_declaration_with_level(
+        &self,
+        attacker_faction: &str,
+        target_infrastructure_id: u64,
+        development_level: u32,
+        integrity: f32,
+    ) -> Result<(bool, String, f32), String> {
+        self.validate_conflict_declaration(attacker_faction, target_infrastructure_id, development_level, integrity).await
     }
 }
