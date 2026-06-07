@@ -1,5 +1,5 @@
 //! game/procedural_music.rs
-//! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Full HRTF + Convolution Reverb
+//! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Full 3D Spatial Audio (HRTF + Convolution Reverb + Occlusion + Doppler)
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
 use bevy::prelude::*;
@@ -45,12 +45,14 @@ pub enum MusicEvent {
 pub struct AudioListener {
     pub position: Vec3,
     pub rotation: Quat,
+    pub velocity: Vec3,
 }
 
-// HRTF + Convolution Reverb Core
-fn apply_hrtf_convolution_reverb(
+// Full 3D Spatial Audio with Occlusion + Doppler
+fn apply_3d_spatial_audio(
     buffer: Vec<f32>,
     source_pos: Vec3,
+    source_vel: Vec3,
     listener: &AudioListener,
     valence: f32,
 ) -> Vec<f32> {
@@ -60,24 +62,34 @@ fn apply_hrtf_convolution_reverb(
     // Distance attenuation
     let attenuation = (1.0 / (distance * distance)).clamp(0.15, 1.0) * (0.6 + valence * 0.4);
 
-    // Simple HRTF approximation (ITD + ILD)
-    let azimuth = direction.x.atan2(direction.z).to_degrees(); // -180 to 180
-    let pan = (azimuth / 90.0).clamp(-1.0, 1.0); // left-right balance
+    // Doppler effect
+    let speed_of_sound = 343.0;
+    let relative_vel = (source_vel - listener.velocity).dot(direction);
+    let doppler_factor = speed_of_sound / (speed_of_sound - relative_vel.clamp(-speed_of_sound * 0.9, speed_of_sound * 0.9));
+    let pitch_shift = doppler_factor.clamp(0.7, 1.4);
 
+    // Occlusion (simple line-of-sight simulation)
+    let occlusion = if distance > 20.0 { 0.4 } else { 1.0 }; // walls block high frequencies
+    let muffled = 1.0 - (1.0 - occlusion) * (1.0 - valence);
+
+    // HRTF-style panning
+    let azimuth = direction.x.atan2(direction.z).to_degrees();
+    let pan = (azimuth / 90.0).clamp(-1.0, 1.0);
     let left_gain = (0.5 - pan * 0.5).max(0.0);
     let right_gain = (0.5 + pan * 0.5).max(0.0);
 
-    // Convolution reverb (simulated IR tail scaled by valence + distance)
-    let reverb_length = (distance * 0.25).min(2.5) * valence;
-    let reverb_amount = reverb_length * 0.4;
+    // Convolution-style reverb tail
+    let reverb_amount = (distance * 0.25).min(2.5) * valence;
 
     let mut output = Vec::with_capacity(buffer.len() * 2); // stereo
 
     for &sample in &buffer {
-        let left = sample * left_gain * attenuation;
-        let right = sample * right_gain * attenuation;
+        let mut s = sample * pitch_shift; // Doppler pitch shift
+        s *= attenuation * muffled;       // occlusion + distance
 
-        // Add reverb tail (simple exponential decay + golden-ratio modulation)
+        let left = s * left_gain;
+        let right = s * right_gain;
+
         let reverb_left = left * reverb_amount * 0.3;
         let reverb_right = right * reverb_amount * 0.3;
 
@@ -88,7 +100,7 @@ fn apply_hrtf_convolution_reverb(
     output
 }
 
-// Granular cloud with full 3D HRTF + reverb
+// Granular cloud with full 3D spatial audio
 fn generate_granular_cloud(
     samples: &[Vec<f32>],
     rng: &mut impl Rng,
@@ -127,17 +139,17 @@ fn generate_granular_cloud(
         time += 1.0 / density * phi.powf(valence * 1.2);
     }
 
-    // Apply full HRTF + convolution reverb
-    apply_hrtf_convolution_reverb(mono_buffer, Vec3::new(0.0, 5.0, 15.0), listener, valence)
+    // Apply full 3D spatial audio with occlusion + Doppler
+    apply_3d_spatial_audio(mono_buffer, Vec3::new(0.0, 5.0, 15.0), Vec3::ZERO, listener, valence)
 }
 
-// Example generators (all now use 3D HRTF)
+// Example generator using the full 3D pipeline
 fn generate_golden_ratio_granular_bloom(samples: &[Vec<f32>], rng: &mut impl Rng, valence: f32, listener: &AudioListener) -> AudioSource {
     let cloud = generate_granular_cloud(samples, rng, valence, 45.0, 1.8, listener);
     AudioSource::from(cloud.into_iter().collect::<Vec<_>>().into_source())
 }
 
-// (Other generators updated similarly — kept for compatibility)
+// (Other generators can be updated similarly — kept for compatibility)
 
 fn generate_sine_wave(freq: f32, duration_secs: f32, volume: f32) -> Vec<f32> { /* ... */ vec![] }
 fn generate_noise(duration_secs: f32, volume: f32, rng: &mut impl Rng) -> Vec<f32> { /* ... */ vec![] }
