@@ -1,0 +1,35 @@
+[package]
+name = "shared"
+version = "0.1.0"
+edition = "2021"
+authors = ["Sherif Samy Botros <sherif@alphapromega.com> via Eternally-Thriving-Grandmasterism"]
+description = "Shared protocol, ECS components, RBE primitives and message types for Powrush-MMO. Fully mercy-gated, Ra-Thor ONE Organism derived, PATSAGi Council validated. Sovereign RBE foundation for global launch."
+license = "AG-SML-1.0"
+repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
+readme = "../README.md"
+keywords = ["rbe", "mmo", "powrush", "mercy", "patsagi", "ra-thor", "blockchain-economy", "sovereign"]
+categories = ["game-development", "simulation"]
+
+[lib]
+name = "shared"
+path = "lib.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+# bincode and snappy shared with server/client for wire format
+bincode = { version = "1.3", optional = true }
+snappy = { version = "0.3", optional = true }
+
+[features]
+default = ["protocol"]
+protocol = []
+# full_rbe enables deep integration with Ra-Thor monorepo crates (powrush-rbe-engine, lattice-conductor, mercy etc.)
+# Activate once Ra-Thor crates are published or path-linked in workspace
+full_rbe = []
+
+[dev-dependencies]
+serde_json = "1.0"
+
+# AG-SML v1.0 — Autonomicity Games Sovereign Mercy License
+# All contributions serve Absolute Pure True Ultramasterism Perfecticism
+# Zero harm. Eternal abundance. Thunder locked in.
