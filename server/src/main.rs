@@ -1,6 +1,6 @@
 // server/src/main.rs
 // Powrush-MMO Server v16.11 — Trading System Refinements Applied
-// Includes expire_trades() call + fixed TradeCompleted message + updated accept handling
+// Clean call site for accept_trade_atomic + all previous fixes
 // AG-SML v1.0
 
 mod network;
@@ -98,29 +98,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
 
                             ClientMessage::TradeAccept { trade_id } => {
-                                if let (Some(offeror_inv), Some(target_inv)) = (
-                                    player_inventories.get_mut(&trade_system.active_trades.get(&trade_id).map(|t| t.offeror_id).unwrap_or(0)),
-                                    player_inventories.get_mut(&player_id),
-                                ) {
-                                    if let Err(e) = trade_system.accept_trade_atomic(
-                                        trade_id, player_id, offeror_inv, target_inv
-                                    ).await {
-                                        let _ = command_tx.send(network::TransportCommand::Send {
-                                            player_id, message: ServerMessage::Error { message: e }
-                                        });
-                                    } else {
-                                        // Send proper TradeCompleted with correct IDs
-                                        if let Some(trade) = trade_system.active_trades.get(&trade_id) {
-                                            let _ = command_tx.send(network::TransportCommand::Send {
-                                                player_id,
-                                                message: ServerMessage::TradeCompleted {
-                                                    trade_id,
-                                                    from: trade.offeror_id,
-                                                    to: trade.target_id,
-                                                    final_state: "accepted".to_string(),
-                                                    grace_awarded: 0,
-                                                },
-                                            });
+                                // Clean, safe call site - look up trade first
+                                if let Some(trade) = trade_system.active_trades.get(&trade_id).cloned() {
+                                    if trade.target_id == player_id && trade.status == "pending" {
+                                        if let (Some(offeror_inv), Some(target_inv)) = (
+                                            player_inventories.get_mut(&trade.offeror_id),
+                                            player_inventories.get_mut(&player_id),
+                                        ) {
+                                            match trade_system.accept_trade_atomic(
+                                                trade_id, player_id, offeror_inv, target_inv
+                                            ).await {
+                                                Ok(()) => {
+                                                    let _ = command_tx.send(network::TransportCommand::Send {
+                                                        player_id,
+                                                        message: ServerMessage::TradeCompleted {
+                                                            trade_id,
+                                                            from: trade.offeror_id,
+                                                            to: trade.target_id,
+                                                            final_state: "accepted".to_string(),
+                                                            grace_awarded: 0,
+                                                        },
+                                                    });
+                                                }
+                                                Err(e) => {
+                                                    let _ = command_tx.send(network::TransportCommand::Send {
+                                                        player_id,
+                                                        message: ServerMessage::Error { message: e },
+                                                    });
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -138,7 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             _ = tick.tick() => {
                 harvesting_system.tick_regen();
-                trade_system.expire_trades().await; // NEW: Active expiration
+                trade_system.expire_trades().await;
 
                 if last_persistence_save.elapsed() > save_interval {
                     for (player_id, inventory) in &player_inventories {
