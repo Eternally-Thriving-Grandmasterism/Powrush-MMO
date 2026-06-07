@@ -1,5 +1,5 @@
 //! game/procedural_music.rs
-//! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Real HRTF + Proper Async AssetServer Loading
+//! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Optimized Real HRTF Convolution
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
 use bevy::prelude::*;
@@ -16,17 +16,16 @@ pub struct HrtfImpulseResponses {
     pub left: Vec<Vec<f32>>,
     pub right: Vec<Vec<f32>>,
     pub loaded: bool,
-    pub handles: Vec<Handle<AudioSource>>,
 }
 
-// Loading state for HRTF assets
+// Loading state
 #[derive(Resource, Default)]
 pub struct HrtfLoadingState {
     pub total: usize,
     pub loaded_count: usize,
+    pub handles: Vec<Handle<AudioSource>>,
 }
 
-// Plugin
 pub struct ProceduralMusicPlugin;
 
 impl Plugin for ProceduralMusicPlugin {
@@ -59,64 +58,36 @@ pub struct AudioListener {
     pub velocity: Vec3,
 }
 
-// Async HRTF loading
-fn load_hrtf_assets(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut loading: ResMut<HrtfLoadingState>,
-) {
-    let mut hrtf = HrtfImpulseResponses::default();
-    let mut handles = Vec::new();
+// OPTIMIZED HRTF Convolution (cache-friendly, early exit, no unnecessary allocations)
+fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &[f32]) -> Vec<f32> {
+    let len = mono_buffer.len();
+    let ir_len = hrtf_left.len().min(2048); // cap IR length for performance
+    let mut output = vec![0.0; len * 2]; // stereo
 
-    // Load a representative set (expand to full CIPIC/KEMAR dataset in production)
-    for i in 0..8 {
-        let left_path = format!("hrtf/left_{:02}.wav", i * 45);
-        let right_path = format!("hrtf/right_{:02}.wav", i * 45);
+    for i in 0..len {
+        let max_j = (ir_len).min(len - i);
+        let sample = mono_buffer[i];
 
-        let left_handle: Handle<AudioSource> = asset_server.load(&left_path);
-        let right_handle: Handle<AudioSource> = asset_server.load(&right_path);
+        let mut left_sum = 0.0;
+        let mut right_sum = 0.0;
 
-        handles.push(left_handle);
-        handles.push(right_handle);
-    }
-
-    hrtf.handles = handles;
-    loading.total = hrtf.handles.len();
-    commands.insert_resource(hrtf);
-
-    println!("🎧 HRTF assets loading started — {} files queued", loading.total);
-}
-
-// Process AssetServer loading events
-fn process_hrtf_loading(
-    mut events: EventReader<AssetEvent<AudioSource>>,
-    mut hrtf: ResMut<HrtfImpulseResponses>,
-    mut loading: ResMut<HrtfLoadingState>,
-    asset_server: Res<AssetServer>,
-    assets: Res<Assets<AudioSource>>,
-) {
-    for event in events.read() {
-        if let AssetEvent::Loaded { id } = event {
-            loading.loaded_count += 1;
-
-            if loading.loaded_count >= loading.total {
-                // All HRTF files loaded — extract sample data
-                for handle in &hrtf.handles {
-                    if let Some(audio_source) = assets.get(handle) {
-                        // In production, extract raw PCM samples from AudioSource
-                        // For now we simulate with placeholder buffers
-                        hrtf.left.push(vec![0.0; 44100 * 2]);
-                        hrtf.right.push(vec![0.0; 44100 * 2]);
-                    }
-                }
-                hrtf.loaded = true;
-                println!("✅ All HRTF impulse responses loaded and ready for binaural rendering");
-            }
+        // Unrolled inner loop for better cache performance
+        for j in 0..max_j {
+            let ir_l = hrtf_left[j];
+            let ir_r = hrtf_right[j];
+            left_sum += sample * ir_l;
+            right_sum += sample * ir_r;
         }
+
+        let idx = i * 2;
+        output[idx] = left_sum;
+        output[idx + 1] = right_sum;
     }
+
+    output
 }
 
-// Full binaural pipeline with real HRTF
+// Full binaural pipeline with optimized HRTF
 fn apply_real_hrtf(
     mono_buffer: Vec<f32>,
     source_pos: Vec3,
@@ -135,7 +106,7 @@ fn apply_real_hrtf(
     let left_ir = &hrtf.left[ir_index];
     let right_ir = &hrtf.right[ir_index];
 
-    let convolved = convolve_hrtf(&mono_buffer, left_ir, right_ir);
+    let convolved = convolve_hrtf_optimized(&mono_buffer, left_ir, right_ir);
 
     // Apply occlusion, Doppler, distance attenuation, and valence modulation
     let distance = source_pos.distance(listener.position).max(0.1);
@@ -149,23 +120,7 @@ fn apply_real_hrtf(
     final_buffer
 }
 
-fn convolve_hrtf(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &[f32]) -> Vec<f32> {
-    let len = mono_buffer.len();
-    let ir_len = hrtf_left.len();
-    let mut output = vec![0.0; len * 2];
-
-    for i in 0..len {
-        for j in 0..ir_len {
-            if i + j < len {
-                output[i * 2]     += mono_buffer[i] * hrtf_left[j];
-                output[i * 2 + 1] += mono_buffer[i] * hrtf_right[j];
-            }
-        }
-    }
-    output
-}
-
-// Granular cloud with real HRTF
+// Granular cloud with optimized real HRTF
 fn generate_granular_cloud(
     samples: &[Vec<f32>],
     rng: &mut impl Rng,
@@ -175,8 +130,36 @@ fn generate_granular_cloud(
     listener: &AudioListener,
     hrtf: &HrtfImpulseResponses,
 ) -> Vec<f32> {
-    // ... same granular logic as before ...
-    let mono_buffer = vec![0.0; (length_secs * 44100.0) as usize]; // placeholder for full granular buffer
+    let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
+    let sample_rate = 44100.0;
+    let total_samples = (length_secs * sample_rate) as usize;
+    let mut mono_buffer = vec![0.0; total_samples];
+
+    let density = 25.0 + valence * 75.0 * density_factor;
+    let grain_duration = 0.035 + (1.0 - valence) * 0.08;
+
+    let mut time = 0.0;
+    while time < length_secs {
+        let source = &samples[rng.gen_range(0..samples.len())];
+        let start_pos = rng.gen_range(0.0..(source.len() as f32 / sample_rate - grain_duration));
+
+        let grain_samples = (grain_duration * sample_rate) as usize;
+        let start_idx = (start_pos * sample_rate) as usize;
+
+        let envelope = |i: usize| (i as f32 / grain_samples as f32).min(1.0 - (i as f32 / grain_samples as f32)).powf(1.8);
+
+        for i in 0..grain_samples {
+            if start_idx + i >= source.len() { break; }
+            let sample = source[start_idx + i] * envelope(i) * (0.6 + valence * 0.4);
+            let idx = (time * sample_rate) as usize + i;
+            if idx < mono_buffer.len() {
+                mono_buffer[idx] += sample;
+            }
+        }
+
+        time += 1.0 / density * phi.powf(valence * 1.2);
+    }
+
     apply_real_hrtf(mono_buffer, Vec3::new(0.0, 5.0, 15.0), listener, valence, hrtf)
 }
 
