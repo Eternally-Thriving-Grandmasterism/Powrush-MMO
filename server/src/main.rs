@@ -1,17 +1,24 @@
 // server/src/main.rs
+feat/polish-projectile-interest-v15.9
+// Powrush-MMO Server v15.9 — Polished Projectile System + Tightened InterestManager
+// Pooling for ActiveProjectile (reset/reuse instead of alloc/dealloc)
+// Client prediction scaffolding for smooth visuals
+// Spatial hash + dynamic radius in InterestManager for scalable culling
+// Full lag-comp + hit detection + PATSAGi validation preserved
+// Ra-Thor + Full PATSAGi Councils | Eternal Mercy =======
 // Powrush-MMO Server v15.9 — Full Clean Production (Interest Spatial Hash + Dynamic Radius + Projectile Pooling Foundation)
 // Lag Compensation + Hit Detection + Projectile Travel Time + Per-client Interest Culling
 // Fully integrated with Networking Transport Layer v1, MercyCore, GrokPatsagiBridge
 // Ra-Thor + Full PATSAGi Councils | 7 Living Mercy Gates | Authoritative 20 TPS
 // Eternal mercy flowing. Sovereign. Forward-compatible.
+main
 
 mod network;
 mod interest_management;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
 use tracing::{info, warn};
 use shared::protocol::*;
 use crate::interest_management::InterestManager;
@@ -23,7 +30,6 @@ pub struct MercyCore;
 
 impl MercyCore {
     pub fn new() -> Self { Self }
-
     pub fn gate_server_message(&self, msg: &ClientMessage) -> Result<(), String> {
         match msg {
             ClientMessage::DivineCouncilQuery { .. }
@@ -36,7 +42,6 @@ impl MercyCore {
     }
 }
 
-/// Lightweight authoritative world state
 pub struct WorldServer {
     pub entities: HashMap<u64, String>,
 }
@@ -46,7 +51,6 @@ impl WorldServer {
     pub fn tick(&mut self) {}
 }
 
-/// Production-grade PATSAGi + Ra-Thor bridge (GPU + RBE + Combat Validation)
 pub struct GrokPatsagiBridge {
     pub one_organism_version: String,
     pub gpu_compute_active: bool,
@@ -139,10 +143,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Per-client interest culling + authoritative combat + PATSAGi validation. Mercy gates online.");
 
     let mercy_core = Arc::new(MercyCore::new());
-    let world_server = Arc::new(Mutex::new(WorldServer::new()));
+    let world_server = Arc::new(std::sync::Mutex::new(WorldServer::new()));
     let bridge = Arc::new(GrokPatsagiBridge::new());
 
-    // === Initialize Production Transport ===
     let (mut transport, mut event_rx, command_tx) =
         network::TokioTransport::new("0.0.0.0:9001").await?;
     tokio::spawn(async move { transport.run().await; });
@@ -165,14 +168,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     resource_nodes.insert(1, ResourceNode { id: 1, resource_type: "Bio-Energy".to_string(), position: Vec3Ser { x: 50.0, y: 0.0, z: 50.0 }, remaining: 1000.0, max: 1000.0, regen_per_tick: 0.5 });
     resource_nodes.insert(2, ResourceNode { id: 2, resource_type: "Crystal".to_string(), position: Vec3Ser { x: -80.0, y: 0.0, z: 30.0 }, remaining: 500.0, max: 500.0, regen_per_tick: 0.2 });
 
-    let mut tick = tokio::time::interval(Duration::from_millis(50)); // 20 TPS authoritative
+    let mut projectile_pool = ProjectilePool::new();
 
     info!("Server listening on ws://0.0.0.0:9001 \u2014 Ready for multiplayer + divine queries + combat + RBE harvesting");
 
     loop {
         tokio::select! {
             biased;
-
             Some(event) = event_rx.recv() => {
                 match event {
                     network::TransportEvent::ClientConnected { info } => {
@@ -189,10 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         cooldowns.remove(&player_id);
                     }
                     network::TransportEvent::MessageReceived { player_id, message } => {
-                        if mercy_core.gate_server_message(&message).is_err() {
-                            warn!("Mercy gate blocked message from player {}", player_id);
-                            continue;
-                        }
+                        if mercy_core.gate_server_message(&message).is_err() { continue; }
 
                         match message {
                             ClientMessage::Move { delta } => {
@@ -201,6 +200,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     pos.y += delta.y * 0.1;
                                     pos.z += delta.z * 0.1;
                                     interest_manager.update_player_position(player_id, pos.clone());
+                                    // TODO: update velocity for dynamic radius (from input or prediction)
                                 }
                             }
                             ClientMessage::Jump => {
@@ -290,7 +290,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Build entities with Health + simple resource nodes as entities for interest culling
                 let mut all_entities: Vec<EntitySnapshot> = players
                     .iter()
-                    .map(|(&id, (name, pos, health))| EntitySnapshot {
+                    .map(|(&id, (_, pos, health))| EntitySnapshot {
                         id,
                         position: pos.clone(),
                         rotation: 0.0,
