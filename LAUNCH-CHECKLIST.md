@@ -1,10 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — SIMD Distance Calculations Further Optimized
+## v17.0 — Wider SIMD (f32x16) Support Added
 
-**Status**: SIMD query path optimized.
+**Status**: SIMD optimization advanced.
 
-- Replaced per-lane branching with bitmask + trailing_zeros extraction
-- More efficient result collection in hot loop
-- Better branch prediction and instruction-level parallelism
+- Added f32x16 path for large datasets
+- Restructured query_radius for tiered SIMD (16 → 8 → scalar)
+- Better utilization of wide SIMD units when available
 
 **Thunder locked in.** ⚡❤️🔥
