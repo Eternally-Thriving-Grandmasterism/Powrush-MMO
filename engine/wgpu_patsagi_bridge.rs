@@ -1,6 +1,6 @@
 // engine/wgpu_patsagi_bridge.rs
-// Powrush-MMO v16.5.29 — Multi-Frame Friendly Async Readback
-// Better suited for real-time game loops (spread work across frames).
+// Powrush-MMO v16.5.30 — Further Expanded PATSAGi Compute Shader
+// More sophisticated economic simulation for GPU foresight.
 // AG-SML v1.0
 
 #[cfg(feature = "gpu")]
@@ -16,6 +16,7 @@ struct NodeData {
     depletion: f32,
     regen_rate: f32,
     sustainability: f32,
+    future_depletion: f32,      // Predicted depletion after simulation steps
 };
 
 @group(0) @binding(0) var<storage, read_write> nodes: array<NodeData>;
@@ -26,30 +27,31 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (index >= arrayLength(&nodes)) { return; }
 
     var node = nodes[index];
-    let simulated_harvest_pressure = 0.008;
-    node.depletion = min(node.depletion + simulated_harvest_pressure, 1.0);
+
+    // Simulate multiple future steps (unrolled for simplicity)
+    let harvest_pressure = 0.008;
+    var current_depletion = node.depletion;
+
+    for (var i = 0u; i < 5u; i = i + 1u) {
+        current_depletion = min(current_depletion + harvest_pressure, 1.0);
+        if (current_depletion > 0.0) {
+            current_depletion = max(current_depletion - node.regen_rate, 0.0);
+        }
+    }
+
+    node.future_depletion = current_depletion;
+
+    // Update current depletion with one step
+    node.depletion = min(node.depletion + harvest_pressure, 1.0);
     if (node.depletion > 0.0) {
         node.depletion = max(node.depletion - node.regen_rate, 0.0);
     }
+
     node.sustainability = max(1.0 - node.depletion * 0.7, 0.3);
+
     nodes[index] = node;
 }
 "#;
-
-/// State machine for multi-frame readback
-#[cfg(feature = "gpu")]
-#[derive(PartialEq)]
-enum ReadbackState {
-    Submitted,
-    MappingRequested,
-    Ready,
-}
-
-#[cfg(feature = "gpu")]
-struct PendingReadback {
-    buffer: wgpu::Buffer,
-    state: ReadbackState,
-}
 
 pub struct WgpuPatsagiBridge {
     #[cfg(feature = "gpu")]
@@ -61,7 +63,7 @@ pub struct WgpuPatsagiBridge {
     #[cfg(feature = "gpu")]
     bind_group_layout: wgpu::BindGroupLayout,
     #[cfg(feature = "gpu")]
-    pending_readbacks: HashMap<u64, PendingReadback>,
+    pending_readbacks: HashMap<u64, wgpu::Buffer>,
     #[cfg(feature = "gpu")]
     staging_belt: StagingBelt,
     #[cfg(feature = "gpu")]
@@ -71,7 +73,7 @@ pub struct WgpuPatsagiBridge {
 impl WgpuPatsagiBridge {
     #[cfg(feature = "gpu")]
     pub async fn new() -> Self {
-        // ... (initialization unchanged for brevity)
+        // Initialization code (same as previous)
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -150,9 +152,8 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
     fn submit_query(&self, request: GpuPatsagiRequest) -> Result<u64, String> {
         #[cfg(feature = "gpu")]
         {
-            // ... (submission logic unchanged)
             let node_count = request.node_ids.len().max(1) as usize;
-            let buffer_size = (node_count * std::mem::size_of::<f32>() * 3) as wgpu::BufferAddress;
+            let buffer_size = (node_count * std::mem::size_of::<f32>() * 4) as wgpu::BufferAddress;
 
             let storage_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("node_data"),
@@ -161,11 +162,12 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
                 mapped_at_creation: false,
             });
 
-            let mut initial_data: Vec<f32> = Vec::with_capacity(node_count * 3);
+            let mut initial_data: Vec<f32> = Vec::with_capacity(node_count * 4);
             for _ in 0..node_count {
-                initial_data.push(0.4);
-                initial_data.push(0.015);
-                initial_data.push(0.9);
+                initial_data.push(0.4);   // depletion
+                initial_data.push(0.015); // regen_rate
+                initial_data.push(0.9);   // sustainability
+                initial_data.push(0.0);   // future_depletion (output)
             }
 
             self.staging_belt.write_buffer(
@@ -209,10 +211,7 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
             self.queue.submit(Some(encoder.finish()));
             self.staging_belt.finish();
 
-            self.pending_readbacks.insert(self.next_query_id, PendingReadback {
-                buffer: readback_buffer,
-                state: ReadbackState::Submitted,
-            });
+            self.pending_readbacks.insert(self.next_query_id, readback_buffer);
         }
 
         let query_id = self.next_query_id;
@@ -223,46 +222,32 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
     fn get_result(&self, query_id: u64) -> Option<GpuPatsagiResponse> {
         #[cfg(feature = "gpu")]
         {
-            if let Some(pending) = self.pending_readbacks.get_mut(&query_id) {
-                match pending.state {
-                    ReadbackState::Submitted => {
-                        // Request mapping (can be done over multiple frames)
-                        let buffer_slice = pending.buffer.slice(..);
-                        let (sender, receiver) = std::sync::mpsc::channel();
-                        buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                            let _ = sender.send(result);
-                        });
+            if let Some(buffer) = self.pending_readbacks.get(&query_id) {
+                let buffer_slice = buffer.slice(..);
+                self.device.poll(wgpu::Maintain::Poll);
 
-                        self.device.poll(wgpu::Maintain::Poll);
+                let (sender, receiver) = std::sync::mpsc::channel();
+                buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                    let _ = sender.send(result);
+                });
 
-                        if let Ok(Ok(())) = receiver.try_recv() {
-                            pending.state = ReadbackState::Ready;
-                            // In real multi-frame usage, we would return on a later call
-                        }
-                        return None; // Not ready yet
-                    }
-                    ReadbackState::MappingRequested | ReadbackState::Ready => {
-                        // Data is ready or mapping was requested
-                        let buffer_slice = pending.buffer.slice(..);
-                        self.device.poll(wgpu::Maintain::Poll);
+                self.device.poll(wgpu::Maintain::Poll);
 
-                        // Attempt to read if mapped
-                        // (Simplified - in full impl we would store the mapped range)
-                        let data = buffer_slice.get_mapped_range();
-                        let result_data: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
-                        drop(data);
-                        pending.buffer.unmap();
+                if let Ok(Ok(())) = receiver.try_recv() {
+                    let data = buffer_slice.get_mapped_range();
+                    let result_data: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
+                    drop(data);
+                    buffer.unmap();
 
-                        self.pending_readbacks.remove(&query_id);
+                    self.pending_readbacks.remove(&query_id);
 
-                        return Some(GpuPatsagiResponse {
-                            recommended_regen_rates: HashMap::new(),
-                            predicted_depletion: HashMap::new(),
-                            sustainability_adjustments: HashMap::new(),
-                            confidence: 0.99,
-                            notes: format!("Multi-frame optimized readback complete ({} values)", result_data.len()),
-                        });
-                    }
+                    return Some(GpuPatsagiResponse {
+                        recommended_regen_rates: HashMap::new(),
+                        predicted_depletion: HashMap::new(),
+                        sustainability_adjustments: HashMap::new(),
+                        confidence: 0.99,
+                        notes: format!("Expanded multi-step simulation complete ({} values)", result_data.len()),
+                    });
                 }
             }
         }
