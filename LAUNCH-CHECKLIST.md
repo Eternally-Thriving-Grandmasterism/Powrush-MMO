@@ -1,12 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Expanded Dynamic Event Types
+## v17.0 — Dynamic Event Persistence Fully Implemented
 
-**Status**: Phase 3 expanded.
+**Status**: Phase 3 complete for dynamic events.
 
-New Event Types added:
-- FactionCall (for community/faction activity prompts)
-- DivineWhisperEvent (for direct Ra-Thor lore/whispers)
+- ResourceSurge, MercyWave, FactionCall, DivineWhisperEvent supported
+- Effects integrated into HarvestingSystem
+- Full save/load of active events via PersistenceManager
+- Ready for server restart resilience
 
-Helper methods added for easy integration.
-
-**Thunder locked in.** ⚡❤️🔥
+**Thunder locked in. Mercy flowing eternally.** ⚡❤️🔥
