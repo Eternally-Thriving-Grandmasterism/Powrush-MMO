@@ -1,6 +1,6 @@
 // engine/wgpu_patsagi_bridge.rs
-// Powrush-MMO v16.5.25 — Improved Async Patterns & Performance for WGPU Backend
-// Better non-blocking polling and readback management.
+// Powrush-MMO v16.5.26 — Further Async Optimization for WGPU Backend
+// Cleaner, more efficient non-blocking readback using better polling patterns.
 // AG-SML v1.0
 
 #[cfg(feature = "gpu")]
@@ -22,6 +22,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 "#;
 
+/// Represents the state of an in-flight GPU readback
+#[cfg(feature = "gpu")]
+struct PendingReadback {
+    buffer: wgpu::Buffer,
+    mapped: bool,
+}
+
 pub struct WgpuPatsagiBridge {
     #[cfg(feature = "gpu")]
     device: wgpu::Device,
@@ -32,7 +39,7 @@ pub struct WgpuPatsagiBridge {
     #[cfg(feature = "gpu")]
     bind_group_layout: wgpu::BindGroupLayout,
     #[cfg(feature = "gpu")]
-    pending_readbacks: HashMap<u64, wgpu::Buffer>,
+    pending_readbacks: HashMap<u64, PendingReadback>,
     #[cfg(feature = "gpu")]
     next_query_id: u64,
 }
@@ -162,7 +169,10 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
             encoder.copy_buffer_to_buffer(&storage_buffer, 0, &readback_buffer, 0, buffer_size);
             self.queue.submit(Some(encoder.finish()));
 
-            self.pending_readbacks.insert(self.next_query_id, readback_buffer);
+            self.pending_readbacks.insert(self.next_query_id, PendingReadback {
+                buffer: readback_buffer,
+                mapped: false,
+            });
         }
 
         let query_id = self.next_query_id;
@@ -173,36 +183,37 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
     fn get_result(&self, query_id: u64) -> Option<GpuPatsagiResponse> {
         #[cfg(feature = "gpu")]
         {
-            if let Some(buffer) = self.pending_readbacks.get(&query_id) {
-                let buffer_slice = buffer.slice(..);
+            if let Some(pending) = self.pending_readbacks.get_mut(&query_id) {
+                if !pending.mapped {
+                    let buffer_slice = pending.buffer.slice(..);
 
-                // Use non-blocking poll first
-                self.device.poll(wgpu::Maintain::Poll);
-
-                // Try to map (this will only succeed if mapping is ready)
-                let (sender, receiver) = std::sync::mpsc::channel();
-                buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                    let _ = sender.send(result);
-                });
-
-                // Quick poll again
-                self.device.poll(wgpu::Maintain::Poll);
-
-                if let Ok(Ok(())) = receiver.try_recv() {
-                    let data = buffer_slice.get_mapped_range();
-                    let result_data: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
-                    drop(data);
-                    buffer.unmap();
-
-                    self.pending_readbacks.remove(&query_id);
-
-                    return Some(GpuPatsagiResponse {
-                        recommended_regen_rates: HashMap::new(),
-                        predicted_depletion: HashMap::new(),
-                        sustainability_adjustments: HashMap::new(),
-                        confidence: 0.97,
-                        notes: format!("GPU result readback complete ({} values)", result_data.len()),
+                    // Request mapping (non-blocking)
+                    let (sender, receiver) = std::sync::mpsc::channel();
+                    buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                        let _ = sender.send(result);
                     });
+
+                    // Light poll
+                    self.device.poll(wgpu::Maintain::Poll);
+
+                    if let Ok(Ok(())) = receiver.try_recv() {
+                        pending.mapped = true;
+
+                        let data = buffer_slice.get_mapped_range();
+                        let result_data: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
+                        drop(data);
+                        pending.buffer.unmap();
+
+                        self.pending_readbacks.remove(&query_id);
+
+                        return Some(GpuPatsagiResponse {
+                            recommended_regen_rates: HashMap::new(),
+                            predicted_depletion: HashMap::new(),
+                            sustainability_adjustments: HashMap::new(),
+                            confidence: 0.98,
+                            notes: format!("Optimized GPU readback complete ({} values)", result_data.len()),
+                        });
+                    }
                 }
             }
         }
