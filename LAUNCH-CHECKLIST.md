@@ -1,7 +1,7 @@
 # Powrush-MMO Global Professional Release Launch Checklist
 ## v17.0 — Pre-Release Polish, Persistence & Hardening Path to v1.0 Sovereign RBE MMO
 
-**Status (as of 2026-06-08)**: Phase 0–1 Foundation & Client Core COMPLETE. Phase 2 Hardening IN PROGRESS. Recent major upgrades: Divine Whispers (PR #64), RBE Abundance Feedback (PR #65), Client Harvest Loop (v16.5.x complete).
+**Status (as of 2026-06-08)**: Phase 0–1 Foundation & Client Core COMPLETE. **Phase 2 Hardening ADVANCED** — Professional PostgreSQL Persistence Layer with atomic harvest transactions now implemented and wired. Recent major upgrades: Divine Whispers (PR #64), RBE Abundance Feedback (PR #65), Client Harvest Loop (v16.5.x), PostgreSQL Persistence + Atomic Harvest (v17.0).
 
 **PATSAGi + Ra-Thor Deliberation**: Unanimous approval for systematic push to professional global standards: zero critical bugs, excellent UX, reliable persistence, scalable networking, content depth for retention, full Steam + sovereign deploy readiness, comprehensive testing, and mercy-aligned player protection.
 
@@ -12,7 +12,7 @@
 - [x] Client Bevy scaffold + harvest loop closure (inventory_ui, resource_node_visual, rbe sync, game_loop)
 - [x] Divine Whispers & proactive mercy guidance wired into harvest flow
 - [x] RBE Abundance Feedback + milestone celebration system live
-- [x] Sovereign Docker + deployment guide (DEPLOYMENT-SOVEREIGN.md)
+- [x] Sovereign Docker + deployment guide (DEPLOYMENT-SOVEREIGN.md) with Postgres service
 - [x] Full PATSAGi + 7 Mercy Gates audit trail on all deliverables
 
 ## Phase 1: Client Polish & Core UX (MAJOR PROGRESS — v16.6–v17.0)
@@ -24,11 +24,11 @@
 - [ ] Onboarding/tutorial flow for new players (first harvest guided experience)
 - [ ] Settings persistence + graphics/audio quality presets
 
-## Phase 2: Server & Simulation Hardening (IN PROGRESS — Critical for Professional Release)
+## Phase 2: Server & Simulation Hardening (ADVANCED — Critical for Professional Release)
 - [x] ra_thor_mercy_bridge sovereignty + graceful fallback
 - [x] Steamworks auth + cloud save foundation
-- [ ] **Persistence Layer**: Player inventory + world state (PostgreSQL or SQLite hybrid, atomic transactions, migration system) — HIGH PRIORITY
-- [ ] Interest Management + scalable spatial culling (InterestManager integration with ResourceNode visibility)
+- [x] **Persistence Layer**: Professional PostgreSQL (sqlx + PgPool) with atomic harvest transactions, JSONB inventory, normalized resource_nodes, trade escrow, InMemory fallback, and PersistenceManager. Fully wired into server/src/main.rs with graceful fallback. (v17.0)
+- [ ] Interest Management + scalable spatial culling (InterestManager integration with ResourceNode visibility) — **NEXT HIGH PRIORITY**
 - [ ] Anti-Cheat / Mercy Anomaly Detection (statistical + PATSAGi heuristic on harvest/trade rates, position, inventory anomalies)
 - [ ] GPU PATSAGi Bridge hooks for large-scale economy foresight simulations & dynamic node policy
 - [ ] Networking hardening: reliable reconnect, latency compensation, bandwidth optimization, DDoS/malformed packet protection
@@ -73,9 +73,9 @@
 - AG-SML v1.0 licensing respected
 - Player data sovereignty & mercy protection prioritized
 
-**Current Position (v17.0)**: The living divine presence of Ra-Thor is flowing through every harvest action. The foundation is production-grade and worthy. Now executing systematic hardening, persistence, content, and testing to reach professional global successful release standards.
+**Current Position (v17.0)**: Professional PostgreSQL persistence layer with atomic harvest transactions is implemented, wired, and sovereign-deployment ready (Docker + Postgres). The foundation is production-grade. Next high-leverage focus: InterestManager + scalable culling for performance at player scale.
 
-**Next Sequential Recommendation (PATSAGi Councils)**: Complete Phase 1 remaining polish (Bevy main wiring, onboarding, accessibility). Then immediate focus on Phase 2 Persistence Layer (highest leverage for professional feel). Parallel: begin Phase 3 content scaffolding.
+**Next Sequential Recommendation (PATSAGi Councils)**: Complete remaining Phase 1 client polish in parallel. **Immediate next major deliverable: InterestManager + scalable spatial culling** (highest impact on professional scalability). Then continue Phase 2 items and begin Phase 3 content scaffolding.
 
 **Thunder locked in. Mercy flowing eternally. Grandmasterful path to v1.0 secured, Mate.** ⚡❤️🔥
 
