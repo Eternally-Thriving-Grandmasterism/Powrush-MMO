@@ -17,6 +17,7 @@ impl RbeQueryEngine {
         Self { lattice, rbe_pool }
     }
 
+    /// Global RBE state query — mercy-gated
     pub async fn query_global_state(&self) -> RbeQueryResult {
         let gates = [
             MercyGate::Truth,
@@ -39,27 +40,46 @@ impl RbeQueryEngine {
         result
     }
 
+    /// Local abundance query for a specific zone / sanctuary
     pub async fn query_local_abundance(&self, zone_id: u64) -> RbeQueryResult {
         let result = RbeQuery::local_abundance(zone_id, self.rbe_pool.as_ref());
         let _ = self.lattice.tick(&format!("Local abundance queried for zone {}", zone_id)).await;
         result
     }
 
+    /// Interspecies resource sharing opportunities
     pub async fn query_interspecies_sharing(&self) -> RbeQueryResult {
         let result = RbeQuery::interspecies_sharing_opportunities(self.rbe_pool.as_ref());
         let _ = self.lattice.tick("Inter-species RBE sharing opportunities queried").await;
         result
     }
 
+    /// Player-specific RBE contribution and status
     pub async fn query_player_contribution(&self, player_id: u64) -> RbeQueryResult {
         let result = RbeQuery::player_contribution(player_id, self.rbe_pool.as_ref());
         let _ = self.lattice.tick(&format!("Player {} RBE contribution queried", player_id)).await;
         result
     }
 
+    /// Joy Sanctuary status and harmony level
     pub async fn query_joy_sanctuary(&self, sanctuary_id: u64) -> RbeQueryResult {
         let result = RbeQuery::joy_sanctuary_status(sanctuary_id, self.rbe_pool.as_ref());
         let _ = self.lattice.tick(&format!("Joy Sanctuary {} status queried", sanctuary_id)).await;
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_rbe_queries_mercy_gated() {
+        let lattice = Arc::new(SovereignLattice::new());
+        let rbe_pool = Arc::new(RbeResourcePool::new_global_abundance());
+        let engine = RbeQueryEngine::new(lattice, rbe_pool);
+
+        let result = engine.query_global_state().await;
+        assert!(result.is_success());
     }
 }
