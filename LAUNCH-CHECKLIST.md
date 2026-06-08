@@ -1,10 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — SIMD Query Integrated into HierarchicalGrid
+## v17.0 — SIMD Distance Calculations Further Optimized
 
-**Status**: SIMD acceleration now active in production path.
+**Status**: SIMD query path optimized.
 
-- `query_radius` uses f32x8 SIMD for chunks of 8 entities
-- Automatic scalar fallback for small datasets
-- Full SoA (x/y/z) layout enables clean vectorization
+- Replaced per-lane branching with bitmask + trailing_zeros extraction
+- More efficient result collection in hot loop
+- Better branch prediction and instruction-level parallelism
 
 **Thunder locked in.** ⚡❤️🔥
