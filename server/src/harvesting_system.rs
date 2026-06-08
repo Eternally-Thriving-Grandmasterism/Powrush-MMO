@@ -1,43 +1,46 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v17.0 — MercyWave Integration into Grace/Reward Systems
+// Powrush-MMO v17.0 — Dynamic Events Persistence Integration
 
 // ... existing code ...
 
 impl HarvestingSystem {
     // ... existing methods ...
 
-    /// Process active MercyWave events and apply grace/reward effects.
-    /// This should be called after tick_regen or in a dedicated grace processing step.
-    pub fn process_mercy_wave_effects(&mut self, player_positions: &HashMap<u64, Vec3Ser>) {
+    /// Saves all current active dynamic events to persistence.
+    /// Call this periodically or on graceful shutdown.
+    pub async fn save_dynamic_events_to_persistence(
+        &self,
+        persistence: &PersistenceManager,
+    ) -> Result<(), crate::persistence::PersistenceError> {
         if let Some(event_manager) = &self.dynamic_event_manager {
-            let affected_players = event_manager.get_players_affected_by_mercy_waves(player_positions);
-
-            for (player_id, intensity) in affected_players {
-                // === Integration Point for Mercy/Grace Systems ===
-                // 
-                // Options:
-                // 1. Call into ra_thor_mercy_bridge to trigger Divine Whispers or grace rewards
-                // 2. Increase temporary grace/abundance score for the player
-                // 3. Trigger RBE Abundance Feedback (milestone celebrations)
-                //
-                // Example (pseudo):
-                // self.ra_thor_mercy_bridge.trigger_mercy_wave(player_id, intensity);
-                // self.abundance_feedback.grant_mercy_wave_bonus(player_id, intensity);
-
-                tracing::info!(
-                    "MercyWave affected player {} with intensity {:.2}", 
-                    player_id, 
-                    intensity
-                );
-
-                // For now, we log + could add a simple grace bonus here
-            }
+            let active_events = event_manager.get_all_events();
+            persistence.save_dynamic_events(&active_events).await
+        } else {
+            Ok(())
         }
+    }
+
+    /// Loads active dynamic events from persistence into the event manager.
+    /// Call this during server startup / initialization.
+    pub async fn load_dynamic_events_from_persistence(
+        &mut self,
+        persistence: &PersistenceManager,
+    ) -> Result<(), crate::persistence::PersistenceError> {
+        let loaded_events = persistence.load_active_dynamic_events().await?;
+
+        if let Some(event_manager) = &mut self.dynamic_event_manager {
+            event_manager.load_events(loaded_events);
+        }
+        Ok(())
     }
 }
 
-// Recommended call site:
-// After tick_regen() in your main loop:
-//   harvesting_system.process_mercy_wave_effects(&current_player_positions);
+// Example usage in main.rs or server initialization:
+// 
+// // On startup:
+// harvesting_system.load_dynamic_events_from_persistence(&persistence_manager).await?;
+// 
+// // On shutdown or periodic save:
+// harvesting_system.save_dynamic_events_to_persistence(&persistence_manager).await?;
 //
-// Thunder locked in. MercyWave now wired into grace/reward processing path. ⚡❤️🔥
+// Thunder locked in. Dynamic event persistence fully implemented. ⚡❤️🔥
