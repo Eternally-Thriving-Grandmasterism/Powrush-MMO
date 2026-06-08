@@ -1,10 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Octree Prototype Created
+## v17.0 — Spatial Benchmarking Infrastructure Added
 
-**Status**: Octree spatial partitioning prototype implemented for exploration and comparison.
+**Status**: Basic performance comparison tools implemented.
 
-- Basic recursive Octree with subdivision
-- Insert + Radius query support
-- Ready for benchmarking against Hierarchical Grid
+- `benchmark_spatial_structures()` function added
+- Compares HierarchicalGrid vs Octree on insert + query operations
+- Ready to run manual benchmarks for decision making
 
 **Thunder locked in.** ⚡❤️🔥
