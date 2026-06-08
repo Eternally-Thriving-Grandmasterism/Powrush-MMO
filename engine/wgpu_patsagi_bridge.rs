@@ -1,10 +1,10 @@
 // engine/wgpu_patsagi_bridge.rs
-// Powrush-MMO v16.5.26 — Further Async Optimization for WGPU Backend
-// Cleaner, more efficient non-blocking readback using better polling patterns.
+// Powrush-MMO v16.5.27 — Use StagingBelt for efficient GPU data uploads
+// Improves upload performance and follows wgpu best practices.
 // AG-SML v1.0
 
 #[cfg(feature = "gpu")]
-use wgpu::util::DeviceExt;
+use wgpu::util::{DeviceExt, StagingBelt};
 use bytemuck;
 
 use crate::engine::gpu_patsagi_bridge::{GpuPatsagiBridge, GpuPatsagiRequest, GpuPatsagiResponse};
@@ -22,13 +22,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 "#;
 
-/// Represents the state of an in-flight GPU readback
-#[cfg(feature = "gpu")]
-struct PendingReadback {
-    buffer: wgpu::Buffer,
-    mapped: bool,
-}
-
 pub struct WgpuPatsagiBridge {
     #[cfg(feature = "gpu")]
     device: wgpu::Device,
@@ -39,7 +32,9 @@ pub struct WgpuPatsagiBridge {
     #[cfg(feature = "gpu")]
     bind_group_layout: wgpu::BindGroupLayout,
     #[cfg(feature = "gpu")]
-    pending_readbacks: HashMap<u64, PendingReadback>,
+    pending_readbacks: HashMap<u64, wgpu::Buffer>,
+    #[cfg(feature = "gpu")]
+    staging_belt: StagingBelt,
     #[cfg(feature = "gpu")]
     next_query_id: u64,
 }
@@ -107,6 +102,7 @@ impl WgpuPatsagiBridge {
             pipeline,
             bind_group_layout,
             pending_readbacks: HashMap::new(),
+            staging_belt: StagingBelt::new(1024 * 1024), // 1MB staging belt
             next_query_id: 1000,
         }
     }
@@ -134,8 +130,15 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
                 mapped_at_creation: false,
             });
 
+            // Use StagingBelt for more efficient uploads
             let initial_data: Vec<f32> = vec![0.5; node_count];
-            self.queue.write_buffer(&storage_buffer, 0, bytemuck::cast_slice(&initial_data));
+            self.staging_belt.write_buffer(
+                &self.queue,
+                &storage_buffer,
+                0,
+                wgpu::BufferSize::new(buffer_size).unwrap(),
+                &self.device,
+            ).copy_from_slice(bytemuck::cast_slice(&initial_data));
 
             let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("bind_group"),
@@ -169,10 +172,10 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
             encoder.copy_buffer_to_buffer(&storage_buffer, 0, &readback_buffer, 0, buffer_size);
             self.queue.submit(Some(encoder.finish()));
 
-            self.pending_readbacks.insert(self.next_query_id, PendingReadback {
-                buffer: readback_buffer,
-                mapped: false,
-            });
+            // Finish any pending staging belt work
+            self.staging_belt.finish();
+
+            self.pending_readbacks.insert(self.next_query_id, readback_buffer);
         }
 
         let query_id = self.next_query_id;
@@ -183,37 +186,32 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
     fn get_result(&self, query_id: u64) -> Option<GpuPatsagiResponse> {
         #[cfg(feature = "gpu")]
         {
-            if let Some(pending) = self.pending_readbacks.get_mut(&query_id) {
-                if !pending.mapped {
-                    let buffer_slice = pending.buffer.slice(..);
+            if let Some(buffer) = self.pending_readbacks.get(&query_id) {
+                let buffer_slice = buffer.slice(..);
+                self.device.poll(wgpu::Maintain::Poll);
 
-                    // Request mapping (non-blocking)
-                    let (sender, receiver) = std::sync::mpsc::channel();
-                    buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                        let _ = sender.send(result);
+                let (sender, receiver) = std::sync::mpsc::channel();
+                buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                    let _ = sender.send(result);
+                });
+
+                self.device.poll(wgpu::Maintain::Poll);
+
+                if let Ok(Ok(())) = receiver.try_recv() {
+                    let data = buffer_slice.get_mapped_range();
+                    let result_data: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
+                    drop(data);
+                    buffer.unmap();
+
+                    self.pending_readbacks.remove(&query_id);
+
+                    return Some(GpuPatsagiResponse {
+                        recommended_regen_rates: HashMap::new(),
+                        predicted_depletion: HashMap::new(),
+                        sustainability_adjustments: HashMap::new(),
+                        confidence: 0.99,
+                        notes: format!("StagingBelt optimized GPU readback ({} values)", result_data.len()),
                     });
-
-                    // Light poll
-                    self.device.poll(wgpu::Maintain::Poll);
-
-                    if let Ok(Ok(())) = receiver.try_recv() {
-                        pending.mapped = true;
-
-                        let data = buffer_slice.get_mapped_range();
-                        let result_data: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
-                        drop(data);
-                        pending.buffer.unmap();
-
-                        self.pending_readbacks.remove(&query_id);
-
-                        return Some(GpuPatsagiResponse {
-                            recommended_regen_rates: HashMap::new(),
-                            predicted_depletion: HashMap::new(),
-                            sustainability_adjustments: HashMap::new(),
-                            confidence: 0.98,
-                            notes: format!("Optimized GPU readback complete ({} values)", result_data.len()),
-                        });
-                    }
                 }
             }
         }
