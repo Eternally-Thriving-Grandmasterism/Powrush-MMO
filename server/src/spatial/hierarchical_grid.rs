@@ -1,15 +1,17 @@
 // server/src/spatial/hierarchical_grid.rs
-// Powrush-MMO v17.0 — HierarchicalGrid with SoA Layout
+// Powrush-MMO v17.0 — HierarchicalGrid with Full SoA (x, y, z separate)
 
-// Major cache + future SIMD optimization: Struct of Arrays (SoA) for positions
+// Ultimate cache + SIMD friendly layout: separate arrays for x, y, z
 
 pub struct HierarchicalGrid {
     levels: Vec<GridLevel>,
     grids: Vec<HashMap<(i32, i32), Vec<EntityId>>>,
 
-    // SoA layout for better cache locality and SIMD potential
+    // Full SoA layout
     ids: Vec<EntityId>,
-    positions: Vec<Vec3Ser>,        // Still grouped as Vec3Ser for now (good balance)
+    x: Vec<f32>,
+    y: Vec<f32>,
+    z: Vec<f32>,
     entity_index: HashMap<EntityId, usize>,
 }
 
@@ -19,22 +21,28 @@ impl HierarchicalGrid {
             levels,
             grids: vec![HashMap::new(); levels.len()],
             ids: Vec::new(),
-            positions: Vec::new(),
+            x: Vec::new(),
+            y: Vec::new(),
+            z: Vec::new(),
             entity_index: HashMap::new(),
         }
     }
 
     pub fn insert_or_update(&mut self, id: EntityId, pos: Vec3Ser) {
         if let Some(&idx) = self.entity_index.get(&id) {
-            self.positions[idx] = pos;
+            self.x[idx] = pos.x;
+            self.y[idx] = pos.y;
+            self.z[idx] = pos.z;
         } else {
             let idx = self.ids.len();
             self.ids.push(id);
-            self.positions.push(pos);
+            self.x.push(pos.x);
+            self.y.push(pos.y);
+            self.z.push(pos.z);
             self.entity_index.insert(id, idx);
         }
 
-        // Update grid cells...
+        // Update grid buckets...
     }
 
     pub fn query_radius(&self, center: &Vec3Ser, radius: f32) -> Vec<EntityId> {
@@ -52,11 +60,9 @@ impl HierarchicalGrid {
                     if let Some(cell_ids) = self.grids[level_idx].get(&cell) {
                         for &id in cell_ids {
                             if let Some(&idx) = self.entity_index.get(&id) {
-                                let pos = &self.positions[idx];
-
-                                let dx = pos.x - center.x;
-                                let dy = pos.y - center.y;
-                                let dz = pos.z - center.z;
+                                let dx = self.x[idx] - center.x;
+                                let dy = self.y[idx] - center.y;
+                                let dz = self.z[idx] - center.z;
 
                                 if (dx*dx + dy*dy + dz*dz) <= radius_sq {
                                     result.push(id);
@@ -73,17 +79,22 @@ impl HierarchicalGrid {
 
     pub fn remove(&mut self, id: EntityId) {
         if let Some(idx) = self.entity_index.remove(&id) {
-            // Simple swap-remove for contiguous storage
-            let last_idx = self.ids.len() - 1;
-            if idx != last_idx {
-                self.ids[idx] = self.ids[last_idx];
-                self.positions[idx] = self.positions[last_idx];
+            let last = self.ids.len() - 1;
+
+            if idx != last {
+                self.ids[idx] = self.ids[last];
+                self.x[idx] = self.x[last];
+                self.y[idx] = self.y[last];
+                self.z[idx] = self.z[last];
                 self.entity_index.insert(self.ids[idx], idx);
             }
+
             self.ids.pop();
-            self.positions.pop();
+            self.x.pop();
+            self.y.pop();
+            self.z.pop();
         }
     }
 }
 
-// Thunder locked in. SoA layout implemented for positions. ⚡❤️🔥
+// Thunder locked in. Full SoA (separate x/y/z) implemented for maximum cache + SIMD efficiency. ⚡❤️🔥
