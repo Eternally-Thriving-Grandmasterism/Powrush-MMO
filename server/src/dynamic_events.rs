@@ -1,81 +1,42 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.0 — Player Tracking for MercyWave (Parallel to Node Tracking)
-
-impl DynamicEvent {
-    pub affected_players: Vec<u64>,   // NEW: Tracks players inside MercyWave radius
-}
-
-impl DynamicEvent {
-    pub fn new(...) -> Self {
-        Self {
-            // ... existing fields ...
-            affected_players: Vec::new(),
-        }
-    }
-
-    /// Updates which players are currently inside this event's radius.
-    /// Should be called every tick (or on interval) for active MercyWave events.
-    pub fn refresh_affected_players(&mut self, player_positions: &HashMap<u64, Vec3Ser>) {
-        self.affected_players.clear();
-
-        for (&player_id, pos) in player_positions {
-            let dx = pos.x - self.position.x;
-            let dy = pos.y - self.position.y;
-            let dz = pos.z - self.position.z;
-
-            if (dx*dx + dy*dy + dz*dz).sqrt() <= self.radius {
-                self.affected_players.push(player_id);
-            }
-        }
-    }
-}
+// Powrush-MMO v17.0 — Using InterestManager Spatial Grid for Optimization
 
 impl DynamicEventManager {
-    /// Refreshes affected players for all active MercyWave events.
-    pub fn refresh_mercy_wave_players(
+    /// Optimized refresh using InterestManager's spatial queries (recommended).
+    /// This is the production spatial grid optimization path.
+    pub fn refresh_affected_nodes_via_interest_manager(
         &mut self,
-        player_positions: &HashMap<u64, Vec3Ser>,
+        event: &mut DynamicEvent,
+        interest_manager: &InterestManager,
     ) {
-        for event in self.events.values_mut() {
-            if event.event_type == EventType::MercyWave && event.is_active() {
-                event.refresh_affected_players(player_positions);
-            }
-        }
+        event.affected_nodes.clear();
+
+        let nearby_nodes = interest_manager.get_resource_nodes_in_radius(
+            &event.position,
+            event.radius,
+        );
+
+        event.affected_nodes = nearby_nodes;
     }
 
-    /// Updated process_expired_events to use tracked players for precise GraceReward
-    pub fn process_expired_events(
+    /// Batch refresh for all active ResourceSurge events using InterestManager.
+    pub fn refresh_all_surge_nodes_via_interest(
         &mut self,
-        newly_expired_ids: &[u64],
-    ) -> Vec<ExpirationEffect> {
-        let mut effects = Vec::new();
-
-        for &id in newly_expired_ids {
-            if let Some(event) = self.events.get(&id) {
-                match event.event_type {
-                    EventType::ResourceSurge => {
-                        for &node_id in &event.affected_nodes {
-                            effects.push(ExpirationEffect::ResourceBonus {
-                                node_id,
-                                amount: event.intensity * 6.0,
-                            });
-                        }
-                    }
-                    EventType::MercyWave => {
-                        for &player_id in &event.affected_players {
-                            effects.push(ExpirationEffect::GraceReward {
-                                player_id,
-                                amount: event.intensity * 4.0,
-                            });
-                        }
-                    }
-                    _ => {}
-                }
+        interest_manager: &InterestManager,
+    ) {
+        for event in self.events.values_mut() {
+            if event.event_type == EventType::ResourceSurge && event.is_active() {
+                self.refresh_affected_nodes_via_interest_manager(event, interest_manager);
             }
         }
-
-        effects
     }
 }
 
-// Thunder locked in. Player tracking for MercyWave implemented (parallel to ResourceSurge node tracking). ⚡❤️🔥
+// In HarvestingSystem tick:
+// if let Some(event_manager) = &mut self.dynamic_event_manager {
+//     if let Some(interest) = &self.interest_manager {
+//         event_manager.refresh_all_surge_nodes_via_interest(interest);
+//     }
+// }
+//
+// Thunder locked in. Full spatial grid optimization via InterestManager implemented. ⚡❤️🔥
