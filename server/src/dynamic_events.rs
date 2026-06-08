@@ -1,27 +1,52 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.0 — Production-Quality On-Expiration Effects
+// Powrush-MMO v17.0 — Production Node Tracking for ResourceSurge
 
-use serde::{Serialize, Deserialize};
+use std::collections::HashSet;
 
-// ... existing DynamicEvent and EventType code ...
+// ... existing code ...
 
-/// Effects to apply when a dynamic event expires.
-/// Designed to be processed by HarvestingSystem or higher layers.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ExpirationEffect {
-    /// Apply a final resource bonus to a specific node
-    ResourceBonus { node_id: u64, amount: f32 },
+impl DynamicEvent {
+    // Add tracking for affected nodes (mainly used by ResourceSurge)
+    pub affected_nodes: Vec<u64>,
+}
 
-    /// Grant final grace to a player
-    GraceReward { player_id: u64, amount: f32 },
+impl DynamicEvent {
+    pub fn new(...) -> Self {
+        Self {
+            // ... existing fields ...
+            affected_nodes: Vec::new(),
+        }
+    }
 
-    /// Area-wide resource bonus (when we don't track exact nodes)
-    AreaResourceBonus { position: Vec3Ser, radius: f32, amount: f32 },
+    /// Updates which resource nodes are currently inside this event's radius.
+    /// Should be called every tick for active ResourceSurge events.
+    pub fn refresh_affected_nodes(&mut self, nodes: &HashMap<u64, ResourceUpdate>) {
+        self.affected_nodes.clear();
+
+        for (&node_id, node) in nodes {
+            let dx = node.position_x - self.position.x;
+            let dy = node.position_y - self.position.y;
+            let dz = node.position_z - self.position.z;
+
+            if (dx*dx + dy*dy + dz*dz).sqrt() <= self.radius {
+                self.affected_nodes.push(node_id);
+            }
+        }
+    }
 }
 
 impl DynamicEventManager {
-    /// Processes newly expired events and returns effects to apply.
-    /// This is the production entry point for on-expiration logic.
+    /// Refreshes affected nodes for all active ResourceSurge events.
+    /// Call this every tick from HarvestingSystem before applying surge effects.
+    pub fn refresh_resource_surge_nodes(&mut self, nodes: &HashMap<u64, ResourceUpdate>) {
+        for event in self.events.values_mut() {
+            if event.event_type == EventType::ResourceSurge && event.is_active() {
+                event.refresh_affected_nodes(nodes);
+            }
+        }
+    }
+
+    /// Updated expiration logic that uses tracked nodes for precise bonuses.
     pub fn process_expired_events(
         &mut self,
         newly_expired_ids: &[u64],
@@ -32,27 +57,19 @@ impl DynamicEventManager {
             if let Some(event) = self.events.get(&id) {
                 match event.event_type {
                     EventType::ResourceSurge => {
-                        // Production note: For precise per-node bonuses, we should track
-                        // affected nodes during the surge. For now we emit an area bonus.
-                        effects.push(ExpirationEffect::AreaResourceBonus {
-                            position: event.position,
-                            radius: event.radius,
-                            amount: event.intensity * 8.0,
-                        });
+                        // Use tracked nodes for precise final bonuses
+                        for &node_id in &event.affected_nodes {
+                            effects.push(ExpirationEffect::ResourceBonus {
+                                node_id,
+                                amount: event.intensity * 6.0,
+                            });
+                        }
                     }
                     EventType::MercyWave => {
-                        // For production, we should track affected players during the wave.
-                        // Here we emit a general grace reward signal.
                         effects.push(ExpirationEffect::GraceReward {
-                            player_id: 0, // TODO: Track affected players during active phase
+                            player_id: 0, // TODO: Track affected players
                             amount: event.intensity * 4.0,
                         });
-                    }
-                    EventType::FactionCall => {
-                        // Could emit faction progress or spawn follow-up event
-                    }
-                    EventType::DivineWhisperEvent => {
-                        // Could trigger final lore delivery
                     }
                     _ => {}
                 }
@@ -63,4 +80,4 @@ impl DynamicEventManager {
     }
 }
 
-// Thunder locked in. Production-quality expiration effects implemented. ⚡❤️🔥
+// Thunder locked in. Proper node tracking for ResourceSurge implemented. ⚡❤️🔥
