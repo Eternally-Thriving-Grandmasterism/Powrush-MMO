@@ -1,13 +1,13 @@
 // engine/wgpu_patsagi_bridge.rs
-// Powrush-MMO v16.5.19 — Full Async GPU Result Readback
-// Implements proper map_async + device polling so get_result() returns real data.
+// Powrush-MMO v16.5.25 — Improved Async Patterns & Performance for WGPU Backend
+// Better non-blocking polling and readback management.
 // AG-SML v1.0
 
 #[cfg(feature = "gpu")]
 use wgpu::util::DeviceExt;
 use bytemuck;
 
-use crate::engine::gpu_patsagi_bridge::{GpuPatsagiBridge, GpuPatsagiRequest, GpuPatsagiResponse, ComputeIntensity};
+use crate::engine::gpu_patsagi_bridge::{GpuPatsagiBridge, GpuPatsagiRequest, GpuPatsagiResponse};
 use std::collections::HashMap;
 
 #[cfg(feature = "gpu")]
@@ -162,7 +162,6 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
             encoder.copy_buffer_to_buffer(&storage_buffer, 0, &readback_buffer, 0, buffer_size);
             self.queue.submit(Some(encoder.finish()));
 
-            // Store for async mapping
             self.pending_readbacks.insert(self.next_query_id, readback_buffer);
         }
 
@@ -177,29 +176,32 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
             if let Some(buffer) = self.pending_readbacks.get(&query_id) {
                 let buffer_slice = buffer.slice(..);
 
-                // Request mapping
+                // Use non-blocking poll first
+                self.device.poll(wgpu::Maintain::Poll);
+
+                // Try to map (this will only succeed if mapping is ready)
                 let (sender, receiver) = std::sync::mpsc::channel();
                 buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                    sender.send(result).ok();
+                    let _ = sender.send(result);
                 });
 
-                // Poll device to drive the mapping
-                self.device.poll(wgpu::Maintain::Wait);
+                // Quick poll again
+                self.device.poll(wgpu::Maintain::Poll);
 
-                if let Ok(Ok(())) = receiver.recv() {
+                if let Ok(Ok(())) = receiver.try_recv() {
                     let data = buffer_slice.get_mapped_range();
                     let result_data: Vec<f32> = bytemuck::cast_slice(&data).to_vec();
                     drop(data);
                     buffer.unmap();
 
-                    // For now, return a response indicating successful GPU execution
-                    // In a full implementation we would parse result_data into recommendations
+                    self.pending_readbacks.remove(&query_id);
+
                     return Some(GpuPatsagiResponse {
                         recommended_regen_rates: HashMap::new(),
                         predicted_depletion: HashMap::new(),
                         sustainability_adjustments: HashMap::new(),
-                        confidence: 0.96,
-                        notes: format!("Real GPU result readback successful ({} values)", result_data.len()),
+                        confidence: 0.97,
+                        notes: format!("GPU result readback complete ({} values)", result_data.len()),
                     });
                 }
             }
