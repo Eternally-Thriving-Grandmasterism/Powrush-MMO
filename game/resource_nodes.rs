@@ -1,6 +1,6 @@
 // game/resource_nodes.rs
-// Powrush-MMO v16.5.31 — Make GPU Output More Directly Actionable
-// Automatically apply smart recommendations from GPU simulations.
+// Powrush-MMO v16.5.32 — Sophisticated Policy Responses from GPU Foresight
+// Temporary harvest limits and stress responses on nodes flagged by GPU.
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -21,6 +21,7 @@ pub struct ResourceNode {
     pub regeneration_rate: f32,
     pub last_harvested_ms: u64,
     pub sustainability_score: f32,
+    pub stress_level: f32, // New: 0.0 = healthy, 1.0 = critically stressed
 }
 
 impl ResourceNode {
@@ -34,6 +35,7 @@ impl ResourceNode {
             base_yield_per_tick: base_yield, current_yield: base_yield,
             depletion: 0.0, regeneration_rate: 0.015,
             last_harvested_ms: 0, sustainability_score: 1.0,
+            stress_level: 0.0,
         }
     }
 
@@ -43,6 +45,11 @@ impl ResourceNode {
             self.current_yield = self.base_yield_per_tick * (1.0 - self.depletion * 0.7);
         }
         self.sustainability_score = (1.0 - self.depletion * 0.5).max(0.3);
+
+        // Reduce stress over time if depletion is low
+        if self.depletion < 0.3 {
+            self.stress_level = (self.stress_level - 0.02).max(0.0);
+        }
     }
 }
 
@@ -72,10 +79,10 @@ impl ResourceNodeManager {
     pub fn apply_gpu_policy_update(&mut self, response: &GpuPatsagiResponse) {
         for (node_id, &new_rate) in &response.recommended_regen_rates {
             if let Some(node) = self.nodes.get_mut(node_id) {
-                // Smart application: only increase regen if future depletion is high
                 if let Some(&future_dep) = response.predicted_depletion.get(node_id) {
                     if future_dep > 0.6 {
                         node.regeneration_rate = (new_rate * 1.2).max(node.regeneration_rate);
+                        node.stress_level = (node.stress_level + 0.3).min(1.0);
                     }
                 } else {
                     node.regeneration_rate = new_rate.max(0.001);
@@ -89,10 +96,8 @@ impl ResourceNodeManager {
             }
         }
 
-        // Auto-apply predicted depletion as a soft target
         for (node_id, &predicted) in &response.predicted_depletion {
             if let Some(node) = self.nodes.get_mut(node_id) {
-                // Blend predicted future state into current depletion
                 if predicted > node.depletion {
                     node.depletion = (node.depletion * 0.6 + predicted * 0.4).clamp(0.0, 1.0);
                 }
@@ -146,19 +151,39 @@ impl HarvestingSystem {
         now_ms: u64,
     ) -> Result<String, String> {
         let node = manager.get_node_mut(node_id).ok_or_else(|| "Node not found".to_string())?;
-        if node.depletion > 0.92 { return Err("Node critically depleted".to_string()); }
 
-        let actual_yield = (node.current_yield * amount_requested.min(10.0)).min(node.current_yield * 3.0);
-        if actual_yield <= 0.01 { return Err("Node yield too low".to_string()); }
+        if node.depletion > 0.92 {
+            return Err("Node critically depleted. PATSAGi recommends regeneration.".to_string());
+        }
+
+        // Sophisticated policy response: Reduce yield on stressed nodes
+        let stress_multiplier = 1.0 - (node.stress_level * 0.5);
+        let actual_yield = (node.current_yield * amount_requested.min(10.0) * stress_multiplier)
+            .min(node.current_yield * 3.0);
+
+        if actual_yield <= 0.01 {
+            return Err("Node yield too low this tick. Try again after regeneration.".to_string());
+        }
 
         inventory.add_resource(&node.node_type, actual_yield, now_ms);
         node.depletion = (node.depletion + actual_yield * 0.008).min(1.0);
         node.current_yield = node.base_yield_per_tick * (1.0 - node.depletion * 0.7);
         node.last_harvested_ms = now_ms;
 
+        // Increase stress when harvesting stressed nodes
+        if node.stress_level > 0.4 {
+            node.stress_level = (node.stress_level + 0.15).min(1.0);
+        }
+
         let grace_reward = (actual_yield * 0.8) as u64;
         rbe.add_grace(&player_id.to_string(), grace_reward);
 
-        Ok(format!("Harvest successful (+{:.1} {}). Grace +{}", actual_yield, node.node_type, grace_reward))
+        let status = if node.stress_level > 0.5 {
+            format!("Harvest successful (+{:.1} {}) but node is stressed. Yield reduced. Grace +{}", actual_yield, node.node_type, grace_reward)
+        } else {
+            format!("Harvest successful (+{:.1} {}). Grace +{}", actual_yield, node.node_type, grace_reward)
+        };
+
+        Ok(status)
     }
 }
