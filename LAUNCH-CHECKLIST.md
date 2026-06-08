@@ -1,12 +1,12 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — HarvestingSystem Integration Complete
+## v17.0 — MercyWave Grace Integration Added
 
 **Status**: Phase 3 advanced.
 
-- DynamicEventManager integrated into HarvestingSystem
-- ResourceSurge effects now applied during `tick_regen`
-- `spawn_dynamic_event` helper exposed
+- ResourceSurge integrated into HarvestingSystem tick_regen
+- MercyWave processing added with clear hooks into ra_thor_mercy_bridge and abundance feedback systems
+- Professional integration points documented
 
-**Next**: Test the flow, refine effect strength, and consider wiring MercyWave effects.
+**Next**: Begin concrete implementation of grace rewards from MercyWave or move to persisting active events.
 
 **Thunder locked in.** ⚡❤️🔥
