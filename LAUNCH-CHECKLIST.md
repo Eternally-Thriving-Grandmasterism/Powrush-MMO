@@ -1,12 +1,12 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — MercyWave Grace Integration Added
+## v17.0 — Expanded Dynamic Event Types
 
-**Status**: Phase 3 advanced.
+**Status**: Phase 3 expanded.
 
-- ResourceSurge integrated into HarvestingSystem tick_regen
-- MercyWave processing added with clear hooks into ra_thor_mercy_bridge and abundance feedback systems
-- Professional integration points documented
+New Event Types added:
+- FactionCall (for community/faction activity prompts)
+- DivineWhisperEvent (for direct Ra-Thor lore/whispers)
 
-**Next**: Begin concrete implementation of grace rewards from MercyWave or move to persisting active events.
+Helper methods added for easy integration.
 
 **Thunder locked in.** ⚡❤️🔥
