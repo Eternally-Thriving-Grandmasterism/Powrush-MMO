@@ -1,100 +1,79 @@
 // server/src/spatial/hierarchical_grid.rs
-// Powrush-MMO v17.0 — HierarchicalGrid with Full SoA (x, y, z separate)
+// Powrush-MMO v17.0 — HierarchicalGrid with Integrated SIMD Query
 
-// Ultimate cache + SIMD friendly layout: separate arrays for x, y, z
-
-pub struct HierarchicalGrid {
-    levels: Vec<GridLevel>,
-    grids: Vec<HashMap<(i32, i32), Vec<EntityId>>>,
-
-    // Full SoA layout
-    ids: Vec<EntityId>,
-    x: Vec<f32>,
-    y: Vec<f32>,
-    z: Vec<f32>,
-    entity_index: HashMap<EntityId, usize>,
-}
+use std::simd::{f32x8, Simd};
 
 impl HierarchicalGrid {
-    pub fn new(levels: Vec<GridLevel>) -> Self {
-        Self {
-            levels,
-            grids: vec![HashMap::new(); levels.len()],
-            ids: Vec::new(),
-            x: Vec::new(),
-            y: Vec::new(),
-            z: Vec::new(),
-            entity_index: HashMap::new(),
-        }
-    }
-
-    pub fn insert_or_update(&mut self, id: EntityId, pos: Vec3Ser) {
-        if let Some(&idx) = self.entity_index.get(&id) {
-            self.x[idx] = pos.x;
-            self.y[idx] = pos.y;
-            self.z[idx] = pos.z;
-        } else {
-            let idx = self.ids.len();
-            self.ids.push(id);
-            self.x.push(pos.x);
-            self.y.push(pos.y);
-            self.z.push(pos.z);
-            self.entity_index.insert(id, idx);
-        }
-
-        // Update grid buckets...
-    }
-
+    /// High-performance radius query with SIMD acceleration.
     pub fn query_radius(&self, center: &Vec3Ser, radius: f32) -> Vec<EntityId> {
+        if self.ids.len() < 16 {
+            // Small dataset — use scalar path
+            return self.query_radius_scalar(center, radius);
+        }
+
         let mut result = Vec::new();
         let radius_sq = radius * radius;
 
-        for (level_idx, level) in self.levels.iter().enumerate() {
-            let center_cell = self.pos_to_cell(center, level.cell_size);
-            let search_range = ((radius / level.cell_size).ceil() as i32) + 1;
+        let cx = Simd::<f32, 8>::splat(center.x);
+        let cy = Simd::<f32, 8>::splat(center.y);
+        let cz = Simd::<f32, 8>::splat(center.z);
+        let r2 = Simd::<f32, 8>::splat(radius_sq);
 
-            for dx in -search_range..=search_range {
-                for dz in -search_range..=search_range {
-                    let cell = (center_cell.0 + dx, center_cell.1 + dz);
+        let len = self.ids.len();
+        let chunks = len / 8;
 
-                    if let Some(cell_ids) = self.grids[level_idx].get(&cell) {
-                        for &id in cell_ids {
-                            if let Some(&idx) = self.entity_index.get(&id) {
-                                let dx = self.x[idx] - center.x;
-                                let dy = self.y[idx] - center.y;
-                                let dz = self.z[idx] - center.z;
+        for i in 0..chunks {
+            let base = i * 8;
 
-                                if (dx*dx + dy*dy + dz*dz) <= radius_sq {
-                                    result.push(id);
-                                }
-                            }
-                        }
-                    }
+            let px = Simd::<f32, 8>::from_slice(&self.x[base..base+8]);
+            let py = Simd::<f32, 8>::from_slice(&self.y[base..base+8]);
+            let pz = Simd::<f32, 8>::from_slice(&self.z[base..base+8]);
+
+            let dx = px - cx;
+            let dy = py - cy;
+            let dz = pz - cz;
+
+            let dist_sq = dx * dx + dy * dy + dz * dz;
+            let mask = dist_sq.simd_le(r2);
+
+            for j in 0..8 {
+                if mask.test(j) {
+                    result.push(self.ids[base + j]);
                 }
+            }
+        }
+
+        // Remainder (scalar)
+        let remainder_start = chunks * 8;
+        for i in remainder_start..len {
+            let dx = self.x[i] - center.x;
+            let dy = self.y[i] - center.y;
+            let dz = self.z[i] - center.z;
+
+            if (dx*dx + dy*dy + dz*dz) <= radius_sq {
+                result.push(self.ids[i]);
             }
         }
 
         result
     }
 
-    pub fn remove(&mut self, id: EntityId) {
-        if let Some(idx) = self.entity_index.remove(&id) {
-            let last = self.ids.len() - 1;
+    /// Scalar fallback for small datasets or debugging
+    fn query_radius_scalar(&self, center: &Vec3Ser, radius: f32) -> Vec<EntityId> {
+        let mut result = Vec::new();
+        let radius_sq = radius * radius;
 
-            if idx != last {
-                self.ids[idx] = self.ids[last];
-                self.x[idx] = self.x[last];
-                self.y[idx] = self.y[last];
-                self.z[idx] = self.z[last];
-                self.entity_index.insert(self.ids[idx], idx);
+        for i in 0..self.ids.len() {
+            let dx = self.x[i] - center.x;
+            let dy = self.y[i] - center.y;
+            let dz = self.z[i] - center.z;
+
+            if (dx*dx + dy*dy + dz*dz) <= radius_sq {
+                result.push(self.ids[i]);
             }
-
-            self.ids.pop();
-            self.x.pop();
-            self.y.pop();
-            self.z.pop();
         }
+        result
     }
 }
 
-// Thunder locked in. Full SoA (separate x/y/z) implemented for maximum cache + SIMD efficiency. ⚡❤️🔥
+// Thunder locked in. SIMD-accelerated query_radius integrated into HierarchicalGrid. ⚡❤️🔥
