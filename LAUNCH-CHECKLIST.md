@@ -1,10 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — HierarchicalGrid Cache Locality Optimized
+## v17.0 — SoA Layout Implemented in HierarchicalGrid
 
-**Status**: Cache behavior improved.
+**Status**: Major data layout optimization completed.
 
-- Contiguous entity storage (Vec) instead of scattered HashMap-only access
-- Index-based lookup during queries
-- Better memory access patterns on hot paths
+- Positions now stored in separate Vec (Struct of Arrays)
+- Better cache locality during distance calculations
+- Foundation for future SIMD optimizations
+- Swap-remove keeps storage compact
 
 **Thunder locked in.** ⚡❤️🔥
