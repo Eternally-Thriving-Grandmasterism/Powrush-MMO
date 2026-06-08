@@ -1,11 +1,13 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Advanced SIMD with Runtime Dispatch
+## v17.0 — Phase 1 Testing Started
 
-**Status**: SIMD optimization at a high level.
+**Status**: Core HierarchicalGrid tests implemented.
 
-- Runtime CPU feature detection (AVX-512)
-- Tiered dispatch (AVX-512 → AVX2/NEON → scalar)
-- from_array loads for better codegen
-- Target feature attributes prepared
+- Basic operations (insert, update, remove, query)
+- SIMD vs scalar result equivalence
+- Edge cases
+- Naive reference comparison pattern established
+
+**Next**: Expand test coverage and run benchmarks.
 
 **Thunder locked in.** ⚡❤️🔥
