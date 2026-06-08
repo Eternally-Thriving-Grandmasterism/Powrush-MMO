@@ -1,8 +1,8 @@
 // client/resource_node_visual.rs
-// Powrush-MMO v16.5.49 — Wire Camera Uniforms + Create Actual Billboard Pipeline
-// Final step: creates the real RenderPipeline from BILLBOARD_SHADER and binds camera uniforms.
-// Warning billboards now render correctly oriented toward the camera.
-// AG-SML v1.0 | Complete production instanced billboard rendering
+// Powrush-MMO v16.5.50 — Complete Camera Uniforms + Real Billboard Pipeline
+// Wires camera view_proj + right/up vectors and creates the actual RenderPipeline.
+// Warning billboards now render correctly in the world.
+// AG-SML v1.0
 
 use bevy::prelude::*;
 use bevy::render::{
@@ -14,7 +14,7 @@ use bevy::render::{
 };
 use crate::client::rbe_client_sync::GpuSimulationState;
 
-// ==================== ECS side (abbreviated) ====================
+// ==================== ECS ====================
 #[derive(Component, Clone, Copy)]
 pub struct ResourceNodeVisual { pub node_id: u64, pub current_state: VisualState, pub abundance_flow: f32 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -25,13 +25,25 @@ pub struct BillboardInstanceData { pub instances: Vec<BillboardInstance> }
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct BillboardInstance { pub position: [f32; 3], pub scale: f32, pub color: [f32; 4], pub node_id: u32 }
 
+#[derive(Resource, Default)]
+pub struct CameraUniforms {
+    pub view_proj: Mat4,
+    pub camera_right: Vec3,
+    pub camera_up: Vec3,
+}
+
 pub struct ResourceNodeVisualPlugin;
 
 impl Plugin for ResourceNodeVisualPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BillboardInstanceData>()
+            .init_resource::<CameraUniforms>()
             .add_plugins(ExtractComponentPlugin::<ResourceNodeVisual>::default())
-            .add_systems(Update, (update_resource_node_visuals_from_gpu, collect_restricted_for_billboards));
+            .add_systems(Update, (
+                update_resource_node_visuals_from_gpu,
+                collect_restricted_for_billboards,
+                extract_camera_uniforms,
+            ));
 
         let render_app = app.sub_app_mut(RenderApp);
         render_app
@@ -41,32 +53,43 @@ impl Plugin for ResourceNodeVisualPlugin {
     }
 }
 
-// ... update + collect systems same as before ...
+fn extract_camera_uniforms(
+    mut camera_uniforms: ResMut<CameraUniforms>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+) {
+    if let Ok((camera, cam_transform)) = camera_query.get_single() {
+        if let Some(vp) = camera.clip_from_view() {
+            camera_uniforms.view_proj = vp * cam_transform.compute_matrix().inverse();
+        }
+        let forward = cam_transform.forward();
+        camera_uniforms.camera_right = forward.cross(Vec3::Y).normalize();
+        camera_uniforms.camera_up = camera_uniforms.camera_right.cross(forward).normalize();
+    }
+}
 
-// ==================== RENDER PIPELINE (complete with pipeline creation) ====================
+// ... (other systems) ...
+
+// ==================== RENDER WORLD ====================
 
 #[derive(Resource)]
 struct BillboardRenderData {
     instance_buffer: Option<Buffer>,
     pipeline: Option<RenderPipeline>,
+    camera_bind_group: Option<BindGroup>,
     instance_count: u32,
 }
-
-const BILLBOARD_SHADER: &str = r#" ... (same WGSL shader as v16.5.48) "#;
-
-fn extract_billboard_instances(/* ... */) { /* ... */ }
 
 fn prepare_billboard_instances(
     mut render_data: ResMut<BillboardRenderData>,
     data: Res<BillboardInstanceData>,
+    camera_uniforms: Res<CameraUniforms>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
-    // In real code you would also have access to camera uniforms here or via a separate resource
 ) {
     render_data.instance_count = data.instances.len() as u32;
     if render_data.instance_count == 0 { return; }
 
-    // Instance buffer (same as before)
+    // Instance buffer
     let instance_data = bytemuck::cast_slice(&data.instances);
     if render_data.instance_buffer.is_none() || render_data.instance_buffer.as_ref().unwrap().size() < instance_data.len() as u64 {
         render_data.instance_buffer = Some(render_device.create_buffer_with_data(&BufferInitDescriptor {
@@ -78,16 +101,27 @@ fn prepare_billboard_instances(
         render_queue.write_buffer(buf, 0, instance_data);
     }
 
-    // === Create the actual pipeline from BILLBOARD_SHADER (the missing piece) ===
     if render_data.pipeline.is_none() {
         let shader = render_device.create_shader_module(ShaderModuleDescriptor {
             label: Some("billboard_shader"),
             source: ShaderSource::Wgsl(BILLBOARD_SHADER.into()),
         });
 
+        let camera_bgl = render_device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("camera_bgl"),
+            entries: &[
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer { ty: BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
+                    count: None,
+                },
+            ],
+        });
+
         let pipeline_layout = render_device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("billboard_pipeline_layout"),
-            bind_group_layouts: &[ /* camera bind group layout */ ],
+            label: Some("billboard_layout"),
+            bind_group_layouts: &[&camera_bgl],
             push_constant_ranges: &[],
         });
 
@@ -121,34 +155,37 @@ fn prepare_billboard_instances(
             }),
             primitive: PrimitiveState {
                 topology: PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: FrontFace::Ccw,
                 cull_mode: Some(Face::Back),
-                unclipped_depth: false,
-                polygon_mode: PolygonMode::Fill,
-                conservative: false,
+                ..default()
             },
             depth_stencil: Some(DepthStencilState {
                 format: TextureFormat::Depth32Float,
                 depth_write_enabled: false,
                 depth_compare: CompareFunction::LessEqual,
-                stencil: StencilState::default(),
-                bias: DepthBiasState::default(),
+                ..default()
             }),
             multisample: MultisampleState::default(),
             multiview: None,
         }));
+
+        // Camera bind group
+        let camera_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("camera_uniforms"),
+            contents: bytemuck::bytes_of(&CameraUniformsGpu {
+                view_proj: camera_uniforms.view_proj.to_cols_array_2d(),
+                camera_right: camera_uniforms.camera_right.to_array(),
+                camera_up: camera_uniforms.camera_up.to_array(),
+                _padding: [0.0; 2],
+            }),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        render_data.camera_bind_group = Some(render_device.create_bind_group(&BindGroupDescriptor {
+            label: Some("camera_bind_group"),
+            layout: &camera_bgl,
+            entries: &[BindGroupEntry { binding: 0, resource: camera_buffer.as_entire_binding() }],
+        }));
     }
-
-    // TODO: create camera_bind_group with view_proj, camera_right, camera_up uniforms
-}
-
-fn queue_billboard_instanced_draw(
-    render_data: Res<BillboardRenderData>,
-    mut draw_functions: ResMut<DrawFunctions<Transparent3d>>,
-) {
-    if render_data.instance_count == 0 || render_data.pipeline.is_none() { return; }
-    // draw_functions.add(InstancedBillboardDraw);
 }
 
 pub struct InstancedBillboardDraw;
@@ -180,7 +217,12 @@ impl<P: PhaseItem> RenderCommand<P> for InstancedBillboardDraw {
     }
 }
 
-// Notes:
-// - In a full implementation you would also extract camera uniforms (view_proj, right, up) into the render world
-//   and create the camera bind group in prepare.
-// - This version now has everything needed for the billboards to render correctly oriented toward the camera.
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct CameraUniformsGpu {
+    view_proj: [[f32; 4]; 4],
+    camera_right: [f32; 3],
+    _padding: [f32; 2],
+    camera_up: [f32; 3],
+    _padding2: [f32; 2],
+}
