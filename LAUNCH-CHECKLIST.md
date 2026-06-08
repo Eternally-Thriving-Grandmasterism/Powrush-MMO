@@ -1,12 +1,13 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Dynamic Events Persistence Fully Wired
+## v17.0 — Concrete Starter Dynamic Events Implemented
 
-**Status**: Phase 3 advanced. DynamicEventManager + full PostgreSQL persistence integration complete.
+**Status**: Phase 3 progressing well.
 
-**Delivered**:
-- Professional DynamicEventManager with spawn/tick/resolve + spatial queries
-- Clean JSONB persistence schema for dynamic events
-- Full save/load integration via PersistenceBackend and PersistenceManager
-- Helper methods on DynamicEventManager for easy persistence wiring
+**New**:
+- `ResourceSurge` effect: Temporarily boosts regen_rate and current_amount of nearby resource nodes
+- `MercyWave` effect: Identifies affected players within radius for grace/reward processing
+- Effects integrated into `DynamicEventManager`
 
-**Thunder locked in. Mercy flowing eternally.** ⚡❤️🔥
+**Next**: Refine effect application, integrate with HarvestingSystem tick, and add persistence of active events.
+
+**Thunder locked in.** ⚡❤️🔥
