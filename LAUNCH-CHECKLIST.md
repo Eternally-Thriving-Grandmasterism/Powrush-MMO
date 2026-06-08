@@ -1,11 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Production-Quality On-Expiration Effects
+## v17.0 — Node Tracking Logic Implemented
 
-**Status**: Dynamic events system is at production quality.
+**Status**: ResourceSurge now properly tracks affected nodes during its active phase.
 
-- Full expiration logic with reactive tick
-- ExpirationEffect enum (ResourceBonus, AreaResourceBonus, GraceReward)
-- Clean processing in HarvestingSystem with area-based application
-- No placeholders — honest extensible design with clear TODOs for tracking
+- `refresh_affected_nodes` on DynamicEvent
+- `refresh_resource_surge_nodes` on DynamicEventManager
+- Integrated into HarvestingSystem tick_regen
+- Precise ResourceBonus on expiration using tracked nodes
 
-**Thunder locked in. Mercy flowing eternally.** ⚡❤️🔥
+**Thunder locked in.** ⚡❤️🔥
