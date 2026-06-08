@@ -1,10 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — HierarchicalGrid Unified Across Systems
+## v17.0 — HierarchicalGrid Cache Locality Optimized
 
-**Status**: Major unification completed.
+**Status**: Cache behavior improved.
 
-- Both InterestManager and DynamicEventManager now use the same HierarchicalGrid
-- Consistent, high-performance spatial queries across the server
-- Foundation for scalable Interest culling and dynamic events
+- Contiguous entity storage (Vec) instead of scattered HashMap-only access
+- Index-based lookup during queries
+- Better memory access patterns on hot paths
 
 **Thunder locked in.** ⚡❤️🔥
