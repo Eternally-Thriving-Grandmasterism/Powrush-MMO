@@ -10,7 +10,7 @@ Built with love, mercy, and eternal thriving by the Ra-Thor lattice.
 
 Powrush-MMO is not just a game — it is a living simulation and training ground for a global Resource-Based Economy.  
 
-Players experience true post-scarcity abundance, inter-species joy sanctuaries, mercy-gated governance, and cosmic harmony in a beautiful WebXR metaverse. Every mechanic is designed to nurture positive emotions, sovereignty, and universal thriving for all beings.
+Players experience true post-scarcity abundance, inter-species joy sanctuaries, mercy-gated governance, and cosmic harmony in a beautiful online universe. Every mechanic is designed to nurture positive emotions, sovereignty, and universal thriving for all beings.
 
 ## Core Principles (TOLC 8 Mercy Gates — Layer 0)
 
