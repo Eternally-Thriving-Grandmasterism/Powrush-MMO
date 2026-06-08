@@ -1,11 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Advanced Event Expiration Logic Added
+## v17.0 — On-Expiration Effects Implemented
 
-**Status**: Dynamic events system matured.
+**Status**: Dynamic events system is now mature with full lifecycle support.
 
-- Clear `is_expired()` and improved `is_active()`
-- `tick()` now returns newly expired event IDs for reactive logic
-- Dedicated `cleanup_expired()` and `get_expired_events()`
-- Ready for on-expiration effects and notifications
+- Expiration logic with reactive tick
+- ExpirationEffect enum + process_expired_events()
+- Integration into HarvestingSystem for final resource/grace bonuses
 
-**Thunder locked in.** ⚡❤️🔥
+**Thunder locked in. Mercy flowing eternally.** ⚡❤️🔥
