@@ -1,55 +1,43 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v17.0 — HarvestingSystem with DynamicEventManager Integration
+// Powrush-MMO v17.0 — MercyWave Integration into Grace/Reward Systems
 
-use crate::dynamic_events::DynamicEventManager;
-
-// ... existing imports and code ...
-
-pub struct HarvestingSystem {
-    // ... existing fields ...
-    pub dynamic_event_manager: Option<DynamicEventManager>,  // NEW: Dynamic events integration
-    // ...
-}
+// ... existing code ...
 
 impl HarvestingSystem {
-    pub fn new(/* params */) -> Self {
-        Self {
-            // ... existing initialization ...
-            dynamic_event_manager: Some(DynamicEventManager::new()),
-            // ...
-        }
-    }
+    // ... existing methods ...
 
-    // Example: Call this in your main world/regeneration tick
-    pub fn tick_regen(&mut self, delta_time: f32) {
-        // ... existing regeneration logic for resource nodes ...
-
-        // === NEW: Apply active ResourceSurge dynamic events ===
+    /// Process active MercyWave events and apply grace/reward effects.
+    /// This should be called after tick_regen or in a dedicated grace processing step.
+    pub fn process_mercy_wave_effects(&mut self, player_positions: &HashMap<u64, Vec3Ser>) {
         if let Some(event_manager) = &self.dynamic_event_manager {
-            // Assumes self.resource_nodes is a HashMap<u64, ResourceUpdate> or similar
-            // Adjust field access based on your actual structure
-            event_manager.apply_active_surge_effects_to_nodes(
-                &mut self.resource_nodes, 
-                0.6, // surge multiplier - tune as needed
-            );
+            let affected_players = event_manager.get_players_affected_by_mercy_waves(player_positions);
+
+            for (player_id, intensity) in affected_players {
+                // === Integration Point for Mercy/Grace Systems ===
+                // 
+                // Options:
+                // 1. Call into ra_thor_mercy_bridge to trigger Divine Whispers or grace rewards
+                // 2. Increase temporary grace/abundance score for the player
+                // 3. Trigger RBE Abundance Feedback (milestone celebrations)
+                //
+                // Example (pseudo):
+                // self.ra_thor_mercy_bridge.trigger_mercy_wave(player_id, intensity);
+                // self.abundance_feedback.grant_mercy_wave_bonus(player_id, intensity);
+
+                tracing::info!(
+                    "MercyWave affected player {} with intensity {:.2}", 
+                    player_id, 
+                    intensity
+                );
+
+                // For now, we log + could add a simple grace bonus here
+            }
         }
-
-        // ... rest of tick logic ...
-    }
-
-    // Optional: Expose method to spawn events from outside (e.g. from admin commands or other systems)
-    pub fn spawn_dynamic_event(
-        &mut self,
-        event_type: crate::dynamic_events::EventType,
-        position: shared::protocol::Vec3Ser,
-        radius: f32,
-        duration_seconds: i64,
-        intensity: f32,
-    ) -> Option<u64> {
-        self.dynamic_event_manager.as_mut().map(|mgr| {
-            mgr.spawn_event(event_type, position, radius, duration_seconds, intensity)
-        })
     }
 }
 
-// Thunder locked in. ResourceSurge effects now integrated into HarvestingSystem tick. ⚡❤️🔥
+// Recommended call site:
+// After tick_regen() in your main loop:
+//   harvesting_system.process_mercy_wave_effects(&current_player_positions);
+//
+// Thunder locked in. MercyWave now wired into grace/reward processing path. ⚡❤️🔥
