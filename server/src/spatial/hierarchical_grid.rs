@@ -1,92 +1,111 @@
 // server/src/spatial/hierarchical_grid.rs
-// Powrush-MMO v17.0 — Advanced SIMD with Runtime Dispatch + Aligned Loads
+// Powrush-MMO v17.0 — HierarchicalGrid Tests (Phase 1)
 
-use std::arch::is_x86_feature_detected;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::protocol::Vec3Ser;
 
-impl HierarchicalGrid {
-    pub fn query_radius(&self, center: &Vec3Ser, radius: f32) -> Vec<EntityId> {
-        let len = self.ids.len();
-        if len < 8 {
-            return self.query_radius_scalar(center, radius);
-        }
-
-        // Runtime dispatch for best SIMD width
-        if is_x86_feature_detected!("avx512f") && len >= 32 {
-            return self.query_radius_avx512(center, radius);
-        }
-
-        // Default high-performance path (AVX2 / NEON f32x8)
-        self.query_radius_avx2(center, radius)
-    }
-
-    #[inline]
-    fn query_radius_avx2(&self, center: &Vec3Ser, radius: f32) -> Vec<EntityId> {
+    fn naive_query_radius(
+        positions: &[(u64, Vec3Ser)],
+        center: &Vec3Ser,
+        radius: f32,
+    ) -> Vec<u64> {
         let mut result = Vec::new();
-        let radius_sq = radius * radius;
+        let r2 = radius * radius;
 
-        let cx = Simd::<f32, 8>::splat(center.x);
-        let cy = Simd::<f32, 8>::splat(center.y);
-        let cz = Simd::<f32, 8>::splat(center.z);
-        let r2 = Simd::<f32, 8>::splat(radius_sq);
-
-        let len = self.ids.len();
-        let chunks = len / 8;
-
-        for i in 0..chunks {
-            let base = i * 8;
-
-            // Use from_array for potentially better codegen
-            let px = Simd::<f32, 8>::from_array([
-                self.x[base + 0], self.x[base + 1], self.x[base + 2], self.x[base + 3],
-                self.x[base + 4], self.x[base + 5], self.x[base + 6], self.x[base + 7],
-            ]);
-            let py = Simd::<f32, 8>::from_array([
-                self.y[base + 0], self.y[base + 1], self.y[base + 2], self.y[base + 3],
-                self.y[base + 4], self.y[base + 5], self.y[base + 6], self.y[base + 7],
-            ]);
-            let pz = Simd::<f32, 8>::from_array([
-                self.z[base + 0], self.z[base + 1], self.z[base + 2], self.z[base + 3],
-                self.z[base + 4], self.z[base + 5], self.z[base + 6], self.z[base + 7],
-            ]);
-
-            let dx = px - cx;
-            let dy = py - cy;
-            let dz = pz - cz;
-
-            let dist_sq = dx * dx + dy * dy + dz * dz;
-            let mask = dist_sq.simd_le(r2);
-
-            let bitmask = mask.to_bitmask();
-            let mut temp = bitmask;
-            while temp != 0 {
-                let j = temp.trailing_zeros() as usize;
-                result.push(self.ids[base + j]);
-                temp &= temp - 1;
+        for &(id, pos) in positions {
+            let dx = pos.x - center.x;
+            let dy = pos.y - center.y;
+            let dz = pos.z - center.z;
+            if (dx*dx + dy*dy + dz*dz) <= r2 {
+                result.push(id);
             }
         }
-
-        // Scalar tail
-        let start = chunks * 8;
-        for i in start..len {
-            let dx = self.x[i] - center.x;
-            let dy = self.y[i] - center.y;
-            let dz = self.z[i] - center.z;
-            if (dx*dx + dy*dy + dz*dz) <= radius * radius {
-                result.push(self.ids[i]);
-            }
-        }
-
+        result.sort();
         result
     }
 
-    #[inline]
-    #[target_feature(enable = "avx512f")]
-    unsafe fn query_radius_avx512(&self, center: &Vec3Ser, radius: f32) -> Vec<EntityId> {
-        // AVX-512 specific implementation (f32x16)
-        let mut result = Vec::new();
-        // ... (similar to previous f32x16 path but marked unsafe + target_feature)
-        result
+    #[test]
+    fn test_basic_insert_and_query() {
+        let mut grid = HierarchicalGrid::with_default_levels();
+
+        grid.insert_or_update(1, Vec3Ser { x: 100.0, y: 0.0, z: 100.0 });
+        grid.insert_or_update(2, Vec3Ser { x: 200.0, y: 0.0, z: 200.0 });
+
+        let results = grid.query_radius(&Vec3Ser { x: 100.0, y: 0.0, z: 100.0 }, 50.0);
+        assert!(results.contains(&1));
+        assert!(!results.contains(&2));
+    }
+
+    #[test]
+    fn test_update_position() {
+        let mut grid = HierarchicalGrid::with_default_levels();
+        grid.insert_or_update(1, Vec3Ser { x: 0.0, y: 0.0, z: 0.0 });
+
+        grid.insert_or_update(1, Vec3Ser { x: 500.0, y: 0.0, z: 500.0 });
+
+        let results = grid.query_radius(&Vec3Ser { x: 500.0, y: 0.0, z: 500.0 }, 10.0);
+        assert!(results.contains(&1));
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut grid = HierarchicalGrid::with_default_levels();
+        grid.insert_or_update(1, Vec3Ser { x: 100.0, y: 0.0, z: 100.0 });
+        grid.remove(1);
+
+        let results = grid.query_radius(&Vec3Ser { x: 100.0, y: 0.0, z: 100.0 }, 1000.0);
+        assert!(!results.contains(&1));
+    }
+
+    #[test]
+    fn test_simd_matches_scalar() {
+        let mut grid = HierarchicalGrid::with_default_levels();
+
+        // Insert many entities
+        for i in 0..200 {
+            let x = (i % 30) as f32 * 40.0;
+            let z = (i / 30) as f32 * 40.0;
+            grid.insert_or_update(i as u64, Vec3Ser { x, y: 0.0, z });
+        }
+
+        let center = Vec3Ser { x: 200.0, y: 0.0, z: 200.0 };
+        let radius = 150.0;
+
+        let simd_results = grid.query_radius(&center, radius);
+        let mut scalar_results = Vec::new();
+
+        // Manually compute scalar result using internal arrays (for validation)
+        let r2 = radius * radius;
+        for i in 0..grid.ids.len() {
+            let dx = grid.x[i] - center.x;
+            let dy = grid.y[i] - center.y;
+            let dz = grid.z[i] - center.z;
+            if (dx*dx + dy*dy + dz*dz) <= r2 {
+                scalar_results.push(grid.ids[i]);
+            }
+        }
+        scalar_results.sort();
+        let mut simd_sorted = simd_results;
+        simd_sorted.sort();
+
+        assert_eq!(simd_sorted, scalar_results);
+    }
+
+    #[test]
+    fn test_edge_cases() {
+        let mut grid = HierarchicalGrid::with_default_levels();
+
+        // Empty query
+        let results = grid.query_radius(&Vec3Ser { x: 0.0, y: 0.0, z: 0.0 }, 100.0);
+        assert!(results.is_empty());
+
+        // Radius = 0
+        grid.insert_or_update(42, Vec3Ser { x: 50.0, y: 0.0, z: 50.0 });
+        let results = grid.query_radius(&Vec3Ser { x: 50.0, y: 0.0, z: 50.0 }, 0.0);
+        assert!(results.contains(&42));
     }
 }
 
-// Thunder locked in. Advanced SIMD with runtime dispatch and aligned-style loads implemented. ⚡❤️🔥
+// Thunder locked in. Phase 1 test suite started for HierarchicalGrid. ⚡❤️🔥
