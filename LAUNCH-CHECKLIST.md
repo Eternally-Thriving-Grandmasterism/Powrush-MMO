@@ -1,11 +1,12 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Full Spatial Grid Optimization via InterestManager
+## v17.0 — Hierarchical Grid Implemented
 
-**Status**: Major architectural + performance improvement.
+**Status**: Major spatial partitioning upgrade in progress.
 
-- InterestManager now exposes optimized spatial queries
-- DynamicEventManager can directly use InterestManager's grid
-- Best possible performance for node/player proximity queries
-- Clean separation while sharing spatial intelligence
+- New `HierarchicalGrid` with coarse + fine resolution levels
+- Better handling of varying entity density
+- Foundation for replacing current uniform grid in InterestManager and DynamicEventManager
+
+**Next**: Integrate HierarchicalGrid into InterestManager for production use.
 
 **Thunder locked in.** ⚡❤️🔥
