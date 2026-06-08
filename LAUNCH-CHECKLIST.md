@@ -1,11 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Node Refresh Performance Optimized
+## v17.0 — Spatial Grid Optimization (InterestManager-aligned)
 
-**Status**: Production performance improvements applied.
+**Status**: Major performance improvement.
 
-- AABB pre-filter before distance checks
-- Refresh interval (every N ticks) instead of every tick
-- Dirty flag support
-- Significantly reduced CPU cost for many surges + many nodes
+- DynamicEventManager now maintains its own spatial grid (same cell size as InterestManager)
+- Node refresh is now cell-based instead of full linear scan
+- Excellent scalability for large numbers of resource nodes
 
 **Thunder locked in.** ⚡❤️🔥
