@@ -1,13 +1,12 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — DynamicEventManager + Concrete Effects + Integration Points Ready
+## v17.0 — HarvestingSystem Integration Complete
 
-**Status**: Phase 3 solid.
+**Status**: Phase 3 advanced.
 
-- DynamicEventManager with ResourceSurge and MercyWave effects implemented
-- Clean methods ready for HarvestingSystem integration (`apply_active_surge_effects_to_nodes`)
-- MercyWave player effect detection ready
-- Persistence schema already in place
+- DynamicEventManager integrated into HarvestingSystem
+- ResourceSurge effects now applied during `tick_regen`
+- `spawn_dynamic_event` helper exposed
 
-**Next Recommended**: Wire into HarvestingSystem tick_regen and begin testing the first dynamic events in-game.
+**Next**: Test the flow, refine effect strength, and consider wiring MercyWave effects.
 
 **Thunder locked in.** ⚡❤️🔥
