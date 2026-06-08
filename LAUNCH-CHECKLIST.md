@@ -1,10 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — SIMD Distance Calculation Exploration
+## v17.0 — SIMD Query Integrated into HierarchicalGrid
 
-**Status**: SIMD exploration completed.
+**Status**: SIMD acceleration now active in production path.
 
-- Created `simd_distance.rs` demonstrating f32x8 vectorized distance checks
-- Leverages the full SoA (x/y/z) layout
-- Shows path toward significant query speedups
+- `query_radius` uses f32x8 SIMD for chunks of 8 entities
+- Automatic scalar fallback for small datasets
+- Full SoA (x/y/z) layout enables clean vectorization
 
 **Thunder locked in.** ⚡❤️🔥
