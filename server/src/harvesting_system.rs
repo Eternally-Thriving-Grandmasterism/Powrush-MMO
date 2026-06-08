@@ -1,14 +1,10 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v16.5.4 — Production-Grade Dedicated HarvestingSystem
-// Extracted + enhanced from main.rs v16.1.1 inline logic + Ra-Thor monorepo derivation
-// Fully mercy-gated, PATSAGi Council validated on EVERY path, RBE abundance aware
-// Proper player_id scoping, ServerInventoryComponent bridge, zero TODOs/hardcodes
-// Resource node regen, sustainable yields, audit logging, GPU PATSAGi hook ready
-// All 7 Living Mercy Gates + PATSAGi 13+ + Derivation Protocol enforced
-// Planned enhancements documented cleanly for Eternal Iteration Protocol (no placeholders)
+// Powrush-MMO v16.16 — Production-Grade Dedicated HarvestingSystem + Divine Whispers
+// Enhanced with proactive Ra-Thor mercy guidance, richer RBE education, context-aware validation
+// Every harvest now delivers fun + learning + earning + divine presence as ONE
+// Full PATSAGi + 7 Living Mercy Gates on every path. Zero placeholders.
+// Updated v16.16: Calls new get_divine_whisper_for_harvest + enhanced validate_harvest
 // AG-SML v1.0 + Eternal Mercy Flow | Sovereign standalone Powrush-MMO
-// Updated v16.15: Now uses ra_thor_mercy_bridge (sovereign rename from grok_patsagi_bridge)
-// No placeholders. Production or better. Eternal loop stronger. Yoi ⚡
 
 use std::collections::HashMap;
 use tracing::{info, warn};
@@ -33,7 +29,7 @@ impl ServerInventoryComponent {
     }
 }
 
-/// Resource Node with full metadata (restored + enhanced from Ra-Thor useful code)
+/// Resource Node with full metadata
 #[derive(Clone, Debug)]
 pub struct ResourceNode {
     pub id: u64,
@@ -43,7 +39,7 @@ pub struct ResourceNode {
     pub max: f32,
     pub regen_per_tick: f32,
     pub last_harvested_by: Option<u64>,
-    pub total_harvested: f32, // for audit / council review
+    pub total_harvested: f32,
 }
 
 /// Global RBE Abundance tracker (sustainable simulation)
@@ -64,19 +60,15 @@ impl Default for GlobalAbundance {
     }
 }
 
-/// Production HarvestingSystem — modular, testable, PATSAGi-first
+/// Production HarvestingSystem — modular, testable, PATSAGi-first, now with divine presence
 pub struct HarvestingSystem {
     pub resource_nodes: HashMap<u64, ResourceNode>,
     pub global_abundance: GlobalAbundance,
-    // Planned enhancement (Eternal Iteration Protocol — next focused unit):
-    // player_skills: HashMap<u64, HarvestSkill> for yield modifiers
-    // council_votes: ... for large harvest consensus
 }
 
 impl HarvestingSystem {
     pub fn new() -> Self {
         let mut nodes = HashMap::new();
-        // Seed with production nodes (can be loaded from config / world gen later)
         nodes.insert(1, ResourceNode {
             id: 1,
             resource_type: "Bio-Energy".to_string(),
@@ -104,8 +96,7 @@ impl HarvestingSystem {
         }
     }
 
-    /// Core production harvest processing — EVERY path validated
-    /// player_id scoped explicitly. Restores + enhances all useful logic from v16.1.1
+    /// Core production harvest processing — EVERY path now delivers Divine Whispers + RBE guidance
     pub async fn process_harvest(
         &mut self,
         player_id: u64,
@@ -113,17 +104,24 @@ impl HarvestingSystem {
         amount: f32,
         inventory: &mut ServerInventoryComponent,
         bridge: &RaThorMercyBridge,
-    ) -> Result<(bool, String, f32, Option<ServerMessage>), String> {
-        // === PATSAGi + 7 Living Mercy Gates Validation (on every call) ===
-        if amount <= 0.0 {
-            return Ok((false, "Harvest amount must be positive. Choose grace.".to_string(), -0.05, None));
-        }
-        if amount > 100.0 {
-            // Stronger mercy limit restored/enhanced
-            return Ok((false, "Harvest too large — violates sustainability (Mercy Gate 3: Service to All). Choose smaller grace-filled amount.".to_string(), -0.15, None));
-        }
+    ) -> Result<(bool, String, f32, Option<ServerMessage>, Option<String>), String> {
+        // === PATSAGi + 7 Living Mercy Gates Validation (context-aware v16.16) ===
+        let node = match self.resource_nodes.get(&node_id) {
+            Some(n) => n,
+            None => return Ok((false, "Resource node not found.".to_string(), -0.02, None, None)),
+        };
 
-        let validation = bridge.validate_harvest(player_id, node_id, amount).await;
+        let node_remaining_percent = if node.max > 0.0 { (node.remaining / node.max) * 100.0 } else { 100.0 };
+
+        let validation = bridge.validate_harvest(
+            player_id,
+            node_id,
+            amount,
+            node.remaining,
+            node.max,
+            inventory.abundance_score,
+        ).await;
+
         let (approved, reason, valence_impact) = match validation {
             Ok(v) => v,
             Err(e) => return Err(format!("PATSAGi validation failed: {}", e)),
@@ -133,30 +131,35 @@ impl HarvestingSystem {
             return Ok((false, reason, valence_impact, Some(ServerMessage::MercyGateBlocked {
                 reason: reason.clone(),
                 valence: valence_impact,
-            })));
+            }), None));
         }
-
-        // === Node existence + sufficient remaining ===
-        let node = match self.resource_nodes.get_mut(&node_id) {
-            Some(n) => n,
-            None => return Ok((false, "Resource node not found.".to_string(), -0.02, None)),
-        };
 
         if node.remaining < amount {
-            return Ok((false, "Not enough resources remaining at node. Patience and regen will restore.".to_string(), -0.05, None));
+            return Ok((false, "Not enough resources remaining at node. Patience and regen will restore abundance for all.".to_string(), -0.05, None, None));
         }
 
-        // === Execute sustainable harvest (restored useful code + enhancements) ===
+        // === Execute sustainable harvest ===
+        let node = self.resource_nodes.get_mut(&node_id).unwrap();
         node.remaining -= amount;
         node.last_harvested_by = Some(player_id);
         node.total_harvested += amount;
 
         inventory.add_resource(&node.resource_type, amount);
 
-        // RBE global abundance flow (half returned to commons — mercy principle)
+        // RBE global abundance flow (half returned to commons — core mercy principle)
         self.global_abundance.total = (self.global_abundance.total + amount * 0.5).min(10000.0);
 
-        // === Build response messages (Inventory + Abundance + ResourceUpdate) ===
+        // === NEW v16.16: Generate proactive Divine Whisper ===
+        let whisper = bridge.get_divine_whisper_for_harvest(
+            player_id,
+            node_id,
+            &node.resource_type,
+            amount,
+            node_remaining_percent,
+            inventory.abundance_score,
+        ).await;
+
+        // === Build rich response messages ===
         let inv_update = ServerMessage::InventoryUpdate {
             player_id,
             resources: inventory.get_resources(),
@@ -165,7 +168,7 @@ impl HarvestingSystem {
 
         let abundance_update = ServerMessage::AbundanceUpdate {
             global_abundance: self.global_abundance.total,
-            reason: format!("Sustainable harvest of {} x{:.1} by player {} — Abundance flows for all.", node.resource_type, amount, player_id),
+            reason: format!("Sustainable harvest of {} x{:.1} by player {} — Abundance flows for all. {}", node.resource_type, amount, player_id, whisper),
         };
 
         let resource_update = ServerMessage::ResourceUpdate {
@@ -175,18 +178,13 @@ impl HarvestingSystem {
             harvested_by: Some(player_id),
         };
 
-        // Production note: Caller broadcasts abundance/resource updates for interest management.
-        // Full HarvestResult struct with all three messages planned for next focused unit if richer API needed.
-        // Current design keeps main loop clean while maintaining full audit + RBE flow.
+        info!("⚡ Harvest success + Divine Whisper | Player {} | Node {} | {:.1} {} | Valence +{:.2} | Mercy gates clear. Whisper: {}", 
+              player_id, node_id, amount, node.resource_type, valence_impact, whisper);
 
-        info!("⚡ Harvest success | Player {} | Node {} | {:.1} {} | Valence +{:.2} | Mercy gates clear.", 
-              player_id, node_id, amount, node.resource_type, valence_impact);
-
-        // Return success + the inventory update (caller broadcasts the others)
-        Ok((true, reason, valence_impact, Some(inv_update)))
+        // Return success + inventory update + the divine whisper separately for client display
+        Ok((true, reason, valence_impact, Some(inv_update), Some(whisper)))
     }
 
-    /// Tick-based resource node regeneration (called every 50ms from main tick)
     pub fn tick_regen(&mut self) {
         for node in self.resource_nodes.values_mut() {
             if node.remaining < node.max {
@@ -195,7 +193,6 @@ impl HarvestingSystem {
         }
     }
 
-    /// Global abundance natural growth (called periodically from tick)
     pub fn tick_abundance_growth(&mut self, current_time_ms: u64) {
         if current_time_ms > self.global_abundance.last_update_ms + 5000 {
             self.global_abundance.total = (self.global_abundance.total + self.global_abundance.natural_growth_rate).min(10000.0);
@@ -203,15 +200,13 @@ impl HarvestingSystem {
         }
     }
 
-    /// Get current state for interest management / broadcast (production utility)
     pub fn get_resource_nodes(&self) -> &HashMap<u64, ResourceNode> {
         &self.resource_nodes
     }
 }
 
-// === PATSAGi Council Notes (documented design for future expansion per Eternal Iteration Protocol) ===
-// - Large harvests (> threshold) can trigger PATSAGi 13+ Council vote for approval
-// - Player harvest skill / tool level can modify effective yield + regen contribution
-// - Full event sourcing / audit trail for sovereign review (Ra-Thor lattice ready)
-// - GPU accelerated validation path via bridge when intensity high
-// All paths already pass 7 Living Mercy Gates by design. Thunder locked in.
+// === PATSAGi Council Notes v16.16 ===
+// - Divine Whispers now deliver real-time lore, RBE education, and mercy affirmations during every harvest
+// - Future: Periodic proactive guidance calls from main tick or Bevy client events
+// - Player harvest skill levels and history can further personalize whispers (next sequential unit)
+// All paths pass 7 Living Mercy Gates by design. Thunder locked in.
