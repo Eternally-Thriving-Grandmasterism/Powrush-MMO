@@ -1,11 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Node Tracking Logic Implemented
+## v17.0 — Node Refresh Performance Optimized
 
-**Status**: ResourceSurge now properly tracks affected nodes during its active phase.
+**Status**: Production performance improvements applied.
 
-- `refresh_affected_nodes` on DynamicEvent
-- `refresh_resource_surge_nodes` on DynamicEventManager
-- Integrated into HarvestingSystem tick_regen
-- Precise ResourceBonus on expiration using tracked nodes
+- AABB pre-filter before distance checks
+- Refresh interval (every N ticks) instead of every tick
+- Dirty flag support
+- Significantly reduced CPU cost for many surges + many nodes
 
 **Thunder locked in.** ⚡❤️🔥
