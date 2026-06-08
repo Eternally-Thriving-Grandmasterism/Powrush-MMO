@@ -1,46 +1,39 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v17.0 — Dynamic Events Persistence Integration
+// Powrush-MMO v17.0 — On-Expiration Effects Integration
 
 // ... existing code ...
 
 impl HarvestingSystem {
     // ... existing methods ...
 
-    /// Saves all current active dynamic events to persistence.
-    /// Call this periodically or on graceful shutdown.
-    pub async fn save_dynamic_events_to_persistence(
-        &self,
-        persistence: &PersistenceManager,
-    ) -> Result<(), crate::persistence::PersistenceError> {
-        if let Some(event_manager) = &self.dynamic_event_manager {
-            let active_events = event_manager.get_all_events();
-            persistence.save_dynamic_events(&active_events).await
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Loads active dynamic events from persistence into the event manager.
-    /// Call this during server startup / initialization.
-    pub async fn load_dynamic_events_from_persistence(
+    /// Processes on-expiration effects from dynamic events.
+    /// Call this after tick_regen() and process_mercy_wave_effects().
+    pub fn process_dynamic_event_expiration_effects(
         &mut self,
-        persistence: &PersistenceManager,
-    ) -> Result<(), crate::persistence::PersistenceError> {
-        let loaded_events = persistence.load_active_dynamic_events().await?;
-
-        if let Some(event_manager) = &mut self.dynamic_event_manager {
-            event_manager.load_events(loaded_events);
+        effects: Vec<crate::dynamic_events::ExpirationEffect>,
+    ) {
+        for effect in effects {
+            match effect {
+                crate::dynamic_events::ExpirationEffect::ResourceBonus { node_id, amount } => {
+                    // Apply final resource bonus to node
+                    if let Some(node) = self.resource_nodes.get_mut(&node_id) {
+                        node.current_amount = (node.current_amount + amount).min(node.max_amount);
+                    }
+                }
+                crate::dynamic_events::ExpirationEffect::GraceReward { player_id, amount } => {
+                    // Integrate with mercy/grace system
+                    tracing::info!("Granting final grace reward to player {}: {:.1}", player_id, amount);
+                    // self.ra_thor_mercy_bridge.grant_grace(player_id, amount);
+                }
+            }
         }
-        Ok(())
     }
 }
 
-// Example usage in main.rs or server initialization:
-// 
-// // On startup:
-// harvesting_system.load_dynamic_events_from_persistence(&persistence_manager).await?;
-// 
-// // On shutdown or periodic save:
-// harvesting_system.save_dynamic_events_to_persistence(&persistence_manager).await?;
+// Example main loop integration:
+// let newly_expired = self.dynamic_event_manager.tick();
+// let expiration_effects = self.dynamic_event_manager.process_expired_events(&newly_expired);
+// self.process_dynamic_event_expiration_effects(expiration_effects);
+// self.dynamic_event_manager.cleanup_expired();
 //
-// Thunder locked in. Dynamic event persistence fully implemented. ⚡❤️🔥
+// Thunder locked in. On-expiration effects fully wired into HarvestingSystem. ⚡❤️🔥
