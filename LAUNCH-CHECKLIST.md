@@ -1,11 +1,9 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — HarvestingSystem <-> DynamicEventManager Grid Sync
+## v17.0 — Player Tracking for MercyWave Added
 
-**Status**: Full bidirectional sync implemented.
+**Status**: Symmetric tracking now exists for both major event types.
 
-- sync_add_or_update_resource_node
-- sync_remove_resource_node
-- Integrated into HarvestingSystem node lifecycle
-- Spatial grid stays consistent with actual resource nodes
+- ResourceSurge → Node tracking + precise expiration bonuses
+- MercyWave → Player tracking + precise GraceReward on expiration
 
 **Thunder locked in.** ⚡❤️🔥
