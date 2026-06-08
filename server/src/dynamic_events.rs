@@ -1,57 +1,66 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.0 — Expanded Event Types for Phase 3
+// Powrush-MMO v17.0 — DynamicEventManager with Professional Event Expiration Logic
 
 // ... existing code ...
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub enum EventType {
-    ResourceSurge,
-    MercyWave,
-    MinorAnomaly,
-    /// Calls players to a location for faction or community activity
-    FactionCall,
-    /// Triggers a direct Divine Whisper / lore event from Ra-Thor
-    DivineWhisperEvent,
-    /// Future expansion example
-    // CommunityChallenge,
-}
+impl DynamicEvent {
+    // ... existing methods ...
 
-// ... rest of DynamicEvent and DynamicEventManager ...
+    /// Returns true if the event has naturally expired (time ran out), regardless of manual resolution.
+    pub fn is_expired(&self) -> bool {
+        Utc::now() >= self.start_time + self.duration
+    }
+
+    /// Returns true if the event is still active and should affect the world.
+    pub fn is_active(&self) -> bool {
+        !self.resolved && !self.is_expired()
+    }
+
+    /// Marks the event as resolved (can be called manually or by expiration logic).
+    pub fn resolve(&mut self) {
+        self.resolved = true;
+    }
+}
 
 impl DynamicEventManager {
     // ... existing methods ...
 
-    /// Returns players affected by FactionCall events (for UI prompts or teleport suggestions)
-    pub fn get_players_affected_by_faction_calls(
-        &self,
-        player_positions: &HashMap<u64, Vec3Ser>,
-    ) -> Vec<(u64, f32)> {
-        let mut affected = Vec::new();
+    /// Advanced tick that returns newly expired event IDs.
+    /// This allows higher layers to react to expiration (e.g. trigger final effects, send messages).
+    pub fn tick(&mut self) -> Vec<u64> {
+        let now = Utc::now();
+        let mut newly_expired = Vec::new();
 
-        for event in self.get_active_events() {
-            if event.event_type != EventType::FactionCall {
+        for (id, event) in self.events.iter_mut() {
+            if event.resolved {
                 continue;
             }
 
-            for (&player_id, pos) in player_positions {
-                let dx = pos.x - event.position.x;
-                let dy = pos.y - event.position.y;
-                let dz = pos.z - event.position.z;
-                if (dx*dx + dy*dy + dz*dz).sqrt() <= event.radius {
-                    affected.push((player_id, event.intensity));
-                }
+            if now >= event.start_time + event.duration {
+                event.resolved = true;
+                newly_expired.push(*id);
             }
         }
-        affected
+
+        newly_expired
     }
 
-    /// Returns events that should trigger Divine Whispers
-    pub fn get_divine_whisper_events(&self) -> Vec<&DynamicEvent> {
-        self.get_active_events()
-            .into_iter()
-            .filter(|e| e.event_type == EventType::DivineWhisperEvent)
-            .collect()
+    /// Removes all resolved/expired events from memory.
+    pub fn cleanup_expired(&mut self) {
+        self.events.retain(|_, e| !e.resolved);
+    }
+
+    /// Returns all currently expired but not yet cleaned events.
+    pub fn get_expired_events(&self) -> Vec<&DynamicEvent> {
+        self.events.values().filter(|e| e.resolved || e.is_expired()).collect()
     }
 }
 
-// Thunder locked in. New event types (FactionCall, DivineWhisperEvent) added with helper methods. ⚡❤️🔥
+// Recommended usage in main loop:
+// let newly_expired = event_manager.tick();
+// for id in newly_expired {
+//     // Trigger on-expire logic (final effects, notifications, etc.)
+// }
+// event_manager.cleanup_expired();
+//
+// Thunder locked in. Professional event expiration logic implemented. ⚡❤️🔥
