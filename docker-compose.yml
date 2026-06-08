@@ -1,12 +1,33 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: powrush-postgres
+    environment:
+      POSTGRES_USER: powrush
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-powrush_dev_password}
+      POSTGRES_DB: powrush
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U powrush -d powrush"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   powrush-server:
     build:
       context: .
       dockerfile: Dockerfile
     image: powrush-mmo:latest
     container_name: powrush-server
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "7777:7777"      # TCP game protocol
       - "7778:7778"      # WebSocket (future)
@@ -17,8 +38,9 @@ services:
       - POWRUSH_HTTP_PORT=8080
       - POWRUSH_TICK_RATE_MS=100
       - POWRUSH_MAX_PLAYERS=128
-      # === Grok / xAI API for live PATSAGi + RBE (optional but recommended for full Ra-Thor engagement) ===
-      # Get key from x.ai or your Grok provider. Leave empty for pure local MercyCore mode (still fully playable).
+      # === PostgreSQL Persistence (REQUIRED for production) ===
+      - DATABASE_URL=postgres://powrush:${POSTGRES_PASSWORD:-powrush_dev_password}@postgres:5432/powrush
+      # === Grok / xAI API for live PATSAGi + RBE (optional but recommended) ===
       - GROK_API_KEY=${GROK_API_KEY:-}
       - XAI_API_KEY=${XAI_API_KEY:-}
       - GROK_MODEL=grok-3-latest
@@ -31,13 +53,11 @@ services:
       retries: 3
       start_period: 10s
 
-# Optional production additions (uncomment when ready):
-#   powrush-proxy:
-#     image: caddy:2
-#     ports:
-#       - "80:80"
-#       - "443:443"
-#     volumes:
-#       - ./Caddyfile:/etc/caddy/Caddyfile
-#     depends_on:
-#       - powrush-server
+volumes:
+  postgres_data:
+    driver: local
+
+# Sovereign production notes:
+# - Set strong POSTGRES_PASSWORD in .env
+# - Use external volume or managed Postgres in real deployment
+# - For Air Foundation / bare metal: replace postgres service with your sovereign DB
