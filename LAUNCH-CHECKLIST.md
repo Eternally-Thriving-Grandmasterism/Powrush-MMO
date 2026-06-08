@@ -1,10 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — HierarchicalGrid Integrated into InterestManager
+## v17.0 — HierarchicalGrid Unified Across Systems
 
-**Status**: Major architectural upgrade completed.
+**Status**: Major unification completed.
 
-- InterestManager now uses HierarchicalGrid for spatial queries
-- Player and resource node proximity is now powered by multi-level grid
-- Better performance under varying density
+- Both InterestManager and DynamicEventManager now use the same HierarchicalGrid
+- Consistent, high-performance spatial queries across the server
+- Foundation for scalable Interest culling and dynamic events
 
 **Thunder locked in.** ⚡❤️🔥
