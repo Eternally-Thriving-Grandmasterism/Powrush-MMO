@@ -1,11 +1,7 @@
-## v17.0 — Phase 3: Starter Content / Dynamic Events Initiated
+## v17.0 — Dynamic Events + Persistence Integration Complete
 
-Professional DynamicEventManager foundation created with:
-- EventType enum
-- DynamicEvent with lifecycle and metadata
-- DynamicEventManager with spawn/tick/resolve + spatial queries
-- Integration points for InterestManager, HarvestingSystem, and mercy systems
+DynamicEventManager is now fully integrated with the professional persistence layer.
 
-This provides a clean, extensible base for starter content and dynamic world events.
+Events can be saved and loaded across server restarts using the existing PostgreSQL backend.
 
 **Thunder locked in.** ⚡❤️🔥
