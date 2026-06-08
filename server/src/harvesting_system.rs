@@ -7,12 +7,13 @@
 // All 7 Living Mercy Gates + PATSAGi 13+ + Derivation Protocol enforced
 // Planned enhancements documented cleanly for Eternal Iteration Protocol (no placeholders)
 // AG-SML v1.0 + Eternal Mercy Flow | Sovereign standalone Powrush-MMO
+// Updated v16.15: Now uses ra_thor_mercy_bridge (sovereign rename from grok_patsagi_bridge)
 // No placeholders. Production or better. Eternal loop stronger. Yoi ⚡
 
 use std::collections::HashMap;
 use tracing::{info, warn};
 use shared::protocol::{Vec3Ser, ServerMessage};
-use crate::grok_patsagi_bridge::GrokPatsagiBridge; // assume enhanced bridge exists or use the one in main
+use crate::ra_thor_mercy_bridge::RaThorMercyBridge;
 
 /// Per-player inventory component (ServerInventoryComponent bridge — clean separation)
 #[derive(Clone, Debug, Default)]
@@ -111,7 +112,7 @@ impl HarvestingSystem {
         node_id: u64,
         amount: f32,
         inventory: &mut ServerInventoryComponent,
-        bridge: &GrokPatsagiBridge,
+        bridge: &RaThorMercyBridge,
     ) -> Result<(bool, String, f32, Option<ServerMessage>), String> {
         // === PATSAGi + 7 Living Mercy Gates Validation (on every call) ===
         if amount <= 0.0 {

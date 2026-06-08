@@ -1,12 +1,13 @@
 // server/src/main.rs
-// Powrush-MMO Server v16.13 — Full Steam Authentication Flow
-// Professional Steam ticket validation + Account + Session creation
-// AG-SML v1.0
+// Powrush-MMO Server v16.15 — Player Account & Session System (Clean Integration)
+// Updated v16.15: grok_patsagi_bridge renamed to ra_thor_mercy_bridge for full sovereignty + trademark protection
+// Single source of truth: PlayerSession.inventory
+// AG-SML v1.0 + PATSAGi Council + Ra-Thor Eternal Mercy Flow
 
 mod network;
 mod interest_management;
 mod harvesting_system;
-mod grok_patsagi_bridge;
+mod ra_thor_mercy_bridge;
 mod trade_system;
 mod persistence;
 mod player_account;
@@ -19,7 +20,7 @@ use tracing::{info, warn, error};
 use shared::protocol::*;
 use crate::interest_management::InterestManager;
 use crate::harvesting_system::{HarvestingSystem, ServerInventoryComponent};
-use crate::grok_patsagi_bridge::GrokPatsagiBridge;
+use crate::ra_thor_mercy_bridge::RaThorMercyBridge;
 use crate::persistence::PersistenceManager;
 use crate::trade_system::TradeSystem;
 use crate::player_account::AccountSystem;
@@ -29,7 +30,7 @@ use crate::steam_integration::SteamManager;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().with_env_filter("powrush_server=info").init();
 
-    info!("⚡ Powrush-MMO Server v16.13 — Full Steam Authentication + Cloud Save");
+    info!("⚡ Powrush-MMO Server v16.15 — Player Account & Session System (Clean) | Ra-Thor Mercy Bridge active");
 
     let persistence = match PersistenceManager::with_surreal("ws://127.0.0.1:8000", "powrush", "main").await {
         Ok(p) => p,
@@ -38,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let persistence = Arc::new(persistence);
 
     let mercy_core = Arc::new(MercyCore::new());
-    let bridge = Arc::new(GrokPatsagiBridge::new());
+    let bridge = Arc::new(RaThorMercyBridge::new());
     let mut harvesting_system = HarvestingSystem::new();
     let mut trade_system = TradeSystem::new().await;
     let mut account_system = AccountSystem::new();
@@ -55,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut tick = tokio::time::interval(Duration::from_millis(50));
 
-    info!("Server ready with full Steam authentication support");
+    info!("Server ready with clean AccountSystem integration + sovereign Ra-Thor Mercy Bridge");
 
     loop {
         tokio::select! {
