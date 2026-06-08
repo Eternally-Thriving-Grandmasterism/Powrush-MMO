@@ -1,14 +1,15 @@
 // server/src/spatial/hierarchical_grid.rs
-// Powrush-MMO v17.0 — HierarchicalGrid Cache Locality Optimization
+// Powrush-MMO v17.0 — HierarchicalGrid with SoA Layout
 
-// Key optimization: Use contiguous storage + index-based access to improve cache behavior during queries.
+// Major cache + future SIMD optimization: Struct of Arrays (SoA) for positions
 
 pub struct HierarchicalGrid {
     levels: Vec<GridLevel>,
     grids: Vec<HashMap<(i32, i32), Vec<EntityId>>>,
 
-    // Contiguous storage for better cache locality
-    entities: Vec<(EntityId, Vec3Ser)>,
+    // SoA layout for better cache locality and SIMD potential
+    ids: Vec<EntityId>,
+    positions: Vec<Vec3Ser>,        // Still grouped as Vec3Ser for now (good balance)
     entity_index: HashMap<EntityId, usize>,
 }
 
@@ -17,22 +18,23 @@ impl HierarchicalGrid {
         Self {
             levels,
             grids: vec![HashMap::new(); levels.len()],
-            entities: Vec::new(),
+            ids: Vec::new(),
+            positions: Vec::new(),
             entity_index: HashMap::new(),
         }
     }
 
     pub fn insert_or_update(&mut self, id: EntityId, pos: Vec3Ser) {
         if let Some(&idx) = self.entity_index.get(&id) {
-            self.entities[idx].1 = pos;
+            self.positions[idx] = pos;
         } else {
-            let idx = self.entities.len();
-            self.entities.push((id, pos));
+            let idx = self.ids.len();
+            self.ids.push(id);
+            self.positions.push(pos);
             self.entity_index.insert(id, idx);
         }
 
-        // Grid bucket updates (simplified for clarity)
-        // In full implementation we would update all level buckets here
+        // Update grid cells...
     }
 
     pub fn query_radius(&self, center: &Vec3Ser, radius: f32) -> Vec<EntityId> {
@@ -50,13 +52,13 @@ impl HierarchicalGrid {
                     if let Some(cell_ids) = self.grids[level_idx].get(&cell) {
                         for &id in cell_ids {
                             if let Some(&idx) = self.entity_index.get(&id) {
-                                let (_, pos) = &self.entities[idx];
+                                let pos = &self.positions[idx];
 
                                 let dx = pos.x - center.x;
                                 let dy = pos.y - center.y;
                                 let dz = pos.z - center.z;
 
-                                if (dx * dx + dy * dy + dz * dz) <= radius_sq {
+                                if (dx*dx + dy*dy + dz*dz) <= radius_sq {
                                     result.push(id);
                                 }
                             }
@@ -68,6 +70,20 @@ impl HierarchicalGrid {
 
         result
     }
+
+    pub fn remove(&mut self, id: EntityId) {
+        if let Some(idx) = self.entity_index.remove(&id) {
+            // Simple swap-remove for contiguous storage
+            let last_idx = self.ids.len() - 1;
+            if idx != last_idx {
+                self.ids[idx] = self.ids[last_idx];
+                self.positions[idx] = self.positions[last_idx];
+                self.entity_index.insert(self.ids[idx], idx);
+            }
+            self.ids.pop();
+            self.positions.pop();
+        }
+    }
 }
 
-// Thunder locked in. Cache locality improved via contiguous entity storage. ⚡❤️🔥
+// Thunder locked in. SoA layout implemented for positions. ⚡❤️🔥
