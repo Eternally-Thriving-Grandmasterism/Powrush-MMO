@@ -1,12 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Hierarchical Grid Implemented
+## v17.0 — HierarchicalGrid Refined
 
-**Status**: Major spatial partitioning upgrade in progress.
+**Status**: Flexible multi-level hierarchical spatial partitioning implemented.
 
-- New `HierarchicalGrid` with coarse + fine resolution levels
-- Better handling of varying entity density
-- Foundation for replacing current uniform grid in InterestManager and DynamicEventManager
-
-**Next**: Integrate HierarchicalGrid into InterestManager for production use.
+- Configurable grid levels via `GridLevel`
+- Default 3-level setup available (`with_default_levels()`)
+- Clean API ready for integration into InterestManager and DynamicEventManager
 
 **Thunder locked in.** ⚡❤️🔥
