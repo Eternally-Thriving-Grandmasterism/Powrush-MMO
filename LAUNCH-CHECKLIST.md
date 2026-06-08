@@ -1,11 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — SoA Layout Implemented in HierarchicalGrid
+## v17.0 — Full SoA (x/y/z separate) in HierarchicalGrid
 
-**Status**: Major data layout optimization completed.
+**Status**: Maximum data layout optimization achieved.
 
-- Positions now stored in separate Vec (Struct of Arrays)
-- Better cache locality during distance calculations
-- Foundation for future SIMD optimizations
-- Swap-remove keeps storage compact
+- Positions stored as three separate Vec<f32> (x, y, z)
+- Best possible cache locality for distance calculations
+- Excellent foundation for SIMD vectorization
+- Swap-remove keeps arrays compact
 
 **Thunder locked in.** ⚡❤️🔥
