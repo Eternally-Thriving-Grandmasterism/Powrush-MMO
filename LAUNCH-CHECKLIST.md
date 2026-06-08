@@ -1,10 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Wider SIMD (f32x16) Support Added
+## v17.0 — Advanced SIMD with Runtime Dispatch
 
-**Status**: SIMD optimization advanced.
+**Status**: SIMD optimization at a high level.
 
-- Added f32x16 path for large datasets
-- Restructured query_radius for tiered SIMD (16 → 8 → scalar)
-- Better utilization of wide SIMD units when available
+- Runtime CPU feature detection (AVX-512)
+- Tiered dispatch (AVX-512 → AVX2/NEON → scalar)
+- from_array loads for better codegen
+- Target feature attributes prepared
 
 **Thunder locked in.** ⚡❤️🔥
