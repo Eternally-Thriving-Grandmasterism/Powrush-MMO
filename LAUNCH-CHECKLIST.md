@@ -1,9 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Player Tracking for MercyWave Added
+## v17.0 — Full Spatial Grid Optimization via InterestManager
 
-**Status**: Symmetric tracking now exists for both major event types.
+**Status**: Major architectural + performance improvement.
 
-- ResourceSurge → Node tracking + precise expiration bonuses
-- MercyWave → Player tracking + precise GraceReward on expiration
+- InterestManager now exposes optimized spatial queries
+- DynamicEventManager can directly use InterestManager's grid
+- Best possible performance for node/player proximity queries
+- Clean separation while sharing spatial intelligence
 
 **Thunder locked in.** ⚡❤️🔥
