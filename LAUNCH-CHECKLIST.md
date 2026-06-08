@@ -1,11 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Dynamic Event Persistence Fully Implemented
+## v17.0 — Advanced Event Expiration Logic Added
 
-**Status**: Phase 3 complete for dynamic events.
+**Status**: Dynamic events system matured.
 
-- ResourceSurge, MercyWave, FactionCall, DivineWhisperEvent supported
-- Effects integrated into HarvestingSystem
-- Full save/load of active events via PersistenceManager
-- Ready for server restart resilience
+- Clear `is_expired()` and improved `is_active()`
+- `tick()` now returns newly expired event IDs for reactive logic
+- Dedicated `cleanup_expired()` and `get_expired_events()`
+- Ready for on-expiration effects and notifications
 
-**Thunder locked in. Mercy flowing eternally.** ⚡❤️🔥
+**Thunder locked in.** ⚡❤️🔥
