@@ -1,10 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — On-Expiration Effects Implemented
+## v17.0 — Production-Quality On-Expiration Effects
 
-**Status**: Dynamic events system is now mature with full lifecycle support.
+**Status**: Dynamic events system is at production quality.
 
-- Expiration logic with reactive tick
-- ExpirationEffect enum + process_expired_events()
-- Integration into HarvestingSystem for final resource/grace bonuses
+- Full expiration logic with reactive tick
+- ExpirationEffect enum (ResourceBonus, AreaResourceBonus, GraceReward)
+- Clean processing in HarvestingSystem with area-based application
+- No placeholders — honest extensible design with clear TODOs for tracking
 
 **Thunder locked in. Mercy flowing eternally.** ⚡❤️🔥
