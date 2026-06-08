@@ -1,11 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Full SoA (x/y/z separate) in HierarchicalGrid
+## v17.0 — SIMD Distance Calculation Exploration
 
-**Status**: Maximum data layout optimization achieved.
+**Status**: SIMD exploration completed.
 
-- Positions stored as three separate Vec<f32> (x, y, z)
-- Best possible cache locality for distance calculations
-- Excellent foundation for SIMD vectorization
-- Swap-remove keeps arrays compact
+- Created `simd_distance.rs` demonstrating f32x8 vectorized distance checks
+- Leverages the full SoA (x/y/z) layout
+- Shows path toward significant query speedups
 
 **Thunder locked in.** ⚡❤️🔥
