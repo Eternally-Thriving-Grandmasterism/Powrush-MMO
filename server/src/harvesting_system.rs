@@ -183,7 +183,7 @@ impl HarvestingSystem {
               player_id, node_id, amount, node.resource_type, valence_impact);
 
         // Return success + the inventory update (caller broadcasts the others)
-        Ok((true, reason, valence_impact, Some(inv_update))
+        Ok((true, reason, valence_impact, Some(inv_update)))
     }
 
     /// Tick-based resource node regeneration (called every 50ms from main tick)
