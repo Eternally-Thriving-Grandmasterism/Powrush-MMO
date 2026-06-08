@@ -1,10 +1,11 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Spatial Grid Optimization (InterestManager-aligned)
+## v17.0 — HarvestingSystem <-> DynamicEventManager Grid Sync
 
-**Status**: Major performance improvement.
+**Status**: Full bidirectional sync implemented.
 
-- DynamicEventManager now maintains its own spatial grid (same cell size as InterestManager)
-- Node refresh is now cell-based instead of full linear scan
-- Excellent scalability for large numbers of resource nodes
+- sync_add_or_update_resource_node
+- sync_remove_resource_node
+- Integrated into HarvestingSystem node lifecycle
+- Spatial grid stays consistent with actual resource nodes
 
 **Thunder locked in.** ⚡❤️🔥
