@@ -1,10 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — HierarchicalGrid Refined
+## v17.0 — Octree Prototype Created
 
-**Status**: Flexible multi-level hierarchical spatial partitioning implemented.
+**Status**: Octree spatial partitioning prototype implemented for exploration and comparison.
 
-- Configurable grid levels via `GridLevel`
-- Default 3-level setup available (`with_default_levels()`)
-- Clean API ready for integration into InterestManager and DynamicEventManager
+- Basic recursive Octree with subdivision
+- Insert + Radius query support
+- Ready for benchmarking against Hierarchical Grid
 
 **Thunder locked in.** ⚡❤️🔥
