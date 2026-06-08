@@ -1,6 +1,6 @@
 // engine/wgpu_patsagi_bridge.rs
-// Powrush-MMO v16.5.27 — Use StagingBelt for efficient GPU data uploads
-// Improves upload performance and follows wgpu best practices.
+// Powrush-MMO v16.5.28 — Richer PATSAGi Economic Compute Shader
+// More meaningful simulation logic for GPU-accelerated foresight.
 // AG-SML v1.0
 
 #[cfg(feature = "gpu")]
@@ -12,13 +12,35 @@ use std::collections::HashMap;
 
 #[cfg(feature = "gpu")]
 const COMPUTE_SHADER: &str = r#"
-@group(0) @binding(0) var<storage, read_write> node_data: array<f32>;
+struct NodeData {
+    depletion: f32,
+    regen_rate: f32,
+    sustainability: f32,
+};
+
+@group(0) @binding(0) var<storage, read_write> nodes: array<NodeData>;
 
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let index = global_id.x;
-    if (index >= arrayLength(&node_data)) { return; }
-    node_data[index] = min(node_data[index] * 1.01 + 0.005, 1.0);
+    if (index >= arrayLength(&nodes)) { return; }
+
+    var node = nodes[index];
+
+    // Simulate future depletion under current harvesting pressure
+    let simulated_harvest_pressure = 0.008;
+    node.depletion = min(node.depletion + simulated_harvest_pressure, 1.0);
+
+    // Regenerate based on current rate
+    if (node.depletion > 0.0) {
+        node.depletion = max(node.depletion - node.regen_rate, 0.0);
+    }
+
+    // Update sustainability score (higher depletion = lower sustainability)
+    node.sustainability = max(1.0 - node.depletion * 0.7, 0.3);
+
+    // Write back
+    nodes[index] = node;
 }
 "#;
 
@@ -41,7 +63,8 @@ pub struct WgpuPatsagiBridge {
 
 impl WgpuPatsagiBridge {
     #[cfg(feature = "gpu")]
-    pub async fn new() -> Self {
+    pub async fn new() -> Self { /* ... existing initialization ... */ 
+        // (initialization code remains the same as previous version)
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -102,7 +125,7 @@ impl WgpuPatsagiBridge {
             pipeline,
             bind_group_layout,
             pending_readbacks: HashMap::new(),
-            staging_belt: StagingBelt::new(1024 * 1024), // 1MB staging belt
+            staging_belt: StagingBelt::new(1024 * 1024),
             next_query_id: 1000,
         }
     }
@@ -121,17 +144,23 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
         #[cfg(feature = "gpu")]
         {
             let node_count = request.node_ids.len().max(1) as usize;
-            let buffer_size = (node_count * std::mem::size_of::<f32>()) as wgpu::BufferAddress;
+            let buffer_size = (node_count * std::mem::size_of::<f32>() * 3) as wgpu::BufferAddress; // 3 f32s per node
 
             let storage_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("storage"),
+                label: Some("node_data"),
                 size: buffer_size,
                 usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
 
-            // Use StagingBelt for more efficient uploads
-            let initial_data: Vec<f32> = vec![0.5; node_count];
+            // Prepare structured data (depletion, regen_rate, sustainability)
+            let mut initial_data: Vec<f32> = Vec::with_capacity(node_count * 3);
+            for _ in 0..node_count {
+                initial_data.push(0.4); // depletion
+                initial_data.push(0.015); // regen_rate
+                initial_data.push(0.9); // sustainability
+            }
+
             self.staging_belt.write_buffer(
                 &self.queue,
                 &storage_buffer,
@@ -171,8 +200,6 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
 
             encoder.copy_buffer_to_buffer(&storage_buffer, 0, &readback_buffer, 0, buffer_size);
             self.queue.submit(Some(encoder.finish()));
-
-            // Finish any pending staging belt work
             self.staging_belt.finish();
 
             self.pending_readbacks.insert(self.next_query_id, readback_buffer);
@@ -210,7 +237,7 @@ impl GpuPatsagiBridge for WgpuPatsagiBridge {
                         predicted_depletion: HashMap::new(),
                         sustainability_adjustments: HashMap::new(),
                         confidence: 0.99,
-                        notes: format!("StagingBelt optimized GPU readback ({} values)", result_data.len()),
+                        notes: format!("Richer economic simulation complete ({} values)", result_data.len()),
                     });
                 }
             }
