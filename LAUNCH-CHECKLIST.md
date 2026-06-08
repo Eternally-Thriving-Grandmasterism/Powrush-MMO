@@ -1,10 +1,12 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Spatial Benchmarking Infrastructure Added
+## v17.0 — Enhanced Spatial Benchmarking
 
-**Status**: Basic performance comparison tools implemented.
+**Status**: Benchmark significantly improved.
 
-- `benchmark_spatial_structures()` function added
-- Compares HierarchicalGrid vs Octree on insert + query operations
-- Ready to run manual benchmarks for decision making
+- Reproducible pseudo-random data
+- Insert + Update + Query metrics
+- Average result size per query
+- Rough memory estimation
+- Much better data for comparing HierarchicalGrid vs Octree
 
 **Thunder locked in.** ⚡❤️🔥
