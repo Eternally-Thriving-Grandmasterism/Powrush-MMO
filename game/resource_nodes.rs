@@ -1,14 +1,14 @@
 // game/resource_nodes.rs
-// Powrush-MMO v16.5.12 — RBE Resource Nodes + Deeper GPU PATSAGi Integration
-// Now includes periodic policy application from GPU simulations.
-// All previous harvesting, regeneration, and PATSAGi validation logic preserved.
+// Powrush-MMO v16.5.20 — Resource Nodes with Real GPU Result Integration
+// Now applies actual recommendations coming from the WGPU PATSAGi backend.
+// All prior harvesting and regeneration logic preserved.
 // AG-SML v1.0
 
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 
 use crate::game::rbe::{ServerInventoryComponent, RbeSystem};
-use crate::engine::gpu_patsagi_bridge::{GpuPatsagiBridge, GpuPatsagiRequest, ComputeIntensity};
+use crate::engine::gpu_patsagi_bridge::{GpuPatsagiBridge, GpuPatsagiRequest, GpuPatsagiResponse, ComputeIntensity};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceNode {
@@ -26,23 +26,14 @@ pub struct ResourceNode {
 impl ResourceNode {
     pub fn new(node_id: u64, node_type: &str, position: (f32, f32, f32)) -> Self {
         let base_yield = match node_type {
-            "food" => 2.5,
-            "water" => 3.0,
-            "energy" => 1.8,
-            "minerals" => 1.2,
-            "rare_alloy" => 0.4,
-            _ => 1.0,
+            "food" => 2.5, "water" => 3.0, "energy" => 1.8,
+            "minerals" => 1.2, "rare_alloy" => 0.4, _ => 1.0,
         };
         Self {
-            node_id,
-            node_type: node_type.to_string(),
-            position,
-            base_yield_per_tick: base_yield,
-            current_yield: base_yield,
-            depletion: 0.0,
-            regeneration_rate: 0.015,
-            last_harvested_ms: 0,
-            sustainability_score: 1.0,
+            node_id, node_type: node_type.to_string(), position,
+            base_yield_per_tick: base_yield, current_yield: base_yield,
+            depletion: 0.0, regeneration_rate: 0.015,
+            last_harvested_ms: 0, sustainability_score: 1.0,
         }
     }
 
@@ -62,60 +53,56 @@ pub struct ResourceNodeManager {
 
 impl ResourceNodeManager {
     pub fn new() -> Self {
-        Self {
-            nodes: HashMap::new(),
-            next_node_id: 1000,
-        }
+        Self { nodes: HashMap::new(), next_node_id: 1000 }
     }
 
     pub fn add_node(&mut self, node_type: &str, position: (f32, f32, f32)) -> u64 {
-        let id = self.next_node_id;
-        self.next_node_id += 1;
+        let id = self.next_node_id; self.next_node_id += 1;
         let node = ResourceNode::new(id, node_type, position);
-        self.nodes.insert(id, node);
-        id
+        self.nodes.insert(id, node); id
     }
 
     pub fn tick_regen(&mut self, now_ms: u64) {
-        for node in self.nodes.values_mut() {
-            node.regenerate(now_ms);
-        }
+        for node in self.nodes.values_mut() { node.regenerate(now_ms); }
     }
 
-    pub fn get_node(&self, node_id: u64) -> Option<&ResourceNode> {
-        self.nodes.get(&node_id)
-    }
+    pub fn get_node(&self, node_id: u64) -> Option<&ResourceNode> { self.nodes.get(&node_id) }
+    pub fn get_node_mut(&mut self, node_id: u64) -> Option<&mut ResourceNode> { self.nodes.get_mut(&node_id) }
 
-    pub fn get_node_mut(&mut self, node_id: u64) -> Option<&mut ResourceNode> {
-        self.nodes.get_mut(&node_id)
-    }
+    // === Real GPU Result Integration (v16.5.20) ===
 
-    // === Deeper GPU PATSAGi Integration (v16.5.12) ===
-
-    /// Applies recommendations from a GPU PATSAGi simulation to the node set.
-    /// This is the key integration point for dynamic, foresight-driven economy management.
-    pub fn apply_gpu_policy_update(&mut self, response: &crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse) {
+    /// Applies real recommendations coming from the WGPU PATSAGi backend.
+    pub fn apply_gpu_policy_update(&mut self, response: &GpuPatsagiResponse) {
+        // Apply recommended regeneration rates
         for (node_id, &new_rate) in &response.recommended_regen_rates {
             if let Some(node) = self.nodes.get_mut(node_id) {
                 node.regeneration_rate = new_rate.max(0.001);
             }
         }
 
+        // Apply sustainability adjustments
         for (node_id, &adjustment) in &response.sustainability_adjustments {
             if let Some(node) = self.nodes.get_mut(node_id) {
                 node.sustainability_score = (node.sustainability_score * adjustment).clamp(0.3, 1.0);
             }
         }
+
+        // If GPU returned predicted depletion, we can blend it in
+        for (node_id, &predicted) in &response.predicted_depletion {
+            if let Some(node) = self.nodes.get_mut(node_id) {
+                // Blend predicted depletion with current state (simple approach)
+                node.depletion = (node.depletion * 0.7 + predicted * 0.3).clamp(0.0, 1.0);
+            }
+        }
     }
 
-    /// Periodic hook — call this from server tick (e.g. every 30–60 seconds of game time)
-    pub fn request_and_apply_gpu_update<G: crate::engine::gpu_patsagi_bridge::GpuPatsagiBridge>(
-        &mut self,
-        bridge: &G,
+    /// Requests a GPU simulation and immediately applies the results.
+    pub fn request_and_apply_gpu_update<G: GpuPatsagiBridge>(
+        &mut self, bridge: &G,
     ) -> Result<String, String> {
-        let request = crate::engine::gpu_patsagi_bridge::GpuPatsagiRequest {
-            query: "periodic economy optimization and node health forecast".to_string(),
-            intensity: crate::engine::gpu_patsagi_bridge::ComputeIntensity::Medium,
+        let request = GpuPatsagiRequest {
+            query: "optimize long-term node health and abundance flow".to_string(),
+            intensity: ComputeIntensity::Medium,
             context: HashMap::from([("node_count".to_string(), self.nodes.len() as f32)]),
             node_ids: self.nodes.keys().cloned().collect(),
         };
@@ -123,7 +110,7 @@ impl ResourceNodeManager {
         let response = bridge.run_simulation(request)?;
         self.apply_gpu_policy_update(&response);
 
-        Ok(format!("GPU PATSAGi policy applied (confidence: {:.2})", response.confidence))
+        Ok(format!("GPU PATSAGi recommendations applied (confidence: {:.2})", response.confidence))
     }
 }
 
@@ -139,18 +126,11 @@ impl HarvestingSystem {
         amount_requested: f32,
         now_ms: u64,
     ) -> Result<String, String> {
-        // ... existing harvest logic unchanged for this PR ...
-        let node = manager.get_node_mut(node_id)
-            .ok_or_else(|| "Node not found".to_string())?;
-
-        if node.depletion > 0.92 {
-            return Err("Node critically depleted".to_string());
-        }
+        let node = manager.get_node_mut(node_id).ok_or_else(|| "Node not found".to_string())?;
+        if node.depletion > 0.92 { return Err("Node critically depleted".to_string()); }
 
         let actual_yield = (node.current_yield * amount_requested.min(10.0)).min(node.current_yield * 3.0);
-        if actual_yield <= 0.01 {
-            return Err("Node yield too low".to_string());
-        }
+        if actual_yield <= 0.01 { return Err("Node yield too low".to_string()); }
 
         inventory.add_resource(&node.node_type, actual_yield, now_ms);
         node.depletion = (node.depletion + actual_yield * 0.008).min(1.0);
@@ -160,6 +140,6 @@ impl HarvestingSystem {
         let grace_reward = (actual_yield * 0.8) as u64;
         rbe.add_grace(&player_id.to_string(), grace_reward);
 
-        Ok(format!("Harvest successful (+{:.1} {}) . Grace +{}", actual_yield, node.node_type, grace_reward))
+        Ok(format!("Harvest successful (+{:.1} {}). Grace +{}", actual_yield, node.node_type, grace_reward))
     }
 }
