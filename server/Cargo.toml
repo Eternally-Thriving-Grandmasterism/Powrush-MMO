@@ -1,6 +1,6 @@
 [package]
 name = "powrush-server"
-version = "16.7.5"
+version = "17.0.0"
 edition = "2021"
 
 [dependencies]
@@ -10,5 +10,12 @@ tracing-subscriber = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio-util = { version = "0.7", features = ["rt"] }
-surrealdb = { version = "2", features = ["kv-rocksdb"] }
 shared = { path = "../shared" }
+
+# Professional PostgreSQL persistence (primary for production MMO)
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Optional: keep for dev/testing fallback (can be feature-gated later)
+# surrealdb = { version = "2", features = ["kv-rocksdb"] }  # commented for clean Postgres focus
