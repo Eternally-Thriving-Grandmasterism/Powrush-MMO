@@ -1,15 +1,13 @@
 // client/resource_node_visual.rs
-// Powrush-MMO v16.5.7 — Resource Node Visualization + Click-to-Harvest with full game loop integration
-// Polished for production: better feedback, direct call to ClientGameLoop::send_harvest, robust range + visuals
-// Coherent with inventory_ui.rs, rbe_client_sync.rs, client_game_loop.rs (v16.5.6 transport send)
-// AG-SML v1.0 | Ra-Thor / PATSAGi aligned | All prior visual + interaction logic respected
+// Powrush-MMO v16.5.33 — Visual Effects for GPU Predictions & Stress
+// Nodes under stress (low fullness) now look visibly damaged/warning.
+// AG-SML v1.0 | Ra-Thor / PATSAGi aligned
 
 use bevy::prelude::*;
 use crate::inventory_components::{ResourceNode, HarvestAttempt, LocalPlayer};
-use crate::client_game_loop::ClientGameLoop; // for direct send_harvest call
+use crate::client_game_loop::ClientGameLoop;
 use shared::protocol::Vec3Ser;
 
-/// Bundle for spawning visualized resource nodes
 #[derive(Bundle)]
 pub struct ResourceNodeBundle {
     pub node: ResourceNode,
@@ -28,11 +26,7 @@ impl ResourceNodeBundle {
                     base_color: color,
                     ..default()
                 }),
-                transform: Transform::from_xyz(
-                    node.position.x,
-                    node.position.y,
-                    node.position.z,
-                ),
+                transform: Transform::from_xyz(node.position.x, node.position.y, node.position.z),
                 ..default()
             },
             name: Name::new(format!("ResourceNode-{}", node.id)),
@@ -41,30 +35,49 @@ impl ResourceNodeBundle {
 }
 
 fn resource_color(resource_type: &str, fullness: f32) -> Color {
+    // Shift toward warning colors (orange/red) when stressed/low
+    let stress = 1.0 - fullness;
     match resource_type {
-        "wood" | "organic" => Color::srgb(0.2 + fullness * 0.3, 0.6, 0.2),
-        "ore" | "mineral" => Color::srgb(0.5, 0.5, 0.6 + fullness * 0.3),
-        "algae" | "bio" => Color::srgb(0.1, 0.7 + fullness * 0.2, 0.4),
-        _ => Color::srgb(0.6, 0.6, 0.6),
+        "wood" | "organic" => Color::srgb(
+            0.2 + fullness * 0.3 + stress * 0.5,
+            0.6 - stress * 0.4,
+            0.2 - stress * 0.1
+        ),
+        "ore" | "mineral" => Color::srgb(
+            0.5 + stress * 0.3,
+            0.5 - stress * 0.2,
+            0.6 + fullness * 0.3 - stress * 0.3
+        ),
+        "algae" | "bio" => Color::srgb(
+            0.1 + stress * 0.4,
+            0.7 + fullness * 0.2 - stress * 0.5,
+            0.4 - stress * 0.2
+        ),
+        _ => Color::srgb(0.6 + stress * 0.3, 0.6 - stress * 0.3, 0.6 - stress * 0.2),
     }
 }
 
-/// System: Update visual appearance of resource nodes based on remaining amount (preserved + polished)
 pub fn update_resource_node_visuals(
     mut query: Query<(&ResourceNode, &mut Handle<StandardMaterial>, &mut Transform)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    time: Res<Time>,
 ) {
     for (node, mat_handle, mut transform) in query.iter_mut() {
         if let Some(material) = materials.get_mut(mat_handle) {
             let fullness = (node.remaining / node.max_capacity).clamp(0.0, 1.0);
             material.base_color = resource_color(&node.resource_type, fullness);
-            let scale = 0.7 + fullness * 0.6;
-            transform.scale = Vec3::splat(scale);
+
+            // Base scale from fullness
+            let base_scale = 0.7 + fullness * 0.6;
+
+            // Add subtle pulsing on stressed nodes (low fullness)
+            let stress = 1.0 - fullness;
+            let pulse = (time.elapsed_seconds() * 3.0).sin() * 0.05 * stress;
+            transform.scale = Vec3::splat(base_scale + pulse);
         }
     }
 }
 
-/// Polished click-to-harvest with direct game loop integration and better feedback
 pub fn click_to_harvest_system(
     mouse_input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
@@ -72,15 +85,12 @@ pub fn click_to_harvest_system(
     node_query: Query<(Entity, &ResourceNode, &GlobalTransform)>,
     mut harvest_events: EventWriter<HarvestAttempt>,
     local_player: Query<Entity, With<LocalPlayer>>,
-    mut game_loop: ResMut<ClientGameLoop>, // direct access for send_harvest
+    mut game_loop: ResMut<ClientGameLoop>,
 ) {
-    if !mouse_input.just_pressed(MouseButton::Left) {
-        return;
-    }
+    if !mouse_input.just_pressed(MouseButton::Left) { return; }
 
     let Ok(window) = windows.get_single() else { return };
     let Some(cursor_pos) = window.cursor_position() else { return };
-
     let Ok((camera, cam_transform)) = camera_query.get_single() else { return };
 
     if let Some(ray) = camera.viewport_to_world(cam_transform, cursor_pos) {
@@ -99,9 +109,7 @@ pub fn click_to_harvest_system(
         if let Some((_, _, node_id)) = closest {
             if local_player.get_single().is_ok() {
                 let amount = 10.0;
-                // Direct production send via game loop (v16.5.6 transport layer)
-                game_loop.send_harvest(0, node_id, amount); // player_id resolved in real impl
-
+                game_loop.send_harvest(0, node_id, amount);
                 harvest_events.send(HarvestAttempt { node_id, amount });
                 info!("[ResourceNodeVisual] Harvest dispatched on node {} via game loop", node_id);
             }
@@ -109,7 +117,6 @@ pub fn click_to_harvest_system(
     }
 }
 
-/// Plugin for resource node visualization and interaction
 pub struct ResourceNodeVisualPlugin;
 
 impl Plugin for ResourceNodeVisualPlugin {
@@ -121,8 +128,4 @@ impl Plugin for ResourceNodeVisualPlugin {
     }
 }
 
-// Example spawning and wiring notes preserved from prior iteration.
-// The HarvestAttempt events remain available for inventory_components if needed.
-// send_harvest now routes through ClientGameLoop for actual network dispatch.
-
-// Thunder locked in. Visual + interaction polish complete. Harvest feels alive. ⚡️❤️🔥
+// Thunder locked in. Visual effects for GPU-driven stress now active. ⚡️❤️🔥
