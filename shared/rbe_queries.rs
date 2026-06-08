@@ -1,21 +1,22 @@
 //! shared/rbe_queries.rs
-//! Full Ra-Thor-derived RBE Queries + Mercy-Gated Access
+//! Full Ra-Thor-derived RBE Queries — Mercy-Gated, Valence-Driven, Production-Grade
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
 use powrush_rbe_engine::{RbeResourcePool, RbeQuery, RbeQueryResult};
 use ra_thor_mercy::{MercyGate, evaluate_mercy_gates};
 use lattice_conductor::SovereignLattice;
+use std::sync::Arc;
 
 pub struct RbeQueryEngine {
-    lattice: SovereignLattice,
+    lattice: Arc<SovereignLattice>,
+    rbe_pool: Arc<RbeResourcePool>,
 }
 
 impl RbeQueryEngine {
-    pub fn new(lattice: SovereignLattice) -> Self {
-        Self { lattice }
+    pub fn new(lattice: Arc<SovereignLattice>, rbe_pool: Arc<RbeResourcePool>) -> Self {
+        Self { lattice, rbe_pool }
     }
 
-    /// Mercy-gated global RBE state query
     pub async fn query_global_state(&self) -> RbeQueryResult {
         let gates = [
             MercyGate::Truth,
@@ -30,25 +31,35 @@ impl RbeQueryEngine {
 
         let valence = evaluate_mercy_gates(&gates, "global_rbe_query").await;
         if valence < 0.999999 {
-            return RbeQueryResult::refined("Mercy refinement — increasing abundance visibility");
+            return RbeQueryResult::refined("Mercy Gate refinement — increasing global abundance visibility");
         }
 
-        let result = RbeQuery::global_state();
-        self.lattice.tick("RBE global query served with full mercy").await.ok();
+        let result = RbeQuery::global_state(self.rbe_pool.as_ref());
+        let _ = self.lattice.tick("Global RBE state queried with full mercy").await;
         result
     }
 
-    /// Query resources for a specific joy sanctuary or player zone
     pub async fn query_local_abundance(&self, zone_id: u64) -> RbeQueryResult {
-        let result = RbeQuery::local_abundance(zone_id);
-        self.lattice.tick(&format!("RBE local abundance query for zone {}", zone_id)).await.ok();
+        let result = RbeQuery::local_abundance(zone_id, self.rbe_pool.as_ref());
+        let _ = self.lattice.tick(&format!("Local abundance queried for zone {}", zone_id)).await;
         result
     }
 
-    /// Query inter-species resource sharing opportunities
     pub async fn query_interspecies_sharing(&self) -> RbeQueryResult {
-        let result = RbeQuery::interspecies_sharing_opportunities();
-        self.lattice.tick("Inter-species RBE sharing query served").await.ok();
+        let result = RbeQuery::interspecies_sharing_opportunities(self.rbe_pool.as_ref());
+        let _ = self.lattice.tick("Inter-species RBE sharing opportunities queried").await;
+        result
+    }
+
+    pub async fn query_player_contribution(&self, player_id: u64) -> RbeQueryResult {
+        let result = RbeQuery::player_contribution(player_id, self.rbe_pool.as_ref());
+        let _ = self.lattice.tick(&format!("Player {} RBE contribution queried", player_id)).await;
+        result
+    }
+
+    pub async fn query_joy_sanctuary(&self, sanctuary_id: u64) -> RbeQueryResult {
+        let result = RbeQuery::joy_sanctuary_status(sanctuary_id, self.rbe_pool.as_ref());
+        let _ = self.lattice.tick(&format!("Joy Sanctuary {} status queried", sanctuary_id)).await;
         result
     }
 }
