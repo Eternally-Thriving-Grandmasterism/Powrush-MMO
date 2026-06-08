@@ -11,6 +11,7 @@ mod ra_thor_mercy_bridge;
 mod trade_system;
 mod persistence;
 mod player_account;
+mod steam_integration;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -23,6 +24,7 @@ use crate::ra_thor_mercy_bridge::RaThorMercyBridge;
 use crate::persistence::PersistenceManager;
 use crate::trade_system::TradeSystem;
 use crate::player_account::AccountSystem;
+use crate::steam_integration::SteamManager;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut harvesting_system = HarvestingSystem::new();
     let mut trade_system = TradeSystem::new().await;
     let mut account_system = AccountSystem::new();
+    let mut steam_manager = SteamManager::new();
 
     let (mut transport, mut event_rx, command_tx) = network::TokioTransport::new("0.0.0.0:9001").await?;
     tokio::spawn(async move { transport.run().await; });
@@ -64,6 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     network::TransportEvent::ClientConnected { info } => {
                         info!("Player {} connected", info.player_id);
 
+                        // Default account creation (can be overridden by SteamAuth message)
                         let account_id = account_system.get_or_create_account(info.player_name.clone());
                         let _ = account_system.create_session(account_id, info.player_id);
 
@@ -81,12 +85,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     network::TransportEvent::ClientDisconnected { player_id } => {
-                        info!("Player {} disconnected", player_id);
-
                         if let Some(session) = account_system.get_session(player_id) {
                             let _ = persistence.save_inventory(player_id, &session.inventory).await;
                         }
-
                         account_system.remove_session(player_id);
                         players.remove(&player_id);
                     }
@@ -101,54 +102,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 // harvest logic
                             }
 
-                            ClientMessage::TradeInitiate { offer } => {
-                                if let Ok(trade_id) = trade_system.initiate_trade(
-                                    offer.from_player, offer.to_player, offer.offered.clone(), offer.requested.clone()
+                            // === Full Steam Authentication Handler ===
+                            // Client should send this after connecting with Steam ticket + SteamID
+                            ClientMessage::SteamAuth { steam_id, ticket } => {
+                                match steam_manager.authenticate_steam_player(
+                                    steam_id,
+                                    &ticket,
+                                    &mut account_system,
                                 ).await {
-                                    let _ = command_tx.send(network::TransportCommand::Send {
-                                        player_id,
-                                        message: ServerMessage::TradeRequestReceived { offer },
-                                    });
-                                }
-                            }
-
-                            ClientMessage::TradeAccept { trade_id } => {
-                                // Clean integration - use PlayerSession as source of truth
-                                if let Some(trade) = trade_system.active_trades.get(&trade_id).cloned() {
-                                    if trade.target_id == player_id && trade.status == "pending" {
-                                        if let (Some(offeror_session), Some(target_session)) = (
-                                            account_system.get_session_mut(trade.offeror_id),
-                                            account_system.get_session_mut(player_id),
-                                        ) {
-                                            match trade_system.accept_trade_atomic(
-                                                trade_id, player_id, &mut offeror_session.inventory, &mut target_session.inventory
-                                            ).await {
-                                                Ok(()) => {
-                                                    let _ = command_tx.send(network::TransportCommand::Send {
-                                                        player_id,
-                                                        message: ServerMessage::TradeCompleted {
-                                                            trade_id,
-                                                            from: trade.offeror_id,
-                                                            to: trade.target_id,
-                                                            final_state: "accepted".to_string(),
-                                                            grace_awarded: 0,
-                                                        },
-                                                    });
-                                                }
-                                                Err(e) => {
-                                                    let _ = command_tx.send(network::TransportCommand::Send {
-                                                        player_id,
-                                                        message: ServerMessage::Error { message: e },
-                                                    });
-                                                }
-                                            }
+                                    Ok(account_id) => {
+                                        // Create or update session for this player
+                                        if account_system.get_session(player_id).is_none() {
+                                            let _ = account_system.create_session(account_id, player_id);
                                         }
+
+                                        // Load inventory into session
+                                        let loaded_inventory = match persistence.load_inventory(player_id).await {
+                                            Ok(inv) => inv,
+                                            Err(_) => ServerInventoryComponent::default(),
+                                        };
+
+                                        if let Some(session) = account_system.get_session_mut(player_id) {
+                                            session.inventory = loaded_inventory;
+                                        }
+
+                                        info!("Player {} authenticated via Steam (AccountID: {})", player_id, account_id);
+
+                                        let _ = command_tx.send(network::TransportCommand::Send {
+                                            player_id,
+                                            message: ServerMessage::SteamAuthSuccess { account_id },
+                                        });
+                                    }
+                                    Err(e) => {
+                                        warn!("Steam authentication failed for player {}: {}", player_id, e);
+                                        let _ = command_tx.send(network::TransportCommand::Send {
+                                            player_id,
+                                            message: ServerMessage::Error { message: format!("Steam auth failed: {}", e) },
+                                        });
                                     }
                                 }
-                            }
-
-                            ClientMessage::TradeCancel { trade_id } => {
-                                let _ = trade_system.reject_trade(trade_id, player_id).await;
                             }
 
                             _ => {}

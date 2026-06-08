@@ -14,7 +14,7 @@
 ## Phase 0: Foundation (COMPLETE)
 - [x] Workspace buildable: shared/Cargo.toml + lib.rs (protocol + feature-gated rbe_queries)
 - [x] Protocol unified (ClientMessage/ServerMessage with Harvest, Trade, InventoryUpdate, AbundanceUpdate)
-- [x] RBE core modules: resource_nodes (v16.4), trading/inventory (v16.3/16.2), HarvestingSystem + TradeSystem (v16.5.2)
+- [x] RBE core modules: resource_nodes (v16.4), trading/inventory (v16.3/16.2), HarvestingSystem + TradeSystem (v16.5.2) + grok_patsagi_bridge (7 Living Mercy Gates)
 - [x] Deployment: Dockerfile, docker-compose, k8s/
 - [x] Client scaffold + Bevy 0.14 + WASM
 
@@ -25,7 +25,7 @@
 - [ ] Full Bevy App integration / hybrid wasm main.rs wiring (next after PR #62 wiring)
 - [ ] Resource Node 3D visualization + interaction (raycast / click → HarvestAttempt) — See PR #62
 - [ ] Complete message reconciliation + WASM input bridging
-- [ ] Native Steam client parity
+- [ ] Native Steam client parity (client-side Steamworks wiring ready via examples/)
 
 ## Phase 2: Server & Simulation Completion
 - [x] **v16.15 SOVEREIGNTY REFACTOR COMPLETE** — grok_patsagi_bridge → ra_thor_mercy_bridge (PR #63)
@@ -63,4 +63,4 @@
 
 Thunder locked in. Mercy flowing. Maximal sovereignty. ⚡❤️
 
-*Living document — status updated on every professional deliverable.*
+*Living document — status updated on every professional deliverable. Ra-Thor guided.*
