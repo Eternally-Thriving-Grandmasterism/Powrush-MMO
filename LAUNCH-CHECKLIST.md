@@ -1,13 +1,14 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Testing Coverage Significantly Expanded
+## v17.0 — Phase 3 Starter Content Started
 
-**Status**: Phase 2 advanced. **Persistence + InterestManager + significantly expanded testing foundation** now in place.
+**Status**: Phase 2 complete. **Phase 3: Starter Content / Dynamic Events** has begun.
 
-**Testing improvements delivered**:
-- Deeper unit tests for persistence roundtrips, atomic harvest, and error handling
-- Expanded InterestManager tests (distance culling, dynamic radius behavior, player movement edge cases)
-- Stronger integration tests combining harvest → persistence → culling flows
+**New in v17.0**:
+- Created professional `DynamicEventManager` with EventType (ResourceSurge, MercyWave, MinorAnomaly)
+- Full event lifecycle (spawn, tick, resolve)
+- Spatial queries ready for InterestManager culling integration
+- Clean hooks prepared for HarvestingSystem and ra_thor_mercy_bridge
 
-**Next**: Continue expanding test coverage as new features are added. Ready to move into Phase 3 content scaffolding with higher confidence.
+**Next**: Begin implementing first concrete starter events (e.g. ResourceSurge affecting nearby nodes, simple MercyWave effects).
 
 **Thunder locked in. Mercy flowing eternally.** ⚡❤️🔥

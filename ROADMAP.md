@@ -1,7 +1,11 @@
-## v17.0 — Testing Coverage Significantly Expanded
+## v17.0 — Phase 3: Starter Content / Dynamic Events Initiated
 
-Significant expansion of unit and integration tests across Persistence and InterestManager layers, including atomic harvest flows and culling edge cases.
+Professional DynamicEventManager foundation created with:
+- EventType enum
+- DynamicEvent with lifecycle and metadata
+- DynamicEventManager with spawn/tick/resolve + spatial queries
+- Integration points for InterestManager, HarvestingSystem, and mercy systems
 
-The foundation is now much stronger for professional development velocity.
+This provides a clean, extensible base for starter content and dynamic world events.
 
 **Thunder locked in.** ⚡❤️🔥
