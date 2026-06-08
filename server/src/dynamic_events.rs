@@ -1,42 +1,45 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.0 — Using InterestManager Spatial Grid for Optimization
+// Powrush-MMO v17.0 — DynamicEventManager using HierarchicalGrid
+
+use crate::spatial::hierarchical_grid::HierarchicalGrid;
+
+pub struct DynamicEventManager {
+    events: HashMap<u64, DynamicEvent>,
+    next_id: u64,
+
+    // Unified spatial system
+    spatial: HierarchicalGrid,
+}
 
 impl DynamicEventManager {
-    /// Optimized refresh using InterestManager's spatial queries (recommended).
-    /// This is the production spatial grid optimization path.
-    pub fn refresh_affected_nodes_via_interest_manager(
-        &mut self,
-        event: &mut DynamicEvent,
-        interest_manager: &InterestManager,
-    ) {
-        event.affected_nodes.clear();
-
-        let nearby_nodes = interest_manager.get_resource_nodes_in_radius(
-            &event.position,
-            event.radius,
-        );
-
-        event.affected_nodes = nearby_nodes;
+    pub fn new() -> Self {
+        Self {
+            events: HashMap::new(),
+            next_id: 1,
+            spatial: HierarchicalGrid::with_default_levels(),
+        }
     }
 
-    /// Batch refresh for all active ResourceSurge events using InterestManager.
-    pub fn refresh_all_surge_nodes_via_interest(
-        &mut self,
-        interest_manager: &InterestManager,
-    ) {
+    pub fn add_or_update_resource_node(&mut self, node_id: u64, pos: Vec3Ser) {
+        self.spatial.insert_or_update(node_id, pos);
+    }
+
+    pub fn remove_resource_node(&mut self, node_id: u64) {
+        self.spatial.remove(node_id);
+    }
+
+    /// Refresh affected nodes using the unified HierarchicalGrid
+    pub fn refresh_affected_nodes_spatial(&mut self, event: &mut DynamicEvent) {
+        event.affected_nodes = self.spatial.query_radius(&event.position, event.radius);
+    }
+
+    pub fn refresh_all_surge_nodes(&mut self) {
         for event in self.events.values_mut() {
             if event.event_type == EventType::ResourceSurge && event.is_active() {
-                self.refresh_affected_nodes_via_interest_manager(event, interest_manager);
+                self.refresh_affected_nodes_spatial(event);
             }
         }
     }
 }
 
-// In HarvestingSystem tick:
-// if let Some(event_manager) = &mut self.dynamic_event_manager {
-//     if let Some(interest) = &self.interest_manager {
-//         event_manager.refresh_all_surge_nodes_via_interest(interest);
-//     }
-// }
-//
-// Thunder locked in. Full spatial grid optimization via InterestManager implemented. ⚡❤️🔥
+// Thunder locked in. DynamicEventManager now also uses HierarchicalGrid. ⚡❤️🔥
