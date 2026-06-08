@@ -1,54 +1,49 @@
 // server/src/interest_management.rs
-// Powrush-MMO v17.0 — Spatial Grid Optimization & Query API
+// Powrush-MMO v17.0 — InterestManager using HierarchicalGrid
+
+use crate::spatial::hierarchical_grid::HierarchicalGrid;
+use shared::protocol::Vec3Ser;
+
+pub struct InterestManager {
+    // New hierarchical spatial system
+    spatial: HierarchicalGrid,
+
+    // Keep some legacy fields during transition if needed
+    player_positions: HashMap<u64, Vec3Ser>,
+    player_velocities: HashMap<u64, Vec3Ser>,
+}
 
 impl InterestManager {
-    /// General spatial query: returns player IDs within a radius.
-    /// This can be extended for other entity types.
-    pub fn get_players_in_radius(&self, position: &Vec3Ser, radius: f32) -> Vec<u64> {
-        let mut result = Vec::new();
-        let center_cell = self.pos_to_cell(position);
-        let radius_sq = radius * radius;
-
-        for dx in -2..=2 {
-            for dz in -2..=2 {
-                let cell_key = (center_cell.0 + dx, center_cell.1 + dz);
-                if let Some(cell) = self.grid.get(&cell_key) {
-                    for &player_id in &cell.players {
-                        if let Some(player_pos) = self.player_positions.get(&player_id) {
-                            let dx = player_pos.x - position.x;
-                            let dy = player_pos.y - position.y;
-                            let dz = player_pos.z - position.z;
-                            if (dx*dx + dy*dy + dz*dz) <= radius_sq {
-                                result.push(player_id);
-                            }
-                        }
-                    }
-                }
-            }
+    pub fn new() -> Self {
+        Self {
+            spatial: HierarchicalGrid::with_default_levels(),
+            player_positions: HashMap::new(),
+            player_velocities: HashMap::new(),
         }
-        result
     }
 
-    /// Returns resource node IDs near a position using spatial awareness.
-    pub fn get_resource_nodes_in_radius(
-        &self,
-        position: &Vec3Ser,
-        radius: f32,
-    ) -> Vec<u64> {
-        let mut result = Vec::new();
-        let radius_sq = radius * radius;
+    pub fn update_player_position(&mut self, player_id: u64, pos: Vec3Ser) {
+        self.player_positions.insert(player_id, pos);
+        self.spatial.insert_or_update(player_id, pos);
+    }
 
-        for (&node_id, (node_pos, _)) in &self.resource_nodes {
-            let dx = node_pos.x - position.x;
-            let dy = node_pos.y - position.y;
-            let dz = node_pos.z - position.z;
+    pub fn update_player_velocity(&mut self, player_id: u64, vel: Vec3Ser) {
+        self.player_velocities.insert(player_id, vel);
+    }
 
-            if (dx*dx + dy*dy + dz*dz) <= radius_sq {
-                result.push(node_id);
-            }
-        }
-        result
+    /// Optimized radius query using HierarchicalGrid
+    pub fn get_players_in_radius(&self, position: &Vec3Ser, radius: f32) -> Vec<u64> {
+        self.spatial.query_radius(position, radius)
+    }
+
+    // Resource node methods can also delegate to spatial if desired
+    pub fn add_or_update_resource_node(&mut self, node_id: u64, pos: Vec3Ser, _update: ResourceUpdate) {
+        self.spatial.insert_or_update(node_id, pos);
+    }
+
+    pub fn get_resource_nodes_in_radius(&self, position: &Vec3Ser, radius: f32) -> Vec<u64> {
+        self.spatial.query_radius(position, radius)
     }
 }
 
-// Thunder locked in. InterestManager now has optimized spatial query methods. ⚡❤️🔥
+// Thunder locked in. InterestManager now powered by HierarchicalGrid. ⚡❤️🔥
