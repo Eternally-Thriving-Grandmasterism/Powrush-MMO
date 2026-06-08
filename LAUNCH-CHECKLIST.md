@@ -1,12 +1,10 @@
 # Powrush-MMO Global Professional Release Launch Checklist
-## v17.0 — Enhanced Spatial Benchmarking
+## v17.0 — HierarchicalGrid Integrated into InterestManager
 
-**Status**: Benchmark significantly improved.
+**Status**: Major architectural upgrade completed.
 
-- Reproducible pseudo-random data
-- Insert + Update + Query metrics
-- Average result size per query
-- Rough memory estimation
-- Much better data for comparing HierarchicalGrid vs Octree
+- InterestManager now uses HierarchicalGrid for spatial queries
+- Player and resource node proximity is now powered by multi-level grid
+- Better performance under varying density
 
 **Thunder locked in.** ⚡❤️🔥
