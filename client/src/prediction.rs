@@ -1,7 +1,7 @@
 // client/src/prediction.rs
-// Powrush-MMO v17.96 — Phase 4: Smoothing & Error Correction
+// Powrush-MMO v17.98 — Debug & Visualization Tools
 //
-// Adds smooth interpolation after rollback corrections to avoid hard snaps.
+// Adds visual debugging for predicted vs authoritative state and rollback events.
 
 use bevy::prelude::*;
 use std::collections::VecDeque;
@@ -64,7 +64,6 @@ pub struct PredictedAbility {
     pub max_cooldown: f32,
 }
 
-// Stores pending smooth correction after rollback
 #[derive(Component, Default)]
 pub struct PositionCorrection {
     pub target_position: Vec3,
@@ -73,50 +72,32 @@ pub struct PositionCorrection {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// PHASE 4: SMOOTHING & ERROR CORRECTION
+// DEBUG & VISUALIZATION
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Applies smooth correction after rollback (prevents hard snapping)
-pub fn apply_smooth_correction(
-    mut query: Query<(&mut PredictedPosition, &mut Transform, &mut PositionCorrection)>,
-    time: Res<Time>,
+/// Visual debug for predicted vs authoritative state
+pub fn debug_prediction_gizmos(
+    mut gizmos: Gizmos,
+    query: Query<(&PredictedPosition, &PositionCorrection, &Transform)>,
 ) {
-    let delta = time.delta_seconds();
+    for (predicted, correction, transform) in query.iter() {
+        // Draw predicted position (cyan sphere)
+        gizmos.sphere(transform.translation, Quat::IDENTITY, 0.4, Color::srgb(0.0, 1.0, 1.0));
 
-    for (mut predicted, mut transform, mut correction) in query.iter_mut() {
+        // If currently correcting, draw target (authoritative) position in yellow
         if correction.remaining_time > 0.0 {
-            correction.remaining_time -= delta;
-
-            let t = 1.0 - (correction.remaining_time / correction.total_time).clamp(0.0, 1.0);
-
-            // Lerp toward the target (corrected) position
-            let new_pos = predicted.position.lerp(correction.target_position, t);
-            predicted.position = new_pos;
-            transform.translation = new_pos;
-
-            if correction.remaining_time <= 0.0 {
-                // Snap exactly at the end to avoid floating point drift
-                predicted.position = correction.target_position;
-                transform.translation = correction.target_position;
-            }
+            gizmos.sphere(correction.target_position, Quat::IDENTITY, 0.35, Color::srgb(1.0, 1.0, 0.0));
+            gizmos.line(transform.translation, correction.target_position, Color::srgb(1.0, 0.5, 0.0));
         }
     }
 }
 
-/// Call this after rollback_and_resimulate to start a smooth correction
-pub fn start_position_correction(
-    mut query: Query<(&mut PredictedPosition, &mut PositionCorrection)>,
-    // authoritative_position: Vec3, // from server
+/// Logs rollback events (useful during development)
+pub fn log_rollback_events(
+    rollback_state: Res<RollbackState>,
 ) {
-    for (predicted, mut correction) in query.iter_mut() {
-        // In real usage, authoritative_position would come from server update
-        let authoritative_position = predicted.position; // placeholder
-
-        if (predicted.position - authoritative_position).length() > 0.1 {
-            correction.target_position = authoritative_position;
-            correction.total_time = 0.15; // 150ms smooth correction
-            correction.remaining_time = correction.total_time;
-        }
+    if rollback_state.needs_rollback {
+        println!("[Debug] Rollback triggered at tick {}", rollback_state.predicted_tick);
     }
 }
 
@@ -137,6 +118,8 @@ impl Plugin for PredictionPlugin {
                 predict_ability_locally,
                 rollback_and_resimulate,
                 apply_smooth_correction,
+                debug_prediction_gizmos,
+                log_rollback_events,
             ));
     }
 }
