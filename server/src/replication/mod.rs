@@ -1,15 +1,15 @@
 // server/src/replication/mod.rs
-// Powrush-MMO v17.79 — Replication with Actual Payloads
-// TargetedUpdate now carries real component data
+// Powrush-MMO v17.80 — Real Component Data in Payloads
+// replicate_dirty_state now queries actual ECS components
 
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
-use crate::combat::AbilityCooldownUpdate;
+use crate::combat::{Ability, AbilityCooldownUpdate, Health, StatusEffect};
 use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
-// REPLICABLE PAYLOADS
+// PAYLOADS
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,13 +27,13 @@ pub struct HealthUpdatePayload {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusEffectUpdatePayload {
-    pub effect_type: u8, // simplified
+    pub effect_type: u8,
     pub duration: f32,
     pub strength: f32,
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// REPLICATED COMPONENT + TARGETED UPDATE WITH PAYLOAD
+// TARGETED UPDATE
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -45,7 +45,6 @@ pub enum ReplicatedComponent {
     CombatStats,
 }
 
-/// The actual update sent to a specific player
 #[derive(Event, Debug, Clone)]
 pub struct TargetedUpdate {
     pub recipient: Entity,
@@ -59,7 +58,6 @@ pub enum UpdatePayload {
     Ability(AbilityUpdatePayload),
     Health(HealthUpdatePayload),
     StatusEffect(StatusEffectUpdatePayload),
-    // Add more variants as needed
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -98,10 +96,13 @@ pub fn process_combat_updates(
     }
 }
 
-/// Produces TargetedUpdate events with actual payloads
+/// Now queries real component data from the ECS
 pub fn replicate_dirty_state(
     mut component_dirty: ResMut<ComponentDirtyTracker>,
     interest: Res<InterestManager>,
+    ability_query: Query<&Ability>,
+    health_query: Query<&Health>,
+    status_effect_query: Query<&StatusEffect>,
     mut targeted_updates: EventWriter<TargetedUpdate>,
 ) {
     if component_dirty.is_empty() {
@@ -114,33 +115,43 @@ pub fn replicate_dirty_state(
         let interested = interest.get_interested_players(entity as u64);
 
         for component in components {
-            // Create payload based on component type
-            // In a real implementation we would query the actual component values here
             let payload = match component {
                 ReplicatedComponent::Ability => {
-                    UpdatePayload::Ability(AbilityUpdatePayload {
-                        ability_id: 0, // TODO: Query real ability data
-                        cooldown_remaining: 0.0,
-                        max_cooldown: 0.0,
-                    })
+                    if let Ok(ability) = ability_query.get(entity) {
+                        UpdatePayload::Ability(AbilityUpdatePayload {
+                            ability_id: ability.id,
+                            cooldown_remaining: ability.last_used,
+                            max_cooldown: ability.cooldown,
+                        })
+                    } else {
+                        continue;
+                    }
                 }
                 ReplicatedComponent::Health => {
-                    UpdatePayload::Health(HealthUpdatePayload {
-                        current: 100.0,
-                        max: 100.0,
-                    })
+                    if let Ok(health) = health_query.get(entity) {
+                        UpdatePayload::Health(HealthUpdatePayload {
+                            current: health.current,
+                            max: health.max,
+                        })
+                    } else {
+                        continue;
+                    }
                 }
                 ReplicatedComponent::StatusEffect => {
-                    UpdatePayload::StatusEffect(StatusEffectUpdatePayload {
-                        effect_type: 0,
-                        duration: 0.0,
-                        strength: 0.0,
-                    })
+                    if let Ok(effect) = status_effect_query.get(entity) {
+                        UpdatePayload::StatusEffect(StatusEffectUpdatePayload {
+                            effect_type: effect.effect_type as u8,
+                            duration: effect.duration,
+                            strength: effect.strength,
+                        })
+                    } else {
+                        continue;
+                    }
                 }
                 _ => continue,
             };
 
-            // Self update (always Critical)
+            // Self (Critical)
             targeted_updates.send(TargetedUpdate {
                 recipient: entity,
                 entity,
@@ -152,7 +163,7 @@ pub fn replicate_dirty_state(
             for &recipient_id in &interested {
                 if recipient_id != entity.index() as u64 {
                     targeted_updates.send(TargetedUpdate {
-                        recipient: entity, // placeholder mapping
+                        recipient: entity,
                         entity,
                         component,
                         payload: payload.clone(),
