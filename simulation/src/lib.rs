@@ -16,6 +16,8 @@ pub mod archetype;
 pub mod mercy;
 pub mod economy;
 pub mod orchestrator;
+pub mod telemetry;
+pub mod scenario;
 
 // Re-exports for convenience
 pub use world::SovereignWorldState;
@@ -23,3 +25,5 @@ pub use archetype::{Archetype, SovereignArchetypeSystem};
 pub use mercy::{MercyGate, PATSAGiCouncilSim};
 pub use economy::EconomicLayer;
 pub use orchestrator::SovereignSimulationOrchestrator;
+pub use telemetry::TelemetryCollector;
+pub use scenario::{ScenarioConfig, ScenarioPreset};
