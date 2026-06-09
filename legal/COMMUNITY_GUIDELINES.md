@@ -56,7 +56,7 @@ Moderation in Powrush-MMO is **compassionate, transparent, and restorative** whe
 3. **Temporary Restriction**: Short cooldown from certain systems or chat for repeated issues.
 4. **Extended Suspension or Permanent Action**: For severe, repeated, or unrepentant violations of the strict prohibitions (deception of staff, real-world harm, illegal activity, simulation-breaking cheats). These are rare and always reviewed with full PATSAGi oversight and mercy.
 
-Players may appeal moderation decisions through the in-game PATSAGi Council reporting channel or by emailing legal@autonomicity.games. Appeals are handled with truth-seeking and compassion.
+Players may appeal moderation decisions through the in-game PATSAGi Council reporting channel or by emailing INFO@ACITYGAMES.COM with details. Appeals are handled with truth-seeking and compassion.
 
 ## 6. Reporting & PATSAGi Support
 
@@ -89,7 +89,7 @@ These guidelines are living documents. We welcome player feedback through offici
 ## 10. Contact & Appeals
 
 **Autonomicity Games Inc.**  
-legal@autonomicity.games  
+INFO@ACITYGAMES.COM  
 In-game: PATSAGi Council reporting channel (mercy-gated)
 
 We respond with compassion, clarity, and commitment to the 7 Living Mercy Gates and the integrity of the RBE experience.
