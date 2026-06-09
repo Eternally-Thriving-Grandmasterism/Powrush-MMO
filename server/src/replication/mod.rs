@@ -1,6 +1,6 @@
 // server/src/replication/mod.rs
-// Powrush-MMO v17.80 — Real Component Data in Payloads
-// replicate_dirty_state now queries actual ECS components
+// Powrush-MMO v17.81 — Batching of Targeted Updates
+// Multiple component updates for the same recipient are now batched together
 
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -9,41 +9,18 @@ use crate::combat::{Ability, AbilityCooldownUpdate, Health, StatusEffect};
 use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
-// PAYLOADS
+// PAYLOADS + TARGETED UPDATE
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AbilityUpdatePayload {
-    pub ability_id: u32,
-    pub cooldown_remaining: f32,
-    pub max_cooldown: f32,
-}
-
+pub struct AbilityUpdatePayload { pub ability_id: u32, pub cooldown_remaining: f32, pub max_cooldown: f32 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HealthUpdatePayload {
-    pub current: f32,
-    pub max: f32,
-}
-
+pub struct HealthUpdatePayload { pub current: f32, pub max: f32 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StatusEffectUpdatePayload {
-    pub effect_type: u8,
-    pub duration: f32,
-    pub strength: f32,
-}
-
-// ═════════════════════════════════════════════════════════════════════════
-// TARGETED UPDATE
-// ═════════════════════════════════════════════════════════════════════════
+pub struct StatusEffectUpdatePayload { pub effect_type: u8, pub duration: f32, pub strength: f32 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ReplicatedComponent {
-    Ability,
-    Health,
-    StatusEffect,
-    Position,
-    CombatStats,
-}
+pub enum ReplicatedComponent { Ability, Health, StatusEffect, Position, CombatStats }
 
 #[derive(Event, Debug, Clone)]
 pub struct TargetedUpdate {
@@ -58,6 +35,33 @@ pub enum UpdatePayload {
     Ability(AbilityUpdatePayload),
     Health(HealthUpdatePayload),
     StatusEffect(StatusEffectUpdatePayload),
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// BATCHING
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Collects all TargetedUpdates for a single recipient in one frame
+#[derive(Debug, Clone)]
+pub struct BatchedUpdates {
+    pub recipient: Entity,
+    pub updates: Vec<TargetedUpdate>,
+}
+
+/// Resource that holds batched updates ready for the networking layer
+#[derive(Resource, Default)]
+pub struct ReplicationBatcher {
+    pub batches: HashMap<Entity, Vec<TargetedUpdate>>,
+}
+
+impl ReplicationBatcher {
+    pub fn add_update(&mut self, update: TargetedUpdate) {
+        self.batches.entry(update.recipient).or_default().push(update);
+    }
+
+    pub fn drain_batches(&mut self) -> HashMap<Entity, Vec<TargetedUpdate>> {
+        std::mem::take(&mut self.batches)
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -96,7 +100,6 @@ pub fn process_combat_updates(
     }
 }
 
-/// Now queries real component data from the ECS
 pub fn replicate_dirty_state(
     mut component_dirty: ResMut<ComponentDirtyTracker>,
     interest: Res<InterestManager>,
@@ -123,19 +126,12 @@ pub fn replicate_dirty_state(
                             cooldown_remaining: ability.last_used,
                             max_cooldown: ability.cooldown,
                         })
-                    } else {
-                        continue;
-                    }
+                    } else { continue; }
                 }
                 ReplicatedComponent::Health => {
                     if let Ok(health) = health_query.get(entity) {
-                        UpdatePayload::Health(HealthUpdatePayload {
-                            current: health.current,
-                            max: health.max,
-                        })
-                    } else {
-                        continue;
-                    }
+                        UpdatePayload::Health(HealthUpdatePayload { current: health.current, max: health.max })
+                    } else { continue; }
                 }
                 ReplicatedComponent::StatusEffect => {
                     if let Ok(effect) = status_effect_query.get(entity) {
@@ -144,14 +140,11 @@ pub fn replicate_dirty_state(
                             duration: effect.duration,
                             strength: effect.strength,
                         })
-                    } else {
-                        continue;
-                    }
+                    } else { continue; }
                 }
                 _ => continue,
             };
 
-            // Self (Critical)
             targeted_updates.send(TargetedUpdate {
                 recipient: entity,
                 entity,
@@ -159,7 +152,6 @@ pub fn replicate_dirty_state(
                 payload: payload.clone(),
             });
 
-            // Interested players
             for &recipient_id in &interested {
                 if recipient_id != entity.index() as u64 {
                     targeted_updates.send(TargetedUpdate {
@@ -174,6 +166,16 @@ pub fn replicate_dirty_state(
     }
 }
 
+/// Batches all TargetedUpdates emitted this frame into per-recipient groups
+pub fn batch_targeted_updates(
+    mut ev_targeted: EventReader<TargetedUpdate>,
+    mut batcher: ResMut<ReplicationBatcher>,
+) {
+    for update in ev_targeted.read() {
+        batcher.add_update(update.clone());
+    }
+}
+
 // ═════════════════════════════════════════════════════════════════════════
 // PLUGIN
 // ═════════════════════════════════════════════════════════════════════════
@@ -184,10 +186,12 @@ impl Plugin for ReplicationPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<ComponentDirtyTracker>()
+            .init_resource::<ReplicationBatcher>()
             .add_event::<TargetedUpdate>()
             .add_systems(Update, (
                 process_combat_updates,
                 replicate_dirty_state,
+                batch_targeted_updates,
             ));
     }
 }
