@@ -86,7 +86,7 @@ You have the right to:
 - Opt-out of non-essential telemetry (while still enjoying core gameplay)
 - Withdraw consent at any time (subject to service limitations)
 
-To exercise these rights, contact us at **legal@autonomicity.games** or use the in-game PATSAGi reporting channel.
+To exercise these rights, contact us at **INFO@ACITYGAMES.COM** or use the in-game PATSAGi reporting channel.
 
 ## 7. Security
 
@@ -105,7 +105,7 @@ We may update this Privacy Policy to reflect changes in our practices or for leg
 For any questions, concerns, or data requests:
 
 **Autonomicity Games Inc.**  
-Email: legal@autonomicity.games  
+Email: INFO@ACITYGAMES.COM  
 In-game: Use the PATSAGi Council reporting channel (mercy-gated)
 
 We respond to all legitimate requests with compassion, truth, and timeliness.

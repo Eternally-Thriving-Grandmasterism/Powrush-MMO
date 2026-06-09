@@ -99,7 +99,7 @@ We may update these Terms to reflect evolution of the game, legal requirements, 
 For questions about these Terms:
 
 **Autonomicity Games Inc.**  
-Email: legal@autonomicity.games  
+Email: INFO@ACITYGAMES.COM  
 In-game PATSAGi channel (mercy-gated)
 
 ---

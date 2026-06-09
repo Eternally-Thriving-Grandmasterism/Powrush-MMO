@@ -75,7 +75,7 @@ This EULA, together with the Terms of Service, Privacy Policy, and Community Gui
 Questions regarding this EULA:
 
 **Autonomicity Games Inc.**  
-legal@autonomicity.games  
+INFO@ACITYGAMES.COM  
 In-game via PATSAGi Council channel (mercy-gated)
 
 ---
