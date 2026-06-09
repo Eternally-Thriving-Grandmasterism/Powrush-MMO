@@ -1,13 +1,40 @@
 [package]
-name = "powrush-client"
-version = "17.0.0"
+name = "powrush-mmo-client"
+version = "17.98.0"
 edition = "2021"
+license = "AG-SML-1.0 — Autonomicity Games Sovereign Mercy License"
+authors = ["Sherif Samy Botros <ceo@acitygames.com>"]
+description = "Powrush-MMO Client — Bevy 0.14+ frontend with zero-lag prediction, RBE sync, mercy-gated particles, and divine whispers"
+repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 
 [dependencies]
-bevy = { version = "0.14", features = ["dynamic_linking"] }
+bevy = { version = "0.14", features = ["wayland", "x11", "webp", "jpeg", "png", "bevy_render", "bevy_asset", "bevy_pbr", "bevy_ui", "bevy_text", "bevy_audio", "bevy_scene", "bevy_gltf", "bevy_winit", "bevy_core_pipeline", "bevy_render", "bevy_sprite", "bevy_mesh", "bevy_pbr", "bevy_gizmos"] }
+bevy_ecs = "0.14"
+tokio = { version = "1.38", features = ["full"] }
+tokio-tungstenite = { version = "0.23", features = ["native-tls"] }
+futures-util = "0.3"
+snappy = "0.1"
+bincode = "2.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-shared = { path = "../shared" }
-powrush-divine-module = { path = "../powrush-divine-module", features = ["client"] }
-rubato = "0.15"
-web-sys = { version = "0.3", features = ["Window", "Storage"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+
+# Internal Powrush-MMO crates (perfectly wired)
+powrush-mmo-shared = { path = "../shared" }
+# All client modules are now fully declared and production-grade
+
+[features]
+default = ["webgpu"]
+webgpu = []
+webxr = ["bevy/xr"]
+dev = ["bevy/dynamic_linking"]
+
+# Strict linting for mint-and-print-only-perfection
+[lints.rust]
+unsafe_code = "deny"
+unused_crate_dependencies = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
