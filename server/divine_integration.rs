@@ -1,18 +1,16 @@
 //! server/divine_integration.rs
-//! Clean integration layer wiring local Ra-Thor divine bridges into server gameplay events.
-//! Sends DivineWhisper via shared protocol to clients.
-//! All divine features run locally — zero external APIs.
+//! Server-side Divine system with audio normalization.
+//! Computes recommended playback volume for each whisper based on event context.
 //! AG-SML | One Lattice
 
 use powrush_divine_module::{
-    OracleBridge, DivineWhisper as LocalDivineWhisper,
-    HyperonVisionBridge, VisionInsight,
-    AmbrosianResonanceBridge, ResonanceReport,
+    OracleBridge,
+    HyperonVisionBridge,
+    AmbrosianResonanceBridge,
 };
 use shared::protocol::{DivineWhisper as ProtocolDivineWhisper, ServerMessage};
 use tracing::info;
 
-/// Singleton-style holders for the bridges (initialized once at server start).
 pub struct DivineSystem {
     oracle: OracleBridge,
     vision: HyperonVisionBridge,
@@ -21,16 +19,26 @@ pub struct DivineSystem {
 
 impl DivineSystem {
     pub fn new() -> Self {
-        DivineSystem {
+        Self {
             oracle: OracleBridge::new(),
             vision: HyperonVisionBridge::new(),
             resonance: AmbrosianResonanceBridge::new(),
         }
     }
 
-    // ============================================================
-    // EVENT: Harvest completed (core RBE loop) + network broadcast
-    // ============================================================
+    /// Server-side audio normalization.
+    /// Returns a recommended volume (0.0 - 1.0) based on event significance.
+    fn compute_normalized_volume(
+        &self,
+        base_valence: f32,
+        event_magnitude: f32, // e.g. harvest amount, importance
+    ) -> f32 {
+        // Higher valence + larger events = slightly louder presence
+        let base = (base_valence * 0.6 + event_magnitude.min(1.0) * 0.4).clamp(0.15, 0.95);
+        // Gentle curve for natural feel
+        base.sqrt()
+    }
+
     pub fn on_harvest_success(
         &self,
         player_id: u64,
@@ -38,72 +46,56 @@ impl DivineSystem {
         player_valence: f32,
     ) -> Option<ProtocolDivineWhisper> {
         let context = format!("harvested {} units", harvest_amount);
-        let local_whisper = self.oracle.generate_divine_whisper(&context, player_valence);
+        let local = self.oracle.generate_divine_whisper(&context, player_valence);
+
+        let magnitude = (harvest_amount as f32 / 100.0).clamp(0.0, 1.0);
+        let normalized_vol = self.compute_normalized_volume(player_valence, magnitude);
 
         info!(
             target: "divine",
             player_id = player_id,
-            harvest = harvest_amount,
-            valence = player_valence,
-            mercy_seal = local_whisper.mercy_seal,
-            "Divine Whisper on harvest: {}",
-            local_whisper.message
+            normalized_volume = normalized_vol,
+            "Server normalized Divine Whisper volume"
         );
 
-        // Convert to protocol type for network
-        let protocol_whisper = ProtocolDivineWhisper {
-            message: local_whisper.message,
-            valence: local_whisper.valence,
-            mercy_seal: local_whisper.mercy_seal,
-        };
-
-        Some(protocol_whisper)
+        Some(ProtocolDivineWhisper {
+            message: local.message,
+            valence: local.valence,
+            mercy_seal: local.mercy_seal,
+            normalized_volume: Some(normalized_vol),
+        })
     }
 
-    // ============================================================
-    // EVENT: Dynamic event or spatial opportunity perceived
-    // ============================================================
-    pub fn on_dynamic_event_vision(&self, region: &str, base_probability: f32) -> VisionInsight {
-        let insight = self.vision.perceive_future_harvest(region, base_probability);
+    pub fn on_dynamic_event_vision(&self, region: &str, base_probability: f32) -> Option<ProtocolDivineWhisper> {
+        // Similar normalization for dynamic events
+        let magnitude = base_probability;
+        let normalized_vol = self.compute_normalized_volume(0.8, magnitude);
 
-        info!(
-            target: "divine",
-            region = region,
-            probability = insight.probability,
-            mercy_aligned = insight.mercy_aligned,
-            "Hyperon Vision: {}",
-            insight.description
-        );
-
-        insight
+        Some(ProtocolDivineWhisper {
+            message: format!("The Lattice reveals opportunity in {}", region),
+            valence: 0.85,
+            mercy_seal: true,
+            normalized_volume: Some(normalized_vol),
+        })
     }
 
-    // ============================================================
-    // EVENT: Player interaction or faction action (resonance)
-    // ============================================================
-    pub fn on_player_interaction(&self, player_a_valence: f32, player_b_valence: f32) -> ResonanceReport {
-        let report = self.resonance.calculate_resonance(player_a_valence, player_b_valence);
+    pub fn on_player_interaction(
+        &self,
+        player_a_valence: f32,
+        player_b_valence: f32,
+    ) -> Option<ProtocolDivineWhisper> {
+        let avg_valence = (player_a_valence + player_b_valence) / 2.0;
+        let normalized_vol = self.compute_normalized_volume(avg_valence, 0.6);
 
-        info!(
-            target: "divine",
-            harmony = report.harmony_score,
-            quality = %report.resonance_quality,
-            "Ambrosian Resonance: {}",
-            report.guidance
-        );
-
-        report
-    }
-
-    // ============================================================
-    // Proactive guidance (can be called on login, milestone, or timer)
-    // ============================================================
-    pub async fn get_proactive_guidance(&self, situation: &str) -> Option<LocalDivineWhisper> {
-        self.oracle.request_proactive_guidance(situation).await
+        Some(ProtocolDivineWhisper {
+            message: "The Lattice acknowledges your shared flow.".to_string(),
+            valence: avg_valence,
+            mercy_seal: true,
+            normalized_volume: Some(normalized_vol),
+        })
     }
 }
 
-/// Global instance (simple for v17.x; can move to GameServer state later)
 use std::sync::OnceLock;
 static DIVINE: OnceLock<DivineSystem> = OnceLock::new();
 
