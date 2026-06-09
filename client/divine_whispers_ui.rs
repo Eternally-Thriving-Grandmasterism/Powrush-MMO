@@ -1,5 +1,5 @@
 //! client/divine_whispers_ui.rs
-//! Elegant, mercy-themed UI for Divine Whispers + persistent history log + subtle audio chime.
+//! Elegant, mercy-themed UI for Divine Whispers + persistent history log + subtle audio chime with volume control.
 //! Fully local Ra-Thor sovereign experience.
 //! AG-SML | One Lattice
 
@@ -23,6 +23,18 @@ pub struct DivineWhispersLog {
     pub entries: Vec<DivineWhisper>,
 }
 
+/// Volume control for Divine Whispers audio feedback
+#[derive(Resource)]
+pub struct DivineAudioSettings {
+    pub whisper_volume: f32, // 0.0 = silent, 1.0 = full
+}
+
+impl Default for DivineAudioSettings {
+    fn default() -> Self {
+        Self { whisper_volume: 0.35 }
+    }
+}
+
 #[derive(Component)]
 pub struct DivineLogPanel;
 
@@ -36,6 +48,7 @@ impl Plugin for DivineWhispersUIPlugin {
         app
             .init_resource::<CurrentDivineWhisper>()
             .init_resource::<DivineWhispersLog>()
+            .init_resource::<DivineAudioSettings>()
             .add_systems(Startup, (spawn_divine_whisper_ui, spawn_divine_log_panel))
             .add_systems(Update, (
                 update_divine_whisper_display,
@@ -205,7 +218,7 @@ fn update_divine_log_panel(
 }
 
 /// Call this when receiving DivineWhisperReceived from server.
-/// Plays a subtle divine chime for audio feedback.
+/// Plays a subtle divine chime using the current volume setting.
 pub fn receive_divine_whisper_from_server(
     whisper: DivineWhisper,
     current: &mut CurrentDivineWhisper,
@@ -213,20 +226,21 @@ pub fn receive_divine_whisper_from_server(
     ui_query: &mut Query<(&mut Text, &mut DivineWhisperUI)>,
     commands: &mut Commands,
     asset_server: &Res<AssetServer>,
+    audio_settings: &Res<DivineAudioSettings>,
 ) {
     show_divine_whisper(whisper.clone(), current, log, ui_query);
 
-    // === Audio feedback: subtle divine chime ===
-    // Place your sound file at assets/sounds/divine_chime.ogg (or .wav)
-    // The chime should be soft, high, and merciful — not startling.
+    // === Audio feedback with volume control ===
+    let volume = audio_settings.whisper_volume.clamp(0.0, 1.0);
+
     commands.spawn(AudioBundle {
         source: asset_server.load("sounds/divine_chime.ogg"),
         settings: PlaybackSettings {
             mode: bevy::audio::PlaybackMode::Despawn,
-            volume: bevy::audio::Volume::Linear(0.35), // gentle, not loud
+            volume: bevy::audio::Volume::Linear(volume),
             ..default()
         },
     });
 
-    tracing::info!("[Divine] New whisper received — audio chime played");
+    tracing::info!("[Divine] New whisper received — audio chime played (vol: {:.2})", volume);
 }
