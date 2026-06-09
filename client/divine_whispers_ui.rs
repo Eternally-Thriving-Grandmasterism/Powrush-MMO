@@ -1,5 +1,5 @@
 //! client/divine_whispers_ui.rs
-//! Elegant, mercy-themed UI for Divine Whispers + persistent history log + subtle audio chime with volume control.
+//! Divine Whispers UI + persistent log + audio chime with draggable volume slider.
 //! Fully local Ra-Thor sovereign experience.
 //! AG-SML | One Lattice
 
@@ -17,16 +17,14 @@ pub struct CurrentDivineWhisper {
     pub whisper: Option<DivineWhisper>,
 }
 
-/// Persistent history of received whispers
 #[derive(Resource, Default)]
 pub struct DivineWhispersLog {
     pub entries: Vec<DivineWhisper>,
 }
 
-/// Volume control for Divine Whispers audio feedback
 #[derive(Resource)]
 pub struct DivineAudioSettings {
-    pub whisper_volume: f32, // 0.0 = silent, 1.0 = full
+    pub whisper_volume: f32,
 }
 
 impl Default for DivineAudioSettings {
@@ -34,6 +32,16 @@ impl Default for DivineAudioSettings {
         Self { whisper_volume: 0.35 }
     }
 }
+
+// === Volume Slider Components ===
+#[derive(Component)]
+pub struct DivineVolumeSlider;
+
+#[derive(Component)]
+pub struct DivineVolumeHandle;
+
+#[derive(Component)]
+pub struct DivineVolumeText;
 
 #[derive(Component)]
 pub struct DivineLogPanel;
@@ -54,9 +62,13 @@ impl Plugin for DivineWhispersUIPlugin {
                 update_divine_whisper_display,
                 fade_out_whisper,
                 update_divine_log_panel,
+                handle_divine_volume_drag,
+                update_divine_volume_visuals,
             ));
     }
 }
+
+// ==================== FLOATING WHISPER PANEL ====================
 
 fn spawn_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
@@ -98,7 +110,8 @@ fn spawn_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
         });
 }
 
-/// Persistent scrollable log panel (top-right)
+// ==================== DIVINE LOG + VOLUME SLIDER ====================
+
 fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn((
@@ -108,7 +121,7 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
                     right: Val::Px(20.0),
                     top: Val::Px(20.0),
                     width: Val::Px(380.0),
-                    height: Val::Px(220.0),
+                    height: Val::Px(260.0), // extra height for slider
                     padding: UiRect::all(Val::Px(12.0)),
                     overflow: Overflow::clip_y(),
                     ..default()
@@ -121,6 +134,7 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
             Name::new("DivineWhispersLog"),
         ))
         .with_children(|parent| {
+            // Title
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -135,11 +149,13 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
                 },
                 Name::new("LogTitle"),
             ));
+
+            // Log content
             parent.spawn((
                 TextBundle {
                     text: Text::default(),
                     style: Style {
-                        margin: UiRect::top(Val::Px(8.0)),
+                        margin: UiRect::top(Val::Px(6.0)),
                         ..default()
                     },
                     ..default()
@@ -147,8 +163,96 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
                 DivineLogText,
                 Name::new("LogContent"),
             ));
+
+            // === VOLUME SLIDER ===
+            parent.spawn((
+                NodeBundle {
+                    style: Style {
+                        width: Val::Percent(100.0),
+                        height: Val::Px(28.0),
+                        margin: UiRect::top(Val::Px(12.0)),
+                        align_items: AlignItems::Center,
+                        ..default()
+                    },
+                    ..default()
+                },
+            )).with_children(|slider_row| {
+                // Label
+                slider_row.spawn(TextBundle {
+                    text: Text::from_section(
+                        "Volume",
+                        TextStyle {
+                            font: asset_server.load("fonts/FiraSans-Regular.ttf"),
+                            font_size: 13.0,
+                            color: Color::srgb(0.85, 0.85, 0.9),
+                        },
+                    ),
+                    style: Style {
+                        width: Val::Px(50.0),
+                        ..default()
+                    },
+                    ..default()
+                });
+
+                // Slider bar background
+                slider_row.spawn((
+                    NodeBundle {
+                        style: Style {
+                            width: Val::Px(220.0),
+                            height: Val::Px(8.0),
+                            margin: UiRect::horizontal(Val::Px(8.0)),
+                            ..default()
+                        },
+                        background_color: Color::srgb(0.2, 0.2, 0.25).into(),
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        ..default()
+                    },
+                    DivineVolumeSlider,
+                )).with_children(|bar| {
+                    // Draggable handle
+                    bar.spawn((
+                        ButtonBundle {
+                            style: Style {
+                                width: Val::Px(16.0),
+                                height: Val::Px(16.0),
+                                position_type: PositionType::Absolute,
+                                left: Val::Percent(35.0), // initial position ~35%
+                                top: Val::Px(-4.0),
+                                border_radius: BorderRadius::MAX,
+                                ..default()
+                            },
+                            background_color: Color::srgb(0.6, 0.75, 1.0).into(),
+                            ..default()
+                        },
+                        DivineVolumeHandle,
+                        Interaction::default(),
+                    ));
+                });
+
+                // Percentage text
+                slider_row.spawn((
+                    TextBundle {
+                        text: Text::from_section(
+                            "35%",
+                            TextStyle {
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                                font_size: 12.0,
+                                color: Color::srgb(0.7, 0.85, 1.0),
+                            },
+                        ),
+                        style: Style {
+                            width: Val::Px(40.0),
+                            ..default()
+                        },
+                        ..default()
+                    },
+                    DivineVolumeText,
+                ));
+            });
         });
 }
+
+// ==================== EXISTING WHISPER DISPLAY LOGIC ====================
 
 pub fn show_divine_whisper(
     whisper: DivineWhisper,
@@ -159,7 +263,7 @@ pub fn show_divine_whisper(
     current.whisper = Some(whisper.clone());
     log.entries.push(whisper.clone());
     if log.entries.len() > 50 {
-        log.entries.remove(0); // keep last 50
+        log.entries.remove(0);
     }
 
     for (mut text, mut ui) in ui_query.iter_mut() {
@@ -217,8 +321,54 @@ fn update_divine_log_panel(
     }
 }
 
-/// Call this when receiving DivineWhisperReceived from server.
-/// Plays a subtle divine chime using the current volume setting.
+// ==================== VOLUME SLIDER LOGIC ====================
+
+fn handle_divine_volume_drag(
+    mut interaction_query: Query<(&Interaction, &mut Style), With<DivineVolumeHandle>>,
+    mut audio_settings: ResMut<DivineAudioSettings>,
+    windows: Query<&Window>,
+) {
+    let Ok(window) = windows.get_single() else { return };
+
+    for (interaction, mut style) in interaction_query.iter_mut() {
+        if *interaction == Interaction::Pressed || *interaction == Interaction::Dragged {
+            if let Some(cursor_pos) = window.cursor_position() {
+                // Simple horizontal drag calculation (bar is ~220px wide)
+                let bar_left = 20.0 + 50.0 + 8.0; // rough offset from right edge
+                let bar_width = 220.0;
+
+                let relative_x = (cursor_pos.x - bar_left).clamp(0.0, bar_width);
+                let normalized = relative_x / bar_width;
+
+                audio_settings.whisper_volume = normalized;
+
+                // Update handle position visually
+                style.left = Val::Px(relative_x - 8.0);
+            }
+        }
+    }
+}
+
+fn update_divine_volume_visuals(
+    audio_settings: Res<DivineAudioSettings>,
+    mut text_query: Query<&mut Text, With<DivineVolumeText>>,
+    mut handle_query: Query<&mut Style, With<DivineVolumeHandle>>,
+) {
+    let vol = audio_settings.whisper_volume.clamp(0.0, 1.0);
+    let percent = (vol * 100.0) as u32;
+
+    for mut text in text_query.iter_mut() {
+        text.sections[0].value = format!("{}%", percent);
+    }
+
+    for mut style in handle_query.iter_mut() {
+        let left_px = vol * 220.0 - 8.0;
+        style.left = Val::Px(left_px.max(0.0));
+    }
+}
+
+// ==================== RECEIVE WHISPER (with volume) ====================
+
 pub fn receive_divine_whisper_from_server(
     whisper: DivineWhisper,
     current: &mut CurrentDivineWhisper,
@@ -230,7 +380,6 @@ pub fn receive_divine_whisper_from_server(
 ) {
     show_divine_whisper(whisper.clone(), current, log, ui_query);
 
-    // === Audio feedback with volume control ===
     let volume = audio_settings.whisper_volume.clamp(0.0, 1.0);
 
     commands.spawn(AudioBundle {
@@ -242,5 +391,5 @@ pub fn receive_divine_whisper_from_server(
         },
     });
 
-    tracing::info!("[Divine] New whisper received — audio chime played (vol: {:.2})", volume);
+    tracing::info!("[Divine] Whisper received — chime played (vol: {:.2})", volume);
 }
