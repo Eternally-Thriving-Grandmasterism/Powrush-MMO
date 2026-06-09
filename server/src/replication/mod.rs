@@ -1,44 +1,56 @@
 // server/src/replication/mod.rs
-// Powrush-MMO v17.84 — Delta Serialization (Phase 1)
+// Powrush-MMO v17.85 — Actual Delta Detection Logic
 //
-// Added delta flags to payloads + optimized bincode configuration.
-// This is the foundation for bandwidth-efficient, change-only replication.
+// Now compares current component values against last replicated state
+// to set accurate changed_fields bitmasks.
 
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
-use bincode;
 use crate::combat::{Ability, AbilityCooldownUpdate, Health, StatusEffect};
 use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
-// DELTA SERIALIZATION (Phase 1)
+// DELTA DETECTION STATE
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Bitmask for AbilityUpdatePayload changed fields
+/// Stores the last replicated values for delta comparison
+#[derive(Resource, Default)]
+pub struct LastReplicatedState {
+    pub abilities: HashMap<Entity, AbilityUpdatePayload>,
+    pub health: HashMap<Entity, HealthUpdatePayload>,
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// DELTA FLAGS
+// ═════════════════════════════════════════════════════════════════════════
+
 pub mod ability_delta {
     pub const ABILITY_ID: u8 = 1 << 0;
     pub const COOLDOWN_REMAINING: u8 = 1 << 1;
     pub const MAX_COOLDOWN: u8 = 1 << 2;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// ═════════════════════════════════════════════════════════════════════════
+// PAYLOADS
+// ═════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AbilityUpdatePayload {
     pub ability_id: u32,
     pub cooldown_remaining: f32,
     pub max_cooldown: f32,
-    /// Bitmask indicating which fields actually changed
     pub changed_fields: u8,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HealthUpdatePayload {
     pub current: f32,
     pub max: f32,
     pub changed_fields: u8,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StatusEffectUpdatePayload {
     pub effect_type: u8,
     pub duration: f32,
@@ -90,29 +102,6 @@ impl ReplicationBatcher {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// RESOURCES
-// ═════════════════════════════════════════════════════════════════════════
-
-#[derive(Resource, Default)]
-pub struct ComponentDirtyTracker {
-    pub dirty: HashMap<Entity, HashSet<ReplicatedComponent>>,
-}
-
-impl ComponentDirtyTracker {
-    pub fn mark_dirty(&mut self, entity: Entity, component: ReplicatedComponent) {
-        self.dirty.entry(entity).or_default().insert(component);
-    }
-
-    pub fn drain_all(&mut self) -> HashMap<Entity, HashSet<ReplicatedComponent>> {
-        std::mem::take(&mut self.dirty)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.dirty.is_empty()
-    }
-}
-
-// ═════════════════════════════════════════════════════════════════════════
 // SYSTEMS
 // ═════════════════════════════════════════════════════════════════════════
 
@@ -125,8 +114,10 @@ pub fn process_combat_updates(
     }
 }
 
+/// Now performs real delta detection against LastReplicatedState
 pub fn replicate_dirty_state(
     mut component_dirty: ResMut<ComponentDirtyTracker>,
+    mut last_state: ResMut<LastReplicatedState>,
     interest: Res<InterestManager>,
     ability_query: Query<&Ability>,
     health_query: Query<&Health>,
@@ -146,32 +137,64 @@ pub fn replicate_dirty_state(
             let payload = match component {
                 ReplicatedComponent::Ability => {
                     if let Ok(ability) = ability_query.get(entity) {
-                        // For now we mark all fields as changed (full update).
-                        // Real delta detection can be added later.
-                        let mut changed = 0u8;
-                        changed |= ability_delta::ABILITY_ID;
-                        changed |= ability_delta::COOLDOWN_REMAINING;
-                        changed |= ability_delta::MAX_COOLDOWN;
+                        let prev = last_state.abilities.get(&entity);
 
-                        UpdatePayload::Ability(AbilityUpdatePayload {
+                        let mut changed = 0u8;
+
+                        if prev.map_or(true, |p| p.ability_id != ability.id) {
+                            changed |= ability_delta::ABILITY_ID;
+                        }
+                        if prev.map_or(true, |p| (p.cooldown_remaining - ability.last_used).abs() > 0.001) {
+                            changed |= ability_delta::COOLDOWN_REMAINING;
+                        }
+                        if prev.map_or(true, |p| (p.max_cooldown - ability.cooldown).abs() > 0.001) {
+                            changed |= ability_delta::MAX_COOLDOWN;
+                        }
+
+                        if changed == 0 {
+                            continue; // Nothing actually changed
+                        }
+
+                        let payload = AbilityUpdatePayload {
                             ability_id: ability.id,
                             cooldown_remaining: ability.last_used,
                             max_cooldown: ability.cooldown,
                             changed_fields: changed,
-                        })
+                        };
+
+                        // Update last replicated state
+                        last_state.abilities.insert(entity, payload.clone());
+
+                        UpdatePayload::Ability(payload)
                     } else { continue; }
                 }
                 ReplicatedComponent::Health => {
                     if let Ok(health) = health_query.get(entity) {
-                        UpdatePayload::Health(HealthUpdatePayload {
+                        let prev = last_state.health.get(&entity);
+
+                        let mut changed = 0u8;
+                        if prev.map_or(true, |p| (p.current - health.current).abs() > 0.001) {
+                            changed |= 0b01;
+                        }
+                        if prev.map_or(true, |p| (p.max - health.max).abs() > 0.001) {
+                            changed |= 0b10;
+                        }
+
+                        if changed == 0 { continue; }
+
+                        let payload = HealthUpdatePayload {
                             current: health.current,
                             max: health.max,
-                            changed_fields: 0b11,
-                        })
+                            changed_fields: changed,
+                        };
+                        last_state.health.insert(entity, payload.clone());
+
+                        UpdatePayload::Health(payload)
                     } else { continue; }
                 }
                 ReplicatedComponent::StatusEffect => {
                     if let Ok(effect) = status_effect_query.get(entity) {
+                        // For simplicity, always send StatusEffect updates for now
                         UpdatePayload::StatusEffect(StatusEffectUpdatePayload {
                             effect_type: effect.effect_type as u8,
                             duration: effect.duration,
@@ -217,20 +240,11 @@ pub fn send_replication_batches(
     mut batcher: ResMut<ReplicationBatcher>,
 ) {
     let batches = batcher.drain_batches();
-
-    if batches.is_empty() {
-        return;
-    }
-
-    // Optimized bincode configuration
-    let config = bincode::DefaultOptions::new()
-        .with_varint_encoding()
-        .allow_trailing_bytes();
+    if batches.is_empty() { return; }
 
     for (recipient, updates) in batches {
-        // Future: Use config.serialize() for real network packets
         println!(
-            "[Replication] Preparing batch for {:?} ({} updates) - Delta + Optimized bincode ready",
+            "[Replication] Preparing batch for {:?} ({} updates) - Real delta detection active",
             recipient, updates.len()
         );
     }
@@ -247,6 +261,7 @@ impl Plugin for ReplicationPlugin {
         app
             .init_resource::<ComponentDirtyTracker>()
             .init_resource::<ReplicationBatcher>()
+            .init_resource::<LastReplicatedState>()
             .add_event::<TargetedUpdate>()
             .add_systems(Update, (
                 process_combat_updates,
