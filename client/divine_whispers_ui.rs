@@ -1,6 +1,6 @@
 //! client/divine_whispers_ui.rs
-//! Divine Whispers Audio Pipeline with Soft Knee Dynamic Range Compression
-//! Full chain: LUFS + Perceptual + Soft Knee DRC + Metering
+//! Divine Whispers with full professional audio chain:
+//! LUFS + Perceptual + Soft Knee DRC + Auto Gain Compensation + Metering
 //! AG-SML | One Lattice
 
 use bevy::prelude::*;
@@ -20,7 +20,8 @@ pub struct DivineAudioSettings {
     pub measured_lufs: f32,
     pub compression_threshold: f32,
     pub compression_ratio: f32,
-    pub knee_width: f32, // Soft knee width (0.0 = hard knee)
+    pub knee_width: f32,
+    pub auto_makeup_gain: bool,
 }
 
 impl Default for DivineAudioSettings {
@@ -32,6 +33,7 @@ impl Default for DivineAudioSettings {
             compression_threshold: 0.75,
             compression_ratio: 3.0,
             knee_width: 0.12,
+            auto_makeup_gain: true,
         }
     }
 }
@@ -91,11 +93,11 @@ impl Plugin for DivineWhispersUIPlugin {
     }
 }
 
-// Spawn functions (kept concise)
+// Spawn functions
 fn spawn_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer>) { /* ... */ }
 fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>) { /* ... */ }
 
-// ==================== SOFT KNEE DYNAMIC RANGE COMPRESSION ====================
+// ==================== SOFT KNEE + AUTO GAIN COMPENSATION ====================
 
 fn apply_soft_knee_compression(
     input: f32,
@@ -104,27 +106,36 @@ fn apply_soft_knee_compression(
     knee_width: f32,
 ) -> f32 {
     if knee_width <= 0.0 {
-        // Hard knee fallback
         return if input <= threshold { input } else { threshold + (input - threshold) / ratio };
     }
+    let half = knee_width * 0.5;
+    let lower = threshold - half;
+    let upper = threshold + half;
 
-    let half_knee = knee_width * 0.5;
-    let lower = threshold - half_knee;
-    let upper = threshold + half_knee;
-
-    if input <= lower {
-        input
-    } else if input >= upper {
-        threshold + (input - threshold) / ratio
-    } else {
-        // Soft knee region - smooth transition
+    if input <= lower { input }
+    else if input >= upper { threshold + (input - threshold) / ratio }
+    else {
         let t = (input - lower) / knee_width;
-        let current_ratio = 1.0 + (ratio - 1.0) * t; // linear interpolation of ratio
-        threshold + (input - threshold) / current_ratio
+        let r = 1.0 + (ratio - 1.0) * t;
+        threshold + (input - threshold) / r
     }
 }
 
-// ==================== FULL NORMALIZATION PIPELINE ====================
+fn apply_auto_gain_compensation(
+    compressed: f32,
+    original: f32,
+    auto_makeup: bool,
+) -> f32 {
+    if !auto_makeup || original <= 0.0 {
+        return compressed;
+    }
+    // Simple makeup: restore some of the lost energy
+    let reduction = (original - compressed).max(0.0);
+    let makeup = 1.0 + reduction * 0.65; // gentle compensation
+    (compressed * makeup).clamp(0.0, 1.0)
+}
+
+// ==================== FULL PIPELINE ====================
 
 fn normalize_volume(settings: &DivineAudioSettings) -> f32 {
     let user = settings.whisper_volume.clamp(0.0, 1.0);
@@ -132,15 +143,17 @@ fn normalize_volume(settings: &DivineAudioSettings) -> f32 {
     let lufs = 10.0_f32.powf((settings.target_lufs - settings.measured_lufs) / 20.0);
     let pre = (perceptual * lufs).clamp(0.0, 1.0);
 
-    apply_soft_knee_compression(
+    let compressed = apply_soft_knee_compression(
         pre,
         settings.compression_threshold,
         settings.compression_ratio,
         settings.knee_width,
-    ).clamp(0.0, 1.0)
+    );
+
+    apply_auto_gain_compensation(compressed, pre, settings.auto_makeup_gain)
 }
 
-// ==================== EXISTING SYSTEMS (abbreviated) ====================
+// ==================== EXISTING SYSTEMS ====================
 
 fn handle_divine_volume_drag(...) { /* ... */ }
 fn update_divine_volume_visuals(...) { /* ... */ }
@@ -172,8 +185,8 @@ pub fn receive_divine_whisper_from_server(
     });
 }
 
-// Other helper functions (show_divine_whisper, update_*, etc.) remain as in previous complete version
-pub fn show_divine_whisper(...) { /* existing full implementation */ }
+// Helper functions
+pub fn show_divine_whisper(...) { /* full implementation from previous */ }
 fn update_divine_whisper_display(...) { /* ... */ }
 fn fade_out_whisper(...) { /* ... */ }
 fn update_divine_log_panel(...) { /* ... */ }
