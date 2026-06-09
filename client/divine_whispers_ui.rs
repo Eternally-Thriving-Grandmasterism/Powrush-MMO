@@ -1,36 +1,25 @@
 //! client/divine_whispers_ui.rs
-//! Complete Divine Whispers UI system for Powrush-MMO
-//! Features: Floating panel, persistent log, draggable volume slider,
-//! LUFS-aware normalization, and real-time visual loudness metering.
-//! Fully sovereign local Ra-Thor implementation.
-//! AG-SML v1.0 | One Lattice
+//! Complete Divine Whispers audio pipeline with Dynamic Range Compression
+//! Features: LUFS + Perceptual + DRC + Real-time metering
+//! AG-SML | One Lattice
 
 use bevy::prelude::*;
 use powrush_divine_module::DivineWhisper;
 use std::time::Duration;
 
-// ==================== RESOURCES & COMPONENTS ====================
+// ==================== RESOURCES ====================
 
-#[derive(Component)]
-pub struct DivineWhisperUI {
-    pub lifetime: Timer,
-}
-
-#[derive(Resource, Default)]
-pub struct CurrentDivineWhisper {
-    pub whisper: Option<DivineWhisper>,
-}
-
-#[derive(Resource, Default)]
-pub struct DivineWhispersLog {
-    pub entries: Vec<DivineWhisper>,
-}
+#[derive(Component)] pub struct DivineWhisperUI { pub lifetime: Timer }
+#[derive(Resource, Default)] pub struct CurrentDivineWhisper { pub whisper: Option<DivineWhisper> }
+#[derive(Resource, Default)] pub struct DivineWhispersLog { pub entries: Vec<DivineWhisper> }
 
 #[derive(Resource)]
 pub struct DivineAudioSettings {
     pub whisper_volume: f32,
     pub target_lufs: f32,
     pub measured_lufs: f32,
+    pub compression_threshold: f32,
+    pub compression_ratio: f32,
 }
 
 impl Default for DivineAudioSettings {
@@ -39,6 +28,8 @@ impl Default for DivineAudioSettings {
             whisper_volume: 0.35,
             target_lufs: -23.0,
             measured_lufs: -18.0,
+            compression_threshold: 0.75,
+            compression_ratio: 3.0,
         }
     }
 }
@@ -54,25 +45,20 @@ impl DivineLoudnessMeter {
     pub fn trigger(&mut self, loudness: f32) {
         let l = loudness.clamp(0.0, 1.0);
         self.current_loudness = l;
-        if l > self.peak_loudness {
-            self.peak_loudness = l;
-        }
+        if l > self.peak_loudness { self.peak_loudness = l; }
         self.decay_timer = Timer::new(Duration::from_millis(900), TimerMode::Once);
         self.decay_timer.reset();
     }
 
     pub fn update(&mut self, delta: Duration) {
         self.decay_timer.tick(delta);
-        let decay_factor = 1.0 - self.decay_timer.percent();
-        self.current_loudness *= decay_factor.max(0.05);
-
-        if self.decay_timer.finished() {
-            self.peak_loudness *= 0.88;
-        }
+        let decay = 1.0 - self.decay_timer.percent();
+        self.current_loudness *= decay.max(0.05);
+        if self.decay_timer.finished() { self.peak_loudness *= 0.88; }
     }
 }
 
-// UI Components
+// Components
 #[derive(Component)] pub struct DivineVolumeSlider;
 #[derive(Component)] pub struct DivineVolumeHandle;
 #[derive(Component)] pub struct DivineVolumeText;
@@ -103,8 +89,7 @@ impl Plugin for DivineWhispersUIPlugin {
     }
 }
 
-// ==================== SPAWN FUNCTIONS ====================
-
+// Spawn functions
 fn spawn_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn((
@@ -121,26 +106,18 @@ fn spawn_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
                 border_radius: BorderRadius::all(Val::Px(12.0)),
                 ..default()
             },
-            DivineWhisperUI {
-                lifetime: Timer::new(Duration::from_secs(8), TimerMode::Once),
-            },
+            DivineWhisperUI { lifetime: Timer::new(Duration::from_secs(8), TimerMode::Once) },
             Name::new("DivineWhisperPanel"),
         ))
         .with_children(|parent| {
             parent.spawn((
                 TextBundle {
-                    text: Text::from_section(
-                        "The Lattice is silent...",
-                        TextStyle {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 18.0,
-                            color: Color::srgb(0.95, 0.92, 1.0),
-                        },
-                    ),
-                    style: Style {
-                        max_width: Val::Px(380.0),
-                        ..default()
-                    },
+                    text: Text::from_section("The Lattice is silent...", TextStyle {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 18.0,
+                        color: Color::srgb(0.95, 0.92, 1.0),
+                    }),
+                    style: Style { max_width: Val::Px(380.0), ..default() },
                     ..default()
                 },
                 Name::new("DivineWhisperText"),
@@ -170,20 +147,15 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
             Name::new("DivineWhispersLog"),
         ))
         .with_children(|parent| {
-            // Title
             parent.spawn(TextBundle {
-                text: Text::from_section(
-                    "Divine Whispers Log",
-                    TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 16.0,
-                        color: Color::srgb(0.7, 0.85, 1.0),
-                    },
-                ),
+                text: Text::from_section("Divine Whispers Log", TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 16.0,
+                    color: Color::srgb(0.7, 0.85, 1.0),
+                }),
                 ..default()
             });
 
-            // Log content
             parent.spawn((
                 TextBundle {
                     text: Text::default(),
@@ -193,7 +165,7 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
                 DivineLogText,
             ));
 
-            // Volume slider row
+            // Volume + DRC controls could be added here later
             parent.spawn((
                 NodeBundle {
                     style: Style {
@@ -216,7 +188,6 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
                     ..default()
                 });
 
-                // Slider bar
                 row.spawn((
                     NodeBundle {
                         style: Style {
@@ -264,7 +235,6 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
                 ));
             });
 
-            // Loudness meter bar
             parent.spawn((
                 NodeBundle {
                     style: Style {
@@ -282,20 +252,109 @@ fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>
         });
 }
 
-// ==================== WHISPER DISPLAY LOGIC ====================
+// ==================== DYNAMIC RANGE COMPRESSION ====================
+
+fn apply_dynamic_range_compression(input: f32, threshold: f32, ratio: f32) -> f32 {
+    if input <= threshold {
+        input
+    } else {
+        let excess = input - threshold;
+        threshold + (excess / ratio)
+    }
+}
+
+// ==================== FULL NORMALIZATION PIPELINE ====================
+
+fn normalize_volume(settings: &DivineAudioSettings) -> f32 {
+    let user = settings.whisper_volume.clamp(0.0, 1.0);
+    let perceptual = user.sqrt();
+    let lufs = 10.0_f32.powf((settings.target_lufs - settings.measured_lufs) / 20.0);
+    let pre_compression = (perceptual * lufs).clamp(0.0, 1.0);
+
+    apply_dynamic_range_compression(
+        pre_compression,
+        settings.compression_threshold,
+        settings.compression_ratio,
+    ).clamp(0.0, 1.0)
+}
+
+// ==================== SLIDER & METER ====================
+
+fn handle_divine_volume_drag(
+    mut interaction_query: Query<(&Interaction, &mut Style), With<DivineVolumeHandle>>,
+    mut settings: ResMut<DivineAudioSettings>,
+    windows: Query<&Window>,
+) {
+    let Ok(window) = windows.get_single() else { return };
+    for (interaction, mut style) in interaction_query.iter_mut() {
+        if *interaction == Interaction::Pressed || *interaction == Interaction::Dragged {
+            if let Some(pos) = window.cursor_position() {
+                let x = (pos.x - 90.0).clamp(0.0, 220.0);
+                settings.whisper_volume = x / 220.0;
+                style.left = Val::Px(x - 8.0);
+            }
+        }
+    }
+}
+
+fn update_divine_volume_visuals(
+    settings: Res<DivineAudioSettings>,
+    mut text_q: Query<&mut Text, With<DivineVolumeText>>,
+    mut handle_q: Query<&mut Style, With<DivineVolumeHandle>>,
+) {
+    let v = settings.whisper_volume.clamp(0.0, 1.0);
+    for mut t in text_q.iter_mut() { t.sections[0].value = format!("{}%", (v * 100.0) as u32); }
+    for mut s in handle_q.iter_mut() { s.left = Val::Px(v * 220.0 - 8.0); }
+}
+
+fn update_loudness_meter(
+    time: Res<Time>,
+    mut meter: ResMut<DivineLoudnessMeter>,
+    mut bar_q: Query<&mut Style, With<DivineLoudnessBar>>,
+) {
+    meter.update(time.delta());
+    for mut s in bar_q.iter_mut() {
+        s.width = Val::Percent((meter.current_loudness * 100.0).clamp(0.0, 100.0));
+    }
+}
+
+// ==================== RECEIVE ====================
+
+pub fn receive_divine_whisper_from_server(
+    whisper: DivineWhisper,
+    current: &mut CurrentDivineWhisper,
+    log: &mut DivineWhispersLog,
+    ui_q: &mut Query<(&mut Text, &mut DivineWhisperUI)>,
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    settings: &Res<DivineAudioSettings>,
+    meter: &mut ResMut<DivineLoudnessMeter>,
+) {
+    show_divine_whisper(whisper.clone(), current, log, ui_q);
+    let vol = normalize_volume(settings);
+    meter.trigger(vol);
+
+    commands.spawn(AudioBundle {
+        source: asset_server.load("sounds/divine_chime.ogg"),
+        settings: PlaybackSettings {
+            mode: bevy::audio::PlaybackMode::Despawn,
+            volume: bevy::audio::Volume::Linear(vol),
+            ..default()
+        },
+    });
+}
 
 pub fn show_divine_whisper(
     whisper: DivineWhisper,
     current: &mut CurrentDivineWhisper,
     log: &mut DivineWhispersLog,
-    ui_query: &mut Query<(&mut Text, &mut DivineWhisperUI)>,
+    ui_q: &mut Query<(&mut Text, &mut DivineWhisperUI)>,
 ) {
     current.whisper = Some(whisper.clone());
     log.entries.push(whisper.clone());
     if log.entries.len() > 50 { log.entries.remove(0); }
-
-    for (mut text, mut ui) in ui_query.iter_mut() {
-        text.sections[0].value = whisper.message.clone();
+    for (mut t, mut ui) in ui_q.iter_mut() {
+        t.sections[0].value = whisper.message.clone();
         ui.lifetime = Timer::new(Duration::from_secs(8), TimerMode::Once);
         ui.lifetime.reset();
     }
@@ -303,138 +362,31 @@ pub fn show_divine_whisper(
 
 fn update_divine_whisper_display(
     current: Res<CurrentDivineWhisper>,
-    mut query: Query<&mut Text, With<DivineWhisperUI>>,
+    mut q: Query<&mut Text, With<DivineWhisperUI>>,
 ) {
-    if let Some(whisper) = &current.whisper {
-        for mut text in query.iter_mut() {
-            if text.sections[0].value != whisper.message {
-                text.sections[0].value = whisper.message.clone();
-            }
-        }
+    if let Some(w) = &current.whisper {
+        for mut t in q.iter_mut() { if t.sections[0].value != w.message { t.sections[0].value = w.message.clone(); } }
     }
 }
 
 fn fade_out_whisper(
     time: Res<Time>,
-    mut query: Query<(&mut DivineWhisperUI, &mut Visibility)>,
+    mut q: Query<(&mut DivineWhisperUI, &mut Visibility)>,
     mut current: ResMut<CurrentDivineWhisper>,
 ) {
-    for (mut ui, mut visibility) in query.iter_mut() {
+    for (mut ui, mut vis) in q.iter_mut() {
         ui.lifetime.tick(time.delta());
-        if ui.lifetime.finished() {
-            *visibility = Visibility::Hidden;
-            current.whisper = None;
-        }
+        if ui.lifetime.finished() { *vis = Visibility::Hidden; current.whisper = None; }
     }
 }
 
 fn update_divine_log_panel(
     log: Res<DivineWhispersLog>,
-    mut query: Query<&mut Text, With<DivineLogText>>,
+    mut q: Query<&mut Text, With<DivineLogText>>,
 ) {
-    for mut text in query.iter_mut() {
-        let content: String = log.entries
-            .iter()
-            .rev()
-            .take(8)
-            .map(|w| format!(• {}, w.message))
-            .collect::<Vec<_>>()
-            .join("
+    for mut t in q.iter_mut() {
+        let s: String = log.entries.iter().rev().take(8).map(|w| format!(• {}, w.message)).collect::<Vec<_>>().join("
 ");
-        text.sections[0].value = if content.is_empty() { "No whispers yet...".to_string() } else { content };
+        t.sections[0].value = if s.is_empty() { "No whispers yet...".to_string() } else { s };
     }
-}
-
-// ==================== VOLUME SLIDER ====================
-
-fn handle_divine_volume_drag(
-    mut interaction_query: Query<(&Interaction, &mut Style), With<DivineVolumeHandle>>,
-    mut audio_settings: ResMut<DivineAudioSettings>,
-    windows: Query<&Window>,
-) {
-    let Ok(window) = windows.get_single() else { return };
-
-    for (interaction, mut style) in interaction_query.iter_mut() {
-        if *interaction == Interaction::Pressed || *interaction == Interaction::Dragged {
-            if let Some(cursor_pos) = window.cursor_position() {
-                let relative_x = (cursor_pos.x - 90.0).clamp(0.0, 220.0);
-                let normalized = relative_x / 220.0;
-
-                audio_settings.whisper_volume = normalized;
-                style.left = Val::Px(relative_x - 8.0);
-            }
-        }
-    }
-}
-
-fn update_divine_volume_visuals(
-    audio_settings: Res<DivineAudioSettings>,
-    mut text_query: Query<&mut Text, With<DivineVolumeText>>,
-    mut handle_query: Query<&mut Style, With<DivineVolumeHandle>>,
-) {
-    let vol = audio_settings.whisper_volume.clamp(0.0, 1.0);
-    let percent = (vol * 100.0) as u32;
-
-    for mut text in text_query.iter_mut() {
-        text.sections[0].value = format!("{}%", percent);
-    }
-
-    for mut style in handle_query.iter_mut() {
-        style.left = Val::Px(vol * 220.0 - 8.0);
-    }
-}
-
-// ==================== LOUDNESS METER ====================
-
-fn update_loudness_meter(
-    time: Res<Time>,
-    mut meter: ResMut<DivineLoudnessMeter>,
-    mut bar_query: Query<&mut Style, With<DivineLoudnessBar>>,
-) {
-    meter.update(time.delta());
-
-    for mut style in bar_query.iter_mut() {
-        style.width = Val::Percent((meter.current_loudness * 100.0).clamp(0.0, 100.0));
-    }
-}
-
-// ==================== LUFS + PERCEPTUAL NORMALIZATION ====================
-
-fn lufs_gain(target_lufs: f32, measured_lufs: f32) -> f32 {
-    let gain_db = target_lufs - measured_lufs;
-    10.0_f32.powf(gain_db / 20.0)
-}
-
-fn normalize_volume(settings: &DivineAudioSettings) -> f32 {
-    let user_vol = settings.whisper_volume.clamp(0.0, 1.0);
-    let perceptual = user_vol.sqrt();
-    let lufs_comp = lufs_gain(settings.target_lufs, settings.measured_lufs);
-    (perceptual * lufs_comp).clamp(0.0, 1.0)
-}
-
-// ==================== MAIN RECEIVE FUNCTION ====================
-
-pub fn receive_divine_whisper_from_server(
-    whisper: DivineWhisper,
-    current: &mut CurrentDivineWhisper,
-    log: &mut DivineWhispersLog,
-    ui_query: &mut Query<(&mut Text, &mut DivineWhisperUI)>,
-    commands: &mut Commands,
-    asset_server: &Res<AssetServer>,
-    audio_settings: &Res<DivineAudioSettings>,
-    meter: &mut ResMut<DivineLoudnessMeter>,
-) {
-    show_divine_whisper(whisper.clone(), current, log, ui_query);
-
-    let final_volume = normalize_volume(audio_settings);
-    meter.trigger(final_volume);
-
-    commands.spawn(AudioBundle {
-        source: asset_server.load("sounds/divine_chime.ogg"),
-        settings: PlaybackSettings {
-            mode: bevy::audio::PlaybackMode::Despawn,
-            volume: bevy::audio::Volume::Linear(final_volume),
-            ..default()
-        },
-    });
 }
