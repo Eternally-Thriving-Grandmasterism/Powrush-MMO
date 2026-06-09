@@ -1,8 +1,7 @@
 // client/src/prediction.rs
-// Powrush-MMO v17.93 — Phase 2: Local Prediction Implementation
+// Powrush-MMO v17.94 — Phase 2 Polish: Ability Prediction + Better Input
 //
-// Implements immediate local prediction for movement and abilities.
-// This gives responsive feel before server confirmation.
+// Adds local ability prediction and improves input handling.
 
 use bevy::prelude::*;
 use std::collections::VecDeque;
@@ -15,7 +14,7 @@ use std::collections::VecDeque;
 pub struct PlayerInput {
     pub tick: u64,
     pub move_dir: Vec2,
-    pub ability_slot: Option<usize>,
+    pub ability_slot: Option<usize>, // Which ability the player wants to use
 }
 
 #[derive(Resource)]
@@ -53,18 +52,24 @@ pub struct RollbackState {
     pub needs_rollback: bool,
 }
 
-// Predicted state for the local player
 #[derive(Component, Default)]
 pub struct PredictedPosition {
     pub position: Vec3,
     pub velocity: Vec3,
 }
 
+// Simple predicted ability state for local player
+#[derive(Component)]
+pub struct PredictedAbility {
+    pub cooldown_remaining: f32,
+    pub max_cooldown: f32,
+}
+
 // ═════════════════════════════════════════════════════════════════════════
-// SYSTEMS - PHASE 2: LOCAL PREDICTION
+// SYSTEMS
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Records player input every frame (real keyboard input)
+/// Records player input (movement + ability intent)
 pub fn record_player_input(
     mut input_history: ResMut<InputHistory>,
     time: Res<Time>,
@@ -81,16 +86,23 @@ pub fn record_player_input(
         move_dir = move_dir.normalize();
     }
 
+    // Simple ability input (1, 2, 3, 4 keys)
+    let ability_slot = if keyboard.just_pressed(KeyCode::Digit1) { Some(0) }
+    else if keyboard.just_pressed(KeyCode::Digit2) { Some(1) }
+    else if keyboard.just_pressed(KeyCode::Digit3) { Some(2) }
+    else if keyboard.just_pressed(KeyCode::Digit4) { Some(3) }
+    else { None };
+
     let input = PlayerInput {
         tick: (time.elapsed_seconds_f64() * 60.0) as u64,
         move_dir,
-        ability_slot: None, // TODO: hook real ability input
+        ability_slot,
     };
 
     input_history.push(input);
 }
 
-/// Applies local movement prediction immediately (responsive feel)
+/// Local movement prediction
 pub fn predict_movement_locally(
     mut query: Query<(&mut PredictedPosition, &mut Transform)>,
     input_history: Res<InputHistory>,
@@ -99,9 +111,9 @@ pub fn predict_movement_locally(
     let delta = time.delta_seconds();
 
     for (mut predicted, mut transform) in query.iter_mut() {
-        if let Some(latest_input) = input_history.inputs.back() {
-            if latest_input.move_dir.length_squared() > 0.0 {
-                let movement = latest_input.move_dir.extend(0.0) * 5.0 * delta; // 5 units/sec
+        if let Some(latest) = input_history.inputs.back() {
+            if latest.move_dir.length_squared() > 0.0 {
+                let movement = latest.move_dir.extend(0.0) * 5.0 * delta;
                 predicted.position += movement;
                 transform.translation = predicted.position;
             }
@@ -109,15 +121,25 @@ pub fn predict_movement_locally(
     }
 }
 
-/// Placeholder for local ability prediction (to be expanded)
+/// Local ability prediction (applies cooldown immediately on input)
 pub fn predict_ability_locally(
-    // mut ability_query: Query<&mut Ability>,
-    // input_history: Res<InputHistory>,
+    mut ability_query: Query<&mut PredictedAbility>,
+    input_history: Res<InputHistory>,
 ) {
-    // When player uses ability:
-    // - Immediately apply cooldown locally
-    // - Trigger visual effects
-    // - Send input to server
+    for input in input_history.inputs.iter().rev() {
+        if let Some(slot) = input.ability_slot {
+            for mut ability in ability_query.iter_mut() {
+                // Simple example: assume all abilities have 5 second cooldown
+                if ability.cooldown_remaining <= 0.0 {
+                    ability.cooldown_remaining = 5.0;
+                    ability.max_cooldown = 5.0;
+                    // TODO: Trigger visual effects / animation here
+                    println!("[Prediction] Local ability {} used (cooldown applied)", slot);
+                }
+            }
+            break; // Only process the most recent ability input
+        }
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -134,7 +156,7 @@ impl Plugin for PredictionPlugin {
             .add_systems(Update, (
                 record_player_input,
                 predict_movement_locally,
-                // predict_ability_locally,
+                predict_ability_locally,
             ));
     }
 }
