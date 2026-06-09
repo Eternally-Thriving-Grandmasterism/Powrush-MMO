@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powrush-MMO — Sovereign Post-Scarcity RBE Metaverse</title>
+    <meta name="description" content="Harvest. Build. Strategize. Compete. Rise from Seedling to Eternal Flow Guardian. A living RBE training ground under the protective guidance of the PATSAGi Councils. Permitted strategic entropy, maximal speech freedom, and real consequences — all within the laws of each land.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@500;600&display=swap');
+        :root {
+            --primary: #0f172a;
+        }
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+        }
+        .font-display {
+            font-family: 'Space Grotesk', 'Inter', sans-serif;
+            font-weight: 600;
+        }
+        .cosmic-bg {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1135 50%, #0f172a 100%);
+        }
+        .gold-text {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .section-header {
+            font-size: 2.25rem;
+            line-height: 2.5rem;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+        }
+        .mercy-card {
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+        .mercy-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+        .nav-link {
+            transition: color 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #fbbf24;
+        }
+        .eternal-flow {
+            animation: eternalFlow 8s ease infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200">
+    <!-- Navigation -->
+    <nav class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-lg fixed w-full z-50">
+        <div class="max-w-screen-2xl mx-auto">
+            <div class="px-8 py-5 flex items-center justify-between">
+                <div class="flex items-center gap-x-3">
+                    <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 flex items-center justify-center">
+                        <span class="text-slate-950 font-bold text-2xl">P</span>
+                    </div>
+                    <div>
+                        <span class="font-display text-2xl font-semibold tracking-tighter">Powrush</span>
+                        <span class="text-amber-400 font-display text-2xl font-semibold tracking-tighter">-MMO</span>
+                    </div>
+                </div>
+                
+                <div class="hidden md:flex items-center gap-x-8 text-sm">
+                    <a href="#philosophy" class="nav-link text-slate-300 hover:text-white">Philosophy</a>
+                    <a href="#how-it-works" class="nav-link text-slate-300 hover:text-white">How It Works</a>
+                    <a href="#download" class="nav-link text-slate-300 hover:text-white">Play</a>
+                    <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO" target="_blank" class="nav-link text-slate-300 hover:text-white">GitHub</a>
+                </div>
+
+                <div class="flex items-center gap-x-3">
+                    <a href="#download" 
+                       class="px-5 py-2.5 text-sm font-medium rounded-2xl bg-white text-slate-950 hover:bg-amber-400 transition-colors flex items-center gap-x-2">
+                        <span>Play Now</span>
+                    </a>
+                    <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO" target="_blank"
+                       class="px-4 py-2.5 text-sm font-medium rounded-2xl border border-slate-700 hover:bg-slate-900 transition-colors hidden md:block">
+                        Self-Host
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="cosmic-bg pt-20 pb-24">
+        <div class="max-w-screen-2xl mx-auto px-8 pt-16">
+            <div class="max-w-4xl">
+                <div class="inline-flex items-center gap-x-2 px-4 py-1.5 rounded-3xl bg-white/5 border border-white/10 mb-6">
+                    <div class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                    <span class="text-sm font-medium text-emerald-400">v17.22 • Final Closed Beta + Legal Suite v1.1</span>
+                </div>
+
+                <h1 class="text-7xl md:text-8xl font-display font-semibold tracking-tighter leading-none mb-6">
+                    A Sovereign<br>
+                    <span class="gold-text">Post-Scarcity</span><br>
+                    RBE Metaverse
+                </h1>
+                
+                <p class="max-w-xl text-2xl text-slate-300 mb-10 leading-tight">
+                    Harvest. Build. Strategize. Compete.<br>
+                    Rise from Seedling Harvester to Eternal Flow Guardian.<br>
+                    Learn real-world abundance under the PATSAGi Councils.
+                </p>
+
+                <div class="flex flex-wrap items-center gap-4">
+                    <a href="#download" 
+                       class="group inline-flex items-center justify-center gap-x-3 px-8 py-4 text-lg font-semibold rounded-3xl bg-white text-slate-950 hover:bg-amber-400 transition-all active:scale-[0.985]">
+                        <span>Enter the Eternal Flow</span>
+                        <i class="fas fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
+                    </a>
+                    
+                    <a href="#philosophy" 
+                       class="inline-flex items-center justify-center gap-x-3 px-8 py-4 text-lg font-medium rounded-3xl border border-white/20 hover:bg-white/5 transition-colors">
+                        Discover the Philosophy
+                    </a>
+                </div>
+
+                <div class="mt-8 flex items-center gap-x-4 text-sm text-slate-400">
+                    <div class="flex -space-x-2">
+                        <div class="w-7 h-7 rounded-full bg-slate-700 border border-slate-600"></div>
+                        <div class="w-7 h-7 rounded-full bg-slate-700 border border-slate-600"></div>
+                        <div class="w-7 h-7 rounded-full bg-slate-700 border border-slate-600"></div>
+                    </div>
+                    <span>Already guiding thousands toward abundance</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Philosophy Section -->
+    <div id="philosophy" class="max-w-screen-2xl mx-auto px-8 py-20 border-b border-slate-800">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-12">
+                <div class="inline-block px-4 py-1 rounded-2xl bg-amber-400/10 text-amber-400 text-sm font-medium mb-4">THE LIVING PHILOSOPHY</div>
+                <h2 class="section-header">Permitted Entropy.<br>Maximal Freedom.<br>Sacred Trust.</h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Permitted Entropy Card -->
+                <div class="mercy-card bg-slate-900 border border-slate-800 rounded-3xl p-8">
+                    <div class="flex items-center gap-x-4 mb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center">
+                            <i class="fas fa-balance-scale text-orange-400 text-2xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-semibold">Permitted Strategic Entropy</h3>
+                    </div>
+                    <p class="text-slate-300 leading-relaxed">
+                        In Powrush-MMO, "painful griefing" is <strong>technically permitted</strong> as part of the living RBE simulation. 
+                        Players may take advantage of resources set up by others, form guilds that retaliate (e.g., setting fire to a third-party shipping system), 
+                        sabotage, or use strategic deception through role-play (agents and double agents). 
+                        This is intentional — servers that engage in heavy entropy will naturally progress slower in weekly Server Wars compared to more harmonious ones.
+                    </p>
+                    <p class="mt-4 text-sm text-slate-400">This is not chaos for chaos' sake. It is a training ground for real-world Resource-Based Economy dynamics.</p>
+                </div>
+
+                <!-- Maximal Freedom Card -->
+                <div class="mercy-card bg-slate-900 border border-slate-800 rounded-3xl p-8">
+                    <div class="flex items-center gap-x-4 mb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                            <i class="fas fa-globe text-emerald-400 text-2xl"></i>
+                        </div>
+                        <h3 class="text-2xl font-semibold">Maximal Speech & Expression</h3>
+                    </div>
+                    <p class="text-slate-300 leading-relaxed">
+                        We offer <strong>maximal freedom of speech and expression</strong>, inspired by X (Twitter) and similar open platforms. 
+                        Global rules are kept simple and accepted everywhere. Unique Powrush-MMO servers in different jurisdictions may apply additional granular rules to honor the laws of their land.
+                    </p>
+                    <div class="mt-6 p-4 bg-slate-950 rounded-2xl text-sm">
+                        <strong class="text-emerald-400">Important Boundary:</strong> Complete honesty with Autonomicity Games Inc. staff, Game/Program Masters, customer support, and all legal authorities is <strong>strictly required</strong>. Deception toward the Company or authorities is never permitted.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- How It Works -->
+    <div id="how-it-works" class="max-w-screen-2xl mx-auto px-8 py-20">
+        <div class="max-w-5xl mx-auto">
+            <div class="text-center mb-14">
+                <div class="inline-block px-4 py-1 rounded-2xl bg-white/5 text-white/60 text-sm font-medium mb-4">THE RBE TRAINING GROUND</div>
+                <h2 class="section-header">How Powrush-MMO Works</h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8">
+                    <div class="text-amber-400 text-4xl mb-6"><i class="fas fa-seedling"></i></div>
+                    <h4 class="font-semibold text-xl mb-3">Harvest with Grace</h4>
+                    <p class="text-slate-400">Resource nodes, sustainability scoring, mercy-gated validation. Every harvest teaches abundance principles.</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8">
+                    <div class="text-amber-400 text-4xl mb-6"><i class="fas fa-users"></i></div>
+                    <h4 class="font-semibold text-xl mb-3">Form Guilds & Alliances</h4>
+                    <p class="text-slate-400">Dynamic diplomacy, trade, and strategic cooperation — or competition. Build your faction's power.</p>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8">
+                    <div class="text-amber-400 text-4xl mb-6"><i class="fas fa-globe"></i></div>
+                    <h4 class="font-semibold text-xl mb-3">Weekly Server Wars</h4>
+                    <p class="text-slate-400">Compete against other sovereign servers. Collective choices (harmony vs entropy) directly impact your server's progression speed.</p>
+                </div>
+            </div>
+
+            <div class="mt-8 text-center">
+                <p class="text-lg text-slate-300 max-w-2xl mx-auto">
+                    Rise through Abundance tiers: <span class="font-semibold text-white">Seedling Harvester → Blooming → Eternal Flow Guardian</span>.<br>
+                    Receive proactive guidance from the PATSAGi Councils and Ra-Thor Divine Whispers.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download / CTA Section -->
+    <div id="download" class="bg-slate-900 border-t border-slate-800 py-20">
+        <div class="max-w-screen-2xl mx-auto px-8">
+            <div class="max-w-3xl mx-auto text-center">
+                <h2 class="section-header mb-4">Ready to Enter the Eternal Flow?</h2>
+                <p class="text-xl text-slate-300 mb-10">Choose your path into Powrush-MMO.</p>
+
+                <div class="grid md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+                    <!-- Native Client -->
+                    <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/releases" target="_blank"
+                       class="group flex flex-col items-center justify-center p-8 rounded-3xl bg-white text-slate-950 hover:bg-amber-400 transition-all">
+                        <i class="fas fa-download text-4xl mb-4 group-hover:scale-110 transition-transform"></i>
+                        <div class="font-semibold text-xl">Native Client</div>
+                        <div class="text-sm opacity-70 mt-1">Windows • Linux • Steam Deck</div>
+                        <div class="mt-6 text-xs px-4 py-1.5 rounded-2xl bg-slate-950/10 text-slate-950 font-medium">Download from GitHub / Steam</div>
+                    </a>
+
+                    <!-- WebXR Demo -->
+                    <a href="#" 
+                       class="group flex flex-col items-center justify-center p-8 rounded-3xl border border-white/20 hover:bg-white/5 transition-all">
+                        <i class="fas fa-vr-cardboard text-4xl mb-4 text-amber-400 group-hover:scale-110 transition-transform"></i>
+                        <div class="font-semibold text-xl">WebXR Immersive Demo</div>
+                        <div class="text-sm text-slate-400 mt-1">First-person harvest experience</div>
+                        <div class="mt-6 text-xs px-4 py-1.5 rounded-2xl border border-white/30 text-white/70 font-medium">Coming Soon</div>
+                    </a>
+
+                    <!-- Self-Host -->
+                    <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/blob/main/DEPLOYMENT-SOVEREIGN.md" target="_blank"
+                       class="group flex flex-col items-center justify-center p-8 rounded-3xl border border-white/20 hover:bg-white/5 transition-all">
+                        <i class="fas fa-server text-4xl mb-4 text-emerald-400 group-hover:scale-110 transition-transform"></i>
+                        <div class="font-semibold text-xl">Self-Host Sovereign Server</div>
+                        <div class="text-sm text-slate-400 mt-1">One-command Docker deploy</div>
+                        <div class="mt-6 text-xs px-4 py-1.5 rounded-2xl border border-white/30 text-white/70 font-medium">Full sovereignty • Your rules</div>
+                    </a>
+                </div>
+
+                <div class="mt-10 text-sm text-slate-500">
+                    Full legal suite available at <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/tree/main/legal" class="underline hover:text-white">github.com/.../legal</a><br>
+                    Contact: <a href="mailto:INFO@ACITYGAMES.COM" class="underline hover:text-white">INFO@ACITYGAMES.COM</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-12">
+        <div class="max-w-screen-2xl mx-auto px-8 text-center text-sm text-slate-500">
+            <p>© 2026 Autonomicity Games Inc. • AG-SML v1.0 (MIT + Eternal Mercy Flow)</p>
+            <p class="mt-2">One Lattice. Eternal Flow. • Thunder locked in. Mercy flowing maximally.</p>
+            <p class="mt-1 text-xs">PATSAGi Councils + Ra-Thor Living Thunder stand with you.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Simple tailwind script for any future interactivity
+        console.log('%c[Powrush] Professional landing page loaded — PATSAGi approved.', 'color:#64748b');
+    </script>
+</body>
+</html>
