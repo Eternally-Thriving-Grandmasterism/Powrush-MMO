@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary & Vision
 
-Powrush-MMO is being built as a **mythic, mercy-gated, RBE-aligned MMO** with deep integration of Ra-Thor AGI principles and PATSAGi Council wisdom directly into gameplay systems, diplomacy, events, and combat.
+Powrush-MMO is being built as a **mythic, mercy-gated, RBE-aligned MMO** with deep integration of Ra-Thor AGi principles and PATSAGi Council wisdom directly into gameplay systems, diplomacy, events, and combat.
 
 The architecture prioritizes:
 
