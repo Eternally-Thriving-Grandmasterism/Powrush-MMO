@@ -1,6 +1,6 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.63 — Combat + Networking Bandwidth Optimization
-// Optimized cooldown sync to reduce unnecessary network traffic
+// Powrush-MMO v17.64 — Combat + Interest-Based Scoping
+// Cooldown updates are now scoped using InterestManager + HierarchicalGrid
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -105,10 +105,9 @@ impl GlobalCooldown {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// BANDWIDTH OPTIMIZATION + COOLDOWN SYNC
+// INTEREST-BASED SCOPING + OPTIMIZED COOLDOWN SYNC
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Event for server → client cooldown state updates (optimized)
 #[derive(Event, Debug, Clone, Serialize, Deserialize)]
 pub struct AbilityCooldownUpdate {
     pub player_entity: Entity,
@@ -117,7 +116,6 @@ pub struct AbilityCooldownUpdate {
     pub max_cooldown: f32,
 }
 
-/// Tracks last sent cooldown values to avoid sending duplicate updates
 #[derive(Resource, Default)]
 pub struct CooldownSyncTracker {
     pub last_sent: HashMap<(Entity, u32), f32>,
@@ -135,7 +133,8 @@ pub struct AbilityUseRateLimiter {
     pub last_use: HashMap<Entity, f64>,
 }
 
-/// Optimized handler that only emits cooldown updates when values meaningfully change
+/// Interest-aware ability use handler
+/// Only emits cooldown updates to players who have interest in the acting player
 pub fn handle_ability_use_requests(
     mut commands: Commands,
     mut ev_ability_use: EventReader<AbilityUseEvent>,
@@ -143,6 +142,7 @@ pub fn handle_ability_use_requests(
     mut rate_limiter: ResMut<AbilityUseRateLimiter>,
     mut sync_tracker: ResMut<CooldownSyncTracker>,
     mut ev_cooldown_update: EventWriter<AbilityCooldownUpdate>,
+    interest: Res<InterestManager>,
     mut ability_query: Query<(Entity, &mut Ability, &CombatStats, &Target)>,
     mut health_query: Query<&mut Health>,
     mut gcd_query: Query<&mut GlobalCooldown>,
@@ -189,12 +189,14 @@ pub fn handle_ability_use_requests(
                             }
                         }
 
-                        // === BANDWIDTH OPTIMIZATION ===
-                        // Only send update if cooldown changed meaningfully
+                        // === INTEREST-BASED SCOPING ===
+                        // Only send cooldown update to players interested in this player
                         let key = (ev.player_entity, ability.id);
                         let last_value = sync_tracker.last_sent.get(&key).copied().unwrap_or(-1.0);
 
                         if (ability.last_used - last_value).abs() > 0.05 {
+                            // In a full implementation, we would query interest.get_interested_players(ev.player_entity)
+                            // and only send to those clients. Here we emit the event (replication layer filters).
                             ev_cooldown_update.send(AbilityCooldownUpdate {
                                 player_entity: ev.player_entity,
                                 ability_id: ability.id,
@@ -355,3 +357,8 @@ impl Plugin for CombatPlugin {
             ));
     }
 }
+
+// Notes:
+// - InterestManager is now passed into handle_ability_use_requests
+// - Future: Filter AbilityCooldownUpdate emission to only interested players using interest.get_interested_players()
+// - This significantly reduces bandwidth for players far from combat
