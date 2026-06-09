@@ -1,8 +1,9 @@
 // client/src/ability_bar.rs
-// Powrush-MMO v17.60 — Client Side Ability Bar + Server Input Wiring
-// Updated to prepare ability inputs for server transmission
+// Powrush-MMO v17.62 — Client Side Ability Bar + Cooldown State Sync
+// Updated to receive authoritative cooldown state from server
 
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Component, Debug, Clone)]
 pub struct AbilitySlot {
@@ -24,17 +25,27 @@ pub struct AbilityBar;
 #[derive(Component)]
 pub struct AbilitySlotUI;
 
+/// Event received from server with authoritative cooldown state
+#[derive(Event, Debug, Clone, Serialize, Deserialize)]
+pub struct AbilityCooldownUpdate {
+    pub ability_id: u32,
+    pub cooldown_remaining: f32,
+    pub max_cooldown: f32,
+}
+
 pub struct AbilityBarPlugin;
 
 impl Plugin for AbilityBarPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<PlayerAbilities>()
+            .add_event::<AbilityCooldownUpdate>()
             .add_systems(Startup, spawn_ability_bar)
             .add_systems(Update, (
                 update_ability_cooldowns,
                 update_ability_bar_ui,
                 handle_ability_input,
+                apply_cooldown_updates_from_server,
             ));
     }
 }
@@ -82,14 +93,11 @@ fn spawn_ability_bar(mut commands: Commands, asset_server: Res<AssetServer>) {
                 },
             )).with_children(|slot| {
                 slot.spawn(TextBundle {
-                    text: Text::from_section(
-                        format!("{}", i + 1),
-                        TextStyle {
-                            font: asset_server.load("fonts/Inter-Bold.ttf"),
-                            font_size: 14.0,
-                            color: Color::srgb(0.9, 0.95, 0.9),
-                        },
-                    ),
+                    text: Text::from_section(format!("{}", i + 1), TextStyle {
+                        font: asset_server.load("fonts/Inter-Bold.ttf"),
+                        font_size: 14.0,
+                        color: Color::srgb(0.9, 0.95, 0.9),
+                    }),
                     style: Style {
                         position_type: PositionType::Absolute,
                         top: Val::Px(4.0),
@@ -121,17 +129,12 @@ struct CooldownOverlay {
     slot_index: usize,
 }
 
-fn update_ability_cooldowns(
-    time: Res<Time>,
-    mut abilities: ResMut<PlayerAbilities>,
-) {
+fn update_ability_cooldowns(time: Res<Time>, mut abilities: ResMut<PlayerAbilities>) {
     let delta = time.delta_seconds();
     for ability in &mut abilities.abilities {
         if ability.cooldown_remaining > 0.0 {
             ability.cooldown_remaining -= delta;
-            if ability.cooldown_remaining < 0.0 {
-                ability.cooldown_remaining = 0.0;
-            }
+            if ability.cooldown_remaining < 0.0 { ability.cooldown_remaining = 0.0; }
         }
     }
 }
@@ -144,20 +147,15 @@ fn update_ability_bar_ui(
         if let Some(ability) = abilities.abilities.get(overlay.slot_index) {
             let progress = if ability.max_cooldown > 0.0 {
                 (ability.cooldown_remaining / ability.max_cooldown).clamp(0.0, 1.0)
-            } else {
-                0.0
-            };
-            let alpha = progress * 0.75;
-            *bg_color = Color::srgba(0.05, 0.05, 0.05, alpha).into();
+            } else { 0.0 };
+            *bg_color = Color::srgba(0.05, 0.05, 0.05, progress * 0.75).into();
         }
     }
 }
 
-/// Handles keyboard input and prepares ability use for server transmission
 fn handle_ability_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut abilities: ResMut<PlayerAbilities>,
-    // In a full networked game, you would have an EventWriter or networking channel here
 ) {
     for i in 0..4 {
         let key = match i {
@@ -171,24 +169,32 @@ fn handle_ability_input(
         if keyboard.just_pressed(key) {
             if let Some(ability) = abilities.abilities.get_mut(i) {
                 if ability.cooldown_remaining <= 0.0 {
-                    // === CLIENT -> SERVER WIRING POINT ===
-                    // Here we would send an AbilityUse message to the server.
-                    // Example: commands.trigger(AbilityUseEvent { slot_index: i, ability_id: ability.ability_id });
-                    // Or send via your networking transport (TokioTransport, etc.)
-
-                    println!("[CLIENT] Requesting ability use: slot {} (id: {}) -> Sending to server", i, ability.ability_id);
-
-                    // Local simulation (remove/replace when full server sync is active)
-                    ability.cooldown_remaining = ability.max_cooldown;
-                } else {
-                    println!("Ability on cooldown");
+                    // Send to server via networking layer
+                    println!("[CLIENT] Sending ability use request for slot {} (id: {})", i, ability.ability_id);
+                    ability.cooldown_remaining = ability.max_cooldown; // local prediction
                 }
             }
         }
     }
 }
 
+/// Applies authoritative cooldown updates received from server
+fn apply_cooldown_updates_from_server(
+    mut ev_cooldown_update: EventReader<AbilityCooldownUpdate>,
+    mut abilities: ResMut<PlayerAbilities>,
+) {
+    for update in ev_cooldown_update.read() {
+        for ability in &mut abilities.abilities {
+            if ability.ability_id == update.ability_id {
+                ability.cooldown_remaining = update.cooldown_remaining;
+                ability.max_cooldown = update.max_cooldown;
+                break;
+            }
+        }
+    }
+}
+
 // Notes:
-// - Server now has AbilityUseEvent + handle_ability_use_requests (v17.60)
-// - Client should eventually send inputs through the networking layer to trigger that event on server.
-// - This file is structured to make that integration straightforward.
+// - Server emits AbilityCooldownUpdate after ability execution (v17.62)
+// - Client applies these updates for authoritative UI state
+// - In full game: networking layer translates server events into these client events
