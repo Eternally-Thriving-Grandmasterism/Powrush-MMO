@@ -2,13 +2,14 @@
 // Powrush-MMO v17.35 — Interactive Treaty Negotiation System
 // Production quality • Mercy-gated • PATSAGi-aligned • Matches diplomacy_ui + settings visual language exactly
 // Opens from Diplomacy panel or hotkey N
-// Integrates with FactionDiplomacyManager + Dynamic Events + Steam achievements
+// Integrates with FactionDiplomacyManager + Dynamic Events + Steam achievements (v17.36)
 
 use bevy::prelude::*;
 use std::collections::HashSet;
 
 use crate::faction_diplomacy::{Faction, DiplomacyStatus, FactionDiplomacyManager};
 use crate::dynamic_events_ui::ClientDynamicEventFeed;
+use crate::steam_integration::{SteamClientState, ACHIEVEMENT_FIRST_TREATY, unlock_steam_achievement};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TreatyTerm {
@@ -317,6 +318,7 @@ fn handle_send_proposal(
     mut state: ResMut<TreatyNegotiationState>,
     mut diplomacy: ResMut<FactionDiplomacyManager>,
     mut feed: ResMut<ClientDynamicEventFeed>,
+    mut steam: Option<ResMut<SteamClientState>>,
 ) {
     for (interaction, _) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -335,7 +337,14 @@ fn handle_send_proposal(
                         reason: format!("Treaty proposal with {} terms sent in mercy", state.selected_terms.len()),
                     });
 
-                    // Trigger Steam achievement check path
+                    // Steam achievement trigger (v17.36 integration)
+                    if let Some(mut steam_state) = steam {
+                        unlock_steam_achievement(&mut steam_state, ACHIEVEMENT_FIRST_TREATY);
+                        if state.selected_terms.len() >= 3 {
+                            unlock_steam_achievement(&mut steam_state, crate::steam_integration::ACHIEVEMENT_MERCY_DIPLOMAT);
+                        }
+                    }
+
                     info!("Treaty proposal sent with {} terms. Mercy flowing.", state.selected_terms.len());
 
                     // Close panel
@@ -348,6 +357,6 @@ fn handle_send_proposal(
 }
 
 // Integration note:
-// In diplomacy_ui.rs, add a "Negotiate Treaty" button next to each faction that sets
-// TreatyNegotiationState.target_faction and opens this panel.
-// Also call app.add_plugins(TreatyNegotiationUIPlugin); in your client main.
+// In client main.rs: app.add_plugins((TreatyNegotiationUIPlugin, SteamIntegrationPlugin));
+// Diplomacy buttons now labeled "Negotiate Treaty" and open rich negotiation experience.
+// Steam Rich Presence auto-updates during negotiation and based on faction standings.
