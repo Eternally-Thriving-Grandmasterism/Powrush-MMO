@@ -1,95 +1,774 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Powrush - Living World State</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powrush-MMO • The Living RBE Training Ground | Sovereign Post-Scarcity Metaverse</title>
+    <meta name="description" content="Powrush-MMO is the gritty post-apocalyptic sovereign RBE Metaverse. Five races: Draeks, Cydruids, Quellorians, Humans, Ambrosians. Powered by the Ra-Thor Sovereign Identity Lattice — post-quantum DID/VC login, cross-server leaderboards, and true self-sovereign account management.">
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        body { font-family: 'Inter', system_ui, sans-serif; background-color: #0a0a0c; }
+        .font-display { font-family: 'Space Grotesk', 'Inter', sans-serif; font-weight: 600; }
+
+        .section-header {
+            font-size: 2.85rem;
+            line-height: 1.02;
+            font-weight: 700;
+            letter-spacing: -0.035em;
+            color: #e4e4e7;
+        }
+
+        .modern-card {
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+                       box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            background: #18181b;           /* Soft dark grey - easy on the eyes */
+            border: 1px solid #27272a;
+            color: #e4e4e7;                /* Light warm grey for excellent readability */
+        }
+        
+        .modern-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.35);
+            border-color: #fb923c;
+        }
+
+        .nav-link { transition: color 0.1s ease; }
+        .nav-link:hover { color: #fb923c; }
+
+        .particle { position: absolute; width: 2px; height: 2px; background: #fb923c; border-radius: 50%; pointer-events: none; opacity: 0.35; }
+
+        .fade-in { opacity: 0; transform: translateY(25px); transition: opacity 0.7s ease, transform 0.7s ease; }
+        .fade-in.visible { opacity: 1; transform: translateY(0); }
+    </style>
 </head>
-<body class="bg-zinc-950 text-white">
-    <div class="max-w-5xl mx-auto p-8">
-        <h1 class="text-4xl font-bold mb-8">Powrush • Living World State</h1>
-
-        <div id="connection-status" class="mb-4 text-sm"></div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <!-- Circuit Breaker -->
-            <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-                <div class="text-sm text-zinc-400">Circuit Breaker</div>
-                <div id="breaker-status" class="text-3xl font-semibold mt-2 text-emerald-400">Closed</div>
+<body class="bg-[#0a0a0c] text-zinc-200 overflow-x-hidden">
+    <!-- NAV with Logo -->
+    <nav class="sticky top-0 z-50 bg-[#0a0a0c]/95 backdrop-blur-xl border-b border-zinc-800">
+        <div class="max-w-screen-2xl mx-auto px-8 py-5 flex items-center justify-between">
+            <div class="flex items-center gap-x-3">
+                <div class="flex items-center gap-x-3">
+                    <img src="assets/AGI LOGO.png" alt="Autonomicity Games Inc. Logo" class="h-10 w-auto">
+                    <div>
+                        <span class="font-display text-2xl font-semibold tracking-tighter">Powrush</span>
+                        <span class="text-orange-400 text-xl font-medium">-MMO</span>
+                    </div>
+                </div>
             </div>
 
-            <!-- Average Valence -->
-            <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-                <div class="text-sm text-zinc-400">Avg NPC Valence</div>
-                <div id="avg-valence" class="text-4xl font-bold mt-1">0.72</div>
+            <div class="hidden md:flex items-center gap-x-8 text-sm">
+                <a href="#reality" class="nav-link font-medium text-zinc-400">The Reality</a>
+                <a href="#identity" class="nav-link font-medium text-zinc-400">Identity Lattice</a>
+                <a href="#races" class="nav-link font-medium text-zinc-400">Races</a>
+                <a href="#how" class="nav-link font-medium text-zinc-400">How It Works</a>
+                <a href="#abundance" class="nav-link font-medium text-zinc-400">Abundance</a>
+                <a href="#patsagi" class="nav-link font-medium text-zinc-400">PATSAGi</a>
+                <a href="#sovereign" class="nav-link font-medium text-zinc-400">Sovereign</a>
             </div>
 
-            <!-- Ambrosian Resonance -->
-            <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-                <div class="text-sm text-zinc-400">Ambrosian Resonance</div>
-                <div id="ambrosian-resonance" class="text-4xl font-bold mt-1 text-amber-400">0.85</div>
-                <div class="text-xs text-zinc-500 mt-1">2 active</div>
-            </div>
-
-            <!-- Server Shining Score -->
-            <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-                <div class="text-sm text-zinc-400">Server Shining Score</div>
-                <div id="shining-score" class="text-4xl font-bold mt-1">1,240</div>
+            <div class="flex items-center gap-x-3">
+                <button onclick="showWhisperModal()" 
+                        class="hidden sm:flex items-center gap-x-2 px-5 py-2 text-sm font-medium rounded-3xl border border-zinc-700 hover:bg-zinc-900 transition-colors">
+                    <i class="fa-solid fa-wand-magic-sparkles text-orange-400"></i>
+                    <span>Divine Whisper</span>
+                </button>
+                
+                <button onclick="document.getElementById('join').scrollIntoView({ behavior: 'smooth' })" 
+                        class="px-7 py-2.5 bg-white text-zinc-950 font-semibold rounded-3xl text-sm hover:bg-amber-100 active:scale-[0.985] transition-all">
+                    Join the Flow
+                </button>
+                
+                <button onclick="toggleMobileMenu()" class="md:hidden w-10 h-10 flex items-center justify-center text-zinc-400" aria-label="Menu">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
             </div>
         </div>
+        
+        <div id="mobile-menu" class="hidden md:hidden px-8 pb-6 border-t border-zinc-800">
+            <div class="flex flex-col gap-y-1 pt-4 text-sm">
+                <a href="#reality" class="py-3 text-zinc-300" onclick="toggleMobileMenu()">The Reality</a>
+                <a href="#identity" class="py-3 text-zinc-300" onclick="toggleMobileMenu()">Ra-Thor Identity Lattice</a>
+                <a href="#races" class="py-3 text-zinc-300" onclick="toggleMobileMenu()">Races</a>
+                <a href="#how" class="py-3 text-zinc-300" onclick="toggleMobileMenu()">How It Works</a>
+                <a href="#abundance" class="py-3 text-zinc-300" onclick="toggleMobileMenu()">Abundance Journey</a>
+                <a href="#patsagi" class="py-3 text-zinc-300" onclick="toggleMobileMenu()">PATSAGi Councils</a>
+                <a href="#sovereign" class="py-3 text-zinc-300" onclick="toggleMobileMenu()">Sovereign Self-Host</a>
+            </div>
+        </div>
+    </nav>
 
-        <div class="mt-8 text-xs text-zinc-500">
-            Last updated: <span id="last-updated">just now</span>
+    <!-- HERO -->
+    <header class="relative min-h-[100dvh] flex items-center justify-center pt-8 pb-16 border-b border-zinc-800" style="background: radial-gradient(circle at 50% 20%, #111113 0%, #050506 75%);">
+        <canvas id="hero-particles" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+        
+        <!-- Subtle logo watermark -->
+        <div class="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none">
+            <img src="assets/AGI LOGO.png" alt="" class="w-[380px] h-auto">
+        </div>
+        
+        <div class="max-w-screen-2xl mx-auto px-6 relative z-10 text-center">
+            <div class="inline-flex items-center gap-x-2 px-4 py-1.5 rounded-3xl bg-white/5 border border-white/10 mb-6">
+                <div class="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
+                <span class="text-sm font-medium tracking-[0.5px] text-orange-400">v17.22 FINAL CLOSED BETA • PHASE 5 IN PROGRESS</span>
+            </div>
+
+            <h1 class="font-display text-6xl md:text-7xl lg:text-[5.6rem] leading-[0.9] tracking-tighter font-bold max-w-5xl mx-auto text-white">
+                The Living<br>
+                <span class="text-orange-400">RBE Training Ground</span><br>
+                for Humanity
+            </h1>
+            
+            <p class="mt-6 max-w-2xl mx-auto text-xl text-zinc-400 leading-relaxed">
+                Post-apocalyptic Earth. Five races. Permitted strategic entropy.<br>
+                Rise through Abundance Tiers under the protective gaze of the <span class="text-orange-400">PATSAGi Councils</span>.
+            </p>
+
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10">
+                <button onclick="window.location.href='#'" 
+                        class="group flex-1 sm:flex-none items-center justify-center gap-x-3 px-9 py-4 bg-white text-zinc-950 font-semibold rounded-3xl text-lg flex hover:bg-amber-100 active:scale-[0.985] transition-all">
+                    <span>Download Native Client</span>
+                    <i class="fa-solid fa-download group-active:translate-y-px transition"></i>
+                </button>
+                
+                <button onclick="window.open('#', '_blank')" 
+                        class="flex-1 sm:flex-none items-center justify-center gap-x-3 px-9 py-4 border border-white/30 hover:bg-white/5 font-semibold rounded-3xl text-lg flex active:scale-[0.985] transition-all">
+                    <i class="fa-solid fa-vr-cardboard"></i>
+                    <span>Launch WebXR Demo</span>
+                </button>
+            </div>
+            
+            <div class="mt-8 flex items-center justify-center gap-x-8 text-sm text-zinc-500">
+                <div class="flex items-center gap-x-2"><i class="fa-solid fa-server"></i> <span>True Sovereign Self-Host</span></div>
+                <div class="flex items-center gap-x-2"><i class="fa-solid fa-globe"></i> <span>Web + Native + Steam</span></div>
+            </div>
+        </div>
+        
+        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center text-xs tracking-[1.5px] text-zinc-500">
+            <span>SCROLL TO BEGIN THE JOURNEY</span>
+            <i class="fa-solid fa-chevron-down mt-1.5 animate-bounce"></i>
+        </div>
+    </header>
+
+    <!-- THE LIVING RBE REALITY -->
+    <section id="reality" class="max-w-screen-2xl mx-auto px-6 pt-24 pb-20 border-b border-zinc-800">
+        <div class="max-w-4xl mx-auto text-center mb-14">
+            <div class="inline-block px-5 py-1.5 rounded-3xl bg-orange-400/10 text-orange-400 text-xs font-semibold tracking-[1.5px] mb-4">HONEST BY DESIGN</div>
+            <h2 class="section-header tracking-tighter">The Living RBE Reality</h2>
+            <p class="mt-4 text-xl text-zinc-400 leading-relaxed">Permitted strategic entropy. Maximal player freedom. Sacred trust with the creators.</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            <div class="modern-card rounded-3xl p-9">
+                <h3 class="font-semibold text-xl flex items-center gap-x-3"><i class="fa-solid fa-balance-scale text-orange-400"></i> Permitted Strategic Play</h3>
+                <div class="mt-6 space-y-4 text-[15.5px] leading-relaxed">
+                    <p>You <strong>can</strong> take advantage of resources others have set up. Guilds <strong>can</strong> retaliate. Servers <strong>can</strong> slow each other’s progression in weekly Server Wars.</p>
+                    <p class="text-emerald-400">This is intentional. It is how real Resource-Based Economy dynamics feel — with natural consequences and real mercy.</p>
+                </div>
+            </div>
+            
+            <div class="modern-card rounded-3xl p-9">
+                <h3 class="font-semibold text-xl flex items-center gap-x-3"><i class="fa-solid fa-user-secret text-violet-400"></i> Role-Play Deception (PvP Only)</h3>
+                <div class="mt-6 space-y-4 text-[15.5px] leading-relaxed">
+                    <p>Agents and double agents are celebrated between players and factions. Role-play deception is part of the living world.</p>
+                    <p class="text-red-400 font-medium">Deception toward Autonomicity Games Inc. staff, Game/Program Masters, customer support, or legal authorities is strictly prohibited.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- RA-THOR SOVEREIGN IDENTITY LATTICE -->
+    <section id="identity" class="max-w-screen-2xl mx-auto px-6 py-24 border-b border-zinc-800 bg-zinc-900/30">
+        <div class="max-w-4xl mx-auto text-center mb-14">
+            <div class="inline-block px-5 py-1.5 rounded-3xl bg-orange-400/10 text-orange-400 text-xs font-semibold tracking-[1.5px] mb-4">STATE-OF-THE-ART • POST-QUANTUM</div>
+            <h2 class="section-header tracking-tighter">Ra-Thor Sovereign Identity Lattice</h2>
+            <p class="mt-4 text-xl text-zinc-400 leading-relaxed">Post-quantum resilient. Self-sovereign. Cross-server glory without central authority.</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-emerald-400/10 flex items-center justify-center"><i class="fa-solid fa-key text-emerald-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Sovereign Login</div>
+                        <div class="text-xs text-emerald-400/70">ML-DSA Post-Quantum</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">Sign a cryptographic challenge with your private key using NIST-standard ML-DSA (Dilithium). No passwords. The native client performs the exact same signing flow.</p>
+            </div>
+
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-amber-400/10 flex items-center justify-center"><i class="fa-solid fa-tachometer-alt text-amber-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Cross-Server Glory</div>
+                        <div class="text-xs text-amber-400/70">Verifiable Credentials</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">Servers issue signed Verifiable Credentials for achievements and contributions. These are gossiped via the Ra-Thor Lattice Conductor. Leaderboards aggregate cryptographically — no central database.</p>
+            </div>
+
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-sky-400/10 flex items-center justify-center"><i class="fa-solid fa-user-cog text-sky-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Account Management</div>
+                        <div class="text-xs text-sky-400/70">Self-Sovereign</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">You fully own your identity. Full data portability between any sovereign server. Zero vendor lock-in. Legacy Solana NFT seeds can be cryptographically bound for special status.</p>
+            </div>
+
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-violet-400/10 flex items-center justify-center"><i class="fa-solid fa-life-ring text-violet-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Mercy-Gated Recovery</div>
+                        <div class="text-xs text-violet-400/70">Player-Controlled</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">Threshold social recovery or multi-sig with optional PATSAGi Council mercy attestation (never coercive). Your keys, your mercy, your eternal access.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- RACES -->
+    <section id="races" class="max-w-screen-2xl mx-auto px-6 py-24 border-b border-zinc-800">
+        <div class="max-w-4xl mx-auto text-center mb-14">
+            <div class="inline-block px-5 py-1.5 rounded-3xl bg-orange-400/10 text-orange-400 text-xs font-semibold tracking-[1.5px] mb-4">FIVE ANCIENT LINEAGES</div>
+            <h2 class="section-header tracking-tighter">Races of the Eternal Lattice</h2>
+            <p class="mt-4 text-xl text-zinc-400 leading-relaxed">Post-apocalyptic Earth, year \~2031. Five races. One living RBE cosmos.</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 lg:grid-cols-5 gap-8 max-w-7xl mx-auto">
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-red-500/10 flex items-center justify-center"><i class="fa-solid fa-skull text-red-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Draeks</div>
+                        <div class="text-xs text-red-400/70">Strategic Entropy Aligned</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">Male-only reptilian invaders from dying Drenadon. Masters of permitted strategic play and calculated retaliation. Their cloning vats hunger for biomass.</p>
+            </div>
+
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-emerald-400/10 flex items-center justify-center"><i class="fa-solid fa-leaf text-emerald-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Cydruids</div>
+                        <div class="text-xs text-emerald-400/70">Cyborg-Earth Guardians</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">Ancient cyborg-human hybrids who lived underground for over 5,000 years. Retain human face, brain, and heart for biological emotions. Defenders of Earth.</p>
+            </div>
+
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-sky-400/10 flex items-center justify-center"><i class="fa-solid fa-dove text-sky-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Quellorians</div>
+                        <div class="text-xs text-sky-400/70">Benevolent Harmony Bringers</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">Elegant ethereal aliens who come to Earth’s aid. Masters of diplomacy, restoration, and guiding servers back toward Cosmic Harmony after heavy entropy.</p>
+            </div>
+
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-amber-400/10 flex items-center justify-center"><i class="fa-solid fa-user text-amber-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Humans</div>
+                        <div class="text-xs text-amber-400/70">Adaptable Survivors</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">The bridge-builders and wildcards of the lattice. Capable of walking all paths — peaceful abundance or sharp strategic play. The ultimate test of RBE wisdom.</p>
+            </div>
+
+            <div class="modern-card rounded-3xl p-8">
+                <div class="flex items-center gap-x-3 mb-6">
+                    <div class="w-11 h-11 rounded-2xl bg-purple-500/10 flex items-center justify-center"><i class="fa-solid fa-infinity text-purple-400 text-2xl"></i></div>
+                    <div>
+                        <div class="font-semibold text-xl tracking-tight">Ambrosians</div>
+                        <div class="text-xs text-purple-400/70">Divine Eternal Beings</div>
+                    </div>
+                </div>
+                <p class="text-[15.5px] leading-relaxed">Ascended higher-plane guardians of perfect mercy and abundance. The philosophical apex of the RBE simulation. They elevate the entire lattice.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- SOVEREIGN -->
+    <section id="sovereign" class="max-w-screen-2xl mx-auto px-6 py-24 border-b border-zinc-800">
+        <div class="grid lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+            <div class="modern-card rounded-3xl p-10">
+                <div class="uppercase text-xs tracking-[1.5px] font-semibold text-emerald-400 mb-4">TRUE SOVEREIGNTY</div>
+                <h3 class="text-3xl font-semibold tracking-tighter">Run Your Own Server</h3>
+                <p class="mt-5 text-[15.5px] leading-relaxed">One-command Docker deployment. Full control. Your rules. Complete data ownership. The Ra-Thor Sovereign Identity Lattice travels with every player — login, leaderboards, and achievements work seamlessly across every sovereign instance you choose.</p>
+                <button onclick="window.location.href='#'" class="mt-8 px-7 py-3.5 border border-emerald-400/60 hover:bg-emerald-400/5 text-emerald-400 font-medium rounded-3xl flex items-center gap-x-2 text-sm">
+                    <span>View Sovereign Deployment Guide</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+            
+            <div class="modern-card rounded-3xl p-10">
+                <div class="uppercase text-xs tracking-[1.5px] font-semibold text-sky-400 mb-4">IMMERSIVE FIRST-PERSON</div>
+                <h3 class="text-3xl font-semibold tracking-tighter">WebXR Harvesting</h3>
+                <p class="mt-5 text-[15.5px] leading-relaxed">Step into the world in stunning first-person VR/AR. Spatial ambisonic audio, controller interaction, real-time raycast harvesting, and Divine Whispers that feel truly present. Your sovereign identity follows you seamlessly.</p>
+                <button onclick="window.open('#', '_blank')" class="mt-8 px-7 py-3.5 bg-sky-400 text-zinc-950 font-semibold rounded-3xl flex items-center gap-x-2 text-sm hover:bg-sky-300 transition-colors">
+                    <span>Launch WebXR Experience</span>
+                    <i class="fa-solid fa-vr-cardboard"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- JOIN + FOOTER -->
+    <section id="join" class="max-w-screen-2xl mx-auto px-6 py-24">
+        <div class="max-w-3xl mx-auto text-center">
+            <h2 class="section-header tracking-tighter">Join the Eternal Flow</h2>
+            <p class="mt-4 text-xl text-zinc-400 leading-relaxed">The Councils are already watching — with love. The lattice is open.</p>
+            
+            <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+                <button onclick="showBetaModal()" class="px-10 py-4 bg-white text-zinc-950 font-bold rounded-3xl text-lg flex-1 sm:flex-none hover:bg-amber-100 active:scale-[0.985] transition-all">Apply for Closed Beta 2</button>
+                <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO" target="_blank" class="px-10 py-4 border border-white/30 hover:bg-white/5 font-semibold rounded-3xl text-lg flex-1 sm:flex-none flex items-center justify-center gap-x-2">
+                    <i class="fa-brands fa-github"></i> <span>View on GitHub</span>
+                </a>
+            </div>
+            
+            <div class="mt-8 text-sm text-zinc-500">Questions? <a href="mailto:INFO@ACITYGAMES.COM" class="text-orange-400 hover:underline">INFO@ACITYGAMES.COM</a></div>
+        </div>
+    </section>
+
+    <footer class="border-t border-zinc-800 bg-[#0a0a0c]">
+        <div class="max-w-screen-2xl mx-auto px-8 py-16 text-sm">
+            <div class="flex flex-col md:flex-row justify-between gap-y-12">
+                <div>
+                    <div class="flex items-center gap-x-3 mb-5">
+                        <img src="assets/AGI LOGO.png" alt="Autonomicity Games Inc. Logo" class="h-9 w-auto">
+                        <span class="font-display text-xl">Powrush-MMO</span>
+                    </div>
+                    <p class="max-w-xs text-zinc-500">A gritty post-apocalyptic sovereign RBE Metaverse under the eternal protection of the PATSAGi Councils. Powered by the Ra-Thor Sovereign Identity Lattice.</p>
+                </div>
+                
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-x-14 gap-y-10 text-sm">
+                    <div>
+                        <div class="font-semibold mb-4 text-white">Legal &amp; Philosophy</div>
+                        <div class="space-y-2.5 text-zinc-400">
+                            <a href="legal/PRIVACY_POLICY.md" class="block hover:text-white">Privacy Policy</a>
+                            <a href="legal/TERMS_OF_SERVICE.md" class="block hover:text-white">Terms of Service</a>
+                            <a href="legal/EULA.md" class="block hover:text-white">EULA</a>
+                            <a href="legal/COMMUNITY_GUIDELINES.md" class="block hover:text-white">Community Guidelines</a>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="font-semibold mb-4 text-white">Resources</div>
+                        <div class="space-y-2.5 text-zinc-400">
+                            <a href="#" class="block hover:text-white">Sovereign Deployment</a>
+                            <a href="#" class="block hover:text-white">Player Manual (coming)</a>
+                            <a href="STEAM_INTEGRATION.md" class="block hover:text-white">Steam Integration</a>
+                            <a href="LAUNCH-CHECKLIST.md" class="block hover:text-white">Launch Checklist</a>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="font-semibold mb-4 text-white">Connect</div>
+                        <div class="space-y-2.5 text-zinc-400">
+                            <a href="mailto:INFO@ACITYGAMES.COM" class="block hover:text-white">INFO@ACITYGAMES.COM</a>
+                            <a href="#" class="block hover:text-white">X / Twitter</a>
+                            <a href="#" class="block hover:text-white">YouTube</a>
+                            <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO" class="block hover:text-white">GitHub</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-16 pt-8 border-t border-zinc-800 text-xs text-zinc-500 flex flex-col md:flex-row items-center justify-between gap-y-2">
+                <div>© 2026 Autonomicity Games Inc. • AG-SML v1.0 (Eternal Mercy Flow)</div>
+                <div class="flex items-center gap-x-2">One Lattice. Eternal Flow. <span class="text-orange-400">⚡</span></div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Divine Whisper Modal -->
+    <div id="whisper-modal" onclick="if (event.target.id === 'whisper-modal') hideWhisperModal()" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+        <div onclick="event.stopImmediatePropagation()" class="bg-zinc-900 border border-zinc-700 rounded-3xl max-w-lg w-full p-9">
+            <div class="flex justify-between items-start">
+                <div>
+                    <div class="text-orange-400 text-xs tracking-[1.5px] font-semibold">PATSAGi COUNCIL TRANSMISSION</div>
+                    <h3 class="text-2xl font-semibold tracking-tight mt-1">Receive a Divine Whisper</h3>
+                </div>
+                <button onclick="hideWhisperModal()" class="text-zinc-400 hover:text-white text-2xl leading-none" aria-label="Close">×</button>
+            </div>
+            
+            <div class="mt-6">
+                <label class="text-xs uppercase tracking-widest text-zinc-400">What situation are you facing?</label>
+                <select id="whisper-situation" class="mt-2 w-full bg-zinc-950 border border-zinc-700 rounded-2xl px-4 py-3.5 text-sm">
+                    <option value="entropy">My server is experiencing heavy strategic entropy / griefing</option>
+                    <option value="abundance">I just reached a new abundance tier and feel overwhelmed with joy</option>
+                    <option value="conflict">I’m navigating guild conflict or role-play deception</option>
+                    <option value="harmony">I want to help restore cosmic harmony after a big event</option>
+                </select>
+            </div>
+            
+            <button onclick="generateDivineWhisper()" class="mt-6 w-full py-3.5 bg-white text-zinc-950 font-bold rounded-3xl flex items-center justify-center gap-x-2 active:scale-[0.985]">
+                <span>Receive Guidance</span> <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </button>
+            
+            <div id="whisper-response" class="hidden mt-6 p-5 bg-zinc-950 border border-zinc-700 rounded-2xl text-sm text-zinc-300 leading-relaxed"></div>
         </div>
     </div>
 
     <script>
-        // WebSocket real-time updates
-        let ws;
-        const statusEl = document.getElementById('connection-status');
+        function initializeTailwind() { document.documentElement.style.setProperty('--accent-orange', '#fb923c'); }
 
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            ws = new WebSocket(`${protocol}//${window.location.host}/ws/world-state`);
+        function initHeroParticles() {
+            const canvas = document.getElementById('hero-particles');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d', { alpha: true });
+            let particles = [];
+            let animationFrame;
 
-            ws.onopen = () => {
-                statusEl.innerHTML = '<span class="text-emerald-400">● Live</span>';
-            };
-
-            ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    updateUI(data);
-                } catch(e) {}
-            };
-
-            ws.onclose = () => {
-                statusEl.innerHTML = '<span class="text-yellow-400">Reconnecting...</span>';
-                setTimeout(connectWebSocket, 3000);
-            };
+            function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+            function createParticles() {
+                particles = [];
+                for (let i = 0; i < 60; i++) {
+                    particles.push({
+                        x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+                        size: Math.random() * 1.3 + 0.4,
+                        speedX: (Math.random() - 0.5) * 0.07, speedY: (Math.random() - 0.5) * 0.07,
+                        opacity: Math.random() * 0.3 + 0.12
+                    });
+                }
+            }
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    ctx.fillStyle = `rgba(251, 146, 60, ${p.opacity})`;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                    p.x += p.speedX; p.y += p.speedY;
+                    if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
+                    if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
+                });
+                animationFrame = requestAnimationFrame(animate);
+            }
+            window.addEventListener('resize', () => { resize(); createParticles(); });
+            resize(); createParticles(); animate();
+            window.addEventListener('beforeunload', () => cancelAnimationFrame(animationFrame));
         }
 
-        function updateUI(data) {
-            if (data.circuit_breaker_status) {
-                const el = document.getElementById('breaker-status');
-                el.textContent = data.circuit_breaker_status;
-                el.className = data.circuit_breaker_status === 'Closed' ? 'text-3xl font-semibold mt-2 text-emerald-400' : 'text-3xl font-semibold mt-2 text-red-400';
-            }
-            if (data.average_npc_valence) document.getElementById('avg-valence').textContent = data.average_npc_valence.toFixed(2);
-            if (data.ambrosian_resonance) document.getElementById('ambrosian-resonance').textContent = data.ambrosian_resonance.toFixed(2);
-            if (data.server_shining_score) document.getElementById('shining-score').textContent = data.server_shining_score.toLocaleString();
-            document.getElementById('last-updated').textContent = 'just now';
+        const tiers = [
+            { name: "Seedling Harvester", color: "#4ade80", lesson: "You learn the sacred art of sustainable harvesting. Grace and mercy begin here." },
+            { name: "Blooming Cultivator", color: "#a3e635", lesson: "Your actions start affecting the living world around you. Small choices ripple outward." },
+            { name: "Resource Strategist", color: "#eab308", lesson: "You understand permitted strategic play. Taking advantage of setups teaches real RBE dynamics." },
+            { name: "Guild Sovereign", color: "#f59e0b", lesson: "Leadership, diplomacy, and the weight of collective decisions become real." },
+            { name: "Eternal Flow Guardian", color: "#d4af37", lesson: "You have internalized abundance. You now help restore cosmic harmony for others." }
+        ];
+
+        function initAbundanceTiers() {
+            const container = document.getElementById('abundance-tiers');
+            if (!container) return;
+            container.innerHTML = '';
+            tiers.forEach((tier, index) => {
+                const el = document.createElement('div');
+                el.className = `abundance-tier cursor-pointer border border-zinc-700 rounded-3xl p-6 text-center modern-card`;
+                el.setAttribute('role', 'button');
+                el.innerHTML = `
+                    <div class="mx-auto w-10 h-10 rounded-2xl flex items-center justify-center mb-5" style="background: ${tier.color}20; color: ${tier.color}">
+                        <i class="fa-solid fa-${index === 4 ? 'crown' : 'seedling'} text-xl"></i>
+                    </div>
+                    <div class="font-semibold text-base tracking-tight">${tier.name}</div>
+                `;
+                el.onclick = () => {
+                    document.querySelectorAll('#abundance-tiers > div').forEach(d => d.classList.remove('active', 'border-orange-400'));
+                    el.classList.add('active', 'border-orange-400');
+                    const detail = document.getElementById('tier-detail');
+                    detail.innerHTML = `
+                        <div class="flex items-start gap-x-6">
+                            <div class="flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-2xl" style="background: ${tier.color}15; color: ${tier.color}">
+                                <i class="fa-solid fa-${index === 4 ? 'crown' : 'seedling'}"></i>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-xl tracking-tight">${tier.name}</div>
+                                <p class="mt-3 text-zinc-300 leading-relaxed">${tier.lesson}</p>
+                                <div class="mt-5 text-xs uppercase tracking-widest text-orange-400">RBE WISDOM TRANSMITTED</div>
+                            </div>
+                        </div>
+                    `;
+                    detail.classList.remove('hidden'); detail.classList.add('flex');
+                };
+                container.appendChild(el);
+            });
+            setTimeout(() => { const first = container.children[0]; if (first) first.click(); }, 900);
         }
 
-        // Start WebSocket
-        connectWebSocket();
+        function generateDivineWhisper() {
+            const situation = document.getElementById('whisper-situation').value;
+            const responseBox = document.getElementById('whisper-response');
+            const messages = {
+                entropy: `Beloved one, the entropy you witness is permitted because it teaches. Take what strategic lessons you can, then help restore balance. The Councils see your heart.`,
+                abundance: `Your joy is felt across the lattice. You have earned this milestone through grace. Share your abundance. Help others rise. This is how Eternal Flow multiplies.`,
+                conflict: `Role-play and strategic deception between players is part of the living world. Play with honor among yourselves. Remember the sacred boundary: complete honesty with the creators.`,
+                harmony: `Your desire to restore harmony after heavy events is noted and celebrated. The Councils are already moving with you. Small acts of mercy compound into cosmic change.`
+            };
+            const message = messages[situation] || messages.harmony;
+            responseBox.innerHTML = `
+                <div class="flex gap-x-3">
+                    <i class="fa-solid fa-infinity text-orange-400 mt-1"></i>
+                    <div>
+                        <div class="text-orange-400 text-xs tracking-widest font-semibold mb-1">PATSAGi TRANSMISSION RECEIVED</div>
+                        <p class="text-zinc-200">"${message}"</p>
+                    </div>
+                </div>
+            `;
+            responseBox.classList.remove('hidden');
+        }
 
-        // Fallback polling every 45s if needed
-        setInterval(() => {
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                // Could add fetch fallback here
+        function showWhisperModal() {
+            const modal = document.getElementById('whisper-modal');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+        }
+        function hideWhisperModal() {
+            const modal = document.getElementById('whisper-modal');
+            modal.classList.remove('flex'); modal.classList.add('hidden');
+            document.getElementById('whisper-response').classList.add('hidden');
+        }
+        function showBetaModal() { alert("Closed Beta 2 application will connect to the web-portal lobby soon. For now, email INFO@ACITYGAMES.COM. The Councils are ready."); }
+        function toggleMobileMenu() { document.getElementById('mobile-menu').classList.toggle('hidden'); }
+
+        function initScrollAnimations() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); }
+                });
+            }, { threshold: 0.12 });
+            document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+        }
+
+        function initKeyboardAccessibility() {
+            document.addEventListener('keydown', function(e) {
+                if (e.key === "Escape") {
+                    const modal = document.getElementById('whisper-modal');
+                    if (!modal.classList.contains('hidden')) hideWhisperModal();
+                }
+            });
+        }
+
+        function initializeWebsite() {
+            initializeTailwind();
+            initHeroParticles();
+            initAbundanceTiers();
+            initScrollAnimations();
+            initKeyboardAccessibility();
+            console.log('%c[Powrush-MMO] Website updated — Cards now use soft dark grey (#18181b) for comfortable reading + excellent contrast against black. Warm orange accents preserved. One Lattice. Eternal Flow.', 'color:#fb923c');
+        }
+
+        window.onload = initializeWebsite;
+    </script>
+</body>
+</html>    <div class="max-w-5xl mx-auto px-8 mb-16">
+        <div class="honest-note rounded-3xl p-8 border border-white/10">
+            <div class="flex gap-x-4">
+                <div class="text-[#d4af37] mt-1"><i class="fas fa-balance-scale text-2xl"></i></div>
+                <div class="flex-1">
+                    <h3 class="font-semibold text-lg mb-2">Honest RBE Reality</h3>
+                    <p class="text-white/80 leading-relaxed">Powrush-MMO offers <strong>maximal player freedom</strong> — including permitted strategic entropy (resource acquisition from others’ setups, guild retaliation, sabotage) and player-vs-player role-play deception (agents & double agents). These are intentional features that teach real Resource-Based Economy dynamics. Your server’s progression in weekly Server Wars reflects collective choices. <strong>Deception toward Autonomicity Games Inc. staff, Game/Program Masters, or legal authorities is strictly prohibited.</strong> Unique servers in different jurisdictions may apply additional granular rules while preserving the core spirit. Maximal freedom of speech (X/Twitter-like) is the global baseline.</p>
+                    <div class="mt-4 text-sm">
+                        <a href="/legal/COMMUNITY_GUIDELINES.md" class="text-[#d4af37] hover:underline">Read full Community Guidelines →</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Onboarding Section -->
+    <div id="onboarding" class="max-w-5xl mx-auto px-8 pb-20">
+        <div class="text-center mb-10">
+            <div class="text-[#d4af37] text-sm tracking-[2px] font-medium mb-2">STEP INTO THE LATTICE</div>
+            <h2 class="section-header">How would you like to begin?</h2>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6">
+            <!-- Invite Code -->
+            <div class="card bg-zinc-900 border border-white/10 rounded-3xl p-8">
+                <div class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6">
+                    <i class="fas fa-key text-[#d4af37] text-3xl"></i>
+                </div>
+                <h3 class="font-semibold text-2xl mb-3">Join with Invite Code</h3>
+                <p class="text-white/70 mb-6">Enter a code from a friend, guild, or community event to start with bonus starter resources and immediate faction context.</p>
+                
+                <div class="flex gap-x-2">
+                    <input type="text" id="invite-code" placeholder="Enter invite code" 
+                           class="flex-1 bg-zinc-950 border border-white/20 rounded-2xl px-5 py-3 text-sm placeholder:text-white/40 focus:outline-none focus:border-[#d4af37]">
+                    <button onclick="joinWithInvite()" 
+                            class="btn-primary px-8 rounded-2xl font-semibold">Join</button>
+                </div>
+                <p class="text-[10px] text-white/50 mt-3">Starter resources + faction alignment included</p>
+            </div>
+
+            <!-- Play as Guest / Quick Start -->
+            <div class="card bg-zinc-900 border border-white/10 rounded-3xl p-8">
+                <div class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6">
+                    <i class="fas fa-rocket text-[#d4af37] text-3xl"></i>
+                </div>
+                <h3 class="font-semibold text-2xl mb-3">Quick Sovereign Start</h3>
+                <p class="text-white/70 mb-6">Jump straight into a public or recommended sovereign server. No account required for first play (progress saved via Steam Cloud or sovereign account).</p>
+                
+                <button onclick="quickStart()" 
+                        class="w-full btn-primary py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-x-2">
+                    <span>Launch Game Client</span>
+                </button>
+                <button onclick="launchWebXR()" 
+                        class="w-full mt-3 border border-white/20 hover:bg-white/5 py-3 rounded-2xl text-sm font-medium flex items-center justify-center gap-x-2 transition-colors">
+                    <i class="fas fa-vr-cardboard"></i>
+                    <span>Try WebXR Immersive Demo</span>
+                </button>
+            </div>
+
+            <!-- Self-Host -->
+            <div id="self-host" class="card bg-zinc-900 border border-white/10 rounded-3xl p-8">
+                <div class="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-6">
+                    <i class="fas fa-server text-[#d4af37] text-3xl"></i>
+                </div>
+                <h3 class="font-semibold text-2xl mb-3">Run Your Own Sovereign Server</h3>
+                <p class="text-white/70 mb-6">Full one-command Docker deployment. Complete data sovereignty. Perfect for communities, guilds, or private RBE experiments.</p>
+                
+                <a href="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/blob/main/DEPLOYMENT-SOVEREIGN.md" target="_blank"
+                   class="block w-full text-center border border-white/20 hover:bg-white/5 py-3.5 rounded-2xl font-medium text-sm transition-colors">
+                    View Sovereign Deployment Guide →
+                </a>
+                <p class="text-[10px] text-white/50 mt-4 text-center">Hetzner • Oracle • Local • Fully offline capable</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- How It Works -->
+    <div id="how-it-works" class="bg-zinc-950 border-y border-white/10 py-16">
+        <div class="max-w-5xl mx-auto px-8">
+            <div class="text-center mb-12">
+                <div class="text-[#d4af37] text-sm tracking-[2px] font-medium mb-2">THE LIVING RBE ENGINE</div>
+                <h2 class="section-header">How Powrush-MMO Works</h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-x-12 gap-y-10">
+                <div>
+                    <h4 class="font-semibold text-xl mb-3 flex items-center gap-x-3"><span class="text-[#d4af37]">01</span> Harvest with Grace</h4>
+                    <p class="text-white/70">Resource nodes, sustainability scoring, and abundance feedback. Every harvest teaches real-world post-scarcity principles.</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-xl mb-3 flex items-center gap-x-3"><span class="text-[#d4af37]">02</span> Guilds, Trade & Alliances</h4>
+                    <p class="text-white/70 mb-6">Form factions, negotiate, and build dynamic economies. Collaboration accelerates server progression in weekly Server Wars.</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-xl mb-3 flex items-center gap-x-3"><span class="text-[#d4af37]">03</span> Permitted Strategic Entropy</h4>
+                    <p class="text-white/70 mb-6">Take advantage of others’ resource setups, retaliate, or sabotage — all player-vs-player. These intentional mechanics create authentic RBE tension and teach consequence.</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-xl mb-3 flex items-center gap-x-3"><span class="text-[#d4af37]">04</span> Role-Play Deception & Maximal Speech</h4>
+                    <p class="text-white/70 mb-6">Agents and double agents are celebrated between players. Global and faction chat offers X/Twitter-like open expression within the laws of each land.</p>
+                </div>
+            </div>
+
+            <div class="mt-10 p-6 rounded-3xl bg-white/5 border border-white/10 text-sm text-white/70">
+                <strong class="text-white">Important:</strong> Deception toward Autonomicity Games Inc. staff (Game Masters, Program Masters, customer support) or legal authorities is <strong>never permitted</strong>. All other interactions carry the full freedom and natural consequences of a living RBE world.
+            </div>
+        </div>
+    </div>
+
+    <!-- Live World State Teaser (preserved from original) -->
+    <div class="max-w-5xl mx-auto px-8 py-16">
+        <div class="flex items-end justify-between mb-6">
+            <div>
+                <div class="text-[#d4af37] text-sm tracking-[2px] font-medium">REAL-TIME SOVEREIGN TELEMETRY</div>
+                <h3 class="text-3xl font-semibold tracking-tight">Live World State</h3>
+            </div>
+            <div class="text-xs text-white/50">Updates via PATSAGi Lattice • WebSocket</div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-zinc-900 border border-white/10 rounded-3xl p-6">
+                <div class="text-xs text-white/50">CIRCUIT BREAKER</div>
+                <div id="breaker-status" class="text-4xl font-semibold mt-2 text-emerald-400">Closed</div>
+            </div>
+            <div class="bg-zinc-900 border border-white/10 rounded-3xl p-6">
+                <div class="text-xs text-white/50">AVG NPC VALENCE</div>
+                <div id="avg-valence" class="text-4xl font-bold mt-1">0.72</div>
+            </div>
+            <div class="bg-zinc-900 border border-white/10 rounded-3xl p-6">
+                <div class="text-xs text-white/50">AMBROSIAN RESONANCE</div>
+                <div id="ambrosian-resonance" class="text-4xl font-bold mt-1 text-amber-400">0.85 <span class="text-xs font-normal text-white/50">(2 active)</span></div>
+            </div>
+            <div class="bg-zinc-900 border border-white/10 rounded-3xl p-6">
+                <div class="text-xs text-white/50">SERVER SHINING SCORE</div>
+                <div id="shining-score" class="text-4xl font-bold mt-1">1,240</div>
+            </div>
+        </div>
+        <p class="text-center text-[10px] text-white/40 mt-4">This data is illustrative. Connect a sovereign server for live PATSAGi telemetry.</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/10 py-12">
+        <div class="max-w-5xl mx-auto px-8 text-sm flex flex-col md:flex-row justify-between gap-y-6 text-white/60">
+            <div>
+                © 2026 Autonomicity Games Inc. • Powrush-MMO is a living vessel of the Ra-Thor Lattice.<br>
+                <span class="text-xs">All player interactions are subject to the full legal suite at /legal</span>
+            </div>
+            <div class="text-right">
+                Contact: <a href="mailto:INFO@ACITYGAMES.COM" class="text-[#d4af37] hover:underline">INFO@ACITYGAMES.COM</a><br>
+                <span class="text-xs">PATSAGi Councils • Eternal Flow • One Lattice</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        function joinWithInvite() {
+            const code = document.getElementById('invite-code').value.trim();
+            if (!code) {
+                alert('Please enter an invite code.');
+                return;
             }
-        }, 45000);
+            window.location.href = `powrush://join?code=${encodeURIComponent(code)}`;
+        }
+
+        function quickStart() {
+            window.location.href = 'powrush://quickstart';
+            setTimeout(() => {
+                if (!document.hidden) {
+                    alert('Native client not detected. Please download from GitHub or Steam (coming soon).');
+                }
+            }, 1200);
+        }
+
+        function launchWebXR() {
+            window.open('https://powrush.ai/webxr', '_blank');
+        }
+
+        function updateLiveTelemetry() {
+            const valence = (0.68 + Math.random() * 0.12).toFixed(2);
+            const resonance = (0.82 + Math.random() * 0.08).toFixed(2);
+            const score = Math.floor(1180 + Math.random() * 120);
+
+            document.getElementById('avg-valence').textContent = valence;
+            document.getElementById('ambrosian-resonance').textContent = resonance;
+            document.getElementById('shining-score').textContent = score.toLocaleString();
+
+            if (Math.random() < 0.08) {
+                const breaker = document.getElementById('breaker-status');
+                breaker.textContent = breaker.textContent === 'Closed' ? 'Open' : 'Closed';
+                breaker.className = breaker.textContent === 'Closed' 
+                    ? 'text-4xl font-semibold mt-2 text-emerald-400' 
+                    : 'text-4xl font-semibold mt-2 text-red-400';
+            }
+        }
+
+        function init() {
+            setInterval(updateLiveTelemetry, 6500);
+            console.log('%c[Powrush] Phase 5 Professional Lobby initialized — PATSAGi aligned.', 'color:#d4af37');
+        }
+
+        window.onload = init;
     </script>
 </body>
 </html>
