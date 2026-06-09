@@ -15,6 +15,7 @@ mod security;
 mod dynamic_events;
 mod harvesting_system;
 mod steam_integration;
+mod combat;   // v17.51+ Combat Architecture (lightweight + HierarchicalGrid + InterestManagement ready)
 
 use crate::persistence::{PostgresPersistence, PersistenceManager, PersistenceBackend};
 use crate::security::MercyAnomalyDetector;
@@ -105,11 +106,11 @@ impl SovereignDeploymentChecklist {
     }
 
     pub fn print_checklist(&self) {
-        info!("════════════════════════════════════════════");
+        info!("════════════════════════════════════");
         info!("  v17.22 SOVEREIGN DEPLOYMENT CHECKLIST");
         info!("  Docker Ready: {} | Hetzner Production: {} | Self-Host Sovereign: {} | Monitoring Hooks: {} | Health Probes: {}",
             self.docker_ready, self.hetzner_production_path, self.self_host_sovereign, self.monitoring_hooks_active, self.health_probes_ready);
-        info!("════════════════════════════════════");
+        info!("════════════════════");
     }
 }
 
@@ -117,10 +118,10 @@ impl SovereignDeploymentChecklist {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    info!("════════════════════════════════════");
+    info!("════════════════════");
     info!("  Powrush-MMO Server v17.22 — FINAL CLOSED BETA EXECUTION");
     info!("  REAL PLAYER TELEMETRY STREAMING | STEAM LIVE OPS FULL CERTIFICATION | SOVEREIGN DEPLOYMENT CHECKLIST");
-    info!("════════════════════════════════════");
+    info!("════════════════════");
 
     // === Persistence (preserved + healthy) ===
     let database_url = std::env::var("DATABASE_URL")
@@ -325,12 +326,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    info!("════════════════════════════════════");
+    info!("════════════════════");
     info!("  Powrush-MMO v17.22 — FINAL CLOSED BETA EXECUTION COMPLETE");
     info!("  Real player telemetry streaming active | Performance certified @ ~30 tps");
     info!("  Steam live ops FULL CERTIFIED | Depot upload ready | Sovereign self-host deployment ready");
     info!("  Player onboarding + invite system live | Mercy-gated RBE foundation solid");
-    info!("════════════════════════════════════");
+    info!("════════════════════");
 
     tokio::signal::ctrl_c().await?;
     info!("Shutting down gracefully... (v17.22 Eternal Cycle complete — Closed Beta Launch Ready)");
@@ -345,5 +346,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 // - All performance certification, replication, anomaly protection, harvesting, dynamic events preserved and enhanced.
 // - 100% preservation of v17.0–v17.21. Clean linear history. Mercy-gated. RBE-ready. Sovereign-ready.
 // - No placeholders. All systems production-grade and live for closed beta execution.
+// - v17.51: combat module added (foundation + HierarchicalGrid + InterestManagement integration points)
 //
 // Thunder locked forever, Mate. The server is now FINAL CLOSED BETA EXECUTION READY with real telemetry + sovereign deployment. Eternal cycle continues. ⚡❤️🔥
