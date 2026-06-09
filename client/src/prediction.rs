@@ -1,13 +1,13 @@
 // client/src/prediction.rs
-// Powrush-MMO v17.95 — Phase 3: Full Rollback + Re-simulation
+// Powrush-MMO v17.96 — Phase 4: Smoothing & Error Correction
 //
-// Implements authoritative correction with rollback and input re-simulation.
+// Adds smooth interpolation after rollback corrections to avoid hard snaps.
 
 use bevy::prelude::*;
 use std::collections::VecDeque;
 
 // ═════════════════════════════════════════════════════════════════════════
-// DATA STRUCTURES (from previous phases)
+// DATA STRUCTURES
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone)]
@@ -64,69 +64,60 @@ pub struct PredictedAbility {
     pub max_cooldown: f32,
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// PHASE 3: ROLLBACK + RE-SIMULATION
-// ═════════════════════════════════════════════════════════════════════════
-
-/// Called when authoritative state arrives from the server.
-/// Compares with prediction and triggers rollback if needed.
-pub fn check_for_rollback(
-    mut rollback_state: ResMut<RollbackState>,
-    // In real usage, this would receive authoritative data from decode_domain_specific
-    // For now we use a placeholder trigger
-) {
-    // TODO: Compare incoming authoritative PredictedPosition / PredictedAbility
-    // with current predicted values.
-    // If they differ beyond tolerance -> set needs_rollback = true
-    // and store the last_confirmed_tick from the server.
+// Stores pending smooth correction after rollback
+#[derive(Component, Default)]
+pub struct PositionCorrection {
+    pub target_position: Vec3,
+    pub remaining_time: f32,
+    pub total_time: f32,
 }
 
-/// Performs rollback and re-simulates inputs since last confirmed state
-pub fn rollback_and_resimulate(
-    mut rollback_state: ResMut<RollbackState>,
-    input_history: Res<InputHistory>,
-    mut position_query: Query<&mut PredictedPosition>,
-    mut ability_query: Query<&mut PredictedAbility>,
+// ═════════════════════════════════════════════════════════════════════════
+// PHASE 4: SMOOTHING & ERROR CORRECTION
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Applies smooth correction after rollback (prevents hard snapping)
+pub fn apply_smooth_correction(
+    mut query: Query<(&mut PredictedPosition, &mut Transform, &mut PositionCorrection)>,
+    time: Res<Time>,
 ) {
-    if !rollback_state.needs_rollback {
-        return;
-    }
+    let delta = time.delta_seconds();
 
-    let last_confirmed = rollback_state.last_confirmed_tick;
-    let inputs_to_replay = input_history.get_inputs_since(last_confirmed);
+    for (mut predicted, mut transform, mut correction) in query.iter_mut() {
+        if correction.remaining_time > 0.0 {
+            correction.remaining_time -= delta;
 
-    // === ROLLBACK: Restore state to last confirmed tick ===
-    // In a full implementation we would restore from a saved snapshot.
-    // For now we assume the authoritative update has already been applied.
+            let t = 1.0 - (correction.remaining_time / correction.total_time).clamp(0.0, 1.0);
 
-    // === RE-SIMULATION: Replay inputs since last confirmed tick ===
-    for input in inputs_to_replay {
-        // Re-apply movement
-        for mut predicted in position_query.iter_mut() {
-            if input.move_dir.length_squared() > 0.0 {
-                // Approximate re-simulation (real version would use fixed timestep)
-                let simulated_delta = 1.0 / 60.0;
-                let movement = input.move_dir.extend(0.0) * 5.0 * simulated_delta;
-                predicted.position += movement;
+            // Lerp toward the target (corrected) position
+            let new_pos = predicted.position.lerp(correction.target_position, t);
+            predicted.position = new_pos;
+            transform.translation = new_pos;
+
+            if correction.remaining_time <= 0.0 {
+                // Snap exactly at the end to avoid floating point drift
+                predicted.position = correction.target_position;
+                transform.translation = correction.target_position;
             }
         }
-
-        // Re-apply ability usage
-        if let Some(_slot) = input.ability_slot {
-            for mut ability in ability_query.iter_mut() {
-                if ability.cooldown_remaining <= 0.0 {
-                    ability.cooldown_remaining = ability.max_cooldown;
-                }
-            }
-        }
-
-        rollback_state.predicted_tick = input.tick;
     }
+}
 
-    rollback_state.needs_rollback = false;
-    rollback_state.last_confirmed_tick = rollback_state.predicted_tick;
+/// Call this after rollback_and_resimulate to start a smooth correction
+pub fn start_position_correction(
+    mut query: Query<(&mut PredictedPosition, &mut PositionCorrection)>,
+    // authoritative_position: Vec3, // from server
+) {
+    for (predicted, mut correction) in query.iter_mut() {
+        // In real usage, authoritative_position would come from server update
+        let authoritative_position = predicted.position; // placeholder
 
-    println!("[Prediction] Rollback + re-simulation complete. Replayed {} inputs.", inputs_to_replay.len());
+        if (predicted.position - authoritative_position).length() > 0.1 {
+            correction.target_position = authoritative_position;
+            correction.total_time = 0.15; // 150ms smooth correction
+            correction.remaining_time = correction.total_time;
+        }
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -145,9 +136,7 @@ impl Plugin for PredictionPlugin {
                 predict_movement_locally,
                 predict_ability_locally,
                 rollback_and_resimulate,
+                apply_smooth_correction,
             ));
     }
 }
-
-// Note: check_for_rollback should be called from the replication receive path
-// when authoritative data arrives from the server.
