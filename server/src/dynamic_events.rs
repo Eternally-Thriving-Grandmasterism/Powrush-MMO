@@ -1,8 +1,8 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.47 — Dynamic Events + Advanced Priority Decay Algorithms
-// PATSAGi Councils guided • 7 Living Mercy Gates aware • Type-specific + mercy-modulated decay
-// High-mercy Treaty and Divine events persist longer; generic events fade faster
-// Full integration with replication and client visualization
+// Powrush-MMO v17.48 — Dynamic Events + Priority Boosting
+// PATSAGi Councils guided • 7 Living Mercy Gates aware
+// Events can now receive temporary or persistent priority boosts (e.g. fresh high-mercy treaties, player-relevant events)
+// Boosts work alongside advanced decay for a living, responsive Eternal Flow Feed
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -35,6 +35,7 @@ pub struct DynamicEvent {
     pub metadata: serde_json::Value,
     pub priority: f32,
     pub base_priority: f32,
+    pub priority_boost: f32,           // Additive boost (can come from player actions, treaties, etc.)
 }
 
 impl DynamicEvent {
@@ -51,30 +52,33 @@ impl DynamicEvent {
         type_priority.clamp(0.1, 1.4)
     }
 
-    /// Advanced decay: exponential with mercy modulation and type-specific half-life bias.
-    /// DivineWhisper and high-mercy PATSAGi Treaty events decay significantly slower.
+    /// Applies a priority boost (e.g. from a fresh high-mercy treaty or player action).
+    /// Boost is additive and persists until manually cleared or the event ages out.
+    pub fn apply_boost(&mut self, amount: f32) {
+        self.priority_boost += amount.max(0.0);
+        self.priority = (self.priority + amount.max(0.0)).min(2.0); // soft cap
+    }
+
+    /// Advanced current priority including decay + active boost.
     pub fn current_priority(&self, current_time: f64, base_half_life: f32) -> f32 {
         if let Some(triggered) = self.triggered_at {
             let age = current_time - triggered as f64;
-            if age <= 0.0 { return self.base_priority; }
+            if age <= 0.0 { return self.base_priority + self.priority_boost; }
 
-            // Type-specific half-life multiplier (Divine & Treaty persist longer)
             let type_half_life_mult = match &self.event_type {
                 DynamicEventType::DivineWhisperCascade { .. } => 1.65,
-                DynamicEventType::FactionDiplomacyShift { .. } => 1.45, // PATSAGi council events
+                DynamicEventType::FactionDiplomacyShift { .. } => 1.45,
                 DynamicEventType::AbundanceSurge { .. } => 1.0,
                 _ => 0.95,
             };
-
-            // Mercy modulation: higher mercy_alignment = slower decay
             let mercy_mult = 1.0 + (self.mercy_alignment * 0.8);
-
             let effective_half_life = base_half_life * type_half_life_mult * mercy_mult;
 
             let decay_factor = 2f64.powf(-age / effective_half_life as f64);
-            (self.base_priority as f64 * decay_factor).max(0.04) as f32
+            let decayed = (self.base_priority as f64 * decay_factor).max(0.04) as f32;
+            (decayed + self.priority_boost).min(2.0)
         } else {
-            self.base_priority
+            self.base_priority + self.priority_boost
         }
     }
 }
@@ -91,7 +95,7 @@ pub struct DynamicEventsConfig {
     pub mercy_influence_strength: f32,
     pub max_concurrent_events: u32,
     pub event_persistence_enabled: bool,
-    pub priority_half_life_seconds: f32, // base half-life, modulated per event
+    pub priority_half_life_seconds: f32,
 }
 
 impl Default for DynamicEventsConfig {
@@ -103,13 +107,13 @@ impl Default for DynamicEventsConfig {
             mercy_influence_strength: 0.85,
             max_concurrent_events: 12,
             event_persistence_enabled: true,
-            priority_half_life_seconds: 165.0, // tuned for balanced persistence
+            priority_half_life_seconds: 165.0,
         }
     }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// DYNAMIC EVENT MANAGER + ADVANCED DECAY
+// DYNAMIC EVENT MANAGER + BOOSTING
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Resource)]
@@ -147,7 +151,18 @@ impl DynamicEventManager {
     fn consider_new_events(&mut self, current_time: f64, mercy_level: f32) { /* ... */ }
 
     fn schedule_abundance_event(&mut self, current_time: f64, mercy_level: f32) {
-        let mut event = DynamicEvent { id: Uuid::new_v4(), event_type: DynamicEventType::AbundanceSurge { multiplier: 1.5 + mercy_level * 0.8, duration_seconds: 180 + (mercy_level * 120.0) as u32 }, scheduled_at: current_time as u64, triggered_at: Some(current_time as u64), mercy_alignment: mercy_level, affected_players: vec![], metadata: serde_json::json!({"source": "EternalFlow"}), priority: 0.0, base_priority: 0.0 };
+        let mut event = DynamicEvent {
+            id: Uuid::new_v4(),
+            event_type: DynamicEventType::AbundanceSurge { multiplier: 1.5 + mercy_level * 0.8, duration_seconds: 180 + (mercy_level * 120.0) as u32 },
+            scheduled_at: current_time as u64,
+            triggered_at: Some(current_time as u64),
+            mercy_alignment: mercy_level,
+            affected_players: vec![],
+            metadata: serde_json::json!({"source": "EternalFlow"}),
+            priority: 0.0,
+            base_priority: 0.0,
+            priority_boost: 0.0,
+        };
         event.base_priority = event.compute_base_priority();
         event.priority = event.base_priority;
         self.active_events.push(event.clone());
@@ -155,19 +170,57 @@ impl DynamicEventManager {
     }
 
     fn schedule_faction_event(&mut self, current_time: f64) {
-        let mut event = DynamicEvent { id: Uuid::new_v4(), event_type: DynamicEventType::FactionDiplomacyShift { faction_a: "Seed of Abundance".to_string(), faction_b: "Flow Guardians".to_string(), delta: if rand::random::<bool>() { 0.15 } else { -0.08 } }, scheduled_at: current_time as u64, triggered_at: Some(current_time as u64), mercy_alignment: 0.75, affected_players: vec![], metadata: serde_json::json!({"type": "diplomacy", "patsagi": true}), priority: 0.0, base_priority: 0.0 };
+        let mut event = DynamicEvent {
+            id: Uuid::new_v4(),
+            event_type: DynamicEventType::FactionDiplomacyShift {
+                faction_a: "Seed of Abundance".to_string(),
+                faction_b: "Flow Guardians".to_string(),
+                delta: if rand::random::<bool>() { 0.15 } else { -0.08 },
+            },
+            scheduled_at: current_time as u64,
+            triggered_at: Some(current_time as u64),
+            mercy_alignment: 0.75,
+            affected_players: vec![],
+            metadata: serde_json::json!({"type": "diplomacy", "patsagi": true}),
+            priority: 0.0,
+            base_priority: 0.0,
+            priority_boost: 0.25, // Initial boost for fresh treaty diplomacy events
+        };
         event.base_priority = event.compute_base_priority();
-        event.priority = event.base_priority;
+        event.priority = event.base_priority + event.priority_boost;
         self.active_events.push(event.clone());
         self.pending_replication.push(event);
     }
 
     fn schedule_divine_cascade(&mut self, current_time: f64, mercy_level: f32) {
-        let mut event = DynamicEvent { id: Uuid::new_v4(), event_type: DynamicEventType::DivineWhisperCascade { intensity: 0.7 + mercy_level * 0.3, target_players: None }, scheduled_at: current_time as u64, triggered_at: Some(current_time as u64), mercy_alignment: mercy_level, affected_players: vec![], metadata: serde_json::json!({"council": "PATSAGi"}), priority: 0.0, base_priority: 0.0 };
+        let mut event = DynamicEvent {
+            id: Uuid::new_v4(),
+            event_type: DynamicEventType::DivineWhisperCascade { intensity: 0.7 + mercy_level * 0.3, target_players: None },
+            scheduled_at: current_time as u64,
+            triggered_at: Some(current_time as u64),
+            mercy_alignment: mercy_level,
+            affected_players: vec![],
+            metadata: serde_json::json!({"council": "PATSAGi"}),
+            priority: 0.0,
+            base_priority: 0.0,
+            priority_boost: 0.15, // Mild initial boost for divine events
+        };
         event.base_priority = event.compute_base_priority();
-        event.priority = event.base_priority;
+        event.priority = event.base_priority + event.priority_boost;
         self.active_events.push(event.clone());
         self.pending_replication.push(event);
+    }
+
+    /// Example: boost events relevant to a specific player/faction (call from interest/replication layer)
+    pub fn boost_events_for_player(&mut self, player_faction: &str, standing: f32) {
+        for event in self.pending_replication.iter_mut() {
+            if let DynamicEventType::FactionDiplomacyShift { faction_a, faction_b, .. } = &event.event_type {
+                if faction_a == player_faction || faction_b == player_faction {
+                    let boost = 0.2 + standing * 0.15;
+                    event.apply_boost(boost);
+                }
+            }
+        }
     }
 
     pub fn get_relevant_events_for_player(&self, _player_pos: [f32; 3]) -> Vec<&DynamicEvent> { self.active_events.iter().collect() }
@@ -184,19 +237,26 @@ impl DynamicEventManager {
 // REPLICATION WIRING
 // ═════════════════════════════════════════════════════════════════════════
 //
-// Networking tick:
-//   for event in manager.drain_prioritized_replication() {
-//       if event.priority > 0.12 { // optional threshold
-//           let client_event = map_server_event_to_client(&event);
-//           send_to_interested_players(client_event, ..., event.priority);
-//       }
-//   }
+// Networking can call manager.boost_events_for_player(...) before draining
+// for personalized feed relevance.
 
 pub fn map_server_event_to_client(event: &DynamicEvent) -> Option<ClientWorldEventMirror> {
     match &event.event_type {
-        DynamicEventType::FactionDiplomacyShift { faction_a, faction_b, .. } => Some(ClientWorldEventMirror::FactionDiplomacyShift { faction_a: faction_a.clone(), faction_b: faction_b.clone(), reason: format!("Diplomacy shift (priority {:.2}) between {} and {}", event.priority, faction_a, faction_b) }),
-        DynamicEventType::AbundanceSurge { multiplier, .. } => Some(ClientWorldEventMirror::AbundanceSurge { region: "Unknown Region".to_string(), intensity: *multiplier, mercy_delta: event.mercy_alignment * 10.0 }),
-        DynamicEventType::DivineWhisperCascade { intensity, .. } => Some(ClientWorldEventMirror::DivineWhisperCascade { message: "A Divine Whisper cascades across the world...".to_string(), affected_factions: vec![], mercy_impact: *intensity }),
+        DynamicEventType::FactionDiplomacyShift { faction_a, faction_b, .. } => Some(ClientWorldEventMirror::FactionDiplomacyShift {
+            faction_a: faction_a.clone(),
+            faction_b: faction_b.clone(),
+            reason: format!("Diplomacy shift (priority {:.2}) between {} and {}", event.priority, faction_a, faction_b),
+        }),
+        DynamicEventType::AbundanceSurge { multiplier, .. } => Some(ClientWorldEventMirror::AbundanceSurge {
+            region: "Unknown Region".to_string(),
+            intensity: *multiplier,
+            mercy_delta: event.mercy_alignment * 10.0,
+        }),
+        DynamicEventType::DivineWhisperCascade { intensity, .. } => Some(ClientWorldEventMirror::DivineWhisperCascade {
+            message: "A Divine Whisper cascades across the world...".to_string(),
+            affected_factions: vec![],
+            mercy_impact: *intensity,
+        }),
         _ => None,
     }
 }
@@ -226,7 +286,7 @@ impl Plugin for DynamicEventsPlugin {
 fn setup_dynamic_events(mut commands: Commands, config: Res<DynamicEventsConfig>) {
     let manager = DynamicEventManager::new(config.clone());
     commands.insert_resource(manager);
-    info!("⚡ Dynamic Events v17.47 + Advanced Decay (type-specific + mercy-modulated) online");
+    info!("⚡ Dynamic Events v17.48 + Priority Boosting online — fresh treaties & relevant events surface immediately");
 }
 
 fn dynamic_events_tick_system(
@@ -239,6 +299,6 @@ fn dynamic_events_tick_system(
 }
 
 // Integration notes:
-// - Decay now uses per-event effective half-life (Divine 1.65x, PATSAGi Treaty 1.45x, modulated by mercy_alignment).
-// - Use drain_prioritized_replication() — high-mercy council events naturally dominate longer.
-// - Client feed visualization (v17.45+) harmonizes with this advanced decay.
+// - Call event.apply_boost(0.3) when a high-mercy treaty is successfully negotiated.
+// - Use boost_events_for_player(...) in replication for personalized priority.
+// - Boosts + advanced decay = responsive yet stable mythic event feed.
