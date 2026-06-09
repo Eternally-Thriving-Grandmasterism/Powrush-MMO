@@ -1,6 +1,6 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.62 — Combat + Cooldown State Sync
-// Added AbilityCooldownUpdateEvent for server → client cooldown synchronization
+// Powrush-MMO v17.63 — Combat + Networking Bandwidth Optimization
+// Optimized cooldown sync to reduce unnecessary network traffic
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -105,11 +105,10 @@ impl GlobalCooldown {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// COOLDOWN STATE SYNC (Server → Client)
+// BANDWIDTH OPTIMIZATION + COOLDOWN SYNC
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Event emitted by server when a player's ability cooldown state changes
-/// This can be sent to the relevant client(s) via networking/replication layer
+/// Event for server → client cooldown state updates (optimized)
 #[derive(Event, Debug, Clone, Serialize, Deserialize)]
 pub struct AbilityCooldownUpdate {
     pub player_entity: Entity,
@@ -118,9 +117,11 @@ pub struct AbilityCooldownUpdate {
     pub max_cooldown: f32,
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// ENHANCED CLIENT INPUT HANDLER (with cooldown sync emission)
-// ═════════════════════════════════════════════════════════════════════════
+/// Tracks last sent cooldown values to avoid sending duplicate updates
+#[derive(Resource, Default)]
+pub struct CooldownSyncTracker {
+    pub last_sent: HashMap<(Entity, u32), f32>,
+}
 
 #[derive(Event, Debug, Clone)]
 pub struct AbilityUseEvent {
@@ -134,11 +135,13 @@ pub struct AbilityUseRateLimiter {
     pub last_use: HashMap<Entity, f64>,
 }
 
+/// Optimized handler that only emits cooldown updates when values meaningfully change
 pub fn handle_ability_use_requests(
     mut commands: Commands,
     mut ev_ability_use: EventReader<AbilityUseEvent>,
     time: Res<Time>,
     mut rate_limiter: ResMut<AbilityUseRateLimiter>,
+    mut sync_tracker: ResMut<CooldownSyncTracker>,
     mut ev_cooldown_update: EventWriter<AbilityCooldownUpdate>,
     mut ability_query: Query<(Entity, &mut Ability, &CombatStats, &Target)>,
     mut health_query: Query<&mut Health>,
@@ -182,19 +185,24 @@ pub fn handle_ability_use_requests(
 
                         if ability.triggers_gcd {
                             for mut gcd in gcd_query.iter_mut() {
-                                if gcd.is_ready() {
-                                    gcd.trigger(1.0);
-                                }
+                                if gcd.is_ready() { gcd.trigger(1.0); }
                             }
                         }
 
-                        // === EMIT COOLDOWN STATE UPDATE ===
-                        ev_cooldown_update.send(AbilityCooldownUpdate {
-                            player_entity: ev.player_entity,
-                            ability_id: ability.id,
-                            cooldown_remaining: ability.last_used,
-                            max_cooldown: ability.cooldown,
-                        });
+                        // === BANDWIDTH OPTIMIZATION ===
+                        // Only send update if cooldown changed meaningfully
+                        let key = (ev.player_entity, ability.id);
+                        let last_value = sync_tracker.last_sent.get(&key).copied().unwrap_or(-1.0);
+
+                        if (ability.last_used - last_value).abs() > 0.05 {
+                            ev_cooldown_update.send(AbilityCooldownUpdate {
+                                player_entity: ev.player_entity,
+                                ability_id: ability.id,
+                                cooldown_remaining: ability.last_used,
+                                max_cooldown: ability.cooldown,
+                            });
+                            sync_tracker.last_sent.insert(key, ability.last_used);
+                        }
                     }
                 }
             }
@@ -333,6 +341,7 @@ impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<AbilityUseRateLimiter>()
+            .init_resource::<CooldownSyncTracker>()
             .add_event::<AbilityUseEvent>()
             .add_event::<AbilityCooldownUpdate>()
             .add_systems(Update, (
