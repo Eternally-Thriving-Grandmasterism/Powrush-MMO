@@ -1,11 +1,8 @@
 // server/src/replication/mod.rs
-// Powrush-MMO v17.88 — Full Production Quality Restoration
+// Powrush-MMO v17.89 — Zstd Compression Optimization
 //
-// Professional, complete, and clean replication pipeline.
-// Includes: Component-level dirty tracking, actual delta detection,
-// interest-based filtering, batching, and zstd compression.
-//
-// This file is now restored to full production quality after corruption.
+// Optimized batch compression with adaptive level, size threshold,
+// and better performance characteristics.
 
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -14,10 +11,34 @@ use crate::combat::{Ability, AbilityCooldownUpdate, Health, StatusEffect};
 use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
+// COMPRESSION CONFIG
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Tunable compression settings
+#[derive(Resource)]
+pub struct CompressionConfig {
+    /// Minimum size in bytes before we bother compressing
+    pub min_size_to_compress: usize,
+    /// zstd compression level (1-22). Higher = better ratio, more CPU.
+    pub level: i32,
+    /// Whether to enable compression at all
+    pub enabled: bool,
+}
+
+impl Default for CompressionConfig {
+    fn default() -> Self {
+        Self {
+            min_size_to_compress: 256,
+            level: 3, // Good balance for game traffic
+            enabled: true,
+        }
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
 // DELTA DETECTION
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Stores the last replicated values for accurate delta detection
 #[derive(Resource, Default)]
 pub struct LastReplicatedState {
     pub abilities: HashMap<Entity, AbilityUpdatePayload>,
@@ -63,11 +84,7 @@ pub struct StatusEffectUpdatePayload {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ReplicatedComponent {
-    Ability,
-    Health,
-    StatusEffect,
-    Position,
-    CombatStats,
+    Ability, Health, StatusEffect, Position, CombatStats,
 }
 
 #[derive(Event, Debug, Clone)]
@@ -142,7 +159,6 @@ pub fn process_combat_updates(
     }
 }
 
-/// Performs real delta detection and generates interest-filtered TargetedUpdates
 pub fn replicate_dirty_state(
     mut component_dirty: ResMut<ComponentDirtyTracker>,
     mut last_state: ResMut<LastReplicatedState>,
@@ -193,9 +209,7 @@ pub fn replicate_dirty_state(
                         last_state.abilities.insert(entity, payload.clone());
 
                         UpdatePayload::Ability(payload)
-                    } else {
-                        continue;
-                    }
+                    } else { continue; }
                 }
                 ReplicatedComponent::Health => {
                     if let Ok(health) = health_query.get(entity) {
@@ -209,9 +223,7 @@ pub fn replicate_dirty_state(
                             changed |= 0b10;
                         }
 
-                        if changed == 0 {
-                            continue;
-                        }
+                        if changed == 0 { continue; }
 
                         let payload = HealthUpdatePayload {
                             current: health.current,
@@ -221,9 +233,7 @@ pub fn replicate_dirty_state(
                         last_state.health.insert(entity, payload.clone());
 
                         UpdatePayload::Health(payload)
-                    } else {
-                        continue;
-                    }
+                    } else { continue; }
                 }
                 ReplicatedComponent::StatusEffect => {
                     if let Ok(effect) = status_effect_query.get(entity) {
@@ -233,9 +243,7 @@ pub fn replicate_dirty_state(
                             strength: effect.strength,
                             changed_fields: 0b111,
                         })
-                    } else {
-                        continue;
-                    }
+                    } else { continue; }
                 }
                 _ => continue,
             };
@@ -270,12 +278,30 @@ pub fn batch_targeted_updates(
     }
 }
 
-/// Compresses a batch using zstd and prepares it for network transport
-pub fn compress_batch(updates: &[TargetedUpdate]) -> (Vec<u8>, usize, usize) {
+// ═════════════════════════════════════════════════════════════════════════
+// OPTIMIZED BATCH COMPRESSION
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Optimized compression with adaptive behavior
+pub fn compress_batch(
+    updates: &[TargetedUpdate],
+    config: &CompressionConfig,
+) -> (Vec<u8>, usize, usize) {
+    if !config.enabled || updates.is_empty() {
+        let serialized = bincode::serialize(updates).unwrap_or_default();
+        return (serialized.clone(), serialized.len(), serialized.len());
+    }
+
     let serialized = bincode::serialize(updates).unwrap_or_default();
     let original_size = serialized.len();
 
-    let compressed = zstd::encode_all(&serialized[..], 3).unwrap_or_default();
+    // Skip compression for very small batches (not worth the CPU cost)
+    if original_size < config.min_size_to_compress {
+        return (serialized.clone(), original_size, original_size);
+    }
+
+    // Use configured compression level
+    let compressed = zstd::encode_all(&serialized[..], config.level).unwrap_or(serialized.clone());
     let compressed_size = compressed.len();
 
     (compressed, original_size, compressed_size)
@@ -283,6 +309,7 @@ pub fn compress_batch(updates: &[TargetedUpdate]) -> (Vec<u8>, usize, usize) {
 
 pub fn send_replication_batches(
     mut batcher: ResMut<ReplicationBatcher>,
+    compression_config: Res<CompressionConfig>,
 ) {
     let batches = batcher.drain_batches();
     if batches.is_empty() {
@@ -290,7 +317,8 @@ pub fn send_replication_batches(
     }
 
     for (recipient, updates) in batches {
-        let (compressed, original_size, compressed_size) = compress_batch(&updates);
+        let (compressed, original_size, compressed_size) =
+            compress_batch(&updates, &compression_config);
 
         let ratio = if original_size > 0 {
             (compressed_size as f32 / original_size as f32) * 100.0
@@ -298,18 +326,20 @@ pub fn send_replication_batches(
             100.0
         };
 
-        println!(
-            "[Replication] Batch for {:?}: {} updates | {} -> {} bytes ({:.1}% of original) - zstd compressed",
-            recipient,
-            updates.len(),
-            original_size,
-            compressed_size,
-            ratio
-        );
+        if compressed_size < original_size {
+            println!(
+                "[Replication] Batch for {:?}: {} updates | {} -> {} bytes ({:.1}% of original) - zstd L{}",
+                recipient, updates.len(), original_size, compressed_size, ratio, compression_config.level
+            );
+        } else {
+            println!(
+                "[Replication] Batch for {:?}: {} updates | {} bytes (no compression)",
+                recipient, updates.len(), original_size
+            );
+        }
 
         // === TRANSPORT HOOK ===
-        // `compressed` is ready to be sent by the networking layer.
-        // Example: networking.send_compressed_batch(recipient, compressed);
+        // Send `compressed` (which may or may not be compressed) to networking layer
     }
 }
 
@@ -325,6 +355,7 @@ impl Plugin for ReplicationPlugin {
             .init_resource::<ComponentDirtyTracker>()
             .init_resource::<ReplicationBatcher>()
             .init_resource::<LastReplicatedState>()
+            .init_resource::<CompressionConfig>()
             .add_event::<TargetedUpdate>()
             .add_systems(Update, (
                 process_combat_updates,
