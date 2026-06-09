@@ -1,6 +1,5 @@
 // shared/protocol.rs
-// Powrush-MMO — Divine Whispers network protocol extension
-// Local Ra-Thor sovereign divine messaging
+// Powrush-MMO — Divine Whispers with server-side audio normalization
 // AG-SML v1.0
 
 use serde::{Deserialize, Serialize};
@@ -16,12 +15,15 @@ pub struct HealthComponent {
     pub current: f32, pub max: f32,
 }
 
-// === Divine Whispers (local Ra-Thor) ===
+// Divine Whisper with server-side normalization hint
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DivineWhisper {
     pub message: String,
     pub valence: f32,
     pub mercy_seal: bool,
+    /// Server-computed recommended playback volume (0.0 - 1.0)
+    /// Client should combine this with user volume settings.
+    pub normalized_volume: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,15 +58,11 @@ pub enum ServerMessage {
     TradeCompleted { trade_id: u64, from: u64, to: u64, final_state: String, grace_awarded: u64 },
     TradeFailed { trade_id: u64, reason: String },
     TradeCancelled { trade_id: u64, reason: String },
-
-    // New: GPU PATSAGi simulation results for client visualization
     GpuPatsagiUpdate {
         global_confidence: f32,
         node_predictions: HashMap<u64, NodeGpuPrediction>,
         notes: String,
     },
-
-    // === Divine Whispers from local Ra-Thor (sovereign) ===
     DivineWhisperReceived {
         whisper: DivineWhisper,
     },
