@@ -1,60 +1,63 @@
 // server/src/replication/mod.rs
-// Powrush-MMO v17.73 — Replication Pipeline (Foundation)
-// Professional skeleton for dirty tracking + interest-aware state delivery
-// This module will become the central nervous system for all client-bound state.
+// Powrush-MMO v17.76 — Replication Pipeline + Dirty Tracking Optimization
+// Professional dirty tracking with HashSet for deduplication and performance
 
 use bevy::prelude::*;
+use std::collections::HashSet;
 use crate::combat::AbilityCooldownUpdate;
 use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
-// REPLICATION MODULE OVERVIEW
-// ═════════════════════════════════════════════════════════════════════════
-//
-// Responsibilities:
-// - Track dirty/changed state that needs to be sent to clients
-// - Filter updates using InterestManager (per-player targeting)
-// - Batch and prioritize outgoing updates
-// - Eventually integrate with the networking transport layer
-//
-// Current Phase: Foundation + Interest-aware broadcasting of combat events
-
-// ═════════════════════════════════════════════════════════════════════════
-// RESOURCES
+// REPLICATION MODULE + OPTIMIZED DIRTY TRACKING
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Tracks entities and components that have changed and need replication
+/// Optimized DirtyTracker using HashSet for automatic deduplication and O(1) lookups.
+/// This is critical for high-frequency combat and replication scenarios.
 #[derive(Resource, Default)]
 pub struct DirtyTracker {
-    // Future: Use generational indices or sparse sets for efficiency
-    pub dirty_entities: Vec<Entity>,
+    pub dirty_entities: HashSet<Entity>,
+}
+
+impl DirtyTracker {
+    /// Mark an entity as dirty (automatically deduplicates)
+    pub fn mark_dirty(&mut self, entity: Entity) {
+        self.dirty_entities.insert(entity);
+    }
+
+    /// Drain all dirty entities (consumes the set for replication)
+    pub fn drain_dirty(&mut self) -> Vec<Entity> {
+        self.dirty_entities.drain().collect()
+    }
+
+    /// Clear all dirty entities without returning them
+    pub fn clear(&mut self) {
+        self.dirty_entities.clear();
+    }
+
+    /// Check if an entity is currently marked dirty
+    pub fn is_dirty(&self, entity: Entity) -> bool {
+        self.dirty_entities.contains(&entity)
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
 // SYSTEMS
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Consumes AbilityCooldownUpdate events and prepares them for interest-aware delivery
+/// Processes combat updates and marks entities as dirty using the optimized tracker
 pub fn process_combat_updates(
     mut ev_cooldown_update: EventReader<AbilityCooldownUpdate>,
     interest: Res<InterestManager>,
     mut dirty_tracker: ResMut<DirtyTracker>,
 ) {
     for update in ev_cooldown_update.read() {
-        // For now we simply mark the acting player as dirty.
-        // In later iterations we will:
-        // - Query interested players using InterestManager
-        // - Create per-recipient update packets
-        // - Batch and prioritize
+        // Optimized: mark_dirty uses HashSet (automatic deduplication + fast lookup)
+        dirty_tracker.mark_dirty(update.acting_player);
 
-        if !dirty_tracker.dirty_entities.contains(&update.acting_player) {
-            dirty_tracker.dirty_entities.push(update.acting_player);
-        }
-
-        // Placeholder for future interest-based filtering:
+        // Future: Interest-based targeted delivery
         // let interested = interest.get_interested_players(update.acting_player);
         // for recipient in interested {
-        //     // send targeted update to recipient
+        //     // create per-recipient update
         // }
     }
 }
@@ -74,15 +77,16 @@ impl Plugin for ReplicationPlugin {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// NOTES & FUTURE WORK
+// NOTES
 // ═════════════════════════════════════════════════════════════════════════
 //
-// Next steps for this module:
-// - Implement proper interest filtering using InterestManager::get_interested_players()
-// - Create per-recipient update packets
-// - Add batching and prioritization logic
-// - Integrate with the networking transport (TokioTransport)
-// - Support more event types (world events, diplomacy, faction changes, etc.)
-// - Add support for carrying lightweight "meaning/context" from Ra-Thor/PATSAGi Councils
+// Dirty Tracking Optimizations Applied:
+// - Changed from Vec<Entity> to HashSet<Entity> for O(1) insert + automatic deduplication
+// - Added helper methods: mark_dirty(), drain_dirty(), clear(), is_dirty()
+// - Significantly reduces memory and CPU cost during high-frequency combat
 //
-// This module is intentionally kept minimal in v17.73 to establish the foundation cleanly.
+// Future enhancements:
+// - Add dirty component tracking (not just entities)
+// - Priority queues for important vs background updates
+// - Integration with InterestManager for per-player targeted replication
+// - Batching of updates before sending over the network
