@@ -1,29 +1,43 @@
-[package]
-name = "powrush-mmo"
-version = "0.1.0"
-edition = "2021"
-
 [workspace]
-members = ["server", "shared"]
+resolver = "2"
+members = [
+    "client",
+    "server",
+    "shared",
+]
 
-[features]
-default = []
-gpu = ["wgpu", "pollster"]
+[workspace.package]
+version = "17.98.0"
+edition = "2021"
+license = "AG-SML-1.0 — Autonomicity Games Sovereign Mercy License"
+authors = ["Sherif Samy Botros <ceo@acitygames.com>"]
+repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
+description = "Powrush-MMO — Sovereign RBE Metaverse with zero-lag prediction, mercy-gated particles, and eternal thriving"
 
-[dependencies]
-wgpu = { version = "0.19", optional = true }
-pollster = { version = "0.3", optional = true }
-
-[dev-dependencies]
-steamworks = "0.13"
+[workspace.dependencies]
+bevy = { version = "0.14", features = ["wayland", "x11", "webp", "jpeg", "png", "bevy_render", "bevy_asset", "bevy_pbr", "bevy_ui", "bevy_text", "bevy_audio", "bevy_scene", "bevy_gltf", "bevy_winit", "bevy_core_pipeline", "bevy_sprite", "bevy_mesh", "bevy_gizmos"] }
+tokio = { version = "1.38", features = ["full"] }
+tokio-tungstenite = "0.23"
+futures-util = "0.3"
+snappy = "0.1"
+bincode = "2.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-criterion = { version = "0.5", features = ["html_reports"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
 
-[[bench]]
-name = "harvest_flow_bench"
-harness = false
+[workspace.lints.rust]
+unsafe_code = "deny"
+unused_crate_dependencies = "deny"
 
-[[example]]
-name = "steam_settings_client"
-path = "examples/steam_settings_client.rs"
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+
+# Root workspace metadata for mint-and-print-only-perfection
+[workspace.metadata.ra-thor]
+perfection_mode = "mint-and-print-only"
+tolc8_enforced = true
+mial_mwpo_enforced = true
+zero_lag_guarantee = true
+eternal_thriving = true
