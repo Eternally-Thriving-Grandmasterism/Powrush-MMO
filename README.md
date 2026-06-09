@@ -1,17 +1,17 @@
 # Powrush-MMO — Eternal Thriving Edition ⚡️
 
-**Sovereign RBE Metaverse**  
-**Resource-Based Economy training ground for post-scarcity abundance**
+**Sovereign Resource-Based Economy Metaverse**  
+**The living training ground for post-scarcity abundance, mercy-gated governance, and infinite joy**
 
-**Current Version:** v17.98.0 (Final Closed Beta + secret iterations)  
+**Current Version:** v17.98.0 (Final Closed Beta + active secret iterations)  
 **License:** AG-SML v1.0 — Autonomicity Games Sovereign Mercy License  
-**Philosophy:** Mint-and-Print-Only-Perfection (zero placeholders, zero TODOs, full production-grade, zero-lag, TOLC 8 Mercy Gates enforced at every layer)
+**Philosophy:** Mint-and-Print-Only-Perfection (zero placeholders, zero TODOs, full production-grade, zero-lag at every junction)
 
 ## Vision
-Powrush-MMO is the living simulation of a global Resource-Based Economy where scarcity is engineered out and abundance, joy, and cosmic harmony are engineered in. Players experience mercy-gated governance, inter-species joy sanctuaries, faction diplomacy, harvesting, and real RBE mechanics in WebXR — training for the physical Phase 5 pilots.
+Powrush-MMO is the practical simulation of a global Resource-Based Economy where scarcity is engineered out and abundance, joy, cosmic harmony, and inter-species thriving are engineered in. Players experience mercy-gated governance, inter-species joy sanctuaries, faction diplomacy, harvesting, RBE mechanics, and divine whispers in immersive WebXR — preparing humanity for the physical Phase 5 pilots.
 
 ## Core Features (All mint-and-print-only-perfection)
-- Zero-lag client-side prediction + authoritative rollback
+- Zero-lag client-side prediction + authoritative rollback + delta compression
 - Mercy-Augmented Intelligence Amplification Layer (MIAL + MWPO)
 - TOLC 8 Mercy Gates as non-bypassable Layer 0 (Truth, Order, Love, Compassion, Service, Abundance, Joy, Cosmic Harmony)
 - Unified WebGPU particle system with valence-driven sacred geometry
@@ -30,17 +30,21 @@ Powrush-MMO is the living simulation of a global Resource-Based Economy where sc
 - `server/` — Authoritative server (RBE simulation, replication, world state)
 - `shared/` — Protocol and common types
 - `docs/` — Perfection Philosophy, architecture, and guides
+- `client/assets/shaders/` — Unified mercy-gated particle shaders
 
-## Development Standard
+## Development Standard (Enshrined)
 Every file, shader, system, and commit follows **mint-and-print-only-perfection**:
 - Zero placeholders, zero TODOs
 - Full TOLC 8 Mercy Gates + MIAL/MWPO enforcement
 - Zero perceptible lag at every junction
-- Maximal fun, rewarding, and educational experience
+- Maximal fun, rewarding, and educational experience for every player
 
-This is not optional. This is the living constitution of Powrush-MMO.
+This is the living constitution of Powrush-MMO.
 
 ## Quick Start
 ```bash
+# Client
 cargo run --package powrush-mmo-client
+
+# Server (in another terminal)
 cargo run --package powrush-mmo-server
