@@ -1,20 +1,18 @@
 // server/src/replication/mod.rs
-// Powrush-MMO v17.82 — Replication Pipeline (Refined Documentation)
+// Powrush-MMO v17.83 — Network Transport Integration
 //
-// FULL PIPELINE OVERVIEW:
-// 1. Dirty Marking (process_combat_updates)
-//    - Systems mark specific components as dirty when they change.
-// 2. Real Data Query (replicate_dirty_state)
-//    - Queries actual ECS components (Ability, Health, StatusEffect...) to build payloads.
+// This module now includes the final stage: preparing batched updates
+// for actual network delivery.
+//
+// PIPELINE SUMMARY:
+// 1. Dirty Marking
+// 2. Real ECS Data Query
 // 3. Interest Filtering
-//    - Uses InterestManager.get_interested_players() to determine recipients.
-// 4. Targeted Update Generation
-//    - Creates per-recipient TargetedUpdate events with real payloads.
-// 5. Batching (batch_targeted_updates)
-//    - Groups updates by recipient into ReplicationBatcher for efficient delivery.
+// 4. TargetedUpdate Generation
+// 5. Batching (ReplicationBatcher)
+// 6. Transport Preparation (send_replication_batches)  <--- NEW
 //
-// This pipeline is component-aware, interest-filtered, and batched.
-// Ready for networking transport integration.
+// The output of this stage is ready to be handed to the networking layer.
 
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -23,37 +21,18 @@ use crate::combat::{Ability, AbilityCooldownUpdate, Health, StatusEffect};
 use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
-// PAYLOADS
+// PAYLOADS + DATA STRUCTURES
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AbilityUpdatePayload {
-    pub ability_id: u32,
-    pub cooldown_remaining: f32,
-    pub max_cooldown: f32,
-}
-
+pub struct AbilityUpdatePayload { pub ability_id: u32, pub cooldown_remaining: f32, pub max_cooldown: f32 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HealthUpdatePayload {
-    pub current: f32,
-    pub max: f32,
-}
-
+pub struct HealthUpdatePayload { pub current: f32, pub max: f32 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StatusEffectUpdatePayload {
-    pub effect_type: u8,
-    pub duration: f32,
-    pub strength: f32,
-}
-
-// ═════════════════════════════════════════════════════════════════════════
-// TARGETED UPDATE + BATCHING
-// ═════════════════════════════════════════════════════════════════════════
+pub struct StatusEffectUpdatePayload { pub effect_type: u8, pub duration: f32, pub strength: f32 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ReplicatedComponent {
-    Ability, Health, StatusEffect, Position, CombatStats,
-}
+pub enum ReplicatedComponent { Ability, Health, StatusEffect, Position, CombatStats }
 
 #[derive(Event, Debug, Clone)]
 pub struct TargetedUpdate {
@@ -63,21 +42,19 @@ pub struct TargetedUpdate {
     pub payload: UpdatePayload,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UpdatePayload {
     Ability(AbilityUpdatePayload),
     Health(HealthUpdatePayload),
     StatusEffect(StatusEffectUpdatePayload),
 }
 
-/// A complete batch of updates for one recipient
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchedUpdates {
     pub recipient: Entity,
     pub updates: Vec<TargetedUpdate>,
 }
 
-/// Collects updates per recipient for efficient delivery
 #[derive(Resource, Default)]
 pub struct ReplicationBatcher {
     pub batches: HashMap<Entity, Vec<TargetedUpdate>>,
@@ -129,7 +106,6 @@ pub fn process_combat_updates(
     }
 }
 
-/// Queries real component data and produces interest-filtered TargetedUpdates
 pub fn replicate_dirty_state(
     mut component_dirty: ResMut<ComponentDirtyTracker>,
     interest: Res<InterestManager>,
@@ -196,13 +172,50 @@ pub fn replicate_dirty_state(
     }
 }
 
-/// Groups TargetedUpdates by recipient for efficient network delivery
+/// Batches TargetedUpdates per recipient
 pub fn batch_targeted_updates(
     mut ev_targeted: EventReader<TargetedUpdate>,
     mut batcher: ResMut<ReplicationBatcher>,
 ) {
     for update in ev_targeted.read() {
         batcher.add_update(update.clone());
+    }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// NETWORK TRANSPORT INTEGRATION
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Drains the ReplicationBatcher and prepares data for network transport.
+/// This is the handoff point to the actual networking layer.
+pub fn send_replication_batches(
+    mut batcher: ResMut<ReplicationBatcher>,
+) {
+    let batches = batcher.drain_batches();
+
+    if batches.is_empty() {
+        return;
+    }
+
+    for (recipient, updates) in batches {
+        // === TRANSPORT HOOK ===
+        // At this point we have a complete, batched, serialized-ready set of updates
+        // for a specific recipient.
+        //
+        // TODO: Integrate with real networking:
+        // - Serialize `updates` using serde + bincode or a custom protocol
+        // - Send over tokio channel, WebSocket, UDP, or your transport of choice
+        // - Handle reliability, ordering, and compression as needed
+        //
+        // For now we log the batch for visibility during development.
+        println!(
+            "[Replication] Sending batch to recipient {:?}: {} updates",
+            recipient, updates.len()
+        );
+
+        // Example future code:
+        // let serialized = bincode::serialize(&updates).unwrap();
+        // networking.send_to(recipient, serialized);
     }
 }
 
@@ -222,26 +235,7 @@ impl Plugin for ReplicationPlugin {
                 process_combat_updates,
                 replicate_dirty_state,
                 batch_targeted_updates,
+                send_replication_batches,
             ));
     }
 }
-
-// ═════════════════════════════════════════════════════════════════════════
-// PIPELINE NOTES
-// ═════════════════════════════════════════════════════════════════════════
-//
-// Current Capabilities:
-// - Component-level dirty tracking (not just entity-level)
-// - Real ECS data queries for payloads
-// - InterestManager-based recipient filtering
-// - Per-recipient batching via ReplicationBatcher
-//
-// Future Work:
-// - Full spatial reverse interest queries in InterestManager
-// - Actual network serialization + transport integration
-// - Priority handling (InterestPriority)
-// - Delta compression / change-only replication
-// - Client-side prediction & reconciliation support
-//
-// This module is designed to be the central, efficient delivery system
-// for all gameplay state (combat, world, diplomacy, council influence).
