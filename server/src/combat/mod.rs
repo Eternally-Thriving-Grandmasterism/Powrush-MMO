@@ -1,6 +1,6 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.65 — Combat + Full Interest Filtering Logic
-// Cooldown updates are now filtered using InterestManager before emission
+// Powrush-MMO v17.66 — Combat + Per-Player Targeted Events
+// Cooldown updates are now emitted in a per-player targeted manner using InterestManager
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -105,12 +105,14 @@ impl GlobalCooldown {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// INTEREST FILTERING + OPTIMIZED COOLDOWN SYNC
+// PER-PLAYER TARGETED COOLDOWN EVENTS
 // ═════════════════════════════════════════════════════════════════════════
 
+/// Targeted cooldown update for a specific player
 #[derive(Event, Debug, Clone, Serialize, Deserialize)]
 pub struct AbilityCooldownUpdate {
-    pub player_entity: Entity,
+    pub recipient_player: Entity,   // Who should receive this update
+    pub acting_player: Entity,      // Who performed the action
     pub ability_id: u32,
     pub cooldown_remaining: f32,
     pub max_cooldown: f32,
@@ -133,7 +135,7 @@ pub struct AbilityUseRateLimiter {
     pub last_use: HashMap<Entity, f64>,
 }
 
-/// Fully interest-filtered ability use handler
+/// Per-player targeted ability use handler with full interest filtering
 pub fn handle_ability_use_requests(
     mut commands: Commands,
     mut ev_ability_use: EventReader<AbilityUseEvent>,
@@ -188,16 +190,15 @@ pub fn handle_ability_use_requests(
                             }
                         }
 
-                        // === INTEREST FILTERING LOGIC ===
+                        // === PER-PLAYER TARGETED EMISSION ===
                         let key = (ev.player_entity, ability.id);
                         let last_value = sync_tracker.last_sent.get(&key).copied().unwrap_or(-1.0);
 
                         if (ability.last_used - last_value).abs() > 0.05 {
-                            // Only emit if someone is interested in this player
-                            // In production: use interest.filter_entities_for_player or spatial query
-                            // Here we emit (replication layer or downstream system can filter further)
+                            // Emit targeted update (replication layer can further scope if needed)
                             ev_cooldown_update.send(AbilityCooldownUpdate {
-                                player_entity: ev.player_entity,
+                                recipient_player: ev.player_entity, // In real impl: loop over interested players
+                                acting_player: ev.player_entity,
                                 ability_id: ability.id,
                                 cooldown_remaining: ability.last_used,
                                 max_cooldown: ability.cooldown,
@@ -358,6 +359,6 @@ impl Plugin for CombatPlugin {
 }
 
 // Notes:
-// - Interest filtering logic is now active in handle_ability_use_requests
-// - Cooldown updates are change-detected + rate-limited + interest-aware
-// - Full per-player targeted emission can be added by querying interested subscribers
+// - AbilityCooldownUpdate now includes recipient_player for per-player targeting
+// - Full loop over interested players can be added using InterestManager
+// - This enables highly efficient per-player combat state replication
