@@ -1,8 +1,8 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.48 — Dynamic Events + Priority Boosting
+// Powrush-MMO v17.49 — Dynamic Events + Decay Rate Tuning
 // PATSAGi Councils guided • 7 Living Mercy Gates aware
-// Events can now receive temporary or persistent priority boosts (e.g. fresh high-mercy treaties, player-relevant events)
-// Boosts work alongside advanced decay for a living, responsive Eternal Flow Feed
+// Fully tunable decay rates via DynamicEventsConfig (type multipliers, mercy influence, floors, boost decay)
+// Enables fine control over how quickly events fade in the Eternal Flow Feed
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,7 @@ pub struct DynamicEvent {
     pub metadata: serde_json::Value,
     pub priority: f32,
     pub base_priority: f32,
-    pub priority_boost: f32,           // Additive boost (can come from player actions, treaties, etc.)
+    pub priority_boost: f32,
 }
 
 impl DynamicEvent {
@@ -52,31 +52,37 @@ impl DynamicEvent {
         type_priority.clamp(0.1, 1.4)
     }
 
-    /// Applies a priority boost (e.g. from a fresh high-mercy treaty or player action).
-    /// Boost is additive and persists until manually cleared or the event ages out.
     pub fn apply_boost(&mut self, amount: f32) {
-        self.priority_boost += amount.max(0.0);
-        self.priority = (self.priority + amount.max(0.0)).min(2.0); // soft cap
+        self.priority_boost = (self.priority_boost + amount.max(0.0)).min(1.5);
+        self.priority = (self.priority + amount.max(0.0)).min(2.0);
     }
 
-    /// Advanced current priority including decay + active boost.
-    pub fn current_priority(&self, current_time: f64, base_half_life: f32) -> f32 {
+    /// Tunable decay using config-driven multipliers and mercy influence.
+    pub fn current_priority(&self, current_time: f64, config: &DynamicEventsConfig) -> f32 {
         if let Some(triggered) = self.triggered_at {
             let age = current_time - triggered as f64;
             if age <= 0.0 { return self.base_priority + self.priority_boost; }
 
-            let type_half_life_mult = match &self.event_type {
-                DynamicEventType::DivineWhisperCascade { .. } => 1.65,
-                DynamicEventType::FactionDiplomacyShift { .. } => 1.45,
+            // Tunable type-specific multipliers
+            let type_mult = match &self.event_type {
+                DynamicEventType::DivineWhisperCascade { .. } => config.divine_half_life_multiplier,
+                DynamicEventType::FactionDiplomacyShift { .. } => config.patsagi_treaty_half_life_multiplier,
                 DynamicEventType::AbundanceSurge { .. } => 1.0,
-                _ => 0.95,
+                _ => config.generic_half_life_multiplier,
             };
-            let mercy_mult = 1.0 + (self.mercy_alignment * 0.8);
-            let effective_half_life = base_half_life * type_half_life_mult * mercy_mult;
+
+            // Tunable mercy influence on decay speed
+            let mercy_mult = 1.0 + (self.mercy_alignment * config.mercy_half_life_influence);
+
+            let effective_half_life = config.priority_half_life_seconds * type_mult * mercy_mult;
 
             let decay_factor = 2f64.powf(-age / effective_half_life as f64);
-            let decayed = (self.base_priority as f64 * decay_factor).max(0.04) as f32;
-            (decayed + self.priority_boost).min(2.0)
+            let decayed = (self.base_priority as f64 * decay_factor).max(config.min_priority_floor as f64) as f32;
+
+            // Optional gentle decay on boosts themselves
+            let remaining_boost = self.priority_boost * (1.0 - (age as f32 / (config.boost_decay_half_life * 2.0)).min(1.0));
+
+            (decayed + remaining_boost.max(0.0)).min(2.0)
         } else {
             self.base_priority + self.priority_boost
         }
@@ -84,7 +90,7 @@ impl DynamicEvent {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// CONFIG
+// CONFIG - Fully tunable decay rates
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Resource, Clone, Debug, Serialize, Deserialize)]
@@ -95,7 +101,15 @@ pub struct DynamicEventsConfig {
     pub mercy_influence_strength: f32,
     pub max_concurrent_events: u32,
     pub event_persistence_enabled: bool,
-    pub priority_half_life_seconds: f32,
+
+    // === DECAY RATE TUNING ===
+    pub priority_half_life_seconds: f32,           // Base half-life (higher = slower global decay)
+    pub divine_half_life_multiplier: f32,          // >1.0 = Divine events persist much longer
+    pub patsagi_treaty_half_life_multiplier: f32,  // >1.0 = Treaty council events persist longer
+    pub generic_half_life_multiplier: f32,
+    pub mercy_half_life_influence: f32,            // How strongly mercy_alignment slows decay (0.0 = no effect)
+    pub min_priority_floor: f32,                   // Never decay below this floor
+    pub boost_decay_half_life: f32,                // How fast priority_boost itself fades (0 = permanent boosts)
 }
 
 impl Default for DynamicEventsConfig {
@@ -107,13 +121,21 @@ impl Default for DynamicEventsConfig {
             mercy_influence_strength: 0.85,
             max_concurrent_events: 12,
             event_persistence_enabled: true,
+
+            // Tuned defaults for balanced mythic feel
             priority_half_life_seconds: 165.0,
+            divine_half_life_multiplier: 1.65,
+            patsagi_treaty_half_life_multiplier: 1.45,
+            generic_half_life_multiplier: 1.0,
+            mercy_half_life_influence: 0.8,
+            min_priority_floor: 0.04,
+            boost_decay_half_life: 240.0, // boosts last ~4 minutes by default
         }
     }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// DYNAMIC EVENT MANAGER + BOOSTING
+// DYNAMIC EVENT MANAGER
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Resource)]
@@ -138,12 +160,11 @@ impl DynamicEventManager {
     }
 
     fn apply_priority_decay(&mut self, current_time: f64) {
-        let base_half = self.config.priority_half_life_seconds;
         for event in self.active_events.iter_mut() {
-            event.priority = event.current_priority(current_time, base_half);
+            event.priority = event.current_priority(current_time, &self.config);
         }
         for event in self.pending_replication.iter_mut() {
-            event.priority = event.current_priority(current_time, base_half);
+            event.priority = event.current_priority(current_time, &self.config);
         }
     }
 
@@ -184,7 +205,7 @@ impl DynamicEventManager {
             metadata: serde_json::json!({"type": "diplomacy", "patsagi": true}),
             priority: 0.0,
             base_priority: 0.0,
-            priority_boost: 0.25, // Initial boost for fresh treaty diplomacy events
+            priority_boost: 0.25,
         };
         event.base_priority = event.compute_base_priority();
         event.priority = event.base_priority + event.priority_boost;
@@ -203,7 +224,7 @@ impl DynamicEventManager {
             metadata: serde_json::json!({"council": "PATSAGi"}),
             priority: 0.0,
             base_priority: 0.0,
-            priority_boost: 0.15, // Mild initial boost for divine events
+            priority_boost: 0.15,
         };
         event.base_priority = event.compute_base_priority();
         event.priority = event.base_priority + event.priority_boost;
@@ -211,7 +232,6 @@ impl DynamicEventManager {
         self.pending_replication.push(event);
     }
 
-    /// Example: boost events relevant to a specific player/faction (call from interest/replication layer)
     pub fn boost_events_for_player(&mut self, player_faction: &str, standing: f32) {
         for event in self.pending_replication.iter_mut() {
             if let DynamicEventType::FactionDiplomacyShift { faction_a, faction_b, .. } = &event.event_type {
@@ -236,9 +256,6 @@ impl DynamicEventManager {
 // ═════════════════════════════════════════════════════════════════════════
 // REPLICATION WIRING
 // ═════════════════════════════════════════════════════════════════════════
-//
-// Networking can call manager.boost_events_for_player(...) before draining
-// for personalized feed relevance.
 
 pub fn map_server_event_to_client(event: &DynamicEvent) -> Option<ClientWorldEventMirror> {
     match &event.event_type {
@@ -286,7 +303,7 @@ impl Plugin for DynamicEventsPlugin {
 fn setup_dynamic_events(mut commands: Commands, config: Res<DynamicEventsConfig>) {
     let manager = DynamicEventManager::new(config.clone());
     commands.insert_resource(manager);
-    info!("⚡ Dynamic Events v17.48 + Priority Boosting online — fresh treaties & relevant events surface immediately");
+    info!("⚡ Dynamic Events v17.49 + Decay Rate Tuning online — fully configurable via DynamicEventsConfig");
 }
 
 fn dynamic_events_tick_system(
@@ -298,7 +315,8 @@ fn dynamic_events_tick_system(
     manager.tick(current_time, mercy_level);
 }
 
-// Integration notes:
-// - Call event.apply_boost(0.3) when a high-mercy treaty is successfully negotiated.
-// - Use boost_events_for_player(...) in replication for personalized priority.
-// - Boosts + advanced decay = responsive yet stable mythic event feed.
+// Tuning Guide (edit DynamicEventsConfig at runtime or in default):
+// - Increase divine_half_life_multiplier to 2.5+ for very long-lived divine wisdom.
+// - Lower patsagi_treaty_half_life_multiplier if you want fresh treaties to stand out more via boosts instead.
+// - Raise mercy_half_life_influence to make high-mercy events almost permanent.
+// - Set boost_decay_half_life low if you want boosts to be short-lived "spotlights".
