@@ -1,6 +1,6 @@
 // shared/protocol.rs
-// Powrush-MMO v16.5.21 — Added GpuPatsagiUpdate for client visualization
-// Extends protocol to support sending GPU simulation results to clients.
+// Powrush-MMO — Divine Whispers network protocol extension
+// Local Ra-Thor sovereign divine messaging
 // AG-SML v1.0
 
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,14 @@ pub struct Vec3Ser {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HealthComponent {
     pub current: f32, pub max: f32,
+}
+
+// === Divine Whispers (local Ra-Thor) ===
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DivineWhisper {
+    pub message: String,
+    pub valence: f32,
+    pub mercy_seal: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,6 +62,11 @@ pub enum ServerMessage {
         global_confidence: f32,
         node_predictions: HashMap<u64, NodeGpuPrediction>,
         notes: String,
+    },
+
+    // === Divine Whispers from local Ra-Thor (sovereign) ===
+    DivineWhisperReceived {
+        whisper: DivineWhisper,
     },
 }
 
