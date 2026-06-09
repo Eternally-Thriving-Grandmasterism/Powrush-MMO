@@ -1,8 +1,8 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.49 — Dynamic Events + Decay Rate Tuning
+// Powrush-MMO v17.54 — Dynamic Events + Security & Validation
 // PATSAGi Councils guided • 7 Living Mercy Gates aware
-// Fully tunable decay rates via DynamicEventsConfig (type multipliers, mercy influence, floors, boost decay)
-// Enables fine control over how quickly events fade in the Eternal Flow Feed
+// Added input validation, boost rate limiting, bounds checking, and anti-spam safeguards
+// Maintains full tunability while improving robustness and security
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -52,18 +52,21 @@ impl DynamicEvent {
         type_priority.clamp(0.1, 1.4)
     }
 
-    pub fn apply_boost(&mut self, amount: f32) {
-        self.priority_boost = (self.priority_boost + amount.max(0.0)).min(1.5);
-        self.priority = (self.priority + amount.max(0.0)).min(2.0);
+    /// Secure boost application with validation and rate limiting support
+    pub fn apply_boost(&mut self, amount: f32) -> bool {
+        if amount <= 0.0 || amount > 2.0 {
+            return false; // Invalid boost amount
+        }
+        self.priority_boost = (self.priority_boost + amount).min(1.5);
+        self.priority = (self.priority + amount).min(2.0);
+        true
     }
 
-    /// Tunable decay using config-driven multipliers and mercy influence.
     pub fn current_priority(&self, current_time: f64, config: &DynamicEventsConfig) -> f32 {
         if let Some(triggered) = self.triggered_at {
             let age = current_time - triggered as f64;
             if age <= 0.0 { return self.base_priority + self.priority_boost; }
 
-            // Tunable type-specific multipliers
             let type_mult = match &self.event_type {
                 DynamicEventType::DivineWhisperCascade { .. } => config.divine_half_life_multiplier,
                 DynamicEventType::FactionDiplomacyShift { .. } => config.patsagi_treaty_half_life_multiplier,
@@ -71,15 +74,11 @@ impl DynamicEvent {
                 _ => config.generic_half_life_multiplier,
             };
 
-            // Tunable mercy influence on decay speed
             let mercy_mult = 1.0 + (self.mercy_alignment * config.mercy_half_life_influence);
-
             let effective_half_life = config.priority_half_life_seconds * type_mult * mercy_mult;
 
             let decay_factor = 2f64.powf(-age / effective_half_life as f64);
             let decayed = (self.base_priority as f64 * decay_factor).max(config.min_priority_floor as f64) as f32;
-
-            // Optional gentle decay on boosts themselves
             let remaining_boost = self.priority_boost * (1.0 - (age as f32 / (config.boost_decay_half_life * 2.0)).min(1.0));
 
             (decayed + remaining_boost.max(0.0)).min(2.0)
@@ -90,7 +89,7 @@ impl DynamicEvent {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// CONFIG - Fully tunable decay rates
+// CONFIG
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Resource, Clone, Debug, Serialize, Deserialize)]
@@ -102,14 +101,13 @@ pub struct DynamicEventsConfig {
     pub max_concurrent_events: u32,
     pub event_persistence_enabled: bool,
 
-    // === DECAY RATE TUNING ===
-    pub priority_half_life_seconds: f32,           // Base half-life (higher = slower global decay)
-    pub divine_half_life_multiplier: f32,          // >1.0 = Divine events persist much longer
-    pub patsagi_treaty_half_life_multiplier: f32,  // >1.0 = Treaty council events persist longer
+    pub priority_half_life_seconds: f32,
+    pub divine_half_life_multiplier: f32,
+    pub patsagi_treaty_half_life_multiplier: f32,
     pub generic_half_life_multiplier: f32,
-    pub mercy_half_life_influence: f32,            // How strongly mercy_alignment slows decay (0.0 = no effect)
-    pub min_priority_floor: f32,                   // Never decay below this floor
-    pub boost_decay_half_life: f32,                // How fast priority_boost itself fades (0 = permanent boosts)
+    pub mercy_half_life_influence: f32,
+    pub min_priority_floor: f32,
+    pub boost_decay_half_life: f32,
 }
 
 impl Default for DynamicEventsConfig {
@@ -121,21 +119,19 @@ impl Default for DynamicEventsConfig {
             mercy_influence_strength: 0.85,
             max_concurrent_events: 12,
             event_persistence_enabled: true,
-
-            // Tuned defaults for balanced mythic feel
             priority_half_life_seconds: 165.0,
             divine_half_life_multiplier: 1.65,
             patsagi_treaty_half_life_multiplier: 1.45,
             generic_half_life_multiplier: 1.0,
             mercy_half_life_influence: 0.8,
             min_priority_floor: 0.04,
-            boost_decay_half_life: 240.0, // boosts last ~4 minutes by default
+            boost_decay_half_life: 240.0,
         }
     }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// DYNAMIC EVENT MANAGER
+// DYNAMIC EVENT MANAGER + SECURITY
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Resource)]
@@ -146,11 +142,20 @@ pub struct DynamicEventManager {
     pub last_abundance_check: f64,
     pub last_faction_check: f64,
     pub pending_replication: Vec<DynamicEvent>,
+    pub last_boost_time: f64,           // For simple rate limiting on boosting
 }
 
 impl DynamicEventManager {
     pub fn new(config: DynamicEventsConfig) -> Self {
-        Self { config, active_events: Vec::new(), event_history: VecDeque::with_capacity(128), last_abundance_check: 0.0, last_faction_check: 0.0, pending_replication: Vec::new() }
+        Self {
+            config,
+            active_events: Vec::new(),
+            event_history: VecDeque::with_capacity(128),
+            last_abundance_check: 0.0,
+            last_faction_check: 0.0,
+            pending_replication: Vec::new(),
+            last_boost_time: 0.0,
+        }
     }
 
     pub fn tick(&mut self, current_time: f64, mercy_level: f32) {
@@ -177,7 +182,7 @@ impl DynamicEventManager {
             event_type: DynamicEventType::AbundanceSurge { multiplier: 1.5 + mercy_level * 0.8, duration_seconds: 180 + (mercy_level * 120.0) as u32 },
             scheduled_at: current_time as u64,
             triggered_at: Some(current_time as u64),
-            mercy_alignment: mercy_level,
+            mercy_alignment: mercy_level.clamp(0.0, 1.0),
             affected_players: vec![],
             metadata: serde_json::json!({"source": "EternalFlow"}),
             priority: 0.0,
@@ -219,7 +224,7 @@ impl DynamicEventManager {
             event_type: DynamicEventType::DivineWhisperCascade { intensity: 0.7 + mercy_level * 0.3, target_players: None },
             scheduled_at: current_time as u64,
             triggered_at: Some(current_time as u64),
-            mercy_alignment: mercy_level,
+            mercy_alignment: mercy_level.clamp(0.0, 1.0),
             affected_players: vec![],
             metadata: serde_json::json!({"council": "PATSAGi"}),
             priority: 0.0,
@@ -232,15 +237,29 @@ impl DynamicEventManager {
         self.pending_replication.push(event);
     }
 
-    pub fn boost_events_for_player(&mut self, player_faction: &str, standing: f32) {
+    /// Secure boost with rate limiting (simple cooldown)
+    pub fn boost_events_for_player(&mut self, player_faction: &str, standing: f32, current_time: f64) -> bool {
+        // Simple rate limit: prevent boosting too frequently
+        if current_time - self.last_boost_time < 5.0 {
+            return false; // Cooldown active
+        }
+
+        let mut boosted = false;
         for event in self.pending_replication.iter_mut() {
             if let DynamicEventType::FactionDiplomacyShift { faction_a, faction_b, .. } = &event.event_type {
                 if faction_a == player_faction || faction_b == player_faction {
                     let boost = 0.2 + standing * 0.15;
-                    event.apply_boost(boost);
+                    if event.apply_boost(boost) {
+                        boosted = true;
+                    }
                 }
             }
         }
+
+        if boosted {
+            self.last_boost_time = current_time;
+        }
+        boosted
     }
 
     pub fn get_relevant_events_for_player(&self, _player_pos: [f32; 3]) -> Vec<&DynamicEvent> { self.active_events.iter().collect() }
@@ -303,7 +322,7 @@ impl Plugin for DynamicEventsPlugin {
 fn setup_dynamic_events(mut commands: Commands, config: Res<DynamicEventsConfig>) {
     let manager = DynamicEventManager::new(config.clone());
     commands.insert_resource(manager);
-    info!("⚡ Dynamic Events v17.49 + Decay Rate Tuning online — fully configurable via DynamicEventsConfig");
+    info!("⚡ Dynamic Events v17.54 + Security & Validation online");
 }
 
 fn dynamic_events_tick_system(
@@ -315,8 +334,9 @@ fn dynamic_events_tick_system(
     manager.tick(current_time, mercy_level);
 }
 
-// Tuning Guide (edit DynamicEventsConfig at runtime or in default):
-// - Increase divine_half_life_multiplier to 2.5+ for very long-lived divine wisdom.
-// - Lower patsagi_treaty_half_life_multiplier if you want fresh treaties to stand out more via boosts instead.
-// - Raise mercy_half_life_influence to make high-mercy events almost permanent.
-// - Set boost_decay_half_life low if you want boosts to be short-lived "spotlights".
+// Security & Validation Notes:
+// - apply_boost now validates input and returns success/failure.
+// - boost_events_for_player has simple cooldown-based rate limiting.
+// - mercy_alignment is clamped on event creation.
+// - All boosts and priority values have upper bounds.
+// Future: Add admin permission checks and more advanced anomaly detection.
