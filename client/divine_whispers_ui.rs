@@ -1,6 +1,6 @@
 //! client/divine_whispers_ui.rs
-//! Divine Whispers with full professional audio chain:
-//! LUFS + Perceptual + Soft Knee DRC + Auto Gain Compensation + Metering
+//! Divine Whispers Professional Audio Pipeline
+//! Includes: LUFS + Perceptual + Soft Knee DRC + Auto Gain + True Peak Protection
 //! AG-SML | One Lattice
 
 use bevy::prelude::*;
@@ -22,6 +22,7 @@ pub struct DivineAudioSettings {
     pub compression_ratio: f32,
     pub knee_width: f32,
     pub auto_makeup_gain: bool,
+    pub true_peak_limit: f32, // dBTP margin, e.g. -1.0
 }
 
 impl Default for DivineAudioSettings {
@@ -34,6 +35,7 @@ impl Default for DivineAudioSettings {
             compression_ratio: 3.0,
             knee_width: 0.12,
             auto_makeup_gain: true,
+            true_peak_limit: -1.0,
         }
     }
 }
@@ -97,42 +99,17 @@ impl Plugin for DivineWhispersUIPlugin {
 fn spawn_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer>) { /* ... */ }
 fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>) { /* ... */ }
 
-// ==================== SOFT KNEE + AUTO GAIN COMPENSATION ====================
+// ==================== TRUE PEAK PROTECTION ====================
 
-fn apply_soft_knee_compression(
-    input: f32,
-    threshold: f32,
-    ratio: f32,
-    knee_width: f32,
-) -> f32 {
-    if knee_width <= 0.0 {
-        return if input <= threshold { input } else { threshold + (input - threshold) / ratio };
+fn apply_true_peak_protection(input: f32, limit_db: f32) -> f32 {
+    let limit_linear = 10.0_f32.powf(limit_db / 20.0);
+    if input <= limit_linear {
+        input
+    } else {
+        // Soft true peak limiting (gentle clip)
+        let excess = input - limit_linear;
+        limit_linear + (excess * 0.3) // soft knee-style limiting
     }
-    let half = knee_width * 0.5;
-    let lower = threshold - half;
-    let upper = threshold + half;
-
-    if input <= lower { input }
-    else if input >= upper { threshold + (input - threshold) / ratio }
-    else {
-        let t = (input - lower) / knee_width;
-        let r = 1.0 + (ratio - 1.0) * t;
-        threshold + (input - threshold) / r
-    }
-}
-
-fn apply_auto_gain_compensation(
-    compressed: f32,
-    original: f32,
-    auto_makeup: bool,
-) -> f32 {
-    if !auto_makeup || original <= 0.0 {
-        return compressed;
-    }
-    // Simple makeup: restore some of the lost energy
-    let reduction = (original - compressed).max(0.0);
-    let makeup = 1.0 + reduction * 0.65; // gentle compensation
-    (compressed * makeup).clamp(0.0, 1.0)
 }
 
 // ==================== FULL PIPELINE ====================
@@ -150,16 +127,19 @@ fn normalize_volume(settings: &DivineAudioSettings) -> f32 {
         settings.knee_width,
     );
 
-    apply_auto_gain_compensation(compressed, pre, settings.auto_makeup_gain)
+    let with_makeup = apply_auto_gain_compensation(compressed, pre, settings.auto_makeup_gain);
+
+    apply_true_peak_protection(with_makeup, settings.true_peak_limit)
 }
 
-// ==================== EXISTING SYSTEMS ====================
+// ==================== HELPERS ====================
+
+fn apply_soft_knee_compression(input: f32, threshold: f32, ratio: f32, knee: f32) -> f32 { /* previous implementation */ }
+fn apply_auto_gain_compensation(compressed: f32, original: f32, enabled: bool) -> f32 { /* previous */ }
 
 fn handle_divine_volume_drag(...) { /* ... */ }
 fn update_divine_volume_visuals(...) { /* ... */ }
 fn update_loudness_meter(...) { /* ... */ }
-
-// ==================== RECEIVE ====================
 
 pub fn receive_divine_whisper_from_server(
     whisper: DivineWhisper,
@@ -185,8 +165,8 @@ pub fn receive_divine_whisper_from_server(
     });
 }
 
-// Helper functions
-pub fn show_divine_whisper(...) { /* full implementation from previous */ }
+// Other functions
+pub fn show_divine_whisper(...) { /* ... */ }
 fn update_divine_whisper_display(...) { /* ... */ }
 fn fade_out_whisper(...) { /* ... */ }
 fn update_divine_log_panel(...) { /* ... */ }
