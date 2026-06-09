@@ -1,6 +1,6 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.61 — Combat + Enhanced Validation & Security
-// Hardened handle_ability_use_requests with rate limiting, ownership checks, and re-validation
+// Powrush-MMO v17.62 — Combat + Cooldown State Sync
+// Added AbilityCooldownUpdateEvent for server → client cooldown synchronization
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -105,10 +105,23 @@ impl GlobalCooldown {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// ENHANCED CLIENT INPUT HANDLING + SECURITY
+// COOLDOWN STATE SYNC (Server → Client)
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Event sent from client when requesting to use an ability
+/// Event emitted by server when a player's ability cooldown state changes
+/// This can be sent to the relevant client(s) via networking/replication layer
+#[derive(Event, Debug, Clone, Serialize, Deserialize)]
+pub struct AbilityCooldownUpdate {
+    pub player_entity: Entity,
+    pub ability_id: u32,
+    pub cooldown_remaining: f32,
+    pub max_cooldown: f32,
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// ENHANCED CLIENT INPUT HANDLER (with cooldown sync emission)
+// ═════════════════════════════════════════════════════════════════════════
+
 #[derive(Event, Debug, Clone)]
 pub struct AbilityUseEvent {
     pub player_entity: Entity,
@@ -116,18 +129,17 @@ pub struct AbilityUseEvent {
     pub ability_id: u32,
 }
 
-/// Resource for simple per-player rate limiting on ability usage
 #[derive(Resource, Default)]
 pub struct AbilityUseRateLimiter {
     pub last_use: HashMap<Entity, f64>,
 }
 
-/// Main handler for client ability inputs with validation and security
 pub fn handle_ability_use_requests(
     mut commands: Commands,
     mut ev_ability_use: EventReader<AbilityUseEvent>,
     time: Res<Time>,
     mut rate_limiter: ResMut<AbilityUseRateLimiter>,
+    mut ev_cooldown_update: EventWriter<AbilityCooldownUpdate>,
     mut ability_query: Query<(Entity, &mut Ability, &CombatStats, &Target)>,
     mut health_query: Query<&mut Health>,
     mut gcd_query: Query<&mut GlobalCooldown>,
@@ -135,55 +147,28 @@ pub fn handle_ability_use_requests(
     let current_time = time.elapsed_seconds_f64();
 
     for ev in ev_ability_use.read() {
-        // === SECURITY: Rate limiting (prevent spam) ===
         if let Some(last_time) = rate_limiter.last_use.get(&ev.player_entity) {
-            if current_time - last_time < 0.1 {
-                // Too fast — ignore (simple anti-spam)
-                continue;
-            }
+            if current_time - last_time < 0.1 { continue; }
         }
         rate_limiter.last_use.insert(ev.player_entity, current_time);
 
-        // === Find the ability ===
-        let mut found = false;
-
         for (ability_entity, mut ability, stats, target) in ability_query.iter_mut() {
-            if ability.id != ev.ability_id {
-                continue;
-            }
+            if ability.id != ev.ability_id { continue; }
 
-            found = true;
+            if !ability.can_use() { continue; }
 
-            // === VALIDATION: Player must own/control this ability ===
-            // In a full game you would check if ability_entity belongs to ev.player_entity
-            // For now we assume correct mapping from client
-
-            // === VALIDATION: Ability must be ready ===
-            if !ability.can_use() {
-                continue;
-            }
-
-            // === VALIDATION: Global Cooldown check ===
             if ability.triggers_gcd {
                 let mut can_use = true;
                 for mut gcd in gcd_query.iter_mut() {
-                    if !gcd.is_ready() {
-                        can_use = false;
-                    }
+                    if !gcd.is_ready() { can_use = false; }
                 }
-                if !can_use {
-                    continue;
-                }
+                if !can_use { continue; }
             }
 
-            // === VALIDATION: Player must be alive ===
             if let Ok(player_health) = health_query.get(ev.player_entity) {
-                if player_health.is_dead() {
-                    continue;
-                }
+                if player_health.is_dead() { continue; }
             }
 
-            // === EXECUTION ===
             if let Some(target_entity) = target.entity {
                 if let Ok(mut target_health) = health_query.get_mut(target_entity) {
                     if ability.ability_type == AbilityType::DirectDamage {
@@ -195,7 +180,6 @@ pub fn handle_ability_use_requests(
 
                         ability.trigger(stats.cooldown_reduction);
 
-                        // Apply Global Cooldown if needed
                         if ability.triggers_gcd {
                             for mut gcd in gcd_query.iter_mut() {
                                 if gcd.is_ready() {
@@ -203,22 +187,24 @@ pub fn handle_ability_use_requests(
                                 }
                             }
                         }
+
+                        // === EMIT COOLDOWN STATE UPDATE ===
+                        ev_cooldown_update.send(AbilityCooldownUpdate {
+                            player_entity: ev.player_entity,
+                            ability_id: ability.id,
+                            cooldown_remaining: ability.last_used,
+                            max_cooldown: ability.cooldown,
+                        });
                     }
                 }
             }
-
-            break; // Ability found and processed
-        }
-
-        if !found {
-            // Optional: log unknown ability request (could indicate cheating)
-            // warn!("AbilityUseEvent for unknown ability_id: {}", ev.ability_id);
+            break;
         }
     }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// OTHER SYSTEMS (Cooldowns, Status Effects, etc.)
+// OTHER SYSTEMS
 // ═════════════════════════════════════════════════════════════════════════
 
 pub fn ability_cooldown_system(
@@ -348,6 +334,7 @@ impl Plugin for CombatPlugin {
         app
             .init_resource::<AbilityUseRateLimiter>()
             .add_event::<AbilityUseEvent>()
+            .add_event::<AbilityCooldownUpdate>()
             .add_systems(Update, (
                 damage_system,
                 ability_cooldown_system,
