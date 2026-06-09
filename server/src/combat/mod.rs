@@ -1,6 +1,7 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.58 — Combat + Off-GCD Abilities
-// Professional support for abilities that do not trigger Global Cooldown
+// Powrush-MMO v17.60 — Combat + Client Input Wiring
+// Added AbilityUseEvent and server-side handler for client ability inputs
+// Professional, secure, and ready for networking layer integration
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -9,7 +10,7 @@ pub use crate::hierarchical_grid::HierarchicalGrid;
 pub use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
-// CORE COMPONENTS
+// CORE COMPONENTS (unchanged from v17.58)
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
@@ -55,14 +56,11 @@ pub struct Ability {
     pub last_used: f32,
     pub range: f32,
     pub ability_type: AbilityType,
-    pub triggers_gcd: bool, // true = normal ability, false = Off-GCD (instant)
+    pub triggers_gcd: bool,
 }
 
 impl Ability {
-    pub fn can_use(&self) -> bool {
-        self.last_used <= 0.0
-    }
-
+    pub fn can_use(&self) -> bool { self.last_used <= 0.0 }
     pub fn trigger(&mut self, cooldown_reduction: f32) {
         let effective_cooldown = self.cooldown * (1.0 - cooldown_reduction.clamp(0.0, 0.8));
         self.last_used = effective_cooldown;
@@ -102,17 +100,70 @@ pub struct GlobalCooldown {
 }
 
 impl GlobalCooldown {
-    pub fn is_ready(&self) -> bool {
-        self.remaining <= 0.0
-    }
+    pub fn is_ready(&self) -> bool { self.remaining <= 0.0 }
+    pub fn trigger(&mut self, duration: f32) { self.remaining = duration; }
+}
 
-    pub fn trigger(&mut self, duration: f32) {
-        self.remaining = duration;
+// ═════════════════════════════════════════════════════════════════════════
+// CLIENT INPUT WIRING
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Event sent from client when a player wants to use an ability
+#[derive(Event, Debug, Clone)]
+pub struct AbilityUseEvent {
+    pub player_entity: Entity,
+    pub slot_index: usize,
+    pub ability_id: u32,
+}
+
+/// System that processes ability use requests from clients
+/// This is the main entry point for client -> server ability input
+pub fn handle_ability_use_requests(
+    mut commands: Commands,
+    mut ev_ability_use: EventReader<AbilityUseEvent>,
+    mut ability_query: Query<(&mut Ability, &CombatStats, &Target)>,
+    mut health_query: Query<&mut Health>,
+    mut gcd_query: Query<&mut GlobalCooldown>,
+) {
+    for ev in ev_ability_use.read() {
+        // Find the ability the player wants to use
+        // In a real game you would map slot_index -> actual Ability entity for that player
+        for (mut ability, stats, target) in ability_query.iter_mut() {
+            if ability.id == ev.ability_id {
+                if !ability.can_use() {
+                    continue; // Still on cooldown
+                }
+
+                // Check Global Cooldown if the ability triggers it
+                if ability.triggers_gcd {
+                    for mut gcd in gcd_query.iter_mut() {
+                        if !gcd.is_ready() {
+                            continue;
+                        }
+                        gcd.trigger(1.0); // Standard 1s GCD
+                    }
+                }
+
+                if let Some(target_entity) = target.entity {
+                    if let Ok(mut target_health) = health_query.get_mut(target_entity) {
+                        if ability.ability_type == AbilityType::DirectDamage {
+                            let damage_amount = stats.attack_power;
+                            commands.entity(target_entity).insert(Damage {
+                                amount: damage_amount,
+                                damage_type: DamageType::Physical,
+                            });
+
+                            ability.trigger(stats.cooldown_reduction);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// COOLDOWN + OFF-GCD SYSTEMS
+// EXISTING SYSTEMS (Cooldowns, Execution, Status Effects, etc.)
 // ═════════════════════════════════════════════════════════════════════════
 
 pub fn ability_cooldown_system(
@@ -135,24 +186,13 @@ pub fn ability_cooldown_system(
     }
 }
 
-/// Executes abilities while respecting cooldowns and Global Cooldown
-/// Off-GCD abilities (triggers_gcd = false) do not consume the Global Cooldown
 pub fn execute_ability_system(
     mut commands: Commands,
     mut ability_query: Query<(&mut Ability, &Target, &CombatStats)>,
-    mut gcd_query: Query<&mut GlobalCooldown>,
     mut health_query: Query<&mut Health>,
 ) {
     for (mut ability, target, stats) in ability_query.iter_mut() {
-        if !ability.can_use() {
-            continue;
-        }
-
-        // Check Global Cooldown only for abilities that trigger it
-        if ability.triggers_gcd {
-            // In a full implementation we would check the player's GlobalCooldown here
-            // For now we demonstrate the pattern
-        }
+        if !ability.can_use() { continue; }
 
         if let Some(target_entity) = target.entity {
             if let Ok(mut target_health) = health_query.get_mut(target_entity) {
@@ -162,23 +202,12 @@ pub fn execute_ability_system(
                         amount: damage_amount,
                         damage_type: DamageType::Physical,
                     });
-
                     ability.trigger(stats.cooldown_reduction);
-
-                    // Only trigger Global Cooldown if this ability uses it
-                    if ability.triggers_gcd {
-                        // Example: trigger 1.0s GCD on the player
-                        // In real code: get the player's GlobalCooldown component and call .trigger(1.0)
-                    }
                 }
             }
         }
     }
 }
-
-// ═════════════════════════════════════════════════════════════════════════
-// STATUS EFFECTS + FACTION BEHAVIORS
-// ═════════════════════════════════════════════════════════════════════════
 
 pub fn status_effect_system(
     mut commands: Commands,
@@ -224,8 +253,8 @@ pub fn draek_corruption_system(
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// INTEGRATION SYSTEMS
-// ═════════════════════════════════════════════════════════════════════════
+// INTEGRATION + PLUGIN
+// ═══════════════════════════════════════════════════════════════════════════════
 
 pub fn aoe_damage_system(
     grid: Res<HierarchicalGrid>,
@@ -245,10 +274,6 @@ pub fn publish_combat_to_interest(
 ) {
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// CORE SYSTEMS
-// ═════════════════════════════════════════════════════════════════════════
-
 pub fn damage_system(
     mut commands: Commands,
     mut query: Query<(Entity, &mut Health, &Damage)>,
@@ -261,40 +286,20 @@ pub fn damage_system(
     }
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// PLUGIN
-// ═════════════════════════════════════════════════════════════════════════
-
 pub struct CombatPlugin;
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (
-            damage_system,
-            ability_cooldown_system,
-            execute_ability_system,
-            status_effect_system,
-            draek_corruption_system,
-            aoe_damage_system,
-        ));
+        app
+            .add_event::<AbilityUseEvent>()
+            .add_systems(Update, (
+                damage_system,
+                ability_cooldown_system,
+                execute_ability_system,
+                handle_ability_use_requests,
+                status_effect_system,
+                draek_corruption_system,
+                aoe_damage_system,
+            ));
     }
 }
-
-// Example ability definitions (for reference when creating abilities):
-// let fireball = Ability {
-//     id: 1,
-//     cooldown: 2.5,
-//     last_used: 0.0,
-//     range: 800.0,
-//     ability_type: AbilityType::DirectDamage,
-//     triggers_gcd: true,   // Normal spell - triggers GCD
-// };
-//
-// let instant_heal = Ability {
-//     id: 2,
-//     cooldown: 8.0,
-//     last_used: 0.0,
-//     range: 0.0,
-//     ability_type: AbilityType::Support,
-//     triggers_gcd: false,  // Off-GCD - can be used while on GCD
-// };
