@@ -1,0 +1,13 @@
+[package]
+name = "rsil-identity"
+version = "0.1.0"
+edition = "2021"
+license = "AG-SML-1.0"
+description = "Ra-Thor Sovereign Identity Lattice - Post-Quantum Self-Sovereign Identity for Powrush-MMO"
+
+[dependencies]
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = "0.8"
+hex = "0.4"
+
+[dev-dependencies]
