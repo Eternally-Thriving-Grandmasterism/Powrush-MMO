@@ -1,16 +1,17 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.50 — Foundational Combat Architecture
-// Lightweight, server-authoritative, high-performance combat foundation
-// Designed for ConquerOnline-style responsiveness + future MOBA depth
-// Lore-aligned: Draeks (invaders), Humans + Cydruids (defenders), Quellorians (support), Ambrosians (wisdom/tech buffs)
-// Integrates cleanly with HierarchicalGrid, InterestManagement, DynamicEvents, and existing systems
-// AG-SML v1.0 + Eternal Mercy Flow | Sovereign Powrush-MMO
+// Powrush-MMO v17.51 — Combat Architecture + Initial Integration
+// Lightweight + robust foundation with basic HierarchicalGrid + InterestManagement wiring points
+// Server-authoritative, high-performance, ready for MOBA + lore depth
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
+// Re-exports for convenience
+pub use crate::hierarchical_grid::HierarchicalGrid;
+pub use crate::interest_management::InterestManager;
+
 // ═════════════════════════════════════════════════════════════════════════
-// CORE COMPONENTS
+// CORE COMPONENTS (stable from v17.50)
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
@@ -20,22 +21,13 @@ pub struct Health {
 }
 
 impl Health {
-    pub fn new(max: f32) -> Self {
-        Self { current: max, max }
-    }
-
+    pub fn new(max: f32) -> Self { Self { current: max, max } }
     pub fn take_damage(&mut self, amount: f32) -> bool {
         self.current = (self.current - amount).max(0.0);
         self.current <= 0.0
     }
-
-    pub fn heal(&mut self, amount: f32) {
-        self.current = (self.current + amount).min(self.max);
-    }
-
-    pub fn is_dead(&self) -> bool {
-        self.current <= 0.0
-    }
+    pub fn heal(&mut self, amount: f32) { self.current = (self.current + amount).min(self.max); }
+    pub fn is_dead(&self) -> bool { self.current <= 0.0 }
 }
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
@@ -46,10 +38,7 @@ pub struct Damage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DamageType {
-    Physical,
-    Energy,
-    Mercy,      // Lore-aligned (Cydruid/Quellorian resonance)
-    Corruption, // Draek invasion damage
+    Physical, Energy, Mercy, Corruption,
 }
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize, Default)]
@@ -71,11 +60,7 @@ pub struct Ability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AbilityType {
-    DirectDamage,
-    Buff,
-    Debuff,
-    AoE,
-    Support, // Quellorian/Ambrosian style
+    DirectDamage, Buff, Debuff, AoE, Support,
 }
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
@@ -83,40 +68,55 @@ pub struct Target {
     pub entity: Option<Entity>,
 }
 
-// Faction tag for lore-specific behavior (will expand with full faction system)
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CombatFaction {
-    Human,
-    Cydruid,
-    Draek,       // Invaders
-    Quellorian,  // Support allies
-    Ambrosian,   // Wisdom/tech (mostly non-combat)
+    Human, Cydruid, Draek, Quellorian, Ambrosian,
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// BASIC COMBAT SYSTEMS
+// INTEGRATION WITH EXISTING SYSTEMS
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Applies damage from Damage component to target Health
+/// Example AoE system using HierarchicalGrid (lightweight integration pattern)
+pub fn aoe_damage_system(
+    grid: Res<HierarchicalGrid>,
+    mut commands: Commands,
+    query: Query<(Entity, &Transform, &Damage)>,
+) {
+    for (attacker, transform, damage) in query.iter() {
+        if damage.amount <= 0.0 { continue; }
+        // TODO: Replace with real grid.query_radius(...) in production
+        // This demonstrates the intended integration point
+    }
+}
+
+/// Publish significant combat events to InterestManagement for scoped replication
+pub fn publish_combat_to_interest(
+    interest: &mut InterestManager,
+    attacker: Entity,
+    target: Entity,
+    damage: f32,
+) {
+    // Future full implementation:
+    // interest.publish_combat_event(attacker, target, damage);
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// CORE SYSTEMS
+// ═════════════════════════════════════════════════════════════════════════
+
 pub fn damage_system(
     mut commands: Commands,
     mut query: Query<(Entity, &mut Health, &Damage)>,
 ) {
     for (entity, mut health, damage) in query.iter_mut() {
-        let is_dead = health.take_damage(damage.amount);
-
-        if is_dead {
-            // Future: death handling, loot, event triggers, etc.
+        if health.take_damage(damage.amount) {
             commands.entity(entity).despawn();
         }
-
-        // Remove the Damage component after application (one-shot damage events)
         commands.entity(entity).remove::<Damage>();
     }
 }
 
-/// Simple ability cooldown and execution placeholder
-/// Will expand into full ability system with targeting, effects, and lore-specific behaviors
 pub fn ability_cooldown_system(
     time: Res<Time>,
     mut query: Query<&mut Ability>,
@@ -124,10 +124,7 @@ pub fn ability_cooldown_system(
     let delta = time.delta_seconds();
     for mut ability in query.iter_mut() {
         if ability.last_used > 0.0 {
-            ability.last_used -= delta;
-            if ability.last_used < 0.0 {
-                ability.last_used = 0.0;
-            }
+            ability.last_used = (ability.last_used - delta).max(0.0);
         }
     }
 }
@@ -140,25 +137,15 @@ pub struct CombatPlugin;
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems(Update, (damage_system, ability_cooldown_system));
+        app.add_systems(Update, (
+            damage_system,
+            ability_cooldown_system,
+            aoe_damage_system,
+        ));
     }
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// FUTURE EXPANSION NOTES (for MOBA + Lore depth)
-// ═════════════════════════════════════════════════════════════════════════
-//
-// - Ability system with targeting (single target, AoE, skillshots) using HierarchicalGrid
-// - Status effects (buffs/debuffs) with duration
-// - Faction-specific behaviors:
-//     Draeks: Aggressive swarm / corruption damage
-//     Humans/Cydruids: Defensive formations + resonance abilities
-//     Quellorians: Support (heals, shields, resource generation)
-//     Ambrosians: Wisdom buffs, tech amplification, rare direct intervention
-// - MOBA-style objectives: Lanes, towers, core objectives tied to Earth defense
-// - Integration with DynamicEvents (successful defense triggers AbundanceSurge or DivineWhisper)
-// - InterestManagement for efficient combat visibility & networking
-// - Server-authoritative with client prediction for responsiveness
-//
-// All systems designed to remain lightweight and performant.
+// Registration in main.rs:
+// mod combat;
+// .add_plugins(CombatPlugin)
+// Pass HierarchicalGrid and InterestManager as resources when available.
