@@ -1,13 +1,15 @@
 //! server/divine_integration.rs
 //! Clean integration layer wiring local Ra-Thor divine bridges into server gameplay events.
+//! Sends DivineWhisper via shared protocol to clients.
 //! All divine features run locally — zero external APIs.
 //! AG-SML | One Lattice
 
 use powrush_divine_module::{
-    OracleBridge, DivineWhisper,
+    OracleBridge, DivineWhisper as LocalDivineWhisper,
     HyperonVisionBridge, VisionInsight,
     AmbrosianResonanceBridge, ResonanceReport,
 };
+use shared::protocol::{DivineWhisper as ProtocolDivineWhisper, ServerMessage};
 use tracing::info;
 
 /// Singleton-style holders for the bridges (initialized once at server start).
@@ -27,23 +29,35 @@ impl DivineSystem {
     }
 
     // ============================================================
-    // EVENT: Harvest completed (core RBE loop)
+    // EVENT: Harvest completed (core RBE loop) + network broadcast
     // ============================================================
-    pub fn on_harvest_success(&self, player_id: u64, harvest_amount: u32, player_valence: f32) -> Option<DivineWhisper> {
+    pub fn on_harvest_success(
+        &self,
+        player_id: u64,
+        harvest_amount: u32,
+        player_valence: f32,
+    ) -> Option<ProtocolDivineWhisper> {
         let context = format!("harvested {} units", harvest_amount);
-        let whisper = self.oracle.generate_divine_whisper(&context, player_valence);
+        let local_whisper = self.oracle.generate_divine_whisper(&context, player_valence);
 
         info!(
             target: "divine",
             player_id = player_id,
             harvest = harvest_amount,
             valence = player_valence,
-            mercy_seal = whisper.mercy_seal,
+            mercy_seal = local_whisper.mercy_seal,
             "Divine Whisper on harvest: {}",
-            whisper.message
+            local_whisper.message
         );
 
-        Some(whisper)
+        // Convert to protocol type for network
+        let protocol_whisper = ProtocolDivineWhisper {
+            message: local_whisper.message,
+            valence: local_whisper.valence,
+            mercy_seal: local_whisper.mercy_seal,
+        };
+
+        Some(protocol_whisper)
     }
 
     // ============================================================
@@ -84,7 +98,7 @@ impl DivineSystem {
     // ============================================================
     // Proactive guidance (can be called on login, milestone, or timer)
     // ============================================================
-    pub async fn get_proactive_guidance(&self, situation: &str) -> Option<DivineWhisper> {
+    pub async fn get_proactive_guidance(&self, situation: &str) -> Option<LocalDivineWhisper> {
         self.oracle.request_proactive_guidance(situation).await
     }
 }
