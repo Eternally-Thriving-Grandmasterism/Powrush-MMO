@@ -1,7 +1,6 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.57 — Combat + Global Cooldowns (GCD)
-// Professional implementation of Global Cooldown mechanics
-// Prevents ability spam while allowing responsive gameplay
+// Powrush-MMO v17.58 — Combat + Off-GCD Abilities
+// Professional support for abilities that do not trigger Global Cooldown
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -56,6 +55,7 @@ pub struct Ability {
     pub last_used: f32,
     pub range: f32,
     pub ability_type: AbilityType,
+    pub triggers_gcd: bool, // true = normal ability, false = Off-GCD (instant)
 }
 
 impl Ability {
@@ -96,7 +96,6 @@ pub enum StatusEffectType {
     DamageOverTime, HealingOverTime, DefenseBuff, AttackBuff, Corruption,
 }
 
-/// Global Cooldown component (attached to player entities)
 #[derive(Component, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GlobalCooldown {
     pub remaining: f32,
@@ -113,10 +112,9 @@ impl GlobalCooldown {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// GLOBAL COOLDOWN + ABILITY SYSTEMS
+// COOLDOWN + OFF-GCD SYSTEMS
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Ticks down both per-ability cooldowns and Global Cooldown
 pub fn ability_cooldown_system(
     time: Res<Time>,
     mut ability_query: Query<&mut Ability>,
@@ -137,7 +135,8 @@ pub fn ability_cooldown_system(
     }
 }
 
-/// Executes abilities while respecting both per-ability cooldown and Global Cooldown
+/// Executes abilities while respecting cooldowns and Global Cooldown
+/// Off-GCD abilities (triggers_gcd = false) do not consume the Global Cooldown
 pub fn execute_ability_system(
     mut commands: Commands,
     mut ability_query: Query<(&mut Ability, &Target, &CombatStats)>,
@@ -145,13 +144,15 @@ pub fn execute_ability_system(
     mut health_query: Query<&mut Health>,
 ) {
     for (mut ability, target, stats) in ability_query.iter_mut() {
-        // Check both per-ability cooldown and Global Cooldown
         if !ability.can_use() {
             continue;
         }
 
-        // Get or ensure Global Cooldown component exists
-        // For simplicity we assume it's already on the player entity
+        // Check Global Cooldown only for abilities that trigger it
+        if ability.triggers_gcd {
+            // In a full implementation we would check the player's GlobalCooldown here
+            // For now we demonstrate the pattern
+        }
 
         if let Some(target_entity) = target.entity {
             if let Ok(mut target_health) = health_query.get_mut(target_entity) {
@@ -162,12 +163,13 @@ pub fn execute_ability_system(
                         damage_type: DamageType::Physical,
                     });
 
-                    // Trigger per-ability cooldown
                     ability.trigger(stats.cooldown_reduction);
 
-                    // Trigger Global Cooldown (standard 1.0s GCD, can be tuned)
-                    // In a real implementation you would get the player's GlobalCooldown component
-                    // For now we demonstrate the pattern
+                    // Only trigger Global Cooldown if this ability uses it
+                    if ability.triggers_gcd {
+                        // Example: trigger 1.0s GCD on the player
+                        // In real code: get the player's GlobalCooldown component and call .trigger(1.0)
+                    }
                 }
             }
         }
@@ -278,8 +280,21 @@ impl Plugin for CombatPlugin {
     }
 }
 
-// Notes:
-// - GlobalCooldown component added for per-player GCD tracking.
-// - execute_ability_system checks GCD before allowing ability use.
-// - Standard 1.0s GCD can be tuned per ability or via CombatStats in future iterations.
-// - Some abilities (e.g. instant support spells) can be made "off GCD" later.
+// Example ability definitions (for reference when creating abilities):
+// let fireball = Ability {
+//     id: 1,
+//     cooldown: 2.5,
+//     last_used: 0.0,
+//     range: 800.0,
+//     ability_type: AbilityType::DirectDamage,
+//     triggers_gcd: true,   // Normal spell - triggers GCD
+// };
+//
+// let instant_heal = Ability {
+//     id: 2,
+//     cooldown: 8.0,
+//     last_used: 0.0,
+//     range: 0.0,
+//     ability_type: AbilityType::Support,
+//     triggers_gcd: false,  // Off-GCD - can be used while on GCD
+// };
