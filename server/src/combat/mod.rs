@@ -1,9 +1,7 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.55 — Combat Foundation Expanded (Basic Abilities + Faction Behaviors)
-// Lightweight, server-authoritative, high-performance
-// Lore-aligned: Draeks (aggressive invaders), Humans + Cydruids (defenders),
-// Quellorians (support), Ambrosians (wisdom/tech buffs, rare direct combat)
-// Ready for MOBA-style objectives and deeper faction mechanics
+// Powrush-MMO v17.56 — Combat + Spell Cooldown Mechanics
+// Professional, lightweight, and robust cooldown system
+// Supports per-ability cooldowns + basic cooldown reduction from stats
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -48,6 +46,7 @@ pub struct CombatStats {
     pub defense: f32,
     pub speed: f32,
     pub critical_chance: f32,
+    pub cooldown_reduction: f32, // 0.0 = no reduction, 0.5 = 50% faster cooldowns
 }
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +56,19 @@ pub struct Ability {
     pub last_used: f32,
     pub range: f32,
     pub ability_type: AbilityType,
+}
+
+impl Ability {
+    /// Returns true if the ability is ready to be used
+    pub fn can_use(&self) -> bool {
+        self.last_used <= 0.0
+    }
+
+    /// Triggers the ability (starts cooldown)
+    pub fn trigger(&mut self, cooldown_reduction: f32) {
+        let effective_cooldown = self.cooldown * (1.0 - cooldown_reduction.clamp(0.0, 0.8));
+        self.last_used = effective_cooldown;
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,7 +86,6 @@ pub enum CombatFaction {
     Human, Cydruid, Draek, Quellorian, Ambrosian,
 }
 
-// Basic status effect support
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct StatusEffect {
     pub effect_type: StatusEffectType,
@@ -84,48 +95,58 @@ pub struct StatusEffect {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StatusEffectType {
-    DamageOverTime,
-    HealingOverTime,
-    DefenseBuff,
-    AttackBuff,
-    Corruption,
+    DamageOverTime, HealingOverTime, DefenseBuff, AttackBuff, Corruption,
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// BASIC ABILITY & EFFECT SYSTEMS
+// COOLDOWN & ABILITY SYSTEMS
 // ═════════════════════════════════════════════════════════════════════════
 
-/// Simple ability execution system (expandable)
+/// Ticks down ability cooldowns every frame
+pub fn ability_cooldown_system(
+    time: Res<Time>,
+    mut query: Query<&mut Ability>,
+) {
+    let delta = time.delta_seconds();
+    for mut ability in query.iter_mut() {
+        if ability.last_used > 0.0 {
+            ability.last_used = (ability.last_used - delta).max(0.0);
+        }
+    }
+}
+
+/// Executes abilities when conditions are met
 pub fn execute_ability_system(
     mut commands: Commands,
-    time: Res<Time>,
     mut ability_query: Query<(&mut Ability, &Target, &CombatStats)>,
     mut health_query: Query<&mut Health>,
 ) {
-    let delta = time.delta_seconds();
-
     for (mut ability, target, stats) in ability_query.iter_mut() {
-        if ability.last_used > 0.0 {
-            ability.last_used -= delta;
-            continue;
+        if !ability.can_use() {
+            continue; // Still on cooldown
         }
 
         if let Some(target_entity) = target.entity {
             if let Ok(mut target_health) = health_query.get_mut(target_entity) {
                 if ability.ability_type == AbilityType::DirectDamage {
-                    let damage_amount = stats.attack_power * 1.0; // Base scaling
+                    let damage_amount = stats.attack_power;
                     commands.entity(target_entity).insert(Damage {
                         amount: damage_amount,
                         damage_type: DamageType::Physical,
                     });
-                    ability.last_used = ability.cooldown;
+
+                    // Trigger cooldown with reduction from stats
+                    ability.trigger(stats.cooldown_reduction);
                 }
             }
         }
     }
 }
 
-/// Apply status effects over time
+// ═════════════════════════════════════════════════════════════════════════
+// STATUS EFFECTS + FACTION BEHAVIORS (from v17.55)
+// ═════════════════════════════════════════════════════════════════════════
+
 pub fn status_effect_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -155,18 +176,12 @@ pub fn status_effect_system(
     }
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// FACTION BEHAVIOR HOOKS (Initial)
-// ═════════════════════════════════════════════════════════════════════════
-
-/// Example: Draek corruption bonus (aggressive invader behavior)
 pub fn draek_corruption_system(
     mut commands: Commands,
     query: Query<(Entity, &CombatFaction, &Damage)>,
 ) {
     for (entity, faction, damage) in query.iter() {
         if *faction == CombatFaction::Draek && damage.damage_type == DamageType::Corruption {
-            // Draeks deal bonus corruption damage
             commands.entity(entity).insert(Damage {
                 amount: damage.amount * 1.15,
                 damage_type: DamageType::Corruption,
@@ -175,14 +190,8 @@ pub fn draek_corruption_system(
     }
 }
 
-// Future expansions:
-// - Human/Cydruid defensive formations and resonance abilities
-// - Quellorian support (heals, shields, resource generation)
-// - Ambrosian wisdom/tech amplification (rare direct intervention)
-// - MOBA-style lane objectives and tower mechanics
-
 // ═════════════════════════════════════════════════════════════════════════
-// INTEGRATION SYSTEMS (from previous iterations)
+// INTEGRATION SYSTEMS
 // ═════════════════════════════════════════════════════════════════════════
 
 pub fn aoe_damage_system(
@@ -192,7 +201,6 @@ pub fn aoe_damage_system(
 ) {
     for (attacker, transform, damage) in query.iter() {
         if damage.amount <= 0.0 { continue; }
-        // Placeholder for real grid.query_radius implementation
     }
 }
 
@@ -202,7 +210,6 @@ pub fn publish_combat_to_interest(
     target: Entity,
     damage: f32,
 ) {
-    // Future: interest.publish_combat_event(...)
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -218,18 +225,6 @@ pub fn damage_system(
             commands.entity(entity).despawn();
         }
         commands.entity(entity).remove::<Damage>();
-    }
-}
-
-pub fn ability_cooldown_system(
-    time: Res<Time>,
-    mut query: Query<&mut Ability>,
-) {
-    let delta = time.delta_seconds();
-    for mut ability in query.iter_mut() {
-        if ability.last_used > 0.0 {
-            ability.last_used = (ability.last_used - delta).max(0.0);
-        }
     }
 }
 
@@ -251,7 +246,3 @@ impl Plugin for CombatPlugin {
         ));
     }
 }
-
-// Registration reminder:
-// In main.rs: mod combat;
-// .add_plugins(CombatPlugin)
