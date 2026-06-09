@@ -1,9 +1,9 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.42 — Production Dynamic Events System + Server Replication Wiring
-// PATSAGi Councils guided • Mercy-gated • Abundance-preserving
-// Integrates with HierarchicalGrid, InterestManager, WorldServer, tokio_transport
-// Treaty negotiation events (FactionDiplomacyShift with full mythic council reason) now flow server → client Eternal Flow Feed
-// Zero breaking changes to existing tick / scheduling
+// Powrush-MMO v17.43 — Dynamic Events + Event Prioritization Logic
+// PATSAGi Councils guided • Mercy-gated • 7 Living Mercy Gates aware
+// Prioritization favors DivineWhisper, high-mercy Treaty DiplomacyShifts, and player-relevant Abundance
+// Integrates with replication drain, InterestManager, HierarchicalGrid
+// Full backward compatibility
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use std::collections::VecDeque;
 use uuid::Uuid;
 
 // ═════════════════════════════════════════════════════════════════════════
-// EVENT TYPES (shared concepts with client ClientWorldEvent)
+// EVENT TYPES
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -31,9 +31,40 @@ pub struct DynamicEvent {
     pub event_type: DynamicEventType,
     pub scheduled_at: u64,
     pub triggered_at: Option<u64>,
-    pub mercy_alignment: f32,
+    pub mercy_alignment: f32,      // 0.0 - 1.0 from 7 Living Mercy Gates
     pub affected_players: Vec<Uuid>,
     pub metadata: serde_json::Value,
+    pub priority: f32,             // 0.0 (low) - 1.0+ (critical) — computed via 7 Gates + type + context
+}
+
+impl DynamicEvent {
+    /// Computes base priority using PATSAGi / 7 Living Mercy Gates principles.
+    /// Higher = more likely to be replicated first and highlighted in Eternal Flow Feed.
+    /// DivineWhisper and high-mercy Treaty DiplomacyShifts are favored.
+    pub fn base_priority(&self) -> f32 {
+        let type_priority = match &self.event_type {
+            DynamicEventType::DivineWhisperCascade { intensity, .. } => 0.92 + intensity.clamp(0.0, 0.08),
+            DynamicEventType::FactionDiplomacyShift { .. } => {
+                // Treaty events with rich PATSAGi council reason get strong boost
+                0.82 + (self.mercy_alignment * 0.15)
+            }
+            DynamicEventType::AbundanceSurge { multiplier, .. } => {
+                0.55 + (multiplier - 1.0).clamp(0.0, 0.25) + (self.mercy_alignment * 0.12)
+            }
+            DynamicEventType::AnomalyTrigger { severity, .. } => 0.70 + severity.clamp(0.0, 0.2),
+            DynamicEventType::WorldShift { .. } => 0.65,
+            DynamicEventType::MercyTest { difficulty, .. } => 0.60 + difficulty.clamp(0.0, 0.25),
+            DynamicEventType::Custom { .. } => 0.40,
+        };
+
+        // Slight recency / urgency boost (newer events slightly higher)
+        let recency_boost = if let Some(triggered) = self.triggered_at {
+            // Simple linear decay; in prod use current_time
+            (triggered as f32 % 1000.0) / 5000.0
+        } else { 0.0 };
+
+        (type_priority + recency_boost).clamp(0.1, 1.35)
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -64,7 +95,7 @@ impl Default for DynamicEventsConfig {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// DYNAMIC EVENT MANAGER
+// DYNAMIC EVENT MANAGER + PRIORITIZATION
 // ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Resource)]
@@ -74,7 +105,6 @@ pub struct DynamicEventManager {
     pub event_history: VecDeque<DynamicEvent>,
     pub last_abundance_check: f64,
     pub last_faction_check: f64,
-    // Replication queue — networking layer drains this each tick
     pub pending_replication: Vec<DynamicEvent>,
 }
 
@@ -90,11 +120,9 @@ impl DynamicEventManager {
         }
     }
 
-    /// Main tick — call from server update loop (now also prepares replication)
     pub fn tick(&mut self, current_time: f64, mercy_level: f32) {
         self.process_scheduled_events(current_time);
         self.consider_new_events(current_time, mercy_level);
-        // After generating new events, they are already pushed to pending_replication in schedule_* fns
     }
 
     fn process_scheduled_events(&mut self, current_time: f64) {
@@ -137,7 +165,7 @@ impl DynamicEventManager {
     }
 
     fn schedule_abundance_event(&mut self, current_time: f64, mercy_level: f32) {
-        let event = DynamicEvent {
+        let mut event = DynamicEvent {
             id: Uuid::new_v4(),
             event_type: DynamicEventType::AbundanceSurge {
                 multiplier: 1.5 + mercy_level * 0.8,
@@ -148,14 +176,15 @@ impl DynamicEventManager {
             mercy_alignment: mercy_level,
             affected_players: vec![],
             metadata: serde_json::json!({"source": "EternalFlow"}),
+            priority: 0.0, // set below
         };
+        event.priority = event.base_priority();
         self.active_events.push(event.clone());
-        self.pending_replication.push(event); // ← replication wiring
-        info!("⚡ Abundance Surge scheduled — mercy influence: {:.2}", mercy_level);
+        self.pending_replication.push(event);
     }
 
     fn schedule_faction_event(&mut self, current_time: f64) {
-        let event = DynamicEvent {
+        let mut event = DynamicEvent {
             id: Uuid::new_v4(),
             event_type: DynamicEventType::FactionDiplomacyShift {
                 faction_a: "Seed of Abundance".to_string(),
@@ -166,14 +195,16 @@ impl DynamicEventManager {
             triggered_at: Some(current_time as u64),
             mercy_alignment: 0.75,
             affected_players: vec![],
-            metadata: serde_json::json!({"type": "diplomacy"}),
+            metadata: serde_json::json!({"type": "diplomacy", "patsagi": true}),
+            priority: 0.0,
         };
+        event.priority = event.base_priority();
         self.active_events.push(event.clone());
         self.pending_replication.push(event);
     }
 
     fn schedule_divine_cascade(&mut self, current_time: f64, mercy_level: f32) {
-        let event = DynamicEvent {
+        let mut event = DynamicEvent {
             id: Uuid::new_v4(),
             event_type: DynamicEventType::DivineWhisperCascade {
                 intensity: 0.7 + mercy_level * 0.3,
@@ -184,57 +215,54 @@ impl DynamicEventManager {
             mercy_alignment: mercy_level,
             affected_players: vec![],
             metadata: serde_json::json!({"council": "PATSAGi"}),
+            priority: 0.0,
         };
+        event.priority = event.base_priority();
         self.active_events.push(event.clone());
         self.pending_replication.push(event);
     }
 
-    /// Get events relevant to a player (integrate with HierarchicalGrid / InterestManager)
     pub fn get_relevant_events_for_player(&self, _player_pos: [f32; 3]) -> Vec<&DynamicEvent> {
         self.active_events.iter().collect()
     }
 
-    /// Drains pending replication events for the networking layer (tokio_transport / world_server)
-    /// Call this from your replication system each tick.
+    /// Returns pending events sorted by priority (highest first) for replication.
+    /// Networking layer should prefer high-priority (Divine + high-mercy Treaty) events.
+    pub fn drain_prioritized_replication(&mut self) -> Vec<DynamicEvent> {
+        let mut events = std::mem::take(&mut self.pending_replication);
+        events.sort_by(|a, b| b.priority.partial_cmp(&a.priority).unwrap_or(std::cmp::Ordering::Equal));
+        events
+    }
+
+    // Legacy drain kept for compatibility
     pub fn drain_pending_replication(&mut self) -> Vec<DynamicEvent> {
-        std::mem::take(&mut self.pending_replication)
+        self.drain_prioritized_replication()
     }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// REPLICATION WIRING (Server → Client Eternal Flow Feed)
+// REPLICATION WIRING (updated with prioritization)
 // ═════════════════════════════════════════════════════════════════════════
 //
-// 1. DynamicEventManager now collects new events into pending_replication.
-// 2. In your networking tick (world_server or tokio_transport replication loop):
-//      let mut manager = world.get_resource_mut::<DynamicEventManager>().unwrap();
-//      for event in manager.drain_pending_replication() {
-//          if let Some(client_event) = map_server_event_to_client(&event) {
-//              // Send via interest-scoped connection or broadcast channel
-//              send_to_interested_players(client_event, &interest_manager, &grid, &connections);
-//          }
-//      }
+// Networking replication tick:
+//   let mut manager = ...get_resource_mut::<DynamicEventManager>()...;
+//   for event in manager.drain_prioritized_replication() {
+//       if let Some(client_event) = map_server_event_to_client(&event) {
+//           // High priority events are sent first / with higher reliability / to more players
+//           send_to_interested_players(client_event, &interest_manager, &grid, &connections, event.priority);
+//       }
+//   }
 //
-// 3. On client (tokio_transport receive handler):
-//      receive_world_event_from_server(feed, client_event);
-//
-// 4. Treaty FactionDiplomacyShift events (with full PATSAGi mythic reason) automatically flow here
-//    because schedule_faction_event pushes to pending_replication.
-//
-// Future: use HierarchicalGrid + InterestManager to scope only to players who should see the event
-//         (nearby region, faction standing, or explicit subscription).
+// Prioritization already baked into every scheduled event via base_priority() + 7 Gates mercy_alignment.
+// Treaty DiplomacyShifts and DivineWhisperCascade naturally rise to the top.
 
-/// Converts server DynamicEvent to the client-facing form used by ClientDynamicEventFeed.
-/// Only events that should appear in the Eternal Flow Feed (E key) are mapped.
 pub fn map_server_event_to_client(event: &DynamicEvent) -> Option<ClientWorldEventMirror> {
     match &event.event_type {
         DynamicEventType::FactionDiplomacyShift { faction_a, faction_b, .. } => {
-            // In real treaty flow the rich reason comes from client-side PATSAGi evaluation.
-            // Here we provide a server-generated summary; client can enrich or override.
             Some(ClientWorldEventMirror::FactionDiplomacyShift {
                 faction_a: faction_a.clone(),
                 faction_b: faction_b.clone(),
-                reason: format!("Server-generated diplomacy shift between {} and {}", faction_a, faction_b),
+                reason: format!("Diplomacy shift (priority {:.2}) between {} and {}", event.priority, faction_a, faction_b),
             })
         }
         DynamicEventType::AbundanceSurge { multiplier, .. } => {
@@ -251,12 +279,10 @@ pub fn map_server_event_to_client(event: &DynamicEvent) -> Option<ClientWorldEve
                 mercy_impact: *intensity,
             })
         }
-        _ => None, // Other event types stay server-only or use Custom
+        _ => None,
     }
 }
 
-/// Lightweight mirror of client::dynamic_events_ui::ClientWorldEvent for network transport.
-/// Keep this in sync with the client enum.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ClientWorldEventMirror {
     AbundanceSurge { region: String, intensity: f32, mercy_delta: f32 },
@@ -282,26 +308,20 @@ impl Plugin for DynamicEventsPlugin {
 fn setup_dynamic_events(mut commands: Commands, config: Res<DynamicEventsConfig>) {
     let manager = DynamicEventManager::new(config.clone());
     commands.insert_resource(manager);
-    info!("⚡ Dynamic Events System online — PATSAGi guided world liveliness + replication ready");
+    info!("⚡ Dynamic Events + Prioritization (v17.43) online — PATSAGi / 7 Gates aware replication ready");
 }
 
 fn dynamic_events_tick_system(
     mut manager: ResMut<DynamicEventManager>,
     time: Res<Time>,
-    // TODO: wire real global mercy_level from MercyAnomalyDetector
 ) {
     let current_time = time.elapsed_seconds_f64();
     let mercy_level = 0.88;
     manager.tick(current_time, mercy_level);
-
-    // Example: networking layer can drain here or via event
-    // let _to_replicate = manager.drain_pending_replication();
 }
 
-// Integration notes (updated for v17.42):
-// - Call manager.drain_pending_replication() from your replication tick in tokio_transport or world_server.
-// - Use InterestManager + HierarchicalGrid to scope recipients.
-// - Map via map_server_event_to_client then serialize and send over player connections.
-// - On client receive: call receive_world_event_from_server(&mut feed, mapped_event).
-// - Treaty client-side PATSAGi evaluation still produces the richest mythic reason; server provides base event.
-// - Persist via persistence_polish if desired.
+// Integration notes:
+// - Use drain_prioritized_replication() (or the alias drain_pending_replication) in your networking layer.
+// - High priority events (DivineWhisper > high-mercy Treaty Diplomacy > Abundance) are sent first.
+// - Combine with InterestManager + HierarchicalGrid for player-specific relevance + priority.
+// - Client feed will naturally surface high-priority events first when sorted client-side (future).
