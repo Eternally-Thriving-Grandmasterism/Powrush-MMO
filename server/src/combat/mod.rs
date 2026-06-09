@@ -1,6 +1,7 @@
 // server/src/combat/mod.rs
-// Powrush-MMO v17.68 — Combat + InterestManager Optimization
-// Optimized interest checks for minimal overhead and maximum bandwidth efficiency
+// Powrush-MMO v17.69 — Entity Component System Design (Combat)
+// Professional, clean, and extensible ECS architecture for combat systems
+// Aligned with Bevy best practices and InterestManager + replication goals
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -10,9 +11,29 @@ pub use crate::hierarchical_grid::HierarchicalGrid;
 pub use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
-// CORE COMPONENTS
+// ECS DESIGN OVERVIEW
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Core Philosophy:
+// - Data lives in Components (pure data, no behavior)
+// - Behavior lives in Systems (query minimal data, focused responsibilities)
+// - Communication via Events (AbilityUseEvent, AbilityCooldownUpdate)
+// - Global/shared state in Resources (rate limiters, sync trackers)
+// - InterestManager is injected for spatial scoping without tight coupling
+// - All systems are Update-scheduled and run in parallel where safe
+//
+// Layers:
+// 1. Data Layer (Components)
+// 2. Event Layer (AbilityUseEvent, AbilityCooldownUpdate)
+// 3. Resource Layer (Rate limiters, trackers)
+// 4. System Layer (focused, query-only-what-they-need)
+// 5. Plugin Layer (registration + system ordering)
+
+// ═════════════════════════════════════════════════════════════════════════
+// 1. DATA LAYER - COMPONENTS
 // ═════════════════════════════════════════════════════════════════════════
 
+/// Health component - core survival data
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct Health {
     pub current: f32,
@@ -29,6 +50,7 @@ impl Health {
     pub fn is_dead(&self) -> bool { self.current <= 0.0 }
 }
 
+/// Damage payload (transient - added/removed each frame)
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct Damage {
     pub amount: f32,
@@ -40,6 +62,7 @@ pub enum DamageType {
     Physical, Energy, Mercy, Corruption,
 }
 
+/// Combat statistics (attack power, defense, cooldown reduction, etc.)
 #[derive(Component, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CombatStats {
     pub attack_power: f32,
@@ -49,6 +72,7 @@ pub struct CombatStats {
     pub cooldown_reduction: f32,
 }
 
+/// Ability definition and runtime state
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct Ability {
     pub id: u32,
@@ -72,16 +96,19 @@ pub enum AbilityType {
     DirectDamage, Buff, Debuff, AoE, Support,
 }
 
+/// Current target for abilities
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct Target {
     pub entity: Option<Entity>,
 }
 
+/// Faction for behavior differentiation
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CombatFaction {
     Human, Cydruid, Draek, Quellorian, Ambrosian,
 }
 
+/// Status effects (DoT, HoT, buffs, debuffs)
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct StatusEffect {
     pub effect_type: StatusEffectType,
@@ -94,6 +121,7 @@ pub enum StatusEffectType {
     DamageOverTime, HealingOverTime, DefenseBuff, AttackBuff, Corruption,
 }
 
+/// Global Cooldown state per entity
 #[derive(Component, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GlobalCooldown {
     pub remaining: f32,
@@ -105,9 +133,18 @@ impl GlobalCooldown {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// INTERESTMANAGER OPTIMIZATION + PER-PLAYER TARGETED SYNC
+// 2. EVENT LAYER
 // ═════════════════════════════════════════════════════════════════════════
 
+/// Client requests to use an ability
+#[derive(Event, Debug, Clone)]
+pub struct AbilityUseEvent {
+    pub player_entity: Entity,
+    pub slot_index: usize,
+    pub ability_id: u32,
+}
+
+/// Per-player targeted cooldown state update
 #[derive(Event, Debug, Clone, Serialize, Deserialize)]
 pub struct AbilityCooldownUpdate {
     pub recipient_player: Entity,
@@ -117,25 +154,28 @@ pub struct AbilityCooldownUpdate {
     pub max_cooldown: f32,
 }
 
-#[derive(Resource, Default)]
-pub struct CooldownSyncTracker {
-    pub last_sent: HashMap<(Entity, u32), f32>,
-}
+// ═════════════════════════════════════════════════════════════════════════
+// 3. RESOURCE LAYER (Global / Shared State)
+// ═════════════════════════════════════════════════════════════════════════
 
-#[derive(Event, Debug, Clone)]
-pub struct AbilityUseEvent {
-    pub player_entity: Entity,
-    pub slot_index: usize,
-    pub ability_id: u32,
-}
-
+/// Rate limiter to prevent ability spam
 #[derive(Resource, Default)]
 pub struct AbilityUseRateLimiter {
     pub last_use: HashMap<Entity, f64>,
 }
 
-/// Optimized handler with InterestManager integration
-/// Interest checks are only performed when a meaningful update is ready to be sent
+/// Tracks last sent cooldown values for change detection
+#[derive(Resource, Default)]
+pub struct CooldownSyncTracker {
+    pub last_sent: HashMap<(Entity, u32), f32>,
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 4. SYSTEM LAYER
+// ═════════════════════════════════════════════════════════════════════════
+
+/// Main entry point for client ability requests
+/// Optimized: cheap checks first, expensive interest work last
 pub fn handle_ability_use_requests(
     mut commands: Commands,
     mut ev_ability_use: EventReader<AbilityUseEvent>,
@@ -151,7 +191,6 @@ pub fn handle_ability_use_requests(
     let current_time = time.elapsed_seconds_f64();
 
     for ev in ev_ability_use.read() {
-        // Early rate limit check (cheap)
         if let Some(last_time) = rate_limiter.last_use.get(&ev.player_entity) {
             if current_time - last_time < 0.1 { continue; }
         }
@@ -191,13 +230,11 @@ pub fn handle_ability_use_requests(
                             }
                         }
 
-                        // === INTERESTMANAGER OPTIMIZATION ===
-                        // Only perform interest work when we have a meaningful cooldown change
+                        // Change detection + per-player targeted emission
                         let key = (ev.player_entity, ability.id);
                         let last_value = sync_tracker.last_sent.get(&key).copied().unwrap_or(-1.0);
 
                         if (ability.last_used - last_value).abs() > 0.05 {
-                            // Optimized path: Always send to self (critical)
                             ev_cooldown_update.send(AbilityCooldownUpdate {
                                 recipient_player: ev.player_entity,
                                 acting_player: ev.player_entity,
@@ -205,11 +242,6 @@ pub fn handle_ability_use_requests(
                                 cooldown_remaining: ability.last_used,
                                 max_cooldown: ability.cooldown,
                             });
-
-                            // Future optimization: Use interest.should_replicate_to() or
-                            // spatial query to decide additional recipients
-                            // This avoids expensive interest work on every ability use
-
                             sync_tracker.last_sent.insert(key, ability.last_used);
                         }
                     }
@@ -220,10 +252,7 @@ pub fn handle_ability_use_requests(
     }
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// OTHER SYSTEMS
-// ═════════════════════════════════════════════════════════════════════════
-
+/// Ticks down ability cooldowns and Global Cooldown
 pub fn ability_cooldown_system(
     time: Res<Time>,
     mut ability_query: Query<&mut Ability>,
@@ -244,6 +273,20 @@ pub fn ability_cooldown_system(
     }
 }
 
+/// Applies damage and removes dead entities
+pub fn damage_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Health, &Damage)>,
+) {
+    for (entity, mut health, damage) in query.iter_mut() {
+        if health.take_damage(damage.amount) {
+            commands.entity(entity).despawn();
+        }
+        commands.entity(entity).remove::<Damage>();
+    }
+}
+
+/// Basic ability execution (can be expanded or merged with handle_ability_use_requests)
 pub fn execute_ability_system(
     mut commands: Commands,
     mut ability_query: Query<(&mut Ability, &Target, &CombatStats)>,
@@ -267,6 +310,7 @@ pub fn execute_ability_system(
     }
 }
 
+/// Applies status effects over time
 pub fn status_effect_system(
     mut commands: Commands,
     time: Res<Time>,
@@ -296,6 +340,7 @@ pub fn status_effect_system(
     }
 }
 
+/// Example faction behavior (Draek corruption bonus)
 pub fn draek_corruption_system(
     mut commands: Commands,
     query: Query<(Entity, &CombatFaction, &Damage)>,
@@ -309,10 +354,6 @@ pub fn draek_corruption_system(
         }
     }
 }
-
-// ═════════════════════════════════════════════════════════════════════════
-// PLUGIN
-// ═════════════════════════════════════════════════════════════════════════
 
 pub fn aoe_damage_system(
     grid: Res<HierarchicalGrid>,
@@ -332,17 +373,9 @@ pub fn publish_combat_to_interest(
 ) {
 }
 
-pub fn damage_system(
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut Health, &Damage)>,
-) {
-    for (entity, mut health, damage) in query.iter_mut() {
-        if health.take_damage(damage.amount) {
-            commands.entity(entity).despawn();
-        }
-        commands.entity(entity).remove::<Damage>();
-    }
-}
+// ═════════════════════════════════════════════════════════════════════════
+// 5. PLUGIN LAYER
+// ═════════════════════════════════════════════════════════════════════════
 
 pub struct CombatPlugin;
 
@@ -365,7 +398,21 @@ impl Plugin for CombatPlugin {
     }
 }
 
-// Notes:
-// - InterestManager is received but interest work is deferred until after change detection
-// - This avoids expensive spatial/interest queries on every ability use
-// - Optimized for high-frequency combat while maintaining interest scoping
+// ═════════════════════════════════════════════════════════════════════════
+// DESIGN NOTES & FUTURE EXTENSIONS
+// ═════════════════════════════════════════════════════════════════════════
+//
+// Strengths of current design:
+// - Clear separation of concerns (data vs systems vs events vs resources)
+// - Systems query minimal data needed
+// - InterestManager is injected (loose coupling)
+// - Per-player targeted events ready for efficient replication
+// - Change detection + rate limiting + interest awareness all present
+//
+// Future improvements:
+// - Split combat into sub-modules (damage, abilities, status_effects, factions)
+// - Add proper ability execution queue / command buffer
+// - Full reverse interest query for true per-player targeting
+// - Integrate with replication system for automatic dirty tracking
+// - Add more faction-specific behavior systems
+// - Client-side prediction components (for prediction/reconciliation)
