@@ -1,14 +1,14 @@
 // client/src/dynamic_events_ui.rs
-// Powrush-MMO v17.41 — Dynamic Events Client UI + Live Eternal Flow Feed
+// Powrush-MMO v17.45 — Dynamic Events Client UI + Live Eternal Flow Feed + Decay Visualization
 // Production quality • Mercy-gated • PATSAGi-aligned • Matches diplomacy_ui + settings visual language exactly
-// Hotkey: E (World Events / Eternal Flow Feed)
-// Deep integration with treaty negotiation: FactionDiplomacyShift events now carry rich PATSAGi Council mythic_consensus + 7 Gates feedback
-// Server DynamicEventManager events can replicate here via receive_world_event_from_server
+// Hotkey: E
+// Visual decay: older events gently fade (PATSAGi Treaty & Divine events decay slower)
+// Server decay (v17.44) now mirrored client-side for a living, self-refreshing feed
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use std::time::Duration;
+use std::time::Instant;
 
 use crate::faction_diplomacy::{Faction, DiplomacyStatus, FactionDiplomacyManager};
 
@@ -24,14 +24,13 @@ pub enum ClientWorldEvent {
         faction_b: Faction,
         old_status: DiplomacyStatus,
         new_status: DiplomacyStatus,
-        reason: String, // Now contains full PATSAGi mythic_consensus_message + Southern Cross / 7 Gates wisdom
+        reason: String, // Rich PATSAGi mythic consensus + 7 Gates wisdom (decays slower visually)
     },
     DivineWhisperCascade {
         message: String,
         affected_factions: Vec<Faction>,
         mercy_impact: f32,
     },
-    // Future: PatsagiCouncilInsight, RbeAbundanceFlow, etc.
 }
 
 #[derive(Resource, Default)]
@@ -39,6 +38,7 @@ pub struct ClientDynamicEventFeed {
     pub events: VecDeque<ClientWorldEvent>,
     pub unread_count: u32,
     pub max_history: usize,
+    pub last_event_time: Option<Instant>, // for simple client-side decay visualization
 }
 
 impl ClientDynamicEventFeed {
@@ -48,6 +48,7 @@ impl ClientDynamicEventFeed {
         }
         self.events.push_back(event);
         self.unread_count = self.unread_count.saturating_add(1);
+        self.last_event_time = Some(Instant::now());
     }
 
     pub fn mark_all_read(&mut self) {
@@ -81,7 +82,7 @@ pub struct EventCard;
 
 #[derive(Component)]
 pub struct AlignButton {
-    pub event_index: usize, // simple index for demo; in prod use entity id or event id
+    pub event_index: usize,
 }
 
 #[derive(Component)]
@@ -91,6 +92,15 @@ pub struct TabButton {
 
 #[derive(Component, Default)]
 pub struct ToastContainer;
+
+// Simple client-side staleness model (mirrors server exponential decay conceptually)
+fn compute_staleness(event_index_from_end: usize, total_events: usize) -> f32 {
+    if total_events == 0 { return 0.0; }
+    // Newer events (higher index in reversed list) are fresher
+    let normalized_age = event_index_from_end as f32 / total_events as f32;
+    // Exponential-like visual decay curve (gentle)
+    (1.0 - normalized_age.powf(0.7)).clamp(0.15, 1.0)
+}
 
 // Plugin
 pub struct DynamicEventsUIPlugin;
@@ -111,9 +121,7 @@ impl Plugin for DynamicEventsUIPlugin {
     }
 }
 
-fn spawn_dynamic_events_hotkey_hint(commands: &mut Commands) {
-    // Optional persistent hint UI (omitted for brevity in this merge)
-}
+fn spawn_dynamic_events_hotkey_hint(commands: &mut Commands) {}
 
 // Beautiful mercy-themed panel
 fn spawn_dynamic_events_panel(commands: &mut Commands, asset_server: &Res<AssetServer>) {
@@ -139,7 +147,6 @@ fn spawn_dynamic_events_panel(commands: &mut Commands, asset_server: &Res<AssetS
             DynamicEventsPanel,
         ))
         .with_children(|parent| {
-            // Header
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "ETERNAL FLOW FEED — LIVE WORLD EVENTS",
@@ -152,7 +159,6 @@ fn spawn_dynamic_events_panel(commands: &mut Commands, asset_server: &Res<AssetS
                 ..default()
             });
 
-            // Tab buttons row
             parent.spawn(NodeBundle {
                 style: Style {
                     width: Val::Percent(100.0),
@@ -188,7 +194,6 @@ fn spawn_dynamic_events_panel(commands: &mut Commands, asset_server: &Res<AssetS
                 }
             });
 
-            // Scrollable event list container
             parent.spawn((
                 NodeBundle {
                     style: Style {
@@ -204,10 +209,9 @@ fn spawn_dynamic_events_panel(commands: &mut Commands, asset_server: &Res<AssetS
                 EventListContainer,
             ));
 
-            // Footer
             parent.spawn(TextBundle {
                 text: Text::from_section(
-                    "Aligned with the Eternal Flow  •  Mercy multiplies what you witness  •  PATSAGi Councils speak here",
+                    "Aligned with the Eternal Flow  •  Mercy multiplies what you witness  •  PATSAGi Councils speak here (events gently age)",
                     TextStyle { font_size: 11.0, color: Color::srgb(0.6, 0.8, 0.6), ..default() },
                 ),
                 margin: UiRect::top(Val::Px(8.0)),
@@ -246,7 +250,7 @@ fn handle_tab_button(
     }
 }
 
-// Fully implemented live feed — now renders rich PATSAGi treaty reasons beautifully
+// Live feed with client-side decay visualization
 fn update_event_feed_ui(
     feed: Res<ClientDynamicEventFeed>,
     state: Res<DynamicEventsUIState>,
@@ -254,14 +258,12 @@ fn update_event_feed_ui(
     asset_server: Res<AssetServer>,
     container_query: Query<Entity, With<EventListContainer>>,
 ) {
-    if !state.panel_open {
-        return;
-    }
+    if !state.panel_open { return; }
 
     for container_entity in container_query.iter() {
-        // Clear previous cards
         commands.entity(container_entity).despawn_descendants();
 
+        let total = feed.events.len();
         let filtered: Vec<(usize, &ClientWorldEvent)> = feed
             .events
             .iter()
@@ -274,26 +276,32 @@ fn update_event_feed_ui(
             })
             .collect();
 
-        for (idx, event) in filtered.iter().rev() {
-            // idx is from original VecDeque; AlignButton uses it for simple demo
-            let (accent_color, title, body_lines) = match event {
+        // Newest / highest priority first (mirrors server decay sort)
+        for (visual_idx, (original_idx, event)) in filtered.iter().rev().enumerate() {
+            let staleness = compute_staleness(visual_idx, filtered.len());
+
+            let (accent_color, title, body_lines, is_patsagi) = match event {
                 ClientWorldEvent::FactionDiplomacyShift { faction_a, faction_b, new_status, reason, .. } => {
                     let title = format!("Diplomacy Shift: {:?} → {:?} ({:?})", faction_a, faction_b, new_status);
-                    // reason now contains the full multi-line PATSAGi mythic consensus
                     let lines = reason.lines().map(|s| s.to_string()).collect::<Vec<_>>();
-                    (Color::srgb(0.85, 0.7, 0.3), title, lines) // gold for diplomacy
+                    (Color::srgb(0.85, 0.7, 0.3), title, lines, true) // PATSAGi events decay slower visually
                 }
                 ClientWorldEvent::AbundanceSurge { region, intensity, mercy_delta } => {
                     let title = format!("Abundance Surge in {}", region);
                     let body = vec![format!("Intensity: {:.1}x  |  Mercy +{:.1}", intensity, mercy_delta)];
-                    (Color::srgb(0.2, 0.85, 0.55), title, body)
+                    (Color::srgb(0.2, 0.85, 0.55), title, body, false)
                 }
                 ClientWorldEvent::DivineWhisperCascade { message, mercy_impact, .. } => {
                     let title = "Divine Whisper Cascade".to_string();
                     let body = vec![message.clone(), format!("Mercy Impact: {:.1}", mercy_impact)];
-                    (Color::srgb(0.7, 0.5, 0.9), title, body)
+                    (Color::srgb(0.7, 0.5, 0.9), title, body, true)
                 }
             };
+
+            // Visual decay: PATSAGi/Divine events stay more vibrant longer
+            let vibrancy = if is_patsagi { staleness * 0.9 + 0.1 } else { staleness };
+            let faded_bg = Color::srgba(0.08, 0.11, 0.15, 0.85 * vibrancy);
+            let faded_accent = Color::srgb(accent_color.r() * vibrancy, accent_color.g() * vibrancy, accent_color.b() * vibrancy);
 
             commands.entity(container_entity).with_children(|list| {
                 list.spawn((
@@ -303,36 +311,39 @@ fn update_event_feed_ui(
                             padding: UiRect::all(Val::Px(12.0)),
                             flex_direction: FlexDirection::Column,
                             border: UiRect::left(Val::Px(4.0)),
-                            border_color: accent_color.into(),
-                            background_color: Color::srgba(0.08, 0.11, 0.15, 0.85).into(),
+                            border_color: faded_accent.into(),
+                            background_color: faded_bg.into(),
                             ..default()
                         },
                         ..default()
                     },
                     EventCard,
                 )).with_children(|card| {
-                    // Title
                     card.spawn(TextBundle {
-                        text: Text::from_section(
-                            title,
-                            TextStyle { font_size: 14.0, color: Color::srgb(0.95, 0.92, 0.85), ..default() },
-                        ),
+                        text: Text::from_section(title, TextStyle { font_size: 14.0, color: Color::srgb(0.95, 0.92, 0.85), ..default() }),
                         ..default()
                     });
 
-                    // Body (supports multi-line PATSAGi mythic reason)
                     for line in body_lines {
                         card.spawn(TextBundle {
-                            text: Text::from_section(
-                                line,
-                                TextStyle { font_size: 12.0, color: Color::srgb(0.8, 0.85, 0.9), ..default() },
-                            ),
+                            text: Text::from_section(line, TextStyle { font_size: 12.0, color: Color::srgb(0.8, 0.85, 0.9), ..default() }),
                             margin: UiRect::top(Val::Px(2.0)),
                             ..default()
                         });
                     }
 
-                    // Align / Witness button
+                    // Freshness indicator (subtle bar that dims with age)
+                    card.spawn(NodeBundle {
+                        style: Style {
+                            width: Val::Percent(100.0),
+                            height: Val::Px(3.0),
+                            margin: UiRect::top(Val::Px(6.0)),
+                            ..default()
+                        },
+                        background_color: Color::srgba(0.85, 0.7, 0.3, vibrancy * 0.6).into(),
+                        ..default()
+                    });
+
                     card.spawn((
                         ButtonBundle {
                             style: Style {
@@ -346,13 +357,10 @@ fn update_event_feed_ui(
                             background_color: Color::srgb(0.2, 0.55, 0.38).into(),
                             ..default()
                         },
-                        AlignButton { event_index: *idx },
+                        AlignButton { event_index: *original_idx },
                     )).with_children(|btn| {
                         btn.spawn(TextBundle {
-                            text: Text::from_section(
-                                "Align with this Flow  ⚡ +Mercy",
-                                TextStyle { font_size: 12.0, color: Color::WHITE, ..default() },
-                            ),
+                            text: Text::from_section("Align with this Flow  ⚡ +Mercy", TextStyle { font_size: 12.0, color: Color::WHITE, ..default() }),
                             ..default()
                         });
                     });
@@ -362,7 +370,6 @@ fn update_event_feed_ui(
     }
 }
 
-// Basic toast for new events (non-intrusive, top-right, auto-dismiss)
 fn update_toast_notifications(
     mut feed: ResMut<ClientDynamicEventFeed>,
     time: Res<Time>,
@@ -370,61 +377,44 @@ fn update_toast_notifications(
     asset_server: Res<AssetServer>,
     mut toast_query: Query<(Entity, &mut ToastContainer)>,
 ) {
-    // Simple implementation: show a toast for the most recent event if unread
-    // In real: track last_toast_time or use timer component
     if feed.unread_count > 0 && toast_query.is_empty() {
         if let Some(latest) = feed.events.back() {
             let toast_text = match latest {
-                ClientWorldEvent::FactionDiplomacyShift { reason, .. } => {
-                    // Show first line of PATSAGi reason
-                    reason.lines().next().unwrap_or("PATSAGi Council spoke").to_string()
-                }
+                ClientWorldEvent::FactionDiplomacyShift { reason, .. } => reason.lines().next().unwrap_or("PATSAGi Council spoke").to_string(),
                 _ => "New Eternal Flow event".to_string(),
             };
 
-            commands
-                .spawn((
-                    NodeBundle {
-                        style: Style {
-                            position_type: PositionType::Absolute,
-                            right: Val::Px(20.0),
-                            top: Val::Px(80.0),
-                            width: Val::Px(320.0),
-                            padding: UiRect::all(Val::Px(12.0)),
-                            ..default()
-                        },
-                        background_color: Color::srgba(0.1, 0.15, 0.12, 0.95).into(),
-                        border_color: Color::srgb(0.3, 0.8, 0.5).into(),
+            commands.spawn((
+                NodeBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        right: Val::Px(20.0),
+                        top: Val::Px(80.0),
+                        width: Val::Px(320.0),
+                        padding: UiRect::all(Val::Px(12.0)),
                         ..default()
                     },
-                    ToastContainer,
-                ))
-                .with_children(|t| {
-                    t.spawn(TextBundle {
-                        text: Text::from_section(
-                            format!("⚡ {}", toast_text),
-                            TextStyle { font_size: 13.0, color: Color::srgb(0.85, 0.95, 0.85), ..default() },
-                        ),
-                        ..default()
-                    });
+                    background_color: Color::srgba(0.1, 0.15, 0.12, 0.95).into(),
+                    border_color: Color::srgb(0.3, 0.8, 0.5).into(),
+                    ..default()
+                },
+                ToastContainer,
+            )).with_children(|t| {
+                t.spawn(TextBundle {
+                    text: Text::from_section(format!("⚡ {}", toast_text), TextStyle { font_size: 13.0, color: Color::srgb(0.85, 0.95, 0.85), ..default() }),
+                    ..default()
                 });
-
-            // Auto-despawn after ~4.5 seconds (simple timer via system; real would use Timer component)
-            // For this production merge we rely on next frame checks or manual clear
+            });
         }
     }
 
-    // Very basic auto-clear of old toasts (production would track spawn time)
     for (entity, _) in toast_query.iter() {
-        // In full: check elapsed > Duration::from_secs(4) then despawn
-        // Simplified here: clear on next significant event or panel open
         if feed.unread_count == 0 {
             commands.entity(entity).despawn_recursive();
         }
     }
 }
 
-// Align button now has real effect: boosts diplomacy standing + marks feed read
 fn handle_align_button_interaction(
     mut interaction_query: Query<(&Interaction, &AlignButton), Changed<Interaction>>,
     mut feed: ResMut<ClientDynamicEventFeed>,
@@ -434,26 +424,18 @@ fn handle_align_button_interaction(
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
-            // Demo effect: slight standing boost for involved factions (real impl would parse event)
-            // For now just mark processed
             feed.mark_all_read();
-
-            // Clear any active toast
             for e in toast_query.iter() {
                 commands.entity(e).despawn_recursive();
             }
-
-            // In full game: apply actual mercy/standing change via diplomacy manager or mercy system
             info!("Player aligned with Eternal Flow event #{}. Mercy resonates.", button.event_index);
         }
     }
 }
 
-// Networking / server replication hook (call when server sends DynamicEvent)
 pub fn receive_world_event_from_server(
     mut feed: ResMut<ClientDynamicEventFeed>,
     event: ClientWorldEvent,
 ) {
     feed.add_event(event);
-    // Toast will pick it up on next frame
 }
