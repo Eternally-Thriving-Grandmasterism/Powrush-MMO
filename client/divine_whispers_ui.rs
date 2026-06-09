@@ -204,7 +204,8 @@ fn update_divine_log_panel(
     }
 }
 
-/// Call this when receiving DivineWhisperReceived from server + play subtle chime
+/// Call this when receiving DivineWhisperReceived from server.
+/// Plays a subtle divine chime for audio feedback.
 pub fn receive_divine_whisper_from_server(
     whisper: DivineWhisper,
     current: &mut CurrentDivineWhisper,
@@ -215,10 +216,17 @@ pub fn receive_divine_whisper_from_server(
 ) {
     show_divine_whisper(whisper.clone(), current, log, ui_query);
 
-    // Subtle divine chime (placeholder - replace with real soft chime asset)
-    // commands.spawn(AudioBundle {
-    //     source: asset_server.load("sounds/divine_chime.ogg"),
-    //     settings: PlaybackSettings::DESPAWN,
-    // });
-    info!("[Divine] New whisper received - chime would play here");
+    // === Audio feedback: subtle divine chime ===
+    // Place your sound file at assets/sounds/divine_chime.ogg (or .wav)
+    // The chime should be soft, high, and merciful — not startling.
+    commands.spawn(AudioBundle {
+        source: asset_server.load("sounds/divine_chime.ogg"),
+        settings: PlaybackSettings {
+            mode: bevy::audio::PlaybackMode::Despawn,
+            volume: bevy::audio::Volume::Linear(0.35), // gentle, not loud
+            ..default()
+        },
+    });
+
+    tracing::info!("[Divine] New whisper received — audio chime played");
 }
