@@ -1,5 +1,5 @@
 // shared/protocol.rs
-// Powrush-MMO — Divine Whispers with server-side audio normalization
+// Powrush-MMO — Added WhisperContext for Procedural Divine Whispers
 // AG-SML v1.0
 
 use serde::{Deserialize, Serialize};
@@ -7,12 +7,31 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Vec3Ser {
-    pub x: f32, pub y: f32, pub z: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HealthComponent {
-    pub current: f32, pub max: f32,
+    pub current: f32,
+    pub max: f32,
+}
+
+// ==================== PROCEDURAL WHISPERS CONTEXT ====================
+
+/// Rich context passed to the whisper generation system.
+/// Used for both reactive and council-initiated whispers.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WhisperContext {
+    pub player_id: u64,
+    pub player_valence: f32,
+    pub recent_actions: Vec<String>,           // Simple action summaries for now
+    pub location_zone: Option<String>,
+    pub group_size: Option<u32>,
+    pub group_average_valence: Option<f32>,
+    pub time_since_last_whisper_ms: Option<u64>,
+    pub council_interest: Vec<String>,         // Which councils have interest
 }
 
 // Divine Whisper with server-side normalization hint
@@ -22,7 +41,6 @@ pub struct DivineWhisper {
     pub valence: f32,
     pub mercy_seal: bool,
     /// Server-computed recommended playback volume (0.0 - 1.0)
-    /// Client should combine this with user volume settings.
     pub normalized_volume: Option<f32>,
 }
 
@@ -88,11 +106,19 @@ pub struct TradeOffer {
 
 impl TradeOffer {
     pub fn new(
-        trade_id: u64, from_player: u64, to_player: u64,
-        offered: HashMap<String, f32>, requested: HashMap<String, f32>, created_at_ms: u64,
+        trade_id: u64,
+        from_player: u64,
+        to_player: u64,
+        offered: HashMap<String, f32>,
+        requested: HashMap<String, f32>,
+        created_at_ms: u64,
     ) -> Self {
         Self {
-            trade_id, from_player, to_player, offered, requested,
+            trade_id,
+            from_player,
+            to_player,
+            offered,
+            requested,
             created_at_ms,
             expires_at_ms: created_at_ms + 300_000,
         }
