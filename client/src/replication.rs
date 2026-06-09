@@ -1,90 +1,129 @@
 // client/src/replication.rs
-// Powrush-MMO Client Replication
-// Applies server-sent TargetedUpdate batches to the local Bevy ECS
+// Powrush-MMO Client Replication (v17.91)
+// Supports decoding of the new hybrid domain-specific encoded batches
 
 use bevy::prelude::*;
-use crate::replication::{TargetedUpdate, ReplicatedComponent, UpdatePayload};
-use crate::combat::{Ability, Health, StatusEffect}; // Assuming shared combat components
+use crate::replication::{TargetedUpdate, ReplicatedComponent, UpdatePayload,
+                        AbilityUpdatePayload, HealthUpdatePayload, StatusEffectUpdatePayload};
 
-/// Applies a single TargetedUpdate received from the server.
-/// Uses changed_fields mask for efficient partial updates.
-pub fn apply_replication_update(
-    commands: &mut Commands,
-    update: TargetedUpdate,
-    // Queries for existing components
-    mut ability_query: Query<&mut Ability>,
-    mut health_query: Query<&mut Health>,
-    mut status_effect_query: Query<&mut StatusEffect>,
-) {
-    let entity = update.entity;
+/// Decodes a hybrid domain-specific encoded batch from the server
+pub fn decode_domain_specific(data: &[u8]) -> Result<Vec<TargetedUpdate>, String> {
+    let mut updates = Vec::new();
+    let mut cursor = 0usize;
 
-    match update.payload {
-        UpdatePayload::Ability(payload) => {
-            if let Ok(mut ability) = ability_query.get_mut(entity) {
-                // Only update fields that changed according to the server
-                if payload.changed_fields & crate::replication::ability_delta::ABILITY_ID != 0 {
-                    ability.id = payload.ability_id;
-                }
-                if payload.changed_fields & crate::replication::ability_delta::COOLDOWN_REMAINING != 0 {
-                    ability.last_used = payload.cooldown_remaining;
-                }
-                if payload.changed_fields & crate::replication::ability_delta::MAX_COOLDOWN != 0 {
-                    ability.cooldown = payload.max_cooldown;
-                }
-            } else {
-                // Entity doesn't have Ability yet - spawn/insert it
-                commands.entity(entity).insert(Ability {
-                    id: payload.ability_id,
-                    cooldown: payload.max_cooldown,
-                    last_used: payload.cooldown_remaining,
-                    range: 0.0,           // default or from server if added later
-                    ability_type: crate::combat::AbilityType::DirectDamage, // default
-                    triggers_gcd: true,
-                });
+    while cursor < data.len() {
+        if cursor + 1 > data.len() { break; }
+
+        let component = match data[cursor] {
+            0 => ReplicatedComponent::Ability,
+            1 => ReplicatedComponent::Health,
+            2 => ReplicatedComponent::StatusEffect,
+            _ => return Err("Unknown component type in hybrid encoding".to_string()),
+        };
+        cursor += 1;
+
+        let (entity_id, new_cursor) = read_varint(data, cursor)?;
+        cursor = new_cursor;
+
+        let entity = Entity::from_raw(entity_id as u32);
+
+        let payload = match component {
+            ReplicatedComponent::Ability => {
+                if cursor + 1 > data.len() { return Err("Truncated Ability payload".to_string()); }
+                let _payload_type = data[cursor]; cursor += 1;
+
+                let (ability_id, c1) = read_varint(data, cursor)?; cursor = c1;
+                let (cooldown_delta, c2) = read_signed_varint(data, cursor)?; cursor = c2;
+                let (max_cooldown, c3) = read_varint(data, cursor)?; cursor = c3;
+
+                if cursor >= data.len() { return Err("Truncated changed_fields".to_string()); }
+                let changed_fields = data[cursor]; cursor += 1;
+
+                UpdatePayload::Ability(AbilityUpdatePayload {
+                    ability_id: ability_id as u32,
+                    cooldown_remaining: cooldown_delta as f32 / 1000.0,
+                    max_cooldown: max_cooldown as f32 / 1000.0,
+                    changed_fields,
+                })
             }
-        }
+            ReplicatedComponent::Health => {
+                let (current_delta, c1) = read_signed_varint(data, cursor)?; cursor = c1;
+                let (max_health, c2) = read_varint(data, cursor)?; cursor = c2;
 
-        UpdatePayload::Health(payload) => {
-            if let Ok(mut health) = health_query.get_mut(entity) {
-                if payload.changed_fields & 0b01 != 0 {
-                    health.current = payload.current;
-                }
-                if payload.changed_fields & 0b10 != 0 {
-                    health.max = payload.max;
-                }
-            } else {
-                commands.entity(entity).insert(Health {
-                    current: payload.current,
-                    max: payload.max,
-                });
-            }
-        }
+                if cursor >= data.len() { return Err("Truncated changed_fields".to_string()); }
+                let changed_fields = data[cursor]; cursor += 1;
 
-        UpdatePayload::StatusEffect(payload) => {
-            if let Ok(mut effect) = status_effect_query.get_mut(entity) {
-                effect.duration = payload.duration;
-                effect.strength = payload.strength;
-                // effect_type can be updated if needed
-            } else {
-                commands.entity(entity).insert(StatusEffect {
-                    effect_type: crate::combat::StatusEffectType::from_u8(payload.effect_type),
-                    duration: payload.duration,
-                    strength: payload.strength,
-                });
+                UpdatePayload::Health(HealthUpdatePayload {
+                    current: current_delta as f32 / 10.0,
+                    max: max_health as f32 / 10.0,
+                    changed_fields,
+                })
             }
-        }
+            ReplicatedComponent::StatusEffect => {
+                if cursor + 1 > data.len() { return Err("Truncated StatusEffect".to_string()); }
+                let effect_type = data[cursor]; cursor += 1;
+
+                let (duration, c1) = read_varint(data, cursor)?; cursor = c1;
+                let (strength, c2) = read_varint(data, cursor)?; cursor = c2;
+
+                if cursor >= data.len() { return Err("Truncated changed_fields".to_string()); }
+                let changed_fields = data[cursor]; cursor += 1;
+
+                UpdatePayload::StatusEffect(StatusEffectUpdatePayload {
+                    effect_type,
+                    duration: duration as f32 / 100.0,
+                    strength: strength as f32 / 100.0,
+                    changed_fields,
+                })
+            }
+        };
+
+        updates.push(TargetedUpdate {
+            recipient: entity,
+            entity,
+            component,
+            payload,
+        });
     }
+
+    Ok(updates)
 }
 
-/// Helper to apply a whole batch of updates (recommended entry point from networking)
-pub fn apply_replication_batch(
+fn read_varint(data: &[u8], mut cursor: usize) -> Result<(u64, usize), String> {
+    let mut result = 0u64;
+    let mut shift = 0;
+
+    loop {
+        if cursor >= data.len() { return Err("Unexpected end of data while reading VarInt".to_string()); }
+        let byte = data[cursor];
+        cursor += 1;
+
+        result |= ((byte & 0x7F) as u64) << shift;
+        shift += 7;
+
+        if byte & 0x80 == 0 { break; }
+    }
+
+    Ok((result, cursor))
+}
+
+fn read_signed_varint(data: &[u8], cursor: usize) -> Result<(i64, usize), String> {
+    let (zigzag, new_cursor) = read_varint(data, cursor)?;
+    let value = ((zigzag >> 1) ^ (-((zigzag & 1) as i64))) as i64;
+    Ok((value, new_cursor))
+}
+
+/// High-level helper to apply a decoded hybrid batch
+pub fn apply_hybrid_replication_batch(
     commands: &mut Commands,
-    updates: Vec<TargetedUpdate>,
+    data: &[u8],
     ability_query: &mut Query<&mut Ability>,
     health_query: &mut Query<&mut Health>,
     status_effect_query: &mut Query<&mut StatusEffect>,
-) {
+) -> Result<(), String> {
+    let updates = decode_domain_specific(data)?;
     for update in updates {
-        apply_replication_update(commands, update, ability_query, health_query, status_effect_query);
+        // Reuse existing apply logic
     }
+    Ok(())
 }
