@@ -1,35 +1,54 @@
 // server/src/replication/mod.rs
-// Powrush-MMO v17.83 — Network Transport Integration
+// Powrush-MMO v17.84 — Delta Serialization (Phase 1)
 //
-// This module now includes the final stage: preparing batched updates
-// for actual network delivery.
-//
-// PIPELINE SUMMARY:
-// 1. Dirty Marking
-// 2. Real ECS Data Query
-// 3. Interest Filtering
-// 4. TargetedUpdate Generation
-// 5. Batching (ReplicationBatcher)
-// 6. Transport Preparation (send_replication_batches)  <--- NEW
-//
-// The output of this stage is ready to be handed to the networking layer.
+// Added delta flags to payloads + optimized bincode configuration.
+// This is the foundation for bandwidth-efficient, change-only replication.
 
 use bevy::prelude::*;
 use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
+use bincode;
 use crate::combat::{Ability, AbilityCooldownUpdate, Health, StatusEffect};
 use crate::interest_management::InterestManager;
 
 // ═════════════════════════════════════════════════════════════════════════
-// PAYLOADS + DATA STRUCTURES
+// DELTA SERIALIZATION (Phase 1)
 // ═════════════════════════════════════════════════════════════════════════
 
+/// Bitmask for AbilityUpdatePayload changed fields
+pub mod ability_delta {
+    pub const ABILITY_ID: u8 = 1 << 0;
+    pub const COOLDOWN_REMAINING: u8 = 1 << 1;
+    pub const MAX_COOLDOWN: u8 = 1 << 2;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AbilityUpdatePayload { pub ability_id: u32, pub cooldown_remaining: f32, pub max_cooldown: f32 }
+pub struct AbilityUpdatePayload {
+    pub ability_id: u32,
+    pub cooldown_remaining: f32,
+    pub max_cooldown: f32,
+    /// Bitmask indicating which fields actually changed
+    pub changed_fields: u8,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HealthUpdatePayload { pub current: f32, pub max: f32 }
+pub struct HealthUpdatePayload {
+    pub current: f32,
+    pub max: f32,
+    pub changed_fields: u8,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StatusEffectUpdatePayload { pub effect_type: u8, pub duration: f32, pub strength: f32 }
+pub struct StatusEffectUpdatePayload {
+    pub effect_type: u8,
+    pub duration: f32,
+    pub strength: f32,
+    pub changed_fields: u8,
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// DATA STRUCTURES
+// ═════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ReplicatedComponent { Ability, Health, StatusEffect, Position, CombatStats }
@@ -127,16 +146,28 @@ pub fn replicate_dirty_state(
             let payload = match component {
                 ReplicatedComponent::Ability => {
                     if let Ok(ability) = ability_query.get(entity) {
+                        // For now we mark all fields as changed (full update).
+                        // Real delta detection can be added later.
+                        let mut changed = 0u8;
+                        changed |= ability_delta::ABILITY_ID;
+                        changed |= ability_delta::COOLDOWN_REMAINING;
+                        changed |= ability_delta::MAX_COOLDOWN;
+
                         UpdatePayload::Ability(AbilityUpdatePayload {
                             ability_id: ability.id,
                             cooldown_remaining: ability.last_used,
                             max_cooldown: ability.cooldown,
+                            changed_fields: changed,
                         })
                     } else { continue; }
                 }
                 ReplicatedComponent::Health => {
                     if let Ok(health) = health_query.get(entity) {
-                        UpdatePayload::Health(HealthUpdatePayload { current: health.current, max: health.max })
+                        UpdatePayload::Health(HealthUpdatePayload {
+                            current: health.current,
+                            max: health.max,
+                            changed_fields: 0b11,
+                        })
                     } else { continue; }
                 }
                 ReplicatedComponent::StatusEffect => {
@@ -145,6 +176,7 @@ pub fn replicate_dirty_state(
                             effect_type: effect.effect_type as u8,
                             duration: effect.duration,
                             strength: effect.strength,
+                            changed_fields: 0b111,
                         })
                     } else { continue; }
                 }
@@ -172,7 +204,6 @@ pub fn replicate_dirty_state(
     }
 }
 
-/// Batches TargetedUpdates per recipient
 pub fn batch_targeted_updates(
     mut ev_targeted: EventReader<TargetedUpdate>,
     mut batcher: ResMut<ReplicationBatcher>,
@@ -182,12 +213,6 @@ pub fn batch_targeted_updates(
     }
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// NETWORK TRANSPORT INTEGRATION
-// ═════════════════════════════════════════════════════════════════════════
-
-/// Drains the ReplicationBatcher and prepares data for network transport.
-/// This is the handoff point to the actual networking layer.
 pub fn send_replication_batches(
     mut batcher: ResMut<ReplicationBatcher>,
 ) {
@@ -197,25 +222,17 @@ pub fn send_replication_batches(
         return;
     }
 
+    // Optimized bincode configuration
+    let config = bincode::DefaultOptions::new()
+        .with_varint_encoding()
+        .allow_trailing_bytes();
+
     for (recipient, updates) in batches {
-        // === TRANSPORT HOOK ===
-        // At this point we have a complete, batched, serialized-ready set of updates
-        // for a specific recipient.
-        //
-        // TODO: Integrate with real networking:
-        // - Serialize `updates` using serde + bincode or a custom protocol
-        // - Send over tokio channel, WebSocket, UDP, or your transport of choice
-        // - Handle reliability, ordering, and compression as needed
-        //
-        // For now we log the batch for visibility during development.
+        // Future: Use config.serialize() for real network packets
         println!(
-            "[Replication] Sending batch to recipient {:?}: {} updates",
+            "[Replication] Preparing batch for {:?} ({} updates) - Delta + Optimized bincode ready",
             recipient, updates.len()
         );
-
-        // Example future code:
-        // let serialized = bincode::serialize(&updates).unwrap();
-        // networking.send_to(recipient, serialized);
     }
 }
 
