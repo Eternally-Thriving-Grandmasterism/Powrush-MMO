@@ -25,16 +25,13 @@ impl DivineSystem {
         }
     }
 
-    /// Server-side audio normalization.
     fn compute_normalized_volume(&self, base_valence: f32, event_magnitude: f32) -> f32 {
         let base = (base_valence * 0.6 + event_magnitude.min(1.0) * 0.4).clamp(0.15, 0.95);
         base.sqrt()
     }
 
-    // ==================== NEW: FLEXIBLE GENERATION ====================
+    // ==================== NEW FLEXIBLE GENERATION ====================
 
-    /// General-purpose whisper generation that accepts rich context.
-    /// This is the preferred method going forward.
     pub fn generate_whisper(
         &self,
         context: &WhisperContext,
@@ -49,10 +46,7 @@ impl DivineSystem {
             )
         };
 
-        let normalized_vol = self.compute_normalized_volume(
-            context.player_valence,
-            0.5,
-        );
+        let normalized_vol = self.compute_normalized_volume(context.player_valence, 0.5);
 
         Some(ProtocolDivineWhisper {
             message,
@@ -62,7 +56,19 @@ impl DivineSystem {
         })
     }
 
-    /// Entry point for Council-initiated whispers (proactive).
+    /// Entry point for Council-initiated (proactive) whispers.
+    /// Example usage from a future council decision system:
+    ///
+    /// ```rust
+    /// let context = WhisperContext {
+    ///     player_id,
+    ///     player_valence,
+    ///     ..Default::default()
+    /// };
+    /// if let Some(whisper) = divine().request_council_whisper(&context, "MercyCouncil") {
+    ///     send_to_player(player_id, ServerMessage::DivineWhisperReceived { whisper });
+    /// }
+    /// ```
     pub fn request_council_whisper(
         &self,
         context: &WhisperContext,
@@ -90,7 +96,7 @@ impl DivineSystem {
         })
     }
 
-    // ==================== EXISTING METHODS (Backward Compatible) ====================
+    // ==================== EXISTING METHODS (Refactored to use new system) ====================
 
     pub fn on_harvest_success(
         &self,
@@ -98,30 +104,20 @@ impl DivineSystem {
         harvest_amount: u32,
         player_valence: f32,
     ) -> Option<ProtocolDivineWhisper> {
-        let context = format!("harvested {} units", harvest_amount);
-        let local = self.oracle.generate_divine_whisper(&context, player_valence);
+        // Build a minimal context for backward compatibility
+        let context = WhisperContext {
+            player_id,
+            player_valence,
+            recent_actions: vec![format!("harvested {} units", harvest_amount)],
+            ..Default::default()
+        };
 
-        let magnitude = (harvest_amount as f32 / 100.0).clamp(0.0, 1.0);
-        let normalized_vol = self.compute_normalized_volume(player_valence, magnitude);
-
-        info!(
-            target: "divine",
-            player_id = player_id,
-            normalized_volume = normalized_vol,
-            "Server normalized Divine Whisper volume"
-        );
-
-        Some(ProtocolDivineWhisper {
-            message: local.message,
-            valence: local.valence,
-            mercy_seal: local.mercy_seal,
-            normalized_volume: Some(normalized_vol),
-        })
+        // Use the new flexible generator
+        self.generate_whisper(&context, "harvest")
     }
 
     pub fn on_dynamic_event_vision(&self, region: &str, base_probability: f32) -> Option<ProtocolDivineWhisper> {
-        let magnitude = base_probability;
-        let normalized_vol = self.compute_normalized_volume(0.8, magnitude);
+        let normalized_vol = self.compute_normalized_volume(0.8, base_probability);
 
         Some(ProtocolDivineWhisper {
             message: format!("The Lattice reveals opportunity in {}", region),
