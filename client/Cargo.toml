@@ -1,42 +1,24 @@
 [package]
 name = "powrush-mmo-client"
-version = "17.99.25"
+version = "0.1.0"
 edition = "2021"
-license = "AG-SML-1.0 — Autonomicity Games Sovereign Mercy License"
-authors = ["Sherif Samy Botros <ceo@acitygames.com>"]
-description = "Powrush-MMO Client — Bevy 0.14+ frontend with zero-lag prediction, RBE sync, mercy-gated particles, divine whispers, and Steamworks integration"
-repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 
 [dependencies]
-bevy = { version = "0.14", features = ["wayland", "x11", "webp", "jpeg", "png", "bevy_render", "bevy_asset", "bevy_pbr", "bevy_ui", "bevy_text", "bevy_audio", "bevy_scene", "bevy_gltf", "bevy_winit", "bevy_core_pipeline", "bevy_render", "bevy_sprite", "bevy_mesh", "bevy_pbr", "bevy_gizmos"] }
-bevy_ecs = "0.14"
-tokio = { version = "1.38", features = ["full"] }
-tokio-tungstenite = { version = "0.23", features = ["native-tls"] }
-futures-util = "0.3"
-snappy = "0.1"
-bincode = "2.0"
-serde = { version = "1.0", features = ["derive"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-anyhow = "1.0"
-steamworks = { version = "0.11", optional = true }
+bevy = { version = "0.14", default-features = false, features = [
+    "bevy_asset",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_winit",
+    "x11",
+    "webgl2",
+] }
 
-# Internal Powrush-MMO crates (perfectly wired)
-powrush-mmo-shared = { path = "../shared" }
-# All client modules are now fully declared and production-grade
+# Obfuscation
+obfstr = "0.4"
 
 [features]
-default = ["webgpu"]
-webgpu = []
-webxr = ["bevy/xr"]
-dev = ["bevy/dynamic_linking"]
-steamworks = ["dep:steamworks"]
-
-# Strict linting for mint-and-print-only-perfection
-[lints.rust]
-unsafe_code = "deny"
-unused_crate_dependencies = "deny"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }
-pedantic = { level = "deny", priority = -1 }
+default = []
