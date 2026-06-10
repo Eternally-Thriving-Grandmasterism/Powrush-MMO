@@ -1,10 +1,10 @@
 [package]
 name = "powrush-mmo-client"
-version = "17.98.0"
+version = "17.99.25"
 edition = "2021"
 license = "AG-SML-1.0 — Autonomicity Games Sovereign Mercy License"
 authors = ["Sherif Samy Botros <ceo@acitygames.com>"]
-description = "Powrush-MMO Client — Bevy 0.14+ frontend with zero-lag prediction, RBE sync, mercy-gated particles, and divine whispers"
+description = "Powrush-MMO Client — Bevy 0.14+ frontend with zero-lag prediction, RBE sync, mercy-gated particles, divine whispers, and Steamworks integration"
 repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 
 [dependencies]
@@ -19,6 +19,7 @@ serde = { version = "1.0", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0"
+steamworks = { version = "0.11", optional = true }
 
 # Internal Powrush-MMO crates (perfectly wired)
 powrush-mmo-shared = { path = "../shared" }
@@ -29,6 +30,7 @@ default = ["webgpu"]
 webgpu = []
 webxr = ["bevy/xr"]
 dev = ["bevy/dynamic_linking"]
+steamworks = ["dep:steamworks"]
 
 # Strict linting for mint-and-print-only-perfection
 [lints.rust]
