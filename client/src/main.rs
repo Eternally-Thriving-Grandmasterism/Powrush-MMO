@@ -15,12 +15,13 @@ use crate::rbe::RbePlugin;
 use crate::particles::ParticlePlugin;
 use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
+use crate::player_progress_ui::PlayerProgressUIPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO — Eternal Thriving Edition ⚡️".to_string(),
+                title: "Powrush-MMO — Eternal Thriving Edition ⚡".to_string(),
                 resizable: true,
                 mode: bevy::window::WindowMode::Windowed,
                 ..default()
@@ -41,9 +42,10 @@ fn main() {
         .add_plugins(AudioPlugin)
         .add_plugins(DivineWhispersPlugin)
 
-        // Cloud Sync (Steam Cloud)
-        .init_resource::<CloudSync>()
+        // Player Progress UI (Epiphanies + Muscle Memory)
+        .add_plugins(PlayerProgressUIPlugin)
 
+        .init_resource::<CloudSync>()
         .add_systems(Startup, init_cloud_sync)
 
         .add_systems(Startup, setup_camera)
@@ -54,13 +56,9 @@ fn main() {
 }
 
 fn init_cloud_sync(mut cloud_sync: ResMut<CloudSync>) {
-    // TODO: Replace with your actual Steam App ID
-    let app_id: u32 = 480; // Example (Spacewar). Use your real App ID in production.
-
+    let app_id: u32 = 480; // TODO: Replace with real Steam App ID
     if let Err(e) = cloud_sync.init_steam(app_id) {
         warn!("Cloud sync disabled: {}", e);
-    } else {
-        info!("Steam Cloud initialized");
     }
 }
 
@@ -69,7 +67,7 @@ fn setup_camera(mut commands: Commands) {
 }
 
 fn setup_world_seed(mut commands: Commands) {
-    info!("Powrush-MMO world seed initialized — eternal thriving begins ⚡️");
+    info!("Powrush-MMO world seed initialized — eternal thriving begins ⚡");
 }
 
 fn mercy_gated_frame_validation() {}
