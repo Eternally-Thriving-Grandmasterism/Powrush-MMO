@@ -9,3 +9,6 @@ pub mod harvest;
 
 #[cfg(feature = "gpu")]
 pub mod gpu_economic;
+
+#[cfg(feature = "web")]
+pub mod web;

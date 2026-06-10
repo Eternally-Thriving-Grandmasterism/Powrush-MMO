@@ -20,6 +20,11 @@ wgpu = { version = "0.20", optional = true }
 bytemuck = { version = "1.16", features = ["derive"], optional = true }
 pollster = { version = "0.3", optional = true }
 
+# Web / WASM browser support (WebGPU ready via wgpu backend)
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+serde-wasm-bindgen = { version = "0.6", optional = true }
+
 # Future Bevy ECS integration for visual debug / server parity
 bevy_ecs = { version = "0.14", optional = true }
 
@@ -28,7 +33,11 @@ default = []
 gpu = ["wgpu", "bytemuck", "pollster"]
 ecs = ["bevy_ecs"]
 rand = ["dep:rand"]
+web = ["wasm-bindgen", "wasm-bindgen-futures", "serde-wasm-bindgen", "serde"]
 
 [[bin]]
 name = "harness"
 path = "src/bin/harness.rs"
+
+[target.'cfg(target_arch = "wasm32")']
+rustflags = ["-C", "target-feature=+atomics,+bulk-memory"]
