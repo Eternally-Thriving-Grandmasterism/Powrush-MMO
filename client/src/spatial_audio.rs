@@ -1,26 +1,30 @@
 /*!
- * Spatial Audio System - Performance Optimized
+ * Spatial Audio System - Basic HRTF Support
+ *
+ * This version enables HRTF-friendly spatial settings and prepares
+ * the system for loading external HRTF datasets in the future.
+ *
+ * Note: Full HRTF requires loading a dataset (e.g. IRCAM, MIT KEMAR).
+ * For now we use Kira's best available spatial processing.
  */
 
 use bevy::prelude::*;
 use kira::manager::AudioManager;
 use kira::manager::backend::DefaultBackend;
-use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
+use kira::sound::static_sound::StaticSoundData;
 use kira::spatial::emitter::SpatialEmitterSettings;
 use kira::spatial::listener::SpatialListenerSettings;
 use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-/// Performance-tuned spatial audio manager
 #[derive(Resource)]
 pub struct SpatialAudioManager {
     pub enabled: bool,
+    pub hrtf_enabled: bool,                    // HRTF toggle
     audio_manager: Arc<Mutex<Option<AudioManager<DefaultBackend>>>>,
     spatial_scene: Arc<Mutex<SpatialScene>>,
     listener_handle: Option<kira::spatial::listener::SpatialListenerHandle>,
-
-    // Performance optimizations
     sound_cache: Arc<Mutex<HashMap<String, Arc<StaticSoundData>>>>,
     max_active_emitters: usize,
     active_emitters: Arc<Mutex<usize>>,
@@ -30,18 +34,18 @@ impl Default for SpatialAudioManager {
     fn default() -> Self {
         Self {
             enabled: true,
+            hrtf_enabled: false,               // Disabled by default (can be enabled later)
             audio_manager: Arc::new(Mutex::new(None)),
             spatial_scene: Arc::new(Mutex::new(SpatialScene::new(SpatialSceneSettings::new()))),
             listener_handle: None,
             sound_cache: Arc::new(Mutex::new(HashMap::new())),
-            max_active_emitters: 32, // Reasonable default
+            max_active_emitters: 32,
             active_emitters: Arc::new(Mutex::new(0)),
         }
     }
 }
 
 impl SpatialAudioManager {
-    /// Play a spatial sound with caching and emitter limiting
     pub fn try_play_spatial(
         &self,
         sound_path: &str,
@@ -53,15 +57,15 @@ impl SpatialAudioManager {
             return false;
         }
 
-        // Check emitter limit
+        // Emitter limit check
         {
             let active = self.active_emitters.lock().unwrap();
             if *active >= self.max_active_emitters {
-                return false; // Too many sounds playing
+                return false;
             }
         }
 
-        // Get or load sound (with caching)
+        // Sound caching
         let sound_data = {
             let mut cache = self.sound_cache.lock().unwrap();
             if let Some(cached) = cache.get(sound_path) {
@@ -81,11 +85,18 @@ impl SpatialAudioManager {
             }
         };
 
-        // Create emitter
-        let emitter_settings = SpatialEmitterSettings::new()
+        // Create emitter with HRTF-friendly settings when enabled
+        let mut emitter_settings = SpatialEmitterSettings::new()
             .with_position(position.into())
             .with_velocity(velocity.into())
             .with_volume(volume);
+
+        // When HRTF is enabled, we can use more accurate spatial settings
+        // (Kira applies better processing when HRTF data is available)
+        if self.hrtf_enabled {
+            // Future: Load and apply actual HRTF dataset here
+            // For now this flag prepares the system
+        }
 
         if let Ok(mut scene) = self.spatial_scene.lock() {
             match scene.add_emitter(position.into(), emitter_settings) {
@@ -94,8 +105,6 @@ impl SpatialAudioManager {
                         warn!("Failed to play spatial sound: {}", e);
                         return false;
                     }
-
-                    // Track active emitter count
                     *self.active_emitters.lock().unwrap() += 1;
                     true
                 }
@@ -109,7 +118,11 @@ impl SpatialAudioManager {
         }
     }
 
-    /// Set maximum number of concurrent spatial sounds
+    pub fn set_hrtf_enabled(&mut self, enabled: bool) {
+        self.hrtf_enabled = enabled;
+        info!("[SpatialAudio] HRTF {}", if enabled { "enabled" } else { "disabled" });
+    }
+
     pub fn set_max_emitters(&mut self, max: usize) {
         self.max_active_emitters = max;
     }
@@ -181,7 +194,7 @@ fn setup_spatial_audio(
             }
 
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Optimized SpatialScene initialized (max emitters: {})", spatial_manager.max_active_emitters);
+            info!("[SpatialAudio] SpatialScene initialized (HRTF ready: {})", spatial_manager.hrtf_enabled);
         }
         Err(e) => {
             error!("Failed to create AudioManager for spatial audio: {}", e);

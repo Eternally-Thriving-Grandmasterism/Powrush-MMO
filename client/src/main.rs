@@ -44,7 +44,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Performance-optimized Spatial Audio
+        // Spatial Audio with HRTF-ready structure
         .add_plugins(SpatialAudioPlugin)
 
         .init_resource::<CloudSync>()
