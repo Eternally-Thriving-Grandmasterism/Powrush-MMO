@@ -117,21 +117,27 @@ fn receive_divine_whispers(
 
             let is_epiphany = event.is_epiphany;
 
+            // Get listener position for spatial placement
+            let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
+                listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
+            } else {
+                Vec3::new(0.0, 2.0, -8.0)
+            };
+
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
 
-                // Get listener position for better spatial placement
-                let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
-                    listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
-                } else {
-                    Vec3::new(0.0, 2.0, -8.0)
-                };
-
-                // Trigger spatial sound on epiphany with better positioning
+                // Strong spatial sound for epiphany
                 spatial_events.send(PlaySpatialSound::new(
                     asset_server.load("sounds/epiphany_impact.ogg"),
                     sound_position,
                 ).with_volume(0.85));
+            } else {
+                // Basic spatial sound for regular harvest/feedback moments
+                spatial_events.send(PlaySpatialSound::new(
+                    asset_server.load("sounds/harvest_impact.ogg"),
+                    sound_position,
+                ).with_volume(0.6));
             }
 
             let text_color = if is_epiphany {
