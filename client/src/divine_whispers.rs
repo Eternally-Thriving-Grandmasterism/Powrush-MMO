@@ -1,5 +1,5 @@
 /*!
- * Divine Whispers - Client Side (Enhanced for Epiphanies)
+ * Divine Whispers - Client Side (Strong Epiphany Feedback)
  */
 
 use bevy::prelude::*;
@@ -14,6 +14,9 @@ struct WhisperFadeTimer {
     timer: Timer,
 }
 
+#[derive(Component)]
+struct EpiphanyFlash; // Temporary marker for flash effect
+
 pub struct DivineWhispersPlugin;
 
 impl Plugin for DivineWhispersPlugin {
@@ -24,6 +27,7 @@ impl Plugin for DivineWhispersPlugin {
             .add_systems(Update, (
                 receive_divine_whispers,
                 update_whisper_fade,
+                update_epiphany_flash,
             ));
     }
 }
@@ -96,18 +100,28 @@ fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
 
 fn receive_divine_whispers(
     mut events: EventReader<DivineWhisperTrigger>,
-    mut panel_query: Query<(&mut Visibility, &Children), With<DivineWhisperUI>>,
+    mut panel_query: Query<(&mut Visibility, &Children, Entity), With<DivineWhisperUI>>,
     mut text_query: Query<&mut Text>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
 ) {
     for event in events.read() {
-        for (mut visibility, children) in panel_query.iter_mut() {
+        for (mut visibility, children, panel_entity) in panel_query.iter_mut() {
             *visibility = Visibility::Visible;
 
             let is_epiphany = event.is_epiphany;
+
+            // Stronger visual treatment for epiphanies
+            if is_epiphany {
+                // Brief flash effect
+                commands.entity(panel_entity).insert(EpiphanyFlash);
+
+                // Stronger border glow for epiphanies
+                // (In real implementation this could be animated)
+            }
+
             let text_color = if is_epiphany {
-                Color::srgb(1.0, 0.95, 0.7) // Golden for epiphanies
+                Color::srgb(1.0, 0.95, 0.7)
             } else {
                 Color::srgb(0.95, 0.97, 1.0)
             };
@@ -126,20 +140,18 @@ fn receive_divine_whispers(
                 }
             }
 
-            // Longer duration + special styling for epiphanies
             let duration = if is_epiphany {
                 event.duration_seconds.max(8.0)
             } else {
                 event.duration_seconds
             };
 
-            commands.entity(child).insert(WhisperFadeTimer {
+            commands.entity(panel_entity).insert(WhisperFadeTimer {
                 timer: Timer::new(Duration::from_secs_f32(duration), TimerMode::Once),
             });
 
-            // Enhanced sound + particles for epiphanies
             play_whisper_sound(&asset_server, event.intensity, is_epiphany);
-            spawn_whisper_particles(commands, event.intensity, event.flavor.clone(), is_epiphany);
+            spawn_whisper_particles(&mut commands, event.intensity, event.flavor.clone(), is_epiphany, panel_entity);
         }
     }
 }
@@ -150,16 +162,15 @@ fn play_whisper_sound(
     is_epiphany: bool,
 ) {
     let volume = if is_epiphany {
-        (0.75 + intensity * 0.25).clamp(0.5, 1.0)
+        (0.8 + intensity * 0.2).clamp(0.6, 1.0)
     } else {
         (0.5 + intensity * 0.3).clamp(0.3, 0.9)
     };
 
     println!(
-        "[Audio] Playing {} whisper (intensity: {:.2}, volume: {:.2})",
-        if is_epiphany { "EPIPHANY" } else { "normal" },
-        intensity,
-        volume
+        "[Audio] {} whisper (intensity: {:.2})",
+        if is_epiphany { "STRONG EPIPHANY" } else { "normal" },
+        intensity
     );
 }
 
@@ -168,15 +179,30 @@ fn spawn_whisper_particles(
     intensity: f32,
     flavor: String,
     is_epiphany: bool,
+    panel_entity: Entity,
 ) {
     if is_epiphany {
         println!(
-            "[Particles] Strong ethereal burst for epiphany (flavor: {}, intensity: {:.2})",
+            "[Particles] Strong ethereal epiphany burst (flavor: {}, intensity: {:.2})",
             flavor, intensity
         );
-        // TODO: Spawn richer particle effect for epiphanies
+
+        // Spawn a temporary flash entity near the panel for visual impact
+        commands.spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    width: Val::Px(700.0),
+                    height: Val::Px(150.0),
+                    ..default()
+                },
+                background_color: Color::srgba(1.0, 0.95, 0.6, 0.15).into(),
+                ..default()
+            },
+            EpiphanyFlash,
+        ));
     } else {
-        println!("[Particles] Subtle particles (flavor: {})", flavor);
+        println!("[Particles] Subtle particles for normal whisper");
     }
 }
 
@@ -192,5 +218,17 @@ fn update_whisper_fade(
             *visibility = Visibility::Hidden;
             commands.entity(entity).remove::<WhisperFadeTimer>();
         }
+    }
+}
+
+/// Clean up temporary epiphany flash effect
+fn update_epiphany_flash(
+    mut query: Query<Entity, With<EpiphanyFlash>>,
+    mut commands: Commands,
+) {
+    // Simple cleanup - in real version this would have its own timer
+    for entity in query.iter() {
+        // Auto-despawn after one frame for now (placeholder)
+        commands.entity(entity).despawn();
     }
 }
