@@ -17,8 +17,8 @@ bevy = { version = "0.14", default-features = false, features = [
     "webgl2",
 ] }
 
-# Obfuscation
-obfstr = "0.4"
+bevy_kira_audio = "0.20"
+steamworks = "0.11"
 
-[features]
-default = []
+# Internal crates
+simulation = { path = "../simulation" }
