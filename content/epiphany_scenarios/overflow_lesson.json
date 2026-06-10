@@ -1,9 +1,9 @@
 {
-  "id": "overflow_lesson_starter_v18.2",
+  "id": "overflow_lesson_starter_v18.7",
   "name": "The Overflow Lesson",
-  "version": "18.2",
-  "archetype": "Ecological Balance Epiphanies",
-  "description": "Starter hands-on scenario in Verdant Heartwood biome. Teaches through realistic consequence that abundance is tended through rhythmic, observant, merciful interaction with the living web — not extracted. Builds transferable muscle memory for sustainable real-life patterns and natural epiphanies.",
+  "version": "18.7",
+  "archetype": "Ecological Balance Epiphanies + Receptor Activation",
+  "description": "Starter hands-on scenario in Verdant Heartwood biome. Teaches through realistic consequence that abundance is tended through rhythmic, observant, merciful interaction with the living web — not extracted. Builds transferable muscle memory for sustainable real-life patterns and natural epiphanies. v18.7 adds explicit CB1 (insight/hypofrontality/muscle memory) and CB2 (resilience/recovery/abundance) receptor bloom triggers on the sustainable path.",
   "biome": "Verdant Heartwood",
   "trigger": {
     "type": "harvest_action",
@@ -18,7 +18,7 @@
         "name": "sustainable_path",
         "depletion_threshold": 0.35,
         "sustainable_pacing": true,
-        "description": "Player observes, rotates zones, leaves seed areas, matches harvest rhythm to visible regen particles and animal responses."
+        "description": "Player observes, rotates zones, leaves seed areas, matches harvest rhythm to visible regen particles and animal responses. Now also builds toward CB1/CB2 receptor bloom when rhythm + duration + attunement thresholds met."
       }
     ]
   },
@@ -34,7 +34,8 @@
         "particle_valence": "brown_wither",
         "npc_reaction": "animals_withdraw"
       },
-      "grace_note": "Mercy available: pause, reflect, adjust pacing — the forest remembers and forgives."
+      "grace_note": "Mercy available: pause, reflect, adjust pacing — the forest remembers and forgives.",
+      "receptor_bloom_potential": false
     },
     "sustainable": {
       "valence_delta": 0.35,
@@ -47,11 +48,16 @@
         "abundance_bonus": 0.4,
         "particle_valence": "emerald_bloom"
       },
-      "grace_note": "Epiphany moment achieved. Muscle memory seeded for real life."
+      "grace_note": "Epiphany moment achieved. Muscle memory seeded for real life.",
+      "receptor_bloom_potential": true,
+      "cb1_activation_potential": 0.85,
+      "cb2_activation_potential": 0.78,
+      "particle_effect_seed": "living_web_receptor_bloom",
+      "divine_whisper_flavor_seed": "ecstatic_harmony"
     }
   },
-  "integration_points": ["harvesting_system", "divine_whispers", "valence_particles", "world_state"],
+  "integration_points": ["harvesting_system", "divine_whispers", "valence_particles", "world_state", "endocannabinoid_receptor_forge"],
   "patsagi_seal": true,
   "tolc8_validated": true,
-  "notes": "First Epiphany Catalyst implemented. Starter for all future ecological, social, and flow-state lessons. Designed for organic discovery, zero coercion, maximum wholesome transfer to real thriving."
+  "notes": "v18.7: Receptor Activation Forge fully wired. Sustainable path now explicitly seeds conditions for CB1 (revelatory insight, hypofrontality, muscle memory) + CB2 (resilience, recovery, abundance bloom) differentiated effects. Over-harvest path has no receptor bloom (realistic consequence). Full mercy-gated, organic epiphany catalyst. Starter for all future ecological, social, flow-state, and council lessons. Designed for organic discovery, zero coercion, maximum wholesome transfer to real thriving."
 }
