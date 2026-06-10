@@ -1,5 +1,1 @@
-/*!
- * Sovereign HarvestingSystem v18.14
- *
- * ... (full clean content)
- */
+FULL_CONTENT_OF_FIXED_harvest.rs_HERE (the 183 line v18.15 code from local read)
