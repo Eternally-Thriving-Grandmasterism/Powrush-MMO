@@ -1,5 +1,5 @@
 /*!
- * Spatial Audio System - HRTF Dataset Loading (Full Features)
+ * Spatial Audio System - Quality Settings + HRTF Loading
  */
 
 use bevy::prelude::*;
@@ -12,11 +12,22 @@ use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/// Quality presets for spatial audio
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum SpatialQuality {
+    Low,    // Basic panning + distance, minimal cost
+    #[default]
+    Medium, // Full distance + panning + Doppler
+    High,   // HRTF enabled (best quality)
+}
+
 #[derive(Resource)]
 pub struct SpatialAudioManager {
     pub enabled: bool,
+    pub quality: SpatialQuality,
     pub hrtf_enabled: bool,
     pub current_hrtf_dataset: Option<String>,
+
     audio_manager: Arc<Mutex<Option<AudioManager<DefaultBackend>>>>,
     spatial_scene: Arc<Mutex<SpatialScene>>,
     listener_handle: Option<kira::spatial::listener::SpatialListenerHandle>,
@@ -29,6 +40,7 @@ impl Default for SpatialAudioManager {
     fn default() -> Self {
         Self {
             enabled: true,
+            quality: SpatialQuality::default(),
             hrtf_enabled: false,
             current_hrtf_dataset: None,
             audio_manager: Arc::new(Mutex::new(None)),
@@ -42,46 +54,52 @@ impl Default for SpatialAudioManager {
 }
 
 impl SpatialAudioManager {
-    /// Preload HRTF dataset at startup
+    /// Set spatial audio quality level
+    pub fn set_spatial_quality(&mut self, quality: SpatialQuality) {
+        self.quality = quality;
+
+        match quality {
+            SpatialQuality::Low => {
+                self.hrtf_enabled = false;
+                self.max_active_emitters = 16;
+            }
+            SpatialQuality::Medium => {
+                self.hrtf_enabled = false;
+                self.max_active_emitters = 32;
+            }
+            SpatialQuality::High => {
+                self.hrtf_enabled = true;
+                self.max_active_emitters = 24; // Slightly lower for HRTF cost
+                if self.current_hrtf_dataset.is_none() {
+                    self.preload_hrtf_dataset("mit_kemar");
+                }
+            }
+        }
+
+        info!("[SpatialAudio] Quality set to {:?} (HRTF: {})", quality, self.hrtf_enabled);
+    }
+
+    /// Preload HRTF dataset (currently supports mit_kemar)
     pub fn preload_hrtf_dataset(&mut self, dataset_name: &str) -> bool {
         match dataset_name {
             "mit_kemar" => {
-                // Attempt to load MIT KEMAR dataset
-                // In a full implementation, this would load actual HRTF impulse responses
-                // For now we simulate successful loading if files exist conceptually
-                info!("[SpatialAudio] Attempting to load MIT KEMAR HRTF dataset...");
+                info!("[SpatialAudio] Preloading MIT KEMAR HRTF dataset...");
 
-                // TODO: Actual loading logic would go here using kira HRTF APIs
-                // For demonstration, we assume success if hrtf_enabled is later set
+                // In a real implementation, this would load actual HRTF data
+                // using kira's HRTF loading APIs.
+                // For now we simulate success.
                 self.current_hrtf_dataset = Some(dataset_name.to_string());
+                self.hrtf_enabled = true;
                 true
             }
             _ => {
-                warn!("[SpatialAudio] Unknown HRTF dataset: {}", dataset_name);
+                warn!("[SpatialAudio] Unknown HRTF dataset requested: {}", dataset_name);
                 false
             }
         }
     }
 
-    /// Enable or disable HRTF with automatic fallback
-    pub fn set_hrtf_enabled(&mut self, enabled: bool) {
-        if enabled {
-            if self.current_hrtf_dataset.is_none() {
-                warn!("[SpatialAudio] Cannot enable HRTF: No dataset loaded. Attempting default (mit_kemar)...");
-                if !self.preload_hrtf_dataset("mit_kemar") {
-                    error!("[SpatialAudio] Failed to load default HRTF dataset. HRTF will remain disabled.");
-                    self.hrtf_enabled = false;
-                    return;
-                }
-            }
-            self.hrtf_enabled = true;
-            info!("[SpatialAudio] HRTF enabled using dataset: {:?}", self.current_hrtf_dataset);
-        } else {
-            self.hrtf_enabled = false;
-            info!("[SpatialAudio] HRTF disabled");
-        }
-    }
-
+    /// Try to play a spatial sound
     pub fn try_play_spatial(
         &self,
         sound_path: &str,
@@ -93,7 +111,7 @@ impl SpatialAudioManager {
             return false;
         }
 
-        // Emitter limit
+        // Respect emitter limit
         {
             let active = self.active_emitters.lock().unwrap();
             if *active >= self.max_active_emitters {
@@ -101,6 +119,7 @@ impl SpatialAudioManager {
             }
         }
 
+        // Sound caching
         let sound_data = {
             let mut cache = self.sound_cache.lock().unwrap();
             if let Some(cached) = cache.get(sound_path) {
@@ -217,15 +236,20 @@ fn setup_spatial_audio(
 
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
 
-            // Attempt to preload default HRTF dataset at startup
-            if spatial_manager.hrtf_enabled {
+            // Preload HRTF if quality is set to High
+            if spatial_manager.quality == SpatialQuality::High {
                 if !spatial_manager.preload_hrtf_dataset("mit_kemar") {
-                    warn!("[SpatialAudio] HRTF dataset preload failed. HRTF will be disabled.");
+                    warn!("[SpatialAudio] Failed to preload MIT KEMAR HRTF. Falling back to Medium quality.");
+                    spatial_manager.quality = SpatialQuality::Medium;
                     spatial_manager.hrtf_enabled = false;
                 }
             }
 
-            info!("[SpatialAudio] Spatial audio initialized (HRTF: {})", spatial_manager.hrtf_enabled);
+            info!(
+                "[SpatialAudio] Initialized | Quality: {:?} | HRTF: {}",
+                spatial_manager.quality,
+                spatial_manager.hrtf_enabled
+            );
         }
         Err(e) => {
             error!("Failed to create AudioManager for spatial audio: {}", e);

@@ -44,7 +44,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Spatial Audio with HRTF support
+        // Spatial Audio with Quality Settings + HRTF
         .add_plugins(SpatialAudioPlugin)
 
         .init_resource::<CloudSync>()
