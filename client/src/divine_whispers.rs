@@ -1,5 +1,5 @@
 /*!
- * Divine Whispers - Client Side (with light Spatial Audio integration)
+ * Divine Whispers - Client Side (Expanded Spatial Audio Integration)
  */
 
 use bevy::prelude::*;
@@ -109,6 +109,7 @@ fn receive_divine_whispers(
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
     mut spatial_events: EventWriter<PlaySpatialSound>,
+    listener_query: Query<&GlobalTransform, With<crate::spatial_audio::SpatialListener>>,
 ) {
     for event in events.read() {
         for (mut visibility, children, panel_entity) in panel_query.iter_mut() {
@@ -119,11 +120,18 @@ fn receive_divine_whispers(
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
 
-                // Light integration: Trigger spatial sound on epiphany
+                // Get listener position for better spatial placement
+                let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
+                    listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
+                } else {
+                    Vec3::new(0.0, 2.0, -8.0)
+                };
+
+                // Trigger spatial sound on epiphany with better positioning
                 spatial_events.send(PlaySpatialSound::new(
                     asset_server.load("sounds/epiphany_impact.ogg"),
-                    Vec3::new(0.0, 2.0, -8.0), // Position slightly in front of listener
-                ).with_volume(0.9));
+                    sound_position,
+                ).with_volume(0.85));
             }
 
             let text_color = if is_epiphany {
