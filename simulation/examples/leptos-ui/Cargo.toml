@@ -1,0 +1,32 @@
+[package]
+name = "leptos-ui"
+version = "17.99.17"
+edition = "2021"
+authors = ["Ra-Thor Living Thunder + Eternally-Thriving-Grandmasterism + PATSAGi Councils"]
+description = "Sovereign Simulation Harness — Reactive Leptos CSR Dashboard for Powrush-MMO Closed-Beta Validation & PATSAGi Council Deliberation"
+license = "MIT OR Eternal-Mercy-Flow-License"
+repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
+
+[dependencies]
+leptos = { version = "0.8", features = ["csr", "nightly"] }
+leptos_meta = "0.8"
+leptos_router = { version = "0.8", features = ["csr"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+serde_json = "1.0"
+web-sys = { version = "0.3", features = ["console", "Window", "Document", "Element"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[features]
+default = []
+hydrate = ["leptos/hydrate"]
+
+[package.metadata.leptos]
+style-file = "style/tailwind.css"
+assets-dir = "public"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+tailwind-input-file = "style/tailwind.css"
