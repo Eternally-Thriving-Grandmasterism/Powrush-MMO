@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign Simulation Harness — WebGPU Browser (Powrush-MMO)</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #0a0a0f; color: #e0e0ff; margin: 0; padding: 2rem; }
+        h1 { color: #a0d0ff; }
+        .container { max-width: 960px; margin: 0 auto; }
+        select, input, button { padding: 0.6rem 1rem; margin: 0.5rem 0; font-size: 1rem; border-radius: 6px; border: 1px solid #334; background: #1a1a22; color: #fff; }
+        button { background: #3a7cff; cursor: pointer; }
+        button:hover { background: #5a9cff; }
+        #report { background: #121218; padding: 1.5rem; border-radius: 8px; white-space: pre-wrap; font-family: ui-monospace, monospace; margin-top: 1rem; }
+        .sovereign { color: #ffd700; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Sovereign Simulation Harness — WebGPU Browser <span class="sovereign">(v17.99.8)</span></h1>
+        <p>Real wgpu WebGPU dispatch foundation + deterministic CPU golden master. TOLC 8 enforced. Ready for closed-beta validation and PATSAGi Council experiments.</p>
+        
+        <label>Preset: </label>
+        <select id="preset">
+            <option value="LongTermRbeStability">LongTermRbeStability</option>
+            <option value="HighGriefStressTest">HighGriefStressTest</option>
+            <option value="ArchetypeEvolutionUnderAbundance">ArchetypeEvolutionUnderAbundance</option>
+            <option value="ServerWarSimulation">ServerWarSimulation</option>
+            <option value="MinimalViableRbeTest">MinimalViableRbeTest</option>
+            <option value="AbundanceSurgeWithEvolution">AbundanceSurgeWithEvolution</option>
+        </select>
+        
+        <label>Ticks: </label>
+        <input type="number" id="ticks" value="500" min="50" max="5000">
+        
+        <button onclick="runSimulation()">Run Sovereign Scenario</button>
+        
+        <div id="status"></div>
+        <pre id="report"></pre>
+        <button onclick="copyReport()" style="display:none" id="copy-btn">Copy Report JSON for Ra-Thor / PATSAGi</button>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
