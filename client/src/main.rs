@@ -44,13 +44,12 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Spatial Audio (Phase 2 - Listener Tracking)
+        // Spatial Audio with Doppler (Phase 3)
         .add_plugins(SpatialAudioPlugin)
 
         .init_resource::<CloudSync>()
         .add_systems(Startup, init_cloud_sync)
 
-        // Mark main camera as spatial listener
         .add_systems(Startup, setup_spatial_listener)
 
         .add_systems(Startup, setup_camera)
