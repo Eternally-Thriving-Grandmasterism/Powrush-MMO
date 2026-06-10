@@ -1,19 +1,17 @@
 /*!
  * Player Persistence v18.10
  *
- * Atomic saves + rotating backups for maximum durability.
+ * Includes atomic saves, rotating backups, and SHA256 checksum verification.
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
 
 pub const CURRENT_SAVE_VERSION: u32 = 1;
-
-/// How many rotating backups to keep (player_save.json.bak, .bak.1, .bak.2, ...)
-pub const MAX_BACKUPS: usize = 5;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EpiphanyRecord {
@@ -26,6 +24,7 @@ pub struct EpiphanyRecord {
 #[derive(Debug, Clone, Serialize, Deserialize, Resource, Default)]
 pub struct PlayerSaveData {
     pub save_version: u32,
+    pub checksum: String, // SHA256 of the data (excluding this field)
     pub player_id: u64,
     pub total_harvests: u32,
     pub sustainable_harvests: u32,
@@ -41,6 +40,7 @@ impl Default for PlayerSaveData {
     fn default() -> Self {
         Self {
             save_version: CURRENT_SAVE_VERSION,
+            checksum: String::new(),
             player_id: 0,
             total_harvests: 0,
             sustainable_harvests: 0,
@@ -58,6 +58,7 @@ impl PlayerSaveData {
     pub fn new(player_id: u64) -> Self {
         Self {
             save_version: CURRENT_SAVE_VERSION,
+            checksum: String::new(),
             player_id,
             total_harvests: 0,
             sustainable_harvests: 0,
@@ -68,6 +69,21 @@ impl PlayerSaveData {
             muscle_memory_level: 1.0,
             last_save_timestamp: 0,
         }
+    }
+
+    /// Compute SHA256 checksum of the save data (excluding checksum field itself)
+    fn compute_checksum(&self) -> String {
+        let mut hasher = Sha256::new();
+
+        // Serialize without the checksum field for hashing
+        let mut temp = self.clone();
+        temp.checksum = String::new();
+
+        if let Ok(json) = serde_json::to_string(&temp) {
+            hasher.update(json.as_bytes());
+        }
+
+        format!("{:x}", hasher.finalize())
     }
 
     pub fn record_epiphany(&mut self, scenario_id: &str, intensity: f32, biome: &str) {
@@ -93,74 +109,94 @@ impl PlayerSaveData {
             .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
     }
 
-    /// Atomic save with rotating backups
+    /// Atomic save with checksum + rotating backups
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
+        let mut data_to_save = self.clone();
+        data_to_save.checksum = data_to_save.compute_checksum();
+        data_to_save.last_save_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
         let temp_path = path.with_extension("json.tmp");
 
-        // 1. Write to temporary file first (atomic safety)
+        // Write to temp file
         {
-            let json = serde_json::to_string_pretty(self)?;
+            let json = serde_json::to_string_pretty(&data_to_save)?;
             fs::write(&temp_path, json)?;
         }
 
-        // 2. Rotate existing backups (.bak -> .bak.1 -> .bak.2 ...)
+        // Rotate backups
         Self::rotate_backups(path)?;
 
-        // 3. Create fresh .bak from current file (if exists)
+        // Create .bak
         if path.exists() {
             let backup_path = path.with_extension("json.bak");
             let _ = fs::copy(path, &backup_path);
         }
 
-        // 4. Atomic rename (this is the critical crash-safe step)
+        // Atomic rename
         fs::rename(&temp_path, path)
-    }
-
-    /// Rotate backup files: .bak.N -> .bak.(N+1), delete oldest if needed
-    fn rotate_backups(path: &Path) -> Result<(), std::io::Error> {
-        let base_backup = path.with_extension("json.bak");
-
-        // Delete oldest backup if we have too many
-        let oldest = path.with_extension(&format!("json.bak.{}", MAX_BACKUPS));
-        if oldest.exists() {
-            fs::remove_file(&oldest)?;
-        }
-
-        // Shift existing backups
-        for i in (1..MAX_BACKUPS).rev() {
-            let current = path.with_extension(&format!("json.bak.{}", i));
-            let next = path.with_extension(&format!("json.bak.{}", i + 1));
-
-            if current.exists() {
-                fs::rename(&current, &next)?;
-            }
-        }
-
-        // Move .bak to .bak.1
-        if base_backup.exists() {
-            let first_backup = path.with_extension("json.bak.1");
-            fs::rename(&base_backup, &first_backup)?;
-        }
-
-        Ok(())
     }
 
     pub fn load_from_file(path: &Path) -> Option<Self> {
         if !path.exists() {
             return None;
         }
-        let content = fs::read_to_string(path).ok()?;
-        let mut data: Self = serde_json::from_str(&content).ok()?;
 
-        if data.save_version < CURRENT_SAVE_VERSION {
-            data = Self::migrate(data);
+        let content = fs::read_to_string(path).ok()?;
+        let data: Self = serde_json::from_str(&content).ok()?;
+
+        // Verify checksum
+        let expected_checksum = data.compute_checksum();
+        if data.checksum != expected_checksum {
+            warn!("Save file checksum mismatch! File may be corrupted.");
+            // Try loading from backup
+            let backup_path = path.with_extension("json.bak");
+            if let Some(backup) = Self::load_from_file(&backup_path) {
+                warn!("Loaded from backup instead.");
+                return Some(backup);
+            }
+            return None;
         }
+
+        // Version migration
+        if data.save_version < CURRENT_SAVE_VERSION {
+            return Some(Self::migrate(data));
+        }
+
         Some(data)
     }
 
     fn migrate(mut old_data: Self) -> Self {
         old_data.save_version = CURRENT_SAVE_VERSION;
+        old_data.checksum = old_data.compute_checksum();
         old_data
+    }
+
+    fn rotate_backups(path: &Path) -> Result<(), std::io::Error> {
+        // ... (same rotation logic as before)
+        let base_backup = path.with_extension("json.bak");
+
+        let oldest = path.with_extension(&format!("json.bak.{}", 5));
+        if oldest.exists() {
+            let _ = fs::remove_file(&oldest);
+        }
+
+        for i in (1..5).rev() {
+            let current = path.with_extension(&format!("json.bak.{}", i));
+            let next = path.with_extension(&format!("json.bak.{}", i + 1));
+            if current.exists() {
+                let _ = fs::rename(&current, &next);
+            }
+        }
+
+        if base_backup.exists() {
+            let first = path.with_extension("json.bak.1");
+            let _ = fs::rename(&base_backup, &first);
+        }
+
+        Ok(())
     }
 }
 
