@@ -1,5 +1,5 @@
 /*!
- * Divine Whispers - Client Side (Expanded Spatial Audio Integration)
+ * Divine Whispers - Client Side (Improved Spatial Audio Integration)
  */
 
 use bevy::prelude::*;
@@ -117,27 +117,37 @@ fn receive_divine_whispers(
 
             let is_epiphany = event.is_epiphany;
 
-            // Get listener position for spatial placement
-            let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
-                listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
+            // Calculate dynamic sound position relative to listener
+            let (sound_position, listener_velocity) = if let Ok(listener_transform) = listener_query.get_single() {
+                let pos = listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0);
+                // For now we pass zero velocity; can be improved with actual player velocity later
+                (pos, Vec3::ZERO)
             } else {
-                Vec3::new(0.0, 2.0, -8.0)
+                (Vec3::new(0.0, 2.0, -8.0), Vec3::ZERO)
             };
 
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
 
-                // Strong spatial sound for epiphany
-                spatial_events.send(PlaySpatialSound::new(
-                    asset_server.load("sounds/epiphany_impact.ogg"),
-                    sound_position,
-                ).with_volume(0.85));
+                // Stronger spatial sound for epiphany
+                spatial_events.send(
+                    PlaySpatialSound::new(
+                        asset_server.load("sounds/epiphany_impact.ogg"),
+                        sound_position,
+                    )
+                    .with_velocity(listener_velocity)
+                    .with_volume(0.9),
+                );
             } else {
-                // Basic spatial sound for regular harvest/feedback moments
-                spatial_events.send(PlaySpatialSound::new(
-                    asset_server.load("sounds/harvest_impact.ogg"),
-                    sound_position,
-                ).with_volume(0.6));
+                // Lighter spatial sound for regular harvest/feedback
+                spatial_events.send(
+                    PlaySpatialSound::new(
+                        asset_server.load("sounds/harvest_impact.ogg"),
+                        sound_position,
+                    )
+                    .with_velocity(listener_velocity)
+                    .with_volume(0.55),
+                );
             }
 
             let text_color = if is_epiphany {
