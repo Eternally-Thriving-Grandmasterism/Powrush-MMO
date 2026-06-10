@@ -16,7 +16,7 @@ use crate::particles::ParticlePlugin;
 use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
 use crate::player_progress_ui::PlayerProgressUIPlugin;
-use crate::spatial_audio::SpatialAudioPlugin;
+use crate::spatial_audio::{SpatialAudioPlugin, SpatialListener};
 
 fn main() {
     App::new()
@@ -44,17 +44,29 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Spatial Audio Foundation (Phase 1)
+        // Spatial Audio (Phase 2 - Listener Tracking)
         .add_plugins(SpatialAudioPlugin)
 
         .init_resource::<CloudSync>()
         .add_systems(Startup, init_cloud_sync)
+
+        // Mark main camera as spatial listener
+        .add_systems(Startup, setup_spatial_listener)
 
         .add_systems(Startup, setup_camera)
         .add_systems(Startup, setup_world_seed)
         .add_systems(Update, mercy_gated_frame_validation)
 
         .run();
+}
+
+fn setup_spatial_listener(
+    mut commands: Commands,
+    camera_query: Query<Entity, With<Camera2d>>,
+) {
+    if let Ok(camera_entity) = camera_query.get_single() {
+        commands.entity(camera_entity).insert(SpatialListener);
+    }
 }
 
 fn init_cloud_sync(mut cloud_sync: ResMut<CloudSync>) {

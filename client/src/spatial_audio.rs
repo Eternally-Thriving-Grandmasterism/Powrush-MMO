@@ -1,27 +1,30 @@
 /*!
- * Spatial Audio System - Phase 1
- *
- * Foundation for world-based spatial audio using Bevy Kira Audio.
- * Divine Whispers remain non-spatial (UI/narrative).
+ * Spatial Audio System - Phase 2: Listener Tracking
  */
 
 use bevy::prelude::*;
-use bevy_kira_audio::{Audio, AudioManager, AudioTween};
-use kira::spatial::emitter::SpatialEmitterSettings;
-use kira::spatial::scene::SpatialSceneSettings;
+use bevy_kira_audio::{Audio, AudioTween};
 use std::time::Duration;
 
 /// Resource that manages spatial audio
 #[derive(Resource)]
 pub struct SpatialAudioManager {
     pub enabled: bool,
+    pub listener_position: Vec3,
 }
 
 impl Default for SpatialAudioManager {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            listener_position: Vec3::ZERO,
+        }
     }
 }
+
+/// Marks an entity as the spatial audio listener (usually the camera or player)
+#[derive(Component)]
+pub struct SpatialListener;
 
 /// Event to play a spatial sound at a world position
 #[derive(Event)]
@@ -50,11 +53,24 @@ impl Plugin for SpatialAudioPlugin {
         app
             .init_resource::<SpatialAudioManager>()
             .add_event::<PlaySpatialSound>()
-            .add_systems(Update, play_spatial_sounds);
+            .add_systems(Update, (
+                update_listener_position,
+                play_spatial_sounds,
+            ));
     }
 }
 
-/// System that processes spatial sound events
+/// Updates the listener position from any entity with SpatialListener (usually camera)
+fn update_listener_position(
+    mut spatial_manager: ResMut<SpatialAudioManager>,
+    listener_query: Query<&GlobalTransform, With<SpatialListener>>,
+) {
+    if let Ok(transform) = listener_query.get_single() {
+        spatial_manager.listener_position = transform.translation();
+    }
+}
+
+/// Processes spatial sound events with basic distance-based attenuation
 fn play_spatial_sounds(
     mut events: EventReader<PlaySpatialSound>,
     audio: Res<Audio>,
@@ -64,21 +80,24 @@ fn play_spatial_sounds(
         return;
     }
 
+    let listener_pos = spatial_manager.listener_position;
+
     for event in events.read() {
-        // For Phase 1, we play the sound with basic positioning.
-        // Full 3D spatialization requires deeper Kira spatial scene integration.
-        // This gives us the foundation + event-driven playback.
+        // Simple distance-based volume attenuation
+        let distance = event.position.distance(listener_pos);
+        let falloff = (1.0 / (1.0 + distance * 0.01)).clamp(0.1, 1.0);
+        let final_volume = event.volume * falloff;
+
+        // Basic panning based on x position relative to listener
+        let pan = ((event.position.x - listener_pos.x) * 0.005).clamp(-1.0, 1.0);
 
         audio
             .play(event.sound.clone())
-            .with_volume(event.volume as f64)
-            .with_panning(0.5) // Placeholder - real panning would come from spatial scene
+            .with_volume(final_volume as f64)
+            .with_panning(((pan + 1.0) * 0.5) as f64) // Convert -1..1 to 0..1
             .fade_in(AudioTween::new(
                 Duration::from_millis(event.fade_in_ms),
                 bevy_kira_audio::AudioEasing::OutPowi(2),
             ));
-
-        // TODO Phase 2: Use actual Kira SpatialScene + SpatialEmitter
-        // with real 3D position and listener tracking.
     }
 }
