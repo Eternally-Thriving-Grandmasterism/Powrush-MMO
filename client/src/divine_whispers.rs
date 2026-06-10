@@ -1,8 +1,9 @@
 /*!
- * Divine Whispers - Client Side (Strong Epiphany Feedback)
+ * Divine Whispers - Client Side (Strong Epiphany Audio Feedback)
  */
 
 use bevy::prelude::*;
+use bevy_kira_audio::{Audio, AudioTween};
 use simulation::divine_whispers::DivineWhisperTrigger;
 use std::time::Duration;
 
@@ -15,7 +16,7 @@ struct WhisperFadeTimer {
 }
 
 #[derive(Component)]
-struct EpiphanyFlash; // Temporary marker for flash effect
+struct EpiphanyFlash;
 
 pub struct DivineWhispersPlugin;
 
@@ -104,6 +105,7 @@ fn receive_divine_whispers(
     mut text_query: Query<&mut Text>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
 ) {
     for event in events.read() {
         for (mut visibility, children, panel_entity) in panel_query.iter_mut() {
@@ -111,13 +113,8 @@ fn receive_divine_whispers(
 
             let is_epiphany = event.is_epiphany;
 
-            // Stronger visual treatment for epiphanies
             if is_epiphany {
-                // Brief flash effect
                 commands.entity(panel_entity).insert(EpiphanyFlash);
-
-                // Stronger border glow for epiphanies
-                // (In real implementation this could be animated)
             }
 
             let text_color = if is_epiphany {
@@ -150,27 +147,44 @@ fn receive_divine_whispers(
                 timer: Timer::new(Duration::from_secs_f32(duration), TimerMode::Once),
             });
 
-            play_whisper_sound(&asset_server, event.intensity, is_epiphany);
+            // Real audio playback with stronger feedback for epiphanies
+            play_whisper_sound(&audio, &asset_server, event.intensity, is_epiphany);
             spawn_whisper_particles(&mut commands, event.intensity, event.flavor.clone(), is_epiphany, panel_entity);
         }
     }
 }
 
 fn play_whisper_sound(
+    audio: &Audio,
     asset_server: &AssetServer,
     intensity: f32,
     is_epiphany: bool,
 ) {
     let volume = if is_epiphany {
-        (0.8 + intensity * 0.2).clamp(0.6, 1.0)
+        (0.85 + intensity * 0.15).clamp(0.7, 1.0)
     } else {
-        (0.5 + intensity * 0.3).clamp(0.3, 0.9)
+        (0.55 + intensity * 0.25).clamp(0.35, 0.85)
     };
 
+    let sound_path = if is_epiphany {
+        "sounds/epiphany_whisper.ogg" // Stronger, more resonant sound for epiphanies
+    } else {
+        "sounds/divine_whisper.ogg"
+    };
+
+    audio
+        .play(asset_server.load(sound_path))
+        .with_volume(volume as f64)
+        .fade_in(AudioTween::new(
+            Duration::from_millis(if is_epiphany { 250 } else { 180 }),
+            bevy_kira_audio::AudioEasing::OutPowi(2),
+        ));
+
     println!(
-        "[Audio] {} whisper (intensity: {:.2})",
-        if is_epiphany { "STRONG EPIPHANY" } else { "normal" },
-        intensity
+        "[Audio] Playing {} whisper (intensity: {:.2}, volume: {:.2})",
+        if is_epiphany { "EPIPHANY" } else { "normal" },
+        intensity,
+        volume
     );
 }
 
@@ -187,7 +201,6 @@ fn spawn_whisper_particles(
             flavor, intensity
         );
 
-        // Spawn a temporary flash entity near the panel for visual impact
         commands.spawn((
             NodeBundle {
                 style: Style {
@@ -196,13 +209,11 @@ fn spawn_whisper_particles(
                     height: Val::Px(150.0),
                     ..default()
                 },
-                background_color: Color::srgba(1.0, 0.95, 0.6, 0.15).into(),
+                background_color: Color::srgba(1.0, 0.95, 0.6, 0.18).into(),
                 ..default()
             },
             EpiphanyFlash,
         ));
-    } else {
-        println!("[Particles] Subtle particles for normal whisper");
     }
 }
 
@@ -221,14 +232,11 @@ fn update_whisper_fade(
     }
 }
 
-/// Clean up temporary epiphany flash effect
 fn update_epiphany_flash(
     mut query: Query<Entity, With<EpiphanyFlash>>,
     mut commands: Commands,
 ) {
-    // Simple cleanup - in real version this would have its own timer
     for entity in query.iter() {
-        // Auto-despawn after one frame for now (placeholder)
         commands.entity(entity).despawn();
     }
 }
