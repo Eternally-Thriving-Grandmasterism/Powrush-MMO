@@ -8,6 +8,7 @@ use simulation::epiphany_catalyst::{
 };
 use simulation::bot_detection::BotDetectionConfig;
 use simulation::divine_whispers::DivineWhisperTrigger;
+use simulation::player_persistence::PlayerSaveData;
 
 #[derive(Debug, Clone)]
 pub struct HarvestResult {
@@ -27,8 +28,8 @@ pub fn process_harvest(
     biome: &str,
     behavioral_human_score: f32,
     config: &BotDetectionConfig,
-    // In real implementation, this would be an EventWriter or network sender
     mut whisper_events: EventWriter<DivineWhisperTrigger>,
+    mut player_save: ResMut<PlayerSaveData>,
 ) -> HarvestResult {
     let mut result = HarvestResult {
         success: true,
@@ -46,7 +47,12 @@ pub fn process_harvest(
         biome,
         behavioral_human_score,
     ) {
-        apply_epiphany_effects(player_id, &epiphany, &mut whisper_events);
+        apply_epiphany_effects(
+            player_id,
+            &epiphany,
+            &mut whisper_events,
+            &mut player_save,
+        );
 
         let _telemetry = emit_epiphany_telemetry(
             &epiphany,
@@ -80,8 +86,12 @@ fn apply_epiphany_effects(
     player_id: u64,
     epiphany: &EpiphanyOutcome,
     whisper_events: &mut EventWriter<DivineWhisperTrigger>,
+    player_save: &mut PlayerSaveData,
 ) {
-    // Send Divine Whisper to the specific player
+    // Record the epiphany into player persistence
+    player_save.record_epiphany(&epiphany.scenario_id, epiphany.intensity, &epiphany.scenario_id);
+
+    // Send Divine Whisper
     let whisper_text = match epiphany.divine_whisper_flavor.as_str() {
         "sustainable_harmony_revelation" => {
             "A deep sense of harmony flows through you. Your sustainable choices are writing a better future."
@@ -102,7 +112,7 @@ fn apply_epiphany_effects(
         epiphany.intensity,
     ));
 
-    // Temporary multiplier & muscle memory logging
+    // Log other effects
     if epiphany.epiphany_multiplier > 1.1 {
         println!(
             "[Epiphany] Player {} receives {:.2}x harvest multiplier.",
@@ -117,7 +127,6 @@ fn apply_epiphany_effects(
         );
     }
 
-    // World effects
     for (effect, value) in &epiphany.world_effects {
         println!("[World Effect] {} = {:.2}", effect, value);
     }

@@ -1,8 +1,5 @@
 /*!
  * Player Persistence v18.10
- *
- * Basic local persistence for epiphany history and muscle memory.
- * Sovereignty-friendly (local JSON files by default).
  */
 
 use serde::{Deserialize, Serialize};
@@ -39,7 +36,7 @@ impl PlayerSaveData {
         }
     }
 
-    /// Record a new epiphany
+    /// Record a new epiphany (called automatically when one triggers)
     pub fn record_epiphany(&mut self, scenario_id: &str, intensity: f32, biome: &str) {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -53,17 +50,18 @@ impl PlayerSaveData {
             biome: biome.to_string(),
         });
 
-        // Increase muscle memory slightly with each epiphany
-        self.muscle_memory_level = (self.muscle_memory_level + intensity * 0.1).min(5.0);
+        // Boost muscle memory with each meaningful epiphany
+        self.muscle_memory_level = (self.muscle_memory_level + intensity * 0.12).min(5.0);
+
+        // Auto-save after recording important progress
+        let _ = self.save_to_file(Path::new("player_save.json"));
     }
 
-    /// Save to file
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
         let json = serde_json::to_string_pretty(self)?;
         fs::write(path, json)
     }
 
-    /// Load from file
     pub fn load_from_file(path: &Path) -> Option<Self> {
         if path.exists() {
             if let Ok(content) = fs::read_to_string(path) {
