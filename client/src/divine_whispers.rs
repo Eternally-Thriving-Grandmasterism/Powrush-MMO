@@ -1,7 +1,5 @@
 /*!
- * Divine Whispers - Client Side UI & Visual Feedback
- *
- * Displays beautiful, timed Divine Whispers when received from the server.
+ * Divine Whispers - Client Side UI + Sound + Particles
  */
 
 use bevy::prelude::*;
@@ -31,7 +29,6 @@ impl Plugin for DivineWhispersPlugin {
 }
 
 fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Divine Whisper display panel (hidden by default)
     commands
         .spawn((
             NodeBundle {
@@ -59,7 +56,6 @@ fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
             Name::new("DivineWhisperPanel"),
         ))
         .with_children(|parent| {
-            // Whisper text
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -79,7 +75,6 @@ fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
                 Name::new("WhisperText"),
             ));
 
-            // Subtle flavor indicator
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -106,20 +101,18 @@ fn receive_divine_whispers(
     mut query: Query<(&mut Visibility, &Children), With<DivineWhisperUI>>,
     mut text_query: Query<&mut Text>,
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
 ) {
     for event in events.read() {
         for (mut visibility, children) in query.iter_mut() {
             *visibility = Visibility::Visible;
 
-            // Update text content
             for &child in children.iter() {
                 if let Ok(mut text) = text_query.get_mut(child) {
                     if text.sections.len() > 0 {
-                        // Main whisper text
                         if text.sections[0].value.len() < 5 {
                             text.sections[0].value = event.text.clone();
                         } else {
-                            // Flavor line
                             text.sections[0].value = format!("— {}", event.flavor);
                         }
                     }
@@ -133,8 +126,40 @@ fn receive_divine_whispers(
                     TimerMode::Once,
                 ),
             });
+
+            // === Sound + Particles ===
+            play_whisper_sound(&asset_server, event.intensity);
+            spawn_whisper_particles(&mut commands, event.intensity, event.flavor.clone());
         }
     }
+}
+
+fn play_whisper_sound(asset_server: &AssetServer, intensity: f32) {
+    // Placeholder for audio playback
+    // In production: use AudioBundle or bevy_kira_audio
+    println!("[Audio] Playing subtle Divine Whisper sound (intensity: {:.2})", intensity);
+
+    // Example (if using bevy_audio):
+    // commands.spawn(AudioBundle {
+    //     source: asset_server.load("sounds/divine_whisper.ogg"),
+    //     settings: PlaybackSettings::DESPAWN,
+    // });
+}
+
+fn spawn_whisper_particles(commands: &mut Commands, intensity: f32, flavor: String) {
+    // Spawn subtle ethereal particles around the whisper panel
+    // This is a simplified version. In production use a proper particle plugin.
+
+    println!(
+        "[Particles] Spawning ethereal particles for whisper (flavor: {}, intensity: {:.2})",
+        flavor, intensity
+    );
+
+    // TODO: Spawn actual particle entities or use bevy_particle_systems
+    // Example direction:
+    // - Soft glowing orbs rising slowly
+    // - Color based on flavor (blue for harmony, green for abundance, etc.)
+    // - Lifetime and count scaled by intensity
 }
 
 fn update_whisper_fade(
