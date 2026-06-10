@@ -1,5 +1,5 @@
 /*!
- * Divine Whispers - Client Side UI + Sound + Particles
+ * Divine Whispers - Client Side (Enhanced for Epiphanies)
  */
 
 use bevy::prelude::*;
@@ -36,20 +36,18 @@ fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
                     position_type: PositionType::Absolute,
                     bottom: Val::Percent(18.0),
                     left: Val::Percent(50.0),
-                    width: Val::Px(620.0),
-                    height: Val::Px(110.0),
-                    margin: UiRect::new(Val::Px(-310.0), Val::Auto, Val::Auto, Val::Auto),
-                    padding: UiRect::all(Val::Px(20.0)),
-                    border: UiRect::all(Val::Px(1.5)),
-                    border_radius: BorderRadius::all(Val::Px(16.0)),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
+                    width: Val::Px(680.0),
+                    height: Val::Px(130.0),
+                    margin: UiRect::new(Val::Px(-340.0), Val::Auto, Val::Auto, Val::Auto),
+                    padding: UiRect::all(Val::Px(24.0)),
+                    border: UiRect::all(Val::Px(2.0)),
+                    border_radius: BorderRadius::all(Val::Px(18.0)),
                     flex_direction: FlexDirection::Column,
                     visibility: Visibility::Hidden,
                     ..default()
                 },
-                background_color: Color::srgba(0.06, 0.08, 0.12, 0.92).into(),
-                border_color: Color::srgb(0.4, 0.7, 0.95).into(),
+                background_color: Color::srgba(0.05, 0.07, 0.11, 0.96).into(),
+                border_color: Color::srgb(0.5, 0.75, 1.0).into(),
                 ..default()
             },
             DivineWhisperUI,
@@ -62,12 +60,12 @@ fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
                         "",
                         TextStyle {
                             font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                            font_size: 18.0,
+                            font_size: 20.0,
                             color: Color::srgb(0.95, 0.97, 1.0),
                         },
                     ),
                     style: Style {
-                        max_width: Val::Px(580.0),
+                        max_width: Val::Px(620.0),
                         ..default()
                     },
                     ..default()
@@ -81,12 +79,12 @@ fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
                         "",
                         TextStyle {
                             font: asset_server.load("fonts/FiraSans-Italic.ttf"),
-                            font_size: 13.0,
-                            color: Color::srgb(0.6, 0.75, 0.95),
+                            font_size: 14.0,
+                            color: Color::srgb(0.65, 0.8, 0.95),
                         },
                     ),
                     style: Style {
-                        margin: UiRect::top(Val::Px(8.0)),
+                        margin: UiRect::top(Val::Px(10.0)),
                         ..default()
                     },
                     ..default()
@@ -98,68 +96,88 @@ fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
 
 fn receive_divine_whispers(
     mut events: EventReader<DivineWhisperTrigger>,
-    mut query: Query<(&mut Visibility, &Children), With<DivineWhisperUI>>,
+    mut panel_query: Query<(&mut Visibility, &Children), With<DivineWhisperUI>>,
     mut text_query: Query<&mut Text>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
 ) {
     for event in events.read() {
-        for (mut visibility, children) in query.iter_mut() {
+        for (mut visibility, children) in panel_query.iter_mut() {
             *visibility = Visibility::Visible;
+
+            let is_epiphany = event.is_epiphany;
+            let text_color = if is_epiphany {
+                Color::srgb(1.0, 0.95, 0.7) // Golden for epiphanies
+            } else {
+                Color::srgb(0.95, 0.97, 1.0)
+            };
 
             for &child in children.iter() {
                 if let Ok(mut text) = text_query.get_mut(child) {
                     if text.sections.len() > 0 {
-                        if text.sections[0].value.len() < 5 {
-                            text.sections[0].value = event.text.clone();
+                        text.sections[0].value = if is_epiphany {
+                            format!("⚡ {}", event.text)
                         } else {
-                            text.sections[0].value = format!("— {}", event.flavor);
-                        }
+                            event.text.clone()
+                        };
+                        text.sections[0].style.color = text_color;
+                        text.sections[0].style.font_size = if is_epiphany { 22.0 } else { 20.0 };
                     }
                 }
             }
 
-            // Spawn fade timer
+            // Longer duration + special styling for epiphanies
+            let duration = if is_epiphany {
+                event.duration_seconds.max(8.0)
+            } else {
+                event.duration_seconds
+            };
+
             commands.entity(child).insert(WhisperFadeTimer {
-                timer: Timer::new(
-                    Duration::from_secs_f32(event.duration_seconds),
-                    TimerMode::Once,
-                ),
+                timer: Timer::new(Duration::from_secs_f32(duration), TimerMode::Once),
             });
 
-            // === Sound + Particles ===
-            play_whisper_sound(&asset_server, event.intensity);
-            spawn_whisper_particles(&mut commands, event.intensity, event.flavor.clone());
+            // Enhanced sound + particles for epiphanies
+            play_whisper_sound(&asset_server, event.intensity, is_epiphany);
+            spawn_whisper_particles(commands, event.intensity, event.flavor.clone(), is_epiphany);
         }
     }
 }
 
-fn play_whisper_sound(asset_server: &AssetServer, intensity: f32) {
-    // Placeholder for audio playback
-    // In production: use AudioBundle or bevy_kira_audio
-    println!("[Audio] Playing subtle Divine Whisper sound (intensity: {:.2})", intensity);
-
-    // Example (if using bevy_audio):
-    // commands.spawn(AudioBundle {
-    //     source: asset_server.load("sounds/divine_whisper.ogg"),
-    //     settings: PlaybackSettings::DESPAWN,
-    // });
-}
-
-fn spawn_whisper_particles(commands: &mut Commands, intensity: f32, flavor: String) {
-    // Spawn subtle ethereal particles around the whisper panel
-    // This is a simplified version. In production use a proper particle plugin.
+fn play_whisper_sound(
+    asset_server: &AssetServer,
+    intensity: f32,
+    is_epiphany: bool,
+) {
+    let volume = if is_epiphany {
+        (0.75 + intensity * 0.25).clamp(0.5, 1.0)
+    } else {
+        (0.5 + intensity * 0.3).clamp(0.3, 0.9)
+    };
 
     println!(
-        "[Particles] Spawning ethereal particles for whisper (flavor: {}, intensity: {:.2})",
-        flavor, intensity
+        "[Audio] Playing {} whisper (intensity: {:.2}, volume: {:.2})",
+        if is_epiphany { "EPIPHANY" } else { "normal" },
+        intensity,
+        volume
     );
+}
 
-    // TODO: Spawn actual particle entities or use bevy_particle_systems
-    // Example direction:
-    // - Soft glowing orbs rising slowly
-    // - Color based on flavor (blue for harmony, green for abundance, etc.)
-    // - Lifetime and count scaled by intensity
+fn spawn_whisper_particles(
+    commands: &mut Commands,
+    intensity: f32,
+    flavor: String,
+    is_epiphany: bool,
+) {
+    if is_epiphany {
+        println!(
+            "[Particles] Strong ethereal burst for epiphany (flavor: {}, intensity: {:.2})",
+            flavor, intensity
+        );
+        // TODO: Spawn richer particle effect for epiphanies
+    } else {
+        println!("[Particles] Subtle particles (flavor: {})", flavor);
+    }
 }
 
 fn update_whisper_fade(

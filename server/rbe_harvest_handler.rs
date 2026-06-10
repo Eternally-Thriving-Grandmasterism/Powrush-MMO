@@ -28,10 +28,8 @@ pub fn process_harvest(
     mut whisper_events: EventWriter<DivineWhisperTrigger>,
     mut player_save: ResMut<PlayerSaveData>,
 ) -> HarvestResult {
-    let base_resources = 12.5;
-
-    // Apply temporary epiphany multiplier if active
     let multiplier = player_save.get_current_harvest_multiplier();
+    let base_resources = 12.5;
     let final_resources = base_resources * multiplier;
 
     let mut result = HarvestResult {
@@ -43,7 +41,6 @@ pub fn process_harvest(
         biome: biome.to_string(),
     };
 
-    // Check for epiphany
     if let Some(epiphany) = check_epiphany_after_harvest(
         current_depletion,
         sustainable_pacing,
@@ -74,7 +71,7 @@ fn apply_epiphany_effects(
 ) {
     // Apply real temporary gameplay reward
     if epiphany.epiphany_multiplier > 1.0 {
-        let duration_seconds: u64 = 600; // 10 minutes
+        let duration_seconds: u64 = 600;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -82,22 +79,17 @@ fn apply_epiphany_effects(
 
         player_save.temporary_harvest_multiplier = epiphany.epiphany_multiplier;
         player_save.temporary_multiplier_expires_at = now + duration_seconds;
-
-        println!(
-            "[Epiphany Reward] Player {} received {:.2}x harvest multiplier for {} minutes!",
-            player_id, epiphany.epiphany_multiplier, duration_seconds / 60
-        );
     }
 
-    // Send Divine Whisper (existing)
+    // Send enhanced Divine Whisper for epiphanies
     let whisper_text = match epiphany.divine_whisper_flavor.as_str() {
-        "sustainable_harmony_revelation" => "A deep sense of harmony flows through you...",
-        "sustainable_abundance_revelation" => "You have touched the rhythm of true abundance...",
-        "council_harmony_revelation" => "When hearts align in mercy...",
+        "sustainable_harmony_revelation" => "A deep sense of harmony flows through you. Your sustainable choices are writing a better future.",
+        "sustainable_abundance_revelation" => "You have touched the rhythm of true abundance. The land remembers your care.",
+        "council_harmony_revelation" => "When hearts align in mercy, the whole becomes greater than the sum.",
         _ => "A quiet revelation settles within you.",
     };
 
-    whisper_events.send(DivineWhisperTrigger::new(
+    whisper_events.send(DivineWhisperTrigger::from_epiphany(
         player_id,
         whisper_text,
         &epiphany.divine_whisper_flavor,
