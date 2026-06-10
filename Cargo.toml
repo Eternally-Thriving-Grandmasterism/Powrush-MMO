@@ -7,18 +7,14 @@ edition = "2021"
 members = ["client", "server", "simulation", "shared"]
 
 [profile.release]
-opt-level = 3          # Maximum optimizations
-lto = true             # Link-time optimization
-codegen-units = 1      # Better optimization at cost of compile time
-strip = true           # Remove debug symbols (strong obfuscation benefit)
-panic = "abort"        # Smaller binary, slightly faster
-overflow-checks = false
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
 
-[profile.release.package."powrush-mmo-client"]
+[profile.release.package."powrush-mmo-server"]
 opt-level = 3
 lto = true
 strip = true
-
-[dependencies]
-# Lightweight string obfuscation for sensitive values
-obfstr = "0.4"
+codegen-units = 1
