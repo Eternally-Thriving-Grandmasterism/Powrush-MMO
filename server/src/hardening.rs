@@ -71,42 +71,63 @@ fn drop_privileges() {
     }
 }
 
-/// Apply seccomp filter
+/// Advanced and more restrictive seccomp filter
 fn apply_seccomp() -> Result<(), Box<dyn std::error::Error>> {
     let mut filter = SeccompFilter::new(
         SeccompAction::KillProcess,
         SeccompAction::Allow,
     )?;
 
-    let allowed = vec![
+    // Core system calls
+    let core = vec![
         libc::SYS_read, libc::SYS_write, libc::SYS_close,
-        libc::SYS_futex, libc::SYS_epoll_ctl, libc::SYS_epoll_wait,
+        libc::SYS_brk, libc::SYS_mmap, libc::SYS_munmap, libc::SYS_madvise,
+        libc::SYS_mprotect, libc::SYS_exit, libc::SYS_exit_group,
+    ];
+
+    // Threading & synchronization
+    let threading = vec![
+        libc::SYS_futex, libc::SYS_clone, libc::SYS_clone3,
+        libc::SYS_gettid, libc::SYS_getpid, libc::SYS_sched_yield,
+        libc::SYS_rt_sigaction, libc::SYS_rt_sigprocmask, libc::SYS_sigaltstack,
+    ];
+
+    // Networking
+    let networking = vec![
         libc::SYS_socket, libc::SYS_connect, libc::SYS_accept, libc::SYS_bind,
         libc::SYS_listen, libc::SYS_getsockname, libc::SYS_getpeername,
         libc::SYS_sendto, libc::SYS_recvfrom, libc::SYS_setsockopt, libc::SYS_getsockopt,
-        libc::SYS_clone, libc::SYS_clone3, libc::SYS_mmap, libc::SYS_munmap,
-        libc::SYS_madvise, libc::SYS_brk, libc::SYS_mprotect,
-        libc::SYS_rt_sigaction, libc::SYS_rt_sigprocmask, libc::SYS_sigaltstack,
-        libc::SYS_gettid, libc::SYS_getpid, libc::SYS_getrandom,
-        libc::SYS_clock_gettime, libc::SYS_nanosleep, libc::SYS_sched_yield,
-        libc::SYS_exit, libc::SYS_exit_group,
+        libc::SYS_shutdown,
     ];
 
-    for syscall in allowed {
+    // Event & I/O multiplexing
+    let io_multiplexing = vec![libc::SYS_epoll_create1, libc::SYS_epoll_ctl, libc::SYS_epoll_wait];
+
+    // Randomness & time
+    let randomness_time = vec![libc::SYS_getrandom, libc::SYS_clock_gettime, libc::SYS_nanosleep];
+
+    let all_allowed: Vec<i64> = core
+        .into_iter()
+        .chain(threading)
+        .chain(networking)
+        .chain(io_multiplexing)
+        .chain(randomness_time)
+        .collect();
+
+    for syscall in all_allowed {
         filter.add_rule(SeccompRule::new(syscall, SeccompAction::Allow))?; 
     }
 
     let program: BpfProgram = filter.try_into()?;
     seccompiler::apply_filter(&program)?;
-    println!("[Hardening] seccomp filter applied");
+    println!("[Hardening] Advanced seccomp filter applied ({} syscalls allowed)", all_allowed.len());
     Ok(())
 }
 
-/// Optimized landlock rules - more restrictive and practical
+/// Optimized landlock rules
 fn apply_landlock() -> Result<(), Box<dyn std::error::Error>> {
     let abi = ABI::V2;
 
-    // Define minimal needed access rights
     let read_only = AccessFs::ReadFile | AccessFs::ReadDir;
     let read_write = read_only | AccessFs::WriteFile | AccessFs::CreateFile |
                      AccessFs::CreateDir | AccessFs::RemoveFile | AccessFs::RemoveDir;
@@ -115,34 +136,25 @@ fn apply_landlock() -> Result<(), Box<dyn std::error::Error>> {
         .handle_access(read_write)?
         .create()?;
 
-    // Read-only access to current directory (assets, config, etc.)
+    // Read-only for current directory
     let cwd = std::env::current_dir()?;
-    ruleset.add_rule(
-        PathBeneath::new(cwd, read_only)?
-    )?;
+    ruleset.add_rule(PathBeneath::new(cwd, read_only)?)?;
 
-    // Read-write access to data directory (world saves, player data)
+    // Read-write for data directory
     if let Ok(data_dir) = env::var("POWRUSH_DATA_DIR") {
         let path = Path::new(&data_dir);
         if path.exists() {
             ruleset.add_rule(PathBeneath::new(path, read_write)?)?;
-            println!("[Hardening] landlock: granted RW to {}", data_dir);
         }
     } else {
-        // Default to ./data if exists
         let default_data = Path::new("./data");
         if default_data.exists() {
             ruleset.add_rule(PathBeneath::new(default_data, read_write)?)?;
         }
     }
 
-    // Limited write access to logs/tmp
-    let log_paths = vec![
-        Path::new("/tmp"),
-        Path::new("./logs"),
-    ];
-
-    for path in log_paths {
+    // Logs and temp
+    for path in [Path::new("/tmp"), Path::new("./logs")] {
         if path.exists() {
             ruleset.add_rule(PathBeneath::new(path, read_write)?)?;
         }
