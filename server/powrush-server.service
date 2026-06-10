@@ -1,0 +1,33 @@
+[Unit]
+Description=Powrush-MMO Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/powrush-server
+WorkingDirectory=/opt/powrush
+User=powrush
+Group=powrush
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# seccomp (recommended)
+SystemCallFilter=@system-service
+SystemCallFilter=~@debug @mount @cpu-emulation @obsolete @raw-io @reboot @swap
+
+# Resource limits
+LimitNOFILE=65536
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
