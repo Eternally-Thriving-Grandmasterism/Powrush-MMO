@@ -16,6 +16,7 @@ use crate::particles::ParticlePlugin;
 use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
 use crate::player_progress_ui::PlayerProgressUIPlugin;
+use crate::spatial_audio::SpatialAudioPlugin;
 
 fn main() {
     App::new()
@@ -41,9 +42,10 @@ fn main() {
 
         .add_plugins(AudioPlugin)
         .add_plugins(DivineWhispersPlugin)
-
-        // Player Progress UI (Epiphanies + Muscle Memory)
         .add_plugins(PlayerProgressUIPlugin)
+
+        // Spatial Audio Foundation (Phase 1)
+        .add_plugins(SpatialAudioPlugin)
 
         .init_resource::<CloudSync>()
         .add_systems(Startup, init_cloud_sync)
@@ -56,7 +58,7 @@ fn main() {
 }
 
 fn init_cloud_sync(mut cloud_sync: ResMut<CloudSync>) {
-    let app_id: u32 = 480; // TODO: Replace with real Steam App ID
+    let app_id: u32 = 480; // TODO: Replace with real App ID
     if let Err(e) = cloud_sync.init_steam(app_id) {
         warn!("Cloud sync disabled: {}", e);
     }
