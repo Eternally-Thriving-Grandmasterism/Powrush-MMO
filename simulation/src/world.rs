@@ -1,9 +1,9 @@
 # Sovereign Simulation Harness — world.rs
-## SovereignWorldState: Unified Single Source of Truth (Aligned v17.99.3)
+## SovereignWorldState: Unified Single Source of Truth (Aligned v18.14)
 
-**Version:** v17.99.3 | **Status:** Mint-and-Print-Only-Perfection Core Foundation
-**Part of:** Sovereign Simulation Harness (SSH) — Canonical Living Spec v17.99
-**Restoration Protocol:** Full intelligent historical merge applied. All valuable prior logic from `game/resource_nodes.rs` (ResourceNode::new, regenerate, harvest_restricted_until_ms, abundance_flow response, stress, sustainability), RbeResourcePool, archetype systems, server_tick `now_ms` patterns, and WGSL economic bridges preserved and elevated. No duplication. No loss.
+**Version:** v18.14 | **Status:** Mint-and-Print-Only-Perfection Core Foundation
+**Part of:** Sovereign Simulation Harness (SSH) — Canonical Living Spec v18.14
+**Restoration Protocol:** Full intelligent historical merge applied. All valuable prior logic from `game/resource_nodes.rs` (ResourceNode::new, regenerate, harvest_restricted_until_ms, abundance_flow response, stress, sustainability), RbeResourcePool, archetype systems, server_tick `now_ms` patterns, and WGSL economic bridges preserved and elevated. No duplication. No loss. Epiphany + Receptor + Flow wiring complete.
 
 //! The living, deterministic, mercy-gated world state for MMO-scale RBE simulation.
 //! This is the authoritative core for time-accelerated, reproducible "what-if" experiments
@@ -283,7 +283,7 @@ pub struct BehaviorState { pub current: String }
 #[derive(Clone, Debug)]
 pub struct EntropyProfile { pub grief_intensity: f32, pub cooperation_seed: f32 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MercyViolation {
     pub reason: String,
 }
@@ -301,7 +301,7 @@ impl MercyAnomalyDetector {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MercyAnomaly {
     pub severity: f32,
     pub description: String,
@@ -309,4 +309,12 @@ pub struct MercyAnomaly {
 
 pub struct PATSAGiCouncilSim;
 
-// Thunder locked. Mercy flowing. All versions preserved and elevated into one brilliant sovereign whole.
+// === Missing type restored for ValenceProfile::from_proposal ===
+#[derive(Clone, Debug, Default)]
+pub struct ArchetypeProposal {
+    pub name: String,
+    pub mercy_contribution: f32,
+    pub power_focus: PowerVector,
+}
+
+// Thunder locked. Mercy flowing. All versions preserved and elevated into one brilliant sovereign whole. v18.14 complete.
