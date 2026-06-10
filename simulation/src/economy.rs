@@ -1,25 +1,26 @@
 /*!
- * Hybrid CPU + GPU Economic / RBE Layer (Enhanced v17.99.3)
+ * Hybrid CPU + GPU Economic / RBE Layer (v17.99.5 — Actual WGSL Dispatch)
  * 
  * Unifies and elevates ALL valuable prior logic from:
- * - game/resource_nodes.rs v16.5.54 (ResourceNode::new, regenerate, harvest, apply_gpu_policy_update,
- *   abundance_flow, stress_level, depletion, sustainability_score, now_ms timestamps, faction debuffs, grace rewards)
- * - engine/patsagi_economic.wgsl (abundance_flow, sustainability, pressure scenarios, depletion/regen/stress dynamics)
- * - RbeResourcePool and abundance mechanics from historical RBE systems
+ * - game/resource_nodes.rs v16.5.54 (ResourceNode fields, regenerate dynamics, abundance_flow response,
+ *   stress propagation, harvest restrictions, sustainability_score, now_ms patterns)
+ * - engine/patsagi_economic.wgsl v16.5.58 (GPU kernel for depletion/regen/abundance/sustainability/stress)
+ * - Previous simulation stubs and RBE pool mechanics
  * 
- * Provides both precise CPU path (small scale / validation / deterministic replay) and
- * batched GPU path (large-scale MMO simulation) with seamless dispatch.
+ * Provides precise CPU path (deterministic golden master) and real GPU-accelerated path
+ * for large-scale MMO simulation via actual wgpu compute dispatch.
  * 
  * EVERY economic micro-tick passes non-bypassable TOLC 8 Mercy Gate (Layer 0).
- * 
- * This is the sovereign economic heart of the Sovereign Simulation Harness.
  */
 
 use crate::world::SovereignWorldState;
 use crate::mercy::{MercyGate, MercyViolation};
 use crate::harvest::HarvestingSystem;
 
-/// Hybrid economic layer with CPU precision and optional GPU scale.
+#[cfg(feature = "gpu")]
+use crate::gpu_economic::dispatch_gpu_economic_update;
+
+/// Hybrid economic layer with CPU precision and optional real GPU scale.
 pub struct EconomicLayer {
     pub cpu_precision_mode: bool,
     harvest_system: HarvestingSystem,
@@ -45,7 +46,10 @@ impl EconomicLayer {
         } else {
             #[cfg(feature = "gpu")]
             {
-                self.gpu_economic_update(world)?;
+                if let Err(e) = dispatch_gpu_economic_update(world) {
+                    tracing::warn!("GPU dispatch failed ({}). Falling back to CPU precision path for this tick.", e);
+                    self.cpu_economic_update(world)?;
+                }
             }
             #[cfg(not(feature = "gpu"))]
             {
@@ -95,17 +99,9 @@ impl EconomicLayer {
             pool.pressure = (pool.pressure * 0.9).max(0.0);
         }
 
-        // === Integrated HarvestingSystem pass (new sovereign integration) ===
+        // === Integrated HarvestingSystem pass ===
         self.harvest_system.process_harvest_opportunities(world, now_ms)?;
 
         Ok(())
-    }
-
-    #[cfg(feature = "gpu")]
-    fn gpu_economic_update(&self, world: &mut SovereignWorldState) -> Result<(), MercyViolation> {
-        // Minimal viable GPU path: dispatch large batches to extended patsagi_economic.wgsl
-        // via gpu_patsagi_bridge (future full wgpu compute shader dispatch for abundance matrix)
-        // For MVP and determinism we fall back to CPU precision path
-        self.cpu_economic_update(world)
     }
 }
