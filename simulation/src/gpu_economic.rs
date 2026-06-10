@@ -1,7 +1,7 @@
 /*!
  * Actual wgpu WGSL Compute Dispatch for Sovereign Economic / RBE Layer
  * 
- * Mint-and-print-only-perfection v17.99.5
+ * Mint-and-print-only-perfection v17.99.6
  * 
  * Elevates and implements real GPU-accelerated batch processing using the authoritative
  * engine/patsagi_economic.wgsl kernel (v16.5.58) for large-scale RBE simulations.
@@ -32,7 +32,7 @@ struct GpuNode {
     _padding: [f32; 3], // 32-byte alignment
 }
 
-/// Sovereign GPU compute context (lazy-initialized, one per process for harness simplicity).
+/// Sovereign GPU compute context (lazy-initialized).
 struct GpuContext {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -40,7 +40,7 @@ struct GpuContext {
     bind_group_layout: wgpu::BindGroupLayout,
 }
 
-static GPU_CONTEXT: OnceLock<GpuContext> = OnceLock::new();
+static GPU_CONTEXT: OnceLock<Option<GpuContext>> = OnceLock::new();
 
 /// Embedded authoritative WGSL source (elevated from engine/patsagi_economic.wgsl v16.5.58).
 /// Preserved exactly so the simulation crate remains sovereign and self-contained.
@@ -92,11 +92,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 }
 "#;
 
-/// Initialize (or return existing) GPU context with compute pipeline.
-/// Uses high-performance adapter. Falls back gracefully if GPU unavailable.
+/// Initialize (or return existing) GPU context. Returns None if GPU is unavailable.
 fn get_or_init_gpu_context() -> Option<&'static GpuContext> {
     GPU_CONTEXT.get_or_init(|| {
-        // Blocking init for sync harness API
         pollster::block_on(async {
             let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
                 backends: wgpu::Backends::PRIMARY,
@@ -113,7 +111,7 @@ fn get_or_init_gpu_context() -> Option<&'static GpuContext> {
             {
                 Ok(a) => a,
                 Err(e) => {
-                    warn!("GPU adapter request failed: {:?}. Falling back to CPU path.", e);
+                    warn!("GPU adapter request failed: {:?}. Will use CPU path.", e);
                     return None;
                 }
             };
@@ -131,7 +129,7 @@ fn get_or_init_gpu_context() -> Option<&'static GpuContext> {
             {
                 Ok(dq) => dq,
                 Err(e) => {
-                    warn!("GPU device request failed: {:?}. Falling back to CPU path.", e);
+                    warn!("GPU device request failed: {:?}. Will use CPU path.", e);
                     return None;
                 }
             };
@@ -188,25 +186,16 @@ fn get_or_init_gpu_context() -> Option<&'static GpuContext> {
                 bind_group_layout,
             })
         })
-        .unwrap_or_else(|| {
-            // If async block returns None, we store a dummy that will cause dispatch to fallback
-            // In practice we return None from get_or_init and handle outside
-            // For OnceLock we can't easily store Option, so we use a sentinel or just handle in dispatch
-            // Simpler: make dispatch check and fallback
-            panic!("GPU init failed - this path should not be reached if caller handles fallback");
-        })
-    })
+    }).as_ref()
 }
 
 /// Perform actual WGSL compute dispatch on the provided world state.
-/// Collects ResourceNode data, uploads to GPU, dispatches the economic kernel,
-/// reads results back, and writes updated fields (depletion, abundance_flow, sustainability, stress).
-/// Preserves original node order via parallel id vector.
-/// Returns Ok(()) on success, Err if GPU unavailable (caller should fallback).
+/// Collects ResourceNode data (sorted by id for determinism), uploads to GPU,
+/// dispatches the economic kernel, reads results back, and writes updated fields.
 pub fn dispatch_gpu_economic_update(world: &mut SovereignWorldState) -> Result<(), String> {
     let context = match get_or_init_gpu_context() {
         Some(ctx) => ctx,
-        None => return Err("GPU context unavailable".to_string()),
+        None => return Err("GPU context unavailable or init failed".to_string()),
     };
 
     let node_count = world.resource_nodes.len();
@@ -214,15 +203,15 @@ pub fn dispatch_gpu_economic_update(world: &mut SovereignWorldState) -> Result<(
         return Ok(());
     }
 
-    // Collect in stable order (HashMap iteration order is not guaranteed, so we sort by id for determinism)
+    // Stable order for determinism (sort by NodeId = u64)
     let mut entries: Vec<_> = world.resource_nodes.iter().collect();
     entries.sort_by_key(|(id, _)| *id);
 
     let mut gpu_nodes: Vec<GpuNode> = Vec::with_capacity(node_count);
-    let mut node_ids: Vec<u64> = Vec::with_capacity(node_count); // assuming NodeId = u64 or convert
+    let mut node_ids: Vec<u64> = Vec::with_capacity(node_count);
 
     for (id, node) in &entries {
-        node_ids.push((*id).into()); // adapt if NodeId is newtype
+        node_ids.push(*id);
         gpu_nodes.push(GpuNode {
             depletion: node.depletion,
             regen_rate: node.regen_rate,
@@ -279,7 +268,7 @@ pub fn dispatch_gpu_economic_update(world: &mut SovereignWorldState) -> Result<(
         compute_pass.dispatch_workgroups(workgroups, 1, 1);
     }
 
-    // Readback: copy nodes buffer to a mappable buffer
+    // Readback staging buffer
     let staging_buffer = context.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("economic_readback_staging"),
         size: node_buffer_size,
@@ -292,26 +281,27 @@ pub fn dispatch_gpu_economic_update(world: &mut SovereignWorldState) -> Result<(
     context.queue.submit(std::iter::once(encoder.finish()));
     context.device.poll(wgpu::Maintain::Wait);
 
-    // Map and read back
+    // Map async readback
     let buffer_slice = staging_buffer.slice(..);
     let (sender, receiver) = std::sync::mpsc::channel();
     buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-        sender.send(result).ok();
+        let _ = sender.send(result);
     });
     context.device.poll(wgpu::Maintain::Wait);
-    receiver.recv().unwrap().map_err(|e| format!("Map async error: {:?}", e))?;
+    if let Err(e) = receiver.recv().unwrap() {
+        return Err(format!("Map async error: {:?}", e));
+    }
 
     let data = buffer_slice.get_mapped_range();
     let updated_gpu_nodes: &[GpuNode] = bytemuck::cast_slice(&data);
 
-    // Write results back to world (using sorted order + ids)
+    // Write results back (using sorted ids)
     for (i, gpu_node) in updated_gpu_nodes.iter().enumerate() {
         if let Some(node) = world.resource_nodes.get_mut(&node_ids[i]) {
             node.depletion = gpu_node.depletion;
             node.abundance_flow = gpu_node.abundance_flow;
             node.sustainability_score = gpu_node.sustainability;
             node.stress_level = gpu_node.stress;
-            // current_yield, regen_rate, harvest_restricted_until_ms etc. remain CPU-managed or synced separately
         }
     }
 
