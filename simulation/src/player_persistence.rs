@@ -1,5 +1,7 @@
 /*!
  * Player Persistence v18.10
+ *
+ * Includes atomic save logic for crash safety.
  */
 
 use bevy::prelude::*;
@@ -88,13 +90,24 @@ impl PlayerSaveData {
             .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
     }
 
+    /// Atomic save: writes to a temp file then renames (crash-safe)
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
+        let temp_path = path.with_extension("json.tmp");
+
+        // Write to temporary file first
+        {
+            let json = serde_json::to_string_pretty(self)?;
+            fs::write(&temp_path, json)?;
+        }
+
+        // Create backup of existing file (if any)
         if path.exists() {
             let backup_path = path.with_extension("json.bak");
-            let _ = fs::copy(path, backup_path);
+            let _ = fs::copy(path, &backup_path);
         }
-        let json = serde_json::to_string_pretty(self)?;
-        fs::write(path, json)
+
+        // Atomic rename (this is the key for crash safety)
+        fs::rename(&temp_path, path)
     }
 
     pub fn load_from_file(path: &Path) -> Option<Self> {
