@@ -1,14 +1,5 @@
 /*!
  * Powrush-MMO Server — Comprehensive Hardening
- *
- * Includes:
- * - Anti-debug detection
- * - Binary integrity check
- * - Privilege dropping
- * - seccomp syscall filtering
- * - landlock filesystem sandboxing
- *
- * All features can be disabled with POWRUSH_DISABLE_HARDENING=1
  */
 
 use std::env;
@@ -16,7 +7,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use landlock::{AccessFs, Ruleset, RulesetAttr, RulesetCreatedAttr, ABI};
+use landlock::{AccessFs, PathBeneath, Ruleset, RulesetAttr, RulesetCreatedAttr, ABI};
 use nix::unistd::{getuid, setuid, Uid};
 use seccompiler::{BpfProgram, SeccompAction, SeccompFilter, SeccompRule};
 use sha2::{Digest, Sha256};
@@ -80,50 +71,25 @@ fn drop_privileges() {
     }
 }
 
-/// Apply seccomp filter (basic safe allowlist for game server)
+/// Apply seccomp filter
 fn apply_seccomp() -> Result<(), Box<dyn std::error::Error>> {
     let mut filter = SeccompFilter::new(
         SeccompAction::KillProcess,
         SeccompAction::Allow,
     )?;
 
-    // Allow common syscalls needed by Tokio + networking
     let allowed = vec![
-        libc::SYS_read,
-        libc::SYS_write,
-        libc::SYS_close,
-        libc::SYS_futex,
-        libc::SYS_epoll_ctl,
-        libc::SYS_epoll_wait,
-        libc::SYS_socket,
-        libc::SYS_connect,
-        libc::SYS_accept,
-        libc::SYS_bind,
-        libc::SYS_listen,
-        libc::SYS_getsockname,
-        libc::SYS_getpeername,
-        libc::SYS_sendto,
-        libc::SYS_recvfrom,
-        libc::SYS_setsockopt,
-        libc::SYS_getsockopt,
-        libc::SYS_clone,
-        libc::SYS_clone3,
-        libc::SYS_mmap,
-        libc::SYS_munmap,
-        libc::SYS_madvise,
-        libc::SYS_brk,
-        libc::SYS_mprotect,
-        libc::SYS_rt_sigaction,
-        libc::SYS_rt_sigprocmask,
-        libc::SYS_sigaltstack,
-        libc::SYS_gettid,
-        libc::SYS_getpid,
-        libc::SYS_getrandom,
-        libc::SYS_clock_gettime,
-        libc::SYS_nanosleep,
-        libc::SYS_sched_yield,
-        libc::SYS_exit,
-        libc::SYS_exit_group,
+        libc::SYS_read, libc::SYS_write, libc::SYS_close,
+        libc::SYS_futex, libc::SYS_epoll_ctl, libc::SYS_epoll_wait,
+        libc::SYS_socket, libc::SYS_connect, libc::SYS_accept, libc::SYS_bind,
+        libc::SYS_listen, libc::SYS_getsockname, libc::SYS_getpeername,
+        libc::SYS_sendto, libc::SYS_recvfrom, libc::SYS_setsockopt, libc::SYS_getsockopt,
+        libc::SYS_clone, libc::SYS_clone3, libc::SYS_mmap, libc::SYS_munmap,
+        libc::SYS_madvise, libc::SYS_brk, libc::SYS_mprotect,
+        libc::SYS_rt_sigaction, libc::SYS_rt_sigprocmask, libc::SYS_sigaltstack,
+        libc::SYS_gettid, libc::SYS_getpid, libc::SYS_getrandom,
+        libc::SYS_clock_gettime, libc::SYS_nanosleep, libc::SYS_sched_yield,
+        libc::SYS_exit, libc::SYS_exit_group,
     ];
 
     for syscall in allowed {
@@ -132,31 +98,57 @@ fn apply_seccomp() -> Result<(), Box<dyn std::error::Error>> {
 
     let program: BpfProgram = filter.try_into()?;
     seccompiler::apply_filter(&program)?;
-
     println!("[Hardening] seccomp filter applied");
     Ok(())
 }
 
-/// Apply landlock filesystem restrictions
+/// Optimized landlock rules - more restrictive and practical
 fn apply_landlock() -> Result<(), Box<dyn std::error::Error>> {
     let abi = ABI::V2;
 
+    // Define minimal needed access rights
+    let read_only = AccessFs::ReadFile | AccessFs::ReadDir;
+    let read_write = read_only | AccessFs::WriteFile | AccessFs::CreateFile |
+                     AccessFs::CreateDir | AccessFs::RemoveFile | AccessFs::RemoveDir;
+
     let mut ruleset = Ruleset::default()
-        .handle_access(AccessFs::from_all(abi))?
+        .handle_access(read_write)?
         .create()?;
 
-    // Only allow reading/writing in current directory and /tmp for logs
+    // Read-only access to current directory (assets, config, etc.)
     let cwd = std::env::current_dir()?;
     ruleset.add_rule(
-        AccessFs::from_all(abi),
-        cwd,
+        PathBeneath::new(cwd, read_only)?
     )?;
 
-    if let Ok(tmp) = std::env::var("TMPDIR") {
-        ruleset.add_rule(AccessFs::from_all(abi), Path::new(&tmp))?; 
+    // Read-write access to data directory (world saves, player data)
+    if let Ok(data_dir) = env::var("POWRUSH_DATA_DIR") {
+        let path = Path::new(&data_dir);
+        if path.exists() {
+            ruleset.add_rule(PathBeneath::new(path, read_write)?)?;
+            println!("[Hardening] landlock: granted RW to {}", data_dir);
+        }
+    } else {
+        // Default to ./data if exists
+        let default_data = Path::new("./data");
+        if default_data.exists() {
+            ruleset.add_rule(PathBeneath::new(default_data, read_write)?)?;
+        }
+    }
+
+    // Limited write access to logs/tmp
+    let log_paths = vec![
+        Path::new("/tmp"),
+        Path::new("./logs"),
+    ];
+
+    for path in log_paths {
+        if path.exists() {
+            ruleset.add_rule(PathBeneath::new(path, read_write)?)?;
+        }
     }
 
     let _status = ruleset.restrict_self()?;
-    println!("[Hardening] landlock filesystem sandbox applied");
+    println!("[Hardening] Optimized landlock filesystem sandbox applied");
     Ok(())
 }
