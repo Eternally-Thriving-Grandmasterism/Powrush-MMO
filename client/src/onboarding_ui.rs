@@ -1,5 +1,5 @@
 // client/src/onboarding_ui.rs
-// Powrush-MMO v18.9 — Invite Validation UI + Feedback
+// Powrush-MMO v18.9 — Visual Polish for Invite Validation States
 
 use bevy::prelude::*;
 use crate::onboarding::{OnboardingState, OnboardingStep};
@@ -33,14 +33,14 @@ impl Plugin for OnboardingUIPlugin {
                 handle_invite_submission,
                 update_invite_input_display,
                 update_invite_status_text,
+                update_input_field_border_color,
             ));
     }
 }
 
 fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // ... existing UI code ...
+    // ... existing spawning code ...
 
-    // Invite panel with status text
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -90,7 +90,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             text: Text::from_section("", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Regular.ttf"),
                 font_size: 14.0,
-                color: Color::srgb(0.9, 0.85, 0.6),
+                color: Color::srgb(0.85, 0.85, 0.9),
             }),
             style: Style { margin: UiRect::top(Val::Px(12.0)), ..default() },
             ..default()
@@ -119,10 +119,8 @@ fn handle_invite_text_input(
     if !input_state.is_focused { return; }
 
     for event in keyboard_events.read() {
-        if event.state.is_pressed() {
-            if event.key_code == KeyCode::Backspace {
-                input_state.current_text.pop();
-            }
+        if event.state.is_pressed() && event.key_code == KeyCode::Backspace {
+            input_state.current_text.pop();
         }
     }
 
@@ -144,7 +142,6 @@ fn handle_invite_submission(
         if !input_state.current_text.is_empty() {
             onboarding.invite_code = Some(input_state.current_text.clone());
             input_state.current_text.clear();
-            input_state.is_focused = false;
         }
     }
 }
@@ -154,14 +151,15 @@ fn update_invite_input_display(
     mut query: Query<&mut Text, With<InviteInputField>>,
 ) {
     for mut text in query.iter_mut() {
-        if input_state.current_text.is_empty() {
-            text.sections[0].value = "Type invite code...".to_string();
+        text.sections[0].value = if input_state.current_text.is_empty() {
+            "Type invite code...".to_string()
         } else {
-            text.sections[0].value = input_state.current_text.clone();
-        }
+            input_state.current_text.clone()
+        };
     }
 }
 
+// Polished status text with color coding
 fn update_invite_status_text(
     onboarding: Res<OnboardingState>,
     mut status_query: Query<&mut Text, With<InviteStatusText>>,
@@ -169,13 +167,41 @@ fn update_invite_status_text(
     for mut text in status_query.iter_mut() {
         if let Some(error) = &onboarding.invite_error {
             text.sections[0].value = error.clone();
-            text.sections[0].style.color = Color::srgb(0.95, 0.6, 0.6);
+
+            if error.contains("wait") {
+                // Rate limited state (orange/warning)
+                text.sections[0].style.color = Color::srgb(0.95, 0.75, 0.4);
+            } else {
+                // Regular error (red)
+                text.sections[0].style.color = Color::srgb(0.95, 0.55, 0.55);
+            }
         } else if onboarding.invite_validated {
             text.sections[0].value = "Invite accepted! Welcome to the beta.".to_string();
-            text.sections[0].style.color = Color::srgb(0.5, 0.95, 0.6);
+            text.sections[0].style.color = Color::srgb(0.5, 0.95, 0.65);
         } else {
             text.sections[0].value = "Enter a valid invite code and press Enter".to_string();
-            text.sections[0].style.color = Color::srgb(0.85, 0.85, 0.9);
+            text.sections[0].style.color = Color::srgb(0.8, 0.85, 0.95);
+        }
+    }
+}
+
+// Visual feedback on input field border
+fn update_input_field_border_color(
+    onboarding: Res<OnboardingState>,
+    mut field_query: Query<&mut NodeBundle, With<InviteInputField>>,
+) {
+    for mut node in field_query.iter_mut() {
+        if onboarding.invite_error.is_some() {
+            if onboarding.invite_error.as_ref().unwrap().contains("wait") {
+                // Rate limit warning
+                node.border_color = Color::srgb(0.95, 0.7, 0.3).into();
+            } else {
+                node.border_color = Color::srgb(0.95, 0.5, 0.5).into();
+            }
+        } else if onboarding.invite_validated {
+            node.border_color = Color::srgb(0.4, 0.85, 0.5).into();
+        } else {
+            node.border_color = Color::srgb(0.4, 0.7, 0.95).into();
         }
     }
 }
