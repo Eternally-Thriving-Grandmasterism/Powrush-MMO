@@ -1,7 +1,7 @@
 // simulation/src/lib.rs
-// Sovereign Simulation Harness v17.99.20
+// Sovereign Simulation Harness v18.2 — Overflow Lesson Epiphany Catalysts integrated
 // Powrush-MMO | Ra-Thor + PATSAGi Councils | TOLC 8 Layer 0
-// Mint-and-Print-Only-Perfection | Full Historical Merge of all prior RBE, archetype, harvest logic
+// Mint-and-Print-Only-Perfection
 
 pub mod world;
 pub mod archetype;
@@ -11,7 +11,8 @@ pub mod orchestrator;
 pub mod scenario;
 pub mod telemetry;
 pub mod gpu_economic;
-pub mod harvest; // harness logic preserved and elevated
+pub mod harvest;
+pub mod epiphany_catalyst; // v18.2 Epiphany Forge core — Overflow Lesson live
 pub mod web;
 
 pub use world::World;
@@ -20,6 +21,8 @@ pub use economy::Economy;
 pub use mercy::{TOLC8Validator, MercyGate, inject_patsagi_intervention};
 pub use telemetry::{Telemetry, get_current_telemetry};
 pub use scenario::{ScenarioPreset, run_sovereign_scenario};
+pub use harvest::HarvestingSystem;
+pub use epiphany_catalyst::{check_overflow_lesson, EpiphanyOutcome};
 pub use orchestrator::step_one_tick;
 
 // Stable public API for Leptos UI, clients, and future sovereign integrations
