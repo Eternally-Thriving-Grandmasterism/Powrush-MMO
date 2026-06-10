@@ -44,7 +44,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Advanced Spatial Audio with direct SpatialScene (B)
+        // Advanced Spatial Audio with dedicated SpatialScene (Refined)
         .add_plugins(SpatialAudioPlugin)
 
         .init_resource::<CloudSync>()
