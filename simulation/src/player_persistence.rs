@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 pub const CURRENT_SAVE_VERSION: u32 = 1;
 
@@ -17,7 +18,7 @@ pub struct EpiphanyRecord {
     pub biome: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Resource)]
+#[derive(Debug, Clone, Serialize, Deserialize, Resource, Default)]
 pub struct PlayerSaveData {
     pub save_version: u32,
     pub player_id: u64,
@@ -26,20 +27,6 @@ pub struct PlayerSaveData {
     pub epiphanies: Vec<EpiphanyRecord>,
     pub muscle_memory_level: f32,
     pub last_save_timestamp: u64,
-}
-
-impl Default for PlayerSaveData {
-    fn default() -> Self {
-        Self {
-            save_version: CURRENT_SAVE_VERSION,
-            player_id: 0,
-            total_harvests: 0,
-            sustainable_harvests: 0,
-            epiphanies: Vec::new(),
-            muscle_memory_level: 1.0,
-            last_save_timestamp: 0,
-        }
-    }
 }
 
 impl PlayerSaveData {
@@ -96,7 +83,22 @@ impl PlayerSaveData {
     }
 }
 
-// === Persistence Plugin ===
+// === Auto-Save Timer ===
+
+#[derive(Resource)]
+pub struct AutoSaveTimer {
+    pub timer: Timer,
+}
+
+impl Default for AutoSaveTimer {
+    fn default() -> Self {
+        Self {
+            timer: Timer::new(Duration::from_secs(60), TimerMode::Repeating), // Auto-save every 60 seconds
+        }
+    }
+}
+
+// === Persistence Plugin with Auto-Save ===
 
 pub struct PersistencePlugin;
 
@@ -104,7 +106,9 @@ impl Plugin for PersistencePlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<PlayerSaveData>()
-            .add_systems(Startup, load_player_save);
+            .init_resource::<AutoSaveTimer>()
+            .add_systems(Startup, load_player_save)
+            .add_systems(Update, auto_save_system);
     }
 }
 
@@ -115,9 +119,26 @@ fn load_player_save(mut commands: Commands) {
         commands.insert_resource(loaded);
         info!("Loaded player save with {} epiphanies", loaded.epiphanies.len());
     } else {
-        // Create new save
-        let new_save = PlayerSaveData::new(1); // TODO: Use real player ID later
+        let new_save = PlayerSaveData::new(1);
         commands.insert_resource(new_save);
-        info!("Created new player save file");
+        info!("Created new player save");
+    }
+}
+
+/// Periodic auto-save system
+fn auto_save_system(
+    mut save_data: ResMut<PlayerSaveData>,
+    mut auto_save_timer: ResMut<AutoSaveTimer>,
+    time: Res<Time>,
+) {
+    auto_save_timer.timer.tick(time.delta());
+
+    if auto_save_timer.timer.just_finished() {
+        let save_path = Path::new("player_save.json");
+        if let Err(e) = save_data.save_to_file(save_path) {
+            warn!("Failed to auto-save player data: {}", e);
+        } else {
+            debug!("Auto-saved player progress ({} epiphanies)", save_data.epiphanies.len());
+        }
     }
 }
