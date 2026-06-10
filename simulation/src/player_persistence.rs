@@ -1,7 +1,7 @@
 /*!
  * Player Persistence v18.10
  *
- * Includes atomic save logic for crash safety.
+ * Atomic saves + rotating backups for maximum durability.
  */
 
 use bevy::prelude::*;
@@ -11,6 +11,9 @@ use std::path::Path;
 use std::time::Duration;
 
 pub const CURRENT_SAVE_VERSION: u32 = 1;
+
+/// How many rotating backups to keep (player_save.json.bak, .bak.1, .bak.2, ...)
+pub const MAX_BACKUPS: usize = 5;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EpiphanyRecord {
@@ -90,24 +93,56 @@ impl PlayerSaveData {
             .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
     }
 
-    /// Atomic save: writes to a temp file then renames (crash-safe)
+    /// Atomic save with rotating backups
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
         let temp_path = path.with_extension("json.tmp");
 
-        // Write to temporary file first
+        // 1. Write to temporary file first (atomic safety)
         {
             let json = serde_json::to_string_pretty(self)?;
             fs::write(&temp_path, json)?;
         }
 
-        // Create backup of existing file (if any)
+        // 2. Rotate existing backups (.bak -> .bak.1 -> .bak.2 ...)
+        Self::rotate_backups(path)?;
+
+        // 3. Create fresh .bak from current file (if exists)
         if path.exists() {
             let backup_path = path.with_extension("json.bak");
             let _ = fs::copy(path, &backup_path);
         }
 
-        // Atomic rename (this is the key for crash safety)
+        // 4. Atomic rename (this is the critical crash-safe step)
         fs::rename(&temp_path, path)
+    }
+
+    /// Rotate backup files: .bak.N -> .bak.(N+1), delete oldest if needed
+    fn rotate_backups(path: &Path) -> Result<(), std::io::Error> {
+        let base_backup = path.with_extension("json.bak");
+
+        // Delete oldest backup if we have too many
+        let oldest = path.with_extension(&format!("json.bak.{}", MAX_BACKUPS));
+        if oldest.exists() {
+            fs::remove_file(&oldest)?;
+        }
+
+        // Shift existing backups
+        for i in (1..MAX_BACKUPS).rev() {
+            let current = path.with_extension(&format!("json.bak.{}", i));
+            let next = path.with_extension(&format!("json.bak.{}", i + 1));
+
+            if current.exists() {
+                fs::rename(&current, &next)?;
+            }
+        }
+
+        // Move .bak to .bak.1
+        if base_backup.exists() {
+            let first_backup = path.with_extension("json.bak.1");
+            fs::rename(&base_backup, &first_backup)?;
+        }
+
+        Ok(())
     }
 
     pub fn load_from_file(path: &Path) -> Option<Self> {
