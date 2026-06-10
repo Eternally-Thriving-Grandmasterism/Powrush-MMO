@@ -18,6 +18,7 @@ pub mod economy;
 pub mod orchestrator;
 pub mod telemetry;
 pub mod scenario;
+pub mod harvest;
 
 // Re-exports for convenience
 pub use world::SovereignWorldState;
@@ -27,3 +28,4 @@ pub use economy::EconomicLayer;
 pub use orchestrator::SovereignSimulationOrchestrator;
 pub use telemetry::TelemetryCollector;
 pub use scenario::{ScenarioConfig, ScenarioPreset};
+pub use harvest::HarvestingSystem;

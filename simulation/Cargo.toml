@@ -13,6 +13,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
+rand = { version = "0.8", optional = true }
 
 # Optional GPU acceleration (wgpu + extended patsagi_economic.wgsl)
 wgpu = { version = "0.20", optional = true }
@@ -24,3 +25,8 @@ bevy_ecs = { version = "0.14", optional = true }
 default = []
 gpu = ["wgpu"]
 ecs = ["bevy_ecs"]
+rand = ["dep:rand"]
+
+[[bin]]
+name = "harness"
+path = "src/bin/harness.rs"
