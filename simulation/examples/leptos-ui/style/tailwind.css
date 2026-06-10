@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Sovereign Cosmic Mercy Theme Overrides */
+:root {
+    --deep-space: #0a0f1e;
+    --electric-cyan: #00f0ff;
+    --mercy-gold: #f4d35e;
+}
+
+body {
+    font-feature-settings: "tnum";
+}
+
+.mercy-card {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+}
+
+.thunder-button {
+    box-shadow: 0 4px 6px -1px rgb(0 240 255 / 0.2);
+}
+
+.log-entry {
+    transition: all 0.1s ease;
+}
+
+.log-entry:hover {
+    background: rgba(0, 240, 255, 0.03);
+}
