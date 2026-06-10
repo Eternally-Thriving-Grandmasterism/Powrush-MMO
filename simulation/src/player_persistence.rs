@@ -93,12 +93,12 @@ pub struct AutoSaveTimer {
 impl Default for AutoSaveTimer {
     fn default() -> Self {
         Self {
-            timer: Timer::new(Duration::from_secs(60), TimerMode::Repeating), // Auto-save every 60 seconds
+            timer: Timer::new(Duration::from_secs(60), TimerMode::Repeating),
         }
     }
 }
 
-// === Persistence Plugin with Auto-Save ===
+// === Persistence Plugin with Auto-Save + Exit Save ===
 
 pub struct PersistencePlugin;
 
@@ -108,7 +108,8 @@ impl Plugin for PersistencePlugin {
             .init_resource::<PlayerSaveData>()
             .init_resource::<AutoSaveTimer>()
             .add_systems(Startup, load_player_save)
-            .add_systems(Update, auto_save_system);
+            .add_systems(Update, auto_save_system)
+            .add_systems(Update, save_on_exit);
     }
 }
 
@@ -125,7 +126,7 @@ fn load_player_save(mut commands: Commands) {
     }
 }
 
-/// Periodic auto-save system
+/// Periodic auto-save
 fn auto_save_system(
     mut save_data: ResMut<PlayerSaveData>,
     mut auto_save_timer: ResMut<AutoSaveTimer>,
@@ -136,9 +137,24 @@ fn auto_save_system(
     if auto_save_timer.timer.just_finished() {
         let save_path = Path::new("player_save.json");
         if let Err(e) = save_data.save_to_file(save_path) {
-            warn!("Failed to auto-save player data: {}", e);
+            warn!("Failed to auto-save: {}", e);
         } else {
-            debug!("Auto-saved player progress ({} epiphanies)", save_data.epiphanies.len());
+            debug!("Auto-saved player progress");
+        }
+    }
+}
+
+/// Save when the app is about to exit
+fn save_on_exit(
+    mut save_data: ResMut<PlayerSaveData>,
+    mut exit_events: EventReader<bevy::app::AppExit>,
+) {
+    for _ in exit_events.read() {
+        let save_path = Path::new("player_save.json");
+        if let Err(e) = save_data.save_to_file(save_path) {
+            error!("Failed to save on exit: {}", e);
+        } else {
+            info!("Saved player progress on exit");
         }
     }
 }
