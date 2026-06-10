@@ -1,13 +1,9 @@
 /*!
- * Powrush-MMO v18.9 — Client-Side Behavioral Tracking
- *
- * Collects human-like behavioral signals for bot detection.
- * Works together with simulation::bot_detection::BehavioralMetrics.
+ * Powrush-MMO v18.9 — Client-Side Behavioral Tracking (Enhanced)
  */
 
 use bevy::prelude::*;
 use bevy::input::mouse::MouseMotion;
-use std::collections::VecDeque;
 use std::time::Instant;
 
 use simulation::bot_detection::{BehavioralMetrics, BotDetectionConfig};
@@ -16,39 +12,49 @@ use simulation::bot_detection::{BehavioralMetrics, BotDetectionConfig};
 pub struct ClientBehavioralTracker {
     pub metrics: BehavioralMetrics,
     last_action_time: Option<Instant>,
-    mouse_positions: VecDeque<Vec2>,
+    last_harvest_time: Option<Instant>,
+    mouse_positions: Vec<Vec2>,
 }
 
 impl ClientBehavioralTracker {
     pub fn record_action(&mut self) {
         let now = Instant::now();
-
         if let Some(last) = self.last_action_time {
             let interval = now.duration_since(last).as_secs_f32();
             self.metrics.add_action_interval(interval);
         }
-
         self.last_action_time = Some(now);
         self.metrics.total_actions += 1;
     }
 
-    pub fn record_mouse_movement(&mut self, delta: Vec2) {
-        if self.mouse_positions.len() > 30 {
-            self.mouse_positions.pop_front();
+    pub fn record_harvest_action(&mut self) {
+        let now = Instant::now();
+        if let Some(last) = self.last_harvest_time {
+            let interval = now.duration_since(last).as_secs_f32();
+            // Track harvest rhythm separately
+            if self.metrics.harvest_rhythm_variance == 0.0 {
+                self.metrics.harvest_rhythm_variance = interval;
+            } else {
+                self.metrics.harvest_rhythm_variance =
+                    (self.metrics.harvest_rhythm_variance * 0.7) + (interval * 0.3);
+            }
         }
-        self.mouse_positions.push_back(delta);
+        self.last_harvest_time = Some(now);
+        self.record_action();
+    }
 
-        // Simple velocity variance calculation
-        if self.mouse_positions.len() > 5 {
+    pub fn record_mouse_movement(&mut self, delta: Vec2) {
+        self.mouse_positions.push(delta);
+        if self.mouse_positions.len() > 40 {
+            self.mouse_positions.remove(0);
+        }
+
+        if self.mouse_positions.len() > 8 {
             let velocities: Vec<f32> = self.mouse_positions.windows(2)
-                .map(|w| w[1].length() / 0.016) // rough velocity
+                .map(|w| w[1].length() / 0.016)
                 .collect();
-
             let mean: f32 = velocities.iter().sum::<f32>() / velocities.len() as f32;
-            let variance: f32 = velocities.iter()
-                .map(|&v| (v - mean).powi(2))
-                .sum::<f32>() / velocities.len() as f32;
-
+            let variance: f32 = velocities.iter().map(|&v| (v - mean).powi(2)).sum::<f32>() / velocities.len() as f32;
             self.metrics.mouse_velocity_variance = variance;
         }
     }
@@ -76,28 +82,19 @@ fn track_mouse_movement(
     config: Option<Res<BotDetectionConfig>>,
     mut mouse_motion: EventReader<MouseMotion>,
 ) {
-    let enabled = config.map_or(true, |c| c.behavioral_heuristics_enabled && c.enabled);
-    if !enabled {
-        return;
-    }
-
+    if !config.map_or(true, |c| c.enabled && c.behavioral_heuristics_enabled) { return; }
     for event in mouse_motion.read() {
         tracker.record_mouse_movement(event.delta);
     }
 }
 
-/// Track significant actions (mouse clicks, key presses, etc.)
 fn track_significant_actions(
     mut tracker: ResMut<ClientBehavioralTracker>,
     config: Option<Res<BotDetectionConfig>>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
 ) {
-    let enabled = config.map_or(true, |c| c.behavioral_heuristics_enabled && c.enabled);
-    if !enabled {
-        return;
-    }
-
+    if !config.map_or(true, |c| c.enabled && c.behavioral_heuristics_enabled) { return; }
     if mouse_button.any_just_pressed() || keyboard.any_just_pressed() {
         tracker.record_action();
     }
