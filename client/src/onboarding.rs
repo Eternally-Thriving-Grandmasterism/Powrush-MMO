@@ -1,5 +1,5 @@
 // client/src/onboarding.rs
-// Powrush-MMO v18.9 — Professional Global Onboarding + Rate-Limited Invite Validation
+// Powrush-MMO v18.9 — Professional Global Onboarding + Captcha-Protected Invite Validation
 
 use bevy::prelude::*;
 use crate::localization::Localization;
@@ -16,9 +16,13 @@ pub struct OnboardingState {
     pub invite_code: Option<String>,
     pub invite_validated: bool,
     pub invite_error: Option<String>,
-    // Rate limiting fields
     pub invite_attempts: u32,
     pub last_invite_attempt_ms: u64,
+    // Captcha
+    pub captcha_question: Option<String>,
+    pub captcha_answer: Option<i32>,
+    pub captcha_user_input: String,
+    pub captcha_verified: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -26,6 +30,7 @@ pub enum OnboardingStep {
     #[default]
     LanguageSelect,
     InviteValidation,
+    CaptchaVerification, // New step
     Welcome,
     RBEPrimer,
     FirstHarvestTutorial,
@@ -45,6 +50,8 @@ impl Plugin for OnboardingPlugin {
                 onboarding_progression,
                 trigger_contextual_whispers,
                 process_invite_validation,
+                generate_captcha_if_needed,
+                verify_captcha,
             ));
     }
 }
@@ -65,6 +72,10 @@ fn setup_onboarding_with_detection(
         invite_error: None,
         invite_attempts: 0,
         last_invite_attempt_ms: 0,
+        captcha_question: None,
+        captcha_answer: None,
+        captcha_user_input: String::new(),
+        captcha_verified: false,
     });
 }
 
@@ -75,12 +86,53 @@ fn onboarding_progression(
     if let Some(config) = closed_beta_config {
         if config.require_invite && !state.invite_validated && state.step == OnboardingStep::LanguageSelect {
             state.step = OnboardingStep::InviteValidation;
-            state.invite_error = None;
         }
     }
 }
 
-/// Rate-limited invite validation
+/// Generate a simple math captcha after successful invite code entry
+fn generate_captcha_if_needed(
+    mut state: ResMut<OnboardingState>,
+) {
+    if state.step == OnboardingStep::InviteValidation 
+        && state.invite_validated 
+        && state.captcha_question.is_none() 
+        && !state.captcha_verified 
+    {
+        // Simple math captcha (can be made more sophisticated later)
+        let a = (rand::random::<u32>() % 10) + 3;
+        let b = (rand::random::<u32>() % 8) + 2;
+        let answer = (a + b) as i32;
+
+        state.captcha_question = Some(format!("What is {} + {}?", a, b));
+        state.captcha_answer = Some(answer);
+        state.captcha_user_input.clear();
+        state.step = OnboardingStep::CaptchaVerification;
+    }
+}
+
+/// Verify captcha input
+fn verify_captcha(
+    mut state: ResMut<OnboardingState>,
+) {
+    if state.step != OnboardingStep::CaptchaVerification {
+        return;
+    }
+
+    if let (Some(expected), input) = (state.captcha_answer, &state.captcha_user_input) {
+        if let Ok(user_answer) = input.trim().parse::<i32>() {
+            if user_answer == expected {
+                state.captcha_verified = true;
+                state.invite_error = None;
+                state.step = OnboardingStep::Welcome;
+            } else {
+                state.invite_error = Some("Incorrect answer. Please try again.".to_string());
+                state.captcha_user_input.clear();
+            }
+        }
+    }
+}
+
 fn process_invite_validation(
     mut state: ResMut<OnboardingState>,
     mut invite_manager: Option<ResMut<InviteManager>>,
@@ -90,9 +142,8 @@ fn process_invite_validation(
         return;
     }
 
+    // Rate limiting logic (unchanged)
     let current_time = (time.elapsed_seconds_f64() * 1000.0) as u64;
-
-    // Rate limiting: max 5 attempts per 60 seconds
     const MAX_ATTEMPTS: u32 = 5;
     const COOLDOWN_MS: u64 = 60_000;
 
@@ -103,7 +154,6 @@ fn process_invite_validation(
             state.invite_error = Some(format!("Too many attempts. Please wait {} seconds.", remaining));
             return;
         } else {
-            // Reset after cooldown
             state.invite_attempts = 0;
         }
     }
@@ -117,8 +167,7 @@ fn process_invite_validation(
                 manager.consume_invite(code);
                 state.invite_validated = true;
                 state.invite_error = None;
-                state.invite_attempts = 0;
-                state.step = OnboardingStep::Welcome;
+                // Captcha will be generated in next frame via generate_captcha_if_needed
             } else {
                 state.invite_error = Some("Invalid or expired invite code".to_string());
             }
@@ -135,6 +184,7 @@ fn trigger_contextual_whispers(
         let key = match state.step {
             OnboardingStep::LanguageSelect => "onboarding_language_select",
             OnboardingStep::InviteValidation => "onboarding_invite_validation",
+            OnboardingStep::CaptchaVerification => "onboarding_captcha_verification",
             OnboardingStep::Welcome => "onboarding_welcome",
             _ => "onboarding_welcome",
         };
