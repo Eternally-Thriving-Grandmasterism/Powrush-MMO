@@ -1,0 +1,32 @@
+{
+  "scenario_id": "sustainable_abundance",
+  "name": "Sustainable Abundance Loop",
+  "trigger_conditions": {
+    "harvest_style": "sustainable",
+    "depletion_below": 0.35,
+    "regen_participation": true,
+    "biome": "Verdant Heartwood"
+  },
+  "epiphany_paths": {
+    "deep_sustainability": {
+      "condition": "regen_participation == true && depletion < 0.25",
+      "message": "Abundance is not extracted — it is tended. Your patience and care have become part of the land's memory.",
+      "epiphany_multiplier": 1.55,
+      "muscle_memory_boost": 1.45,
+      "world_effects": {
+        "long_term_regen_multiplier": 1.4,
+        "soil_health": 1.2
+      }
+    },
+    "balanced_harvest": {
+      "condition": "depletion < 0.35",
+      "message": "The rhythm of give and receive is the true economy. You have touched it today.",
+      "epiphany_multiplier": 1.3,
+      "muscle_memory_boost": 1.2,
+      "world_effects": {
+        "personal_regen_awareness": 0.9
+      }
+    }
+  },
+  "grace_note": "Every sustainable choice writes a better future into the living web."
+}
