@@ -1,48 +1,34 @@
-//! client/src/divine_whispers.rs
-//! Divine Whispers — Mercy-gated narrative guidance + Dynamic Localization
-//! Now powered by the professional Localization resource (v18.9)
+/*!
+ * Divine Whispers - Client Side
+ *
+ * Receives DivineWhisperTrigger events from the server and displays them.
+ */
 
 use bevy::prelude::*;
-use crate::localization::Localization;
-
-#[derive(Component, Debug, Clone, Default)]
-pub struct DivineWhisper {
-    pub text: String,
-    pub valence: f32,
-    pub timestamp: f64,
-    pub priority: WhisperPriority,
-}
-
-#[derive(Resource, Default, Debug)]
-pub struct WhisperQueue {
-    pub whispers: Vec<DivineWhisper>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum WhisperPriority { #[default] Normal, High, Critical }
+use simulation::divine_whispers::DivineWhisperTrigger;
 
 pub struct DivineWhispersPlugin;
 
 impl Plugin for DivineWhispersPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(WhisperQueue::default())
-           .add_systems(Update, process_divine_whispers);
+        app
+            .add_event::<DivineWhisperTrigger>()
+            .add_systems(Update, receive_divine_whispers);
     }
 }
 
-fn process_divine_whispers(
-    mut queue: ResMut<WhisperQueue>,
-    time: Res<Time>,
-    loc: Res<Localization>,
+fn receive_divine_whispers(
+    mut events: EventReader<DivineWhisperTrigger>,
+    // In real implementation, this would update UI, play sound, etc.
 ) {
-    let now = time.elapsed_seconds_f64();
-    queue.whispers.retain(|w| now - w.timestamp < 18.0);
+    for event in events.read() {
+        println!(
+            "[Client] Received Divine Whisper for player {}: '{}' (flavor: {}, intensity: {:.2})",
+            event.player_id, event.text, event.flavor, event.intensity
+        );
 
-    // Example: dynamically localized whisper can be injected from onboarding or systems
-    // using loc.t("onboarding_welcome")
-}
-
-/// Convenience helper that respects current player language
-pub fn get_localized_whisper(loc: &Localization, key: &str) -> String {
-    loc.t(key)
+        // TODO: Update Divine Whispers UI panel
+        // TODO: Play subtle sound / particle effect based on flavor and intensity
+        // TODO: Display with proper duration (event.duration_seconds)
+    }
 }
