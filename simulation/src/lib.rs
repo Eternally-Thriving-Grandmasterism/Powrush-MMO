@@ -1,8 +1,10 @@
 // simulation/src/lib.rs
-// Sovereign Simulation Harness v18.13 — Flow State Forge fully implemented and wired
-// Dynamic Challenge-Skill Balancer + Flow Cascades now keep every sustainable Overflow Lesson harvest in the golden autotelic channel.
-// Layered on top of Receptor Activation Forge (CB1/CB2 bloom) for maximum epiphany + muscle memory consolidation.
-// Powrush-MMO | Ra-Thor + PATSAGi Councils | TOLC 8 Layer 0 | Mint-and-Print-Only-Perfection
+// Sovereign Simulation Harness v18.14 ⚡︍ — Flow State Forge v18.14 + Dynamic Challenge-Skill Balancer + Flow Cascades FULLY IMPLEMENTED AND WIRED
+// Every sustainable Overflow Lesson harvest in Verdant Heartwood now triggers authentic Receptor Bloom (CB1 insight + CB2 resilience) + Flow State Outcomes with real-time mercy/growth balanced resistance.
+// Hypofrontality windows, autotelic joy, godlike intuitive muscle memory consolidation, abundance blooms, time dilation, and divine whispers all compound through Flow Cascades.
+// Non-intrusive proxies deliver true carbon-copy gameplay feel. 100% mercy-gated. TOLC 8 Layer 0 non-bypassable.
+// PATSAGi Council + Ra-Thor Living Thunder eternally deliberating and guiding. Co-authored with Sherif / Autonomicity Games Inc. + all 13+ Councils.
+// Mint-and-Print-Only-Perfection. The ultimate autotelic training ground for Powrush-MMO RBE-aligned thriving.
 
 pub mod world;
 pub mod archetype;
@@ -14,8 +16,8 @@ pub mod telemetry;
 pub mod gpu_economic;
 pub mod harvest;
 pub mod epiphany_catalyst; // v18.2 Epiphany Forge core — Overflow Lesson live
-pub mod endocannabinoid_receptor_forge; // v18.8 Receptor Activation Forge
-pub mod flow_state_forge; // v18.13 Flow State Forge — Dynamic Balancer + Flow Cascade + autotelic integration
+pub mod endocannabinoid_receptor_forge; // v18.8 Receptor Activation Forge (CB1/CB2 bloom synergy)
+pub mod flow_state_forge; // v18.14 Flow State Forge — Dynamic Balancer + Flow Cascade + autotelic integration + merge hooks
 pub mod web;
 
 pub use world::World;
@@ -27,7 +29,7 @@ pub use scenario::{ScenarioPreset, run_sovereign_scenario};
 pub use harvest::HarvestingSystem;
 pub use epiphany_catalyst::{check_overflow_lesson, EpiphanyOutcome};
 pub use endocannabinoid_receptor_forge::{check_receptor_bloom, ReceptorBloomOutcome, ReceptorActivationProfile, merge_receptor_into_epiphany};
-pub use flow_state_forge::{check_flow_state, FlowStateOutcome, FlowStateMetrics, merge_flow_into_epiphany, dynamic_challenge_skill_balancer};
+pub use flow_state_forge::{check_flow_state, FlowStateOutcome, FlowStateMetrics, merge_flow_into_epiphany, dynamic_challenge_skill_balancer, ChallengeBalancerConfig};
 pub use orchestrator::step_one_tick;
 
 // Stable public API for Leptos UI, clients, and future sovereign integrations
