@@ -24,9 +24,29 @@ pub struct PlayerSaveData {
     pub player_id: u64,
     pub total_harvests: u32,
     pub sustainable_harvests: u32,
+    pub total_playtime_seconds: u64,
+    pub last_played_timestamp: u64,
     pub epiphanies: Vec<EpiphanyRecord>,
+    pub achievements: Vec<String>,
     pub muscle_memory_level: f32,
     pub last_save_timestamp: u64,
+}
+
+impl Default for PlayerSaveData {
+    fn default() -> Self {
+        Self {
+            save_version: CURRENT_SAVE_VERSION,
+            player_id: 0,
+            total_harvests: 0,
+            sustainable_harvests: 0,
+            total_playtime_seconds: 0,
+            last_played_timestamp: 0,
+            epiphanies: Vec::new(),
+            achievements: Vec::new(),
+            muscle_memory_level: 1.0,
+            last_save_timestamp: 0,
+        }
+    }
 }
 
 impl PlayerSaveData {
@@ -36,7 +56,10 @@ impl PlayerSaveData {
             player_id,
             total_harvests: 0,
             sustainable_harvests: 0,
+            total_playtime_seconds: 0,
+            last_played_timestamp: 0,
             epiphanies: Vec::new(),
+            achievements: Vec::new(),
             muscle_memory_level: 1.0,
             last_save_timestamp: 0,
         }
@@ -59,7 +82,23 @@ impl PlayerSaveData {
         let _ = self.save_to_file(Path::new("player_save.json"));
     }
 
+    /// Update playtime (call periodically or on save)
+    pub fn add_playtime(&mut self, seconds: u64) {
+        self.total_playtime_seconds += seconds;
+        self.last_played_timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+    }
+
+    /// Save with backup (overlooked safety feature)
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
+        // Create backup of previous save if it exists
+        if path.exists() {
+            let backup_path = path.with_extension("json.bak");
+            let _ = fs::copy(path, backup_path);
+        }
+
         let json = serde_json::to_string_pretty(self)?;
         fs::write(path, json)
     }
@@ -98,7 +137,7 @@ impl Default for AutoSaveTimer {
     }
 }
 
-// === Persistence Plugin with Auto-Save + Exit Save ===
+// === Persistence Plugin ===
 
 pub struct PersistencePlugin;
 
@@ -109,7 +148,8 @@ impl Plugin for PersistencePlugin {
             .init_resource::<AutoSaveTimer>()
             .add_systems(Startup, load_player_save)
             .add_systems(Update, auto_save_system)
-            .add_systems(Update, save_on_exit);
+            .add_systems(Update, save_on_exit)
+            .add_systems(Update, update_playtime);
     }
 }
 
@@ -126,7 +166,6 @@ fn load_player_save(mut commands: Commands) {
     }
 }
 
-/// Periodic auto-save
 fn auto_save_system(
     mut save_data: ResMut<PlayerSaveData>,
     mut auto_save_timer: ResMut<AutoSaveTimer>,
@@ -138,13 +177,10 @@ fn auto_save_system(
         let save_path = Path::new("player_save.json");
         if let Err(e) = save_data.save_to_file(save_path) {
             warn!("Failed to auto-save: {}", e);
-        } else {
-            debug!("Auto-saved player progress");
         }
     }
 }
 
-/// Save when the app is about to exit
 fn save_on_exit(
     mut save_data: ResMut<PlayerSaveData>,
     mut exit_events: EventReader<bevy::app::AppExit>,
@@ -157,4 +193,13 @@ fn save_on_exit(
             info!("Saved player progress on exit");
         }
     }
+}
+
+/// Update total playtime (simple accumulator)
+fn update_playtime(
+    mut save_data: ResMut<PlayerSaveData>,
+    time: Res<Time>,
+) {
+    // Add frame delta as playtime (simple but effective)
+    save_data.total_playtime_seconds += time.delta().as_secs();
 }
