@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Powrush-MMO Sovereign Simulation Harness — Leptos UI v17.99.17</title>
+    <link data-trunk rel="css" href="style/tailwind.css">
+    <link data-trunk rel="rust" href="src/main.rs" data-type="main">
+    <style>
+        :root {
+            --deep-space: #0a0f1e;
+            --electric-cyan: #00f0ff;
+            --mercy-gold: #f4d35e;
+            --soft-white: #e0e7ff;
+            --card-bg: rgba(10, 15, 30, 0.95);
+        }
+        body { background: var(--deep-space); color: var(--soft-white); font-family: system-ui, -apple-system, sans-serif; }
+        .sovereign-header { border-bottom: 1px solid var(--electric-cyan); }
+        .mercy-card { background: var(--card-bg); border: 1px solid var(--electric-cyan); transition: all 0.2s cubic-bezier(0.23, 1.0, 0.32, 1); }
+        .mercy-card:hover { border-color: var(--mercy-gold); transform: translateY(-1px); }
+        .thunder-button { 
+            background: linear-gradient(135deg, var(--electric-cyan), var(--mercy-gold));
+            color: var(--deep-space); font-weight: 700; transition: all 0.2s cubic-bezier(0.23, 1.0, 0.32, 1);
+        }
+        .thunder-button:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(0 240 255 / 0.4); }
+        .thunder-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .intervention-btn { 
+            background: rgba(0, 240, 255, 0.1); border: 1px solid var(--electric-cyan); color: var(--electric-cyan);
+            transition: all 0.15s ease;
+        }
+        .intervention-btn:hover { background: rgba(0, 240, 255, 0.2); border-color: var(--mercy-gold); color: var(--mercy-gold); }
+        .telemetry-value { font-variant-numeric: tabular-nums; }
+        .log-entry { font-size: 0.75rem; border-left: 2px solid var(--electric-cyan); padding-left: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
