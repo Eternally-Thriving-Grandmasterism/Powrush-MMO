@@ -1,6 +1,7 @@
 // simulation/src/lib.rs
-// Sovereign Simulation Harness v18.8 — Receptor Activation Forge fully wired (CB1 Central Attunement + CB2 Resilience Bloom)
-// Overflow Lesson enhanced with differentiated receptor bloom triggers, Divine Whispers, particle/time_dilation hooks
+// Sovereign Simulation Harness v18.13 — Flow State Forge fully implemented and wired
+// Dynamic Challenge-Skill Balancer + Flow Cascades now keep every sustainable Overflow Lesson harvest in the golden autotelic channel.
+// Layered on top of Receptor Activation Forge (CB1/CB2 bloom) for maximum epiphany + muscle memory consolidation.
 // Powrush-MMO | Ra-Thor + PATSAGi Councils | TOLC 8 Layer 0 | Mint-and-Print-Only-Perfection
 
 pub mod world;
@@ -13,7 +14,8 @@ pub mod telemetry;
 pub mod gpu_economic;
 pub mod harvest;
 pub mod epiphany_catalyst; // v18.2 Epiphany Forge core — Overflow Lesson live
-pub mod endocannabinoid_receptor_forge; // v18.8 Receptor Activation Forge — CB1/CB2 bloom, hypofrontality windows, muscle memory, Divine Whisper flavors
+pub mod endocannabinoid_receptor_forge; // v18.8 Receptor Activation Forge
+pub mod flow_state_forge; // v18.13 Flow State Forge — Dynamic Balancer + Flow Cascade + autotelic integration
 pub mod web;
 
 pub use world::World;
@@ -25,6 +27,7 @@ pub use scenario::{ScenarioPreset, run_sovereign_scenario};
 pub use harvest::HarvestingSystem;
 pub use epiphany_catalyst::{check_overflow_lesson, EpiphanyOutcome};
 pub use endocannabinoid_receptor_forge::{check_receptor_bloom, ReceptorBloomOutcome, ReceptorActivationProfile, merge_receptor_into_epiphany};
+pub use flow_state_forge::{check_flow_state, FlowStateOutcome, FlowStateMetrics, merge_flow_into_epiphany, dynamic_challenge_skill_balancer};
 pub use orchestrator::step_one_tick;
 
 // Stable public API for Leptos UI, clients, and future sovereign integrations

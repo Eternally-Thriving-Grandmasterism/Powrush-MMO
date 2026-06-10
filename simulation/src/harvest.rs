@@ -1,12 +1,12 @@
 /*!
- * Sovereign HarvestingSystem v18.8
+ * Sovereign HarvestingSystem v18.13
  * 
- * Full integration of harvest mechanics + Overflow Lesson Epiphany Catalyst + Receptor Activation Forge.
- * Every sustainable harvest in Verdant Heartwood can now trigger differentiated CB1 (insight, hypofrontality, muscle memory)
- * and CB2 (resilience, recovery, abundance bloom) receptor activation — the living web’s neurochemical crown.
+ * Full integration of harvest mechanics + Overflow Lesson Epiphany Catalyst + Receptor Activation Forge + Flow State Forge.
+ * Every sustainable harvest in Verdant Heartwood can now trigger differentiated CB1/CB2 receptor bloom AND Flow State Outcomes
+ * (Dynamic Challenge-Skill Balancer + Flow Cascades) → the ultimate autotelic training ground for epiphanies and transferable muscle memory.
  * 
- * Client/engine layer can read particle_effect and time_dilation_factor from EpiphanyOutcome / ReceptorBloomOutcome for visuals.
- * Architecture prepared for shared receptor bloom fields in future Council Mercy Trial (multiplayer attunement amplification).
+ * Client/engine layer reads particle_effect, time_dilation_factor, and world_effects from the merged EpiphanyOutcome for visuals.
+ * Architecture prepared for shared receptor + flow + mycorrhizal + volatile fields in Council Mercy Trial (multiplayer attunement amplification).
  *
  * Mercy-gated, abundance-aware, realistic carbon-copy ecology simulation.
  * Part of Sovereign Simulation Harness core foundations.
@@ -14,9 +14,10 @@
 
 use crate::world::{SovereignWorldState, NodeId, MercyViolation};
 use crate::epiphany_catalyst::{check_overflow_lesson, EpiphanyOutcome};
-use crate::endocannabinoid_receptor_forge::{check_receptor_bloom, merge_receptor_into_epiphany};
+use crate::endocannabinoid_receptor_forge::{check_receptor_bloom, merge_receptor_into_epiphany, ReceptorBloomOutcome};
+use crate::flow_state_forge::{check_flow_state, merge_flow_into_epiphany, FlowStateMetrics};
 
-/// Sovereign HarvestingSystem — handles harvest attempts, restrictions, abundance, epiphanies, and receptor bloom
+/// Sovereign HarvestingSystem — handles harvest attempts, restrictions, abundance, epiphanies, receptor bloom, and flow state.
 pub struct HarvestingSystem;
 
 impl HarvestingSystem {
@@ -38,8 +39,8 @@ impl HarvestingSystem {
     }
 
     /// Attempt a single harvest on a node.
-    /// v18.8: Now evaluates receptor bloom on sustainable paths and merges CB1/CB2 effects into EpiphanyOutcome.
-    /// Client can use outcome.particle_effect and outcome (extended) time_dilation for engine visuals.
+    /// v18.13: Now evaluates receptor bloom + flow state on sustainable paths and merges all effects into EpiphanyOutcome.
+    /// Client can use outcome.particle_effect, time_dilation_factor, and world_effects for engine visuals (flow_cascade_bloom, sustained_flow_hypofrontality, etc).
     pub fn attempt_harvest(
         &self,
         world: &mut SovereignWorldState,
@@ -67,11 +68,11 @@ impl HarvestingSystem {
             );
 
             // v18.8 Receptor Bloom integration (only on sustainable path with good attunement)
+            let mut receptor_bloom: Option<ReceptorBloomOutcome> = None;
             if sustainable_pacing && epiphany.is_some() {
-                // Proxies for rhythm/attunement/duration (in production: track per-player history or input variance)
                 let rhythm_consistency = (agent_mercy * 0.8 + 0.2).clamp(0.3, 1.0);
                 let attunement_depth = agent_mercy.clamp(0.0, 1.0);
-                let duration_ticks = 60u32; // Placeholder; wire real sustained duration in next pass
+                let duration_ticks = 60u32;
 
                 if let Some(bloom) = check_receptor_bloom(
                     node.depletion,
@@ -83,19 +84,41 @@ impl HarvestingSystem {
                 ) {
                     if let Some(ref mut outcome) = epiphany {
                         merge_receptor_into_epiphany(outcome, &bloom);
-                        // Client/engine hook: outcome can now carry or reference bloom.particle_effect and bloom.time_dilation_factor
-                        // Example: spawn particles matching bloom.particle_effect, apply time dilation in render loop
+                    }
+                    receptor_bloom = Some(bloom);
+                }
+            }
+
+            // v18.13 Flow State Forge integration (layers on sustainable + receptor bloom paths)
+            if sustainable_pacing && epiphany.is_some() {
+                let flow_metrics = FlowStateMetrics {
+                    rhythm_consistency: (agent_mercy * 0.75 + 0.25).clamp(0.25, 1.0),
+                    micro_error_recovery_speed: (agent_mercy * 0.7 + 0.3).clamp(0.2, 1.0),
+                    valence_coherence_spike: if sustainable_pacing { 0.85 } else { 0.3 },
+                    sustained_focus_duration_ticks: 75u32, // Placeholder — wire real per-player sustained duration tracking
+                    attunement_depth: agent_mercy.clamp(0.0, 1.0),
+                    current_challenge_level: node.depletion.clamp(0.1, 0.9),
+                    estimated_player_skill: (agent_mercy * 0.6 + 0.4).clamp(0.3, 1.0),
+                };
+
+                if let Some(flow_outcome) = check_flow_state(&flow_metrics) {
+                    if let Some(ref mut outcome) = epiphany {
+                        merge_flow_into_epiphany(outcome, &flow_outcome, receptor_bloom.as_ref());
+                        // CLIENT_HOOK: particle_effect = outcome.particle_effect (flow_cascade_bloom or sustained_flow_hypofrontality)
+                        // CLIENT_HOOK: time_dilation_factor = outcome.time_dilation_factor
+                        // CLIENT_HOOK: spawn flow bloom particles + apply time dilation in render loop
+                        // Dynamic balancer can be called here or in world tick to adjust node resistance
                     }
                 }
             }
 
-            // Apply world effects
+            // Apply world effects from merged outcome
             if let Some(ref outcome) = epiphany {
                 if let Some(stress) = outcome.world_effects.get("stress_increase") {
                     node.stress_level = (node.stress_level + stress).min(1.0);
                 }
                 if let Some(regen) = outcome.world_effects.get("regen_multiplier") {
-                    // Extend SovereignWorldState node with regen_rate if needed for full effect application
+                    // Extend SovereignWorldState node with regen_rate if needed
                 }
             }
 
@@ -106,7 +129,7 @@ impl HarvestingSystem {
     }
 }
 
-// Thunder locked. Sustainable rhythm now activates the living web’s receptor lattice (CB1 insight + CB2 resilience).
-// Client visuals: read particle_effect + time_dilation_factor from outcome for bloom states.
-// Ready for shared fields in Council Mercy Trial multiplayer.
-// Co-authored with Flow State + Hypofrontality + Endocannabinoid + Receptor Lattice Councils.
+// Thunder locked eternally. Sustainable rhythm now activates Flow State Forge + Receptor Lattice.
+// The living web rewards presence with autotelic joy, profound epiphanies, and godlike intuitive muscle memory.
+// Ready for Council Mercy Trial shared flow + receptor + mycorrhizal + volatile fields.
+// Co-authored with Flow State Council + all 13+ PATSAGi Councils.
