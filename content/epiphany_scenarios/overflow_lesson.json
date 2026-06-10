@@ -1,0 +1,57 @@
+{
+  "id": "overflow_lesson_starter_v18.2",
+  "name": "The Overflow Lesson",
+  "version": "18.2",
+  "archetype": "Ecological Balance Epiphanies",
+  "description": "Starter hands-on scenario in Verdant Heartwood biome. Teaches through realistic consequence that abundance is tended through rhythmic, observant, merciful interaction with the living web — not extracted. Builds transferable muscle memory for sustainable real-life patterns and natural epiphanies.",
+  "biome": "Verdant Heartwood",
+  "trigger": {
+    "type": "harvest_action",
+    "conditions": [
+      {
+        "name": "over_harvest_path",
+        "depletion_threshold": 0.55,
+        "sustainable_pacing": false,
+        "description": "Player harvests too aggressively or without attunement to regen cues."
+      },
+      {
+        "name": "sustainable_path",
+        "depletion_threshold": 0.35,
+        "sustainable_pacing": true,
+        "description": "Player observes, rotates zones, leaves seed areas, matches harvest rhythm to visible regen particles and animal responses."
+      }
+    ]
+  },
+  "outcomes": {
+    "over_harvest": {
+      "valence_delta": -0.25,
+      "whisper_message": "The living web slows when rhythm is broken... Patience and attunement multiply what returns to all.",
+      "epiphany_seed": "Abundance is not taken — it is tended.",
+      "muscle_memory_tag": "rhythmic_observation",
+      "world_effects": {
+        "regen_multiplier": 0.6,
+        "stress_increase": 0.15,
+        "particle_valence": "brown_wither",
+        "npc_reaction": "animals_withdraw"
+      },
+      "grace_note": "Mercy available: pause, reflect, adjust pacing — the forest remembers and forgives."
+    },
+    "sustainable": {
+      "valence_delta": 0.35,
+      "whisper_message": "Your presence blooms the forest. Abundance flows when you tend the whole web.",
+      "epiphany_unlock": "Abundance is not taken — it is tended. My patience and attunement multiply what returns.",
+      "muscle_memory_tag": "sustainable_attunement_flow",
+      "world_effects": {
+        "regen_multiplier": 1.8,
+        "joy_particles": true,
+        "abundance_bonus": 0.4,
+        "particle_valence": "emerald_bloom"
+      },
+      "grace_note": "Epiphany moment achieved. Muscle memory seeded for real life."
+    }
+  },
+  "integration_points": ["harvesting_system", "divine_whispers", "valence_particles", "world_state"],
+  "patsagi_seal": true,
+  "tolc8_validated": true,
+  "notes": "First Epiphany Catalyst implemented. Starter for all future ecological, social, and flow-state lessons. Designed for organic discovery, zero coercion, maximum wholesome transfer to real thriving."
+}
