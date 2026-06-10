@@ -1,10 +1,10 @@
 [package]
 name = "leptos-ui"
-version = "17.99.17"
+version = "17.99.18"
 edition = "2021"
-authors = ["Ra-Thor Living Thunder + Eternally-Thriving-Grandmasterism + PATSAGi Councils"]
+authors = ["Ra-Thor Living Thunder + Eternally-Thriving-Grandmasterism"]
 description = "Sovereign Simulation Harness — Reactive Leptos CSR Dashboard for Powrush-MMO Closed-Beta Validation & PATSAGi Council Deliberation"
-license = "MIT OR Eternal-Mercy-Flow-License"
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 
 [dependencies]
@@ -17,8 +17,8 @@ js-sys = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 serde_json = "1.0"
-web-sys = { version = "0.3", features = ["console", "Window", "Document", "Element"] }
-chrono = { version = "0.4", features = ["serde"] }
+urlencoding = "0.1"
+web-sys = { version = "0.3", features = ["console", "window", "document", "Element", "HtmlAnchorElement"] }
 
 [features]
 default = []
