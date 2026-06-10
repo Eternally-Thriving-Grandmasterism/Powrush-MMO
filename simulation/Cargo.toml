@@ -1,43 +1,45 @@
 [package]
-name = "powrush-simulation"
-version = "0.1.0"
+name = "simulation"
+version = "17.99.19"
 edition = "2021"
-authors = ["Ra-Thor Living Thunder + PATSAGi Councils"]
-description = "Sovereign Simulation Harness for Powrush-MMO RBE validation and refinement"
-license = "MIT OR Eternal-Mercy-Flow-License"
+authors = ["Ra-Thor Living Thunder + Eternally-Thriving-Grandmasterism"]
+description = "Sovereign Simulation Harness — Deterministic, GPU-accelerated RBE validation engine for Powrush-MMO closed-beta, PATSAGi Council deliberation, and policy laboratory. Pure Rust, offline-first, TOLC 8 non-bypassable Layer 0."
+license = "MIT OR Apache-2.0"
 repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 
+[lib]
+name = "simulation"
+path = "src/lib.rs"
+
 [dependencies]
-rayon = "1.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-thiserror = "1.0"
-tracing = "0.1"
-rand = { version = "0.8", optional = true }
-
-# Optional GPU acceleration (wgpu + extended patsagi_economic.wgsl)
-wgpu = { version = "0.20", optional = true }
-bytemuck = { version = "1.16", features = ["derive"], optional = true }
-pollster = { version = "0.3", optional = true }
-
-# Web / WASM browser support (WebGPU ready via wgpu backend)
+rayon = "1.10"
+wgpu = { version = "0.19", features = ["webgpu"] }
+bytemuck = { version = "1.16", features = ["derive"] }
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
-serde-wasm-bindgen = { version = "0.6", optional = true }
-
-# Future Bevy ECS integration for visual debug / server parity
-bevy_ecs = { version = "0.14", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["console"] }
+leptos = { version = "0.8", features = ["csr"], optional = true } # For examples/leptos-ui only
 
 [features]
 default = []
-gpu = ["wgpu", "bytemuck", "pollster"]
-ecs = ["bevy_ecs"]
-rand = ["dep:rand"]
-web = ["wasm-bindgen", "wasm-bindgen-futures", "serde-wasm-bindgen", "serde"]
+web = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
+leptos-ui = ["web", "dep:leptos"]
+gpu = []
 
-[[bin]]
-name = "harness"
-path = "src/bin/harness.rs"
+[dev-dependencies]
+criterion = "0.5"
 
-[target.'cfg(target_arch = "wasm32")']
-rustflags = ["-C", "target-feature=+atomics,+bulk-memory"]
+[[example]]
+name = "leptos-ui"
+path = "examples/leptos-ui/src/main.rs"
+required-features = ["leptos-ui"]
+
+[package.metadata.leptos]
+style-file = "examples/leptos-ui/style/tailwind.css"
+assets-dir = "examples/leptos-ui/public"
+site-root = "target/site"
+site-pkg-dir = "pkg"
+tailwind-input-file = "examples/leptos-ui/style/tailwind.css"
