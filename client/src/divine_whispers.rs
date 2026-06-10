@@ -1,11 +1,13 @@
 /*!
- * Divine Whispers - Client Side (Strong Epiphany Audio Feedback)
+ * Divine Whispers - Client Side (with light Spatial Audio integration)
  */
 
 use bevy::prelude::*;
 use bevy_kira_audio::{Audio, AudioTween};
 use simulation::divine_whispers::DivineWhisperTrigger;
 use std::time::Duration;
+
+use crate::spatial_audio::PlaySpatialSound;
 
 #[derive(Component)]
 struct DivineWhisperUI;
@@ -106,6 +108,7 @@ fn receive_divine_whispers(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
+    mut spatial_events: EventWriter<PlaySpatialSound>,
 ) {
     for event in events.read() {
         for (mut visibility, children, panel_entity) in panel_query.iter_mut() {
@@ -115,6 +118,12 @@ fn receive_divine_whispers(
 
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
+
+                // Light integration: Trigger spatial sound on epiphany
+                spatial_events.send(PlaySpatialSound::new(
+                    asset_server.load("sounds/epiphany_impact.ogg"),
+                    Vec3::new(0.0, 2.0, -8.0), // Position slightly in front of listener
+                ).with_volume(0.9));
             }
 
             let text_color = if is_epiphany {
@@ -147,7 +156,6 @@ fn receive_divine_whispers(
                 timer: Timer::new(Duration::from_secs_f32(duration), TimerMode::Once),
             });
 
-            // Real audio playback with stronger feedback for epiphanies
             play_whisper_sound(&audio, &asset_server, event.intensity, is_epiphany);
             spawn_whisper_particles(&mut commands, event.intensity, event.flavor.clone(), is_epiphany, panel_entity);
         }
@@ -167,7 +175,7 @@ fn play_whisper_sound(
     };
 
     let sound_path = if is_epiphany {
-        "sounds/epiphany_whisper.ogg" // Stronger, more resonant sound for epiphanies
+        "sounds/epiphany_whisper.ogg"
     } else {
         "sounds/divine_whisper.ogg"
     };
@@ -181,10 +189,9 @@ fn play_whisper_sound(
         ));
 
     println!(
-        "[Audio] Playing {} whisper (intensity: {:.2}, volume: {:.2})",
+        "[Audio] Playing {} whisper (intensity: {:.2})",
         if is_epiphany { "EPIPHANY" } else { "normal" },
-        intensity,
-        volume
+        intensity
     );
 }
 
