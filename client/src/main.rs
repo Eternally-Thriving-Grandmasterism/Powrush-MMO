@@ -44,7 +44,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Spatial Audio with Doppler (Phase 3)
+        // Spatial Audio with SpatialScene foundation (Phase 4)
         .add_plugins(SpatialAudioPlugin)
 
         .init_resource::<CloudSync>()
