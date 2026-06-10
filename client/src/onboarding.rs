@@ -1,11 +1,10 @@
 // client/src/onboarding.rs
-// Powrush-MMO v18.9 — Professional Global Onboarding + Real Invite Validation
+// Powrush-MMO v18.9 — Professional Global Onboarding + Rate-Limited Invite Validation
 
 use bevy::prelude::*;
 use crate::localization::Localization;
 use crate::divine_whispers::{DivineWhisperEvent, WhisperPriority};
 
-// Simulation types (shared via crate or events in full implementation)
 use simulation::closed_beta::{ClosedBetaConfig, InviteManager};
 
 #[derive(Resource, Default)]
@@ -17,6 +16,9 @@ pub struct OnboardingState {
     pub invite_code: Option<String>,
     pub invite_validated: bool,
     pub invite_error: Option<String>,
+    // Rate limiting fields
+    pub invite_attempts: u32,
+    pub last_invite_attempt_ms: u64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -61,6 +63,8 @@ fn setup_onboarding_with_detection(
         invite_code: None,
         invite_validated: false,
         invite_error: None,
+        invite_attempts: 0,
+        last_invite_attempt_ms: 0,
     });
 }
 
@@ -76,26 +80,47 @@ fn onboarding_progression(
     }
 }
 
-/// Core validation logic
+/// Rate-limited invite validation
 fn process_invite_validation(
     mut state: ResMut<OnboardingState>,
     mut invite_manager: Option<ResMut<InviteManager>>,
+    time: Res<Time>,
 ) {
     if state.step != OnboardingStep::InviteValidation {
         return;
     }
 
+    let current_time = (time.elapsed_seconds_f64() * 1000.0) as u64;
+
+    // Rate limiting: max 5 attempts per 60 seconds
+    const MAX_ATTEMPTS: u32 = 5;
+    const COOLDOWN_MS: u64 = 60_000;
+
+    if state.invite_attempts >= MAX_ATTEMPTS {
+        let time_since_last = current_time.saturating_sub(state.last_invite_attempt_ms);
+        if time_since_last < COOLDOWN_MS {
+            let remaining = (COOLDOWN_MS - time_since_last) / 1000;
+            state.invite_error = Some(format!("Too many attempts. Please wait {} seconds.", remaining));
+            return;
+        } else {
+            // Reset after cooldown
+            state.invite_attempts = 0;
+        }
+    }
+
     if let Some(code) = &state.invite_code {
+        state.last_invite_attempt_ms = current_time;
+        state.invite_attempts += 1;
+
         if let Some(manager) = &mut invite_manager {
             if manager.validate_invite(code) {
-                // Valid invite
-                manager.consume_invite(code); // Optional: consume one use
+                manager.consume_invite(code);
                 state.invite_validated = true;
                 state.invite_error = None;
+                state.invite_attempts = 0;
                 state.step = OnboardingStep::Welcome;
             } else {
                 state.invite_error = Some("Invalid or expired invite code".to_string());
-                state.invite_code = None; // Clear so player can try again
             }
         }
     }
@@ -111,7 +136,6 @@ fn trigger_contextual_whispers(
             OnboardingStep::LanguageSelect => "onboarding_language_select",
             OnboardingStep::InviteValidation => "onboarding_invite_validation",
             OnboardingStep::Welcome => "onboarding_welcome",
-            // ... other steps
             _ => "onboarding_welcome",
         };
 
