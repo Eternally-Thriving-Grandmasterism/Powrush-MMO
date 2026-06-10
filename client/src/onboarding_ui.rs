@@ -1,9 +1,8 @@
 // client/src/onboarding_ui.rs
-// Powrush-MMO v18.9 — Professional Onboarding UI + Invite Code Input
-//
-// Handles the InviteValidation step with a clean input field and feedback.
+// Powrush-MMO v18.9 — Professional Onboarding UI + Real Invite Code Text Input
 
 use bevy::prelude::*;
+use bevy::input::keyboard::{KeyCode, KeyboardInput};
 use crate::onboarding::{OnboardingState, OnboardingStep};
 
 #[derive(Component)]
@@ -15,25 +14,33 @@ pub struct InviteInputField;
 #[derive(Component)]
 pub struct InviteStatusText;
 
+#[derive(Component, Default)]
+pub struct InviteInputState {
+    pub current_text: String,
+    pub is_focused: bool,
+}
+
 pub struct OnboardingUIPlugin;
 
 impl Plugin for OnboardingUIPlugin {
     fn build(&self, app: &mut App) {
         app
+            .init_resource::<InviteInputState>()
             .add_systems(Startup, spawn_onboarding_ui)
             .add_systems(Update, (
                 update_onboarding_step_panels,
                 update_invite_ui_visibility,
-                handle_invite_input,
+                handle_invite_text_input,
+                handle_invite_submission,
+                update_invite_input_display,
             ));
     }
 }
 
 fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Main Onboarding UI Root (existing structure preserved)
-    // ... (previous UI code remains)
+    // ... (previous UI spawning code remains the same)
 
-    // === Invite Code Input Panel (shown during InviteValidation) ===
+    // Invite Input Panel with real input support
     commands.spawn((
         NodeBundle {
             style: Style {
@@ -51,26 +58,18 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..default()
             },
             InviteInputPanel,
-            Name::new("InviteInputPanel"),
         },
     )).with_children(|parent| {
         parent.spawn(TextBundle {
-            text: Text::from_section(
-                "ENTER INVITE CODE",
-                TextStyle {
-                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 22.0,
-                    color: Color::srgb(0.35, 0.82, 1.0),
-                },
-            ),
-            style: Style {
-                margin: UiRect::bottom(Val::Px(16.0)),
-                ..default()
-            },
+            text: Text::from_section("ENTER INVITE CODE", TextStyle {
+                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                font_size: 22.0,
+                color: Color::srgb(0.35, 0.82, 1.0),
+            }),
+            style: Style { margin: UiRect::bottom(Val::Px(16.0)), ..default() },
             ..default()
         });
 
-        // Invite Code Input Field
         parent.spawn((
             NodeBundle {
                 style: Style {
@@ -86,65 +85,25 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
             InviteInputField,
         )).with_children(|input| {
-            input.spawn(TextBundle {
-                text: Text::from_section(
-                    "",
-                    TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                        font_size: 18.0,
-                        color: Color::WHITE,
-                    },
-                ),
+            input.spawn((TextBundle {
+                text: Text::from_section("", TextStyle {
+                    font: asset_server.load("fonts/FiraSans-Regular.ttf"),
+                    font_size: 20.0,
+                    color: Color::WHITE,
+                }),
                 ..default()
-            });
+            },));
         });
 
-        // Status Text
-        parent.spawn((
-            TextBundle {
-                text: Text::from_section(
-                    "",
-                    TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                        font_size: 14.0,
-                        color: Color::srgb(0.9, 0.85, 0.6),
-                    },
-                ),
-                style: Style {
-                    margin: UiRect::top(Val::Px(12.0)),
-                    ..default()
-                },
-                ..default()
-            },
-            InviteStatusText,
-        ));
-
-        // Submit Button
-        parent.spawn(ButtonBundle {
-            style: Style {
-                width: Val::Percent(100.0),
-                height: Val::Px(44.0),
-                margin: UiRect::top(Val::Px(16.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                border_radius: BorderRadius::all(Val::Px(8.0)),
-                ..default()
-            },
-            background_color: Color::srgb(0.2, 0.55, 0.4).into(),
+        parent.spawn((TextBundle {
+            text: Text::from_section("", TextStyle {
+                font: asset_server.load("fonts/FiraSans-Regular.ttf"),
+                font_size: 14.0,
+                color: Color::srgb(0.9, 0.85, 0.6),
+            }),
+            style: Style { margin: UiRect::top(Val::Px(12.0)), ..default() },
             ..default()
-        }).with_children(|btn| {
-            btn.spawn(TextBundle {
-                text: Text::from_section(
-                    "SUBMIT INVITE CODE",
-                    TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 15.0,
-                        color: Color::WHITE,
-                    },
-                ),
-                ..default()
-            });
-        });
+        }, InviteStatusText));
     });
 }
 
@@ -161,22 +120,68 @@ fn update_invite_ui_visibility(
     }
 }
 
-fn handle_invite_input(
-    mut interaction_query: Query<(&Interaction, &Button), Changed<Interaction>>,
-    mut onboarding: ResMut<OnboardingState>,
-    // In real implementation, read text from InviteInputField using a text input system
+// Real keyboard text input for invite code
+fn handle_invite_text_input(
+    mut input_state: ResMut<InviteInputState>,
+    mut keyboard_events: EventReader<KeyboardInput>,
+    mut char_events: EventReader<ReceivedCharacter>,
 ) {
-    for (interaction, _) in interaction_query.iter() {
-        if *interaction == Interaction::Pressed {
-            // Placeholder: In production, read the actual text input value here
-            // For now we simulate a successful code for demonstration
-            if onboarding.step == OnboardingStep::InviteValidation {
-                onboarding.invite_code = Some("DEMO-INVITE-2026".to_string());
-                // The actual validation happens in onboarding.rs handle_invite_validation
+    if !input_state.is_focused {
+        return;
+    }
+
+    for event in keyboard_events.read() {
+        if event.state.is_pressed() {
+            match event.key_code {
+                KeyCode::Backspace => {
+                    input_state.current_text.pop();
+                }
+                KeyCode::Enter | KeyCode::NumpadEnter => {
+                    // Submission handled in handle_invite_submission
+                }
+                _ => {}
+            }
+        }
+    }
+
+    for event in char_events.read() {
+        if event.char.is_alphanumeric() || event.char == '-' || event.char == '_' {
+            if input_state.current_text.len() < 32 {
+                input_state.current_text.push(event.char);
             }
         }
     }
 }
 
-// Additional systems for real text input can be added using bevy_ui or a text input plugin.
-// The structure above provides a clean, professional foundation.
+fn handle_invite_submission(
+    mut input_state: ResMut<InviteInputState>,
+    mut onboarding: ResMut<OnboardingState>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
+    if onboarding.step != OnboardingStep::InviteValidation {
+        return;
+    }
+
+    let submitted = keyboard.just_pressed(KeyCode::Enter) || keyboard.just_pressed(KeyCode::NumpadEnter);
+
+    if submitted && !input_state.current_text.is_empty() {
+        onboarding.invite_code = Some(input_state.current_text.clone());
+        input_state.is_focused = false;
+        // Validation will happen in onboarding.rs
+    }
+}
+
+fn update_invite_input_display(
+    input_state: Res<InviteInputState>,
+    mut query: Query<&mut Text, With<InviteInputField>>,
+) {
+    for mut text in query.iter_mut() {
+        text.sections[0].value = input_state.current_text.clone();
+        if input_state.current_text.is_empty() {
+            text.sections[0].value = "Type invite code...".to_string();
+        }
+    }
+}
+
+// Note: For a more robust text input experience in production,
+// consider using a dedicated text input plugin or bevy_ui_text_input.
