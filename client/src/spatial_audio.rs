@@ -1,14 +1,5 @@
 /*!
- * Spatial Audio System - Advanced SpatialScene Integration (Refined)
- *
- * This module uses a dedicated kira::AudioManager to enable full
- * SpatialScene + SpatialEmitter support from Kira.
- *
- * Note: We currently maintain two AudioManagers:
- * - One from bevy_kira_audio (used for Divine Whispers, UI sounds, etc.)
- * - One here for advanced spatial/3D audio features.
- *
- * This is a common pattern when needing deeper Kira functionality.
+ * Spatial Audio System - Performance Optimized
  */
 
 use bevy::prelude::*;
@@ -18,15 +9,21 @@ use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use kira::spatial::emitter::SpatialEmitterSettings;
 use kira::spatial::listener::SpatialListenerSettings;
 use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-/// Main resource for advanced spatial audio
+/// Performance-tuned spatial audio manager
 #[derive(Resource)]
 pub struct SpatialAudioManager {
     pub enabled: bool,
     audio_manager: Arc<Mutex<Option<AudioManager<DefaultBackend>>>>,
     spatial_scene: Arc<Mutex<SpatialScene>>,
     listener_handle: Option<kira::spatial::listener::SpatialListenerHandle>,
+
+    // Performance optimizations
+    sound_cache: Arc<Mutex<HashMap<String, Arc<StaticSoundData>>>>,
+    max_active_emitters: usize,
+    active_emitters: Arc<Mutex<usize>>,
 }
 
 impl Default for SpatialAudioManager {
@@ -36,12 +33,15 @@ impl Default for SpatialAudioManager {
             audio_manager: Arc::new(Mutex::new(None)),
             spatial_scene: Arc::new(Mutex::new(SpatialScene::new(SpatialSceneSettings::new()))),
             listener_handle: None,
+            sound_cache: Arc::new(Mutex::new(HashMap::new())),
+            max_active_emitters: 32, // Reasonable default
+            active_emitters: Arc::new(Mutex::new(0)),
         }
     }
 }
 
 impl SpatialAudioManager {
-    /// Try to play a spatial sound. Returns true on success.
+    /// Play a spatial sound with caching and emitter limiting
     pub fn try_play_spatial(
         &self,
         sound_path: &str,
@@ -49,24 +49,39 @@ impl SpatialAudioManager {
         velocity: Vec3,
         volume: f32,
     ) -> bool {
-        let audio_manager = match self.audio_manager.lock() {
-            Ok(guard) => guard,
-            Err(_) => return false,
-        };
+        if !self.enabled {
+            return false;
+        }
 
-        let audio_manager = match audio_manager.as_ref() {
-            Some(manager) => manager,
-            None => return false,
-        };
+        // Check emitter limit
+        {
+            let active = self.active_emitters.lock().unwrap();
+            if *active >= self.max_active_emitters {
+                return false; // Too many sounds playing
+            }
+        }
 
-        let sound_data = match StaticSoundData::from_file(sound_path) {
-            Ok(data) => data,
-            Err(e) => {
-                warn!("Failed to load spatial sound '{}': {}", sound_path, e);
-                return false;
+        // Get or load sound (with caching)
+        let sound_data = {
+            let mut cache = self.sound_cache.lock().unwrap();
+            if let Some(cached) = cache.get(sound_path) {
+                cached.clone()
+            } else {
+                match StaticSoundData::from_file(sound_path) {
+                    Ok(data) => {
+                        let arc_data = Arc::new(data);
+                        cache.insert(sound_path.to_string(), arc_data.clone());
+                        arc_data
+                    }
+                    Err(e) => {
+                        warn!("Failed to load spatial sound '{}': {}", sound_path, e);
+                        return false;
+                    }
+                }
             }
         };
 
+        // Create emitter
         let emitter_settings = SpatialEmitterSettings::new()
             .with_position(position.into())
             .with_velocity(velocity.into())
@@ -75,10 +90,13 @@ impl SpatialAudioManager {
         if let Ok(mut scene) = self.spatial_scene.lock() {
             match scene.add_emitter(position.into(), emitter_settings) {
                 Ok(mut emitter) => {
-                    if let Err(e) = emitter.play(sound_data) {
+                    if let Err(e) = emitter.play((*sound_data).clone()) {
                         warn!("Failed to play spatial sound: {}", e);
                         return false;
                     }
+
+                    // Track active emitter count
+                    *self.active_emitters.lock().unwrap() += 1;
                     true
                 }
                 Err(e) => {
@@ -89,6 +107,11 @@ impl SpatialAudioManager {
         } else {
             false
         }
+    }
+
+    /// Set maximum number of concurrent spatial sounds
+    pub fn set_max_emitters(&mut self, max: usize) {
+        self.max_active_emitters = max;
     }
 }
 
@@ -139,13 +162,11 @@ impl Plugin for SpatialAudioPlugin {
     }
 }
 
-/// Initialize the dedicated AudioManager + SpatialScene
 fn setup_spatial_audio(
     mut spatial_manager: ResMut<SpatialAudioManager>,
 ) {
     match AudioManager::<DefaultBackend>::new(Default::default()) {
         Ok(audio_manager) => {
-            // Add listener to the spatial scene
             let listener_settings = SpatialListenerSettings::new();
 
             if let Ok(mut scene) = spatial_manager.spatial_scene.lock() {
@@ -160,7 +181,7 @@ fn setup_spatial_audio(
             }
 
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Advanced SpatialScene initialized successfully");
+            info!("[SpatialAudio] Optimized SpatialScene initialized (max emitters: {})", spatial_manager.max_active_emitters);
         }
         Err(e) => {
             error!("Failed to create AudioManager for spatial audio: {}", e);
@@ -169,7 +190,6 @@ fn setup_spatial_audio(
     }
 }
 
-/// Update listener position every frame
 fn update_spatial_listener(
     spatial_manager: Res<SpatialAudioManager>,
     listener_query: Query<&GlobalTransform, With<SpatialListener>>,
@@ -190,7 +210,6 @@ fn update_spatial_listener(
     }
 }
 
-/// Handle PlaySpatialSound events
 fn handle_play_spatial_sound_events(
     mut events: EventReader<PlaySpatialSound>,
     spatial_manager: Res<SpatialAudioManager>,
@@ -200,13 +219,11 @@ fn handle_play_spatial_sound_events(
     }
 
     for event in events.read() {
-        if !spatial_manager.try_play_spatial(
+        spatial_manager.try_play_spatial(
             &event.sound_path,
             event.position,
             event.velocity,
             event.volume,
-        ) {
-            warn!("Failed to play spatial sound: {}", event.sound_path);
-        }
+        );
     }
 }
