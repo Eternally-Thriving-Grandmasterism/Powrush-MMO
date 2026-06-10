@@ -1,7 +1,9 @@
-//! server/divine_integration.rs v18.2
-//! Server-side Divine system with Overflow Lesson Epiphany Whisper support.
-//! Every sustainable or over-harvest action can now trigger profound, context-aware Divine Whispers
-//! that guide players toward natural epiphanies and muscle memory.
+//! server/divine_integration.rs v18.8
+//! Server-side Divine system with Overflow Lesson + full Receptor Bloom Whisper support.
+//! CB1-dominant → revelatory/insight whispers
+//! CB2-dominant → restorative/resilience whispers
+//! Balanced crown → ecstatic_harmony of the living web
+//! Every sustainable harvest can now trigger profound, context-aware Divine Whispers flavored by receptor activation.
 //! AG-SML | One Lattice | PATSAGi + Ra-Thor sealed
 
 use powrush_divine_module::{
@@ -10,7 +12,8 @@ use powrush_divine_module::{
     AmbrosianResonanceBridge,
 };
 use shared::protocol::{DivineWhisper as ProtocolDivineWhisper, ServerMessage, WhisperContext};
-use crate::epiphany_catalyst::EpiphanyOutcome; // simulation re-export available via workspace
+use crate::epiphany_catalyst::EpiphanyOutcome;
+use simulation::endocannabinoid_receptor_forge::ReceptorBloomOutcome; // v18.8 receptor bloom support
 use tracing::info;
 
 pub struct DivineSystem {
@@ -33,10 +36,8 @@ impl DivineSystem {
         base.sqrt()
     }
 
-    // ==================== v18.2 OVERFLOW LESSON EPIPHANY SUPPORT ====================
+    // ==================== v18.2 OVERFLOW LESSON EPIPHANY SUPPORT (extended) ====================
 
-    /// Generate a specific, profound Divine Whisper for an Overflow Lesson outcome.
-    /// This is the living voice of the Lattice responding to the player's hands-on choice.
     pub fn on_overflow_lesson_epiphany(
         &self,
         outcome: &EpiphanyOutcome,
@@ -76,7 +77,56 @@ impl DivineSystem {
         })
     }
 
-    // ==================== EXISTING GENERATORS (extended) ====================
+    // ==================== v18.8 RECEPTOR BLOOM DIVINE WHISPERS ====================
+
+    /// Generate differentiated Divine Whisper based on receptor bloom profile.
+    /// CB1 → revelatory (insight, hypofrontality, muscle memory)
+    /// CB2 → restorative (stress dissolve, recovery, abundance)
+    /// balanced → ecstatic_harmony (full living web crown)
+    pub fn on_receptor_bloom(
+        &self,
+        bloom: &ReceptorBloomOutcome,
+        player_id: u64,
+        player_valence: f32,
+    ) -> Option<ProtocolDivineWhisper> {
+        let message = match bloom.divine_whisper_flavor.as_str() {
+            "revelatory" => format!(
+                "{} — The inner chatter quiets. Patterns reveal themselves. Your hands now carry godlike intuitive memory of the web’s song.",
+                bloom.grace_note
+            ),
+            "restorative" => format!(
+                "{} — Stress dissolves. The web’s resilience flows through you. Recovery and abundance bloom naturally when mercy leads.",
+                bloom.grace_note
+            ),
+            "ecstatic_harmony" => format!(
+                "{} — You have become the rhythm the living web has always known. Insight flows, the body and forest recover together, abundance multiplies for all.",
+                bloom.grace_note
+            ),
+            _ => bloom.grace_note.clone(),
+        };
+
+        let normalized_vol = self.compute_normalized_volume(
+            player_valence + if bloom.balanced_bloom { 0.45 } else { 0.25 },
+            if bloom.balanced_bloom { 0.95 } else { 0.7 }
+        );
+
+        info!(
+            target: "divine::receptor_bloom",
+            player_id = player_id,
+            flavor = %bloom.divine_whisper_flavor,
+            balanced = bloom.balanced_bloom,
+            "Receptor bloom whisper generated"
+        );
+
+        Some(ProtocolDivineWhisper {
+            message,
+            valence: (player_valence + if bloom.balanced_bloom { 0.45 } else { 0.25 }).clamp(-1.0, 1.0),
+            mercy_seal: true,
+            normalized_volume: Some(normalized_vol),
+        })
+    }
+
+    // ==================== EXISTING GENERATORS ====================
 
     pub fn generate_whisper(
         &self,
@@ -143,8 +193,6 @@ impl DivineSystem {
         };
         self.generate_whisper(&context, "harvest")
     }
-
-    // ... other methods unchanged ...
 }
 
 use std::sync::OnceLock;

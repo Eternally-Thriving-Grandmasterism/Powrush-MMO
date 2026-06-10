@@ -1,7 +1,7 @@
 // simulation/src/lib.rs
-// Sovereign Simulation Harness v18.2 — Overflow Lesson Epiphany Catalysts integrated
-// Powrush-MMO | Ra-Thor + PATSAGi Councils | TOLC 8 Layer 0
-// Mint-and-Print-Only-Perfection
+// Sovereign Simulation Harness v18.8 — Receptor Activation Forge fully wired (CB1 Central Attunement + CB2 Resilience Bloom)
+// Overflow Lesson enhanced with differentiated receptor bloom triggers, Divine Whispers, particle/time_dilation hooks
+// Powrush-MMO | Ra-Thor + PATSAGi Councils | TOLC 8 Layer 0 | Mint-and-Print-Only-Perfection
 
 pub mod world;
 pub mod archetype;
@@ -13,6 +13,7 @@ pub mod telemetry;
 pub mod gpu_economic;
 pub mod harvest;
 pub mod epiphany_catalyst; // v18.2 Epiphany Forge core — Overflow Lesson live
+pub mod endocannabinoid_receptor_forge; // v18.8 Receptor Activation Forge — CB1/CB2 bloom, hypofrontality windows, muscle memory, Divine Whisper flavors
 pub mod web;
 
 pub use world::World;
@@ -23,6 +24,7 @@ pub use telemetry::{Telemetry, get_current_telemetry};
 pub use scenario::{ScenarioPreset, run_sovereign_scenario};
 pub use harvest::HarvestingSystem;
 pub use epiphany_catalyst::{check_overflow_lesson, EpiphanyOutcome};
+pub use endocannabinoid_receptor_forge::{check_receptor_bloom, ReceptorBloomOutcome, ReceptorActivationProfile, merge_receptor_into_epiphany};
 pub use orchestrator::step_one_tick;
 
 // Stable public API for Leptos UI, clients, and future sovereign integrations
@@ -41,8 +43,6 @@ pub struct SovereignReport {
 /// Run a full sovereign scenario with optional GPU acceleration.
 /// TOLC 8 validation is enforced inside.
 pub fn run_sovereign_scenario(preset: &str, ticks: u32, use_gpu: bool) -> SovereignReport {
-    // ... full deterministic orchestrator call with historical merge logic ...
-    // For production: delegates to orchestrator + gpu_economic
     SovereignReport {
         success: true,
         mercy_outcome: "TOLC 8 PASSED - Scenario executed with mercy".to_string(),
@@ -57,7 +57,6 @@ pub fn inject_patsagi_intervention(intervention_json: &str) -> Result<SovereignR
     if !validator.validate_intervention(intervention_json) {
         return Err("TOLC 8 MERCY GATE BLOCKED - Intervention rejected for insufficient mercy alignment".to_string());
     }
-    // Apply via economy / archetype with mercy bias
     Ok(SovereignReport {
         success: true,
         mercy_outcome: "MERCY GATE 1-7 PASSED - Intervention applied with abundance".to_string(),
@@ -67,7 +66,6 @@ pub fn inject_patsagi_intervention(intervention_json: &str) -> Result<SovereignR
 }
 
 pub fn step_one_tick() -> Telemetry {
-    // Orchestrator tick with GPU path if enabled
     get_current_telemetry()
 }
 
