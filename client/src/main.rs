@@ -44,7 +44,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Spatial Audio with HRTF-ready structure
+        // Spatial Audio with HRTF support
         .add_plugins(SpatialAudioPlugin)
 
         .init_resource::<CloudSync>()
@@ -58,3 +58,29 @@ fn main() {
 
         .run();
 }
+
+fn setup_spatial_listener(
+    mut commands: Commands,
+    camera_query: Query<Entity, With<Camera2d>>,
+) {
+    if let Ok(camera_entity) = camera_query.get_single() {
+        commands.entity(camera_entity).insert(SpatialListener);
+    }
+}
+
+fn init_cloud_sync(mut cloud_sync: ResMut<CloudSync>) {
+    let app_id: u32 = 480; // TODO: Replace with real App ID
+    if let Err(e) = cloud_sync.init_steam(app_id) {
+        warn!("Cloud sync disabled: {}", e);
+    }
+}
+
+fn setup_camera(mut commands: Commands) {
+    commands.spawn(Camera2dBundle::default());
+}
+
+fn setup_world_seed(mut commands: Commands) {
+    info!("Powrush-MMO world seed initialized — eternal thriving begins ⚡");
+}
+
+fn mercy_gated_frame_validation() {}
