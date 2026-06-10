@@ -20,18 +20,19 @@ ProtectKernelModules=true
 ProtectControlGroups=true
 ProtectProc=invisible
 
+# Capability Bounding (recommended)
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+
 # Filesystem
 ReadWritePaths=/opt/powrush/data /opt/powrush/logs /tmp
 
-# Network Namespace (strong isolation)
-PrivateNetwork=false          # Set to true if using a reverse proxy or specific network setup
-# NetworkNamespacePath=/run/netns/powrush   # Optional: use a dedicated network namespace
+# Network
+PrivateNetwork=false
 
 # seccomp
 SystemCallFilter=@system-service
 SystemCallFilter=~@debug @mount @cpu-emulation @obsolete @raw-io @reboot @swap @privileged
 
-# Resource limits
 LimitNOFILE=65536
 LimitNPROC=512
 

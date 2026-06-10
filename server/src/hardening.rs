@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use caps::{CapSet, Capability};
 use landlock::{AccessFs, PathBeneath, Ruleset, RulesetAttr, RulesetCreatedAttr, ABI};
 use nix::unistd::{getuid, setuid, Uid};
 use seccompiler::{BpfProgram, SeccompAction, SeccompFilter, SeccompRule};
@@ -21,6 +22,7 @@ pub fn apply_server_hardening() {
     check_anti_debug();
     check_binary_integrity();
     drop_privileges();
+    set_capability_bounding();
 
     if env::var("POWRUSH_ENABLE_SECCOMP").is_ok() || cfg!(not(debug_assertions)) {
         if let Err(e) = apply_seccomp() {
@@ -71,6 +73,29 @@ fn drop_privileges() {
     }
 }
 
+/// Set a very restrictive capability bounding set.
+/// This prevents the process (and children) from ever gaining dangerous capabilities.
+fn set_capability_bounding() {
+    if env::var("POWRUSH_DISABLE_CAPABILITY_BOUNDING").is_ok() {
+        return;
+    }
+
+    // For most game servers, we want almost no capabilities after dropping root.
+    // We keep a minimal set that is commonly needed.
+    let keep_caps: Vec<Capability> = vec![
+        // Only keep if you actually need to bind to ports < 1024
+        // Capability::CAP_NET_BIND_SERVICE,
+    ];
+
+    // Clear all capabilities from the bounding set except the ones we want to keep
+    if let Err(e) = caps::set(CapSet::Bounding, &keep_caps) {
+        eprintln!("[Hardening] Warning: Failed to set capability bounding set: {}", e);
+        return;
+    }
+
+    println!("[Hardening] Capability bounding set applied ({} capabilities kept)", keep_caps.len());
+}
+
 /// Advanced and more restrictive seccomp filter
 fn apply_seccomp() -> Result<(), Box<dyn std::error::Error>> {
     let mut filter = SeccompFilter::new(
@@ -78,21 +103,18 @@ fn apply_seccomp() -> Result<(), Box<dyn std::error::Error>> {
         SeccompAction::Allow,
     )?;
 
-    // Core system calls
     let core = vec![
         libc::SYS_read, libc::SYS_write, libc::SYS_close,
         libc::SYS_brk, libc::SYS_mmap, libc::SYS_munmap, libc::SYS_madvise,
         libc::SYS_mprotect, libc::SYS_exit, libc::SYS_exit_group,
     ];
 
-    // Threading & synchronization
     let threading = vec![
         libc::SYS_futex, libc::SYS_clone, libc::SYS_clone3,
         libc::SYS_gettid, libc::SYS_getpid, libc::SYS_sched_yield,
         libc::SYS_rt_sigaction, libc::SYS_rt_sigprocmask, libc::SYS_sigaltstack,
     ];
 
-    // Networking
     let networking = vec![
         libc::SYS_socket, libc::SYS_connect, libc::SYS_accept, libc::SYS_bind,
         libc::SYS_listen, libc::SYS_getsockname, libc::SYS_getpeername,
@@ -100,10 +122,7 @@ fn apply_seccomp() -> Result<(), Box<dyn std::error::Error>> {
         libc::SYS_shutdown,
     ];
 
-    // Event & I/O multiplexing
     let io_multiplexing = vec![libc::SYS_epoll_create1, libc::SYS_epoll_ctl, libc::SYS_epoll_wait];
-
-    // Randomness & time
     let randomness_time = vec![libc::SYS_getrandom, libc::SYS_clock_gettime, libc::SYS_nanosleep];
 
     let all_allowed: Vec<i64> = core
@@ -136,11 +155,9 @@ fn apply_landlock() -> Result<(), Box<dyn std::error::Error>> {
         .handle_access(read_write)?
         .create()?;
 
-    // Read-only for current directory
     let cwd = std::env::current_dir()?;
     ruleset.add_rule(PathBeneath::new(cwd, read_only)?)?;
 
-    // Read-write for data directory
     if let Ok(data_dir) = env::var("POWRUSH_DATA_DIR") {
         let path = Path::new(&data_dir);
         if path.exists() {
@@ -153,7 +170,6 @@ fn apply_landlock() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Logs and temp
     for path in [Path::new("/tmp"), Path::new("./logs")] {
         if path.exists() {
             ruleset.add_rule(PathBeneath::new(path, read_write)?)?;
