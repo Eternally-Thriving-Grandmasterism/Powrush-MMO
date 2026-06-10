@@ -82,23 +82,17 @@ impl PlayerSaveData {
         let _ = self.save_to_file(Path::new("player_save.json"));
     }
 
-    /// Update playtime (call periodically or on save)
     pub fn add_playtime(&mut self, seconds: u64) {
         self.total_playtime_seconds += seconds;
         self.last_played_timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
     }
 
-    /// Save with backup (overlooked safety feature)
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
-        // Create backup of previous save if it exists
         if path.exists() {
             let backup_path = path.with_extension("json.bak");
             let _ = fs::copy(path, backup_path);
         }
-
         let json = serde_json::to_string_pretty(self)?;
         fs::write(path, json)
     }
@@ -122,8 +116,6 @@ impl PlayerSaveData {
     }
 }
 
-// === Auto-Save Timer ===
-
 #[derive(Resource)]
 pub struct AutoSaveTimer {
     pub timer: Timer,
@@ -136,8 +128,6 @@ impl Default for AutoSaveTimer {
         }
     }
 }
-
-// === Persistence Plugin ===
 
 pub struct PersistencePlugin;
 
@@ -195,11 +185,9 @@ fn save_on_exit(
     }
 }
 
-/// Update total playtime (simple accumulator)
 fn update_playtime(
     mut save_data: ResMut<PlayerSaveData>,
     time: Res<Time>,
 ) {
-    // Add frame delta as playtime (simple but effective)
     save_data.total_playtime_seconds += time.delta().as_secs();
 }
