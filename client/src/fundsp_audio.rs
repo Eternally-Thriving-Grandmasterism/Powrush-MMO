@@ -1,16 +1,16 @@
 /*!
  * fundsp Procedural Audio Prototype
  *
- * Supports live parameter updates (e.g. intensity) on active Epiphany resonance.
+ * Automatic intensity evolution over Epiphany lifetime + gameplay reactivity.
  */
 
 use bevy::prelude::*;
 use fundsp::hacker::*;
 
 /// Builds a refined, evolving resonance graph for Epiphanies.
-/// Intensity is now a live variable that can be updated while the graph is running.
+/// Intensity is a live variable.
 pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
-    let intensity_var = var( intensity as f64 );
+    let intensity_var = var(intensity as f64);
 
     let base_freq = 65.0 + intensity_var * 160.0;
 
@@ -32,11 +32,12 @@ pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
     (Box::new(final * 0.72), intensity_var)
 }
 
-/// Represents an active rolling procedural Epiphany resonance with live parameters.
+/// Represents an active rolling procedural Epiphany resonance.
 pub struct ActiveEpiphanyResonance {
     pub graph: Box<dyn AudioUnit64>,
-    pub intensity_var: Shared<f64>,   // Live intensity handle
+    pub intensity_var: Shared<f64>,
     pub remaining_duration: f32,
+    pub total_duration: f32,        // for evolution calculation
     pub chunk_duration: f32,
     pub position: Vec3,
 }
@@ -55,7 +56,7 @@ pub fn render_next_chunk(instance: &mut ActiveEpiphanyResonance) -> Vec<f32> {
     buffer
 }
 
-/// Update the intensity of an active Epiphany resonance (can be called anytime).
+/// Update intensity of a running Epiphany resonance.
 pub fn update_epiphany_intensity(instance: &ActiveEpiphanyResonance, new_intensity: f32) {
     let clamped = new_intensity.clamp(0.0, 1.0) as f64;
     instance.intensity_var.set(clamped);
@@ -73,10 +74,10 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Live parameter updates supported");
+    info!("[fundsp] Automatic evolution + gameplay reactivity ready");
 }
 
-/// System that renders and plays overlapping chunks from active procedural Epiphanies.
+/// System that renders chunks and automatically evolves intensity over time.
 fn update_rolling_chunks(
     mut active: ResMut<ActiveProceduralEpiphanies>,
     spatial_manager: Res<crate::spatial_audio::SpatialAudioManager>,
@@ -86,10 +87,26 @@ fn update_rolling_chunks(
         let instance = &mut active.instances[i];
 
         if instance.remaining_duration > 0.0 {
+            // === Automatic intensity evolution ===
+            // Gentle swell: intensity increases toward the middle, then gently decays
+            let progress = 1.0 - (instance.remaining_duration / instance.total_duration);
+            let evolved_intensity = if progress < 0.6 {
+                // Build up phase
+                instance.intensity_var.get() as f32 * (0.7 + progress * 0.6)
+            } else {
+                // Gentle decay phase
+                instance.intensity_var.get() as f32 * (1.3 - (progress - 0.6) * 0.75)
+            };
+
+            // Apply evolved intensity (clamped)
+            let final_intensity = evolved_intensity.clamp(0.3, 1.0);
+            instance.intensity_var.set(final_intensity as f64);
+
+            // Render and play chunk
             let samples = render_next_chunk(instance);
 
             if !samples.is_empty() {
-                let volume = (0.38 + (instance.intensity_var.get() as f32) * 0.32).clamp(0.32, 0.68);
+                let volume = (0.38 + final_intensity * 0.32).clamp(0.32, 0.68);
 
                 spatial_manager.play_generated_spatial(
                     samples,

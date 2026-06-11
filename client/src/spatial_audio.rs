@@ -283,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with live-updatable fundsp resonance");
+            info!("[SpatialAudio] Initialized with auto-evolving fundsp resonance");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -308,7 +308,7 @@ fn update_spatial_listener(
     }
 }
 
-/// Starts rolling procedural Epiphany resonance with live-updatable intensity
+/// Starts rolling procedural Epiphany with automatic evolution + gameplay reactivity hooks
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active_epiphanies: ResMut<crate::fundsp_audio::ActiveProceduralEpiphanies>,
@@ -332,6 +332,7 @@ fn handle_game_audio_events(
                         graph,
                         intensity_var,
                         remaining_duration: total_duration,
+                        total_duration,
                         chunk_duration: 0.22,
                         position: sound_position,
                     },
@@ -342,7 +343,7 @@ fn handle_game_audio_events(
             let volume = (0.55 + intensity * 0.32).clamp(0.45, 0.95);
             let pitch = (0.96 + intensity * 0.07).clamp(0.94, 1.08);
 
-            // (Sample playback can remain here)
+            // (Sample playback remains)
         }
 
         if let GameAudioEvent::Harvest { .. } = event {
