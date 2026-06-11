@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Deposit Visual Effects
+ * Player Gathering Interaction with World Resource Nodes (now enabled).
  */
 
 use bevy::prelude::*;
@@ -280,7 +280,64 @@ pub fn regenerate_resource_nodes(mut query: Query<&mut WorldResourceNode>) {
     }
 }
 
-/// Event fired when a player deposits resources
+/// Event to trigger gathering from a World Resource Node
+#[derive(Event)]
+pub struct GatherFromNodeEvent {
+    pub node_entity: Entity,
+    pub gather_amount: f32,
+}
+
+/// System that handles actual player gathering interaction with World Resource Nodes
+pub fn handle_gather_from_node(
+    mut commands: Commands,
+    mut abundance: ResMut<AbundancePool>,
+    mut events: EventReader<GatherFromNodeEvent>,
+    mut node_query: Query<(Entity, &mut WorldResourceNode)>,
+    mut profile_query: Query<&mut PlayerRBEProfile>,
+) {
+    for event in events.read() {
+        if let Ok((entity, mut node)) = node_query.get_mut(event.node_entity) {
+            if node.remaining_resources >= event.gather_amount {
+                node.remaining_resources -= event.gather_amount;
+
+                // Add resources to the global Abundance Pool based on node type
+                match node.node_type {
+                    ResourceNodeType::Tree => {
+                        abundance.add_resource(ResourceType::Food, event.gather_amount * 0.6);
+                        abundance.add_resource(ResourceType::Materials, event.gather_amount * 0.4);
+                    }
+                    ResourceNodeType::Crystal => {
+                        abundance.add_resource(ResourceType::Energy, event.gather_amount * 0.7);
+                        abundance.add_resource(ResourceType::Knowledge, event.gather_amount * 0.3);
+                    }
+                    ResourceNodeType::Spring => {
+                        abundance.add_resource(ResourceType::Water, event.gather_amount);
+                    }
+                    ResourceNodeType::HerbPatch => {
+                        abundance.add_resource(ResourceType::Health, event.gather_amount * 0.8);
+                        abundance.add_resource(ResourceType::Food, event.gather_amount * 0.2);
+                    }
+                    ResourceNodeType::Library => {
+                        abundance.add_resource(ResourceType::Knowledge, event.gather_amount);
+                    }
+                }
+
+                // Reward contribution for gathering
+                for mut profile in profile_query.iter_mut() {
+                    profile.contribution_score += 0.8;
+                    abundance.total_contribution_score += 0.8;
+                }
+
+                // Despawn if fully depleted
+                if node.remaining_resources <= 0.0 {
+                    commands.entity(entity).despawn();
+                }
+            }
+        }
+    }
+}
+
+/// Event fired when resources are deposited
 #[derive(Event)]
 pub struct ResourceDepositedEvent {
     pub resource_type: ResourceType,
@@ -288,14 +345,12 @@ pub struct ResourceDepositedEvent {
     pub contribution_gained: f32,
 }
 
-/// Simple visual feedback system for deposits (can be expanded with particles later)
 pub fn deposit_visual_feedback(
     mut commands: Commands,
     mut deposit_events: EventReader<ResourceDepositedEvent>,
     asset_server: Res<AssetServer>,
 ) {
     for event in deposit_events.read() {
-        // Spawn a temporary floating text effect
         commands.spawn((
             TextBundle {
                 text: Text::from_section(
@@ -326,7 +381,6 @@ pub struct DepositVisualEffect {
     pub timer: Timer,
 }
 
-/// System to clean up deposit visual effects after they expire
 pub fn cleanup_deposit_effects(
     mut commands: Commands,
     mut query: Query<(Entity, &mut DepositVisualEffect, &mut Text)>,
@@ -334,8 +388,6 @@ pub fn cleanup_deposit_effects(
 ) {
     for (entity, mut effect, mut text) in query.iter_mut() {
         effect.timer.tick(time.delta());
-
-        // Fade out effect
         let alpha = 1.0 - effect.timer.percent();
         text.sections[0].style.color.set_a(alpha);
 
@@ -380,11 +432,13 @@ pub struct RBESimulationPlugin;
 impl Plugin for RBESimulationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AbundancePool>()
+            .add_event::<GatherFromNodeEvent>()
             .add_event::<ResourceDepositedEvent>()
             .add_systems(Update, (
                 rbe_simulation_step,
                 process_contribution_actions,
                 regenerate_resource_nodes,
+                handle_gather_from_node,
                 deposit_visual_feedback,
                 cleanup_deposit_effects,
             ));
