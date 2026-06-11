@@ -1,26 +1,25 @@
 /*!
  * fundsp Procedural Audio Prototype
  *
- * Enhanced Epiphany resonance with filter modulation and amplitude breathing.
+ * Refined modulation + light frequency modulation for richer Epiphany resonance.
  */
 
 use bevy::prelude::*;
 use fundsp::hacker::*;
 
 /// Builds a rich, modulated resonance graph for Epiphanies.
-/// Features:
-/// - Detuned tonal body
-/// - Dynamic filtered noise texture
-/// - Slow filter modulation (opening/closing feel)
-/// - Gentle amplitude breathing
+/// Features refined modulation depths/rates + gentle frequency modulation.
 pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
     let intensity_var = var(intensity as f64);
 
-    // === Tonal Body (detuned pair + harmonic) ===
+    // === Tonal Body ===
     let base_freq = 65.0 + intensity_var * 160.0;
 
-    let tone_a = sine_hz(base_freq);
+    // Light frequency modulation (gentle vibrato) on one oscillator
+    let vibrato = sine_hz(0.7) * 1.8; // ~1.8 Hz vibrato, subtle depth
+    let tone_a = sine_hz(base_freq + vibrato);
     let tone_b = sine_hz(base_freq * 1.008);
+
     let main_body = (tone_a + tone_b) * (0.22 + intensity_var * 0.32);
 
     let harmonic = sine_hz(base_freq * 2.02) * (0.12 + intensity_var * 0.22);
@@ -28,20 +27,20 @@ pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
     // === Noise Texture with Dynamic Filtering ===
     let noise_base = noise() * (0.12 + intensity_var * 0.38);
 
-    // Slow filter modulation (gentle "breathing" of the texture)
-    let filter_mod = sine_hz(0.14) * 450.0 + 550.0;
+    // Refined filter modulation (slower, more majestic)
+    let filter_mod = sine_hz(0.09) * 380.0 + 480.0;
     let filtered_noise = noise_base
-        >> lowpass_hz(280.0 + intensity_var * 900.0 + filter_mod, 1.6);
+        >> lowpass_hz(260.0 + intensity_var * 850.0 + filter_mod, 1.7);
 
     // === Combine layers ===
     let combined = main_body + harmonic + filtered_noise;
 
-    // === Gentle Amplitude Breathing ===
-    let breath = sine_hz(0.11) * 0.22 + 0.78;
-    let modulated = combined * (0.82 + breath * intensity_var * 0.28);
+    // Refined amplitude breathing (slightly deeper but still subtle)
+    let breath = sine_hz(0.08) * 0.26 + 0.74;
+    let modulated = combined * (0.80 + breath * intensity_var * 0.30);
 
     // Final gentle low-pass
-    let final = modulated >> lowpass_hz(1550.0 + intensity_var * 650.0, 1.0);
+    let final = modulated >> lowpass_hz(1500.0 + intensity_var * 600.0, 1.0);
 
     (Box::new(final * 0.72), intensity_var)
 }
@@ -88,7 +87,7 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Enhanced modulation (filter + breathing) active");
+    info!("[fundsp] Refined modulation + light vibrato active");
 }
 
 /// System that renders chunks and evolves intensity automatically.
@@ -101,7 +100,6 @@ fn update_rolling_chunks(
         let instance = &mut active.instances[i];
 
         if instance.remaining_duration > 0.0 {
-            // Refined automatic evolution curve
             let progress = 1.0 - (instance.remaining_duration / instance.total_duration);
 
             let evolved = if progress < 0.55 {
