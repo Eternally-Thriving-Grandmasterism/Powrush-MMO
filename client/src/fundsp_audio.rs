@@ -1,47 +1,43 @@
 /*!
  * fundsp Procedural Audio Prototype
  *
- * Expanded reactive resonance graph for Epiphanies.
- * Generates evolving harmonic + textural layers based on intensity.
+ * Refined reactive resonance graph for Epiphanies.
+ * Features evolving harmonics, modulation, and richer texture.
  */
 
 use bevy::prelude::*;
 use fundsp::hacker::*;
 
-/// Builds an expanded, intensity-reactive resonance graph for Epiphanies.
+/// Builds a refined, evolving resonance graph for Epiphanies.
 pub fn build_epiphany_resonance(intensity: f32) -> Box<dyn AudioUnit64> {
     let intensity = intensity.clamp(0.0, 1.0);
 
-    // Base frequency rises with intensity
-    let base_freq = 70.0 + intensity * 180.0;
+    // Base frequency with gentle upward drift based on intensity
+    let base_freq = 65.0 + intensity * 160.0;
 
-    // Main resonant tone (slightly detuned pair for richness)
-    let tone1 = sine_hz(base_freq);
-    let tone2 = sine_hz(base_freq * 1.005);
-    let main_tone = (tone1 + tone2) * (0.25 + intensity * 0.35);
+    // Rich detuned oscillator pair (main body)
+    let tone_a = sine_hz(base_freq);
+    let tone_b = sine_hz(base_freq * 1.008);
+    let main_body = (tone_a + tone_b) * (0.22 + intensity * 0.32);
 
-    // Harmonic layer (octave above)
-    let harmonic = sine_hz(base_freq * 2.0) * (0.15 + intensity * 0.25);
+    // Harmonic layer (octave + slight detune)
+    let harmonic = sine_hz(base_freq * 2.02) * (0.12 + intensity * 0.22);
 
-    // Noise-based texture that becomes more prominent with intensity
-    let noise_layer = noise() * (0.15 + intensity * 0.45);
+    // Evolving noise texture with dynamic filtering
+    let noise_base = noise() * (0.12 + intensity * 0.38);
+    let filtered_noise = noise_base >> lowpass_hz(280.0 + intensity * 1400.0, 1.8);
 
-    // Resonant low-pass filter that opens with intensity
-    let filtered_noise = noise_layer >> lowpass_hz(300.0 + intensity * 1200.0, 1.5);
+    // Slow modulation (gentle "breathing" or swelling)
+    let modulator = sine_hz(0.25) * 0.5 + 0.5; // slow LFO
+    let modulated = (main_body + harmonic + filtered_noise) * (0.85 + modulator * intensity * 0.25);
 
-    // Combine all layers
-    let combined = main_tone + harmonic + filtered_noise;
+    // Final gentle high-shelf / low-pass to keep it ethereal
+    let final = modulated >> lowpass_hz(1600.0 + intensity * 700.0, 1.0);
 
-    // Soft envelope / amplitude modulation based on intensity
-    let with_mod = combined >> (pass() | envelope(move |_| 0.7 + intensity * 0.6));
-
-    // Final gentle low-pass to tame highs
-    let final = with_mod >> lowpass_hz(1800.0 + intensity * 600.0, 0.8);
-
-    Box::new(final * 0.8)
+    Box::new(final * 0.75)
 }
 
-/// Renders a short audio buffer (in seconds) from the resonance graph.
+/// Renders a short audio buffer from the resonance graph.
 pub fn render_epiphany_buffer(intensity: f32, duration_secs: f32) -> Vec<f32> {
     let mut graph = build_epiphany_resonance(intensity);
     let sample_rate = 44100.0;
@@ -53,7 +49,7 @@ pub fn render_epiphany_buffer(intensity: f32, duration_secs: f32) -> Vec<f32> {
 
 #[derive(Resource, Default)]
 pub struct FundspAudio {
-    // Future: active graph management, real-time playback, etc.
+    // Future expansion: real-time graphs, multiple active instances, etc.
 }
 
 pub struct FundspAudioPlugin;
@@ -67,5 +63,5 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Expanded Epiphany resonance prototype initialized");
+    info!("[fundsp] Refined Epiphany resonance prototype ready");
 }
