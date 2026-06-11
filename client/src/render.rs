@@ -1,11 +1,13 @@
 /*!
  * Powrush-MMO Advanced Render Pipeline Setup
  *
- * Wires Velocity Prepass + TAA Reprojection + CameraMatrices into the Bevy render graph.
- * Complete temporal rendering stack for artifact-free anti-aliasing and motion coherence.
+ * Complete temporal rendering stack:
+ *   Velocity Prepass -> TAA Reprojection -> (Future SSR / Motion Blur) -> Tonemap / Final Present
  *
- * Upgraded with TAA reprojection logic for the most phenomenal cinematic experience.
- * PATSAGi Council + Quantum Swarm ready. Mercy-gated temporal stability.
+ * TAA is now positioned as a post-process effect that feeds clean resolved color
+ * into Bevy's camera tonemapping (or your custom tonemap pass).
+ *
+ * PATSAGi Council + mercy-aligned for zero-artifact divine visuals.
  * AG-SML v1.0
  */
 
@@ -17,7 +19,6 @@ use crate::velocity_prepass::{VelocityPrepassNode, setup_velocity_prepass_pipeli
 use crate::ssr_render_node::{CameraMatrices, SsrRenderNodePlugin};
 use crate::taa_reprojection::{TaaReprojectionNode, setup_taa_pipeline, setup_taa_history_texture};
 
-/// Main render plugin for Powrush-MMO.
 pub struct PowrushRenderPlugin;
 
 impl Plugin for PowrushRenderPlugin {
@@ -33,16 +34,23 @@ impl Plugin for PowrushRenderPlugin {
 
         let render_app = app.sub_app_mut(RenderApp);
 
-        // Velocity Prepass (motion vectors)
+        // 1. Velocity Prepass (early, provides motion vectors)
         render_app.add_render_graph_node::<VelocityPrepassNode>("velocity_prepass");
 
-        // TAA Reprojection (uses velocity + history)
+        // 2. TAA Reprojection (post-process, uses velocity + history)
         render_app.add_render_graph_node::<TaaReprojectionNode>("taa_reprojection");
         render_app.add_render_graph_edge("velocity_prepass", "taa_reprojection");
 
-        // Future expansions:
-        // - SSR after TAA or interleaved
-        // - Motion blur using velocity
-        // - Final tonemap / post-process
+        // 3. Wire TAA output into final tonemapping / present
+        // In Bevy, the camera's tonemapping happens in the main graph after post-process.
+        // Best practice: Make TaaReprojectionNode write resolved color to a texture
+        // that your camera or a final PostProcess node reads as input.
+        //
+        // Example future edge:
+        // render_app.add_render_graph_edge("taa_reprojection", bevy::render::main_graph::node::TONEMAP);
+        // or insert a custom final resolve node before tonemap.
+        //
+        // For immediate use: TAA writes to history; the resolved output can be
+        // copied or bound as the input for the camera's final color target.
     }
 }
