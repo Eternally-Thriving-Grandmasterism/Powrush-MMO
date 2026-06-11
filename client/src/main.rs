@@ -46,7 +46,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Kira + GameAudioEvent + enhanced granular + cross-modulation
+        // Kira + GameAudioEvent + advanced granular + cross-modulation
         .add_plugins(SpatialAudioPlugin)
 
         // .add_plugins(FmodAudioPlugin);
