@@ -1,14 +1,13 @@
 /*!
- * Mycelial Web Glow Shader v18.15+ (Screen-Space LOD + Cheap Mode)
+ * Mycelial Web Glow Shader v18.15+ (Adaptive Thresholding)
  * For Abyssal Depths Epiphany: Mycelium Surge
  *
- * Features:
- * - Screen-space derivative LOD (dpdx/dpdy)
- * - World distance LOD fallback
- * - Aggressive "Cheap Mode": when LOD is very high,
- *   completely bypasses expensive FBM web pattern and falls back
- *   to a simple soft glowing radial bloom.
- * - Massive performance win for hundreds/thousands of tiny distant particles.
+ * New feature: Adaptive Thresholding
+ * - Web line thickness and density automatically adjust based on LOD
+ *   and screen-space derivatives.
+ * - Maintains consistent visual "weight" of the mycelial web
+ *   even as we drop octaves/layers at distance.
+ * - Prevents the web from looking too sparse or too noisy when detail is reduced.
  */
 
 struct MycelialWebGlowUniforms {
@@ -21,7 +20,7 @@ struct MycelialWebGlowUniforms {
     camera_pos: vec3<f32>,
     max_lod_distance: f32,
     screen_lod_scale: f32,
-    cheap_mode_threshold: f32,   // e.g. 0.75 — above this we use cheap glow
+    cheap_mode_threshold: f32,
 };
 
 @group(1) @binding(0)
@@ -77,6 +76,7 @@ fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
     return value;
 }
 
+// Web pattern with adaptive thresholding
 fn web_pattern(uv: vec2<f32>, scale: f32, time: f32, lod: f32) -> f32 {
     let p = uv * scale;
     
@@ -93,10 +93,17 @@ fn web_pattern(uv: vec2<f32>, scale: f32, time: f32, lod: f32) -> f32 {
     
     combined *= 0.5;
     
-    let detail = fract(combined * 8.0);
-    let web = 1.0 - abs(detail - 0.5) * 2.0;
+    // Adaptive thresholding: adjust line width based on LOD
+    // Higher LOD (more distant) -> slightly thicker lines to maintain visual density
+    let line_width = mix(0.5, 0.65, lod);  // Adaptive line thickness
     
-    return pow(saturate(web), 1.6);
+    let detail = fract(combined * 8.0);
+    let web = 1.0 - smoothstep(line_width - 0.1, line_width + 0.1, abs(detail - 0.5) * 2.0);
+    
+    // Also adapt the final power for contrast
+    let contrast = mix(1.6, 1.3, lod);
+    
+    return pow(saturate(web), contrast);
 }
 
 @fragment
@@ -115,16 +122,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     
     let lod = max(screen_lod, dist_lod * 0.6);
     
-    // === Aggressive Cheap Mode ===
+    // Cheap Mode
     if (lod > uniforms.cheap_mode_threshold) {
-        // Extremely cheap path: simple soft radial glow
         let center_dist = length(uv - vec2<f32>(0.5));
         let radial = saturate(1.0 - center_dist * 2.2);
         
         let pulse = sin(time * uniforms.pulse_speed) * 0.5 + 0.5;
         let cheap_glow = radial * uniforms.intensity * (0.6 + pulse * 0.4);
         
-        // Simple bioluminescent color
         let cheap_color = mix(
             vec3<f32>(0.2, 0.7, 0.95),
             vec3<f32>(0.5, 0.3, 0.85),
@@ -135,7 +140,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return vec4<f32>(cheap_color * cheap_glow, saturate(alpha));
     }
     
-    // Full quality path
+    // Full quality with adaptive web thresholding
     let octaves = max(2, 5 - i32(lod * 3.0));
     let web = web_pattern(uv, uniforms.web_scale, time, lod);
     
