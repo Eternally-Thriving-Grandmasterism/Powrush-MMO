@@ -1,5 +1,5 @@
 /*!
- * Powrush-MMO Render Pipeline (Updated with Critical TAA Fixes)
+ * Powrush-MMO Advanced Render Pipeline
  */
 
 use bevy::prelude::*;
@@ -8,7 +8,7 @@ use bevy::render::RenderApp;
 
 use crate::velocity_prepass::{VelocityPrepassNode, setup_velocity_prepass_pipeline, setup_velocity_texture};
 use crate::ssr_render_node::SsrRenderNodePlugin;
-use crate::taa_reprojection::{TaaReprojectionNode, setup_taa_pipeline, setup_taa_history_texture};
+use crate::taa_reprojection::{TaaReprojectionNode, TaaSettings, setup_taa_pipeline, setup_taa_history_texture};
 use crate::motion_blur::{MotionBlurNode, MotionBlurSettings, setup_motion_blur_pipeline};
 
 pub struct PowrushRenderPlugin;
@@ -16,7 +16,8 @@ pub struct PowrushRenderPlugin;
 impl Plugin for PowrushRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(SsrRenderNodePlugin)
-           .init_resource::<MotionBlurSettings>();
+           .init_resource::<MotionBlurSettings>()
+           .init_resource::<TaaSettings>();   // New tunable TAA settings
 
         app.add_systems(Startup, (
             setup_velocity_prepass_pipeline,
