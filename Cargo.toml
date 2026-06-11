@@ -3,18 +3,14 @@ name = "powrush-mmo"
 version = "0.1.0"
 edition = "2021"
 
-[workspace]
-members = ["client", "server", "simulation", "shared"]
+[dependencies]
+bevy = { version = "0.14", features = ["dynamic_linking"] }
+bevy_kira_audio = "0.20"
+simulation = { path = "simulation" }
 
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-strip = true
-panic = "abort"
+# Audio
+kira = { version = "0.8", features = ["cpal"] }
+fundsp = "0.18"  # Procedural audio synthesis
 
-[profile.release.package."powrush-mmo-server"]
-opt-level = 3
-lto = true
-strip = true
-codegen-units = 1
+# Optional: FMOD prototype
+# bevy_fmod = { git = "https://github.com/kyren/bevy_fmod", branch = "main" }
