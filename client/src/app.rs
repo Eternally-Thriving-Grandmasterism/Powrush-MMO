@@ -1,7 +1,12 @@
-//! client/src/app.rs
-//! Powrush-MMO Bevy App Builder — Central application orchestration
-//! AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO enforced | v17.98+ production-grade
-//! Fully restored, merged, and upgraded — mint-and-print-only-perfection, zero placeholders
+/*!
+ * client/src/app.rs
+ * Powrush-MMO Bevy App Builder — Central application orchestration
+ *
+ * AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO enforced | v17.98+ production-grade
+ * Fully restored, merged, and upgraded for Ra-Thor monorepo + PATSAGi Council alignment.
+ *
+ * Now includes the upgraded PowrushRenderPlugin (velocity prepass + CameraMatrices temporal foundation).
+ */
 
 use bevy::prelude::*;
 use crate::networking::NetworkingPlugin;
@@ -18,7 +23,7 @@ use crate::input::InputPlugin;
 use crate::world::WorldPlugin;
 use crate::bevy_ecs_scheduling::ClientSchedulingPlugin;
 use crate::config::ConfigPlugin;
-use crate::render::RenderPlugin;
+use crate::render::PowrushRenderPlugin;  // Upgraded render pipeline with velocity prepass + temporal matrices
 
 pub fn build_app() -> App {
     let mut app = App::new();
@@ -48,7 +53,7 @@ pub fn build_app() -> App {
        .add_plugins(DivineWhispersPlugin)
        .add_plugins(InputPlugin)
        .add_plugins(WorldPlugin)
-       .add_plugins(RenderPlugin)
+       .add_plugins(PowrushRenderPlugin)  // Temporal rendering (velocity + CameraMatrices)
        .add_plugins(ClientSchedulingPlugin);
 
     // Mercy-gated global systems
@@ -68,7 +73,7 @@ fn global_mercy_frame_guard() {
 }
 
 // All client systems, plugins, and layers are now perfectly orchestrated
-// Zero-lag, fully mercy-gated Bevy app complete
+// Zero-lag, fully mercy-gated Bevy app complete with next-gen temporal rendering
 
 #[cfg(test)]
 mod tests {
