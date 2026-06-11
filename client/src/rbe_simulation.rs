@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Rare Mineral Biomes
+ * Biome Weighting System
  */
 
 use bevy::prelude::*;
@@ -302,7 +302,7 @@ pub fn process_contribution_actions(
     }
 }
 
-/// Biomes that influence resource node distribution and rarity
+/// Biomes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Biome {
     CrystalFields,
@@ -310,9 +310,10 @@ pub enum Biome {
     AncientForest,
     SunkenSprings,
     KnowledgeArchives,
-    RareMineralVeins, // Primary biome for Rare Minerals
+    RareMineralVeins,
 }
 
+/// Resource node types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResourceNodeType {
     Tree,
@@ -321,6 +322,48 @@ pub enum ResourceNodeType {
     HerbPatch,
     Library,
     RareMineral,
+}
+
+/// Biome weighting for node spawn probabilities
+#[derive(Resource, Debug, Clone, Serialize, Deserialize)]
+pub struct BiomeWeights {
+    pub weights: HashMap<(Biome, ResourceNodeType), f32>,
+}
+
+impl Default for BiomeWeights {
+    fn default() -> Self {
+        let mut weights = HashMap::new();
+
+        // CrystalFields
+        weights.insert((Biome::CrystalFields, ResourceNodeType::Crystal), 0.6);
+        weights.insert((Biome::CrystalFields, ResourceNodeType::RareMineral), 0.05);
+
+        // DeepCaves
+        weights.insert((Biome::DeepCaves, ResourceNodeType::Crystal), 0.4);
+        weights.insert((Biome::DeepCaves, ResourceNodeType::RareMineral), 0.3);
+
+        // AncientForest
+        weights.insert((Biome::AncientForest, ResourceNodeType::Tree), 0.7);
+        weights.insert((Biome::AncientForest, ResourceNodeType::HerbPatch), 0.5);
+
+        // SunkenSprings
+        weights.insert((Biome::SunkenSprings, ResourceNodeType::Spring), 0.8);
+
+        // KnowledgeArchives
+        weights.insert((Biome::KnowledgeArchives, ResourceNodeType::Library), 0.7);
+
+        // RareMineralVeins - High chance for Rare Minerals
+        weights.insert((Biome::RareMineralVeins, ResourceNodeType::RareMineral), 0.85);
+        weights.insert((Biome::RareMineralVeins, ResourceNodeType::Crystal), 0.2);
+
+        Self { weights }
+    }
+}
+
+impl BiomeWeights {
+    pub fn get_weight(&self, biome: Biome, node_type: ResourceNodeType) -> f32 {
+        *self.weights.get(&(biome, node_type)).unwrap_or(&0.1)
+    }
 }
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
@@ -342,13 +385,7 @@ impl WorldResourceNode {
             ResourceNodeType::Library => (200.0, 0.2, 250.0),
             ResourceNodeType::RareMineral => (40.0, 0.1, 50.0),
         };
-        Self {
-            node_type,
-            biome,
-            remaining_resources: remaining,
-            regeneration_rate: regen,
-            max_resources: max_res,
-        }
+        Self { node_type, biome, remaining_resources: remaining, regeneration_rate: regen, max_resources: max_res }
     }
 }
 
@@ -517,6 +554,7 @@ pub struct RBESimulationPlugin;
 impl Plugin for RBESimulationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AbundancePool>()
+            .init_resource::<BiomeWeights>()
             .add_event::<GatherFromNodeEvent>()
             .add_event::<ResourceDepositedEvent>()
             .add_systems(Update, (
