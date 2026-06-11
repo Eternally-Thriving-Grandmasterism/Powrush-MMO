@@ -276,8 +276,9 @@ fn handle_game_audio_events(
 
         match event {
             GameAudioEvent::Epiphany { intensity, .. } => {
-                // Basic intensity response in Kira
-                let volume = (0.7 + intensity * 0.25).clamp(0.6, 1.0);
+                // Richer Epiphany feedback in Kira
+                let volume = (0.65 + intensity * 0.3).clamp(0.55, 1.0);
+                let pitch = (0.97 + intensity * 0.06).clamp(0.95, 1.08); // Slight pitch shift for power
 
                 spatial_events.send(
                     PlaySpatialSound::new(
@@ -285,7 +286,8 @@ fn handle_game_audio_events(
                         sound_position,
                     )
                     .with_velocity(Vec3::ZERO)
-                    .with_volume(volume),
+                    .with_volume(volume)
+                    .with_playback_rate(pitch as f64),
                 );
             }
             GameAudioEvent::Harvest { .. } => {
