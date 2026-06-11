@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Player Inventory ↔ RBE Integration
+ * Deposit mechanic — players can voluntarily return resources to the Abundance Pool.
  */
 
 use bevy::prelude::*;
@@ -75,7 +75,6 @@ impl AbundancePool {
         allocated
     }
 
-    /// Allow a player to withdraw resources into their personal inventory
     pub fn withdraw_for_player(
         &mut self,
         resource_type: ResourceType,
@@ -155,7 +154,6 @@ impl PlayerRBEProfile {
         self.personal_resources.iter().find(|r| r.resource_type == resource_type).map(|r| r.amount).unwrap_or(0.0)
     }
 
-    /// Withdraw resources from the Abundance Pool into personal inventory
     pub fn withdraw_from_pool(
         &mut self,
         abundance: &mut AbundancePool,
@@ -163,18 +161,46 @@ impl PlayerRBEProfile {
         amount: f32,
         total_players: f32,
     ) -> f32 {
-        let allocated = abundance.withdraw_for_player(
-            resource_type,
-            amount,
-            self.contribution_score,
-            total_players,
-        );
-
+        let allocated = abundance.withdraw_for_player(resource_type, amount, self.contribution_score, total_players);
         if allocated > 0.0 {
             self.add_personal_resource(resource_type, allocated);
         }
-
         allocated
+    }
+
+    /// Deposit personal resources back into the Abundance Pool (voluntary contribution)
+    pub fn deposit_to_pool(
+        &mut self,
+        abundance: &mut AbundancePool,
+        resource_type: ResourceType,
+        amount: f32,
+    ) -> f32 {
+        let available = self.get_personal_amount(resource_type);
+        let to_deposit = amount.min(available);
+
+        if to_deposit > 0.0 {
+            // Remove from personal inventory
+            if let Some(existing) = self.personal_resources.iter_mut().find(|r| r.resource_type == resource_type) {
+                existing.amount -= to_deposit;
+                if existing.amount <= 0.0 {
+                    self.personal_resources.retain(|r| r.resource_type != resource_type);
+                }
+            }
+
+            // Add to global pool
+            abundance.add_resource(resource_type, to_deposit);
+
+            // Reward contribution for depositing (especially generous for high-value resources)
+            let contribution_reward = match resource_type {
+                ResourceType::Knowledge | ResourceType::Health => to_deposit * 1.5,
+                _ => to_deposit,
+            };
+
+            self.contribution_score += contribution_reward;
+            abundance.total_contribution_score += contribution_reward;
+        }
+
+        to_deposit
     }
 }
 
