@@ -276,13 +276,16 @@ fn handle_game_audio_events(
 
         match event {
             GameAudioEvent::Epiphany { intensity, .. } => {
+                // Basic intensity response in Kira
+                let volume = (0.7 + intensity * 0.25).clamp(0.6, 1.0);
+
                 spatial_events.send(
                     PlaySpatialSound::new(
                         "sounds/epiphany_impact.ogg",
                         sound_position,
                     )
                     .with_velocity(Vec3::ZERO)
-                    .with_volume(0.85 + intensity * 0.1),
+                    .with_volume(volume),
                 );
             }
             GameAudioEvent::Harvest { .. } => {

@@ -134,7 +134,7 @@ fn receive_divine_whispers(
             } else {
                 game_audio_events.send(GameAudioEvent::Harvest {
                     position: sound_position,
-                    is_sustainable: false, // placeholder
+                    is_sustainable: false,
                 });
             }
 
