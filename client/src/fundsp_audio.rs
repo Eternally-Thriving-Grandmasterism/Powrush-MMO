@@ -1,16 +1,22 @@
 /*!
  * fundsp Procedural Audio Prototype
  *
- * Gameplay reactivity + refined automatic evolution.
+ * Enhanced Epiphany resonance with filter modulation and amplitude breathing.
  */
 
 use bevy::prelude::*;
 use fundsp::hacker::*;
 
-/// Builds a refined, evolving resonance graph for Epiphanies.
+/// Builds a rich, modulated resonance graph for Epiphanies.
+/// Features:
+/// - Detuned tonal body
+/// - Dynamic filtered noise texture
+/// - Slow filter modulation (opening/closing feel)
+/// - Gentle amplitude breathing
 pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
     let intensity_var = var(intensity as f64);
 
+    // === Tonal Body (detuned pair + harmonic) ===
     let base_freq = 65.0 + intensity_var * 160.0;
 
     let tone_a = sine_hz(base_freq);
@@ -19,14 +25,23 @@ pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
 
     let harmonic = sine_hz(base_freq * 2.02) * (0.12 + intensity_var * 0.22);
 
+    // === Noise Texture with Dynamic Filtering ===
     let noise_base = noise() * (0.12 + intensity_var * 0.38);
-    let filtered_noise = noise_base >> lowpass_hz(280.0 + intensity_var * 1400.0, 1.8);
 
-    let slow_mod = sine_hz(0.18) * 0.4 + 0.6;
-    let modulated = (main_body + harmonic + filtered_noise)
-        * (0.85 + slow_mod * intensity_var * 0.35);
+    // Slow filter modulation (gentle "breathing" of the texture)
+    let filter_mod = sine_hz(0.14) * 450.0 + 550.0;
+    let filtered_noise = noise_base
+        >> lowpass_hz(280.0 + intensity_var * 900.0 + filter_mod, 1.6);
 
-    let final = modulated >> lowpass_hz(1600.0 + intensity_var * 700.0, 1.0);
+    // === Combine layers ===
+    let combined = main_body + harmonic + filtered_noise;
+
+    // === Gentle Amplitude Breathing ===
+    let breath = sine_hz(0.11) * 0.22 + 0.78;
+    let modulated = combined * (0.82 + breath * intensity_var * 0.28);
+
+    // Final gentle low-pass
+    let final = modulated >> lowpass_hz(1550.0 + intensity_var * 650.0, 1.0);
 
     (Box::new(final * 0.72), intensity_var)
 }
@@ -55,7 +70,7 @@ pub fn render_next_chunk(instance: &mut ActiveEpiphanyResonance) -> Vec<f32> {
     buffer
 }
 
-/// Update intensity of a running Epiphany resonance (call from gameplay systems).
+/// Update intensity of a running Epiphany resonance.
 pub fn update_epiphany_intensity(instance: &ActiveEpiphanyResonance, new_intensity: f32) {
     let clamped = new_intensity.clamp(0.0, 1.0) as f64;
     instance.intensity_var.set(clamped);
@@ -73,10 +88,10 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Gameplay reactivity + refined evolution ready");
+    info!("[fundsp] Enhanced modulation (filter + breathing) active");
 }
 
-/// System that renders chunks, evolves intensity automatically, and reacts to gameplay.
+/// System that renders chunks and evolves intensity automatically.
 fn update_rolling_chunks(
     mut active: ResMut<ActiveProceduralEpiphanies>,
     spatial_manager: Res<crate::spatial_audio::SpatialAudioManager>,
@@ -86,15 +101,12 @@ fn update_rolling_chunks(
         let instance = &mut active.instances[i];
 
         if instance.remaining_duration > 0.0 {
-            // === Refined automatic evolution curve ===
+            // Refined automatic evolution curve
             let progress = 1.0 - (instance.remaining_duration / instance.total_duration);
 
-            // More pronounced swell: builds strongly, peaks, then releases
             let evolved = if progress < 0.55 {
-                // Strong build-up phase
                 0.65 + (progress / 0.55) * 0.55
             } else {
-                // Graceful release phase
                 1.2 - ((progress - 0.55) / 0.45) * 0.5
             };
 
@@ -103,7 +115,6 @@ fn update_rolling_chunks(
 
             instance.intensity_var.set(final_intensity as f64);
 
-            // Render and play chunk
             let samples = render_next_chunk(instance);
 
             if !samples.is_empty() {
