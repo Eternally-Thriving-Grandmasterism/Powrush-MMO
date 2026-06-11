@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Player Gathering Interaction with World Resource Nodes (now enabled).
+ * Node Regeneration System (Enhanced)
  */
 
 use bevy::prelude::*;
@@ -257,37 +257,43 @@ pub struct WorldResourceNode {
     pub node_type: ResourceNodeType,
     pub remaining_resources: f32,
     pub regeneration_rate: f32,
+    pub max_resources: f32,
 }
 
 impl WorldResourceNode {
     pub fn new(node_type: ResourceNodeType) -> Self {
-        let (remaining, regen) = match node_type {
-            ResourceNodeType::Tree => (100.0, 0.5),
-            ResourceNodeType::Crystal => (80.0, 0.3),
-            ResourceNodeType::Spring => (150.0, 0.8),
-            ResourceNodeType::HerbPatch => (60.0, 0.4),
-            ResourceNodeType::Library => (200.0, 0.2),
+        let (remaining, regen, max_res) = match node_type {
+            ResourceNodeType::Tree => (100.0, 0.5, 120.0),
+            ResourceNodeType::Crystal => (80.0, 0.3, 100.0),
+            ResourceNodeType::Spring => (150.0, 0.8, 200.0),
+            ResourceNodeType::HerbPatch => (60.0, 0.4, 80.0),
+            ResourceNodeType::Library => (200.0, 0.2, 250.0),
         };
-        Self { node_type, remaining_resources: remaining, regeneration_rate: regen }
-    }
-}
-
-pub fn regenerate_resource_nodes(mut query: Query<&mut WorldResourceNode>) {
-    for mut node in query.iter_mut() {
-        if node.remaining_resources < 200.0 {
-            node.remaining_resources += node.regeneration_rate;
+        Self {
+            node_type,
+            remaining_resources: remaining,
+            regeneration_rate: regen,
+            max_resources: max_res,
         }
     }
 }
 
-/// Event to trigger gathering from a World Resource Node
+/// Enhanced Node Regeneration System (Sustainable RBE)
+pub fn regenerate_resource_nodes(mut query: Query<&mut WorldResourceNode>) {
+    for mut node in query.iter_mut() {
+        if node.remaining_resources < node.max_resources {
+            node.remaining_resources = (node.remaining_resources + node.regeneration_rate)
+                .min(node.max_resources);
+        }
+    }
+}
+
 #[derive(Event)]
 pub struct GatherFromNodeEvent {
     pub node_entity: Entity,
     pub gather_amount: f32,
 }
 
-/// System that handles actual player gathering interaction with World Resource Nodes
 pub fn handle_gather_from_node(
     mut commands: Commands,
     mut abundance: ResMut<AbundancePool>,
@@ -300,7 +306,6 @@ pub fn handle_gather_from_node(
             if node.remaining_resources >= event.gather_amount {
                 node.remaining_resources -= event.gather_amount;
 
-                // Add resources to the global Abundance Pool based on node type
                 match node.node_type {
                     ResourceNodeType::Tree => {
                         abundance.add_resource(ResourceType::Food, event.gather_amount * 0.6);
@@ -322,13 +327,11 @@ pub fn handle_gather_from_node(
                     }
                 }
 
-                // Reward contribution for gathering
                 for mut profile in profile_query.iter_mut() {
                     profile.contribution_score += 0.8;
                     abundance.total_contribution_score += 0.8;
                 }
 
-                // Despawn if fully depleted
                 if node.remaining_resources <= 0.0 {
                     commands.entity(entity).despawn();
                 }
@@ -337,7 +340,6 @@ pub fn handle_gather_from_node(
     }
 }
 
-/// Event fired when resources are deposited
 #[derive(Event)]
 pub struct ResourceDepositedEvent {
     pub resource_type: ResourceType,
