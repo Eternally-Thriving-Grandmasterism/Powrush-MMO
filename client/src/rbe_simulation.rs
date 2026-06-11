@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Node Regeneration System (Enhanced)
+ * Rare Mineral Nodes added
  */
 
 use bevy::prelude::*;
@@ -250,6 +250,7 @@ pub enum ResourceNodeType {
     Spring,
     HerbPatch,
     Library,
+    RareMineral,   // New rare high-value node
 }
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
@@ -268,6 +269,7 @@ impl WorldResourceNode {
             ResourceNodeType::Spring => (150.0, 0.8, 200.0),
             ResourceNodeType::HerbPatch => (60.0, 0.4, 80.0),
             ResourceNodeType::Library => (200.0, 0.2, 250.0),
+            ResourceNodeType::RareMineral => (40.0, 0.1, 50.0), // Rare & slow to regenerate
         };
         Self {
             node_type,
@@ -278,7 +280,6 @@ impl WorldResourceNode {
     }
 }
 
-/// Enhanced Node Regeneration System (Sustainable RBE)
 pub fn regenerate_resource_nodes(mut query: Query<&mut WorldResourceNode>) {
     for mut node in query.iter_mut() {
         if node.remaining_resources < node.max_resources {
@@ -325,11 +326,23 @@ pub fn handle_gather_from_node(
                     ResourceNodeType::Library => {
                         abundance.add_resource(ResourceType::Knowledge, event.gather_amount);
                     }
+                    ResourceNodeType::RareMineral => {
+                        // Rare minerals give high-value Materials + Energy
+                        abundance.add_resource(ResourceType::Materials, event.gather_amount * 0.8);
+                        abundance.add_resource(ResourceType::Energy, event.gather_amount * 0.2);
+                    }
                 }
 
+                // Extra contribution reward for gathering rare minerals
+                let contribution_reward = if node.node_type == ResourceNodeType::RareMineral {
+                    2.0
+                } else {
+                    0.8
+                };
+
                 for mut profile in profile_query.iter_mut() {
-                    profile.contribution_score += 0.8;
-                    abundance.total_contribution_score += 0.8;
+                    profile.contribution_score += contribution_reward;
+                    abundance.total_contribution_score += contribution_reward;
                 }
 
                 if node.remaining_resources <= 0.0 {
