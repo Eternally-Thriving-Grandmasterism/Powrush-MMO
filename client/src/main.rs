@@ -46,7 +46,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Kira + GameAudioEvent + rolling fundsp chunks
+        // Kira + GameAudioEvent + improved rolling fundsp chunks
         .add_plugins(SpatialAudioPlugin)
 
         // .add_plugins(FmodAudioPlugin);

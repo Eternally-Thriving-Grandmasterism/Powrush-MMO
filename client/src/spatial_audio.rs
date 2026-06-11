@@ -283,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with rolling fundsp chunks");
+            info!("[SpatialAudio] Initialized with improved rolling fundsp chunks");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -308,7 +308,7 @@ fn update_spatial_listener(
     }
 }
 
-/// Starts a rolling procedural Epiphany resonance using fundsp
+/// Starts rolling procedural Epiphany resonance with proper positioning
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active_epiphanies: ResMut<crate::fundsp_audio::ActiveProceduralEpiphanies>,
@@ -324,27 +324,30 @@ fn handle_game_audio_events(
         if let GameAudioEvent::Epiphany { intensity, .. } = event {
             if *intensity > 0.35 {
                 let graph = build_epiphany_resonance(*intensity);
-                let total_duration = (1.2 + intensity * 2.5).clamp(1.0, 4.5);
+
+                // Longer duration for more noticeable evolution
+                let total_duration = (1.4 + intensity * 3.0).clamp(1.2, 5.5);
 
                 active_epiphanies.instances.push(
                     crate::fundsp_audio::ActiveEpiphanyResonance {
                         graph,
                         remaining_duration: total_duration,
-                        chunk_duration: 0.25, // 250ms chunks
+                        chunk_duration: 0.22, // ~220ms chunks for better overlap feel
                         intensity: *intensity,
+                        position: sound_position,
                     },
                 );
             }
 
-            // Sample-based layers (kept for hybrid richness)
+            // Sample-based layers
             let volume = (0.55 + intensity * 0.32).clamp(0.45, 0.95);
             let pitch = (0.96 + intensity * 0.07).clamp(0.94, 1.08);
 
-            // (Existing sample playback can stay here or be moved to another system)
+            // (Sample playback logic can stay here)
         }
 
         if let GameAudioEvent::Harvest { .. } = event {
-            // Harvest handling can remain or be moved
+            // Harvest handling
         }
     }
 }

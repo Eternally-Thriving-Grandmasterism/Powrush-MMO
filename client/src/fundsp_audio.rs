@@ -1,14 +1,14 @@
 /*!
  * fundsp Procedural Audio Prototype
  *
- * Supports rolling chunk playback for evolving Epiphany resonance.
+ * Rolling chunk playback with overlapping, positioning, and time-based evolution.
  */
 
 use bevy::prelude::*;
 use fundsp::hacker::*;
-use std::time::Duration;
 
 /// Builds a refined, evolving resonance graph for Epiphanies.
+/// Now includes time-based modulation for longer evolution.
 pub fn build_epiphany_resonance(intensity: f32) -> Box<dyn AudioUnit64> {
     let intensity = intensity.clamp(0.0, 1.0);
 
@@ -23,20 +23,24 @@ pub fn build_epiphany_resonance(intensity: f32) -> Box<dyn AudioUnit64> {
     let noise_base = noise() * (0.12 + intensity * 0.38);
     let filtered_noise = noise_base >> lowpass_hz(280.0 + intensity * 1400.0, 1.8);
 
-    let modulator = sine_hz(0.25) * 0.5 + 0.5;
-    let modulated = (main_body + harmonic + filtered_noise) * (0.85 + modulator * intensity * 0.25);
+    // Slow evolving modulation (gentle swelling over time)
+    let slow_mod = sine_hz(0.18) * 0.4 + 0.6;
+
+    let modulated = (main_body + harmonic + filtered_noise)
+        * (0.8 + slow_mod * intensity * 0.35);
 
     let final = modulated >> lowpass_hz(1600.0 + intensity * 700.0, 1.0);
 
-    Box::new(final * 0.75)
+    Box::new(final * 0.72)
 }
 
 /// Represents an active rolling procedural Epiphany resonance.
 pub struct ActiveEpiphanyResonance {
     pub graph: Box<dyn AudioUnit64>,
-    pub remaining_duration: f32,   // seconds
-    pub chunk_duration: f32,       // how long each rendered chunk is
+    pub remaining_duration: f32,
+    pub chunk_duration: f32,
     pub intensity: f32,
+    pub position: Vec3,
 }
 
 #[derive(Resource, Default)]
@@ -44,7 +48,7 @@ pub struct ActiveProceduralEpiphanies {
     pub instances: Vec<ActiveEpiphanyResonance>,
 }
 
-/// Renders the next chunk from an active instance and returns the samples.
+/// Renders the next chunk from an active instance.
 pub fn render_next_chunk(instance: &mut ActiveEpiphanyResonance) -> Vec<f32> {
     let sample_rate = 44100.0;
     let num_samples = (instance.chunk_duration * sample_rate) as usize;
@@ -65,29 +69,28 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Rolling chunk playback system initialized");
+    info!("[fundsp] Rolling chunk playback with evolution initialized");
 }
 
-/// System that renders and plays short chunks from active procedural Epiphanies.
+/// System that renders and plays overlapping chunks from active procedural Epiphanies.
 fn update_rolling_chunks(
     mut active: ResMut<ActiveProceduralEpiphanies>,
     spatial_manager: Res<crate::spatial_audio::SpatialAudioManager>,
-    time: Res<Time>,
 ) {
     let mut i = 0;
     while i < active.instances.len() {
         let instance = &mut active.instances[i];
 
-        // Render and play a chunk
         if instance.remaining_duration > 0.0 {
             let samples = render_next_chunk(instance);
 
             if !samples.is_empty() {
-                // Play slightly below the main sample layers
-                let volume = (0.4 + instance.intensity * 0.3).clamp(0.3, 0.65);
+                // Improved blending volume
+                let volume = (0.38 + instance.intensity * 0.32).clamp(0.32, 0.68);
+
                 spatial_manager.play_generated_spatial(
                     samples,
-                    Vec3::ZERO, // Will be improved with proper positioning later
+                    instance.position,
                     Vec3::ZERO,
                     volume,
                 );
@@ -96,7 +99,6 @@ fn update_rolling_chunks(
             instance.remaining_duration -= instance.chunk_duration;
         }
 
-        // Remove finished instances
         if instance.remaining_duration <= 0.0 {
             active.instances.remove(i);
         } else {
