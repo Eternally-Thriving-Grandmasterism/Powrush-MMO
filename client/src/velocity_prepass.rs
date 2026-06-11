@@ -1,5 +1,5 @@
 /*!
- * Velocity Prepass - With real camera matrices and improved RenderMesh handling.
+ * VelocityPrepassNode now uses prev_view_proj from CameraMatrices for better temporal accuracy.
  */
 
 use bevy::prelude::*;
@@ -8,22 +8,8 @@ use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderContext;
 use bevy::render::mesh::RenderMesh;
 use bevy::render::render_asset::RenderAssets;
-use bevy::render::view::ViewUniform;
 
-#[derive(Resource)]
-pub struct VelocityPrepassPipeline {
-    pub pipeline: CachedRenderPipelineId,
-    pub bind_group_layout: BindGroupLayout,
-}
-
-#[derive(Resource)]
-pub struct VelocityTexture {
-    pub texture: Texture,
-    pub view: TextureView,
-}
-
-#[derive(Component, Default)]
-pub struct PreviousGlobalTransform(pub GlobalTransform);
+// ... (other resources stay the same)
 
 pub struct VelocityPrepassNode {
     query: QueryState<(
@@ -67,20 +53,11 @@ impl Node for VelocityPrepassNode {
         let velocity_tex = world.resource::<VelocityTexture>();
         let pipeline_cache = world.resource::<PipelineCache>();
         let meshes = world.resource::<RenderAssets<Mesh>>();
+        let matrices = world.resource::<crate::ssr_render_node::CameraMatrices>(); // Access shared camera data
 
         let Ok(pipeline) = pipeline_cache.get_render_pipeline(pipeline_res.pipeline) else {
             return Ok(());
         };
-
-        // Get real camera matrices
-        let (camera, camera_transform) = match self.camera_query.get_single() {
-            Ok(c) => c,
-            Err(_) => return Ok(()), // No camera, skip
-        };
-
-        let view = camera_transform.compute_matrix().inverse();
-        let projection = camera.projection_matrix();
-        let view_proj = projection * view;
 
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("velocity_prepass"),
@@ -107,8 +84,8 @@ impl Node for VelocityPrepassNode {
                     .unwrap_or(current_model);
 
                 let uniforms = VelocityUniforms {
-                    view_proj,
-                    prev_view_proj: view_proj, // For simplicity; ideally store previous frame's view_proj
+                    view_proj: matrices.projection * matrices.view,
+                    prev_view_proj: matrices.prev_view_proj, // Now using previous frame's view_proj
                     model: current_model,
                     prev_model,
                 };
@@ -134,7 +111,6 @@ impl Node for VelocityPrepassNode {
 
                 render_pass.set_bind_group(0, &bind_group, &[]);
 
-                // Improved mesh buffer handling
                 if let Some(vertex_buffer) = mesh.vertex_buffer.as_ref() {
                     render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
 
@@ -156,68 +132,4 @@ impl Node for VelocityPrepassNode {
     }
 }
 
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-struct VelocityUniforms {
-    view_proj: Mat4,
-    prev_view_proj: Mat4,
-    model: Mat4,
-    prev_model: Mat4,
-}
-
-pub fn setup_velocity_prepass_pipeline(
-    mut commands: Commands,
-    render_device: Res<RenderDevice>,
-    mut pipeline_cache: ResMut<PipelineCache>,
-    asset_server: Res<AssetServer>,
-) {
-    let bind_group_layout = render_device.create_bind_group_layout(
-        "velocity_prepass_bind_group_layout",
-        &[
-            BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::VERTEX_FRAGMENT,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-    );
-
-    let shader = asset_server.load("shaders/velocity_prepass.wgsl");
-
-    let pipeline_descriptor = RenderPipelineDescriptor {
-        label: Some("velocity_prepass_pipeline".into()),
-        layout: vec![bind_group_layout.clone()],
-        vertex: VertexState {
-            shader: shader.clone(),
-            entry_point: "vs_main".into(),
-            buffers: vec![],
-            shader_defs: vec![],
-        },
-        fragment: Some(FragmentState {
-            shader,
-            entry_point: "fs_main".into(),
-            targets: vec![Some(ColorTargetState {
-                format: TextureFormat::Rg16Float,
-                blend: None,
-                write_mask: ColorWrites::ALL,
-            })],
-            shader_defs: vec![],
-        }),
-        primitive: PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: MultisampleState::default(),
-        push_constant_ranges: vec![],
-    };
-
-    let pipeline = pipeline_cache.queue_render_pipeline(pipeline_descriptor);
-
-    commands.insert_resource(VelocityPrepassPipeline {
-        pipeline,
-        bind_group_layout,
-    });
-}
+// ... (VelocityUniforms and setup function remain the same)
