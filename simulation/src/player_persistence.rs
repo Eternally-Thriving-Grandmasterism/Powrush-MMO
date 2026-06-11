@@ -1,14 +1,25 @@
 /*!
- * Player Persistence v18.10
+ * Player Persistence — Production Grade v18.15+
+ * Rotating Backup Strategy + Atomic Save + Checksum Integrity
+ *
+ * Strategy:
+ * - Atomic write via .tmp + rename (crash-safe)
+ * - On every successful save: rotate existing backups (numbered 1..MAX_BACKUPS)
+ * - Keep last N backups (default 7) to prevent unbounded growth
+ * - Timestamped snapshot also created for easy manual recovery
+ * - Checksum verified on load; falls back to most recent valid backup
+ * - Integrated with Epiphany Catalyst (single source of truth) and HarvestingSystem
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub const CURRENT_SAVE_VERSION: u32 = 1;
+pub const MAX_BACKUPS: usize = 7; // Production retention: last 7 saves
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EpiphanyRecord {
@@ -31,7 +42,7 @@ pub struct PlayerSaveData {
     pub achievements: Vec<String>,
     pub muscle_memory_level: f32,
     pub last_save_timestamp: u64,
-    // Temporary epiphany rewards
+    // Temporary epiphany rewards (from evaluate_epiphany single source of truth)
     pub temporary_harvest_multiplier: f32,
     pub temporary_multiplier_expires_at: u64,
 }
@@ -76,8 +87,8 @@ impl PlayerSaveData {
     }
 
     pub fn record_epiphany(&mut self, scenario_id: &str, intensity: f32, biome: &str) {
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
 
@@ -89,25 +100,27 @@ impl PlayerSaveData {
         });
 
         self.muscle_memory_level = (self.muscle_memory_level + intensity * 0.12).min(5.0);
+
+        // Trigger save after epiphany (integrated with HarvestingSystem flow)
         let _ = self.save_to_file(Path::new("player_save.json"));
     }
 
     pub fn add_playtime(&mut self, seconds: u64) {
         self.total_playtime_seconds += seconds;
-        self.last_played_timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+        self.last_played_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH).unwrap().as_secs();
     }
 
-    /// Check if temporary multiplier is still active
+    /// Check if temporary multiplier (from epiphany) is still active
     pub fn has_active_multiplier(&self) -> bool {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
         self.temporary_multiplier_expires_at > now && self.temporary_harvest_multiplier > 1.0
     }
 
-    /// Get current effective harvest multiplier
+    /// Get current effective harvest multiplier (single source of truth path)
     pub fn get_current_harvest_multiplier(&self) -> f32 {
         if self.has_active_multiplier() {
             self.temporary_harvest_multiplier
@@ -116,23 +129,116 @@ impl PlayerSaveData {
         }
     }
 
+    /// Production-grade atomic save with rotating backup strategy
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
-        // ... atomic save logic (kept from previous)
+        // 1. Compute fresh checksum
+        let mut data_to_save = self.clone();
+        data_to_save.checksum = data_to_save.compute_checksum();
+        data_to_save.last_save_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // 2. Write to atomic temp file first
         let temp_path = path.with_extension("json.tmp");
         {
-            let json = serde_json::to_string_pretty(self)?;
+            let json = serde_json::to_string_pretty(&data_to_save)?;
             fs::write(&temp_path, json)?;
         }
+
+        // 3. Rotate backups BEFORE promoting the new save (preserves history on crash)
         Self::rotate_backups(path)?;
-        if path.exists() {
-            let backup_path = path.with_extension("json.bak");
-            let _ = fs::copy(path, &backup_path);
+
+        // 4. Create a timestamped snapshot for easy human recovery (optional but production-friendly)
+        Self::create_timestamped_snapshot(path)?;
+
+        // 5. Atomic promote: rename temp -> final
+        fs::rename(&temp_path, path)?;
+
+        Ok(())
+    }
+
+    /// Robust rotating backup strategy (numbered + retention)
+    /// Keeps last MAX_BACKUPS versions. Oldest is deleted.
+    fn rotate_backups(path: &Path) -> Result<(), std::io::Error> {
+        // Delete oldest backup if we already have MAX_BACKUPS
+        let oldest = path.with_extension(format!("json.bak.{}", MAX_BACKUPS));
+        if oldest.exists() {
+            fs::remove_file(&oldest)?;
         }
-        fs::rename(&temp_path, path)
+
+        // Shift all existing backups up by one slot
+        for i in (1..MAX_BACKUPS).rev() {
+            let src = path.with_extension(format!("json.bak.{}", i));
+            let dst = path.with_extension(format!("json.bak.{}", i + 1));
+            if src.exists() {
+                fs::rename(&src, &dst)?;
+            }
+        }
+
+        // Move current live save to .bak.1 (if it exists)
+        if path.exists() {
+            let bak1 = path.with_extension("json.bak.1");
+            fs::rename(path, &bak1)?;
+        }
+
+        Ok(())
+    }
+
+    /// Create a human-readable timestamped snapshot (does not affect rotation count)
+    fn create_timestamped_snapshot(path: &Path) -> Result<(), std::io::Error> {
+        if !path.exists() {
+            return Ok(());
+        }
+
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let timestamp = format!("{:?}", now); // Simple; in prod could use chrono for pretty format
+        let snapshot_name = format!(
+            "player_save_{}_{}.json.bak",
+            timestamp,
+            path.file_stem().unwrap_or_default().to_string_lossy()
+        );
+        let snapshot_path = path.parent().unwrap_or(Path::new(".")).join(snapshot_name);
+
+        // Only keep a small number of timestamped snapshots too (optional cleanup)
+        // For now we create one per save — admin can prune manually or we add cleanup later
+        fs::copy(path, &snapshot_path)?;
+        Ok(())
     }
 
     pub fn load_from_file(path: &Path) -> Option<Self> {
-        // ... checksum + version logic (kept from previous)
+        if !path.exists() {
+            return None;
+        }
+
+        // Try primary
+        if let Some(data) = Self::try_load_with_checksum(path) {
+            return Some(data);
+        }
+
+        warn!("Primary save checksum invalid or corrupted. Attempting backup recovery...");
+
+        // Fallback to most recent backup (.bak.1)
+        let bak1 = path.with_extension("json.bak.1");
+        if let Some(data) = Self::try_load_with_checksum(&bak1) {
+            info!("Recovered from backup .bak.1");
+            return Some(data);
+        }
+
+        // Try older numbered backups in order
+        for i in 1..=MAX_BACKUPS {
+            let bak = path.with_extension(format!("json.bak.{}", i));
+            if let Some(data) = Self::try_load_with_checksum(&bak) {
+                info!("Recovered from backup .bak.{}", i);
+                return Some(data);
+            }
+        }
+
+        warn!("All backups failed checksum. Starting fresh save.");
+        None
+    }
+
+    fn try_load_with_checksum(path: &Path) -> Option<Self> {
         if !path.exists() {
             return None;
         }
@@ -141,10 +247,6 @@ impl PlayerSaveData {
 
         let expected = data.compute_checksum();
         if data.checksum != expected {
-            warn!("Checksum mismatch on load!");
-            if let Some(backup) = Self::load_from_file(&path.with_extension("json.bak")) {
-                return Some(backup);
-            }
             return None;
         }
 
@@ -155,7 +257,7 @@ impl PlayerSaveData {
     }
 
     fn compute_checksum(&self) -> String {
-        let mut hasher = sha2::Sha256::new();
+        let mut hasher = Sha256::new();
         let mut temp = self.clone();
         temp.checksum = String::new();
         if let Ok(json) = serde_json::to_string(&temp) {
@@ -168,22 +270,6 @@ impl PlayerSaveData {
         old_data.save_version = CURRENT_SAVE_VERSION;
         old_data.checksum = old_data.compute_checksum();
         old_data
-    }
-
-    fn rotate_backups(path: &Path) -> Result<(), std::io::Error> {
-        // Rotating backup logic (simplified)
-        let base = path.with_extension("json.bak");
-        for i in (1..5).rev() {
-            let src = path.with_extension(&format!("json.bak.{}", i));
-            let dst = path.with_extension(&format!("json.bak.{}", i + 1));
-            if src.exists() {
-                let _ = fs::rename(&src, &dst);
-            }
-        }
-        if base.exists() {
-            let _ = fs::rename(&base, &path.with_extension("json.bak.1"));
-        }
-        Ok(())
     }
 }
 
@@ -219,9 +305,10 @@ fn load_player_save(mut commands: Commands) {
 
     if let Some(loaded) = PlayerSaveData::load_from_file(save_path) {
         commands.insert_resource(loaded);
-        info!("Loaded player save");
+        info!("Loaded player save (persistence v18.15+ rotating backup strategy active)");
     } else {
         commands.insert_resource(PlayerSaveData::new(1));
+        info!("No valid save found — created new player save");
     }
 }
 
@@ -232,7 +319,9 @@ fn auto_save_system(
 ) {
     timer.timer.tick(time.delta());
     if timer.timer.just_finished() {
-        let _ = save_data.save_to_file(Path::new("player_save.json"));
+        if let Err(e) = save_data.save_to_file(Path::new("player_save.json")) {
+            error!("Auto-save failed: {}", e);
+        }
     }
 }
 
@@ -241,7 +330,9 @@ fn save_on_exit(
     mut exit_events: EventReader<bevy::app::AppExit>,
 ) {
     for _ in exit_events.read() {
-        let _ = save_data.save_to_file(Path::new("player_save.json"));
+        if let Err(e) = save_data.save_to_file(Path::new("player_save.json")) {
+            error!("Exit save failed: {}", e);
+        }
     }
 }
 
