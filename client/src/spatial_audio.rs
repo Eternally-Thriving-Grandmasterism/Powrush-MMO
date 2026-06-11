@@ -283,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with improved rolling fundsp chunks");
+            info!("[SpatialAudio] Initialized with live-updatable fundsp resonance");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -308,7 +308,7 @@ fn update_spatial_listener(
     }
 }
 
-/// Starts rolling procedural Epiphany resonance with proper positioning
+/// Starts rolling procedural Epiphany resonance with live-updatable intensity
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active_epiphanies: ResMut<crate::fundsp_audio::ActiveProceduralEpiphanies>,
@@ -323,17 +323,16 @@ fn handle_game_audio_events(
 
         if let GameAudioEvent::Epiphany { intensity, .. } = event {
             if *intensity > 0.35 {
-                let graph = build_epiphany_resonance(*intensity);
+                let (graph, intensity_var) = build_epiphany_resonance(*intensity);
 
-                // Longer duration for more noticeable evolution
                 let total_duration = (1.4 + intensity * 3.0).clamp(1.2, 5.5);
 
                 active_epiphanies.instances.push(
                     crate::fundsp_audio::ActiveEpiphanyResonance {
                         graph,
+                        intensity_var,
                         remaining_duration: total_duration,
-                        chunk_duration: 0.22, // ~220ms chunks for better overlap feel
-                        intensity: *intensity,
+                        chunk_duration: 0.22,
                         position: sound_position,
                     },
                 );
@@ -343,7 +342,7 @@ fn handle_game_audio_events(
             let volume = (0.55 + intensity * 0.32).clamp(0.45, 0.95);
             let pitch = (0.96 + intensity * 0.07).clamp(0.94, 1.08);
 
-            // (Sample playback logic can stay here)
+            // (Sample playback can remain here)
         }
 
         if let GameAudioEvent::Harvest { .. } = event {
