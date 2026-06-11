@@ -283,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with 8-voice granular + dynamic density");
+            info!("[SpatialAudio] Initialized with resonant granular layer + noise amp");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -308,7 +308,7 @@ fn update_spatial_listener(
     }
 }
 
-/// Epiphany handling with advanced granular layer
+/// Epiphany handling with resonant granular layer
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active_epiphanies: ResMut<crate::fundsp_audio::ActiveProceduralEpiphanies>,
