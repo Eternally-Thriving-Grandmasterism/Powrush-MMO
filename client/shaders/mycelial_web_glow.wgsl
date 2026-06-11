@@ -1,13 +1,14 @@
 /*!
- * Mycelial Web Glow Shader v18.15+ (Screen-Space LOD)
+ * Mycelial Web Glow Shader v18.15+ (Screen-Space LOD + Cheap Mode)
  * For Abyssal Depths Epiphany: Mycelium Surge
  *
- * Screen-space derivative based LOD:
- * - Automatically reduces FBM octaves and web complexity
- *   based on how large the effect is on screen.
- * - Excellent for particles: tiny distant or many small particles
- *   get cheaper low-detail versions automatically.
- * - Combines well with (or can replace) world-space distance LOD.
+ * Features:
+ * - Screen-space derivative LOD (dpdx/dpdy)
+ * - World distance LOD fallback
+ * - Aggressive "Cheap Mode": when LOD is very high,
+ *   completely bypasses expensive FBM web pattern and falls back
+ *   to a simple soft glowing radial bloom.
+ * - Massive performance win for hundreds/thousands of tiny distant particles.
  */
 
 struct MycelialWebGlowUniforms {
@@ -19,7 +20,8 @@ struct MycelialWebGlowUniforms {
     glow_width: f32,
     camera_pos: vec3<f32>,
     max_lod_distance: f32,
-    screen_lod_scale: f32,      // Controls sensitivity of screen-space LOD
+    screen_lod_scale: f32,
+    cheap_mode_threshold: f32,   // e.g. 0.75 — above this we use cheap glow
 };
 
 @group(1) @binding(0)
@@ -61,7 +63,6 @@ fn noise(p: vec2<f32>) -> f32 {
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
-// FBM that accepts dynamic octave count (for LOD)
 fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
     var value = 0.0;
     var amplitude = 0.5;
@@ -79,7 +80,6 @@ fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
 fn web_pattern(uv: vec2<f32>, scale: f32, time: f32, lod: f32) -> f32 {
     let p = uv * scale;
     
-    // Screen-space LOD reduces number of web layers
     let layer_count = max(1, 3 - i32(lod * 2.0));
     
     var combined = fbm(p + vec2<f32>(time * 0.1, 0.0), layer_count);
@@ -104,24 +104,39 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv = in.uv;
     let time = uniforms.time;
     
-    // === Screen-Space LOD using derivatives ===
+    // Screen-space + distance LOD
     let dx = dpdx(uv);
     let dy = dpdy(uv);
     let delta = max(length(dx), length(dy));
-    
-    // Higher delta = smaller on screen = higher LOD value (more simplification)
     let screen_lod = saturate(-log2(delta * uniforms.screen_lod_scale));
     
-    // Optional world distance LOD (can be blended or used alone)
     let dist = length(in.world_pos - uniforms.camera_pos);
     let dist_lod = saturate(dist / uniforms.max_lod_distance);
     
-    // Combine both LOD sources (screen-space usually dominates for particles)
     let lod = max(screen_lod, dist_lod * 0.6);
     
-    // Dynamic octave count based on screen-space detail needed
-    let octaves = max(2, 5 - i32(lod * 3.0));
+    // === Aggressive Cheap Mode ===
+    if (lod > uniforms.cheap_mode_threshold) {
+        // Extremely cheap path: simple soft radial glow
+        let center_dist = length(uv - vec2<f32>(0.5));
+        let radial = saturate(1.0 - center_dist * 2.2);
+        
+        let pulse = sin(time * uniforms.pulse_speed) * 0.5 + 0.5;
+        let cheap_glow = radial * uniforms.intensity * (0.6 + pulse * 0.4);
+        
+        // Simple bioluminescent color
+        let cheap_color = mix(
+            vec3<f32>(0.2, 0.7, 0.95),
+            vec3<f32>(0.5, 0.3, 0.85),
+            sin(time * 1.5) * 0.5 + 0.5
+        );
+        
+        let alpha = cheap_glow * 0.85;
+        return vec4<f32>(cheap_color * cheap_glow, saturate(alpha));
+    }
     
+    // Full quality path
+    let octaves = max(2, 5 - i32(lod * 3.0));
     let web = web_pattern(uv, uniforms.web_scale, time, lod);
     
     let pulse = sin(time * uniforms.pulse_speed) * 0.5 + 0.5;
@@ -130,7 +145,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let dist_falloff = 1.0 - web;
     let soft_glow = exp(-dist_falloff * 9.0 / uniforms.glow_width) * glow_intensity;
     
-    // Color
     let t = sin(uv.x * 2.5 + time * 0.4) * 0.5 + 0.5;
     var base_color = mix(
         vec3<f32>(0.15, 0.65, 0.95),
