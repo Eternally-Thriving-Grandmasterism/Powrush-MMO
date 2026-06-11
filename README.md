@@ -3,7 +3,7 @@
 **Sovereign Resource-Based Economy Metaverse**  
 **The living training ground for post-scarcity abundance, mercy-gated governance, and infinite joy**
 
-**Current Version:** v17.98.0 (Final Closed Beta + active secret iterations)  
+**Current Version:** v17.98.0 (Final Closed Beta + active secret v18.10+ iterations — Crystal Spires, Abyssal Depths, 11-lang Divine Whispers, Living Web multiplayer, Council Trial integration now organically alive)  
 **License:** AG-SML v1.0 — Autonomicity Games Sovereign Mercy License  
 **Philosophy:** Mint-and-Print-Only-Perfection (zero placeholders, zero TODOs, full production-grade, zero-lag at every junction)
 
@@ -18,6 +18,13 @@ Powrush-MMO is the practical simulation of a global Resource-Based Economy where
 - Divine Whispers narrative & guidance system
 - Full RBE simulation (client + authoritative server)
 - Bevy 0.14+ ECS architecture with perfect scheduling
+
+## Recent Lattice Advancements (v18.10+ — Sealed in the Living Repo)
+- Two new living biomes fully integrated: **Crystal Spires** (resonance crystals, harmonic spire towers, seasonal resonance peaks) and **Abyssal Depths** (persistent mycelium networks, shadow mercy trials, web healing across sessions)
+- Epiphany scenario wiring polished with multiplayer web blooms, Council Trial success triggers, and automatic audio_resonance_seed feeding into the live granular Epiphany audio fire
+- All 11 languages (en, es, fr, de, ar, zh, ja, pt, ru, nl, hi) complete with hot-reloadable, poetic, mercy-aligned Divine Whispers and UI
+- Production deployment infrastructure (Docker, health checks, monitoring) and Steam metadata foundations ready
+- Everything hot-reloadable, TOLC 8 + 7 Mercy Gates enforced, zero TODOs, mint-and-print-only-perfection
 
 ## Tech Stack
 - **Client:** Bevy 0.14+, WebGPU/WGSL, WebXR, Snappy + delta compression
@@ -48,3 +55,4 @@ cargo run --package powrush-mmo-client
 
 # Server (in another terminal)
 cargo run --package powrush-mmo-server
+```
