@@ -1,25 +1,45 @@
 /*!
- * Example of per-entity previous transform storage for velocity prepass.
+ * CameraMatrices now stores previous view_proj for velocity prepass temporal accuracy.
  */
 
 use bevy::prelude::*;
+use bevy::render::view::ViewUniform;
 
-/// Component to store the previous frame's GlobalTransform
-#[derive(Component, Default)]
-pub struct PreviousGlobalTransform(pub GlobalTransform);
-
-/// System that copies current GlobalTransform into PreviousGlobalTransform every frame.
-/// Add this system to your main schedule (e.g. Update).
-pub fn store_previous_global_transforms(
-    mut query: Query<(&GlobalTransform, &mut PreviousGlobalTransform)>,
-) {
-    for (current, mut previous) in &mut query {
-        previous.0 = *current;
-    }
+#[derive(Resource, Default)]
+pub struct CameraMatrices {
+    pub view: Mat4,
+    pub inv_view: Mat4,
+    pub projection: Mat4,
+    pub inv_projection: Mat4,
+    pub prev_view: Mat4,
+    pub prev_projection: Mat4,
+    pub prev_view_proj: Mat4,        // NEW: for velocity prepass
+    pub camera_position: Vec3,
+    pub prev_camera_position: Vec3,
 }
 
-// Usage:
-// 1. Add PreviousGlobalTransform component to entities that need velocity.
-// 2. In VelocityPrepassNode, query for entities with GlobalTransform + PreviousGlobalTransform
-//    and use previous.0 to compute velocity.
-// 3. Pass per-entity previous model matrix into the velocity shader.
+/// Extracts current camera matrices and stores previous frame data.
+pub fn extract_camera_matrices(
+    mut matrices: ResMut<CameraMatrices>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+) {
+    if let Ok((camera, global_transform)) = camera_query.get_single() {
+        let transform = global_transform.compute_matrix();
+        let view = transform.inverse();
+        let projection = camera.projection_matrix();
+        let view_proj = projection * view;
+
+        // Store previous frame data
+        matrices.prev_view = matrices.view;
+        matrices.prev_projection = matrices.projection;
+        matrices.prev_view_proj = matrices.projection * matrices.view; // previous view_proj
+        matrices.prev_camera_position = matrices.camera_position;
+
+        // Update current frame
+        matrices.view = view;
+        matrices.inv_view = transform;
+        matrices.projection = projection;
+        matrices.inv_projection = projection.inverse();
+        matrices.camera_position = global_transform.translation();
+    }
+}
