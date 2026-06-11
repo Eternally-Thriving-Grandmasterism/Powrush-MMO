@@ -46,7 +46,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Kira + GameAudioEvent + granular layer with band-pass + intensity-dependent resonance
+        // Kira + GameAudioEvent + granular layer with internal cross-mod + more band-pass
         .add_plugins(SpatialAudioPlugin)
 
         // .add_plugins(FmodAudioPlugin);
