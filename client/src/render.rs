@@ -1,8 +1,5 @@
 /*!
- * Powrush-MMO Advanced Render Pipeline
- *
- * Full cinematic temporal effects stack:
- * Velocity Prepass → TAA Reprojection → Motion Blur (toggleable) → Tonemap
+ * Powrush-MMO Render Pipeline (Updated with Critical TAA Fixes)
  */
 
 use bevy::prelude::*;
@@ -19,7 +16,7 @@ pub struct PowrushRenderPlugin;
 impl Plugin for PowrushRenderPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(SsrRenderNodePlugin)
-           .init_resource::<MotionBlurSettings>();   // Toggle + intensity live here
+           .init_resource::<MotionBlurSettings>();
 
         app.add_systems(Startup, (
             setup_velocity_prepass_pipeline,
@@ -37,7 +34,5 @@ impl Plugin for PowrushRenderPlugin {
 
         render_app.add_render_graph_edge("velocity_prepass", "taa_reprojection");
         render_app.add_render_graph_edge("taa_reprojection", "motion_blur");
-
-        // Motion blur respects MotionBlurSettings.enabled at runtime
     }
 }
