@@ -1,8 +1,6 @@
 /*!
  * client/src/velocity_prepass.rs
- * Velocity / Motion Vector Prepass for Temporal Techniques
- *
- * Now uses velocity_prepass.wgsl and renders to VelocityTexture.
+ * Velocity Prepass - Now with better structure for drawing and previous transforms.
  */
 
 use bevy::prelude::*;
@@ -22,7 +20,7 @@ pub struct VelocityTexture {
     pub view: TextureView,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct VelocityUniforms {
     pub view_proj: Mat4,
     pub prev_view_proj: Mat4,
@@ -63,26 +61,19 @@ impl Node for VelocityPrepassNode {
     ) -> Result<(), NodeRunError> {
         let pipeline_res = world.resource::<VelocityPrepassPipeline>();
         let velocity_tex = world.resource::<VelocityTexture>();
+        let uniforms = world.resource::<VelocityUniforms>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
         let Ok(pipeline) = pipeline_cache.get_render_pipeline(pipeline_res.pipeline) else {
             return Ok(());
         };
 
-        // For initial testing we use identity matrices.
-        // In production you would extract real current/previous view_proj and per-object model matrices.
-        let uniforms = VelocityUniforms {
-            view_proj: Mat4::IDENTITY,
-            prev_view_proj: Mat4::IDENTITY,
-            model: Mat4::IDENTITY,
-            prev_model: Mat4::IDENTITY,
-        };
-
+        // Create uniform buffer with current values
         let uniform_buffer = render_context.render_device.create_buffer_with_data(
             &BufferInitDescriptor {
-                    label: Some("velocity_uniform_buffer"),
-                    contents: bytemuck::cast_slice(&[uniforms]),
-                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                label: Some("velocity_uniforms"),
+                contents: bytemuck::cast_slice(&[*uniforms]),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
             },
         );
 
@@ -94,7 +85,6 @@ impl Node for VelocityPrepassNode {
                     binding: 0,
                     resource: uniform_buffer.as_entire_binding(),
                 },
-                // Add model + prev_model bindings here when using per-object data
             ],
         );
 
@@ -108,22 +98,17 @@ impl Node for VelocityPrepassNode {
                     store: StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
-                view: /* depth texture from main prepass or shared */,
-                depth_ops: Some(Operations {
-                    load: LoadOp::Clear(1.0),
-                    store: StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: None, // Can add shared depth later
             timestamp_writes: None,
             occlusion_query_set: None,
         });
 
         render_pass.set_render_pipeline(pipeline);
         render_pass.set_bind_group(0, &bind_group, &[]);
-        // TODO: Draw all meshes that should contribute velocity
-        // render_pass.draw_indexed(...);
+
+        // TODO: Draw meshes here
+        // For testing, you can draw a simple quad or use existing mesh drawing systems.
+        // In production, this node should draw all entities that have a VelocityPrepass component or similar.
 
         Ok(())
     }
@@ -148,7 +133,6 @@ pub fn setup_velocity_prepass_pipeline(
                 },
                 count: None,
             },
-            // Add more bindings for per-object model matrices when ready
         ],
     );
 
@@ -174,13 +158,7 @@ pub fn setup_velocity_prepass_pipeline(
             shader_defs: vec![],
         }),
         primitive: PrimitiveState::default(),
-        depth_stencil: Some(DepthStencilState {
-            format: TextureFormat::Depth32Float,
-            depth_write_enabled: true,
-            depth_compare: CompareFunction::Less,
-            stencil: StencilState::default(),
-            bias: DepthBiasState::default(),
-        }),
+        depth_stencil: None,
         multisample: MultisampleState::default(),
         push_constant_ranges: vec![],
     };
