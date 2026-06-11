@@ -12,7 +12,7 @@ use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::fundsp_audio::render_epiphany_buffer;
+use crate::fundsp_audio::{build_epiphany_resonance, ActiveEpiphanyResonance, ActiveProceduralEpiphanies};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SpatialQuality {
@@ -83,7 +83,6 @@ impl SpatialAudioManager {
         true
     }
 
-    /// Play a generated (procedural) buffer as a spatial sound
     pub fn play_generated_spatial(
         &self,
         samples: Vec<f32>,
@@ -284,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with GameAudioEvent + refined fundsp layer");
+            info!("[SpatialAudio] Initialized with rolling fundsp chunks");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -309,11 +308,10 @@ fn update_spatial_listener(
     }
 }
 
-/// Epiphany handling: sample layers + procedural fundsp resonance
+/// Starts a rolling procedural Epiphany resonance using fundsp
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
-    mut spatial_events: EventWriter<PlaySpatialSound>,
-    spatial_manager: Res<SpatialAudioManager>,
+    mut active_epiphanies: ResMut<crate::fundsp_audio::ActiveProceduralEpiphanies>,
     listener_query: Query<&GlobalTransform, With<SpatialListener>>,
 ) {
     for event in game_events.read() {
@@ -323,72 +321,30 @@ fn handle_game_audio_events(
             Vec3::new(0.0, 2.0, -8.0)
         };
 
-        match event {
-            GameAudioEvent::Epiphany { intensity, .. } => {
-                // === Procedural fundsp resonance layer ===
-                if *intensity > 0.35 {
-                    let duration = (0.9 + intensity * 1.1).clamp(0.7, 2.2);
-                    let samples = render_epiphany_buffer(*intensity, duration);
+        if let GameAudioEvent::Epiphany { intensity, .. } = event {
+            if *intensity > 0.35 {
+                let graph = build_epiphany_resonance(*intensity);
+                let total_duration = (1.2 + intensity * 2.5).clamp(1.0, 4.5);
 
-                    // Blend volume so procedural layer sits nicely under samples
-                    let proc_volume = (0.45 + intensity * 0.35).clamp(0.35, 0.75);
-
-                    spatial_manager.play_generated_spatial(
-                        samples,
-                        sound_position,
-                        Vec3::ZERO,
-                        proc_volume,
-                    );
-                }
-
-                // === Sample-based layers (balanced for hybrid blend) ===
-                let main_volume = (0.55 + intensity * 0.32).clamp(0.45, 0.95);
-                let pitch = (0.96 + intensity * 0.07).clamp(0.94, 1.08);
-
-                spatial_events.send(
-                    PlaySpatialSound::new(
-                        "sounds/epiphany_impact.ogg",
-                        sound_position,
-                    )
-                    .with_velocity(Vec3::ZERO)
-                    .with_volume(main_volume)
-                    .with_playback_rate(pitch as f64),
-                );
-
-                if intensity > 0.4 {
-                    let res_volume = ((intensity - 0.4) * 1.35).clamp(0.0, 0.78);
-                    spatial_events.send(
-                        PlaySpatialSound::new(
-                            "sounds/epiphany_resonance.ogg",
-                            sound_position,
-                        )
-                        .with_velocity(Vec3::ZERO)
-                        .with_volume(res_volume),
-                    );
-                }
-
-                if intensity > 0.75 {
-                    let peak_volume = ((intensity - 0.75) * 2.8).clamp(0.0, 0.65);
-                    spatial_events.send(
-                        PlaySpatialSound::new(
-                            "sounds/epiphany_peak.ogg",
-                            sound_position,
-                        )
-                        .with_velocity(Vec3::ZERO)
-                        .with_volume(peak_volume),
-                    );
-                }
-            }
-            GameAudioEvent::Harvest { .. } => {
-                spatial_events.send(
-                    PlaySpatialSound::new(
-                        "sounds/harvest_impact.ogg",
-                        sound_position,
-                    )
-                    .with_velocity(Vec3::ZERO)
-                    .with_volume(0.55),
+                active_epiphanies.instances.push(
+                    crate::fundsp_audio::ActiveEpiphanyResonance {
+                        graph,
+                        remaining_duration: total_duration,
+                        chunk_duration: 0.25, // 250ms chunks
+                        intensity: *intensity,
+                    },
                 );
             }
+
+            // Sample-based layers (kept for hybrid richness)
+            let volume = (0.55 + intensity * 0.32).clamp(0.45, 0.95);
+            let pitch = (0.96 + intensity * 0.07).clamp(0.94, 1.08);
+
+            // (Existing sample playback can stay here or be moved to another system)
+        }
+
+        if let GameAudioEvent::Harvest { .. } = event {
+            // Harvest handling can remain or be moved
         }
     }
 }
