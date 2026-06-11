@@ -7,8 +7,7 @@ use bevy_kira_audio::{Audio, AudioTween};
 use simulation::divine_whispers::DivineWhisperTrigger;
 use std::time::Duration;
 
-use crate::spatial_audio::PlaySpatialSound;
-// use crate::fmod_audio::FmodPlay3DEvent; // FMOD prototype
+use crate::spatial_audio::{GameAudioEvent, PlaySpatialSound};
 
 #[derive(Component)]
 struct DivineWhisperUI;
@@ -109,8 +108,7 @@ fn receive_divine_whispers(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
-    mut spatial_events: EventWriter<PlaySpatialSound>,
-    // mut fmod_events: EventWriter<crate::fmod_audio::FmodPlay3DEvent>, // FMOD prototype
+    mut game_audio_events: EventWriter<GameAudioEvent>,
     listener_query: Query<&GlobalTransform, With<crate::spatial_audio::SpatialListener>>,
 ) {
     for event in events.read() {
@@ -128,32 +126,16 @@ fn receive_divine_whispers(
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
 
-                // Kira spatial audio
-                spatial_events.send(
-                    PlaySpatialSound::new(
-                        asset_server.load("sounds/epiphany_impact.ogg"),
-                        sound_position,
-                    )
-                    .with_velocity(Vec3::ZERO)
-                    .with_volume(0.9),
-                );
-
-                // FMOD prototype bridge (uncomment when using FMOD)
-                // fmod_events.send(
-                //     crate::fmod_audio::FmodPlay3DEvent::new(
-                //         "event:/Epiphany/Impact",
-                //         sound_position,
-                //     )
-                // );
+                // Send high-level game audio event (backend agnostic)
+                game_audio_events.send(GameAudioEvent::Epiphany {
+                    position: sound_position,
+                    intensity: event.intensity,
+                });
             } else {
-                spatial_events.send(
-                    PlaySpatialSound::new(
-                        asset_server.load("sounds/harvest_impact.ogg"),
-                        sound_position,
-                    )
-                    .with_velocity(Vec3::ZERO)
-                    .with_volume(0.55),
-                );
+                game_audio_events.send(GameAudioEvent::Harvest {
+                    position: sound_position,
+                    is_sustainable: false, // placeholder
+                });
             }
 
             let text_color = if is_epiphany {

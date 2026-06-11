@@ -1,11 +1,11 @@
 /*!
- * Spatial Audio System - Ambient / Looping Support
+ * Spatial Audio System + Game Audio Abstraction
  */
 
 use bevy::prelude::*;
 use kira::manager::AudioManager;
 use kira::manager::backend::DefaultBackend;
-use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
+use kira::sound::static_sound::StaticSoundData;
 use kira::spatial::emitter::SpatialEmitterSettings;
 use kira::spatial::listener::SpatialListenerSettings;
 use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
@@ -108,9 +108,9 @@ impl SpatialAudioManager {
                 match StaticSoundData::from_file(sound_path) {
                     Ok(data) => {
                         let settings = if looped {
-                            StaticSoundSettings::new().loop_region(..)
+                            kira::sound::static_sound::StaticSoundSettings::new().loop_region(..)
                         } else {
-                            StaticSoundSettings::new()
+                            kira::sound::static_sound::StaticSoundSettings::new()
                         };
                         let data = data.with_settings(settings);
                         let arc_data = Arc::new(data);
@@ -158,6 +158,19 @@ impl SpatialAudioManager {
 #[derive(Component)]
 pub struct SpatialListener;
 
+/// High-level game audio events (backend agnostic)
+#[derive(Event, Debug, Clone)]
+pub enum GameAudioEvent {
+    Epiphany {
+        position: Vec3,
+        intensity: f32,
+    },
+    Harvest {
+        position: Vec3,
+        is_sustainable: bool,
+    },
+}
+
 #[derive(Event, Debug)]
 pub struct PlaySpatialSound {
     pub sound_path: String,
@@ -200,10 +213,12 @@ impl Plugin for SpatialAudioPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<SpatialAudioManager>()
+            .add_event::<GameAudioEvent>()
             .add_event::<PlaySpatialSound>()
             .add_systems(Startup, setup_spatial_audio)
             .add_systems(Update, (
                 update_spatial_listener,
+                handle_game_audio_events,
                 handle_play_spatial_sound_events,
             ));
     }
@@ -221,7 +236,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with ambient/looping support");
+            info!("[SpatialAudio] Initialized with GameAudioEvent abstraction");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -241,6 +256,44 @@ fn update_spatial_listener(
         if let Some(ref listener_handle) = spatial_manager.listener_handle {
             if let Ok(mut scene) = spatial_manager.spatial_scene.lock() {
                 let _ = scene.set_listener_position(listener_handle.id(), transform.translation().into());
+            }
+        }
+    }
+}
+
+/// Converts high-level GameAudioEvent into Kira-specific PlaySpatialSound
+fn handle_game_audio_events(
+    mut game_events: EventReader<GameAudioEvent>,
+    mut spatial_events: EventWriter<PlaySpatialSound>,
+    listener_query: Query<&GlobalTransform, With<SpatialListener>>,
+) {
+    for event in game_events.read() {
+        let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
+            listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
+        } else {
+            Vec3::new(0.0, 2.0, -8.0)
+        };
+
+        match event {
+            GameAudioEvent::Epiphany { intensity, .. } => {
+                spatial_events.send(
+                    PlaySpatialSound::new(
+                        "sounds/epiphany_impact.ogg",
+                        sound_position,
+                    )
+                    .with_velocity(Vec3::ZERO)
+                    .with_volume(0.85 + intensity * 0.1),
+                );
+            }
+            GameAudioEvent::Harvest { .. } => {
+                spatial_events.send(
+                    PlaySpatialSound::new(
+                        "sounds/harvest_impact.ogg",
+                        sound_position,
+                    )
+                    .with_velocity(Vec3::ZERO)
+                    .with_volume(0.55),
+                );
             }
         }
     }
