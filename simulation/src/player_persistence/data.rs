@@ -1,12 +1,15 @@
 /*!
- * Persistence Data Layer
- * Structs, Event, and core mutation helpers (including muscle memory weighting).
+ * Persistence Data Layer (Final Polish for Item 1)
+ * Structs, Event, mutation helpers + clean integration with EpiphanyOutcome.
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+// Re-export for convenience in other modules
+pub use crate::epiphany_catalyst::EpiphanyOutcome;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EpiphanyRecord {
@@ -84,6 +87,41 @@ impl PlayerSaveData {
         data
     }
 
+    /// Preferred integration point from Epiphany Catalyst (single source of truth)
+    pub fn apply_epiphany_outcome(&mut self, outcome: &EpiphanyOutcome, biome: &str) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        self.epiphanies.push(EpiphanyRecord {
+            scenario_id: outcome.scenario_id.clone(),
+            timestamp,
+            intensity: outcome.intensity,
+            biome: biome.to_string(),
+        });
+
+        self.total_epiphanies += 1;
+        self.last_epiphany_timestamp = timestamp;
+
+        // Apply muscle memory consolidation from catalyst
+        let muscle_gain = outcome.muscle_memory_consolidation_boost * 0.12;
+        self.muscle_memory_level = (self.muscle_memory_level + muscle_gain).min(5.0);
+
+        // Apply temporary multiplier from epiphany
+        if outcome.epiphany_multiplier > 1.0 {
+            self.temporary_harvest_multiplier = outcome.epiphany_multiplier;
+            self.temporary_multiplier_expires_at = timestamp + 300; // 5 minutes
+        }
+
+        // Resonance & biome affinity
+        self.resonance_score = (self.resonance_score + outcome.intensity * 0.04).min(1.0);
+        let affinity = self.biome_affinity.entry(biome.to_string()).or_insert(0.5);
+        *affinity = (*affinity + outcome.intensity * 0.1).min(2.0);
+
+        self.dirty = true;
+    }
+
     pub fn record_epiphany(&mut self, scenario_id: &str, intensity: f32, biome: &str) -> f32 {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -100,7 +138,6 @@ impl PlayerSaveData {
         self.total_epiphanies += 1;
         self.last_epiphany_timestamp = timestamp;
 
-        // Muscle memory weighting (non-linear)
         let muscle_gain = intensity * 0.15 * (1.0 + self.muscle_memory_level * 0.1);
         self.muscle_memory_level = (self.muscle_memory_level + muscle_gain).min(5.0);
 
@@ -132,7 +169,6 @@ impl PlayerSaveData {
         self.dirty = true;
     }
 
-    /// Muscle memory bonus applied to harvest efficiency
     pub fn get_muscle_memory_harvest_bonus(&self) -> f32 {
         1.0 + (self.muscle_memory_level - 1.0) * 0.08
     }
