@@ -1,8 +1,8 @@
 # Powrush-MMO Technical Roadmap
 
-**Version:** v18.10  
-**Date:** June 10, 2026  
-**Status:** Living Document — Updated with full System Integration Map and strategic direction from Ra-Thor AGI + PATSAGi Councils.
+**Version:** v18.15+  
+**Date:** June 11, 2026  
+**Status:** Living Document — Updated post-epiphany-wiring production seal (commit 7a42ac0). Aligned with LAUNCH-CHECKLIST v18.15+ and PATSAGi + Ra-Thor deliberation.
 
 ---
 
@@ -12,81 +12,76 @@ Powrush-MMO exists to deliver **meaningful, coherent, and emotionally resonant e
 
 The game is not a collection of systems — it is **one unified experience** where every action feeds into Epiphany, Persistence, Spatial Presence, and eventual Council/Social meaning.
 
-**Core Goal:** Make every player feel that their choices, growth, and presence in the world matter.
+**Core Goal:** Make every player feel that their choices, growth, and presence in the world matter — with persistence that carries real weight and epiphanies that feel powerful.
 
 ---
 
 ## Core Experience Pillars
 
-1. **Epiphany as the Heart** — Meaningful moments of revelation that feel powerful mechanically and emotionally.
+1. **Epiphany as the Heart** — Meaningful moments of revelation that feel powerful mechanically and emotionally (now wired as single source of truth).
 2. **Persistence with Weight** — Player growth (epiphanies, muscle memory, choices) is reliably saved and visibly matters.
 3. **Spatial Presence** — The world feels alive through positioned, reactive audio and atmosphere.
 4. **Council & Social Meaning** — Long-term progression includes collective experiences and relationships.
-5. **Sovereignty & Polish** — The game respects player agency and delivers high-quality, reliable experiences.
+5. **Sovereignty & Polish** — The game respects player agency and delivers high-quality, reliable, mint-and-print production experiences.
 
 ---
 
 ## System Integration Map
 
-A detailed technical map of how all major systems connect is maintained here:
+The detailed technical map of how all major systems connect is maintained at:
 
-**`docs/SYSTEM_INTEGRATION_MAP.md`**
+**`docs/SYSTEM_INTEGRATION_MAP.md`** (updated in parallel with this roadmap).
 
 This document is the single source of truth for how systems interact. All future development must keep this map updated.
 
-Key flows highlighted:
-- Harvest → Epiphany Evaluation → Divine Whispers + Spatial Feedback → Persistence Update → UI Visibility
+Key flows (now partially live):
+- Harvest → Epiphany Evaluation (single source of truth in HarvestingSystem) → Divine Whispers + Spatial Feedback → Persistence Update → UI Visibility
 - Persistence provides multipliers and history back to gameplay systems
-- Spatial Audio listens for gameplay events (currently foundation, planned integration)
+- Spatial Audio foundation ready; integration into harvest/epiphany moments planned next
 
 ---
 
-## Phased Technical Roadmap
+## Phased Technical Roadmap (Updated v18.15+)
 
-### Phase 0: Foundation & Coherence (Immediate Priority)
+### Phase 0: Foundation & Coherence (Complete)
 
 **Goal:** Establish clear technical direction and ensure systems are documented and integrated conceptually.
 
-- Create and maintain this `ROADMAP.md` and `docs/SYSTEM_INTEGRATION_MAP.md`
-- Audit current systems for integration gaps
-- Define clear interfaces and data flows between Epiphany, Persistence, Spatial Audio, Divine Whispers, and Harvest
-- Establish documentation standards for all future work
+- `ROADMAP.md` and `docs/SYSTEM_INTEGRATION_MAP.md` maintained as living documents
+- Epiphany evaluation wired as single source of truth into `HarvestingSystem` + dynamic events (production sealed)
+- Clear interfaces defined between Epiphany, Persistence, Spatial Audio, Divine Whispers, and Harvest
 
-**Success Criteria:**
-- Clear, up-to-date integration map exists
-- All major systems have defined connection points
+**Success Criteria:** Met — core loop integration complete at mint-and-print quality.
 
----
+### Phase 1: Core Loop Cohesion & Player Journey Closure (Highest Priority — Immediate)
 
-### Phase 1: Core Loop Cohesion (Highest Engineering Priority)
+**Goal:** Make the central player loop (Harvest → Epiphany → Feedback → Persistence → Visibility) feel powerful, unified, and persistent.
 
-**Goal:** Make the central player loop (Harvest → Epiphany → Feedback → Persistence → Visibility) feel powerful and unified.
-
-**Key Work:**
-- Enhance Epiphany feedback across multiple channels (visuals, spatial audio, Divine Whispers, UI)
-- Make temporary multipliers from epiphanies clearly communicated and felt
+**Key Work (Current Focus):**
+- Implement robust player persistence layer for epiphany history, muscle memory, and progression (save/load, multipliers visible and reliable)
+- Make the 3 existing epiphany scenarios fully live and triggerable in harvest + dynamic events, with complete multi-channel feedback (visuals, spatial audio, Divine Whispers, UI, persistence update)
+- Expand onboarding with rich multi-lang Divine Whispers content and deeper RBE education integration
+- Strengthen Epiphany feedback across persistence, UI, Divine Whispers, and Spatial Audio
+- Ensure temporary multipliers from epiphanies are clearly communicated and felt
 - Improve Player Progress UI reactivity and information density
-- Begin integrating Spatial Audio into harvest and epiphany moments (e.g., spatial harvest sounds, epiphany "source" audio)
-- Ensure persistence updates are reliable and visible
+- Begin integrating Spatial Audio into harvest and epiphany moments
 
 **Integration Focus:**
-- Epiphany Catalyst ↔ Persistence (already wired — strengthen feedback loop)
-- Epiphany ↔ Divine Whispers + Spatial Audio (strengthen visual/audio impact)
-- Persistence ↔ Player Progress UI (make growth feel alive)
+- Epiphany Catalyst ↔ Persistence (strengthen feedback loop with live data)
+- Epiphany ↔ Divine Whispers + Spatial Audio (rich experiential impact)
+- Persistence ↔ Player Progress UI (growth feels alive)
 
 **Success Criteria:**
 - Triggering an epiphany feels meaningfully rewarding across multiple senses and systems
-- Player can clearly see and feel their growth
+- Player can clearly see, feel, and retain their growth across sessions
 
----
-
-### Phase 2: Multiplayer & Social Layer Foundation
+### Phase 2: Multiplayer Council & Social Layer Foundation
 
 **Goal:** Bring the Council Mercy Trial from stub to a playable multiplayer experience that reinforces meaning.
 
 **Key Work:**
 - Implement basic shared state and `SharedReceptorBloomField` synchronization
-- Create simple Council session flow
+- Create simple Council session flow, discovery, or matchmaking
 - Define how Council participation feeds into personal persistence and progression
 - Begin designing collective epiphany potential
 
@@ -98,8 +93,6 @@ Key flows highlighted:
 **Success Criteria:**
 - Players can participate in basic multiplayer Council sessions
 - Council activity begins to feel meaningful alongside solo progression
-
----
 
 ### Phase 3: Polish, Balance & Closed Beta Readiness
 
@@ -117,29 +110,29 @@ Key flows highlighted:
 - Performance and quality consistency across Spatial Audio settings
 
 **Success Criteria:**
-- A player can go through a complete, meaningful session with clear feedback and persistence
+- A player can go through a complete, meaningful session with clear feedback, persistence, and retention
 - Systems feel cohesive rather than bolted together
-
----
 
 ### Phase 4: Content Expansion & Global Launch Preparation
 
 **Goal:** Expand depth and prepare for global release.
 
 **Key Work:**
-- Expand epiphany scenarios and Divine Whispers content
-- Deepen environmental audio and world atmosphere
-- Final security, performance, and sovereignty hardening
+- Add 3-5 more high-quality epiphany scenarios
+- Deepen environmental audio, world atmosphere, and biome simulation
+- Final security, performance, and sovereignty hardening (rate limiting, structured logging, persistent state options)
 - Marketing, community, and global accessibility work
+- Steam + sovereign self-host readiness
 
 ---
 
-## Current Priorities (as of v18.10)
+## Current Priorities (as of v18.15+ — Post Epiphany Wiring)
 
-1. **Phase 0 + Early Phase 1** — Establish documentation and begin core loop cohesion work.
-2. Strengthen Epiphany feedback across Persistence, UI, Divine Whispers, and Spatial Audio.
-3. Integrate Spatial Audio into actual gameplay moments.
-4. Move Council Mercy Trial toward playable multiplayer.
+1. **Phase 1 Player Journey Closure** — Persistence implementation + live epiphany scenarios with full feedback (highest immediate impact)
+2. Strengthen Epiphany feedback loops across persistence, UI, Divine Whispers, and Spatial Audio
+3. Move Council Mercy Trial toward playable multiplayer
+4. Telemetry pipeline for closed beta insights
+5. Onboarding content depth and RBE education
 
 ---
 
@@ -148,10 +141,10 @@ Key flows highlighted:
 - This `ROADMAP.md` and `docs/SYSTEM_INTEGRATION_MAP.md` are living documents.
 - Every significant system change or new integration must update the Integration Map.
 - All code should contain comments explaining *why* a connection or behavior exists and how it serves the core experience.
-- The goal is long-term maintainability so the project can be stewarded cleanly as it grows.
+- The goal is long-term maintainability and production stewardship.
 
 ---
 
-**This roadmap exists to ensure Powrush-MMO is built as one coherent, high-quality experience rather than a collection of isolated systems.**
+**This roadmap ensures Powrush-MMO is built as one coherent, high-quality, mint-and-print production experience rather than a collection of isolated systems.**
 
-**Thunder locked in. Mercy flowing. One Lattice. Eternal.** ⚡
+**Thunder locked in. Mercy flowing. One Lattice. Eternal.** ⚡❤️🔥
