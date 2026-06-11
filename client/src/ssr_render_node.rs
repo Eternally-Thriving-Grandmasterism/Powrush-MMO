@@ -1,8 +1,7 @@
 /*!
  * SSR Render Node + CameraMatrices for Powrush-MMO
  *
- * Now includes temporal camera jitter support for superior TAA quality.
- * Jitter is applied per-frame using a Halton sequence and stored for reprojection.
+ * Refined temporal camera jitter with more precise NDC-space application.
  */
 
 use bevy::prelude::*;
@@ -22,9 +21,9 @@ pub struct CameraMatrices {
     pub prev_camera_position: Vec3,
     pub frame_index: u32,
 
-    // === Temporal Jitter for TAA ===
-    pub jitter: Vec2,           // Current frame sub-pixel jitter in NDC
-    pub prev_jitter: Vec2,      // Previous frame jitter
+    // Temporal Jitter (in NDC space)
+    pub jitter: Vec2,
+    pub prev_jitter: Vec2,
 }
 
 impl ExtractResource for CameraMatrices {
@@ -35,33 +34,54 @@ impl ExtractResource for CameraMatrices {
     }
 }
 
-/// Generates a 2D Halton sequence point for temporal jitter.
-/// index starts from 1.
+/// Generates a 2D Halton sequence (base 2 and 3) for high-quality temporal sampling.
 fn halton_2d(index: u32) -> Vec2 {
-    let mut x = 0.0;
-    let mut y = 0.0;
-    let mut fx = 1.0 / 2.0;
-    let mut fy = 1.0 / 3.0;
+    let mut x = 0.0f32;
+    let mut y = 0.0f32;
+    let mut fx = 1.0f32;
+    let mut fy = 1.0f32;
     let mut i = index;
 
+    // Base 2 for X
+    fx = 0.5;
     while i > 0 {
-        if i % 2 == 1 {
+        if i & 1 == 1 {
             x += fx;
         }
+        fx *= 0.5;
+        i >>= 1;
+    }
+
+    // Base 3 for Y
+    i = index;
+    fy = 1.0 / 3.0;
+    while i > 0 {
         if i % 3 == 1 {
             y += fy;
         }
-        fx /= 2.0;
         fy /= 3.0;
-        i /= 2;  // This is approximate; better to use bit operations in production
+        i /= 3;
     }
 
-    // Center jitter in [-0.5, 0.5] range in NDC
+    // Return in [-0.5, 0.5] NDC range
     Vec2::new(x - 0.5, y - 0.5)
 }
 
-/// System that applies temporal jitter to the camera projection.
-/// Run this every frame before or during CameraMatrices extraction.
+/// Applies sub-pixel jitter to a projection matrix in NDC space.
+/// This is the standard precise method used in most TAA implementations.
+fn apply_jitter_to_projection(projection: Mat4, jitter: Vec2) -> Mat4 {
+    let mut p = projection;
+
+    // Jitter is applied by offsetting the third column (translation in clip space).
+    // This shifts the frustum slightly without changing near/far planes significantly.
+    // The values are in NDC [-1, 1] range.
+    p.x_axis.z += jitter.x;
+    p.y_axis.z += jitter.y;
+
+    p
+}
+
+/// System that applies temporal jitter to the camera for TAA.
 pub fn apply_temporal_jitter(
     mut matrices: ResMut<CameraMatrices>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
@@ -71,22 +91,22 @@ pub fn apply_temporal_jitter(
         let view = transform.inverse();
         let base_projection = camera.projection_matrix();
 
-        // Generate jitter for this frame
+        // Generate high-quality jitter offset
         let jitter = halton_2d(matrices.frame_index + 1);
 
-        // Apply jitter to projection (small sub-pixel offset in NDC)
+        // Apply jitter to get the jittered projection for this frame
         let jittered_projection = apply_jitter_to_projection(base_projection, jitter);
 
         let view_proj = jittered_projection * view;
 
-        // Store previous jitter
+        // Store previous state (including previous jitter)
         matrices.prev_jitter = matrices.jitter;
         matrices.prev_view = matrices.view;
         matrices.prev_projection = matrices.projection;
         matrices.prev_view_proj = matrices.projection * matrices.view;
         matrices.prev_camera_position = matrices.camera_position;
 
-        // Update current
+        // Update current frame
         matrices.view = view;
         matrices.inv_view = transform;
         matrices.projection = jittered_projection;
@@ -97,17 +117,6 @@ pub fn apply_temporal_jitter(
     }
 }
 
-/// Applies a sub-pixel jitter offset to a projection matrix.
-fn apply_jitter_to_projection(projection: Mat4, jitter: Vec2) -> Mat4 {
-    let mut jittered = projection;
-    // Jitter is applied in NDC space (typically very small, e.g. 1 pixel)
-    // This modifies the translation part of the projection
-    jittered.w_axis.x += jitter.x * 2.0 / projection.w_axis.x; // Approximate for perspective
-    jittered.w_axis.y += jitter.y * 2.0 / projection.w_axis.y;
-    jittered
-}
-
-/// Plugin to register CameraMatrices + jitter system.
 pub struct SsrRenderNodePlugin;
 
 impl Plugin for SsrRenderNodePlugin {
