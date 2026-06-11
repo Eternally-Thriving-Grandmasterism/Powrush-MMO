@@ -1,0 +1,59 @@
+{
+  "id": "living_web_interconnection_v18.10",
+  "name": "The Living Web Interconnection",
+  "version": "18.10",
+  "archetype": "Biome Ecology Epiphanies + Web Awareness Receptor Activation",
+  "description": "Data-driven scenario in Verdant Heartwood. Teaches that every harvest, every step, every breath ripples through the entire living web. Players discover interconnectedness through observable distant effects. Sustainable attunement path triggers CB3 (web consciousness / systems thinking) receptor bloom. Fully localized-ready and audio-resonance seeded for procedural Epiphany layers.",
+  "biome": "Verdant Heartwood",
+  "trigger": {
+    "type": "multi_zone_harvest_or_interact",
+    "conditions": [
+      {
+        "name": "disconnected_path",
+        "description": "Player harvests or interacts in isolation, ignoring signals from distant zones, animal calls, or resonance particles."
+      },
+      {
+        "name": "web_attuned_path",
+        "description": "Player observes cross-biome signals (distant particle blooms, animal migrations responding to their actions), rotates with web rhythm, leaves resonance anchors. Builds toward receptor bloom when attunement duration + signal diversity thresholds met."
+      }
+    ]
+  },
+  "outcomes": {
+    "disconnected": {
+      "valence_delta": -0.2,
+      "whisper_message": "The web grows silent when we act as if alone. Every thread matters.",
+      "epiphany_seed": "No action is isolated. The forest feels you.",
+      "muscle_memory_tag": "systems_observation",
+      "world_effects": {
+        "distant_regen_penalty": 0.7,
+        "signal_fade": true,
+        "npc_reaction": "creatures_ignore"
+      },
+      "grace_note": "Mercy available: pause, listen across the web, adjust.",
+      "receptor_bloom_potential": false
+    },
+    "web_attuned": {
+      "valence_delta": 0.4,
+      "whisper_message": "You are the web. Your attunement makes the whole bloom brighter.",
+      "epiphany_unlock": "Every harvest is a conversation with the entire living system. My presence ripples with mercy.",
+      "muscle_memory_tag": "interconnected_attunement",
+      "world_effects": {
+        "web_regen_multiplier": 2.1,
+        "cross_zone_abundance": 0.5,
+        "particle_valence": "golden_web_bloom",
+        "joy_particles": true
+      },
+      "grace_note": "Epiphany achieved. Web consciousness seeded. Transferable to real ecosystems and communities.",
+      "receptor_bloom_potential": true,
+      "cb3_activation_potential": 0.9,
+      "particle_effect_seed": "living_web_resonance_bloom",
+      "audio_resonance_seed": "web_interconnect_layer",
+      "intensity_curve": { "start": 0.5, "peak": 0.85, "decay": 0.6 },
+      "divine_whisper_flavor_seed": "cosmic_harmony_web"
+    }
+  },
+  "integration_points": ["harvesting_system", "world_state", "divine_whispers", "valence_particles", "endocannabinoid_receptor_forge", "fundsp_audio"],
+  "patsagi_seal": true,
+  "tolc8_validated": true,
+  "notes": "v18.10: New data-driven biome ecology scenario. Introduces CB3 receptor (systems thinking, web consciousness). Audio-ready with resonance seed and intensity curve for granular Epiphany procedural layers. Fully compatible with hot-loaded localization. Designed for organic discovery and real-world transfer of ecological mercy."
+}

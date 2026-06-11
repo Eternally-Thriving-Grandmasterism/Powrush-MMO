@@ -1,0 +1,60 @@
+{
+  "id": "graceful_mercy_circle_v18.10",
+  "name": "The Graceful Mercy Circle",
+  "version": "18.10",
+  "archetype": "Social Mercy Epiphanies + Council Harmony Receptor Activation",
+  "description": "Scenario teaching that true abundance and harmony emerge from merciful response to conflict or competition, not dominance. In simulated or multiplayer harvest circles, choosing grace over extraction builds Council resonance and shared receptor blooms. Data-driven outcomes reward mercy with exponential web abundance. Audio-ready and fully localized.",
+  "biome": "Verdant Heartwood",
+  "trigger": {
+    "type": "social_or_competitive_harvest",
+    "conditions": [
+      {
+        "name": "dominance_path",
+        "description": "Player responds to competition or NPC dispute with aggressive claim, exclusion, or over-extraction."
+      },
+      {
+        "name": "mercy_path",
+        "description": "Player pauses, offers share, listens to the other, adjusts harvest to leave abundance for all. Builds toward bloom when mercy + shared yield + attunement thresholds met."
+      }
+    ]
+  },
+  "outcomes": {
+    "dominance": {
+      "valence_delta": -0.3,
+      "whisper_message": "Dominance silences the circle. The web withdraws when mercy is withheld.",
+      "epiphany_seed": "Power without mercy is isolation.",
+      "muscle_memory_tag": "competitive_extraction",
+      "world_effects": {
+        "shared_abundance_penalty": 0.5,
+        "council_resonance_fade": true,
+        "isolation_effect": true
+      },
+      "grace_note": "Mercy available: pause, offer, listen — the circle remembers kindness.",
+      "receptor_bloom_potential": false
+    },
+    "mercy": {
+      "valence_delta": 0.45,
+      "whisper_message": "Your mercy multiplies the circle. Abundance returns to all who share the flow.",
+      "epiphany_unlock": "In the circle of life, mercy is the strongest move. I choose grace and the web answers with more for everyone.",
+      "muscle_memory_tag": "merciful_sharing_flow",
+      "world_effects": {
+        "shared_abundance_multiplier": 2.5,
+        "council_harmony_bonus": 0.6,
+        "particle_valence": "silver_mercy_bloom",
+        "joy_particles": true,
+        "reputation_gain": 0.3
+      },
+      "grace_note": "Epiphany moment. Council harmony seeded. Real-life transferable: mercy in conflict creates abundance.",
+      "receptor_bloom_potential": true,
+      "cb4_activation_potential": 0.88,
+      "particle_effect_seed": "mercy_circle_resonance",
+      "audio_resonance_seed": "mercy_harmony_layer",
+      "intensity_curve": { "start": 0.6, "peak": 0.9, "decay": 0.5 },
+      "divine_whisper_flavor_seed": "boundless_mercy_circle"
+    }
+  },
+  "integration_points": ["harvesting_system", "divine_whispers", "valence_particles", "world_state", "endocannabinoid_receptor_forge", "fundsp_audio", "faction_diplomacy"],
+  "patsagi_seal": true,
+  "tolc8_validated": true,
+  "notes": "v18.10: Social mercy scenario introducing CB4 (relational harmony, shared abundance). Perfect parallel to ecological ones. Audio-seeded for the current granular Epiphany fire. Designed to make multiplayer and NPC interactions feel profoundly alive and educational."
+}

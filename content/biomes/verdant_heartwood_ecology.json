@@ -1,0 +1,37 @@
+{
+  "biome_id": "verdant_heartwood",
+  "name": "Verdant Heartwood",
+  "ecological_description": "Lush, interconnected forest biome pulsing with the living web. High regen when tended with mercy and attunement. Species respond to player presence: resonant deer approach with blessings on merciful paths, ancient trees amplify resonance. Every action ripples across zones. Base for all ecological epiphanies and audio layers.",
+  "base_regen_rate": 1.0,
+  "sustainable_harvest_threshold": 0.35,
+  "overharvest_penalty": 0.6,
+  "web_interconnect_factor": 1.8,
+  "species_interactions": {
+    "resonant_deer": {
+      "response_to_mercy": "approach_and_bless_with_particles",
+      "response_to_dominance": "withdraw_and_signal_warning"
+    },
+    "singing_birds": {
+      "response_to_web_attunement": "amplify_cross_zone_signals",
+      "response_to_isolation": "fall_silent"
+    },
+    "ancient_trees": {
+      "resonance_amplifier": 1.5,
+      "mercy_bonus": 0.4,
+      "web_anchor": true
+    }
+  },
+  "valence_modifiers": {
+    "emerald_bloom": 0.35,
+    "golden_web_bloom": 0.5,
+    "silver_mercy_bloom": 0.45
+  },
+  "audio_resonance_defaults": {
+    "base_layer": "forest_heartbeat_pulse",
+    "bloom_layer": "web_interconnect_resonance",
+    "mercy_layer": "grace_circle_harmony"
+  },
+  "patsagi_seal": true,
+  "tolc8_validated": true,
+  "notes": "v18.10 basic ecological seed data. Provides shared parameters for all scenarios in this biome. Audio-ready defaults for fundsp integration. Expandable with more species, seasonal cycles, multiplayer web effects."
+}
