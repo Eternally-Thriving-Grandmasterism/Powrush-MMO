@@ -5,14 +5,14 @@
 use bevy::prelude::*;
 use kira::manager::AudioManager;
 use kira::manager::backend::DefaultBackend;
-use kira::sound::static_sound::StaticSoundData;
+use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use kira::spatial::emitter::SpatialEmitterSettings;
 use kira::spatial::listener::SpatialListenerSettings;
 use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::fundsp_audio::build_epiphany_resonance;
+use crate::fundsp_audio::{build_epiphany_resonance, render_epiphany_buffer};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SpatialQuality {
@@ -81,6 +81,53 @@ impl SpatialAudioManager {
         }
         self.current_hrtf_dataset = Some(dataset_name.to_string());
         true
+    }
+
+    /// Play a generated (procedural) buffer as a spatial sound
+    pub fn play_generated_spatial(
+        &self,
+        samples: Vec<f32>,
+        position: Vec3,
+        velocity: Vec3,
+        volume: f32,
+    ) -> bool {
+        if !self.enabled || samples.is_empty() {
+            return false;
+        }
+
+        {
+            let active = self.active_emitters.lock().unwrap();
+            if *active >= self.max_active_emitters {
+                return false;
+            }
+        }
+
+        let sound_data = StaticSoundData::from_samples(samples, 44100)
+            .with_settings(StaticSoundSettings::new());
+
+        let emitter_settings = SpatialEmitterSettings::new()
+            .with_position(position.into())
+            .with_velocity(velocity.into())
+            .with_volume(volume);
+
+        if let Ok(mut scene) = self.spatial_scene.lock() {
+            match scene.add_emitter(position.into(), emitter_settings) {
+                Ok(mut emitter) => {
+                    if let Err(e) = emitter.play(sound_data) {
+                        warn!("Failed to play generated spatial sound: {}", e);
+                        return false;
+                    }
+                    *self.active_emitters.lock().unwrap() += 1;
+                    true
+                }
+                Err(e) => {
+                    warn!("Failed to create emitter for generated sound: {}", e);
+                    false
+                }
+            }
+        } else {
+            false
+        }
     }
 
     pub fn try_play_spatial(
@@ -237,7 +284,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with GameAudioEvent abstraction + fundsp prototype");
+            info!("[SpatialAudio] Initialized with GameAudioEvent + fundsp integration");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -262,11 +309,11 @@ fn update_spatial_listener(
     }
 }
 
-/// Converts high-level GameAudioEvent into Kira-specific PlaySpatialSound
-/// Also prepares fundsp procedural resonance graph for Epiphanies
+/// Converts GameAudioEvent into Kira sounds + procedural fundsp layer
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut spatial_events: EventWriter<PlaySpatialSound>,
+    spatial_manager: Res<SpatialAudioManager>,
     listener_query: Query<&GlobalTransform, With<SpatialListener>>,
 ) {
     for event in game_events.read() {
@@ -278,14 +325,24 @@ fn handle_game_audio_events(
 
         match event {
             GameAudioEvent::Epiphany { intensity, .. } => {
-                // Build procedural resonance graph (prototype)
-                let _resonance_graph = build_epiphany_resonance(*intensity);
+                // Build and render procedural resonance using fundsp
+                if *intensity > 0.35 {
+                    let duration = (0.8 + intensity * 1.2).clamp(0.6, 2.0);
+                    let samples = render_epiphany_buffer(*intensity, duration);
 
-                // Rich Epiphany feedback with intensity tiers
+                    // Play the generated procedural layer spatially
+                    spatial_manager.play_generated_spatial(
+                        samples,
+                        sound_position,
+                        Vec3::ZERO,
+                        0.6 + intensity * 0.3,
+                    );
+                }
+
+                // Sample-based layers (existing)
                 let volume = (0.6 + intensity * 0.35).clamp(0.5, 1.0);
                 let pitch = (0.96 + intensity * 0.08).clamp(0.94, 1.1);
 
-                // Main impact sound
                 spatial_events.send(
                     PlaySpatialSound::new(
                         "sounds/epiphany_impact.ogg",
@@ -296,7 +353,6 @@ fn handle_game_audio_events(
                     .with_playback_rate(pitch as f64),
                 );
 
-                // Secondary resonance layer (intensity-tiered)
                 if intensity > 0.4 {
                     let secondary_volume = ((intensity - 0.4) * 1.5).clamp(0.0, 0.85);
                     spatial_events.send(
@@ -309,7 +365,6 @@ fn handle_game_audio_events(
                     );
                 }
 
-                // Tertiary peak layer for very strong epiphanies
                 if intensity > 0.75 {
                     let peak_volume = ((intensity - 0.75) * 3.0).clamp(0.0, 0.7);
                     spatial_events.send(

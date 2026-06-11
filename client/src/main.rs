@@ -18,7 +18,7 @@ use crate::divine_whispers::DivineWhispersPlugin;
 use crate::player_progress_ui::PlayerProgressUIPlugin;
 use crate::spatial_audio::{SpatialAudioPlugin, SpatialListener};
 // use crate::fmod_audio::FmodAudioPlugin;
-// use crate::fundsp_audio::FundspAudioPlugin; // Procedural layer prototype
+// use crate::fundsp_audio::FundspAudioPlugin;
 
 fn main() {
     App::new()
@@ -46,14 +46,11 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Kira-based spatial audio + GameAudioEvent abstraction
+        // Kira + GameAudioEvent abstraction + fundsp procedural layer
         .add_plugins(SpatialAudioPlugin)
 
-        // FMOD prototype (commented)
-        // .add_plugins(FmodAudioPlugin)
-
-        // fundsp procedural prototype (commented)
-        // .add_plugins(FundspAudioPlugin)
+        // .add_plugins(FmodAudioPlugin);
+        // .add_plugins(FundspAudioPlugin);
 
         .init_resource::<CloudSync>()
         .add_systems(Startup, init_cloud_sync)
