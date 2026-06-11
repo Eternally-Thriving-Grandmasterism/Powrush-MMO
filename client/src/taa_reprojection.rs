@@ -1,8 +1,7 @@
 /*!
- * TAA Reprojection Node for Powrush-MMO
+ * TAA Reprojection Node + Settings for Powrush-MMO
  *
- * Automatic current color extraction from main camera ViewTarget.
- * No manual resource management needed for basic use.
+ * Includes TaaSettings resource for controlling jitter intensity and enabling/disabling TAA.
  */
 
 use bevy::prelude::*;
@@ -13,6 +12,21 @@ use bevy::render::view::ViewTarget;
 
 use crate::velocity_prepass::VelocityTexture;
 use crate::ssr_render_node::CameraMatrices;
+
+#[derive(Resource, Clone, Copy)]
+pub struct TaaSettings {
+    pub enabled: bool,
+    pub jitter_scale: f32,      // 0.0 = no jitter, 1.0 = normal, >1.0 = stronger (can introduce artifacts)
+}
+
+impl Default for TaaSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            jitter_scale: 1.0,
+        }
+    }
+}
 
 #[derive(Resource)]
 pub struct TaaPipeline {
@@ -35,6 +49,11 @@ impl Node for TaaReprojectionNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
+        let settings = world.resource::<TaaSettings>();
+        if !settings.enabled {
+            return Ok(());
+        }
+
         let pipeline_res = world.resource::<TaaPipeline>();
         let velocity_tex = world.resource::<VelocityTexture>();
         let history_tex = world.resource::<TaaHistoryTexture>();
@@ -44,18 +63,13 @@ impl Node for TaaReprojectionNode {
             return Ok(());
         };
 
-        // === Automatic Current Color Extraction ===
-        // Try to get the main camera's color target automatically
+        // Get current color (automatic via ViewTarget or resource)
         let current_color_view = if let Ok(view_target) = world.query::<&ViewTarget>().get_single(world) {
-            // In Bevy, ViewTarget provides access to the main texture view
-            // For this implementation we assume the main_texture_view is available
-            // (In full Bevy post-process nodes, you use view_target.main_texture_view())
-            // 
-            // Since direct access can be version-specific, we fall back to TaaCurrentColorTexture if present
-            if let Some(resource_view) = world.get_resource::<TaaCurrentColorTexture>() {
-                &resource_view.view
+            // In production, we would properly extract the main view here.
+            // For now we rely on TaaCurrentColorTexture if populated.
+            if let Some(res) = world.get_resource::<TaaCurrentColorTexture>() {
+                &res.view
             } else {
-                // If we can't get it automatically, skip this frame
                 return Ok(());
             }
         } else {
@@ -105,7 +119,7 @@ impl Node for TaaReprojectionNode {
     }
 }
 
-// ... (setup functions remain the same as previous version)
+// ... setup functions stay similar ...
 
 pub fn setup_taa_pipeline(
     mut commands: Commands,
@@ -116,36 +130,9 @@ pub fn setup_taa_pipeline(
     let bind_group_layout = render_device.create_bind_group_layout(
         "taa_bind_group_layout",
         &[
-            BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Texture {
-                    sample_type: TextureSampleType::Float { filterable: true },
-                    view_dimension: TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            BindGroupLayoutEntry {
-                binding: 1,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Texture {
-                    sample_type: TextureSampleType::Float { filterable: true },
-                    view_dimension: TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            BindGroupLayoutEntry {
-                binding: 2,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Texture {
-                    sample_type: TextureSampleType::Float { filterable: true },
-                    view_dimension: TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
+            BindGroupLayoutEntry { binding: 0, visibility: ShaderStages::FRAGMENT, ty: BindingType::Texture { sample_type: TextureSampleType::Float { filterable: true }, view_dimension: TextureViewDimension::D2, multisampled: false }, count: None },
+            BindGroupLayoutEntry { binding: 1, visibility: ShaderStages::FRAGMENT, ty: BindingType::Texture { sample_type: TextureSampleType::Float { filterable: true }, view_dimension: TextureViewDimension::D2, multisampled: false }, count: None },
+            BindGroupLayoutEntry { binding: 2, visibility: ShaderStages::FRAGMENT, ty: BindingType::Texture { sample_type: TextureSampleType::Float { filterable: true }, view_dimension: TextureViewDimension::D2, multisampled: false }, count: None },
         ],
     );
 
@@ -154,26 +141,14 @@ pub fn setup_taa_pipeline(
     let pipeline_descriptor = RenderPipelineDescriptor {
         label: Some("taa_reprojection_pipeline".into()),
         layout: vec![bind_group_layout.clone()],
-        vertex: VertexState {
-            shader: shader.clone(),
-            entry_point: "vs_main".into(),
-            buffers: vec![],
-            shader_defs: vec![],
-        },
+        vertex: VertexState { shader: shader.clone(), entry_point: "vs_main".into(), buffers: vec![], shader_defs: vec![] },
         fragment: Some(FragmentState {
             shader,
             entry_point: "fs_main".into(),
-            targets: vec![Some(ColorTargetState {
-                format: TextureFormat::Rgba16Float,
-                blend: Some(BlendState::REPLACE),
-                write_mask: ColorWrites::ALL,
-            })],
+            targets: vec![Some(ColorTargetState { format: TextureFormat::Rgba16Float, blend: Some(BlendState::REPLACE), write_mask: ColorWrites::ALL })],
             shader_defs: vec![],
         }),
-        primitive: PrimitiveState {
-            topology: PrimitiveTopology::TriangleList,
-            ..default()
-        },
+        primitive: PrimitiveState { topology: PrimitiveTopology::TriangleList, ..default() },
         depth_stencil: None,
         multisample: MultisampleState::default(),
         push_constant_ranges: vec![],
@@ -181,10 +156,7 @@ pub fn setup_taa_pipeline(
 
     let pipeline = pipeline_cache.queue_render_pipeline(pipeline_descriptor);
 
-    commands.insert_resource(TaaPipeline {
-        pipeline,
-        bind_group_layout,
-    });
+    commands.insert_resource(TaaPipeline { pipeline, bind_group_layout });
 }
 
 pub fn setup_taa_history_texture(
@@ -192,11 +164,7 @@ pub fn setup_taa_history_texture(
     mut images: ResMut<Assets<Image>>,
     render_device: Res<RenderDevice>,
 ) {
-    let size = Extent3d {
-        width: 1920,
-        height: 1080,
-        depth_or_array_layers: 1,
-    };
+    let size = Extent3d { width: 1920, height: 1080, depth_or_array_layers: 1 };
 
     let image = Image {
         texture_descriptor: TextureDescriptor {
@@ -206,10 +174,7 @@ pub fn setup_taa_history_texture(
             format: TextureFormat::Rgba16Float,
             mip_level_count: 1,
             sample_count: 1,
-            usage: TextureUsages::RENDER_ATTACHMENT
-                | TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_SRC
-                | TextureUsages::COPY_DST,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_SRC | TextureUsages::COPY_DST,
             view_formats: &[],
         },
         ..default()
@@ -232,23 +197,20 @@ pub fn setup_taa_history_texture(
         },
     );
 
-    commands.insert_resource(TaaHistoryTexture {
-        texture: texture.texture.clone(),
-        view,
-    });
+    commands.insert_resource(TaaHistoryTexture { texture: texture.texture.clone(), view });
 }
 
-/// System to automatically provide current color to TAA.
-/// Add this to your RenderApp schedule after the main camera rendering.
+#[derive(Resource)]
+pub struct TaaCurrentColorTexture {
+    pub view: TextureView,
+}
+
+/// Optional system to help populate current color (can be expanded).
 pub fn extract_taa_current_color(
     mut commands: Commands,
     cameras: Query<&ViewTarget, With<Camera>>,
 ) {
-    if let Ok(view_target) = cameras.get_single() {
-        // In a complete implementation, we would do:
-        // let main_view = view_target.main_texture_view();
-        // commands.insert_resource(TaaCurrentColorTexture { view: main_view.clone() });
-        
-        // For now, this system exists as a hook. The node falls back gracefully.
+    if let Ok(_view_target) = cameras.get_single() {
+        // In a full implementation we would extract the main texture view here.
     }
 }
