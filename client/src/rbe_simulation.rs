@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Dynamic Shadows
+ * Shadow Bias Tuning Exploration
  */
 
 use bevy::prelude::*;
@@ -478,37 +478,51 @@ impl LightingState {
     }
 }
 
-/// System that updates dynamic lighting and shadows based on LightingState + Weather
+/// Refined shadow bias tuning based on weather conditions
+///
+/// These values were explored and tuned to reduce:
+/// - Shadow acne (flickering on surfaces)
+/// - Peter Panning (shadows detaching from objects)
+/// while maintaining good shadow quality.
 pub fn update_dynamic_lighting_and_shadows(
     mut query: Query<&mut DirectionalLight>,
     lighting: Res<LightingState>,
     weather: Res<WeatherState>,
 ) {
     for mut light in query.iter_mut() {
-        // Update intensity and color from LightingState
         light.illuminance = lighting.light_intensity * 100_000.0;
         light.color = Color::srgb(lighting.light_color[0], lighting.light_color[1], lighting.light_color[2]);
-
-        // Dynamic shadow softness based on weather
         light.shadows_enabled = true;
 
+        // === SHADOW BIAS TUNING ===
+        //
+        // shadow_depth_bias: Controls how much the shadow is pushed away from the surface.
+        //   - Too low  → Shadow acne (flickering)
+        //   - Too high → Peter Panning (shadows float above surfaces)
+        //
+        // shadow_normal_bias: Biases the shadow based on surface normal.
+        //   - Helps with grazing angles and thin geometry.
         match weather.current {
             Weather::Clear | Weather::Heatwave => {
-                light.shadow_depth_bias = 0.02;
-                light.shadow_normal_bias = 0.6;
+                // Sharp, high-quality shadows
+                light.shadow_depth_bias = 0.015;
+                light.shadow_normal_bias = 0.5;
             }
             Weather::Rain => {
-                light.shadow_depth_bias = 0.05;
-                light.shadow_normal_bias = 1.0;
+                // Slightly softer shadows, more stable
+                light.shadow_depth_bias = 0.04;
+                light.shadow_normal_bias = 0.9;
             }
             Weather::Storm => {
-                light.shadow_depth_bias = 0.08;
-                light.shadow_normal_bias = 1.5;
-                light.shadows_enabled = false; // Very soft / disabled in heavy storms
+                // Very soft / reduced shadows for performance and atmosphere
+                light.shadow_depth_bias = 0.07;
+                light.shadow_normal_bias = 1.4;
+                light.shadows_enabled = false; // Disable in heavy storms
             }
             Weather::ColdSnap => {
-                light.shadow_depth_bias = 0.03;
-                light.shadow_normal_bias = 0.8;
+                // Slightly softer than clear
+                light.shadow_depth_bias = 0.025;
+                light.shadow_normal_bias = 0.7;
             }
         }
     }
