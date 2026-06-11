@@ -1,18 +1,5 @@
 /*!
- * Motion Blur Node for Powrush-MMO
- *
- * High-quality, velocity-driven motion blur.
- * Reuses the exact same VelocityTexture and CameraMatrices from the temporal stack.
- * Per-pixel blur strength based on motion vector length + optional camera rotation contribution.
- *
- * Features:
- * - Toggleable via client settings (see settings.rs integration)
- * - Velocity-adaptive blur amount
- * - Supports both object motion and camera motion
- * - Efficient fullscreen pass
- * - PATSAGi Council approved cinematic quality
- * - Mercy-gated: beautiful without destroying readability in combat
- * - AG-SML v1.0
+ * Motion Blur Node (intensity-aware)
  */
 
 use bevy::prelude::*;
@@ -26,17 +13,13 @@ use crate::ssr_render_node::CameraMatrices;
 #[derive(Resource, Clone, Copy)]
 pub struct MotionBlurSettings {
     pub enabled: bool,
-    pub intensity: f32,      // 0.0 - 2.0 typical
+    pub intensity: f32,
     pub max_blur_samples: u32,
 }
 
 impl Default for MotionBlurSettings {
     fn default() -> Self {
-        Self {
-            enabled: true,
-            intensity: 1.0,
-            max_blur_samples: 8,
-        }
+        Self { enabled: true, intensity: 1.0, max_blur_samples: 8 }
     }
 }
 
@@ -56,28 +39,53 @@ impl Node for MotionBlurNode {
         world: &World,
     ) -> Result<(), NodeRunError> {
         let settings = world.resource::<MotionBlurSettings>();
-        if !settings.enabled {
-            return Ok(());
-        }
+        if !settings.enabled { return Ok(()); }
 
         let pipeline_res = world.resource::<MotionBlurPipeline>();
         let velocity_tex = world.resource::<VelocityTexture>();
         let pipeline_cache = world.resource::<PipelineCache>();
-        let matrices = world.resource::<CameraMatrices>();
 
-        let Ok(pipeline) = pipeline_cache.get_render_pipeline(pipeline_res.pipeline) else {
-            return Ok(());
+        let Ok(pipeline) = pipeline_cache.get_render_pipeline(pipeline_res.pipeline) else { return Ok(()); };
+
+        // Create uniform buffer with current intensity
+        #[repr(C)]
+        #[derive(bytemuck::Pod, bytemuck::Zeroable, Clone, Copy)]
+        struct BlurParams { intensity: f32, max_samples: f32 }
+
+        let params = BlurParams {
+            intensity: settings.intensity,
+            max_samples: settings.max_blur_samples as f32,
         };
+
+        let uniform_buffer = render_context.render_device().create_buffer_with_data(
+            &BufferInitDescriptor {
+                label: Some("motion_blur_params"),
+                contents: bytemuck::cast_slice(&[params]),
+                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            },
+        );
+
+        let bind_group = render_context.render_device().create_bind_group(
+            "motion_blur_bind_group",
+            &pipeline_res.bind_group_layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::TextureView(velocity_tex.view.clone()),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: uniform_buffer.as_entire_binding(),
+                },
+            ],
+        );
 
         let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
             label: Some("motion_blur"),
             color_attachments: &[Some(RenderPassColorAttachment {
-                view: /* target view - usually the current color or post-process target */,
+                view: /* TODO: bind actual color target from graph */,
                 resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Load,
-                    store: StoreOp::Store,
-                },
+                ops: Operations { load: LoadOp::Load, store: StoreOp::Store },
             })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
@@ -85,20 +93,7 @@ impl Node for MotionBlurNode {
         });
 
         render_pass.set_render_pipeline(pipeline);
-
-        // Bind velocity + camera matrices + settings
-        let bind_group = render_context.render_device().create_bind_group(
-            "motion_blur_bind_group",
-            &pipeline_res.bind_group_layout,
-            &[BindGroupEntry {
-                binding: 0,
-                resource: BindingResource::TextureView(velocity_tex.view.clone()),
-            }],
-        );
-
         render_pass.set_bind_group(0, &bind_group, &[]);
-
-        // Fullscreen triangle
         render_pass.draw(0..3, 0..1);
 
         Ok(())
@@ -124,7 +119,16 @@ pub fn setup_motion_blur_pipeline(
                 },
                 count: None,
             },
-            // Add uniform for intensity + matrices if needed
+            BindGroupLayoutEntry {
+                binding: 1,
+                visibility: ShaderStages::FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
         ],
     );
 
@@ -157,20 +161,5 @@ pub fn setup_motion_blur_pipeline(
 
     let pipeline = pipeline_cache.queue_render_pipeline(pipeline_descriptor);
 
-    commands.insert_resource(MotionBlurPipeline {
-        pipeline,
-        bind_group_layout,
-    });
+    commands.insert_resource(MotionBlurPipeline { pipeline, bind_group_layout });
 }
-
-// === Integration with client settings ===
-// In settings.rs or a dedicated graphics settings UI:
-// pub fn apply_motion_blur_settings(
-//     mut settings: ResMut<MotionBlurSettings>,
-//     graphics_settings: Res<GraphicsSettings>,
-// ) {
-//     settings.enabled = graphics_settings.motion_blur_enabled;
-//     settings.intensity = graphics_settings.motion_blur_intensity;
-// }
-
-// Add MotionBlurSettings as a resource in your app startup or settings plugin.
