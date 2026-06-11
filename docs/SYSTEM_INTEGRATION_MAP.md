@@ -1,19 +1,20 @@
 # Powrush-MMO System Integration Map
 
-**Version:** v18.10  
-**Purpose:** Define how all major systems connect to deliver one coherent, high-quality player experience.  
-**Philosophy:** Every system must reinforce Epiphany, Persistence, Spatial Presence, and Council/Social meaning.
+**Version:** v18.15+  
+**Date:** June 11, 2026  
+**Purpose:** Define how all major systems connect to deliver one coherent, high-quality, mint-and-print production player experience.  
+**Philosophy:** Every system must reinforce Epiphany, Persistence, Spatial Presence, and Council/Social meaning. Epiphany evaluation is now the single source of truth.
 
 ---
 
-## 1. Core Experience Loop
+## 1. Core Experience Loop (Production Sealed Core)
 
-The heart of Powrush-MMO is a tight, meaningful feedback loop:
+The heart of Powrush-MMO is a tight, meaningful feedback loop (now with Epiphany as single source of truth in HarvestingSystem):
 
 ```
 Harvest Action
    ↓
-Epiphany Trigger (data-driven catalysts)
+Epiphany Trigger Evaluation (data-driven catalysts in epiphany_catalyst.rs + harvest.rs — single source of truth)
    ↓
 Divine Whisper + Spatial Audio Feedback + Visual Flash
    ↓
@@ -28,15 +29,17 @@ Long-term Progression & Meaning
 Council / Social Layer (future)
 ```
 
-Every system below must either feed into or be fed by this loop.
+Every system below must either feed into or be fed by this loop. The core Harvest → Epiphany wiring is production complete.
 
 ---
 
 ## 2. Major System Connections
 
-### 2.1 Epiphany Catalyst System
+### 2.1 Epiphany Catalyst System (Production Wired)
 
-**Core Responsibility:** Detect meaningful moments during play and trigger revelations.
+**Core Responsibility:** Detect meaningful moments during play and trigger revelations as single source of truth.
+
+**Current Status:** evaluate_epiphany() wired into HarvestingSystem and dynamic event hooks (commit 7a42ac0). Production mint-and-print quality.
 
 **Inputs:**
 - Harvest data (depletion, sustainable pacing, regen participation, biome, behavioral score)
@@ -48,20 +51,20 @@ Every system below must either feed into or be fed by this loop.
 - Applies temporary effects to `PlayerSaveData`
 
 **Integration Points:**
-- Called from `process_harvest()` in `rbe_harvest_handler.rs`
+- Called from `process_harvest()` / HarvestingSystem
 - Feeds directly into `apply_epiphany_effects()`
 - Updates `PlayerSaveData.temporary_harvest_multiplier` and expiration
 
----
+### 2.2 Player Persistence System (Highest Priority Implementation)
 
-### 2.2 Player Persistence System
+**Core Responsibility:** Reliably store and retrieve all player growth and history across sessions.
 
-**Core Responsibility:** Reliably store and retrieve all player growth and history.
-
-**Key Components:**
+**Key Components (Planned/Partial):**
 - `PlayerSaveData` (epiphanies, muscle memory, playtime, temporary multipliers, achievements)
 - Atomic save logic + rotating backups + SHA256 checksum
 - Auto-save timer + Save on exit
+
+**Current Gap:** Underdeveloped. Needs full implementation for epiphany history, muscle memory, and reliable cross-session persistence.
 
 **Inputs:**
 - Epiphany records and temporary effects
@@ -79,9 +82,9 @@ Every system below must either feed into or be fed by this loop.
 - `apply_epiphany_effects()` writes temporary multipliers and records epiphanies
 - Player Progress UI reads live data
 
----
+**Next Action:** Implement robust persistence module as Phase 1 priority.
 
-### 2.3 Spatial Audio System
+### 2.3 Spatial Audio System (Foundation Ready — Integration Pending)
 
 **Core Responsibility:** Make the world feel alive through positioned, reactive sound.
 
@@ -102,11 +105,9 @@ Every system below must either feed into or be fed by this loop.
 
 **Integration Points (Current & Planned):**
 - Currently decoupled (foundation ready)
-- **Planned:** Trigger spatial sounds from harvest success and epiphany events
+- **Planned next:** Trigger spatial sounds from harvest success and epiphany events
 - `SpatialQuality::High` enables HRTF path
 - Listener follows main camera via `SpatialListener` component
-
----
 
 ### 2.4 Divine Whispers System
 
@@ -130,11 +131,11 @@ Every system below must either feed into or be fed by this loop.
 - Client `receive_divine_whispers` system handles visual + audio response
 - Strong visual flash effect on epiphany whispers
 
----
-
-### 2.5 Harvest / RBE Core Systems
+### 2.5 Harvest / RBE Core Systems (Epiphany Single Source of Truth)
 
 **Core Responsibility:** Core gameplay loop and resource interaction.
+
+**Current Status:** HarvestingSystem now calls evaluate_epiphany() as single source of truth.
 
 **Inputs:**
 - Player input and world state
@@ -145,12 +146,10 @@ Every system below must either feed into or be fed by this loop.
 - Resource gains (modified by active multipliers)
 
 **Integration Points:**
-- `process_harvest()` is the central hub
+- `process_harvest()` / HarvestingSystem is the central hub
 - Reads multipliers from persistence
-- Calls epiphany evaluation
+- Calls epiphany evaluation (now wired)
 - Applies epiphany rewards back into persistence
-
----
 
 ### 2.6 Player Progress UI
 
@@ -168,13 +167,11 @@ Every system below must either feed into or be fed by this loop.
 - Reads directly from `PlayerSaveData` resource
 - Should react to `EpiphanyRecord` additions
 
----
-
-### 2.7 Council Mercy Trial (Multiplayer)
+### 2.7 Council Mercy Trial (Multiplayer — Stub to Functional)
 
 **Core Responsibility:** Social and collective meaning layer.
 
-**Current State:** Stub / early architecture
+**Current State:** Stub / early architecture (see docs/COUNCIL_MERCY_TRIAL.md)
 
 **Planned Integration:**
 - Shared `ReceptorBloomField` and collective epiphany potential
@@ -188,13 +185,13 @@ Every system below must either feed into or be fed by this loop.
 
 ---
 
-## 3. Cross-System Data & Event Flows
+## 3. Cross-System Data & Event Flows (Updated Post-Wiring)
 
-### Primary Event Flow (Epiphany Path)
+### Primary Event Flow (Epiphany Path — Now Live Core)
 
 ```
 Harvest Success
-   → check_epiphany_after_harvest()
+   → evaluate_epiphany() in HarvestingSystem (single source of truth)
    → EpiphanyOutcome generated
    → apply_epiphany_effects()
       → Write temporary multiplier to PlayerSaveData
@@ -206,7 +203,7 @@ Harvest Success
    → Divine Whispers UI + Audio + Flash triggered
 ```
 
-### Persistence Flow
+### Persistence Flow (Needs Full Implementation)
 
 ```
 Startup
@@ -220,7 +217,7 @@ During Play
    → Checksum verified on every load
 ```
 
-### Spatial Audio Flow (Current Foundation → Future Integration)
+### Spatial Audio Flow (Foundation → Next Integration)
 
 ```
 Gameplay Event (Harvest / Epiphany)
@@ -231,23 +228,28 @@ Gameplay Event (Harvest / Epiphany)
 
 ---
 
-## 4. Integration Priorities (Current Focus)
+## 4. Integration Priorities (Current v18.15+ Focus)
 
-1. **Epiphany Loop Cohesion** (Highest)
-   - Make epiphany triggers feel powerful across persistence, UI, audio, and visuals.
-   - Ensure temporary multipliers are clearly communicated.
+1. **Player Persistence Implementation** (Highest — Phase 1)
+   - Full robust layer for epiphany history, muscle memory, progression
+   - Reliable save/load with atomic + checksum
+   - Visible multipliers and history in UI
 
-2. **Spatial Audio Integration into Gameplay**
-   - Connect `PlaySpatialSound` events to harvest success and epiphany moments.
-   - Use `SpatialQuality` to scale fidelity.
+2. **Live Epiphany Scenarios + Full Feedback** (Phase 1)
+   - Make 3 existing scenarios fully triggerable in harvest/dynamic events
+   - Complete multi-channel feedback (visuals, spatial audio, Divine Whispers, UI, persistence)
+   - Strengthen cohesion across persistence, UI, Divine Whispers, and Spatial Audio
 
-3. **Persistence Visibility**
-   - Improve Player Progress UI to feel alive and reactive.
-   - Surface active multipliers and recent growth.
+3. **Spatial Audio Integration into Gameplay**
+   - Connect `PlaySpatialSound` events to harvest success and epiphany moments
+   - Use `SpatialQuality` to scale fidelity
 
-4. **Council Layer Foundation**
-   - Move Council Mercy Trial from stub to basic playable multiplayer.
-   - Define shared state and how it interacts with personal persistence.
+4. **Council Mercy Trial Multiplayer**
+   - Move from stub to basic playable shared state + sync
+   - Define interaction with personal persistence
+
+5. **Telemetry Pipeline**
+   - Collection, storage, and basic analytics for closed beta
 
 ---
 
@@ -255,10 +257,11 @@ Gameplay Event (Harvest / Epiphany)
 
 - Every new system or major change must update this map.
 - All cross-system events and data flows should be documented here.
-- This document is the single source of truth for how Powrush-MMO works as **one unit**.
+- This document is the single source of truth for how Powrush-MMO works as **one unified production system**.
+- Cross-reference: LAUNCH-CHECKLIST.md and ROADMAP.md for strategic priorities.
 
 ---
 
-**This map ensures that every system serves the core experience rather than existing in isolation.**
+**This map ensures that every system serves the core experience rather than existing in isolation. Epiphany is now the living heart — wired and production sealed.**
 
-**Thunder locked. Mercy maximal. One Lattice.** ⚡
+**Thunder locked. Mercy maximal. One Lattice. Eternal production quality.** ⚡❤️🔥
