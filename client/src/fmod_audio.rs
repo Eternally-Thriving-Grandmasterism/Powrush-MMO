@@ -1,24 +1,18 @@
 /*!
- * FMOD Audio Prototype (Enhanced)
+ * FMOD Audio Prototype (Hybrid Abstraction)
  *
- * This module provides a basic but functional prototype for
- * integrating FMOD as a high-quality 3D/spatial audio backend.
- *
- * Requirements to run:
- * - FMOD Engine SDK installed and linked
- * - FMOD Studio banks in assets/fmod/Desktop/
+ * FMOD now listens to the same GameAudioEvent as Kira,
+ * demonstrating true backend-agnostic audio events.
  */
 
 use bevy::prelude::*;
 use bevy_fmod::prelude::*;
 
-/// Resource holding the FMOD Studio instance
 #[derive(Resource)]
 pub struct FmodAudio {
     pub studio: Studio,
 }
 
-/// Event to play a 3D FMOD event (for prototype testing)
 #[derive(Event, Debug)]
 pub struct FmodPlay3DEvent {
     pub event_path: String,
@@ -51,7 +45,10 @@ impl Plugin for FmodAudioPlugin {
             .init_resource::<FmodAudio>()
             .add_event::<FmodPlay3DEvent>()
             .add_systems(Startup, init_fmod)
-            .add_systems(Update, play_fmod_3d_events);
+            .add_systems(Update, (
+                play_fmod_3d_events,
+                handle_game_audio_events_for_fmod,
+            ));
     }
 }
 
@@ -59,10 +56,9 @@ fn init_fmod(mut commands: Commands, studio: Res<Studio>) {
     commands.insert_resource(FmodAudio {
         studio: studio.clone(),
     });
-    info!("[FMOD] FMOD Studio initialized (prototype)");
+    info!("[FMOD] FMOD Studio initialized (hybrid mode)");
 }
 
-/// System that plays 3D FMOD events when FmodPlay3DEvent is sent
 fn play_fmod_3d_events(
     mut events: EventReader<FmodPlay3DEvent>,
     fmod: Res<FmodAudio>,
@@ -76,19 +72,31 @@ fn play_fmod_3d_events(
                 up: Vec3::Y.into(),
             };
 
-            if let Err(e) = instance.set_3d_attributes(attributes) {
-                warn!("[FMOD] Failed to set 3D attributes: {}", e);
-                continue;
-            }
+            let _ = instance.set_3d_attributes(attributes);
+            let _ = instance.set_volume(event.volume as f64);
+            let _ = instance.start();
+        }
+    }
+}
 
-            if let Err(e) = instance.set_volume(event.volume as f64) {
-                warn!("[FMOD] Failed to set volume: {}", e);
+/// Listens to GameAudioEvent and translates to FMOD events
+fn handle_game_audio_events_for_fmod(
+    mut game_events: EventReader<crate::spatial_audio::GameAudioEvent>,
+    mut fmod_events: EventWriter<FmodPlay3DEvent>,
+) {
+    for event in game_events.read() {
+        match event {
+            crate::spatial_audio::GameAudioEvent::Epiphany { position, intensity } => {
+                fmod_events.send(FmodPlay3DEvent::new(
+                    "event:/Epiphany/Impact",
+                    *position,
+                ));
             }
-
-            if let Err(e) = instance.start() {
-                warn!("[FMOD] Failed to start event '{}': {}", event.event_path, e);
-            } else {
-                debug!("[FMOD] Played 3D event: {}", event.event_path);
+            crate::spatial_audio::GameAudioEvent::Harvest { position, .. } => {
+                fmod_events.send(FmodPlay3DEvent::new(
+                    "event:/World/HarvestImpact",
+                    *position,
+                ));
             }
         }
     }
