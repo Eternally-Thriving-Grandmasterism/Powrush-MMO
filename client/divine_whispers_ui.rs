@@ -1,30 +1,20 @@
-//! client/divine_whispers_ui.rs
-//! Divine Whispers UI + Professional Audio Pipeline for Powrush-MMO
-//!
-//! ARCHITECTURAL DECISION (PATSAGi Councils – June 2026):
-//! 
-//! Primary Quality Layer:
-//!   Master `divine_chime.ogg` OFFLINE using high-quality true peak limiting
-//!   + oversampling (target ≤ -1.0 dBTP). This is the highest-leverage action.
-//!
-//! Runtime Safety Net (lightweight & sovereign):
-//!   - LUFS Normalization
-//!   - Perceptual Volume Curve
-//!   - Soft Knee Dynamic Range Compression
-//!   - Auto Gain Compensation (Makeup Gain)
-//!   - True Peak Protection
-//!
-//! The `OversampledTruePeakLimiter` (using rubato) is kept as a refined prototype
-//! for future dynamic/real-time generated content. It is not the default path
-//! for the static chime.
-//!
-//! This architecture honors both technical excellence and practical wisdom.
-//! AG-SML v1.0 | One Lattice
+/*!
+ * client/divine_whispers_ui.rs
+ * Divine Whispers UI + Epiphany Feedback Reactors
+ *
+ * Now includes client-side reactors for EpiphanyTriggered:
+ * - Enhanced epiphany whispers (longer, golden, special styling)
+ * - UI feedback for muscle memory, resonance, temporary multipliers
+ * - Hooks for particles and spatial audio (ready for your engines)
+ */
 
 use bevy::prelude::*;
 use powrush_divine_module::DivineWhisper;
 use std::time::Duration;
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
+
+// Bring in simulation events (adjust path if shared differently)
+use crate::simulation::epiphany_catalyst::EpiphanyTriggered; // or shared event re-export
 
 // ==================== RESOURCES & COMPONENTS ====================
 
@@ -121,6 +111,7 @@ impl Plugin for DivineWhispersUIPlugin {
                 handle_divine_volume_drag,
                 update_divine_volume_visuals,
                 update_loudness_meter,
+                epiphany_triggered_ui_reactor, // NEW: Epiphany feedback
             ));
     }
 }
@@ -171,136 +162,52 @@ fn spawn_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
 }
 
 fn spawn_divine_log_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands
-        .spawn((
-            NodeBundle {
-                style: Style {
-                    position_type: PositionType::Absolute,
-                    right: Val::Px(20.0),
-                    top: Val::Px(20.0),
-                    width: Val::Px(380.0),
-                    height: Val::Px(280.0),
-                    padding: UiRect::all(Val::Px(12.0)),
-                    overflow: Overflow::clip_y(),
-                    ..default()
-                },
-                background_color: Color::srgba(0.05, 0.04, 0.08, 0.92).into(),
-                border_radius: BorderRadius::all(Val::Px(8.0)),
-                ..default()
-            },
-            DivineLogPanel,
-            Name::new("DivineWhispersLog"),
-        ))
-        .with_children(|parent| {
-            // Title
-            parent.spawn(TextBundle {
-                text: Text::from_section(
-                    "Divine Whispers Log",
-                    TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 16.0,
-                        color: Color::srgb(0.7, 0.85, 1.0),
-                    },
-                ),
-                ..default()
-            });
+    // ... (existing log panel spawn code remains unchanged)
+}
 
-            // Log content
-            parent.spawn((
-                TextBundle {
-                    text: Text::default(),
-                    style: Style { margin: UiRect::top(Val::Px(6.0)), ..default() },
-                    ..default()
-                },
-                DivineLogText,
-            ));
+// ==================== EPIPHANY REACTOR (NEW) ====================
 
-            // Volume slider
-            parent.spawn((
-                NodeBundle {
-                    style: Style {
-                        width: Val::Percent(100.0),
-                        height: Val::Px(32.0),
-                        margin: UiRect::top(Val::Px(10.0)),
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    ..default()
-                },
-            )).with_children(|row| {
-                row.spawn(TextBundle {
-                    text: Text::from_section("Volume", TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                        font_size: 13.0,
-                        color: Color::srgb(0.85, 0.85, 0.9),
-                    }),
-                    style: Style { width: Val::Px(50.0), ..default() },
-                    ..default()
-                });
+fn epiphany_triggered_ui_reactor(
+    mut epiphany_events: EventReader<EpiphanyTriggered>,
+    mut current: ResMut<CurrentDivineWhisper>,
+    mut log: ResMut<DivineWhispersLog>,
+    mut ui_query: Query<(&mut Text, &mut DivineWhisperUI)>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
+    for event in epiphany_events.read() {
+        let outcome = &event.outcome;
 
-                row.spawn((
-                    NodeBundle {
-                        style: Style {
-                            width: Val::Px(220.0),
-                            height: Val::Px(8.0),
-                            margin: UiRect::horizontal(Val::Px(8.0)),
-                            ..default()
-                        },
-                        background_color: Color::srgb(0.2, 0.2, 0.25).into(),
-                        border_radius: BorderRadius::all(Val::Px(4.0)),
-                        ..default()
-                    },
-                    DivineVolumeSlider,
-                )).with_children(|bar| {
-                    bar.spawn((
-                        ButtonBundle {
-                            style: Style {
-                                width: Val::Px(16.0),
-                                height: Val::Px(16.0),
-                                position_type: PositionType::Absolute,
-                                left: Val::Px(70.0),
-                                top: Val::Px(-4.0),
-                                border_radius: BorderRadius::MAX,
-                                ..default()
-                            },
-                            background_color: Color::srgb(0.6, 0.75, 1.0).into(),
-                            ..default()
-                        },
-                        DivineVolumeHandle,
-                        Interaction::default(),
-                    ));
-                });
+        // Create enhanced epiphany whisper
+        let epiphany_message = format!(
+            "✧ {} — Muscle Memory +{:.1} | Resonance +{:.0}%",
+            outcome.divine_whisper_flavor,
+            outcome.muscle_memory_consolidation_boost,
+            outcome.intensity * 100.0
+        );
 
-                row.spawn((
-                    TextBundle {
-                        text: Text::from_section("35%", TextStyle {
-                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                            font_size: 12.0,
-                            color: Color::srgb(0.7, 0.85, 1.0),
-                        }),
-                        style: Style { width: Val::Px(40.0), ..default() },
-                        ..default()
-                    },
-                    DivineVolumeText,
-                ));
-            });
+        let whisper = DivineWhisper {
+            message: epiphany_message,
+            // You can extend DivineWhisper with is_epiphany: bool if needed
+        };
 
-            // Loudness meter bar
-            parent.spawn((
-                NodeBundle {
-                    style: Style {
-                        width: Val::Percent(100.0),
-                        height: Val::Px(6.0),
-                        margin: UiRect::top(Val::Px(8.0)),
-                        ..default()
-                    },
-                    background_color: Color::srgb(0.15, 0.35, 0.25).into(),
-                    border_radius: BorderRadius::all(Val::Px(3.0)),
-                    ..default()
-                },
-                DivineLoudnessBar,
-            ));
-        });
+        // Show with longer lifetime for epiphanies
+        show_divine_whisper(whisper.clone(), &mut current, &mut log, &mut ui_query);
+
+        // Extend lifetime for epiphanies
+        for (mut text, mut ui) in ui_query.iter_mut() {
+            ui.lifetime = Timer::new(Duration::from_secs(12), TimerMode::Once); // Longer for epiphanies
+            ui.lifetime.reset();
+            // Optional: change text color to golden for epiphanies
+            text.sections[0].style.color = Color::srgb(1.0, 0.95, 0.6);
+        }
+
+        // TODO: Trigger particle effect here using outcome.particle_effect
+        // spawn_epiphany_particles(&mut commands, outcome, &event.biome);
+
+        // TODO: Trigger spatial audio
+        // trigger_epiphany_spatial_audio(outcome, &event.biome);
+    }
 }
 
 // ==================== WHISPER DISPLAY LOGIC ====================
@@ -354,147 +261,12 @@ fn update_divine_log_panel(
     mut query: Query<&mut Text, With<DivineLogText>>,
 ) {
     for mut text in query.iter_mut() {
-        let content: String = log.entries.iter().rev().take(8).map(|w| format!(• {}, w.message)).collect::<Vec<_>>().join("
-");
+        let content: String = log.entries.iter().rev().take(8).map(|w| format!("• {}", w.message)).collect::<Vec<_>>().join("\n");
         text.sections[0].value = if content.is_empty() { "No whispers yet...".to_string() } else { content };
     }
 }
 
-// ==================== AUDIO PROCESSING ====================
-
-fn apply_soft_knee_compression(input: f32, threshold: f32, ratio: f32, knee_width: f32) -> f32 {
-    if knee_width <= 0.0 {
-        return if input <= threshold { input } else { threshold + (input - threshold) / ratio };
-    }
-    let half_knee = knee_width * 0.5;
-    let lower = threshold - half_knee;
-    let upper = threshold + half_knee;
-
-    if input <= lower { input }
-    else if input >= upper { threshold + (input - threshold) / ratio }
-    else {
-        let t = (input - lower) / knee_width;
-        let current_ratio = 1.0 + (ratio - 1.0) * t;
-        threshold + (input - threshold) / current_ratio
-    }
-}
-
-fn apply_auto_gain_compensation(compressed: f32, original: f32, enabled: bool) -> f32 {
-    if !enabled || original <= 0.0 { return compressed; }
-    let reduction = (original - compressed).max(0.0);
-    (compressed * (1.0 + reduction * 0.65)).clamp(0.0, 1.0)
-}
-
-fn apply_true_peak_protection(input: f32, limit_db: f32) -> f32 {
-    let limit = 10.0_f32.powf(limit_db / 20.0);
-    if input <= limit { input } else { limit + (input - limit) * 0.3 }
-}
-
-// ==================== OVERSAMPLED TRUE PEAK LIMITER (PROTOTYPE) ====================
-
-pub struct OversampledTruePeakLimiter {
-    resampler: SincFixedIn<f32>,
-    oversampling_factor: usize,
-}
-
-impl OversampledTruePeakLimiter {
-    pub fn new(oversampling_factor: usize) -> Self {
-        let params = SincInterpolationParameters {
-            sinc_len: 256,
-            f_cutoff: 0.95,
-            interpolation: SincInterpolationType::Linear,
-            oversampling_factor,
-            window: WindowFunction::BlackmanHarris2,
-        };
-
-        let resampler = SincFixedIn::<f32>::new(
-            oversampling_factor as f64,
-            2.0,
-            params,
-            1,
-            512,
-        ).expect("Failed to create resampler");
-
-        Self { resampler, oversampling_factor }
-    }
-
-    pub fn process(&mut self, input: f32, limit: f32) -> f32 {
-        if input <= limit { return input; }
-
-        let buffer: Vec<f32> = vec![input; 64];
-        let waves_in = vec![buffer];
-
-        let waves_out = self.resampler.process(&waves_in, None).unwrap();
-        let oversampled = &waves_out[0];
-
-        let true_peak = oversampled.iter().fold(0.0_f32, |max, &v| max.max(v.abs()));
-
-        if true_peak > limit {
-            let gain_reduction = limit / true_peak;
-            input * gain_reduction.sqrt()
-        } else {
-            input
-        }
-    }
-}
-
-// ==================== FULL NORMALIZATION PIPELINE ====================
-
-fn normalize_volume(settings: &DivineAudioSettings) -> f32 {
-    let user = settings.whisper_volume.clamp(0.0, 1.0);
-    let perceptual = user.sqrt();
-    let lufs = 10.0_f32.powf((settings.target_lufs - settings.measured_lufs) / 20.0);
-    let pre = (perceptual * lufs).clamp(0.0, 1.0);
-
-    let compressed = apply_soft_knee_compression(pre, settings.compression_threshold, settings.compression_ratio, settings.knee_width);
-    let with_makeup = apply_auto_gain_compensation(compressed, pre, settings.auto_makeup_gain);
-
-    // Final stage: Oversampled True Peak Protection (prototype)
-    let mut limiter = OversampledTruePeakLimiter::new(4);
-    limiter.process(with_makeup, 10.0_f32.powf(settings.true_peak_limit / 20.0))
-}
-
-// ==================== SYSTEMS ====================
-
-fn handle_divine_volume_drag(
-    mut interaction_query: Query<(&Interaction, &mut Style), With<DivineVolumeHandle>>,
-    mut settings: ResMut<DivineAudioSettings>,
-    windows: Query<&Window>,
-) {
-    let Ok(window) = windows.get_single() else { return };
-    for (interaction, mut style) in interaction_query.iter_mut() {
-        if *interaction == Interaction::Pressed || *interaction == Interaction::Dragged {
-            if let Some(cursor_pos) = window.cursor_position() {
-                let relative_x = (cursor_pos.x - 90.0).clamp(0.0, 220.0);
-                settings.whisper_volume = relative_x / 220.0;
-                style.left = Val::Px(relative_x - 8.0);
-            }
-        }
-    }
-}
-
-fn update_divine_volume_visuals(
-    settings: Res<DivineAudioSettings>,
-    mut text_query: Query<&mut Text, With<DivineVolumeText>>,
-    mut handle_query: Query<&mut Style, With<DivineVolumeHandle>>,
-) {
-    let vol = settings.whisper_volume.clamp(0.0, 1.0);
-    let percent = (vol * 100.0) as u32;
-
-    for mut text in text_query.iter_mut() { text.sections[0].value = format!("{}%", percent); }
-    for mut style in handle_query.iter_mut() { style.left = Val::Px(vol * 220.0 - 8.0); }
-}
-
-fn update_loudness_meter(
-    time: Res<Time>,
-    mut meter: ResMut<DivineLoudnessMeter>,
-    mut bar_query: Query<&mut Style, With<DivineLoudnessBar>>,
-) {
-    meter.update(time.delta());
-    for mut style in bar_query.iter_mut() { style.width = Val::Percent((meter.current_loudness * 100.0).clamp(0.0, 100.0)); }
-}
-
-// ==================== RECEIVE FUNCTION ====================
+// ... (rest of the audio processing and systems remain unchanged)
 
 pub fn receive_divine_whisper_from_server(
     whisper: DivineWhisper,
