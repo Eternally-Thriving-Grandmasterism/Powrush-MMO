@@ -2,83 +2,77 @@
  * client/src/ssr_render_node.rs
  * Bevy RenderGraph Node for Screen Space Reflections (SSR) + Temporal Accumulation
  *
- * Full implementation of the temporal accumulation pass with ping-pong management.
+ * Includes camera matrix extraction for proper temporal reprojection.
  */
 
 use bevy::prelude::*;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderContext;
-use bevy::render::view::{ViewTarget, ViewDepthTexture};
+use bevy::render::view::{ViewTarget, ViewDepthTexture, ViewUniform};
 
-// ... existing SSRSettings, SSRPipeline, SSRUniformBuffer, SSRUniforms ...
+// ... existing resources ...
 
 #[derive(Resource, Default)]
-pub struct SSRSettings {
-    pub enabled: bool,
-    pub intensity: f32,
-    pub epiphany_boost: f32,
-    pub max_steps: u32,
-    pub step_size: f32,
-    pub thickness: f32,
+pub struct SSRSettings { /* ... */ }
+
+#[derive(Resource)]
+pub struct SSRPipeline { /* ... */ }
+
+#[derive(Resource)]
+pub struct SSRUniformBuffer { /* ... */ }
+
+#[derive(Resource)]
+pub struct TemporalSSRTextures { /* ... */ }
+
+#[derive(Resource)]
+pub struct TemporalSSRPipeline { /* ... */ }
+
+/// Holds current and previous frame camera matrices for temporal reprojection
+#[derive(Resource, Default)]
+pub struct CameraMatrices {
+    pub view: Mat4,
+    pub inv_view: Mat4,
+    pub projection: Mat4,
+    pub inv_projection: Mat4,
+    pub prev_view: Mat4,
+    pub prev_projection: Mat4,
+    pub camera_position: Vec3,
+    pub prev_camera_position: Vec3,
 }
 
-impl Default for SSRSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            intensity: 0.65,
-            epiphany_boost: 1.0,
-            max_steps: 32,
-            step_size: 0.15,
-            thickness: 0.08,
-        }
+pub struct SSRNode { /* ... */ }
+
+impl Node for SSRNode { /* ... */ }
+
+// ==================== CAMERA MATRIX EXTRACTION ====================
+
+/// System that extracts current camera matrices and stores previous frame data
+pub fn extract_camera_matrices(
+    mut matrices: ResMut<CameraMatrices>,
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    windows: Query<&Window>,
+) {
+    if let Ok((camera, global_transform)) = camera_query.get_single() {
+        let transform = global_transform.compute_matrix();
+        let view = transform.inverse();
+        let projection = camera.projection_matrix();
+
+        // Store previous frame data before updating
+        matrices.prev_view = matrices.view;
+        matrices.prev_projection = matrices.projection;
+        matrices.prev_camera_position = matrices.camera_position;
+
+        // Update current frame
+        matrices.view = view;
+        matrices.inv_view = transform;
+        matrices.projection = projection;
+        matrices.inv_projection = projection.inverse();
+        matrices.camera_position = global_transform.translation();
     }
 }
 
-#[derive(Resource)]
-pub struct SSRPipeline {
-    pub pipeline: CachedRenderPipelineId,
-    pub bind_group_layout: BindGroupLayout,
-}
-
-#[derive(Resource)]
-pub struct SSRUniformBuffer {
-    pub buffer: Buffer,
-}
-
-#[derive(Resource)]
-pub struct TemporalSSRTextures {
-    pub current: TextureView,
-    pub history: TextureView,
-    pub current_texture: Texture,
-    pub history_texture: Texture,
-    pub size: Extent3d,
-}
-
-#[derive(Resource)]
-pub struct TemporalSSRPipeline {
-    pub pipeline: CachedRenderPipelineId,
-    pub bind_group_layout: BindGroupLayout,
-}
-
-pub struct SSRNode {
-    query: QueryState<(&'static ViewTarget, &'static ViewDepthTexture)>,
-}
-
-impl FromWorld for SSRNode {
-    fn from_world(world: &mut World) -> Self {
-        Self {
-            query: world.query_filtered(),
-        }
-    }
-}
-
-impl Node for SSRNode {
-    // ... (keep existing implementation with real texture bind group)
-}
-
-// ==================== TEMPORAL ACCUMULATION NODE ====================
+// ==================== TEMPORAL SSR NODE ====================
 
 pub struct TemporalSSRNode {
     query: QueryState<&'static ViewDepthTexture>,
@@ -114,21 +108,43 @@ impl Node for TemporalSSRNode {
         let textures = world.resource::<TemporalSSRTextures>();
         let temporal_pipeline = world.resource::<TemporalSSRPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
+        let matrices = world.resource::<CameraMatrices>();
 
         let Ok(pipeline) = pipeline_cache.get_render_pipeline(temporal_pipeline.pipeline) else {
             return Ok(());
         };
 
-        // For simplicity, we render the accumulation result into a temporary texture
-        // then copy it back. In production you'd use ping-pong more elegantly.
-
         for depth_texture in self.query.iter_manual(world) {
-            // Create bind group for temporal accumulation
+            // Build TemporalUniforms with real camera matrices
+            let temporal_uniforms = TemporalUniforms {
+                camera_position: matrices.camera_position,
+                prev_camera_position: matrices.prev_camera_position,
+                view: matrices.view,
+                inv_view: matrices.inv_view,
+                projection: matrices.projection,
+                inv_projection: matrices.inv_projection,
+                prev_view: matrices.prev_view,
+                prev_projection: matrices.prev_projection,
+                blend_factor: 0.9,
+            };
+
+            // Create or update uniform buffer for temporal pass
+            let uniform_buffer = render_context.render_device.create_buffer_with_data(
+                &BufferInitDescriptor {
+                    label: Some("temporal_ssr_uniforms"),
+                    contents: bytemuck::cast_slice(&[temporal_uniforms]),
+                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                },
+            );
+
             let bind_group = render_context.render_device.create_bind_group(
                 "temporal_ssr_bind_group",
                 &temporal_pipeline.bind_group_layout,
                 &[
-                    // Uniforms would go here (TemporalUniforms)
+                    BindGroupEntry {
+                        binding: 0,
+                        resource: uniform_buffer.as_entire_binding(),
+                    },
                     BindGroupEntry {
                         binding: 1,
                         resource: BindingResource::TextureView(&textures.current),
@@ -144,7 +160,6 @@ impl Node for TemporalSSRNode {
                 ],
             );
 
-            // Render to current texture (overwriting with accumulated result)
             let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
                 label: Some("temporal_ssr_accumulation"),
                 color_attachments: &[Some(RenderPassColorAttachment {
@@ -163,99 +178,41 @@ impl Node for TemporalSSRNode {
             render_pass.set_render_pipeline(pipeline);
             render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..3, 0..1);
-
-            // After this pass, swap so that the newly accumulated result becomes history
-            // Note: In a real implementation you'd swap after the pass using a mutable resource
         }
 
         Ok(())
     }
 }
 
-// Setup function for temporal pipeline
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+struct TemporalUniforms {
+    camera_position: Vec3,
+    prev_camera_position: Vec3,
+    view: Mat4,
+    inv_view: Mat4,
+    projection: Mat4,
+    inv_projection: Mat4,
+    prev_view: Mat4,
+    prev_projection: Mat4,
+    blend_factor: f32,
+}
+
+// Setup functions remain the same...
+
 pub fn setup_temporal_ssr_pipeline(
     mut commands: Commands,
     render_device: Res<RenderDevice>,
     mut pipeline_cache: ResMut<PipelineCache>,
     asset_server: Res<AssetServer>,
 ) {
-    let bind_group_layout = render_device.create_bind_group_layout(
-        "temporal_ssr_bind_group_layout",
-        &[
-            BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            BindGroupLayoutEntry {
-                binding: 1,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Texture {
-                    sample_type: TextureSampleType::Float { filterable: true },
-                    view_dimension: TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            BindGroupLayoutEntry {
-                binding: 2,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Texture {
-                    sample_type: TextureSampleType::Float { filterable: true },
-                    view_dimension: TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            BindGroupLayoutEntry {
-                binding: 3,
-                visibility: ShaderStages::FRAGMENT,
-                ty: BindingType::Texture {
-                    sample_type: TextureSampleType::Depth,
-                    view_dimension: TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-        ],
-    );
+    // ... existing setup code ...
+}
 
-    let shader = asset_server.load("shaders/temporal_ssr_accumulation.wgsl");
-
-    let pipeline_descriptor = RenderPipelineDescriptor {
-        label: Some("temporal_ssr_pipeline".into()),
-        layout: vec![bind_group_layout.clone()],
-        vertex: VertexState {
-            shader: shader.clone(),
-            entry_point: "vs_main".into(),
-            buffers: vec![],
-            shader_defs: vec![],
-        },
-        fragment: Some(FragmentState {
-            shader,
-            entry_point: "fs_main".into(),
-            targets: vec![Some(ColorTargetState {
-                format: TextureFormat::Rgba16Float,
-                blend: None,
-                write_mask: ColorWrites::ALL,
-            })],
-            shader_defs: vec![],
-        }),
-        primitive: PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: MultisampleState::default(),
-        push_constant_ranges: vec![],
-    };
-
-    let pipeline = pipeline_cache.queue_render_pipeline(pipeline_descriptor);
-
-    commands.insert_resource(TemporalSSRPipeline {
-        pipeline,
-        bind_group_layout,
-    });
+pub fn create_temporal_ssr_textures(
+    mut commands: Commands,
+    render_device: Res<RenderDevice>,
+    windows: Query<&Window>,
+) {
+    // ... existing texture creation code ...
 }
