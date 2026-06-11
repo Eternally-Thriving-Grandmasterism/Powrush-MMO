@@ -17,6 +17,7 @@ use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
 use crate::player_progress_ui::PlayerProgressUIPlugin;
 use crate::spatial_audio::{SpatialAudioPlugin, SpatialListener};
+// use crate::fmod_audio::FmodAudioPlugin; // Uncomment to test FMOD prototype
 
 fn main() {
     App::new()
@@ -44,8 +45,11 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Spatial Audio with Quality + HRTF readiness
+        // Current Kira-based spatial audio
         .add_plugins(SpatialAudioPlugin)
+
+        // FMOD prototype (commented out until FMOD SDK + banks are ready)
+        // .add_plugins(FmodAudioPlugin)
 
         .init_resource::<CloudSync>()
         .add_systems(Startup, init_cloud_sync)
