@@ -46,7 +46,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Kira + GameAudioEvent + nth-degree modulated fundsp resonance
+        // Kira + GameAudioEvent + granular-style fundsp layer
         .add_plugins(SpatialAudioPlugin)
 
         // .add_plugins(FmodAudioPlugin);
