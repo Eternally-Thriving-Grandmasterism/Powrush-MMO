@@ -8,6 +8,7 @@ use simulation::divine_whispers::DivineWhisperTrigger;
 use std::time::Duration;
 
 use crate::spatial_audio::PlaySpatialSound;
+// use crate::fmod_audio::FmodPlay3DEvent; // FMOD prototype
 
 #[derive(Component)]
 struct DivineWhisperUI;
@@ -109,6 +110,7 @@ fn receive_divine_whispers(
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
     mut spatial_events: EventWriter<PlaySpatialSound>,
+    // mut fmod_events: EventWriter<crate::fmod_audio::FmodPlay3DEvent>, // FMOD prototype
     listener_query: Query<&GlobalTransform, With<crate::spatial_audio::SpatialListener>>,
 ) {
     for event in events.read() {
@@ -126,6 +128,7 @@ fn receive_divine_whispers(
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
 
+                // Kira spatial audio
                 spatial_events.send(
                     PlaySpatialSound::new(
                         asset_server.load("sounds/epiphany_impact.ogg"),
@@ -134,6 +137,14 @@ fn receive_divine_whispers(
                     .with_velocity(Vec3::ZERO)
                     .with_volume(0.9),
                 );
+
+                // FMOD prototype bridge (uncomment when using FMOD)
+                // fmod_events.send(
+                //     crate::fmod_audio::FmodPlay3DEvent::new(
+                //         "event:/Epiphany/Impact",
+                //         sound_position,
+                //     )
+                // );
             } else {
                 spatial_events.send(
                     PlaySpatialSound::new(
