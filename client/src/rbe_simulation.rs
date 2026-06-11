@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Dynamic Lighting Changes
+ * Dynamic Shadows
  */
 
 use bevy::prelude::*;
@@ -361,7 +361,6 @@ impl BiomeWeights {
     }
 }
 
-/// Dynamic Weather
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Weather {
     Clear,
@@ -425,12 +424,11 @@ impl WeatherState {
     }
 }
 
-/// Dynamic Lighting State (tied to weather + time of day simulation)
 #[derive(Resource, Debug, Clone, Serialize, Deserialize)]
 pub struct LightingState {
-    pub time_of_day: f32,           // 0.0 = midnight, 0.5 = noon, 1.0 = midnight
-    pub light_intensity: f32,       // 0.0 - 1.0
-    pub light_color: [f32; 3],      // RGB
+    pub time_of_day: f32,
+    pub light_intensity: f32,
+    pub light_color: [f32; 3],
     pub ambient_intensity: f32,
 }
 
@@ -447,18 +445,15 @@ impl Default for LightingState {
 
 impl LightingState {
     pub fn update(&mut self, delta: f32, weather: &WeatherState) {
-        // Simple day/night cycle
         self.time_of_day = (self.time_of_day + delta * 0.008) % 1.0;
 
-        // Calculate base light from time of day
         let day_factor = (self.time_of_day - 0.25).abs().min(0.25) / 0.25;
         let base_intensity = if self.time_of_day < 0.25 || self.time_of_day > 0.75 {
-            0.15 + day_factor * 0.85   // Night to dawn/dusk
+            0.15 + day_factor * 0.85
         } else {
-            0.7 + (1.0 - day_factor) * 0.3 // Daytime
+            0.7 + (1.0 - day_factor) * 0.3
         };
 
-        // Apply weather influence on lighting
         let weather_factor = match weather.current {
             Weather::Clear => 1.0,
             Weather::Rain => 0.7,
@@ -469,20 +464,52 @@ impl LightingState {
 
         self.light_intensity = (base_intensity * weather_factor).clamp(0.1, 1.2);
 
-        // Dynamic color temperature
         if self.time_of_day < 0.3 || self.time_of_day > 0.7 {
-            // Night / dawn / dusk - cooler/bluer
             self.light_color = [0.6, 0.75, 1.0];
             self.ambient_intensity = 0.25;
         } else {
-            // Daytime - warm
             self.light_color = [1.0, 0.92, 0.8];
             self.ambient_intensity = 0.45;
         }
 
-        // Further modulate by weather
         if weather.current == Weather::Storm {
             self.light_color = [0.5, 0.6, 0.8];
+        }
+    }
+}
+
+/// System that updates dynamic lighting and shadows based on LightingState + Weather
+pub fn update_dynamic_lighting_and_shadows(
+    mut query: Query<&mut DirectionalLight>,
+    lighting: Res<LightingState>,
+    weather: Res<WeatherState>,
+) {
+    for mut light in query.iter_mut() {
+        // Update intensity and color from LightingState
+        light.illuminance = lighting.light_intensity * 100_000.0;
+        light.color = Color::srgb(lighting.light_color[0], lighting.light_color[1], lighting.light_color[2]);
+
+        // Dynamic shadow softness based on weather
+        light.shadows_enabled = true;
+
+        match weather.current {
+            Weather::Clear | Weather::Heatwave => {
+                light.shadow_depth_bias = 0.02;
+                light.shadow_normal_bias = 0.6;
+            }
+            Weather::Rain => {
+                light.shadow_depth_bias = 0.05;
+                light.shadow_normal_bias = 1.0;
+            }
+            Weather::Storm => {
+                light.shadow_depth_bias = 0.08;
+                light.shadow_normal_bias = 1.5;
+                light.shadows_enabled = false; // Very soft / disabled in heavy storms
+            }
+            Weather::ColdSnap => {
+                light.shadow_depth_bias = 0.03;
+                light.shadow_normal_bias = 0.8;
+            }
         }
     }
 }
@@ -520,7 +547,6 @@ pub fn regenerate_resource_nodes(
         let biome_mult = weights.regeneration_multiplier(node.biome, node.node_type);
         let weather_mult = weather.regeneration_multiplier();
 
-        // Light affects plant-based nodes
         let light_mult = if node.node_type == ResourceNodeType::Tree || node.node_type == ResourceNodeType::HerbPatch {
             lighting.light_intensity.clamp(0.3, 1.1)
         } else {
@@ -705,6 +731,7 @@ impl Plugin for RBESimulationPlugin {
                 handle_gather_from_node,
                 deposit_visual_feedback,
                 cleanup_deposit_effects,
+                update_dynamic_lighting_and_shadows,
             ));
     }
 }
