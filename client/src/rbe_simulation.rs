@@ -1,16 +1,13 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Foundational systems for a true Resource-Based Economy.
- * Designed with mercy, abundance, and voluntary contribution at its core.
- *
- * PATSAGi Council approved architecture.
+ * Advanced Distribution Logic — Needs-based + Contribution-weighted allocation.
+ * Designed with mercy, fairness, and sustainable abundance.
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-/// Core resource types in the RBE system
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResourceType {
     Energy,
@@ -19,21 +16,18 @@ pub enum ResourceType {
     Materials,
     Knowledge,
     Health,
-    // Extend as needed
 }
 
-/// Represents a quantity of a specific resource
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resource {
     pub resource_type: ResourceType,
     pub amount: f32,
 }
 
-/// Global Abundance Pool — the heart of the RBE
 #[derive(Resource, Default, Debug, Clone, Serialize, Deserialize)]
 pub struct AbundancePool {
     pub resources: Vec<Resource>,
-    pub total_contribution_score: f32, // Non-coercive contribution tracking
+    pub total_contribution_score: f32,
 }
 
 impl AbundancePool {
@@ -60,11 +54,41 @@ impl AbundancePool {
             .unwrap_or(0.0)
     }
 
-    /// Distribute resources based on need + voluntary contribution (core RBE principle)
-    pub fn distribute(&mut self, need: ResourceType, amount_requested: f32, contribution_factor: f32) -> f32 {
+    /// === ADVANCED DISTRIBUTION LOGIC ===
+    ///
+    /// Distributes resources using a mercy-aligned, needs-first + contribution-weighted model.
+    ///
+    /// Priority:
+    /// 1. Basic Needs Floor (everyone gets minimum to survive/thrive)
+    /// 2. Contribution-weighted additional allocation
+    /// 3. Prevents hoarding while rewarding voluntary participation
+    pub fn advanced_distribute(
+        &mut self,
+        need: ResourceType,
+        requested_amount: f32,
+        player_contribution: f32,
+        total_players: f32,
+    ) -> f32 {
         let available = self.get_amount(need);
-        let allocated = (amount_requested * contribution_factor).min(available);
+        if available <= 0.0 {
+            return 0.0;
+        }
 
+        // 1. Calculate Basic Needs Floor (e.g. 40% of available goes to universal access)
+        let basic_needs_floor = available * 0.4;
+        let remaining_after_floor = available - basic_needs_floor;
+
+        // 2. Contribution-weighted share of the remaining pool
+        let contribution_share = if self.total_contribution_score > 0.0 {
+            (player_contribution / self.total_contribution_score) * remaining_after_floor
+        } else {
+            remaining_after_floor / total_players
+        };
+
+        // 3. Final allocation (min of request, available after calculations)
+        let allocated = requested_amount.min(basic_needs_floor + contribution_share).min(available);
+
+        // Deduct from pool
         if let Some(resource) = self.resources.iter_mut().find(|r| r.resource_type == need) {
             resource.amount -= allocated;
         }
@@ -73,11 +97,10 @@ impl AbundancePool {
     }
 }
 
-/// Per-player economy profile in the RBE system
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerRBEProfile {
-    pub contribution_score: f32,      // Voluntary contribution (not forced labor)
-    pub needs_met: f32,               // How well basic needs are currently met (0.0 - 1.0)
+    pub contribution_score: f32,
+    pub needs_met: f32,
     pub personal_resources: Vec<Resource>,
 }
 
@@ -91,28 +114,37 @@ impl Default for PlayerRBEProfile {
     }
 }
 
-/// Main RBE Simulation System
+/// Advanced RBE Simulation Step using the new distribution logic
 pub fn rbe_simulation_step(
     mut abundance: ResMut<AbundancePool>,
     mut query: Query<&mut PlayerRBEProfile>,
 ) {
-    // Example simulation step — can be expanded greatly
+    let player_count = query.iter().count() as f32;
+
     for mut profile in query.iter_mut() {
-        // Simple needs satisfaction logic
-        if profile.needs_met < 1.0 {
-            profile.needs_met = (profile.needs_met + 0.05).min(1.0);
+        // Simulate requesting resources based on needs
+        let food_allocated = abundance.advanced_distribute(
+            ResourceType::Food,
+            10.0, // requested
+            profile.contribution_score,
+            player_count,
+        );
+
+        // Update profile based on allocation
+        if food_allocated > 5.0 {
+            profile.needs_met = (profile.needs_met + 0.1).min(1.0);
         }
 
-        // Contribution slowly increases over time (voluntary participation)
-        profile.contribution_score += 0.01;
+        // Gradual contribution growth (voluntary participation)
+        profile.contribution_score += 0.02;
+        abundance.total_contribution_score += 0.02;
     }
 
-    // Global abundance slowly regenerates (sustainable RBE principle)
-    abundance.add_resource(ResourceType::Energy, 0.5);
-    abundance.add_resource(ResourceType::Food, 0.3);
+    // Sustainable regeneration
+    abundance.add_resource(ResourceType::Energy, 1.0);
+    abundance.add_resource(ResourceType::Food, 0.8);
 }
 
-/// Plugin to register RBE systems
 pub struct RBESimulationPlugin;
 
 impl Plugin for RBESimulationPlugin {
