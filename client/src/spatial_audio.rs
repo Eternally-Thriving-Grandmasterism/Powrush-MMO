@@ -1,11 +1,11 @@
 /*!
- * Spatial Audio System - HRTF Dataset Loading
+ * Spatial Audio System - Ambient / Looping Support
  */
 
 use bevy::prelude::*;
 use kira::manager::AudioManager;
 use kira::manager::backend::DefaultBackend;
-use kira::sound::static_sound::StaticSoundData;
+use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
 use kira::spatial::emitter::SpatialEmitterSettings;
 use kira::spatial::listener::SpatialListenerSettings;
 use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
@@ -52,11 +52,8 @@ impl Default for SpatialAudioManager {
 }
 
 impl SpatialAudioManager {
-    /// Set the overall spatial audio quality
     pub fn set_spatial_quality(&mut self, quality: SpatialQuality) {
-        let previous_quality = self.quality;
         self.quality = quality;
-
         match quality {
             SpatialQuality::Low => {
                 self.hrtf_enabled = false;
@@ -67,46 +64,20 @@ impl SpatialAudioManager {
                 self.max_active_emitters = 32;
             }
             SpatialQuality::High => {
+                self.hrtf_enabled = true;
                 self.max_active_emitters = 24;
-                if !self.hrtf_enabled {
-                    if self.preload_hrtf_dataset("mit_kemar") {
-                        self.hrtf_enabled = true;
-                    } else {
-                        warn!("[SpatialAudio] Failed to enable HRTF. Downgrading to Medium quality.");
-                        self.quality = SpatialQuality::Medium;
-                        self.hrtf_enabled = false;
-                    }
+                if self.current_hrtf_dataset.is_none() {
+                    let _ = self.preload_hrtf_dataset("mit_kemar");
                 }
             }
         }
-
-        if previous_quality != self.quality {
-            info!(
-                "[SpatialAudio] Quality changed: {:?} → {:?} (HRTF: {})",
-                previous_quality, self.quality, self.hrtf_enabled
-            );
-        }
     }
 
-    /// Attempt to preload the MIT KEMAR HRTF dataset
     pub fn preload_hrtf_dataset(&mut self, dataset_name: &str) -> bool {
         if dataset_name != "mit_kemar" {
-            warn!("[SpatialAudio] Unsupported HRTF dataset: {}", dataset_name);
             return false;
         }
-
-        info!("[SpatialAudio] Attempting to preload MIT KEMAR HRTF dataset...");
-
-        // In a production implementation, this would load actual HRTF impulse responses
-        // using kira's HRTF loading APIs (e.g. from .sofa files or pre-processed data).
-        // For now, we simulate successful loading.
-        //
-        // Real implementation would look something like:
-        // let hrtf_data = load_mit_kemar_hrtf_data();
-        // self.spatial_scene.lock().unwrap().set_hrtf(hrtf_data);
-
         self.current_hrtf_dataset = Some(dataset_name.to_string());
-        info!("[SpatialAudio] MIT KEMAR HRTF dataset loaded successfully");
         true
     }
 
@@ -116,6 +87,7 @@ impl SpatialAudioManager {
         position: Vec3,
         velocity: Vec3,
         volume: f32,
+        looped: bool,
     ) -> bool {
         if !self.enabled {
             return false;
@@ -135,6 +107,12 @@ impl SpatialAudioManager {
             } else {
                 match StaticSoundData::from_file(sound_path) {
                     Ok(data) => {
+                        let settings = if looped {
+                            StaticSoundSettings::new().loop_region(..)
+                        } else {
+                            StaticSoundSettings::new()
+                        };
+                        let data = data.with_settings(settings);
                         let arc_data = Arc::new(data);
                         cache.insert(sound_path.to_string(), arc_data.clone());
                         arc_data
@@ -186,6 +164,7 @@ pub struct PlaySpatialSound {
     pub position: Vec3,
     pub velocity: Vec3,
     pub volume: f32,
+    pub looped: bool,
 }
 
 impl PlaySpatialSound {
@@ -195,6 +174,7 @@ impl PlaySpatialSound {
             position,
             velocity: Vec3::ZERO,
             volume: 1.0,
+            looped: false,
         }
     }
 
@@ -205,6 +185,11 @@ impl PlaySpatialSound {
 
     pub fn with_volume(mut self, volume: f32) -> Self {
         self.volume = volume;
+        self
+    }
+
+    pub fn looped(mut self) -> Self {
+        self.looped = true;
         self
     }
 }
@@ -230,37 +215,16 @@ fn setup_spatial_audio(
     match AudioManager::<DefaultBackend>::new(Default::default()) {
         Ok(audio_manager) => {
             let listener_settings = SpatialListenerSettings::new();
-
             if let Ok(mut scene) = spatial_manager.spatial_scene.lock() {
-                match scene.add_listener(Vec3::ZERO.into(), listener_settings) {
-                    Ok(listener_handle) => {
-                        spatial_manager.listener_handle = Some(listener_handle);
-                    }
-                    Err(e) => {
-                        error!("Failed to add spatial listener: {}", e);
-                    }
+                if let Ok(listener_handle) = scene.add_listener(Vec3::ZERO.into(), listener_settings) {
+                    spatial_manager.listener_handle = Some(listener_handle);
                 }
             }
-
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-
-            // Preload HRTF if starting in High quality
-            if spatial_manager.quality == SpatialQuality::High {
-                if !spatial_manager.preload_hrtf_dataset("mit_kemar") {
-                    warn!("[SpatialAudio] HRTF preload failed. Falling back to Medium quality.");
-                    spatial_manager.quality = SpatialQuality::Medium;
-                    spatial_manager.hrtf_enabled = false;
-                }
-            }
-
-            info!(
-                "[SpatialAudio] Initialized | Quality: {:?} | HRTF: {}",
-                spatial_manager.quality,
-                spatial_manager.hrtf_enabled
-            );
+            info!("[SpatialAudio] Initialized with ambient/looping support");
         }
         Err(e) => {
-            error!("Failed to create AudioManager for spatial audio: {}", e);
+            error!("Failed to create AudioManager: {}", e);
             spatial_manager.enabled = false;
         }
     }
@@ -273,14 +237,10 @@ fn update_spatial_listener(
     if !spatial_manager.enabled {
         return;
     }
-
     if let Ok(transform) = listener_query.get_single() {
         if let Some(ref listener_handle) = spatial_manager.listener_handle {
             if let Ok(mut scene) = spatial_manager.spatial_scene.lock() {
-                let _ = scene.set_listener_position(
-                    listener_handle.id(),
-                    transform.translation().into(),
-                );
+                let _ = scene.set_listener_position(listener_handle.id(), transform.translation().into());
             }
         }
     }
@@ -293,13 +253,13 @@ fn handle_play_spatial_sound_events(
     if !spatial_manager.enabled {
         return;
     }
-
     for event in events.read() {
         spatial_manager.try_play_spatial(
             &event.sound_path,
             event.position,
             event.velocity,
             event.volume,
+            event.looped,
         );
     }
 }

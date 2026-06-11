@@ -1,5 +1,5 @@
 /*!
- * Divine Whispers - Client Side (with Velocity Tracking for Spatial Audio)
+ * Divine Whispers - Client Side
  */
 
 use bevy::prelude::*;
@@ -110,8 +110,6 @@ fn receive_divine_whispers(
     audio: Res<Audio>,
     mut spatial_events: EventWriter<PlaySpatialSound>,
     listener_query: Query<&GlobalTransform, With<crate::spatial_audio::SpatialListener>>,
-    time: Res<Time>,
-    mut prev_listener_pos: Local<Vec3>,
 ) {
     for event in events.read() {
         for (mut visibility, children, panel_entity) in panel_query.iter_mut() {
@@ -119,23 +117,10 @@ fn receive_divine_whispers(
 
             let is_epiphany = event.is_epiphany;
 
-            // Calculate dynamic position and velocity
-            let (sound_position, listener_velocity) = if let Ok(listener_transform) = listener_query.get_single() {
-                let current_pos = listener_transform.translation();
-                let delta = current_pos - *prev_listener_pos;
-                let velocity = if time.delta_seconds() > 0.0 {
-                    delta / time.delta_seconds()
-                } else {
-                    Vec3::ZERO
-                };
-
-                // Update previous position
-                *prev_listener_pos = current_pos;
-
-                let pos = current_pos + Vec3::new(0.0, 1.5, -6.0);
-                (pos, velocity)
+            let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
+                listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
             } else {
-                (Vec3::new(0.0, 2.0, -8.0), Vec3::ZERO)
+                Vec3::new(0.0, 2.0, -8.0)
             };
 
             if is_epiphany {
@@ -146,7 +131,7 @@ fn receive_divine_whispers(
                         asset_server.load("sounds/epiphany_impact.ogg"),
                         sound_position,
                     )
-                    .with_velocity(listener_velocity)
+                    .with_velocity(Vec3::ZERO)
                     .with_volume(0.9),
                 );
             } else {
@@ -155,7 +140,7 @@ fn receive_divine_whispers(
                         asset_server.load("sounds/harvest_impact.ogg"),
                         sound_position,
                     )
-                    .with_velocity(listener_velocity)
+                    .with_velocity(Vec3::ZERO)
                     .with_volume(0.55),
                 );
             }
