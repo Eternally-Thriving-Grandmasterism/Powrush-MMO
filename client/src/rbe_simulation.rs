@@ -1,12 +1,12 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Advanced Distribution Logic — Needs-based + Contribution-weighted allocation.
- * Designed with mercy, fairness, and sustainable abundance.
+ * Per-player Needs system with dynamic tracking and satisfaction.
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResourceType {
@@ -47,21 +47,9 @@ impl AbundancePool {
     }
 
     pub fn get_amount(&self, resource_type: ResourceType) -> f32 {
-        self.resources
-            .iter()
-            .find(|r| r.resource_type == resource_type)
-            .map(|r| r.amount)
-            .unwrap_or(0.0)
+        self.resources.iter().find(|r| r.resource_type == resource_type).map(|r| r.amount).unwrap_or(0.0)
     }
 
-    /// === ADVANCED DISTRIBUTION LOGIC ===
-    ///
-    /// Distributes resources using a mercy-aligned, needs-first + contribution-weighted model.
-    ///
-    /// Priority:
-    /// 1. Basic Needs Floor (everyone gets minimum to survive/thrive)
-    /// 2. Contribution-weighted additional allocation
-    /// 3. Prevents hoarding while rewarding voluntary participation
     pub fn advanced_distribute(
         &mut self,
         need: ResourceType,
@@ -70,25 +58,19 @@ impl AbundancePool {
         total_players: f32,
     ) -> f32 {
         let available = self.get_amount(need);
-        if available <= 0.0 {
-            return 0.0;
-        }
+        if available <= 0.0 { return 0.0; }
 
-        // 1. Calculate Basic Needs Floor (e.g. 40% of available goes to universal access)
         let basic_needs_floor = available * 0.4;
         let remaining_after_floor = available - basic_needs_floor;
 
-        // 2. Contribution-weighted share of the remaining pool
         let contribution_share = if self.total_contribution_score > 0.0 {
             (player_contribution / self.total_contribution_score) * remaining_after_floor
         } else {
             remaining_after_floor / total_players
         };
 
-        // 3. Final allocation (min of request, available after calculations)
         let allocated = requested_amount.min(basic_needs_floor + contribution_share).min(available);
 
-        // Deduct from pool
         if let Some(resource) = self.resources.iter_mut().find(|r| r.resource_type == need) {
             resource.amount -= allocated;
         }
@@ -97,10 +79,61 @@ impl AbundancePool {
     }
 }
 
+/// Individual needs that a player can have
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum NeedType {
+    Hunger,
+    Energy,
+    Thirst,
+    Knowledge,
+    Health,
+    Shelter,
+}
+
+/// Per-player dynamic needs tracking
+#[derive(Component, Debug, Clone, Serialize, Deserialize)]
+pub struct Needs {
+    pub levels: HashMap<NeedType, f32>, // 0.0 = fully satisfied, 1.0 = critical need
+}
+
+impl Default for Needs {
+    fn default() -> Self {
+        let mut levels = HashMap::new();
+        levels.insert(NeedType::Hunger, 0.3);
+        levels.insert(NeedType::Energy, 0.25);
+        levels.insert(NeedType::Thirst, 0.2);
+        levels.insert(NeedType::Knowledge, 0.4);
+        levels.insert(NeedType::Health, 0.15);
+        levels.insert(NeedType::Shelter, 0.1);
+        Self { levels }
+    }
+}
+
+impl Needs {
+    pub fn increase_need(&mut self, need: NeedType, amount: f32) {
+        if let Some(level) = self.levels.get_mut(&need) {
+            *level = (*level + amount).min(1.0);
+        }
+    }
+
+    pub fn satisfy_need(&mut self, need: NeedType, amount: f32) {
+        if let Some(level) = self.levels.get_mut(&need) {
+            *level = (*level - amount).max(0.0);
+        }
+    }
+
+    pub fn get_need_level(&self, need: NeedType) -> f32 {
+        *self.levels.get(&need).unwrap_or(&0.0)
+    }
+
+    pub fn is_critical(&self, need: NeedType) -> bool {
+        self.get_need_level(need) > 0.7
+    }
+}
+
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerRBEProfile {
     pub contribution_score: f32,
-    pub needs_met: f32,
     pub personal_resources: Vec<Resource>,
 }
 
@@ -108,41 +141,58 @@ impl Default for PlayerRBEProfile {
     fn default() -> Self {
         Self {
             contribution_score: 0.0,
-            needs_met: 1.0,
             personal_resources: vec![],
         }
     }
 }
 
-/// Advanced RBE Simulation Step using the new distribution logic
+/// Advanced simulation step with per-player needs
 pub fn rbe_simulation_step(
     mut abundance: ResMut<AbundancePool>,
-    mut query: Query<&mut PlayerRBEProfile>,
+    mut query: Query<(&mut PlayerRBEProfile, &mut Needs)>,
 ) {
     let player_count = query.iter().count() as f32;
 
-    for mut profile in query.iter_mut() {
-        // Simulate requesting resources based on needs
-        let food_allocated = abundance.advanced_distribute(
-            ResourceType::Food,
-            10.0, // requested
-            profile.contribution_score,
-            player_count,
-        );
+    for (mut profile, mut needs) in query.iter_mut() {
+        // Simulate natural need increase over time
+        needs.increase_need(NeedType::Hunger, 0.02);
+        needs.increase_need(NeedType::Energy, 0.015);
+        needs.increase_need(NeedType::Thirst, 0.018);
 
-        // Update profile based on allocation
-        if food_allocated > 5.0 {
-            profile.needs_met = (profile.needs_met + 0.1).min(1.0);
+        // Request resources based on highest need
+        if needs.is_critical(NeedType::Hunger) {
+            let allocated = abundance.advanced_distribute(
+                ResourceType::Food,
+                15.0,
+                profile.contribution_score,
+                player_count,
+            );
+            if allocated > 0.0 {
+                needs.satisfy_need(NeedType::Hunger, 0.4);
+            }
         }
 
-        // Gradual contribution growth (voluntary participation)
-        profile.contribution_score += 0.02;
-        abundance.total_contribution_score += 0.02;
+        if needs.is_critical(NeedType::Energy) {
+            let allocated = abundance.advanced_distribute(
+                ResourceType::Energy,
+                12.0,
+                profile.contribution_score,
+                player_count,
+            );
+            if allocated > 0.0 {
+                needs.satisfy_need(NeedType::Energy, 0.35);
+            }
+        }
+
+        // Gradual contribution growth
+        profile.contribution_score += 0.01;
+        abundance.total_contribution_score += 0.01;
     }
 
-    // Sustainable regeneration
-    abundance.add_resource(ResourceType::Energy, 1.0);
-    abundance.add_resource(ResourceType::Food, 0.8);
+    // Sustainable world regeneration
+    abundance.add_resource(ResourceType::Energy, 1.2);
+    abundance.add_resource(ResourceType::Food, 1.0);
+    abundance.add_resource(ResourceType::Water, 0.8);
 }
 
 pub struct RBESimulationPlugin;
