@@ -2,14 +2,14 @@
  * client/src/ssr_render_node.rs
  * Bevy RenderGraph Node for Screen Space Reflections (SSR)
  *
- * Optimized version with persistent uniform buffer + RenderQueue writes.
- * Avoids allocating a new buffer every frame.
+ * Option 1: Bind group recreated every frame with real depth + color textures.
+ * Combined with persistent uniform buffer optimization.
  */
 
 use bevy::prelude::*;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext};
 use bevy::render::render_resource::*;
-use bevy::render::renderer::{RenderContext, RenderQueue};
+use bevy::render::renderer::RenderContext;
 use bevy::render::view::{ViewTarget, ViewDepthTexture};
 
 #[derive(Resource, Default)]
@@ -41,11 +41,10 @@ pub struct SSRPipeline {
     pub bind_group_layout: BindGroupLayout,
 }
 
-/// Persistent uniform buffer + bind group for SSR
+/// Holds the persistent uniform buffer
 #[derive(Resource)]
-pub struct SSRResources {
-    pub uniform_buffer: Buffer,
-    pub bind_group: BindGroup,
+pub struct SSRUniformBuffer {
+    pub buffer: Buffer,
 }
 
 pub struct SSRNode {
@@ -86,13 +85,13 @@ impl Node for SSRNode {
 
         let pipeline_cache = world.resource::<PipelineCache>();
         let ssr_pipeline = world.resource::<SSRPipeline>();
-        let ssr_resources = world.resource::<SSRResources>();
+        let uniform_buffer = world.resource::<SSRUniformBuffer>();
 
         let Ok(pipeline) = pipeline_cache.get_render_pipeline(ssr_pipeline.pipeline) else {
             return Ok(());
         };
 
-        // === Update uniform buffer via RenderQueue (no new allocation) ===
+        // Update uniform buffer (persistent + efficient)
         let uniform_data = SSRUniforms {
             max_steps: settings.max_steps,
             step_size: settings.step_size,
@@ -111,12 +110,34 @@ impl Node for SSRNode {
         };
 
         render_context.render_queue().write_buffer(
-            &ssr_resources.uniform_buffer,
+            &uniform_buffer.buffer,
             0,
             bytemuck::cast_slice(&[uniform_data]),
         );
 
         for (view_target, depth_texture) in self.query.iter_manual(world) {
+            // === Create bind group with REAL textures every frame ===
+            let bind_group = render_context.render_device.create_bind_group(
+                "ssr_bind_group",
+                &ssr_pipeline.bind_group_layout,
+                &[
+                    BindGroupEntry {
+                        binding: 0,
+                        resource: uniform_buffer.buffer.as_entire_binding(),
+                    },
+                    BindGroupEntry {
+                        binding: 1,
+                        resource: BindingResource::TextureView(depth_texture.view()),
+                    },
+                    BindGroupEntry {
+                        binding: 2,
+                        resource: BindingResource::TextureView(
+                            &view_target.get_color_attachment().view,
+                        ),
+                    },
+                ],
+            );
+
             let color_attachment = view_target.get_color_attachment();
 
             let mut render_pass =
@@ -129,7 +150,7 @@ impl Node for SSRNode {
                 });
 
             render_pass.set_render_pipeline(pipeline);
-            render_pass.set_bind_group(0, &ssr_resources.bind_group, &[]);
+            render_pass.set_bind_group(0, &bind_group, &[]);
             render_pass.draw(0..3, 0..1);
         }
 
@@ -198,60 +219,13 @@ pub fn setup_ssr_pipeline(
         ],
     );
 
-    // Create persistent uniform buffer
+    // Persistent uniform buffer
     let uniform_buffer = render_device.create_buffer(&BufferDescriptor {
         label: Some("ssr_uniform_buffer"),
         size: std::mem::size_of::<SSRUniforms>() as u64,
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
-
-    // Create bind group once (reused every frame)
-    let bind_group = render_device.create_bind_group(
-        "ssr_bind_group",
-        &bind_group_layout,
-        &[
-            BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            },
-            // Note: Depth and Color textures should ideally be rebound per-frame
-            // if they change. For simplicity we bind placeholders here.
-            // In production you would update the bind group or use dynamic offsets.
-            BindGroupEntry {
-                binding: 1,
-                resource: BindingResource::TextureView(
-                    // Placeholder - replace with real depth view
-                    &render_device.create_texture(&TextureDescriptor {
-                        label: None,
-                        size: Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
-                        mip_level_count: 1,
-                        sample_count: 1,
-                        dimension: TextureDimension::D2,
-                        format: TextureFormat::Depth32Float,
-                        usage: TextureUsages::TEXTURE_BINDING,
-                        view_formats: &[],
-                    }).create_view(&Default::default()),
-                ),
-            },
-            BindGroupEntry {
-                binding: 2,
-                resource: BindingResource::TextureView(
-                    // Placeholder - replace with real color view
-                    &render_device.create_texture(&TextureDescriptor {
-                        label: None,
-                        size: Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
-                        mip_level_count: 1,
-                        sample_count: 1,
-                        dimension: TextureDimension::D2,
-                        format: TextureFormat::Rgba8UnormSrgb,
-                        usage: TextureUsages::TEXTURE_BINDING,
-                        view_formats: &[],
-                    }).create_view(&Default::default()),
-                ),
-            },
-        ],
-    );
 
     let shader = asset_server.load("shaders/screen_space_reflections.wgsl");
 
@@ -287,8 +261,7 @@ pub fn setup_ssr_pipeline(
         bind_group_layout,
     });
 
-    commands.insert_resource(SSRResources {
-        uniform_buffer,
-        bind_group,
+    commands.insert_resource(SSRUniformBuffer {
+        buffer: uniform_buffer,
     });
 }
