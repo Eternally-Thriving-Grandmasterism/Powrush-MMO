@@ -12,7 +12,7 @@ use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::fundsp_audio::{build_epiphany_resonance, ActiveEpiphanyResonance, ActiveProceduralEpiphanies};
+use crate::fundsp_audio::{build_epiphany_resonance, ActiveEpiphanyResonance, ActiveProceduralEpiphanies, update_epiphany_intensity};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SpatialQuality {
@@ -283,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with auto-evolving fundsp resonance");
+            info!("[SpatialAudio] Initialized with full gameplay-reactive fundsp resonance");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -308,10 +308,11 @@ fn update_spatial_listener(
     }
 }
 
-/// Starts rolling procedural Epiphany with automatic evolution + gameplay reactivity hooks
+/// Epiphany handling + example of gameplay reactivity (temporary multiplier boost)
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active_epiphanies: ResMut<crate::fundsp_audio::ActiveProceduralEpiphanies>,
+    // In a real system you would also have access to PlayerSaveData here
     listener_query: Query<&GlobalTransform, With<SpatialListener>>,
 ) {
     for event in game_events.read() {

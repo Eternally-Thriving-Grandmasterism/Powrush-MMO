@@ -1,14 +1,13 @@
 /*!
  * fundsp Procedural Audio Prototype
  *
- * Automatic intensity evolution over Epiphany lifetime + gameplay reactivity.
+ * Gameplay reactivity + refined automatic evolution.
  */
 
 use bevy::prelude::*;
 use fundsp::hacker::*;
 
 /// Builds a refined, evolving resonance graph for Epiphanies.
-/// Intensity is a live variable.
 pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
     let intensity_var = var(intensity as f64);
 
@@ -37,7 +36,7 @@ pub struct ActiveEpiphanyResonance {
     pub graph: Box<dyn AudioUnit64>,
     pub intensity_var: Shared<f64>,
     pub remaining_duration: f32,
-    pub total_duration: f32,        // for evolution calculation
+    pub total_duration: f32,
     pub chunk_duration: f32,
     pub position: Vec3,
 }
@@ -56,7 +55,7 @@ pub fn render_next_chunk(instance: &mut ActiveEpiphanyResonance) -> Vec<f32> {
     buffer
 }
 
-/// Update intensity of a running Epiphany resonance.
+/// Update intensity of a running Epiphany resonance (call from gameplay systems).
 pub fn update_epiphany_intensity(instance: &ActiveEpiphanyResonance, new_intensity: f32) {
     let clamped = new_intensity.clamp(0.0, 1.0) as f64;
     instance.intensity_var.set(clamped);
@@ -74,10 +73,10 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Automatic evolution + gameplay reactivity ready");
+    info!("[fundsp] Gameplay reactivity + refined evolution ready");
 }
 
-/// System that renders chunks and automatically evolves intensity over time.
+/// System that renders chunks, evolves intensity automatically, and reacts to gameplay.
 fn update_rolling_chunks(
     mut active: ResMut<ActiveProceduralEpiphanies>,
     spatial_manager: Res<crate::spatial_audio::SpatialAudioManager>,
@@ -87,26 +86,28 @@ fn update_rolling_chunks(
         let instance = &mut active.instances[i];
 
         if instance.remaining_duration > 0.0 {
-            // === Automatic intensity evolution ===
-            // Gentle swell: intensity increases toward the middle, then gently decays
+            // === Refined automatic evolution curve ===
             let progress = 1.0 - (instance.remaining_duration / instance.total_duration);
-            let evolved_intensity = if progress < 0.6 {
-                // Build up phase
-                instance.intensity_var.get() as f32 * (0.7 + progress * 0.6)
+
+            // More pronounced swell: builds strongly, peaks, then releases
+            let evolved = if progress < 0.55 {
+                // Strong build-up phase
+                0.65 + (progress / 0.55) * 0.55
             } else {
-                // Gentle decay phase
-                instance.intensity_var.get() as f32 * (1.3 - (progress - 0.6) * 0.75)
+                // Graceful release phase
+                1.2 - ((progress - 0.55) / 0.45) * 0.5
             };
 
-            // Apply evolved intensity (clamped)
-            let final_intensity = evolved_intensity.clamp(0.3, 1.0);
+            let base_intensity = instance.intensity_var.get() as f32;
+            let final_intensity = (base_intensity * evolved).clamp(0.35, 1.15);
+
             instance.intensity_var.set(final_intensity as f64);
 
             // Render and play chunk
             let samples = render_next_chunk(instance);
 
             if !samples.is_empty() {
-                let volume = (0.38 + final_intensity * 0.32).clamp(0.32, 0.68);
+                let volume = (0.38 + final_intensity * 0.32).clamp(0.32, 0.72);
 
                 spatial_manager.play_generated_spatial(
                     samples,
