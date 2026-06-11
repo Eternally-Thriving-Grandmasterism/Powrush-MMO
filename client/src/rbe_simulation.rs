@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Enhanced Biome Weighting
+ * Dynamic Weather Effects
  */
 
 use bevy::prelude::*;
@@ -333,17 +333,12 @@ impl Default for BiomeWeights {
 
         weights.insert((Biome::CrystalFields, ResourceNodeType::Crystal), 0.6);
         weights.insert((Biome::CrystalFields, ResourceNodeType::RareMineral), 0.05);
-
         weights.insert((Biome::DeepCaves, ResourceNodeType::Crystal), 0.4);
         weights.insert((Biome::DeepCaves, ResourceNodeType::RareMineral), 0.3);
-
         weights.insert((Biome::AncientForest, ResourceNodeType::Tree), 0.7);
         weights.insert((Biome::AncientForest, ResourceNodeType::HerbPatch), 0.5);
-
         weights.insert((Biome::SunkenSprings, ResourceNodeType::Spring), 0.8);
-
         weights.insert((Biome::KnowledgeArchives, ResourceNodeType::Library), 0.7);
-
         weights.insert((Biome::RareMineralVeins, ResourceNodeType::RareMineral), 0.85);
         weights.insert((Biome::RareMineralVeins, ResourceNodeType::Crystal), 0.2);
 
@@ -356,12 +351,76 @@ impl BiomeWeights {
         *self.weights.get(&(biome, node_type)).unwrap_or(&0.1)
     }
 
-    /// Returns a multiplier for regeneration rate based on biome
     pub fn regeneration_multiplier(&self, biome: Biome, node_type: ResourceNodeType) -> f32 {
         match (biome, node_type) {
-            (Biome::RareMineralVeins, ResourceNodeType::RareMineral) => 0.6, // Slower in home biome (more valuable)
+            (Biome::RareMineralVeins, ResourceNodeType::RareMineral) => 0.6,
             (Biome::CrystalFields, ResourceNodeType::Crystal) => 1.4,
             (Biome::AncientForest, ResourceNodeType::Tree) => 1.3,
+            _ => 1.0,
+        }
+    }
+}
+
+/// Dynamic Weather System
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Weather {
+    Clear,
+    Rain,
+    Storm,
+    Heatwave,
+    ColdSnap,
+}
+
+#[derive(Resource, Debug, Clone, Serialize, Deserialize)]
+pub struct WeatherState {
+    pub current: Weather,
+    pub timer: f32,           // Time until next weather change
+    pub transition_speed: f32,
+}
+
+impl Default for WeatherState {
+    fn default() -> Self {
+        Self {
+            current: Weather::Clear,
+            timer: 120.0,         // 2 minutes in simulation time
+            transition_speed: 1.0,
+        }
+    }
+}
+
+impl WeatherState {
+    pub fn update(&mut self, delta: f32) {
+        self.timer -= delta * self.transition_speed;
+
+        if self.timer <= 0.0 {
+            // Cycle through weather types
+            self.current = match self.current {
+                Weather::Clear => Weather::Rain,
+                Weather::Rain => Weather::Storm,
+                Weather::Storm => Weather::Heatwave,
+                Weather::Heatwave => Weather::ColdSnap,
+                Weather::ColdSnap => Weather::Clear,
+            };
+            self.timer = 90.0 + rand::random::<f32>() * 60.0; // 1.5 to 2.5 minutes
+        }
+    }
+
+    pub fn regeneration_multiplier(&self) -> f32 {
+        match self.current {
+            Weather::Clear => 1.0,
+            Weather::Rain => 1.2,      // Rain helps plants and water nodes
+            Weather::Storm => 0.7,     // Storms slow everything down
+            Weather::Heatwave => 0.6,  // Heat reduces regeneration
+            Weather::ColdSnap => 0.8,
+        }
+    }
+
+    pub fn need_increase_multiplier(&self, need: NeedType) -> f32 {
+        match (self.current, need) {
+            (Weather::Heatwave, NeedType::Thirst) => 1.8,
+            (Weather::Heatwave, NeedType::Energy) => 1.3,
+            (Weather::ColdSnap, NeedType::Energy) => 1.5,
+            (Weather::Rain, NeedType::Hunger) => 0.8, // Rain helps food sources
             _ => 1.0,
         }
     }
@@ -393,10 +452,12 @@ impl WorldResourceNode {
 pub fn regenerate_resource_nodes(
     mut query: Query<&mut WorldResourceNode>,
     weights: Res<BiomeWeights>,
+    weather: Res<WeatherState>,
 ) {
     for mut node in query.iter_mut() {
-        let multiplier = weights.regeneration_multiplier(node.biome, node.node_type);
-        let effective_rate = node.regeneration_rate * multiplier;
+        let biome_mult = weights.regeneration_multiplier(node.biome, node.node_type);
+        let weather_mult = weather.regeneration_multiplier();
+        let effective_rate = node.regeneration_rate * biome_mult * weather_mult;
 
         if node.remaining_resources < node.max_resources {
             node.remaining_resources = (node.remaining_resources + effective_rate)
@@ -529,13 +590,14 @@ pub fn cleanup_deposit_effects(
 pub fn rbe_simulation_step(
     mut abundance: ResMut<AbundancePool>,
     mut query: Query<(&mut PlayerRBEProfile, &mut Needs)>,
+    weather: Res<WeatherState>,
 ) {
     let player_count = query.iter().count() as f32;
 
     for (mut profile, mut needs) in query.iter_mut() {
-        needs.increase_need(NeedType::Hunger, 0.02);
-        needs.increase_need(NeedType::Energy, 0.015);
-        needs.increase_need(NeedType::Thirst, 0.018);
+        needs.increase_need(NeedType::Hunger, 0.02 * weather.need_increase_multiplier(NeedType::Hunger));
+        needs.increase_need(NeedType::Energy, 0.015 * weather.need_increase_multiplier(NeedType::Energy));
+        needs.increase_need(NeedType::Thirst, 0.018 * weather.need_increase_multiplier(NeedType::Thirst));
 
         if needs.is_critical(NeedType::Hunger) {
             let allocated = abundance.advanced_distribute(ResourceType::Food, 15.0, profile.contribution_score, player_count);
@@ -562,6 +624,7 @@ impl Plugin for RBESimulationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AbundancePool>()
             .init_resource::<BiomeWeights>()
+            .init_resource::<WeatherState>()
             .add_event::<GatherFromNodeEvent>()
             .add_event::<ResourceDepositedEvent>()
             .add_systems(Update, (
