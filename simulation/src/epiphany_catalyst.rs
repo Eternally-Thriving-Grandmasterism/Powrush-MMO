@@ -29,8 +29,8 @@ pub struct EpiphanyOutcome {
     pub world_effects: HashMap<String, f32>,
     pub grace_notes: Vec<String>,
     pub intensity: f32,
-    pub biome_resonance: Option<String>,  // NEW: Crystal Spires / Abyssal Depths specific
-    pub abundance_bloom_multiplier: f32,  // NEW: Player-positive feedback to world
+    pub biome_resonance: Option<String>,
+    pub abundance_bloom_multiplier: f32,
 }
 
 impl EpiphanyOutcome {
@@ -52,6 +52,15 @@ impl EpiphanyOutcome {
     }
 }
 
+/// Rich event emitted when an epiphany is successfully triggered.
+/// This is the main hook for multi-channel feedback (visuals, spatial audio, Divine Whispers, UI, persistence).
+#[derive(Event, Debug, Clone)]
+pub struct EpiphanyTriggered {
+    pub outcome: EpiphanyOutcome,
+    pub biome: String,
+    pub player_id: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct EpiphanyContext {
     pub depletion: f32,
@@ -61,7 +70,7 @@ pub struct EpiphanyContext {
     pub participant_count: u8,
     pub collective_attunement: f32,
     pub duration_ticks: u64,
-    pub season: Option<String>,           // NEW for biome resonance (resonance_peak, mycelium_surge)
+    pub season: Option<String>,
 }
 
 impl Default for EpiphanyContext {
@@ -80,7 +89,6 @@ impl Default for EpiphanyContext {
 }
 
 /// High-level helper: THE main integration point. Call this after EVERY successful harvest.
-/// Now the canonical entry for evaluate_epiphany wiring.
 pub fn check_epiphany_after_harvest(
     depletion: f32,
     sustainable_pacing: bool,
@@ -104,31 +112,25 @@ pub fn check_epiphany_after_harvest(
 }
 
 /// Core evaluation function — SINGLE SOURCE OF TRUTH
-/// Now deeply supports new living biomes (Crystal Spires resonance, Abyssal Depths surge)
-/// and routes through behavioral score for human-positive amplification.
 pub fn evaluate_epiphany(
     context: &EpiphanyContext,
     behavioral_human_score: f32,
 ) -> Option<EpiphanyOutcome> {
-    // Anti-bot / human authenticity filter (positive boost for real players)
     let human_factor = behavioral_human_score.clamp(0.6, 1.15);
-    if human_factor < 0.65 { return None; } // Strong anomaly filter
+    if human_factor < 0.65 { return None; }
 
-    // 1. Overflow Lesson (foundational sustainable presence)
     if let Some(mut outcome) = check_overflow_lesson(context.depletion, context.sustainable_pacing, &context.biome) {
         outcome = apply_human_amplification(outcome, human_factor);
         outcome = apply_biome_resonance(outcome, context);
         return Some(outcome);
     }
 
-    // 2. Sustainable Abundance (regen participation)
     if let Some(mut outcome) = check_sustainable_abundance(context.depletion, context.regen_participation, &context.biome) {
         outcome = apply_human_amplification(outcome, human_factor);
         outcome = apply_biome_resonance(outcome, context);
         return Some(outcome);
     }
 
-    // 3. NEW: Crystal Spires Resonance Peak (highest player-impact for new biome)
     if context.biome.contains("crystal_spires") || context.biome == "crystal_spires" {
         if let Some(mut outcome) = check_crystal_spires_resonance(context) {
             outcome = apply_human_amplification(outcome, human_factor);
@@ -136,7 +138,6 @@ pub fn evaluate_epiphany(
         }
     }
 
-    // 4. NEW: Abyssal Depths Mycelium Surge
     if context.biome.contains("abyssal_depths") || context.biome == "abyssal_depths" {
         if let Some(mut outcome) = check_abyssal_depths_surge(context) {
             outcome = apply_human_amplification(outcome, human_factor);
@@ -144,7 +145,6 @@ pub fn evaluate_epiphany(
         }
     }
 
-    // Council Harmony handled in dedicated council_mercy_trial path
     None
 }
 
@@ -180,8 +180,6 @@ fn apply_biome_resonance(mut outcome: EpiphanyOutcome, context: &EpiphanyContext
     outcome
 }
 
-// === Individual Detectors (enhanced) ===
-
 pub fn check_overflow_lesson(depletion: f32, sustainable_pacing: bool, biome: &str) -> Option<EpiphanyOutcome> {
     if !sustainable_pacing || depletion > 0.58 { return None; }
     if biome != "Verdant Heartwood" && biome != "starter" && biome != "heartwood" && !biome.contains("crystal") { return None; }
@@ -213,7 +211,6 @@ pub fn check_sustainable_abundance(depletion: f32, regen_participation: bool, bi
     Some(outcome)
 }
 
-// NEW: Crystal Spires specific detector for resonance_peak
 pub fn check_crystal_spires_resonance(context: &EpiphanyContext) -> Option<EpiphanyOutcome> {
     if context.depletion > 0.45 || !context.sustainable_pacing { return None; }
     let season_match = context.season.as_deref() == Some("resonance_peak");
@@ -235,7 +232,6 @@ pub fn check_crystal_spires_resonance(context: &EpiphanyContext) -> Option<Epiph
     Some(outcome)
 }
 
-// NEW: Abyssal Depths detector
 pub fn check_abyssal_depths_surge(context: &EpiphanyContext) -> Option<EpiphanyOutcome> {
     if context.depletion > 0.5 || !context.sustainable_pacing { return None; }
     let season_match = context.season.as_deref() == Some("mycelium_surge");
@@ -274,13 +270,27 @@ pub fn check_council_harmony(collective_attunement: f32, participant_count: u8, 
     Some(outcome)
 }
 
-/// Example production integration comment (already wired in harvest.rs v18.15+)
+/// Production example of full live flow (to be called from harvest or game systems)
 /*
-// In simulation/src/harvest.rs or server handler:
-if let Some(epiphany) = check_epiphany_after_harvest(depletion, sustainable_pacing, regen_participation, biome, season, behavioral_human_score) {
-    // Apply multipliers, emit EpiphanyEvent for client dynamic_events_ui + divine_whispers
-    // Trigger fundsp audio resonance via EpiphanyAudioEvent
-    // Update player_persistence + EpiphanyJournal
-    // Broadcast to Council Mercy Trial SharedReceptorBloomField if multiplayer
+if let Some(outcome) = check_epiphany_after_harvest(...) {
+    // 1. Persistence
+    if let Some(mut persistence) = world.get_resource_mut::<PlayerSaveData>() {
+        persistence.apply_epiphany_outcome(&outcome, &biome);
+    }
+
+    // 2. Emit rich event for all channels
+    commands.trigger(EpiphanyTriggered {
+        outcome: outcome.clone(),
+        biome: biome.to_string(),
+        player_id,
+    });
+
+    // 3. Divine Whispers (special epiphany constructor)
+    commands.trigger(DivineWhisperTrigger::from_epiphany(
+        player_id,
+        outcome.divine_whisper_flavor.clone(),
+        outcome.divine_whisper_flavor.clone(),
+        outcome.intensity,
+    ));
 }
 */
