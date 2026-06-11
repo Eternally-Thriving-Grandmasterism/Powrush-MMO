@@ -1,48 +1,67 @@
 /*!
  * fundsp Procedural Audio Prototype
  *
- * Refined modulation + light frequency modulation for richer Epiphany resonance.
+ * Deep modulation overhaul - Epiphany resonance to the nth degree.
+ * Multiple layers of filter, amplitude, frequency, and cross-modulation.
  */
 
 use bevy::prelude::*;
 use fundsp::hacker::*;
 
-/// Builds a rich, modulated resonance graph for Epiphanies.
-/// Features refined modulation depths/rates + gentle frequency modulation.
+/// Builds a deeply modulated, rich resonance graph for Epiphanies.
+/// Features extensive modulation at multiple rates and depths.
 pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
     let intensity_var = var(intensity as f64);
+    let i = intensity_var; // shorthand
 
-    // === Tonal Body ===
-    let base_freq = 65.0 + intensity_var * 160.0;
+    // === Base Frequency ===
+    let base_freq = 62.0 + i * 155.0;
 
-    // Light frequency modulation (gentle vibrato) on one oscillator
-    let vibrato = sine_hz(0.7) * 1.8; // ~1.8 Hz vibrato, subtle depth
-    let tone_a = sine_hz(base_freq + vibrato);
-    let tone_b = sine_hz(base_freq * 1.008);
+    // === Tonal Body with Multi-Layer Frequency Modulation ===
+    // Slow vibrato + medium FM + light fast jitter
+    let slow_vibrato = sine_hz(0.6) * (1.2 + i * 1.5);
+    let medium_fm = sine_hz(4.5) * (0.8 + i * 1.8);
+    let fast_jitter = sine_hz(11.0) * (0.3 + i * 0.6);
 
-    let main_body = (tone_a + tone_b) * (0.22 + intensity_var * 0.32);
+    let tone_a = sine_hz(base_freq + slow_vibrato + medium_fm + fast_jitter);
+    let tone_b = sine_hz(base_freq * 1.009);
 
-    let harmonic = sine_hz(base_freq * 2.02) * (0.12 + intensity_var * 0.22);
+    let main_body = (tone_a + tone_b) * (0.20 + i * 0.34);
 
-    // === Noise Texture with Dynamic Filtering ===
-    let noise_base = noise() * (0.12 + intensity_var * 0.38);
+    // === Harmonic Layer with Cross-Modulation ===
+    let harm_fm = sine_hz(2.8) * (1.5 + i * 2.2);
+    let harmonic = sine_hz(base_freq * 2.015 + harm_fm) * (0.11 + i * 0.24);
 
-    // Refined filter modulation (slower, more majestic)
-    let filter_mod = sine_hz(0.09) * 380.0 + 480.0;
-    let filtered_noise = noise_base
-        >> lowpass_hz(260.0 + intensity_var * 850.0 + filter_mod, 1.7);
+    // === Multi-Layer Noise Texture with Cross-Modulation ===
+    let noise_core = noise() * (0.11 + i * 0.40);
 
-    // === Combine layers ===
-    let combined = main_body + harmonic + filtered_noise;
+    // Filter 1: Slow majestic movement
+    let filter1_mod = sine_hz(0.07) * (320.0 + i * 380.0) + 420.0;
+    let layer1 = noise_core >> lowpass_hz(240.0 + i * 780.0 + filter1_mod, 1.8);
 
-    // Refined amplitude breathing (slightly deeper but still subtle)
-    let breath = sine_hz(0.08) * 0.26 + 0.74;
-    let modulated = combined * (0.80 + breath * intensity_var * 0.30);
+    // Filter 2: Medium movement modulated by noise (cross-modulation)
+    let filter2_mod = sine_hz(0.19) * (280.0 + i * 320.0) + 380.0;
+    let cross_mod = noise() * (0.4 + i * 0.6);
+    let layer2 = noise_core * 0.7
+        >> lowpass_hz(180.0 + i * 650.0 + filter2_mod + cross_mod * 300.0, 1.5);
 
-    // Final gentle low-pass
-    let final = modulated >> lowpass_hz(1500.0 + intensity_var * 600.0, 1.0);
+    let noise_layers = (layer1 + layer2) * 0.85;
 
-    (Box::new(final * 0.72), intensity_var)
+    // === Combine All Layers ===
+    let combined = main_body + harmonic + noise_layers;
+
+    // === Multi-Rate Amplitude Modulation (Breathing) ===
+    let breath_slow = sine_hz(0.06) * 0.28 + 0.72;
+    let breath_mid = sine_hz(0.17) * 0.18 + 0.82;
+    let breath_fast = sine_hz(0.9) * 0.09 + 0.91;
+
+    let amplitude_mod = breath_slow * breath_mid * breath_fast;
+    let modulated = combined * (0.78 + amplitude_mod * i * 0.32);
+
+    // === Final Shaping ===
+    let final = modulated >> lowpass_hz(1450.0 + i * 580.0, 1.0);
+
+    (Box::new(final * 0.70), intensity_var)
 }
 
 /// Represents an active rolling procedural Epiphany resonance.
@@ -87,7 +106,7 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Refined modulation + light vibrato active");
+    info!("[fundsp] Deep modulation (nth degree) active");
 }
 
 /// System that renders chunks and evolves intensity automatically.
@@ -109,14 +128,14 @@ fn update_rolling_chunks(
             };
 
             let base_intensity = instance.intensity_var.get() as f32;
-            let final_intensity = (base_intensity * evolved).clamp(0.35, 1.15);
+            let final_intensity = (base_intensity * evolved).clamp(0.35, 1.2);
 
             instance.intensity_var.set(final_intensity as f64);
 
             let samples = render_next_chunk(instance);
 
             if !samples.is_empty() {
-                let volume = (0.38 + final_intensity * 0.32).clamp(0.32, 0.72);
+                let volume = (0.37 + final_intensity * 0.33).clamp(0.30, 0.74);
 
                 spatial_manager.play_generated_spatial(
                     samples,

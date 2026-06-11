@@ -283,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with refined + frequency-modulated fundsp resonance");
+            info!("[SpatialAudio] Initialized with nth-degree modulated fundsp resonance");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -308,7 +308,7 @@ fn update_spatial_listener(
     }
 }
 
-/// Epiphany handling with refined procedural modulation
+/// Epiphany handling with deeply modulated procedural resonance
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active_epiphanies: ResMut<crate::fundsp_audio::ActiveProceduralEpiphanies>,
