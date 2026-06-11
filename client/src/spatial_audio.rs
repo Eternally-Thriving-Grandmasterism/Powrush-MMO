@@ -12,6 +12,8 @@ use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use crate::fundsp_audio::build_epiphany_resonance;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SpatialQuality {
     Low,
@@ -203,7 +205,6 @@ impl PlaySpatialSound {
 
     pub fn looped(mut self) -> Self {
         self.looped = true;
-        self
     }
 }
 
@@ -236,7 +237,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with GameAudioEvent abstraction");
+            info!("[SpatialAudio] Initialized with GameAudioEvent abstraction + fundsp prototype");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -262,6 +263,7 @@ fn update_spatial_listener(
 }
 
 /// Converts high-level GameAudioEvent into Kira-specific PlaySpatialSound
+/// Also prepares fundsp procedural resonance graph for Epiphanies
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut spatial_events: EventWriter<PlaySpatialSound>,
@@ -276,6 +278,9 @@ fn handle_game_audio_events(
 
         match event {
             GameAudioEvent::Epiphany { intensity, .. } => {
+                // Build procedural resonance graph (prototype)
+                let _resonance_graph = build_epiphany_resonance(*intensity);
+
                 // Rich Epiphany feedback with intensity tiers
                 let volume = (0.6 + intensity * 0.35).clamp(0.5, 1.0);
                 let pitch = (0.96 + intensity * 0.08).clamp(0.94, 1.1);
@@ -291,7 +296,7 @@ fn handle_game_audio_events(
                     .with_playback_rate(pitch as f64),
                 );
 
-                // Secondary layer based on intensity
+                // Secondary resonance layer (intensity-tiered)
                 if intensity > 0.4 {
                     let secondary_volume = ((intensity - 0.4) * 1.5).clamp(0.0, 0.85);
                     spatial_events.send(
