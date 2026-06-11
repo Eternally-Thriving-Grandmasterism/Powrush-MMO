@@ -2,8 +2,7 @@
  * client/src/velocity_prepass.rs
  * Velocity / Motion Vector Prepass for Temporal Techniques
  *
- * Phase 2 of improving temporal SSR quality.
- * Renders per-pixel velocity (current pos - previous pos) into a texture.
+ * Now uses velocity_prepass.wgsl and renders to VelocityTexture.
  */
 
 use bevy::prelude::*;
@@ -23,23 +22,109 @@ pub struct VelocityTexture {
     pub view: TextureView,
 }
 
-pub struct VelocityPrepassNode;
+#[derive(Resource)]
+pub struct VelocityUniforms {
+    pub view_proj: Mat4,
+    pub prev_view_proj: Mat4,
+    pub model: Mat4,
+    pub prev_model: Mat4,
+}
+
+pub struct VelocityPrepassNode {
+    query: QueryState<&'static Camera>,
+}
+
+impl FromWorld for VelocityPrepassNode {
+    fn from_world(world: &mut World) -> Self {
+        Self {
+            query: world.query_filtered(),
+        }
+    }
+}
 
 impl Node for VelocityPrepassNode {
+    fn input(&self) -> Vec<SlotInfo> {
+        vec![]
+    }
+
+    fn output(&self) -> Vec<SlotInfo> {
+        vec![]
+    }
+
+    fn update(&mut self, world: &mut World) {
+        self.query.update_archetypes(world);
+    }
+
     fn run(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        // TODO: Implement actual velocity rendering pass
-        // This node should render all objects with a velocity shader that outputs
-        // (current_world_position - previous_world_position) as RG channels.
-        //
-        // For a minimal version:
-        // - Use a separate render pass that writes to VelocityTexture
-        // - Requires storing previous frame transforms per entity (or per mesh)
-        // - Can start with rigid bodies only
+        let pipeline_res = world.resource::<VelocityPrepassPipeline>();
+        let velocity_tex = world.resource::<VelocityTexture>();
+        let pipeline_cache = world.resource::<PipelineCache>();
+
+        let Ok(pipeline) = pipeline_cache.get_render_pipeline(pipeline_res.pipeline) else {
+            return Ok(());
+        };
+
+        // For initial testing we use identity matrices.
+        // In production you would extract real current/previous view_proj and per-object model matrices.
+        let uniforms = VelocityUniforms {
+            view_proj: Mat4::IDENTITY,
+            prev_view_proj: Mat4::IDENTITY,
+            model: Mat4::IDENTITY,
+            prev_model: Mat4::IDENTITY,
+        };
+
+        let uniform_buffer = render_context.render_device.create_buffer_with_data(
+            &BufferInitDescriptor {
+                    label: Some("velocity_uniform_buffer"),
+                    contents: bytemuck::cast_slice(&[uniforms]),
+                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            },
+        );
+
+        let bind_group = render_context.render_device.create_bind_group(
+            "velocity_prepass_bind_group",
+            &pipeline_res.bind_group_layout,
+            &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                },
+                // Add model + prev_model bindings here when using per-object data
+            ],
+        );
+
+        let mut render_pass = render_context.begin_tracked_render_pass(RenderPassDescriptor {
+            label: Some("velocity_prepass"),
+            color_attachments: &[Some(RenderPassColorAttachment {
+                view: &velocity_tex.view,
+                resolve_target: None,
+                ops: Operations {
+                    load: LoadOp::Clear(Color::BLACK),
+                    store: StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                view: /* depth texture from main prepass or shared */,
+                depth_ops: Some(Operations {
+                    load: LoadOp::Clear(1.0),
+                    store: StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_render_pipeline(pipeline);
+        render_pass.set_bind_group(0, &bind_group, &[]);
+        // TODO: Draw all meshes that should contribute velocity
+        // render_pass.draw_indexed(...);
+
         Ok(())
     }
 }
@@ -53,11 +138,21 @@ pub fn setup_velocity_prepass_pipeline(
     let bind_group_layout = render_device.create_bind_group_layout(
         "velocity_prepass_bind_group_layout",
         &[
-            // Add entries for model matrix, previous model matrix, etc.
+            BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::VERTEX_FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+            // Add more bindings for per-object model matrices when ready
         ],
     );
 
-    let shader = asset_server.load("shaders/velocity_prepass.wgsl"); // To be created
+    let shader = asset_server.load("shaders/velocity_prepass.wgsl");
 
     let pipeline_descriptor = RenderPipelineDescriptor {
         label: Some("velocity_prepass_pipeline".into()),
@@ -72,7 +167,7 @@ pub fn setup_velocity_prepass_pipeline(
             shader,
             entry_point: "fs_main".into(),
             targets: vec![Some(ColorTargetState {
-                format: TextureFormat::Rg16Float, // Velocity stored in RG
+                format: TextureFormat::Rg16Float,
                 blend: None,
                 write_mask: ColorWrites::ALL,
             })],
@@ -97,6 +192,3 @@ pub fn setup_velocity_prepass_pipeline(
         bind_group_layout,
     });
 }
-
-// TODO: Create shaders/velocity_prepass.wgsl
-// It should output velocity in RG channels and write depth normally.
