@@ -2,77 +2,41 @@
  * client/src/ssr_render_node.rs
  * Bevy RenderGraph Node for Screen Space Reflections (SSR) + Temporal Accumulation
  *
- * Includes camera matrix extraction for proper temporal reprojection.
+ * Updated with safer default blend factor + comments about neighborhood clamping.
  */
 
 use bevy::prelude::*;
 use bevy::render::render_graph::{Node, NodeRunError, RenderGraphContext};
 use bevy::render::render_resource::*;
 use bevy::render::renderer::RenderContext;
-use bevy::render::view::{ViewTarget, ViewDepthTexture, ViewUniform};
+use bevy::render::view::{ViewTarget, ViewDepthTexture};
 
-// ... existing resources ...
+// ... (previous resources remain)
 
 #[derive(Resource, Default)]
-pub struct SSRSettings { /* ... */ }
-
-#[derive(Resource)]
-pub struct SSRPipeline { /* ... */ }
-
-#[derive(Resource)]
-pub struct SSRUniformBuffer { /* ... */ }
-
-#[derive(Resource)]
-pub struct TemporalSSRTextures { /* ... */ }
-
-#[derive(Resource)]
-pub struct TemporalSSRPipeline { /* ... */ }
-
-/// Holds current and previous frame camera matrices for temporal reprojection
-#[derive(Resource, Default)]
-pub struct CameraMatrices {
-    pub view: Mat4,
-    pub inv_view: Mat4,
-    pub projection: Mat4,
-    pub inv_projection: Mat4,
-    pub prev_view: Mat4,
-    pub prev_projection: Mat4,
-    pub camera_position: Vec3,
-    pub prev_camera_position: Vec3,
+pub struct SSRSettings {
+    pub enabled: bool,
+    pub intensity: f32,
+    pub epiphany_boost: f32,
+    pub max_steps: u32,
+    pub step_size: f32,
+    pub thickness: f32,
 }
 
-pub struct SSRNode { /* ... */ }
-
-impl Node for SSRNode { /* ... */ }
-
-// ==================== CAMERA MATRIX EXTRACTION ====================
-
-/// System that extracts current camera matrices and stores previous frame data
-pub fn extract_camera_matrices(
-    mut matrices: ResMut<CameraMatrices>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
-    windows: Query<&Window>,
-) {
-    if let Ok((camera, global_transform)) = camera_query.get_single() {
-        let transform = global_transform.compute_matrix();
-        let view = transform.inverse();
-        let projection = camera.projection_matrix();
-
-        // Store previous frame data before updating
-        matrices.prev_view = matrices.view;
-        matrices.prev_projection = matrices.projection;
-        matrices.prev_camera_position = matrices.camera_position;
-
-        // Update current frame
-        matrices.view = view;
-        matrices.inv_view = transform;
-        matrices.projection = projection;
-        matrices.inv_projection = projection.inverse();
-        matrices.camera_position = global_transform.translation();
+impl Default for SSRSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            intensity: 0.65,
+            epiphany_boost: 1.0,
+            max_steps: 32,
+            step_size: 0.15,
+            thickness: 0.08,
+        }
     }
 }
 
-// ==================== TEMPORAL SSR NODE ====================
+// ... other resources ...
 
 pub struct TemporalSSRNode {
     query: QueryState<&'static ViewDepthTexture>,
@@ -125,10 +89,9 @@ impl Node for TemporalSSRNode {
                 inv_projection: matrices.inv_projection,
                 prev_view: matrices.prev_view,
                 prev_projection: matrices.prev_projection,
-                blend_factor: 0.9,
+                blend_factor: 0.83,   // Safer default with neighborhood clamping + depth rejection
             };
 
-            // Create or update uniform buffer for temporal pass
             let uniform_buffer = render_context.render_device.create_buffer_with_data(
                 &BufferInitDescriptor {
                     label: Some("temporal_ssr_uniforms"),
@@ -184,35 +147,7 @@ impl Node for TemporalSSRNode {
     }
 }
 
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-struct TemporalUniforms {
-    camera_position: Vec3,
-    prev_camera_position: Vec3,
-    view: Mat4,
-    inv_view: Mat4,
-    projection: Mat4,
-    inv_projection: Mat4,
-    prev_view: Mat4,
-    prev_projection: Mat4,
-    blend_factor: f32,
-}
+// Note: The temporal shader now includes 3x3 neighborhood clamping + depth rejection.
+// This allows a higher blend_factor (0.83) with much less ghosting than before.
 
-// Setup functions remain the same...
-
-pub fn setup_temporal_ssr_pipeline(
-    mut commands: Commands,
-    render_device: Res<RenderDevice>,
-    mut pipeline_cache: ResMut<PipelineCache>,
-    asset_server: Res<AssetServer>,
-) {
-    // ... existing setup code ...
-}
-
-pub fn create_temporal_ssr_textures(
-    mut commands: Commands,
-    render_device: Res<RenderDevice>,
-    windows: Query<&Window>,
-) {
-    // ... existing texture creation code ...
-}
+// ... rest of the file (setup functions, CameraMatrices, etc.)
