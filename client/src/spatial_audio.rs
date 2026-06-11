@@ -283,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with granular-style fundsp layer");
+            info!("[SpatialAudio] Initialized with enhanced granular + cross-modulation");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
@@ -308,7 +308,7 @@ fn update_spatial_listener(
     }
 }
 
-/// Epiphany handling with granular-style procedural layer
+/// Epiphany handling with enhanced granular layer
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active_epiphanies: ResMut<crate::fundsp_audio::ActiveProceduralEpiphanies>,
