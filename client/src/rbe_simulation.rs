@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Biome Weighting System
+ * Enhanced Biome Weighting
  */
 
 use bevy::prelude::*;
@@ -302,7 +302,6 @@ pub fn process_contribution_actions(
     }
 }
 
-/// Biomes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Biome {
     CrystalFields,
@@ -313,7 +312,6 @@ pub enum Biome {
     RareMineralVeins,
 }
 
-/// Resource node types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResourceNodeType {
     Tree,
@@ -324,7 +322,6 @@ pub enum ResourceNodeType {
     RareMineral,
 }
 
-/// Biome weighting for node spawn probabilities
 #[derive(Resource, Debug, Clone, Serialize, Deserialize)]
 pub struct BiomeWeights {
     pub weights: HashMap<(Biome, ResourceNodeType), f32>,
@@ -334,25 +331,19 @@ impl Default for BiomeWeights {
     fn default() -> Self {
         let mut weights = HashMap::new();
 
-        // CrystalFields
         weights.insert((Biome::CrystalFields, ResourceNodeType::Crystal), 0.6);
         weights.insert((Biome::CrystalFields, ResourceNodeType::RareMineral), 0.05);
 
-        // DeepCaves
         weights.insert((Biome::DeepCaves, ResourceNodeType::Crystal), 0.4);
         weights.insert((Biome::DeepCaves, ResourceNodeType::RareMineral), 0.3);
 
-        // AncientForest
         weights.insert((Biome::AncientForest, ResourceNodeType::Tree), 0.7);
         weights.insert((Biome::AncientForest, ResourceNodeType::HerbPatch), 0.5);
 
-        // SunkenSprings
         weights.insert((Biome::SunkenSprings, ResourceNodeType::Spring), 0.8);
 
-        // KnowledgeArchives
         weights.insert((Biome::KnowledgeArchives, ResourceNodeType::Library), 0.7);
 
-        // RareMineralVeins - High chance for Rare Minerals
         weights.insert((Biome::RareMineralVeins, ResourceNodeType::RareMineral), 0.85);
         weights.insert((Biome::RareMineralVeins, ResourceNodeType::Crystal), 0.2);
 
@@ -363,6 +354,16 @@ impl Default for BiomeWeights {
 impl BiomeWeights {
     pub fn get_weight(&self, biome: Biome, node_type: ResourceNodeType) -> f32 {
         *self.weights.get(&(biome, node_type)).unwrap_or(&0.1)
+    }
+
+    /// Returns a multiplier for regeneration rate based on biome
+    pub fn regeneration_multiplier(&self, biome: Biome, node_type: ResourceNodeType) -> f32 {
+        match (biome, node_type) {
+            (Biome::RareMineralVeins, ResourceNodeType::RareMineral) => 0.6, // Slower in home biome (more valuable)
+            (Biome::CrystalFields, ResourceNodeType::Crystal) => 1.4,
+            (Biome::AncientForest, ResourceNodeType::Tree) => 1.3,
+            _ => 1.0,
+        }
     }
 }
 
@@ -389,10 +390,16 @@ impl WorldResourceNode {
     }
 }
 
-pub fn regenerate_resource_nodes(mut query: Query<&mut WorldResourceNode>) {
+pub fn regenerate_resource_nodes(
+    mut query: Query<&mut WorldResourceNode>,
+    weights: Res<BiomeWeights>,
+) {
     for mut node in query.iter_mut() {
+        let multiplier = weights.regeneration_multiplier(node.biome, node.node_type);
+        let effective_rate = node.regeneration_rate * multiplier;
+
         if node.remaining_resources < node.max_resources {
-            node.remaining_resources = (node.remaining_resources + node.regeneration_rate)
+            node.remaining_resources = (node.remaining_resources + effective_rate)
                 .min(node.max_resources);
         }
     }
