@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Dynamic Weather Effects
+ * Dynamic Lighting Changes
  */
 
 use bevy::prelude::*;
@@ -361,7 +361,7 @@ impl BiomeWeights {
     }
 }
 
-/// Dynamic Weather System
+/// Dynamic Weather
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Weather {
     Clear,
@@ -374,7 +374,7 @@ pub enum Weather {
 #[derive(Resource, Debug, Clone, Serialize, Deserialize)]
 pub struct WeatherState {
     pub current: Weather,
-    pub timer: f32,           // Time until next weather change
+    pub timer: f32,
     pub transition_speed: f32,
 }
 
@@ -382,7 +382,7 @@ impl Default for WeatherState {
     fn default() -> Self {
         Self {
             current: Weather::Clear,
-            timer: 120.0,         // 2 minutes in simulation time
+            timer: 120.0,
             transition_speed: 1.0,
         }
     }
@@ -393,7 +393,6 @@ impl WeatherState {
         self.timer -= delta * self.transition_speed;
 
         if self.timer <= 0.0 {
-            // Cycle through weather types
             self.current = match self.current {
                 Weather::Clear => Weather::Rain,
                 Weather::Rain => Weather::Storm,
@@ -401,16 +400,16 @@ impl WeatherState {
                 Weather::Heatwave => Weather::ColdSnap,
                 Weather::ColdSnap => Weather::Clear,
             };
-            self.timer = 90.0 + rand::random::<f32>() * 60.0; // 1.5 to 2.5 minutes
+            self.timer = 90.0 + rand::random::<f32>() * 60.0;
         }
     }
 
     pub fn regeneration_multiplier(&self) -> f32 {
         match self.current {
             Weather::Clear => 1.0,
-            Weather::Rain => 1.2,      // Rain helps plants and water nodes
-            Weather::Storm => 0.7,     // Storms slow everything down
-            Weather::Heatwave => 0.6,  // Heat reduces regeneration
+            Weather::Rain => 1.2,
+            Weather::Storm => 0.7,
+            Weather::Heatwave => 0.6,
             Weather::ColdSnap => 0.8,
         }
     }
@@ -420,8 +419,70 @@ impl WeatherState {
             (Weather::Heatwave, NeedType::Thirst) => 1.8,
             (Weather::Heatwave, NeedType::Energy) => 1.3,
             (Weather::ColdSnap, NeedType::Energy) => 1.5,
-            (Weather::Rain, NeedType::Hunger) => 0.8, // Rain helps food sources
+            (Weather::Rain, NeedType::Hunger) => 0.8,
             _ => 1.0,
+        }
+    }
+}
+
+/// Dynamic Lighting State (tied to weather + time of day simulation)
+#[derive(Resource, Debug, Clone, Serialize, Deserialize)]
+pub struct LightingState {
+    pub time_of_day: f32,           // 0.0 = midnight, 0.5 = noon, 1.0 = midnight
+    pub light_intensity: f32,       // 0.0 - 1.0
+    pub light_color: [f32; 3],      // RGB
+    pub ambient_intensity: f32,
+}
+
+impl Default for LightingState {
+    fn default() -> Self {
+        Self {
+            time_of_day: 0.5,
+            light_intensity: 1.0,
+            light_color: [1.0, 0.95, 0.85],
+            ambient_intensity: 0.4,
+        }
+    }
+}
+
+impl LightingState {
+    pub fn update(&mut self, delta: f32, weather: &WeatherState) {
+        // Simple day/night cycle
+        self.time_of_day = (self.time_of_day + delta * 0.008) % 1.0;
+
+        // Calculate base light from time of day
+        let day_factor = (self.time_of_day - 0.25).abs().min(0.25) / 0.25;
+        let base_intensity = if self.time_of_day < 0.25 || self.time_of_day > 0.75 {
+            0.15 + day_factor * 0.85   // Night to dawn/dusk
+        } else {
+            0.7 + (1.0 - day_factor) * 0.3 // Daytime
+        };
+
+        // Apply weather influence on lighting
+        let weather_factor = match weather.current {
+            Weather::Clear => 1.0,
+            Weather::Rain => 0.7,
+            Weather::Storm => 0.4,
+            Weather::Heatwave => 1.1,
+            Weather::ColdSnap => 0.85,
+        };
+
+        self.light_intensity = (base_intensity * weather_factor).clamp(0.1, 1.2);
+
+        // Dynamic color temperature
+        if self.time_of_day < 0.3 || self.time_of_day > 0.7 {
+            // Night / dawn / dusk - cooler/bluer
+            self.light_color = [0.6, 0.75, 1.0];
+            self.ambient_intensity = 0.25;
+        } else {
+            // Daytime - warm
+            self.light_color = [1.0, 0.92, 0.8];
+            self.ambient_intensity = 0.45;
+        }
+
+        // Further modulate by weather
+        if weather.current == Weather::Storm {
+            self.light_color = [0.5, 0.6, 0.8];
         }
     }
 }
@@ -453,11 +514,20 @@ pub fn regenerate_resource_nodes(
     mut query: Query<&mut WorldResourceNode>,
     weights: Res<BiomeWeights>,
     weather: Res<WeatherState>,
+    lighting: Res<LightingState>,
 ) {
     for mut node in query.iter_mut() {
         let biome_mult = weights.regeneration_multiplier(node.biome, node.node_type);
         let weather_mult = weather.regeneration_multiplier();
-        let effective_rate = node.regeneration_rate * biome_mult * weather_mult;
+
+        // Light affects plant-based nodes
+        let light_mult = if node.node_type == ResourceNodeType::Tree || node.node_type == ResourceNodeType::HerbPatch {
+            lighting.light_intensity.clamp(0.3, 1.1)
+        } else {
+            1.0
+        };
+
+        let effective_rate = node.regeneration_rate * biome_mult * weather_mult * light_mult;
 
         if node.remaining_resources < node.max_resources {
             node.remaining_resources = (node.remaining_resources + effective_rate)
@@ -625,6 +695,7 @@ impl Plugin for RBESimulationPlugin {
         app.init_resource::<AbundancePool>()
             .init_resource::<BiomeWeights>()
             .init_resource::<WeatherState>()
+            .init_resource::<LightingState>()
             .add_event::<GatherFromNodeEvent>()
             .add_event::<ResourceDepositedEvent>()
             .add_systems(Update, (
