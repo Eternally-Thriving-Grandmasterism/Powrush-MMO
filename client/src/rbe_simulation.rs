@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Deposit mechanic — players can voluntarily return resources to the Abundance Pool.
+ * Deposit Visual Effects
  */
 
 use bevy::prelude::*;
@@ -168,7 +168,6 @@ impl PlayerRBEProfile {
         allocated
     }
 
-    /// Deposit personal resources back into the Abundance Pool (voluntary contribution)
     pub fn deposit_to_pool(
         &mut self,
         abundance: &mut AbundancePool,
@@ -179,7 +178,6 @@ impl PlayerRBEProfile {
         let to_deposit = amount.min(available);
 
         if to_deposit > 0.0 {
-            // Remove from personal inventory
             if let Some(existing) = self.personal_resources.iter_mut().find(|r| r.resource_type == resource_type) {
                 existing.amount -= to_deposit;
                 if existing.amount <= 0.0 {
@@ -187,10 +185,8 @@ impl PlayerRBEProfile {
                 }
             }
 
-            // Add to global pool
             abundance.add_resource(resource_type, to_deposit);
 
-            // Reward contribution for depositing (especially generous for high-value resources)
             let contribution_reward = match resource_type {
                 ResourceType::Knowledge | ResourceType::Health => to_deposit * 1.5,
                 _ => to_deposit,
@@ -284,6 +280,71 @@ pub fn regenerate_resource_nodes(mut query: Query<&mut WorldResourceNode>) {
     }
 }
 
+/// Event fired when a player deposits resources
+#[derive(Event)]
+pub struct ResourceDepositedEvent {
+    pub resource_type: ResourceType,
+    pub amount: f32,
+    pub contribution_gained: f32,
+}
+
+/// Simple visual feedback system for deposits (can be expanded with particles later)
+pub fn deposit_visual_feedback(
+    mut commands: Commands,
+    mut deposit_events: EventReader<ResourceDepositedEvent>,
+    asset_server: Res<AssetServer>,
+) {
+    for event in deposit_events.read() {
+        // Spawn a temporary floating text effect
+        commands.spawn((
+            TextBundle {
+                text: Text::from_section(
+                    format!("+{:.1} {:?} | +{:.1} Contribution", event.amount, event.resource_type, event.contribution_gained),
+                    TextStyle {
+                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                        font_size: 18.0,
+                        color: Color::srgb(0.4, 0.9, 0.6),
+                    },
+                ),
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    left: Val::Percent(45.0),
+                    top: Val::Percent(35.0),
+                    ..default()
+                },
+                ..default()
+            },
+            DepositVisualEffect {
+                timer: Timer::from_seconds(2.0, TimerMode::Once),
+            },
+        ));
+    }
+}
+
+#[derive(Component)]
+pub struct DepositVisualEffect {
+    pub timer: Timer,
+}
+
+/// System to clean up deposit visual effects after they expire
+pub fn cleanup_deposit_effects(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut DepositVisualEffect, &mut Text)>,
+    time: Res<Time>,
+) {
+    for (entity, mut effect, mut text) in query.iter_mut() {
+        effect.timer.tick(time.delta());
+
+        // Fade out effect
+        let alpha = 1.0 - effect.timer.percent();
+        text.sections[0].style.color.set_a(alpha);
+
+        if effect.timer.finished() {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 pub fn rbe_simulation_step(
     mut abundance: ResMut<AbundancePool>,
     mut query: Query<(&mut PlayerRBEProfile, &mut Needs)>,
@@ -319,6 +380,13 @@ pub struct RBESimulationPlugin;
 impl Plugin for RBESimulationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AbundancePool>()
-            .add_systems(Update, (rbe_simulation_step, process_contribution_actions, regenerate_resource_nodes));
+            .add_event::<ResourceDepositedEvent>()
+            .add_systems(Update, (
+                rbe_simulation_step,
+                process_contribution_actions,
+                regenerate_resource_nodes,
+                deposit_visual_feedback,
+                cleanup_deposit_effects,
+            ));
     }
 }
