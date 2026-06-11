@@ -46,7 +46,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // Kira + GameAudioEvent + granular layer with internal cross-mod + more band-pass
+        // Kira + GameAudioEvent + granular layer with more resonance + internal cross-mod
         .add_plugins(SpatialAudioPlugin)
 
         // .add_plugins(FmodAudioPlugin);
@@ -82,6 +82,8 @@ fn init_cloud_sync(mut cloud_sync: ResMut<CloudSync>) {
 
 fn setup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
+
+    .run();
 }
 
 fn setup_world_seed(mut commands: Commands) {

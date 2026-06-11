@@ -283,7 +283,7 @@ fn setup_spatial_audio(
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Initialized with internal granular cross-mod + more band-pass");
+            info!("[SpatialAudio] Initialized with more resonant + internal cross-mod granular layer");
         }
         Err(e) => {
             error!("Failed to create AudioManager: {}", e);
