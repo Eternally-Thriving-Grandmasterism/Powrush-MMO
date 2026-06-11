@@ -276,10 +276,11 @@ fn handle_game_audio_events(
 
         match event {
             GameAudioEvent::Epiphany { intensity, .. } => {
-                // Richer Epiphany feedback in Kira
-                let volume = (0.65 + intensity * 0.3).clamp(0.55, 1.0);
-                let pitch = (0.97 + intensity * 0.06).clamp(0.95, 1.08); // Slight pitch shift for power
+                // Rich Epiphany feedback with intensity tiers
+                let volume = (0.6 + intensity * 0.35).clamp(0.5, 1.0);
+                let pitch = (0.96 + intensity * 0.08).clamp(0.94, 1.1);
 
+                // Main impact sound
                 spatial_events.send(
                     PlaySpatialSound::new(
                         "sounds/epiphany_impact.ogg",
@@ -289,6 +290,32 @@ fn handle_game_audio_events(
                     .with_volume(volume)
                     .with_playback_rate(pitch as f64),
                 );
+
+                // Secondary layer based on intensity
+                if intensity > 0.4 {
+                    let secondary_volume = ((intensity - 0.4) * 1.5).clamp(0.0, 0.85);
+                    spatial_events.send(
+                        PlaySpatialSound::new(
+                            "sounds/epiphany_resonance.ogg",
+                            sound_position,
+                        )
+                        .with_velocity(Vec3::ZERO)
+                        .with_volume(secondary_volume),
+                    );
+                }
+
+                // Tertiary peak layer for very strong epiphanies
+                if intensity > 0.75 {
+                    let peak_volume = ((intensity - 0.75) * 3.0).clamp(0.0, 0.7);
+                    spatial_events.send(
+                        PlaySpatialSound::new(
+                            "sounds/epiphany_peak.ogg",
+                            sound_position,
+                        )
+                        .with_velocity(Vec3::ZERO)
+                        .with_volume(peak_volume),
+                    );
+                }
             }
             GameAudioEvent::Harvest { .. } => {
                 spatial_events.send(
