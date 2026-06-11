@@ -1,5 +1,5 @@
 /*!
- * Divine Whispers - Client Side (Improved Spatial Audio Integration)
+ * Divine Whispers - Client Side (with Velocity Tracking for Spatial Audio)
  */
 
 use bevy::prelude::*;
@@ -110,6 +110,8 @@ fn receive_divine_whispers(
     audio: Res<Audio>,
     mut spatial_events: EventWriter<PlaySpatialSound>,
     listener_query: Query<&GlobalTransform, With<crate::spatial_audio::SpatialListener>>,
+    time: Res<Time>,
+    mut prev_listener_pos: Local<Vec3>,
 ) {
     for event in events.read() {
         for (mut visibility, children, panel_entity) in panel_query.iter_mut() {
@@ -117,11 +119,21 @@ fn receive_divine_whispers(
 
             let is_epiphany = event.is_epiphany;
 
-            // Calculate dynamic sound position relative to listener
+            // Calculate dynamic position and velocity
             let (sound_position, listener_velocity) = if let Ok(listener_transform) = listener_query.get_single() {
-                let pos = listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0);
-                // For now we pass zero velocity; can be improved with actual player velocity later
-                (pos, Vec3::ZERO)
+                let current_pos = listener_transform.translation();
+                let delta = current_pos - *prev_listener_pos;
+                let velocity = if time.delta_seconds() > 0.0 {
+                    delta / time.delta_seconds()
+                } else {
+                    Vec3::ZERO
+                };
+
+                // Update previous position
+                *prev_listener_pos = current_pos;
+
+                let pos = current_pos + Vec3::new(0.0, 1.5, -6.0);
+                (pos, velocity)
             } else {
                 (Vec3::new(0.0, 2.0, -8.0), Vec3::ZERO)
             };
@@ -129,7 +141,6 @@ fn receive_divine_whispers(
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
 
-                // Stronger spatial sound for epiphany
                 spatial_events.send(
                     PlaySpatialSound::new(
                         asset_server.load("sounds/epiphany_impact.ogg"),
@@ -139,7 +150,6 @@ fn receive_divine_whispers(
                     .with_volume(0.9),
                 );
             } else {
-                // Lighter spatial sound for regular harvest/feedback
                 spatial_events.send(
                     PlaySpatialSound::new(
                         asset_server.load("sounds/harvest_impact.ogg"),
