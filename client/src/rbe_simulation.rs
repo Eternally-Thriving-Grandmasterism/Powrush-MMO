@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * World Resource Nodes — Gatherable entities in the world that feed the Abundance Pool.
+ * Player Inventory ↔ RBE Integration
  */
 
 use bevy::prelude::*;
@@ -74,6 +74,17 @@ impl AbundancePool {
 
         allocated
     }
+
+    /// Allow a player to withdraw resources into their personal inventory
+    pub fn withdraw_for_player(
+        &mut self,
+        resource_type: ResourceType,
+        amount: f32,
+        player_contribution: f32,
+        total_players: f32,
+    ) -> f32 {
+        self.advanced_distribute(resource_type, amount, player_contribution, total_players)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -131,6 +142,42 @@ impl Default for PlayerRBEProfile {
     }
 }
 
+impl PlayerRBEProfile {
+    pub fn add_personal_resource(&mut self, resource_type: ResourceType, amount: f32) {
+        if let Some(existing) = self.personal_resources.iter_mut().find(|r| r.resource_type == resource_type) {
+            existing.amount += amount;
+        } else {
+            self.personal_resources.push(Resource { resource_type, amount });
+        }
+    }
+
+    pub fn get_personal_amount(&self, resource_type: ResourceType) -> f32 {
+        self.personal_resources.iter().find(|r| r.resource_type == resource_type).map(|r| r.amount).unwrap_or(0.0)
+    }
+
+    /// Withdraw resources from the Abundance Pool into personal inventory
+    pub fn withdraw_from_pool(
+        &mut self,
+        abundance: &mut AbundancePool,
+        resource_type: ResourceType,
+        amount: f32,
+        total_players: f32,
+    ) -> f32 {
+        let allocated = abundance.withdraw_for_player(
+            resource_type,
+            amount,
+            self.contribution_score,
+            total_players,
+        );
+
+        if allocated > 0.0 {
+            self.add_personal_resource(resource_type, allocated);
+        }
+
+        allocated
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ContributionActionType {
     Gathering,
@@ -174,15 +221,13 @@ pub fn process_contribution_actions(
     }
 }
 
-/// === WORLD RESOURCE NODES ===
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResourceNodeType {
-    Tree,        // Provides Food + Materials
-    Crystal,     // Provides Energy + Knowledge
-    Spring,      // Provides Water
-    HerbPatch,   // Provides Health + Food
-    Library,     // Provides Knowledge
+    Tree,
+    Crystal,
+    Spring,
+    HerbPatch,
+    Library,
 }
 
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
@@ -201,18 +246,11 @@ impl WorldResourceNode {
             ResourceNodeType::HerbPatch => (60.0, 0.4),
             ResourceNodeType::Library => (200.0, 0.2),
         };
-        Self {
-            node_type,
-            remaining_resources: remaining,
-            regeneration_rate: regen,
-        }
+        Self { node_type, remaining_resources: remaining, regeneration_rate: regen }
     }
 }
 
-/// System that regenerates world resource nodes over time (sustainable RBE)
-pub fn regenerate_resource_nodes(
-    mut query: Query<&mut WorldResourceNode>,
-) {
+pub fn regenerate_resource_nodes(mut query: Query<&mut WorldResourceNode>) {
     for mut node in query.iter_mut() {
         if node.remaining_resources < 200.0 {
             node.remaining_resources += node.regeneration_rate;
@@ -220,56 +258,6 @@ pub fn regenerate_resource_nodes(
     }
 }
 
-/// Example gathering system (can be triggered by player interaction later)
-pub fn gather_from_node(
-    mut commands: Commands,
-    mut abundance: ResMut<AbundancePool>,
-    mut node_query: Query<(Entity, &mut WorldResourceNode)>,
-    mut profile_query: Query<&mut PlayerRBEProfile>,
-) {
-    // This is a simplified version. In a real game, this would be triggered by player proximity + input.
-    for (entity, mut node) in node_query.iter_mut() {
-        if node.remaining_resources > 10.0 {
-            let gathered = 10.0;
-            node.remaining_resources -= gathered;
-
-            // Add to global Abundance Pool
-            match node.node_type {
-                ResourceNodeType::Tree => {
-                    abundance.add_resource(ResourceType::Food, gathered * 0.6);
-                    abundance.add_resource(ResourceType::Materials, gathered * 0.4);
-                }
-                ResourceNodeType::Crystal => {
-                    abundance.add_resource(ResourceType::Energy, gathered * 0.7);
-                    abundance.add_resource(ResourceType::Knowledge, gathered * 0.3);
-                }
-                ResourceNodeType::Spring => {
-                    abundance.add_resource(ResourceType::Water, gathered);
-                }
-                ResourceNodeType::HerbPatch => {
-                    abundance.add_resource(ResourceType::Health, gathered * 0.8);
-                    abundance.add_resource(ResourceType::Food, gathered * 0.2);
-                }
-                ResourceNodeType::Library => {
-                    abundance.add_resource(ResourceType::Knowledge, gathered);
-                }
-            }
-
-            // Reward contribution for gathering
-            for mut profile in profile_query.iter_mut() {
-                profile.contribution_score += 0.5;
-                abundance.total_contribution_score += 0.5;
-            }
-
-            // Optional: despawn node if depleted
-            if node.remaining_resources <= 0.0 {
-                commands.entity(entity).despawn();
-            }
-        }
-    }
-}
-
-/// Main RBE simulation step
 pub fn rbe_simulation_step(
     mut abundance: ResMut<AbundancePool>,
     mut query: Query<(&mut PlayerRBEProfile, &mut Needs)>,
@@ -282,7 +270,7 @@ pub fn rbe_simulation_step(
         needs.increase_need(NeedType::Thirst, 0.018);
 
         if needs.is_critical(NeedType::Hunger) {
-            let allocated = abundance.advanced_distribute(ResourceType::Food, 15.0, profile.contribution_score, query.iter().count() as f32);
+            let allocated = abundance.advanced_distribute(ResourceType::Food, 15.0, profile.contribution_score, player_count);
             if allocated > 0.0 { needs.satisfy_need(NeedType::Hunger, 0.4); }
         }
 
@@ -305,11 +293,6 @@ pub struct RBESimulationPlugin;
 impl Plugin for RBESimulationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AbundancePool>()
-            .add_systems(Update, (
-                rbe_simulation_step,
-                process_contribution_actions,
-                regenerate_resource_nodes,
-                // gather_from_node, // Enable when player interaction is ready
-            ));
+            .add_systems(Update, (rbe_simulation_step, process_contribution_actions, regenerate_resource_nodes));
     }
 }
