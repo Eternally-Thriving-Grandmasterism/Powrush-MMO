@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Rare Mineral Crafting Recipes
+ * Rare Mineral Biomes
  */
 
 use bevy::prelude::*;
@@ -199,21 +199,18 @@ impl PlayerRBEProfile {
         to_deposit
     }
 
-    /// Craft an item using rare minerals and other resources
     pub fn craft_recipe(
         &mut self,
         recipe: CraftingRecipe,
     ) -> bool {
         let requirements = recipe.requirements();
 
-        // Check if player has all required resources
         for (resource_type, amount_needed) in &requirements {
             if self.get_personal_amount(*resource_type) < *amount_needed {
-                return false; // Not enough resources
+                return false;
             }
         }
 
-        // Consume resources
         for (resource_type, amount_needed) in &requirements {
             if let Some(existing) = self.personal_resources.iter_mut().find(|r| r.resource_type == *resource_type) {
                 existing.amount -= amount_needed;
@@ -223,9 +220,7 @@ impl PlayerRBEProfile {
             }
         }
 
-        // Apply result (for now we just reward contribution + optionally add a result resource)
         let (contribution_reward, result_resource) = recipe.result();
-
         self.contribution_score += contribution_reward;
 
         if let Some((result_type, result_amount)) = result_resource {
@@ -236,36 +231,27 @@ impl PlayerRBEProfile {
     }
 }
 
-/// Crafting recipes that can use Rare Minerals
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CraftingRecipe {
-    AdvancedTool,        // Requires Rare Mineral + Materials
-    EnergyCore,          // Requires Rare Mineral + Energy
-    KnowledgeCrystal,    // Requires Rare Mineral + Knowledge
-    HealingDevice,       // Requires Rare Mineral + Health
+    AdvancedTool,
+    EnergyCore,
+    KnowledgeCrystal,
+    HealingDevice,
 }
 
 impl CraftingRecipe {
     pub fn requirements(&self) -> Vec<(ResourceType, f32)> {
         match self {
-            CraftingRecipe::AdvancedTool => {
-                vec![(ResourceType::Materials, 15.0), (ResourceType::Energy, 5.0)]
-            }
-            CraftingRecipe::EnergyCore => {
-                vec![(ResourceType::Energy, 20.0), (ResourceType::Materials, 10.0)]
-            }
-            CraftingRecipe::KnowledgeCrystal => {
-                vec![(ResourceType::Knowledge, 12.0), (ResourceType::Materials, 8.0)]
-            }
-            CraftingRecipe::HealingDevice => {
-                vec![(ResourceType::Health, 15.0), (ResourceType::Materials, 10.0)]
-            }
+            CraftingRecipe::AdvancedTool => vec![(ResourceType::Materials, 15.0), (ResourceType::Energy, 5.0)],
+            CraftingRecipe::EnergyCore => vec![(ResourceType::Energy, 20.0), (ResourceType::Materials, 10.0)],
+            CraftingRecipe::KnowledgeCrystal => vec![(ResourceType::Knowledge, 12.0), (ResourceType::Materials, 8.0)],
+            CraftingRecipe::HealingDevice => vec![(ResourceType::Health, 15.0), (ResourceType::Materials, 10.0)],
         }
     }
 
     pub fn result(&self) -> (f32, Option<(ResourceType, f32)>) {
         match self {
-            CraftingRecipe::AdvancedTool => (25.0, Some((ResourceType::Materials, 5.0))), // High contribution + leftover
+            CraftingRecipe::AdvancedTool => (25.0, Some((ResourceType::Materials, 5.0))),
             CraftingRecipe::EnergyCore => (30.0, None),
             CraftingRecipe::KnowledgeCrystal => (35.0, Some((ResourceType::Knowledge, 3.0))),
             CraftingRecipe::HealingDevice => (28.0, None),
@@ -316,6 +302,17 @@ pub fn process_contribution_actions(
     }
 }
 
+/// Biomes that influence resource node distribution and rarity
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Biome {
+    CrystalFields,
+    DeepCaves,
+    AncientForest,
+    SunkenSprings,
+    KnowledgeArchives,
+    RareMineralVeins, // Primary biome for Rare Minerals
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResourceNodeType {
     Tree,
@@ -329,13 +326,14 @@ pub enum ResourceNodeType {
 #[derive(Component, Debug, Clone, Serialize, Deserialize)]
 pub struct WorldResourceNode {
     pub node_type: ResourceNodeType,
+    pub biome: Biome,
     pub remaining_resources: f32,
     pub regeneration_rate: f32,
     pub max_resources: f32,
 }
 
 impl WorldResourceNode {
-    pub fn new(node_type: ResourceNodeType) -> Self {
+    pub fn new(node_type: ResourceNodeType, biome: Biome) -> Self {
         let (remaining, regen, max_res) = match node_type {
             ResourceNodeType::Tree => (100.0, 0.5, 120.0),
             ResourceNodeType::Crystal => (80.0, 0.3, 100.0),
@@ -344,7 +342,13 @@ impl WorldResourceNode {
             ResourceNodeType::Library => (200.0, 0.2, 250.0),
             ResourceNodeType::RareMineral => (40.0, 0.1, 50.0),
         };
-        Self { node_type, remaining_resources: remaining, regeneration_rate: regen, max_resources: max_res }
+        Self {
+            node_type,
+            biome,
+            remaining_resources: remaining,
+            regeneration_rate: regen,
+            max_resources: max_res,
+        }
     }
 }
 
