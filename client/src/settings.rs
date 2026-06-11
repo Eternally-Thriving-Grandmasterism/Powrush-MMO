@@ -1,8 +1,10 @@
 /*!
  * Powrush-MMO Client Settings with Serialization
  *
- * Example of serializing render settings (TAA + Motion Blur) to a human-readable config file.
- * Uses RON format (popular in Bevy community).
+ * Features:
+ * - RON serialization for TAA + Motion Blur settings
+ * - Automatic creation of config/ directory
+ * - Ready to integrate with settings menu
  */
 
 use bevy::prelude::*;
@@ -13,12 +15,10 @@ use std::path::Path;
 use crate::taa_reprojection::TaaSettings;
 use crate::motion_blur::MotionBlurSettings;
 
-/// Main client settings struct that can be saved/loaded.
 #[derive(Resource, Serialize, Deserialize, Clone, Debug, Default)]
 pub struct ClientSettings {
     pub graphics: GraphicsSettings,
     pub audio: AudioSettings,
-    // Add other categories as needed
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -28,7 +28,6 @@ pub struct GraphicsSettings {
     pub motion_blur_enabled: bool,
     pub motion_blur_intensity: f32,
     pub quality_preset: QualityPreset,
-    // Add more graphics options here
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -46,9 +45,21 @@ pub struct AudioSettings {
     pub music_volume: f32,
 }
 
-/// Saves client settings to a RON file.
+/// Ensures the config directory exists.
+fn ensure_config_dir() {
+    let dir = Path::new("config");
+    if !dir.exists() {
+        if let Err(e) = fs::create_dir_all(dir) {
+            error!("[Settings] Failed to create config directory: {}", e);
+        }
+    }
+}
+
+/// Saves client settings to a RON file (creates config/ dir automatically).
 pub fn save_client_settings(settings: &ClientSettings) {
-    let ron_string = match ron::to_string(settings) {
+    ensure_config_dir();
+
+    let ron_string = match ron::to_string_pretty(settings, ron::ser::PrettyConfig::default()) {
         Ok(s) => s,
         Err(e) => {
             error!("[Settings] Failed to serialize settings: {}", e);
@@ -63,7 +74,7 @@ pub fn save_client_settings(settings: &ClientSettings) {
     }
 }
 
-/// Loads client settings from a RON file, or returns defaults.
+/// Loads client settings or returns mercy-aligned defaults.
 pub fn load_client_settings() -> ClientSettings {
     let path = Path::new("config/client_settings.ron");
 
@@ -74,17 +85,13 @@ pub fn load_client_settings() -> ClientSettings {
                     info!("[Settings] Loaded client settings from file");
                     return settings;
                 }
-                Err(e) => {
-                    warn!("[Settings] Failed to parse settings file: {}. Using defaults.", e);
-                }
+                Err(e) => warn!("[Settings] Failed to parse settings file: {}. Using defaults.", e),
             },
-            Err(e) => {
-                warn!("[Settings] Failed to read settings file: {}. Using defaults.", e);
-            },
+            Err(e) => warn!("[Settings] Failed to read settings file: {}. Using defaults.", e),
         }
     }
 
-    // Return sensible defaults aligned with PATSAGi mercy defaults
+    // PATSAGi-aligned defaults
     ClientSettings {
         graphics: GraphicsSettings {
             taa_enabled: true,
@@ -101,7 +108,7 @@ pub fn load_client_settings() -> ClientSettings {
     }
 }
 
-/// Helper to sync TaaSettings from ClientSettings
+/// Sync loaded settings to live TAA resource
 pub fn sync_taa_settings(
     mut taa: ResMut<TaaSettings>,
     client: Res<ClientSettings>,
@@ -110,7 +117,7 @@ pub fn sync_taa_settings(
     taa.jitter_scale = client.graphics.taa_jitter_scale;
 }
 
-/// Helper to sync MotionBlurSettings from ClientSettings
+/// Sync loaded settings to live Motion Blur resource
 pub fn sync_motion_blur_settings(
     mut mb: ResMut<MotionBlurSettings>,
     client: Res<ClientSettings>,
