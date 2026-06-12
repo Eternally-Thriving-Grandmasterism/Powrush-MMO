@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * PCF Shadow Filtering Techniques
+ * Hardware2x2 PCF Shadow Filtering Mechanics
  */
 
 use bevy::prelude::*;
@@ -479,10 +479,25 @@ impl LightingState {
     }
 }
 
-/// PCF Shadow Filtering + Dynamic Bias
+/// Hardware2x2 PCF Shadow Filtering Mechanics
 ///
-/// We use Bevy's built-in ShadowFilteringMethod combined with dynamic bias tuning.
-/// This gives us good quality soft shadows with reasonable performance.
+/// Bevy's `ShadowFilteringMethod::Hardware2x2` uses the GPU's built-in PCF (Percentage Closer Filtering)
+/// with a fixed 2x2 kernel. It is fast because it leverages hardware shadow sampling instructions.
+///
+/// Mechanics:
+/// - For each fragment, the GPU samples 4 depth values in a 2x2 pattern around the shadow map coordinate.
+/// - It compares each sample against the fragment's depth.
+/// - The result is averaged → producing a soft shadow edge.
+///
+/// Strengths:
+/// - Very fast (hardware accelerated)
+/// - Good enough for most real-time use cases
+///
+/// Limitations:
+/// - Fixed 2x2 kernel (not very soft compared to 5x5/9x9 PCF or Gaussian)
+/// - Can still show some aliasing on thin geometry or at grazing angles
+///
+/// In our system we combine it with dynamic bias tuning and disable it in heavy storms for performance.
 pub fn update_dynamic_lighting_and_shadows(
     mut query: Query<&mut DirectionalLight>,
     lighting: Res<LightingState>,
@@ -492,29 +507,24 @@ pub fn update_dynamic_lighting_and_shadows(
         light.illuminance = lighting.light_intensity * 100_000.0;
         light.color = Color::srgb(lighting.light_color[0], lighting.light_color[1], lighting.light_color[2]);
 
-        // Enable shadows
-        light.shadows_enabled = true;
-
-        // === PCF FILTERING ===
-        // Bevy supports Hardware2x2 (fast) and can be extended with custom shaders for higher quality PCF.
-        // For now we use the built-in method and control quality via bias + filtering.
         match weather.current {
             Weather::Clear | Weather::Heatwave => {
-                // Highest quality shadows
+                light.shadows_enabled = true;
                 light.shadow_filtering_method = ShadowFilteringMethod::Hardware2x2;
                 light.shadow_depth_bias = 0.015;
                 light.shadow_normal_bias = 0.5;
             }
             Weather::Rain => {
+                light.shadows_enabled = true;
                 light.shadow_filtering_method = ShadowFilteringMethod::Hardware2x2;
                 light.shadow_depth_bias = 0.04;
                 light.shadow_normal_bias = 0.9;
             }
             Weather::Storm => {
-                // Disable shadows in heavy storms for performance
                 light.shadows_enabled = false;
             }
             Weather::ColdSnap => {
+                light.shadows_enabled = true;
                 light.shadow_filtering_method = ShadowFilteringMethod::Hardware2x2;
                 light.shadow_depth_bias = 0.025;
                 light.shadow_normal_bias = 0.7;
