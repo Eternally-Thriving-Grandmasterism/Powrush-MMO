@@ -5,9 +5,11 @@
 
 pub mod main;           // Authoritative entry point (perfected)
 pub mod rbe_server;     // Authoritative RBE simulation (perfected)
+pub mod ascension_mercy_ascent;  // The Mercy Ascent / Ambrosian Ascension system (Phase 1+ foundation complete)
 
 use bevy::prelude::*;
 use crate::rbe_server::RbeServerPlugin;
+use crate::ascension_mercy_ascent::AscensionMercyAscentPlugin;
 
 /// Central server core plugin that wires the entire authoritative backend
 pub struct ServerCorePlugin;
@@ -15,6 +17,7 @@ pub struct ServerCorePlugin;
 impl Plugin for ServerCorePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(RbeServerPlugin)
+           .add_plugins(AscensionMercyAscentPlugin)  // Mercy Ascent tracker + eligibility
            // All other server plugins (replication reconciliation, prediction authority, etc.)
            // will be added here in the full production stack
            .add_systems(Update, authoritative_server_tick);

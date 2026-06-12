@@ -3,6 +3,7 @@
  *
  * Powrush-MMO v18.32 — SharedReceptorBloomField & CouncilBloomSyncEvent
  * Core simulation logic for Council Mercy Trial collective attunement & bloom amplification.
+ * Extended v18.11 with Ascension Mercy Trial (high-tier path to Ambrosian ascension)
  *
  * Highest-priority unit tests implemented per Vertical Slice Test Plan (U1–U3)
  *
@@ -13,6 +14,8 @@
 
 use std::fmt;
 
+use crate::ascension_mercy_ascent::AscensionProgress;
+
 /// Core authoritative bloom field for a Council Mercy Trial.
 /// Computes collective attunement with mercy-gated synergistic amplification.
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +25,7 @@ pub struct SharedReceptorBloomField {
     pub last_update_tick: u64,
     pub divine_whisper_flavor: String,
     pub participant_count_at_seal: usize,
+    pub is_ascension_trial: bool,  // New: marks this as high-tier Ascension Mercy Trial
 }
 
 impl SharedReceptorBloomField {
@@ -32,7 +36,15 @@ impl SharedReceptorBloomField {
             last_update_tick: 0,
             divine_whisper_flavor: "resonance_building".to_string(),
             participant_count_at_seal: 0,
+            is_ascension_trial: false,
         }
+    }
+
+    pub fn new_ascension_trial() -> Self {
+        let mut f = Self::new();
+        f.is_ascension_trial = true;
+        f.divine_whisper_flavor = "ascension_mercy_trial_building".to_string();
+        f
     }
 
     /// Authoritative server-side update from all participant attunements.
@@ -64,7 +76,11 @@ impl SharedReceptorBloomField {
         if triggered {
             self.council_mercy_seal = true;
             self.participant_count_at_seal = attunements.len();
-            self.divine_whisper_flavor = "ecstatic_harmony_council".to_string();
+            self.divine_whisper_flavor = if self.is_ascension_trial {
+                "ascension_mercy_trial_complete".to_string()
+            } else {
+                "ecstatic_harmony_council".to_string()
+            };
 
             // Log would be in caller; here we just set state
         }
@@ -79,6 +95,20 @@ impl SharedReceptorBloomField {
             (individual_attunement * 1.5).clamp(0.0, 1.0)
         } else {
             individual_attunement
+        }
+    }
+
+    /// Special for Ascension Mercy Trial: On successful high-tier bloom, trigger ascension unlock
+    pub fn try_trigger_ascension_unlock(
+        &self,
+        progress: &mut AscensionProgress,
+        player_id: u64,
+    ) -> bool {
+        if self.is_ascension_trial && self.council_mercy_seal && self.collective_attunement_score >= 0.75 {
+            progress.unlock_as_ambrosian("AscensionMercyTrial", crate::persistence_polish::current_timestamp_for_ascension());
+            true
+        } else {
+            false
         }
     }
 }
@@ -165,7 +195,20 @@ mod tests {
         assert!(!triggered);
         assert!(!field.council_mercy_seal);
     }
+
+    #[test]
+    fn test_ascension_trial_creation_and_unlock() {
+        let mut field = SharedReceptorBloomField::new_ascension_trial();
+        assert!(field.is_ascension_trial);
+        // Simulate high attunement bloom
+        let _ = field.authoritative_update_from_participants(&[0.8, 0.85, 0.9], 100, 3);
+        let mut progress = AscensionProgress::default_with_thresholds();
+        let unlocked = field.try_trigger_ascension_unlock(&mut progress, 42);
+        assert!(unlocked);
+        assert!(progress.ascension_unlocked);
+        assert_eq!(progress.ascension_path, Some("AscensionMercyTrial".to_string()));
+    }
 }
 
 // Future: Integration with PATSAGi Council vote gating, spatial harmonics, on-chain RBE rewards (player consent only)
-// One Lattice. Eternal Flow. Maximum Mercy. ⚡❤️🔥
+// One Lattice. Eternal Flow. Maximum Mercy. ⚡❤️︍
