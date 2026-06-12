@@ -1,57 +1,143 @@
-/*!
- * shadow_render_node.rs
- * Powrush-MMO — Final Integration of Poisson Disk PCF Bind Group into Pipeline
- */
+//! client/src/shadow_render_node.rs
+//! Poisson Disk PCF Shadow Bind Group + Custom Render Node Integration
+//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v18.10+
 
 use bevy::prelude::*;
 use bevy::render::{
     render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext},
-    renderer::RenderContext,
+    renderer::{RenderContext, RenderDevice},
     RenderApp,
 };
 use bevy::pbr::ShadowPass;
 use bevy::render::render_resource::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferBinding,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource,
+    BufferBinding, BufferBindingType, ShaderStages,
 };
-use bevy::render::renderer::RenderDevice;
+use crate::rbe_simulation::{PoissonDiskKernel, ShadowQuality};
 
-// ... (previous code remains)
+// ==================== RESOURCES ====================
 
-/// Final integration point for the Poisson Disk bind group
-///
-/// This system prepares the bind group so it can be used during
-/// the shadow sampling / lighting pass when high-quality PCF is enabled.
-pub fn integrate_poisson_disk_bind_group(
-    bind_group: Res<PoissonDiskBindGroup>,
-    mut commands: Commands,
-    shadow_quality: Res<ShadowQualityState>,
-) {
-    if shadow_quality.is_high_quality {
-        if let Some(group) = &bind_group.bind_group {
-            // In a full custom pipeline, you would insert this bind group
-            // into the render commands for the current view's shadow/lighting pass.
-            //
-            // Example (conceptual):
-            // commands.insert_resource(ActivePoissonDiskBindGroup(group.clone()));
-            //
-            // Or set it on a custom render phase.
-            //
-            // For now, we store it so other systems/nodes can access it.
-        }
-    }
+#[derive(Resource, Default)]
+pub struct PoissonDiskBindGroup {
+    pub bind_group: Option<BindGroup>,
 }
 
-/// Resource to expose the active bind group to the rest of the pipeline
 #[derive(Resource, Default)]
 pub struct ActivePoissonDiskBindGroup {
     pub bind_group: Option<BindGroup>,
 }
 
-// ... (rest of file)
+#[derive(Resource, Default)]
+pub struct ShadowQualityState {
+    pub is_high_quality: bool,
+}
 
-pub struct CustomShadowNodePlugin;
+// ==================== RENDER NODE ====================
 
-impl Plugin for CustomShadowNodePlugin {
+pub struct PoissonDiskShadowNode {
+    query: QueryState<&'static ShadowPass>,
+}
+
+impl PoissonDiskShadowNode {
+    pub fn new(world: &mut World) -> Self {
+        Self {
+            query: QueryState::new(world),
+        }
+    }
+}
+
+impl Node for PoissonDiskShadowNode {
+    fn run(
+        &self,
+        graph: &mut RenderGraphContext,
+        render_context: &mut RenderContext,
+        world: &World,
+    ) -> Result<(), NodeRunError> {
+        let bind_group = world.resource::<ActivePoissonDiskBindGroup>();
+
+        if let Some(bind_group) = &bind_group.bind_group {
+            // Here you would bind the Poisson Disk PCF group during shadow sampling
+            // Example (conceptual):
+            // render_context.command_encoder().set_bind_group(1, bind_group, &[]);
+        }
+
+        Ok(())
+    }
+}
+
+// ==================== SYSTEMS ====================
+
+pub fn update_poisson_disk_bind_group(
+    mut poisson_bind_group: ResMut<PoissonDiskBindGroup>,
+    kernel: Res<PoissonDiskKernel>,
+    shadow_quality: Res<ShadowQuality>,
+    render_device: Res<RenderDevice>,
+) {
+    if *shadow_quality != ShadowQuality::HighQuality {
+        poisson_bind_group.bind_group = None;
+        return;
+    }
+
+    let uniform_data = crate::rbe_simulation::PoissonDiskUniform::from(&*kernel);
+
+    let buffer = render_device.create_buffer_with_data(
+        &bevy::render::render_resource::BufferInitDescriptor {
+            label: Some("poisson_disk_pcf_uniform"),
+            contents: bytemuck::cast_slice(&[uniform_data]),
+            usage: bevy::render::render_resource::BufferUsages::UNIFORM
+                | bevy::render::render_resource::BufferUsages::COPY_DST,
+        },
+    );
+
+    let bind_group_layout = render_device.create_bind_group_layout(
+        &bevy::render::render_resource::BindGroupLayoutDescriptor {
+            label: Some("poisson_disk_pcf_bind_group_layout"),
+            entries: &[bevy::render::render_resource::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::FRAGMENT,
+                ty: bevy::render::render_resource::BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        },
+    );
+
+    let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+        label: Some("poisson_disk_pcf_bind_group"),
+        layout: &bind_group_layout,
+        entries: &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::Buffer(BufferBinding {
+                buffer: &buffer,
+                offset: 0,
+                size: None,
+            }),
+        }],
+    });
+
+    poisson_bind_group.bind_group = Some(bind_group);
+}
+
+pub fn integrate_poisson_disk_bind_group(
+    bind_group: Res<PoissonDiskBindGroup>,
+    mut active_bind_group: ResMut<ActivePoissonDiskBindGroup>,
+    shadow_quality: Res<ShadowQualityState>,
+) {
+    if shadow_quality.is_high_quality {
+        active_bind_group.bind_group = bind_group.bind_group.clone();
+    } else {
+        active_bind_group.bind_group = None;
+    }
+}
+
+// ==================== PLUGIN ====================
+
+pub struct ShadowRenderNodePlugin;
+
+impl Plugin for ShadowRenderNodePlugin {
     fn build(&self, app: &mut App) {
         let render_app = app.sub_app_mut(RenderApp);
         let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
@@ -61,21 +147,12 @@ impl Plugin for CustomShadowNodePlugin {
             PoissonDiskShadowNode::new(&mut render_app.world),
         );
 
-        let shader_handle = render_app.world.resource::<AssetServer>().load("shaders/poisson_disk_pcf.wgsl");
-        render_app.world.insert_resource(PoissonDiskPcfShader(shader_handle));
-        render_app.world.init_resource::<ShadowShaderSpecialization>();
-        render_app.world.init_resource::<ShadowQualityState>();
-        render_app.world.init_resource::<TemporalPoissonDisk>();
-        render_app.world.init_resource::<PoissonDiskUniformBuffer>();
-        render_app.world.init_resource::<PoissonDiskBindGroup>();
-        render_app.world.init_resource::<ActivePoissonDiskBindGroup>(); // <-- Final integration resource
-
-        app.add_systems(Update, (
-            finalize_shadow_specialization,
-            update_temporal_poisson_disk_shadows,
-            update_temporal_poisson_disk_uniform,
-            update_poisson_disk_bind_group,
-            integrate_poisson_disk_bind_group, // <-- Final integration system
-        ));
+        app.init_resource::<PoissonDiskBindGroup>()
+            .init_resource::<ActivePoissonDiskBindGroup>()
+            .init_resource::<ShadowQualityState>()
+            .add_systems(Update, (
+                update_poisson_disk_bind_group,
+                integrate_poisson_disk_bind_group,
+            ));
     }
 }
