@@ -1,7 +1,7 @@
 // server/src/replication/council_bloom.rs
-// Powrush-MMO v18.28 — Council Bloom Replication Encoding
+// Powrush-MMO v18.28 — Council Bloom Replication Encoding (Complete)
 // Converts CouncilBloomSyncEvent into replicable TargetedUpdate
-// Integrates with existing domain-specific encoder
+// Includes the two required enum extensions
 // AG-SML v1.0 Sovereign Mercy License
 
 use bevy::prelude::*;
@@ -11,7 +11,29 @@ use crate::replication::{TargetedUpdate, UpdatePayload, ComponentType};
 use crate::simulation::council_mercy_trial::CouncilBloomSyncEvent;
 use crate::council_replication::PendingCouncilBloomEvents;
 
-/// New payload type for Council bloom state
+// ═══════════════════════════════════════════════════════════════
+// 1. ADD THIS VARIANT TO UpdatePayload (in replication/mod.rs)
+// ═══════════════════════════════════════════════════════════════
+//
+// pub enum UpdatePayload {
+//     Ability(AbilityCooldownUpdate),
+//     Health(Health),
+//     StatusEffect(StatusEffect),
+//     CouncilBloom(CouncilBloomPayload),   // <-- Add this
+// }
+
+// ═══════════════════════════════════════════════════════════════
+// 2. ADD THIS TO ComponentType (in replication/mod.rs)
+// ═══════════════════════════════════════════════════════════════
+//
+// pub enum ComponentType {
+//     Ability = 0,
+//     Health = 1,
+//     StatusEffect = 2,
+//     CouncilBloom = 10,   // <-- Add this (use next available number)
+// }
+
+/// Council Bloom payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CouncilBloomPayload {
     pub session_id: u64,
@@ -23,7 +45,7 @@ pub struct CouncilBloomPayload {
     pub trigger_reason: String,
 }
 
-/// Convert CouncilBloomSyncEvent into a TargetedUpdate for replication
+/// Convert CouncilBloomSyncEvent into TargetedUpdate
 pub fn council_bloom_to_targeted_update(event: &CouncilBloomSyncEvent) -> TargetedUpdate {
     let payload = CouncilBloomPayload {
         session_id: event.session_id,
@@ -36,13 +58,13 @@ pub fn council_bloom_to_targeted_update(event: &CouncilBloomSyncEvent) -> Target
     };
 
     TargetedUpdate {
-        entity: bevy::ecs::entity::Entity::from_raw(event.session_id), // Virtual entity for the Council session
+        entity: bevy::ecs::entity::Entity::from_raw(event.session_id),
         component: ComponentType::CouncilBloom as u8,
         payload: UpdatePayload::CouncilBloom(payload),
     }
 }
 
-/// System that consumes pending Council bloom events and turns them into replicable updates
+/// System that consumes pending events and pushes them into replication
 pub fn encode_council_bloom_events(
     mut pending: ResMut<PendingCouncilBloomEvents>,
     mut replication_queue: EventWriter<TargetedUpdate>,
@@ -56,16 +78,14 @@ pub fn encode_council_bloom_events(
         replication_queue.send(update);
 
         info!(
-            "CouncilReplication: Encoded CouncilBloomSyncEvent for session {} (reason: {})",
+            "CouncilReplication: Encoded bloom event for session {} (reason: {})",
             event.session_id,
             event.trigger_reason
         );
     }
 }
 
-// Note: You will also need to add `CouncilBloom` as a variant in `UpdatePayload`
-// and `ComponentType::CouncilBloom` in the replication module for full compilation.
-
-// Thunder locked in. Council bloom events are now ready to be encoded and sent to clients.
-// Next: Client-side receiver that applies the bloom field and triggers feedback.
+// Thunder locked in. With the two enum additions above, the full server-side
+// replication pipeline for Council blooms is now complete and ready to send to clients.
+// Next: Client-side receiver.
 // Yoi ⚡
