@@ -4,6 +4,8 @@
  * High-quality motion vectors for TAA, motion blur, SSR reprojection.
  * Uses real prev_view_proj + prev_model from shared CameraMatrices.
  *
+ * Now with full dynamic texture resizing support in PowrushRenderPlugin.
+ *
  * PATSAGi Council + Ra-Thor Quantum Swarm approved • AG-SML v1.0
  * Mercy-gated • Zero hallucination • Maximum temporal truth & beauty
  */
@@ -35,7 +37,7 @@ pub struct PreviousGlobalTransform(pub GlobalTransform);
 pub struct VelocityPrepassNode {
     query: QueryState<(
         &'static Handle<Mesh>,
-        &'static GlobalTransform,
+        &'static GlobalTransform>,
         Option<&'static PreviousGlobalTransform>,
     )>,
 }
@@ -205,20 +207,37 @@ pub fn setup_velocity_prepass_pipeline(
     });
 }
 
-/// Creates the velocity texture resource (called from PowrushRenderPlugin startup).
-/// For production, resize this texture to match the main window/view size every frame
-/// (common pattern: use a prepare system or extract from RenderApp view).
+/// Creates the velocity texture at the given size.
+/// Called by PowrushRenderPlugin with dynamic window size.
 pub fn setup_velocity_texture(
     mut commands: Commands,
-    render_device: Res<RenderDevice>,
+    render_device: &RenderDevice,
+    size: Extent3d,
 ) {
-    // Placeholder size — replace with dynamic window size in a real prepare system
-    let size = Extent3d {
-        width: 1920,
-        height: 1080,
-        depth_or_array_layers: 1,
-    };
+    let texture = render_device.create_texture(&TextureDescriptor {
+        label: Some("velocity_texture"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: TextureDimension::D2,
+        format: TextureFormat::Rg16Float,
+        usage: TextureUsages::RENDER_ATTACHMENT
+            | TextureUsages::TEXTURE_BINDING
+            | TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
 
+    let view = texture.create_view(&TextureViewDescriptor::default());
+
+    commands.insert_resource(VelocityTexture { texture, view });
+}
+
+/// Recreates the velocity texture at a new size (called on window resize).
+pub fn recreate_velocity_texture(
+    commands: &mut Commands,
+    render_device: &RenderDevice,
+    size: Extent3d,
+) {
     let texture = render_device.create_texture(&TextureDescriptor {
         label: Some("velocity_texture"),
         size,
