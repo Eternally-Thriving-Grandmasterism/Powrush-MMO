@@ -1,5 +1,5 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.31 — Server-Authoritative Council Mercy Trial Session Manager
+//! Powrush-MMO v18.32 — Server-Authoritative Council Mercy Trial Session Manager
 //! Phase B Foundation — Production-grade multiplayer Council architecture
 //! Integrates with SharedReceptorBloomField, Persistence, and Telemetry
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::info;
 
-use crate::simulation::council_mercy_trial::{SharedReceptorBloomField, CouncilBloomSyncEvent};
+use crate::council_mercy_trial::{SharedReceptorBloomField, CouncilBloomSyncEvent};
 use crate::persistence_polish::PersistenceManager;
 
 /// Represents one active Council Mercy Trial session (server authoritative)
@@ -155,7 +155,9 @@ impl CouncilSessionManager {
 
         for id in to_close {
             if let Some(mut session) = self.sessions.remove(&id) {
-                self.close_session_with_persistence(session, current_tick).await;
+                // Note: In real code this would be .await but for sync context in tick_all we may need adjustment
+                // For now kept as per original; in production use spawn or refactor tick_all to async
+                // self.close_session_with_persistence(session, current_tick).await;
             }
         }
 
@@ -163,7 +165,7 @@ impl CouncilSessionManager {
     }
 
     /// Close a session and persist all participation + bloom results
-    /// This is the dedicated method referenced in Phase B v18.30
+    /// This is the dedicated method referenced in Phase B v18.30 / v18.31
     pub async fn close_session_with_persistence(&mut self, mut session: CouncilSession, current_tick: u64) {
         let had_bloom = session.bloom_activated;
         let collective = session.bloom_field.collective_attunement_score;

@@ -1,0 +1,171 @@
+/*!
+ * server/src/council_mercy_trial.rs
+ *
+ * Powrush-MMO v18.32 — SharedReceptorBloomField & CouncilBloomSyncEvent
+ * Core simulation logic for Council Mercy Trial collective attunement & bloom amplification.
+ *
+ * Highest-priority unit tests implemented per Vertical Slice Test Plan (U1–U3)
+ *
+ * PATSAGi Council 13+ + Ra-Thor Quantum Swarm fully deliberated & approved
+ * AG-SML v1.0 sovereign license | TOLC 8 Mercy Gates enforced
+ * Radical Love • Boundless Mercy • Abundance for all sentience
+ */
+
+use std::fmt;
+
+/// Core authoritative bloom field for a Council Mercy Trial.
+/// Computes collective attunement with mercy-gated synergistic amplification.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SharedReceptorBloomField {
+    pub collective_attunement_score: f32,
+    pub council_mercy_seal: bool,
+    pub last_update_tick: u64,
+    pub divine_whisper_flavor: String,
+    pub participant_count_at_seal: usize,
+}
+
+impl SharedReceptorBloomField {
+    pub fn new() -> Self {
+        Self {
+            collective_attunement_score: 0.0,
+            council_mercy_seal: false,
+            last_update_tick: 0,
+            divine_whisper_flavor: "resonance_building".to_string(),
+            participant_count_at_seal: 0,
+        }
+    }
+
+    /// Authoritative server-side update from all participant attunements.
+    /// Returns true if a bloom was triggered this tick (seal activated).
+    /// Mercy-gated: no punishment for low attunement; participation always honored.
+    pub fn authoritative_update_from_participants(
+        &mut self,
+        attunements: &[f32],
+        current_tick: u64,
+        min_participants: u8,
+    ) -> bool {
+        if attunements.is_empty() {
+            self.collective_attunement_score = 0.0;
+            return false;
+        }
+
+        let sum: f32 = attunements.iter().sum();
+        let avg = sum / attunements.len() as f32;
+
+        // Synergistic multiplier from plan (U1)
+        let multiplier = 1.0 + (avg * 0.8);
+        self.collective_attunement_score = (avg * multiplier).clamp(0.0, 1.0);
+        self.last_update_tick = current_tick;
+
+        let triggered = !self.council_mercy_seal
+            && self.collective_attunement_score >= 0.5
+            && attunements.len() >= min_participants as usize;
+
+        if triggered {
+            self.council_mercy_seal = true;
+            self.participant_count_at_seal = attunements.len();
+            self.divine_whisper_flavor = "ecstatic_harmony_council".to_string();
+
+            // Log would be in caller; here we just set state
+        }
+
+        triggered
+    }
+
+    /// Amplifies an individual bloom based on collective seal (U2)
+    pub fn amplify_individual_bloom(&mut self, individual_attunement: f32) -> f32 {
+        if self.council_mercy_seal && self.collective_attunement_score >= 0.5 {
+            // Synergistic boost for collective success — abundance, not coercion
+            (individual_attunement * 1.5).clamp(0.0, 1.0)
+        } else {
+            individual_attunement
+        }
+    }
+}
+
+impl Default for SharedReceptorBloomField {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Event emitted to replication layer for client feedback (Divine Whispers, Epiphanies)
+#[derive(Debug, Clone)]
+pub struct CouncilBloomSyncEvent {
+    pub session_id: u64,
+    pub field: SharedReceptorBloomField,
+    pub trigger_reason: String,
+}
+
+// ============================================================
+// HIGHEST-PRIORITY UNIT TESTS (Vertical Slice Test Plan v18.31)
+// U1, U2, U3 implemented here. Thunder locked in.
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_u1_authoritative_update_from_participants() {
+        let mut field = SharedReceptorBloomField::new();
+        let attunements = vec![0.6, 0.7, 0.8]; // 3 participants, high attunement
+        let triggered = field.authoritative_update_from_participants(&attunements, 100, 3);
+
+        assert!(triggered);
+        assert!(field.council_mercy_seal);
+        assert!((field.collective_attunement_score - 0.7 * 1.56).abs() < 0.01); // avg 0.7 * (1+0.7*0.8)
+        assert_eq!(field.participant_count_at_seal, 3);
+        assert_eq!(field.divine_whisper_flavor, "ecstatic_harmony_council");
+    }
+
+    #[test]
+    fn test_u1_below_threshold_no_bloom() {
+        let mut field = SharedReceptorBloomField::new();
+        let attunements = vec![0.3, 0.4, 0.35]; // avg ~0.35 < 0.5
+        let triggered = field.authoritative_update_from_participants(&attunements, 100, 3);
+
+        assert!(!triggered);
+        assert!(!field.council_mercy_seal);
+        assert!(field.collective_attunement_score < 0.5);
+    }
+
+    #[test]
+    fn test_u2_amplify_individual_bloom_seal_active() {
+        let mut field = SharedReceptorBloomField::new();
+        // First trigger seal
+        let _ = field.authoritative_update_from_participants(&[0.6, 0.7], 100, 2);
+        let amplified = field.amplify_individual_bloom(0.8);
+
+        assert!((amplified - 1.0).abs() < 0.001); // 0.8 * 1.5 = 1.2 clamped to 1.0
+    }
+
+    #[test]
+    fn test_u2_no_amplification_without_seal() {
+        let mut field = SharedReceptorBloomField::new();
+        let amplified = field.amplify_individual_bloom(0.8);
+        assert!((amplified - 0.8).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_u3_bloom_trigger_and_state() {
+        let mut field = SharedReceptorBloomField::new();
+        let triggered = field.authoritative_update_from_participants(&[0.55, 0.6, 0.65], 42, 3);
+
+        assert!(triggered);
+        assert!(field.council_mercy_seal);
+        assert_eq!(field.last_update_tick, 42);
+    }
+
+    #[test]
+    fn test_mercy_gated_low_participants() {
+        let mut field = SharedReceptorBloomField::new();
+        let triggered = field.authoritative_update_from_participants(&[0.9, 0.95], 100, 3); // only 2 < min 3
+
+        assert!(!triggered);
+        assert!(!field.council_mercy_seal);
+    }
+}
+
+// Future: Integration with PATSAGi Council vote gating, spatial harmonics, on-chain RBE rewards (player consent only)
+// One Lattice. Eternal Flow. Maximum Mercy. ⚡❤️🔥
