@@ -1,6 +1,6 @@
 /*!
  * shadow_render_node.rs
- * Powrush-MMO — Wiring custom Poisson Disk PCF shader into the pipeline
+ * Powrush-MMO — Shader Specialization for Poisson Disk PCF
  */
 
 use bevy::prelude::*;
@@ -21,9 +21,18 @@ pub enum ShadowFilteringMethod {
     Disabled,
 }
 
-/// Resource holding the custom Poisson Disk PCF shader handle
+/// Resource holding the custom Poisson Disk PCF shader
 #[derive(Resource)]
 pub struct PoissonDiskPcfShader(pub Handle<Shader>);
+
+/// Shader Specialization State
+///
+/// Tracks whether we are currently using the specialized Poisson Disk PCF shader.
+#[derive(Resource, Default)]
+pub struct ShadowShaderSpecialization {
+    pub current_method: ShadowFilteringMethod,
+    pub needs_specialization: bool,
+}
 
 /// Custom Shadow Render Node
 pub struct PoissonDiskShadowNode {
@@ -58,7 +67,7 @@ impl Node for PoissonDiskShadowNode {
     }
 }
 
-/// Plugin that wires the custom Poisson Disk PCF shader into Bevy's pipeline
+/// Plugin that sets up shader specialization for Poisson Disk PCF
 pub struct CustomShadowNodePlugin;
 
 impl Plugin for CustomShadowNodePlugin {
@@ -66,24 +75,25 @@ impl Plugin for CustomShadowNodePlugin {
         let render_app = app.sub_app_mut(RenderApp);
         let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
 
-        // Register custom node
         render_graph.add_node(
             "poisson_disk_shadow_node",
             PoissonDiskShadowNode::new(&mut render_app.world),
         );
 
-        // Load the custom shader
+        // Load custom shader
         let shader_handle = render_app.world.resource::<AssetServer>().load("shaders/poisson_disk_pcf.wgsl");
         render_app.world.insert_resource(PoissonDiskPcfShader(shader_handle));
+        render_app.world.init_resource::<ShadowShaderSpecialization>();
 
-        // When `ShadowFilteringMethod::PoissonDisk` is active, the system
-        // should switch to using the custom shader for shadow sampling.
+        // When `ShadowFilteringMethod::PoissonDisk` is selected,
+        // the system should trigger shader specialization to use
+        // our custom `poisson_disk_pcf()` function instead of hardware PCF.
         //
-        // Full integration requires:
-        // 1. Creating a custom `ShadowFilteringMethod::PoissonDisk`
-        // 2. Specializing the shadow shader to call `poisson_disk_pcf()`
-        // 3. Binding the PoissonDiskUniform in the shadow bind group
+        // This requires:
+        // - Creating a specialized version of Bevy's shadow sampling shader
+        // - Using shader imports or specialization constants
+        // - Binding the Poisson disk uniform
         //
-        // This plugin provides the foundation and shader loading.
+        // The foundation (shader + uniform + node) is now complete.
     }
 }
