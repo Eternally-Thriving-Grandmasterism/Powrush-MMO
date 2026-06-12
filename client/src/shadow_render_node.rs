@@ -1,6 +1,6 @@
 /*!
  * shadow_render_node.rs
- * Powrush-MMO — Temporal Poisson Disk with Rotated Kernel Sequence
+ * Powrush-MMO — Binding Temporal Poisson Disk Kernel to GPU
  */
 
 use bevy::prelude::*;
@@ -10,98 +10,69 @@ use bevy::render::{
     RenderApp,
 };
 use bevy::pbr::ShadowPass;
-use bevy::render::render_resource::Shader;
+use bevy::render::render_resource::{Buffer, BufferInitDescriptor, BufferUsages, ShaderType};
+use bevy::render::renderer::RenderQueue;
 use std::f32::consts::PI;
 
-// ... (previous enums and resources remain)
+// ... (previous code remains)
 
-/// Temporal Poisson Disk Kernel Sequence
-///
-/// Holds multiple rotated versions of a base Poisson disk kernel.
-/// This provides excellent temporal stability when combined with TAA.
-#[derive(Resource)]
-pub struct TemporalPoissonDisk {
-    pub kernels: Vec<PoissonDiskKernel>,
-    pub current_index: usize,
+/// GPU-ready uniform for Poisson Disk kernel (already defined earlier)
+#[derive(Clone, Copy, ShaderType)]
+pub struct PoissonDiskUniform {
+    pub samples: [Vec2; 16],
+    pub sample_count: u32,
+    pub _padding: [u32; 3],
 }
 
-impl TemporalPoissonDisk {
-    /// Create a sequence of rotated kernels from a base kernel
-    pub fn from_base_kernel(base: &PoissonDiskKernel, count: usize) -> Self {
-        let mut kernels = Vec::with_capacity(count);
-
-        for i in 0..count {
-            let angle = (i as f32 / count as f32) * 2.0 * PI;
-            let cos = angle.cos();
-            let sin = angle.sin();
-
-            let rotated_samples: Vec<[f32; 2]> = base
-                .samples
-                .iter()
-                .map(|&[x, y]| {
-                    // Rotate around origin
-                    let rx = x * cos - y * sin;
-                    let ry = x * sin + y * cos;
-                    [rx, ry]
-                })
-                .collect();
-
-            kernels.push(PoissonDiskKernel {
-                samples: rotated_samples,
-            });
+impl From<&PoissonDiskKernel> for PoissonDiskUniform {
+    fn from(kernel: &PoissonDiskKernel) -> Self {
+        let mut samples = [Vec2::ZERO; 16];
+        for (i, &s) in kernel.samples.iter().enumerate().take(16) {
+            samples[i] = Vec2::new(s[0], s[1]);
         }
-
         Self {
-            kernels,
-            current_index: 0,
+            samples,
+            sample_count: kernel.samples.len() as u32,
+            _padding: [0; 3],
         }
     }
-
-    /// Get the kernel for the current frame and advance the index
-    pub fn next_kernel(&mut self) -> &PoissonDiskKernel {
-        let kernel = &self.kernels[self.current_index];
-        self.current_index = (self.current_index + 1) % self.kernels.len();
-        kernel
-    }
-
-    /// Get current kernel without advancing (useful for debugging)
-    pub fn current_kernel(&self) -> &PoissonDiskKernel {
-        &self.kernels[self.current_index]
-    }
 }
 
-impl Default for TemporalPoissonDisk {
-    fn default() -> Self {
-        // Create from the default PoissonDiskKernel with 12 rotations
-        let base = PoissonDiskKernel::default();
-        Self::from_base_kernel(&base, 12)
-    }
+/// Resource holding the GPU buffer for the current Poisson Disk kernel
+#[derive(Resource, Default)]
+pub struct PoissonDiskUniformBuffer {
+    pub buffer: Option<Buffer>,
 }
 
-/// System that updates shadow sampling to use temporal Poisson Disk when high quality is enabled
-pub fn update_temporal_poisson_disk_shadows(
-    mut shadow_quality: ResMut<ShadowQualityState>,
-    mut temporal: ResMut<TemporalPoissonDisk>,
-    mut shadow_filtering: ResMut<ShadowFilteringMethod>,
+/// System that uploads the current temporal Poisson Disk kernel to the GPU
+pub fn update_temporal_poisson_disk_uniform(
+    temporal: Res<TemporalPoissonDisk>,
+    mut uniform_buffer: ResMut<PoissonDiskUniformBuffer>,
+    render_queue: Res<RenderQueue>,
+    shadow_quality: Res<ShadowQualityState>,
 ) {
-    if shadow_quality.is_high_quality {
-        if *shadow_filtering != ShadowFilteringMethod::PoissonDisk {
-            *shadow_filtering = ShadowFilteringMethod::PoissonDisk;
-        }
-
-        // Advance to next rotated kernel every frame
-        let _current_kernel = temporal.next_kernel();
-
-        // In a full implementation, you would now bind _current_kernel
-        // to the GPU uniform buffer for the shadow sampling shader.
-    } else {
-        if *shadow_filtering != ShadowFilteringMethod::Hardware2x2 {
-            *shadow_filtering = ShadowFilteringMethod::Hardware2x2;
-        }
+    if !shadow_quality.is_high_quality {
+        return;
     }
+
+    // Get the current rotated kernel
+    let current_kernel = temporal.current_kernel();
+    let uniform = PoissonDiskUniform::from(current_kernel);
+
+    // Create or update the GPU buffer
+    let buffer = render_queue.create_buffer_with_data(&BufferInitDescriptor {
+        label: Some("temporal_poisson_disk_uniform"),
+        contents: bytemuck::cast_slice(&[uniform]),
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+    });
+
+    uniform_buffer.buffer = Some(buffer);
+
+    // TODO: Bind this buffer to the shadow/lighting bind group
+    // when using the custom Poisson Disk PCF shader path.
 }
 
-// ... (rest of the file remains the same)
+// ... (rest of the systems and plugin remain)
 
 pub struct CustomShadowNodePlugin;
 
@@ -119,11 +90,13 @@ impl Plugin for CustomShadowNodePlugin {
         render_app.world.insert_resource(PoissonDiskPcfShader(shader_handle));
         render_app.world.init_resource::<ShadowShaderSpecialization>();
         render_app.world.init_resource::<ShadowQualityState>();
-        render_app.world.init_resource::<TemporalPoissonDisk>(); // <-- Added
+        render_app.world.init_resource::<TemporalPoissonDisk>();
+        render_app.world.init_resource::<PoissonDiskUniformBuffer>(); // <-- Added
 
         app.add_systems(Update, (
             finalize_shadow_specialization,
             update_temporal_poisson_disk_shadows,
+            update_temporal_poisson_disk_uniform, // <-- New system
         ));
     }
 }
