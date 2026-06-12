@@ -16,6 +16,7 @@
 use crate::world::SovereignWorldState;
 use crate::mercy::{MercyGate, MercyViolation};
 use crate::harvest::HarvestingSystem;
+use tracing::{info_span, instrument, warn};
 
 #[cfg(feature = "gpu")]
 use crate::gpu_economic::dispatch_gpu_economic_update;
@@ -34,11 +35,14 @@ impl EconomicLayer {
         }
     }
 
+    #[instrument(skip(self, world, mercy_gate))]
     pub fn batch_update(
         &self,
         world: &mut SovereignWorldState,
         mercy_gate: &MercyGate,
     ) -> Result<(), MercyViolation> {
+        let _span = info_span!("economic_batch_update").entered();
+
         mercy_gate.pre_economic_tick_validate(world)?;
 
         if self.cpu_precision_mode {
@@ -47,7 +51,7 @@ impl EconomicLayer {
             #[cfg(feature = "gpu")]
             {
                 if let Err(e) = dispatch_gpu_economic_update(world) {
-                    tracing::warn!("GPU dispatch failed ({}). Falling back to CPU precision path for this tick.", e);
+                    warn!("GPU dispatch failed ({}). Falling back to CPU precision path for this tick.", e);
                     self.cpu_economic_update(world)?;
                 }
             }
@@ -61,7 +65,9 @@ impl EconomicLayer {
         Ok(())
     }
 
+    #[instrument(skip(self, world))]
     fn cpu_economic_update(&self, world: &mut SovereignWorldState) -> Result<(), MercyViolation> {
+        let _span = info_span!("cpu_economic_update").entered();
         let now_ms = world.sim_time;
 
         // === Unified ResourceNode regeneration & dynamics (elevated from game/resource_nodes.rs) ===
