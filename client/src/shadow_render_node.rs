@@ -1,55 +1,56 @@
-/*!
- * shadow_render_node.rs
- * Powrush-MMO — Wiring Bind Group for Poisson Disk PCF
- */
+//! client/src/shadow_render_node.rs
+//! Poisson Disk PCF Shadow Bind Group Wiring
+//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v18.10+
 
 use bevy::prelude::*;
-use bevy::render::{
-    render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext},
-    renderer::RenderContext,
-    RenderApp,
-};
-use bevy::pbr::ShadowPass;
 use bevy::render::render_resource::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferBinding,
-    ShaderType,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource,
+    BufferBinding, BufferBindingType, ShaderStages,
 };
 use bevy::render::renderer::RenderDevice;
-use std::f32::consts::PI;
+use crate::rbe_simulation::{PoissonDiskKernel, ShadowQuality};
 
-// ... (previous structs remain)
-
-/// Resource holding the bind group for the Poisson Disk uniform
+/// Resource that holds the GPU bind group for the Poisson Disk PCF uniform
 #[derive(Resource, Default)]
 pub struct PoissonDiskBindGroup {
     pub bind_group: Option<BindGroup>,
 }
 
-/// System that creates/updates the bind group for the current Poisson Disk kernel
+/// System that creates or updates the Poisson Disk PCF bind group
 pub fn update_poisson_disk_bind_group(
-    uniform_buffer: Res<PoissonDiskUniformBuffer>,
-    mut bind_group: ResMut<PoissonDiskBindGroup>,
+    mut poisson_bind_group: ResMut<PoissonDiskBindGroup>,
+    kernel: Res<PoissonDiskKernel>,
+    shadow_quality: Res<ShadowQuality>,
     render_device: Res<RenderDevice>,
-    shadow_quality: Res<ShadowQualityState>,
 ) {
-    if !shadow_quality.is_high_quality {
-        bind_group.bind_group = None;
+    // Only create bind group when using high quality shadows
+    if *shadow_quality != ShadowQuality::HighQuality {
+        poisson_bind_group.bind_group = None;
         return;
     }
 
-    let Some(buffer) = &uniform_buffer.buffer else {
-        return;
-    };
+    // Create the uniform buffer data from the kernel
+    let uniform_data = crate::rbe_simulation::PoissonDiskUniform::from(&*kernel);
 
-    // Create bind group layout (in a real implementation this should be cached)
+    // Create GPU buffer for the uniform
+    let buffer = render_device.create_buffer_with_data(
+        &bevy::render::render_resource::BufferInitDescriptor {
+            label: Some("poisson_disk_pcf_uniform"),
+            contents: bytemuck::cast_slice(&[uniform_data]),
+            usage: bevy::render::render_resource::BufferUsages::UNIFORM
+                | bevy::render::render_resource::BufferUsages::COPY_DST,
+        },
+    );
+
+    // Create bind group layout (matches shader expectation)
     let bind_group_layout = render_device.create_bind_group_layout(
         &bevy::render::render_resource::BindGroupLayoutDescriptor {
-            label: Some("poisson_disk_bind_group_layout"),
+            label: Some("poisson_disk_pcf_bind_group_layout"),
             entries: &[bevy::render::render_resource::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: bevy::render::render_resource::ShaderStages::FRAGMENT,
+                visibility: ShaderStages::FRAGMENT,
                 ty: bevy::render::render_resource::BindingType::Buffer {
-                    ty: bevy::render::render_resource::BufferBindingType::Uniform,
+                    ty: BufferBindingType::Uniform,
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -58,49 +59,29 @@ pub fn update_poisson_disk_bind_group(
         },
     );
 
-    let group = render_device.create_bind_group(&BindGroupDescriptor {
-        label: Some("poisson_disk_bind_group"),
+    // Create the actual bind group
+    let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+        label: Some("poisson_disk_pcf_bind_group"),
         layout: &bind_group_layout,
         entries: &[BindGroupEntry {
             binding: 0,
             resource: BindingResource::Buffer(BufferBinding {
-                buffer,
+                buffer: &buffer,
                 offset: 0,
                 size: None,
             }),
         }],
     });
 
-    bind_group.bind_group = Some(group);
+    poisson_bind_group.bind_group = Some(bind_group);
 }
 
-// ... (rest of file)
+/// Plugin to register the Poisson Disk bind group system
+pub struct ShadowRenderNodePlugin;
 
-pub struct CustomShadowNodePlugin;
-
-impl Plugin for CustomShadowNodePlugin {
+impl Plugin for ShadowRenderNodePlugin {
     fn build(&self, app: &mut App) {
-        let render_app = app.sub_app_mut(RenderApp);
-        let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
-
-        render_graph.add_node(
-            "poisson_disk_shadow_node",
-            PoissonDiskShadowNode::new(&mut render_app.world),
-        );
-
-        let shader_handle = render_app.world.resource::<AssetServer>().load("shaders/poisson_disk_pcf.wgsl");
-        render_app.world.insert_resource(PoissonDiskPcfShader(shader_handle));
-        render_app.world.init_resource::<ShadowShaderSpecialization>();
-        render_app.world.init_resource::<ShadowQualityState>();
-        render_app.world.init_resource::<TemporalPoissonDisk>();
-        render_app.world.init_resource::<PoissonDiskUniformBuffer>();
-        render_app.world.init_resource::<PoissonDiskBindGroup>(); // <-- Added
-
-        app.add_systems(Update, (
-            finalize_shadow_specialization,
-            update_temporal_poisson_disk_shadows,
-            update_temporal_poisson_disk_uniform,
-            update_poisson_disk_bind_group, // <-- New bind group system
-        ));
+        app.init_resource::<PoissonDiskBindGroup>()
+            .add_systems(Update, update_poisson_disk_bind_group);
     }
 }
