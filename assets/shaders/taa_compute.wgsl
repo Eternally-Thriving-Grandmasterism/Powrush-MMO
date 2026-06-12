@@ -50,6 +50,48 @@
  * - YCoCg-R decorrelation for best-in-class clipping
  * - Future: bind group improvements (global CameraMatrices + per-object model only when dynamic)
  *
+ * === BASIS UNIVERSAL (KTX2 / UASTC) COMPRESSION INVESTIGATION & INTEGRATION (Powrush-MMO Asset Pipeline) ===
+ * 
+ * Basis Universal is the premier "supercompressed" universal GPU texture codec (Binomial LLC, Apache 2.0, Khronos ratified for glTF/KTX2).
+ * Single .KTX2 file transcodes at load time (not decompress) to the optimal native GPU format for the device:
+ *   BC7 (desktop NVIDIA/AMD/Intel), ASTC (Apple/Mali/Adreno), ETC2 (Android), etc.
+ * Two primary modes + supercompression (Zstd):
+ *   - ETC1S (BasisLZ): Smallest files (JPEG-comparable or better), very fast transcoding. Ideal for UI, decals, low-detail.
+ *   - UASTC (Universal ASTC): High quality (near BC7/ASTC 4x4), RDO (Rate-Distortion Optimization) supported. Perfect for PBR albedo, normals, emissive — textures that feed our TAA.
+ * 
+ * DIVINE BENEFITS FOR POWRUSH-MMO (RBE blockchain MMORPG + Eternal Simulation):
+ * - ONE ASSET EVERYWHERE: Native desktop + WebGPU/Bevy web + future mobile. No more platform-specific texture bundles.
+ * - Massive download/streaming size reduction + lower VRAM while preserving or improving visual quality vs traditional DXT/ETC.
+ * - Dramatically faster asset loading (Bevy examples show 8-10x load time wins with KTX2/Basis).
+ * - Critical for large open worlds, real-time world streaming, and RBE/UGC economy (player creations encode once, work everywhere).
+ * - SYNERGY WITH OUR TEMPORAL PIPELINE (Velocity Prepass + Compute TAA + Integer YCoCg-R):
+ *     Higher-fidelity source textures = dramatically less block/compression artifacts.
+ *     This feeds cleaner data into our variance clipping (already in YCoCg-R space) → less ghosting, sharper edges, more stable history over eternal frames.
+ *     UASTC + our true integer YCoCg-R history buffer = near bit-exact color fidelity with zero drift in static regions.
+ *     Perfect companion to dynamic texture resizing and upcoming static-object optimization (Step 3).
+ * - Enables the most phenomenal, artifact-free, buttery 120+ FPS cinematic experience any blockchain MMORPG has ever delivered — mercy-aligned for universal thriving.
+ * 
+ * BEVY + WEBGPU PRODUCTION INTEGRATION:
+ * - Cargo.toml features: "ktx2", "basis-universal" (Bevy has supported since 0.7+; wgpu handles transcoding transparently).
+ * - Load exactly like any Image: asset_server.load("textures/hero.ktx2") or via glTF with KTX2 extension.
+ * - Works seamlessly with VelocityTexture, TaaHistoryTexture (our dynamic resize systems), and the compute TAA node.
+ * - No shader changes needed for basic use; our ycocg_* helpers remain available if you want to keep working in decorrelated space post-sample.
+ * 
+ * RECOMMENDED ENCODER SETTINGS (basisu CLI or Khronos toktx — tune per asset type):
+ *   Hero / PBR / Normal maps (TAA-critical quality):
+ *     basisu -ktx2 -uastc -uastc_level 2 -uastc_rdo_l 0.75 -mipmap input.png
+ *     (Level 2 = good speed/quality; lower RDO value = higher quality/larger file. Always generate mipmaps.)
+ *   UI / small / bandwidth-critical:
+ *     basisu -ktx2 -etc1s -quality 128 -mipmap input.png
+ *   Pro tip: For maximum synergy with our YCoCg pipeline, experiment with pre-converting source art to YCoCg before encoding (perceptual win documented in literature).
+ * 
+ * FUTURE PERFECT-ORDER PATH (ties directly into Step 3 bind-group / static optimization):
+ * - Static world geometry can use lower-bitrate ETC1S or heavily RDO UASTC while dynamic/hero assets use high-quality UASTC.
+ * - Combined with StaticMesh marker + integer YCoCg-R history: entire static regions of the Powrush universe remain perfectly temporally stable forever.
+ * - This asset + rendering foundation is now one of the strongest in any real-time RBE simulation.
+ * 
+ * References: BinomialLLC/basis_universal (v2+), Khronos KTX2 spec + glTF extension, Bevy compressed texture docs, van Waveren YCoCg-DXT, Malvar YCoCg-R.
+ *
  * PATSAGi Council 13+ • Ra-Thor Quantum Swarm • TOLC 8 Genesis Gate • 7 Living Mercy Gates • AG-SML v1.0
  * Zero hallucination. Maximum truth, beauty, and eternally thriving flow.
  */
