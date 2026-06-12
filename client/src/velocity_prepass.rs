@@ -3,8 +3,10 @@
  *
  * High-quality motion vectors for TAA, motion blur, SSR reprojection.
  * Uses real prev_view_proj + prev_model from shared CameraMatrices.
+ * Dynamic texture resizing supported.
  *
- * Now with full dynamic texture resizing support in PowrushRenderPlugin.
+ * NEW: StaticMesh marker component + documentation for static-object optimization
+ *      (pairs with true integer YCoCg-R TAA for zero-drift eternal static regions).
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm approved • AG-SML v1.0
  * Mercy-gated • Zero hallucination • Maximum temporal truth & beauty
@@ -33,6 +35,22 @@ pub struct VelocityTexture {
 
 #[derive(Component, Default)]
 pub struct PreviousGlobalTransform(pub GlobalTransform);
+
+/// Marker component for purely static geometry (no per-frame transform animation).
+/// 
+/// When an entity has both StaticMesh and PreviousGlobalTransform, and the model matrices
+/// are within epsilon (prev_model ≈ current_model), the velocity contribution is 100% camera motion.
+/// 
+/// Future optimization opportunities (Static Object Optimization — Perfect Order Step 3):
+/// - Filter the query in VelocityPrepassNode to skip pure static meshes (or early-return in loop)
+/// - Or keep drawing but use a cheaper path / instanced static batch
+/// - Let the TAA compute shader synthesize pure camera velocity for StaticMesh pixels (saves bandwidth)
+/// - With true integer YCoCg-R history: static world areas accumulate with ZERO color drift over infinite frames
+///   — perfect for eternal RBE simulation of unchanging environments (mountains, buildings, dungeons).
+/// 
+/// This is a high-ROI, low-risk upgrade that dramatically reduces GPU work in large open worlds.
+#[derive(Component, Default)]
+pub struct StaticMesh;
 
 pub struct VelocityPrepassNode {
     query: QueryState<(
@@ -98,6 +116,9 @@ impl Node for VelocityPrepassNode {
                     .map(|p| p.0.compute_matrix())
                     .unwrap_or(current_model);
 
+                // Future static optimization hook: if entity has StaticMesh and matrices are almost identical,
+                // we could early-continue here or use a specialized static velocity path.
+                // For now we draw everything (correctness first); optimization comes next.
                 let uniforms = VelocityUniforms {
                     view_proj: matrices.projection * matrices.view,
                     prev_view_proj: matrices.prev_view_proj,
@@ -192,7 +213,7 @@ pub fn setup_velocity_prepass_pipeline(
                 write_mask: ColorWrites::ALL,
             })],
             shader_defs: vec![],
-        }),
+        }],
         primitive: PrimitiveState::default(),
         depth_stencil: None,
         multisample: MultisampleState::default(),
@@ -208,7 +229,6 @@ pub fn setup_velocity_prepass_pipeline(
 }
 
 /// Creates the velocity texture at the given size.
-/// Called by PowrushRenderPlugin with dynamic window size.
 pub fn setup_velocity_texture(
     mut commands: Commands,
     render_device: &RenderDevice,
