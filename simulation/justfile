@@ -1,0 +1,30 @@
+# Powrush-MMO Simulation - Justfile
+# Convenient commands for development and profiling
+
+# Run all benchmarks
+default:
+    cargo bench
+
+# Run only orchestrator benchmarks
+bench-orchestrator:
+    cargo bench --bench orchestrator_bench
+
+# Run only resonance benchmarks
+bench-resonance:
+    cargo bench --bench resonance_decay_recovery_bench
+
+# Generate flamegraph for orchestrator
+flamegraph-orchestrator:
+    cargo flamegraph --bench orchestrator_bench -- --bench
+
+# Generate flamegraph for resonance simulation
+flamegraph-resonance:
+    cargo flamegraph --bench resonance_decay_recovery_bench -- --bench
+
+# Run with tracing enabled
+trace:
+    RUST_LOG=info cargo test --package simulation
+
+# Profile run (example)
+profile:
+    echo "Use profile_run_for_duration in code or tests"
