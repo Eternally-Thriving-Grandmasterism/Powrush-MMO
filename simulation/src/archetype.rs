@@ -10,6 +10,7 @@
 //! while maintaining TOLC 8 non-bypassable mercy gates.
 
 use crate::world::{SovereignWorldState, Archetype, ArchetypeId, PowerVector, ValenceProfile, EvolutionTree, MercyViolation, Agent, ArchetypeTemplate};
+use tracing::{info_span, instrument};
 
 /// Elevated ValenceConsensusModule from Python prototype
 /// joy_threshold = 0.98 for high bar on new archetype acceptance
@@ -24,12 +25,14 @@ impl Default for ValenceConsensusModule {
 }
 
 impl ValenceConsensusModule {
-    /// Core elevation of propose_new_archetype + balance_check logic
+    #[instrument(skip(self, proposal, world))]
     pub fn propose_and_validate(
         &self,
         proposal: &ArchetypeProposal,
         world: &SovereignWorldState,
     ) -> Result<Archetype, MercyViolation> {
+        let _span = info_span!("propose_and_validate", name = %proposal.name).entered();
+
         let new_archetype = Archetype {
             id: proposal.suggested_id,
             name: proposal.name.clone(),
@@ -51,8 +54,9 @@ impl ValenceConsensusModule {
         archetype.mercy_contribution > self.joy_threshold
     }
 
-    /// Enhanced balance_check: power vector similarity + archetype distribution balance + RBE efficiency
+    #[instrument(skip(self, new_archetype, world))]
     fn balance_check(&self, new_archetype: &Archetype, world: &SovereignWorldState) -> bool {
+        let _span = info_span!("balance_check").entered();
         // Count current archetypes for distribution awareness
         let archetype_count = world.archetype_instances.len() as f32;
         if archetype_count < 1.0 {
@@ -106,10 +110,10 @@ impl SovereignArchetypeSystem {
         Self { valence_consensus: ValenceConsensusModule::default() }
     }
 
-    /// Dynamic evolution entry point — called by orchestrator each major phase
+    #[instrument(skip(self, world))]
     pub fn evolve_archetypes(&mut self, world: &mut SovereignWorldState) -> Result<(), MercyViolation> {
+        let _span = info_span!("evolve_archetypes").entered();
         // Placeholder for runtime evolution: scan telemetry, propose improvements, validate via council
-        // In full harness this integrates PATSAGiCouncilSim + mercy_flow feedback
         for (_id, arch) in world.archetype_instances.iter_mut() {
             // Gentle evolution pressure toward higher mercy + RBE efficiency
             if arch.mercy_contribution < 0.95 {
