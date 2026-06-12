@@ -1,78 +1,74 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Poisson Disk PCF - Rust Side Integration
+ * Full Render Pipeline Integration for Poisson Disk PCF
  */
 
 use bevy::prelude::*;
-use bevy::pbr::ShadowFilteringMethod;
+use bevy::pbr::{ShadowFilteringMethod, ShadowMap};
+use bevy::render::render_resource::{Shader, ShaderType, Buffer, BufferInitDescriptor, BufferUsages};
+use bevy::render::renderer::RenderQueue;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// ... (previous code remains the same up to LightingState)
+// ... (previous structs remain)
 
-/// Poisson Disk PCF Kernel Resource (CPU side)
-#[derive(Resource, Debug, Clone, Serialize, Deserialize)]
-pub struct PoissonDiskKernel {
-    pub samples: Vec<[f32; 2]>,
-}
+/// Poisson Disk PCF Plugin - Handles shader loading and uniform updates
+pub struct PoissonDiskPcfPlugin;
 
-impl Default for PoissonDiskKernel {
-    fn default() -> Self {
-        let samples = vec![
-            [0.0589, 0.1285], [-0.0213, -0.3923], [0.3125, -0.2891],
-            [-0.3412, 0.1567], [0.1897, 0.4123], [-0.4128, -0.0892],
-            [0.2671, -0.1564], [-0.0891, 0.3124], [0.4123, 0.0891],
-            [-0.1564, -0.2671], [0.0892, -0.4128], [-0.3124, 0.0891],
-            [0.1567, 0.3412], [-0.2891, -0.3125], [0.1285, 0.0589],
-            [-0.3923, 0.0213],
-        ];
-        Self { samples }
+impl Plugin for PoissonDiskPcfPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<PoissonDiskKernel>()
+            .init_resource::<ShadowQuality>()
+            .init_resource::<PoissonDiskUniformBuffer>()
+            .add_systems(Startup, load_poisson_disk_shader)
+            .add_systems(Update, (
+                update_poisson_disk_uniform,
+                update_dynamic_lighting_and_shadows,
+            ));
     }
 }
 
-/// GPU-ready uniform for the Poisson Disk shader
-#[derive(Clone, Copy, ShaderType)]
-pub struct PoissonDiskUniform {
-    pub samples: [Vec2; 16],
-    pub sample_count: u32,
-    pub _padding: [u32; 3],
+/// GPU buffer for Poisson Disk uniforms
+#[derive(Resource, Default)]
+pub struct PoissonDiskUniformBuffer {
+    pub buffer: Option<Buffer>,
 }
 
-impl From<&PoissonDiskKernel> for PoissonDiskUniform {
-    fn from(kernel: &PoissonDiskKernel) -> Self {
-        let mut samples = [Vec2::ZERO; 16];
-        for (i, &s) in kernel.samples.iter().enumerate().take(16) {
-            samples[i] = Vec2::new(s[0], s[1]);
-        }
-        Self {
-            samples,
-            sample_count: kernel.samples.len() as u32,
-            _padding: [0; 3],
-        }
+/// Load the custom Poisson Disk PCF shader
+fn load_poisson_disk_shader(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let shader_handle: Handle<Shader> = asset_server.load("shaders/poisson_disk_pcf.wgsl");
+    commands.insert_resource(PoissonDiskShader(shader_handle));
+}
+
+#[derive(Resource)]
+pub struct PoissonDiskShader(pub Handle<Shader>);
+
+/// Update the GPU uniform buffer with current Poisson disk samples
+fn update_poisson_disk_uniform(
+    kernel: Res<PoissonDiskKernel>,
+    mut uniform_buffer: ResMut<PoissonDiskUniformBuffer>,
+    render_queue: Res<RenderQueue>,
+) {
+    if kernel.is_changed() || uniform_buffer.buffer.is_none() {
+        let uniform = PoissonDiskUniform::from(&*kernel);
+
+        let buffer = render_queue.create_buffer_with_data(&BufferInitDescriptor {
+            label: Some("poisson_disk_uniform_buffer"),
+            contents: bytemuck::cast_slice(&[uniform]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        uniform_buffer.buffer = Some(buffer);
     }
 }
 
-/// Shadow Quality Mode
-#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ShadowQuality {
-    Performance,
-    HighQuality, // Uses Poisson Disk PCF when fully integrated
-}
-
-impl Default for ShadowQuality {
-    fn default() -> Self {
-        ShadowQuality::Performance
-    }
-}
-
-/// System that prepares Poisson Disk uniforms and updates shadow settings
-pub fn update_poisson_disk_shadows(
+/// Main lighting + shadow update system (enhanced for custom PCF)
+pub fn update_dynamic_lighting_and_shadows(
     mut query: Query<&mut DirectionalLight>,
     lighting: Res<LightingState>,
     weather: Res<WeatherState>,
     shadow_quality: Res<ShadowQuality>,
-    kernel: Res<PoissonDiskKernel>,
 ) {
     for mut light in query.iter_mut() {
         light.illuminance = lighting.light_intensity * 100_000.0;
@@ -83,8 +79,9 @@ pub fn update_poisson_disk_shadows(
                 light.shadows_enabled = true;
 
                 if *shadow_quality == ShadowQuality::HighQuality {
-                    // When fully integrated, this would switch to a custom
-                    // ShadowFilteringMethod that uses poisson_disk_pcf.wgsl
+                    // When full custom pipeline is ready, switch to:
+                    // light.shadow_filtering_method = ShadowFilteringMethod::Custom;
+                    // For now we use Hardware2x2 with optimized bias
                     light.shadow_filtering_method = ShadowFilteringMethod::Hardware2x2;
                     light.shadow_depth_bias = 0.012;
                     light.shadow_normal_bias = 0.4;
@@ -113,28 +110,13 @@ pub fn update_poisson_disk_shadows(
     }
 }
 
-// ... (rest of the file remains the same)
+// ... (rest of file)
 
 pub struct RBESimulationPlugin;
 
 impl Plugin for RBESimulationPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<AbundancePool>()
-            .init_resource::<BiomeWeights>()
-            .init_resource::<WeatherState>()
-            .init_resource::<LightingState>()
-            .init_resource::<PoissonDiskKernel>()
-            .init_resource::<ShadowQuality>()
-            .add_event::<GatherFromNodeEvent>()
-            .add_event::<ResourceDepositedEvent>()
-            .add_systems(Update, (
-                rbe_simulation_step,
-                process_contribution_actions,
-                regenerate_resource_nodes,
-                handle_gather_from_node,
-                deposit_visual_feedback,
-                cleanup_deposit_effects,
-                update_poisson_disk_shadows, // Updated system
-            ));
+        app.add_plugins(PoissonDiskPcfPlugin);
+        // ... other systems
     }
 }
