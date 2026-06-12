@@ -5,8 +5,13 @@
  * Uses real prev_view_proj + prev_model from shared CameraMatrices.
  * Dynamic texture resizing supported.
  *
- * NEW: StaticMesh marker component + documentation for static-object optimization
- *      (pairs with true integer YCoCg-R TAA for zero-drift eternal static regions).
+ * Step 3 (Perfect Order): StaticMesh marker now fully wired into query + is_pure_static detection.
+ *      Prepares for future skip / synthesized camera-velocity path for pure static geometry.
+ *      Pairs with true integer YCoCg-R TAA for zero-drift eternal static regions in the RBE simulation.
+ *
+ * Improved bind groups note: Current per-object uniform is correct but high-overhead for 1000s of meshes.
+ *      Future micro-opt (after this): Split bind group layout (binding 0 = global CameraMatrices bound once,
+ *      binding 1 = per-object model/prev_model). Requires matching WGSL update.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm approved • AG-SML v1.0
  * Mercy-gated • Zero hallucination • Maximum temporal truth & beauty
@@ -41,22 +46,22 @@ pub struct PreviousGlobalTransform(pub GlobalTransform);
 /// When an entity has both StaticMesh and PreviousGlobalTransform, and the model matrices
 /// are within epsilon (prev_model ≈ current_model), the velocity contribution is 100% camera motion.
 /// 
-/// Future optimization opportunities (Static Object Optimization — Perfect Order Step 3):
-/// - Filter the query in VelocityPrepassNode to skip pure static meshes (or early-return in loop)
-/// - Or keep drawing but use a cheaper path / instanced static batch
-/// - Let the TAA compute shader synthesize pure camera velocity for StaticMesh pixels (saves bandwidth)
-/// - With true integer YCoCg-R history: static world areas accumulate with ZERO color drift over infinite frames
-///   — perfect for eternal RBE simulation of unchanging environments (mountains, buildings, dungeons).
-/// 
-/// This is a high-ROI, low-risk upgrade that dramatically reduces GPU work in large open worlds.
+/// Optimization (Static Object Optimization — Step 3 wired):
+/// - Query now includes StaticMesh so we can detect pure-static objects.
+/// - is_pure_static computed with epsilon check.
+/// - Future: early-continue / skip draw for pure static (once we add camera-velocity synthesis fill),
+///   or use specialized static pipeline / instanced batch.
+/// - TAA compute shader (with integer YCoCg-R) keeps these regions perfectly stable forever.
+/// - Massive win for large open-world MMORPG scenes (cities, landscapes, dungeons).
 #[derive(Component, Default)]
 pub struct StaticMesh;
 
 pub struct VelocityPrepassNode {
     query: QueryState<(
         &'static Handle<Mesh>,
-        &'static GlobalTransform>,
+        &'static GlobalTransform,
         Option<&'static PreviousGlobalTransform>,
+        Option<&'static StaticMesh>, // Step 3: now wired for static-object optimization
     )>,
 }
 
@@ -109,16 +114,33 @@ impl Node for VelocityPrepassNode {
 
         render_pass.set_render_pipeline(pipeline);
 
-        for (mesh_handle, global_transform, previous_transform) in self.query.iter_manual(world) {
+        for (mesh_handle, global_transform, previous_transform, static_marker) in self.query.iter_manual(world) {
             if let Some(mesh) = meshes.get(mesh_handle) {
                 let current_model = global_transform.compute_matrix();
                 let prev_model = previous_transform
                     .map(|p| p.0.compute_matrix())
                     .unwrap_or(current_model);
 
-                // Future static optimization hook: if entity has StaticMesh and matrices are almost identical,
-                // we could early-continue here or use a specialized static velocity path.
-                // For now we draw everything (correctness first); optimization comes next.
+                // Step 3 static-object optimization hook (now active)
+                let is_pure_static = if static_marker.is_some() && previous_transform.is_some() {
+                    let delta = current_model - prev_model;
+                    let max_delta = delta.to_cols_array().iter().fold(0.0_f32, |acc, &v| acc.max(v.abs()));
+                    max_delta < 1e-5
+                } else {
+                    false
+                };
+
+                if is_pure_static {
+                    // Pure static mesh (prev_model ≈ current_model):
+                    // Velocity is 100% from camera motion (prev_view_proj change).
+                    // Future optimization (after bind-group split):
+                    //   - Skip this per-object draw entirely for pure static meshes.
+                    //   - Fill those pixels in TAA compute or a lightweight camera-velocity compute pass
+                    //     using depth buffer (much cheaper bandwidth for large static world regions).
+                    //   - With true integer YCoCg-R history: these regions converge to bit-exact stability forever.
+                    // For now we draw for full correctness across all camera motions.
+                }
+
                 let uniforms = VelocityUniforms {
                     view_proj: matrices.projection * matrices.view,
                     prev_view_proj: matrices.prev_view_proj,
