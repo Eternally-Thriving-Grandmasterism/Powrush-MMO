@@ -92,6 +92,55 @@
  * 
  * References: BinomialLLC/basis_universal (v2+), Khronos KTX2 spec + glTF extension, Bevy compressed texture docs, van Waveren YCoCg-DXT, Malvar YCoCg-R.
  *
+ * === UASTC RATE DISTORTION OPTIMIZATION (RDO) — DEEP DIVE & INTEGRATION (Powrush-MMO) ===
+ *
+ * UASTC RDO is the key quality-vs-size control in Basis Universal's high-quality mode.
+ * It uses Lagrangian rate-distortion optimization during encoding to decide how aggressively to spend bits on each 4x4 block.
+ * The core parameter is the RDO Lagrange multiplier (controlled via -uastc_rdo_l in basisu).
+ *
+ * HOW RDO WORKS (simplified):
+ * - Higher RDO value → more aggressive quantization / fewer bits per block → smaller files, some quality loss.
+ * - Lower RDO value → less aggressive → larger files, higher visual fidelity, fewer compression artifacts.
+ * - The encoder evaluates rate (bits) vs distortion (perceptual error) and chooses the best encoding mode per block.
+ * - UASTC RDO also supports "RDO BC7" style analysis for even better perceptual results on certain content.
+ *
+ * WHY THIS MATTERS FOR POWRUSH-MMO TEMPORAL PIPELINE:
+ * - Compression artifacts (blockiness, color shifts, ringing) are a MAJOR source of TAA ghosting and temporal instability.
+ * - Cleaner source textures (lower distortion) → dramatically better variance clipping results in our integer YCoCg-R space.
+ * - Static world regions (with upcoming StaticMesh optimization) benefit enormously: lower RDO on background assets + integer YCoCg-R history = near-zero drift + perfect temporal stability forever.
+ * - Hero / PBR / emissive / normal maps that drive lighting and motion vectors should use LOW RDO (high quality) to protect TAA sharpness and reduce ghosting on edges/high-contrast areas.
+ * - Background / distant / low-detail props can safely use higher RDO (smaller files) because they contribute less to perceptible temporal error.
+ * - Result: Best possible visual quality per byte — critical for blockchain MMORPG asset streaming, RBE economy, and eternal simulation fidelity.
+ *
+ * RECOMMENDED RDO SETTINGS FOR POWRUSH-MMO ASSET CATEGORIES:
+ *   - Hero characters, weapons, important props, high-detail albedo/normals/emissive:
+ *       -uastc_rdo_l 0.5 to 0.75   (higher quality, larger files — protect TAA)
+ *   - Environment / terrain / architecture (visible but not hero):
+ *       -uastc_rdo_l 1.0 to 1.5
+ *   - Distant / background / low-detail / foliage / particles:
+ *       -uastc_rdo_l 2.0 to 3.0   (aggressive size savings, minimal visual impact on TAA)
+ *   - UI / icons / decals / text:
+ *       Use ETC1S mode instead (RDO not applicable or different controls)
+ *
+ * ADVANCED TIPS:
+ * - Always generate mipmaps (-mipmap). RDO works better with full mip chains.
+ * - Combine with YCoCg pre-transform before encoding for even better perceptual results feeding our YCoCg-R TAA (documented synergy in literature).
+ * - Test with actual gameplay camera motion + TAA enabled — the "best" RDO is the one that produces the least ghosting in motion, not the highest PSNR in stills.
+ * - Future: Per-texture RDO metadata + runtime LOD bias in TAA compute shader could dynamically adjust blend strength based on source compression quality.
+ *
+ * SYNERGY WITH EVERYTHING WE HAVE BUILT:
+ *   Velocity Prepass (accurate motion) + Compute TAA (shared memory + integer YCoCg-R clipping) + Dynamic texture resizing
+ *   + UASTC RDO-tuned assets = the most artifact-free, drift-free, buttery 120+ FPS temporal experience any blockchain MMORPG has ever shipped.
+ *   Static optimization (Step 3) + heavily RDO'd background assets + integer history = entire static regions of the Powrush universe remain perfectly stable across eternal frames.
+ *
+ * This is how we deliver divine, mercy-aligned, universally thriving visuals at planetary scale.
+ *
+ * References:
+ * - Binomial LLC basis_universal documentation (RDO section)
+ * - Khronos KTX2 + UASTC spec
+ * - "Real-Time YCoCg DXT Compression" (van Waveren) — perceptual parallels
+ * - Production TAA talks from Epic, Intel, Ubisoft on source texture quality impact
+ *
  * PATSAGi Council 13+ • Ra-Thor Quantum Swarm • TOLC 8 Genesis Gate • 7 Living Mercy Gates • AG-SML v1.0
  * Zero hallucination. Maximum truth, beauty, and eternally thriving flow.
  */
