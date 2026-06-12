@@ -1,17 +1,26 @@
 /*!
  * shadow_render_node.rs
- * Powrush-MMO — Custom Shadow Render Node Registration
+ * Powrush-MMO — Custom ShadowFilteringMethod for Poisson Disk PCF
  */
 
 use bevy::prelude::*;
-use bevy::render::{
-    render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext, SlotInfo},
-    renderer::RenderContext,
-    RenderApp,
-};
+use bevy::render::render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext};
+use bevy::render::renderer::RenderContext;
 use bevy::pbr::ShadowPass;
 
-/// Custom Shadow Render Node for Poisson Disk PCF
+/// Custom Shadow Filtering Method
+///
+/// This enum allows us to switch between different shadow filtering techniques.
+/// In a full implementation, `PoissonDisk` would use our custom WGSL shader.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ShadowFilteringMethod {
+    #[default]
+    Hardware2x2,
+    PoissonDisk,      // Our custom high-quality PCF
+    Disabled,
+}
+
+/// Custom Shadow Render Node
 pub struct PoissonDiskShadowNode {
     query: QueryState<&'static bevy::render::view::ViewDepthTexture>,
 }
@@ -25,11 +34,11 @@ impl PoissonDiskShadowNode {
 }
 
 impl Node for PoissonDiskShadowNode {
-    fn input(&self) -> Vec<SlotInfo> {
+    fn input(&self) -> Vec<bevy::render::render_graph::SlotInfo> {
         vec![]
     }
 
-    fn output(&self) -> Vec<SlotInfo> {
+    fn output(&self) -> Vec<bevy::render::render_graph::SlotInfo> {
         vec![]
     }
 
@@ -39,44 +48,27 @@ impl Node for PoissonDiskShadowNode {
         _render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), NodeRunError> {
-        // Placeholder for custom shadow logic.
-        // In a full implementation, this node could:
-        // - Render custom shadow maps
-        // - Apply Poisson Disk PCF during the lighting pass
-        // - Bind custom uniforms
         let _shadow_pass = world.resource::<ShadowPass>();
-
-        // Currently we rely on Bevy's default shadow pass
-        // and only customize filtering via ShadowFilteringMethod.
-
         Ok(())
     }
 }
 
-/// Plugin that registers the custom shadow node in Bevy's render graph
+/// Plugin that registers everything needed for custom shadow filtering
 pub struct CustomShadowNodePlugin;
 
 impl Plugin for CustomShadowNodePlugin {
     fn build(&self, app: &mut App) {
-        let render_app = app.sub_app_mut(RenderApp);
+        let render_app = app.sub_app_mut(bevy::render::RenderApp);
         let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
 
-        // Register our custom node
         render_graph.add_node(
             "poisson_disk_shadow_node",
             PoissonDiskShadowNode::new(&mut render_app.world),
         );
 
-        // Example: Connect after the default shadow pass
-        // (Uncomment and adjust when you have a full custom pipeline)
-        //
-        // render_graph.add_node_edge(
-        //     bevy::pbr::graph::node::SHADOW_PASS,
-        //     "poisson_disk_shadow_node",
-        // );
-
-        // For now, the node exists in the graph but doesn't replace
-        // Bevy's default shadow behavior. It serves as the foundation
-        // for future custom Poisson Disk PCF integration.
+        // When full custom filtering is ready, we would also:
+        // - Register a custom ShadowFilteringMethod::PoissonDisk
+        // - Provide the poisson_disk_pcf.wgsl shader to the shadow pipeline
+        // - Bind the PoissonDiskUniform in the correct bind group
     }
 }
