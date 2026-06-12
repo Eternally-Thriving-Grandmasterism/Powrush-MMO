@@ -1,6 +1,6 @@
 //! server/src/persistence_polish.rs
 //! Powrush-MMO — Production Persistence System + Epiphany + Council Tracking
-//! v18.30+ | Full EpiphanyTelemetry + Council Mercy Trial Integration
+//! v18.30+ | Full EpiphanyTelemetry + Council Mercy Trial Integration + Ambrosian Ascension (The Mercy Ascent)
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0
 //! Player Sovereignty • Abundance Preservation • Live Epiphany & Council History
 
@@ -13,10 +13,11 @@ use ron;
 use serde::{Deserialize, Serialize};
 
 use crate::telemetry_pipeline::EpiphanyTelemetry;
+use crate::ascension_mercy_ascent::{AscensionProgress, AscensionEligibility, AscensionTracker, AscensionMercyAscentPlugin};
 
-// ═══════════════════════════════════════════════════════════════
-// CONFIG
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// CONFIG (unchanged)
+// ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Resource, Clone, Debug, Serialize, Deserialize)]
 pub struct PersistenceConfig {
@@ -45,9 +46,9 @@ impl Default for PersistenceConfig {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// EPIPHANY RECORD
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// EPIPHANY RECORD (unchanged)
+// ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EpiphanyRecord {
@@ -61,9 +62,9 @@ pub struct EpiphanyRecord {
     pub mercy_gates_activated: Vec<String>,
 }
 
-// ═══════════════════════════════════════════════════════════════
-// MUSCLE MEMORY
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// MUSCLE MEMORY (unchanged + minor doc)
+// ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct MuscleMemory {
@@ -87,9 +88,9 @@ impl MuscleMemory {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// PLAYER SAVE DATA (Single Source of Truth)
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// PLAYER SAVE DATA (Extended with AscensionProgress for The Mercy Ascent)
+// ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlayerSaveData {
@@ -118,6 +119,9 @@ pub struct PlayerSaveData {
     pub successful_council_blooms: u32,
     pub highest_collective_attunement: f32,
     pub last_council_bloom_tick: u64,
+
+    // The Mercy Ascent / Ambrosian Ascension (v18.11 Phase 1)
+    pub ascension_progress: AscensionProgress,
 }
 
 impl Default for PlayerSaveData {
@@ -149,10 +153,13 @@ impl PlayerSaveData {
             successful_council_blooms: 0,
             highest_collective_attunement: 0.0,
             last_council_bloom_tick: 0,
+
+            // Ascension defaults (Phase 1)
+            ascension_progress: AscensionProgress::default_with_thresholds(),
         }
     }
 
-    /// Record Epiphany directly from live EpiphanyTelemetry
+    /// Record Epiphany directly from live EpiphanyTelemetry (enhanced with ascension sync)
     pub fn record_epiphany_from_telemetry(&mut self, telemetry: &EpiphanyTelemetry) {
         let record = EpiphanyRecord {
             timestamp: telemetry.timestamp,
@@ -167,21 +174,25 @@ impl PlayerSaveData {
         self.record_epiphany(record);
     }
 
-    /// Core Epiphany recording method
+    /// Core Epiphany recording method (now syncs ascension progress)
     pub fn record_epiphany(&mut self, record: EpiphanyRecord) {
         self.epiphany_history.push(record.clone());
         self.muscle_memory.apply_epiphany_boost(record.multiplier_gained, record.intensity);
         self.total_abundance_earned += record.multiplier_gained as f64 * 10.0;
         self.last_mercy_audit = current_timestamp();
+
+        // Ascension sync
+        self.ascension_progress.sync_from_player_save(self);
     }
 
-    /// Record participation in a Council Mercy Trial
+    /// Record participation in a Council Mercy Trial (enhanced)
     pub fn record_council_participation(&mut self) {
         self.council_participations += 1;
         self.last_mercy_audit = current_timestamp();
+        self.ascension_progress.sync_from_player_save(self);
     }
 
-    /// Record a successful Council bloom
+    /// Record a successful Council bloom (enhanced with ascension sync)
     pub fn record_successful_council_bloom(&mut self, collective_attunement: f32, current_tick: u64) {
         self.successful_council_blooms += 1;
         if collective_attunement > self.highest_collective_attunement {
@@ -193,6 +204,8 @@ impl PlayerSaveData {
         // Gentle resonance boost from collective experience
         self.muscle_memory.resonance_attunement =
             (self.muscle_memory.resonance_attunement + collective_attunement * 0.05).min(5.0);
+
+        self.ascension_progress.sync_from_player_save(self);
     }
 
     pub fn get_council_engagement_score(&self) -> f32 {
@@ -208,11 +221,45 @@ impl PlayerSaveData {
     pub fn get_abundance_earned(&self) -> f64 {
         self.total_abundance_earned
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE MERCY ASCENT — New dedicated methods (Phase 1)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Returns current eligibility status with full pillar breakdown + Divine Whisper suggestion
+    pub fn check_mercy_ascent_eligibility(&self) -> AscensionEligibility {
+        // Ensure progress is in sync before checking
+        let mut progress = self.ascension_progress.clone();
+        progress.sync_from_player_save(self);
+        progress.calculate_eligibility()
+    }
+
+    /// Quick boolean for systems that only need yes/no
+    pub fn is_eligible_for_ambrosian_ascension(&self) -> bool {
+        self.check_mercy_ascent_eligibility().eligible
+    }
+
+    /// Call this after a successful Ascension Mercy Trial (or alt path completion)
+    pub fn unlock_ambrosian_ascension(&mut self, path: &str) {
+        let ts = current_timestamp();
+        self.ascension_progress.unlock_as_ambrosian(path, ts);
+        self.last_mercy_audit = ts;
+        // TODO Phase 2: trigger character race transformation, ability grants, visual effects broadcast
+        info!("MERCY ASCENT UNLOCK | player={} | path={} | Ambrosian transformation initiated", self.player_id, path);
+    }
+
+    pub fn get_ascension_status(&self) -> String {
+        if self.ascension_progress.ascension_unlocked {
+            format!("Ambrosian (path: {})", self.ascension_progress.ascension_path.clone().unwrap_or_default())
+        } else {
+            "Mortal seeker on the path".to_string()
+        }
+    }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// PERSISTENCE MANAGER
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// PERSISTENCE MANAGER (unchanged core logic + ascension audit note)
+// ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Resource)]
 pub struct PersistenceManager {
@@ -269,11 +316,12 @@ impl PersistenceManager {
         if self.config.mercy_audit_logging {
             info!(
                 target: "persistence",
-                "MERCY SAVE | player={} | epiphanies={} | council_blooms={} | abundance={:.2}",
+                "MERCY SAVE | player={} | epiphanies={} | council_blooms={} | abundance={:.2} | ascension_unlocked={}",
                 data.player_id,
                 data.epiphany_history.len(),
                 data.successful_council_blooms,
-                data.total_abundance_earned
+                data.total_abundance_earned,
+                data.ascension_progress.ascension_unlocked
             );
         }
         Ok(())
@@ -301,13 +349,18 @@ impl PersistenceManager {
             data.total_abundance_earned = 0.0;
         }
 
-        Ok(data)
+        // Ensure ascension progress is initialized for legacy saves
+        if data.ascension_progress.ascension_path.is_none() && !data.ascension_progress.ascension_unlocked {
+            data.ascension_progress = AscensionProgress::default_with_thresholds();
+        }
+
+        Ok(data);
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// ERRORS & PLUGIN
-// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// ERRORS & PLUGIN (extended with Ascension plugin)
+// ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Debug)]
 pub enum PersistenceError {
@@ -324,7 +377,8 @@ pub struct PersistencePolishPlugin;
 impl Plugin for PersistencePolishPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PersistenceConfig>()
-            .add_systems(Startup, setup_persistence_manager);
+            .add_systems(Startup, setup_persistence_manager)
+            .add_plugins(AscensionMercyAscentPlugin);  // Wires AscensionTracker + logging
     }
 }
 
@@ -333,12 +387,15 @@ fn setup_persistence_manager(mut commands: Commands, config: Res<PersistenceConf
     let manager = PersistenceManager::new(config.clone(), save_dir);
     commands.insert_resource(manager);
 
-    info!("PERSISTENCE MANAGER v18.30 | Epiphany + Council tracking fully wired");
+    info!("PERSISTENCE MANAGER v18.30 | Epiphany + Council + Ambrosian Ascension (Mercy Ascent) fully wired");
 }
 
-fn current_timestamp() -> u64 {
+pub fn current_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
 }
+
+// Re-export for convenience in other modules
+pub use crate::ascension_mercy_ascent::current_timestamp_for_ascension;
