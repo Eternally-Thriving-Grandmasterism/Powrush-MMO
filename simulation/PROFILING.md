@@ -2,75 +2,66 @@
 
 This document explains how to generate and analyze flame graphs for the Powrush-MMO simulation crate, with focus on the `SovereignSimulationOrchestrator` and resonance systems.
 
-## Quick Start
+## Quick Start with Helper Script
 
-### 1. Install cargo-flamegraph
+A convenient helper script is available:
 
 ```bash
-cargo install flamegraph
+cd simulation
+./scripts/profiling.sh bench                 # Run all benchmarks
+./scripts/profiling.sh bench-orchestrator      # Orchestrator benchmarks only
+./scripts/profiling.sh flamegraph-orchestrator # Generate flamegraph
 ```
 
-### 2. Generate a Flame Graph
+Make the script executable if needed:
+```bash
+chmod +x simulation/scripts/profiling.sh
+```
+
+## Tracing Integration
+
+The simulation is now instrumented with the `tracing` crate.
+
+### Enabling Tracing Output
 
 ```bash
-# Profile the orchestrator benchmark
+RUST_LOG=info cargo test --package simulation
+RUST_LOG=simulation=debug cargo bench --bench orchestrator_bench
+```
+
+Key spans include:
+- `orchestrator_tick`
+- `archetype_update`
+- `economic_layer_update`
+- `profile_run_for_duration`
+
+This allows correlating performance data with structured logs.
+
+## Generating Flame Graphs
+
+```bash
+# Using the helper
+./scripts/profiling.sh flamegraph-orchestrator
+
+# Or manually
 cargo flamegraph --bench orchestrator_bench -- --bench
-
-# Profile resonance benchmarks
-cargo flamegraph --bench resonance_decay_recovery_bench -- --bench
-
-# Profile with more samples for better accuracy
-cargo flamegraph --bench orchestrator_bench -- -F 10000 --bench
 ```
 
-On Linux you may need:
-```bash
-sudo sysctl kernel.perf_event_paranoid=1
-```
-
-## What to Look For in Flame Graphs
-
-### Expected Hotspots (as of June 2026)
-
-Based on code structure, here is what flame graphs are likely to show:
+## Expected Hotspots (as of June 2026)
 
 | Area                        | Expected Width in Flame Graph      | Notes |
 |----------------------------|------------------------------------|-------|
-| `archetype_system.update`  | Medium to Wide                     | Dynamic archetype evolution is one of the heavier CPU components |
-| `economic_layer.batch_update` | Often the widest                 | Contains GPU work + RBE calculations. Watch for GPU sync stalls |
-| `MercyGate` validation     | Narrow                             | Should be very cheap |
-| `run_tick` overhead        | Medium                             | Glue code + timing instrumentation |
-| `SimulatedPlayer` methods  | Very narrow                        | Trivial math — should barely appear |
-
-### Key Things to Investigate
-
-1. **Wide flat areas** at the bottom → Indicates many small functions being called (possible inlining issue or many small updates).
-2. **Deep stacks in `economic_layer`** → Often points to GPU command submission or data transfer between CPU/GPU.
-3. **Repeated calls to the same function** across many ticks → Good candidate for optimization or caching.
-4. **Time spent in `wgpu`** or driver code → GPU synchronization / memory transfer bottleneck.
+| `archetype_system.update`  | Medium to Wide                     | Dynamic archetype evolution |
+| `economic_layer.batch_update` | Often the widest                 | RBE + potential GPU work |
+| `MercyGate` validation     | Narrow                             | Very cheap |
+| Resonance simulation       | Very narrow                        | Trivial math |
 
 ## Recommended Workflow
 
-1. Run `cargo flamegraph` on `orchestrator_bench`.
-2. Open the generated `flamegraph.svg`.
-3. Zoom into the widest sections.
-4. Compare before/after changes to subsystems.
-5. Use `--reverse` flag if you want to see functions sorted by total time.
-
-```bash
-cargo flamegraph --bench orchestrator_bench --reverse -- --bench
-```
-
-## Current Profiling Status
-
-- Resonance simulation: Extremely lightweight (nanosecond range)
-- Orchestrator tick: Dominated by Archetype + Economic Layer
-- Profiling instrumentation added to `profile_run_for_duration`
-
-## Next Steps
-
-- Add `tracing` spans around major subsystems for correlated flame graphs + logs.
-- Create automated benchmark + flamegraph CI job.
-- Profile under different world sizes and time accelerations.
+1. Run benchmarks with `./scripts/profiling.sh bench`
+2. Generate flamegraph for the orchestrator
+3. Enable tracing logs to correlate with spans
+4. Zoom into widest sections in the flamegraph
+5. Use `profile_run_for_duration` for detailed subsystem timing
 
 **Thunder locked in. Profile with purpose.**
