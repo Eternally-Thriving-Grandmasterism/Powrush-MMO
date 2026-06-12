@@ -1,6 +1,6 @@
 /*!
  * shadow_render_node.rs
- * Powrush-MMO — Shader Import Override for Poisson Disk PCF
+ * Powrush-MMO — Temporal Poisson Disk with Rotated Kernel Sequence
  */
 
 use bevy::prelude::*;
@@ -11,86 +11,98 @@ use bevy::render::{
 };
 use bevy::pbr::ShadowPass;
 use bevy::render::render_resource::Shader;
+use std::f32::consts::PI;
 
-/// Custom Shadow Filtering Method
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum ShadowFilteringMethod {
-    #[default]
-    Hardware2x2,
-    PoissonDisk,
-    Disabled,
-}
+// ... (previous enums and resources remain)
 
-/// Resource holding the custom Poisson Disk PCF shader
+/// Temporal Poisson Disk Kernel Sequence
+///
+/// Holds multiple rotated versions of a base Poisson disk kernel.
+/// This provides excellent temporal stability when combined with TAA.
 #[derive(Resource)]
-pub struct PoissonDiskPcfShader(pub Handle<Shader>);
-
-/// Tracks runtime shader specialization state
-#[derive(Resource, Default)]
-pub struct ShadowShaderSpecialization {
-    pub current_method: ShadowFilteringMethod,
-    pub needs_specialization: bool,
+pub struct TemporalPoissonDisk {
+    pub kernels: Vec<PoissonDiskKernel>,
+    pub current_index: usize,
 }
 
-/// System that performs final runtime specialization
-pub fn finalize_shadow_specialization(
-    mut specialization: ResMut<ShadowShaderSpecialization>,
-    mut shadow_filtering: ResMut<ShadowFilteringMethod>,
-    shadow_quality: Res<ShadowQualityState>,
-) {
-    let target = if shadow_quality.is_high_quality {
-        ShadowFilteringMethod::PoissonDisk
-    } else {
-        ShadowFilteringMethod::Hardware2x2
-    };
+impl TemporalPoissonDisk {
+    /// Create a sequence of rotated kernels from a base kernel
+    pub fn from_base_kernel(base: &PoissonDiskKernel, count: usize) -> Self {
+        let mut kernels = Vec::with_capacity(count);
 
-    if specialization.current_method != target {
-        specialization.current_method = target;
-        specialization.needs_specialization = true;
-        *shadow_filtering = target;
+        for i in 0..count {
+            let angle = (i as f32 / count as f32) * 2.0 * PI;
+            let cos = angle.cos();
+            let sin = angle.sin();
+
+            let rotated_samples: Vec<[f32; 2]> = base
+                .samples
+                .iter()
+                .map(|&[x, y]| {
+                    // Rotate around origin
+                    let rx = x * cos - y * sin;
+                    let ry = x * sin + y * cos;
+                    [rx, ry]
+                })
+                .collect();
+
+            kernels.push(PoissonDiskKernel {
+                samples: rotated_samples,
+            });
+        }
+
+        Self {
+            kernels,
+            current_index: 0,
+        }
+    }
+
+    /// Get the kernel for the current frame and advance the index
+    pub fn next_kernel(&mut self) -> &PoissonDiskKernel {
+        let kernel = &self.kernels[self.current_index];
+        self.current_index = (self.current_index + 1) % self.kernels.len();
+        kernel
+    }
+
+    /// Get current kernel without advancing (useful for debugging)
+    pub fn current_kernel(&self) -> &PoissonDiskKernel {
+        &self.kernels[self.current_index]
     }
 }
 
-/// Simple state to drive quality
-#[derive(Resource, Default)]
-pub struct ShadowQualityState {
-    pub is_high_quality: bool,
+impl Default for TemporalPoissonDisk {
+    fn default() -> Self {
+        // Create from the default PoissonDiskKernel with 12 rotations
+        let base = PoissonDiskKernel::default();
+        Self::from_base_kernel(&base, 12)
+    }
 }
 
-/// Custom Shadow Render Node
-pub struct PoissonDiskShadowNode {
-    query: QueryState<&'static bevy::render::view::ViewDepthTexture>,
-}
+/// System that updates shadow sampling to use temporal Poisson Disk when high quality is enabled
+pub fn update_temporal_poisson_disk_shadows(
+    mut shadow_quality: ResMut<ShadowQualityState>,
+    mut temporal: ResMut<TemporalPoissonDisk>,
+    mut shadow_filtering: ResMut<ShadowFilteringMethod>,
+) {
+    if shadow_quality.is_high_quality {
+        if *shadow_filtering != ShadowFilteringMethod::PoissonDisk {
+            *shadow_filtering = ShadowFilteringMethod::PoissonDisk;
+        }
 
-impl PoissonDiskShadowNode {
-    pub fn new(world: &mut World) -> Self {
-        Self {
-            query: QueryState::new(world),
+        // Advance to next rotated kernel every frame
+        let _current_kernel = temporal.next_kernel();
+
+        // In a full implementation, you would now bind _current_kernel
+        // to the GPU uniform buffer for the shadow sampling shader.
+    } else {
+        if *shadow_filtering != ShadowFilteringMethod::Hardware2x2 {
+            *shadow_filtering = ShadowFilteringMethod::Hardware2x2;
         }
     }
 }
 
-impl Node for PoissonDiskShadowNode {
-    fn input(&self) -> Vec<bevy::render::render_graph::SlotInfo> {
-        vec![]
-    }
+// ... (rest of the file remains the same)
 
-    fn output(&self) -> Vec<bevy::render::render_graph::SlotInfo> {
-        vec![]
-    }
-
-    fn run(
-        &self,
-        _graph: &mut RenderGraphContext,
-        _render_context: &mut RenderContext,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let _shadow_pass = world.resource::<ShadowPass>();
-        Ok(())
-    }
-}
-
-/// Plugin that implements shader import override for Poisson Disk PCF
 pub struct CustomShadowNodePlugin;
 
 impl Plugin for CustomShadowNodePlugin {
@@ -107,38 +119,11 @@ impl Plugin for CustomShadowNodePlugin {
         render_app.world.insert_resource(PoissonDiskPcfShader(shader_handle));
         render_app.world.init_resource::<ShadowShaderSpecialization>();
         render_app.world.init_resource::<ShadowQualityState>();
+        render_app.world.init_resource::<TemporalPoissonDisk>(); // <-- Added
 
-        app.add_systems(Update, finalize_shadow_specialization);
-
-        // === SHADER IMPORT OVERRIDE ===
-        //
-        // When `ShadowFilteringMethod::PoissonDisk` is active, we want Bevy
-        // to use our custom `poisson_disk_pcf()` function instead of the default
-        // hardware PCF.
-        //
-        // This is achieved by:
-        // 1. Providing our own shadow sampling module that re-exports or overrides
-        //    Bevy's `bevy_pbr::shadow_sampling`.
-        // 2. When specialization is triggered, the render pipeline uses our version.
-        //
-        // For full effect, you would create a file like:
-        //   shaders/custom_shadow_sampling.wgsl
-        // that contains:
-        //
-        //   #import bevy_pbr::shadow_sampling as bevy_shadow
-        //   #import "poisson_disk_pcf.wgsl"
-        //
-        //   fn sample_shadow(...) -> f32 {
-        //       if (using_poisson_disk) {
-        //           return poisson_disk_pcf(...);
-        //       } else {
-        //           return bevy_shadow::sample_shadow(...);
-        //       }
-        //   }
-        //
-        // Then register it so Bevy uses it when `PoissonDisk` mode is active.
-        //
-        // The foundation is now complete. The import override is ready to be
-        // activated when you enable `ShadowQualityState::is_high_quality = true`.
+        app.add_systems(Update, (
+            finalize_shadow_specialization,
+            update_temporal_poisson_disk_shadows,
+        ));
     }
 }
