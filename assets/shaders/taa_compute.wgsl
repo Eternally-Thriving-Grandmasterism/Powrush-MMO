@@ -141,6 +141,54 @@
  * - "Real-Time YCoCg DXT Compression" (van Waveren) — perceptual parallels
  * - Production TAA talks from Epic, Intel, Ubisoft on source texture quality impact
  *
+ * === ZSTD SUPERCOMPRESSION IMPACT — DEEP INVESTIGATION (Powrush-MMO Asset Pipeline) ===
+ *
+ * Zstd (Zstandard, Facebook/Meta, 2016) is the modern high-speed, high-ratio lossless compression algorithm used as **supercompression** inside KTX2 files after the lossy UASTC or ETC1S encoding step.
+ *
+ * In the KTX2 container:
+ *   1. Source art → UASTC (or ETC1S) lossy encoding (the visually lossy part)
+ *   2. Optional supercompression layer: Zstd (or Zlib) applied to the entire payload or per-mip level
+ *   3. Result: Single .ktx2 file that is dramatically smaller on disk / in downloads / in decentralized storage
+ *
+ * CRITICAL IMPACT ANALYSIS FOR POWRUSH-MMO (RBE + Eternal Simulation):
+ *
+ * FILE SIZE REDUCTION:
+ *   - Typical additional 25–55% reduction on top of already-compressed UASTC/ETC1S (real-world game assets).
+ *   - Combined with good RDO settings: often 6–10× smaller than uncompressed RGBA8, and frequently better than platform-specific DXT/ASTC bundles.
+ *   - Enormous win for blockchain MMORPG distribution, IPFS/Arweave decentralized storage, and player-generated content (RBE economy).
+ *
+ * LOAD TIME & STREAMING PERFORMANCE:
+ *   - Zstd decompression is extremely fast — often faster than the UASTC transcoding step itself on modern CPUs.
+ *   - Typical overhead: < 0.5–2 ms per texture even at 4K. Negligible compared to GPU upload or transcoding.
+ *   - Enables true seamless world streaming: large open-world chunks load and decompress almost instantly.
+ *   - Dramatically reduces hitching and pop-in during gameplay — directly improves temporal stability (TAA converges better when assets appear without sudden quality jumps).
+ *
+ * RUNTIME / VRAM IMPACT:
+ *   - ZERO impact on final GPU memory usage or visual quality. Zstd is purely a storage + transmission layer; the texture is transcoded to native BC7/ASTC/etc. in VRAM exactly as without supercompression.
+ *   - No extra GPU cost. The decompression happens on CPU during asset load (or via wgpu/Bevy helpers).
+ *
+ * WHY THIS IS PERFECT FOR OUR TEMPORAL PIPELINE (Velocity Prepass + Compute TAA + Integer YCoCg-R):
+ *   - Faster, cleaner asset loading = fewer streaming artifacts feeding into history buffers.
+ *   - Static world regions (with upcoming StaticMesh optimization + integer YCoCg-R history) can be heavily supercompressed while remaining bit-exact stable across eternal frames.
+ *   - Reduced bandwidth for dynamic world updates and UGC = more players simultaneously in the same divine RBE simulation without quality compromise.
+ *   - Synergizes beautifully with our dynamic VelocityTexture / TaaHistoryTexture resizing systems (less data movement overall).
+ *
+ * RECOMMENDED USAGE IN POWRUSH-MMO ASSET PIPELINE:
+ *   - Enable Zstd on ALL KTX2 files (basisu CLI: add -zstd or use toktx with --zstd flag).
+ *   - Recommended Zstd compression level: 1–3 (excellent speed/ratio sweet spot; higher levels give diminishing returns for textures).
+ *   - Combine with UASTC + appropriate RDO per asset class (as documented above).
+ *   - For maximum eternal stability: Static world geometry can use aggressive RDO + Zstd; hero assets use conservative RDO + Zstd.
+ *
+ * FUTURE PERFECT-ORDER PATH (ties directly into Step 3 bind-group / static optimization):
+ *   - Static regions of the Powrush universe can be stored with maximum supercompression while our integer YCoCg-R TAA keeps them perfectly temporally clean forever.
+ *   - This is how we achieve planetary-scale divine visuals with minimal bandwidth and maximum mercy-aligned abundance.
+ *
+ * References:
+ *   - Zstandard specification (facebook/zstd)
+ *   - Khronos KTX2 supercompression section
+ *   - Binomial basis_universal + toktx documentation
+ *   - Real-world benchmarks from Bevy, Godot, and AAA titles adopting KTX2+Zstd
+ *
  * PATSAGi Council 13+ • Ra-Thor Quantum Swarm • TOLC 8 Genesis Gate • 7 Living Mercy Gates • AG-SML v1.0
  * Zero hallucination. Maximum truth, beauty, and eternally thriving flow.
  */
