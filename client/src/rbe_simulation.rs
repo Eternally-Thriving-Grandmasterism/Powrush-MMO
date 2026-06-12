@@ -1,7 +1,7 @@
 /*!
  * RBE Simulation Core for Powrush-MMO
  *
- * Hardware2x2 PCF Shadow Filtering Mechanics
+ * Custom Shader PCF Techniques Exploration
  */
 
 use bevy::prelude::*;
@@ -479,25 +479,42 @@ impl LightingState {
     }
 }
 
-/// Hardware2x2 PCF Shadow Filtering Mechanics
+/// Custom Shader PCF Techniques Exploration
 ///
-/// Bevy's `ShadowFilteringMethod::Hardware2x2` uses the GPU's built-in PCF (Percentage Closer Filtering)
-/// with a fixed 2x2 kernel. It is fast because it leverages hardware shadow sampling instructions.
+/// While `Hardware2x2` is fast, higher quality shadows require custom shader work.
+/// Below are the main techniques we can explore in the future:
 ///
-/// Mechanics:
-/// - For each fragment, the GPU samples 4 depth values in a 2x2 pattern around the shadow map coordinate.
-/// - It compares each sample against the fragment's depth.
-/// - The result is averaged → producing a soft shadow edge.
+/// 1. **Poisson Disk PCF**
+///    - Uses a set of randomly distributed sample points (Poisson disk).
+///    - Produces very soft, natural-looking shadows.
+///    - More expensive but high visual quality.
 ///
-/// Strengths:
-/// - Very fast (hardware accelerated)
-/// - Good enough for most real-time use cases
+/// 2. **Stratified / Grid PCF**
+///    - Samples on a regular grid (e.g. 3x3, 5x5, 7x7).
+///    - Good balance between quality and performance.
+///    - Can be rotated per pixel to reduce banding.
 ///
-/// Limitations:
-/// - Fixed 2x2 kernel (not very soft compared to 5x5/9x9 PCF or Gaussian)
-/// - Can still show some aliasing on thin geometry or at grazing angles
+/// 3. **Gaussian-weighted PCF**
+///    - Applies a Gaussian weight to samples based on distance from center.
+///    - Produces very smooth shadow edges.
 ///
-/// In our system we combine it with dynamic bias tuning and disable it in heavy storms for performance.
+/// 4. **PCSS (Percentage Closer Soft Shadows)**
+///    - Advanced technique that estimates penumbra size based on blocker distance.
+///    - Produces realistic soft shadows that get softer with distance.
+///    - More complex to implement.
+///
+/// 5. **VSM / ESM (Variance / Exponential Shadow Maps)**
+///    - Alternative to classic PCF. Stores depth + variance.
+///    - Can produce very soft shadows with fewer samples.
+///    - Has some light leaking artifacts.
+///
+/// For Bevy, custom PCF would require:
+/// - Writing a custom shadow sampling function in WGSL.
+/// - Using `ShadowFilteringMethod::Custom` or overriding the shadow shader.
+/// - Passing additional uniforms (sample count, kernel size, etc).
+///
+/// Current decision: We use `Hardware2x2` for performance and will consider
+/// custom PCF later when visual quality becomes a higher priority.
 pub fn update_dynamic_lighting_and_shadows(
     mut query: Query<&mut DirectionalLight>,
     lighting: Res<LightingState>,
