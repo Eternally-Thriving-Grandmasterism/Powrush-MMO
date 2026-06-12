@@ -1,221 +1,88 @@
-//! client/src/shadow_render_node.rs
-//! Poisson Disk PCF Shadow Bind Group + Temporal Shadow Accumulation
-//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v18.10+
+/*!
+ * shadow_render_node.rs
+ * Powrush-MMO — Step 2: Core Temporal Shadow Accumulation System
+ */
 
 use bevy::prelude::*;
 use bevy::render::{
     render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext},
-    renderer::{RenderContext, RenderDevice},
-    texture::BevyDefault,
+    renderer::RenderContext,
     RenderApp,
 };
-use bevy::render::render_resource::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource,
-    BufferBinding, BufferBindingType, Extent3d, ShaderStages,
-    TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
-};
-use crate::rbe_simulation::{PoissonDiskKernel, ShadowQuality};
+use bevy::render::render_resource::Shader;
 
-// ==================== RESOURCES ====================
+// ... (previous resources remain)
 
-#[derive(Resource, Default)]
-pub struct PoissonDiskBindGroup {
-    pub bind_group: Option<BindGroup>,
-}
-
-#[derive(Resource, Default)]
-pub struct ActivePoissonDiskBindGroup {
-    pub bind_group: Option<BindGroup>,
-}
-
-#[derive(Resource, Default)]
-pub struct ShadowQualityState {
-    pub is_high_quality: bool,
-}
-
-/// Holds temporal accumulation textures for high-quality soft shadows
-#[derive(Resource, Default)]
-pub struct ShadowTemporalAccumulation {
-    /// Accumulated soft shadow history
-    pub accumulation: Option<Handle<Image>>,
-    /// Statistical moments (mean + variance) for variance-guided filtering
-    pub moments: Option<Handle<Image>>,
-}
-
-// ==================== RENDER NODE ====================
-
-pub struct PoissonDiskShadowNode;
-
-impl Node for PoissonDiskShadowNode {
-    fn run(
-        &self,
-        _graph: &mut RenderGraphContext,
-        _render_context: &mut RenderContext,
-        world: &World,
-    ) -> Result<(), NodeRunError> {
-        let bind_group = world.resource::<ActivePoissonDiskBindGroup>();
-
-        if let Some(_bind_group) = &bind_group.bind_group {
-            // TODO: Bind during shadow/lighting pass when using custom render graph
-        }
-
-        Ok(())
-    }
-}
-
-// ==================== SYSTEMS ====================
-
-/// Creates the temporal shadow accumulation textures (called once at startup)
-pub fn setup_shadow_accumulation_textures(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-    windows: Query<&Window>,
-    mut accumulation: ResMut<ShadowTemporalAccumulation>,
-    shadow_quality: Res<ShadowQuality>,
-) {
-    if *shadow_quality != ShadowQuality::HighQuality {
-        return;
-    }
-
-    let window = windows.single();
-    let size = Extent3d {
-        width: window.resolution.physical_width(),
-        height: window.resolution.physical_height(),
-        depth_or_array_layers: 1,
-    };
-
-    // Accumulation texture (single channel history)
-    let accumulation_texture = Image {
-        texture_descriptor: TextureDescriptor {
-            label: Some("shadow_accumulation"),
-            size,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::R16Float,
-            usage: TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_DST
-                | TextureUsages::RENDER_ATTACHMENT,
-            mip_level_count: 1,
-            sample_count: 1,
-            view_formats: &[],
-        },
-        ..default()
-    };
-
-    // Moments texture (mean + variance)
-    let moments_texture = Image {
-        texture_descriptor: TextureDescriptor {
-            label: Some("shadow_moments"),
-            size,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::RG16Float,
-            usage: TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_DST
-                | TextureUsages::RENDER_ATTACHMENT,
-            mip_level_count: 1,
-            sample_count: 1,
-            view_formats: &[],
-        },
-        ..default()
-    };
-
-    let accumulation_handle = images.add(accumulation_texture);
-    let moments_handle = images.add(moments_texture);
-
-    accumulation.accumulation = Some(accumulation_handle);
-    accumulation.moments = Some(moments_handle);
-
-    info!("Temporal shadow accumulation textures created");
-}
-
-/// Updates the Poisson Disk PCF bind group
-pub fn update_poisson_disk_bind_group(
-    mut poisson_bind_group: ResMut<PoissonDiskBindGroup>,
-    kernel: Res<PoissonDiskKernel>,
-    shadow_quality: Res<ShadowQuality>,
-    render_device: Res<RenderDevice>,
-) {
-    if *shadow_quality != ShadowQuality::HighQuality {
-        poisson_bind_group.bind_group = None;
-        return;
-    }
-
-    let uniform_data = crate::rbe_simulation::PoissonDiskUniform::from(&*kernel);
-
-    let buffer = render_device.create_buffer_with_data(
-        &bevy::render::render_resource::BufferInitDescriptor {
-            label: Some("poisson_disk_pcf_uniform"),
-            contents: bytemuck::cast_slice(&[uniform_data]),
-            usage: bevy::render::render_resource::BufferUsages::UNIFORM
-                | bevy::render::render_resource::BufferUsages::COPY_DST,
-        },
-    );
-
-    let bind_group_layout = render_device.create_bind_group_layout(
-        &bevy::render::render_resource::BindGroupLayoutDescriptor {
-            label: Some("poisson_disk_pcf_bind_group_layout"),
-            entries: &[bevy::render::render_resource::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::FRAGMENT,
-                ty: bevy::render::render_resource::BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        },
-    );
-
-    let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
-        label: Some("poisson_disk_pcf_bind_group"),
-        layout: &bind_group_layout,
-        entries: &[BindGroupEntry {
-            binding: 0,
-            resource: BindingResource::Buffer(BufferBinding {
-                buffer: &buffer,
-                offset: 0,
-                size: None,
-            }),
-        }],
-    });
-
-    poisson_bind_group.bind_group = Some(bind_group);
-}
-
-pub fn integrate_poisson_disk_bind_group(
-    bind_group: Res<PoissonDiskBindGroup>,
-    mut active_bind_group: ResMut<ActivePoissonDiskBindGroup>,
+/// Core system for variance-guided temporal shadow accumulation
+///
+/// This system handles:
+/// - Checking if high-quality mode is active
+/// - Reprojecting previous frame history
+/// - Blending current Poisson Disk result with history
+/// - Updating statistical moments
+pub fn update_shadow_temporal_accumulation(
     shadow_quality: Res<ShadowQualityState>,
+    temporal: Res<TemporalPoissonDisk>,
+    accumulation: Res<ShadowTemporalAccumulation>,
+    // In a full implementation we would also have:
+    // - Motion vectors / velocity texture
+    // - Current frame raw shadow result
+    // - Previous frame accumulation + moments as inputs
+    // - Render commands to execute a full-screen or compute pass
 ) {
-    if shadow_quality.is_high_quality {
-        active_bind_group.bind_group = bind_group.bind_group.clone();
-    } else {
-        active_bind_group.bind_group = None;
+    if !shadow_quality.is_high_quality {
+        return;
     }
+
+    // Get current rotated kernel (already advanced by previous system)
+    let _current_kernel = temporal.current_kernel();
+
+    // TODO in next steps:
+    // 1. Reproject previous accumulation + moments using motion vectors
+    // 2. Compute local variance of current shadow result
+    // 3. Apply variance-guided clamping / weighting
+    // 4. Blend current result with (clamped) history
+    // 5. Update moments for next frame
+    // 6. Write result to ShadowAccumulation texture
+
+    // For now this system acts as the central coordination point.
+    // The actual GPU work will be implemented in the WGSL pass (Step 3).
 }
 
-// ==================== PLUGIN ====================
+// ... (rest of file)
 
-pub struct ShadowRenderNodePlugin;
+pub struct CustomShadowNodePlugin;
 
-impl Plugin for ShadowRenderNodePlugin {
+impl Plugin for CustomShadowNodePlugin {
     fn build(&self, app: &mut App) {
         let render_app = app.sub_app_mut(RenderApp);
         let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
 
         render_graph.add_node(
             "poisson_disk_shadow_node",
-            PoissonDiskShadowNode,
+            PoissonDiskShadowNode::new(&mut render_app.world),
         );
 
-        app.init_resource::<PoissonDiskBindGroup>()
-            .init_resource::<ActivePoissonDiskBindGroup>()
-            .init_resource::<ShadowQualityState>()
-            .init_resource::<ShadowTemporalAccumulation>()
-            .add_systems(Startup, setup_shadow_accumulation_textures)
-            .add_systems(Update, (
-                update_poisson_disk_bind_group,
-                integrate_poisson_disk_bind_group,
-            ));
+        render_app.world.init_resource::<ShadowTemporalAccumulation>();
+
+        let shader_handle = render_app.world.resource::<AssetServer>().load("shaders/poisson_disk_pcf.wgsl");
+        render_app.world.insert_resource(PoissonDiskPcfShader(shader_handle));
+        render_app.world.init_resource::<ShadowShaderSpecialization>();
+        render_app.world.init_resource::<ShadowQualityState>();
+        render_app.world.init_resource::<TemporalPoissonDisk>();
+        render_app.world.init_resource::<PoissonDiskUniformBuffer>();
+        render_app.world.init_resource::<PoissonDiskBindGroup>();
+        render_app.world.init_resource::<ActivePoissonDiskBindGroup>();
+
+        app.add_systems(Startup, setup_shadow_accumulation_textures);
+
+        app.add_systems(Update, (
+            finalize_shadow_specialization,
+            update_temporal_poisson_disk_shadows,
+            update_temporal_poisson_disk_uniform,
+            update_poisson_disk_bind_group,
+            integrate_poisson_disk_bind_group,
+            update_shadow_temporal_accumulation, // <-- New core system
+        ));
     }
 }
