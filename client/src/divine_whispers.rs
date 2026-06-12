@@ -1,5 +1,6 @@
 /*!
  * Divine Whispers - Client Side
+ * v18.25 — Added strong camera shake on Epiphany
  */
 
 use bevy::prelude::*;
@@ -20,17 +21,27 @@ struct WhisperFadeTimer {
 #[derive(Component)]
 struct EpiphanyFlash;
 
+/// Camera shake resource for epiphanies and strong events
+#[derive(Resource, Default)]
+pub struct CameraShake {
+    pub intensity: f32,
+    pub duration: f32,
+    pub timer: f32,
+}
+
 pub struct DivineWhispersPlugin;
 
 impl Plugin for DivineWhispersPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<DivineWhisperTrigger>()
+            .init_resource::<CameraShake>()
             .add_systems(Startup, setup_divine_whisper_ui)
             .add_systems(Update, (
                 receive_divine_whispers,
                 update_whisper_fade,
                 update_epiphany_flash,
+                apply_camera_shake,
             ));
     }
 }
@@ -110,6 +121,7 @@ fn receive_divine_whispers(
     audio: Res<Audio>,
     mut game_audio_events: EventWriter<GameAudioEvent>,
     listener_query: Query<&GlobalTransform, With<crate::spatial_audio::SpatialListener>>,
+    mut camera_shake: ResMut<CameraShake>,
 ) {
     for event in events.read() {
         for (mut visibility, children, panel_entity) in panel_query.iter_mut() {
@@ -126,7 +138,11 @@ fn receive_divine_whispers(
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
 
-                // Send high-level game audio event (backend agnostic)
+                // Strong camera shake on epiphany
+                camera_shake.intensity = 0.8 + event.intensity * 0.4;
+                camera_shake.duration = event.duration_seconds.max(2.5);
+                camera_shake.timer = 0.0;
+
                 game_audio_events.send(GameAudioEvent::Epiphany {
                     position: sound_position,
                     intensity: event.intensity,
@@ -257,5 +273,39 @@ fn update_epiphany_flash(
 ) {
     for entity in query.iter() {
         commands.entity(entity).despawn();
+    }
+}
+
+/// Applies camera shake during epiphanies
+fn apply_camera_shake(
+    mut camera_query: Query<&mut Transform, With<Camera>>,
+    mut shake: ResMut<CameraShake>,
+    time: Res<Time>,
+) {
+    if shake.duration <= 0.0 {
+        return;
+    }
+
+    shake.timer += time.delta_seconds();
+
+    if shake.timer < shake.duration {
+        let progress = shake.timer / shake.duration;
+        let falloff = (1.0 - progress).powf(1.5);
+        let offset = shake.intensity * falloff;
+
+        for mut transform in camera_query.iter_mut() {
+            let shake_x = (shake.timer * 25.0).sin() * offset * 0.6;
+            let shake_y = (shake.timer * 31.0).cos() * offset * 0.8;
+            let shake_z = (shake.timer * 19.0).sin() * offset * 0.3;
+
+            transform.translation.x += shake_x;
+            transform.translation.y += shake_y;
+            transform.translation.z += shake_z;
+        }
+    } else {
+        // Reset shake
+        shake.intensity = 0.0;
+        shake.duration = 0.0;
+        shake.timer = 0.0;
     }
 }
