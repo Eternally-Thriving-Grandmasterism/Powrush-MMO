@@ -1,6 +1,6 @@
 /*!
  * shadow_render_node.rs
- * Powrush-MMO — Binding Temporal Poisson Disk Kernel to GPU
+ * Powrush-MMO — Wiring Bind Group for Poisson Disk PCF
  */
 
 use bevy::prelude::*;
@@ -10,69 +10,71 @@ use bevy::render::{
     RenderApp,
 };
 use bevy::pbr::ShadowPass;
-use bevy::render::render_resource::{Buffer, BufferInitDescriptor, BufferUsages, ShaderType};
-use bevy::render::renderer::RenderQueue;
+use bevy::render::render_resource::{
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource, BufferBinding,
+    ShaderType,
+};
+use bevy::render::renderer::RenderDevice;
 use std::f32::consts::PI;
 
-// ... (previous code remains)
+// ... (previous structs remain)
 
-/// GPU-ready uniform for Poisson Disk kernel (already defined earlier)
-#[derive(Clone, Copy, ShaderType)]
-pub struct PoissonDiskUniform {
-    pub samples: [Vec2; 16],
-    pub sample_count: u32,
-    pub _padding: [u32; 3],
-}
-
-impl From<&PoissonDiskKernel> for PoissonDiskUniform {
-    fn from(kernel: &PoissonDiskKernel) -> Self {
-        let mut samples = [Vec2::ZERO; 16];
-        for (i, &s) in kernel.samples.iter().enumerate().take(16) {
-            samples[i] = Vec2::new(s[0], s[1]);
-        }
-        Self {
-            samples,
-            sample_count: kernel.samples.len() as u32,
-            _padding: [0; 3],
-        }
-    }
-}
-
-/// Resource holding the GPU buffer for the current Poisson Disk kernel
+/// Resource holding the bind group for the Poisson Disk uniform
 #[derive(Resource, Default)]
-pub struct PoissonDiskUniformBuffer {
-    pub buffer: Option<Buffer>,
+pub struct PoissonDiskBindGroup {
+    pub bind_group: Option<BindGroup>,
 }
 
-/// System that uploads the current temporal Poisson Disk kernel to the GPU
-pub fn update_temporal_poisson_disk_uniform(
-    temporal: Res<TemporalPoissonDisk>,
-    mut uniform_buffer: ResMut<PoissonDiskUniformBuffer>,
-    render_queue: Res<RenderQueue>,
+/// System that creates/updates the bind group for the current Poisson Disk kernel
+pub fn update_poisson_disk_bind_group(
+    uniform_buffer: Res<PoissonDiskUniformBuffer>,
+    mut bind_group: ResMut<PoissonDiskBindGroup>,
+    render_device: Res<RenderDevice>,
     shadow_quality: Res<ShadowQualityState>,
 ) {
     if !shadow_quality.is_high_quality {
+        bind_group.bind_group = None;
         return;
     }
 
-    // Get the current rotated kernel
-    let current_kernel = temporal.current_kernel();
-    let uniform = PoissonDiskUniform::from(current_kernel);
+    let Some(buffer) = &uniform_buffer.buffer else {
+        return;
+    };
 
-    // Create or update the GPU buffer
-    let buffer = render_queue.create_buffer_with_data(&BufferInitDescriptor {
-        label: Some("temporal_poisson_disk_uniform"),
-        contents: bytemuck::cast_slice(&[uniform]),
-        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+    // Create bind group layout (in a real implementation this should be cached)
+    let bind_group_layout = render_device.create_bind_group_layout(
+        &bevy::render::render_resource::BindGroupLayoutDescriptor {
+            label: Some("poisson_disk_bind_group_layout"),
+            entries: &[bevy::render::render_resource::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: bevy::render::render_resource::ShaderStages::FRAGMENT,
+                ty: bevy::render::render_resource::BindingType::Buffer {
+                    ty: bevy::render::render_resource::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        },
+    );
+
+    let group = render_device.create_bind_group(&BindGroupDescriptor {
+        label: Some("poisson_disk_bind_group"),
+        layout: &bind_group_layout,
+        entries: &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::Buffer(BufferBinding {
+                buffer,
+                offset: 0,
+                size: None,
+            }),
+        }],
     });
 
-    uniform_buffer.buffer = Some(buffer);
-
-    // TODO: Bind this buffer to the shadow/lighting bind group
-    // when using the custom Poisson Disk PCF shader path.
+    bind_group.bind_group = Some(group);
 }
 
-// ... (rest of the systems and plugin remain)
+// ... (rest of file)
 
 pub struct CustomShadowNodePlugin;
 
@@ -91,12 +93,14 @@ impl Plugin for CustomShadowNodePlugin {
         render_app.world.init_resource::<ShadowShaderSpecialization>();
         render_app.world.init_resource::<ShadowQualityState>();
         render_app.world.init_resource::<TemporalPoissonDisk>();
-        render_app.world.init_resource::<PoissonDiskUniformBuffer>(); // <-- Added
+        render_app.world.init_resource::<PoissonDiskUniformBuffer>();
+        render_app.world.init_resource::<PoissonDiskBindGroup>(); // <-- Added
 
         app.add_systems(Update, (
             finalize_shadow_specialization,
             update_temporal_poisson_disk_shadows,
-            update_temporal_poisson_disk_uniform, // <-- New system
+            update_temporal_poisson_disk_uniform,
+            update_poisson_disk_bind_group, // <-- New bind group system
         ));
     }
 }
