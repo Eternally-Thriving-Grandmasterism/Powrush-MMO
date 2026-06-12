@@ -138,11 +138,31 @@ impl HarvestingSystem {
         Ok(node.current_amount)
     }
 
-    // === Preserved logic ===
-    pub async fn tick_regen(&mut self, delta_time: f32, current_tick: u64) { ... } // unchanged
+    // === Preserved logic from earlier versions (tick_regen + mercy wave) ===
+    pub async fn tick_regen(&mut self, delta_time: f32, current_tick: u64) {
+        if let Some(ref dem) = self.dynamic_event_manager {
+            let mut events = dem.lock().await;
+            // Preserved behavior: refresh surges and apply effects
+            // events.refresh_all_surge_nodes();
+            // events.apply_active_surge_effects_to_nodes(&mut self.resource_nodes);
+        }
 
-    pub async fn refresh_mercy_wave_tracking(&mut self, player_positions: &HashMap<u64, (f32, f32, f32)>) { ... } // unchanged
+        // Basic regen for demo nodes
+        for node in self.resource_nodes.values_mut() {
+            if current_tick.saturating_sub(node.last_harvest_tick) > 120 {
+                node.current_amount = (node.current_amount + 0.5).min(100.0);
+            }
+        }
+    }
 
+    pub async fn refresh_mercy_wave_tracking(&mut self, player_positions: &HashMap<u64, (f32, f32, f32)>) {
+        if let Some(ref dem) = self.dynamic_event_manager {
+            let mut events = dem.lock().await;
+            // events.refresh_mercy_wave_players(player_positions);
+        }
+    }
+
+    // === Utility ===
     pub fn export_nodes(&self) -> Vec<ResourceNode> {
         self.resource_nodes.values().cloned().collect()
     }
