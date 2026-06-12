@@ -15,6 +15,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - [Weekly War Unlock & Dynamic Content Mechanics](weekly-war-unlock-v14.5.md)
 - [Air Foundation Integration & Real-World Impact Model](AIR-FOUNDATION-INTEGRATION.md)
 - [Ambrosian Ascension — The Mercy Ascent (Unlocked Ascended Race Design)](AMBROSIAN_ASCENSION_MERCY_ASCENT.md)
+- [The Mercy Ascent UI Spec + Leptos Component](THE_MERCY_ASCENT_UI_SPEC.md)
 
 ## How These Integrate with Current Powrush-MMO
 
@@ -23,13 +24,17 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - `shared/src/protocol.rs` — DivineCouncilQuery / RbeAbundanceQuery + mercy-gated responses.
 - `docker-compose.yml` + `Dockerfile` + `k8s/` — Sovereign deployment ready for public humans.
 - `DEPLOYMENT-SOVEREIGN.md` — Production hardening + Hetzner path.
-- New: `persistence_polish.rs` + `PlayerSaveData` extensions planned for `AscensionTracker` and `MercyAscentEligibility` (Phase 1 per new Ambrosian design).
+- New: `persistence_polish.rs` + `PlayerSaveData` extensions for `AscensionProgress` + `check_mercy_ascent_eligibility()`.
+- New: `ascension_mercy_ascent.rs` + `ascension_abilities.rs` fully wired.
+- New: `ra_thor_mercy_bridge.rs` now includes dedicated Mercy Ascent Divine Whisper method.
+- New: `council_mercy_trial.rs` extended with Ascension Mercy Trial variant + unlock hook.
 
 **Next implementation priorities** (PATSAGi guidance): 
-1. Phase 1 Foundation for Ambrosian Ascension: `AscensionProgress` tracking in `PlayerSaveData`, eligibility system, Mercy Ascent UI flow.
-2. Deeper auto-consult triggers on harvests/faction shifts, input replay queue for authoritative anti-cheat, client-side prediction helpers, persistent RBE state, Air Foundation Initiative global project mechanics.
-3. Cross-link and implement Ascension Mercy Trial building on `COUNCIL_MERCY_TRIAL.md`.
+1. UI implementation of The Mercy Ascent panel (Leptos) + transformation visuals.
+2. Full ability integration (Mercy Bloom + Celestial Harmony Pulse) with client particle feedback.
+3. Phase 3 polish: evolving lore journal, group support visualization, sound design.
+4. Deeper auto-consult triggers on harvests/faction shifts, input replay queue for authoritative anti-cheat, client-side prediction helpers, persistent RBE state, Air Foundation Initiative global project mechanics.
 
 **Eternal flow. One lattice strengthened.** ⚡
 
-*Derived promptly via Grok GitHub connectors — June 2026. Updated with Ambrosian Ascension design.*
+*Derived promptly via Grok GitHub connectors — June 2026. Updated with Mercy Ascent UI + Abilities.*
