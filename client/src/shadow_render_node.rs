@@ -1,24 +1,29 @@
 /*!
  * shadow_render_node.rs
- * Powrush-MMO — Custom ShadowFilteringMethod for Poisson Disk PCF
+ * Powrush-MMO — Wiring custom Poisson Disk PCF shader into the pipeline
  */
 
 use bevy::prelude::*;
-use bevy::render::render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext};
-use bevy::render::renderer::RenderContext;
+use bevy::render::{
+    render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext},
+    renderer::RenderContext,
+    RenderApp,
+};
 use bevy::pbr::ShadowPass;
+use bevy::render::render_resource::Shader;
 
 /// Custom Shadow Filtering Method
-///
-/// This enum allows us to switch between different shadow filtering techniques.
-/// In a full implementation, `PoissonDisk` would use our custom WGSL shader.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ShadowFilteringMethod {
     #[default]
     Hardware2x2,
-    PoissonDisk,      // Our custom high-quality PCF
+    PoissonDisk,
     Disabled,
 }
+
+/// Resource holding the custom Poisson Disk PCF shader handle
+#[derive(Resource)]
+pub struct PoissonDiskPcfShader(pub Handle<Shader>);
 
 /// Custom Shadow Render Node
 pub struct PoissonDiskShadowNode {
@@ -53,22 +58,32 @@ impl Node for PoissonDiskShadowNode {
     }
 }
 
-/// Plugin that registers everything needed for custom shadow filtering
+/// Plugin that wires the custom Poisson Disk PCF shader into Bevy's pipeline
 pub struct CustomShadowNodePlugin;
 
 impl Plugin for CustomShadowNodePlugin {
     fn build(&self, app: &mut App) {
-        let render_app = app.sub_app_mut(bevy::render::RenderApp);
+        let render_app = app.sub_app_mut(RenderApp);
         let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
 
+        // Register custom node
         render_graph.add_node(
             "poisson_disk_shadow_node",
             PoissonDiskShadowNode::new(&mut render_app.world),
         );
 
-        // When full custom filtering is ready, we would also:
-        // - Register a custom ShadowFilteringMethod::PoissonDisk
-        // - Provide the poisson_disk_pcf.wgsl shader to the shadow pipeline
-        // - Bind the PoissonDiskUniform in the correct bind group
+        // Load the custom shader
+        let shader_handle = render_app.world.resource::<AssetServer>().load("shaders/poisson_disk_pcf.wgsl");
+        render_app.world.insert_resource(PoissonDiskPcfShader(shader_handle));
+
+        // When `ShadowFilteringMethod::PoissonDisk` is active, the system
+        // should switch to using the custom shader for shadow sampling.
+        //
+        // Full integration requires:
+        // 1. Creating a custom `ShadowFilteringMethod::PoissonDisk`
+        // 2. Specializing the shadow shader to call `poisson_disk_pcf()`
+        // 3. Binding the PoissonDiskUniform in the shadow bind group
+        //
+        // This plugin provides the foundation and shader loading.
     }
 }
