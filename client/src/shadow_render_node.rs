@@ -36,9 +36,7 @@ pub struct ShadowQualityState {
 /// Holds temporal accumulation textures for high-quality soft shadows
 #[derive(Resource, Default)]
 pub struct ShadowTemporalAccumulation {
-    /// Accumulated soft shadow history
     pub accumulation: Option<Handle<Image>>,
-    /// Statistical moments (mean + variance) for variance-guided filtering
     pub moments: Option<Handle<Image>>,
 }
 
@@ -54,14 +52,13 @@ impl Node for PoissonDiskShadowNode {
         world: &World,
     ) -> Result<(), NodeRunError> {
         let _bind_group = world.resource::<ActivePoissonDiskBindGroup>();
-        // TODO: Bind Poisson Disk group during custom shadow/lighting pass
+        // TODO: Bind during custom shadow/lighting pass
         Ok(())
     }
 }
 
 // ==================== SYSTEMS ====================
 
-/// Creates the temporal shadow accumulation textures (Startup)
 pub fn setup_shadow_accumulation_textures(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
@@ -80,7 +77,6 @@ pub fn setup_shadow_accumulation_textures(
         depth_or_array_layers: 1,
     };
 
-    // Accumulation texture (single channel history)
     let accumulation_texture = Image {
         texture_descriptor: TextureDescriptor {
             label: Some("shadow_accumulation"),
@@ -97,7 +93,6 @@ pub fn setup_shadow_accumulation_textures(
         ..default()
     };
 
-    // Moments texture (mean + variance)
     let moments_texture = Image {
         texture_descriptor: TextureDescriptor {
             label: Some("shadow_moments"),
@@ -120,10 +115,9 @@ pub fn setup_shadow_accumulation_textures(
     accumulation.accumulation = Some(accumulation_handle);
     accumulation.moments = Some(moments_handle);
 
-    info!("Temporal shadow accumulation textures created for high-quality PCF");
+    info!("Temporal shadow accumulation textures created");
 }
 
-/// Updates the Poisson Disk PCF bind group
 pub fn update_poisson_disk_bind_group(
     mut poisson_bind_group: ResMut<PoissonDiskBindGroup>,
     kernel: Res<PoissonDiskKernel>,
@@ -178,21 +172,27 @@ pub fn update_poisson_disk_bind_group(
     poisson_bind_group.bind_group = Some(bind_group);
 }
 
-/// Core temporal shadow accumulation system (variance-guided)
+pub fn integrate_poisson_disk_bind_group(
+    bind_group: Res<PoissonDiskBindGroup>,
+    mut active_bind_group: ResMut<ActivePoissonDiskBindGroup>,
+    shadow_quality: Res<ShadowQualityState>,
+) {
+    if shadow_quality.is_high_quality {
+        active_bind_group.bind_group = bind_group.bind_group.clone();
+    } else {
+        active_bind_group.bind_group = None;
+    }
+}
+
 pub fn update_shadow_temporal_accumulation(
     shadow_quality: Res<ShadowQualityState>,
-    // TODO: Add motion vectors, current shadow result, etc. when implementing the WGSL pass
 ) {
     if !shadow_quality.is_high_quality {
         return;
     }
 
-    // Placeholder for temporal accumulation logic:
-    // 1. Reproject previous accumulation using motion vectors
-    // 2. Compute variance of current frame
-    // 3. Apply variance-guided clamping
-    // 4. Blend current result with history
-    // 5. Update moments for next frame
+    // TODO: Implement variance-guided temporal accumulation
+    // (reprojection, variance clamping, blending, moment updates)
 }
 
 // ==================== PLUGIN ====================
