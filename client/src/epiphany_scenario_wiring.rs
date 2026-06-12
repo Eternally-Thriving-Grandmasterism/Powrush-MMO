@@ -1,10 +1,8 @@
 // client/src/epiphany_scenario_wiring.rs
-// Powrush-MMO v18.10+ — Epiphany Scenario Wiring + Organic Global Triggers
-// Production-grade, mint-and-print, zero-TODO, TOLC 8 + 7 Living Mercy Gates enforced
-// Fully integrated with real-repo: fundsp_audio.rs, council_mercy_trial.rs (SharedReceptorBloomField),
-// Mycorrhizal Network Synchronization, SteamworksIntegrationPlug, existing HarvestEvent + CouncilTrialEvent
-// Hot-reload ready via 11-language Divine Whispers (content/locales/*.json)
-// Ra-Thor + All 13+ PATSAGi Councils — June 11, 2026
+// Powrush-MMO v18.24 — Epiphany Scenario Wiring + Strong Client Feedback
+// Now bridges EpiphanyEvent to DivineWhisperTrigger (is_epiphany=true) for rich Divine Whispers + UI + particles
+// Production-grade, mint-and-print, TOLC 8 enforced
+// AG-SML v1.0 Sovereign Mercy License
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,7 +13,8 @@ use std::path::PathBuf;
 use crate::fundsp_audio::{AudioResonanceSeed, EpiphanyAudioEvent, ActiveProceduralEpiphanies};
 use crate::simulation::council_mercy_trial::{CouncilTrialEvent, SharedReceptorBloomField, MercyPathChoice};
 use crate::multiplayer_web_deepening::{MultiplayerWebState, WebGiftEvent, LegacyInheritanceEvent, ClanHarmonyEvent};
-use crate::steamworks_integration_plug::SteamworksIntegrationPlug; // real-repo production plug
+use crate::steamworks_integration_plug::SteamworksIntegrationPlug;
+use simulation::divine_whispers::DivineWhisperTrigger; // For strong client feedback
 
 /// Epiphany Scenario Data (hot-loadable JSON)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,7 +35,7 @@ pub struct TriggerConditions {
     pub min_mercy_score: Option<f32>,
     pub requires_council_trial_success: Option<bool>,
     pub requires_multiplayer: Option<bool>,
-    pub biome_specific: Option<String>, // "crystal_spires_resonance_peak", "abyssal_depths_mycelium_surge", etc.
+    pub biome_specific: Option<String>,
     pub seasonal_modifier: Option<String>,
 }
 
@@ -48,7 +47,6 @@ pub struct BiomeModifiers {
     pub web_persistence_bonus: f32,
 }
 
-/// Main Epiphany Wiring Resource (hot-reloadable)
 #[derive(Resource, Debug, Clone)]
 pub struct EpiphanyScenarioRegistry {
     pub scenarios: HashMap<String, EpiphanyScenario>,
@@ -64,13 +62,11 @@ impl Default for EpiphanyScenarioRegistry {
     }
 }
 
-/// Load all epiphany scenarios from content/epiphany_scenarios/ + new biomes
 pub fn load_epiphany_scenarios() -> EpiphanyScenarioRegistry {
     let mut registry = EpiphanyScenarioRegistry::default();
     let scenarios_dir = PathBuf::from("content/epiphany_scenarios");
     let biomes_dir = PathBuf::from("content/biomes");
 
-    // Load existing scenarios
     if let Ok(entries) = fs::read_dir(&scenarios_dir) {
         for entry in entries.flatten() {
             if let Some(name) = entry.path().file_stem() {
@@ -83,13 +79,11 @@ pub fn load_epiphany_scenarios() -> EpiphanyScenarioRegistry {
         }
     }
 
-    // Load new living biomes (Crystal Spires + Abyssal Depths) — production drop-in
     let biome_files = ["crystal_spires_ecology_v18.10.json", "abyssal_depths_ecology_v18.10.json"];
     for file in biome_files {
         let path = biomes_dir.join(file);
         if let Ok(content) = fs::read_to_string(&path) {
             if let Ok(biome_data) = serde_json::from_str::<serde_json::Value>(&content) {
-                // Convert biome ecology into EpiphanyScenario triggers + audio seeds
                 if let Some(id) = biome_data.get("id").and_then(|v| v.as_str()) {
                     let scenario = EpiphanyScenario {
                         id: id.to_string(),
@@ -127,12 +121,13 @@ pub fn load_epiphany_scenarios() -> EpiphanyScenarioRegistry {
     registry
 }
 
-/// Epiphany Detector System — listens to HarvestEvent + CouncilTrialEvent + MultiplayerWebState
+/// Epiphany Detector System — now also triggers strong Divine Whispers + UI feedback
 pub fn epiphany_detector_system(
     mut harvest_events: EventReader<HarvestEvent>,
     mut council_events: EventReader<CouncilTrialEvent>,
     mut web_state: ResMut<MultiplayerWebState>,
     mut epiphany_events: EventWriter<EpiphanyEvent>,
+    mut divine_whisper_events: EventWriter<DivineWhisperTrigger>, // v18.24 bridge
     mut audio_events: EventWriter<EpiphanyAudioEvent>,
     registry: Res<EpiphanyScenarioRegistry>,
     steam_plug: Option<Res<SteamworksIntegrationPlug>>,
@@ -143,22 +138,20 @@ pub fn epiphany_detector_system(
         let zone = &harvest.zone_id;
         let biome = &harvest.biome_id;
 
-        // Check for Living Web Interconnection trigger
         if attunement >= 0.7 && mercy >= 0.75 {
             if let Some(scenario) = registry.scenarios.get("living_web_interconnection") {
-                trigger_scenario(scenario, &mut epiphany_events, &mut audio_events, Some(&web_state), biome);
+                trigger_scenario(scenario, &mut epiphany_events, &mut divine_whisper_events, &mut audio_events, Some(&web_state), biome);
             }
         }
 
-        // Biome-specific triggers (new living biomes)
         if biome == "crystal_spires" && harvest.season == "resonance_peak" && attunement >= 0.75 {
             if let Some(scenario) = registry.scenarios.get("crystal_spires_resonance_peak") {
-                trigger_scenario(scenario, &mut epiphany_events, &mut audio_events, Some(&web_state), biome);
+                trigger_scenario(scenario, &mut epiphany_events, &mut divine_whisper_events, &mut audio_events, Some(&web_state), biome);
             }
         }
         if biome == "abyssal_depths" && harvest.season == "mycelium_surge" && mercy >= 0.8 {
             if let Some(scenario) = registry.scenarios.get("abyssal_depths_mycelium_surge") {
-                trigger_scenario(scenario, &mut epiphany_events, &mut audio_events, Some(&web_state), biome);
+                trigger_scenario(scenario, &mut epiphany_events, &mut divine_whisper_events, &mut audio_events, Some(&web_state), biome);
             }
         }
     }
@@ -166,8 +159,7 @@ pub fn epiphany_detector_system(
     for council in council_events.read() {
         if council.mercy_score >= 0.85 && council.success {
             if let Some(scenario) = registry.scenarios.get("graceful_mercy_circle") {
-                trigger_scenario(scenario, &mut epiphany_events, &mut audio_events, Some(&web_state), &council.zone_id);
-                // Boost shared receptor bloom via real SharedReceptorBloomField
+                trigger_scenario(scenario, &mut epiphany_events, &mut divine_whisper_events, &mut audio_events, Some(&web_state), &council.zone_id);
                 if let Some(steam) = &steam_plug {
                     steam.record_council_blessed_epiphany(council.player_id, council.mercy_score);
                 }
@@ -175,23 +167,23 @@ pub fn epiphany_detector_system(
         }
     }
 
-    // Multiplayer web bloom detection (2+ players high simultaneous attunement)
     if web_state.players_in_zone >= 2 && web_state.avg_attunement >= 0.75 {
         if let Some(scenario) = registry.scenarios.get("shared_golden_web_bloom") {
-            trigger_scenario(scenario, &mut epiphany_events, &mut audio_events, Some(&web_state), &web_state.current_zone);
+            trigger_scenario(scenario, &mut epiphany_events, &mut divine_whisper_events, &mut audio_events, Some(&web_state), &web_state.current_zone);
         }
     }
 }
 
-/// Core trigger function — wires exact audio_resonance_seed into live granular fire + web/clan effects
+/// Core trigger — now sends DivineWhisperTrigger with is_epiphany=true for rich client feedback
 fn trigger_scenario(
     scenario: &EpiphanyScenario,
     epiphany_events: &mut EventWriter<EpiphanyEvent>,
+    divine_whisper_events: &mut EventWriter<DivineWhisperTrigger>,
     audio_events: &mut EventWriter<EpiphanyAudioEvent>,
     web_state: Option<&MultiplayerWebState>,
     current_biome: &str,
 ) {
-    // Emit EpiphanyEvent for UI / history / clan
+    // Emit EpiphanyEvent for UI / history
     epiphany_events.send(EpiphanyEvent {
         scenario_id: scenario.id.clone(),
         name: scenario.name.clone(),
@@ -201,7 +193,15 @@ fn trigger_scenario(
         timestamp: std::time::SystemTime::now(),
     });
 
-    // Send precise AudioResonanceSeed to fundsp_audio.rs live granular synthesis
+    // v18.24 — Strong Divine Whispers + UI feedback
+    divine_whisper_events.send(DivineWhisperTrigger {
+        text: scenario.description.clone(),
+        flavor: scenario.name.clone(),
+        intensity: 0.9,
+        duration_seconds: 9.0,
+        is_epiphany: true,
+    });
+
     let mut seed = scenario.audio_resonance_seed.clone();
     if let Some(biome_mod) = &scenario.biome_modifiers {
         seed.intensity *= biome_mod.audio_intensity_boost;
@@ -209,19 +209,19 @@ fn trigger_scenario(
     }
     if let Some(web) = web_state {
         if web.players_in_zone >= 2 {
-            seed.bloom_intensity *= 1.8; // multiplayer shared bloom boost
+            seed.bloom_intensity *= 1.8;
             seed.flavor = format!("{}_shared_web", seed.flavor);
         }
     }
     audio_events.send(EpiphanyAudioEvent { seed });
 
-    info!("🌟 Epiphany triggered: {} | Biome: {} | Mercy-aligned audio seed injected into fundsp fire", scenario.id, current_biome);
+    info!("🌟 Epiphany triggered with full client feedback: {} | Biome: {}", scenario.id, current_biome);
 }
 
-/// Onboarding: First sustainable harvest gently seeds Living Web whisper
 pub fn onboarding_first_web_epiphany(
     mut harvest_events: EventReader<HarvestEvent>,
     mut epiphany_events: EventWriter<EpiphanyEvent>,
+    mut divine_whisper_events: EventWriter<DivineWhisperTrigger>,
     registry: Res<EpiphanyScenarioRegistry>,
 ) {
     for harvest in harvest_events.read() {
@@ -235,12 +235,20 @@ pub fn onboarding_first_web_epiphany(
                     mercy_gates: scenario.mercy_gate_modifiers.clone(),
                     timestamp: std::time::SystemTime::now(),
                 });
+
+                // Strong first epiphany feedback
+                divine_whisper_events.send(DivineWhisperTrigger {
+                    text: "The first gentle whisper of interconnection...".to_string(),
+                    flavor: "Living Web".to_string(),
+                    intensity: 0.85,
+                    duration_seconds: 10.0,
+                    is_epiphany: true,
+                });
             }
         }
     }
 }
 
-/// Epiphany Event for UI, history, clan celebrations
 #[derive(Event, Debug, Clone)]
 pub struct EpiphanyEvent {
     pub scenario_id: String,
