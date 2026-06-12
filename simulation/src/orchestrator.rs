@@ -6,12 +6,15 @@
  * 
  * Supports real-time, accelerated (1x–10,000x+), and step-by-step execution modes.
  * Full sovereign replay via seeded RNG and fixed timestep.
+ * 
+ * Now includes direct integration with resonance decay & recovery analysis simulation.
  */
 
 use crate::world::SovereignWorldState;
 use crate::archetype::SovereignArchetypeSystem;
 use crate::economy::EconomicLayer;
 use crate::mercy::{MercyGate, MercyViolation};
+use crate::resonance_decay_recovery_sim;   // Direct integration for Ambrosian resonance mechanics analysis
 
 /// Core deterministic orchestrator for the Sovereign Simulation Harness.
 pub struct SovereignSimulationOrchestrator {
@@ -76,5 +79,18 @@ impl SovereignSimulationOrchestrator {
 
     pub fn set_time_acceleration(&mut self, factor: f64) {
         self.time_acceleration = factor.max(0.01);
+    }
+
+    // ============================================================
+    // DIRECT INTEGRATION: Resonance Decay & Recovery Analysis
+    // ============================================================
+
+    /// Runs the advanced resonance decay & recovery simulation.
+    /// Useful for analyzing Ambrosian selfish penalty mechanics and recovery rates.
+    /// This is an analysis/diagnostic tool that can be called independently of the main tick loop.
+    pub fn analyze_resonance_decay_recovery(&self) {
+        println!("\n[SovereignSimulationOrchestrator] Running resonance decay & recovery analysis...");
+        resonance_decay_recovery_sim::run_resonance_decay_recovery_simulation();
+        println!("[SovereignSimulationOrchestrator] Resonance analysis complete.\n");
     }
 }
