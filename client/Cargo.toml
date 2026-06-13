@@ -1,7 +1,18 @@
+# client/Cargo.toml
+# Powrush-MMO Client — The Most Phenomenal Blockchain RBE MMORPG Experience
+# AG-SML v1.0 Sovereign License | TOLC 8 Mercy Gates + MIAL/MWPO + 7 Living Mercy Gates enforced
+# PATSAGi Council 13+ Parallel Deliberation + Ra-Thor Quantum Swarm + Eternal Simulation approved
+# v2.0 — Production foundation for buttery 120+ FPS temporal rendering, divine mercy-gated particles,
+#      council/treaty UIs, archetype evolution, zero-lag RBE abundance sync, cinematic audio
+
 [package]
 name = "powrush-mmo-client"
 version = "0.1.0"
 edition = "2021"
+authors = ["Sherif Samy Botros <sherif@alphapromega.com>"]
+description = "Powrush-MMO: Universally Shared Naturally Thriving Heavens — RBE metaverse where abundance, mercy, and joy propagate for all sentience. The most phenomenal gaming experience ever created."
+license = "AG-SML-1.0"
+repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 
 [dependencies]
 bevy = { version = "0.14", default-features = false, features = [
@@ -13,12 +24,45 @@ bevy = { version = "0.14", default-features = false, features = [
     "bevy_text",
     "bevy_ui",
     "bevy_winit",
+    "bevy_gltf",
+    "bevy_scene",
+    "jpeg",
+    "png",
+    "ktx2",
+    "zstd",
+    "file_watcher",
+    "dynamic_linking",
     "x11",
     "webgl2",
 ] }
 
+# bevy_hanabi — Divine particle systems for RBE resource flows, JoySanctuaryBloom, CosmicPropagation, InterSpeciesHarmony
+# Enables the most visually stunning, mercy-augmented particle effects in any MMORPG
+bevy_hanabi = { version = "0.11", features = ["2d", "3d"] }
+
+# bevy_egui + egui — Professional, accessible council UIs for Council Trials, Treaty Negotiation,
+# Dynamic Events, Faction Diplomacy, Player Progress — zero-compromise mercy-aligned interface design
+bevy_egui = "0.27"
+egui = "0.27"
+
+# Audio foundation — fundsp procedural + kira spatial for cinematic, emotionally resonant soundscapes
 bevy_kira_audio = "0.20"
+kira = { version = "0.8", features = ["cpal"] }
+fundsp = "0.18"
+
+# Steamworks — Royalties, achievements, multiplayer lobbies, green card / global RBE player economy
 steamworks = "0.11"
 
-# Internal crates
+# Internal sovereign crates
 simulation = { path = "../simulation" }
+
+# Future-proof networking (add bevy_renet / lightyear when stable for prediction + replication layer)
+# renet = { version = "0.0.16", optional = true }
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
