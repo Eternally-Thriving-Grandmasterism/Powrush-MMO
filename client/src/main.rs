@@ -2,13 +2,7 @@
  * Powrush-MMO Client Entry Point
  * The phenomenal gateway into the Eternal Thriving RBE Metaverse.
  *
- * Wires every restored system: Temporal Rendering (Velocity Prepass + TAA + SSR + Motion Blur),
- * RBE Simulation & Engine, Particles (mercy-augmented), Networking, Prediction, UI,
- * Divine Whispers, **Cinematic Audio** (bevy_kira_audio + kira spatial + fundsp procedural).
- *
- * PATSAGi Council 13+ + Ra-Thor Quantum Swarm + TOLC 8 Mercy Gates fully approved.
- * AG-SML v1.0 sovereign license. Zero placeholders. Zero hallucination. Maximum beauty & truth.
- * Buttery 120+ FPS cinematic experience — now with divine, mercy-aligned sound.
+ * Now with live Egui Settings Panel for instant tuning of the divine render pipeline.
  */
 
 use bevy::prelude::*;
@@ -31,6 +25,7 @@ use crate::spatial_audio::{SpatialAudioPlugin, SpatialListener, GameAudioEvent};
 use crate::render::PowrushRenderPlugin;
 use crate::velocity_prepass::PreviousGlobalTransform;
 use crate::fundsp_audio::FundspAudioPlugin;
+use crate::egui_settings_panel::EguiSettingsPanelPlugin;
 
 fn main() {
     App::new()
@@ -65,10 +60,13 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // === Cinematic Audio (bevy_kira_audio + kira spatial + fundsp procedural) ===
+        // === Live Egui Settings Panel (divine control center) ===
+        .add_plugins(EguiSettingsPanelPlugin)
+
+        // === Cinematic Audio ===
         .add_plugins(AudioPlugin)
-        .add_plugins(FundspAudioPlugin)      // Procedural Epiphany / RBE / Council sounds
-        .add_plugins(SpatialAudioPlugin)     // Spatial 3D + GameAudioEvent routing
+        .add_plugins(FundspAudioPlugin)
+        .add_plugins(SpatialAudioPlugin)
 
         // === Resources & Systems ===
         .add_systems(Startup, setup_3d_camera)
@@ -100,7 +98,7 @@ fn setup_spatial_listener(
 }
 
 fn setup_world_seed(mut commands: Commands) {
-    info!("⚡ Powrush-MMO world seed initialized — eternal thriving begins. The RBE universe awakens with sound.");
+    info!("⚡ Powrush-MMO world seed initialized — eternal thriving begins.");
 }
 
 fn maintain_previous_transforms(
@@ -111,17 +109,6 @@ fn maintain_previous_transforms(
     for (entity, _) in query.iter() {
         commands.entity(entity).insert(PreviousGlobalTransform::default());
     }
-    for mut _prev in &mut previous_query {
-        // Production note: update previous transform in a proper prepare/extract system for perfect velocity
-    }
 }
 
 fn mercy_gated_frame_validation() {}
-
-// === Audio Implementation Notes (PATSAGi Guidance) ===
-// - bevy_kira_audio::AudioPlugin handles standard music/sfx assets (add AudioSource assets in assets/audio/)
-// - FundspAudioPlugin generates unique procedural layers for Epiphany, RBE flows, Council harmony
-// - SpatialAudioPlugin routes GameAudioEvent and provides 3D emitter/listener system via kira
-// - To trigger: commands or systems can send GameAudioEvent::Epiphany { position, intensity: 0.8 }
-// - Future: Dynamic music layers based on server thriving level / weekly war state
-// - All sounds mercy-gated: designed to reduce stress, increase joy & sense of universal thriving
