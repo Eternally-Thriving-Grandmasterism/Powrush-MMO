@@ -12,10 +12,12 @@ pub mod components;
 pub mod events;
 pub mod resources;
 pub mod systems;
+pub mod ui;
 
 pub use components::*;
 pub use events::*;
 pub use resources::*;
+pub use ui::ability_bars::*;
 
 use bevy::prelude::*;
 
@@ -29,6 +31,7 @@ impl Plugin for AmbrosianAscensionPlugin {
             .add_event::<MercyAscentCompleted>()
             .add_event::<AmbrosianTransformation>()
             .init_resource::<ServerResonanceState>()
+            .add_systems(Startup, crate::ascension::ui::ability_bars::spawn_ability_bar_system)
             .add_systems(Update, (
                 // Trial Systems
                 crate::ascension::systems::trial::handle_mercy_ascent_attempt_system,
@@ -42,6 +45,9 @@ impl Plugin for AmbrosianAscensionPlugin {
                 // Mirror Reckoning Integration
                 crate::ascension::systems::integration::sync_mirror_and_ascension_system,
                 crate::ascension::systems::integration::ambrosian_mirror_influence_system,
+                // Ability Bar UI
+                crate::ascension::ui::ability_bars::update_ability_cooldowns_system,
+                crate::ascension::ui::ability_bars::update_harmony_stacks_system,
             ));
     }
 }
