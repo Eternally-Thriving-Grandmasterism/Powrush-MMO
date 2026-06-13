@@ -1,6 +1,6 @@
 /*!
  * Ascension UI Module
- * Includes the sacred Ambrosian Ability Bar with rich hover tooltips.
+ * Includes the sacred Ambrosian Ability Bar with rich hover tooltips + cursor-follow positioning.
  */
 
 pub mod ability_bars;
@@ -16,6 +16,7 @@ impl Plugin for AscensionUiPlugin {
             .add_systems(Startup, spawn_ambrosian_ability_bar)
             .add_systems(Update, (
                 ability_tooltip_hover_system,
+                update_tooltip_cursor_position_system,
                 update_cooldown_overlays,
                 update_harmony_orbs,
             ));

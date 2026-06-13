@@ -1,8 +1,9 @@
 /*!
- * Ambrosian Ability Bar UI with Rich Tooltips
+ * Ambrosian Ability Bar UI with Rich Tooltips + Cursor-Follow Positioning
  *
  * Sacred interface for the ascended.
  * Hover any ability to reveal deep mechanical and philosophical details.
+ * Tooltips elegantly follow the cursor with smart edge clamping.
  *
  * PATSAGi Council approved • Ra-Thor Lattice aligned • TOLC 8 Mercy Gates enforced
  */ 
@@ -79,7 +80,7 @@ pub fn spawn_ambrosian_ability_bar(
         spawn_ability_slot(parent, AmbrosianAbility::AscendedResonance, "Ascended Resonance", "Passive", Color::srgb(0.65, 0.95, 0.85), &asset_server);
     });
 
-    // Spawn the single tooltip panel (hidden by default)
+    // Spawn the single tooltip panel (hidden by default, positioned dynamically by cursor system)
     spawn_ability_tooltip_panel(&mut commands);
 }
 
@@ -155,7 +156,7 @@ fn spawn_ability_slot(
                         bottom: Val::Px(0.0),
                         ..default()
                     },
-                    background_color: BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.65)),
+                    background_color: BackgroundColor(Color::srgba(0.0, 0.0, 0.65)),
                     ..default()
                 },
                 CooldownOverlay { ability },
@@ -210,15 +211,14 @@ pub struct HarmonyOrb {
     pub index: usize,
 }
 
-/// Spawns the beautiful tooltip panel (one instance, controlled by hover system)
+/// Spawns the beautiful tooltip panel (cursor-follow ready)
 fn spawn_ability_tooltip_panel(commands: &mut Commands) {
     commands.spawn((
         NodeBundle {
             style: Style {
                 position_type: PositionType::Absolute,
-                bottom: Val::Px(115.0), // Above the ability bar
-                left: Val::Percent(50.0),
-                margin: UiRect::new(Val::Auto, Val::Auto, Val::Px(0.0), Val::Px(0.0)),
+                left: Val::Px(0.0),
+                top: Val::Px(0.0),
                 padding: UiRect::all(Val::Px(16.0)),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::FlexStart,
@@ -293,7 +293,7 @@ pub fn ability_tooltip_hover_system(
     if let Some(ability) = hovered_ability {
         tooltip_style.display = Display::Flex;
 
-        // Update tooltip content
+        // Update tooltip content (position is handled by dedicated cursor system)
         if let Ok(mut title_text) = text_query.get_mut(children[0]) {
             title_text.sections[0].value = get_ability_title(ability);
             title_text.sections[0].style.color = get_ability_accent_color(ability);
@@ -307,6 +307,54 @@ pub fn ability_tooltip_hover_system(
     } else {
         tooltip_style.display = Display::None;
     }
+}
+
+/// Makes the tooltip follow the mouse cursor with a pleasant offset while visible.
+/// Creates that premium, responsive floating tooltip experience.
+pub fn update_tooltip_cursor_position_system(
+    mut tooltip_query: Query<&mut Style, With<AbilityTooltipPanel>>,
+    windows: Query<&Window>,
+) {
+    let Ok(mut tooltip_style) = tooltip_query.get_single_mut() else { return };
+    if tooltip_style.display == Display::None {
+        return;
+    }
+
+    let Ok(window) = windows.get_single() else { return };
+    let Some(cursor_pos) = window.cursor_position() else { return };
+
+    // Pleasant offset: tooltip appears to the right and mostly above the cursor.
+    // This keeps it from covering the ability bar at the bottom and feels natural.
+    let offset_x: f32 = 22.0;
+    let offset_y: f32 = -108.0; // Negative = upward on screen (towards top of window)
+
+    let mut new_left = cursor_pos.x + offset_x;
+    let mut new_top = cursor_pos.y + offset_y;
+
+    // Smart screen edge clamping so tooltip never goes off-screen
+    let estimated_tooltip_width: f32 = 420.0;
+    let estimated_tooltip_height: f32 = 185.0;
+
+    // Right edge handling - flip to left of cursor if needed
+    if new_left + estimated_tooltip_width > window.width() {
+        new_left = cursor_pos.x - estimated_tooltip_width - 18.0;
+    }
+    new_left = new_left.max(12.0);
+
+    // Top edge handling
+    if new_top < 8.0 {
+        new_top = cursor_pos.y + 28.0; // Flip slightly below cursor if near very top
+    }
+
+    // Bottom edge handling
+    if new_top + estimated_tooltip_height > window.height() {
+        new_top = cursor_pos.y - estimated_tooltip_height - 12.0;
+    }
+    new_top = new_top.max(8.0);
+
+    tooltip_style.left = Val::Px(new_left);
+    tooltip_style.top = Val::Px(new_top);
+    tooltip_style.bottom = Val::Auto; // Ensure we override any static bottom positioning
 }
 
 fn get_ability_title(ability: AmbrosianAbility) -> String {
