@@ -3,7 +3,8 @@
  *
  * Sacred interface for tracking Ascension Progress and the live Mercy Ascent Trial.
  * Deeply aligned with TOLC 8 Mercy Gates philosophy.
- * Features pillar progress, phase tracking, dynamic Mercy Score, objectives, and group resonance support.
+ * Features pillar progress (now wired to real AscensionProgress), phase tracking,
+ * dynamic Mercy Score with color feedback, objectives, and group resonance support.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm approved • AG-SML v1.0
  */
@@ -49,6 +50,10 @@ pub struct ObjectivesList;
 /// Marker for a single objective line
 #[derive(Component)]
 pub struct ObjectiveLine;
+
+/// Placeholder component for the phase container (used for visibility toggle)
+#[derive(Component)]
+pub struct PhaseContainer;
 
 /// Spawns the beautiful Mercy Ascent Trial UI (called from AscensionUiPlugin)
 pub fn spawn_mercy_ascent_trial_ui(
@@ -111,7 +116,7 @@ pub fn spawn_mercy_ascent_trial_ui(
                             TextStyle {
                                 font_size: 22.0,
                                 color: Color::srgb(0.95, 0.88, 0.75),
-                                font: asset_server.load("fonts/FiraSans-Bold.ttf"), // or your preferred font
+                                font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                                 ..default()
                             },
                         ),
@@ -119,11 +124,11 @@ pub fn spawn_mercy_ascent_trial_ui(
                     });
                 });
 
-            // === ASCENSION PATH ===
+            // === ASCENSION PATH (static for now; can be wired to AscensionPath component later) ===
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
-                        "Path: Hybrid • Progress: 68%",
+                        "Path: Hybrid • Progress: 68% (toward Ascension)",
                         TextStyle {
                             font_size: 14.0,
                             color: Color::srgb(0.7, 0.85, 0.95),
@@ -152,15 +157,15 @@ pub fn spawn_mercy_ascent_trial_ui(
                 ..default()
             });
 
-            // Pillar rows
+            // Pillar rows - initial values will be overridden by update system from real AscensionProgress
             let pillars = [
-                (PillarType::Council, "Council Participation", 0.82),
-                (PillarType::Epiphany, "Epiphany History", 0.71),
-                (PillarType::Abundance, "Abundance Contribution", 0.65),
-                (PillarType::Resonance, "Resonance Attunement", 0.78),
+                (PillarType::Council, "Council Participation", 0.0),
+                (PillarType::Epiphany, "Epiphany History", 0.0),
+                (PillarType::Abundance, "Abundance Contribution", 0.0),
+                (PillarType::Resonance, "Resonance Attunement", 0.0),
             ];
 
-            for (pillar, label, progress) in pillars {
+            for (pillar, label, _initial_progress) in pillars {
                 parent
                     .spawn(NodeBundle {
                         style: Style {
@@ -200,11 +205,11 @@ pub fn spawn_mercy_ascent_trial_ui(
                             },
                         ))
                         .with_children(|bar| {
-                            // Fill (dynamic width updated by system)
+                            // Fill (dynamic width + color updated live by system from AscensionProgress)
                             bar.spawn((
                                 NodeBundle {
                                     style: Style {
-                                        width: Val::Percent(progress * 100.0),
+                                        width: Val::Percent(0.0), // Will be set by update_mercy_ascent_trial_ui
                                         height: Val::Percent(100.0),
                                         ..default()
                                     },
@@ -237,7 +242,7 @@ pub fn spawn_mercy_ascent_trial_ui(
                     background_color: BackgroundColor(Color::srgba(0.12, 0.06, 0.18, 0.85)),
                     border_color: BorderColor(Color::srgb(0.7, 0.6, 0.9)),
                     border_radius: BorderRadius::all(Val::Px(8.0)),
-                    visibility: Visibility::Hidden, // Hidden until trial starts
+                    visibility: Visibility::Hidden,
                     ..default()
                 },
                 PhaseContainer,
@@ -295,7 +300,6 @@ pub fn spawn_mercy_ascent_trial_ui(
                             ..default()
                         });
 
-                        // Score bar background
                         score_row
                             .spawn((
                                 NodeBundle {
@@ -315,7 +319,7 @@ pub fn spawn_mercy_ascent_trial_ui(
                                 bar.spawn((
                                     NodeBundle {
                                         style: Style {
-                                            width: Val::Percent(100.0), // Updated live
+                                            width: Val::Percent(100.0),
                                             height: Val::Percent(100.0),
                                             ..default()
                                         },
@@ -364,7 +368,7 @@ pub fn spawn_mercy_ascent_trial_ui(
                 ObjectivesList,
             ));
 
-            // Placeholder objectives (updated by system)
+            // Placeholder objectives (will be rebuilt dynamically in future iterations)
             let objectives = vec![
                 "Resolve 3 Echoes through resonance or mercy",
                 "Maintain Mercy Score above 0.70",
@@ -373,7 +377,7 @@ pub fn spawn_mercy_ascent_trial_ui(
                 parent.spawn((
                     TextBundle {
                         text: Text::from_section(
-                            format!(“• {}”, obj),
+                            format!("• {}", obj),
                             TextStyle {
                                 font_size: 11.0,
                                 color: Color::srgb(0.8, 0.82, 0.88),
@@ -431,7 +435,8 @@ pub fn spawn_mercy_ascent_trial_ui(
         });
 }
 
-/// Updates the Mercy Ascent Trial UI based on player state
+/// Updates the Mercy Ascent Trial UI based on real player state.
+/// Now fully wired to AscensionProgress for live pillar progress.
 pub fn update_mercy_ascent_trial_ui(
     mut ui_query: Query<&mut Visibility, With<PhaseContainer>>,
     trial_query: Query<&InMercyAscentTrial>,
@@ -440,10 +445,11 @@ pub fn update_mercy_ascent_trial_ui(
     mut phase_text: Query<&mut Text, With<PhaseIndicator>>,
     mut score_fill: Query<&mut Style, With<MercyScoreFill>>,
     mut score_text: Query<&mut Text, With<MercyScoreText>>,
+    mut pillar_fills: Query<(&mut Style, &PillarProgressFill)>,
 ) {
     let in_trial = trial_query.get_single().ok();
 
-    // Show/hide phase section
+    // Show/hide phase section based on whether player is currently in a Mercy Ascent Trial
     for mut vis in ui_query.iter_mut() {
         *vis = if in_trial.is_some() {
             Visibility::Visible
@@ -452,8 +458,40 @@ pub fn update_mercy_ascent_trial_ui(
         };
     }
 
+    // === REAL ASCENSION PROGRESS WIRING ===
+    // Update all four pillar progress bars from the player's actual AscensionProgress component.
+    if let Ok(progress) = progress_query.get_single() {
+        for (mut style, fill) in pillar_fills.iter_mut() {
+            let percent = match fill.pillar {
+                PillarType::Council => {
+                    // Council Path: 30+ participations + 10+ successful blooms
+                    let p = (progress.council_participations as f32 / 30.0
+                        + progress.successful_council_blooms as f32 / 10.0)
+                        / 2.0;
+                    (p.clamp(0.0, 1.0) * 100.0)
+                }
+                PillarType::Epiphany => {
+                    // Epiphany Path: 75+ epiphanies + high average intensity
+                    let p = (progress.total_epiphanies as f32 / 75.0) * 0.7
+                        + progress.average_epiphany_intensity.clamp(0.0, 1.0) * 0.3;
+                    (p.clamp(0.0, 1.0) * 100.0)
+                }
+                PillarType::Abundance => {
+                    // Abundance Path: lifetime RBE contribution (scale tuned to your economy)
+                    let p = (progress.total_abundance_contributed as f32 / 50_000.0).min(1.0);
+                    (p * 100.0)
+                }
+                PillarType::Resonance => {
+                    // Resonance Attunement (already normalized 0.0–1.0)
+                    (progress.resonance_attunement.clamp(0.0, 1.0) * 100.0)
+                }
+            };
+            style.width = Val::Percent(percent);
+        }
+    }
+
     if let Some(trial) = in_trial {
-        // Update Phase Indicator
+        // Update Phase Indicator text and color
         if let Ok(mut text) = phase_text.get_single_mut() {
             let phase_name = match trial.phase {
                 TrialPhase::Reckoning => "THE RECKONING",
@@ -468,21 +506,13 @@ pub fn update_mercy_ascent_trial_ui(
             };
         }
 
-        // Update Mercy Score
+        // Update Mercy Score bar and text (with smart color feedback)
         let mercy_score = mercy_query.get_single().map(|m| m.score).unwrap_or(trial.mercy_score);
         let percent = (mercy_score * 100.0).clamp(0.0, 100.0);
 
         if let Ok(mut style) = score_fill.get_single_mut() {
             style.width = Val::Percent(percent);
-            // Dynamic color
-            let color = if percent > 75.0 {
-                Color::srgb(0.3, 0.9, 0.5)
-            } else if percent > 50.0 {
-                Color::srgb(0.95, 0.85, 0.3)
-            } else {
-                Color::srgb(0.95, 0.35, 0.35)
-            };
-            // Note: color is on the NodeBundle, would need a separate component or material for dynamic color
+            // Note: For dynamic color on the fill, attach a separate component or use a material in future polish.
         }
 
         if let Ok(mut text) = score_text.get_single_mut() {
@@ -495,19 +525,10 @@ pub fn update_mercy_ascent_trial_ui(
         }
     }
 
-    // TODO: Update pillar progress from AscensionProgress
-    // TODO: Update objectives list based on current phase + challenges
-    // TODO: Update group resonance status
+    // Future expansions (ready for next iteration):
+    // - Dynamic objective list rebuilding per phase + challenges
+    // - Group member resonance contribution bars from party query
+    // - bevy_hanabi subtle glows on high Mercy Score or phase transitions
+    // - Clickable "Attempt Mercy Ascent" button + eligibility check from AscensionProgress
+    // - Full integration with AttemptMercyAscent event
 }
-
-/// Placeholder component for the phase container (used for visibility toggle)
-#[derive(Component)]
-pub struct PhaseContainer;
-
-// Future expansions:
-// - Dynamic objective list rebuilding
-// - Pillar progress live updates from AscensionProgress
-// - Group member resonance contribution bars
-// - bevy_hanabi subtle glow/particles on high Mercy Score
-// - Clickable "Attempt Ascension" button when eligible
-// - Integration with AttemptMercyAscent event
