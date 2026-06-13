@@ -15,6 +15,7 @@ pub mod ui;
 pub mod divine_whispers;
 pub mod input;
 pub mod bevy_ecs_scheduling;
+pub mod ships;  // Foundational ship definitions for all five playable races
 
 // Re-exports for clean public API
 pub use networking::NetworkingPlugin;
