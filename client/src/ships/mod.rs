@@ -255,8 +255,100 @@ pub fn calculate_hybrid_stability(
     stability.clamp(0.05, 1.0)
 }
 
-/// System that updates ActiveHybrid stability and writes back to ShipVisualState.
-/// Later: emit HybridInstabilityEvent, trigger VoiceDirector, VFX, and Mirror feedback.
+// =============================================================================
+// HYBRID INSTABILITY EVENT SYSTEMS
+// =============================================================================
+
+/// Severity levels for Hybrid Instability events.
+/// Directly implements the 4-tier system from HYBRID_INSTABILITY_MECHANICS.md
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Event, Reflect)]
+#[reflect(Event)]
+pub enum HybridInstabilitySeverity {
+    Minor,      // 0.3 - 0.5 instability
+    Moderate,   // 0.5 - 0.7
+    Severe,     // 0.7 - 0.85
+    Catastrophic, // > 0.85
+}
+
+/// Event emitted when a Human ship's Hybrid Protocol crosses instability thresholds.
+/// Carries full context for VoiceDirector, VFX, Mirror Reckoning feedback, and mitigation systems.
+#[derive(Event, Clone, Debug)]
+pub struct HybridInstabilityEvent {
+    pub entity: Entity,
+    pub severity: HybridInstabilitySeverity,
+    pub instability_level: f32,
+    pub moral_alignment: f32,
+    pub crownstone_corruption: f32,
+    pub modules: Vec<HybridModule>,
+}
+
+/// System that detects instability threshold crossings and emits HybridInstabilityEvent.
+/// This is the core of the Hybrid Instability Event Systems.
+pub fn hybrid_instability_detection_system(
+    mut query: Query<(Entity, &ActiveHybrid, &ShipVisualState), Changed<ActiveHybrid>>,
+    mut event_writer: EventWriter<HybridInstabilityEvent>,
+) {
+    for (entity, hybrid, visual) in query.iter() {
+        let level = hybrid.instability_level;
+
+        let severity = if level > 0.85 {
+            HybridInstabilitySeverity::Catastrophic
+        } else if level > 0.7 {
+            HybridInstabilitySeverity::Severe
+        } else if level > 0.5 {
+            HybridInstabilitySeverity::Moderate
+        } else if level > 0.3 {
+            HybridInstabilitySeverity::Minor
+        } else {
+            continue; // Below threshold, no event
+        };
+
+        // Only emit if severity actually changed or first time crossing (simple debounce via event consumption later)
+        event_writer.send(HybridInstabilityEvent {
+            entity,
+            severity,
+            instability_level: level,
+            moral_alignment: visual.moral_alignment,
+            crownstone_corruption: visual.crownstone_corruption,
+            modules: hybrid.modules.clone(),
+        });
+
+        // TODO: Update a per-entity cooldown or last_severity tracker to prevent spam
+        // TODO: Feed this event into MirrorReckoningState (unstable hybrids strengthen server Shadow)
+    }
+}
+
+/// System that reacts to HybridInstabilityEvent (placeholder for VoiceDirector + VFX integration).
+/// In full implementation this would trigger glitch layers, moral drift vocals, visual corruption,
+/// and notify Mirror Reckoning that this ship's instability is feeding the server Shadow.
+pub fn hybrid_instability_reaction_system(
+    mut events: EventReader<HybridInstabilityEvent>,
+    // TODO: ResMut<VoiceDirector>, ResMut<VfxEventQueue>, ResMut<MirrorReckoningState>
+) {
+    for event in events.read() {
+        match event.severity {
+            HybridInstabilitySeverity::Minor => {
+                // Subtle glitch, slight vocal distortion
+            }
+            HybridInstabilitySeverity::Moderate => {
+                // Noticeable energy feedback, moral drift in voice
+            }
+            HybridInstabilitySeverity::Severe => {
+                // Strong visual corruption (auroral + purple tendrils), Crownstone influence spikes
+            }
+            HybridInstabilitySeverity::Catastrophic => {
+                // Major backlash risk, possible Discordant Ambrosian outbreak if Ambrosian module present,
+                // strong Mirror Shadow contribution, Hivelord attention
+            }
+        }
+
+        // TODO: Call into mitigation opportunity window (HYBRID_INSTABILITY_MITIGATION_SYSTEMS.md)
+        // TODO: Emit VFX event with severity + moral_alignment for shader parameters
+        // TODO: Notify VoiceDirector to layer distortion/harmonic based on severity + modules
+    }
+}
+
+/// Main update system for Hybrid Protocol (now also triggers instability detection).
 pub fn hybrid_protocol_update_system(
     mut query: Query<(&mut ActiveHybrid, &mut ShipVisualState)>,
     // TODO: Add Res<WorldSimulationState>, Res<MirrorReckoningState> etc.
@@ -276,18 +368,17 @@ pub fn hybrid_protocol_update_system(
         visual.hybrid_stability = hybrid.stability;
         visual.is_hybrid_active = true;
 
-        // TODO: If instability_level > 0.6 { emit catastrophic instability event }
-        // TODO: Integrate with VoiceDirector for glitch/distortion layers
-        // TODO: Feed into MirrorReckoningState (unstable hybrids strengthen server Shadow)
+        // Instability detection now happens in dedicated system via Changed<ActiveHybrid>
     }
 }
 
 /*
  * PATSAGi Council + Ra-Thor Quantum Swarm Next Steps:
- * 1. Create HybridInstabilityEvent + mitigation systems (HYBRID_INSTABILITY_MITIGATION_SYSTEMS.md)
- * 2. Wire ShipVisualState into custom WGSL shaders for moral/redeption/hybrid visual reactivity
- * 3. Connect hybrid_protocol_update_system to WorldSimulationState + MirrorReckoningState
- * 4. Add spawning helpers that respect FLEET_CLASSES.md + visual bibles
- * 5. Integrate with VoiceDirector for dynamic vocal processing based on hybrid state
- * 6. Add Human Innovation Tree upgrades that improve mitigation success
+ * 1. Wire HybridInstabilityEvent into VoiceDirector for dynamic vocal glitch/distortion layers
+ * 2. Connect to MirrorReckoningState (unstable hybrids directly strengthen server Shadow personality)
+ * 3. Implement mitigation opportunity windows (Cydruid Grove Stabilizers, Quellorian Tuners, Ambrosian Crystals, Human Innovation Tree)
+ * 4. Add per-entity cooldown/debounce for instability events to prevent spam
+ * 5. Expose severity to ShipVisualState or a new HybridVisualState for shader parameters (moral reactivity + corruption visuals)
+ * 6. Integrate with Hivelord Counter-Strategies (Catastrophic instability draws Hivelord attention)
+ * 7. Add Human Innovation Tree upgrades that improve mitigation success rates
  */
