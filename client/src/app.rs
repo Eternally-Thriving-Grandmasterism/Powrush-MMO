@@ -5,7 +5,8 @@
  * AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO enforced | v17.98+ production-grade
  * Fully restored, merged, and upgraded for Ra-Thor monorepo + PATSAGi Council alignment.
  *
- * Now includes the upgraded PowrushRenderPlugin (velocity prepass + CameraMatrices temporal foundation).
+ * Now includes the upgraded PowrushRenderPlugin (velocity prepass + CameraMatrices temporal foundation)
+ * and the foundational WorldSimulationState master resource.
  */
 
 use bevy::prelude::*;
@@ -24,6 +25,7 @@ use crate::world::WorldPlugin;
 use crate::bevy_ecs_scheduling::ClientSchedulingPlugin;
 use crate::config::ConfigPlugin;
 use crate::render::PowrushRenderPlugin;  // Upgraded render pipeline with velocity prepass + temporal matrices
+use crate::world_simulation::setup_world_simulation; // Master living universe simulation state
 
 pub fn build_app() -> App {
     let mut app = App::new();
@@ -56,6 +58,9 @@ pub fn build_app() -> App {
        .add_plugins(PowrushRenderPlugin)  // Temporal rendering (velocity + CameraMatrices)
        .add_plugins(ClientSchedulingPlugin);
 
+    // === Foundational World Simulation State (Master Living Universe) ===
+    setup_world_simulation(&mut app);
+
     // Mercy-gated global systems
     app.add_systems(Startup, setup_global_mercy_seed)
        .add_systems(Update, global_mercy_frame_guard);
@@ -74,6 +79,7 @@ fn global_mercy_frame_guard() {
 
 // All client systems, plugins, and layers are now perfectly orchestrated
 // Zero-lag, fully mercy-gated Bevy app complete with next-gen temporal rendering
+// and the complete living universe simulation foundation.
 
 #[cfg(test)]
 mod tests {
