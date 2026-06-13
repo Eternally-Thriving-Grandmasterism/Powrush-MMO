@@ -15,7 +15,8 @@ pub mod ui;
 pub mod divine_whispers;
 pub mod input;
 pub mod bevy_ecs_scheduling;
-pub mod ships;  // Foundational ship definitions for all five playable races
+pub mod ships;           // Foundational ship definitions for all five playable races
+pub mod world_simulation; // Master living universe simulation state (Crownstone, Mirror Reckoning, etc.)
 
 // Re-exports for clean public API
 pub use networking::NetworkingPlugin;
@@ -30,6 +31,7 @@ pub use ui::UiPlugin;
 pub use divine_whispers::DivineWhispersPlugin;
 pub use input::InputPlugin;
 pub use bevy_ecs_scheduling::ClientSchedulingPlugin;
+pub use world_simulation::{WorldSimulationState, setup_world_simulation};
 
 /// Main client bundle that includes everything in one convenient package
 pub struct PowrushClientBundle;
