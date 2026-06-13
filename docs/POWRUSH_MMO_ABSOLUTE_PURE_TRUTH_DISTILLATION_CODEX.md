@@ -1,0 +1,1 @@
+cat /home/workdir/artifacts/docs/POWRUSH_MMO_ABSOLUTE_PURE_TRUTH_DISTILLATION_CODEX.md
