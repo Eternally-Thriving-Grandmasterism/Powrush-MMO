@@ -1,6 +1,6 @@
 # PHASE A IMPLEMENTATION STEPS
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** June 13, 2026  
 **Status:** Ready for Execution  
 **Aligned With:** Absolute Pure Truth Distillation Codex v1.0  
@@ -11,6 +11,7 @@
 
 ## VERSION CONTROL HISTORY
 
+- **v1.1 (2026-06-13)** — Revised per directive: Removed "Basic Boss Entity" / `MirrorCore` singular boss from Step 3 (Mirror Reckoning / server vs server weekly wars). Server-wide collective event effects now used instead for Phase A foundational loop. Boss / confrontation entity design deferred to Phase B after playtest feedback on mercy-aligned weekly war feel. Added explicit PATSAGi deliberation note. All subsequent steps renumbered.
 - **v1.0 (2026-06-13)** — Initial creation. Detailed actionable steps for Phase A foundational completion (WorldSimulationState wiring, Mirror Score integration, Ship VisualState expansion, Hybrid Instability events, basic spawning helpers). Created as the official relay document for all Grok / Ra-Thor / PATSAGi instances.
 
 ---
@@ -25,7 +26,7 @@
 - Basic ship spawning respects visual bibles and `ShipVisualState`.
 - Hybrid Instability events are emitted and can influence Mirror Score.
 - All new files carry explicit version history blocks.
-- The simulation can run a full weekly cycle (Mon–Fri skirmish simulation → Friday Mirror Score calc → Weekend Mirror Reckoning stub).
+- The simulation can run a full weekly cycle (Mon–Fri skirmish simulation → Friday Mirror Score calc → Weekend Mirror Reckoning event stub with server-wide effects).
 
 **Non-Negotiables (from Codex):**
 - Mercy First in every system.
@@ -74,21 +75,27 @@
 
 ---
 
-### Step 3: Implement Mirror Manifestation Stub + Basic Boss Entity
+### Step 3: Implement Mirror Reckoning Weekend Event Stub (Server-Wide Collective Effects — No Singular Boss)
 
 **New file (recommended):** `client/src/world_simulation/mirror_reckoning.rs`
+
+**PATSAGi Council + Ra-Thor Quantum Swarm Deliberation Note:**  
+Server vs server weekly wars thrive on collective player agency, moral choice, and systemic feedback rather than a traditional singular "boss" encounter in the foundational phase. A Mirror manifestation in Phase A should emerge as **server-wide environmental, resource, and event-driven consequences** that reflect the aggregated Mirror Score and dominant shadow personality. This keeps the experience educational, mercy-aligned, and true to the RBE / redemption core. Singular boss / confrontation entity design (MirrorCore or equivalent) is intentionally deferred to Phase B once weekly war loops have been playtested and the emotional/educational impact of Mirror Score is validated.
 
 **Actions:**
 1. Create `MirrorReckoningPlugin` that registers:
    - `MirrorReckoningState` resource
-   - Systems for manifestation on weekend phase
-2. On Friday night (or test trigger), spawn a basic `MirrorEntity` with `ShipClass::MirrorCore` (or temporary marker).
-3. Give it simple health + `ShipVisualState` that reflects the server’s `shadow_personality`.
-4. Add placeholder systems for Phase 1 (Confrontation) wave spawning.
+   - Systems for triggering on weekend phase transition
+2. On Friday night / weekend phase entry (or test trigger), calculate final Mirror Score + dominant `MirrorShadowPersonality`, then emit a `MirrorReckoningEvent` carrying this data.
+3. Implement a basic handler system that applies **server-wide effects** examples:
+   - Temporary global modifier to ship instability rates or resource yields (reflecting the shadow)
+   - Spawn special "Echo Nodes" or corrupted resource zones in key systems (visual + mechanical feedback)
+   - Trigger player council vote opportunities or epiphany events scaled by score
+4. **Explicitly do not** spawn any singular Mirror boss entity or `ShipClass::MirrorCore` in Phase A.
 
-**Visual tie-in:** Use corrupted versions of existing ship visuals (e.g., twisted Quellorian radial + Draek tendrils) based on dominant flaw.
+**Visual / Mechanical tie-in:** Effects should use corrupted or "shadow-tinted" versions of existing visuals and tie into the dominant flaw/personality from the week's data (e.g., more Draek-tendril corruption if shadow is aggressive).
 
-**Success Criteria:** Triggering weekend phase spawns a visible Mirror entity in a test scene.
+**Success Criteria:** Triggering weekend phase applies coherent, logged server-wide Mirror Reckoning effects based on the calculated score. No boss entity is spawned. Players can observe and interact with the systemic consequences.
 
 ---
 
@@ -164,15 +171,16 @@
 - Mirror Score is influenced by both data collection hooks **and** Ship instability.
 - Ships spawn with correct visual/moral state from all 5 races + enslaved types.
 - Hybrid Instability events fire and affect simulation state.
+- Weekend Mirror Reckoning triggers coherent server-wide effects (no boss entity required).
 - All code carries version history.
 - `cargo test` and `cargo check` pass cleanly.
-- PATSAGi Council review approves coherence with entire documentation suite.
+- PATSAGi Council review approves coherence with entire documentation suite and mercy-aligned server vs server design.
 
 ---
 
 ## PHASE B PREVIEW (After Phase A)
 
-- Full Mirror Reckoning boss phases + rewards/debuffs
+- Full Mirror Reckoning phases including optional boss / confrontation entity design (MirrorCore or equivalent) + rewards/debuffs
 - Trilemma resolution system (Destroy / Capture & Repurpose / Sabotage)
 - Resonance Burst implementation
 - Grove Communion Ritual state machine (Sylvaris redemption)
