@@ -50,3 +50,31 @@ pub struct MercyAlignment {
 pub struct ResonanceAttunement {
     pub value: f32,
 }
+
+// ============================================================
+// ABILITY-SPECIFIC COMPONENTS (Detailed Ability Systems v1.0)
+// ============================================================
+
+/// Cooldown tracker for Mercy Bloom active ability.
+#[derive(Component)]
+pub struct MercyBloomCooldown {
+    pub timer: Timer,
+}
+
+/// Cooldown tracker for Celestial Harmony Pulse ultimate ability.
+#[derive(Component)]
+pub struct CelestialHarmonyPulseCooldown {
+    pub timer: Timer,
+}
+
+/// Temporary harmony stacks granted by Mercy Bloom, Divine Presence, etc.
+/// Provides buffs to resonance, cooldown reduction, or healing received.
+#[derive(Component)]
+pub struct HarmonyStack {
+    pub count: u32,
+    pub duration_timer: Timer,
+}
+
+/// Marker indicating Divine Presence passive aura is active.
+#[derive(Component)]
+pub struct DivinePresence;
