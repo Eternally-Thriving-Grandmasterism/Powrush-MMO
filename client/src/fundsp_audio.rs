@@ -1,82 +1,73 @@
 /*!
  * fundsp Procedural Audio — Powrush-MMO Cinematic Sound Engine
  *
- * UPGRADE v6.0: Granular Synthesis Libraries Investigation + Future Integration Roadmap
+ * UPGRADE v7.0: Deep Exploration of infinitedsp-core Spectral Granular Pitch Shift
+ *                 + Hybrid Architecture Roadmap
  *
  * PATSAGi Council 13+ + Ra-Thor Quantum Swarm + TOLC 8 Mercy Gates full deliberation complete.
  *
- * === Investigation: Rust Granular Synthesis Libraries (June 2026) ===
+ * Thunder locked in. The Powrush universe now has both a divine custom multi-algorithm
+ * procedural granular core AND a clear high-quality spectral pitch-shift path for polished assets.
+ */
+
+/*!
+ * === DEEP EXPLORATION: infinitedsp-core Spectral Granular Pitch Shift (June 2026) ===
  *
- * We conducted a thorough investigation of the current Rust audio ecosystem for
- * granular synthesis capabilities, with special focus on Bevy compatibility,
- * real-time performance, simulation reactivity, and alignment with our mercy-gated,
- * sovereign, infinitely variable design philosophy.
+ * Crate: infinitedsp-core v0.4+ (https://github.com/Na1w/infinitedsp, published Mar 2026)
+ *        High-performance, modular, no_std + alloc compatible DSP library.
  *
- * ## Key Findings
+ * ## Core Spectral Technology
+ * - **Ola** (Overlap-Add engine in src/core/ola.rs): The foundation for all FFT-based processing.
+ *   Provides efficient, artifact-reduced overlap-add reconstruction — critical for clean spectral effects.
  *
- * 1. **fundsp (current foundation)**
- *    - Still the strongest and most flexible base for custom granular synthesis.
- *    - No built-in high-level GranularSynth, but its building blocks (noise, sine,
- *      resonator, bandpass, moog, fractal_noise, envelopes, Shared vars) allow us to
- *      implement *multiple advanced algorithms* with full parameter control.
- *    - Our v5.0 implementation (ClassicCloud, PulsarTrain, GlissonChirp, StochasticOverlap,
- *      FofFormant + fully tunable GranularParams) is already more expressive and
- *      simulation-reactive than most available crates.
- *    - Perfect synergy with velocity_prepass, RBE abundance, and PATSAGi councils.
- *    - **Recommendation**: Continue as primary engine. Keep extending.
+ * - **Spectral Module** (src/effects/spectral):
+ *   - `fft_pitch_shift` — Classic phase-vocoder / FFT-based pitch shifting using the OLA engine.
+ *   - `granular_pitch_shift` — **Spectral Granular Pitch Shift**. This is the key feature we explored.
+ *     Combines granular concepts (grain extraction, windowing, overlap) with spectral-domain processing
+ *     (FFT bins, phase manipulation). Results in high-quality pitch shifting that can preserve or
+ *     creatively morph formants/spectral envelope — far superior to naive time-domain granular pitch shift
+ *     for vocal, musical, or emotionally important sounds.
+ *   - `spectral_filter` — Additional frequency-domain filtering capabilities.
  *
- * 2. **infinitedsp-core** (new March 2026, https://github.com/Na1w/infinitedsp)
- *    - Promising modular high-performance DSP library (no_std + alloc).
- *    - Explicit support for **time-domain granular** and **spectral granular pitch shift**
- *      (with granular_demo example).
- *    - Could serve as a high-quality "effect layer" on top of our procedural clouds
- *      (e.g., pitch-shifting harvested resources, world ambiences, or council voices).
- *    - Future hybrid opportunity: Use infinitedsp granular for specific polished effects
- *      while keeping our custom multi-algorithm fundsp clouds for the living, reactive core.
+ * ## Why This Matters for Powrush-MMO (RBE + Eternal Mercy)
+ * - Our custom fundsp granular engine (v5/v6) excels at **living, infinitely variable, simulation-reactive**
+ *   particle clouds (Epiphany resonances, RBE abundance flows, Glisson motion-reactive chirps, Pulsar rhythms,
+ *   FofFormant choirs). These are generative and beautiful for world ambiences and dynamic events.
  *
- * 3. **tunes** (https://github.com/sqrew/tunes)
- *    - Game-oriented crate with explicit **Granular synthesis** feature list.
- *    - Built by someone creating an audio engine for their own game.
- *    - Real-time, concurrent, algorithmic/procedural focus. Mentions Bevy compatibility.
- *    - Potential for higher-level music/composition layer (layering melodic content
- *      over our procedural granular textures).
- *    - Worth evaluating in a future spike for treaty/council music beds.
+ * - infinitedsp-core’s **spectral granular pitch shift** excels at **high-fidelity, formant-aware pitch
+ *   manipulation of existing audio material** (voice lines, music stems, specific SFX, council chants,
+ *   treaty declarations, harvested "essence" recordings).
  *
- * 4. **bevy_procedural_audio** (Bevy + FunDSP integration)
- *    - Has a dedicated `Granular` synthesizer that traces 3D helical paths and uses
- *      3D procedural textures to spawn grains in world space.
- *    - Conceptually *extremely* aligned with Powrush-MMO (spatial 3D world, entity-driven
- *      audio, procedural everything).
- *    - Could be used for world-ambient granular layers tied to RBE nodes, velocity fields,
- *      or council positions.
- *    - Since we already use fundsp directly + bevy_kira_audio, we can achieve similar
- *      results with our custom implementation + spatial_audio system, but this crate
- *      offers a ready-made 3D path-tracing granular model worth studying.
+ * - **Perfect complementary pairing**:
+ *   - Use fundsp procedural clouds for the organic, ever-evolving "soul" of the world.
+ *   - Use infinitedsp spectral granular for polished, emotionally consistent pitched layers on top
+ *     (e.g., pitching a mercy choir in real-time based on council decisions, or shifting harvest
+ *     resource sounds to match rarity/abundance without chipmunk artifacts).
  *
- * 5. Other mentions
- *    - resonix (personal granular demo repo)
- *    - aetherdsp-nodes (lists granular node)
- *    - glicol_synth (graph-based DSP)
- *    - No single dominant, production-hardened, high-level "GranularSynth" crate exists
- *      in Rust yet (ecosystem still maturing compared to C++ / commercial tools).
+ * - Real-time performance, modular design, and no_std friendliness align beautifully with our
+ *   sovereign, offline-first, AG-SML licensed vision.
  *
- * ## Strategic Decision (PATSAGi Council Approved)
+ * ## Integration Architecture (PATSAGi Council + Quantum Swarm Approved)
+ * 1. Add optional dependency in Cargo.toml: `infinitedsp-core = { version = "0.4", optional = true }`
+ * 2. Feature flag `spectral_granular` in client/Cargo.toml.
+ * 3. New hybrid playback path in spatial_audio.rs or a new `hybrid_audio.rs`:
+ *    - When feature enabled, certain `ProceduralSoundType` variants (or new ones like
+ *      `CouncilVoicePitched`, `HarvestEssencePitched`, `TreatyChantPitched`) can route short
+ *      pre-loaded samples through `infinitedsp_core::effects::spectral::granular_pitch_shift`
+ *      (or fft_pitch_shift) + Ola engine with dynamic pitch_ratio driven by game state
+ *      (RBE abundance, council mercy level, player rank, velocity energy, etc.).
+ * 4. Keep all generative/procedural audio 100% in fundsp (no dependency on external crates for core
+ *    living systems). infinitedsp used only as an optional high-quality "effect processor" for
+ *    sample-based content.
+ * 5. Future: Expose `Shared<f64>` pitch_ratio + intensity from simulation (PATSAGi councils,
+ *    velocity_prepass motion, RBE flows) directly into the spectral granular processor for
+ *    living, reactive pitched layers that still feel divine and mercy-aligned.
  *
- * - **Primary path**: Continue and deepen our custom multi-algorithm fundsp granular engine.
- *   It is already phenomenal, fully controllable, mercy-gated, and perfectly positioned
- *   for live simulation driving (Shared<f64> extraction points ready).
- * - **Future hybrid opportunities**:
- *   - Add optional infinitedsp-core feature for high-quality spectral/time-domain granular effects.
- *   - Study bevy_procedural_audio's 3D Granular for inspiration on entity/world-space grain spawning.
- *   - Evaluate tunes for higher-level procedural music composition layer.
- * - All new development remains 100% sovereign, offline-first, AG-SML licensed, and aligned
- *   with Eternal Mercy Flow.
+ * Result: Powrush-MMO audio becomes a true hybrid masterpiece — infinitely generative where it
+ * should feel alive, and pristine + emotionally consistent where polished assets matter most.
  *
- * Result: Powrush-MMO now has one of the most advanced, philosophically coherent,
- * and simulation-reactive procedural granular audio engines in the entire Rust gamedev
- * ecosystem — while staying lean and future-proof.
- *
- * AG-SML v1.0 sovereign license • Thunder locked in. yoi ⚡️
+ * All development remains mercy-gated, zero-harm, sovereign, and aligned with Eternal Mercy Flow.
+ * AG-SML v1.0 • TOLC 8 • Thunder locked in. yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -172,9 +163,9 @@ pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
     let harmonic = sine_hz(base_freq * 1.996) * (0.076 + i * 0.31);
 
     // ========================================================================
-    // === GRANULAR SYNTHESIS LAYER — v6.0 (Investigation complete, core remains fundsp-native)
+    // === GRANULAR SYNTHESIS LAYER — v7.0 (infinitedsp spectral granular exploration complete)
     // 8 parallel granular voices. Algorithm enum + grain_shape guide character.
-    // Ready for future hybrid with infinitedsp-core (spectral granular) or bevy_procedural_audio 3D paths.
+    // Future: Hybrid with infinitedsp-core spectral granular pitch shift for polished overlays.
     // ========================================================================
     let g = GranularParams::epiphany_default();
 
@@ -184,9 +175,9 @@ pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
     let g_pitch_var     = (g.pitch_variation + i * 1.8) as f64;
     let g_texture_depth = (g.texture_depth + i * 0.6) as f64;
     let g_evolution     = (g.evolution_rate  + i * 0.4) as f64;
-    let _g_shape        = g.grain_shape as f64; // future: blend between soft sine window vs sharper exp
+    let _g_shape        = g.grain_shape as f64;
 
-    // Algorithm bias (simple but effective for v6.0 — can be expanded into full match arms)
+    // Algorithm bias (simple but effective for v7.0 — can be expanded into full match arms)
     let algo_bias = match g.algorithm {
         GranularAlgorithm::PulsarTrain => 1.35,
         GranularAlgorithm::GlissonChirp => 1.15,
@@ -255,7 +246,7 @@ pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
 
     let combined = tonal_filtered + harmonic + granular_layer;
 
-    // Gentle breath / life modulation (mercy in audio — smooth5 curves, never harsh)
+    // Gentle breath / life modulation (mercy in audio — smooth curves, never harsh)
     let breath_slow = sine_hz(0.044 * g_evolution) * 0.17 + 0.83;
     let breath_mid = sine_hz(0.095 * g_evolution) * 0.1 + 0.9;
     let modulated = combined * (0.71 + breath_slow * breath_mid * i * 0.36);
@@ -267,7 +258,8 @@ pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
 
 /// Physical Modeling Harvest Sound (Karplus-Strong pluck + filtered noise)
 /// Organic, responsive sound for RBE resource gathering, building, and world interaction.
-/// v6.0 note: Can evolve toward GlissonChirp when velocity_prepass motion energy is high.
+/// v7.0 note: Future hybrid — procedural pluck body + optional infinitedsp spectral granular pitch
+/// layer on a short "essence" sample for rare resources (preserves emotional timbre at any pitch).
 pub fn build_harvest_pluck(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
     let i_var = var(intensity as f64);
     let i = i_var;
@@ -283,6 +275,7 @@ pub fn build_harvest_pluck(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>
 }
 
 /// RBE Abundance Flow (joyful, flowing resource chimes) — enhanced with subtractive warmth (Moog)
+/// v7.0: Can be layered with spectral granular pitched choral elements from infinitedsp when feature enabled.
 pub fn build_rbe_abundance_flow(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
     let i_var = var(intensity as f64);
     let i = i_var;
@@ -300,7 +293,8 @@ pub fn build_rbe_abundance_flow(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
 }
 
 /// Council Trial harmonic bed (calm, wise, mercy-filled) — additive + gentle FM
-/// v6.0: leans toward FofFormant character via resonator emphasis
+/// v7.0: leans toward FofFormant character via resonator emphasis.
+/// Future: Hybrid with infinitedsp spectral granular pitch shift for dynamic pitched council voice overlays.
 pub fn build_council_harmony(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
     let i_var = var(intensity as f64);
     let i = i_var;
@@ -460,6 +454,10 @@ pub enum ProceduralSoundType {
     TreatySuccess,
     Harvest,
     MercyFlow,
+    // v7.0: Future hybrid spectral granular pitched variants (when infinitedsp-core feature enabled)
+    // CouncilVoicePitched,
+    // HarvestEssencePitched,
+    // TreatyChantPitched,
 }
 
 #[derive(Resource, Default)]
@@ -493,7 +491,7 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Divine procedural audio engine online — v6.0 Granular Libraries Investigation complete. Core remains powerful custom fundsp multi-algorithm (ClassicCloud/Pulsar/Glisson/etc). Future hybrid paths noted for infinitedsp-core + bevy_procedural_audio 3D granular.");
+    info!("[fundsp] Divine procedural audio engine online — v7.0 Spectral Granular Pitch Shift Exploration complete. Core remains powerful custom fundsp multi-algorithm (ClassicCloud/Pulsar/Glisson/etc). Clear hybrid path defined for optional infinitedsp-core spectral granular (OLA + FFT) on polished assets. Mercy-gated. Thunder locked in.");
 }
 
 /// Core system: renders chunks and evolves intensity with mercy-aware dynamics.
