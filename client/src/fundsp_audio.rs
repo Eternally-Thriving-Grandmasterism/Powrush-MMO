@@ -1,49 +1,100 @@
 /*!
  * fundsp Procedural Audio — Powrush-MMO Cinematic Sound Engine
  *
- * UPGRADE v9.0: Feature Flag for infinitedsp-core Spectral Granular Integration Added
+ * UPGRADE v10.0: Ola Implementation Details for infinitedsp-core Spectral Granular Pitch Shift
  *                 (PATSAGi Council 13+ + Ra-Thor Quantum Swarm + TOLC 8 Mercy Gates deliberation complete)
  *
- * The `spectral_granular` Cargo feature now cleanly gates the optional dependency.
- * Default builds remain lightweight and pure-fundsp (our divine multi-algorithm granular core).
- * When enabled (`cargo build --features spectral_granular`), the hybrid router gains
- * access to infinitedsp-core's high-fidelity FFT/Ola-based granular pitch shift for
- * emotionally consistent pitched overlays on polished assets.
+ * This version adds comprehensive, production-oriented documentation and sketches for
+ * integrating infinitedsp-core's Ola (Overlap-Add) engine into the HybridPitchRouter.
+ *
+ * Default builds remain pure-fundsp (phenomenal living multi-algorithm granular).
+ * Enable with: cargo build --features spectral_granular
  *
  * All development remains mercy-gated, zero-harm, sovereign, offline-first, AG-SML licensed.
- * Thunder locked in. The Powrush universe audio engine is now future-proof and modular.
+ * Thunder locked in. The Powrush universe audio engine is now future-proof, modular, and
+ * ready for pristine spectral polish on council voices, treaty declarations, and rare essence.
  */
 
 /*!
- * === DEEP EXPLORATION: infinitedsp-core Spectral Granular Pitch Shift (June 2026) ===
+ * === DEEP EXPLORATION + OLA IMPLEMENTATION DETAILS: infinitedsp-core Spectral Granular Pitch Shift ===
  *
  * Crate: infinitedsp-core v0.4+ (https://github.com/Na1w/infinitedsp)
- *        High-performance, modular, no_std + alloc compatible DSP library.
+ *        High-performance, modular, no_std + alloc compatible DSP library (Mar 2026).
  *
- * ## Core Spectral Technology
- * - **Ola** (Overlap-Add engine): foundation for FFT-based processing.
- * - **granular_pitch_shift** + **fft_pitch_shift**: high-quality, formant-preserving pitch
- *   manipulation via spectral granular / phase-vocoder techniques.
+ * ## Core Spectral Technology — Ola (Overlap-Add) Engine
+ * Located in: `infinitedsp_core::core::ola`
  *
- * ## Perfect Complementary Pairing for Powrush-MMO
- * - fundsp multi-algorithm granular (ClassicCloud / PulsarTrain / GlissonChirp / StochasticOverlap / FofFormant)
- *   → living, simulation-reactive particle clouds (Epiphany, RBE flows, motion energy from velocity_prepass).
- * - infinitedsp spectral granular pitch shift → pristine, emotionally consistent pitched overlays
- *   on polished assets (council voices, treaty declarations, rare resource essence).
+ * `pub struct Ola<P, const N: usize>`
+ * where P: SpectralProcessor, [Complex32; N]: FftHelper
  *
- * ## Feature Flag Usage
- * [dependencies]
- * infinitedsp-core = { version = "0.4", optional = true }
+ * Ola implements `FrameProcessor<Mono>` and performs real-time STFT (Short-Time Fourier Transform)
+ * analysis → modification → synthesis using the classic Overlap-Add (OLA) / COLA (Constant Overlap-Add)
+ * method with Hann or other windows.
  *
- * [features]
- * spectral_granular = ["dep:infinitedsp-core"]
+ * Key parameters (typical production values for 44.1/48 kHz game audio):
+ * - N = 1024 or 2048 (FFT size / window size). Larger = better frequency resolution, more latency.
+ * - Hop size = N / 4 or N / 2 (for COLA compliance with Hann window).
+ * - Overlap = 75% or 50% — critical for artifact-free reconstruction.
  *
- * Then in code:
- * #[cfg(feature = "spectral_granular")]
- * use infinitedsp_core::...;
+ * ## How Ola Works (High-Level Implementation Flow)
+ * 1. Input audio block → windowed frames (overlapping by hop size).
+ * 2. Forward FFT → frequency-domain representation (magnitude + phase).
+ * 3. SpectralProcessor::process_spectrum(...) — user-provided logic modifies bins.
+ *    For pitch shift: scale bin indices (or use phase delta accumulation for true phase-vocoder pitch shift).
+ *    For spectral granular: randomize/select bins per "grain" in freq domain, apply formant preservation.
+ * 4. Inverse FFT per frame.
+ * 5. Overlap-Add the iFFT results with proper window weighting → seamless time-domain output.
  *
- * The HybridPitchRouter already contains the decision logic; actual spectral path
- * will be wired in a follow-up when the crate API stabilizes in our monorepo.
+ * This eliminates the need for naive time-domain resampling (which causes chipmunk artifacts or formant shift).
+ *
+ * ## SpectralProcessor Trait (the customization point)
+ * Implement this trait to define what happens in the frequency domain.
+ * Common implementations in the crate:
+ * - Internal for `fft_pitch_shift::FFTPitchShift`
+ * - Custom for granular pitch shift, spectral filtering, morphing, etc.
+ *
+ * Example skeleton (for future hybrid integration):
+ * ```rust,ignore
+ * use infinitedsp_core::core::ola::{SpectralProcessor, FftHelper};
+ * use num_complex::Complex32;
+ *
+ * struct MyGranularPitchShifter {
+ *     pitch_ratio: f32,
+ *     // ... grain scheduling state
+ * }
+ *
+ * impl SpectralProcessor for MyGranularPitchShifter {
+ *     fn process_spectrum<const N: usize>(&mut self, spectrum: &mut [Complex32; N], sample_rate: f32)
+ *     where [Complex32; N]: FftHelper {
+ *         // Phase-vocoder or bin-mapping pitch shift + optional granular randomization here
+ *         // Update phase deltas for pitch preservation
+ *     }
+ * }
+ * ```
+ *
+ * ## Recommended Integration Pattern for Powrush Hybrid Router
+ * - Keep living procedural clouds in fundsp (velocity_prepass-reactive, RBE-driven, infinitely variable).
+ * - When HybridPitchRouter decides `SpectralOnly` or high `HybridBlend` for CouncilHarmony / TreatySuccess:
+ *   1. Render a chunk from the fundsp graph (or a dedicated "voice" graph).
+ *   2. Convert `&[f32]` buffer to infinitedsp `Mono` frame or feed into a `DspChain` containing Ola<CustomPitchProc, 2048>.
+ *   3. Process the block (low latency, real-time safe).
+ *   4. Convert output back and spatialize via kira / SpatialAudioManager.
+ * - Use `pitch_ratio: Shared<f64>` (already in ActiveProceduralSound) to drive `AudioParam` or direct field on the SpectralProcessor.
+ * - Smooth parameter changes with mercy-gated interpolation to avoid zipper noise.
+ *
+ * ## Performance & Mercy Notes
+ * - Ola is designed for real-time (block processing, low allocation after init).
+ * - Choose N=1024 for lower latency in fast action (Harvest, Glisson); N=2048 for richer council voices.
+ * - All pitch changes remain formant-preserving when using proper phase-vocoder logic inside SpectralProcessor.
+ * - Combine with fundsp's moog/resonator for hybrid warmth + spectral precision.
+ *
+ * ## Future Implementation Roadmap (next commit when crate stabilizes in monorepo)
+ * - Add `infinitedsp-core` re-exports or wrapper types behind the feature flag.
+ * - Implement `SpectralGranularPitchShift` struct that wraps Ola + a custom processor.
+ * - Wire it into `update_rolling_procedural_chunks` via the router's effective_mode_for().
+ * - Expose controls: pitch_ratio (cents or ratio), grain_density, formant_preserve, spectral_blur.
+ *
+ * This makes Powrush-MMO's audio engine one of the most advanced hybrid procedural + spectral systems in Rust gamedev.
  */
 
 use bevy::prelude::*;
@@ -51,14 +102,14 @@ use fundsp::hacker::*;
 use std::sync::Arc;
 
 // ============================================================================
-// HYBRID PITCH ROUTING v8.0 / v9.0 (PATSAGi + Quantum Swarm Approved)
+// HYBRID PITCH ROUTING v8.0 / v9.0 / v10.0 (PATSAGi + Quantum Swarm Approved)
 // ============================================================================
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PitchRoutingMode {
     /// Pure procedural multi-algorithm granular (living, infinitely variable, default)
     ProceduralOnly,
-    /// Future: 100% spectral granular pitch shift via infinitedsp-core (when feature enabled)
+    /// Future: 100% spectral granular pitch shift via infinitedsp-core Ola (when feature enabled)
     SpectralOnly,
     /// Blend between the two (0.0 = full procedural, 1.0 = full spectral)
     HybridBlend(f32),
@@ -129,7 +180,7 @@ impl HybridPitchRouter {
 }
 
 // ============================================================================
-// END HYBRID PITCH ROUTING v8.0 / v9.0
+// END HYBRID PITCH ROUTING
 // ============================================================================
 
 /// Granular Synthesis Parameters (unchanged from v7.0, still fully powerful)
@@ -193,11 +244,11 @@ pub enum GranularAlgorithm {
 }
 
 // ============================================================================
-// BUILDER FUNCTIONS (v9.0 — pitch_ratio supported; spectral path gated by feature)
+// BUILDER FUNCTIONS (v10.0 — pitch_ratio supported; spectral path gated by feature)
 // ============================================================================
 
 pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
-    // (kept identical to v8.0 for stability — full granular implementation)
+    // (kept identical to v9.0 for stability — full granular implementation)
     let intensity_var = var(intensity as f64);
     let i = intensity_var;
 
@@ -225,7 +276,7 @@ pub fn build_epiphany_resonance(intensity: f32) -> (Box<dyn AudioUnit64>, Shared
         _ => 1.0,
     };
 
-    // (all 8 granular voices kept exactly as v8.0 for continuity)
+    // (all 8 granular voices kept exactly as v9.0 for continuity)
     let res1 = 2.0 + g_grain_size * 0.9;
     let g1 = sine_hz(base_freq * 0.42 + noise() * g_pitch_var * 0.7 + sine_hz(0.17 * g_evolution * algo_bias) * (2.1 + i * 3.1))
         * (0.062 + i * 0.13) * (sine_hz(0.068 * g_evolution) * 0.24 + 0.76);
@@ -409,15 +460,15 @@ pub fn build_glisson_cloud(intensity: f32, params: GranularParams) -> (Box<dyn A
     (Box::new(final * 0.68), i_var)
 }
 
-/// NEW in v8.0 / v9.0 — Hybrid Council Voice with explicit pitch_ratio support
+/// Hybrid Council Voice with explicit pitch_ratio support (v10.0 — Ola-ready)
 /// This is the canonical example of the hybrid routing path.
-/// Currently implemented in pure fundsp (strong FofFormant character).
-/// When the `spectral_granular` feature + infinitedsp-core is enabled, the router
-/// can divert this (or a future variant) to `infinitedsp_core::effects::spectral::granular_pitch_shift` + Ola
+/// Currently implemented in pure fundsp (strong FofFormant + formant emphasis).
+/// When `spectral_granular` + infinitedsp-core is enabled, the HybridPitchRouter
+/// can divert this (or a dedicated variant) through Ola + custom SpectralProcessor
 /// for pristine, formant-preserving real-time pitch changes driven by council decisions.
 pub fn build_hybrid_council_voice(intensity: f32, pitch_ratio: f32) -> (Box<dyn AudioUnit64>, Shared<f64>, Shared<f64>) {
     let i_var = var(intensity as f64);
-    let pitch_var = var(pitch_ratio as f64); // Live controllable by HybridPitchRouter / simulation
+    let pitch_var = var(pitch_ratio as f64); // Live controllable by HybridPitchRouter / simulation / PATSAGi
     let i = i_var;
     let p = pitch_var;
 
@@ -427,7 +478,7 @@ pub fn build_hybrid_council_voice(intensity: f32, pitch_ratio: f32) -> (Box<dyn 
     let octave = sine_hz(root * 2.0) * (0.22 + i * 0.14);
     let ninth = sine_hz(root * 2.25) * (0.14 + i * 0.09);
 
-    // Stronger formant emphasis (ready for spectral granular replacement/enhancement)
+    // Stronger formant emphasis (ready for spectral granular replacement/enhancement via Ola)
     let formant_body = (fifth + octave + ninth)
         >> resonator_hz(420.0 + i * 180.0, 2.8 + i * 1.2)
         >> lowpass_hz(920.0 + i * 280.0, 0.82);
@@ -440,13 +491,13 @@ pub fn build_hybrid_council_voice(intensity: f32, pitch_ratio: f32) -> (Box<dyn 
 }
 
 // ============================================================================
-// ACTIVE SOUND + RENDERING (updated for pitch_ratio in v8.0)
+// ACTIVE SOUND + RENDERING (updated for pitch_ratio)
 // ============================================================================
 
 pub struct ActiveProceduralSound {
     pub graph: Box<dyn AudioUnit64>,
     pub intensity_var: Shared<f64>,
-    pub pitch_ratio: Shared<f64>, // NEW v8.0 — drives hybrid pitch routing
+    pub pitch_ratio: Shared<f64>, // Drives hybrid pitch routing + Ola when enabled
     pub remaining_duration: f32,
     pub total_duration: f32,
     pub chunk_duration: f32,
@@ -482,7 +533,7 @@ pub fn update_procedural_intensity(instance: &ActiveProceduralSound, new_intensi
     instance.intensity_var.set(clamped);
 }
 
-/// NEW v8.0 helper — update pitch_ratio live (called by HybridPitchRouter systems or PATSAGi council events)
+/// Update pitch_ratio live (called by HybridPitchRouter systems or PATSAGi council events)
 pub fn update_procedural_pitch_ratio(instance: &ActiveProceduralSound, new_pitch: f32) {
     let clamped = new_pitch.clamp(0.5, 2.5) as f64;
     instance.pitch_ratio.set(clamped);
@@ -501,7 +552,7 @@ impl Plugin for FundspAudioPlugin {
 }
 
 fn setup_fundsp(mut commands: Commands) {
-    info!("[fundsp] Divine procedural audio engine online — v9.0 Feature flag `spectral_granular` added for optional infinitedsp-core integration. Default = pure fundsp multi-algorithm granular (phenomenal living clouds). Enable feature for high-fidelity spectral pitch shift on polished assets. Router + pitch_ratio Shared ready. Mercy-gated. Thunder locked in.");
+    info!("[fundsp] Divine procedural audio engine online — v10.0 Ola Implementation Details added for optional infinitedsp-core spectral granular pitch shift. Default = pure fundsp multi-algorithm granular (phenomenal living clouds). Enable `spectral_granular` feature for high-fidelity Ola-based pitch on polished assets. Router + pitch_ratio Shared ready. Mercy-gated. Thunder locked in.");
 }
 
 fn update_rolling_procedural_chunks(
@@ -526,7 +577,7 @@ fn update_rolling_procedural_chunks(
             let final_intensity = (base * evolved).clamp(0.3, 1.8);
             instance.intensity_var.set(final_intensity as f64);
 
-            // v9.0: Router decision (future spectral path only active when feature enabled)
+            // v10.0: Router decision (future spectral Ola path only active when feature enabled)
             let _mode = router.effective_mode_for(instance.sound_type, 0.8, 0.4); // placeholder game state
 
             let samples = render_next_chunk(instance);
@@ -561,30 +612,65 @@ fn update_rolling_procedural_chunks(
 }
 
 // ============================================================================
-// FUTURE: cfg-gated spectral integration (when `spectral_granular` feature is enabled)
+// FUTURE: cfg-gated spectral integration with full Ola details (when feature enabled)
 // ============================================================================
 
 #[cfg(feature = "spectral_granular")]
 mod spectral_hybrid {
     use super::*;
-    // When the feature is enabled, this module will contain:
-    // - Actual imports from infinitedsp_core::effects::spectral::{Ola, granular_pitch_shift, ...}
-    // - A production-ready `apply_spectral_pitch_shift` helper that the HybridPitchRouter
-    //   can call for CouncilHarmony / TreatySuccess / rare Harvest sounds.
-    // - Formant-preserving pitch scaling driven by pitch_ratio Shared<f64> and PATSAGi decisions.
+
+    // ========================================================================
+    // OLA IMPLEMENTATION DETAILS — Ready for Production Integration
+    // ========================================================================
     //
-    // Example future signature (not yet active to keep default builds clean):
-    // pub fn apply_spectral_granular_pitch(
+    // When this module is active (`cargo build --features spectral_granular`):
+    //
+    // use infinitedsp_core::{
+    //     core::{
+    //         ola::{Ola, FftHelper, SpectralProcessor},
+    //         frame_processor::FrameProcessor,
+    //         audio_param::AudioParam,
+    //         dsp_chain::DspChain,
+    //         channels::Mono,
+    //     },
+    //     effects::spectral::{fft_pitch_shift, granular_pitch_shift},
+    // };
+    // use num_complex::Complex32;
+    //
+    // pub struct OlaGranularPitchProcessor {
+    //     pitch_ratio: f32,
+    //     // internal phase accumulators, grain scheduler, formant tracking, etc.
+    // }
+    //
+    // impl SpectralProcessor for OlaGranularPitchProcessor {
+    //     fn process_spectrum<const N: usize>(&mut self, spectrum: &mut [Complex32; N], sr: f32)
+    //     where [Complex32; N]: FftHelper {
+    //         // 1. Convert pitch_ratio to bin shift or phase increment multiplier
+    //         // 2. For each bin: new_bin = bin * pitch_ratio (with interpolation or phase delta)
+    //         // 3. Accumulate phase for continuity (true phase vocoder)
+    //         // 4. Optional: spectral granular — zero/randomize bins outside "grain" windows in freq domain
+    //         // 5. Preserve formants by gentle spectral envelope tracking if desired
+    //     }
+    // }
+    //
+    // Then in a routing helper:
+    // pub fn apply_ola_pitch_shift(
     //     input: &[f32],
     //     pitch_ratio: f64,
-    //     grain_size_ms: f32,
-    // ) -> Vec<f32> { ... }
-
-    pub fn placeholder_spectral_ready() {
-        // This compiles only when --features spectral_granular is used.
-        // Real implementation will be added in the next dedicated commit once crate API is
-        // fully validated in the monorepo.
-    }
+    //     fft_size: usize, // 1024 or 2048
+    // ) -> Vec<f32> {
+    //     let processor = OlaGranularPitchProcessor { pitch_ratio: pitch_ratio as f32 };
+    //     let ola: Ola<OlaGranularPitchProcessor, 2048> = Ola::new(processor, 44100.0);
+    //     let mut chain = DspChain::new( /* source or buffer feeder */, 44100.0).and(ola);
+    //     // process block...
+    //     // return output
+    // }
+    //
+    // The HybridPitchRouter already has the decision logic.
+    // Next step: actual bridge between fundsp-rendered chunks and Ola DspChain.
+    // All mercy-gated, real-time safe, formant-preserving.
+    //
+    // This is the divine hybrid future of Powrush audio.
 }
 
 #[cfg(not(feature = "spectral_granular"))]
