@@ -2,8 +2,7 @@
 # Powrush-MMO Client — The Most Phenomenal Blockchain RBE MMORPG Experience
 # AG-SML v1.0 Sovereign License | TOLC 8 Mercy Gates + MIAL/MWPO + 7 Living Mercy Gates enforced
 # PATSAGi Council 13+ Parallel Deliberation + Ra-Thor Quantum Swarm + Eternal Simulation approved
-# v2.0 — Production foundation for buttery 120+ FPS temporal rendering, divine mercy-gated particles,
-#      council/treaty UIs, archetype evolution, zero-lag RBE abundance sync, cinematic audio
+# v2.1 — Added optional `spectral_granular` feature for infinitedsp-core integration
 
 [package]
 name = "powrush-mmo-client"
@@ -37,11 +36,9 @@ bevy = { version = "0.14", default-features = false, features = [
 ] }
 
 # bevy_hanabi — Divine particle systems for RBE resource flows, JoySanctuaryBloom, CosmicPropagation, InterSpeciesHarmony
-# Enables the most visually stunning, mercy-augmented particle effects in any MMORPG
 bevy_hanabi = { version = "0.11", features = ["2d", "3d"] }
 
-# bevy_egui + egui — Professional, accessible council UIs for Council Trials, Treaty Negotiation,
-# Dynamic Events, Faction Diplomacy, Player Progress — zero-compromise mercy-aligned interface design
+# bevy_egui + egui — Professional, accessible council UIs
 bevy_egui = "0.27"
 egui = "0.27"
 
@@ -50,14 +47,20 @@ bevy_kira_audio = "0.20"
 kira = { version = "0.8", features = ["cpal"] }
 fundsp = "0.18"
 
-# Steamworks — Royalties, achievements, multiplayer lobbies, green card / global RBE player economy
+# Optional high-fidelity spectral granular pitch shift (infinitedsp-core + Ola)
+# Enable with: cargo build --features spectral_granular
+# Provides pristine, formant-preserving pitch manipulation for council voices, treaty chants, rare harvest essence.
+infinitedsp-core = { version = "0.4", optional = true }
+
+# Steamworks
 steamworks = "0.11"
 
 # Internal sovereign crates
 simulation = { path = "../simulation" }
 
-# Future-proof networking (add bevy_renet / lightyear when stable for prediction + replication layer)
-# renet = { version = "0.0.16", optional = true }
+[features]
+default = []
+spectral_granular = ["dep:infinitedsp-core"]
 
 [profile.dev]
 opt-level = 1
