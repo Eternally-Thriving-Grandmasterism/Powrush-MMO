@@ -1,11 +1,13 @@
 /*!
  * Powrush-MMO Advanced Render Pipeline
  *
- * Dynamic texture management for velocity prepass, TAA history, motion blur, and now chromatic aberration.
+ * Dynamic texture management for velocity prepass, TAA history, motion blur, chromatic aberration.
  * All textures automatically resize with the window for perfect temporal + cinematic fidelity
- * at any resolution. Includes RenderTexturesResized event for ecosystem integration.
+ * at any resolution. Includes RenderTexturesResized event.
  *
  * Full post-FX chain: Velocity Prepass → TAA Reprojection → Motion Blur → Chromatic Aberration
+ *
+ * + Anisotropic Filtering (16x default) for razor-sharp textures on all surfaces at any angle.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm approved • AG-SML v1.0
  * Mercy-gated • Zero hallucination • Maximum temporal truth & beauty
@@ -33,6 +35,7 @@ use crate::chromatic_aberration::{
     ChromaticAberrationNode, ChromaticAberrationSettings, setup_chromatic_aberration_pipeline,
     setup_chromatic_aberration_target, recreate_chromatic_aberration_target,
 };
+use crate::anisotropic_filtering::{AnisotropicFilteringPlugin, AnisotropicFilteringSettings};
 
 /// Event fired whenever the render textures (velocity, TAA, motion blur, CA) are resized.
 #[derive(Event, Debug, Clone, Copy)]
@@ -44,7 +47,10 @@ pub struct PowrushRenderPlugin;
 
 impl Plugin for PowrushRenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(SsrRenderNodePlugin)
+        app.add_plugins((
+            SsrRenderNodePlugin,
+            AnisotropicFilteringPlugin,
+        ))
            .init_resource::<MotionBlurSettings>()
            .init_resource::<TaaSettings>()
            .init_resource::<ChromaticAberrationSettings>()
