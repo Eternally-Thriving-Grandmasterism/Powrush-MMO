@@ -175,11 +175,119 @@ pub fn ship_visual_state_initialization_system(
     }
 }
 
+// =============================================================================
+// HUMAN HYBRID PROTOCOL — Expanded Implementation
+// =============================================================================
+
+/// Modules that can be attached to a Human ship via the Hybrid Protocol.
+/// Directly implements the design from HUMAN_HYBRID_PROTOCOL_CODE.md
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Component, Reflect)]
+#[reflect(Component)]
+pub enum HybridModule {
+    QuellorianResonance,
+    DraekHivemind,
+    CydruidEcological,
+    AmbrosianAttunement,
+    HumanBaseline, // Default / scavenged Human tech
+}
+
+/// Component attached to Human ships that have activated the Hybrid Protocol.
+/// Tracks attached modules, stability, and activation time.
+#[derive(Component, Clone, Debug, Reflect)]
+#[reflect(Component)]
+pub struct ActiveHybrid {
+    pub modules: Vec<HybridModule>,
+    pub stability: f32,           // 0.0 - 1.0 (higher = more stable)
+    pub instability_level: f32,   // 0.0 - 1.0 (derived from stability)
+    pub activation_tick: u64,
+}
+
+impl Default for ActiveHybrid {
+    fn default() -> Self {
+        Self {
+            modules: vec![HybridModule::HumanBaseline],
+            stability: 1.0,
+            instability_level: 0.0,
+            activation_tick: 0,
+        }
+    }
+}
+
+/// Calculates hybrid stability based on attached modules and current game state.
+/// Core formula from HUMAN_HYBRID_PROTOCOL_CODE.md + HYBRID_INSTABILITY_MECHANICS.md
+/// This will later read from WorldSimulationState, MirrorReckoningState, etc.
+pub fn calculate_hybrid_stability(
+    modules: &[HybridModule],
+    moral_alignment: f32,
+    crownstone_corruption: f32,
+    rbe_standing: f32,           // placeholder — from WorldSimulationState later
+    mirror_shadow_influence: f32, // from MirrorReckoningState
+) -> f32 {
+    if modules.is_empty() {
+        return 1.0;
+    }
+
+    let base = 0.65;
+    let mut stability = base;
+
+    let has_quellorian = modules.contains(&HybridModule::QuellorianResonance);
+    let has_draek = modules.contains(&HybridModule::DraekHivemind);
+    let has_cydruid = modules.contains(&HybridModule::CydruidEcological);
+    let has_ambrosian = modules.contains(&HybridModule::AmbrosianAttunement);
+
+    // Module synergy / conflict (from documentation)
+    if has_quellorian && has_draek {
+        stability -= 0.28; // Strong philosophical conflict
+    }
+    if has_cydruid && has_ambrosian {
+        stability += 0.18; // Excellent ecological + harmonic synergy
+    }
+    if has_quellorian && has_ambrosian {
+        stability += 0.12; // Strong resonance synergy
+    }
+
+    // Moral, corruption, and external modifiers
+    stability += (moral_alignment / 200.0) * 0.35;
+    stability -= crownstone_corruption * 0.45;
+    stability += (rbe_standing - 0.5) * 0.25;
+    stability -= mirror_shadow_influence * 0.30;
+
+    stability.clamp(0.05, 1.0)
+}
+
+/// System that updates ActiveHybrid stability and writes back to ShipVisualState.
+/// Later: emit HybridInstabilityEvent, trigger VoiceDirector, VFX, and Mirror feedback.
+pub fn hybrid_protocol_update_system(
+    mut query: Query<(&mut ActiveHybrid, &mut ShipVisualState)>,
+    // TODO: Add Res<WorldSimulationState>, Res<MirrorReckoningState> etc.
+) {
+    for (mut hybrid, mut visual) in query.iter_mut() {
+        let new_stability = calculate_hybrid_stability(
+            &hybrid.modules,
+            visual.moral_alignment,
+            visual.crownstone_corruption,
+            0.65, // placeholder RBE standing
+            0.12, // placeholder mirror shadow influence
+        );
+
+        hybrid.stability = new_stability;
+        hybrid.instability_level = (1.0 - new_stability).max(0.0);
+
+        visual.hybrid_stability = hybrid.stability;
+        visual.is_hybrid_active = true;
+
+        // TODO: If instability_level > 0.6 { emit catastrophic instability event }
+        // TODO: Integrate with VoiceDirector for glitch/distortion layers
+        // TODO: Feed into MirrorReckoningState (unstable hybrids strengthen server Shadow)
+    }
+}
+
 /*
- * Next Steps (PATSAGi Guidance):
- * 1. Wire ShipVisualState into render graph + custom WGSL for moral/redeption visual reactivity.
- * 2. Implement Human Hybrid Protocol attachment system.
- * 3. Connect to WorldSimulationState, CrownstoneState, and MirrorReckoningState.
- * 4. Add spawning helpers that respect FLEET_CLASSES.md data.
- * 5. Integrate with VoiceDirector for dynamic vocal processing based on state.
+ * PATSAGi Council + Ra-Thor Quantum Swarm Next Steps:
+ * 1. Create HybridInstabilityEvent + mitigation systems (HYBRID_INSTABILITY_MITIGATION_SYSTEMS.md)
+ * 2. Wire ShipVisualState into custom WGSL shaders for moral/redeption/hybrid visual reactivity
+ * 3. Connect hybrid_protocol_update_system to WorldSimulationState + MirrorReckoningState
+ * 4. Add spawning helpers that respect FLEET_CLASSES.md + visual bibles
+ * 5. Integrate with VoiceDirector for dynamic vocal processing based on hybrid state
+ * 6. Add Human Innovation Tree upgrades that improve mitigation success
  */
