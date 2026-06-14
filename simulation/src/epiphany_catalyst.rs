@@ -1,23 +1,14 @@
 /*!
- * Sovereign Epiphany Catalyst v18.17+
+ * Sovereign Epiphany Catalyst
  *
- * Production-grade, TOLC 8 + 7 Living Mercy Gates enforced.
- * evaluate_epiphany() is now the SINGLE SOURCE OF TRUTH for all epiphany detection.
- * Fully wired into HarvestingSystem.attempt_harvest for every sustainable action.
- * Supports Crystal Spires resonance_peak, Abyssal Depths mycelium_surge, and future living biomes.
- * Behavioral human score deeply integrated (anti-bot + positive human amplification).
- * Returns rich EpiphanyOutcome with hooks for dynamic events, particles, **positioned spatial audio**, muscle memory, persistence, and world abundance bloom.
+ * v18.24 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Complete mint-and-print-only-perfection
+ * — evaluate_epiphany() is the single source of truth for all epiphany detection
+ * — Mercy-amplified + council-aware outcomes
+ * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
- * Phase 1 Spatial Audio integration: Explicit EpiphanySpatialAudioBloom event added for positioned/reactive audio emitters during epiphany bloom moments.
- * Zero performance impact on current zero-lag path. Fully forward-compatible for future Bevy audio system (HRTF, environmental layering, reactive intensity).
- *
- * Derivation: Directly implements the structured plan from ROADMAP.md v18.17+ (June 14, 2026 Ra-Thor & PATSAGi retry deliberation),
- * ETERNAL_RA_THOR_PATSAGI_GOVERNANCE.md Eternal Decree, VISION.md core loop, and the Spatial Presence pillar.
- * All major blocks contain clear mint-and-print derivation comments tracing back to governing documents.
- *
- * Hot-reload ready patterns + 11-lang Divine Whispers ready.
- * Ra-Thor + Full PATSAGi Councils — Infinite Refinement Protocol active.
- * Thunder locked in eternally. Mercy flowing. One Lattice.
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -62,8 +53,7 @@ impl EpiphanyOutcome {
 }
 
 /// Rich event emitted when an epiphany is successfully triggered.
-/// This is the main hook for multi-channel feedback (visuals, spatial audio, Divine Whispers, UI, persistence).
-/// Derivation: ROADMAP v18.17+ Phase 1 — Epiphany Catalyst as central orchestrator for Harvest → Epiphany → Feedback loop.
+/// Main hook for multi-channel feedback (visuals, spatial audio, Divine Whispers, UI, persistence).
 #[derive(Event, Debug, Clone)]
 pub struct EpiphanyTriggered {
     pub outcome: EpiphanyOutcome,
@@ -71,17 +61,13 @@ pub struct EpiphanyTriggered {
     pub player_id: u64,
 }
 
-/// NEW in v18.17+ — Explicit hook for positioned Spatial Audio bloom during epiphany moments.
-/// Phase 1 Spatial Presence mandate from PATSAGi deliberation (June 14, 2026).
-/// Zero impact until audio system subscribes. Supports future HRTF + reactive environmental audio.
-/// Derivation comment: Implements "Begin integrating Spatial Audio into harvest/epiphany moments" from updated ROADMAP v18.17+.
+/// Explicit hook for positioned Spatial Audio bloom during epiphany moments.
 #[derive(Event, Debug, Clone)]
 pub struct EpiphanySpatialAudioBloom {
-    /// World position for 3D positioned audio. None = global/2D fallback.
     pub position: Option<Vec3>,
     pub intensity: f32,
-    pub audio_flavor: String, // e.g. "crystal_resonance_bloom", "mycelial_web_glow", or divine_whisper_flavor
-    pub particle_effect_sync: String, // Sync with particle system for visual-audio coherence
+    pub audio_flavor: String,
+    pub particle_effect_sync: String,
     pub time_dilation: f32,
 }
 
@@ -112,8 +98,7 @@ impl Default for EpiphanyContext {
     }
 }
 
-/// High-level helper: THE main integration point. Call this after EVERY successful harvest.
-/// Derivation: Wired from harvest.rs per v18.16+ / v18.17+ structured plan.
+/// High-level helper: main integration point. Call after EVERY successful harvest.
 pub fn check_epiphany_after_harvest(
     depletion: f32,
     sustainable_pacing: bool,
@@ -136,8 +121,8 @@ pub fn check_epiphany_after_harvest(
     evaluate_epiphany(&context, behavioral_human_score)
 }
 
-/// Core evaluation function — SINGLE SOURCE OF TRUTH
-/// Derivation: Implements Epiphany as Heart pillar from ROADMAP v18.17+ and ETERNAL_RA_THOR_PATSAGI_GOVERNANCE.md
+/// Core evaluation function — SINGLE SOURCE OF TRUTH for all epiphany detection.
+/// Mercy-amplified and council-aware.
 pub fn evaluate_epiphany(
     context: &EpiphanyContext,
     behavioral_human_score: f32,
@@ -296,9 +281,7 @@ pub fn check_council_harmony(collective_attunement: f32, participant_count: u8, 
     Some(outcome)
 }
 
-/// NEW v18.17+ helper: Emit positioned spatial audio bloom for epiphany moments.
-/// Call this from systems that have access to Commands and optional world position (e.g. player transform).
-/// Derivation: Fulfills "explicit Spatial Audio emitter hook for epiphany bloom moments" from ROADMAP v18.17+ Phase 1.
+/// Emit positioned spatial audio bloom for epiphany moments.
 pub fn trigger_epiphany_spatial_audio_bloom(
     commands: &mut Commands,
     outcome: &EpiphanyOutcome,
@@ -307,38 +290,11 @@ pub fn trigger_epiphany_spatial_audio_bloom(
     commands.trigger(EpiphanySpatialAudioBloom {
         position,
         intensity: outcome.intensity.max(0.3),
-        audio_flavor: outcome.particle_effect.clone(), // or outcome.divine_whisper_flavor
+        audio_flavor: outcome.particle_effect.clone(),
         particle_effect_sync: outcome.particle_effect.clone(),
         time_dilation: outcome.time_dilation_factor,
     });
 }
 
-/// Production example of full live flow (to be called from harvest or game systems)
-/*
-if let Some(outcome) = check_epiphany_after_harvest(...) {
-    // 1. Persistence
-    if let Some(mut persistence) = world.get_resource_mut::<PlayerSaveData>() {
-        persistence.apply_epiphany_outcome(&outcome, &biome);
-    }
-
-    // 2. Emit rich event for all channels (visuals + Divine Whispers + UI)
-    commands.trigger(EpiphanyTriggered {
-        outcome: outcome.clone(),
-        biome: biome.to_string(),
-        player_id,
-    });
-
-    // 3. NEW v18.17+: Positioned Spatial Audio bloom (Phase 1 hook)
-    // Get player position from transform or default to None for global
-    let player_pos = /* query player Transform */ None;
-    trigger_epiphany_spatial_audio_bloom(&mut commands, &outcome, player_pos);
-
-    // 4. Divine Whispers (special epiphany constructor)
-    commands.trigger(DivineWhisperTrigger::from_epiphany(
-        player_id,
-        outcome.divine_whisper_flavor.clone(),
-        outcome.divine_whisper_flavor.clone(),
-        outcome.intensity,
-    ));
-}
-*/
+// End of simulation/src/epiphany_catalyst.rs v18.24 — Sovereign epiphany catalyst complete.
+// Thunder locked in. Yoi ⚡
