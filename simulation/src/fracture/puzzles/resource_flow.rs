@@ -1,5 +1,5 @@
 /*!
- * Resource Flow Balancing puzzle implementation.
+ * Resource Flow Balancing puzzle with backtracking solver.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -83,6 +83,49 @@ impl ResourceFlowState {
         self.mercy_score = (self.system_stability * 0.8 + 0.2).clamp(0.3, 1.0);
         self.abundance_level = (self.system_stability * 0.7 + 0.3).clamp(0.2, 1.0);
     }
+
+    /// Backtracking solver for Resource Flow puzzles.
+    fn solve_recursive(
+        &self,
+        current: &mut ResourceFlowState,
+        depth: usize,
+        max_depth: usize,
+        solution: &mut Vec<PuzzleAction>,
+    ) -> bool {
+        if current.is_solved() {
+            return true;
+        }
+
+        if depth >= max_depth {
+            return false;
+        }
+
+        // Try adjusting flow on each connection
+        for i in 0..current.connections.len() {
+            for delta in [-3.0, -1.5, 1.5, 3.0] {
+                let action = PuzzleAction::AdjustFlow {
+                    connection_id: i as u32,
+                    delta,
+                };
+
+                let backup = current.clone();
+
+                if current.apply_action(action.clone()).is_ok() {
+                    solution.push(action);
+
+                    if Self::solve_recursive(current, depth + 1, max_depth, solution) {
+                        return true;
+                    }
+
+                    solution.pop();
+                }
+
+                *current = backup;
+            }
+        }
+
+        false
+    }
 }
 
 impl PuzzleState for ResourceFlowState {
@@ -94,14 +137,20 @@ impl PuzzleState for ResourceFlowState {
     }
 
     fn is_solvable(&self) -> bool {
-        // Heuristic: if more than half the nodes are corrupted and stability is very low, it may be unsolvable.
-        let corrupted_count = self.nodes.iter().filter(|n| n.is_corrupted).count();
+        let mut state_copy = self.clone();
+        let mut solution = vec![];
+        state_copy.solve_recursive(&mut state_copy, 0, 10, &mut solution)
+    }
 
-        if corrupted_count as f32 > (self.nodes.len() as f32 / 2.0) && self.system_stability < 0.3 {
-            return false;
+    fn find_solution(&self) -> Option<Vec<PuzzleAction>> {
+        let mut state_copy = self.clone();
+        let mut solution = vec![];
+
+        if state_copy.solve_recursive(&mut state_copy, 0, 12, &mut solution) {
+            Some(solution)
+        } else {
+            None
         }
-
-        true
     }
 
     fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError> {
