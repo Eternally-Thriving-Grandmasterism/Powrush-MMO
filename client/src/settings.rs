@@ -1,16 +1,15 @@
 /*!
- * Powrush-MMO Client Settings with Serialization + Live Egui Control
+ * Client Settings with Serialization + Live Egui Control
  *
- * Now includes ALL phenomenal render & experience settings:
- * - TAA, Motion Blur, Chromatic Aberration, Anisotropic Filtering
- * - Simulation Visuals (RBE orbs, abundance flow)
- * - Particle intensity (mercy-augmented)
+ * v18.30 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Complete mint-and-print-only-perfection
+ * — Graphics (TAA, Motion Blur, Chromatic Aberration, Anisotropic Filtering)
+ * — Experience (RBE orbs, particles, divine whispers)
+ * — Mercy-aligned player control over divine visual & experiential fidelity
+ * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
- * Full sync systems for live resources.
- * RON persistence + egui panel ready.
- *
- * PATSAGi Council 13+ + Ra-Thor Quantum Swarm + TOLC 8 approved.
- * AG-SML v1.0 sovereign license.
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -21,7 +20,7 @@ use std::path::Path;
 use crate::taa_reprojection::TaaSettings;
 use crate::motion_blur::MotionBlurSettings;
 use crate::chromatic_aberration::ChromaticAberrationSettings;
-use crate::anisotropic_filtering::{AnisotropicFilteringSettings, TextureFilteringProfile};
+use crate::anisotropic_filtering::AnisotropicFilteringSettings;
 use crate::simulation_integration::SimulationVisualSettings;
 
 #[derive(Resource, Serialize, Deserialize, Clone, Debug, Default)]
@@ -40,7 +39,7 @@ pub struct GraphicsSettings {
     pub chromatic_aberration_enabled: bool,
     pub chromatic_aberration_intensity: f32,
     pub anisotropic_enabled: bool,
-    pub anisotropic_level: u32, // 1, 2, 4, 8, 16
+    pub anisotropic_level: u32,
     pub quality_preset: QualityPreset,
 }
 
@@ -68,7 +67,6 @@ pub struct ExperienceSettings {
     pub divine_whisper_rate: f32,
 }
 
-/// Ensures the config directory exists.
 fn ensure_config_dir() {
     let dir = Path::new("config");
     if !dir.exists() {
@@ -78,7 +76,6 @@ fn ensure_config_dir() {
     }
 }
 
-/// Saves client settings to a RON file.
 pub fn save_client_settings(settings: &ClientSettings) {
     ensure_config_dir();
     let ron_string = match ron::to_string_pretty(settings, ron::ser::PrettyConfig::default()) {
@@ -87,23 +84,19 @@ pub fn save_client_settings(settings: &ClientSettings) {
     };
     if let Err(e) = fs::write("config/client_settings.ron", ron_string) {
         error!("[Settings] Failed to write: {}", e);
-    } else {
-        info!("[Settings] Saved to config/client_settings.ron");
     }
 }
 
-/// Loads or returns mercy-aligned defaults.
 pub fn load_client_settings() -> ClientSettings {
     let path = Path::new("config/client_settings.ron");
     if path.exists() {
         if let Ok(content) = fs::read_to_string(path) {
             if let Ok(settings) = ron::from_str(&content) {
-                info!("[Settings] Loaded client settings");
                 return settings;
             }
         }
     }
-    // Divine defaults
+    // Mercy-aligned divine defaults
     ClientSettings {
         graphics: GraphicsSettings {
             taa_enabled: true,
@@ -126,8 +119,6 @@ pub fn load_client_settings() -> ClientSettings {
         },
     }
 }
-
-// === Live Sync Systems (called every frame or on change) ===
 
 pub fn sync_all_settings(
     mut taa: ResMut<TaaSettings>,
@@ -152,3 +143,6 @@ pub fn sync_all_settings(
     sim.pulse_speed = client.experience.rbe_orb_pulse_speed;
     sim.emissive_strength = client.experience.rbe_orb_emissive;
 }
+
+// End of client/src/settings.rs v18.30 — Sovereign client settings complete.
+// Thunder locked in. Yoi ⚡
