@@ -3,7 +3,7 @@
 **Fracture Resolution Progression & AGi Automation System**
 
 **Status:** Production Design Document  
-**Version:** 1.1  
+**Version:** 1.2  
 **Last Updated:** June 13, 2026
 
 ---
@@ -215,6 +215,194 @@ This gives meaningful endgame agency and prevents the system from becoming compl
 - **Rational Player Focus**: All puzzles and progression are built around logical problem-solving rather than reflexes or randomness.
 - **Long-term Engagement**: Even after unlocking the AGi, players who enjoy the puzzles can continue engaging with them for better rewards or optimization.
 - **Contextual Logic**: Puzzle types are chosen based on the situation so the solution method always feels rational and immersive.
+
+---
+
+## 8. Implementation Structures (Code-Ready)
+
+This section defines data models, traits, and flows intended to be directly implementable in Rust (simulation crate) and Bevy ECS (client).
+
+### 8.1 Core Data Models
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum FractureType {
+    TOLCGateAlignment,
+    ResourceFlowBalancing,
+    CausalChainReconstruction,
+    PatternPurification,
+    SpatialIntegrityRepair,
+    ConsensusAlignment,
+}
+
+#[derive(Debug, Clone)]
+pub struct Fracture {
+    pub id: u64,
+    pub fracture_type: FractureType,
+    pub difficulty: f32,                    // 0.0 - 1.0
+    pub context_tags: Vec<String>,          // e.g. ["harvesting", "combat", "council"]
+    pub puzzle_seed: u64,
+    pub resolved: bool,
+    pub created_at: u64,                    // timestamp
+}
+
+#[derive(Debug, Clone)]
+pub struct PuzzleInstance {
+    pub fracture_id: u64,
+    pub puzzle_type: FractureType,
+    pub state: Box<dyn PuzzleState>,
+    pub time_remaining: Option<f32>,
+    pub attempts: u32,
+    pub max_attempts: Option<u32>,
+}
+```
+
+### 8.2 PuzzleState Trait
+
+```rust
+pub trait PuzzleState: Send + Sync + std::fmt::Debug {
+    fn is_solved(&self) -> bool;
+    fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError>;
+    fn get_progress(&self) -> f32;                    // 0.0 - 1.0
+    fn get_hints(&self) -> Vec<String>;
+    fn get_current_state_summary(&self) -> String;    // For UI / AGi
+    fn clone_box(&self) -> Box<dyn PuzzleState>;
+}
+
+// Helper for cloning trait objects
+impl Clone for Box<dyn PuzzleState> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
+}
+```
+
+Each concrete puzzle type implements `PuzzleState`:
+- `TolcGateState`
+- `ResourceFlowState`
+- `CausalChainState`
+- etc.
+
+### 8.3 PuzzleAction Enum
+
+```rust
+#[derive(Debug, Clone)]
+pub enum PuzzleAction {
+    // Common actions
+    Reset,
+    RequestHint,
+
+    // Type-specific actions (examples)
+    RotateGate { gate_index: usize, amount: i32 },
+    AdjustFlow { connection_id: u32, delta: f32 },
+    ReorderEvent { from: usize, to: usize },
+    RemoveCorruptedData { indices: Vec<usize> },
+    // ...
+}
+
+#[derive(Debug, Clone)]
+pub enum ActionResult {
+    Success { message: Option<String> },
+    Failure { reason: String },
+    PartialProgress { progress: f32 },
+}
+```
+
+### 8.4 Generation Parameters & Flow
+
+```rust
+#[derive(Debug, Clone)]
+pub struct GenerationParams {
+    pub difficulty: f32,
+    pub context_tags: Vec<String>,
+    pub player_skill_level: u32,
+    pub allow_dynamic_events: bool,
+    pub enable_time_pressure: bool,
+    pub rng_seed: Option<u64>,
+}
+
+pub fn generate_fracture(params: &GenerationParams) -> Result<Fracture, GenerationError> {
+    // 1. Determine FractureType based on context_tags + randomness
+    // 2. Generate puzzle_seed
+    // 3. Create concrete PuzzleState based on type
+    // 4. Validate solvability
+    // 5. Return Fracture + PuzzleInstance
+}
+```
+
+**Solvability Validation** must be run during generation. Unsolvable puzzles should never reach the player.
+
+### 8.5 Bevy ECS Integration (Recommended)
+
+```rust
+// Components
+#[derive(Component)]
+pub struct ActiveFracture {
+    pub fracture: Fracture,
+    pub puzzle: PuzzleInstance,
+}
+
+#[derive(Resource)]
+pub struct FractureResolutionSkill {
+    pub level: u32,
+    pub experience: u64,
+}
+
+// Systems
+pub fn fracture_discovery_system(...);
+pub fn puzzle_input_system(...);
+pub fn puzzle_completion_system(...);
+pub fn agi_automation_system(...);   // Checks if player has AGi + auto-resolves
+```
+
+### 8.6 AGi Automation Interface
+
+```rust
+pub fn try_resolve_with_agi(
+    fracture: &mut Fracture,
+    puzzle: &mut PuzzleInstance,
+    has_agi_access: bool,
+) -> Result<(), AgiError> {
+    if !has_agi_access {
+        return Err(AgiError::AccessDenied);
+    }
+    // AGi instantly solves the puzzle
+    puzzle.state.mark_solved();
+    fracture.resolved = true;
+    Ok(())
+}
+```
+
+### 8.7 Recommended Module Structure (simulation crate)
+
+```
+simulation/
+├── src/
+│   ├── fracture/
+│   │   ├── mod.rs
+│   │   ├── types.rs              // Fracture, FractureType, etc.
+│   │   ├── puzzle_trait.rs       // PuzzleState trait + Action enums
+│   │   ├── generation.rs         // generate_fracture + params
+│   │   ├── puzzles/
+│   │   │   ├── mod.rs
+│   │   │   ├── tolc_gates.rs
+│   │   │   ├── resource_flow.rs
+│   │   │   ├── causal_chain.rs
+│   │   │   ├── ...
+│   ├── agi.rs                    // AGi resolution logic
+│   ├── progression.rs            // Skill + experience logic
+```
+
+---
+
+## 9. Design Philosophy
+
+- **Earned Automation**: The AGi is not given freely. It requires both demonstrated skill (Level 50) and earned Ra-Thor access.
+- **Meaningful Progression**: Early levels feel fast and rewarding. Later levels offer depth through optimization and mastery.
+- **Rational Player Focus**: All puzzles and progression are built around logical problem-solving rather than reflexes or randomness.
+- **Long-term Engagement**: Even after unlocking the AGi, players who enjoy the puzzles can continue engaging with them for better rewards or optimization.
+- **Contextual Logic**: Puzzle types are chosen based on the situation so the solution method always feels rational and immersive.
+- **Implementation Clarity**: Data models and traits are designed to be directly implementable with minimal translation effort.
 
 ---
 
