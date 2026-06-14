@@ -1,5 +1,5 @@
 /*!
- * Resource Flow Balancing with optimized backtracking solver.
+ * Resource Flow Balancing with forward-checking style solver.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -84,7 +84,23 @@ impl ResourceFlowState {
         self.abundance_level = (self.system_stability * 0.7 + 0.3).clamp(0.2, 1.0);
     }
 
-    /// Optimized backtracking solver for Resource Flow
+    /// Check if current partial state can still lead to a solution (forward checking style)
+    fn can_still_solve(&self) -> bool {
+        // Prune early if stability or mercy is already too low
+        if self.system_stability < 0.2 || self.mercy_score < 0.3 {
+            return false;
+        }
+
+        // Check for obviously impossible situations (e.g. too many corrupted nodes)
+        let corrupted = self.nodes.iter().filter(|n| n.is_corrupted).count();
+        if corrupted as f32 > (self.nodes.len() as f32 * 0.6) {
+            return false;
+        }
+
+        true
+    }
+
+    /// Forward-checking style backtracking solver
     fn solve_recursive(
         &self,
         current: &mut ResourceFlowState,
@@ -100,7 +116,12 @@ impl ResourceFlowState {
             return false;
         }
 
-        // Try adjusting flow on each connection (discretized deltas)
+        // Forward checking: prune bad partial states early
+        if !current.can_still_solve() {
+            return false;
+        }
+
+        // Try adjusting connections (prioritize those with high imbalance impact)
         for i in 0..current.connections.len() {
             for &delta in &[-4.0, -2.0, 2.0, 4.0] {
                 let action = PuzzleAction::AdjustFlow {
@@ -111,13 +132,16 @@ impl ResourceFlowState {
                 let backup = current.clone();
 
                 if current.apply_action(action.clone()).is_ok() {
-                    solution.push(action);
+                    // Only continue if still potentially solvable
+                    if current.can_still_solve() {
+                        solution.push(action);
 
-                    if Self::solve_recursive(current, depth + 1, max_depth, solution) {
-                        return true;
+                        if Self::solve_recursive(current, depth + 1, max_depth, solution) {
+                            return true;
+                        }
+
+                        solution.pop();
                     }
-
-                    solution.pop();
                 }
 
                 *current = backup;
@@ -139,14 +163,14 @@ impl PuzzleState for ResourceFlowState {
     fn is_solvable(&self) -> bool {
         let mut state_copy = self.clone();
         let mut solution = vec![];
-        state_copy.solve_recursive(&mut state_copy, 0, 12, &mut solution)
+        state_copy.solve_recursive(&mut state_copy, 0, 14, &mut solution)
     }
 
     fn find_solution(&self) -> Option<Vec<PuzzleAction>> {
         let mut state_copy = self.clone();
         let mut solution = vec![];
 
-        if state_copy.solve_recursive(&mut state_copy, 0, 15, &mut solution) {
+        if state_copy.solve_recursive(&mut state_copy, 0, 18, &mut solution) {
             Some(solution)
         } else {
             None
