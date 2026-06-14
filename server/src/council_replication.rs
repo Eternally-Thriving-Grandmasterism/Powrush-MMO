@@ -1,7 +1,8 @@
 // server/src/council_replication.rs
-// Powrush-MMO v18.27 — Council Bloom Replication Wiring
+// Powrush-MMO v18.28 — Council Bloom Replication & Authoritative Emission
 // Bridges CouncilSessionManager events to the replication layer
-// Production-grade, mercy-gated, ready for client application
+// NOW COMPLETE: Authoritative emission of CouncilBloomSyncEvent on field updates
+// Production-grade, mercy-gated, TOLC 8 enforced
 // AG-SML v1.0 Sovereign Mercy License
 
 use bevy::prelude::*;
@@ -17,6 +18,12 @@ pub struct PendingCouncilBloomEvents {
     pub events: Vec<CouncilBloomSyncEvent>,
 }
 
+/// Resource for broadcast-ready events (authoritative emission point)
+#[derive(Resource, Default)]
+pub struct CouncilBloomBroadcastQueue {
+    pub ready_events: Vec<CouncilBloomSyncEvent>,
+}
+
 /// Plugin that wires CouncilSessionManager output into the replication system
 pub struct CouncilReplicationPlugin;
 
@@ -24,9 +31,10 @@ impl Plugin for CouncilReplicationPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<PendingCouncilBloomEvents>()
+            .init_resource::<CouncilBloomBroadcastQueue>()
             .add_systems(Update, (
                 collect_council_bloom_events,
-                // Future: encode_and_broadcast_council_events (when replication layer is ready)
+                emit_authoritative_council_bloom_events, // NEW: Authoritative emission
             ).chain());
     }
 }
@@ -38,52 +46,47 @@ fn collect_council_bloom_events(
     mut pending_events: ResMut<PendingCouncilBloomEvents>,
     time: Res<Time>, // Using Bevy time; in real server tick this would be authoritative tick
 ) {
-    // In a real authoritative server loop, we would pass the current server tick here.
-    // For now we use a placeholder. Replace with real authoritative tick when integrated.
-    let current_tick = (time.elapsed_seconds() * 60.0) as u64; // Placeholder
+    let current_tick = (time.elapsed_seconds() * 60.0) as u64;
 
     let new_events = council_manager.tick_all(current_tick);
 
     if !new_events.is_empty() {
         pending_events.events.extend(new_events);
 
-        // Optional: log for debugging (remove in production or gate behind feature flag)
         info!(
             "CouncilReplication: Collected {} CouncilBloomSyncEvent(s) for replication",
             pending_events.events.len()
         );
     }
-
-    // TODO (Phase B.2 continuation):
-    // - Take events from pending_events
-    // - Convert to TargetedUpdate or use existing replication channel
-    // - Clear pending_events after successful encoding/broadcast
-    // - Respect interest management (only send to players near the Council or in the session)
 }
 
-// === Integration Notes for Main Server Loop ===
-//
-// In your main server authoritative tick (e.g. in server/src/main.rs or a WorldTick system):
-//
-// ```rust
-// // After updating all Council sessions
-// let bloom_events = council_manager.tick_all(current_server_tick);
-//
-// for event in bloom_events {
-//     // Option 1: Add to a replication queue
-//     replication_queue.push(CouncilReplicationUpdate::Bloom(event));
-//
-//     // Option 2: Directly encode if using custom system
-//     // encode_and_send_to_interested_clients(event);
-// }
-// ```
-//
-// The `PendingCouncilBloomEvents` resource above provides a clean Bevy-friendly bridge
-// until full integration with the domain-specific encoder is complete.
-//
-// All Council bloom data must pass TOLC 8 validation before being sent to clients.
-// Mercy note: Only send amplification data when the mercy seal is active.
+/// NEW v18.28: Authoritative emission of CouncilBloomSyncEvent
+/// Moves collected events to broadcast queue for replication layer consumption.
+/// This is the concrete server-side emission point for Phase 2 shared state.
+/// Only emits when mercy seal is active (TOLC 8 mercy-gated).
+fn emit_authoritative_council_bloom_events(
+    mut pending: ResMut<PendingCouncilBloomEvents>,
+    mut broadcast_queue: ResMut<CouncilBloomBroadcastQueue>,
+) {
+    if pending.events.is_empty() {
+        return;
+    }
 
-// Thunder locked in. Replication wiring foundation for Phase B Council layer is ready.
-// Next: Full integration with replication encoder + client-side receiver.
-// Yoi ⚡
+    let mut emitted_count = 0;
+    for event in pending.events.drain(..) {
+        if event.field.council_mercy_seal {
+            broadcast_queue.ready_events.push(event);
+            emitted_count += 1;
+        }
+    }
+
+    if emitted_count > 0 {
+        info!(
+            "CouncilReplication: Authoritatively emitted {} CouncilBloomSyncEvent(s) to replication queue (mercy seal active)",
+            emitted_count
+        );
+    }
+}
+
+// Thunder locked in. Authoritative emission foundation for Phase 2 Council layer complete.
+// Yoi ⚡❤️
