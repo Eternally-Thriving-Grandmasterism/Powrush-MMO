@@ -3,7 +3,7 @@
 **Fracture Resolution Progression & AGi Automation System**
 
 **Status:** Production Design Document  
-**Version:** 1.4  
+**Version:** 1.5  
 **Last Updated:** June 13, 2026
 
 ---
@@ -222,6 +222,12 @@ This gives meaningful endgame agency and prevents the system from becoming compl
 
 This section defines data models, traits, and flows intended to be directly implementable in Rust (simulation crate) and Bevy ECS (client).
 
+**Current Implementation Status (as of v1.5):**
+- Core types and `PuzzleState` trait implemented
+- `TolcGateState` fully implemented as a concrete puzzle
+- Basic generation logic with `GenerationParams`
+- AGi automation module created (`agi.rs`)
+
 ### 8.1 Core Data Models
 
 ```rust
@@ -239,11 +245,11 @@ pub enum FractureType {
 pub struct Fracture {
     pub id: u64,
     pub fracture_type: FractureType,
-    pub difficulty: f32,                    // 0.0 - 1.0
-    pub context_tags: Vec<String>,          // e.g. ["harvesting", "combat", "council"]
+    pub difficulty: f32,
+    pub context_tags: Vec<String>,
     pub puzzle_seed: u64,
     pub resolved: bool,
-    pub created_at: u64,                    // timestamp
+    pub created_at: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -260,364 +266,50 @@ pub struct PuzzleInstance {
 ### 8.2 PuzzleState Trait
 
 ```rust
-pub trait PuzzleState: Send + Sync + std::fmt::Debug {
+pub trait PuzzleState: Send + Sync + Debug {
     fn is_solved(&self) -> bool;
     fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError>;
-    fn get_progress(&self) -> f32;                    // 0.0 - 1.0
+    fn get_progress(&self) -> f32;
     fn get_hints(&self) -> Vec<String>;
-    fn get_current_state_summary(&self) -> String;    // For UI / AGi
+    fn get_current_state_summary(&self) -> String;
     fn clone_box(&self) -> Box<dyn PuzzleState>;
 }
-
-// Helper for cloning trait objects
-impl Clone for Box<dyn PuzzleState> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
 ```
 
-Each concrete puzzle type implements `PuzzleState`:
-- `TolcGateState`
-- `ResourceFlowState`
-- `CausalChainState`
-- etc.
-
-### 8.3 PuzzleAction Enum
+### 8.3 PuzzleAction & ActionResult
 
 ```rust
 #[derive(Debug, Clone)]
-pub enum PuzzleAction {
-    // Common actions
-    Reset,
-    RequestHint,
-
-    // Type-specific actions (examples)
-    RotateGate { gate_index: usize, amount: i32 },
-    AdjustFlow { connection_id: u32, delta: f32 },
-    ReorderEvent { from: usize, to: usize },
-    RemoveCorruptedData { indices: Vec<usize> },
-    // ...
-}
+pub enum PuzzleAction { ... }
 
 #[derive(Debug, Clone)]
-pub enum ActionResult {
-    Success { message: Option<String> },
-    Failure { reason: String },
-    PartialProgress { progress: f32 },
-}
+pub enum ActionResult { ... }
+
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum PuzzleError { ... }
 ```
 
-### 8.4 Generation Parameters & Flow
+### 8.4 Generation
 
-```rust
-#[derive(Debug, Clone)]
-pub struct GenerationParams {
-    pub difficulty: f32,
-    pub context_tags: Vec<String>,
-    pub player_skill_level: u32,
-    pub allow_dynamic_events: bool,
-    pub enable_time_pressure: bool,
-    pub rng_seed: Option<u64>,
-}
+`generate_fracture(params: &GenerationParams)` is implemented in `generation.rs` with basic context-based type selection and integration with `TolcGateState`.
 
-pub fn generate_fracture(params: &GenerationParams) -> Result<Fracture, GenerationError> {
-    // 1. Determine FractureType based on context_tags + randomness
-    // 2. Generate puzzle_seed
-    // 3. Create concrete PuzzleState based on type
-    // 4. Validate solvability
-    // 5. Return Fracture + PuzzleInstance
-}
-```
+### 8.5 AGi Automation
 
-**Solvability Validation** must be run during generation. Unsolvable puzzles should never reach the player.
+`agi.rs` provides `can_use_agi_automation()` and `resolve_fracture_with_agi()` with proper error handling.
 
-### 8.5 Bevy ECS Integration (Recommended)
-
-```rust
-// Components
-#[derive(Component)]
-pub struct ActiveFracture {
-    pub fracture: Fracture,
-    pub puzzle: PuzzleInstance,
-}
-
-#[derive(Resource)]
-pub struct FractureResolutionSkill {
-    pub level: u32,
-    pub experience: u64,
-}
-
-// Systems
-pub fn fracture_discovery_system(...);
-pub fn puzzle_input_system(...);
-pub fn puzzle_completion_system(...);
-pub fn agi_automation_system(...);   // Checks if player has AGi + auto-resolves
-```
-
-### 8.6 AGi Automation Interface
-
-```rust
-pub fn try_resolve_with_agi(
-    fracture: &mut Fracture,
-    puzzle: &mut PuzzleInstance,
-    has_agi_access: bool,
-) -> Result<(), AgiError> {
-    if !has_agi_access {
-        return Err(AgiError::AccessDenied);
-    }
-    // AGi instantly solves the puzzle
-    puzzle.state.mark_solved();
-    fracture.resolved = true;
-    Ok(())
-}
-```
-
-### 8.7 Recommended Module Structure (simulation crate)
+### 8.6 Current Module Structure
 
 ```
-simulation/
-├── src/
-│   ├── fracture/
-│   │   ├── mod.rs
-│   │   ├── types.rs              // Fracture, FractureType, etc.
-│   │   ├── puzzle_trait.rs       // PuzzleState trait + Action enums
-│   │   ├── generation.rs         // generate_fracture + params
-│   │   ├── puzzles/
-│   │   │   ├── mod.rs
-│   │   │   ├── tolc_gates.rs
-│   │   │   ├── resource_flow.rs
-│   │   │   ├── causal_chain.rs
-│   │   │   ├── ...
-│   ├── agi.rs                    // AGi resolution logic
-│   ├── progression.rs            // Skill + experience logic
+simulation/src/fracture/
+├── mod.rs
+├── types.rs
+├── puzzle_trait.rs
+├── generation.rs
+├── agi.rs
+└── puzzles/
+    ├── mod.rs
+    └── tolc_gates.rs   // First concrete implementation
 ```
-
-### 8.8 Example: TolcGateState Implementation
-
-```rust
-use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
-
-#[derive(Debug, Clone)]
-pub struct TolcGate {
-    pub index: usize,
-    pub state: GateState,           // Aligned, Inverted, Overpowered, Conflicted
-    pub valence: f32,               // 0.0 - 1.0
-    pub locked: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GateState {
-    Aligned,
-    Inverted,
-    Overpowered,
-    Conflicted,
-}
-
-#[derive(Debug, Clone)]
-pub struct Connection {
-    pub from: usize,
-    pub to: usize,
-    pub strength: f32,              // -1.0 (conflicting) to 1.0 (strong harmony)
-}
-
-#[derive(Debug, Clone)]
-pub struct TolcGateState {
-    pub gates: Vec<TolcGate>,
-    pub connections: Vec<Connection>,
-    pub collective_valence: f32,
-    pub mercy_charges: u32,
-    pub max_mercy_charges: u32,
-}
-
-impl PuzzleState for TolcGateState {
-    fn is_solved(&self) -> bool {
-        self.collective_valence >= 0.92 
-            && self.gates.iter().all(|g| g.state == GateState::Aligned)
-            && self.connections.iter().all(|c| c.strength >= 0.0)
-    }
-
-    fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError> {
-        match action {
-            PuzzleAction::RotateGate { gate_index, amount } => {
-                if self.gates[gate_index].locked {
-                    return Err(PuzzleError::GateLocked);
-                }
-                // Apply rotation logic, update state and valence
-                // Recalculate collective_valence and connection strengths
-                Ok(ActionResult::Success { message: None })
-            }
-
-            PuzzleAction::ResolveConflict { connection_id } => {
-                if self.mercy_charges == 0 {
-                    return Err(PuzzleError::NoMercyCharges);
-                }
-                self.mercy_charges -= 1;
-                // Force conflicting connection toward neutral/positive
-                Ok(ActionResult::Success { message: Some("Conflict resolved using Mercy Charge".into()) })
-            }
-
-            _ => Err(PuzzleError::InvalidActionForPuzzleType),
-        }
-    }
-
-    fn get_progress(&self) -> f32 {
-        // Calculate based on how many gates are aligned + average connection strength
-        // ...
-        0.0 // placeholder
-    }
-
-    fn get_hints(&self) -> Vec<String> {
-        // Return context-aware hints based on current state
-        vec![]
-    }
-
-    fn get_current_state_summary(&self) -> String {
-        format!(
-            "Collective Valence: {:.2} | Mercy Charges: {}/{}",
-            self.collective_valence, self.mercy_charges, self.max_mercy_charges
-        )
-    }
-
-    fn clone_box(&self) -> Box<dyn PuzzleState> {
-        Box::new(self.clone())
-    }
-}
-```
-
-**Generation Notes for TolcGateState:**
-- Start with all gates `Aligned` and positive connections.
-- Apply corruption events (inversion, overcharge, conflict injection).
-- Respect locked gates and dynamic influence parameters.
-- Always validate that a solution path exists before returning the puzzle.
-
-### 8.9 Generation & Solvability Validation Logic
-
-**High-Level Generation Flow:**
-
-```rust
-pub fn generate_fracture(params: &GenerationParams) -> Result<(Fracture, PuzzleInstance), GenerationError> {
-    let fracture_type = select_fracture_type(&params.context_tags, params.player_skill_level);
-    let puzzle_seed = params.rng_seed.unwrap_or_else(|| generate_seed());
-
-    let puzzle_state: Box<dyn PuzzleState> = match fracture_type {
-        FractureType::TOLCGateAlignment => Box::new(generate_tolc_gates(params, puzzle_seed)),
-        FractureType::ResourceFlowBalancing => Box::new(generate_resource_flow(params, puzzle_seed)),
-        // ... other types
-        _ => return Err(GenerationError::UnsupportedType),
-    };
-
-    // Critical: Validate solvability before returning
-    if !puzzle_state.is_solvable() {
-        return Err(GenerationError::UnsolvablePuzzle);
-    }
-
-    let fracture = Fracture {
-        id: generate_fracture_id(),
-        fracture_type,
-        difficulty: params.difficulty,
-        context_tags: params.context_tags.clone(),
-        puzzle_seed,
-        resolved: false,
-        created_at: current_timestamp(),
-    };
-
-    let puzzle_instance = PuzzleInstance {
-        fracture_id: fracture.id,
-        puzzle_type: fracture_type,
-        state: puzzle_state,
-        time_remaining: if params.enable_time_pressure { Some(calculate_time_limit(params.difficulty)) } else { None },
-        attempts: 0,
-        max_attempts: None,
-    };
-
-    Ok((fracture, puzzle_instance))
-}
-```
-
-**Solvability Validation Requirements:**
-- Every generated puzzle **must** have at least one valid solution path.
-- Validation should run quickly (ideally < 50ms).
-- For complex puzzles, use heuristic checks + limited-depth search rather than full brute force.
-- If validation fails, the generator should retry with adjusted parameters (up to N attempts) before failing.
-
-### 8.10 FractureResolutionSkill Interaction with Puzzle Completion
-
-```rust
-#[derive(Resource)]
-pub struct FractureResolutionSkill {
-    pub level: u32,
-    pub experience: u64,
-}
-
-pub fn on_puzzle_completed(
-    fracture: &Fracture,
-    puzzle: &PuzzleInstance,
-    skill: &mut FractureResolutionSkill,
-    player_has_agi: bool,
-) {
-    if puzzle.state.is_solved() {
-        let base_xp = calculate_base_xp(fracture.difficulty);
-        let multiplier = if player_has_agi { 0.6 } else { 1.0 }; // Reduced XP when using AGi
-        let gained_xp = (base_xp as f64 * multiplier) as u64;
-
-        skill.experience += gained_xp;
-
-        // Level up check
-        while skill.experience >= xp_required_for_level(skill.level + 1) {
-            skill.level += 1;
-            // Trigger level-up events, unlock new puzzle types, etc.
-        }
-
-        fracture.resolved = true;
-    }
-}
-```
-
-**Key Rules:**
-- Manual solving gives full experience.
-- Using AGi automation gives reduced experience (encourages skill growth early on).
-- First-time completion of new puzzle archetypes gives bonus experience.
-- Level-ups can unlock new puzzle types or quality-of-life improvements.
-
-### 8.11 AGi Automation Logic (Formal Structure)
-
-```rust
-pub fn can_use_agi_automation(
-    skill_level: u32,
-    ra_thor_access: RaThorAccessLevel,
-) -> bool {
-    skill_level >= 50 && ra_thor_access != RaThorAccessLevel::None
-}
-
-pub fn resolve_fracture_with_agi(
-    fracture: &mut Fracture,
-    puzzle: &mut PuzzleInstance,
-    has_access: bool,
-) -> Result<AgiResolutionResult, AgiError> {
-    if !can_use_agi_automation( /* ... */ ) {
-        return Err(AgiError::AccessDenied);
-    }
-
-    if fracture.resolved {
-        return Err(AgiError::AlreadyResolved);
-    }
-
-    // AGi applies optimal solution
-    puzzle.state.force_solve();
-    fracture.resolved = true;
-
-    Ok(AgiResolutionResult {
-        rewards_multiplier: if /* optimization used */ { 0.85 } else { 1.0 },
-        message: Some("AGi has stabilized the fracture.".to_string()),
-    })
-}
-```
-
-**Design Notes:**
-- AGi should always produce a valid solution.
-- AGi resolution can be slightly less rewarding than optimal manual play (to keep manual solving meaningful).
-- AGi can optionally provide a short explanation of the solution (educational value).
 
 ---
 
