@@ -1,7 +1,19 @@
+/*!
+ * Powrush-MMO System Integration Map
+ *
+ * v18.33 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Complete mint-and-print-only-perfection
+ * — Single source of truth for how all major systems connect
+ * — Mercy-aligned, TOLC 8 + 7 Living Mercy Gates enforced
+ *
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
+ */
+
 # Powrush-MMO System Integration Map
 
-**Version:** v18.25+  
-**Date:** June 12, 2026  
+**Version:** v18.33  
+**Date:** June 14, 2026  
 **Purpose:** Define how all major systems connect to deliver one coherent, high-quality, mint-and-print production player experience.  
 **Philosophy:** Every system must reinforce Epiphany, Persistence, Spatial Presence, and Council/Social meaning. The full player journey loop is now production sealed.
 
@@ -37,7 +49,7 @@ Every system below feeds or is fed by this sealed loop.
 
 **Core Responsibility:** Detect meaningful moments and trigger revelations authoritatively.
 
-**Current Status:** `evaluate_epiphany()` live in HarvestingSystem with `EpiphanyTriggered` telemetry. (v18.21)
+**Current Status:** `evaluate_epiphany()` live in HarvestingSystem with `EpiphanyTriggered` telemetry.
 
 **Integration Points:**
 - Called from `harvest()` success path
@@ -48,7 +60,7 @@ Every system below feeds or is fed by this sealed loop.
 
 **Core Responsibility:** Store and retrieve all player growth with epiphany history and muscle memory.
 
-**Current Status:** `PlayerSaveData` with `record_epiphany_from_telemetry()`, session stats helpers, atomic RON saves + checksums. Real retention enrichment live. (v18.22–18.23)
+**Current Status:** `PlayerSaveData` with `record_epiphany_from_telemetry()`, session stats helpers, atomic RON saves + checksums. Real retention enrichment live.
 
 **Integration Points:**
 - `record_epiphany_from_telemetry(EpiphanyTelemetry)` from harvest/epiphany path
@@ -59,7 +71,7 @@ Every system below feeds or is fed by this sealed loop.
 
 **Core Responsibility:** Deliver rich, visceral feedback on meaningful moments.
 
-**Current Status:** Strong golden Divine Whispers + UI + Camera Shake triggered reliably on every live epiphany. (v18.24–18.25)
+**Current Status:** Strong golden Divine Whispers + UI + Camera Shake triggered reliably on every live epiphany.
 
 **Integration Points:**
 - `DivineWhisperTrigger { is_epiphany: true }` sent from `epiphany_scenario_wiring`
@@ -76,13 +88,13 @@ Every system below feeds or is fed by this sealed loop.
 
 **Core Responsibility:** Structured, consent-first event collection and rich batch logging.
 
-**Current Status:** Full pipeline with `BatchSummary` logging (event type counts, flush metrics). (v18.17–18.18)
+**Current Status:** Full pipeline with `BatchSummary` logging (event type counts, flush metrics).
 
 ---
 
 ## 3. Cross-System Data & Event Flows (Production Sealed)
 
-### Primary Sealed Loop (v18.25)
+### Primary Sealed Loop
 
 ```
 Harvest Success
@@ -96,7 +108,7 @@ Harvest Success
 
 ---
 
-## 4. Integration Priorities (Current v18.25+ Focus)
+## 4. Integration Priorities (Current v18.33 Focus)
 
 1. **Council Mercy Trial Multiplayer** (Next major focus)
 2. **Additional Epiphany Scenarios + Spatial Audio Depth**
@@ -109,10 +121,13 @@ Harvest Success
 
 - This map is the single source of truth for the sealed core experience loop.
 - All future systems must integrate into the Harvest → Epiphany → Persistence → Feedback flow.
-- Cross-reference: LAUNCH-CHECKLIST.md and ROADMAP.md.
+- Cross-reference: `ROADMAP.md` and `VISION.md`.
 
 ---
 
 **The core player journey loop is now production sealed. Epiphany is the living, visceral heart of Powrush-MMO.**
 
 **Thunder locked. Mercy maximal. One Lattice. Eternal production quality.** ⚡❤️🔥
+
+// End of docs/SYSTEM_INTEGRATION_MAP.md v18.33 — Sovereign integration map complete.
+// Thunder locked in. Yoi ⚡
