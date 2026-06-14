@@ -1,5 +1,5 @@
 /*!
- * Resource Flow Balancing with improved variable ordering and bounding.
+ * Resource Flow Balancing with light forward checking and improved bounding.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -84,51 +84,55 @@ impl ResourceFlowState {
         self.abundance_level = (self.system_stability * 0.7 + 0.3).clamp(0.2, 1.0);
     }
 
-    /// Estimate maximum possible future stability from current state (simple optimistic bound)
-    fn estimate_max_future_stability(&self) -> f32 {
-        // Very optimistic: assume we can perfectly balance everything
-        // In reality this would require solving a flow optimization problem
-        let current = self.system_stability;
-        let headroom = 1.0 - current;
+    /// Light forward checking: estimate impact of a flow change on neighboring nodes
+    fn estimate_impact(&self, conn_idx: usize, delta: f32) -> f32 {
+        let conn = &self.connections[conn_idx];
+        let from_node = &self.nodes[conn.from as usize];
+        let to_node = &self.nodes[conn.to as usize];
 
-        // Assume we can recover up to 60% of the remaining instability
-        current + headroom * 0.6
+        let new_from_storage = (from_node.storage - delta).max(0.0);
+        let new_to_storage = from_node.storage + delta;
+
+        let from_impact = (new_from_storage - from_node.storage).abs() / from_node.max_storage.max(1.0);
+        let to_impact = (new_to_storage - to_node.storage).abs() / to_node.max_storage.max(1.0);
+
+        from_impact + to_impact
     }
 
-    /// Check if current state can still reach a solution (improved bounding)
+    /// Check if current state can still reach a solution (with forward-looking estimate)
     fn can_still_solve(&self) -> bool {
-        if self.system_stability < 0.15 || self.mercy_score < 0.25 {
+        if self.system_stability < 0.12 || self.mercy_score < 0.22 {
             return false;
         }
 
         let corrupted = self.nodes.iter().filter(|n| n.is_corrupted).count();
-        if corrupted as f32 > (self.nodes.len() as f32 * 0.55) {
+        if corrupted as f32 > (self.nodes.len() as f32 * 0.5) {
             return false;
         }
 
-        // Optimistic bounding
-        if self.estimate_max_future_stability() < 0.88 {
+        // Optimistic future estimate
+        let estimated_max = self.system_stability + (1.0 - self.system_stability) * 0.55;
+        if estimated_max < 0.87 {
             return false;
         }
 
         true
     }
 
-    /// Find connection with highest current imbalance impact (variable ordering)
+    /// Find connection with highest potential positive impact
     fn most_impactful_connection(&self) -> Option<usize> {
         let mut best_idx = None;
-        let mut best_impact = -1.0f32;
+        let mut best_score = -1.0f32;
 
         for (i, conn) in self.connections.iter().enumerate() {
-            // Simple impact: how much this connection affects net flow between two nodes
             let from_node = &self.nodes[conn.from as usize];
             let to_node = &self.nodes[conn.to as usize];
 
-            let imbalance = (from_node.production - from_node.consumption).abs()
-                + (to_node.production - to_node.consumption).abs();
+            let imbalance = (from_node.production - from_node.consumption - to_node.production + to_node.consumption).abs();
+            let potential = imbalance * (1.0 - self.system_stability); // higher when system is unstable
 
-            if imbalance > best_impact {
-                best_impact = imbalance;
+            if potential > best_score {
+                best_score = potential;
                 best_idx = Some(i);
             }
         }
@@ -136,7 +140,6 @@ impl ResourceFlowState {
         best_idx
     }
 
-    /// Forward-checking style backtracking with variable ordering
     fn solve_recursive(
         &self,
         current: &mut ResourceFlowState,
@@ -156,7 +159,7 @@ impl ResourceFlowState {
             return false;
         }
 
-        // Variable ordering: try most impactful connection first
+        // Variable ordering + light forward checking
         let conn_indices: Vec<usize> = if let Some(best) = current.most_impactful_connection() {
             let mut idxs: Vec<usize> = (0..current.connections.len()).collect();
             idxs.sort_by_key(|&i| if i == best { 0 } else { 1 });
@@ -167,6 +170,11 @@ impl ResourceFlowState {
 
         for &i in &conn_indices {
             for &delta in &[-4.0, -2.0, 2.0, 4.0] {
+                // Light forward check before applying
+                if current.estimate_impact(i, delta) > 1.8 {
+                    continue; // Skip clearly harmful adjustments
+                }
+
                 let action = PuzzleAction::AdjustFlow {
                     connection_id: i as u32,
                     delta,
