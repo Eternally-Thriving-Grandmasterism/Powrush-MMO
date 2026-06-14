@@ -1,8 +1,8 @@
 /*!
- * Ra-Thor / PATSAGi Council Bridge - Real Lattice Integration
+ * Ra-Thor / PATSAGi Council Bridge - With Structured Tracing
  *
- * Now supports real async HTTP calls to a Ra-Thor lattice endpoint
- * when the `real-ra-thor` feature is enabled.
+ * All significant operations are now instrumented with tracing spans and events.
+ * Use with: RUST_LOG=info cargo run --features real-ra-thor
  */
 
 use serde::{Deserialize, Serialize};
@@ -11,6 +11,8 @@ use std::time::{Duration, Instant};
 
 #[cfg(feature = "async")]
 use tokio::time::sleep;
+
+use tracing::{debug, error, info, instrument, warn};
 
 use crate::emergence::{EmergenceSeed, CouncilGuidance};
 
@@ -115,6 +117,7 @@ impl RaThorBridge {
         }
     }
 
+    #[instrument(skip(self, seed), fields(biome = %seed.biome, intensity = seed.intensity))]
     pub fn query_council_guidance(
         &self,
         seed: &EmergenceSeed,
@@ -122,18 +125,19 @@ impl RaThorBridge {
         mercy_score: f32,
     ) -> Result<Option<CouncilGuidance>, RaThorError> {
         if !self.enabled {
+            debug!("Ra-Thor bridge is disabled");
             return Ok(None);
         }
 
         match &self.mode {
             BridgeMode::Simulation(config) => {
+                debug!("Using simulation mode");
                 Ok(self.simulate_response(seed, player_valence, mercy_score, config))
             }
-            BridgeMode::Real(client) => client.query_council_guidance_sync(
-                seed,
-                player_valence,
-                mercy_score,
-            ),
+            BridgeMode::Real(client) => {
+                debug!("Using real Ra-Thor mode");
+                client.query_council_guidance_sync(seed, player_valence, mercy_score)
+            }
         }
     }
 
@@ -145,6 +149,7 @@ impl RaThorBridge {
         config: &SimulationConfig,
     ) -> Option<CouncilGuidance> {
         if config.strict_mercy && mercy_score < 0.65 {
+            debug!("Mercy gate blocked in simulation mode");
             return None;
         }
 
@@ -166,7 +171,7 @@ impl RaThorBridge {
 }
 
 // ============================================================================
-// RealRaThorClient - Now with real HTTP calls
+// RealRaThorClient - With Tracing
 // ============================================================================
 
 #[derive(Debug, Clone)]
@@ -206,11 +211,13 @@ impl RealRaThorClient {
         let cache_key = self.compute_cache_key(seed, player_valence);
         if let Some((guidance, timestamp)) = self.cache.get(&cache_key) {
             if timestamp.elapsed() < self.cache_ttl {
+                debug!(cache_key = cache_key, "Cache hit for council guidance");
                 return Ok(Some(guidance.clone()));
             }
         }
 
-        // Fallback simulated response when not using async
+        debug!("Cache miss - generating fallback response");
+
         let guidance = CouncilGuidance {
             flavor: "lattice".to_string(),
             suggested_intensity: (seed.intensity * 0.8).clamp(0.4, 0.9),
@@ -220,8 +227,9 @@ impl RealRaThorClient {
         Ok(Some(guidance))
     }
 
-    /// Real async implementation that calls the Ra-Thor lattice over HTTP
+    /// Real async HTTP call to Ra-Thor lattice with full tracing
     #[cfg(feature = "real-ra-thor")]
+    #[instrument(skip(self, seed), fields(endpoint = %self.endpoint, intensity = seed.intensity))]
     pub async fn query_council_guidance(
         &mut self,
         seed: &EmergenceSeed,
@@ -229,16 +237,19 @@ impl RealRaThorClient {
         mercy_score: f32,
     ) -> Result<Option<CouncilGuidance>, RaThorError> {
         if !self.connected {
+            warn!("Attempted query while not connected");
             return Err(RaThorError::NotConnected);
         }
 
-        // Check cache first
         let cache_key = self.compute_cache_key(seed, player_valence);
         if let Some((guidance, timestamp)) = self.cache.get(&cache_key) {
             if timestamp.elapsed() < self.cache_ttl {
+                debug!(cache_key = cache_key, "Cache hit (real mode)");
                 return Ok(Some(guidance.clone()));
             }
         }
+
+        info!("Making real HTTP request to Ra-Thor lattice");
 
         let request = CouncilQueryRequest {
             seed: seed.clone(),
@@ -250,36 +261,51 @@ impl RealRaThorClient {
             timestamp: seed.timestamp,
         };
 
-        // Real HTTP call to Ra-Thor lattice
+        let start = Instant::now();
+
         let response = reqwest::Client::new()
             .post(&self.endpoint)
             .json(&request)
             .send()
             .await
-            .map_err(|e| RaThorError::Network(e.to_string()))?;
+            .map_err(|e| {
+                error!(error = %e, "Failed to reach Ra-Thor lattice");
+                RaThorError::Network(e.to_string())
+            })?;
+
+        let latency = start.elapsed();
+        debug!(latency_ms = latency.as_millis(), status = %response.status(), "Received response from lattice");
 
         if !response.status().is_success() {
-            return Err(RaThorError::LatticeError(format!(
-                "Ra-Thor returned status {}",
-                response.status()
-            )));
+            let err = RaThorError::LatticeError(format!("Status {}", response.status()));
+            error!(error = ?err, "Non-success response from Ra-Thor");
+            return Err(err);
         }
 
         let council_response: CouncilQueryResponse = response
             .json()
             .await
-            .map_err(|e| RaThorError::Serialization(e.to_string()))?;
+            .map_err(|e| {
+                error!(error = %e, "Failed to deserialize Ra-Thor response");
+                RaThorError::Serialization(e.to_string())
+            })?;
 
-        // Cache the result
-        self.cache
-            .insert(cache_key, (council_response.guidance.clone(), Instant::now()));
+        info!(
+            flavor = %council_response.guidance.flavor,
+            confidence = council_response.confidence,
+            "Successfully received council guidance from Ra-Thor lattice"
+        );
+
+        self.cache.insert(cache_key, (council_response.guidance.clone(), Instant::now()));
 
         Ok(Some(council_response.guidance))
     }
 
     #[cfg(feature = "real-ra-thor")]
+    #[instrument(skip(self))]
     pub async fn connect(&mut self) -> Result<(), RaThorError> {
-        // Lightweight health check or handshake
+        info!(endpoint = %self.endpoint, "Attempting connection to Ra-Thor lattice");
+
         let health_url = self.endpoint.replace("/council/query", "/health");
 
         let response = reqwest::Client::new()
@@ -290,12 +316,12 @@ impl RealRaThorClient {
 
         if response.status().is_success() {
             self.connected = true;
+            info!("Successfully connected to Ra-Thor lattice");
             Ok(())
         } else {
-            Err(RaThorError::ConnectionFailed(format!(
-                "Health check failed with status {}",
-                response.status()
-            )))
+            let err = RaThorError::ConnectionFailed(format!("Health check status {}", response.status()));
+            error!(error = ?err, "Failed to connect to Ra-Thor lattice");
+            Err(err)
         }
     }
 
@@ -325,7 +351,7 @@ impl RaThorCouncilQuery for RealRaThorClient {
                 request.player_valence,
                 request.current_mercy_score,
             )?
-            .ok_or_else(|| RaThorError::LatticeError("No guidance".to_string()))?;
+            .ok_or_else(|| RaThorError::LatticeError("No guidance returned".to_string()))?;
 
         Ok(Some(CouncilQueryResponse {
             guidance,
@@ -338,16 +364,14 @@ impl RaThorCouncilQuery for RealRaThorClient {
 }
 
 // ============================================================================
-// Documentation
+// Notes
 // ============================================================================
 
 /*
- * Usage with real Ra-Thor lattice:
- *
- *   RUST_LOG=info cargo run --features real-ra-thor --example your_example
- *
- * Set environment variable:
- *   export RA_THOR_LATTICE_URL="http://your-ra-thor-host:port/council/query"
- *
- * The client will automatically use the real HTTP path when the feature is enabled.
+ * Tracing is now active on all key paths.
+ * Recommended log levels:
+ *   - info  : High-level events (requests, responses, connections)
+ *   - debug : Cache hits, detailed flow
+ *   - warn  : Recoverable issues
+ *   - error : Failures
  */
