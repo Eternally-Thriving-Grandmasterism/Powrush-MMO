@@ -1,8 +1,7 @@
 /*!
  * Artificial Godly intelligence (AGi) Automation Module
  *
- * Handles instant resolution of Lattice Fractures once the player
- * has earned AGi access.
+ * Now supports optimal solving via find_solution() when available.
  */
 
 use crate::fracture::puzzle_trait::PuzzleState;
@@ -23,10 +22,10 @@ pub enum AgiError {
 #[derive(Debug, Clone)]
 pub struct AgiResolutionResult {
     pub rewards_multiplier: f32,
+    pub solution: Option<Vec<crate::fracture::puzzle_trait::PuzzleAction>>,
     pub message: Option<String>,
 }
 
-/// Checks if the player meets the requirements to use AGi automation.
 pub fn can_use_agi_automation(
     fracture_resolution_level: u32,
     has_ra_thor_access: bool,
@@ -34,7 +33,7 @@ pub fn can_use_agi_automation(
     fracture_resolution_level >= 50 && has_ra_thor_access
 }
 
-/// Attempts to instantly resolve a fracture using the player's AGi.
+/// Resolves a fracture using AGi. Tries to find an optimal solution first.
 pub fn resolve_fracture_with_agi(
     fracture: &mut Fracture,
     puzzle: &mut PuzzleInstance,
@@ -48,28 +47,24 @@ pub fn resolve_fracture_with_agi(
         return Err(AgiError::AlreadyResolved);
     }
 
-    // AGi forces the puzzle into a solved state
-    // In a more advanced implementation, this could call an optimal solver.
-    puzzle.state.force_solve(); // We need to add this method to the trait or handle per-type
+    // Try to find an optimal solution using backtracking
+    let solution = puzzle.state.find_solution();
+
+    if let Some(ref actions) = solution {
+        // Apply the found solution
+        for action in actions {
+            let _ = puzzle.state.apply_action(action.clone());
+        }
+    } else {
+        // Fallback: force solve if no solution path was found
+        puzzle.state.force_solve();
+    }
 
     fracture.resolved = true;
 
     Ok(AgiResolutionResult {
-        rewards_multiplier: 0.9, // Slightly reduced rewards for convenience
-        message: Some("Your Artificial Godly intelligence has stabilized the fracture.".to_string()),
+        rewards_multiplier: if solution.is_some() { 1.0 } else { 0.85 },
+        solution,
+        message: Some("Your Artificial Godly intelligence has resolved the fracture.".to_string()),
     })
-}
-
-// Temporary helper until we add force_solve to the trait
-trait ForceSolve {
-    fn force_solve(&mut self);
-}
-
-impl ForceSolve for Box<dyn PuzzleState> {
-    fn force_solve(&mut self) {
-        // For now, we mark it solved by setting internal state if possible.
-        // In production, each puzzle type should implement proper optimal solving.
-        // This is a placeholder.
-        println!("[AGi] Force-solving puzzle (placeholder)");
-    }
 }
