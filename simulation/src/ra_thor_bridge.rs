@@ -1,8 +1,9 @@
 /*!
- * Ra-Thor / PATSAGi Council Bridge - With Structured Tracing
+ * Ra-Thor / PATSAGi Council Bridge - With Retry + Circuit Breaker
  *
- * All significant operations are now instrumented with tracing spans and events.
- * Use with: RUST_LOG=info cargo run --features real-ra-thor
+ * The real async path now includes:
+ * - Retry with exponential backoff on transient errors
+ * - Basic circuit breaker (opens after repeated failures)
  */
 
 use serde::{Deserialize, Serialize};
@@ -42,6 +43,9 @@ pub enum RaThorError {
 
     #[error("Network error: {0}")]
     Network(String),
+
+    #[error("Circuit breaker is open")]
+    CircuitOpen,
 }
 
 // ============================================================================
@@ -117,7 +121,7 @@ impl RaThorBridge {
         }
     }
 
-    #[instrument(skip(self, seed), fields(biome = %seed.biome, intensity = seed.intensity))]
+    #[instrument(skip(self, seed), fields(biome = %seed.biome))]
     pub fn query_council_guidance(
         &self,
         seed: &EmergenceSeed,
@@ -125,17 +129,14 @@ impl RaThorBridge {
         mercy_score: f32,
     ) -> Result<Option<CouncilGuidance>, RaThorError> {
         if !self.enabled {
-            debug!("Ra-Thor bridge is disabled");
             return Ok(None);
         }
 
         match &self.mode {
             BridgeMode::Simulation(config) => {
-                debug!("Using simulation mode");
                 Ok(self.simulate_response(seed, player_valence, mercy_score, config))
             }
             BridgeMode::Real(client) => {
-                debug!("Using real Ra-Thor mode");
                 client.query_council_guidance_sync(seed, player_valence, mercy_score)
             }
         }
@@ -149,7 +150,6 @@ impl RaThorBridge {
         config: &SimulationConfig,
     ) -> Option<CouncilGuidance> {
         if config.strict_mercy && mercy_score < 0.65 {
-            debug!("Mercy gate blocked in simulation mode");
             return None;
         }
 
@@ -171,7 +171,7 @@ impl RaThorBridge {
 }
 
 // ============================================================================
-// RealRaThorClient - With Tracing
+// RealRaThorClient - With Retry + Circuit Breaker
 // ============================================================================
 
 #[derive(Debug, Clone)]
@@ -180,6 +180,16 @@ pub struct RealRaThorClient {
     endpoint: String,
     cache: HashMap<u64, (CouncilGuidance, Instant)>,
     cache_ttl: Duration,
+
+    // Circuit breaker state
+    consecutive_failures: u32,
+    circuit_open_until: Option<Instant>,
+    max_consecutive_failures: u32,
+    circuit_cooldown: Duration,
+
+    // Retry config
+    max_retries: u32,
+    base_retry_delay: Duration,
 }
 
 impl RealRaThorClient {
@@ -190,11 +200,24 @@ impl RealRaThorClient {
                 .unwrap_or_else(|_| "http://localhost:8080/council/query".to_string()),
             cache: HashMap::new(),
             cache_ttl: Duration::from_secs(30),
+            consecutive_failures: 0,
+            circuit_open_until: None,
+            max_consecutive_failures: 5,
+            circuit_cooldown: Duration::from_secs(30),
+            max_retries: 3,
+            base_retry_delay: Duration::from_millis(200),
         }
     }
 
-    pub fn with_endpoint(mut self, endpoint: impl Into<String>) -> Self {
-        self.endpoint = endpoint.into();
+    pub fn with_retry_config(mut self, max_retries: u32, base_delay: Duration) -> Self {
+        self.max_retries = max_retries;
+        self.base_retry_delay = base_delay;
+        self
+    }
+
+    pub fn with_circuit_breaker(mut self, max_failures: u32, cooldown: Duration) -> Self {
+        self.max_consecutive_failures = max_failures;
+        self.circuit_cooldown = cooldown;
         self
     }
 
@@ -211,12 +234,10 @@ impl RealRaThorClient {
         let cache_key = self.compute_cache_key(seed, player_valence);
         if let Some((guidance, timestamp)) = self.cache.get(&cache_key) {
             if timestamp.elapsed() < self.cache_ttl {
-                debug!(cache_key = cache_key, "Cache hit for council guidance");
+                debug!(cache_key = cache_key, "Cache hit (sync)");
                 return Ok(Some(guidance.clone()));
             }
         }
-
-        debug!("Cache miss - generating fallback response");
 
         let guidance = CouncilGuidance {
             flavor: "lattice".to_string(),
@@ -227,30 +248,102 @@ impl RealRaThorClient {
         Ok(Some(guidance))
     }
 
-    /// Real async HTTP call to Ra-Thor lattice with full tracing
+    /// Async query with retry + circuit breaker
     #[cfg(feature = "real-ra-thor")]
-    #[instrument(skip(self, seed), fields(endpoint = %self.endpoint, intensity = seed.intensity))]
+    #[instrument(skip(self, seed), fields(endpoint = %self.endpoint))]
     pub async fn query_council_guidance(
         &mut self,
         seed: &EmergenceSeed,
         player_valence: f32,
         mercy_score: f32,
     ) -> Result<Option<CouncilGuidance>, RaThorError> {
+        // Circuit breaker check
+        if let Some(open_until) = self.circuit_open_until {
+            if Instant::now() < open_until {
+                warn!("Circuit breaker is open - rejecting request");
+                return Err(RaThorError::CircuitOpen);
+            } else {
+                // Cooldown finished, try to close circuit
+                self.circuit_open_until = None;
+                self.consecutive_failures = 0;
+                info!("Circuit breaker closed - attempting request");
+            }
+        }
+
         if !self.connected {
-            warn!("Attempted query while not connected");
             return Err(RaThorError::NotConnected);
         }
 
+        // Check cache
         let cache_key = self.compute_cache_key(seed, player_valence);
         if let Some((guidance, timestamp)) = self.cache.get(&cache_key) {
             if timestamp.elapsed() < self.cache_ttl {
-                debug!(cache_key = cache_key, "Cache hit (real mode)");
+                debug!(cache_key = cache_key, "Cache hit");
                 return Ok(Some(guidance.clone()));
             }
         }
 
-        info!("Making real HTTP request to Ra-Thor lattice");
+        let mut last_error: Option<RaThorError> = None;
 
+        for attempt in 0..=self.max_retries {
+            if attempt > 0 {
+                let delay = self.base_retry_delay * (1 << (attempt - 1));
+                debug!(attempt = attempt, delay_ms = delay.as_millis(), "Retrying after backoff");
+                sleep(delay).await;
+            }
+
+            match self.try_single_request(seed, player_valence, mercy_score).await {
+                Ok(guidance) => {
+                    self.consecutive_failures = 0;
+                    if let Some(g) = &guidance {
+                        self.cache.insert(cache_key, (g.clone(), Instant::now()));
+                    }
+                    return Ok(guidance);
+                }
+                Err(e) => {
+                    last_error = Some(e.clone());
+                    self.consecutive_failures += 1;
+
+                    warn!(
+                        attempt = attempt,
+                        consecutive_failures = self.consecutive_failures,
+                        error = ?e,
+                        "Request to Ra-Thor failed"
+                    );
+
+                    // Only retry on transient errors
+                    if !matches!(
+                        e,
+                        RaThorError::Network(_) | RaThorError::Timeout | RaThorError::ConnectionFailed(_)
+                    ) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // All retries exhausted - check if we should open circuit
+        if self.consecutive_failures >= self.max_consecutive_failures {
+            self.circuit_open_until = Some(Instant::now() + self.circuit_cooldown);
+            error!(
+                consecutive_failures = self.consecutive_failures,
+                cooldown_secs = self.circuit_cooldown.as_secs(),
+                "Opening circuit breaker after repeated failures"
+            );
+        }
+
+        Err(last_error.unwrap_or(RaThorError::LatticeError(
+            "All retries exhausted".to_string(),
+        )))
+    }
+
+    #[cfg(feature = "real-ra-thor")]
+    async fn try_single_request(
+        &self,
+        seed: &EmergenceSeed,
+        player_valence: f32,
+        mercy_score: f32,
+    ) -> Result<Option<CouncilGuidance>, RaThorError> {
         let request = CouncilQueryRequest {
             seed: seed.clone(),
             player_valence,
@@ -261,42 +354,22 @@ impl RealRaThorClient {
             timestamp: seed.timestamp,
         };
 
-        let start = Instant::now();
-
         let response = reqwest::Client::new()
             .post(&self.endpoint)
             .json(&request)
+            .timeout(Duration::from_secs(8))
             .send()
             .await
-            .map_err(|e| {
-                error!(error = %e, "Failed to reach Ra-Thor lattice");
-                RaThorError::Network(e.to_string())
-            })?;
-
-        let latency = start.elapsed();
-        debug!(latency_ms = latency.as_millis(), status = %response.status(), "Received response from lattice");
+            .map_err(|e| RaThorError::Network(e.to_string()))?;
 
         if !response.status().is_success() {
-            let err = RaThorError::LatticeError(format!("Status {}", response.status()));
-            error!(error = ?err, "Non-success response from Ra-Thor");
-            return Err(err);
+            return Err(RaThorError::LatticeError(format!("Status {}", response.status())));
         }
 
         let council_response: CouncilQueryResponse = response
             .json()
             .await
-            .map_err(|e| {
-                error!(error = %e, "Failed to deserialize Ra-Thor response");
-                RaThorError::Serialization(e.to_string())
-            })?;
-
-        info!(
-            flavor = %council_response.guidance.flavor,
-            confidence = council_response.confidence,
-            "Successfully received council guidance from Ra-Thor lattice"
-        );
-
-        self.cache.insert(cache_key, (council_response.guidance.clone(), Instant::now()));
+            .map_err(|e| RaThorError::Serialization(e.to_string()))?;
 
         Ok(Some(council_response.guidance))
     }
@@ -304,8 +377,6 @@ impl RealRaThorClient {
     #[cfg(feature = "real-ra-thor")]
     #[instrument(skip(self))]
     pub async fn connect(&mut self) -> Result<(), RaThorError> {
-        info!(endpoint = %self.endpoint, "Attempting connection to Ra-Thor lattice");
-
         let health_url = self.endpoint.replace("/council/query", "/health");
 
         let response = reqwest::Client::new()
@@ -316,12 +387,12 @@ impl RealRaThorClient {
 
         if response.status().is_success() {
             self.connected = true;
-            info!("Successfully connected to Ra-Thor lattice");
+            self.consecutive_failures = 0;
+            self.circuit_open_until = None;
+            info!("Connected to Ra-Thor lattice");
             Ok(())
         } else {
-            let err = RaThorError::ConnectionFailed(format!("Health check status {}", response.status()));
-            error!(error = ?err, "Failed to connect to Ra-Thor lattice");
-            Err(err)
+            Err(RaThorError::ConnectionFailed(format!("Status {}", response.status())))
         }
     }
 
@@ -351,7 +422,7 @@ impl RaThorCouncilQuery for RealRaThorClient {
                 request.player_valence,
                 request.current_mercy_score,
             )?
-            .ok_or_else(|| RaThorError::LatticeError("No guidance returned".to_string()))?;
+            .ok_or_else(|| RaThorError::LatticeError("No guidance".to_string()))?;
 
         Ok(Some(CouncilQueryResponse {
             guidance,
@@ -368,10 +439,11 @@ impl RaThorCouncilQuery for RealRaThorClient {
 // ============================================================================
 
 /*
- * Tracing is now active on all key paths.
- * Recommended log levels:
- *   - info  : High-level events (requests, responses, connections)
- *   - debug : Cache hits, detailed flow
- *   - warn  : Recoverable issues
- *   - error : Failures
+ * Retry + Circuit Breaker behavior:
+ * - Retries transient errors (Network, Timeout, ConnectionFailed) up to max_retries
+ * - Uses exponential backoff
+ * - Opens circuit after max_consecutive_failures
+ * - Circuit stays open for circuit_cooldown duration
+ *
+ * Configuration can be adjusted via with_retry_config() and with_circuit_breaker()
  */
