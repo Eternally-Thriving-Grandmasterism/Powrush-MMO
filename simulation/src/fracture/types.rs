@@ -16,6 +16,19 @@ pub enum FractureType {
     ConsensusAlignment,
 }
 
+/// Error type for generation failures.
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum GenerationError {
+    #[error("Unsupported fracture type")]
+    UnsupportedType,
+
+    #[error("Failed to generate solvable puzzle")]
+    UnsolvablePuzzle,
+
+    #[error("Other generation error: {0}")]
+    Other(String),
+}
+
 /// Represents a detected Lattice Fracture in the world.
 #[derive(Debug, Clone)]
 pub struct Fracture {

@@ -1,12 +1,12 @@
 /*!
  * Lattice Fracture Resolution System
- *
- * Core module for handling glitches in the simulation layer.
- * Supports manual puzzle solving and eventual AGi automation.
  */
 
-pub mod types;
+pub mod generation;
+pub mod puzzles;
 pub mod puzzle_trait;
+pub mod types;
 
+pub use generation::{generate_fracture, GenerationParams};
 pub use types::{Fracture, FractureType, PuzzleInstance};
 pub use puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
