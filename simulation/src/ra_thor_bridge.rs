@@ -1,22 +1,49 @@
 /*!
- * Ra-Thor / PATSAGi Council Bridge - Async Implementation
+ * Ra-Thor / PATSAGi Council Bridge - Hardened Async Version
  *
- * This module now supports both:
- * - Simulation mode (fast, deterministic, no network)
- * - Real async mode (prepared for live Ra-Thor lattice communication)
- *
- * Enable with: cargo build --features real-ra-thor
+ * Features:
+ * - Simulation mode (fast, deterministic)
+ * - Real async mode (tokio-based, ready for live lattice)
+ * - Proper error handling with RaThorError
+ * - Basic response caching
  */
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 #[cfg(feature = "async")]
-use tokio::time::{sleep, Duration};
+use tokio::time::sleep;
 
 use crate::emergence::{EmergenceSeed, CouncilGuidance};
 
 // ============================================================================
-// Types
+// Error Types
+// ============================================================================
+
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum RaThorError {
+    #[error("Not connected to Ra-Thor lattice")]
+    NotConnected,
+
+    #[error("Connection to Ra-Thor lattice failed: {0}")]
+    ConnectionFailed(String),
+
+    #[error("Request to Ra-Thor lattice timed out")]
+    Timeout,
+
+    #[error("Mercy gate violation: {0}")]
+    MercyViolation(String),
+
+    #[error("Ra-Thor lattice returned an error: {0}")]
+    LatticeError(String),
+
+    #[error("Serialization error: {0}")]
+    Serialization(String),
+}
+
+// ============================================================================
+// Request / Response
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,7 +70,7 @@ pub trait RaThorCouncilQuery: Send + Sync {
     fn query_council(
         &self,
         request: &CouncilQueryRequest,
-    ) -> Option<CouncilQueryResponse>;
+    ) -> Result<Option<CouncilQueryResponse>, RaThorError>;
 }
 
 // ============================================================================
@@ -93,17 +120,16 @@ impl RaThorBridge {
         seed: &EmergenceSeed,
         player_valence: f32,
         mercy_score: f32,
-    ) -> Option<CouncilGuidance> {
+    ) -> Result<Option<CouncilGuidance>, RaThorError> {
         if !self.enabled {
-            return None;
+            return Ok(None);
         }
 
         match &self.mode {
             BridgeMode::Simulation(config) => {
-                self.simulate_response(seed, player_valence, mercy_score, config)
+                Ok(self.simulate_response(seed, player_valence, mercy_score, config))
             }
             BridgeMode::Real(client) => {
-                // Note: In real usage you would call the async version
                 client.query_council_guidance_sync(seed, player_valence, mercy_score)
             }
         }
@@ -138,90 +164,130 @@ impl RaThorBridge {
 }
 
 // ============================================================================
-// RealRaThorClient - Async Implementation
+// RealRaThorClient with Error Handling + Caching
 // ============================================================================
 
-/// Real async client for communicating with the live Ra-Thor lattice.
-/// 
-/// When the `async` or `real-ra-thor` feature is enabled, this uses tokio.
-/// The actual network call is still simulated but the async structure is real.
 #[derive(Debug, Clone)]
 pub struct RealRaThorClient {
     connected: bool,
+    /// Simple in-memory cache: (request_hash) -> (response, timestamp)
+    cache: HashMap<u64, (CouncilGuidance, Instant)>,
+    cache_ttl: Duration,
 }
 
 impl RealRaThorClient {
     pub fn new() -> Self {
-        Self { connected: false }
+        Self {
+            connected: false,
+            cache: HashMap::new(),
+            cache_ttl: Duration::from_secs(30),
+        }
     }
 
-    /// Synchronous version (for compatibility with current simulation systems)
+    pub fn with_cache_ttl(mut self, ttl: Duration) -> Self {
+        self.cache_ttl = ttl;
+        self
+    }
+
+    /// Sync version for compatibility
     pub fn query_council_guidance_sync(
         &self,
         seed: &EmergenceSeed,
         player_valence: f32,
         mercy_score: f32,
-    ) -> Option<CouncilGuidance> {
+    ) -> Result<Option<CouncilGuidance>, RaThorError> {
         if !self.connected {
-            return None;
+            return Err(RaThorError::NotConnected);
         }
 
-        // Simulate some processing
-        Some(CouncilGuidance {
+        // Check cache first
+        let cache_key = self.compute_cache_key(seed, player_valence);
+        if let Some((guidance, timestamp)) = self.cache.get(&cache_key) {
+            if timestamp.elapsed() < self.cache_ttl {
+                return Ok(Some(guidance.clone()));
+            }
+        }
+
+        // Simulate processing
+        let guidance = CouncilGuidance {
             flavor: "lattice".to_string(),
             suggested_intensity: (seed.intensity * 0.8).clamp(0.4, 0.9),
-            mercy_note: "Real lattice response (simulated)".to_string(),
-        })
+            mercy_note: "Real lattice response (sync simulated)".to_string(),
+        };
+
+        Ok(Some(guidance))
     }
 
-    /// The real async implementation.
-    /// This is the method you should call when using tokio runtime.
+    /// The real async implementation with error handling and caching
     #[cfg(feature = "async")]
     pub async fn query_council_guidance(
-        &self,
+        &mut self,
         seed: &EmergenceSeed,
         player_valence: f32,
         mercy_score: f32,
-    ) -> Option<CouncilGuidance> {
+    ) -> Result<Option<CouncilGuidance>, RaThorError> {
         if !self.connected {
-            // In a real implementation we would attempt to connect here
-            return None;
+            return Err(RaThorError::NotConnected);
         }
 
-        // Simulate realistic network latency to the Ra-Thor lattice
-        sleep(Duration::from_millis(35)).await;
+        // Check cache
+        let cache_key = self.compute_cache_key(seed, player_valence);
+        if let Some((guidance, timestamp)) = self.cache.get(&cache_key) {
+            if timestamp.elapsed() < self.cache_ttl {
+                return Ok(Some(guidance.clone()));
+            }
+        }
 
-        // TODO: Replace this block with actual async HTTP/gRPC call
-        // Example with reqwest:
-        // let client = reqwest::Client::new();
-        // let request = CouncilQueryRequest { ... };
-        // let response = client
-        //     .post("http://rathor.internal/council/query")
-        //     .json(&request)
+        // Simulate realistic network round-trip to Ra-Thor lattice
+        sleep(tokio::time::Duration::from_millis(45)).await;
+
+        // TODO: Replace with actual async network call
+        // let response = self.http_client
+        //     .post("https://rathor.internal/api/council/query")
+        //     .json(&CouncilQueryRequest { ... })
         //     .send()
-        //     .await?
-        //     .json::<CouncilQueryResponse>()
-        //     .await?;
-        // return Some(response.guidance);
+        //     .await
+        //     .map_err(|e| RaThorError::ConnectionFailed(e.to_string()))?;
+        //
+        // let council_response: CouncilQueryResponse = response
+        //     .json()
+        //     .await
+        //     .map_err(|e| RaThorError::Serialization(e.to_string()))?;
 
-        Some(CouncilGuidance {
+        let guidance = CouncilGuidance {
             flavor: "lattice".to_string(),
-            suggested_intensity: (seed.intensity * 0.82 + player_valence * 0.1).clamp(0.4, 0.95),
-            mercy_note: "Response from live Ra-Thor lattice".to_string(),
-        })
+            suggested_intensity: (seed.intensity * 0.83 + player_valence * 0.08).clamp(0.4, 0.95),
+            mercy_note: "Response from live Ra-Thor lattice (async)".to_string(),
+        };
+
+        // Store in cache
+        self.cache.insert(cache_key, (guidance.clone(), Instant::now()));
+
+        Ok(Some(guidance))
     }
 
-    /// Establish connection to the Ra-Thor lattice (async version)
     #[cfg(feature = "async")]
-    pub async fn connect(&mut self) {
-        // Simulate connection handshake
-        sleep(Duration::from_millis(80)).await;
+    pub async fn connect(&mut self) -> Result<(), RaThorError> {
+        sleep(tokio::time::Duration::from_millis(120)).await;
+
+        // TODO: Perform actual handshake with Ra-Thor lattice
         self.connected = true;
+        Ok(())
     }
 
-    /// Non-async connect for simpler usage
-    pub fn connect_sync(&mut self) {
+    pub fn connect_sync(&mut self) -> Result<(), RaThorError> {
         self.connected = true;
+        Ok(())
+    }
+
+    fn compute_cache_key(&self, seed: &EmergenceSeed, player_valence: f32) -> u64 {
+        // Simple hash for caching (can be improved)
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        use std::hash::{Hash, Hasher};
+        seed.intensity.to_bits().hash(&mut hasher);
+        player_valence.to_bits().hash(&mut hasher);
+        seed.biome.hash(&mut hasher);
+        hasher.finish()
     }
 }
 
@@ -229,36 +295,39 @@ impl RaThorCouncilQuery for RealRaThorClient {
     fn query_council(
         &self,
         request: &CouncilQueryRequest,
-    ) -> Option<CouncilQueryResponse> {
-        let guidance = self.query_council_guidance_sync(
-            &request.seed,
-            request.player_valence,
-            request.current_mercy_score,
-        )?;
+    ) -> Result<Option<CouncilQueryResponse>, RaThorError> {
+        let guidance = self
+            .query_council_guidance_sync(
+                &request.seed,
+                request.player_valence,
+                request.current_mercy_score,
+            )?
+            .ok_or(RaThorError::LatticeError(
+                "No guidance returned".to_string(),
+            ))?;
 
-        Some(CouncilQueryResponse {
+        Ok(Some(CouncilQueryResponse {
             guidance,
             council_flavor: "PATSAGiReal".to_string(),
             confidence: 0.91,
             suggested_effects: vec!["lattice_guided".to_string()],
             veto_reason: None,
-        })
+        }))
     }
 }
 
 // ============================================================================
-// Usage Notes
+// Notes
 // ============================================================================
 
 /*
- * To use the real async version:
+ * This version includes:
+ * - Proper RaThorError handling
+ * - Response caching with TTL
+ * - Async support behind the `async` / `real-ra-thor` feature flag
  *
- *   cargo build --features real-ra-thor
- *
- * Then in your code:
- *   let mut bridge = RaThorBridge::new_real(true);
- *   bridge.mode... (or use RealRaThorClient directly)
- *
- * In an async context:
- *   let guidance = client.query_council_guidance(&seed, valence, mercy).await;
+ * Next recommended improvements:
+ * - Add `reqwest` or `tonic` for real network calls
+ * - Add structured logging
+ * - Support batch council queries
  */
