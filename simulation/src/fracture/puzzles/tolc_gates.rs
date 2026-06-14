@@ -1,5 +1,5 @@
 /*!
- * TOLC Gate Alignment with AC-3 + Forward Checking + MRV.
+ * TOLC Gate Alignment with optimized AC-3 + bitmask domains.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -7,20 +7,29 @@ use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GateState {
-    Aligned,
-    Inverted,
-    Overpowered,
-    Conflicted,
+    Aligned = 0,
+    Inverted = 1,
+    Overpowered = 2,
+    Conflicted = 3,
 }
 
 impl GateState {
     pub fn all_states() -> [GateState; 4] {
-        [
-            GateState::Aligned,
-            GateState::Inverted,
-            GateState::Overpowered,
-            GateState::Conflicted,
-        ]
+        [GateState::Aligned, GateState::Inverted, GateState::Overpowered, GateState::Conflicted]
+    }
+
+    pub fn to_bit(self) -> u8 {
+        1 << (self as u8)
+    }
+
+    pub fn from_bit(bit: u8) -> Option<GateState> {
+        match bit {
+            1 => Some(GateState::Aligned),
+            2 => Some(GateState::Inverted),
+            4 => Some(GateState::Overpowered),
+            8 => Some(GateState::Conflicted),
+            _ => None,
+        }
     }
 }
 
@@ -46,7 +55,8 @@ pub struct TolcGateState {
     pub collective_valence: f32,
     pub mercy_charges: u32,
     pub max_mercy_charges: u32,
-    pub domains: Vec<Vec<GateState>>,
+    /// Bitmask domains for performance (bit 0=Aligned, 1=Inverted, 2=Overpowered, 3=Conflicted)
+    pub domains: Vec<u8>,
 }
 
 impl TolcGateState {
@@ -68,9 +78,8 @@ impl TolcGateState {
             })
             .collect();
 
-        let domains = (0..num_gates)
-            .map(|_| GateState::all_states().to_vec())
-            .collect();
+        // Start with all 4 states possible
+        let domains = vec![0b1111; num_gates];
 
         Self {
             gates,
@@ -93,11 +102,10 @@ impl TolcGateState {
         self.collective_valence = (avg * 0.7 + connection_bonus * 0.3).clamp(0.0, 1.0);
     }
 
-    /// Enforce Arc Consistency (AC-3 style)
+    /// Enforce Arc Consistency using bitmasks
     fn enforce_arc_consistency(&mut self) -> bool {
         let mut queue: Vec<(usize, usize)> = vec![];
 
-        // Initialize queue with all arcs
         for conn in &self.connections {
             queue.push((conn.from, conn.to));
             queue.push((conn.to, conn.from));
@@ -105,10 +113,9 @@ impl TolcGateState {
 
         while let Some((xi, xj)) = queue.pop() {
             if self.revise(xi, xj) {
-                if self.domains[xi].is_empty() {
+                if self.domains[xi] == 0 {
                     return false;
                 }
-                // Add all arcs (xk, xi) where xk != xj
                 for conn in &self.connections {
                     if conn.to == xi && conn.from != xj {
                         queue.push((conn.from, xi));
@@ -123,35 +130,45 @@ impl TolcGateState {
         true
     }
 
-    /// Revise domain of Xi based on Xj (remove inconsistent values)
     fn revise(&mut self, xi: usize, xj: usize) -> bool {
         let mut revised = false;
-        let mut new_domain = vec![];
+        let mut new_domain = 0u8;
 
-        for &vi in &self.domains[xi] {
-            let mut supported = false;
+        let xj_domain = self.domains[xj];
 
-            for &vj in &self.domains[xj] {
-                if self.is_consistent(vi, vj, xi, xj) {
-                    supported = true;
-                    break;
+        for bit in 0..4 {
+            let mask = 1 << bit;
+            if (self.domains[xi] & mask) != 0 {
+                let vi = GateState::from_bit(mask).unwrap();
+                let mut supported = false;
+
+                for jbit in 0..4 {
+                    let jmask = 1 << jbit;
+                    if (xj_domain & jmask) != 0 {
+                        let vj = GateState::from_bit(jmask).unwrap();
+                        if self.is_consistent(vi, vj, xi, xj) {
+                            supported = true;
+                            break;
+                        }
+                    }
                 }
-            }
 
-            if supported {
-                new_domain.push(vi);
-            } else {
-                revised = true;
+                if supported {
+                    new_domain |= mask;
+                } else {
+                    revised = true;
+                }
             }
         }
 
-        self.domains[xi] = new_domain;
+        if revised {
+            self.domains[xi] = new_domain;
+        }
+
         revised
     }
 
-    /// Check if value vi for Xi is consistent with vj for Xj
     fn is_consistent(&self, vi: GateState, vj: GateState, xi: usize, xj: usize) -> bool {
-        // Example consistency rule: Conflicted gates should not both be locked without mercy
         if vi == GateState::Conflicted && vj == GateState::Conflicted {
             if self.gates[xi].locked && self.gates[xj].locked && self.mercy_charges == 0 {
                 return false;
@@ -160,7 +177,6 @@ impl TolcGateState {
         true
     }
 
-    /// AC-3 + Forward Checking + MRV solver
     fn solve_ac3_fc_mrv(
         &self,
         current: &mut TolcGateState,
@@ -176,12 +192,11 @@ impl TolcGateState {
             return false;
         }
 
-        // Enforce arc consistency before choosing variable
         if !current.enforce_arc_consistency() {
             return false;
         }
 
-        // MRV: select variable with smallest domain
+        // MRV
         let mut best_idx: Option<usize> = None;
         let mut min_size = usize::MAX;
 
@@ -189,7 +204,7 @@ impl TolcGateState {
             if current.gates[i].locked {
                 continue;
             }
-            let dsize = current.domains[i].len();
+            let dsize = current.domains[i].count_ones() as usize;
             if dsize > 0 && dsize < min_size {
                 min_size = dsize;
                 best_idx = Some(i);
@@ -201,15 +216,19 @@ impl TolcGateState {
             None => return false,
         };
 
-        let current_domain = current.domains[var].clone();
+        let current_domain = current.domains[var];
 
-        for &value in &current_domain {
+        for bit in 0..4 {
+            let mask = 1 << bit;
+            if (current_domain & mask) == 0 {
+                continue;
+            }
+
+            let value = GateState::from_bit(mask).unwrap();
             let backup = current.clone();
 
-            // Assign value
             current.gates[var].state = value;
 
-            // Forward Checking + AC-3 after assignment
             if current.enforce_arc_consistency() {
                 let action = PuzzleAction::RotateGate {
                     gate_index: var,
@@ -313,7 +332,7 @@ impl PuzzleState for TolcGateState {
                 self.mercy_charges = self.max_mercy_charges;
 
                 for d in &mut self.domains {
-                    *d = GateState::all_states().to_vec();
+                    *d = 0b1111;
                 }
 
                 Ok(ActionResult::Success { message: Some("Puzzle reset".into()) })
