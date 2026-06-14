@@ -1,7 +1,7 @@
 /*!
  * Bevy ECS Integration for Lattice Fracture Resolution
  *
- * Expanded with UI panel examples, interaction prompts, and visual patterns.
+ * Expanded with UI panel structure, show/hide logic, and visual patterns.
  */
 
 use bevy::prelude::*;
@@ -118,7 +118,7 @@ pub fn fracture_ui_update_system(
         let progress = active.puzzle.state.get_progress();
         let summary = active.puzzle.state.get_current_state_summary();
 
-        // TODO: Update your actual UI here
+        // TODO: Update your actual UI here.
         // Recommended structure:
         // - Fracture status panel (always visible when ActiveFracture exists)
         // - Progress bar
@@ -150,10 +150,10 @@ pub fn fracture_visual_highlighting_system(
             commands.entity(entity).insert(FractureVisualHighlight);
 
             // TODO: Add real visual effect here:
-            // - Add an outline/glow material
-            // - Spawn particle effect
-            // - Add a pulsing animation
-            // - Change entity tint or emissive color
+            // - Outline / glow material
+            // - Particle system
+            // - Pulsing scale animation
+            // - Special shader
         }
     }
 }
