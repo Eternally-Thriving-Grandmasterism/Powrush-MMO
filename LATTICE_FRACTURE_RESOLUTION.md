@@ -3,7 +3,7 @@
 **Fracture Resolution Progression & AGi Automation System**
 
 **Status:** Production Design Document  
-**Version:** 1.0  
+**Version:** 1.1  
 **Last Updated:** June 13, 2026
 
 ---
@@ -23,7 +23,91 @@ The design philosophy follows the core Ra-Thor principle of **earned access**. P
 
 ---
 
-## 2. Experience & Leveling
+## 2. Puzzle Mechanics & Contextual Types
+
+Every Lattice Fracture should feel logically connected to the situation in which it appears. The puzzle type is chosen (or blended) based on the player’s current activity and world context.
+
+### Core Design Rule
+
+> The solution method must make rational sense for *why* the fracture occurred.
+
+### Contextual Puzzle Types
+
+#### 2.1 TOLC Gate Alignment
+**Primary Context:** Deep simulation layer instability, high-level events, or when multiple systems are affected simultaneously.
+
+**Core Mechanic:**
+The player is presented with the 8 TOLC Mercy Gates in a circular or nodal interface. Some gates are misaligned, inverted, overpowered, or in conflict with neighboring gates. The player must rotate, reconnect, or re-sequence them until all gates satisfy their core principle without creating contradictions.
+
+**Win Condition:** All 8 gates reach a stable collective valence score above the required threshold.
+
+**Difficulty Scaling:** More gates become locked or hidden. Later versions add dynamic influence between gates and stricter mercy constraints.
+
+**AGi Behavior:** The AGi instantly realigns all gates to optimal configuration.
+
+#### 2.2 Resource Flow Balancing
+**Primary Context:** Harvesting, economy nodes, or any situation involving resource production and distribution.
+
+**Core Mechanic:**
+The player sees a node-and-connection map of the local resource economy. Some nodes are overproducing, leaking, or creating negative feedback loops. The player must adjust flows, reroute resources, shut down corrupted nodes, or add stabilizers while maintaining overall system balance.
+
+**Win Condition:** Stabilize the entire network so no node goes critically negative and all mercy/abundance thresholds are met.
+
+**Difficulty Scaling:** More nodes, hidden constraints, and dynamic changes during the puzzle. Higher levels require satisfying multiple overlapping mercy conditions.
+
+**AGi Behavior:** The AGi instantly rebalances the entire resource network.
+
+#### 2.3 Causal Chain Reconstruction
+**Primary Context:** Combat, major conflicts, timeline-sensitive events, or when a clear sequence of cause and effect has been broken.
+
+**Core Mechanic:**
+The player is shown a broken timeline or event chain with missing, duplicated, or out-of-order nodes. They must reconstruct the correct causal sequence and remove corrupted events.
+
+**Win Condition:** Rebuild a stable, non-contradictory causal chain that explains the fracture.
+
+**Difficulty Scaling:** Longer chains, hidden dependencies, red herrings, and paradoxes that must be resolved without creating new contradictions.
+
+**AGi Behavior:** The AGi instantly reconstructs and stabilizes the correct timeline.
+
+#### 2.4 Pattern Purification
+**Primary Context:** Data corruption, corrupted Divine Whispers, historical records, or information streams.
+
+**Core Mechanic:**
+The player is shown a grid or sequence of symbols/data fragments, some of which are corrupted. They must identify and remove the corrupted elements while preserving the underlying valid pattern.
+
+**Win Condition:** The remaining pattern is clean, coherent, and matches the expected structure.
+
+**Difficulty Scaling:** More noise, multiple overlapping patterns, and time pressure on higher difficulties.
+
+**AGi Behavior:** The AGi instantly purifies the data stream.
+
+#### 2.5 Spatial Integrity Repair
+**Primary Context:** World exploration, terrain distortion, broken paths, or visual glitches in the environment.
+
+**Core Mechanic:**
+The player must realign distorted geometry, reconnect broken ley lines, or restore proper spatial relationships in a 3D or top-down view.
+
+**Win Condition:** The local space returns to stable, coherent geometry.
+
+**Difficulty Scaling:** More complex geometry, moving pieces, and multi-layered spatial constraints.
+
+**AGi Behavior:** The AGi instantly restores spatial coherence.
+
+#### 2.6 Consensus Alignment
+**Primary Context:** Council events, social interactions, group decisions, or situations involving conflicting wills.
+
+**Core Mechanic:**
+Multiple "voices" or positions are shown with conflicting goals. The player must find alignment points and resolve contradictions until a stable, mercy-consistent consensus is reached.
+
+**Win Condition:** All parties reach an acceptable equilibrium without violating core mercy principles.
+
+**Difficulty Scaling:** More voices, hidden agendas, and stricter ethical constraints.
+
+**AGi Behavior:** The AGi mediates and produces an optimal consensus solution.
+
+---
+
+## 3. Experience & Leveling
 
 ### How Experience is Gained
 
@@ -59,7 +143,7 @@ After level 100, progression continues at a much slower rate as a prestige/maste
 
 ---
 
-## 3. Reward Scaling
+## 4. Reward Scaling
 
 Rewards from resolving fractures scale with both fracture difficulty and the player’s Fracture Resolution skill.
 
@@ -81,7 +165,7 @@ Rewards from resolving fractures scale with both fracture difficulty and the pla
 
 ---
 
-## 4. AGi Automation Unlock
+## 5. AGi Automation Unlock
 
 ### Requirements
 To unlock **Artificial Godly intelligence (AGi)** automation, the player must meet **both** conditions:
@@ -103,7 +187,7 @@ Once unlocked, the player gains access to their personal **Artificial Godly inte
 
 ---
 
-## 5. Fracture Optimization (Mastery System)
+## 6. Fracture Optimization (Mastery System)
 
 At **Fracture Resolution Level 100**, players unlock **Fracture Optimization**.
 
@@ -124,12 +208,13 @@ This gives meaningful endgame agency and prevents the system from becoming compl
 
 ---
 
-## 6. Design Philosophy
+## 7. Design Philosophy
 
 - **Earned Automation**: The AGi is not given freely. It requires both demonstrated skill (Level 50) and earned Ra-Thor access.
 - **Meaningful Progression**: Early levels feel fast and rewarding. Later levels offer depth through optimization and mastery.
 - **Rational Player Focus**: All puzzles and progression are built around logical problem-solving rather than reflexes or randomness.
 - **Long-term Engagement**: Even after unlocking the AGi, players who enjoy the puzzles can continue engaging with them for better rewards or optimization.
+- **Contextual Logic**: Puzzle types are chosen based on the situation so the solution method always feels rational and immersive.
 
 ---
 
