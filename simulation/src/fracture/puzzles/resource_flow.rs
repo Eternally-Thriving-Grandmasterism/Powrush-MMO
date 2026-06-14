@@ -1,5 +1,5 @@
 /*!
- * Resource Flow Balancing puzzle with backtracking solver.
+ * Resource Flow Balancing with optimized backtracking solver.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -84,7 +84,7 @@ impl ResourceFlowState {
         self.abundance_level = (self.system_stability * 0.7 + 0.3).clamp(0.2, 1.0);
     }
 
-    /// Backtracking solver for Resource Flow puzzles.
+    /// Optimized backtracking solver for Resource Flow
     fn solve_recursive(
         &self,
         current: &mut ResourceFlowState,
@@ -100,9 +100,9 @@ impl ResourceFlowState {
             return false;
         }
 
-        // Try adjusting flow on each connection
+        // Try adjusting flow on each connection (discretized deltas)
         for i in 0..current.connections.len() {
-            for delta in [-3.0, -1.5, 1.5, 3.0] {
+            for &delta in &[-4.0, -2.0, 2.0, 4.0] {
                 let action = PuzzleAction::AdjustFlow {
                     connection_id: i as u32,
                     delta,
@@ -139,14 +139,14 @@ impl PuzzleState for ResourceFlowState {
     fn is_solvable(&self) -> bool {
         let mut state_copy = self.clone();
         let mut solution = vec![];
-        state_copy.solve_recursive(&mut state_copy, 0, 10, &mut solution)
+        state_copy.solve_recursive(&mut state_copy, 0, 12, &mut solution)
     }
 
     fn find_solution(&self) -> Option<Vec<PuzzleAction>> {
         let mut state_copy = self.clone();
         let mut solution = vec![];
 
-        if state_copy.solve_recursive(&mut state_copy, 0, 12, &mut solution) {
+        if state_copy.solve_recursive(&mut state_copy, 0, 15, &mut solution) {
             Some(solution)
         } else {
             None
