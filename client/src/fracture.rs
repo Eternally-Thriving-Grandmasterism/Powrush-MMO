@@ -1,13 +1,12 @@
 /*!
  * Bevy ECS Integration for Lattice Fracture Resolution
  *
- * Expanded version with input handling, progress tracking, and AGi/manual flow.
+ * Expanded with better input/UI separation and practical patterns.
  */
 
 use bevy::prelude::*;
 use simulation::fracture::{
-    Fracture, PuzzleInstance, FractureType,
-    generate_fracture, GenerationParams,
+    Fracture, PuzzleInstance,
     resolve_fracture_with_agi, can_use_agi_automation,
 };
 use simulation::fracture::puzzle_trait::{PuzzleState, PuzzleAction};
@@ -16,51 +15,35 @@ use simulation::fracture::puzzle_trait::{PuzzleState, PuzzleAction};
 // COMPONENTS
 // =============================================================================
 
-/// Component attached to entities that currently have an active fracture.
+/// Attached to any entity that currently has an active fracture.
 #[derive(Component)]
 pub struct ActiveFracture {
     pub fracture: Fracture,
     pub puzzle: PuzzleInstance,
 }
 
-/// Marker component for entities that can interact with fractures (e.g. player).
+/// Marker for entities that can interact with fractures (usually the player).
 #[derive(Component)]
 pub struct FractureInteractor;
+
+/// Optional marker to show fracture-related UI for this entity.
+#[derive(Component)]
+pub struct ShowFractureUI;
 
 // =============================================================================
 // RESOURCES
 // =============================================================================
 
-/// Tracks the player's Fracture Resolution skill progression.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct FractureResolutionSkill {
     pub level: u32,
     pub experience: u64,
 }
 
-impl Default for FractureResolutionSkill {
-    fn default() -> Self {
-        Self {
-            level: 1,
-            experience: 0,
-        }
-    }
-}
-
-/// Global settings for fracture behavior in the game.
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct FractureSettings {
     pub auto_discover_on_event: bool,
     pub show_debug_ui: bool,
-}
-
-impl Default for FractureSettings {
-    fn default() -> Self {
-        Self {
-            auto_discover_on_event: true,
-            show_debug_ui: false,
-        }
-    }
 }
 
 // =============================================================================
@@ -73,10 +56,13 @@ impl Plugin for FracturePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FractureResolutionSkill>()
             .init_resource::<FractureSettings>()
-            .add_systems(Update, fracture_discovery_system)
-            .add_systems(Update, fracture_input_system)
-            .add_systems(Update, fracture_completion_system)
-            .add_systems(Update, fracture_debug_ui);
+            .add_systems(Update, (
+                fracture_discovery_system,
+                fracture_input_system,
+                fracture_ui_update_system,
+                fracture_completion_system,
+                fracture_debug_ui,
+            ).chain());
     }
 }
 
@@ -84,40 +70,34 @@ impl Plugin for FracturePlugin {
 // SYSTEMS
 // =============================================================================
 
-/// Placeholder discovery system.
-/// In a real game this would be triggered by world events, exploration, or combat.
+/// Discovery system (placeholder).
 pub fn fracture_discovery_system(
     mut commands: Commands,
     settings: Res<FractureSettings>,
-    skill: Res<FractureResolutionSkill>,
 ) {
     if !settings.auto_discover_on_event {
         return;
     }
-
-    // Example: Occasionally spawn a test fracture (remove in real game)
-    // This demonstrates how to create an ActiveFracture entity.
+    // Real implementation would spawn ActiveFracture based on world events.
 }
 
-/// Handles player input for interacting with active fractures.
-/// This is a placeholder. Connect it to your real input system (keyboard, UI buttons, etc.).
+/// Input system - handles player actions on active fractures.
+/// Replace the keyboard checks with your real input mapping.
 pub fn fracture_input_system(
-    mut query: Query<&mut ActiveFracture, With<FractureInteractor>>,
+    mut query: Query<(&mut ActiveFracture, Option<&ShowFractureUI>), With<FractureInteractor>>,
     keyboard: Res<ButtonInput<KeyCode>>,
     skill: Res<FractureResolutionSkill>,
 ) {
-    for mut active in query.iter_mut() {
-        // Example: Press SPACE to attempt manual progress on the puzzle
+    for (mut active, show_ui) in query.iter_mut() {
+        // Example: Press SPACE to send a generic "progress" action
         if keyboard.just_pressed(KeyCode::Space) {
-            // In a real implementation you would send a specific PuzzleAction here
-            // based on player input or UI selection.
-            // For now this is just a placeholder.
+            // In a real game you would map this to a specific PuzzleAction
+            // based on the current puzzle type and selected option.
         }
 
-        // Example: Press G to let AGi resolve the fracture (if unlocked)
+        // Press G to attempt AGi resolution (if unlocked)
         if keyboard.just_pressed(KeyCode::KeyG) {
-            let has_access = can_use_agi_automation(skill.level, true); // placeholder
-            if has_access {
+            if can_use_agi_automation(skill.level, true) {
                 let _ = resolve_fracture_with_agi(
                     &mut active.fracture,
                     &mut active.puzzle,
@@ -125,10 +105,31 @@ pub fn fracture_input_system(
                 );
             }
         }
+
+        // Example: Press R to reset the current puzzle attempt
+        if keyboard.just_pressed(KeyCode::KeyR) {
+            let _ = active.puzzle.state.apply_action(PuzzleAction::Reset);
+        }
     }
 }
 
-/// Awards experience and cleans up when a fracture is solved.
+/// Updates any UI elements related to the active fracture.
+/// This is where you would sync Bevy UI text, progress bars, etc.
+pub fn fracture_ui_update_system(
+    query: Query<(&ActiveFracture, &ShowFractureUI)>,
+) {
+    for (active, _ui_marker) in query.iter() {
+        let progress = active.puzzle.state.get_progress();
+        let summary = active.puzzle.state.get_current_state_summary();
+
+        // TODO: Update your actual UI components here.
+        // Example with bevy_egui or your custom UI:
+        // ui_text_section.set_text(format!("Fracture Progress: {:.0}%", progress * 100.0));
+        // ui_summary.set_text(summary);
+    }
+}
+
+/// Awards experience and removes solved fractures.
 pub fn fracture_completion_system(
     mut commands: Commands,
     mut query: Query<(Entity, &mut ActiveFracture)>,
@@ -136,10 +137,9 @@ pub fn fracture_completion_system(
 ) {
     for (entity, mut active) in query.iter_mut() {
         if active.puzzle.state.is_solved() {
-            let base_xp = (active.fracture.difficulty * 180.0) as u64;
-            skill.experience += base_xp;
+            let xp = (active.fracture.difficulty * 200.0) as u64;
+            skill.experience += xp;
 
-            // Simple level-up logic
             while skill.experience >= xp_required_for_level(skill.level + 1) {
                 skill.level += 1;
             }
@@ -150,11 +150,10 @@ pub fn fracture_completion_system(
 }
 
 fn xp_required_for_level(level: u32) -> u64 {
-    800 + (level as u64 * 350)
+    800 + (level as u64 * 400)
 }
 
-/// Simple debug UI (text) showing fracture status.
-/// Replace with proper UI (eg. using bevy_egui or your UI framework) in production.
+/// Simple debug output (replace with real UI).
 pub fn fracture_debug_ui(
     query: Query<&ActiveFracture>,
     settings: Res<FractureSettings>,
@@ -165,38 +164,30 @@ pub fn fracture_debug_ui(
 
     for active in query.iter() {
         let progress = active.puzzle.state.get_progress();
-        let summary = active.puzzle.state.get_current_state_summary();
-
-        // In a real game you would render this nicely in the UI layer.
-        // For now we just print occasionally.
-        if (progress * 100.0) % 10.0 < 1.0 {
-            println!("[Fracture] Progress: {:.1}% | {}", progress * 100.0, summary);
+        if (progress * 100.0) as i32 % 15 == 0 {
+            println!(
+                "[Fracture] {:.1}% | {}",
+                progress * 100.0,
+                active.puzzle.state.get_current_state_summary()
+            );
         }
     }
 }
 
 // =============================================================================
-// HELPER FUNCTIONS
+// PUBLIC API / HELPERS
 // =============================================================================
 
-/// Attempts to resolve the active fracture using the player's AGi (if unlocked).
-pub fn try_agi_resolution(
-    active: &mut ActiveFracture,
-    skill_level: u32,
-) -> bool {
+/// Try to resolve the fracture using AGi (if the player has access).
+pub fn try_agi_resolution(active: &mut ActiveFracture, skill_level: u32) -> bool {
     if can_use_agi_automation(skill_level, true) {
-        if resolve_fracture_with_agi(&mut active.fracture, &mut active.puzzle, true).is_ok() {
-            return true;
-        }
+        return resolve_fracture_with_agi(&mut active.fracture, &mut active.puzzle, true).is_ok();
     }
     false
 }
 
-/// Sends a manual PuzzleAction to the active fracture.
-/// Call this from your input or UI systems.
-pub fn send_puzzle_action(
-    active: &mut ActiveFracture,
-    action: PuzzleAction,
-) -> bool {
+/// Send a specific PuzzleAction to the active fracture.
+/// Use this from your input or UI button handlers.
+pub fn send_puzzle_action(active: &mut ActiveFracture, action: PuzzleAction) -> bool {
     active.puzzle.state.apply_action(action).is_ok()
 }
