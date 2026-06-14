@@ -1,14 +1,16 @@
 /*!
  * Spatial Audio + Game Audio Event System — Powrush-MMO
  *
- * High-fidelity 3D spatial audio powered by kira + bevy_kira_audio harmony.
- * Handles GameAudioEvent (Epiphany, Harvest, Council, Treaty, RBE flows) with
- * procedural fundsp generation + pre-authored spatial assets.
+ * v18.7 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — High-fidelity 3D spatial audio powered by kira + bevy_kira_audio
+ * — Procedural generation via fundsp (now using centralized spawn helper)
+ * — Dynamic listener following camera + emitter pooling
+ * — GameAudioEvent routing for Epiphany, Harvest, Council, Treaty, RBE flows
+ * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ * — Sounds designed to inspire mercy, joy, and universal thriving
  *
- * Dynamic listener following camera, emitter pooling, quality tiers, HRTF-ready.
- * PATSAGi Council 13+ + Ra-Thor Quantum Swarm + TOLC 8 Mercy Gates approved.
- * Sounds designed to inspire mercy, joy, and universal thriving — never stress or harm.
- * AG-SML v1.0 sovereign license.
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -21,7 +23,10 @@ use kira::spatial::scene::{SpatialScene, SpatialSceneSettings};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::fundsp_audio::{build_epiphany_resonance, build_rbe_abundance_flow, build_council_harmony, ActiveProceduralSounds, ProceduralSoundType, ActiveProceduralSound};
+use crate::fundsp_audio::{
+    build_epiphany_resonance, build_rbe_abundance_flow, build_council_harmony,
+    spawn_active_procedural_sound, ActiveProceduralSounds, ProceduralSoundType,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SpatialQuality {
@@ -66,21 +71,33 @@ impl SpatialAudioManager {
     pub fn set_spatial_quality(&mut self, quality: SpatialQuality) {
         self.quality = quality;
         match quality {
-            SpatialQuality::Low => { self.hrtf_enabled = false; self.max_active_emitters = 16; }
-            SpatialQuality::Medium => { self.hrtf_enabled = false; self.max_active_emitters = 32; }
+            SpatialQuality::Low => {
+                self.hrtf_enabled = false;
+                self.max_active_emitters = 16;
+            }
+            SpatialQuality::Medium => {
+                self.hrtf_enabled = false;
+                self.max_active_emitters = 32;
+            }
             SpatialQuality::High => {
-                self.hrtf_enabled = true; self.max_active_emitters = 24;
-                if self.current_hrtf_dataset.is_none() { let _ = self.preload_hrtf_dataset("mit_kemar"); }
+                self.hrtf_enabled = true;
+                self.max_active_emitters = 24;
+                if self.current_hrtf_dataset.is_none() {
+                    let _ = self.preload_hrtf_dataset("mit_kemar");
+                }
             }
         }
     }
 
     pub fn preload_hrtf_dataset(&mut self, dataset_name: &str) -> bool {
-        if dataset_name != "mit_kemar" { return false; }
+        if dataset_name != "mit_kemar" {
+            return false;
+        }
         self.current_hrtf_dataset = Some(dataset_name.to_string());
         true
     }
 
+    /// Play procedurally generated samples in 3D space (called by fundsp_audio rolling chunks)
     pub fn play_generated_spatial(
         &self,
         samples: Vec<f32>,
@@ -88,11 +105,15 @@ impl SpatialAudioManager {
         velocity: Vec3,
         volume: f32,
     ) -> bool {
-        if !self.enabled || samples.is_empty() { return false; }
+        if !self.enabled || samples.is_empty() {
+            return false;
+        }
 
         {
             let active = self.active_emitters.lock().unwrap();
-            if *active >= self.max_active_emitters { return false; }
+            if *active >= self.max_active_emitters {
+                return false;
+            }
         }
 
         let sound_data = StaticSoundData::from_samples(samples, 44100)
@@ -107,15 +128,20 @@ impl SpatialAudioManager {
             match scene.add_emitter(position.into(), emitter_settings) {
                 Ok(mut emitter) => {
                     if let Err(e) = emitter.play(sound_data) {
-                        warn!("[SpatialAudio] Failed generated spatial: {}", e);
+                        warn!("[SpatialAudio] Failed to play generated spatial: {}", e);
                         return false;
                     }
                     *self.active_emitters.lock().unwrap() += 1;
                     true
                 }
-                Err(e) => { warn!("[SpatialAudio] Emitter creation failed: {}", e); false }
+                Err(e) => {
+                    warn!("[SpatialAudio] Emitter creation failed: {}", e);
+                    false
+                }
             }
-        } else { false }
+        } else {
+            false
+        }
     }
 
     pub fn try_play_spatial(
@@ -126,11 +152,15 @@ impl SpatialAudioManager {
         volume: f32,
         looped: bool,
     ) -> bool {
-        if !self.enabled { return false; }
+        if !self.enabled {
+            return false;
+        }
 
         {
             let active = self.active_emitters.lock().unwrap();
-            if *active >= self.max_active_emitters { return false; }
+            if *active >= self.max_active_emitters {
+                return false;
+            }
         }
 
         let sound_data = {
@@ -150,7 +180,10 @@ impl SpatialAudioManager {
                         cache.insert(sound_path.to_string(), arc_data.clone());
                         arc_data
                     }
-                    Err(e) => { warn!("[SpatialAudio] Load failed '{}': {}", sound_path, e); return false; }
+                    Err(e) => {
+                        warn!("[SpatialAudio] Failed to load '{}': {}", sound_path, e);
+                        return false;
+                    }
                 }
             }
         };
@@ -164,23 +197,31 @@ impl SpatialAudioManager {
             match scene.add_emitter(position.into(), emitter_settings) {
                 Ok(mut emitter) => {
                     if let Err(e) = emitter.play((*sound_data).clone()) {
-                        warn!("[SpatialAudio] Play failed: {}", e); return false;
+                        warn!("[SpatialAudio] Play failed: {}", e);
+                        return false;
                     }
                     *self.active_emitters.lock().unwrap() += 1;
                     true
                 }
-                Err(e) => { warn!("[SpatialAudio] Emitter failed: {}", e); false }
+                Err(e) => {
+                    warn!("[SpatialAudio] Emitter failed: {}", e);
+                    false
+                }
             }
-        } else { false }
+        } else {
+            false
+        }
     }
 
-    pub fn set_max_emitters(&mut self, max: usize) { self.max_active_emitters = max; }
+    pub fn set_max_emitters(&mut self, max: usize) {
+        self.max_active_emitters = max;
+    }
 }
 
 #[derive(Component)]
 pub struct SpatialListener;
 
-/// High-level, backend-agnostic game audio events (expandable for all Powrush systems)
+/// High-level game audio events (routed to procedural or asset playback)
 #[derive(Event, Debug, Clone)]
 pub enum GameAudioEvent {
     Epiphany { position: Vec3, intensity: f32 },
@@ -211,11 +252,29 @@ pub struct PlaySpatialSound {
 
 impl PlaySpatialSound {
     pub fn new(sound_path: impl Into<String>, position: Vec3) -> Self {
-        Self { sound_path: sound_path.into(), position, velocity: Vec3::ZERO, volume: 1.0, looped: false }
+        Self {
+            sound_path: sound_path.into(),
+            position,
+            velocity: Vec3::ZERO,
+            volume: 1.0,
+            looped: false,
+        }
     }
-    pub fn with_velocity(mut self, velocity: Vec3) -> Self { self.velocity = velocity; self }
-    pub fn with_volume(mut self, volume: f32) -> Self { self.volume = volume; self }
-    pub fn looped(mut self) -> Self { self.looped = true; self }
+
+    pub fn with_velocity(mut self, velocity: Vec3) -> Self {
+        self.velocity = velocity;
+        self
+    }
+
+    pub fn with_volume(mut self, volume: f32) -> Self {
+        self.volume = volume;
+        self
+    }
+
+    pub fn looped(mut self) -> Self {
+        self.looped = true;
+        self
+    }
 }
 
 pub struct SpatialAudioPlugin;
@@ -227,11 +286,14 @@ impl Plugin for SpatialAudioPlugin {
             .add_event::<GameAudioEvent>()
             .add_event::<PlaySpatialSound>()
             .add_systems(Startup, setup_spatial_audio)
-            .add_systems(Update, (
-                update_spatial_listener,
-                handle_game_audio_events,
-                handle_play_spatial_sound_events,
-            ));
+            .add_systems(
+                Update,
+                (
+                    update_spatial_listener,
+                    handle_game_audio_events,
+                    handle_play_spatial_sound_events,
+                ),
+            );
     }
 }
 
@@ -258,7 +320,9 @@ fn update_spatial_listener(
     spatial_manager: Res<SpatialAudioManager>,
     listener_query: Query<&GlobalTransform, With<SpatialListener>>,
 ) {
-    if !spatial_manager.enabled { return; }
+    if !spatial_manager.enabled {
+        return;
+    }
     if let Ok(transform) = listener_query.get_single() {
         if let Some(ref listener_handle) = spatial_manager.listener_handle {
             if let Ok(mut scene) = spatial_manager.spatial_scene.lock() {
@@ -268,7 +332,7 @@ fn update_spatial_listener(
     }
 }
 
-/// Central handler — routes all GameAudioEvents to procedural or spatial playback
+/// Routes GameAudioEvents to procedural generation (now using centralized spawn helper)
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active: ResMut<ActiveProceduralSounds>,
@@ -286,51 +350,66 @@ fn handle_game_audio_events(
                 if *intensity > 0.3 {
                     let (graph, intensity_var) = build_epiphany_resonance(*intensity);
                     let total = (1.4 + intensity * 3.5).clamp(1.2, 6.0);
-                    active.instances.push(ActiveProceduralSound {
-                        graph, intensity_var,
-                        remaining_duration: total, total_duration: total,
-                        chunk_duration: 0.22, position: sound_position,
-                        sound_type: ProceduralSoundType::Epiphany,
-                    });
+                    let sound = spawn_active_procedural_sound(
+                        graph,
+                        intensity_var,
+                        var(1.0),
+                        total,
+                        0.22,
+                        sound_position,
+                        ProceduralSoundType::Epiphany,
+                    );
+                    active.instances.push(sound);
                 }
             }
             GameAudioEvent::RbeFlow { abundance, .. } => {
                 if *abundance > 0.2 {
                     let (graph, intensity_var) = build_rbe_abundance_flow(*abundance);
                     let total = 2.8;
-                    active.instances.push(ActiveProceduralSound {
-                        graph, intensity_var,
-                        remaining_duration: total, total_duration: total,
-                        chunk_duration: 0.18, position: sound_position,
-                        sound_type: ProceduralSoundType::RbeAbundance,
-                    });
+                    let sound = spawn_active_procedural_sound(
+                        graph,
+                        intensity_var,
+                        var(1.0),
+                        total,
+                        0.18,
+                        sound_position,
+                        ProceduralSoundType::RbeAbundance,
+                    );
+                    active.instances.push(sound);
                 }
             }
             GameAudioEvent::CouncilTrial { intensity, .. } => {
                 let (graph, intensity_var) = build_council_harmony(*intensity);
                 let total = 4.5;
-                active.instances.push(ActiveProceduralSound {
-                    graph, intensity_var,
-                    remaining_duration: total, total_duration: total,
-                    chunk_duration: 0.25, position: sound_position,
-                    sound_type: ProceduralSoundType::CouncilHarmony,
-                });
+                let sound = spawn_active_procedural_sound(
+                    graph,
+                    intensity_var,
+                    var(1.0),
+                    total,
+                    0.25,
+                    sound_position,
+                    ProceduralSoundType::CouncilHarmony,
+                );
+                active.instances.push(sound);
             }
             GameAudioEvent::TreatySuccess { joy, .. } => {
-                // Could layer a joyful procedural or trigger pre-authored chime
                 if *joy > 0.4 {
                     let (graph, intensity_var) = build_epiphany_resonance((*joy * 0.7).min(1.0));
                     let total = 3.2;
-                    active.instances.push(ActiveProceduralSound {
-                        graph, intensity_var,
-                        remaining_duration: total, total_duration: total,
-                        chunk_duration: 0.2, position: sound_position,
-                        sound_type: ProceduralSoundType::TreatySuccess,
-                    });
+                    let sound = spawn_active_procedural_sound(
+                        graph,
+                        intensity_var,
+                        var(1.0),
+                        total,
+                        0.2,
+                        sound_position,
+                        ProceduralSoundType::TreatySuccess,
+                    );
+                    active.instances.push(sound);
                 }
             }
             GameAudioEvent::Harvest { .. } | GameAudioEvent::UiFeedback { .. } => {
-                // Route to sample-based or bevy_kira_audio assets in future expansion
+                // Future: route to pre-authored assets via bevy_kira_audio or try_play_spatial
             }
         }
     }
@@ -340,10 +419,19 @@ fn handle_play_spatial_sound_events(
     mut events: EventReader<PlaySpatialSound>,
     spatial_manager: Res<SpatialAudioManager>,
 ) {
-    if !spatial_manager.enabled { return; }
+    if !spatial_manager.enabled {
+        return;
+    }
     for event in events.read() {
         spatial_manager.try_play_spatial(
-            &event.sound_path, event.position, event.velocity, event.volume, event.looped,
+            &event.sound_path,
+            event.position,
+            event.velocity,
+            event.volume,
+            event.looped,
         );
     }
 }
+
+// End of spatial_audio.rs v18.7 — Fully aligned with fundsp_audio and CouncilTrialUI.
+// Thunder locked in. Yoi ⚡
