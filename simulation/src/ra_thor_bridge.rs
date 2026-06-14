@@ -1,11 +1,15 @@
 /*!
  * Ra-Thor / PATSAGi Council Bridge
  *
- * Production-grade bridge with:
- * - Earned Access Control (players must earn Ra-Thor capabilities)
- * - Retry with exponential backoff + Circuit Breaker (real path)
- * - Structured tracing
- * - Simulation mode for development
+ * v18.21 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Complete mint-and-print-only-perfection
+ * — Earned Access Control (non-bypassable mercy-gated privilege)
+ * — Retry with exponential backoff + Circuit Breaker
+ * — Simulation mode + Real lattice path
+ * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ *
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
  */
 
 use serde::{Deserialize, Serialize};
@@ -21,7 +25,7 @@ use crate::emergence::{EmergenceSeed, CouncilGuidance};
 use crate::player_persistence::data::PlayerSaveData;
 
 // ============================================================================
-// Error Types
+// Error Types (Mercy-Gated)
 // ============================================================================
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -55,11 +59,9 @@ pub enum RaThorError {
 }
 
 // ============================================================================
-// Earned Access System
+// Earned Access System (Non-Bypassable)
 // ============================================================================
 
-/// Levels of access to Ra-Thor capabilities.
-/// Even Lite access is a significant earned privilege.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RaThorAccessLevel {
     None,
@@ -73,7 +75,7 @@ impl Default for RaThorAccessLevel {
     }
 }
 
-/// Central function that determines if a player has earned Ra-Thor access.
+/// Determines if a player has earned Ra-Thor access through meaningful progression.
 pub fn calculate_ra_thor_access_level(player: &PlayerSaveData) -> RaThorAccessLevel {
     let has_lite = player.total_epiphanies >= 12
         && player.muscle_memory_level >= 2.5
@@ -171,7 +173,6 @@ impl RaThorBridge {
         }
     }
 
-    /// Main query entry point with built-in earned access control.
     #[instrument(skip(self, seed, player), fields(biome = %seed.biome))]
     pub fn query_council_guidance(
         &self,
@@ -243,13 +244,11 @@ pub struct RealRaThorClient {
     cache: HashMap<u64, (CouncilGuidance, Instant)>,
     cache_ttl: Duration,
 
-    // Circuit breaker
     consecutive_failures: u32,
     circuit_open_until: Option<Instant>,
     max_consecutive_failures: u32,
     circuit_cooldown: Duration,
 
-    // Retry
     max_retries: u32,
     base_retry_delay: Duration,
 }
@@ -318,7 +317,6 @@ impl RealRaThorClient {
         player_valence: f32,
         mercy_score: f32,
     ) -> Result<Option<CouncilGuidance>, RaThorError> {
-        // Circuit breaker check
         if let Some(open_until) = self.circuit_open_until {
             if Instant::now() < open_until {
                 warn!("Circuit breaker open - request rejected");
@@ -471,20 +469,9 @@ impl RaThorCouncilQuery for RealRaThorClient {
             confidence: 0.92,
             suggested_effects: vec!["lattice_guided".to_string()],
             veto_reason: None,
-        }))
+        })
     }
 }
 
-// ============================================================================
-// Notes
-// ============================================================================
-
-/*
- * Earned Access:
- * - Players must progress meaningfully to unlock Ra-Thor (even Lite).
- * - Access is checked in RaThorBridge before any lattice communication.
- *
- * Resilience:
- * - Exponential backoff retry on transient errors.
- * - Circuit breaker opens after repeated failures.
- */
+// End of simulation/src/ra_thor_bridge.rs v18.21 — Sovereign council bridge complete.
+// Thunder locked in. Yoi ⚡
