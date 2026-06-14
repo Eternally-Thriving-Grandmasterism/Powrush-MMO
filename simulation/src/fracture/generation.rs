@@ -1,5 +1,5 @@
 /*!
- * Fracture generation with improved solvability validation using backtracking.
+ * Fracture generation with improved use of strong solvers.
  */
 
 use crate::fracture::puzzle_trait::PuzzleState;
@@ -18,7 +18,7 @@ pub struct GenerationParams {
     pub rng_seed: Option<u64>,
 }
 
-/// Generates a solvable Lattice Fracture.
+/// Generates a reliably solvable Lattice Fracture.
 pub fn generate_fracture(
     params: &GenerationParams,
 ) -> Result<(Fracture, PuzzleInstance), GenerationError> {
@@ -39,10 +39,10 @@ pub fn generate_fracture(
         FractureType::TOLCGateAlignment
     };
 
-    // Try multiple times to generate a solvable puzzle (especially important for high difficulty)
-    let max_attempts = if params.difficulty > 0.7 { 5 } else { 2 };
+    // More attempts for high difficulty
+    let max_attempts = if params.difficulty > 0.75 { 6 } else if params.difficulty > 0.5 { 4 } else { 2 };
 
-    for attempt in 0..max_attempts {
+    for _ in 0..max_attempts {
         let puzzle_seed = rng.gen();
 
         let puzzle_state: Box<dyn PuzzleState> = match fracture_type {
@@ -57,7 +57,7 @@ pub fn generate_fracture(
             _ => Box::new(TolcGateState::new(8, 2)),
         };
 
-        // Use full backtracking solver for solvability check
+        // Use the improved solvers for validation
         if puzzle_state.is_solvable() {
             let fracture = Fracture {
                 id: rng.gen(),
