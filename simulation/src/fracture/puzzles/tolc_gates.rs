@@ -3,6 +3,7 @@
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
+use std::collections::VecDeque;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,7 +16,12 @@ pub enum GateState {
 
 impl GateState {
     pub fn all_states() -> [GateState; 4] {
-        [GateState::Aligned, GateState::Inverted, GateState::Overpowered, GateState::Conflicted]
+        [
+            GateState::Aligned,
+            GateState::Inverted,
+            GateState::Overpowered,
+            GateState::Conflicted,
+        ]
     }
 
     pub fn to_bit(self) -> u8 {
@@ -55,8 +61,9 @@ pub struct TolcGateState {
     pub collective_valence: f32,
     pub mercy_charges: u32,
     pub max_mercy_charges: u32,
-    /// Bitmask domains for performance (bit 0=Aligned, 1=Inverted, 2=Overpowered, 3=Conflicted)
     pub domains: Vec<u8>,
+    /// Cached neighbors for faster AC-3
+    neighbors: Vec<Vec<usize>>,
 }
 
 impl TolcGateState {
@@ -78,8 +85,14 @@ impl TolcGateState {
             })
             .collect();
 
-        // Start with all 4 states possible
         let domains = vec![0b1111; num_gates];
+
+        // Precompute neighbors
+        let mut neighbors = vec![vec![]; num_gates];
+        for conn in &connections {
+            neighbors[conn.from].push(conn.to);
+            neighbors[conn.to].push(conn.from);
+        }
 
         Self {
             gates,
@@ -88,6 +101,7 @@ impl TolcGateState {
             mercy_charges: initial_mercy_charges,
             max_mercy_charges: initial_mercy_charges,
             domains,
+            neighbors,
         }
     }
 
@@ -102,26 +116,26 @@ impl TolcGateState {
         self.collective_valence = (avg * 0.7 + connection_bonus * 0.3).clamp(0.0, 1.0);
     }
 
-    /// Enforce Arc Consistency using bitmasks
+    /// Highly optimized AC-3 with cached neighbors
     fn enforce_arc_consistency(&mut self) -> bool {
-        let mut queue: Vec<(usize, usize)> = vec![];
+        let mut queue: VecDeque<(usize, usize)> = VecDeque::new();
 
+        // Initialize with all arcs
         for conn in &self.connections {
-            queue.push((conn.from, conn.to));
-            queue.push((conn.to, conn.from));
+            queue.push_back((conn.from, conn.to));
+            queue.push_back((conn.to, conn.from));
         }
 
-        while let Some((xi, xj)) = queue.pop() {
+        while let Some((xi, xj)) = queue.pop_front() {
             if self.revise(xi, xj) {
                 if self.domains[xi] == 0 {
                     return false;
                 }
-                for conn in &self.connections {
-                    if conn.to == xi && conn.from != xj {
-                        queue.push((conn.from, xi));
-                    }
-                    if conn.from == xi && conn.to != xj {
-                        queue.push((conn.to, xi));
+
+                // Only add arcs involving xi (using cached neighbors)
+                for &xk in &self.neighbors[xi] {
+                    if xk != xj {
+                        queue.push_back((xk, xi));
                     }
                 }
             }
@@ -133,7 +147,6 @@ impl TolcGateState {
     fn revise(&mut self, xi: usize, xj: usize) -> bool {
         let mut revised = false;
         let mut new_domain = 0u8;
-
         let xj_domain = self.domains[xj];
 
         for bit in 0..4 {
@@ -196,7 +209,7 @@ impl TolcGateState {
             return false;
         }
 
-        // MRV
+        // MRV using bit count
         let mut best_idx: Option<usize> = None;
         let mut min_size = usize::MAX;
 
