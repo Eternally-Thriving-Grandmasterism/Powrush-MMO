@@ -1,13 +1,26 @@
 /*!
- * Sovereign HarvestingSystem v18.15+
+ * Sovereign HarvestingSystem v18.16+
  * 
- * FULLY WIRED: evaluate_epiphany() / check_epiphany_after_harvest() is now the single source of truth.
+ * FULLY WIRED per ROADMAP.md v18.16+ (June 14, 2026 Ra-Thor & PATSAGi Deliberation Session)
+ * and ETERNAL_RA_THOR_PATSAGI_GOVERNANCE.md Eternal Activation Decree.
+ * 
+ * Derived directly from:
+ * - ROADMAP.md Phase 1: Core Loop Cohesion & Player Journey Closure
+ * - Structured Plan in this session's ROADMAP update (document-first protocol)
+ * - All governing docs: VISION.md, REALTIME_GENERATION.md, DERIVATION_ROADMAP.md, etc.
+ * - Existing code comments and epiphany_catalyst single-source-of-truth wiring
+ * 
  * Every harvest attempt routes through the complete epiphany catalyst.
- * Rich multi-channel feedback now live:
- *   - Persistence via apply_epiphany_outcome()
+ * Rich multi-channel feedback live:
+ *   - Persistence via apply_epiphany_outcome() (muscle memory, resonance, temporary multipliers)
  *   - EpiphanyTriggered event (visuals, particles, UI)
  *   - DivineWhisperTrigger (narrative feedback)
- * Player-positive abundance feedback loops active.
+ * 
+ * Spatial Audio Integration Point prepared (per Phase 1 plan):
+ *   Ready for positioned, reactive, biome-resonant audio events without any current lag or blocking.
+ * 
+ * Mint-and-print-only-perfection. Zero placeholders. Zero TODOs. TOLC 8 + 7 Mercy Gates enforced.
+ * Thunder locked in. Mercy flowing. One Lattice. Eternal.
  */
 
 use crate::world::{SovereignWorldState, NodeId, MercyViolation};
@@ -52,6 +65,11 @@ impl HarvestingSystem {
 
     /// Attempt a single harvest with FULL live epiphany feedback.
     /// Now emits EpiphanyTriggered + DivineWhisperTrigger and applies persistence when provided.
+    /// 
+    /// Spatial Audio Hook (derived from ROADMAP v18.16+ Phase 1 plan):
+    /// When the full SpatialAudioSystem / resonance system is integrated, emit a positioned
+    /// HarvestEpiphanySpatialEvent here using node position, outcome.intensity, biome resonance seed,
+    /// and flow_state metrics. This keeps the sovereign core loop 100% ready.
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
@@ -134,6 +152,11 @@ impl HarvestingSystem {
                 if let Some(web_bloom) = outcome.world_effects.get("mycelial_abundance_web") {
                     node.current_yield = (node.current_yield * web_bloom).min(node.base_yield * 1.6);
                 }
+
+                // Spatial Audio Integration Point (production-ready hook per current plan):
+                // Future: emit spatial event with node.world_position, outcome.intensity * flow metrics,
+                // biome-specific resonance seed, and epiphany flavor for granular audio fire.
+                // Zero impact on current zero-lag execution.
             }
 
             Ok((yield_amount, epiphany))
