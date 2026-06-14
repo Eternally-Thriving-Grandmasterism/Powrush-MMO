@@ -1,8 +1,9 @@
 /*!
- * Fracture generation and solvability validation logic.
+ * Fracture generation with improved solvability validation using backtracking.
  */
 
 use crate::fracture::puzzle_trait::PuzzleState;
+use crate::fracture::puzzles::resource_flow::ResourceFlowState;
 use crate::fracture::puzzles::tolc_gates::TolcGateState;
 use crate::fracture::types::{Fracture, FractureType, GenerationError, PuzzleInstance};
 use rand::Rng;
@@ -17,7 +18,7 @@ pub struct GenerationParams {
     pub rng_seed: Option<u64>,
 }
 
-/// Generates a new Lattice Fracture and its corresponding puzzle.
+/// Generates a solvable Lattice Fracture.
 pub fn generate_fracture(
     params: &GenerationParams,
 ) -> Result<(Fracture, PuzzleInstance), GenerationError> {
@@ -38,51 +39,55 @@ pub fn generate_fracture(
         FractureType::TOLCGateAlignment
     };
 
-    let puzzle_seed = params.rng_seed.unwrap_or_else(|| rng.gen());
+    // Try multiple times to generate a solvable puzzle (especially important for high difficulty)
+    let max_attempts = if params.difficulty > 0.7 { 5 } else { 2 };
 
-    // Create the concrete puzzle state
-    let puzzle_state: Box<dyn PuzzleState> = match fracture_type {
-        FractureType::TOLCGateAlignment => {
-            let num_gates = 8;
-            let mercy_charges = ((3.0 - params.difficulty * 2.0).max(1.0)) as u32;
-            Box::new(TolcGateState::new(num_gates, mercy_charges))
-        }
-        FractureType::ResourceFlowBalancing => {
-            Box::new(crate::fracture::puzzles::resource_flow::ResourceFlowState::new(8))
-        }
-        _ => Box::new(TolcGateState::new(8, 2)),
-    };
+    for attempt in 0..max_attempts {
+        let puzzle_seed = rng.gen();
 
-    // Proper solvability validation
-    if !puzzle_state.is_solvable() {
-        return Err(GenerationError::UnsolvablePuzzle);
+        let puzzle_state: Box<dyn PuzzleState> = match fracture_type {
+            FractureType::TOLCGateAlignment => {
+                let num_gates = 8;
+                let mercy_charges = ((3.0 - params.difficulty * 2.0).max(1.0)) as u32;
+                Box::new(TolcGateState::new(num_gates, mercy_charges))
+            }
+            FractureType::ResourceFlowBalancing => {
+                Box::new(ResourceFlowState::new(8))
+            }
+            _ => Box::new(TolcGateState::new(8, 2)),
+        };
+
+        // Use full backtracking solver for solvability check
+        if puzzle_state.is_solvable() {
+            let fracture = Fracture {
+                id: rng.gen(),
+                fracture_type,
+                difficulty: params.difficulty,
+                context_tags: params.context_tags.clone(),
+                puzzle_seed,
+                resolved: false,
+                created_at: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+            };
+
+            let puzzle_instance = PuzzleInstance {
+                fracture_id: fracture.id,
+                puzzle_type: fracture_type,
+                state: puzzle_state,
+                time_remaining: if params.enable_time_pressure {
+                    Some(90.0 - params.difficulty * 30.0)
+                } else {
+                    None
+                },
+                attempts: 0,
+                max_attempts: None,
+            };
+
+            return Ok((fracture, puzzle_instance));
+        }
     }
 
-    let fracture = Fracture {
-        id: rng.gen(),
-        fracture_type,
-        difficulty: params.difficulty,
-        context_tags: params.context_tags.clone(),
-        puzzle_seed,
-        resolved: false,
-        created_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
-    };
-
-    let puzzle_instance = PuzzleInstance {
-        fracture_id: fracture.id,
-        puzzle_type: fracture_type,
-        state: puzzle_state,
-        time_remaining: if params.enable_time_pressure {
-            Some(90.0 - params.difficulty * 30.0)
-        } else {
-            None
-        },
-        attempts: 0,
-        max_attempts: None,
-    };
-
-    Ok((fracture, puzzle_instance))
+    Err(GenerationError::UnsolvablePuzzle)
 }
