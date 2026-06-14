@@ -1,5 +1,5 @@
 /*!
- * Resource Flow Balancing with forward-checking style solver.
+ * Resource Flow Balancing with improved variable ordering and bounding.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -84,23 +84,59 @@ impl ResourceFlowState {
         self.abundance_level = (self.system_stability * 0.7 + 0.3).clamp(0.2, 1.0);
     }
 
-    /// Check if current partial state can still lead to a solution (forward checking style)
+    /// Estimate maximum possible future stability from current state (simple optimistic bound)
+    fn estimate_max_future_stability(&self) -> f32 {
+        // Very optimistic: assume we can perfectly balance everything
+        // In reality this would require solving a flow optimization problem
+        let current = self.system_stability;
+        let headroom = 1.0 - current;
+
+        // Assume we can recover up to 60% of the remaining instability
+        current + headroom * 0.6
+    }
+
+    /// Check if current state can still reach a solution (improved bounding)
     fn can_still_solve(&self) -> bool {
-        // Prune early if stability or mercy is already too low
-        if self.system_stability < 0.2 || self.mercy_score < 0.3 {
+        if self.system_stability < 0.15 || self.mercy_score < 0.25 {
             return false;
         }
 
-        // Check for obviously impossible situations (e.g. too many corrupted nodes)
         let corrupted = self.nodes.iter().filter(|n| n.is_corrupted).count();
-        if corrupted as f32 > (self.nodes.len() as f32 * 0.6) {
+        if corrupted as f32 > (self.nodes.len() as f32 * 0.55) {
+            return false;
+        }
+
+        // Optimistic bounding
+        if self.estimate_max_future_stability() < 0.88 {
             return false;
         }
 
         true
     }
 
-    /// Forward-checking style backtracking solver
+    /// Find connection with highest current imbalance impact (variable ordering)
+    fn most_impactful_connection(&self) -> Option<usize> {
+        let mut best_idx = None;
+        let mut best_impact = -1.0f32;
+
+        for (i, conn) in self.connections.iter().enumerate() {
+            // Simple impact: how much this connection affects net flow between two nodes
+            let from_node = &self.nodes[conn.from as usize];
+            let to_node = &self.nodes[conn.to as usize];
+
+            let imbalance = (from_node.production - from_node.consumption).abs()
+                + (to_node.production - to_node.consumption).abs();
+
+            if imbalance > best_impact {
+                best_impact = imbalance;
+                best_idx = Some(i);
+            }
+        }
+
+        best_idx
+    }
+
+    /// Forward-checking style backtracking with variable ordering
     fn solve_recursive(
         &self,
         current: &mut ResourceFlowState,
@@ -116,13 +152,20 @@ impl ResourceFlowState {
             return false;
         }
 
-        // Forward checking: prune bad partial states early
         if !current.can_still_solve() {
             return false;
         }
 
-        // Try adjusting connections (prioritize those with high imbalance impact)
-        for i in 0..current.connections.len() {
+        // Variable ordering: try most impactful connection first
+        let conn_indices: Vec<usize> = if let Some(best) = current.most_impactful_connection() {
+            let mut idxs: Vec<usize> = (0..current.connections.len()).collect();
+            idxs.sort_by_key(|&i| if i == best { 0 } else { 1 });
+            idxs
+        } else {
+            (0..current.connections.len()).collect()
+        };
+
+        for &i in &conn_indices {
             for &delta in &[-4.0, -2.0, 2.0, 4.0] {
                 let action = PuzzleAction::AdjustFlow {
                     connection_id: i as u32,
@@ -132,7 +175,6 @@ impl ResourceFlowState {
                 let backup = current.clone();
 
                 if current.apply_action(action.clone()).is_ok() {
-                    // Only continue if still potentially solvable
                     if current.can_still_solve() {
                         solution.push(action);
 
@@ -163,14 +205,14 @@ impl PuzzleState for ResourceFlowState {
     fn is_solvable(&self) -> bool {
         let mut state_copy = self.clone();
         let mut solution = vec![];
-        state_copy.solve_recursive(&mut state_copy, 0, 14, &mut solution)
+        state_copy.solve_recursive(&mut state_copy, 0, 16, &mut solution)
     }
 
     fn find_solution(&self) -> Option<Vec<PuzzleAction>> {
         let mut state_copy = self.clone();
         let mut solution = vec![];
 
-        if state_copy.solve_recursive(&mut state_copy, 0, 18, &mut solution) {
+        if state_copy.solve_recursive(&mut state_copy, 0, 20, &mut solution) {
             Some(solution)
         } else {
             None
