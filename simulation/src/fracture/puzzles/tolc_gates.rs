@@ -1,5 +1,5 @@
 /*!
- * TOLC Gate Alignment with proper CSP-style Forward Checking + MRV.
+ * TOLC Gate Alignment with AC-3 + Forward Checking + MRV.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -46,7 +46,6 @@ pub struct TolcGateState {
     pub collective_valence: f32,
     pub mercy_charges: u32,
     pub max_mercy_charges: u32,
-    /// Current domains for each gate (for Forward Checking)
     pub domains: Vec<Vec<GateState>>,
 }
 
@@ -94,8 +93,75 @@ impl TolcGateState {
         self.collective_valence = (avg * 0.7 + connection_bonus * 0.3).clamp(0.0, 1.0);
     }
 
-    /// Full Forward Checking + MRV solver
-    fn solve_fc_mrv(
+    /// Enforce Arc Consistency (AC-3 style)
+    fn enforce_arc_consistency(&mut self) -> bool {
+        let mut queue: Vec<(usize, usize)> = vec![];
+
+        // Initialize queue with all arcs
+        for conn in &self.connections {
+            queue.push((conn.from, conn.to));
+            queue.push((conn.to, conn.from));
+        }
+
+        while let Some((xi, xj)) = queue.pop() {
+            if self.revise(xi, xj) {
+                if self.domains[xi].is_empty() {
+                    return false;
+                }
+                // Add all arcs (xk, xi) where xk != xj
+                for conn in &self.connections {
+                    if conn.to == xi && conn.from != xj {
+                        queue.push((conn.from, xi));
+                    }
+                    if conn.from == xi && conn.to != xj {
+                        queue.push((conn.to, xi));
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
+    /// Revise domain of Xi based on Xj (remove inconsistent values)
+    fn revise(&mut self, xi: usize, xj: usize) -> bool {
+        let mut revised = false;
+        let mut new_domain = vec![];
+
+        for &vi in &self.domains[xi] {
+            let mut supported = false;
+
+            for &vj in &self.domains[xj] {
+                if self.is_consistent(vi, vj, xi, xj) {
+                    supported = true;
+                    break;
+                }
+            }
+
+            if supported {
+                new_domain.push(vi);
+            } else {
+                revised = true;
+            }
+        }
+
+        self.domains[xi] = new_domain;
+        revised
+    }
+
+    /// Check if value vi for Xi is consistent with vj for Xj
+    fn is_consistent(&self, vi: GateState, vj: GateState, xi: usize, xj: usize) -> bool {
+        // Example consistency rule: Conflicted gates should not both be locked without mercy
+        if vi == GateState::Conflicted && vj == GateState::Conflicted {
+            if self.gates[xi].locked && self.gates[xj].locked && self.mercy_charges == 0 {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// AC-3 + Forward Checking + MRV solver
+    fn solve_ac3_fc_mrv(
         &self,
         current: &mut TolcGateState,
         depth: usize,
@@ -110,85 +176,55 @@ impl TolcGateState {
             return false;
         }
 
-        // MRV: select gate with smallest remaining domain
-        let mut best_index: Option<usize> = None;
-        let mut smallest_domain = usize::MAX;
+        // Enforce arc consistency before choosing variable
+        if !current.enforce_arc_consistency() {
+            return false;
+        }
+
+        // MRV: select variable with smallest domain
+        let mut best_idx: Option<usize> = None;
+        let mut min_size = usize::MAX;
 
         for i in 0..current.gates.len() {
             if current.gates[i].locked {
                 continue;
             }
             let dsize = current.domains[i].len();
-            if dsize < smallest_domain && dsize > 0 {
-                smallest_domain = dsize;
-                best_index = Some(i);
+            if dsize > 0 && dsize < min_size {
+                min_size = dsize;
+                best_idx = Some(i);
             }
         }
 
-        let gate_idx = match best_index {
+        let var = match best_idx {
             Some(idx) => idx,
             None => return false,
         };
 
-        // Try values in current domain
-        let current_domain = current.domains[gate_idx].clone();
+        let current_domain = current.domains[var].clone();
 
-        for &new_state in &current_domain {
-            // Create backup
-            let backup_gates = current.gates.clone();
-            let backup_domains = current.domains.clone();
-            let backup_connections = current.connections.clone();
-            let backup_valence = current.collective_valence;
-            let backup_charges = current.mercy_charges;
+        for &value in &current_domain {
+            let backup = current.clone();
 
-            // Apply state change
-            current.gates[gate_idx].state = new_state;
+            // Assign value
+            current.gates[var].state = value;
 
-            // Forward Checking: prune inconsistent values from neighbors
-            let mut consistent = true;
-            for conn in &current.connections {
-                if conn.from == gate_idx || conn.to == gate_idx {
-                    let other = if conn.from == gate_idx { conn.to } else { conn.from };
+            // Forward Checking + AC-3 after assignment
+            if current.enforce_arc_consistency() {
+                let action = PuzzleAction::RotateGate {
+                    gate_index: var,
+                    amount: 1,
+                };
+                solution.push(action);
 
-                    if !current.gates[other].locked {
-                        // Simple consistency rule example
-                        if new_state == GateState::Conflicted && current.domains[other].len() == 1 {
-                            consistent = false;
-                            break;
-                        }
-                    }
+                if Self::solve_ac3_fc_mrv(current, depth + 1, max_depth, solution) {
+                    return true;
                 }
+
+                solution.pop();
             }
 
-            if !consistent {
-                // Restore and skip
-                current.gates = backup_gates;
-                current.domains = backup_domains;
-                current.connections = backup_connections;
-                current.collective_valence = backup_valence;
-                current.mercy_charges = backup_charges;
-                continue;
-            }
-
-            // Record action (simplified)
-            let action = PuzzleAction::RotateGate {
-                gate_index: gate_idx,
-                amount: 1, // Approximate
-            };
-            solution.push(action);
-
-            if Self::solve_fc_mrv(current, depth + 1, max_depth, solution) {
-                return true;
-            }
-
-            solution.pop();
-
-            // Backtrack
-            current.gates = backup_gates;
-            current.domains = backup_domains;
-            current.connections = backup_connections;
-            current.collective_valence = backup_valence;
-            current.mercy_charges = backup_charges;
+            *current = backup;
         }
 
         false
@@ -205,14 +241,14 @@ impl PuzzleState for TolcGateState {
     fn is_solvable(&self) -> bool {
         let mut state_copy = self.clone();
         let mut solution = vec![];
-        state_copy.solve_fc_mrv(&mut state_copy, 0, 22, &mut solution)
+        state_copy.solve_ac3_fc_mrv(&mut state_copy, 0, 25, &mut solution)
     }
 
     fn find_solution(&self) -> Option<Vec<PuzzleAction>> {
         let mut state_copy = self.clone();
         let mut solution = vec![];
 
-        if state_copy.solve_fc_mrv(&mut state_copy, 0, 25, &mut solution) {
+        if state_copy.solve_ac3_fc_mrv(&mut state_copy, 0, 28, &mut solution) {
             Some(solution)
         } else {
             None
@@ -276,9 +312,8 @@ impl PuzzleState for TolcGateState {
                 self.collective_valence = 0.85;
                 self.mercy_charges = self.max_mercy_charges;
 
-                // Reset domains
-                for domain in &mut self.domains {
-                    *domain = GateState::all_states().to_vec();
+                for d in &mut self.domains {
+                    *d = GateState::all_states().to_vec();
                 }
 
                 Ok(ActionResult::Success { message: Some("Puzzle reset".into()) })
