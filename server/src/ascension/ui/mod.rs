@@ -25,6 +25,7 @@ impl Plugin for AscensionUiPlugin {
                 update_cooldown_overlays,
                 update_harmony_orbs,
                 update_mercy_ascent_trial_ui,
+                rebuild_objectives_system,
             ));
     }
 }
