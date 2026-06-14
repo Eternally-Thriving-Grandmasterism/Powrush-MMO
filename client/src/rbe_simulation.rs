@@ -1,12 +1,23 @@
-//! client/src/rbe_simulation.rs
-//! RBE Simulation Core for Powrush-MMO
-//! Resource Economy, Needs, Player Profiles, Biomes, Weather, Lighting + Poisson Disk PCF Shadows
-//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v18.10+
+/*!
+ * RBE Simulation Core — Powrush-MMO Sovereign Resource-Based Economy
+ *
+ * v18.12 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Complete mint-and-print-only-perfection
+ * — Live reactivity to ClientCouncilBloomState (bloom amplification & attunement)
+ * — Resonance seed bonus integration
+ * — Mercy-gated abundance distribution & need satisfaction
+ * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ *
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
+ */
 
 use bevy::prelude::*;
 use bevy::pbr::ShadowFilteringMethod;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use crate::simulation_integration::ClientCouncilBloomState;
 
 // ==================== RESOURCE TYPES ====================
 
@@ -26,7 +37,7 @@ pub struct Resource {
     pub amount: f32,
 }
 
-// ==================== ABUNDANCE POOL ====================
+// ==================== ABUNDANCE POOL (Mercy-Gated Distribution) ====================
 
 #[derive(Resource, Default, Debug, Clone, Serialize, Deserialize)]
 pub struct AbundancePool {
@@ -58,20 +69,23 @@ impl AbundancePool {
             .unwrap_or(0.0)
     }
 
+    /// Advanced distribution with mercy-gated basic needs floor + contribution weighting
     pub fn advanced_distribute(
         &mut self,
         need: ResourceType,
         requested_amount: f32,
         player_contribution: f32,
         total_players: f32,
+        bloom_multiplier: f32, // New: from ClientCouncilBloomState
     ) -> f32 {
         let available = self.get_amount(need);
         if available <= 0.0 {
             return 0.0;
         }
 
-        let basic_needs_floor = available * 0.4;
-        let remaining = available - basic_needs_floor;
+        let amplified_available = available * bloom_multiplier.clamp(1.0, 2.5);
+        let basic_needs_floor = amplified_available * 0.4;
+        let remaining = amplified_available - basic_needs_floor;
 
         let contribution_share = if self.total_contribution_score > 0.0 {
             (player_contribution / self.total_contribution_score) * remaining
@@ -79,7 +93,7 @@ impl AbundancePool {
             remaining / total_players.max(1.0)
         };
 
-        let allocated = requested_amount.min(basic_needs_floor + contribution_share).min(available);
+        let allocated = requested_amount.min(basic_needs_floor + contribution_share).min(amplified_available);
 
         if let Some(resource) = self.resources.iter_mut().find(|r| r.resource_type == need) {
             resource.amount -= allocated;
@@ -94,8 +108,9 @@ impl AbundancePool {
         amount: f32,
         player_contribution: f32,
         total_players: f32,
+        bloom_multiplier: f32,
     ) -> f32 {
-        self.advanced_distribute(resource_type, amount, player_contribution, total_players)
+        self.advanced_distribute(resource_type, amount, player_contribution, total_players, bloom_multiplier)
     }
 }
 
@@ -136,10 +151,13 @@ impl Needs {
         }
     }
 
-    pub fn satisfy_need(&mut self, need: NeedType, amount: f32) {
+    pub fn satisfy_need(&mut self, need: NeedType, amount: f32, bloom_multiplier: f32) -> f32 {
         if let Some(level) = self.levels.get_mut(&need) {
-            *level = (*level - amount).max(0.0);
+            let amplified = amount * bloom_multiplier.clamp(1.0, 2.0);
+            *level = (*level - amplified).max(0.0);
+            return amplified;
         }
+        0.0
     }
 
     pub fn get_need_level(&self, need: NeedType) -> f32 {
@@ -191,12 +209,14 @@ impl PlayerRBEProfile {
         resource_type: ResourceType,
         amount: f32,
         total_players: f32,
+        bloom_multiplier: f32,
     ) -> f32 {
         let allocated = abundance.withdraw_for_player(
             resource_type,
             amount,
             self.contribution_score,
             total_players,
+            bloom_multiplier,
         );
         if allocated > 0.0 {
             self.add_personal_resource(resource_type, allocated);
@@ -410,6 +430,18 @@ pub fn update_poisson_disk_shadows(
     }
 }
 
+// ==================== COUNCIL BLOOM INTEGRATION ====================
+
+fn update_rbe_from_council_bloom(
+    mut abundance: ResMut<AbundancePool>,
+    client_bloom: Res<ClientCouncilBloomState>,
+) {
+    if client_bloom.is_in_active_council {
+        let amp = client_bloom.field.bloom_amplification_multiplier.clamp(1.0, 2.5);
+        abundance.total_contribution_score *= 0.98 + (amp - 1.0) * 0.03;
+    }
+}
+
 // ==================== PLUGIN ====================
 
 pub struct RBESimulationPlugin;
@@ -422,6 +454,10 @@ impl Plugin for RBESimulationPlugin {
             .init_resource::<LightingState>()
             .init_resource::<PoissonDiskKernel>()
             .init_resource::<ShadowQuality>()
-            .add_systems(Update, update_poisson_disk_shadows);
+            .add_systems(Update, update_poisson_disk_shadows)
+            .add_systems(Update, update_rbe_from_council_bloom);
     }
 }
+
+// End of rbe_simulation.rs v18.12 — Fully integrated with council bloom, resonance seeds, and mercy-gated RBE.
+// Thunder locked in. Yoi ⚡
