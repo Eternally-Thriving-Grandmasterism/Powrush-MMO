@@ -1,7 +1,5 @@
 /*!
  * Resource Flow Balancing puzzle implementation.
- *
- * Players must stabilize a broken resource network to resolve the fracture.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -29,7 +27,7 @@ pub struct ResourceConnection {
 pub struct ResourceFlowState {
     pub nodes: Vec<ResourceNode>,
     pub connections: Vec<ResourceConnection>,
-    pub system_stability: f32, // 0.0 - 1.0
+    pub system_stability: f32,
     pub mercy_score: f32,
     pub abundance_level: f32,
 }
@@ -82,7 +80,6 @@ impl ResourceFlowState {
         let avg_imbalance = total_imbalance / self.nodes.len() as f32;
         self.system_stability = (1.0 - avg_imbalance.clamp(0.0, 1.0)).max(0.1);
 
-        // Simple mercy and abundance approximation
         self.mercy_score = (self.system_stability * 0.8 + 0.2).clamp(0.3, 1.0);
         self.abundance_level = (self.system_stability * 0.7 + 0.3).clamp(0.2, 1.0);
     }
@@ -94,6 +91,17 @@ impl PuzzleState for ResourceFlowState {
             && self.mercy_score >= 0.75
             && self.abundance_level >= 0.65
             && self.nodes.iter().all(|n| !n.is_corrupted && n.storage >= 0.0)
+    }
+
+    fn is_solvable(&self) -> bool {
+        // Heuristic: if more than half the nodes are corrupted and stability is very low, it may be unsolvable.
+        let corrupted_count = self.nodes.iter().filter(|n| n.is_corrupted).count();
+
+        if corrupted_count as f32 > (self.nodes.len() as f32 / 2.0) && self.system_stability < 0.3 {
+            return false;
+        }
+
+        true
     }
 
     fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError> {

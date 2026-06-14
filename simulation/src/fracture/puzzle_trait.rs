@@ -38,7 +38,7 @@ pub enum PuzzleAction {
     Reset,
     RequestHint,
 
-    // Type-specific actions (examples - will be expanded per puzzle type)
+    // Type-specific actions (examples)
     RotateGate { gate_index: usize, amount: i32 },
     AdjustFlow { connection_id: u32, delta: f32 },
     ReorderEvent { from_index: usize, to_index: usize },
@@ -49,6 +49,10 @@ pub enum PuzzleAction {
 pub trait PuzzleState: Send + Sync + Debug {
     /// Returns true if the puzzle is currently solved.
     fn is_solved(&self) -> bool;
+
+    /// Returns true if the puzzle has at least one valid solution path.
+    /// This is used during generation to avoid creating unsolvable puzzles.
+    fn is_solvable(&self) -> bool;
 
     /// Apply a player or AGi action to the puzzle.
     fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError>;

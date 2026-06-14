@@ -1,7 +1,5 @@
 /*!
  * TOLC Gate Alignment puzzle implementation.
- *
- * Players must realign the 8 TOLC Mercy Gates to resolve the fracture.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -19,7 +17,7 @@ pub enum GateState {
 pub struct TolcGate {
     pub index: usize,
     pub state: GateState,
-    pub valence: f32, // 0.0 - 1.0
+    pub valence: f32,
     pub locked: bool,
 }
 
@@ -27,7 +25,7 @@ pub struct TolcGate {
 pub struct Connection {
     pub from: usize,
     pub to: usize,
-    pub strength: f32, // -1.0 (conflicting) to +1.0 (strong harmony)
+    pub strength: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +84,20 @@ impl PuzzleState for TolcGateState {
             && self.connections.iter().all(|c| c.strength >= 0.0)
     }
 
+    fn is_solvable(&self) -> bool {
+        // Basic heuristic: if there are too many locked conflicted gates with no mercy charges, it may be unsolvable.
+        let conflicted_locked = self.gates.iter()
+            .filter(|g| g.locked && g.state == GateState::Conflicted)
+            .count();
+
+        if conflicted_locked > 0 && self.mercy_charges == 0 {
+            return false;
+        }
+
+        // For now, assume most configurations are solvable unless heavily constrained.
+        true
+    }
+
     fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError> {
         match action {
             PuzzleAction::RotateGate { gate_index, amount } => {
@@ -98,7 +110,6 @@ impl PuzzleState for TolcGateState {
                     return Err(PuzzleError::GateLocked);
                 }
 
-                // Simple state transition logic
                 gate.state = match (gate.state, amount % 4) {
                     (GateState::Aligned, 1) | (GateState::Aligned, 3) => GateState::Inverted,
                     (GateState::Inverted, 1) | (GateState::Inverted, 3) => GateState::Aligned,
@@ -107,9 +118,7 @@ impl PuzzleState for TolcGateState {
                     _ => gate.state,
                 };
 
-                // Adjust valence slightly based on rotation
                 gate.valence = (gate.valence + (amount as f32) * 0.03).clamp(0.3, 1.0);
-
                 self.recalculate_collective_valence();
 
                 Ok(ActionResult::Success { message: Some(format!("Gate {} rotated", gate_index)) })
@@ -120,7 +129,7 @@ impl PuzzleState for TolcGateState {
                     return Err(PuzzleError::NoMercyCharges);
                 }
 
-                if connection_id as usize >= self.connections.len() {
+                if (connection_id as usize) >= self.connections.len() {
                     return Err(PuzzleError::Other("Invalid connection".into()));
                 }
 

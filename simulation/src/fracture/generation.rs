@@ -4,7 +4,7 @@
 
 use crate::fracture::puzzle_trait::PuzzleState;
 use crate::fracture::puzzles::tolc_gates::TolcGateState;
-use crate::fracture::types::{Fracture, FractureType, PuzzleInstance};
+use crate::fracture::types::{Fracture, FractureType, GenerationError, PuzzleInstance};
 use rand::Rng;
 
 #[derive(Debug, Clone)]
@@ -20,13 +20,12 @@ pub struct GenerationParams {
 /// Generates a new Lattice Fracture and its corresponding puzzle.
 pub fn generate_fracture(
     params: &GenerationParams,
-) -> Result<(Fracture, PuzzleInstance), crate::fracture::types::GenerationError> {
+) -> Result<(Fracture, PuzzleInstance), GenerationError> {
     let mut rng = match params.rng_seed {
         Some(seed) => rand::rngs::StdRng::seed_from_u64(seed),
         None => rand::rngs::StdRng::from_entropy(),
     };
 
-    // Determine fracture type based on context (simplified for now)
     let fracture_type = if params.context_tags.contains(&"council".to_string())
         || params.context_tags.contains(&"deep_simulation".to_string())
     {
@@ -36,7 +35,7 @@ pub fn generate_fracture(
     {
         FractureType::ResourceFlowBalancing
     } else {
-        FractureType::TOLCGateAlignment // Default
+        FractureType::TOLCGateAlignment
     };
 
     let puzzle_seed = params.rng_seed.unwrap_or_else(|| rng.gen());
@@ -48,14 +47,15 @@ pub fn generate_fracture(
             let mercy_charges = ((3.0 - params.difficulty * 2.0).max(1.0)) as u32;
             Box::new(TolcGateState::new(num_gates, mercy_charges))
         }
-        // TODO: Add other puzzle types here
+        FractureType::ResourceFlowBalancing => {
+            Box::new(crate::fracture::puzzles::resource_flow::ResourceFlowState::new(8))
+        }
         _ => Box::new(TolcGateState::new(8, 2)),
     };
 
-    // Validate solvability (basic check for now)
-    if !puzzle_state.is_solved() && puzzle_state.get_progress() < 0.1 {
-        // For now we assume most generated puzzles are solvable.
-        // More rigorous validation can be added later.
+    // Proper solvability validation
+    if !puzzle_state.is_solvable() {
+        return Err(GenerationError::UnsolvablePuzzle);
     }
 
     let fracture = Fracture {

@@ -5,7 +5,6 @@
 use serde::{Deserialize, Serialize};
 use crate::fracture::puzzle_trait::PuzzleState;
 
-/// Types of Lattice Fractures that can occur.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FractureType {
     TOLCGateAlignment,
@@ -16,7 +15,6 @@ pub enum FractureType {
     ConsensusAlignment,
 }
 
-/// Error type for generation failures.
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum GenerationError {
     #[error("Unsupported fracture type")]
@@ -29,19 +27,17 @@ pub enum GenerationError {
     Other(String),
 }
 
-/// Represents a detected Lattice Fracture in the world.
 #[derive(Debug, Clone)]
 pub struct Fracture {
     pub id: u64,
     pub fracture_type: FractureType,
-    pub difficulty: f32,           // 0.0 - 1.0
-    pub context_tags: Vec<String>, // e.g. ["harvesting", "combat", "council"]
+    pub difficulty: f32,
+    pub context_tags: Vec<String>,
     pub puzzle_seed: u64,
     pub resolved: bool,
     pub created_at: u64,
 }
 
-/// Holds the runtime state of an active puzzle instance.
 #[derive(Debug, Clone)]
 pub struct PuzzleInstance {
     pub fracture_id: u64,
