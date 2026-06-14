@@ -4,9 +4,11 @@ pub mod divine_whispers;
 pub mod player_persistence;
 pub mod cloud_sync;
 pub mod emergence;
+pub mod ra_thor_bridge;
 
-// Re-export key emergence types for convenient use across the simulation crate
 pub use emergence::{
     EmergenceEffect, EmergenceOrchestrator, EmergenceSeed, DynamicEmergenceEvent,
-    DynamicEmergenceEventPhase, EmergenceSource, EmergencePlugin,
+    DynamicEmergenceEventPhase, EmergenceSource, EmergencePlugin, CouncilGuidance,
 };
+
+pub use ra_thor_bridge::{RaThorBridge, CouncilQueryRequest, CouncilQueryResponse, RaThorCouncilQuery};

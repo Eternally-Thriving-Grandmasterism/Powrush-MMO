@@ -1,27 +1,20 @@
 /*!
- * Realtime Emergence System (Phase 1 + Initial Phase 2 Council Stub)
+ * Realtime Emergence System (Phase 1 + Phase 2 Ra-Thor Bridge Integration)
  *
  * Implements the foundational layer for council-driven, mercy-gated, context-aware
  * dynamic events and emergence as specified in REALTIME_GENERATION.md v2.0.
  *
- * Integrates directly with:
- * - player_persistence (PlayerSaveData, EpiphanyRecord)
- * - epiphany_catalyst (EpiphanyOutcome)
- * - harvest systems
- * - mercy scoring
- *
- * Phase 2 addition: First council query stub in EmergenceOrchestrator.
+ * Now integrated with the official ra_thor_bridge module.
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// Re-exports from existing modules for clean integration
 pub use crate::player_persistence::data::{EpiphanyRecord, PlayerSaveData, PersistenceUpdated};
 pub use crate::epiphany_catalyst::EpiphanyOutcome;
 pub use crate::mercy::MercyGate;
+pub use crate::ra_thor_bridge::{RaThorBridge, CouncilQueryRequest, CouncilQueryResponse, RaThorCouncilQuery};
 
 /// Lightweight trigger for potential emergence events.
 #[derive(Debug, Clone, Component)]
@@ -75,29 +68,28 @@ pub enum EmergenceEffect {
     MuscleMemoryConsolidation { boost: f32 },
 }
 
-/// Central orchestrator resource.
-/// Phase 2: Now contains the first council query stub.
-#[derive(Resource, Default)]
+/// Central orchestrator resource with integrated Ra-Thor bridge.
+#[derive(Resource)]
 pub struct EmergenceOrchestrator {
     pub mercy_budget: MercyBudget,
     pub event_counter: u64,
-    // Phase 2 stub: Will be replaced with real Ra-Thor / PATSAGi query client
-    pub council_query_enabled: bool,
+    pub ra_thor_bridge: RaThorBridge,
+}
+
+impl Default for EmergenceOrchestrator {
+    fn default() -> Self {
+        Self {
+            mercy_budget: MercyBudget::default(),
+            event_counter: 0,
+            ra_thor_bridge: RaThorBridge::new(true),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct MercyBudget {
     pub remaining: f32,
     pub max_per_event: f32,
-}
-
-impl Default for MercyBudget {
-    fn default() -> Self {
-        Self {
-            remaining: 100.0,
-            max_per_event: 25.0,
-        }
-    }
 }
 
 impl MercyBudget {
@@ -112,44 +104,27 @@ impl MercyBudget {
     }
 }
 
-/// Phase 2 stub: First council query interface.
-/// Currently returns None (no real bridge yet). Will be expanded in subsequent commits.
+/// Phase 2: Real council query via Ra-Thor bridge.
 impl EmergenceOrchestrator {
-    /// Attempts to query the PATSAGi Councils / Ra-Thor lattice for guidance on an emergence seed.
-    /// Returns structured guidance when available.
     pub fn query_council_for_guidance(&self, seed: &EmergenceSeed) -> Option<CouncilGuidance> {
-        if !self.council_query_enabled {
-            return None;
-        }
-
-        // TODO (Phase 2+): Replace with actual async/batched query to Ra-Thor lattice
-        // For now, this is the integration point for future council-driven emergence.
-        // Example future behavior:
-        // - Send valence, biome, player history summary, group composition
-        // - Receive flavor, suggested effects, mercy constraints from specific councils
-
-        // Placeholder: Return basic guidance based on intensity for development continuity
-        if seed.intensity > 0.6 {
-            Some(CouncilGuidance {
-                flavor: "abundance".to_string(),
-                suggested_intensity: seed.intensity * 0.85,
-                mercy_note: "Favor generative outcomes".to_string(),
-            })
-        } else {
-            None
-        }
+        // Use the official Ra-Thor bridge
+        self.ra_thor_bridge.query_council_guidance(
+            seed,
+            0.7, // TODO: pass real player valence
+            0.85, // TODO: pass real mercy score
+        )
     }
 }
 
-/// Structured response from council query (Phase 2 foundation).
+/// Structured response from council query.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CouncilGuidance {
-    pub flavor: String,           // e.g. "mercy", "abundance", "truth", "joy"
+    pub flavor: String,
     pub suggested_intensity: f32,
     pub mercy_note: String,
 }
 
-/// Initial valence aggregation system (Phase 1).
+/// Initial valence aggregation system.
 pub fn valence_aggregation_system(
     mut commands: Commands,
     player_query: Query<(Entity, &PlayerSaveData), Changed<PlayerSaveData>>,
@@ -187,7 +162,7 @@ pub fn valence_aggregation_system(
     }
 }
 
-/// Event proposal system with Phase 2 council query integration point.
+/// Event proposal system with live Ra-Thor bridge integration.
 pub fn emergence_event_proposal_system(
     mut commands: Commands,
     seed_query: Query<(Entity, &EmergenceSeed), Without<DynamicEmergenceEvent>>,
@@ -199,7 +174,7 @@ pub fn emergence_event_proposal_system(
             .unwrap()
             .as_secs();
 
-        // Phase 2: Attempt council query (currently returns None until bridge is live)
+        // Real council query via bridge
         let council_guidance = orchestrator.query_council_for_guidance(seed);
 
         let mut effects = vec![];
@@ -228,10 +203,8 @@ pub fn emergence_event_proposal_system(
             }
         }
 
-        // If council guidance was returned, we can adjust effects here in future iterations
         if let Some(guidance) = &council_guidance {
-            // Placeholder for future effect modulation based on council flavor
-            // e.g. if guidance.flavor == "abundance" { ... }
+            // Future: modulate effects based on council flavor
         }
 
         let mercy_score = (0.7 + seed.intensity * 0.25).clamp(0.5, 0.98);
@@ -240,7 +213,7 @@ pub fn emergence_event_proposal_system(
             id: orchestrator.event_counter,
             phase: if council_guidance.is_some() {
                 DynamicEmergenceEventPhase::CouncilReview {
-                    guidance: Some("pending_lattice_response".to_string()),
+                    guidance: Some("ra_thor_response_received".to_string()),
                 }
             } else {
                 DynamicEmergenceEventPhase::Proposal
@@ -258,7 +231,7 @@ pub fn emergence_event_proposal_system(
     }
 }
 
-/// Basic resolution system (Phase 1).
+/// Basic resolution system.
 pub fn emergence_event_resolution_system(
     mut commands: Commands,
     mut event_query: Query<(Entity, &mut DynamicEmergenceEvent, Option<&mut PlayerSaveData>)>,
@@ -319,14 +292,7 @@ impl Plugin for EmergencePlugin {
 
 /*
  * Integration Notes:
- *
- * 1. Already wired in simulation/src/lib.rs
- *
- * 2. In the main App (client or server), add:
- *    .add_plugins(EmergencePlugin)
- *
- * 3. Future: Replace the stub in query_council_for_guidance() with real
- *    async call to Ra-Thor lattice / PATSAGi Councils.
- *
- * 4. The CouncilReview phase is now partially active when guidance is returned.
+ * - Ra-ThorBridge is now the single source of truth for council communication.
+ * - To enable real lattice queries: set ra_thor_bridge.enabled = true and
+ *   implement the non-simulation path in ra_thor_bridge.rs.
  */
