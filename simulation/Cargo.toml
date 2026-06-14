@@ -23,12 +23,15 @@ js-sys = { version = "0.3", optional = true }
 web-sys = { version = "0.3", optional = true, features = ["console"] }
 leptos = { version = "0.8", features = ["csr"], optional = true }
 tracing = "0.1"
+tokio = { version = "1.38", features = ["rt", "time", "macros"], optional = true }
 
 [features]
 default = []
 web = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
 leptos-ui = ["web", "dep:leptos"]
 gpu = []
+async = ["dep:tokio"]
+real-ra-thor = ["async"]
 
 [dev-dependencies]
 criterion = "0.5"
@@ -51,5 +54,5 @@ required-features = ["leptos-ui"]
 style-file = "examples/leptos-ui/style/tailwind.css"
 assets-dir = "examples/leptos-ui/public"
 site-root = "target/site"
-site-pkg-dir = "target/site/pkg"
+site-pkg-dir = "target/site"
 tailwind-input-file = "examples/leptos-ui/style/tailwind.css"
