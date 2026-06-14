@@ -1,5 +1,5 @@
 /*!
- * TOLC Gate Alignment puzzle implementation.
+ * TOLC Gate Alignment puzzle with backtracking solver.
  */
 
 use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
@@ -75,6 +75,78 @@ impl TolcGateState {
 
         self.collective_valence = (avg * 0.7 + connection_bonus * 0.3).clamp(0.0, 1.0);
     }
+
+    /// Simple backtracking solver for TOLC Gate Alignment.
+    fn solve_recursive(
+        &self,
+        current_state: &mut TolcGateState,
+        depth: usize,
+        max_depth: usize,
+        solution: &mut Vec<PuzzleAction>,
+    ) -> bool {
+        if current_state.is_solved() {
+            return true;
+        }
+
+        if depth >= max_depth {
+            return false;
+        }
+
+        // Try rotating each gate
+        for i in 0..current_state.gates.len() {
+            if current_state.gates[i].locked {
+                continue;
+            }
+
+            for amount in [1, 2, 3] {
+                let action = PuzzleAction::RotateGate {
+                    gate_index: i,
+                    amount,
+                };
+
+                let backup = current_state.clone();
+
+                if current_state.apply_action(action.clone()).is_ok() {
+                    solution.push(action);
+
+                    if Self::solve_recursive(current_state, depth + 1, max_depth, solution) {
+                        return true;
+                    }
+
+                    solution.pop();
+                }
+
+                *current_state = backup;
+            }
+        }
+
+        // Try using Mercy Charges on conflicted connections
+        if current_state.mercy_charges > 0 {
+            for conn_id in 0..current_state.connections.len() {
+                if current_state.connections[conn_id].strength < 0.0 {
+                    let action = PuzzleAction::ResolveConflict {
+                        connection_id: conn_id as u32,
+                    };
+
+                    let backup = current_state.clone();
+
+                    if current_state.apply_action(action.clone()).is_ok() {
+                        solution.push(action);
+
+                        if Self::solve_recursive(current_state, depth + 1, max_depth, solution) {
+                            return true;
+                        }
+
+                        solution.pop();
+                    }
+
+                    *current_state = backup;
+                }
+            }
+        }
+
+        false
+    }
 }
 
 impl PuzzleState for TolcGateState {
@@ -85,17 +157,21 @@ impl PuzzleState for TolcGateState {
     }
 
     fn is_solvable(&self) -> bool {
-        // Basic heuristic: if there are too many locked conflicted gates with no mercy charges, it may be unsolvable.
-        let conflicted_locked = self.gates.iter()
-            .filter(|g| g.locked && g.state == GateState::Conflicted)
-            .count();
+        // Use limited backtracking for accurate solvability check
+        let mut state_copy = self.clone();
+        let mut solution = vec![];
+        state_copy.solve_recursive(&mut state_copy, 0, 12, &mut solution)
+    }
 
-        if conflicted_locked > 0 && self.mercy_charges == 0 {
-            return false;
+    fn find_solution(&self) -> Option<Vec<PuzzleAction>> {
+        let mut state_copy = self.clone();
+        let mut solution = vec![];
+
+        if state_copy.solve_recursive(&mut state_copy, 0, 15, &mut solution) {
+            Some(solution)
+        } else {
+            None
         }
-
-        // For now, assume most configurations are solvable unless heavily constrained.
-        true
     }
 
     fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError> {
