@@ -1,7 +1,7 @@
 /*!
  * Bevy ECS Integration for Lattice Fracture Resolution
  *
- * Includes visual highlighting, UI panel structure, and practical game patterns.
+ * Includes visual highlighting, basic UI panel structure, and interaction prompts.
  */
 
 use bevy::prelude::*;
@@ -24,11 +24,9 @@ pub struct ActiveFracture {
 #[derive(Component)]
 pub struct FractureInteractor;
 
-/// Marker for entities that should show fracture-related UI.
 #[derive(Component)]
 pub struct ShowFractureUI;
 
-/// Optional visual marker for entities with an active fracture.
 #[derive(Component)]
 pub struct FractureVisualHighlight;
 
@@ -81,18 +79,18 @@ pub fn fracture_discovery_system(
     if !settings.auto_discover_on_event {
         return;
     }
-    // Real discovery logic goes here.
+    // Real discovery logic here.
 }
 
-/// Input handling - connect this to your real input system.
+/// Input handling - replace keyboard checks with your real input mapping.
 pub fn fracture_input_system(
     mut query: Query<(&mut ActiveFracture, Option<&ShowFractureUI>), With<FractureInteractor>>,
     keyboard: Res<ButtonInput<KeyCode>>,
     skill: Res<FractureResolutionSkill>,
 ) {
-    for (mut active, _ui) in query.iter_mut() {
+    for (mut active, show_ui) in query.iter_mut() {
         if keyboard.just_pressed(KeyCode::Space) {
-            // Send a puzzle action based on current context / UI selection
+            // Send context-appropriate PuzzleAction based on current UI selection
         }
 
         if keyboard.just_pressed(KeyCode::KeyG) {
@@ -111,8 +109,8 @@ pub fn fracture_input_system(
     }
 }
 
-/// Updates puzzle-related UI elements.
-/// Replace the TODOs with your actual UI components.
+/// Updates any UI elements related to the active fracture.
+/// This is where you sync progress bars, text, buttons, etc.
 pub fn fracture_ui_update_system(
     query: Query<(&ActiveFracture, &ShowFractureUI)>,
 ) {
@@ -120,17 +118,15 @@ pub fn fracture_ui_update_system(
         let progress = active.puzzle.state.get_progress();
         let summary = active.puzzle.state.get_current_state_summary();
 
-        // TODO: Update your UI here
-        // Examples:
-        // - Progress bar
-        // - Puzzle-specific controls
-        // - Current state text
-        // ui_progress.set_progress(progress);
-        // ui_summary.set_text(summary);
+        // TODO: Update your actual UI components here.
+        // Examples with bevy_egui or custom UI:
+        // - Progress bar: ui_progress.set_fraction(progress);
+        // - Status text: ui_status.set_text(summary);
+        // - Show/hide puzzle-specific controls based on fracture type
     }
 }
 
-/// Adds or removes visual highlighting on entities with active fractures.
+/// Manages visual highlighting for entities with active fractures.
 pub fn fracture_visual_highlighting_system(
     mut commands: Commands,
     query: Query<(Entity, Option<&FractureVisualHighlight>), &ActiveFracture>,
@@ -143,7 +139,11 @@ pub fn fracture_visual_highlighting_system(
     for (entity, highlight) in query.iter() {
         if highlight.is_none() {
             commands.entity(entity).insert(FractureVisualHighlight);
-            // TODO: Add actual visual effect here (outline, glow, particle system, etc.)
+            // TODO: Add real visual effect here:
+            // - Outline / glow material
+            // - Particle system
+            // - Pulsing scale animation
+            // - Special shader
         }
     }
 }
@@ -162,7 +162,6 @@ pub fn fracture_completion_system(
                 skill.level += 1;
             }
 
-            // Remove visual highlight if present
             commands.entity(entity).remove::<FractureVisualHighlight>();
             commands.entity(entity).remove::<ActiveFracture>();
         }
