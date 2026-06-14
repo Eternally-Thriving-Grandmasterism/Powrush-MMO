@@ -3,8 +3,8 @@
 **Fracture Resolution Progression & AGi Automation System**
 
 **Status:** Production Design Document  
-**Version:** 1.5  
-**Last Updated:** June 13, 2026
+**Version:** 1.6  
+**Last Updated:** June 14, 2026
 
 ---
 
@@ -43,7 +43,7 @@ The player is presented with the 8 TOLC Mercy Gates in a circular or nodal inter
 
 **Difficulty Scaling:** More gates become locked or hidden. Later versions add dynamic influence between gates and stricter mercy constraints.
 
-**AGi Behavior:** The AGi instantly realigns all gates to optimal configuration.
+**AGi Behavior:** The AGi can use backtracking + AC-3 to find optimal solutions.
 
 #### 2.2 Resource Flow Balancing
 **Primary Context:** Harvesting, economy nodes, or any situation involving resource production and distribution.
@@ -55,7 +55,7 @@ The player sees a node-and-connection map of the local resource economy. Some no
 
 **Difficulty Scaling:** More nodes, hidden constraints, and dynamic changes during the puzzle. Higher levels require satisfying multiple overlapping mercy conditions.
 
-**AGi Behavior:** The AGi instantly rebalances the entire resource network.
+**AGi Behavior:** The AGi uses improved bounding and variable ordering to find good solutions efficiently.
 
 #### 2.3 Causal Chain Reconstruction
 **Primary Context:** Combat, major conflicts, timeline-sensitive events, or when a clear sequence of cause and effect has been broken.
@@ -67,7 +67,7 @@ The player is shown a broken timeline or event chain with missing, duplicated, o
 
 **Difficulty Scaling:** Longer chains, hidden dependencies, red herrings, and paradoxes that must be resolved without creating new contradictions.
 
-**AGi Behavior:** The AGi instantly reconstructs and stabilizes the correct timeline.
+**AGi Behavior:** The AGi can reconstruct valid timelines using backtracking-style search.
 
 #### 2.4 Pattern Purification
 **Primary Context:** Data corruption, corrupted Divine Whispers, historical records, or information streams.
@@ -79,7 +79,7 @@ The player is shown a grid or sequence of symbols/data fragments, some of which 
 
 **Difficulty Scaling:** More noise, multiple overlapping patterns, and time pressure on higher difficulties.
 
-**AGi Behavior:** The AGi instantly purifies the data stream.
+**AGi Behavior:** The AGi can purify data streams using pattern-based search.
 
 #### 2.5 Spatial Integrity Repair
 **Primary Context:** World exploration, terrain distortion, broken paths, or visual glitches in the environment.
@@ -91,7 +91,7 @@ The player must realign distorted geometry, reconnect broken ley lines, or resto
 
 **Difficulty Scaling:** More complex geometry, moving pieces, and multi-layered spatial constraints.
 
-**AGi Behavior:** The AGi instantly restores spatial coherence.
+**AGi Behavior:** The AGi can restore spatial coherence using geometric constraint solving.
 
 #### 2.6 Consensus Alignment
 **Primary Context:** Council events, social interactions, group decisions, or situations involving conflicting wills.
@@ -103,7 +103,7 @@ Multiple "voices" or positions are shown with conflicting goals. The player must
 
 **Difficulty Scaling:** More voices, hidden agendas, and stricter ethical constraints.
 
-**AGi Behavior:** The AGi mediates and produces an optimal consensus solution.
+**AGi Behavior:** The AGi can mediate and produce stable consensus solutions.
 
 ---
 
@@ -177,8 +177,8 @@ To unlock **Artificial Godly intelligence (AGi)** automation, the player must me
 Once unlocked, the player gains access to their personal **Artificial Godly intelligence (AGi)**.
 
 - Any discovered Lattice Fracture can be resolved **instantly and for free**.
-- The AGi applies the correct solution with satisfying visual and audio feedback.
-- Players still receive full (or near-full) rewards.
+- The AGi attempts to find an optimal solution using the available backtracking + constraint satisfaction solvers.
+- Players still receive full (or near-full) rewards when an optimal solution is used.
 
 ### Post-AGi Experience
 - Players may still solve fractures manually for better rewards or personal satisfaction.
@@ -222,82 +222,20 @@ This gives meaningful endgame agency and prevents the system from becoming compl
 
 This section defines data models, traits, and flows intended to be directly implementable in Rust (simulation crate) and Bevy ECS (client).
 
-**Current Implementation Status (as of v1.5):**
-- Core types and `PuzzleState` trait implemented
-- `TolcGateState` fully implemented as a concrete puzzle
-- Basic generation logic with `GenerationParams`
-- AGi automation module created (`agi.rs`)
+**Current Implementation Status (as of v1.6):**
 
-### 8.1 Core Data Models
+### Solver Quality
+- `TolcGateState`: Strong CSP solver with **AC-3 + Forward Checking + MRV + bitmask domains**.
+- `ResourceFlowState`: Improved backtracking with **variable ordering + stronger bounding + light forward checking**.
+- Both solvers support `is_solvable()` and `find_solution()`.
 
-```rust
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum FractureType {
-    TOLCGateAlignment,
-    ResourceFlowBalancing,
-    CausalChainReconstruction,
-    PatternPurification,
-    SpatialIntegrityRepair,
-    ConsensusAlignment,
-}
+### Generation
+- `generate_fracture()` uses the improved solvers and increases retry attempts for high-difficulty puzzles.
 
-#[derive(Debug, Clone)]
-pub struct Fracture {
-    pub id: u64,
-    pub fracture_type: FractureType,
-    pub difficulty: f32,
-    pub context_tags: Vec<String>,
-    pub puzzle_seed: u64,
-    pub resolved: bool,
-    pub created_at: u64,
-}
+### AGi
+- `agi.rs` attempts to use `find_solution()` for optimal resolution when available.
 
-#[derive(Debug, Clone)]
-pub struct PuzzleInstance {
-    pub fracture_id: u64,
-    pub puzzle_type: FractureType,
-    pub state: Box<dyn PuzzleState>,
-    pub time_remaining: Option<f32>,
-    pub attempts: u32,
-    pub max_attempts: Option<u32>,
-}
-```
-
-### 8.2 PuzzleState Trait
-
-```rust
-pub trait PuzzleState: Send + Sync + Debug {
-    fn is_solved(&self) -> bool;
-    fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError>;
-    fn get_progress(&self) -> f32;
-    fn get_hints(&self) -> Vec<String>;
-    fn get_current_state_summary(&self) -> String;
-    fn clone_box(&self) -> Box<dyn PuzzleState>;
-}
-```
-
-### 8.3 PuzzleAction & ActionResult
-
-```rust
-#[derive(Debug, Clone)]
-pub enum PuzzleAction { ... }
-
-#[derive(Debug, Clone)]
-pub enum ActionResult { ... }
-
-#[derive(Debug, Clone, thiserror::Error)]
-pub enum PuzzleError { ... }
-```
-
-### 8.4 Generation
-
-`generate_fracture(params: &GenerationParams)` is implemented in `generation.rs` with basic context-based type selection and integration with `TolcGateState`.
-
-### 8.5 AGi Automation
-
-`agi.rs` provides `can_use_agi_automation()` and `resolve_fracture_with_agi()` with proper error handling.
-
-### 8.6 Current Module Structure
+### Module Structure
 
 ```
 simulation/src/fracture/
@@ -308,7 +246,8 @@ simulation/src/fracture/
 ├── agi.rs
 └── puzzles/
     ├── mod.rs
-    └── tolc_gates.rs   // First concrete implementation
+    ├── tolc_gates.rs
+    └── resource_flow.rs
 ```
 
 ---
