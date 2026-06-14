@@ -3,7 +3,7 @@
 **Fracture Resolution Progression & AGi Automation System**
 
 **Status:** Production Design Document  
-**Version:** 1.2  
+**Version:** 1.3  
 **Last Updated:** June 13, 2026
 
 ---
@@ -392,6 +392,104 @@ simulation/
 │   ├── agi.rs                    // AGi resolution logic
 │   ├── progression.rs            // Skill + experience logic
 ```
+
+### 8.8 Example: TolcGateState Implementation
+
+```rust
+use crate::fracture::puzzle_trait::{PuzzleState, PuzzleAction, ActionResult, PuzzleError};
+
+#[derive(Debug, Clone)]
+pub struct TolcGate {
+    pub index: usize,
+    pub state: GateState,           // Aligned, Inverted, Overpowered, Conflicted
+    pub valence: f32,               // 0.0 - 1.0
+    pub locked: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GateState {
+    Aligned,
+    Inverted,
+    Overpowered,
+    Conflicted,
+}
+
+#[derive(Debug, Clone)]
+pub struct Connection {
+    pub from: usize,
+    pub to: usize,
+    pub strength: f32,              // -1.0 (conflicting) to 1.0 (strong harmony)
+}
+
+#[derive(Debug, Clone)]
+pub struct TolcGateState {
+    pub gates: Vec<TolcGate>,
+    pub connections: Vec<Connection>,
+    pub collective_valence: f32,
+    pub mercy_charges: u32,
+    pub max_mercy_charges: u32,
+}
+
+impl PuzzleState for TolcGateState {
+    fn is_solved(&self) -> bool {
+        self.collective_valence >= 0.92 
+            && self.gates.iter().all(|g| g.state == GateState::Aligned)
+            && self.connections.iter().all(|c| c.strength >= 0.0)
+    }
+
+    fn apply_action(&mut self, action: PuzzleAction) -> Result<ActionResult, PuzzleError> {
+        match action {
+            PuzzleAction::RotateGate { gate_index, amount } => {
+                if self.gates[gate_index].locked {
+                    return Err(PuzzleError::GateLocked);
+                }
+                // Apply rotation logic, update state and valence
+                // Recalculate collective_valence and connection strengths
+                Ok(ActionResult::Success { message: None })
+            }
+
+            PuzzleAction::ResolveConflict { connection_id } => {
+                if self.mercy_charges == 0 {
+                    return Err(PuzzleError::NoMercyCharges);
+                }
+                self.mercy_charges -= 1;
+                // Force conflicting connection toward neutral/positive
+                Ok(ActionResult::Success { message: Some("Conflict resolved using Mercy Charge".into()) })
+            }
+
+            _ => Err(PuzzleError::InvalidActionForPuzzleType),
+        }
+    }
+
+    fn get_progress(&self) -> f32 {
+        // Calculate based on how many gates are aligned + average connection strength
+        // ...
+        0.0 // placeholder
+    }
+
+    fn get_hints(&self) -> Vec<String> {
+        // Return context-aware hints based on current state
+        vec![]
+    }
+
+    fn get_current_state_summary(&self) -> String {
+        format!(
+            "Collective Valence: {:.2} | Mercy Charges: {}/{}",
+            self.collective_valence, self.mercy_charges, self.max_mercy_charges
+        )
+    }
+
+    fn clone_box(&self) -> Box<dyn PuzzleState> {
+        Box::new(self.clone())
+    }
+}
+```
+
+**Generation Notes for TolcGateState:**
+- Start with all gates `Aligned` and positive connections.
+- Apply corruption events (inversion, overcharge, conflict injection).
+- Respect locked gates and dynamic influence parameters.
+- Always validate that a solution path exists before returning the puzzle.
 
 ---
 
