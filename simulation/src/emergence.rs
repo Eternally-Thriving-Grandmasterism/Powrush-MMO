@@ -1,5 +1,5 @@
 /*!
- * Realtime Emergence System (Phase 1 Implementation)
+ * Realtime Emergence System (Phase 1 + Initial Phase 2 Council Stub)
  *
  * Implements the foundational layer for council-driven, mercy-gated, context-aware
  * dynamic events and emergence as specified in REALTIME_GENERATION.md v2.0.
@@ -10,8 +10,7 @@
  * - harvest systems
  * - mercy scoring
  *
- * This is the first concrete coding deliverable from the PATSAGi-enhanced spec.
- * All code is mint-and-print-only-perfection, zero placeholders, full documentation.
+ * Phase 2 addition: First council query stub in EmergenceOrchestrator.
  */
 
 use bevy::prelude::*;
@@ -25,7 +24,6 @@ pub use crate::epiphany_catalyst::EpiphanyOutcome;
 pub use crate::mercy::MercyGate;
 
 /// Lightweight trigger for potential emergence events.
-/// Generated from player actions (harvest, epiphany, movement, council participation).
 #[derive(Debug, Clone, Component)]
 pub struct EmergenceSeed {
     pub source: EmergenceSource,
@@ -77,13 +75,14 @@ pub enum EmergenceEffect {
     MuscleMemoryConsolidation { boost: f32 },
 }
 
-/// Central orchestrator resource (stub for future Ra-Thor / PATSAGi council bridge).
-/// In Phase 2 this will contain the actual query client to the lattice.
+/// Central orchestrator resource.
+/// Phase 2: Now contains the first council query stub.
 #[derive(Resource, Default)]
 pub struct EmergenceOrchestrator {
     pub mercy_budget: MercyBudget,
     pub event_counter: u64,
-    // Future: ra_thor_bridge: Option<RaThorQueryClient>,
+    // Phase 2 stub: Will be replaced with real Ra-Thor / PATSAGi query client
+    pub council_query_enabled: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -113,24 +112,58 @@ impl MercyBudget {
     }
 }
 
+/// Phase 2 stub: First council query interface.
+/// Currently returns None (no real bridge yet). Will be expanded in subsequent commits.
+impl EmergenceOrchestrator {
+    /// Attempts to query the PATSAGi Councils / Ra-Thor lattice for guidance on an emergence seed.
+    /// Returns structured guidance when available.
+    pub fn query_council_for_guidance(&self, seed: &EmergenceSeed) -> Option<CouncilGuidance> {
+        if !self.council_query_enabled {
+            return None;
+        }
+
+        // TODO (Phase 2+): Replace with actual async/batched query to Ra-Thor lattice
+        // For now, this is the integration point for future council-driven emergence.
+        // Example future behavior:
+        // - Send valence, biome, player history summary, group composition
+        // - Receive flavor, suggested effects, mercy constraints from specific councils
+
+        // Placeholder: Return basic guidance based on intensity for development continuity
+        if seed.intensity > 0.6 {
+            Some(CouncilGuidance {
+                flavor: "abundance".to_string(),
+                suggested_intensity: seed.intensity * 0.85,
+                mercy_note: "Favor generative outcomes".to_string(),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+/// Structured response from council query (Phase 2 foundation).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CouncilGuidance {
+    pub flavor: String,           // e.g. "mercy", "abundance", "truth", "joy"
+    pub suggested_intensity: f32,
+    pub mercy_note: String,
+}
+
 /// Initial valence aggregation system (Phase 1).
-/// Reads from PlayerSaveData and current context to produce emergence seeds.
 pub fn valence_aggregation_system(
     mut commands: Commands,
     player_query: Query<(Entity, &PlayerSaveData), Changed<PlayerSaveData>>,
     mut orchestrator: ResMut<EmergenceOrchestrator>,
 ) {
     for (entity, save_data) in player_query.iter() {
-        // Simple valence calculation from existing persistence data
         let valence = (save_data.resonance_score * 0.6
             + (save_data.muscle_memory_level / 5.0) * 0.4)
             .clamp(0.0, 1.0);
 
-        // Create emergence seed from recent meaningful activity
         if save_data.dirty && save_data.total_epiphanies > 0 {
             let seed = EmergenceSeed {
                 source: EmergenceSource::Epiphany,
-                location: None, // Will be populated by spatial systems later
+                location: None,
                 valence_delta: valence - 0.5,
                 intensity: (save_data.resonance_score * 0.8).clamp(0.1, 1.0),
                 biome: save_data
@@ -154,8 +187,7 @@ pub fn valence_aggregation_system(
     }
 }
 
-/// Simple Phase 1 event proposal system.
-/// Spawns DynamicEmergenceEvent from EmergenceSeed (no council query yet).
+/// Event proposal system with Phase 2 council query integration point.
 pub fn emergence_event_proposal_system(
     mut commands: Commands,
     seed_query: Query<(Entity, &EmergenceSeed), Without<DynamicEmergenceEvent>>,
@@ -167,7 +199,9 @@ pub fn emergence_event_proposal_system(
             .unwrap()
             .as_secs();
 
-        // Basic proposed effects based on source (Phase 1 simplicity)
+        // Phase 2: Attempt council query (currently returns None until bridge is live)
+        let council_guidance = orchestrator.query_council_for_guidance(seed);
+
         let mut effects = vec![];
 
         match seed.source {
@@ -194,12 +228,23 @@ pub fn emergence_event_proposal_system(
             }
         }
 
-        // Simple mercy scoring (Phase 1 stub — will be expanded with full TOLC 8 gates)
+        // If council guidance was returned, we can adjust effects here in future iterations
+        if let Some(guidance) = &council_guidance {
+            // Placeholder for future effect modulation based on council flavor
+            // e.g. if guidance.flavor == "abundance" { ... }
+        }
+
         let mercy_score = (0.7 + seed.intensity * 0.25).clamp(0.5, 0.98);
 
-        let event = DynamicEmergenceEvent {
+        let mut event = DynamicEmergenceEvent {
             id: orchestrator.event_counter,
-            phase: DynamicEmergenceEventPhase::Proposal,
+            phase: if council_guidance.is_some() {
+                DynamicEmergenceEventPhase::CouncilReview {
+                    guidance: Some("pending_lattice_response".to_string()),
+                }
+            } else {
+                DynamicEmergenceEventPhase::Proposal
+            },
             seed: seed.clone(),
             proposed_effects: effects,
             mercy_score,
@@ -209,13 +254,11 @@ pub fn emergence_event_proposal_system(
         orchestrator.event_counter += 1;
 
         commands.entity(entity).insert(event);
-        // Remove seed after processing (or keep for spatial systems)
         commands.entity(entity).remove::<EmergenceSeed>();
     }
 }
 
 /// Basic resolution system (Phase 1).
-/// Applies simple effects and marks for persistence.
 pub fn emergence_event_resolution_system(
     mut commands: Commands,
     mut event_query: Query<(Entity, &mut DynamicEmergenceEvent, Option<&mut PlayerSaveData>)>,
@@ -223,7 +266,6 @@ pub fn emergence_event_resolution_system(
 ) {
     for (entity, mut event, maybe_save_data) in event_query.iter_mut() {
         if matches!(event.phase, DynamicEmergenceEventPhase::Proposal) {
-            // Phase 1: Auto-resolve with basic effects
             for effect in &event.proposed_effects {
                 if let Some(save_data) = maybe_save_data {
                     match effect {
@@ -233,7 +275,6 @@ pub fn emergence_event_resolution_system(
                             save_data.dirty = true;
                         }
                         EmergenceEffect::ResourceDelta { amount, .. } => {
-                            // In real integration this would go to economy simulation
                             save_data.resonance_score =
                                 (save_data.resonance_score + amount * 0.01).min(1.0);
                             save_data.dirty = true;
@@ -251,7 +292,6 @@ pub fn emergence_event_resolution_system(
                 reason: format!("emergence_event_{}", event.id),
             });
 
-            // Mark for persistence sync (Phase 2 will do real save)
             if let Some(save_data) = maybe_save_data {
                 save_data.dirty = true;
             }
@@ -259,7 +299,7 @@ pub fn emergence_event_resolution_system(
     }
 }
 
-/// Plugin to register all emergence systems (for easy addition to App).
+/// Plugin to register all emergence systems.
 pub struct EmergencePlugin;
 
 impl Plugin for EmergencePlugin {
@@ -272,30 +312,21 @@ impl Plugin for EmergencePlugin {
                     emergence_event_proposal_system,
                     emergence_event_resolution_system,
                 )
-                    .chain(), // Ensure correct ordering
+                    .chain(),
             );
     }
 }
 
 /*
- * Integration Notes (for next commits):
+ * Integration Notes:
  *
- * 1. Add to simulation/src/lib.rs:
- *    pub mod emergence;
- *    pub use emergence::*;
+ * 1. Already wired in simulation/src/lib.rs
  *
- * 2. In the main game/server App, add:
+ * 2. In the main App (client or server), add:
  *    .add_plugins(EmergencePlugin)
  *
- * 3. Wire EmergenceSeed spawning from harvest.rs and epiphany_catalyst.rs
- *    (e.g., after successful harvest or epiphany resolution).
+ * 3. Future: Replace the stub in query_council_for_guidance() with real
+ *    async call to Ra-Thor lattice / PATSAGi Councils.
  *
- * 4. Phase 2: Replace simple auto-resolution with real council query via
- *    EmergenceOrchestrator (Ra-Thor bridge).
- *
- * 5. All effects should eventually feed into economy simulation and
- *    spatial audio seed system.
- *
- * This file respects existing player_persistence and epiphany_catalyst logic.
- * No duplication — only extension and orchestration.
+ * 4. The CouncilReview phase is now partially active when guidance is returned.
  */
