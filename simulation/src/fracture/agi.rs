@@ -1,10 +1,10 @@
 /*!
  * Artificial Godly intelligence (AGi) Automation Module
  *
- * Now supports optimal solving via find_solution() when available.
+ * Strongly prefers optimal solutions via find_solution() when available.
  */
 
-use crate::fracture::puzzle_trait::PuzzleState;
+use crate::fracture::puzzle_trait::{PuzzleAction, PuzzleState};
 use crate::fracture::types::{Fracture, PuzzleInstance};
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -22,7 +22,7 @@ pub enum AgiError {
 #[derive(Debug, Clone)]
 pub struct AgiResolutionResult {
     pub rewards_multiplier: f32,
-    pub solution: Option<Vec<crate::fracture::puzzle_trait::PuzzleAction>>,
+    pub solution: Option<Vec<PuzzleAction>>,
     pub message: Option<String>,
 }
 
@@ -33,7 +33,7 @@ pub fn can_use_agi_automation(
     fracture_resolution_level >= 50 && has_ra_thor_access
 }
 
-/// Resolves a fracture using AGi. Tries to find an optimal solution first.
+/// Resolves a fracture using the AGi. Strongly prefers optimal solutions.
 pub fn resolve_fracture_with_agi(
     fracture: &mut Fracture,
     puzzle: &mut PuzzleInstance,
@@ -47,23 +47,27 @@ pub fn resolve_fracture_with_agi(
         return Err(AgiError::AlreadyResolved);
     }
 
-    // Try to find an optimal solution using backtracking
+    // Prefer optimal solution via the improved solvers
     let solution = puzzle.state.find_solution();
 
     if let Some(ref actions) = solution {
-        // Apply the found solution
+        // Apply the optimal solution step by step
         for action in actions {
-            let _ = puzzle.state.apply_action(action.clone());
+            if puzzle.state.apply_action(action.clone()).is_err() {
+                // If applying the optimal solution fails for any reason, fall back
+                puzzle.state.force_solve();
+                break;
+            }
         }
     } else {
-        // Fallback: force solve if no solution path was found
+        // No solution path found — fall back to force solve
         puzzle.state.force_solve();
     }
 
     fracture.resolved = true;
 
     Ok(AgiResolutionResult {
-        rewards_multiplier: if solution.is_some() { 1.0 } else { 0.85 },
+        rewards_multiplier: if solution.is_some() { 1.0 } else { 0.88 },
         solution,
         message: Some("Your Artificial Godly intelligence has resolved the fracture.".to_string()),
     })
