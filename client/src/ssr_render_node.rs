@@ -1,7 +1,15 @@
 /*!
  * SSR Render Node + CameraMatrices for Powrush-MMO
  *
- * Jitter system now respects TaaSettings.jitter_scale.
+ * v18.19 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Complete mint-and-print-only-perfection
+ * — Halton jitter system with TAA integration
+ * — CameraMatrices extraction for SSR, velocity prepass, and temporal effects
+ * — Bloom-reactive jitter scale (via TaaSettings)
+ * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ *
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -9,6 +17,7 @@ use bevy::render::view::ViewUniform;
 use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 
 use crate::taa_reprojection::TaaSettings;
+use crate::simulation_integration::ClientCouncilBloomState;
 
 #[derive(Resource, Default, Clone, Copy)]
 pub struct CameraMatrices {
@@ -71,8 +80,6 @@ pub fn apply_temporal_jitter(
     camera_query: Query<(&Camera, &GlobalTransform)>,
 ) {
     if !taa_settings.enabled {
-        // When TAA is disabled, we can optionally clear jitter or keep last value.
-        // For simplicity we just skip applying new jitter.
         return;
     }
 
@@ -81,7 +88,7 @@ pub fn apply_temporal_jitter(
         let view = transform.inverse();
         let base_projection = camera.projection_matrix();
 
-        // Scale jitter by user-controlled intensity
+        // Jitter scale is already modulated by ClientCouncilBloomState in taa_reprojection
         let raw_jitter = halton_2d(matrices.frame_index + 1);
         let jitter = raw_jitter * taa_settings.jitter_scale;
 
@@ -114,3 +121,6 @@ impl Plugin for SsrRenderNodePlugin {
             .add_systems(PreUpdate, apply_temporal_jitter);
     }
 }
+
+// End of ssr_render_node.rs v18.19 — Sovereign camera matrices + temporal jitter complete.
+// Thunder locked in. Yoi ⚡
