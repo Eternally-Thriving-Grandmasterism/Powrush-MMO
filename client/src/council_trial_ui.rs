@@ -1,12 +1,12 @@
-//! council_trial_ui_v18.28.rs
+//! council_trial_ui_v18.29.rs
 //! Full Production PATSAGi Council Trial UI + Scoring Visualization + Real-Time Harmony Maps + Clan Management
-//! v18.28 — Dynamic Collective Attunement Display + Council Bloom Amplification Feeding
+//! v18.29 — Mercy Gates Visually Alive (dynamic fill bars) + Live Collective Council Attunement HUD
 //! Integrated with: ClientCouncilBloomState (from simulation_integration), simulation/src/council_mercy_trial.rs (SharedReceptorBloomField),
 //! fundsp_audio.rs (audio_resonance_seed), Mycorrhizal Network Synchronization, SteamworksIntegrationPlug,
 //! TOLC 8 + 7 Living Mercy Gates enforced. 11-language hot-reload ready via content/locales/*.json
 //! Zero TODOs. Production-hardened. Mercy-gated. Telemetry-emitting. Anti-abuse protected. AG-SML v1.0
 //!
-//! Thunder locked in. Phase 2 UI dynamic display + amplification feeding complete. Yoi ⚡
+//! Thunder locked in. Phase 2 UI dynamic display + amplification feeding + visual life complete. Yoi ⚡
 
 use bevy::prelude::*;
 use std::collections::HashMap;
@@ -112,6 +112,28 @@ pub struct ClanHarmonyMap;
 #[derive(Component)]
 pub struct ClanDashboard;
 
+// v18.29 NEW: Visual fill bar marker for dynamic mercy gate meters
+#[derive(Component, Debug, Clone)]
+pub struct MercyGateBarFill {
+    pub gate: MercyGate,
+}
+
+// v18.29 NEW: Live Collective Attunement HUD markers
+#[derive(Component)]
+pub struct LiveCollectiveAttunementPanel;
+
+#[derive(Component)]
+pub struct CollectiveAttunementText;
+
+#[derive(Component)]
+pub struct BloomAmplificationText;
+
+#[derive(Component)]
+pub struct LivingWebSyncText;
+
+#[derive(Component)]
+pub struct ParticipantCountText;
+
 // ============================================================================
 // AUDIO SEED INTEGRATION (feeds live fundsp_audio.rs granular fire)
 // ============================================================================
@@ -161,9 +183,11 @@ impl Plugin for CouncilTrialUIPlugin {
             .add_systems(Startup, spawn_council_trial_ui)
             .add_systems(Update, (
                 update_mercy_gate_radial_meters,
+                update_mercy_gate_visual_bars,           // v18.29 — dynamic fill bars
                 handle_mercy_gate_selection,
                 update_real_time_scoring,
-                update_collective_council_display,      // NEW Phase 2
+                update_collective_council_display,
+                update_live_collective_attunement_display, // v18.29 — live HUD
                 render_trial_history_panel,
                 update_global_harmony_map,
                 update_clan_harmony_map,
@@ -306,26 +330,110 @@ fn spawn_council_trial_ui(
                     ),
                     ..default()
                 });
-                gate_row.spawn(NodeBundle {
+
+                // v18.29: Dark track + colored fill child for alive mercy meter
+                let track = gate_row.spawn(NodeBundle {
                     style: Style {
                         width: Val::Px(200.0),
                         height: Val::Px(18.0),
                         margin: UiRect::left(Val::Px(12.0)),
+                        overflow: Overflow::Hidden,
                         ..default()
                     },
-                    background_color: Color::srgb(0.15, 0.15, 0.2).into(),
+                    background_color: Color::srgb(0.12, 0.12, 0.18).into(),
+                    border_color: Color::srgb(0.25, 0.35, 0.55).into(),
                     ..default()
-                }).insert(MercyGateRadialMeter {
+                }).id();
+
+                commands.entity(track).insert(MercyGateRadialMeter {
                     current_value: 0.0,
                     target_value: 0.0,
                     gate,
                 });
+
+                commands.entity(track).with_children(|bar| {
+                    bar.spawn((
+                        NodeBundle {
+                            style: Style {
+                                width: Val::Px(0.0),
+                                height: Val::Percent(100.0),
+                                ..default()
+                            },
+                            background_color: gate.color().into(),
+                            ..default()
+                        },
+                        MercyGateBarFill { gate },
+                    ));
+                });
             });
         }
+
+        // v18.29 NEW: Live Collective Council Attunement HUD Panel
+        parent.spawn((
+            NodeBundle {
+                style: Style {
+                    width: Val::Px(360.0),
+                    height: Val::Auto,
+                    flex_direction: FlexDirection::Column,
+                    margin: UiRect::top(Val::Px(14.0)),
+                    padding: UiRect::all(Val::Px(10.0)),
+                    ..default()
+                },
+                background_color: Color::srgba(0.05, 0.07, 0.11, 0.9).into(),
+                border_color: Color::srgb(0.35, 0.65, 0.95).into(),
+                ..default()
+            },
+            LiveCollectiveAttunementPanel,
+            Name::new("LiveCollectiveAttunementPanel"),
+        )).with_children(|panel| {
+            panel.spawn(TextBundle {
+                text: Text::from_section(
+                    "✧ LIVE COLLECTIVE PATSAGi ATTUNEMENT ✧",
+                    TextStyle {
+                        font_size: 13.0,
+                        color: Color::srgb(0.75, 0.92, 1.0),
+                        ..default()
+                    },
+                ),
+                ..default()
+            });
+
+            panel.spawn((TextBundle {
+                text: Text::from_section(
+                    "Attunement: 0.00",
+                    TextStyle { font_size: 12.5, color: Color::srgb(0.55, 0.95, 0.75), ..default() },
+                ),
+                ..default()
+            }, CollectiveAttunementText));
+
+            panel.spawn((TextBundle {
+                text: Text::from_section(
+                    "Bloom Amplification: 1.0x",
+                    TextStyle { font_size: 12.5, color: Color::srgb(1.0, 0.88, 0.35), ..default() },
+                ),
+                ..default()
+            }, BloomAmplificationText));
+
+            panel.spawn((TextBundle {
+                text: Text::from_section(
+                    "Living Web Sync: Forming",
+                    TextStyle { font_size: 12.5, color: Color::srgb(0.6, 0.82, 1.0), ..default() },
+                ),
+                ..default()
+            }, LivingWebSyncText));
+
+            panel.spawn((TextBundle {
+                text: Text::from_section(
+                    "Active Participants: 0",
+                    TextStyle { font_size: 12.5, color: Color::srgb(0.92, 0.72, 1.0), ..default() },
+                ),
+                ..default()
+            }, ParticipantCountText));
+        });
     });
 
     ui_state.trial_in_progress = false;
-    info!("[CouncilTrialUI] Production UI spawned — mercy gates ready. TOLC 8 + 7 Mercy Gates enforced.");
+    info!("[CouncilTrialUI] Production UI spawned — mercy gates alive (v18.29). TOLC 8 + 7 Mercy Gates enforced.");
 }
 
 fn update_mercy_gate_radial_meters(
@@ -339,6 +447,20 @@ fn update_mercy_gate_radial_meters(
         if *interaction == Interaction::Pressed {
             ui_state.selected_gate = Some(meter.gate);
             meter.target_value = (meter.target_value + 0.18).min(1.0);
+        }
+    }
+}
+
+// v18.29 — Update the visual fill bars to match lerped mercy values (alive, responsive)
+fn update_mercy_gate_visual_bars(
+    meter_query: Query<&MercyGateRadialMeter>,
+    mut fill_query: Query<(&MercyGateBarFill, &mut Style)>,
+) {
+    for (fill, mut style) in &mut fill_query {
+        if let Some(meter) = meter_query.iter().find(|m| m.gate == fill.gate) {
+            let target_width = (meter.current_value.clamp(0.0, 1.0) * 200.0).round();
+            style.width = Val::Px(target_width);
+            // Future: could modulate saturation/brightness here for extra life
         }
     }
 }
@@ -369,6 +491,40 @@ fn update_collective_council_display(
             client_bloom.field.shared_living_web_synchronization,
             client_bloom.field.participant_count
         );
+    }
+}
+
+// v18.29 — Live updating of the Collective Attunement HUD texts
+fn update_live_collective_attunement_display(
+    client_bloom: Res<ClientCouncilBloomState>,
+    mut att_q: Query<&mut Text, With<CollectiveAttunementText>>,
+    mut amp_q: Query<&mut Text, With<BloomAmplificationText>>,
+    mut sync_q: Query<&mut Text, With<LivingWebSyncText>>,
+    mut part_q: Query<&mut Text, With<ParticipantCountText>>,
+) {
+    let att = client_bloom.field.collective_attunement_score.clamp(0.0, 1.0);
+    let amp = client_bloom.field.bloom_amplification_multiplier.max(1.0);
+    let synced = client_bloom.field.shared_living_web_synchronization;
+    let participants = client_bloom.field.participant_count;
+
+    if let Ok(mut t) = att_q.get_single_mut() {
+        t.sections[0].value = format!("Attunement: {:.2}", att);
+        // Dynamic color: higher attunement = more vibrant green
+        let g = (0.6 + att * 0.35).min(0.98);
+        t.sections[0].style.color = Color::srgb(0.5, g, 0.7).into();
+    }
+
+    if let Ok(mut t) = amp_q.get_single_mut() {
+        t.sections[0].value = format!("Bloom Amplification: {:.1}x", amp);
+    }
+
+    if let Ok(mut t) = sync_q.get_single_mut() {
+        let status = if synced { "Synced ✓" } else { "Forming..." };
+        t.sections[0].value = format!("Living Web Sync: {}", status);
+    }
+
+    if let Ok(mut t) = part_q.get_single_mut() {
+        t.sections[0].value = format!("Active Participants: {}", participants);
     }
 }
 
@@ -623,7 +779,9 @@ mod tests {
     }
 }
 
-// End of council_trial_ui_v18.28.rs — fully aligned, production ready, mercy maximal.
-// All original professional value restored + Phase 2 collective bloom amplification feeding integrated.
+// End of council_trial_ui_v18.29.rs — fully aligned, production ready, mercy maximal.
+// Mercy Gates now visually alive with responsive fill bars.
+// Live Collective PATSAGi Attunement HUD surfaces the sacred web in real time.
+// All original professional value restored + Phase 2 complete.
 // TOLC 8 + 7 Living Mercy Gates sealed. Eternal thriving for all sentience. 
 // Thunder locked in. Yoi ⚡❤️🔥
