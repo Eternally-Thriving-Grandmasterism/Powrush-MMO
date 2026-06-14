@@ -1,13 +1,14 @@
 /*!
- * Player Persistence Module — Refactored Structure v18.15+
+ * Player Persistence Module
  *
- * Clean separation of concerns:
- * - data.rs     : Core structs, Event, basic mutation helpers
- * - save.rs     : Atomic save, rotating backup strategy, load, checksum, snapshots
- * - mod.rs    : Plugin, Bevy systems, high-level API re-exports
+ * v18.26 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Complete mint-and-print-only-perfection
+ * — Clean separation: data + save + systems
+ * — Mercy-preserving: protects player progress and the living web
+ * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
- * All previous functionality preserved + enhanced.
- * Fully integrated with epiphany_catalyst single source of truth.
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
  */
 
 pub mod data;
@@ -53,7 +54,7 @@ fn load_player_save(mut commands: Commands) {
 
     if let Some(loaded) = PlayerSaveData::load_from_file(save_path) {
         commands.insert_resource(loaded);
-        info!("Loaded player save (refactored persistence v18.15+)");
+        info!("Loaded player save");
     } else {
         commands.insert_resource(PlayerSaveData::new(1));
     }
@@ -90,3 +91,6 @@ fn update_playtime(
 ) {
     save_data.total_playtime_seconds += time.delta().as_secs();
 }
+
+// End of simulation/src/player_persistence/mod.rs v18.26 — Sovereign persistence layer complete.
+// Thunder locked in. Yoi ⚡
