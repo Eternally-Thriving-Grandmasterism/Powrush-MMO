@@ -3,7 +3,7 @@
 **Fracture Resolution Progression & AGi Automation System**
 
 **Status:** Production Design Document  
-**Version:** 1.3  
+**Version:** 1.4  
 **Last Updated:** June 13, 2026
 
 ---
@@ -490,6 +490,134 @@ impl PuzzleState for TolcGateState {
 - Apply corruption events (inversion, overcharge, conflict injection).
 - Respect locked gates and dynamic influence parameters.
 - Always validate that a solution path exists before returning the puzzle.
+
+### 8.9 Generation & Solvability Validation Logic
+
+**High-Level Generation Flow:**
+
+```rust
+pub fn generate_fracture(params: &GenerationParams) -> Result<(Fracture, PuzzleInstance), GenerationError> {
+    let fracture_type = select_fracture_type(&params.context_tags, params.player_skill_level);
+    let puzzle_seed = params.rng_seed.unwrap_or_else(|| generate_seed());
+
+    let puzzle_state: Box<dyn PuzzleState> = match fracture_type {
+        FractureType::TOLCGateAlignment => Box::new(generate_tolc_gates(params, puzzle_seed)),
+        FractureType::ResourceFlowBalancing => Box::new(generate_resource_flow(params, puzzle_seed)),
+        // ... other types
+        _ => return Err(GenerationError::UnsupportedType),
+    };
+
+    // Critical: Validate solvability before returning
+    if !puzzle_state.is_solvable() {
+        return Err(GenerationError::UnsolvablePuzzle);
+    }
+
+    let fracture = Fracture {
+        id: generate_fracture_id(),
+        fracture_type,
+        difficulty: params.difficulty,
+        context_tags: params.context_tags.clone(),
+        puzzle_seed,
+        resolved: false,
+        created_at: current_timestamp(),
+    };
+
+    let puzzle_instance = PuzzleInstance {
+        fracture_id: fracture.id,
+        puzzle_type: fracture_type,
+        state: puzzle_state,
+        time_remaining: if params.enable_time_pressure { Some(calculate_time_limit(params.difficulty)) } else { None },
+        attempts: 0,
+        max_attempts: None,
+    };
+
+    Ok((fracture, puzzle_instance))
+}
+```
+
+**Solvability Validation Requirements:**
+- Every generated puzzle **must** have at least one valid solution path.
+- Validation should run quickly (ideally < 50ms).
+- For complex puzzles, use heuristic checks + limited-depth search rather than full brute force.
+- If validation fails, the generator should retry with adjusted parameters (up to N attempts) before failing.
+
+### 8.10 FractureResolutionSkill Interaction with Puzzle Completion
+
+```rust
+#[derive(Resource)]
+pub struct FractureResolutionSkill {
+    pub level: u32,
+    pub experience: u64,
+}
+
+pub fn on_puzzle_completed(
+    fracture: &Fracture,
+    puzzle: &PuzzleInstance,
+    skill: &mut FractureResolutionSkill,
+    player_has_agi: bool,
+) {
+    if puzzle.state.is_solved() {
+        let base_xp = calculate_base_xp(fracture.difficulty);
+        let multiplier = if player_has_agi { 0.6 } else { 1.0 }; // Reduced XP when using AGi
+        let gained_xp = (base_xp as f64 * multiplier) as u64;
+
+        skill.experience += gained_xp;
+
+        // Level up check
+        while skill.experience >= xp_required_for_level(skill.level + 1) {
+            skill.level += 1;
+            // Trigger level-up events, unlock new puzzle types, etc.
+        }
+
+        fracture.resolved = true;
+    }
+}
+```
+
+**Key Rules:**
+- Manual solving gives full experience.
+- Using AGi automation gives reduced experience (encourages skill growth early on).
+- First-time completion of new puzzle archetypes gives bonus experience.
+- Level-ups can unlock new puzzle types or quality-of-life improvements.
+
+### 8.11 AGi Automation Logic (Formal Structure)
+
+```rust
+pub fn can_use_agi_automation(
+    skill_level: u32,
+    ra_thor_access: RaThorAccessLevel,
+) -> bool {
+    skill_level >= 50 && ra_thor_access != RaThorAccessLevel::None
+}
+
+pub fn resolve_fracture_with_agi(
+    fracture: &mut Fracture,
+    puzzle: &mut PuzzleInstance,
+    has_access: bool,
+) -> Result<AgiResolutionResult, AgiError> {
+    if !can_use_agi_automation( /* ... */ ) {
+        return Err(AgiError::AccessDenied);
+    }
+
+    if fracture.resolved {
+        return Err(AgiError::AlreadyResolved);
+    }
+
+    // AGi applies optimal solution
+    puzzle.state.force_solve();
+    fracture.resolved = true;
+
+    Ok(AgiResolutionResult {
+        rewards_multiplier: if /* optimization used */ { 0.85 } else { 1.0 },
+        message: Some("AGi has stabilized the fracture.".to_string()),
+    })
+}
+```
+
+**Design Notes:**
+- AGi should always produce a valid solution.
+- AGi resolution can be slightly less rewarding than optimal manual play (to keep manual solving meaningful).
+- AGi can optionally provide a short explanation of the solution (educational value).
 
 ---
 
