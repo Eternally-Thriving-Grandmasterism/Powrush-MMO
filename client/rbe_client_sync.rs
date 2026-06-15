@@ -1,7 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Includes latency monitoring + histograms + jitter analysis + time-based EMA for SafetyNet broadcasts
+// Includes latency monitoring + histograms + jitter + time-based EMA + Kalman filtering for SafetyNet broadcasts
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -81,7 +81,51 @@ impl LatencyHistogram {
     pub fn p99(&self) -> u64 { self.percentile(0.99) }
 }
 
-/// Safety Net state resource for client-side sovereignty tracking + advanced latency + jitter + time-based EMA monitoring
+/// Simple 1D Kalman filter with position + velocity (constant velocity model)
+/// Excellent for smoothing noisy network latency/jitter measurements.
+#[derive(Clone, Debug)]
+pub struct KalmanFilter1D {
+    pub estimate: f32,           // filtered value (position)
+    pub velocity: f32,           // estimated rate of change
+    process_noise: f32,          // how much we expect the system to change
+    measurement_noise: f32,      // how noisy the measurements are
+    error_estimate: f32,
+    error_velocity: f32,
+}
+
+impl KalmanFilter1D {
+    pub fn new(initial_value: f32) -> Self {
+        Self {
+            estimate: initial_value,
+            velocity: 0.0,
+            process_noise: 0.1,
+            measurement_noise: 15.0,   // typical network jitter noise
+            error_estimate: 1.0,
+            error_velocity: 1.0,
+        }
+    }
+
+    /// Update the filter with a new measurement. dt in seconds.
+    pub fn update(&mut self, measurement: f32, dt: f32) -> f32 {
+        // Prediction step
+        self.estimate += self.velocity * dt;
+        self.error_estimate += dt * (self.error_velocity + self.process_noise);
+        self.error_velocity += self.process_noise;
+
+        // Update step (Kalman gain)
+        let gain = self.error_estimate / (self.error_estimate + self.measurement_noise);
+        let innovation = measurement - self.estimate;
+
+        self.estimate += gain * innovation;
+        self.velocity += gain * (innovation / dt.max(0.001));
+
+        self.error_estimate *= (1.0 - gain);
+
+        self.estimate
+    }
+}
+
+/// Safety Net state resource for client-side sovereignty tracking + advanced latency + jitter + EMA + Kalman
 #[derive(Resource, Clone)]
 pub struct SafetyNetState {
     pub last_tick: u64,
@@ -104,13 +148,17 @@ pub struct SafetyNetState {
     pub last_jitter_ms: u64,
     pub avg_jitter_ms: f32,
     pub max_jitter_ms: u64,
-    previous_latency_ms: u64,   // internal tracking only
+    previous_latency_ms: u64,
 
-    // Time-based Exponential Moving Average (EMA) - adapts to variable sample rates / frame rates
+    // Time-based Exponential Moving Average
     pub ema_latency_ms: f32,
     pub ema_jitter_ms: f32,
-    ema_time_constant: f32,     // tau in seconds (smoothing horizon)
-    last_ema_update_ms: u64,    // for dt calculation
+    ema_time_constant: f32,
+    last_ema_update_ms: u64,
+
+    // Kalman filter (optimal estimation under noise)
+    pub kalman_latency: Option<KalmanFilter1D>,
+    pub kalman_jitter: Option<KalmanFilter1D>,
 }
 
 impl Default for SafetyNetState {
@@ -133,8 +181,10 @@ impl Default for SafetyNetState {
             previous_latency_ms: 0,
             ema_latency_ms: 0.0,
             ema_jitter_ms: 0.0,
-            ema_time_constant: 0.8,   // ~0.8 second smoothing horizon (good for games)
+            ema_time_constant: 0.8,
             last_ema_update_ms: 0,
+            kalman_latency: None,
+            kalman_jitter: None,
         }
     }
 }
@@ -204,7 +254,7 @@ impl RbeClientSync {
                 tracing::info!("[Divine] Received whisper from server: {}", whisper.message);
             }
 
-            // ===== SAFETY NET BROADCAST CONSUMPTION + LATENCY + JITTER + TIME-BASED EMA (v18.37) =====
+            // ===== SAFETY NET BROADCAST CONSUMPTION + KALMAN FILTERING (v18.37) =====
             if let ServerMessage::SafetyNetBroadcast { broadcast } = &msg {
                 self.handle_safety_net_broadcast(broadcast).await;
             }
@@ -220,7 +270,7 @@ impl RbeClientSync {
         safety.last_health = broadcast.snapshot.current_health;
         safety.last_council_engagement = broadcast.snapshot.council_engagement_score;
 
-        // ===== LATENCY + JITTER + TIME-BASED EMA =====
+        // ===== LATENCY + JITTER + TIME-BASED EMA + KALMAN =====
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -232,14 +282,13 @@ impl RbeClientSync {
             0
         };
 
-        // Calculate jitter (variation from previous sample)
         let jitter_ms = if safety.previous_latency_ms > 0 {
             (latency_ms as i64 - safety.previous_latency_ms as i64).unsigned_abs()
         } else {
             0
         };
 
-        // Update basic latency stats
+        // Update basic stats
         safety.last_latency_ms = latency_ms;
         safety.sample_count = safety.sample_count.saturating_add(1);
 
@@ -248,45 +297,41 @@ impl RbeClientSync {
             safety.min_latency_ms = latency_ms;
             safety.max_latency_ms = latency_ms;
 
-            // Initialize time-based EMA
+            // Initialize filters
             safety.ema_latency_ms = latency_ms as f32;
             safety.ema_jitter_ms = 0.0;
             safety.last_ema_update_ms = now_ms;
+
+            safety.kalman_latency = Some(KalmanFilter1D::new(latency_ms as f32));
+            safety.kalman_jitter = Some(KalmanFilter1D::new(jitter_ms as f32));
         } else {
             safety.avg_latency_ms = (safety.avg_latency_ms * (safety.sample_count - 1) as f32 + latency_ms as f32) / safety.sample_count as f32;
-            if latency_ms < safety.min_latency_ms {
-                safety.min_latency_ms = latency_ms;
-            }
-            if latency_ms > safety.max_latency_ms {
-                safety.max_latency_ms = latency_ms;
-            }
+            if latency_ms < safety.min_latency_ms { safety.min_latency_ms = latency_ms; }
+            if latency_ms > safety.max_latency_ms { safety.max_latency_ms = latency_ms; }
 
-            // === Time-based Exponential Moving Average (adapts to variable sample rate / frame rate) ===
+            // Time-based EMA
             let dt_ms = now_ms.saturating_sub(safety.last_ema_update_ms);
             let dt_seconds = dt_ms as f32 / 1000.0;
             let tau = safety.ema_time_constant;
 
-            // Time-based alpha: approaches 1.0 as dt increases, approaches 0 as dt -> 0
-            let alpha = if dt_seconds > 0.0 {
-                1.0 - (-dt_seconds / tau).exp()
-            } else {
-                0.0
-            };
-
+            let alpha = if dt_seconds > 0.0 { 1.0 - (-dt_seconds / tau).exp() } else { 0.0 };
             safety.ema_latency_ms = alpha * (latency_ms as f32) + (1.0 - alpha) * safety.ema_latency_ms;
 
-            // Time-based EMA for jitter
-            let jitter_alpha = if dt_seconds > 0.0 {
-                1.0 - (-dt_seconds / tau).exp()
-            } else {
-                0.0
-            };
+            let jitter_alpha = if dt_seconds > 0.0 { 1.0 - (-dt_seconds / tau).exp() } else { 0.0 };
             safety.ema_jitter_ms = jitter_alpha * (jitter_ms as f32) + (1.0 - jitter_alpha) * safety.ema_jitter_ms;
 
             safety.last_ema_update_ms = now_ms;
+
+            // === Kalman Filter Update ===
+            if let Some(kalman) = &mut safety.kalman_latency {
+                kalman.update(latency_ms as f32, dt_seconds.max(0.001));
+            }
+            if let Some(kalman_jit) = &mut safety.kalman_jitter {
+                kalman_jit.update(jitter_ms as f32, dt_seconds.max(0.001));
+            }
         }
 
-        // Update jitter stats
+        // Jitter basic stats
         safety.last_jitter_ms = jitter_ms;
         if safety.sample_count > 1 {
             if safety.sample_count == 2 {
@@ -294,78 +339,65 @@ impl RbeClientSync {
                 safety.max_jitter_ms = jitter_ms;
             } else {
                 safety.avg_jitter_ms = (safety.avg_jitter_ms * (safety.sample_count - 2) as f32 + jitter_ms as f32) / (safety.sample_count - 1) as f32;
-                if jitter_ms > safety.max_jitter_ms {
-                    safety.max_jitter_ms = jitter_ms;
-                }
+                if jitter_ms > safety.max_jitter_ms { safety.max_jitter_ms = jitter_ms; }
             }
         }
 
-        // Store for next jitter calculation
         safety.previous_latency_ms = latency_ms;
 
-        // Record into histogram for distribution analysis
+        // Record histogram
         safety.latency_histogram.record(latency_ms);
 
-        // Log latency + jitter + time-based EMA + key percentiles
+        // Get Kalman estimates for logging
+        let kalman_lat = safety.kalman_latency.as_ref().map_or(0.0, |k| k.estimate);
+        let kalman_jit = safety.kalman_jitter.as_ref().map_or(0.0, |k| k.estimate);
+
+        // Rich logging
         tracing::info!(
-            "[SafetyNet][Latency] {}ms | jitter={}ms | ema_lat={:.1} ema_jit={:.1} | p50={} p95={} p99={} | reason={} | tick={}",
+            "[SafetyNet][Latency] {}ms | jitter={}ms | ema={:.1} kalman={:.1} | p50={} p95={} p99={} | reason={}",
             latency_ms,
             jitter_ms,
             safety.ema_latency_ms,
-            safety.ema_jitter_ms,
+            kalman_lat,
             safety.latency_histogram.p50(),
             safety.latency_histogram.p95(),
             safety.latency_histogram.p99(),
-            broadcast.broadcast_reason,
-            broadcast.snapshot.tick
+            broadcast.broadcast_reason
         );
 
         if latency_ms > 150 || jitter_ms > 50 {
             tracing::warn!(
-                "[SafetyNet] High latency/jitter detected: {}ms latency, {}ms jitter (ema_lat={:.1})",
-                latency_ms, jitter_ms, safety.ema_latency_ms
+                "[SafetyNet] High latency/jitter: {}ms / {}ms (kalman={:.1})",
+                latency_ms, jitter_ms, kalman_lat
             );
         }
 
-        // Process attached event if present
+        // Process events
         if let Some(event) = &broadcast.event {
             match event {
                 SafetyNetEvent::AbundanceSafetyNetTriggered { restored_amount, reason } => {
-                    tracing::warn!("[SafetyNet] Abundance safety net triggered: +{:.2} ({}) for player {}", 
-                        restored_amount, reason, broadcast.snapshot.player_id);
+                    tracing::warn!("[SafetyNet] Abundance safety net triggered: +{:.2} ({}) ", restored_amount, reason);
                     safety.pending_events.push(format!("Abundance restored: {:.2}", restored_amount));
                 }
                 SafetyNetEvent::CouncilStateSync { bloom_intensity, collective_attunement } => {
-                    tracing::info!("[SafetyNet] Council state sync: bloom={:.2} attunement={:.2}", 
-                        bloom_intensity, collective_attunement);
+                    tracing::info!("[SafetyNet] Council state sync: bloom={:.2}", bloom_intensity);
                 }
                 SafetyNetEvent::EpiphanyPersistenceConfirmed { epiphany_id, multiplier_applied } => {
-                    tracing::info!("[SafetyNet] Epiphany persistence confirmed: id={} multiplier={:.2}", 
-                        epiphany_id, multiplier_applied);
+                    tracing::info!("[SafetyNet] Epiphany confirmed: multiplier={:.2}", multiplier_applied);
                 }
                 SafetyNetEvent::DesyncRecovery { corrected_abundance, corrected_health } => {
-                    tracing::warn!("[SafetyNet] Desync recovery applied: abundance={:.2} health={:.1}", 
-                        corrected_abundance, corrected_health);
+                    tracing::warn!("[SafetyNet] Desync recovery applied");
                 }
-                SafetyNetEvent::SovereigntyHeartbeat => {
-                    tracing::debug!("[SafetyNet] Sovereignty heartbeat received (tick={})", broadcast.snapshot.tick);
-                }
+                SafetyNetEvent::SovereigntyHeartbeat => {}
             }
         }
 
         tracing::debug!(
-            "[SafetyNet] Broadcast consumed | player={} | tick={} | abundance={:.2} | health={:.1} | council_score={:.2} | reason={}",
-            broadcast.snapshot.player_id,
-            broadcast.snapshot.tick,
-            broadcast.snapshot.abundance,
-            broadcast.snapshot.current_health,
-            broadcast.snapshot.council_engagement_score,
-            broadcast.broadcast_reason
+            "[SafetyNet] Consumed | player={} | latency={}ms | jitter={}ms | kalman={:.1}",
+            broadcast.snapshot.player_id, latency_ms, jitter_ms, kalman_lat
         );
 
-        // TODO (next cycle): Emit Bevy event for UI feedback, trigger local persistence safety write if needed,
-        // update inventory abundance display, play mercy confirmation audio.
-        // Future: periodically export histogram + jitter + EMA snapshot to telemetry_pipeline
+        // TODO: UI events + telemetry export of full monitoring state
     }
 
     // ... other methods remain the same ...
