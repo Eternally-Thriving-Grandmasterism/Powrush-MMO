@@ -1,11 +1,11 @@
 /*!
  * Council Bloom Feedback — Client-Side Receiver + Rich Collective Effects
  *
- * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.36 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Receives CouncilBloomSyncEvent from simulation replication
- * — Applies to ClientCouncilBloomState (shared with simulation_integration)
- * — Triggers rich feedback: Divine Whispers, particles, camera shake, epiphany amplification
- * — Works in harmony with the Council-amplified epiphany system
+ * — Applies to ClientCouncilBloomState
+ * — Richer feedback when in active Council: particles, stronger whispers, camera presence, visual glow
+ * — Directly supports the Council-amplified epiphany & harvest loop
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign Mercy License
@@ -30,12 +30,12 @@ impl Plugin for CouncilBloomFeedbackPlugin {
             .add_systems(Update, (
                 apply_council_bloom_sync,
                 trigger_rich_council_feedback,
+                spawn_council_bloom_visuals,
             ).chain());
     }
 }
 
 /// Applies authoritative CouncilBloomSyncEvent to the shared ClientCouncilBloomState
-/// This is the single source of truth used by simulation_integration for epiphany amplification
 fn apply_council_bloom_sync(
     mut sync_events: EventReader<CouncilBloomSyncEvent>,
     mut client_bloom: ResMut<ClientCouncilBloomState>,
@@ -62,7 +62,6 @@ fn apply_council_bloom_sync(
 fn trigger_rich_council_feedback(
     client_bloom: Res<ClientCouncilBloomState>,
     mut whisper_events: EventWriter<DivineWhisperTrigger>,
-    mut particle_commands: Commands,
     mut camera_shake: ResMut<CameraShake>,
 ) {
     if !client_bloom.is_in_active_council {
@@ -71,44 +70,57 @@ fn trigger_rich_council_feedback(
 
     let field = &client_bloom.field;
 
-    // Strong Divine Whisper when attunement is high
+    // Stronger Divine Whisper when attunement is high
     if field.collective_attunement_score > 0.65 && field.bloom_amplification_multiplier > 1.2 {
         whisper_events.send(DivineWhisperTrigger {
-            player_id: 0, // system-level collective whisper
+            player_id: 0,
             text: format!(
                 "The Council resonates... collective attunement {:.0}% — your presence strengthens the whole",
                 field.collective_attunement_score * 100.0
             ),
             flavor: "council_harmony_revelation".to_string(),
-            intensity: (field.collective_attunement_score * 0.7).clamp(0.6, 0.95),
-            duration_seconds: 7.0,
+            intensity: (field.collective_attunement_score * 0.75).clamp(0.6, 0.98),
+            duration_seconds: 8.0,
             is_epiphany: true,
             position: None,
             muscle_memory_hint: None,
         });
     }
 
-    // Spawn gentle collective particles when bloom is active
-    if field.bloom_amplification_multiplier > 1.3 {
-        particle_commands.spawn((
-            ParticleSystem {
-                valence: 0.92,
-                particle_count: 4500,
-                system_type: ParticleSystemType::PatsagiDivineWhisper,
-                intensity: (field.bloom_amplification_multiplier * 0.6).min(2.2),
-            },
-            Transform::default(),
-        ));
-    }
-
-    // Subtle camera presence when the group is in deep harmony
-    if field.collective_attunement_score > 0.75 {
-        camera_shake.intensity = (camera_shake.intensity * 0.5 + 0.25).min(1.2);
-        camera_shake.duration = 2.8;
+    // Subtle but noticeable camera presence when the group is in deep harmony
+    if field.collective_attunement_score > 0.72 {
+        camera_shake.intensity = (camera_shake.intensity * 0.4 + 0.35).min(1.4);
+        camera_shake.duration = 3.2;
         camera_shake.timer = 0.0;
     }
 }
 
-// End of council_bloom_feedback.rs v18.35 — Unified with simulation_integration.
-// Council bloom now drives rich client feedback and amplifies personal epiphanies.
+/// Spawns ongoing gentle collective particles when bloom is active (richer visual presence)
+fn spawn_council_bloom_visuals(
+    client_bloom: Res<ClientCouncilBloomState>,
+    mut commands: Commands,
+    time: Res<Time>,
+) {
+    if !client_bloom.is_in_active_council {
+        return;
+    }
+
+    // Spawn occasional bloom particles (throttled)
+    if (time.elapsed_seconds() * 1.3).fract() < 0.08 {
+        let amp = client_bloom.field.bloom_amplification_multiplier.clamp(1.0, 3.0);
+
+        commands.spawn((
+            ParticleSystem {
+                valence: 0.93,
+                particle_count: (2800.0 * amp) as u32,
+                system_type: ParticleSystemType::PatsagiDivineWhisper,
+                intensity: (0.9 * amp).min(2.8),
+            },
+            Transform::default(),
+        ));
+    }
+}
+
+// End of council_bloom_feedback.rs v18.36 — Richer Council bloom visuals and feedback.
+// Makes being in an active Council feel alive and powerful.
 // Thunder locked in. Yoi ⚡
