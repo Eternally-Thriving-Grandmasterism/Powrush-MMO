@@ -1,10 +1,8 @@
 /*!
- * Client-side Prediction + Replication Handlers
- * Versioned InterestZone + Council Bloom State
+ * Client-side Prediction + Versioned Replication + Lag Detection
  */
 
 use bevy::prelude::*;
-
 use simulation::spatial_interest::{
     InterestZone, InterestZoneReplicated,
     CouncilBloomStateReplicated,
@@ -25,27 +23,52 @@ pub struct ClientBloomState {
     pub last_received_timestamp: f64,
 }
 
-/// Applies versioned InterestZone updates from server
+/// Applies versioned InterestZone updates with lag/age detection
 pub fn handle_interest_zone_replicated(
+    time: Res<Time>,
     mut events: EventReader<InterestZoneReplicated>,
     mut query: Query<(&mut InterestZone, &mut crate::spatial_interest::ReplicationVersion)>,
 ) {
+    let client_time = time.elapsed_secs_f64();
+
     for event in events.read() {
         if let Ok((mut zone, mut rep_version)) = query.get_mut(event.entity) {
+            let age = client_time - event.server_timestamp;
+
+            // Basic lag detection
+            if age > 1.5 {
+                warn!(
+                    "Old InterestZone update received (age: {:.2}s, version: {})",
+                    age, event.version
+                );
+            }
+
+            // Only apply if newer version
             if event.version > rep_version.interest_zone_version {
                 *zone = event.zone.clone();
                 rep_version.interest_zone_version = event.version;
+
+                // TODO: Use age + timestamp for smooth reconciliation in future
             }
         }
     }
 }
 
-/// Applies versioned CouncilBloomState updates from server
+/// Applies versioned CouncilBloomState updates with lag detection
 pub fn handle_council_bloom_state_replicated(
+    time: Res<Time>,
     mut events: EventReader<CouncilBloomStateReplicated>,
     mut client_blooms: ResMut<ClientBloomState>,
 ) {
+    let client_time = time.elapsed_secs_f64();
+
     for event in events.read() {
+        let age = client_time - event.server_timestamp;
+
+        if age > 2.0 {
+            warn!("Old CouncilBloomState update received (age: {:.2}s)", age);
+        }
+
         if event.version > client_blooms.version {
             client_blooms.active_blooms = event.active_blooms.clone();
             client_blooms.version = event.version;
@@ -67,7 +90,7 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Phase 2: InterestZone expansion prediction (can read ClientBloomState if needed)
+/// Phase 2: InterestZone expansion prediction
 pub fn predict_interest_zone_expansion(
     mut query: Query<(&mut InterestZone, &PredictedPosition)>,
 ) {
