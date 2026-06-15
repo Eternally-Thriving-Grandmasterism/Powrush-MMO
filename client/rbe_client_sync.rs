@@ -1,7 +1,6 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
-// Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// RTS residuals visualization + adaptive monitoring (v18.37)
+// RTS Fixed-Lag Smoother upgraded with proper discrete RTS equations (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -34,7 +33,7 @@ pub struct RTSSmoothedWindow {
 }
 
 // ============================================================
-// SAFETY NET MONITORING SNAPSHOT (with RTS vs Kalman residuals)
+// SAFETY NET MONITORING SNAPSHOT
 // ============================================================
 
 #[derive(Debug, Clone, Default)]
@@ -57,7 +56,7 @@ pub struct SafetyNetMonitoringSnapshot {
     pub kalman_latency_velocity: f32,
     pub kalman_latency_residual: f32,
     pub rts_smoothed_latency: f32,
-    pub rts_vs_kalman_residual: f32,      // NEW: RTS smoothed - Kalman estimate
+    pub rts_vs_kalman_residual: f32,
     pub kalman_2d_latency: f32,
     pub kalman_2d_jitter: f32,
     pub kalman_2d_latency_residual: f32,
@@ -265,7 +264,7 @@ impl FixedLagKalmanSmoother {
     }
 }
 
-// RTS Fixed-Lag Backward Smoother
+// RTS Fixed-Lag Backward Smoother (proper discrete RTS)
 #[derive(Clone, Debug)]
 pub struct RTSFixedLagSmoother {
     pub smoothed_estimate: f32,
@@ -275,9 +274,10 @@ pub struct RTSFixedLagSmoother {
 
 #[derive(Clone, Debug)]
 struct RTSState {
-    estimate: f32,
-    predicted: f32,
-    covariance: f32,
+    estimate: f32,           // filtered estimate x_{k|k}
+    predicted: f32,          // predicted estimate x_{k+1|k}
+    covariance: f32,         // filtered covariance P_{k|k}
+    predicted_cov: f32,      // predicted covariance P_{k+1|k}
     transition: f32,
 }
 
@@ -295,10 +295,18 @@ impl RTSFixedLagSmoother {
             new_estimate
         };
 
+        // Approximate predicted covariance (P_{k+1|k} ≈ F P_{k|k} F^T + Q)
+        let predicted_cov = if let Some(last) = self.history.last() {
+            last.covariance * transition * transition + 0.1
+        } else {
+            new_covariance + 0.1
+        };
+
         let state = RTSState {
             estimate: new_estimate,
             predicted,
             covariance: new_covariance.max(0.1),
+            predicted_cov,
             transition,
         };
 
@@ -310,6 +318,7 @@ impl RTSFixedLagSmoother {
             return;
         }
 
+        // Proper RTS Backward Pass
         let mut smoothed = self.history.last().unwrap().estimate;
         let mut smoothed_cov = self.history.last().unwrap().covariance;
 
@@ -317,11 +326,11 @@ impl RTSFixedLagSmoother {
             let curr = &self.history[i];
             let next = &self.history[i + 1];
 
-            let pred_cov = curr.covariance * curr.transition * curr.transition + 0.1;
-            let smoother_gain = curr.covariance * curr.transition / pred_cov.max(0.01);
+            // RTS smoother gain: C_k = P_{k|k} F^T (P_{k+1|k})^{-1}
+            let smoother_gain = curr.covariance * curr.transition / next.predicted_cov.max(0.01);
 
             smoothed = curr.estimate + smoother_gain * (smoothed - next.predicted);
-            smoothed_cov = curr.covariance + smoother_gain * smoother_gain * (smoothed_cov - pred_cov);
+            smoothed_cov = curr.covariance + smoother_gain * smoother_gain * (smoothed_cov - next.predicted_cov);
         }
 
         self.smoothed_estimate = smoothed;
@@ -349,11 +358,10 @@ impl RTSFixedLagSmoother {
             let curr = &self.history[i];
             let next = &self.history[i + 1];
 
-            let pred_cov = curr.covariance * curr.transition * curr.transition + 0.1;
-            let smoother_gain = curr.covariance * curr.transition / pred_cov.max(0.01);
+            let smoother_gain = curr.covariance * curr.transition / next.predicted_cov.max(0.01);
 
             smoothed = curr.estimate + smoother_gain * (smoothed - next.predicted);
-            smoothed_cov = curr.covariance + smoother_gain * smoother_gain * (smoothed_cov - pred_cov);
+            smoothed_cov = curr.covariance + smoother_gain * smoother_gain * (smoothed_cov - next.predicted_cov);
 
             smoothed_estimates[i] = smoothed;
             smoothed_covariances[i] = smoothed_cov;
@@ -570,14 +578,10 @@ impl RbeClientSync {
             monitoring_events.send(SafetyNetMonitoringUpdate { snapshot });
 
             let rts_val = safety.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
-            let rts_vs_kalman = rts_val - snapshot.kalman_latency_estimate;
-
             tracing::info!(
-                "[SafetyNet][RTS] RTS={:.1} | Kalman={:.1} | RTS-Kalman-Res={:.1} | RawRes={:.1}",
+                "[SafetyNet][RTS] RTS={:.1} | res={:.1}",
                 rts_val,
-                snapshot.kalman_latency_estimate,
-                rts_vs_kalman,
-                snapshot.kalman_latency_residual
+                snapshot.rts_vs_kalman_residual
             );
         }
 
