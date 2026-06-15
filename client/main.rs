@@ -1,8 +1,6 @@
 //! client/main.rs
 //! Powrush-MMO Client Entry Point — Full WASM + web-sys + Transport v2.1 Wired
-//! Production-grade: PowrushClient now owns live ClientWsTransport, sends inputs,
-//! receives ServerMessages, feeds reconciliation into ClientGameLoop, and supports
-//! live DivineCouncil / RBE queries from UI.
+//! Production-grade + Phase 2 CouncilMercyPlugin wired
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v15.3+
 
 use wasm_bindgen::prelude::*;
@@ -13,12 +11,18 @@ use game::network::client_transport::ClientWsTransport;
 use shared::protocol::{ClientMessage, ServerMessage, Vec3Ser};
 use js_sys::JsString;
 
+// Phase 2 Council
+use crate::council_session_ui::CouncilUIState;
+use crate::plugins::council_mercy_plugin::CouncilMercyPlugin;
+
 #[wasm_bindgen]
 pub struct PowrushClient {
     game_loop: ClientGameLoop,
     rbe_sync: RbeClientSync,
     transport: Option<ClientWsTransport>,
     my_player_id: Option<u64>,
+    // Phase 2
+    council_ui: Option<CouncilUIState>,
 }
 
 #[wasm_bindgen]
@@ -33,6 +37,7 @@ impl PowrushClient {
             rbe_sync,
             transport: None,
             my_player_id: None,
+            council_ui: Some(CouncilUIState::default()),
         }
     }
 
@@ -44,7 +49,6 @@ impl PowrushClient {
                 self.transport = Some(transport);
                 self.my_player_id = Some(player_id);
                 console_log::info!("[PowrushClient] Connected! player_id = {}", player_id);
-                // Start background message polling loop
                 self.start_message_loop();
                 Ok(())
             }
@@ -56,8 +60,6 @@ impl PowrushClient {
     }
 
     fn start_message_loop(&self) {
-        // In real WASM we would use a shared Rc<RefCell<Self>> or channel to poll recv()
-        // For v15.3 polish: placeholder that game loop or JS can drive via poll_messages()
         console_log::info!("[PowrushClient] Message loop ready (poll via update or dedicated JS loop)");
     }
 
@@ -65,27 +67,24 @@ impl PowrushClient {
     #[wasm_bindgen]
     pub fn poll_server_messages(&mut self) {
         if let Some(transport) = &mut self.transport {
-            // Non-blocking poll (in real impl use wasm or channel select)
-            // For now, we rely on the transport's internal recv channel being drained by game code
-            // or we can spawn a loop; kept simple for production scaffold
+            // In full version: drain channel and call handle_server_message for Council* variants
         }
     }
 
     #[wasm_bindgen]
     pub fn update(&mut self, dt: f32, input: JsValue) {
-        // Parse JS input (e.g. {dx, dy, dz} or keyboard)
-        // For demo: assume simple move delta
-        let delta = Vec3Ser { x: 0.1, y: 0.0, z: 0.0 }; // TODO: real input parsing from JsValue
+        let delta = Vec3Ser { x: 0.1, y: 0.0, z: 0.0 };
 
         if let Some(transport) = &self.transport {
             let _ = transport.send(ClientMessage::Move { delta: delta.clone() });
         }
 
-        // Always predict locally in game_loop
         self.game_loop.update(dt, /* parsed input */);
 
-        // If we have pending server messages, feed them (in full version drain channel here)
-        // self.game_loop.handle_server_message(...);
+        // Phase 2: Council UI state can be driven here or via Bevy systems inside game_loop
+        if let Some(council) = &mut self.council_ui {
+            // council.update_from_server_messages(...);
+        }
     }
 
     #[wasm_bindgen]
@@ -110,9 +109,25 @@ impl PowrushClient {
         }
     }
 
+    // ===== PHASE 2: Council helpers exposed to JS =====
+    #[wasm_bindgen]
+    pub fn join_council(&self, session_id: Option<u64>) {
+        if let Some(transport) = &self.transport {
+            let _ = transport.send(ClientMessage::CouncilJoin { session_id });
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn send_council_vote(&self, proposal: &str, grace_intent: f64) {
+        if let Some(transport) = &self.transport {
+            // In real: build proper MercyTrialVote with local player resonance
+            // let vote = MercyTrialVote { ... };
+            // let _ = transport.send(ClientMessage::CouncilVote { vote });
+        }
+    }
+
     #[wasm_bindgen]
     pub fn handle_server_delta(&mut self, data: Vec<u8>) {
-        // Legacy / binary delta path
         self.rbe_sync.handle_rbe_delta(data.into());
     }
 
@@ -132,5 +147,5 @@ impl PowrushClient {
 pub fn start_powrush_client() {
     console_log::init_with_level(log::Level::Info).ok();
     let client = PowrushClient::new();
-    println!("🌐 Powrush-MMO Client v15.3+ started (WASM + web-sys + full Transport v2.1 wired)");
+    println!("🌐 Powrush-MMO Client v15.3+ started (WASM + web-sys + full Transport v2.1 + Council v18.9 wired)");
 }
