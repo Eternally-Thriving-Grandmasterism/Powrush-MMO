@@ -1,13 +1,34 @@
 // server/src/spatial.rs
 // Powrush-MMO Server Spatial Integration
-// Versioned Replication Event Emission (with real timestamps)
+// Monotonic Timestamp System for Replication
 
 use bevy::prelude::*;
+use std::time::Instant;
 use simulation::spatial_interest::{
     SpatialParticipant, InterestZone, ReplicationVersion,
     InterestZoneReplicated, InterestManager,
     CouncilBloomStateReplicated, BloomStateVersion,
 };
+
+/// Resource holding the server's start time using a monotonic clock.
+/// This provides stable timestamps independent of game time scaling or pausing.
+#[derive(Resource)]
+pub struct ServerStartTime {
+    pub instant: Instant,
+}
+
+impl Default for ServerStartTime {
+    fn default() -> Self {
+        Self {
+            instant: Instant::now(),
+        }
+    }
+}
+
+/// Returns seconds since server start using a monotonic clock.
+pub fn get_monotonic_server_time(server_start: &ServerStartTime) -> f64 {
+    server_start.instant.elapsed().as_secs_f64()
+}
 
 /// Ensures entities get SpatialParticipant + default InterestZone + ReplicationVersion
 pub fn ensure_spatial_participation_system(
@@ -27,13 +48,13 @@ pub fn ensure_spatial_participation_system(
     }
 }
 
-/// Emits versioned InterestZoneReplicated with real server time
+/// Emits versioned InterestZoneReplicated using monotonic time
 pub fn emit_interest_zone_replication_system(
-    time: Res<Time>,
+    server_start: Res<ServerStartTime>,
     mut query: Query<(Entity, &InterestZone, &mut ReplicationVersion), (With<SpatialParticipant>, Changed<InterestZone>)>,
     mut events: EventWriter<InterestZoneReplicated>,
 ) {
-    let timestamp = time.elapsed_secs_f64();
+    let timestamp = get_monotonic_server_time(&server_start);
 
     for (entity, zone, mut rep_version) in &mut query {
         rep_version.interest_zone_version += 1;
@@ -47,9 +68,9 @@ pub fn emit_interest_zone_replication_system(
     }
 }
 
-/// Emits CouncilBloomStateReplicated with real server time
+/// Emits CouncilBloomStateReplicated using monotonic time
 pub fn emit_council_bloom_state_system(
-    time: Res<Time>,
+    server_start: Res<ServerStartTime>,
     interest_manager: Res<InterestManager>,
     mut bloom_version: ResMut<BloomStateVersion>,
     mut events: EventWriter<CouncilBloomStateReplicated>,
@@ -60,7 +81,7 @@ pub fn emit_council_bloom_state_system(
         events.send(CouncilBloomStateReplicated {
             active_blooms: interest_manager.council_blooms.clone(),
             version: bloom_version.version,
-            server_timestamp: time.elapsed_secs_f64(),
+            server_timestamp: get_monotonic_server_time(&server_start),
         });
     }
 }
