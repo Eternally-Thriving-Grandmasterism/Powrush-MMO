@@ -18,6 +18,7 @@ use crate::rbe::RbePlugin;
 use crate::rbe_engine::RbeEnginePlugin;
 use crate::rbe_simulation::RBESimulationPlugin;
 use crate::rbe_education_ui::RbeEducationUIPlugin;
+use crate::epiphany_scenario_wiring::EpiphanyScenarioWiringPlugin;
 use crate::particles::ParticlePlugin;
 use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
@@ -52,10 +53,13 @@ fn main() {
         .add_plugins(RbeEnginePlugin)
         .add_plugins(RBESimulationPlugin)
 
-        // === RBE Education UI (new in v18.38) ===
+        // === Epiphany System (required for EpiphanyEvent) ===
+        .add_plugins(EpiphanyScenarioWiringPlugin)
+
+        // === RBE Education UI ===
         .add_plugins(RbeEducationUIPlugin)
 
-        // === Phenomenal Rendering (buttery temporal coherence) ===
+        // === Phenomenal Rendering ===
         .add_plugins(PowrushRenderPlugin)
 
         // === Visuals & Experience ===
@@ -64,7 +68,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
 
-        // === Live Egui Settings Panel (divine control center) ===
+        // === Live Egui Settings Panel ===
         .add_plugins(EguiSettingsPanelPlugin)
 
         // === Cinematic Audio ===
