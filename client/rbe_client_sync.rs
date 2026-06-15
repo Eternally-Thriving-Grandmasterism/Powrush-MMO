@@ -1,7 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Includes latency monitoring for SafetyNet broadcasts
+// Includes latency monitoring + histograms for SafetyNet broadcasts
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -20,20 +20,103 @@ pub struct GpuSimulationState {
     pub last_update_notes: String,
 }
 
-/// Safety Net state resource for client-side sovereignty tracking + latency monitoring
-#[derive(Resource, Default, Clone)]
+/// Simple but effective fixed-bucket latency histogram for SafetyNet monitoring.
+/// Buckets chosen for typical MMO/game network latency distribution.
+#[derive(Clone, Debug, Default)]
+pub struct LatencyHistogram {
+    /// Buckets: [0-10, 10-25, 25-50, 50-100, 100-200, 200-500, 500-1000, >1000] ms
+    pub buckets: [u32; 8],
+    pub total_samples: u32,
+}
+
+impl LatencyHistogram {
+    pub fn new() -> Self {
+        Self {
+            buckets: [0; 8],
+            total_samples: 0,
+        }
+    }
+
+    /// Record a latency sample (in milliseconds)
+    pub fn record(&mut self, latency_ms: u64) {
+        self.total_samples = self.total_samples.saturating_add(1);
+
+        let bucket_index = match latency_ms {
+            0..=10 => 0,
+            11..=25 => 1,
+            26..=50 => 2,
+            51..=100 => 3,
+            101..=200 => 4,
+            201..=500 => 5,
+            501..=1000 => 6,
+            _ => 7,
+        };
+
+        self.buckets[bucket_index] = self.buckets[bucket_index].saturating_add(1);
+    }
+
+    /// Approximate percentile (0.0 - 1.0). Returns latency value for that percentile.
+    pub fn percentile(&self, p: f32) -> u64 {
+        if self.total_samples == 0 {
+            return 0;
+        }
+
+        let target = (self.total_samples as f32 * p.clamp(0.0, 1.0)) as u32;
+        let mut cumulative = 0u32;
+
+        let bucket_edges = [10u64, 25, 50, 100, 200, 500, 1000, u64::MAX];
+
+        for (i, &count) in self.buckets.iter().enumerate() {
+            cumulative += count;
+            if cumulative >= target {
+                return bucket_edges[i];
+            }
+        }
+
+        bucket_edges.last().copied().unwrap_or(0)
+    }
+
+    pub fn p50(&self) -> u64 { self.percentile(0.5) }
+    pub fn p95(&self) -> u64 { self.percentile(0.95) }
+    pub fn p99(&self) -> u64 { self.percentile(0.99) }
+}
+
+/// Safety Net state resource for client-side sovereignty tracking + advanced latency monitoring
+#[derive(Resource, Clone)]
 pub struct SafetyNetState {
     pub last_tick: u64,
     pub last_abundance: f64,
     pub last_health: f32,
     pub last_council_engagement: f32,
     pub pending_events: Vec<String>,
-    // Latency monitoring (ms)
+
+    // Basic latency stats
     pub last_latency_ms: u64,
     pub avg_latency_ms: f32,
     pub max_latency_ms: u64,
     pub min_latency_ms: u64,
     pub sample_count: u32,
+
+    // Histogram for distribution analysis (p50/p95/p99)
+    pub latency_histogram: LatencyHistogram,
+}
+
+impl Default for SafetyNetState {
+    fn default() -> Self {
+        Self {
+            last_tick: 0,
+            last_abundance: 0.0,
+            last_health: 100.0,
+            last_council_engagement: 0.0,
+            pending_events: Vec::new(),
+            last_latency_ms: 0,
+            avg_latency_ms: 0.0,
+            max_latency_ms: 0,
+            min_latency_ms: u64::MAX,
+            sample_count: 0,
+            latency_histogram: LatencyHistogram::new(),
+        }
+    }
 }
 
 #[derive(Resource)]
@@ -50,10 +133,7 @@ impl RbeClientSync {
             local_inventory: Arc::new(RwLock::new(LocalInventory::default())),
             trade_state: Arc::new(RwLock::new(TradeUIState::default())),
             gpu_state: Arc::new(RwLock::new(GpuSimulationState::default())),
-            safety_net_state: Arc::new(RwLock::new(SafetyNetState {
-                min_latency_ms: u64::MAX,
-                ..Default::default()
-            })),
+            safety_net_state: Arc::new(RwLock::new(SafetyNetState::default())),
         }
     }
 
@@ -104,7 +184,7 @@ impl RbeClientSync {
                 tracing::info!("[Divine] Received whisper from server: {}", whisper.message);
             }
 
-            // ===== SAFETY NET BROADCAST CONSUMPTION + LATENCY MONITORING (v18.37) =====
+            // ===== SAFETY NET BROADCAST CONSUMPTION + LATENCY HISTOGRAM (v18.37) =====
             if let ServerMessage::SafetyNetBroadcast { broadcast } = &msg {
                 self.handle_safety_net_broadcast(broadcast).await;
             }
@@ -120,7 +200,7 @@ impl RbeClientSync {
         safety.last_health = broadcast.snapshot.current_health;
         safety.last_council_engagement = broadcast.snapshot.council_engagement_score;
 
-        // ===== LATENCY MONITORING =====
+        // ===== LATENCY MONITORING + HISTOGRAM =====
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -132,7 +212,7 @@ impl RbeClientSync {
             0
         };
 
-        // Update running stats
+        // Update basic stats
         safety.last_latency_ms = latency_ms;
         safety.sample_count = safety.sample_count.saturating_add(1);
 
@@ -150,17 +230,23 @@ impl RbeClientSync {
             }
         }
 
-        // Log latency (production: send to telemetry_pipeline)
+        // Record into histogram for distribution analysis
+        safety.latency_histogram.record(latency_ms);
+
+        // Log latency + key percentiles (production: send histogram snapshot to telemetry)
         tracing::info!(
-            "[SafetyNet][Latency] {}ms | reason={} | tick={} | player={}",
+            "[SafetyNet][Latency] {}ms | p50={} p95={} p99={} | reason={} | tick={}",
             latency_ms,
+            safety.latency_histogram.p50(),
+            safety.latency_histogram.p95(),
+            safety.latency_histogram.p99(),
             broadcast.broadcast_reason,
-            broadcast.snapshot.tick,
-            broadcast.snapshot.player_id
+            broadcast.snapshot.tick
         );
 
         if latency_ms > 150 {
-            tracing::warn!("[SafetyNet] High latency detected: {}ms (threshold 150ms)", latency_ms);
+            tracing::warn!("[SafetyNet] High latency detected: {}ms (p95={}) (threshold 150ms)", 
+                latency_ms, safety.latency_histogram.p95());
         }
 
         // Process attached event if present
@@ -201,6 +287,7 @@ impl RbeClientSync {
 
         // TODO (next cycle): Emit Bevy event for UI feedback, trigger local persistence safety write if needed,
         // update inventory abundance display, play mercy confirmation audio.
+        // Future: periodically export histogram snapshot to telemetry_pipeline
     }
 
     // ... other methods remain the same ...
