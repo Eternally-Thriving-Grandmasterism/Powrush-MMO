@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// System Sets + Explicit Scheduling Implemented
+// Event-Driven Council Bloom System
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -11,16 +11,30 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 // ============================================================
-// SYSTEM SETS - Explicit Layered Scheduling
+// EVENTS - Event-Driven Council & Spatial Influence
+// ============================================================
+
+/// Fired when a Council Bloom is triggered (from council_session_handler or elsewhere)
+#[derive(Event, Clone, Debug)]
+pub struct CouncilBloomTriggered {
+    pub bloom: CouncilBloomZone,
+}
+
+/// Optional: Fired when a player's InterestZone is meaningfully updated
+#[derive(Event, Clone, Debug)]
+pub struct PlayerInterestUpdated {
+    pub player_id: u64,
+    pub zone: InterestZone,
+}
+
+// ============================================================
+// SYSTEM SETS
 // ============================================================
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SpatialSet {
-    /// Update the spatial hash grid (only changed entities)
     UpdateHash,
-    /// Update player interest zones (valence normalization, etc.)
     UpdateInterestZones,
-    /// Propagate council bloom influence into player interest
     PropagateCouncilInfluence,
 }
 
@@ -149,7 +163,7 @@ impl InterestManager {
         if self.council_blooms.is_empty() { return; }
 
         for bloom in &self.council_blooms {
-            let affected = spatial_hash.query_radius(bloom.center, bloom.radius);
+            let _affected = spatial_hash.query_radius(bloom.center, bloom.radius);
             for (_player_id, zone) in self.player_zones.iter_mut() {
                 let dist = (zone.center - bloom.center).length();
                 if dist <= bloom.radius {
@@ -164,7 +178,7 @@ impl InterestManager {
 }
 
 // ============================================================
-// SPATIAL INTEREST PLUGIN WITH SYSTEM SETS
+// SPATIAL INTEREST PLUGIN + EVENT-DRIVEN SYSTEMS
 // ============================================================
 
 pub struct SpatialInterestPlugin;
@@ -174,7 +188,11 @@ impl Plugin for SpatialInterestPlugin {
         app.init_resource::<SpatialHash>()
            .init_resource::<InterestManager>()
 
-           // Register System Sets
+           // Register Events
+           .add_event::<CouncilBloomTriggered>()
+           .add_event::<PlayerInterestUpdated>()
+
+           // System Sets
            .configure_sets(
                Update,
                (
@@ -184,10 +202,13 @@ impl Plugin for SpatialInterestPlugin {
                ),
            )
 
-           // Add systems to their sets
+           // Systems
            .add_systems(Update, update_spatial_hash_system.in_set(SpatialSet::UpdateHash))
            .add_systems(Update, update_interest_zones_system.in_set(SpatialSet::UpdateInterestZones))
-           .add_systems(Update, propagate_council_influence_system.in_set(SpatialSet::PropagateCouncilInfluence));
+           .add_systems(Update, propagate_council_influence_system.in_set(SpatialSet::PropagateCouncilInfluence))
+
+           // Event-driven bloom handling
+           .add_systems(Update, handle_council_bloom_event);
     }
 }
 
@@ -213,6 +234,16 @@ pub fn propagate_council_influence_system(
     interest_manager.propagate_council_influence(&spatial_hash);
 }
 
+/// Reacts to CouncilBloomTriggered events and applies influence
+pub fn handle_council_bloom_event(
+    mut events: EventReader<CouncilBloomTriggered>,
+    mut interest_manager: ResMut<InterestManager>,
+) {
+    for event in events.read() {
+        interest_manager.apply_council_bloom(event.bloom.clone());
+    }
+}
+
 pub fn query_entities_in_interest(
     spatial_hash: &SpatialHash,
     interest_manager: &InterestManager,
@@ -223,4 +254,4 @@ pub fn query_entities_in_interest(
         .unwrap_or_default()
 }
 
-// Thunder locked. System Sets implemented for clean layered scheduling. ⚡
+// Thunder locked. Event-driven Council Bloom system implemented. ⚡
