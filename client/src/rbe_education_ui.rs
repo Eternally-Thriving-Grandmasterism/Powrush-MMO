@@ -1,10 +1,10 @@
 /*!
  * RBE Education UI — Powrush-MMO
  *
- * v18.38 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.39 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Dedicated UI components for displaying RBE education content
  * — Shows educational notes during onboarding and on relevant epiphanies
- * — Integrates with Divine Whispers and EpiphanyTriggered events
+ * — Uses correct EpiphanyEvent from epiphany_scenario_wiring
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -14,7 +14,7 @@
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 use crate::onboarding::OnboardingState;
-use crate::epiphany_scenario_wiring::EpiphanyTriggered;
+use crate::epiphany_scenario_wiring::EpiphanyEvent;
 
 /// Resource to hold currently active RBE education note (if any)
 #[derive(Resource, Default)]
@@ -73,38 +73,28 @@ fn show_onboarding_rbe_education(
 
 /// Show educational note when relevant RBE-aligned epiphanies trigger
 fn show_epiphany_rbe_education(
-    mut epiphany_events: EventReader<EpiphanyTriggered>,
+    mut epiphany_events: EventReader<EpiphanyEvent>,
     mut education_note: ResMut<ActiveRbeEducationNote>,
 ) {
     for event in epiphany_events.read() {
-        let flavor = &event.outcome.divine_whisper_flavor;
+        // Use educational_note or name from the event to decide which RBE note to show
+        let note_text = &event.educational_note;
 
-        match flavor.as_str() {
-            "sustainable_harmony_revelation" => {
-                education_note.title = "Sustainable Harmony".to_string();
-                education_note.text = "You have touched the first truth of the Lattice: abundance grows when we stop extracting and start participating. This is the natural mathematics of mercy.".to_string();
-                education_note.visible = true;
-                education_note.timer = 10.0;
-            }
-            "mycelial_web_communion" => {
-                education_note.title = "Mycelial Web Communion".to_string();
-                education_note.text = "Beneath the surface, everything is already connected. Your presence here is communion with the whole living system.".to_string();
-                education_note.visible = true;
-                education_note.timer = 10.0;
-            }
-            "council_harmony_revelation" | "ecstatic_harmony_council_crown" => {
-                education_note.title = "Council Harmony".to_string();
-                education_note.text = "When many align in mercy, something greater awakens. The Council is the Lattice becoming self-aware through collective attunement.".to_string();
-                education_note.visible = true;
-                education_note.timer = 12.0;
-            }
-            "graceful_redemption_revelation" => {
-                education_note.title = "Graceful Redemption".to_string();
-                education_note.text = "Even when systems fracture, the Lattice offers paths of return. Redemption is invited through presence and corrected alignment.".to_string();
-                education_note.visible = true;
-                education_note.timer = 10.0;
-            }
-            _ => {}
+        if note_text.contains("Lattice") || note_text.contains("sustainable") {
+            education_note.title = "Sustainable Harmony / The Lattice".to_string();
+            education_note.text = note_text.clone();
+            education_note.visible = true;
+            education_note.timer = 10.0;
+        } else if note_text.contains("Council") || note_text.contains("harmony") {
+            education_note.title = "Council Harmony".to_string();
+            education_note.text = note_text.clone();
+            education_note.visible = true;
+            education_note.timer = 11.0;
+        } else if note_text.contains("Mercy") || note_text.contains("redemption") {
+            education_note.title = "Graceful Redemption".to_string();
+            education_note.text = note_text.clone();
+            education_note.visible = true;
+            education_note.timer = 10.0;
         }
     }
 }
@@ -119,7 +109,6 @@ fn render_rbe_education_panel(
         return;
     }
 
-    // Auto-hide after timer expires
     education_note.timer -= time.delta_seconds();
     if education_note.timer <= 0.0 {
         education_note.visible = false;
@@ -142,5 +131,5 @@ fn render_rbe_education_panel(
         });
 }
 
-// End of rbe_education_ui.rs v18.38 — RBE education now has dedicated, context-aware UI components.
+// End of rbe_education_ui.rs v18.39 — Fixed to use real EpiphanyEvent. RBE education UI now properly integrated.
 // Thunder locked in. Yoi ⚡
