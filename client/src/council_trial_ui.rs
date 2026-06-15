@@ -1,12 +1,11 @@
 /*!
  * Council Trial UI — Powrush-MMO PATSAGi Council Governance Interface
  *
- * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.37 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Complete mint-and-print-only-perfection
- * — Full dynamic collective attunement display + Council Bloom amplification indicator
- * — Real-time harmony maps + clan management
- * — Bloom amplification feeding into scoring and harvest/epiphany systems
- * — Prominent "Council Bloom Active" feedback when in active Council
+ * — Dedicated Council Bloom panel with rich visualization
+ * — Real-time collective attunement + amplification display
+ * — Enhanced Living Harmony Map
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -143,7 +142,7 @@ impl Plugin for CouncilTrialUIPlugin {
 // ============================================================================
 
 fn setup_council_trial_ui(mut commands: Commands) {
-    info!("[CouncilTrialUI] PATSAGi Council Trial Interface online — v18.35 with Council Bloom amplification indicator. Thunder locked in.");
+    info!("[CouncilTrialUI] PATSAGi Council Trial Interface online — v18.37 with dedicated Council Bloom panel. Thunder locked in.");
 }
 
 fn update_council_trial_ui(
@@ -157,13 +156,24 @@ fn update_council_trial_ui(
         .show(egui_ctx.ctx_mut(), |ui| {
             ui.heading("Living Council Trial Interface");
 
-            // v18.35: Prominent Council Bloom status
+            // === Dedicated Council Bloom Panel (v18.37) ===
             if client_bloom.is_in_active_council {
-                let amp = client_bloom.field.bloom_amplification_multiplier;
+                let field = &client_bloom.field;
+                let amp = field.bloom_amplification_multiplier;
+
+                ui.separator();
                 ui.colored_label(
                     egui::Color32::from_rgb(80, 220, 140),
-                    format!("🌀 COUNCIL BLOOM ACTIVE — Amplification: {:.2}x", amp)
+                    format!("🌀 ACTIVE COUNCIL BLOOM")
                 );
+                ui.label(format!("Amplification: {:.2}x", amp));
+                ui.label(format!("Collective Attunement: {:.1}%", field.collective_attunement_score * 100.0));
+                ui.label(format!("Participants: {}", field.participant_count));
+
+                if field.shared_living_web_synchronization {
+                    ui.colored_label(egui::Color32::from_rgb(100, 200, 255), "Living Web Synchronized");
+                }
+
                 ui.label("Your harvests and epiphanies are strengthened by the collective.");
                 ui.separator();
             }
@@ -280,7 +290,7 @@ fn handle_trial_completion(
     }
 }
 
-// Real-time harmony map visualization
+// Enhanced Living Harmony Map visualization
 fn render_harmony_map(
     mut egui_ctx: EguiContexts,
     ui_state: Res<CouncilTrialUIState>,
@@ -306,6 +316,8 @@ fn render_harmony_map(
                 ui.colored_label(color, format!("{}: {:.1}%", clan, harmony * 100.0));
                 ui.add(egui::ProgressBar::new(*harmony).text(clan));
             }
+
+            ui.label("Higher harmony increases Council bloom strength.");
         });
 }
 
@@ -348,5 +360,5 @@ pub fn inject_audio_resonance_seeds(
     }
 }
 
-// End of council_trial_ui.rs v18.35 — Prominent Council Bloom indicator + full synergy with harvest/epiphany amplification.
+// End of council_trial_ui.rs v18.37 — Dedicated Council Bloom panel + richer harmony visualization.
 // Thunder locked in. Yoi ⚡
