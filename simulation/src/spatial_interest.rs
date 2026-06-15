@@ -8,11 +8,15 @@ use bevy::prelude::*;
 use glam::{IVec2, Vec3};
 use std::collections::HashMap;
 
+// === Marker Component ===
+/// Entities with this component will be tracked in the SpatialHash.
+#[derive(Component, Default)]
+pub struct SpatialParticipant;
+
 /// Improved SpatialHash that stores positions for accurate radius queries.
 #[derive(Resource, Default)]
 pub struct SpatialHash {
     pub cell_size: f32,
-    /// Stores (Entity, Position) pairs per cell for accurate distance filtering
     cells: HashMap<IVec2, Vec<(Entity, Vec3)>>,
 }
 
@@ -24,11 +28,9 @@ impl SpatialHash {
         }
     }
 
-    /// Insert or update an entity at a position
     pub fn insert(&mut self, position: Vec3, entity: Entity) {
         let cell = self.world_to_cell(position);
 
-        // Remove old entry for this entity if it exists in any cell (simple approach)
         for entities in self.cells.values_mut() {
             entities.retain(|(e, _)| *e != entity);
         }
@@ -36,7 +38,6 @@ impl SpatialHash {
         self.cells.entry(cell).or_default().push((entity, position));
     }
 
-    /// Query all entities within radius of center (accurate distance check)
     pub fn query_radius(&self, center: Vec3, radius: f32) -> Vec<Entity> {
         let mut results = Vec::new();
         let cell_radius = (radius / self.cell_size).ceil() as i32;
@@ -48,8 +49,7 @@ impl SpatialHash {
                 let cell = IVec2::new(center_cell.x + dx, center_cell.y + dy);
                 if let Some(entities) = self.cells.get(&cell) {
                     for &(entity, pos) in entities {
-                        let dist_sq = (pos - center).length_squared();
-                        if dist_sq <= radius_sq {
+                        if (pos - center).length_squared() <= radius_sq {
                             results.push(entity);
                         }
                     }
@@ -71,8 +71,8 @@ impl SpatialHash {
     }
 }
 
-/// Dynamic interest zone for a player or council bloom.
-/// Radius expands based on valence, mercy, and council participation.
+// === Interest Types ===
+
 #[derive(Clone, Debug)]
 pub struct InterestZone {
     pub center: Vec3,
@@ -91,7 +91,6 @@ impl InterestZone {
     }
 }
 
-/// Manages dynamic interest zones for players and active council blooms.
 #[derive(Resource, Default)]
 pub struct InterestManager {
     pub player_zones: HashMap<u64, InterestZone>,
@@ -120,29 +119,42 @@ impl InterestManager {
     }
 }
 
-// === Systems ===
+// === Plugin ===
 
-/// Rebuilds the spatial hash. Call early in the frame.
-pub fn update_spatial_hash_system(
-    mut spatial_hash: ResMut<SpatialHash>,
-    // TODO: Add query for entities that should participate in spatial hashing
-) {
-    spatial_hash.clear();
-    // In production: iterate over entities with Position + SpatialParticipant marker
-    // and call spatial_hash.insert(position, entity);
+pub struct SpatialInterestPlugin;
+
+impl Plugin for SpatialInterestPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<SpatialHash>()
+           .init_resource::<InterestManager>()
+           .add_systems(Update, (
+               update_spatial_hash_system,
+               update_interest_zones_system,
+           ));
+    }
 }
 
-/// Updates player interest zones based on valence, epiphanies, and council activity.
+// === Systems ===
+
+pub fn update_spatial_hash_system(
+    mut spatial_hash: ResMut<SpatialHash>,
+    query: Query<(Entity, &Transform), With<SpatialParticipant>>,
+) {
+    spatial_hash.clear();
+
+    for (entity, transform) in &query {
+        spatial_hash.insert(transform.translation, entity);
+    }
+}
+
 pub fn update_interest_zones_system(
     mut interest_manager: ResMut<InterestManager>,
 ) {
     for (_player_id, zone) in interest_manager.player_zones.iter_mut() {
-        // Gentle expansion / normalization (will be driven by real valence data)
         zone.valence_multiplier = (zone.valence_multiplier * 0.95 + 0.05).min(2.0);
     }
 }
 
-/// Query helper for gameplay systems
 pub fn query_entities_in_interest(
     spatial_hash: &SpatialHash,
     interest_manager: &InterestManager,
@@ -155,4 +167,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. SpatialHash now stores positions for accurate queries. ⚡
+// Thunder locked. SpatialInterestPlugin + SpatialParticipant marker + real iteration complete. ⚡
