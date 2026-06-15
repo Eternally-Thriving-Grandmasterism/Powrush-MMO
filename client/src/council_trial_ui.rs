@@ -1,14 +1,13 @@
 /*!
  * Council Trial UI — Powrush-MMO PATSAGi Council Governance Interface
  *
- * v18.6 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Complete mint-and-print-only-perfection
- * — Full dynamic collective attunement display
+ * — Full dynamic collective attunement display + Council Bloom amplification indicator
  * — Real-time harmony maps + clan management
- * — Bloom amplification feeding into scoring
- * — AudioResonanceSeed event emission (local + server round-trip)
+ * — Bloom amplification feeding into scoring and harvest/epiphany systems
+ * — Prominent "Council Bloom Active" feedback when in active Council
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
- * — MIAL/MWPO + mercy-gated real-time feedback
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -144,18 +143,30 @@ impl Plugin for CouncilTrialUIPlugin {
 // ============================================================================
 
 fn setup_council_trial_ui(mut commands: Commands) {
-    info!("[CouncilTrialUI] PATSAGi Council Trial Interface online — v18.6 dynamic attunement + bloom feeding. Thunder locked in.");
+    info!("[CouncilTrialUI] PATSAGi Council Trial Interface online — v18.35 with Council Bloom amplification indicator. Thunder locked in.");
 }
 
 fn update_council_trial_ui(
     mut egui_ctx: EguiContexts,
     mut ui_state: ResMut<CouncilTrialUIState>,
     mut start_trial_events: EventWriter<StartCouncilTrial>,
+    client_bloom: Res<ClientCouncilBloomState>,
 ) {
     egui::Window::new("Council Trial — PATSAGi Governance")
         .default_pos([60.0, 60.0])
         .show(egui_ctx.ctx_mut(), |ui| {
             ui.heading("Living Council Trial Interface");
+
+            // v18.35: Prominent Council Bloom status
+            if client_bloom.is_in_active_council {
+                let amp = client_bloom.field.bloom_amplification_multiplier;
+                ui.colored_label(
+                    egui::Color32::from_rgb(80, 220, 140),
+                    format!("🌀 COUNCIL BLOOM ACTIVE — Amplification: {:.2}x", amp)
+                );
+                ui.label("Your harvests and epiphanies are strengthened by the collective.");
+                ui.separator();
+            }
 
             if let Some(trial) = &ui_state.current_trial {
                 ui.label(format!("Trial: {:?} | Phase: {:?}", trial.trial_type, trial.phase));
@@ -190,7 +201,7 @@ fn update_council_trial_ui(
         });
 }
 
-// NEW: Dynamic collective attunement display (feeds from ClientCouncilBloomState)
+// Dynamic collective attunement display
 fn update_collective_council_display(
     client_bloom: Res<ClientCouncilBloomState>,
     ui_state: Res<CouncilTrialUIState>,
@@ -229,7 +240,6 @@ fn update_real_time_scoring(
 
             trial.current_score = (trial.current_score + score_increase).min(trial.max_score);
 
-            // Update harmony map in real time
             if let Some(clan) = &ui_state.selected_clan {
                 let entry = ui_state.harmony_map.entry(clan.clone()).or_insert(0.5);
                 *entry = (*entry * 0.85 + trial.collective_attunement * 0.15).clamp(0.0, 1.0);
@@ -251,7 +261,6 @@ fn handle_trial_completion(
         ui_state.trial_in_progress = false;
         ui_state.current_trial = None;
 
-        // Emit resonance seed for audio + server replication
         audio_seed_events.send(AudioResonanceSeed {
             bloom_intensity: result.bloom_amplification.max(result.web_bloom_amplification),
             council_blessed_chime: result.success && result.collective_council_attunement > 0.72,
@@ -339,5 +348,5 @@ pub fn inject_audio_resonance_seeds(
     }
 }
 
-// End of council_trial_ui.rs v18.6 — Complete, mercy-gated, eternally polished Council governance interface.
+// End of council_trial_ui.rs v18.35 — Prominent Council Bloom indicator + full synergy with harvest/epiphany amplification.
 // Thunder locked in. Yoi ⚡
