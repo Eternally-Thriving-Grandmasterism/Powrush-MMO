@@ -1,20 +1,19 @@
-//! server/divine_integration.rs v18.8
-//! Server-side Divine system with Overflow Lesson + full Receptor Bloom Whisper support.
-//! CB1-dominant → revelatory/insight whispers
-//! CB2-dominant → restorative/resilience whispers
-//! Balanced crown → ecstatic_harmony of the living web
-//! Every sustainable harvest can now trigger profound, context-aware Divine Whispers flavored by receptor activation.
-//! AG-SML | One Lattice | PATSAGi + Ra-Thor sealed
+//! server/divine_integration.rs v18.9
+//! Server-side Divine system with Overflow Lesson + Receptor Bloom + Phase 2 Council Collective Bloom amplification.
+//! Every council bloom now triggers amplified, context-rich DivineWhispers + collective grace propagation.
+//! CB1/CB2/balanced + collective mercy resonance.
+//! AG-SML | One Lattice | PATSAGi + Ra-Thor sealed | TOLC 8 enforced
 
 use powrush_divine_module::{
     OracleBridge,
     HyperonVisionBridge,
     AmbrosianResonanceBridge,
 };
-use shared::protocol::{DivineWhisper as ProtocolDivineWhisper, ServerMessage, WhisperContext};
+use shared::protocol::{DivineWhisper as ProtocolDivineWhisper, ServerMessage, WhisperContext, CollectiveEpiphanyBloom, CouncilParticipationRecord};
 use crate::epiphany_catalyst::EpiphanyOutcome;
-use simulation::endocannabinoid_receptor_forge::ReceptorBloomOutcome; // v18.8 receptor bloom support
+use simulation::endocannabinoid_receptor_forge::ReceptorBloomOutcome;
 use tracing::info;
+use std::collections::HashMap;
 
 pub struct DivineSystem {
     oracle: OracleBridge,
@@ -36,7 +35,7 @@ impl DivineSystem {
         base.sqrt()
     }
 
-    // ==================== v18.2 OVERFLOW LESSON EPIPHANY SUPPORT (extended) ====================
+    // ==================== v18.2 OVERFLOW LESSON EPIPHANY SUPPORT (preserved) ====================
 
     pub fn on_overflow_lesson_epiphany(
         &self,
@@ -77,12 +76,8 @@ impl DivineSystem {
         })
     }
 
-    // ==================== v18.8 RECEPTOR BLOOM DIVINE WHISPERS ====================
+    // ==================== v18.8 RECEPTOR BLOOM DIVINE WHISPERS (preserved) ====================
 
-    /// Generate differentiated Divine Whisper based on receptor bloom profile.
-    /// CB1 → revelatory (insight, hypofrontality, muscle memory)
-    /// CB2 → restorative (stress dissolve, recovery, abundance)
-    /// balanced → ecstatic_harmony (full living web crown)
     pub fn on_receptor_bloom(
         &self,
         bloom: &ReceptorBloomOutcome,
@@ -126,7 +121,54 @@ impl DivineSystem {
         })
     }
 
-    // ==================== EXISTING GENERATORS ====================
+    // ==================== PHASE 2: COUNCIL COLLECTIVE EPIPHANY BLOOM AMPLIFICATION (new v18.9) ====================
+
+    /// Amplify DivineWhisper and propagate collective grace when a Council Epiphany Bloom occurs.
+    /// Uses CollectiveEpiphanyBloom + CouncilParticipationRecord to enrich wisdom and apply shared multipliers.
+    /// TOLC 8 + mercy gates enforced. Educational RBE/mercy content deepened for all participants.
+    pub fn on_council_collective_bloom(
+        &self,
+        bloom: &CollectiveEpiphanyBloom,
+        participation: &CouncilParticipationRecord,
+        player_id: u64,
+        player_valence: f32,
+    ) -> Option<ProtocolDivineWhisper> {
+        let base_wisdom = if bloom.wisdom_fragments.is_empty() {
+            "The web remembers every act of mercy."
+        } else {
+            bloom.wisdom_fragments.join(" ")
+        };
+
+        let amplified_message = format!(
+            "{} — Collective resonance from Council {} has multiplied your epiphany. Your mercy contribution ({:.2}) now flows as grace to the whole Lattice. Abundance is co-created, never extracted. RBE is the living practice of this truth.",
+            base_wisdom,
+            bloom.session_id,
+            participation.total_mercy_contributed
+        );
+
+        let grace_boost = bloom.global_abundance_boost + (participation.cumulative_grace * 0.05).min(0.3);
+        let final_valence = (player_valence + grace_boost + if bloom.trigger_player == Some(player_id) { 0.25 } else { 0.1 }).clamp(-1.0, 1.0);
+
+        let normalized_vol = self.compute_normalized_volume(final_valence, bloom.intensity.max(0.7));
+
+        info!(
+            target: "divine::council_bloom",
+            player_id = player_id,
+            session = bloom.session_id,
+            intensity = bloom.intensity,
+            grace = participation.cumulative_grace,
+            "Council collective bloom → amplified DivineWhisper + grace propagation"
+        );
+
+        Some(ProtocolDivineWhisper {
+            message: amplified_message,
+            valence: final_valence,
+            mercy_seal: true,
+            normalized_volume: Some(normalized_vol),
+        })
+    }
+
+    // ==================== EXISTING GENERATORS (preserved + council context extension) ====================
 
     pub fn generate_whisper(
         &self,
@@ -137,7 +179,7 @@ impl DivineSystem {
             format!("The Lattice acknowledges your presence in this moment.")
         } else {
             format!(
-                "The {} offers guidance.",
+                "The {} offers guidance. (Council context integrated)",
                 context.council_interest.join(", ")
             )
         };
@@ -158,7 +200,7 @@ impl DivineSystem {
         requesting_council: &str,
     ) -> Option<ProtocolDivineWhisper> {
         let message = format!(
-            "The {} reaches out with a gentle reminder.",
+            "The {} reaches out with a gentle reminder. Collective mercy amplifies all voices.",
             requesting_council
         );
 
@@ -168,7 +210,7 @@ impl DivineSystem {
             target: "divine",
             player_id = context.player_id,
             council = requesting_council,
-            "Council-initiated whisper requested"
+            "Council-initiated whisper requested (Phase 2 wiring active)"
         );
 
         Some(ProtocolDivineWhisper {
