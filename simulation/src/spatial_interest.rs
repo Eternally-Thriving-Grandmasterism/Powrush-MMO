@@ -1,5 +1,5 @@
 // simulation/src/spatial_interest.rs
-// Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2) - Performance Optimized
+// Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -9,15 +9,7 @@ use std::collections::HashMap;
 #[derive(Component, Default)]
 pub struct SpatialParticipant;
 
-/// High-performance SpatialHash with O(1) entity movement tracking.
-///
-/// Cell size is critical for performance:
-/// - Too small → High memory + many cells to check per query
-/// - Too large → Poor culling + many false positives in radius queries
-///
-/// Recommended strategy for Powrush-MMO:
-/// - Use ~0.5x to 1.0x of your most common query radius (council blooms, particle effects, audio)
-/// - Default of 64.0 works well for medium-density worlds with 50–150 unit interaction ranges.
+/// High-performance SpatialHash with O(1) movement tracking and change-aware updates.
 #[derive(Resource)]
 pub struct SpatialHash {
     pub cell_size: f32,
@@ -26,22 +18,18 @@ pub struct SpatialHash {
 }
 
 impl Default for SpatialHash {
-    fn default() -> Self {
-        Self::new(64.0)
-    }
+    fn default() -> Self { Self::new(64.0) }
 }
 
 impl SpatialHash {
     pub fn new(cell_size: f32) -> Self {
         Self {
-            cell_size: cell_size.max(8.0), // Prevent degenerate tiny cells
+            cell_size: cell_size.max(8.0),
             cells: HashMap::new(),
             entity_locations: HashMap::new(),
         }
     }
 
-    /// Returns a recommended cell size based on your typical query radius.
-    /// Good heuristic: cell_size ≈ expected_query_radius * 0.6 ~ 0.8
     pub fn recommended_cell_size(expected_query_radius: f32) -> f32 {
         (expected_query_radius * 0.7).clamp(16.0, 256.0)
     }
@@ -53,17 +41,12 @@ impl SpatialHash {
             if *old_cell != new_cell {
                 if let Some(old_list) = self.cells.get_mut(old_cell) {
                     old_list.retain(|(e, _)| *e != entity);
-                    if old_list.is_empty() {
-                        self.cells.remove(old_cell);
-                    }
+                    if old_list.is_empty() { self.cells.remove(old_cell); }
                 }
             } else {
                 if let Some(list) = self.cells.get_mut(&new_cell) {
                     for (e, pos) in list.iter_mut() {
-                        if *e == entity {
-                            *pos = position;
-                            return;
-                        }
+                        if *e == entity { *pos = position; return; }
                     }
                 }
             }
@@ -94,10 +77,7 @@ impl SpatialHash {
     }
 
     fn world_to_cell(&self, pos: Vec3) -> IVec2 {
-        IVec2::new(
-            (pos.x / self.cell_size).floor() as i32,
-            (pos.z / self.cell_size).floor() as i32,
-        )
+        IVec2::new((pos.x / self.cell_size).floor() as i32, (pos.z / self.cell_size).floor() as i32)
     }
 
     pub fn clear(&mut self) {
@@ -109,9 +89,7 @@ impl SpatialHash {
         if let Some(cell) = self.entity_locations.remove(&entity) {
             if let Some(list) = self.cells.get_mut(&cell) {
                 list.retain(|(e, _)| *e != entity);
-                if list.is_empty() {
-                    self.cells.remove(&cell);
-                }
+                if list.is_empty() { self.cells.remove(&cell); }
             }
         }
     }
@@ -178,9 +156,11 @@ impl Plugin for SpatialInterestPlugin {
     }
 }
 
+/// Optimized spatial hash update using Bevy change detection.
+/// Only processes entities whose Transform actually changed this frame.
 pub fn update_spatial_hash_system(
     mut spatial_hash: ResMut<SpatialHash>,
-    query: Query<(Entity, &Transform), With<SpatialParticipant>>,
+    query: Query<(Entity, &Transform), (With<SpatialParticipant>, Changed<Transform>)>,
 ) {
     for (entity, transform) in &query {
         spatial_hash.insert(transform.translation, entity);
@@ -203,4 +183,4 @@ pub fn query_entities_in_interest(
         .unwrap_or_default()
 }
 
-// Thunder locked. Spatial hash cell size optimization + recommendation helper added. ⚡
+// Thunder locked. Spatial hash now uses Changed<Transform> for efficient grid updates. ⚡
