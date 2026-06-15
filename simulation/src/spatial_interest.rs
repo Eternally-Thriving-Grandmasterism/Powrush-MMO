@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Early Return + Idle Decay in Propagation System
+// Optimized Bloom Proximity Checks (squared distance + precomputed values)
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -216,7 +216,7 @@ impl SpatialHash {
 }
 
 // ============================================================
-// PLUGIN + SYSTEMS
+// PLUGIN + OPTIMIZED PROXIMITY CHECKS
 // ============================================================
 
 pub struct SpatialInterestPlugin;
@@ -262,15 +262,13 @@ pub fn update_interest_zones_system(
     }
 }
 
-/// Propagation system with early return when no blooms are active.
-/// Also applies gentle decay to interest influence when idle.
+/// Optimized proximity checks using squared distance (avoids sqrt)
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
     mut interest_query: Query<(&mut InterestZone, &Transform)>,
 ) {
     if interest_manager.council_blooms.is_empty() {
-        // Early return + light decay when no active council blooms
         for (mut zone, _transform) in &mut interest_query {
             zone.council_boost *= 0.92;
             zone.mercy_resonance *= 0.95;
@@ -279,12 +277,15 @@ pub fn propagate_council_influence_system(
     }
 
     for bloom in &interest_manager.council_blooms {
-        let affected = spatial_hash.query_radius(bloom.center, bloom.radius);
+        let radius_sq = bloom.radius * bloom.radius;
+        let inv_radius = if bloom.radius > 0.0 { 1.0 / bloom.radius } else { 0.0 };
 
         for (mut zone, transform) in &mut interest_query {
-            let dist = (transform.translation - bloom.center).length();
-            if dist <= bloom.radius {
-                let proximity = 1.0 - (dist / bloom.radius).min(1.0);
+            let delta = transform.translation - bloom.center;
+            let dist_sq = delta.length_squared();
+
+            if dist_sq <= radius_sq {
+                let proximity = 1.0 - (dist_sq.sqrt() * inv_radius).min(1.0);
                 let boost_amount = bloom.intensity * proximity * 0.8;
 
                 zone.council_boost = (zone.council_boost + boost_amount).min(3.0);
@@ -312,4 +313,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Early return + idle decay implemented in propagation system. ⚡
+// Thunder locked. Bloom proximity checks now use squared distance + precomputed inverse radius. ⚡
