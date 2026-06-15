@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Optimized SpatialQueryBuffer Allocation
+// Refactored Default Implementations (Polished)
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -10,6 +10,14 @@ use std::collections::HashMap;
 
 #[derive(Component, Default)]
 pub struct SpatialParticipant;
+
+// ============================================================
+// CONSTANTS FOR DEFAULTS
+// ============================================================
+
+const DEFAULT_CELL_SIZE: f32 = 64.0;
+const DEFAULT_SPATIAL_QUERY_BUFFER_CAPACITY: usize = 128;
+const DEFAULT_INTEREST_MANAGER_BLOOM_CAPACITY: usize = 4;
 
 // ============================================================
 // INTEREST ZONE COMPONENT
@@ -40,7 +48,7 @@ impl InterestZone {
 }
 
 // ============================================================
-// BUNDLES
+// BUNDLES (Explicit Defaults)
 // ============================================================
 
 #[derive(Bundle, Default)]
@@ -112,12 +120,20 @@ pub enum SpatialSet {
 }
 
 // ============================================================
-// INTEREST MANAGER
+// INTEREST MANAGER - Explicit Default with Capacity
 // ============================================================
 
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct InterestManager {
     pub council_blooms: Vec<CouncilBloomZone>,
+}
+
+impl Default for InterestManager {
+    fn default() -> Self {
+        Self {
+            council_blooms: Vec::with_capacity(DEFAULT_INTEREST_MANAGER_BLOOM_CAPACITY),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -139,8 +155,6 @@ impl InterestManager {
 // SPATIAL QUERY BUFFER - Pre-allocated
 // ============================================================
 
-/// Reusable buffer for spatial queries.
-/// Pre-allocated with a reasonable capacity to reduce early reallocations.
 #[derive(Resource)]
 pub struct SpatialQueryBuffer {
     pub entities: Vec<Entity>,
@@ -149,13 +163,13 @@ pub struct SpatialQueryBuffer {
 impl Default for SpatialQueryBuffer {
     fn default() -> Self {
         Self {
-            entities: Vec::with_capacity(128), // Good starting capacity for typical bloom queries
+            entities: Vec::with_capacity(DEFAULT_SPATIAL_QUERY_BUFFER_CAPACITY),
         }
     }
 }
 
 // ============================================================
-// SPATIAL HASH
+// SPATIAL HASH - Explicit Default
 // ============================================================
 
 type CellEntities = SmallVec<[(Entity, Vec3); 12]>;
@@ -168,7 +182,9 @@ pub struct SpatialHash {
 }
 
 impl Default for SpatialHash {
-    fn default() -> Self { Self::new(64.0) }
+    fn default() -> Self {
+        Self::new(DEFAULT_CELL_SIZE)
+    }
 }
 
 impl SpatialHash {
@@ -347,4 +363,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. SpatialQueryBuffer now pre-allocates capacity on creation. ⚡
+// Thunder locked. Default implementations refactored with explicit constants and pre-allocation. ⚡
