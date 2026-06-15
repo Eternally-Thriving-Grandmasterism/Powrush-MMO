@@ -15,6 +15,7 @@
 use std::fmt;
 
 use crate::ascension_mercy_ascent::AscensionProgress;
+use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 
 /// Core authoritative bloom field for a Council Mercy Trial.
 /// Computes collective attunement with mercy-gated synergistic amplification.
@@ -82,7 +83,19 @@ impl SharedReceptorBloomField {
                 "ecstatic_harmony_council".to_string()
             };
 
-            // Log would be in caller; here we just set state
+            // ═══════════════════════════════════════════════════════════════════════
+            // SAFETY NET BLOOM TRIGGER (v18.37)
+            // When collective seal activates, immediately feed Safety Net for client sync
+            // and persistence of council engagement.
+            // In full integration: emit via EventWriter<EmitSafetyNetBroadcast> from caller
+            // or from a dedicated bloom system.
+            // ═══════════════════════════════════════════════════════════════════════
+            // Example emission (when EventWriter available in context):
+            // emit_writer.send(EmitSafetyNetBroadcast {
+            //     player_id: 0, // or per-participant
+            //     reason: "CouncilBloom".to_string(),
+            //     force_full_snapshot: true,
+            // });
         }
 
         triggered
