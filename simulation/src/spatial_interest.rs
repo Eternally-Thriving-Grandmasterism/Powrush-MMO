@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// SmallVec Optimization in SpatialHash
+// SmallVec Capacity Tuned to 12
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -136,12 +136,12 @@ impl InterestManager {
 }
 
 // ============================================================
-// SPATIAL HASH - SmallVec Optimized
+// SPATIAL HASH - SmallVec<[T; 12]>
 // ============================================================
 
-/// Type alias for the per-cell storage.
-/// Uses SmallVec to keep small numbers of entities inline (better cache locality).
-type CellEntities = SmallVec<[(Entity, Vec3); 8]>;
+/// Per-cell entity storage using SmallVec.
+/// Capacity of 12 chosen after tuning exploration for Powrush-MMO density.
+type CellEntities = SmallVec<[(Entity, Vec3); 12]>;
 
 #[derive(Resource)]
 pub struct SpatialHash {
@@ -329,4 +329,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. SpatialHash now uses SmallVec for better cache locality on small cells. ⚡
+// Thunder locked. SmallVec capacity tuned to 12 after exploration. ⚡
