@@ -1,14 +1,13 @@
 /*!
- * Client-side Prediction + Authoritative Rollback
+ * Client-side Prediction + Authoritative Rollback + InterestZone Replication
  *
- * Phase 2: InterestZone Prediction + Improved Reconciliation
- * v18.13
+ * v18.14
  */
 
 use bevy::prelude::*;
 
 use crate::replication::{TargetedUpdate, UpdatePayload};
-use simulation::spatial_interest::InterestZone;
+use simulation::spatial_interest::{InterestZone, PlayerInterestUpdated};
 
 #[derive(Component, Default, Debug, Clone)]
 pub struct PredictedPosition {
@@ -40,7 +39,7 @@ impl RollbackState {
     }
 }
 
-/// Phase 1: Basic client movement prediction
+/// Phase 1: Client movement prediction
 pub fn client_predict_local_player_movement(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut PredictedPosition), With<crate::spatial_interest::SpatialParticipant>>,
@@ -53,32 +52,44 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Phase 2: Predict InterestZone expansion based on velocity
-/// Makes the client anticipate entities that may soon enter the interest area.
+/// Phase 2: InterestZone expansion prediction
 pub fn predict_interest_zone_expansion(
     mut query: Query<(&mut InterestZone, &PredictedPosition)>,
 ) {
     for (mut interest, predicted) in &mut query {
         let speed = predicted.velocity.length();
-
-        // Expand interest radius slightly when moving fast
         let speed_factor = (speed / 20.0).clamp(0.0, 1.5);
-        interest.base_radius = 80.0 + speed_factor * 40.0;
 
-        // Slight boost to council resonance when moving (anticipatory)
+        interest.base_radius = 80.0 + speed_factor * 40.0;
         interest.mercy_resonance = (interest.mercy_resonance * 0.9 + speed_factor * 0.3).min(2.5);
     }
 }
 
-/// Phase 2: Improved reconciliation with smooth correction intent
+/// Client-side handler for InterestZone updates coming from the server.
+/// This completes the basic server → client replication loop for InterestZone.
+pub fn handle_player_interest_updated(
+    mut events: EventReader<PlayerInterestUpdated>,
+    mut interest_query: Query<&mut InterestZone, With<crate::spatial_interest::SpatialParticipant>>,
+) {
+    for event in events.read() {
+        // Basic implementation: Apply to the first matching entity with SpatialParticipant.
+        // In a full implementation, we would map player_id to the correct local entity.
+        for mut zone in &mut interest_query {
+            zone.base_radius = event.zone.base_radius;
+            zone.valence_multiplier = event.zone.valence_multiplier;
+            zone.council_boost = event.zone.council_boost;
+            zone.mercy_resonance = event.zone.mercy_resonance;
+            break; // Apply to first match for basic version
+        }
+    }
+}
+
 pub fn reconcile_spatial_transform(
     commands: &mut Commands,
     entity: Entity,
     server_position: Vec3,
     server_timestamp: f64,
 ) {
-    // For now we do direct correction.
-    // Future improvement: store correction target + lerp over frames.
     commands.entity(entity).insert(Transform {
         translation: server_position,
         ..default()
@@ -132,9 +143,7 @@ pub fn apply_authoritative_update(
                     changed_fields: ability.changed_fields,
                 });
             }
-            UpdatePayload::BloomState(_) | UpdatePayload::ResonanceSeed(_) => {
-                // Can influence local InterestZone prediction weighting in future
-            }
+            UpdatePayload::BloomState(_) | UpdatePayload::ResonanceSeed(_) => {}
             _ => {}
         }
 
