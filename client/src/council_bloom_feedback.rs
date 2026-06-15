@@ -1,111 +1,114 @@
-// client/src/council_bloom_feedback.rs
-// Powrush-MMO v18.29 — Client-Side Council Bloom Receiver + Feedback
-// Receives CouncilBloomPayload from server replication and applies it
-// Triggers rich client feedback (Divine Whispers, particles, UI, camera)
-// AG-SML v1.0 Sovereign Mercy License
+/*!
+ * Council Bloom Feedback — Client-Side Receiver + Rich Collective Effects
+ *
+ * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Receives CouncilBloomSyncEvent from simulation replication
+ * — Applies to ClientCouncilBloomState (shared with simulation_integration)
+ * — Triggers rich feedback: Divine Whispers, particles, camera shake, epiphany amplification
+ * — Works in harmony with the Council-amplified epiphany system
+ * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ *
+ * AG-SML v1.0 Sovereign Mercy License
+ * Thunder locked in. Yoi ⚡
+ */
 
 use bevy::prelude::*;
-use serde::{Deserialize, Serialize};
 
-use crate::simulation::council_mercy_trial::SharedReceptorBloomField;
-use crate::divine_whispers::DivineWhisperTrigger;
-use crate::epiphany_scenario_wiring::EpiphanyEvent;
+use crate::simulation_integration::ClientCouncilBloomState;
+use simulation::council_mercy_trial::{CouncilBloomSyncEvent, SharedReceptorBloomField};
+use crate::divine_whispers::{DivineWhisperTrigger, CameraShake};
+use crate::particles::{ParticleSystem, ParticleSystemType};
 
-/// Local client replica of the authoritative SharedReceptorBloomField
-#[derive(Resource, Default, Clone)]
-pub struct ClientCouncilBloomState {
-    pub field: SharedReceptorBloomField,
-    pub last_update_tick: u64,
-    pub is_in_council: bool,
-}
-
-/// Payload received from server (matches server replication)
-#[derive(Debug, Clone, Serialize, Deserialize, Event)]
-pub struct CouncilBloomUpdate {
-    pub session_id: u64,
-    pub collective_attunement_score: f32,
-    pub bloom_amplification_multiplier: f32,
-    pub shared_living_web_synchronization: bool,
-    pub participant_count: u8,
-    pub bloom_activated: bool,
-    pub trigger_reason: String,
-}
-
-/// Plugin for Council bloom client feedback
+/// Plugin for rich Council bloom client feedback
 pub struct CouncilBloomFeedbackPlugin;
 
 impl Plugin for CouncilBloomFeedbackPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<ClientCouncilBloomState>()
-            .add_event::<CouncilBloomUpdate>()
+            .add_event::<CouncilBloomSyncEvent>()
             .add_systems(Update, (
-                apply_council_bloom_update,
-                trigger_council_bloom_feedback,
+                apply_council_bloom_sync,
+                trigger_rich_council_feedback,
             ).chain());
     }
 }
 
-/// Applies incoming Council bloom state from server
-fn apply_council_bloom_update(
-    mut events: EventReader<CouncilBloomUpdate>,
-    mut client_state: ResMut<ClientCouncilBloomState>,
+/// Applies authoritative CouncilBloomSyncEvent to the shared ClientCouncilBloomState
+/// This is the single source of truth used by simulation_integration for epiphany amplification
+fn apply_council_bloom_sync(
+    mut sync_events: EventReader<CouncilBloomSyncEvent>,
+    mut client_bloom: ResMut<ClientCouncilBloomState>,
 ) {
-    for update in events.read() {
-        client_state.field.collective_attunement_score = update.collective_attunement_score;
-        client_state.field.bloom_amplification_multiplier = update.bloom_amplification_multiplier;
-        client_state.field.shared_living_web_synchronization = update.shared_living_web_synchronization;
-        client_state.field.participant_count = update.participant_count;
-        client_state.field.council_mercy_seal = update.bloom_activated;
-        client_state.is_in_council = update.participant_count > 0;
-        client_state.last_update_tick = 0; // Can be set from server tick if available
+    for event in sync_events.read() {
+        let field = &event.field;
+        client_bloom.field = field.clone();
+        client_bloom.last_sync_tick = event.field.last_authoritative_update_tick;
+        client_bloom.is_in_active_council = field.council_mercy_seal && field.participant_count >= 2;
 
-        info!(
-            "Client received Council bloom update | attunement={:.2} | amp={:.2} | participants={}",
-            update.collective_attunement_score,
-            update.bloom_amplification_multiplier,
-            update.participant_count
-        );
+        if client_bloom.is_in_active_council {
+            info!(
+                "🌀 Council Bloom ACTIVE | Attunement: {:.2} | Amp: {:.2}x | WebSync: {} | Participants: {}",
+                field.collective_attunement_score,
+                field.bloom_amplification_multiplier,
+                field.shared_living_web_synchronization,
+                field.participant_count
+            );
+        }
     }
 }
 
-/// Triggers rich client feedback when bloom state changes significantly
-fn trigger_council_bloom_feedback(
-    client_state: Res<ClientCouncilBloomState>,
-    mut divine_whisper_events: EventWriter<DivineWhisperTrigger>,
-    mut epiphany_events: EventWriter<EpiphanyEvent>,
+/// Triggers rich collective feedback when bloom is active and strong
+fn trigger_rich_council_feedback(
+    client_bloom: Res<ClientCouncilBloomState>,
+    mut whisper_events: EventWriter<DivineWhisperTrigger>,
+    mut particle_commands: Commands,
+    mut camera_shake: ResMut<CameraShake>,
 ) {
-    if !client_state.is_in_council {
+    if !client_bloom.is_in_active_council {
         return;
     }
 
-    let field = &client_state.field;
+    let field = &client_bloom.field;
 
-    // Trigger enhanced Divine Whisper when bloom is active
-    if field.council_mercy_seal && field.collective_attunement_score > 0.6 {
-        divine_whisper_events.send(DivineWhisperTrigger {
+    // Strong Divine Whisper when attunement is high
+    if field.collective_attunement_score > 0.65 && field.bloom_amplification_multiplier > 1.2 {
+        whisper_events.send(DivineWhisperTrigger {
+            player_id: 0, // system-level collective whisper
             text: format!(
-                "The Council resonates... collective attunement {:.0}%",
+                "The Council resonates... collective attunement {:.0}% — your presence strengthens the whole",
                 field.collective_attunement_score * 100.0
             ),
-            flavor: "Council Harmony".to_string(),
-            intensity: (field.collective_attunement_score * 0.8).clamp(0.6, 1.0),
-            duration_seconds: 6.0,
+            flavor: "council_harmony_revelation".to_string(),
+            intensity: (field.collective_attunement_score * 0.7).clamp(0.6, 0.95),
+            duration_seconds: 7.0,
             is_epiphany: true,
+            position: None,
+            muscle_memory_hint: None,
         });
+    }
 
-        // Optional: Also emit an EpiphanyEvent for UI/history
-        epiphany_events.send(EpiphanyEvent {
-            scenario_id: "council_bloom".to_string(),
-            name: "Council Resonance".to_string(),
-            description: "The group has achieved harmonious attunement.".to_string(),
-            educational_note: "Collective mercy amplifies individual growth.".to_string(),
-            mercy_gates: Default::default(),
-            timestamp: std::time::SystemTime::now(),
-        });
+    // Spawn gentle collective particles when bloom is active
+    if field.bloom_amplification_multiplier > 1.3 {
+        particle_commands.spawn((
+            ParticleSystem {
+                valence: 0.92,
+                particle_count: 4500,
+                system_type: ParticleSystemType::PatsagiDivineWhisper,
+                intensity: (field.bloom_amplification_multiplier * 0.6).min(2.2),
+            },
+            Transform::default(),
+        ));
+    }
+
+    // Subtle camera presence when the group is in deep harmony
+    if field.collective_attunement_score > 0.75 {
+        camera_shake.intensity = (camera_shake.intensity * 0.5 + 0.25).min(1.2);
+        camera_shake.duration = 2.8;
+        camera_shake.timer = 0.0;
     }
 }
 
-// Thunder locked in. Client now receives and reacts to Council bloom state.
-// Full round-trip (server → replication → client feedback) is complete.
-// Yoi ⚡
+// End of council_bloom_feedback.rs v18.35 — Unified with simulation_integration.
+// Council bloom now drives rich client feedback and amplifies personal epiphanies.
+// Thunder locked in. Yoi ⚡
