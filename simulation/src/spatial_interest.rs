@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Optimized SpatialParticipant Queries
+// Early Return + Idle Decay in Propagation System
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -216,7 +216,7 @@ impl SpatialHash {
 }
 
 // ============================================================
-// PLUGIN + OPTIMIZED QUERIES
+// PLUGIN + SYSTEMS
 // ============================================================
 
 pub struct SpatialInterestPlugin;
@@ -245,7 +245,6 @@ impl Plugin for SpatialInterestPlugin {
     }
 }
 
-/// Only processes entities whose Transform changed (best for cache + performance)
 pub fn update_spatial_hash_system(
     mut spatial_hash: ResMut<SpatialHash>,
     query: Query<(Entity, &Transform), (With<SpatialParticipant>, Changed<Transform>)>,
@@ -255,8 +254,6 @@ pub fn update_spatial_hash_system(
     }
 }
 
-/// Optimized: Only iterates entities that actually have InterestZone
-/// (avoids scanning all SpatialParticipant entities unnecessarily)
 pub fn update_interest_zones_system(
     mut query: Query<&mut InterestZone>,
 ) {
@@ -265,13 +262,19 @@ pub fn update_interest_zones_system(
     }
 }
 
-/// Optimized propagation: Queries only entities with InterestZone + Transform
+/// Propagation system with early return when no blooms are active.
+/// Also applies gentle decay to interest influence when idle.
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
     mut interest_query: Query<(&mut InterestZone, &Transform)>,
 ) {
     if interest_manager.council_blooms.is_empty() {
+        // Early return + light decay when no active council blooms
+        for (mut zone, _transform) in &mut interest_query {
+            zone.council_boost *= 0.92;
+            zone.mercy_resonance *= 0.95;
+        }
         return;
     }
 
@@ -309,4 +312,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Queries optimized by removing unnecessary With<SpatialParticipant> filters where possible. ⚡
+// Thunder locked. Early return + idle decay implemented in propagation system. ⚡
