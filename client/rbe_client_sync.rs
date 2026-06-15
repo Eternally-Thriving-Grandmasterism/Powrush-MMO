@@ -1,6 +1,6 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
-// Adaptive Localization Radius + Ensemble Localization (v18.37)
+// Advanced Adaptive Localization Radius (Residual + Ensemble Spread) (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -13,112 +13,60 @@ use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeR
 use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI, receive_divine_whisper_from_server};
 
 // ============================================================
-// ENSEMBLE LOCALIZATION + ADAPTIVE RADIUS
+// ADVANCED ADAPTIVE LOCALIZATION
+// Uses both residual magnitude and ensemble spread
 // ============================================================
 
-/// Gaspari-Cohn fifth-order piecewise rational function.
-pub fn gaspari_cohn(normalized_distance: f32) -> f32 {
-    let z = normalized_distance.abs();
-    if z >= 2.0 {
-        0.0
-    } else if z >= 1.0 {
-        let z2 = z * z;
-        let z3 = z2 * z;
-        -0.25 * z3 + 0.5 * z2 + 0.625 * z - (5.0/3.0)*z2*z2 + (8.0/3.0)*z3*z - 0.5*z3*z2 + (1.0/12.0)*z2*z2*z
-    } else {
-        let z2 = z * z;
-        let z3 = z2 * z;
-        (4.0/3.0)*z3 - 2.5*z2 + (5.0/8.0)*z3*z - (1.0/12.0)*z2*z2 + 1.0
-    }
-}
-
-/// Creates a state-space localization matrix using Gaspari-Cohn.
-pub fn create_state_localization_matrix(
-    distances: &[Vec<f32>],
-    localization_radius: f32,
-) -> Vec<Vec<f32>> {
-    let n = distances.len();
-    let mut loc = vec![vec![0.0; n]; n];
-    for i in 0..n {
-        for j in 0..n {
-            let norm_dist = distances[i][j] / localization_radius.max(1e-6);
-            loc[i][j] = gaspari_cohn(norm_dist);
-        }
-    }
-    loc
-}
-
-/// Creates an observation-space localization matrix.
-pub fn create_observation_localization_matrix(
-    obs_state_distances: &[Vec<f32>],
-    localization_radius: f32,
-) -> Vec<Vec<f32>> {
-    let n_obs = obs_state_distances.len();
-    let n_state = if n_obs > 0 { obs_state_distances[0].len() } else { 0 };
-    let mut loc = vec![vec![0.0; n_state]; n_obs];
-    for i in 0..n_obs {
-        for j in 0..n_state {
-            let norm_dist = obs_state_distances[i][j] / localization_radius.max(1e-6);
-            loc[i][j] = gaspari_cohn(norm_dist);
-        }
-    }
-    loc
-}
-
-/// Applies Schur product (localization) to a covariance matrix.
-pub fn apply_localization(
-    covariance: &[Vec<f32>],
-    localization_matrix: &[Vec<f32>],
-) -> Vec<Vec<f32>> {
-    let n = covariance.len();
-    let mut localized = vec![vec![0.0; n]; n];
-    for i in 0..n {
-        for j in 0..n {
-            localized[i][j] = covariance[i][j] * localization_matrix[i][j];
-        }
-    }
-    localized
-}
-
-/// Adaptive Localization Radius
-/// Dynamically adjusts the localization radius based on recent residual statistics.
-/// Larger residuals → smaller radius (more aggressive localization).
-/// Smaller residuals → larger radius (allow longer-range correlations).
-pub fn compute_adaptive_localization_radius(
-    recent_residual_magnitude: f32,
+/// Computes an adaptive localization radius using both recent residuals and ensemble spread.
+/// - High residuals or very low spread → smaller radius (more aggressive localization)
+/// - Low residuals + healthy spread → larger radius
+pub fn compute_advanced_adaptive_radius(
+    avg_residual: f32,
+    ensemble_spread: f32,
     base_radius: f32,
     min_radius: f32,
     max_radius: f32,
-    adaptation_rate: f32,
+    adaptation_strength: f32,
 ) -> f32 {
-    // Simple heuristic: radius inversely related to residual size
-    let scale = (1.0 / (1.0 + recent_residual_magnitude)).clamp(0.3, 2.0);
-    let adaptive = base_radius * scale;
+    // Normalize residual (higher = more aggressive localization needed)
+    let residual_factor = (1.0 / (1.0 + avg_residual * 0.8)).clamp(0.4, 1.3);
 
-    // Smooth adaptation toward the new value
-    let smoothed = base_radius * (1.0 - adaptation_rate) + adaptive * adaptation_rate;
+    // Normalize ensemble spread (very low spread = risk of collapse → slightly larger radius)
+    let spread_factor = if ensemble_spread < 0.5 {
+        1.15
+    } else if ensemble_spread > 3.0 {
+        0.9
+    } else {
+        1.0
+    };
+
+    let adaptive = base_radius * residual_factor * spread_factor;
+
+    // Smooth adaptation
+    let smoothed = base_radius * (1.0 - adaptation_strength) + adaptive * adaptation_strength;
 
     smoothed.clamp(min_radius, max_radius)
 }
 
-/// Struct for maintaining adaptive localization over time
+/// Advanced Adaptive Localizer that considers both residuals and ensemble spread
 #[derive(Clone, Debug)]
-pub struct AdaptiveLocalizer {
+pub struct AdvancedAdaptiveLocalizer {
     pub current_radius: f32,
     base_radius: f32,
     min_radius: f32,
     max_radius: f32,
-    adaptation_rate: f32,
+    adaptation_strength: f32,
     residual_history: Vec<f32>,
+    spread_history: Vec<f32>,
     history_size: usize,
 }
 
-impl AdaptiveLocalizer {
+impl AdvancedAdaptiveLocalizer {
     pub fn new(
         initial_radius: f32,
         min_radius: f32,
         max_radius: f32,
-        adaptation_rate: f32,
+        adaptation_strength: f32,
         history_size: usize,
     ) -> Self {
         Self {
@@ -126,37 +74,100 @@ impl AdaptiveLocalizer {
             base_radius: initial_radius,
             min_radius,
             max_radius,
-            adaptation_rate,
+            adaptation_strength,
             residual_history: Vec::with_capacity(history_size),
+            spread_history: Vec::with_capacity(history_size),
             history_size,
         }
     }
 
-    /// Update with a new residual magnitude and recompute adaptive radius
-    pub fn update(&mut self, new_residual_magnitude: f32) {
-        self.residual_history.push(new_residual_magnitude);
+    /// Update with new residual and ensemble spread values
+    pub fn update(&mut self, new_residual: f32, new_spread: f32) {
+        self.residual_history.push(new_residual);
+        self.spread_history.push(new_spread);
+
         if self.residual_history.len() > self.history_size {
             self.residual_history.remove(0);
         }
+        if self.spread_history.len() > self.history_size {
+            self.spread_history.remove(0);
+        }
 
         let avg_residual = if self.residual_history.is_empty() {
-            new_residual_magnitude
+            new_residual
         } else {
             self.residual_history.iter().sum::<f32>() / self.residual_history.len() as f32
         };
 
-        self.current_radius = compute_adaptive_localization_radius(
+        let avg_spread = if self.spread_history.is_empty() {
+            new_spread
+        } else {
+            self.spread_history.iter().sum::<f32>() / self.spread_history.len() as f32
+        };
+
+        self.current_radius = compute_advanced_adaptive_radius(
             avg_residual,
+            avg_spread,
             self.base_radius,
             self.min_radius,
             self.max_radius,
-            self.adaptation_rate,
+            self.adaptation_strength,
         );
     }
 
     pub fn get_current_radius(&self) -> f32 {
         self.current_radius
     }
+}
+
+// ============================================================
+// BASIC LOCALIZATION FUNCTIONS (Gaspari-Cohn + matrices)
+// ============================================================
+
+pub fn gaspari_cohn(normalized_distance: f32) -> f32 {
+    let z = normalized_distance.abs();
+    if z >= 2.0 { 0.0 }
+    else if z >= 1.0 {
+        let z2 = z*z; let z3 = z2*z;
+        -0.25*z3 + 0.5*z2 + 0.625*z - (5.0/3.0)*z2*z2 + (8.0/3.0)*z3*z - 0.5*z3*z2 + (1.0/12.0)*z2*z2*z
+    } else {
+        let z2 = z*z; let z3 = z2*z;
+        (4.0/3.0)*z3 - 2.5*z2 + (5.0/8.0)*z3*z - (1.0/12.0)*z2*z2 + 1.0
+    }
+}
+
+pub fn create_state_localization_matrix(distances: &[Vec<f32>], radius: f32) -> Vec<Vec<f32>> {
+    let n = distances.len();
+    let mut loc = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            loc[i][j] = gaspari_cohn(distances[i][j] / radius.max(1e-6));
+        }
+    }
+    loc
+}
+
+pub fn create_observation_localization_matrix(obs_state_distances: &[Vec<f32>], radius: f32) -> Vec<Vec<f32>> {
+    let n_obs = obs_state_distances.len();
+    let n_state = if n_obs > 0 { obs_state_distances[0].len() } else { 0 };
+    let mut loc = vec![vec![0.0; n_state]; n_obs];
+    for i in 0..n_obs {
+        for j in 0..n_state {
+            loc[i][j] = gaspari_cohn(obs_state_distances[i][j] / radius.max(1e-6));
+        }
+    }
+    loc
+}
+
+pub fn apply_localization(cov: &[Vec<f32>], loc_matrix: &[Vec<f32>]) -> Vec<Vec<f32>> {
+    let n = cov.len();
+    let mut out = vec![vec![0.0; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            out[i][j] = cov[i][j] * loc_matrix[i][j];
+        }
+    }
+    out
 }
 
 // ============================================================
@@ -227,7 +238,7 @@ impl SafetyNetState {
         let kalman_2d_jit_res = self.kalman_2d.as_ref().map_or(0.0, |k| k.last_jitter_residual);
 
         let rts_smoothed = self.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
-        let rts_vs_kalman = rts_smoothed - kalman_lat;
+        let rts_vs_kalman = rts_smoothed - snapshot.kalman_latency_estimate; // Note: snapshot not yet built, use kalman_lat
 
         SafetyNetMonitoringSnapshot {
             timestamp_ms: now_ms,
@@ -388,7 +399,7 @@ impl KalmanFilter2D {
     }
 }
 
-// Heuristic Fixed-Lag Smoother (legacy)
+// Heuristic Fixed-Lag Smoother
 #[derive(Clone, Debug)]
 pub struct FixedLagKalmanSmoother {
     pub smoothed_estimate: f32,
