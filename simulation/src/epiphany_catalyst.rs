@@ -1,11 +1,12 @@
 /*!
  * Sovereign Epiphany Catalyst
  *
- * v18.24 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Complete mint-and-print-only-perfection
  * — evaluate_epiphany() is the single source of truth for all epiphany detection
  * — Mercy-amplified + council-aware outcomes
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ * — Expanded with 3 new high-quality scenarios for richer vertical slice (Mycorrhizal Communion, Stellar Resonance, Graceful Redemption)
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -122,7 +123,7 @@ pub fn check_epiphany_after_harvest(
 }
 
 /// Core evaluation function — SINGLE SOURCE OF TRUTH for all epiphany detection.
-/// Mercy-amplified and council-aware.
+/// Mercy-amplified and council-aware. Expanded vertical slice scenarios.
 pub fn evaluate_epiphany(
     context: &EpiphanyContext,
     behavioral_human_score: f32,
@@ -130,6 +131,7 @@ pub fn evaluate_epiphany(
     let human_factor = behavioral_human_score.clamp(0.6, 1.15);
     if human_factor < 0.65 { return None; }
 
+    // Priority order: more specific / higher-reward first
     if let Some(mut outcome) = check_overflow_lesson(context.depletion, context.sustainable_pacing, &context.biome) {
         outcome = apply_human_amplification(outcome, human_factor);
         outcome = apply_biome_resonance(outcome, context);
@@ -151,6 +153,32 @@ pub fn evaluate_epiphany(
 
     if context.biome.contains("abyssal_depths") || context.biome == "abyssal_depths" {
         if let Some(mut outcome) = check_abyssal_depths_surge(context) {
+            outcome = apply_human_amplification(outcome, human_factor);
+            return Some(outcome);
+        }
+        // New: Mycorrhizal Communion (deeper network healing)
+        if let Some(mut outcome) = check_mycorrhizal_communion(context) {
+            outcome = apply_human_amplification(outcome, human_factor);
+            return Some(outcome);
+        }
+    }
+
+    if context.biome.contains("crystal_spires") || context.biome == "crystal_spires" {
+        if let Some(mut outcome) = check_stellar_resonance(context) {
+            outcome = apply_human_amplification(outcome, human_factor);
+            return Some(outcome);
+        }
+    }
+
+    // New: Graceful Redemption — turning past depletion into present abundance (any biome, after recovery)
+    if let Some(mut outcome) = check_graceful_redemption(context) {
+        outcome = apply_human_amplification(outcome, human_factor);
+        return Some(outcome);
+    }
+
+    // Council harmony (multiplayer)
+    if context.participant_count >= 3 && context.collective_attunement > 0.0 {
+        if let Some(mut outcome) = check_council_harmony(context.collective_attunement, context.participant_count, context.duration_ticks) {
             outcome = apply_human_amplification(outcome, human_factor);
             return Some(outcome);
         }
@@ -264,6 +292,83 @@ pub fn check_abyssal_depths_surge(context: &EpiphanyContext) -> Option<EpiphanyO
     Some(outcome)
 }
 
+// === NEW HIGH-QUALITY EPIPHANY SCENARIOS (v18.35 vertical slice expansion) ===
+
+/// Mycorrhizal Communion — Deep network healing and shared resilience bloom.
+/// Triggers in Abyssal Depths or mycelial-rich areas after sustained gentle interaction.
+pub fn check_mycorrhizal_communion(context: &EpiphanyContext) -> Option<EpiphanyOutcome> {
+    if context.depletion > 0.4 || !context.sustainable_pacing { return None; }
+    // Stronger in Abyssal or when regen_participation is high
+    let is_mycelial_biome = context.biome.contains("abyssal") || context.biome.contains("mycel");
+    if !is_mycelial_biome && context.regen_participation == false { return None; }
+
+    let intensity = (0.65 + (1.0 - context.depletion) * 0.3).clamp(0.55, 0.96);
+    let mut outcome = EpiphanyOutcome::new();
+    outcome.scenario_id = "mycorrhizal_communion".to_string();
+    outcome.epiphany_multiplier = 1.55;
+    outcome.muscle_memory_consolidation_boost = 1.45;
+    outcome.intensity = intensity;
+    outcome.divine_whisper_flavor = "mycelial_web_communion".to_string();
+    outcome.particle_effect = "mycelial_web_glow".to_string();
+    outcome.time_dilation_factor = 1.18;
+    outcome.abundance_bloom_multiplier = 1.4;
+    outcome.biome_resonance = Some("mycorrhizal_communion".to_string());
+    outcome.grace_notes.push("The living web remembers your gentle touch and answers with shared resilience.".to_string());
+    outcome.world_effects.insert("shared_mycelial_healing".to_string(), 1.35);
+    if context.participant_count > 1 {
+        outcome.world_effects.insert("collective_web_resonance".to_string(), 1.2);
+    }
+    Some(outcome)
+}
+
+/// Stellar Resonance Harvest — Cosmic connection and elevated insight in high/crystal places.
+/// Best during resonance_peak season or in Crystal Spires / elevated biomes.
+pub fn check_stellar_resonance(context: &EpiphanyContext) -> Option<EpiphanyOutcome> {
+    if context.depletion > 0.38 || !context.sustainable_pacing { return None; }
+    let is_stellar_biome = context.biome.contains("crystal_spires") || context.biome.contains("spire") || context.biome.contains("high");
+    if !is_stellar_biome { return None; }
+
+    let season_boost = if context.season.as_deref() == Some("resonance_peak") { 0.25 } else { 0.0 };
+    let intensity = (0.7 + (1.0 - context.depletion) * 0.25 + season_boost).clamp(0.6, 0.98);
+    let mut outcome = EpiphanyOutcome::new();
+    outcome.scenario_id = "stellar_resonance_harvest".to_string();
+    outcome.epiphany_multiplier = 1.65;
+    outcome.muscle_memory_consolidation_boost = 1.55;
+    outcome.intensity = intensity;
+    outcome.divine_whisper_flavor = "stellar_web_whisper".to_string();
+    outcome.particle_effect = "sacred_geometry_crystal_bloom".to_string();
+    outcome.time_dilation_factor = 1.35;
+    outcome.abundance_bloom_multiplier = 1.5;
+    outcome.biome_resonance = Some("stellar_resonance".to_string());
+    outcome.grace_notes.push("The stars and spires align through your presence — insight flows like light.".to_string());
+    outcome.world_effects.insert("stellar_resonance_bloom".to_string(), 1.45);
+    outcome.hypofrontality_depth = 0.75;
+    Some(outcome)
+}
+
+/// Graceful Redemption — Turning previous depletion or challenge into present abundance.
+/// Triggers after recovery (low current depletion + previous high effort signaled via regen_participation or duration).
+pub fn check_graceful_redemption(context: &EpiphanyContext) -> Option<EpiphanyOutcome> {
+    // Requires evidence of recovery: low current depletion + either regen participation or longer duration
+    if context.depletion > 0.32 { return None; }
+    if !context.regen_participation && context.duration_ticks < 90 { return None; }
+
+    let intensity = (0.6 + (1.0 - context.depletion) * 0.35).clamp(0.5, 0.95);
+    let mut outcome = EpiphanyOutcome::new();
+    outcome.scenario_id = "graceful_redemption".to_string();
+    outcome.epiphany_multiplier = 1.5;
+    outcome.muscle_memory_consolidation_boost = 1.6; // Strong memory consolidation — lesson integrated
+    outcome.intensity = intensity;
+    outcome.divine_whisper_flavor = "graceful_redemption_revelation".to_string();
+    outcome.particle_effect = "ethereal_bloom".to_string();
+    outcome.time_dilation_factor = 1.22;
+    outcome.abundance_bloom_multiplier = 1.55;
+    outcome.grace_notes.push("What was once depletion is now fertile ground. Your mercy has transmuted it.".to_string());
+    outcome.world_effects.insert("redemption_abundance_bloom".to_string(), 1.4);
+    outcome.hypofrontality_depth = 0.6;
+    Some(outcome)
+}
+
 pub fn check_council_harmony(collective_attunement: f32, participant_count: u8, duration_ticks: u64) -> Option<EpiphanyOutcome> {
     if participant_count < 3 || collective_attunement < 0.55 || duration_ticks < 180 { return None; }
 
@@ -296,5 +401,8 @@ pub fn trigger_epiphany_spatial_audio_bloom(
     });
 }
 
-// End of simulation/src/epiphany_catalyst.rs v18.24 — Sovereign epiphany catalyst complete.
+// End of simulation/src/epiphany_catalyst.rs v18.35 — 3 new high-quality scenarios added.
+// Overflow Lesson, Sustainable Abundance, Crystal Spires Resonance, Abyssal Depths Surge,
+// Mycorrhizal Communion, Stellar Resonance Harvest, Graceful Redemption, Council Harmony.
+// All mercy-gated, biome/season/context aware, richly flavored for vertical slice.
 // Thunder locked in. Yoi ⚡
