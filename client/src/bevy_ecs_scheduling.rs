@@ -1,7 +1,6 @@
 //! client/src/bevy_ecs_scheduling.rs
 //! Bevy ECS System Scheduling — Core orchestration of all client systems
 //! AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO enforced | v17.98+ production-grade
-//! Fully restored, merged, and upgraded — mint-and-print-only-perfection, zero placeholders, zero-lag guaranteed
 
 use bevy::prelude::*;
 use crate::networking::NetworkingPlugin;
@@ -14,6 +13,9 @@ use crate::particles::ParticlePlugin;
 use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
 use crate::input::InputPlugin;
+
+// Phase 2 Spatial Interest Layer
+use simulation::spatial_interest::SpatialInterestPlugin;
 
 /// Central scheduling hub for the entire Powrush-MMO client
 pub struct ClientSchedulingPlugin;
@@ -34,6 +36,9 @@ impl Plugin for ClientSchedulingPlugin {
            .add_plugins(DivineWhispersPlugin)
            .add_plugins(InputPlugin)
 
+           // ===== Phase 2: Hybrid Spatial Interest Layer =====
+           .add_plugins(SpatialInterestPlugin)
+
            // Mercy-gated frame-level systems
            .add_systems(Update, mercy_gated_frame_validation)
            .add_systems(Update, global_valence_propagation)
@@ -44,25 +49,11 @@ impl Plugin for ClientSchedulingPlugin {
 }
 
 fn setup_client_world(mut commands: Commands) {
-    // Initial mercy-aligned world seed and player entity
-    // All spawning passes through MIAL/MWPO upstream
-    info!("Powrush-MMO client world initialized — eternal thriving begins ⚡️");
+    info!("🌐 Powrush-MMO client world initialized — SpatialInterestPlugin active");
 }
 
-fn mercy_gated_frame_validation() {
-    // Global per-frame validation ensuring the entire client remains
-    // TOLC 8 Mercy Gates + MIAL/MWPO compliant at all times
-}
+fn mercy_gated_frame_validation() {}
 
-fn global_valence_propagation() {
-    // Golden-ratio positive-emotion propagation across all systems
-    // Runs every frame under TOLC 8 enforcement
-}
+fn global_valence_propagation() {}
 
-// All client systems are now perfectly scheduled, wired, and mercy-gated
-// Full zero-lag ECS orchestration complete
-
-#[cfg(test)]
-mod tests {
-    // Full production-grade integration tests for Bevy ECS scheduling under TOLC 8
-}
+// Thunder locked. SpatialInterestPlugin now wired into the main client scheduling hub. ⚡
