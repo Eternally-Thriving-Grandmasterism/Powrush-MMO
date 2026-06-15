@@ -1,6 +1,5 @@
 //! client/src/bevy_ecs_scheduling.rs
-//! Bevy ECS System Scheduling — Core orchestration of all client systems
-//! Includes Spatial Interest + Client Prediction systems
+//! Bevy ECS System Scheduling — Core orchestration
 
 use bevy::prelude::*;
 
@@ -15,16 +14,14 @@ use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
 use crate::input::InputPlugin;
 
-// Spatial Interest Layer
 use simulation::spatial_interest::SpatialInterestPlugin;
 
-// Client Prediction (Phase 1 & 2)
 use crate::prediction::{
     client_predict_local_player_movement,
     predict_interest_zone_expansion,
+    handle_player_interest_updated,
 };
 
-/// Central scheduling hub for the entire Powrush-MMO client
 pub struct ClientSchedulingPlugin;
 
 impl Plugin for ClientSchedulingPlugin {
@@ -41,11 +38,11 @@ impl Plugin for ClientSchedulingPlugin {
            .add_plugins(InputPlugin)
            .add_plugins(SpatialInterestPlugin)
 
-           // === Client Prediction Systems (Phase 1 & 2) ===
+           // Client Prediction + Replication handlers
            .add_systems(Update, client_predict_local_player_movement)
            .add_systems(Update, predict_interest_zone_expansion)
+           .add_systems(Update, handle_player_interest_updated)
 
-           // Spatial + general systems
            .add_systems(Update, mercy_gated_frame_validation)
            .add_systems(Update, global_valence_propagation)
            .add_systems(Startup, setup_client_world);
@@ -58,7 +55,7 @@ fn setup_client_world(mut commands: Commands) {
         crate::spatial_interest::SpatialParticipant,
     ));
 
-    info!("🌐 Powrush-MMO client world initialized — Spatial + Prediction systems active");
+    info!("🌐 Powrush-MMO client initialized — Prediction + InterestZone replication active");
 }
 
 fn mercy_gated_frame_validation() {}
