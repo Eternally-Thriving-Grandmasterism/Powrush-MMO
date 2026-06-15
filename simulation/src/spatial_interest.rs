@@ -1,10 +1,11 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Spatial Hash Results Used Directly in Propagation
+// SmallVec Optimization in SpatialHash
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
 use glam::{IVec2, Vec3};
+use smallvec::{SmallVec, smallvec};
 use std::collections::HashMap;
 
 #[derive(Component, Default)]
@@ -135,13 +136,17 @@ impl InterestManager {
 }
 
 // ============================================================
-// SPATIAL HASH
+// SPATIAL HASH - SmallVec Optimized
 // ============================================================
+
+/// Type alias for the per-cell storage.
+/// Uses SmallVec to keep small numbers of entities inline (better cache locality).
+type CellEntities = SmallVec<[(Entity, Vec3); 8]>;
 
 #[derive(Resource)]
 pub struct SpatialHash {
     pub cell_size: f32,
-    cells: HashMap<IVec2, Vec<(Entity, Vec3)>>,
+    cells: HashMap<IVec2, CellEntities>,
     entity_locations: HashMap<Entity, IVec2>,
 }
 
@@ -164,15 +169,23 @@ impl SpatialHash {
 
     pub fn insert(&mut self, position: Vec3, entity: Entity) {
         let new_cell = self.world_to_cell(position);
+
         if let Some(old_cell) = self.entity_locations.get(&entity) {
             if *old_cell != new_cell {
                 if let Some(old_list) = self.cells.get_mut(old_cell) {
                     old_list.retain(|(e, _)| *e != entity);
-                    if old_list.is_empty() { self.cells.remove(old_cell); }
+                    if old_list.is_empty() {
+                        self.cells.remove(old_cell);
+                    }
                 }
             }
         }
-        self.cells.entry(new_cell).or_default().push((entity, position));
+
+        self.cells
+            .entry(new_cell)
+            .or_insert_with(|| smallvec![])
+            .push((entity, position));
+
         self.entity_locations.insert(entity, new_cell);
     }
 
@@ -185,7 +198,7 @@ impl SpatialHash {
         for dx in -cell_radius..=cell_radius {
             for dy in -cell_radius..=cell_radius {
                 if let Some(entities) = self.cells.get(&IVec2::new(center_cell.x + dx, center_cell.y + dy)) {
-                    for &(entity, pos) in entities {
+                    for &(entity, pos) in entities.iter() {
                         if (pos - center).length_squared() <= radius_sq {
                             results.push(entity);
                         }
@@ -197,7 +210,10 @@ impl SpatialHash {
     }
 
     fn world_to_cell(&self, pos: Vec3) -> IVec2 {
-        IVec2::new((pos.x / self.cell_size).floor() as i32, (pos.z / self.cell_size).floor() as i32)
+        IVec2::new(
+            (pos.x / self.cell_size).floor() as i32,
+            (pos.z / self.cell_size).floor() as i32,
+        )
     }
 
     pub fn clear(&mut self) {
@@ -209,14 +225,16 @@ impl SpatialHash {
         if let Some(cell) = self.entity_locations.remove(&entity) {
             if let Some(list) = self.cells.get_mut(&cell) {
                 list.retain(|(e, _)| *e != entity);
-                if list.is_empty() { self.cells.remove(&cell); }
+                if list.is_empty() {
+                    self.cells.remove(&cell);
+                }
             }
         }
     }
 }
 
 // ============================================================
-// PLUGIN + OPTIMIZED PROPAGATION
+// PLUGIN + SYSTEMS
 // ============================================================
 
 pub struct SpatialInterestPlugin;
@@ -262,14 +280,12 @@ pub fn update_interest_zones_system(
     }
 }
 
-/// Uses spatial hash query results directly instead of re-iterating all InterestZone entities.
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
     mut interest_query: Query<(&mut InterestZone, &Transform)>,
 ) {
     if interest_manager.council_blooms.is_empty() {
-        // Idle decay when no blooms
         for (mut zone, _transform) in &mut interest_query {
             zone.council_boost *= 0.92;
             zone.mercy_resonance *= 0.95;
@@ -278,7 +294,6 @@ pub fn propagate_council_influence_system(
     }
 
     for bloom in &interest_manager.council_blooms {
-        // Get candidate entities from spatial hash (much smaller set than all InterestZones)
         let nearby_entities = spatial_hash.query_radius(bloom.center, bloom.radius);
 
         for entity in nearby_entities {
@@ -314,4 +329,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Propagation now uses spatial hash results directly. ⚡
+// Thunder locked. SpatialHash now uses SmallVec for better cache locality on small cells. ⚡
