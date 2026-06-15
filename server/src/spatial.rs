@@ -1,20 +1,27 @@
 // server/src/spatial.rs
 // Powrush-MMO Server Spatial Integration
-// Ensures player-like entities participate in the authoritative SpatialHash
+// Robust player/entity participation in SpatialHash + InterestZone
 
 use bevy::prelude::*;
-use simulation::spatial_interest::SpatialParticipant;
+use simulation::spatial_interest::{SpatialParticipant, InterestZone};
 
-/// System that ensures entities representing players (or player-like objects)
-/// have the SpatialParticipant component so they are tracked by the server's SpatialHash.
+/// Ensures that entities with Transform (especially players) participate
+/// in the server's SpatialHash and Interest system.
 ///
-/// This is a general "catch-all" system. It can be refined later once we have
-/// a clear server-side Player marker component.
+/// This version is more robust: it adds both SpatialParticipant and a default
+/// InterestZone so that authoritative player movement and council bloom
+/// propagation work correctly on the server.
 pub fn ensure_spatial_participation_system(
     mut commands: Commands,
-    query: Query<Entity, (With<Transform>, Without<SpatialParticipant>)>,
+    query: Query<(Entity, Option<&InterestZone>), (With<Transform>, Without<SpatialParticipant>)>,
 ) {
-    for entity in &query {
+    for (entity, interest_zone) in &query {
         commands.entity(entity).insert(SpatialParticipant);
+
+        // If the entity doesn't already have an InterestZone, give it a default one.
+        // This is especially useful for player entities.
+        if interest_zone.is_none() {
+            commands.entity(entity).insert(InterestZone::new(Vec3::ZERO, 80.0));
+        }
     }
 }
