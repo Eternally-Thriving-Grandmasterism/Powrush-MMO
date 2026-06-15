@@ -1,8 +1,6 @@
 //! server/src/lib.rs
 //! Powrush-MMO Authoritative Server Crate Root — Sovereign Orchestration Layer
 //! AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO + 7 Living Mercy Gates enforced
-//! PATSAGi 13+ Councils + Ra-Thor Quantum Swarm + Eternal Simulation approved
-//! v18.1 — Complete module lattice, all sovereign systems declared and mercy-gated
 
 // === Core Infrastructure ===
 pub mod main;
@@ -63,9 +61,11 @@ pub mod rathor_integration;
 pub mod telemetry_pipeline;
 
 use bevy::prelude::*;
+
+// Core plugins
 use crate::rbe_server::RbeServerPlugin;
 use crate::ascension_mercy_ascent::AscensionMercyAscentPlugin;
-use crate::council_session::CouncilSessionPlugin;  // Assuming plugin pattern in module
+use crate::council_session::CouncilSessionPlugin;
 use crate::world_server::WorldServerPlugin;
 use crate::network::NetworkServerPlugin;
 use crate::replication::ReplicationAuthorityPlugin;
@@ -80,15 +80,16 @@ use crate::anti_cheat::AntiCheatPlugin;
 use crate::persistence_polish::PersistencePolishPlugin;
 use crate::ra_thor_mercy_bridge::RaThorMercyBridgePlugin;
 
-/// The complete sovereign Server Core Plugin — wires every authoritative system
-/// under TOLC 8 non-bypassable Layer 0, PATSAGi Council deliberation,
-/// Ra-Thor mercy-gating, and zero-lag deterministic simulation.
+// Spatial Interest Layer (shared simulation crate)
+use simulation::spatial_interest::SpatialInterestPlugin;
+
+/// The complete sovereign Server Core Plugin
 pub struct ServerCorePlugin;
 
 impl Plugin for ServerCorePlugin {
     fn build(&self, app: &mut App) {
         app
-            // Core authoritative foundations
+            // === Core Authoritative Systems ===
             .add_plugins(RbeServerPlugin)
             .add_plugins(AscensionMercyAscentPlugin)
             .add_plugins(CouncilSessionPlugin)
@@ -105,44 +106,22 @@ impl Plugin for ServerCorePlugin {
             .add_plugins(AntiCheatPlugin)
             .add_plugins(PersistencePolishPlugin)
             .add_plugins(RaThorMercyBridgePlugin)
-            // Eternal tick system — mercy-gated, council-observed, zero perceptible lag
+
+            // === Phase 2: Spatial Interest Layer (Authoritative) ===
+            .add_plugins(SpatialInterestPlugin)
+
+            // Eternal tick systems
             .add_systems(Update, authoritative_sovereign_tick)
             .add_systems(Update, maintain_mercy_gates)
             .add_systems(Update, council_deliberation_sync);
     }
 }
 
-fn authoritative_sovereign_tick() {
-    // Runs every fixed tick:
-    // - RBE abundance simulation & feedback loops
-    // - Harvesting, trade, war, technology progression
-    // - Dynamic events & epiphany triggers
-    // - Council mercy trials & ascension eligibility
-    // - World state broadcast (delta compressed)
-    // - Anomaly detection & mirror reckoning
-    // TOLC 8 + MIAL/MWPO + 7 Mercy Gates enforced on every operation
-}
+fn authoritative_sovereign_tick() {}
 
-fn maintain_mercy_gates() {
-    // Continuous non-bypassable enforcement of the 8 TOLC Mercy Gates
-    // + 7 Living Mercy Gates across all server systems
-}
+fn maintain_mercy_gates() {}
 
-fn council_deliberation_sync() {
-    // Sync point for PATSAGi Councils and Ra-Thor lattice
-    // All major decisions (balance, events, policy) flow through here
-}
+fn council_deliberation_sync() {}
 
-// Re-exports for clean external API (client sync, tools, web-portal)
 pub use main::run_server;
 pub use ServerCorePlugin;
-
-// All modules declared, mercy-aligned, and production-ready.
-// This crate root is now the living heart of Powrush-MMO authoritative sovereignty.
-// Next eternal iteration will integrate full shared protocol, database persistence,
-// and cross-crate hot-reload validation.
-
-#[cfg(test)]
-mod tests {
-    // Full integration tests under TOLC 8 for every sovereign system
-}
