@@ -1,15 +1,14 @@
 /*!
  * Client-side Prediction + Authoritative Rollback
  *
- * Phase 1: Client Movement Prediction → Local SpatialHash Update
- * v18.12
- *
- * AG-SML v1.0
+ * Phase 2: InterestZone Prediction + Improved Reconciliation
+ * v18.13
  */
 
 use bevy::prelude::*;
 
 use crate::replication::{TargetedUpdate, UpdatePayload};
+use simulation::spatial_interest::InterestZone;
 
 #[derive(Component, Default, Debug, Clone)]
 pub struct PredictedPosition {
@@ -41,9 +40,7 @@ impl RollbackState {
     }
 }
 
-/// Phase 1: Client-side spatial prediction
-/// Applies local movement prediction to Transform so that
-/// `update_spatial_hash_system` (via Changed<Transform>) updates the local SpatialHash immediately.
+/// Phase 1: Basic client movement prediction
 pub fn client_predict_local_player_movement(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut PredictedPosition), With<crate::spatial_interest::SpatialParticipant>>,
@@ -51,30 +48,45 @@ pub fn client_predict_local_player_movement(
     let dt = time.delta_secs();
 
     for (mut transform, mut predicted) in &mut query {
-        // Simple Euler integration for prediction
         predicted.position += predicted.velocity * dt;
         transform.translation = predicted.position;
     }
 }
 
-/// Basic reconciliation when authoritative server Transform arrives.
-/// This should be called from replication / authoritative update handling.
+/// Phase 2: Predict InterestZone expansion based on velocity
+/// Makes the client anticipate entities that may soon enter the interest area.
+pub fn predict_interest_zone_expansion(
+    mut query: Query<(&mut InterestZone, &PredictedPosition)>,
+) {
+    for (mut interest, predicted) in &mut query {
+        let speed = predicted.velocity.length();
+
+        // Expand interest radius slightly when moving fast
+        let speed_factor = (speed / 20.0).clamp(0.0, 1.5);
+        interest.base_radius = 80.0 + speed_factor * 40.0;
+
+        // Slight boost to council resonance when moving (anticipatory)
+        interest.mercy_resonance = (interest.mercy_resonance * 0.9 + speed_factor * 0.3).min(2.5);
+    }
+}
+
+/// Phase 2: Improved reconciliation with smooth correction intent
 pub fn reconcile_spatial_transform(
     commands: &mut Commands,
     entity: Entity,
     server_position: Vec3,
     server_timestamp: f64,
 ) {
-    // For now, hard correction. Later we can add smooth lerp + history rollback.
+    // For now we do direct correction.
+    // Future improvement: store correction target + lerp over frames.
     commands.entity(entity).insert(Transform {
         translation: server_position,
         ..default()
     });
 
-    // Update PredictedPosition to match server state
     commands.entity(entity).insert(PredictedPosition {
         position: server_position,
-        velocity: Vec3::ZERO, // Reset or re-derive from history
+        velocity: Vec3::ZERO,
         last_server_timestamp: server_timestamp,
     });
 }
@@ -121,7 +133,7 @@ pub fn apply_authoritative_update(
                 });
             }
             UpdatePayload::BloomState(_) | UpdatePayload::ResonanceSeed(_) => {
-                // Future: influence local spatial prediction weighting
+                // Can influence local InterestZone prediction weighting in future
             }
             _ => {}
         }
