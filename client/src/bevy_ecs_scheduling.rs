@@ -6,7 +6,7 @@ use bevy::prelude::*;
 
 use crate::networking::NetworkingPlugin;
 use crate::replication::ReplicationPlugin;
-use crate::prediction::ReplicationPlugin;
+use crate::prediction::PredictionPlugin;
 use crate::delta_compression::DeltaCompressionPlugin;
 use crate::rbe_client_sync::RbeClientSyncPlugin;
 use crate::rbe::RbePlugin;
