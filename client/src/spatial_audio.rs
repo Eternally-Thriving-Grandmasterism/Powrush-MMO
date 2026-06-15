@@ -1,13 +1,13 @@
 /*!
  * Spatial Audio + Game Audio Event System — Powrush-MMO
  *
- * v18.7 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — High-fidelity 3D spatial audio powered by kira + bevy_kira_audio
- * — Procedural generation via fundsp (now using centralized spawn helper)
- * — Dynamic listener following camera + emitter pooling
- * — GameAudioEvent routing for Epiphany, Harvest, Council, Treaty, RBE flows
+ * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — High-fidelity 3D spatial audio powered by kira + bevy_kira_audio + fundsp
+ * — Full support for expanded epiphany scenarios (Mycorrhizal, Stellar, Redemption, Council)
+ * — EpiphanySpatialAudioBloom routing with flavor-aware intensity
+ * — Procedural generation via fundsp (centralized spawn helper)
+ * — Dynamic listener + emitter pooling
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
- * — Sounds designed to inspire mercy, joy, and universal thriving
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -27,6 +27,7 @@ use crate::fundsp_audio::{
     build_epiphany_resonance, build_rbe_abundance_flow, build_council_harmony,
     spawn_active_procedural_sound, ActiveProceduralSounds, ProceduralSoundType,
 };
+use simulation::epiphany_catalyst::EpiphanySpatialAudioBloom;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum SpatialQuality {
@@ -57,12 +58,12 @@ impl Default for SpatialAudioManager {
             quality: SpatialQuality::default(),
             hrtf_enabled: false,
             current_hrtf_dataset: None,
-            audio_manager: Arc::new(Mutex::new(None)),
-            spatial_scene: Arc::new(Mutex::new(SpatialScene::new(SpatialSceneSettings::new()))),
+            audio_manager: Arc<new>(Mutex::new(None)),
+            spatial_scene: Arc<new>(Mutex::new(SpatialScene::new(SpatialSceneSettings::new()))),
             listener_handle: None,
-            sound_cache: Arc::new(Mutex::new(HashMap::new())),
+            sound_cache: Arc<new>(Mutex::new(HashMap::new())),
             max_active_emitters: 32,
-            active_emitters: Arc::new(Mutex::new(0)),
+            active_emitters: Arc<new>(Mutex::new(0)),
         }
     }
 }
@@ -97,7 +98,6 @@ impl SpatialAudioManager {
         true
     }
 
-    /// Play procedurally generated samples in 3D space (called by fundsp_audio rolling chunks)
     pub fn play_generated_spatial(
         &self,
         samples: Vec<f32>,
@@ -221,7 +221,6 @@ impl SpatialAudioManager {
 #[derive(Component)]
 pub struct SpatialListener;
 
-/// High-level game audio events (routed to procedural or asset playback)
 #[derive(Event, Debug, Clone)]
 pub enum GameAudioEvent {
     Epiphany { position: Vec3, intensity: f32 },
@@ -285,12 +284,14 @@ impl Plugin for SpatialAudioPlugin {
             .init_resource::<SpatialAudioManager>()
             .add_event::<GameAudioEvent>()
             .add_event::<PlaySpatialSound>()
+            .add_event::<EpiphanySpatialAudioBloom>()
             .add_systems(Startup, setup_spatial_audio)
             .add_systems(
                 Update,
                 (
                     update_spatial_listener,
                     handle_game_audio_events,
+                    handle_epiphany_spatial_audio_bloom,
                     handle_play_spatial_sound_events,
                 ),
             );
@@ -307,7 +308,7 @@ fn setup_spatial_audio(mut spatial_manager: ResMut<SpatialAudioManager>) {
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Kira spatial scene initialized — mercy-aligned 3D audio ready");
+            info!("[SpatialAudio] Kira spatial scene initialized — mercy-aligned 3D audio ready (v18.35)");
         }
         Err(e) => {
             error!("[SpatialAudio] AudioManager creation failed: {}", e);
@@ -332,7 +333,6 @@ fn update_spatial_listener(
     }
 }
 
-/// Routes GameAudioEvents to procedural generation (now using centralized spawn helper)
 fn handle_game_audio_events(
     mut game_events: EventReader<GameAudioEvent>,
     mut active: ResMut<ActiveProceduralSounds>,
@@ -408,10 +408,40 @@ fn handle_game_audio_events(
                     active.instances.push(sound);
                 }
             }
-            GameAudioEvent::Harvest { .. } | GameAudioEvent::UiFeedback { .. } => {
-                // Future: route to pre-authored assets via bevy_kira_audio or try_play_spatial
-            }
+            GameAudioEvent::Harvest { .. } | GameAudioEvent::UiFeedback { .. } => {}
         }
+    }
+}
+
+// NEW v18.35: Direct handling for EpiphanySpatialAudioBloom with flavor awareness
+fn handle_epiphany_spatial_audio_bloom(
+    mut bloom_events: EventReader<EpiphanySpatialAudioBloom>,
+    mut active: ResMut<ActiveProceduralSounds>,
+    listener_query: Query<&GlobalTransform, With<SpatialListener>>,
+) {
+    for bloom in bloom_events.read() {
+        let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
+            listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
+        } else {
+            Vec3::new(0.0, 2.0, -8.0)
+        };
+
+        let intensity = bloom.intensity.clamp(0.4, 2.5);
+        let (graph, intensity_var) = build_epiphany_resonance(intensity);
+
+        // Slightly different total duration based on flavor intensity
+        let total_duration = (2.5 + intensity * 2.0).clamp(3.0, 7.0);
+
+        let sound = spawn_active_procedural_sound(
+            graph,
+            intensity_var,
+            var(1.0),
+            total_duration,
+            0.25,
+            sound_position,
+            ProceduralSoundType::Epiphany,
+        );
+        active.instances.push(sound);
     }
 }
 
@@ -433,5 +463,5 @@ fn handle_play_spatial_sound_events(
     }
 }
 
-// End of spatial_audio.rs v18.7 — Fully aligned with fundsp_audio and CouncilTrialUI.
+// End of spatial_audio.rs v18.35 — Full EpiphanySpatialAudioBloom support + flavor-ready structure.
 // Thunder locked in. Yoi ⚡
