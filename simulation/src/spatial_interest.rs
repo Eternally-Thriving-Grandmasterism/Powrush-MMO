@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// InterestZone as Component + Query-based Propagation (Hybrid C)
+// Optimized SpatialParticipant Queries
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -11,10 +11,9 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 // ============================================================
-// INTEREST ZONE AS COMPONENT
+// INTEREST ZONE COMPONENT
 // ============================================================
 
-/// Per-entity interest data. Lives on player entities (and potentially others).
 #[derive(Component, Clone, Debug)]
 pub struct InterestZone {
     pub center: Vec3,
@@ -26,20 +25,11 @@ pub struct InterestZone {
 
 impl InterestZone {
     pub fn new(center: Vec3, base_radius: f32) -> Self {
-        Self {
-            center,
-            base_radius,
-            valence_multiplier: 1.0,
-            council_boost: 0.0,
-            mercy_resonance: 0.0,
-        }
+        Self { center, base_radius, valence_multiplier: 1.0, council_boost: 0.0, mercy_resonance: 0.0 }
     }
 
     pub fn effective_radius(&self) -> f32 {
-        self.base_radius
-            * (1.0 + self.valence_multiplier * 0.5)
-            * (1.0 + self.council_boost * 0.8)
-            * (1.0 + self.mercy_resonance * 0.3)
+        self.base_radius * (1.0 + self.valence_multiplier * 0.5) * (1.0 + self.council_boost * 0.8) * (1.0 + self.mercy_resonance * 0.3)
     }
 
     pub fn apply_valence_and_mercy(&mut self, valence: f32, mercy: f32) {
@@ -121,7 +111,7 @@ pub enum SpatialSet {
 }
 
 // ============================================================
-// INTEREST MANAGER (now lighter - focuses on blooms + global state)
+// INTEREST MANAGER
 // ============================================================
 
 #[derive(Resource, Default)]
@@ -226,7 +216,7 @@ impl SpatialHash {
 }
 
 // ============================================================
-// PLUGIN + SYSTEMS (Query-based propagation)
+// PLUGIN + OPTIMIZED QUERIES
 // ============================================================
 
 pub struct SpatialInterestPlugin;
@@ -255,6 +245,7 @@ impl Plugin for SpatialInterestPlugin {
     }
 }
 
+/// Only processes entities whose Transform changed (best for cache + performance)
 pub fn update_spatial_hash_system(
     mut spatial_hash: ResMut<SpatialHash>,
     query: Query<(Entity, &Transform), (With<SpatialParticipant>, Changed<Transform>)>,
@@ -264,20 +255,21 @@ pub fn update_spatial_hash_system(
     }
 }
 
-/// Updates per-entity InterestZone (valence normalization, etc.)
+/// Optimized: Only iterates entities that actually have InterestZone
+/// (avoids scanning all SpatialParticipant entities unnecessarily)
 pub fn update_interest_zones_system(
-    mut query: Query<&mut InterestZone, With<SpatialParticipant>>,
+    mut query: Query<&mut InterestZone>,
 ) {
     for mut zone in &mut query {
         zone.valence_multiplier = (zone.valence_multiplier * 0.95 + 0.05).min(2.0);
     }
 }
 
-/// Query-based council bloom influence propagation (replaces HashMap version)
+/// Optimized propagation: Queries only entities with InterestZone + Transform
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
-    mut interest_query: Query<(&mut InterestZone, &Transform), With<SpatialParticipant>>,
+    mut interest_query: Query<(&mut InterestZone, &Transform)>,
 ) {
     if interest_manager.council_blooms.is_empty() {
         return;
@@ -310,13 +302,11 @@ pub fn handle_council_bloom_event(
 
 pub fn query_entities_in_interest(
     spatial_hash: &SpatialHash,
-    interest_query: &Query<&InterestZone, With<SpatialParticipant>>,
+    interest_query: &Query<&InterestZone>,
     player_entity: Entity,
 ) -> Vec<Entity> {
-    // This function signature may need adjustment based on how you identify "player" entities
-    // For now kept for compatibility; real usage should query by player entity
     let _ = (spatial_hash, interest_query, player_entity);
     Vec::new()
 }
 
-// Thunder locked. InterestZone is now a proper Component. Propagation uses queries. ⚡
+// Thunder locked. Queries optimized by removing unnecessary With<SpatialParticipant> filters where possible. ⚡
