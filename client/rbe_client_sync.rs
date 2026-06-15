@@ -1,7 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Full monitoring state with RTS Fixed-Lag Backward Smoother + full trajectory output (v18.37)
+// RTS residuals visualization + adaptive monitoring (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -23,7 +23,7 @@ pub struct SafetyNetMonitoringUpdate {
 }
 
 // ============================================================
-// RTS SMOOTHED WINDOW (Full trajectory output)
+// RTS SMOOTHED WINDOW
 // ============================================================
 
 #[derive(Debug, Clone, Default)]
@@ -34,7 +34,7 @@ pub struct RTSSmoothedWindow {
 }
 
 // ============================================================
-// SAFETY NET MONITORING SNAPSHOT
+// SAFETY NET MONITORING SNAPSHOT (with RTS vs Kalman residuals)
 // ============================================================
 
 #[derive(Debug, Clone, Default)]
@@ -56,11 +56,12 @@ pub struct SafetyNetMonitoringSnapshot {
     pub kalman_latency_estimate: f32,
     pub kalman_latency_velocity: f32,
     pub kalman_latency_residual: f32,
+    pub rts_smoothed_latency: f32,
+    pub rts_vs_kalman_residual: f32,      // NEW: RTS smoothed - Kalman estimate
     pub kalman_2d_latency: f32,
     pub kalman_2d_jitter: f32,
     pub kalman_2d_latency_residual: f32,
     pub kalman_2d_jitter_residual: f32,
-    pub smoothed_latency: f32,
     pub server_abundance: f64,
     pub server_health: f32,
     pub server_council_engagement: f32,
@@ -79,11 +80,8 @@ impl SafetyNetState {
         let kalman_2d_lat_res = self.kalman_2d.as_ref().map_or(0.0, |k| k.last_latency_residual);
         let kalman_2d_jit_res = self.kalman_2d.as_ref().map_or(0.0, |k| k.last_jitter_residual);
 
-        let smoothed = self.rts_smoother.as_ref()
-            .map_or_else(
-                || self.smoother_latency.as_ref().map_or(0.0, |s| s.smoothed_estimate),
-                |r| r.smoothed_estimate
-            );
+        let rts_smoothed = self.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
+        let rts_vs_kalman = rts_smoothed - kalman_lat;
 
         SafetyNetMonitoringSnapshot {
             timestamp_ms: now_ms,
@@ -103,11 +101,12 @@ impl SafetyNetState {
             kalman_latency_estimate: kalman_lat,
             kalman_latency_velocity: kalman_vel,
             kalman_latency_residual: kalman_res,
+            rts_smoothed_latency: rts_smoothed,
+            rts_vs_kalman_residual: rts_vs_kalman,
             kalman_2d_latency: kalman_2d_lat,
             kalman_2d_jitter: kalman_2d_jit,
             kalman_2d_latency_residual: kalman_2d_lat_res,
             kalman_2d_jitter_residual: kalman_2d_jit_res,
-            smoothed_latency: smoothed,
             server_abundance: self.last_abundance,
             server_health: self.last_health,
             server_council_engagement: self.last_council_engagement,
@@ -266,7 +265,7 @@ impl FixedLagKalmanSmoother {
     }
 }
 
-// RTS Fixed-Lag Backward Smoother with full trajectory output
+// RTS Fixed-Lag Backward Smoother
 #[derive(Clone, Debug)]
 pub struct RTSFixedLagSmoother {
     pub smoothed_estimate: f32,
@@ -311,7 +310,6 @@ impl RTSFixedLagSmoother {
             return;
         }
 
-        // RTS Backward Pass
         let mut smoothed = self.history.last().unwrap().estimate;
         let mut smoothed_cov = self.history.last().unwrap().covariance;
 
@@ -329,8 +327,6 @@ impl RTSFixedLagSmoother {
         self.smoothed_estimate = smoothed;
     }
 
-    /// Returns the full smoothed trajectory and covariances over the current lag window.
-    /// This enables deeper analysis, residual studies, and future adaptive tuning.
     pub fn get_smoothed_window(&self) -> RTSSmoothedWindow {
         if self.history.len() < 2 {
             return RTSSmoothedWindow {
@@ -343,7 +339,6 @@ impl RTSFixedLagSmoother {
         let mut smoothed_estimates = vec![0.0; self.history.len()];
         let mut smoothed_covariances = vec![0.0; self.history.len()];
 
-        // Start from the most recent
         smoothed_estimates[self.history.len() - 1] = self.history.last().unwrap().estimate;
         smoothed_covariances[self.history.len() - 1] = self.history.last().unwrap().covariance;
 
@@ -575,11 +570,14 @@ impl RbeClientSync {
             monitoring_events.send(SafetyNetMonitoringUpdate { snapshot });
 
             let rts_val = safety.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
+            let rts_vs_kalman = rts_val - snapshot.kalman_latency_estimate;
+
             tracing::info!(
-                "[SafetyNet][RTS] RTS={:.1} | res={:.1} | samples={}",
+                "[SafetyNet][RTS] RTS={:.1} | Kalman={:.1} | RTS-Kalman-Res={:.1} | RawRes={:.1}",
                 rts_val,
-                snapshot.kalman_latency_residual,
-                snapshot.sample_count
+                snapshot.kalman_latency_estimate,
+                rts_vs_kalman,
+                snapshot.kalman_latency_residual
             );
         }
 
