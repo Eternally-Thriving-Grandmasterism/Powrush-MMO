@@ -1,6 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
+// Includes latency monitoring for SafetyNet broadcasts
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -19,7 +20,7 @@ pub struct GpuSimulationState {
     pub last_update_notes: String,
 }
 
-/// Safety Net state resource for client-side sovereignty tracking
+/// Safety Net state resource for client-side sovereignty tracking + latency monitoring
 #[derive(Resource, Default, Clone)]
 pub struct SafetyNetState {
     pub last_tick: u64,
@@ -27,6 +28,12 @@ pub struct SafetyNetState {
     pub last_health: f32,
     pub last_council_engagement: f32,
     pub pending_events: Vec<String>,
+    // Latency monitoring (ms)
+    pub last_latency_ms: u64,
+    pub avg_latency_ms: f32,
+    pub max_latency_ms: u64,
+    pub min_latency_ms: u64,
+    pub sample_count: u32,
 }
 
 #[derive(Resource)]
@@ -43,7 +50,10 @@ impl RbeClientSync {
             local_inventory: Arc::new(RwLock::new(LocalInventory::default())),
             trade_state: Arc::new(RwLock::new(TradeUIState::default())),
             gpu_state: Arc::new(RwLock::new(GpuSimulationState::default())),
-            safety_net_state: Arc::new(RwLock::new(SafetyNetState::default())),
+            safety_net_state: Arc::new(RwLock::new(SafetyNetState {
+                min_latency_ms: u64::MAX,
+                ..Default::default()
+            })),
         }
     }
 
@@ -94,7 +104,7 @@ impl RbeClientSync {
                 tracing::info!("[Divine] Received whisper from server: {}", whisper.message);
             }
 
-            // ===== SAFETY NET BROADCAST CONSUMPTION (v18.37) =====
+            // ===== SAFETY NET BROADCAST CONSUMPTION + LATENCY MONITORING (v18.37) =====
             if let ServerMessage::SafetyNetBroadcast { broadcast } = &msg {
                 self.handle_safety_net_broadcast(broadcast).await;
             }
@@ -109,6 +119,49 @@ impl RbeClientSync {
         safety.last_abundance = broadcast.snapshot.abundance;
         safety.last_health = broadcast.snapshot.current_health;
         safety.last_council_engagement = broadcast.snapshot.council_engagement_score;
+
+        // ===== LATENCY MONITORING =====
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let latency_ms = if broadcast.emit_timestamp_ms > 0 {
+            now_ms.saturating_sub(broadcast.emit_timestamp_ms)
+        } else {
+            0
+        };
+
+        // Update running stats
+        safety.last_latency_ms = latency_ms;
+        safety.sample_count = safety.sample_count.saturating_add(1);
+
+        if safety.sample_count == 1 {
+            safety.avg_latency_ms = latency_ms as f32;
+            safety.min_latency_ms = latency_ms;
+            safety.max_latency_ms = latency_ms;
+        } else {
+            safety.avg_latency_ms = (safety.avg_latency_ms * (safety.sample_count - 1) as f32 + latency_ms as f32) / safety.sample_count as f32;
+            if latency_ms < safety.min_latency_ms {
+                safety.min_latency_ms = latency_ms;
+            }
+            if latency_ms > safety.max_latency_ms {
+                safety.max_latency_ms = latency_ms;
+            }
+        }
+
+        // Log latency (production: send to telemetry_pipeline)
+        tracing::info!(
+            "[SafetyNet][Latency] {}ms | reason={} | tick={} | player={}",
+            latency_ms,
+            broadcast.broadcast_reason,
+            broadcast.snapshot.tick,
+            broadcast.snapshot.player_id
+        );
+
+        if latency_ms > 150 {
+            tracing::warn!("[SafetyNet] High latency detected: {}ms (threshold 150ms)", latency_ms);
+        }
 
         // Process attached event if present
         if let Some(event) = &broadcast.event {
@@ -136,7 +189,7 @@ impl RbeClientSync {
             }
         }
 
-        tracing::info!(
+        tracing::debug!(
             "[SafetyNet] Broadcast consumed | player={} | tick={} | abundance={:.2} | health={:.1} | council_score={:.2} | reason={}",
             broadcast.snapshot.player_id,
             broadcast.snapshot.tick,
