@@ -1,6 +1,6 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
-// Ensemble Localization Techniques (State + Observation space) + Schur product (v18.37)
+// Adaptive Localization Radius + Ensemble Localization (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -13,78 +13,65 @@ use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeR
 use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI, receive_divine_whisper_from_server};
 
 // ============================================================
-// ENSEMBLE LOCALIZATION TECHNIQUES
-// Supports both State-space and Observation-space localization
-// Includes Gaspari-Cohn taper and Schur product application
+// ENSEMBLE LOCALIZATION + ADAPTIVE RADIUS
 // ============================================================
 
-/// Gaspari-Cohn fifth-order piecewise rational function (standard taper in EnKF literature).
-/// Returns a value in [0, 1] based on normalized distance.
-/// `normalized_distance` = physical_distance / localization_radius
+/// Gaspari-Cohn fifth-order piecewise rational function.
 pub fn gaspari_cohn(normalized_distance: f32) -> f32 {
     let z = normalized_distance.abs();
-
     if z >= 2.0 {
         0.0
     } else if z >= 1.0 {
         let z2 = z * z;
         let z3 = z2 * z;
-        -0.25 * z3 + 0.5 * z2 + 0.625 * z - (5.0 / 3.0) * z2 * z2 + (8.0 / 3.0) * z3 * z - (1.0 / 2.0) * z3 * z2 + (1.0 / 12.0) * z2 * z2 * z
+        -0.25 * z3 + 0.5 * z2 + 0.625 * z - (5.0/3.0)*z2*z2 + (8.0/3.0)*z3*z - 0.5*z3*z2 + (1.0/12.0)*z2*z2*z
     } else {
         let z2 = z * z;
         let z3 = z2 * z;
-        (4.0 / 3.0) * z3 - (5.0 / 2.0) * z2 + (5.0 / 8.0) * z3 * z - (1.0 / 12.0) * z2 * z2 + 1.0
+        (4.0/3.0)*z3 - 2.5*z2 + (5.0/8.0)*z3*z - (1.0/12.0)*z2*z2 + 1.0
     }
 }
 
-/// Creates a state-space localization matrix using Gaspari-Cohn taper.
-/// `distances[i][j]` should be the distance between state variable i and j.
-/// `localization_radius` controls how quickly correlations are tapered to zero.
+/// Creates a state-space localization matrix using Gaspari-Cohn.
 pub fn create_state_localization_matrix(
     distances: &[Vec<f32>],
     localization_radius: f32,
 ) -> Vec<Vec<f32>> {
     let n = distances.len();
-    let mut loc_matrix = vec![vec![0.0; n]; n];
-
+    let mut loc = vec![vec![0.0; n]; n];
     for i in 0..n {
         for j in 0..n {
-            let normalized_dist = distances[i][j] / localization_radius.max(1e-6);
-            loc_matrix[i][j] = gaspari_cohn(normalized_dist);
+            let norm_dist = distances[i][j] / localization_radius.max(1e-6);
+            loc[i][j] = gaspari_cohn(norm_dist);
         }
     }
-    loc_matrix
+    loc
 }
 
 /// Creates an observation-space localization matrix.
-/// `obs_state_distances[i][j]` = distance between observation i and state variable j.
 pub fn create_observation_localization_matrix(
     obs_state_distances: &[Vec<f32>],
     localization_radius: f32,
 ) -> Vec<Vec<f32>> {
     let n_obs = obs_state_distances.len();
     let n_state = if n_obs > 0 { obs_state_distances[0].len() } else { 0 };
-
-    let mut loc_matrix = vec![vec![0.0; n_state]; n_obs];
-
+    let mut loc = vec![vec![0.0; n_state]; n_obs];
     for i in 0..n_obs {
         for j in 0..n_state {
-            let normalized_dist = obs_state_distances[i][j] / localization_radius.max(1e-6);
-            loc_matrix[i][j] = gaspari_cohn(normalized_dist);
+            let norm_dist = obs_state_distances[i][j] / localization_radius.max(1e-6);
+            loc[i][j] = gaspari_cohn(norm_dist);
         }
     }
-    loc_matrix
+    loc
 }
 
-/// Applies localization to a covariance matrix via Schur (element-wise) product.
-/// This is the core operation in localized EnKF / EnKBF.
+/// Applies Schur product (localization) to a covariance matrix.
 pub fn apply_localization(
     covariance: &[Vec<f32>],
     localization_matrix: &[Vec<f32>],
 ) -> Vec<Vec<f32>> {
     let n = covariance.len();
     let mut localized = vec![vec![0.0; n]; n];
-
     for i in 0..n {
         for j in 0..n {
             localized[i][j] = covariance[i][j] * localization_matrix[i][j];
@@ -93,14 +80,83 @@ pub fn apply_localization(
     localized
 }
 
-/// Convenience function: Localize a covariance matrix given pairwise distances and radius.
-pub fn localize_covariance(
-    covariance: &[Vec<f32>],
-    distances: &[Vec<f32>],
-    localization_radius: f32,
-) -> Vec<Vec<f32>> {
-    let loc_matrix = create_state_localization_matrix(distances, localization_radius);
-    apply_localization(covariance, &loc_matrix)
+/// Adaptive Localization Radius
+/// Dynamically adjusts the localization radius based on recent residual statistics.
+/// Larger residuals → smaller radius (more aggressive localization).
+/// Smaller residuals → larger radius (allow longer-range correlations).
+pub fn compute_adaptive_localization_radius(
+    recent_residual_magnitude: f32,
+    base_radius: f32,
+    min_radius: f32,
+    max_radius: f32,
+    adaptation_rate: f32,
+) -> f32 {
+    // Simple heuristic: radius inversely related to residual size
+    let scale = (1.0 / (1.0 + recent_residual_magnitude)).clamp(0.3, 2.0);
+    let adaptive = base_radius * scale;
+
+    // Smooth adaptation toward the new value
+    let smoothed = base_radius * (1.0 - adaptation_rate) + adaptive * adaptation_rate;
+
+    smoothed.clamp(min_radius, max_radius)
+}
+
+/// Struct for maintaining adaptive localization over time
+#[derive(Clone, Debug)]
+pub struct AdaptiveLocalizer {
+    pub current_radius: f32,
+    base_radius: f32,
+    min_radius: f32,
+    max_radius: f32,
+    adaptation_rate: f32,
+    residual_history: Vec<f32>,
+    history_size: usize,
+}
+
+impl AdaptiveLocalizer {
+    pub fn new(
+        initial_radius: f32,
+        min_radius: f32,
+        max_radius: f32,
+        adaptation_rate: f32,
+        history_size: usize,
+    ) -> Self {
+        Self {
+            current_radius: initial_radius,
+            base_radius: initial_radius,
+            min_radius,
+            max_radius,
+            adaptation_rate,
+            residual_history: Vec::with_capacity(history_size),
+            history_size,
+        }
+    }
+
+    /// Update with a new residual magnitude and recompute adaptive radius
+    pub fn update(&mut self, new_residual_magnitude: f32) {
+        self.residual_history.push(new_residual_magnitude);
+        if self.residual_history.len() > self.history_size {
+            self.residual_history.remove(0);
+        }
+
+        let avg_residual = if self.residual_history.is_empty() {
+            new_residual_magnitude
+        } else {
+            self.residual_history.iter().sum::<f32>() / self.residual_history.len() as f32
+        };
+
+        self.current_radius = compute_adaptive_localization_radius(
+            avg_residual,
+            self.base_radius,
+            self.min_radius,
+            self.max_radius,
+            self.adaptation_rate,
+        );
+    }
+
+    pub fn get_current_radius(&self) -> f32 {
+        self.current_radius
+    }
 }
 
 // ============================================================
@@ -355,7 +411,7 @@ impl FixedLagKalmanSmoother {
     }
 }
 
-// RTS Fixed-Lag Backward Smoother (proper discrete RTS)
+// RTS Fixed-Lag Backward Smoother
 #[derive(Clone, Debug)]
 pub struct RTSFixedLagSmoother {
     pub smoothed_estimate: f32,
