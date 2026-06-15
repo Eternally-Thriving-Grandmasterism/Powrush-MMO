@@ -1,7 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Full monitoring state with RTS Fixed-Lag Backward Smoother (v18.37)
+// Full monitoring state with RTS Fixed-Lag Backward Smoother + full trajectory output (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -20,6 +20,17 @@ use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineW
 #[derive(Event, Debug, Clone)]
 pub struct SafetyNetMonitoringUpdate {
     pub snapshot: SafetyNetMonitoringSnapshot,
+}
+
+// ============================================================
+// RTS SMOOTHED WINDOW (Full trajectory output)
+// ============================================================
+
+#[derive(Debug, Clone, Default)]
+pub struct RTSSmoothedWindow {
+    pub smoothed_estimates: Vec<f32>,
+    pub smoothed_covariances: Vec<f32>,
+    pub window_size: usize,
 }
 
 // ============================================================
@@ -255,7 +266,7 @@ impl FixedLagKalmanSmoother {
     }
 }
 
-// RTS Fixed-Lag Backward Smoother
+// RTS Fixed-Lag Backward Smoother with full trajectory output
 #[derive(Clone, Debug)]
 pub struct RTSFixedLagSmoother {
     pub smoothed_estimate: f32,
@@ -316,6 +327,48 @@ impl RTSFixedLagSmoother {
         }
 
         self.smoothed_estimate = smoothed;
+    }
+
+    /// Returns the full smoothed trajectory and covariances over the current lag window.
+    /// This enables deeper analysis, residual studies, and future adaptive tuning.
+    pub fn get_smoothed_window(&self) -> RTSSmoothedWindow {
+        if self.history.len() < 2 {
+            return RTSSmoothedWindow {
+                smoothed_estimates: vec![self.smoothed_estimate],
+                smoothed_covariances: vec![self.history.last().map_or(1.0, |s| s.covariance)],
+                window_size: self.history.len(),
+            };
+        }
+
+        let mut smoothed_estimates = vec![0.0; self.history.len()];
+        let mut smoothed_covariances = vec![0.0; self.history.len()];
+
+        // Start from the most recent
+        smoothed_estimates[self.history.len() - 1] = self.history.last().unwrap().estimate;
+        smoothed_covariances[self.history.len() - 1] = self.history.last().unwrap().covariance;
+
+        let mut smoothed = smoothed_estimates[self.history.len() - 1];
+        let mut smoothed_cov = smoothed_covariances[self.history.len() - 1];
+
+        for i in (0..self.history.len() - 1).rev() {
+            let curr = &self.history[i];
+            let next = &self.history[i + 1];
+
+            let pred_cov = curr.covariance * curr.transition * curr.transition + 0.1;
+            let smoother_gain = curr.covariance * curr.transition / pred_cov.max(0.01);
+
+            smoothed = curr.estimate + smoother_gain * (smoothed - next.predicted);
+            smoothed_cov = curr.covariance + smoother_gain * smoother_gain * (smoothed_cov - pred_cov);
+
+            smoothed_estimates[i] = smoothed;
+            smoothed_covariances[i] = smoothed_cov;
+        }
+
+        RTSSmoothedWindow {
+            smoothed_estimates,
+            smoothed_covariances,
+            window_size: self.history.len(),
+        }
     }
 }
 
