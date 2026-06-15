@@ -1,6 +1,6 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
-// Advanced Adaptive Localization Radius (Residual + Ensemble Spread) (v18.37)
+// Localized Ensemble Kalman Filter (EnKF) Foundation (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -13,13 +13,202 @@ use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeR
 use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI, receive_divine_whisper_from_server};
 
 // ============================================================
-// ADVANCED ADAPTIVE LOCALIZATION
-// Uses both residual magnitude and ensemble spread
+// LOCALIZED ENSEMBLE KALMAN FILTER (Foundation)
+// Integrates advanced localization + adaptive radius
 // ============================================================
 
-/// Computes an adaptive localization radius using both recent residuals and ensemble spread.
-/// - High residuals or very low spread → smaller radius (more aggressive localization)
-/// - Low residuals + healthy spread → larger radius
+/// A single ensemble member (state vector)
+pub type EnsembleMember = Vec<f32>;
+
+/// Localized Ensemble Kalman Filter
+/// Supports covariance localization and adaptive localization radius.
+#[derive(Clone, Debug)]
+pub struct LocalizedEnsembleKalmanFilter {
+    pub ensemble: Vec<EnsembleMember>,
+    pub state_dim: usize,
+    pub ensemble_size: usize,
+    pub localization_radius: f32,
+    pub adaptive_localizer: Option<AdvancedAdaptiveLocalizer>,
+    pub last_mean: Vec<f32>,
+    pub last_spread: f32,
+}
+
+impl LocalizedEnsembleKalmanFilter {
+    pub fn new(
+        initial_state: Vec<f32>,
+        ensemble_size: usize,
+        initial_localization_radius: f32,
+    ) -> Self {
+        let state_dim = initial_state.len();
+        let mut ensemble = Vec::with_capacity(ensemble_size);
+
+        // Initialize ensemble around initial state with small noise
+        for _ in 0..ensemble_size {
+            let mut member = initial_state.clone();
+            for val in &mut member {
+                *val += rand::random::<f32>() * 0.5 - 0.25; // small perturbation
+            }
+            ensemble.push(member);
+        }
+
+        let mean = Self::compute_mean(&ensemble);
+        let spread = Self::compute_spread(&ensemble, &mean);
+
+        Self {
+            ensemble,
+            state_dim,
+            ensemble_size,
+            localization_radius: initial_localization_radius,
+            adaptive_localizer: None,
+            last_mean: mean,
+            last_spread: spread,
+        }
+    }
+
+    /// Enable adaptive localization radius
+    pub fn enable_adaptive_localization(
+        &mut self,
+        min_radius: f32,
+        max_radius: f32,
+        adaptation_strength: f32,
+        history_size: usize,
+    ) {
+        self.adaptive_localizer = Some(AdvancedAdaptiveLocalizer::new(
+            self.localization_radius,
+            min_radius,
+            max_radius,
+            adaptation_strength,
+            history_size,
+        ));
+    }
+
+    /// Forecast step (simple identity model + process noise for now)
+    pub fn forecast(&mut self, process_noise_std: f32) {
+        for member in &mut self.ensemble {
+            for val in member {
+                *val += rand::random::<f32>() * process_noise_std * 2.0 - process_noise_std;
+            }
+        }
+        self.update_statistics();
+    }
+
+    /// Analysis step with localization
+    /// `observation` and `obs_operator` define the measurement model.
+    /// This is a simplified localized EnKF analysis.
+    pub fn analyze(
+        &mut self,
+        observation: &[f32],
+        obs_operator: &[Vec<f32>], // H matrix
+        observation_noise: f32,
+        state_distances: Option<&[Vec<f32>]>,
+    ) {
+        let n = self.state_dim;
+        let mean = Self::compute_mean(&self.ensemble);
+
+        // Compute sample covariance (simplified)
+        let mut cov = vec![vec![0.0; n]; n];
+        for i in 0..n {
+            for j in 0..n {
+                let mut sum = 0.0;
+                for member in &self.ensemble {
+                    sum += (member[i] - mean[i]) * (member[j] - mean[j]);
+                }
+                cov[i][j] = sum / (self.ensemble_size as f32 - 1.0).max(1.0);
+            }
+        }
+
+        // Apply localization if distances are provided
+        let localized_cov = if let Some(distances) = state_distances {
+            let loc_matrix = create_state_localization_matrix(distances, self.localization_radius);
+            apply_localization(&cov, &loc_matrix)
+        } else {
+            cov
+        };
+
+        // Very simplified Kalman gain (for demonstration)
+        // In a full implementation this would use the localized covariance properly
+        let mut gain = vec![vec![0.0; observation.len()]; n];
+        for i in 0..n {
+            for j in 0..observation.len() {
+                // Simplified gain computation
+                gain[i][j] = localized_cov[i][i] / (localized_cov[i][i] + observation_noise).max(1e-6);
+            }
+        }
+
+        // Update ensemble members
+        for member in &mut self.ensemble {
+            for i in 0..n {
+                let mut innovation = 0.0;
+                for (j, &obs_val) in observation.iter().enumerate() {
+                    innovation += gain[i][j] * (obs_val - member[i]); // simplified
+                }
+                member[i] += innovation;
+            }
+        }
+
+        self.update_statistics();
+
+        // Update adaptive localization radius if enabled
+        if let Some(ref mut localizer) = self.adaptive_localizer {
+            let residual = self.compute_innovation_magnitude(observation);
+            localizer.update(residual, self.last_spread);
+            self.localization_radius = localizer.get_current_radius();
+        }
+    }
+
+    fn compute_innovation_magnitude(&self, observation: &[f32]) -> f32 {
+        let mean = &self.last_mean;
+        let mut sum_sq = 0.0;
+        for (i, &obs_val) in observation.iter().enumerate() {
+            if i < mean.len() {
+                sum_sq += (obs_val - mean[i]).powi(2);
+            }
+        }
+        sum_sq.sqrt()
+    }
+
+    fn update_statistics(&mut self) {
+        self.last_mean = Self::compute_mean(&self.ensemble);
+        self.last_spread = Self::compute_spread(&self.ensemble, &self.last_mean);
+    }
+
+    fn compute_mean(ensemble: &[EnsembleMember]) -> Vec<f32> {
+        let n = ensemble[0].len();
+        let mut mean = vec![0.0; n];
+        for member in ensemble {
+            for (i, &val) in member.iter().enumerate() {
+                mean[i] += val;
+            }
+        }
+        for val in &mut mean {
+            *val /= ensemble.len() as f32;
+        }
+        mean
+    }
+
+    fn compute_spread(ensemble: &[EnsembleMember], mean: &[f32]) -> f32 {
+        let mut sum = 0.0;
+        for member in ensemble {
+            for (i, &val) in member.iter().enumerate() {
+                sum += (val - mean[i]).powi(2);
+            }
+        }
+        (sum / (ensemble.len() as f32 * mean.len() as f32)).sqrt()
+    }
+
+    pub fn get_mean(&self) -> &[f32] {
+        &self.last_mean
+    }
+
+    pub fn get_spread(&self) -> f32 {
+        self.last_spread
+    }
+}
+
+// ============================================================
+// ADVANCED ADAPTIVE LOCALIZATION
+// ============================================================
+
 pub fn compute_advanced_adaptive_radius(
     avg_residual: f32,
     ensemble_spread: f32,
@@ -28,27 +217,13 @@ pub fn compute_advanced_adaptive_radius(
     max_radius: f32,
     adaptation_strength: f32,
 ) -> f32 {
-    // Normalize residual (higher = more aggressive localization needed)
     let residual_factor = (1.0 / (1.0 + avg_residual * 0.8)).clamp(0.4, 1.3);
-
-    // Normalize ensemble spread (very low spread = risk of collapse → slightly larger radius)
-    let spread_factor = if ensemble_spread < 0.5 {
-        1.15
-    } else if ensemble_spread > 3.0 {
-        0.9
-    } else {
-        1.0
-    };
-
+    let spread_factor = if ensemble_spread < 0.5 { 1.15 } else if ensemble_spread > 3.0 { 0.9 } else { 1.0 };
     let adaptive = base_radius * residual_factor * spread_factor;
-
-    // Smooth adaptation
     let smoothed = base_radius * (1.0 - adaptation_strength) + adaptive * adaptation_strength;
-
     smoothed.clamp(min_radius, max_radius)
 }
 
-/// Advanced Adaptive Localizer that considers both residuals and ensemble spread
 #[derive(Clone, Debug)]
 pub struct AdvancedAdaptiveLocalizer {
     pub current_radius: f32,
@@ -81,37 +256,21 @@ impl AdvancedAdaptiveLocalizer {
         }
     }
 
-    /// Update with new residual and ensemble spread values
     pub fn update(&mut self, new_residual: f32, new_spread: f32) {
         self.residual_history.push(new_residual);
         self.spread_history.push(new_spread);
+        if self.residual_history.len() > self.history_size { self.residual_history.remove(0); }
+        if self.spread_history.len() > self.history_size { self.spread_history.remove(0); }
 
-        if self.residual_history.len() > self.history_size {
-            self.residual_history.remove(0);
-        }
-        if self.spread_history.len() > self.history_size {
-            self.spread_history.remove(0);
-        }
-
-        let avg_residual = if self.residual_history.is_empty() {
-            new_residual
-        } else {
+        let avg_residual = if self.residual_history.is_empty() { new_residual } else {
             self.residual_history.iter().sum::<f32>() / self.residual_history.len() as f32
         };
-
-        let avg_spread = if self.spread_history.is_empty() {
-            new_spread
-        } else {
+        let avg_spread = if self.spread_history.is_empty() { new_spread } else {
             self.spread_history.iter().sum::<f32>() / self.spread_history.len() as f32
         };
 
         self.current_radius = compute_advanced_adaptive_radius(
-            avg_residual,
-            avg_spread,
-            self.base_radius,
-            self.min_radius,
-            self.max_radius,
-            self.adaptation_strength,
+            avg_residual, avg_spread, self.base_radius, self.min_radius, self.max_radius, self.adaptation_strength,
         );
     }
 
@@ -121,7 +280,7 @@ impl AdvancedAdaptiveLocalizer {
 }
 
 // ============================================================
-// BASIC LOCALIZATION FUNCTIONS (Gaspari-Cohn + matrices)
+// LOCALIZATION PRIMITIVES
 // ============================================================
 
 pub fn gaspari_cohn(normalized_distance: f32) -> f32 {
@@ -238,7 +397,7 @@ impl SafetyNetState {
         let kalman_2d_jit_res = self.kalman_2d.as_ref().map_or(0.0, |k| k.last_jitter_residual);
 
         let rts_smoothed = self.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
-        let rts_vs_kalman = rts_smoothed - snapshot.kalman_latency_estimate; // Note: snapshot not yet built, use kalman_lat
+        let rts_vs_kalman = rts_smoothed - kalman_lat;
 
         SafetyNetMonitoringSnapshot {
             timestamp_ms: now_ms,
