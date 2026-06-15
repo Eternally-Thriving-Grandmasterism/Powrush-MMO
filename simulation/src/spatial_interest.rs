@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Council Bloom Replication Support
+// Replication Versioning + Typed Events (Ra-Thor Inspired)
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -12,15 +12,25 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 // ============================================================
-// CONSTANTS
+// REPLICATION VERSIONING
 // ============================================================
 
-const DEFAULT_CELL_SIZE: f32 = 64.0;
-const DEFAULT_SPATIAL_QUERY_BUFFER_CAPACITY: usize = 128;
-const DEFAULT_INTEREST_MANAGER_BLOOM_CAPACITY: usize = 4;
+/// Tracks the last known authoritative version of an entity's replicated state.
+/// Used for InterestZone and other replicable components.
+#[derive(Component, Default, Clone, Debug)]
+pub struct ReplicationVersion {
+    pub interest_zone_version: u64,
+}
+
+/// Global version tracking for council bloom state.
+#[derive(Resource, Default, Clone, Debug)]
+pub struct BloomStateVersion {
+    pub version: u64,
+    pub last_updated: f64,
+}
 
 // ============================================================
-// INTEREST ZONE (Reflect-ready)
+// INTEREST ZONE (Reflect + Replication Ready)
 // ============================================================
 
 #[derive(Component, Clone, Debug, Reflect)]
@@ -66,6 +76,7 @@ pub struct SpatialEntityBundle {
 pub struct SpatialPlayerBundle {
     pub spatial: SpatialEntityBundle,
     pub interest: InterestZone,
+    pub replication_version: ReplicationVersion,
     pub name: Name,
 }
 
@@ -74,6 +85,7 @@ impl Default for SpatialPlayerBundle {
         Self {
             spatial: SpatialEntityBundle::default(),
             interest: InterestZone::new(Vec3::ZERO, 80.0),
+            replication_version: ReplicationVersion::default(),
             name: Name::new("Player"),
         }
     }
@@ -95,7 +107,7 @@ impl Default for SpatialResourceBundle {
 }
 
 // ============================================================
-// EVENTS
+// REPLICATION EVENTS (Typed + Versioned)
 // ============================================================
 
 #[derive(Event, Clone, Debug)]
@@ -109,10 +121,21 @@ pub struct PlayerInterestUpdated {
     pub zone: InterestZone,
 }
 
-/// New event for replicating active council bloom state to clients
+/// Replicated authoritative InterestZone state (server → client)
 #[derive(Event, Clone, Debug)]
-pub struct CouncilBloomStateUpdated {
+pub struct InterestZoneReplicated {
+    pub entity: Entity,
+    pub zone: InterestZone,
+    pub version: u64,
+    pub server_timestamp: f64,
+}
+
+/// Replicated active council bloom state (server → client)
+#[derive(Event, Clone, Debug)]
+pub struct CouncilBloomStateReplicated {
     pub active_blooms: Vec<CouncilBloomZone>,
+    pub version: u64,
+    pub server_timestamp: f64,
 }
 
 // ============================================================
@@ -283,10 +306,12 @@ impl Plugin for SpatialInterestPlugin {
         app.init_resource::<SpatialHash>()
            .init_resource::<InterestManager>()
            .init_resource::<SpatialQueryBuffer>()
+           .init_resource::<BloomStateVersion>()
 
            .add_event::<CouncilBloomTriggered>()
            .add_event::<PlayerInterestUpdated>()
-           .add_event::<CouncilBloomStateUpdated>()
+           .add_event::<InterestZoneReplicated>()
+           .add_event::<CouncilBloomStateReplicated>()
 
            .configure_sets(
                Update,
@@ -371,4 +396,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. CouncilBloomStateUpdated event added for bloom replication. ⚡
+// Thunder locked. Versioning + typed replication events added. ⚡
