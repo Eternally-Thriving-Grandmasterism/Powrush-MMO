@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// SmallVec Capacity Tuned to 12
+// Buffer Reuse for query_radius (Reduced Allocations)
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -136,11 +136,9 @@ impl InterestManager {
 }
 
 // ============================================================
-// SPATIAL HASH - SmallVec<[T; 12]>
+// SPATIAL HASH - Buffer Reuse Optimized
 // ============================================================
 
-/// Per-cell entity storage using SmallVec.
-/// Capacity of 12 chosen after tuning exploration for Powrush-MMO density.
 type CellEntities = SmallVec<[(Entity, Vec3); 12]>;
 
 #[derive(Resource)]
@@ -189,8 +187,9 @@ impl SpatialHash {
         self.entity_locations.insert(entity, new_cell);
     }
 
-    pub fn query_radius(&self, center: Vec3, radius: f32) -> Vec<Entity> {
-        let mut results = Vec::new();
+    /// Fills `out` with entities within radius (buffer reuse to avoid allocation)
+    pub fn query_radius(&self, center: Vec3, radius: f32, out: &mut Vec<Entity>) {
+        out.clear();
         let cell_radius = (radius / self.cell_size).ceil() as i32;
         let center_cell = self.world_to_cell(center);
         let radius_sq = radius * radius;
@@ -200,13 +199,12 @@ impl SpatialHash {
                 if let Some(entities) = self.cells.get(&IVec2::new(center_cell.x + dx, center_cell.y + dy)) {
                     for &(entity, pos) in entities.iter() {
                         if (pos - center).length_squared() <= radius_sq {
-                            results.push(entity);
+                            out.push(entity);
                         }
                     }
                 }
             }
         }
-        results
     }
 
     fn world_to_cell(&self, pos: Vec3) -> IVec2 {
@@ -280,11 +278,15 @@ pub fn update_interest_zones_system(
     }
 }
 
+/// Uses a reusable buffer for spatial queries to minimize allocations
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
     mut interest_query: Query<(&mut InterestZone, &Transform)>,
 ) {
+    // Reusable buffer to avoid allocating a new Vec every frame / every bloom
+    static mut QUERY_BUFFER: Vec<Entity> = Vec::new();
+
     if interest_manager.council_blooms.is_empty() {
         for (mut zone, _transform) in &mut interest_query {
             zone.council_boost *= 0.92;
@@ -294,9 +296,11 @@ pub fn propagate_council_influence_system(
     }
 
     for bloom in &interest_manager.council_blooms {
-        let nearby_entities = spatial_hash.query_radius(bloom.center, bloom.radius);
+        // SAFETY: This is a single-threaded game loop. In multi-threaded contexts use a thread-local.
+        let buffer = unsafe { &mut QUERY_BUFFER };
+        spatial_hash.query_radius(bloom.center, bloom.radius, buffer);
 
-        for entity in nearby_entities {
+        for &entity in buffer.iter() {
             if let Ok((mut zone, transform)) = interest_query.get_mut(entity) {
                 let dist = (transform.translation - bloom.center).length();
                 if dist <= bloom.radius {
@@ -329,4 +333,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. SmallVec capacity tuned to 12 after exploration. ⚡
+// Thunder locked. query_radius now uses buffer reuse to eliminate per-frame allocations. ⚡
