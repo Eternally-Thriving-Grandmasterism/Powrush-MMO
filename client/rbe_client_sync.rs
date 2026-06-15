@@ -1,8 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Includes latency monitoring + histograms + jitter + time-based EMA + Kalman filtering + Fixed-Lag Smoother
-// Full monitoring state exposure for debug UI and telemetry (v18.37)
+// Full monitoring state exposure + SafetyNetMonitoringUpdate event for telemetry (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -14,64 +13,46 @@ use bytes::Bytes;
 use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeResponseReceived, HarvestResponseReceived, handle_server_message};
 use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI, receive_divine_whisper_from_server};
 
-#[derive(Resource, Default, Clone)]
-pub struct GpuSimulationState {
-    pub global_confidence: f32,
-    pub node_predictions: std::collections::HashMap<u64, shared::protocol::NodeGpuPrediction>,
-    pub last_update_notes: String,
+// ============================================================
+// SAFETY NET MONITORING EVENT (for Telemetry Pipeline)
+// ============================================================
+
+#[derive(Event, Debug, Clone)]
+pub struct SafetyNetMonitoringUpdate {
+    pub snapshot: SafetyNetMonitoringSnapshot,
 }
 
 // ============================================================
-// FULL SAFETY NET MONITORING STATE EXPOSURE (v18.37)
-// Ready for Debug UI panels and Telemetry pipeline integration
+// SAFETY NET MONITORING SNAPSHOT
 // ============================================================
 
-/// Complete snapshot of all SafetyNet monitoring metrics.
-/// This struct is the single source of truth for debug UI and telemetry.
 #[derive(Debug, Clone, Default)]
 pub struct SafetyNetMonitoringSnapshot {
     pub timestamp_ms: u64,
-
-    // Raw + Basic Stats
     pub last_latency_ms: u64,
     pub avg_latency_ms: f32,
     pub min_latency_ms: u64,
     pub max_latency_ms: u64,
     pub sample_count: u32,
-
-    // Jitter
     pub last_jitter_ms: u64,
     pub avg_jitter_ms: f32,
     pub max_jitter_ms: u64,
-
-    // Histogram Percentiles
     pub p50_ms: u64,
     pub p95_ms: u64,
     pub p99_ms: u64,
-
-    // Time-based EMA
     pub ema_latency_ms: f32,
     pub ema_jitter_ms: f32,
-
-    // 1D Kalman
     pub kalman_latency_estimate: f32,
     pub kalman_latency_velocity: f32,
-
-    // 2D Kalman (joint)
     pub kalman_2d_latency: f32,
     pub kalman_2d_jitter: f32,
-
-    // Fixed-Lag Smoother
     pub smoothed_latency: f32,
-
-    // Authoritative snapshot from server
     pub server_abundance: f64,
     pub server_health: f32,
     pub server_council_engagement: f32,
 }
 
 impl SafetyNetState {
-    /// Returns a complete monitoring snapshot for debug UI or telemetry.
     pub fn get_monitoring_snapshot(&self, now_ms: u64) -> SafetyNetMonitoringSnapshot {
         let histogram = &self.latency_histogram;
 
@@ -109,7 +90,7 @@ impl SafetyNetState {
 }
 
 // ============================================================
-// EXISTING STRUCTS (Histogram, Kalman, Smoother)
+// CORE MONITORING STRUCTS (Histogram, Kalman, Smoother)
 // ============================================================
 
 #[derive(Clone, Debug, Default)]
@@ -119,21 +100,13 @@ pub struct LatencyHistogram {
 }
 
 impl LatencyHistogram {
-    pub fn new() -> Self {
-        Self { buckets: [0; 8], total_samples: 0 }
-    }
+    pub fn new() -> Self { Self { buckets: [0; 8], total_samples: 0 } }
 
     pub fn record(&mut self, latency_ms: u64) {
         self.total_samples = self.total_samples.saturating_add(1);
         let idx = match latency_ms {
-            0..=10 => 0,
-            11..=25 => 1,
-            26..=50 => 2,
-            51..=100 => 3,
-            101..=200 => 4,
-            201..=500 => 5,
-            501..=1000 => 6,
-            _ => 7,
+            0..=10 => 0, 11..=25 => 1, 26..=50 => 2, 51..=100 => 3,
+            101..=200 => 4, 201..=500 => 5, 501..=1000 => 6, _ => 7,
         };
         self.buckets[idx] = self.buckets[idx].saturating_add(1);
     }
@@ -157,12 +130,9 @@ impl LatencyHistogram {
 
 #[derive(Clone, Debug)]
 pub struct KalmanFilter1D {
-    pub estimate: f32,
-    pub velocity: f32,
-    process_noise: f32,
-    measurement_noise: f32,
-    error_estimate: f32,
-    error_velocity: f32,
+    pub estimate: f32, pub velocity: f32,
+    process_noise: f32, measurement_noise: f32,
+    error_estimate: f32, error_velocity: f32,
 }
 
 impl KalmanFilter1D {
@@ -185,11 +155,8 @@ impl KalmanFilter1D {
 
 #[derive(Clone, Debug)]
 pub struct KalmanFilter2D {
-    pub latency: f32,
-    pub jitter: f32,
-    process_noise: f32,
-    measurement_noise: f32,
-    error_cov: f32,
+    pub latency: f32, pub jitter: f32,
+    process_noise: f32, measurement_noise: f32, error_cov: f32,
 }
 
 impl KalmanFilter2D {
@@ -201,10 +168,8 @@ impl KalmanFilter2D {
         let alpha = 1.0 - (-dt / 0.6).exp().clamp(0.0, 0.95);
         let i_lat = m_lat - self.latency;
         let i_jit = m_jit - self.jitter;
-        self.latency += alpha * i_lat;
-        self.jitter += alpha * i_jit;
-        self.latency += 0.1 * alpha * i_jit;
-        self.jitter += 0.1 * alpha * i_lat;
+        self.latency += alpha * i_lat + 0.1 * alpha * i_jit;
+        self.jitter += alpha * i_jit + 0.1 * alpha * i_lat;
     }
 }
 
@@ -225,9 +190,7 @@ impl FixedLagKalmanSmoother {
         if self.history.len() > self.lag { self.history.remove(0); }
         if self.history.len() < 3 { self.smoothed_estimate = new_est; return; }
         let mut s = *self.history.last().unwrap();
-        for &v in self.history.iter().rev().skip(1) {
-            s = 0.7 * s + 0.3 * v;
-        }
+        for &v in self.history.iter().rev().skip(1) { s = 0.7 * s + 0.3 * v; }
         self.smoothed_estimate = s;
     }
 }
@@ -270,29 +233,13 @@ pub struct SafetyNetState {
 impl Default for SafetyNetState {
     fn default() -> Self {
         Self {
-            last_tick: 0,
-            last_abundance: 0.0,
-            last_health: 100.0,
-            last_council_engagement: 0.0,
+            last_tick: 0, last_abundance: 0.0, last_health: 100.0, last_council_engagement: 0.0,
             pending_events: Vec::new(),
-            last_latency_ms: 0,
-            avg_latency_ms: 0.0,
-            max_latency_ms: 0,
-            min_latency_ms: u64::MAX,
-            sample_count: 0,
-            latency_histogram: LatencyHistogram::new(),
-            last_jitter_ms: 0,
-            avg_jitter_ms: 0.0,
-            max_jitter_ms: 0,
-            previous_latency_ms: 0,
-            ema_latency_ms: 0.0,
-            ema_jitter_ms: 0.0,
-            ema_time_constant: 0.8,
-            last_ema_update_ms: 0,
-            kalman_latency: None,
-            kalman_jitter: None,
-            kalman_2d: None,
-            smoother_latency: None,
+            last_latency_ms: 0, avg_latency_ms: 0.0, max_latency_ms: 0, min_latency_ms: u64::MAX,
+            sample_count: 0, latency_histogram: LatencyHistogram::new(),
+            last_jitter_ms: 0, avg_jitter_ms: 0.0, max_jitter_ms: 0, previous_latency_ms: 0,
+            ema_latency_ms: 0.0, ema_jitter_ms: 0.0, ema_time_constant: 0.8, last_ema_update_ms: 0,
+            kalman_latency: None, kalman_jitter: None, kalman_2d: None, smoother_latency: None,
         }
     }
 }
@@ -326,6 +273,7 @@ impl RbeClientSync {
         divine_current: &mut CurrentDivineWhisper,
         divine_log: &mut DivineWhispersLog,
         divine_ui_query: &mut Query<(&mut Text, &mut DivineWhisperUI)>,
+        mut monitoring_events: EventWriter<SafetyNetMonitoringUpdate>,
     ) {
         if let Ok(msg) = bincode::deserialize::<ServerMessage>(&data) {
             let mut inv = self.local_inventory.write().await;
@@ -345,12 +293,16 @@ impl RbeClientSync {
             }
 
             if let ServerMessage::SafetyNetBroadcast { broadcast } = &msg {
-                self.handle_safety_net_broadcast(broadcast).await;
+                self.handle_safety_net_broadcast(broadcast, &mut monitoring_events).await;
             }
         }
     }
 
-    async fn handle_safety_net_broadcast(&self, broadcast: &SafetyNetBroadcast) {
+    async fn handle_safety_net_broadcast(
+        &self,
+        broadcast: &SafetyNetBroadcast,
+        monitoring_events: &mut EventWriter<SafetyNetMonitoringUpdate>,
+    ) {
         let mut safety = self.safety_net_state.write().await;
 
         safety.last_tick = broadcast.snapshot.tick;
@@ -413,22 +365,15 @@ impl RbeClientSync {
         safety.previous_latency_ms = latency_ms;
         safety.latency_histogram.record(latency_ms);
 
-        // === EXPOSE FULL MONITORING STATE ===
-        if safety.sample_count % 10 == 0 {
+        // Emit full monitoring state for Telemetry / Debug UI
+        if safety.sample_count % 5 == 0 {
             let snapshot = safety.get_monitoring_snapshot(now_ms);
-            tracing::info!(
-                "[SafetyNet][FullState] samples={} | latency={}ms (smoothed={:.1}) | jitter={}ms | ema={:.1} | kalman={:.1} | p95={}",
-                snapshot.sample_count,
-                snapshot.last_latency_ms,
-                snapshot.smoothed_latency,
-                snapshot.last_jitter_ms,
-                snapshot.ema_latency_ms,
-                snapshot.kalman_latency_estimate,
-                snapshot.p95_ms
-            );
+            monitoring_events.send(SafetyNetMonitoringUpdate { snapshot });
 
-            // TODO: Emit as Bevy Event for TelemetryPipeline or Debug UI
-            // commands.spawn(...).insert(SafetyNetMonitoringUpdate { snapshot });
+            tracing::info!(
+                "[SafetyNet][Telemetry] Emitted SafetyNetMonitoringUpdate | samples={} | smoothed={:.1} | p95={}",
+                snapshot.sample_count, snapshot.smoothed_latency, snapshot.p95_ms
+            );
         }
 
         if latency_ms > 150 || jitter_ms > 50 {
