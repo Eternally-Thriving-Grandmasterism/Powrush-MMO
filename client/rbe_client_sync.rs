@@ -1,6 +1,6 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
-// RTS Fixed-Lag Smoother upgraded with proper discrete RTS equations (v18.37)
+// Ensemble Localization Techniques (State + Observation space) + Schur product (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -11,6 +11,97 @@ use bytes::Bytes;
 
 use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeResponseReceived, HarvestResponseReceived, handle_server_message};
 use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI, receive_divine_whisper_from_server};
+
+// ============================================================
+// ENSEMBLE LOCALIZATION TECHNIQUES
+// Supports both State-space and Observation-space localization
+// Includes Gaspari-Cohn taper and Schur product application
+// ============================================================
+
+/// Gaspari-Cohn fifth-order piecewise rational function (standard taper in EnKF literature).
+/// Returns a value in [0, 1] based on normalized distance.
+/// `normalized_distance` = physical_distance / localization_radius
+pub fn gaspari_cohn(normalized_distance: f32) -> f32 {
+    let z = normalized_distance.abs();
+
+    if z >= 2.0 {
+        0.0
+    } else if z >= 1.0 {
+        let z2 = z * z;
+        let z3 = z2 * z;
+        -0.25 * z3 + 0.5 * z2 + 0.625 * z - (5.0 / 3.0) * z2 * z2 + (8.0 / 3.0) * z3 * z - (1.0 / 2.0) * z3 * z2 + (1.0 / 12.0) * z2 * z2 * z
+    } else {
+        let z2 = z * z;
+        let z3 = z2 * z;
+        (4.0 / 3.0) * z3 - (5.0 / 2.0) * z2 + (5.0 / 8.0) * z3 * z - (1.0 / 12.0) * z2 * z2 + 1.0
+    }
+}
+
+/// Creates a state-space localization matrix using Gaspari-Cohn taper.
+/// `distances[i][j]` should be the distance between state variable i and j.
+/// `localization_radius` controls how quickly correlations are tapered to zero.
+pub fn create_state_localization_matrix(
+    distances: &[Vec<f32>],
+    localization_radius: f32,
+) -> Vec<Vec<f32>> {
+    let n = distances.len();
+    let mut loc_matrix = vec![vec![0.0; n]; n];
+
+    for i in 0..n {
+        for j in 0..n {
+            let normalized_dist = distances[i][j] / localization_radius.max(1e-6);
+            loc_matrix[i][j] = gaspari_cohn(normalized_dist);
+        }
+    }
+    loc_matrix
+}
+
+/// Creates an observation-space localization matrix.
+/// `obs_state_distances[i][j]` = distance between observation i and state variable j.
+pub fn create_observation_localization_matrix(
+    obs_state_distances: &[Vec<f32>],
+    localization_radius: f32,
+) -> Vec<Vec<f32>> {
+    let n_obs = obs_state_distances.len();
+    let n_state = if n_obs > 0 { obs_state_distances[0].len() } else { 0 };
+
+    let mut loc_matrix = vec![vec![0.0; n_state]; n_obs];
+
+    for i in 0..n_obs {
+        for j in 0..n_state {
+            let normalized_dist = obs_state_distances[i][j] / localization_radius.max(1e-6);
+            loc_matrix[i][j] = gaspari_cohn(normalized_dist);
+        }
+    }
+    loc_matrix
+}
+
+/// Applies localization to a covariance matrix via Schur (element-wise) product.
+/// This is the core operation in localized EnKF / EnKBF.
+pub fn apply_localization(
+    covariance: &[Vec<f32>],
+    localization_matrix: &[Vec<f32>],
+) -> Vec<Vec<f32>> {
+    let n = covariance.len();
+    let mut localized = vec![vec![0.0; n]; n];
+
+    for i in 0..n {
+        for j in 0..n {
+            localized[i][j] = covariance[i][j] * localization_matrix[i][j];
+        }
+    }
+    localized
+}
+
+/// Convenience function: Localize a covariance matrix given pairwise distances and radius.
+pub fn localize_covariance(
+    covariance: &[Vec<f32>],
+    distances: &[Vec<f32>],
+    localization_radius: f32,
+) -> Vec<Vec<f32>> {
+    let loc_matrix = create_state_localization_matrix(distances, localization_radius);
+    apply_localization(covariance, &loc_matrix)
+}
 
 // ============================================================
 // SAFETY NET MONITORING EVENT
@@ -274,10 +365,10 @@ pub struct RTSFixedLagSmoother {
 
 #[derive(Clone, Debug)]
 struct RTSState {
-    estimate: f32,           // filtered estimate x_{k|k}
-    predicted: f32,          // predicted estimate x_{k+1|k}
-    covariance: f32,         // filtered covariance P_{k|k}
-    predicted_cov: f32,      // predicted covariance P_{k+1|k}
+    estimate: f32,
+    predicted: f32,
+    covariance: f32,
+    predicted_cov: f32,
     transition: f32,
 }
 
@@ -295,7 +386,6 @@ impl RTSFixedLagSmoother {
             new_estimate
         };
 
-        // Approximate predicted covariance (P_{k+1|k} ≈ F P_{k|k} F^T + Q)
         let predicted_cov = if let Some(last) = self.history.last() {
             last.covariance * transition * transition + 0.1
         } else {
@@ -318,7 +408,6 @@ impl RTSFixedLagSmoother {
             return;
         }
 
-        // Proper RTS Backward Pass
         let mut smoothed = self.history.last().unwrap().estimate;
         let mut smoothed_cov = self.history.last().unwrap().covariance;
 
@@ -326,7 +415,6 @@ impl RTSFixedLagSmoother {
             let curr = &self.history[i];
             let next = &self.history[i + 1];
 
-            // RTS smoother gain: C_k = P_{k|k} F^T (P_{k+1|k})^{-1}
             let smoother_gain = curr.covariance * curr.transition / next.predicted_cov.max(0.01);
 
             smoothed = curr.estimate + smoother_gain * (smoothed - next.predicted);
