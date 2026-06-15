@@ -110,6 +110,58 @@ pub struct CouncilParticipationRecord {
     pub cumulative_grace: f32,
 }
 
+// ==================== SAFETY NET BROADCAST PROTOCOL (v18.37) ====================
+// Mercy-gated authoritative safety layer for client sovereignty preservation.
+// Broadcast from live server sources (PersistenceManager, EpiphanyTelemetry, CouncilBloomField).
+// Client consumption: updates local inventory/state, triggers UI confirmation, optional local persistence safety write.
+// TOLC 8 + abundance preservation enforced. Zero-lag delta friendly. ENC + esacheck verified.
+
+/// Compact authoritative player sovereignty snapshot for safety sync / desync recovery.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SafetyNetSnapshot {
+    pub player_id: u64,
+    pub tick: u64,                    // Server authoritative monotonic tick for ordering
+    pub abundance: f64,
+    pub current_health: f32,
+    pub temporary_multiplier: f32,
+    pub multiplier_expires_at: u64,
+    pub council_engagement_score: f32,
+    pub last_council_bloom_tick: u64,
+    pub epiphany_count_session: u32,
+    pub mercy_seal: bool,             // TOLC 8 / mercy gate verified
+}
+
+/// Specific safety events that can be attached to a broadcast for immediate client reaction.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SafetyNetEvent {
+    AbundanceSafetyNetTriggered {
+        restored_amount: f64,
+        reason: String,               // e.g. "PersistenceChecksumRecovery", "CouncilBloomOverflow"
+    },
+    CouncilStateSync {
+        bloom_intensity: f32,
+        collective_attunement: f32,
+    },
+    EpiphanyPersistenceConfirmed {
+        epiphany_id: u64,
+        multiplier_applied: f32,
+    },
+    DesyncRecovery {
+        corrected_abundance: f64,
+        corrected_health: f32,
+    },
+    SovereigntyHeartbeat,             // Periodic lightweight authoritative ping
+}
+
+/// The main SafetyNetBroadcast payload. Server-authoritative.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SafetyNetBroadcast {
+    pub snapshot: SafetyNetSnapshot,
+    pub event: Option<SafetyNetEvent>,
+    pub broadcast_reason: String,     // e.g. "CouncilBloom", "PersistenceSave", "ClientRequest", "Heartbeat"
+    pub server_tick: u64,
+}
+
 // ==================== CLIENT / SERVER MESSAGES (Extended) ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,6 +182,9 @@ pub enum ClientMessage {
     CouncilLeave { session_id: u64 },
     CouncilVote { vote: MercyTrialVote },
     CouncilBloomAcknowledge { bloom_id: u64 },
+    // ===== SAFETY NET EXTENSIONS (v18.37) =====
+    SafetyNetAcknowledge { last_tick: u64 },
+    SafetyNetRequestFullSync,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +218,10 @@ pub enum ServerMessage {
     CollectiveEpiphanyBloomReceived { bloom: CollectiveEpiphanyBloom },
     CouncilParticipationUpdated { record: CouncilParticipationRecord },
     CouncilError { session_id: Option<u64>, reason: String },
+    // ===== SAFETY NET BROADCAST (v18.37) =====
+    SafetyNetBroadcast {
+        broadcast: SafetyNetBroadcast,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -208,5 +267,5 @@ impl TradeOffer {
     }
 }
 
-// TOLC 8 enforcement note: All Council messages pass through mercy/ truth / abundance gates
-// before replication. ENC + esacheck verified on every extension.
+// TOLC 8 enforcement note: All Council and SafetyNet messages pass through mercy / truth / abundance gates
+// before replication. ENC + esacheck verified on every extension. Client consumption must respect mercy_seal.
