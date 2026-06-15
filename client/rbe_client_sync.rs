@@ -1,7 +1,8 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Includes latency monitoring + histograms + jitter + time-based EMA + Kalman filtering + Fixed-Lag Smoother for SafetyNet broadcasts
+// Includes latency monitoring + histograms + jitter + time-based EMA + Kalman filtering + Fixed-Lag Smoother
+// Full monitoring state exposure for debug UI and telemetry (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -20,28 +21,111 @@ pub struct GpuSimulationState {
     pub last_update_notes: String,
 }
 
-/// Simple but effective fixed-bucket latency histogram for SafetyNet monitoring.
-/// Buckets chosen for typical MMO/game network latency distribution.
+// ============================================================
+// FULL SAFETY NET MONITORING STATE EXPOSURE (v18.37)
+// Ready for Debug UI panels and Telemetry pipeline integration
+// ============================================================
+
+/// Complete snapshot of all SafetyNet monitoring metrics.
+/// This struct is the single source of truth for debug UI and telemetry.
+#[derive(Debug, Clone, Default)]
+pub struct SafetyNetMonitoringSnapshot {
+    pub timestamp_ms: u64,
+
+    // Raw + Basic Stats
+    pub last_latency_ms: u64,
+    pub avg_latency_ms: f32,
+    pub min_latency_ms: u64,
+    pub max_latency_ms: u64,
+    pub sample_count: u32,
+
+    // Jitter
+    pub last_jitter_ms: u64,
+    pub avg_jitter_ms: f32,
+    pub max_jitter_ms: u64,
+
+    // Histogram Percentiles
+    pub p50_ms: u64,
+    pub p95_ms: u64,
+    pub p99_ms: u64,
+
+    // Time-based EMA
+    pub ema_latency_ms: f32,
+    pub ema_jitter_ms: f32,
+
+    // 1D Kalman
+    pub kalman_latency_estimate: f32,
+    pub kalman_latency_velocity: f32,
+
+    // 2D Kalman (joint)
+    pub kalman_2d_latency: f32,
+    pub kalman_2d_jitter: f32,
+
+    // Fixed-Lag Smoother
+    pub smoothed_latency: f32,
+
+    // Authoritative snapshot from server
+    pub server_abundance: f64,
+    pub server_health: f32,
+    pub server_council_engagement: f32,
+}
+
+impl SafetyNetState {
+    /// Returns a complete monitoring snapshot for debug UI or telemetry.
+    pub fn get_monitoring_snapshot(&self, now_ms: u64) -> SafetyNetMonitoringSnapshot {
+        let histogram = &self.latency_histogram;
+
+        let kalman_lat = self.kalman_latency.as_ref().map_or(0.0, |k| k.estimate);
+        let kalman_vel = self.kalman_latency.as_ref().map_or(0.0, |k| k.velocity);
+        let kalman_2d_lat = self.kalman_2d.as_ref().map_or(0.0, |k| k.latency);
+        let kalman_2d_jit = self.kalman_2d.as_ref().map_or(0.0, |k| k.jitter);
+        let smoothed = self.smoother_latency.as_ref().map_or(0.0, |s| s.smoothed_estimate);
+
+        SafetyNetMonitoringSnapshot {
+            timestamp_ms: now_ms,
+            last_latency_ms: self.last_latency_ms,
+            avg_latency_ms: self.avg_latency_ms,
+            min_latency_ms: self.min_latency_ms,
+            max_latency_ms: self.max_latency_ms,
+            sample_count: self.sample_count,
+            last_jitter_ms: self.last_jitter_ms,
+            avg_jitter_ms: self.avg_jitter_ms,
+            max_jitter_ms: self.max_jitter_ms,
+            p50_ms: histogram.p50(),
+            p95_ms: histogram.p95(),
+            p99_ms: histogram.p99(),
+            ema_latency_ms: self.ema_latency_ms,
+            ema_jitter_ms: self.ema_jitter_ms,
+            kalman_latency_estimate: kalman_lat,
+            kalman_latency_velocity: kalman_vel,
+            kalman_2d_latency: kalman_2d_lat,
+            kalman_2d_jitter: kalman_2d_jit,
+            smoothed_latency: smoothed,
+            server_abundance: self.last_abundance,
+            server_health: self.last_health,
+            server_council_engagement: self.last_council_engagement,
+        }
+    }
+}
+
+// ============================================================
+// EXISTING STRUCTS (Histogram, Kalman, Smoother)
+// ============================================================
+
 #[derive(Clone, Debug, Default)]
 pub struct LatencyHistogram {
-    /// Buckets: [0-10, 10-25, 25-50, 50-100, 100-200, 200-500, 500-1000, >1000] ms
     pub buckets: [u32; 8],
     pub total_samples: u32,
 }
 
 impl LatencyHistogram {
     pub fn new() -> Self {
-        Self {
-            buckets: [0; 8],
-            total_samples: 0,
-        }
+        Self { buckets: [0; 8], total_samples: 0 }
     }
 
-    /// Record a latency sample (in milliseconds)
     pub fn record(&mut self, latency_ms: u64) {
         self.total_samples = self.total_samples.saturating_add(1);
-
-        let bucket_index = match latency_ms {
+        let idx = match latency_ms {
             0..=10 => 0,
             11..=25 => 1,
             26..=50 => 2,
@@ -51,37 +135,26 @@ impl LatencyHistogram {
             501..=1000 => 6,
             _ => 7,
         };
-
-        self.buckets[bucket_index] = self.buckets[bucket_index].saturating_add(1);
-    }
-
-    /// Approximate percentile (0.0 - 1.0). Returns latency value for that percentile.
-    pub fn percentile(&self, p: f32) -> u64 {
-        if self.total_samples == 0 {
-            return 0;
-        }
-
-        let target = (self.total_samples as f32 * p.clamp(0.0, 1.0)) as u32;
-        let mut cumulative = 0u32;
-
-        let bucket_edges = [10u64, 25, 50, 100, 200, 500, 1000, u64::MAX];
-
-        for (i, &count) in self.buckets.iter().enumerate() {
-            cumulative += count;
-            if cumulative >= target {
-                return bucket_edges[i];
-            }
-        }
-
-        bucket_edges.last().copied().unwrap_or(0)
+        self.buckets[idx] = self.buckets[idx].saturating_add(1);
     }
 
     pub fn p50(&self) -> u64 { self.percentile(0.5) }
     pub fn p95(&self) -> u64 { self.percentile(0.95) }
     pub fn p99(&self) -> u64 { self.percentile(0.99) }
+
+    fn percentile(&self, p: f32) -> u64 {
+        if self.total_samples == 0 { return 0; }
+        let target = (self.total_samples as f32 * p.clamp(0.0, 1.0)) as u32;
+        let mut cum = 0u32;
+        let edges = [10u64, 25, 50, 100, 200, 500, 1000, u64::MAX];
+        for (i, &c) in self.buckets.iter().enumerate() {
+            cum += c;
+            if cum >= target { return edges[i]; }
+        }
+        edges.last().copied().unwrap_or(0)
+    }
 }
 
-/// 1D Kalman filter with position + velocity
 #[derive(Clone, Debug)]
 pub struct KalmanFilter1D {
     pub estimate: f32,
@@ -93,34 +166,23 @@ pub struct KalmanFilter1D {
 }
 
 impl KalmanFilter1D {
-    pub fn new(initial_value: f32) -> Self {
-        Self {
-            estimate: initial_value,
-            velocity: 0.0,
-            process_noise: 0.1,
-            measurement_noise: 15.0,
-            error_estimate: 1.0,
-            error_velocity: 1.0,
-        }
+    pub fn new(initial: f32) -> Self {
+        Self { estimate: initial, velocity: 0.0, process_noise: 0.1, measurement_noise: 15.0, error_estimate: 1.0, error_velocity: 1.0 }
     }
 
-    pub fn update(&mut self, measurement: f32, dt: f32) -> f32 {
+    pub fn update(&mut self, m: f32, dt: f32) -> f32 {
         self.estimate += self.velocity * dt;
         self.error_estimate += dt * (self.error_velocity + self.process_noise);
         self.error_velocity += self.process_noise;
-
         let gain = self.error_estimate / (self.error_estimate + self.measurement_noise);
-        let innovation = measurement - self.estimate;
-
-        self.estimate += gain * innovation;
-        self.velocity += gain * (innovation / dt.max(0.001));
+        let innov = m - self.estimate;
+        self.estimate += gain * innov;
+        self.velocity += gain * (innov / dt.max(0.001));
         self.error_estimate *= (1.0 - gain);
-
         self.estimate
     }
 }
 
-/// 2D Kalman filter for jointly estimating latency and jitter
 #[derive(Clone, Debug)]
 pub struct KalmanFilter2D {
     pub latency: f32,
@@ -131,72 +193,49 @@ pub struct KalmanFilter2D {
 }
 
 impl KalmanFilter2D {
-    pub fn new(latency: f32, jitter: f32) -> Self {
-        Self {
-            latency,
-            jitter,
-            process_noise: 0.15,
-            measurement_noise: 20.0,
-            error_cov: 1.0,
-        }
+    pub fn new(lat: f32, jit: f32) -> Self {
+        Self { latency: lat, jitter: jit, process_noise: 0.15, measurement_noise: 20.0, error_cov: 1.0 }
     }
 
-    pub fn update(&mut self, meas_latency: f32, meas_jitter: f32, dt: f32) {
+    pub fn update(&mut self, m_lat: f32, m_jit: f32, dt: f32) {
         let alpha = 1.0 - (-dt / 0.6).exp().clamp(0.0, 0.95);
-
-        let latency_innovation = meas_latency - self.latency;
-        let jitter_innovation = meas_jitter - self.jitter;
-
-        self.latency += alpha * latency_innovation;
-        self.jitter += alpha * jitter_innovation;
-
-        // Cross-influence
-        self.latency += 0.1 * alpha * jitter_innovation;
-        self.jitter += 0.1 * alpha * latency_innovation;
+        let i_lat = m_lat - self.latency;
+        let i_jit = m_jit - self.jitter;
+        self.latency += alpha * i_lat;
+        self.jitter += alpha * i_jit;
+        self.latency += 0.1 * alpha * i_jit;
+        self.jitter += 0.1 * alpha * i_lat;
     }
 }
 
-/// Fixed-Lag Kalman Smoother
-/// Keeps a small history and produces a smoothed estimate for recent samples
-/// using a lightweight backward pass. Much cleaner than raw Kalman for monitoring.
 #[derive(Clone, Debug)]
 pub struct FixedLagKalmanSmoother {
     pub smoothed_estimate: f32,
-    history: Vec<f32>,           // ring buffer of recent Kalman estimates
+    history: Vec<f32>,
     lag: usize,
 }
 
 impl FixedLagKalmanSmoother {
     pub fn new(lag: usize) -> Self {
-        Self {
-            smoothed_estimate: 0.0,
-            history: Vec::with_capacity(lag + 1),
-            lag,
-        }
+        Self { smoothed_estimate: 0.0, history: Vec::with_capacity(lag + 1), lag }
     }
 
-    /// Add a new Kalman estimate and compute smoothed value
-    pub fn update(&mut self, new_estimate: f32) {
-        self.history.push(new_estimate);
-        if self.history.len() > self.lag {
-            self.history.remove(0);
+    pub fn update(&mut self, new_est: f32) {
+        self.history.push(new_est);
+        if self.history.len() > self.lag { self.history.remove(0); }
+        if self.history.len() < 3 { self.smoothed_estimate = new_est; return; }
+        let mut s = *self.history.last().unwrap();
+        for &v in self.history.iter().rev().skip(1) {
+            s = 0.7 * s + 0.3 * v;
         }
-
-        if self.history.len() < 3 {
-            self.smoothed_estimate = new_estimate;
-            return;
-        }
-
-        // Lightweight backward smoothing pass (simple exponential decay backward)
-        let mut smoothed = *self.history.last().unwrap();
-        for &val in self.history.iter().rev().skip(1) {
-            smoothed = 0.7 * smoothed + 0.3 * val;  // light smoothing
-        }
-        self.smoothed_estimate = smoothed;
+        self.smoothed_estimate = s;
     }
 }
 
-/// Safety Net state resource
+// ============================================================
+// SAFETY NET STATE
+// ============================================================
+
 #[derive(Resource, Clone)]
 pub struct SafetyNetState {
     pub last_tick: u64,
@@ -212,24 +251,19 @@ pub struct SafetyNetState {
     pub sample_count: u32,
 
     pub latency_histogram: LatencyHistogram,
-
     pub last_jitter_ms: u64,
     pub avg_jitter_ms: f32,
     pub max_jitter_ms: u64,
     previous_latency_ms: u64,
 
-    // Time-based EMA
     pub ema_latency_ms: f32,
     pub ema_jitter_ms: f32,
     ema_time_constant: f32,
     last_ema_update_ms: u64,
 
-    // Kalman filters
     pub kalman_latency: Option<KalmanFilter1D>,
     pub kalman_jitter: Option<KalmanFilter1D>,
     pub kalman_2d: Option<KalmanFilter2D>,
-
-    // Fixed-Lag Kalman Smoother
     pub smoother_latency: Option<FixedLagKalmanSmoother>,
 }
 
@@ -297,14 +331,7 @@ impl RbeClientSync {
             let mut inv = self.local_inventory.write().await;
             let mut trade = self.trade_state.write().await;
 
-            handle_server_message(
-                &msg,
-                &mut inv,
-                &mut trade,
-                inventory_events,
-                trade_events,
-                harvest_events,
-            );
+            handle_server_message(&msg, &mut inv, &mut trade, inventory_events, trade_events, harvest_events);
 
             if let ServerMessage::GpuPatsagiUpdate { global_confidence, node_predictions, notes } = &msg {
                 let mut gpu = self.gpu_state.write().await;
@@ -350,13 +377,12 @@ impl RbeClientSync {
             safety.kalman_latency = Some(KalmanFilter1D::new(latency_ms as f32));
             safety.kalman_jitter = Some(KalmanFilter1D::new(jitter_ms as f32));
             safety.kalman_2d = Some(KalmanFilter2D::new(latency_ms as f32, jitter_ms as f32));
-            safety.smoother_latency = Some(FixedLagKalmanSmoother::new(8)); // lag of 8 samples
+            safety.smoother_latency = Some(FixedLagKalmanSmoother::new(8));
         } else {
             safety.avg_latency_ms = (safety.avg_latency_ms * (safety.sample_count - 1) as f32 + latency_ms as f32) / safety.sample_count as f32;
             if latency_ms < safety.min_latency_ms { safety.min_latency_ms = latency_ms; }
             if latency_ms > safety.max_latency_ms { safety.max_latency_ms = latency_ms; }
 
-            // Time-based EMA
             let dt_ms = now_ms.saturating_sub(safety.last_ema_update_ms);
             let dt_sec = dt_ms as f32 / 1000.0;
             let tau = safety.ema_time_constant;
@@ -366,24 +392,11 @@ impl RbeClientSync {
             safety.ema_jitter_ms = alpha * (jitter_ms as f32) + (1.0 - alpha) * safety.ema_jitter_ms;
             safety.last_ema_update_ms = now_ms;
 
-            // 1D Kalman
             let mut kalman_estimate = latency_ms as f32;
-            if let Some(k) = &mut safety.kalman_latency {
-                kalman_estimate = k.update(latency_ms as f32, dt_sec.max(0.001));
-            }
-            if let Some(k) = &mut safety.kalman_jitter {
-                k.update(jitter_ms as f32, dt_sec.max(0.001));
-            }
-
-            // 2D Kalman
-            if let Some(k2d) = &mut safety.kalman_2d {
-                k2d.update(latency_ms as f32, jitter_ms as f32, dt_sec.max(0.001));
-            }
-
-            // Fixed-Lag Kalman Smoother
-            if let Some(smoother) = &mut safety.smoother_latency {
-                smoother.update(kalman_estimate);
-            }
+            if let Some(k) = &mut safety.kalman_latency { kalman_estimate = k.update(latency_ms as f32, dt_sec.max(0.001)); }
+            if let Some(k) = &mut safety.kalman_jitter { k.update(jitter_ms as f32, dt_sec.max(0.001)); }
+            if let Some(k2d) = &mut safety.kalman_2d { k2d.update(latency_ms as f32, jitter_ms as f32, dt_sec.max(0.001)); }
+            if let Some(s) = &mut safety.smoother_latency { s.update(kalman_estimate); }
         }
 
         safety.last_jitter_ms = jitter_ms;
@@ -400,26 +413,31 @@ impl RbeClientSync {
         safety.previous_latency_ms = latency_ms;
         safety.latency_histogram.record(latency_ms);
 
-        let k1d = safety.kalman_latency.as_ref().map_or(0.0, |k| k.estimate);
-        let k2d = safety.kalman_2d.as_ref().map_or(0.0, |k| k.latency);
-        let smoothed = safety.smoother_latency.as_ref().map_or(0.0, |s| s.smoothed_estimate);
+        // === EXPOSE FULL MONITORING STATE ===
+        if safety.sample_count % 10 == 0 {
+            let snapshot = safety.get_monitoring_snapshot(now_ms);
+            tracing::info!(
+                "[SafetyNet][FullState] samples={} | latency={}ms (smoothed={:.1}) | jitter={}ms | ema={:.1} | kalman={:.1} | p95={}",
+                snapshot.sample_count,
+                snapshot.last_latency_ms,
+                snapshot.smoothed_latency,
+                snapshot.last_jitter_ms,
+                snapshot.ema_latency_ms,
+                snapshot.kalman_latency_estimate,
+                snapshot.p95_ms
+            );
 
-        tracing::info!(
-            "[SafetyNet][Latency] {}ms | jitter={}ms | ema={:.1} kalman={:.1} smoothed={:.1} | p50={} p95={} p99={}",
-            latency_ms, jitter_ms, safety.ema_latency_ms, k1d, smoothed,
-            safety.latency_histogram.p50(), safety.latency_histogram.p95(), safety.latency_histogram.p99()
-        );
+            // TODO: Emit as Bevy Event for TelemetryPipeline or Debug UI
+            // commands.spawn(...).insert(SafetyNetMonitoringUpdate { snapshot });
+        }
 
         if latency_ms > 150 || jitter_ms > 50 {
-            tracing::warn!("[SafetyNet] High latency/jitter (smoothed={:.1})", smoothed);
+            tracing::warn!("[SafetyNet] High latency/jitter (smoothed={:.1})", safety.smoother_latency.as_ref().map_or(0.0, |s| s.smoothed_estimate));
         }
 
         if let Some(event) = &broadcast.event {
-            match event {
-                SafetyNetEvent::AbundanceSafetyNetTriggered { restored_amount, reason } => {
-                    tracing::warn!("[SafetyNet] Abundance safety net triggered");
-                }
-                _ => {}
+            if let SafetyNetEvent::AbundanceSafetyNetTriggered { restored_amount, .. } = event {
+                tracing::warn!("[SafetyNet] Abundance safety net triggered: +{:.2}", restored_amount);
             }
         }
     }
