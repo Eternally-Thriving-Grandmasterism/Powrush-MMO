@@ -1,12 +1,12 @@
 /*!
  * Divine Whispers — PATSAGi Council Narrative & Messaging Layer
  *
- * v18.9 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Complete mint-and-print-only-perfection
- * — Live reactivity to ClientCouncilBloomState (bloom amplification + attunement)
- * — Reacts to AudioResonanceSeed from council trials
- * — Strong epiphany camera shake + particle bursts
- * — Mercy-gated intensity scaling
+ * — Full flavor mapping for all 8 epiphany scenarios (new: Mycorrhizal Communion, Stellar Resonance, Graceful Redemption)
+ * — Strong epiphany camera shake + differentiated particle bursts per flavor
+ * — Spatial Audio Bloom support via EpiphanySpatialAudioBloom
+ * — Mercy-gated intensity scaling + Council bloom amplification
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -21,7 +21,7 @@ use std::time::Duration;
 use crate::council_trial_ui::AudioResonanceSeed;
 use crate::particles::{ParticleSystem, ParticleSystemType};
 use crate::simulation_integration::ClientCouncilBloomState;
-use crate::spatial_audio::{GameAudioEvent, PlaySpatialSound};
+use crate::spatial_audio::{GameAudioEvent, PlaySpatialSound, EpiphanySpatialAudioBloom};
 
 #[derive(Component)]
 struct DivineWhisperUI;
@@ -47,6 +47,7 @@ impl Plugin for DivineWhispersPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_event::<DivineWhisperTrigger>()
+            .add_event::<EpiphanySpatialAudioBloom>()
             .init_resource::<CameraShake>()
             .add_systems(Startup, setup_divine_whisper_ui)
             .add_systems(
@@ -54,6 +55,7 @@ impl Plugin for DivineWhispersPlugin {
                 (
                     receive_divine_whispers,
                     receive_resonance_seeds,
+                    receive_spatial_audio_blooms,
                     update_whisper_fade,
                     update_epiphany_flash,
                     apply_camera_shake,
@@ -203,6 +205,101 @@ fn receive_divine_whispers(
     }
 }
 
+// Full flavor-based particle + effect mapping for all 8 epiphany scenarios (v18.35)
+fn spawn_whisper_particles(
+    commands: &mut Commands,
+    intensity: f32,
+    flavor: String,
+    is_epiphany: bool,
+    _panel_entity: Entity,
+) {
+    if !is_epiphany { return; }
+
+    let (particle_type, particle_count, particle_intensity, extra_valence) = match flavor.as_str() {
+        "mycelial_web_communion" | "deep_mycelium_whisper" => (
+            ParticleSystemType::MycelialWebGlow,
+            (8000.0 + intensity * 6000.0) as u32,
+            intensity * 1.7,
+            0.92,
+        ),
+        "stellar_web_whisper" | "spires_sing_the_web" | "stellar_resonance_harvest" => (
+            ParticleSystemType::SacredGeometryCrystalBloom,
+            (7000.0 + intensity * 9000.0) as u32,
+            intensity * 1.8,
+            0.97,
+        ),
+        "graceful_redemption_revelation" => (
+            ParticleSystemType::EthrealRedemptionBloom,
+            (6500.0 + intensity * 7500.0) as u32,
+            intensity * 1.55,
+            0.88,
+        ),
+        "council_harmony_revelation" | "ecstatic_harmony_council_crown" => (
+            ParticleSystemType::PatsagiDivineWhisper,
+            (9000.0 + intensity * 7000.0) as u32,
+            intensity * 1.9,
+            0.95,
+        ),
+        "sustainable_harmony_revelation" | "sustainable_abundance_revelation" => (
+            ParticleSystemType::JoySanctuaryBloom,
+            (6000.0 + intensity * 7000.0) as u32,
+            intensity * 1.5,
+            0.90,
+        ),
+        _ => (
+            ParticleSystemType::JoySanctuaryBloom,
+            (5000.0 + intensity * 6000.0) as u32,
+            intensity * 1.4,
+            0.85,
+        ),
+    };
+
+    commands.spawn((
+        ParticleSystem {
+            valence: extra_valence,
+            particle_count,
+            system_type: particle_type,
+            intensity: particle_intensity,
+        },
+        Transform::default(),
+    ));
+}
+
+// NEW: Direct support for EpiphanySpatialAudioBloom from simulation (v18.35)
+fn receive_spatial_audio_blooms(
+    mut blooms: EventReader<EpiphanySpatialAudioBloom>,
+    mut commands: Commands,
+    mut game_audio_events: EventWriter<GameAudioEvent>,
+    listener_query: Query<&GlobalTransform, With<crate::spatial_audio::SpatialListener>>,
+) {
+    for bloom in blooms.read() {
+        let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
+            listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
+        } else {
+            Vec3::new(0.0, 2.0, -8.0)
+        };
+
+        game_audio_events.send(GameAudioEvent::Epiphany {
+            position: sound_position,
+            intensity: bloom.intensity.max(0.6),
+        });
+
+        // Spawn matching particles for the bloom
+        commands.spawn((
+            ParticleSystem {
+                valence: 0.96,
+                particle_count: (5000.0 + bloom.intensity * 6000.0) as u32,
+                system_type: ParticleSystemType::JoySanctuaryBloom,
+                intensity: bloom.intensity * 1.5,
+            },
+            Transform::from_translation(sound_position),
+        ));
+
+        // Optional stronger camera response for high-intensity blooms
+        // (CameraShake resource can be accessed via ResMut if needed in future iterations)
+    }
+}
+
 // NEW: React to AudioResonanceSeed from council trials (full round-trip integration)
 fn receive_resonance_seeds(
     mut seeds: EventReader<AudioResonanceSeed>,
@@ -240,26 +337,6 @@ fn receive_resonance_seeds(
                 Transform::from_translation(sound_position),
             ));
         }
-    }
-}
-
-fn spawn_whisper_particles(
-    commands: &mut Commands,
-    intensity: f32,
-    _flavor: String,
-    is_epiphany: bool,
-    _panel_entity: Entity,
-) {
-    if is_epiphany {
-        commands.spawn((
-            ParticleSystem {
-                valence: 0.95,
-                particle_count: (6000.0 + intensity * 8000.0) as u32,
-                system_type: ParticleSystemType::JoySanctuaryBloom,
-                intensity: intensity * 1.6,
-            },
-            Transform::default(),
-        ));
     }
 }
 
@@ -332,5 +409,6 @@ fn update_whispers_from_council_bloom(
     }
 }
 
-// End of divine_whispers.rs v18.9 — Fully integrated with council bloom, resonance seeds, particles, and audio.
+// End of divine_whispers.rs v18.35 — Full flavor mapping for all epiphany scenarios + EpiphanySpatialAudioBloom support.
+// Differentiated particles per new scenario (Mycorrhizal, Stellar, Graceful Redemption, Council).
 // Thunder locked in. Yoi ⚡
