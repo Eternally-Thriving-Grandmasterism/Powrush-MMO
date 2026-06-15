@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Event-Driven Council Bloom System
+// ECS Bundles for Spatial Entities
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -11,16 +11,64 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 // ============================================================
-// EVENTS - Event-Driven Council & Spatial Influence
+// ECS BUNDLES - Ergonomic Spatial Entity Spawning
 // ============================================================
 
-/// Fired when a Council Bloom is triggered (from council_session_handler or elsewhere)
+/// Standard bundle for any entity that should participate in the spatial interest system.
+/// Includes Transform, SpatialParticipant, and common components.
+#[derive(Bundle, Default)]
+pub struct SpatialEntityBundle {
+    pub transform: Transform,
+    pub global_transform: GlobalTransform,
+    pub visibility: Visibility,
+    pub inherited_visibility: InheritedVisibility,
+    pub view_visibility: ViewVisibility,
+    pub spatial_participant: SpatialParticipant,
+}
+
+/// Bundle for player entities that participate in spatial interest and council influence.
+#[derive(Bundle)]
+pub struct SpatialPlayerBundle {
+    pub spatial: SpatialEntityBundle,
+    pub name: Name,
+    // Add more player-specific components here as needed
+}
+
+impl Default for SpatialPlayerBundle {
+    fn default() -> Self {
+        Self {
+            spatial: SpatialEntityBundle::default(),
+            name: Name::new("Player"),
+        }
+    }
+}
+
+/// Bundle for resource nodes that should be affected by council blooms and spatial queries.
+#[derive(Bundle)]
+pub struct SpatialResourceBundle {
+    pub spatial: SpatialEntityBundle,
+    pub name: Name,
+    // TODO: Add ResourceNode component when defined
+}
+
+impl Default for SpatialResourceBundle {
+    fn default() -> Self {
+        Self {
+            spatial: SpatialEntityBundle::default(),
+            name: Name::new("ResourceNode"),
+        }
+    }
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+
 #[derive(Event, Clone, Debug)]
 pub struct CouncilBloomTriggered {
     pub bloom: CouncilBloomZone,
 }
 
-/// Optional: Fired when a player's InterestZone is meaningfully updated
 #[derive(Event, Clone, Debug)]
 pub struct PlayerInterestUpdated {
     pub player_id: u64,
@@ -177,10 +225,6 @@ impl InterestManager {
     }
 }
 
-// ============================================================
-// SPATIAL INTEREST PLUGIN + EVENT-DRIVEN SYSTEMS
-// ============================================================
-
 pub struct SpatialInterestPlugin;
 
 impl Plugin for SpatialInterestPlugin {
@@ -188,11 +232,9 @@ impl Plugin for SpatialInterestPlugin {
         app.init_resource::<SpatialHash>()
            .init_resource::<InterestManager>()
 
-           // Register Events
            .add_event::<CouncilBloomTriggered>()
            .add_event::<PlayerInterestUpdated>()
 
-           // System Sets
            .configure_sets(
                Update,
                (
@@ -202,12 +244,9 @@ impl Plugin for SpatialInterestPlugin {
                ),
            )
 
-           // Systems
            .add_systems(Update, update_spatial_hash_system.in_set(SpatialSet::UpdateHash))
            .add_systems(Update, update_interest_zones_system.in_set(SpatialSet::UpdateInterestZones))
            .add_systems(Update, propagate_council_influence_system.in_set(SpatialSet::PropagateCouncilInfluence))
-
-           // Event-driven bloom handling
            .add_systems(Update, handle_council_bloom_event);
     }
 }
@@ -234,7 +273,6 @@ pub fn propagate_council_influence_system(
     interest_manager.propagate_council_influence(&spatial_hash);
 }
 
-/// Reacts to CouncilBloomTriggered events and applies influence
 pub fn handle_council_bloom_event(
     mut events: EventReader<CouncilBloomTriggered>,
     mut interest_manager: ResMut<InterestManager>,
@@ -254,4 +292,4 @@ pub fn query_entities_in_interest(
         .unwrap_or_default()
 }
 
-// Thunder locked. Event-driven Council Bloom system implemented. ⚡
+// Thunder locked. ECS Bundles added for clean spatial entity spawning. ⚡
