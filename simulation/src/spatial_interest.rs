@@ -10,34 +10,45 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 /// High-performance SpatialHash with O(1) entity movement tracking.
+///
+/// Cell size is critical for performance:
+/// - Too small → High memory + many cells to check per query
+/// - Too large → Poor culling + many false positives in radius queries
+///
+/// Recommended strategy for Powrush-MMO:
+/// - Use ~0.5x to 1.0x of your most common query radius (council blooms, particle effects, audio)
+/// - Default of 64.0 works well for medium-density worlds with 50–150 unit interaction ranges.
 #[derive(Resource)]
 pub struct SpatialHash {
     pub cell_size: f32,
     cells: HashMap<IVec2, Vec<(Entity, Vec3)>>,
-    /// Tracks which cell each entity currently occupies for fast removal
     entity_locations: HashMap<Entity, IVec2>,
 }
 
 impl Default for SpatialHash {
     fn default() -> Self {
-        Self::new(64.0) // Good default for Powrush-MMO scale (adjust per world)
+        Self::new(64.0)
     }
 }
 
 impl SpatialHash {
     pub fn new(cell_size: f32) -> Self {
         Self {
-            cell_size,
+            cell_size: cell_size.max(8.0), // Prevent degenerate tiny cells
             cells: HashMap::new(),
             entity_locations: HashMap::new(),
         }
     }
 
-    /// Insert or move an entity. O(1) removal from previous cell.
+    /// Returns a recommended cell size based on your typical query radius.
+    /// Good heuristic: cell_size ≈ expected_query_radius * 0.6 ~ 0.8
+    pub fn recommended_cell_size(expected_query_radius: f32) -> f32 {
+        (expected_query_radius * 0.7).clamp(16.0, 256.0)
+    }
+
     pub fn insert(&mut self, position: Vec3, entity: Entity) {
         let new_cell = self.world_to_cell(position);
 
-        // Fast removal from old cell using tracked location
         if let Some(old_cell) = self.entity_locations.get(&entity) {
             if *old_cell != new_cell {
                 if let Some(old_list) = self.cells.get_mut(old_cell) {
@@ -47,12 +58,10 @@ impl SpatialHash {
                     }
                 }
             } else {
-                // Same cell, just update position
                 if let Some(list) = self.cells.get_mut(&new_cell) {
                     for (e, pos) in list.iter_mut() {
                         if *e == entity {
                             *pos = position;
-                            self.entity_locations.insert(entity, new_cell);
                             return;
                         }
                     }
@@ -96,7 +105,6 @@ impl SpatialHash {
         self.entity_locations.clear();
     }
 
-    /// Remove a specific entity (useful on despawn)
     pub fn remove(&mut self, entity: Entity) {
         if let Some(cell) = self.entity_locations.remove(&entity) {
             if let Some(list) = self.cells.get_mut(&cell) {
@@ -109,7 +117,7 @@ impl SpatialHash {
     }
 }
 
-// === Rest of the module (InterestZone, InterestManager, Plugin, Systems) ===
+// === Interest Types ===
 
 #[derive(Clone, Debug)]
 pub struct InterestZone {
@@ -174,7 +182,6 @@ pub fn update_spatial_hash_system(
     mut spatial_hash: ResMut<SpatialHash>,
     query: Query<(Entity, &Transform), With<SpatialParticipant>>,
 ) {
-    // Note: For very large worlds, consider incremental updates instead of full clear
     for (entity, transform) in &query {
         spatial_hash.insert(transform.translation, entity);
     }
@@ -196,4 +203,4 @@ pub fn query_entities_in_interest(
         .unwrap_or_default()
 }
 
-// Thunder locked. SpatialHash performance optimized with O(1) entity tracking. ⚡
+// Thunder locked. Spatial hash cell size optimization + recommendation helper added. ⚡
