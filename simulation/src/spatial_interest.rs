@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Council Bloom Influence Propagation Implemented
+// System Sets + Explicit Scheduling Implemented
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -9,6 +9,20 @@ use std::collections::HashMap;
 
 #[derive(Component, Default)]
 pub struct SpatialParticipant;
+
+// ============================================================
+// SYSTEM SETS - Explicit Layered Scheduling
+// ============================================================
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SpatialSet {
+    /// Update the spatial hash grid (only changed entities)
+    UpdateHash,
+    /// Update player interest zones (valence normalization, etc.)
+    UpdateInterestZones,
+    /// Propagate council bloom influence into player interest
+    PropagateCouncilInfluence,
+}
 
 #[derive(Resource)]
 pub struct SpatialHash {
@@ -87,7 +101,7 @@ impl SpatialHash {
     }
 }
 
-// === Interest Types with Council Influence ===
+// === Interest Types ===
 
 #[derive(Clone, Debug)]
 pub struct InterestZone {
@@ -126,50 +140,32 @@ pub struct CouncilBloomZone {
 }
 
 impl InterestManager {
-    pub fn update_player_zone(&mut self, player_id: u64, zone: InterestZone) {
-        self.player_zones.insert(player_id, zone);
-    }
-
+    pub fn update_player_zone(&mut self, player_id: u64, zone: InterestZone) { self.player_zones.insert(player_id, zone); }
     pub fn apply_council_bloom(&mut self, bloom: CouncilBloomZone) {
         self.council_blooms.retain(|b| b.session_id != bloom.session_id);
         self.council_blooms.push(bloom);
     }
-
-    /// Core influence propagation: Council blooms boost nearby players' interest zones.
-    /// This is the living bridge between collective epiphanies and personal spatial experience.
     pub fn propagate_council_influence(&mut self, spatial_hash: &SpatialHash) {
-        if self.council_blooms.is_empty() {
-            return;
-        }
+        if self.council_blooms.is_empty() { return; }
 
         for bloom in &self.council_blooms {
-            // Query entities near the bloom
-            let affected_entities = spatial_hash.query_radius(bloom.center, bloom.radius);
-
-            // Boost all player interest zones that are within bloom range
-            // (In future: map Entity -> player_id for precision)
+            let affected = spatial_hash.query_radius(bloom.center, bloom.radius);
             for (_player_id, zone) in self.player_zones.iter_mut() {
                 let dist = (zone.center - bloom.center).length();
                 if dist <= bloom.radius {
-                    // Scale boost by bloom intensity and proximity
-                    let proximity_factor = 1.0 - (dist / bloom.radius).min(1.0);
-                    let boost_amount = bloom.intensity * proximity_factor * 0.8;
-
-                    zone.council_boost = (zone.council_boost + boost_amount).min(3.0);
+                    let proximity = 1.0 - (dist / bloom.radius).min(1.0);
+                    let boost = bloom.intensity * proximity * 0.8;
+                    zone.council_boost = (zone.council_boost + boost).min(3.0);
                     zone.mercy_resonance = (zone.mercy_resonance + bloom.intensity * 0.3).min(2.5);
                 }
             }
         }
-
-        // Gentle decay of council influence over time when no blooms are active
-        if self.council_blooms.is_empty() {
-            for zone in self.player_zones.values_mut() {
-                zone.council_boost *= 0.92;
-                zone.mercy_resonance *= 0.95;
-            }
-        }
     }
 }
+
+// ============================================================
+// SPATIAL INTEREST PLUGIN WITH SYSTEM SETS
+// ============================================================
 
 pub struct SpatialInterestPlugin;
 
@@ -177,11 +173,21 @@ impl Plugin for SpatialInterestPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SpatialHash>()
            .init_resource::<InterestManager>()
-           .add_systems(Update, (
-               update_spatial_hash_system,
-               update_interest_zones_system,
-               propagate_council_influence_system,
-           ));
+
+           // Register System Sets
+           .configure_sets(
+               Update,
+               (
+                   SpatialSet::UpdateHash,
+                   SpatialSet::UpdateInterestZones.after(SpatialSet::UpdateHash),
+                   SpatialSet::PropagateCouncilInfluence.after(SpatialSet::UpdateInterestZones),
+               ),
+           )
+
+           // Add systems to their sets
+           .add_systems(Update, update_spatial_hash_system.in_set(SpatialSet::UpdateHash))
+           .add_systems(Update, update_interest_zones_system.in_set(SpatialSet::UpdateInterestZones))
+           .add_systems(Update, propagate_council_influence_system.in_set(SpatialSet::PropagateCouncilInfluence));
     }
 }
 
@@ -200,7 +206,6 @@ pub fn update_interest_zones_system(mut interest_manager: ResMut<InterestManager
     }
 }
 
-/// Dedicated system that runs council bloom influence propagation every frame.
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
@@ -218,4 +223,4 @@ pub fn query_entities_in_interest(
         .unwrap_or_default()
 }
 
-// Thunder locked. Council bloom influence now propagates into player InterestZones. ⚡
+// Thunder locked. System Sets implemented for clean layered scheduling. ⚡
