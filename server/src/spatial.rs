@@ -1,49 +1,62 @@
 // server/src/spatial.rs
 // Powrush-MMO Server Spatial Integration
-// Council Bloom State Replication
+// Versioned Replication Event Emission
 
 use bevy::prelude::*;
 use simulation::spatial_interest::{
-    SpatialParticipant, InterestZone, PlayerInterestUpdated,
-    InterestManager, CouncilBloomStateUpdated,
+    SpatialParticipant, InterestZone, ReplicationVersion,
+    PlayerInterestUpdated, InterestZoneReplicated,
+    InterestManager, CouncilBloomStateReplicated, BloomStateVersion,
 };
 
-/// Ensures entities with Transform get SpatialParticipant + default InterestZone
+/// Ensures entities get SpatialParticipant + default InterestZone + ReplicationVersion
 pub fn ensure_spatial_participation_system(
     mut commands: Commands,
-    query: Query<(Entity, Option<&InterestZone>), (With<Transform>, Without<SpatialParticipant>)>,
+    query: Query<(Entity, Option<&InterestZone>, Option<&ReplicationVersion>), (With<Transform>, Without<SpatialParticipant>)>,
 ) {
-    for (entity, interest_zone) in &query {
+    for (entity, interest_zone, replication_version) in &query {
         commands.entity(entity).insert(SpatialParticipant);
 
         if interest_zone.is_none() {
             commands.entity(entity).insert(InterestZone::new(Vec3::ZERO, 80.0));
         }
+
+        if replication_version.is_none() {
+            commands.entity(entity).insert(ReplicationVersion::default());
+        }
     }
 }
 
-/// Detects InterestZone changes and emits replication events
-pub fn detect_interest_zone_changes_system(
-    interest_zone_query: Query<(Entity, &InterestZone), (With<SpatialParticipant>, Changed<InterestZone>)>,
-    mut events: EventWriter<PlayerInterestUpdated>,
+/// Detects InterestZone changes and emits versioned InterestZoneReplicated events
+pub fn emit_interest_zone_replication_system(
+    mut query: Query<(Entity, &InterestZone, &mut ReplicationVersion), (With<SpatialParticipant>, Changed<InterestZone>)>,
+    mut events: EventWriter<InterestZoneReplicated>,
 ) {
-    for (entity, zone) in &interest_zone_query {
-        events.send(PlayerInterestUpdated {
-            player_id: entity.to_bits(),
+    for (entity, zone, mut rep_version) in &mut query {
+        rep_version.interest_zone_version += 1;
+
+        events.send(InterestZoneReplicated {
+            entity,
             zone: zone.clone(),
+            version: rep_version.interest_zone_version,
+            server_timestamp: 0.0, // TODO: use real time
         });
     }
 }
 
-/// Emits CouncilBloomStateUpdated when there are active blooms.
-/// This enables clients to receive current council bloom state.
+/// Emits CouncilBloomStateReplicated when active blooms exist
 pub fn emit_council_bloom_state_system(
     interest_manager: Res<InterestManager>,
-    mut events: EventWriter<CouncilBloomStateUpdated>,
+    mut bloom_version: ResMut<BloomStateVersion>,
+    mut events: EventWriter<CouncilBloomStateReplicated>,
 ) {
     if !interest_manager.council_blooms.is_empty() {
-        events.send(CouncilBloomStateUpdated {
+        bloom_version.version += 1;
+
+        events.send(CouncilBloomStateReplicated {
             active_blooms: interest_manager.council_blooms.clone(),
+            version: bloom_version.version,
+            server_timestamp: 0.0, // TODO: use real time
         });
     }
 }
