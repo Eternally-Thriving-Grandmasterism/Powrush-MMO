@@ -1,7 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Includes latency monitoring + histograms for SafetyNet broadcasts
+// Includes latency monitoring + histograms + jitter analysis for SafetyNet broadcasts
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -81,7 +81,7 @@ impl LatencyHistogram {
     pub fn p99(&self) -> u64 { self.percentile(0.99) }
 }
 
-/// Safety Net state resource for client-side sovereignty tracking + advanced latency monitoring
+/// Safety Net state resource for client-side sovereignty tracking + advanced latency + jitter monitoring
 #[derive(Resource, Clone)]
 pub struct SafetyNetState {
     pub last_tick: u64,
@@ -99,6 +99,12 @@ pub struct SafetyNetState {
 
     // Histogram for distribution analysis (p50/p95/p99)
     pub latency_histogram: LatencyHistogram,
+
+    // Jitter analysis (variation in latency)
+    pub last_jitter_ms: u64,
+    pub avg_jitter_ms: f32,
+    pub max_jitter_ms: u64,
+    previous_latency_ms: u64,   // internal tracking only
 }
 
 impl Default for SafetyNetState {
@@ -115,6 +121,10 @@ impl Default for SafetyNetState {
             min_latency_ms: u64::MAX,
             sample_count: 0,
             latency_histogram: LatencyHistogram::new(),
+            last_jitter_ms: 0,
+            avg_jitter_ms: 0.0,
+            max_jitter_ms: 0,
+            previous_latency_ms: 0,
         }
     }
 }
@@ -184,7 +194,7 @@ impl RbeClientSync {
                 tracing::info!("[Divine] Received whisper from server: {}", whisper.message);
             }
 
-            // ===== SAFETY NET BROADCAST CONSUMPTION + LATENCY HISTOGRAM (v18.37) =====
+            // ===== SAFETY NET BROADCAST CONSUMPTION + LATENCY + JITTER (v18.37) =====
             if let ServerMessage::SafetyNetBroadcast { broadcast } = &msg {
                 self.handle_safety_net_broadcast(broadcast).await;
             }
@@ -200,7 +210,7 @@ impl RbeClientSync {
         safety.last_health = broadcast.snapshot.current_health;
         safety.last_council_engagement = broadcast.snapshot.council_engagement_score;
 
-        // ===== LATENCY MONITORING + HISTOGRAM =====
+        // ===== LATENCY + JITTER ANALYSIS =====
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -212,7 +222,14 @@ impl RbeClientSync {
             0
         };
 
-        // Update basic stats
+        // Calculate jitter (variation from previous sample)
+        let jitter_ms = if safety.previous_latency_ms > 0 {
+            (latency_ms as i64 - safety.previous_latency_ms as i64).unsigned_abs()
+        } else {
+            0
+        };
+
+        // Update basic latency stats
         safety.last_latency_ms = latency_ms;
         safety.sample_count = safety.sample_count.saturating_add(1);
 
@@ -230,13 +247,31 @@ impl RbeClientSync {
             }
         }
 
+        // Update jitter stats
+        safety.last_jitter_ms = jitter_ms;
+        if safety.sample_count > 1 {
+            if safety.sample_count == 2 {
+                safety.avg_jitter_ms = jitter_ms as f32;
+                safety.max_jitter_ms = jitter_ms;
+            } else {
+                safety.avg_jitter_ms = (safety.avg_jitter_ms * (safety.sample_count - 2) as f32 + jitter_ms as f32) / (safety.sample_count - 1) as f32;
+                if jitter_ms > safety.max_jitter_ms {
+                    safety.max_jitter_ms = jitter_ms;
+                }
+            }
+        }
+
+        // Store for next jitter calculation
+        safety.previous_latency_ms = latency_ms;
+
         // Record into histogram for distribution analysis
         safety.latency_histogram.record(latency_ms);
 
-        // Log latency + key percentiles (production: send histogram snapshot to telemetry)
+        // Log latency + jitter + key percentiles
         tracing::info!(
-            "[SafetyNet][Latency] {}ms | p50={} p95={} p99={} | reason={} | tick={}",
+            "[SafetyNet][Latency] {}ms | jitter={}ms | p50={} p95={} p99={} | reason={} | tick={}",
             latency_ms,
+            jitter_ms,
             safety.latency_histogram.p50(),
             safety.latency_histogram.p95(),
             safety.latency_histogram.p99(),
@@ -244,9 +279,11 @@ impl RbeClientSync {
             broadcast.snapshot.tick
         );
 
-        if latency_ms > 150 {
-            tracing::warn!("[SafetyNet] High latency detected: {}ms (p95={}) (threshold 150ms)", 
-                latency_ms, safety.latency_histogram.p95());
+        if latency_ms > 150 || jitter_ms > 50 {
+            tracing::warn!(
+                "[SafetyNet] High latency/jitter detected: {}ms latency, {}ms jitter (p95={})",
+                latency_ms, jitter_ms, safety.latency_histogram.p95()
+            );
         }
 
         // Process attached event if present
@@ -287,7 +324,7 @@ impl RbeClientSync {
 
         // TODO (next cycle): Emit Bevy event for UI feedback, trigger local persistence safety write if needed,
         // update inventory abundance display, play mercy confirmation audio.
-        // Future: periodically export histogram snapshot to telemetry_pipeline
+        // Future: periodically export histogram + jitter snapshot to telemetry_pipeline
     }
 
     // ... other methods remain the same ...
