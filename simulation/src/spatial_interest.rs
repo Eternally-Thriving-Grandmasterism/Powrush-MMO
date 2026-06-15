@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Optimized Bloom Proximity Checks (squared distance + precomputed values)
+// Spatial Hash Results Used Directly in Propagation
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -216,7 +216,7 @@ impl SpatialHash {
 }
 
 // ============================================================
-// PLUGIN + OPTIMIZED PROXIMITY CHECKS
+// PLUGIN + OPTIMIZED PROPAGATION
 // ============================================================
 
 pub struct SpatialInterestPlugin;
@@ -262,13 +262,14 @@ pub fn update_interest_zones_system(
     }
 }
 
-/// Optimized proximity checks using squared distance (avoids sqrt)
+/// Uses spatial hash query results directly instead of re-iterating all InterestZone entities.
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
     mut interest_query: Query<(&mut InterestZone, &Transform)>,
 ) {
     if interest_manager.council_blooms.is_empty() {
+        // Idle decay when no blooms
         for (mut zone, _transform) in &mut interest_query {
             zone.council_boost *= 0.92;
             zone.mercy_resonance *= 0.95;
@@ -277,19 +278,19 @@ pub fn propagate_council_influence_system(
     }
 
     for bloom in &interest_manager.council_blooms {
-        let radius_sq = bloom.radius * bloom.radius;
-        let inv_radius = if bloom.radius > 0.0 { 1.0 / bloom.radius } else { 0.0 };
+        // Get candidate entities from spatial hash (much smaller set than all InterestZones)
+        let nearby_entities = spatial_hash.query_radius(bloom.center, bloom.radius);
 
-        for (mut zone, transform) in &mut interest_query {
-            let delta = transform.translation - bloom.center;
-            let dist_sq = delta.length_squared();
+        for entity in nearby_entities {
+            if let Ok((mut zone, transform)) = interest_query.get_mut(entity) {
+                let dist = (transform.translation - bloom.center).length();
+                if dist <= bloom.radius {
+                    let proximity = 1.0 - (dist / bloom.radius).min(1.0);
+                    let boost_amount = bloom.intensity * proximity * 0.8;
 
-            if dist_sq <= radius_sq {
-                let proximity = 1.0 - (dist_sq.sqrt() * inv_radius).min(1.0);
-                let boost_amount = bloom.intensity * proximity * 0.8;
-
-                zone.council_boost = (zone.council_boost + boost_amount).min(3.0);
-                zone.mercy_resonance = (zone.mercy_resonance + bloom.intensity * 0.3).min(2.5);
+                    zone.council_boost = (zone.council_boost + boost_amount).min(3.0);
+                    zone.mercy_resonance = (zone.mercy_resonance + bloom.intensity * 0.3).min(2.5);
+                }
             }
         }
     }
@@ -313,4 +314,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Bloom proximity checks now use squared distance + precomputed inverse radius. ⚡
+// Thunder locked. Propagation now uses spatial hash results directly. ⚡
