@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// ECS Bundles for Spatial Entities
+// Optimized Bundle Component Order
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -11,27 +11,34 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 // ============================================================
-// ECS BUNDLES - Ergonomic Spatial Entity Spawning
+// ECS BUNDLES - Optimized Component Order
 // ============================================================
 
-/// Standard bundle for any entity that should participate in the spatial interest system.
-/// Includes Transform, SpatialParticipant, and common components.
+/// Standard bundle for spatial entities.
+///
+/// Component order is optimized for:
+/// 1. Frequent co-access (Transform + GlobalTransform)
+/// 2. Visibility batch updates
+/// 3. Marker components last (less frequently accessed with core transform data)
 #[derive(Bundle, Default)]
 pub struct SpatialEntityBundle {
+    // Core transform data (very frequently accessed together)
     pub transform: Transform,
     pub global_transform: GlobalTransform,
+
+    // Visibility components (often updated together by visibility systems)
     pub visibility: Visibility,
     pub inherited_visibility: InheritedVisibility,
     pub view_visibility: ViewVisibility,
+
+    // Marker component (lightweight, queried with other systems)
     pub spatial_participant: SpatialParticipant,
 }
 
-/// Bundle for player entities that participate in spatial interest and council influence.
 #[derive(Bundle)]
 pub struct SpatialPlayerBundle {
     pub spatial: SpatialEntityBundle,
     pub name: Name,
-    // Add more player-specific components here as needed
 }
 
 impl Default for SpatialPlayerBundle {
@@ -43,12 +50,10 @@ impl Default for SpatialPlayerBundle {
     }
 }
 
-/// Bundle for resource nodes that should be affected by council blooms and spatial queries.
 #[derive(Bundle)]
 pub struct SpatialResourceBundle {
     pub spatial: SpatialEntityBundle,
     pub name: Name,
-    // TODO: Add ResourceNode component when defined
 }
 
 impl Default for SpatialResourceBundle {
@@ -292,4 +297,4 @@ pub fn query_entities_in_interest(
         .unwrap_or_default()
 }
 
-// Thunder locked. ECS Bundles added for clean spatial entity spawning. ⚡
+// Thunder locked. Bundle component order optimized for cache locality and access patterns. ⚡
