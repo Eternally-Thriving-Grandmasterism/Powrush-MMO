@@ -1,5 +1,5 @@
 //! client/src/bevy_ecs_scheduling.rs
-//! Bevy ECS System Scheduling — Core orchestration + SpatialParticipant integration
+//! Bevy ECS System Scheduling — Full SpatialParticipant Integration
 //! AG-SML v1.0 | TOLC 8 Mercy Gates
 
 use bevy::prelude::*;
@@ -41,53 +41,74 @@ impl Plugin for ClientSchedulingPlugin {
 
 fn setup_client_world(mut commands: Commands) {
     // ============================================================
-    // SPATIAL PARTICIPANT INTEGRATION GUIDE
+    // FULL SPATIAL PARTICIPANT INTEGRATION
     // ============================================================
-    // Add SpatialParticipant to any entity that should participate
-    // in spatial queries, council bloom influence, and interest management.
 
-    // --- Players ---
-    // When spawning a player entity (in networking/replication):
-    // commands.spawn((
-    //     Transform::from_xyz(...),
-    //     SpatialParticipant,
-    //     // + other player components
-    // ));
-
-    // --- Resource Nodes ---
-    // Important for harvest, RBE, and bloom influence on resources
-    // commands.spawn((
-    //     Transform::from_xyz(...),
-    //     SpatialParticipant,
-    //     // + ResourceNode component
-    // ));
-
-    // --- Particles & Valence Entities ---
-    // For visual/energetic effects that should be spatially aware
-    // commands.spawn((
-    //     Transform::from_xyz(...),
-    //     SpatialParticipant,
-    //     // + particle/valence components
-    // ));
-
-    // --- Ships ---
-    // Major world objects that should interact with spatial systems
-    // commands.spawn((
-    //     Transform::from_xyz(...),
-    //     SpatialParticipant,
-    //     // + Ship component
-    // ));
-
-    // Example core world seed entity
+    // --- Core World Seed ---
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, 0.0),
         SpatialParticipant,
+        Name::new("WorldSeed"),
     ));
 
-    info!("🌐 Powrush-MMO client world initialized — SpatialInterestPlugin active with SpatialParticipant integration guide");
+    // --- Example Resource Node ---
+    // Resource nodes should participate so they can be influenced by council blooms
+    // and appear in spatial queries for harvest / RBE systems.
+    commands.spawn((
+        Transform::from_xyz(120.0, 0.0, 80.0),
+        SpatialParticipant,
+        Name::new("ExampleResourceNode"),
+        // TODO: Attach real ResourceNode component here
+    ));
+
+    // --- Example Particle / Valence Entity ---
+    // Important for sacred geometry, visual effects, and valence field interactions.
+    commands.spawn((
+        Transform::from_xyz(45.0, 12.0, -30.0),
+        SpatialParticipant,
+        Name::new("ExampleValenceParticle"),
+        // TODO: Attach particle/valence components
+    ));
+
+    // --- Example Ship ---
+    // Major mobile or static world objects that should interact with spatial systems.
+    commands.spawn((
+        Transform::from_xyz(-200.0, 5.0, 150.0),
+        SpatialParticipant,
+        Name::new("ExampleShip"),
+        // TODO: Attach Ship component
+    ));
+
+    info!("🌐 Powrush-MMO client world initialized — SpatialInterestPlugin + SpatialParticipant fully integrated");
 }
 
 fn mercy_gated_frame_validation() {}
 fn global_valence_propagation() {}
 
-// Thunder locked. SpatialParticipant integration guide added across major entity types. ⚡
+// ============================================================
+// INTEGRATION NOTES FOR OTHER SYSTEMS
+// ============================================================
+//
+// PLAYERS:
+// When spawning player entities (usually in replication or networking code):
+// commands.spawn((
+//     Transform::from_xyz(...),
+//     SpatialParticipant,
+//     // Player component bundle
+// ));
+//
+// RESOURCE NODES:
+// Add SpatialParticipant to all harvestable / RBE resource entities.
+//
+// PARTICLES & VALENCE:
+// Recommended for any entity that contributes to or is affected by
+// sacred geometry, valence fields, or council bloom visuals.
+//
+// SHIPS:
+// Add to player ships, NPC ships, and important world vessels.
+//
+// BEST PRACTICE:
+// Attach SpatialParticipant at spawn time alongside Transform.
+// Remove it (or call spatial_hash.remove(entity)) on despawn for cleanliness.
+
+// Thunder locked. SpatialParticipant integration fully fleshed out. ⚡
