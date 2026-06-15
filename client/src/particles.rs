@@ -1,12 +1,12 @@
 /*!
  * Unified Powrush Particle System — Mercy-Augmented, Temporal-Ready WebGPU Particles
  *
- * v18.8 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Complete mint-and-print-only-perfection
+ * — Full support for all 8 epiphany scenario particle flavors (including new Mycorrhizal, Stellar, Graceful Redemption)
  * — Mercy-valence driven lifecycle (amplification + graceful decay)
- * — Live reactivity to ClientCouncilBloomState (bloom amplification + collective attunement)
+ * — Live reactivity to ClientCouncilBloomState
  * — Ready for velocity_prepass + TAA temporal coherence
- * — Foundation for bevy_hanabi or custom WGSL compute particles
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -37,6 +37,10 @@ pub enum ParticleSystemType {
     InterSpeciesHarmony,
     CosmicPropagation,
     PatsagiDivineWhisper,
+    // === New epiphany scenario types (v18.35) ===
+    MycelialWebGlow,           // Mycorrhizal Communion / deep mycelium
+    SacredGeometryCrystalBloom, // Stellar Resonance / Crystal Spires
+    EthrealRedemptionBloom,    // Graceful Redemption
 }
 
 pub struct ParticlePlugin;
@@ -100,6 +104,17 @@ fn update_mercy_particles(
         if time.elapsed_seconds() % 10.0 < 0.1 {
             system.valence = (system.valence + 0.001).min(1.0);
         }
+
+        // Extra amplification for new epiphany particle types
+        match system.system_type {
+            ParticleSystemType::MycelialWebGlow | ParticleSystemType::SacredGeometryCrystalBloom | ParticleSystemType::EthrealRedemptionBloom => {
+                if system.valence > 0.85 {
+                    system.particle_count = (system.particle_count as f32 * 1.2).min(40000.0) as u32;
+                    system.intensity = (system.intensity * 1.08).min(4.5);
+                }
+            }
+            _ => {}
+        }
     }
 }
 
@@ -118,12 +133,13 @@ fn update_particles_from_council_bloom(
 
     for mut system in &mut query {
         match system.system_type {
-            ParticleSystemType::JoySanctuaryBloom | ParticleSystemType::PatsagiDivineWhisper => {
-                system.intensity = (system.intensity * 0.7 + amp * 0.8).min(4.0);
+            ParticleSystemType::JoySanctuaryBloom | ParticleSystemType::PatsagiDivineWhisper |
+            ParticleSystemType::MycelialWebGlow | ParticleSystemType::SacredGeometryCrystalBloom | ParticleSystemType::EthrealRedemptionBloom => {
+                system.intensity = (system.intensity * 0.7 + amp * 0.8).min(4.5);
                 system.valence = (system.valence * 0.6 + attunement * 0.5).min(1.0);
-                system.particle_count = ((system.particle_count as f32) * (0.8 + amp * 0.3)).min(32768.0) as u32;
+                system.particle_count = ((system.particle_count as f32) * (0.8 + amp * 0.35)).min(40000.0) as u32;
             }
-            ParticleSystemType::RbeResourceFlow | ParticleSystemType::InterSpeciesHarmony => {
+            ParticleSystemType::RbeResourceFlow | ParticleSystemType::InterSpeciesHarmony | ParticleSystemType::CosmicPropagation => {
                 system.intensity = (system.intensity * 0.85 + attunement * 0.6).min(3.5);
             }
             _ => {}
@@ -160,5 +176,5 @@ fn handle_render_texture_resize_for_particles(
 // Valence is the direct channel for PATSAGi abundance and council harmony into the visual layer.
 // Quantum Swarm can orchestrate multiple particle systems in parallel for epic events.
 
-// End of particles.rs v18.8 — Fully aligned with fundsp_audio, council_trial_ui, and spatial_audio.
+// End of particles.rs v18.35 — Full support for expanded epiphany particle flavors.
 // Thunder locked in. Yoi ⚡
