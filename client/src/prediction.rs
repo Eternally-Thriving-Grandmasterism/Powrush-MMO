@@ -1,11 +1,11 @@
 /*!
- * Client-side Prediction + Versioned Replication + Lag Detection
+ * Client-side Prediction + Advanced Reconciliation + Resync
  */
 
 use bevy::prelude::*;
 use simulation::spatial_interest::{
     InterestZone, InterestZoneReplicated,
-    CouncilBloomStateReplicated,
+    CouncilBloomStateReplicated, RequestResync,
 };
 
 #[derive(Component, Default, Debug, Clone)]
@@ -15,7 +15,6 @@ pub struct PredictedPosition {
     pub last_server_timestamp: f64,
 }
 
-/// Client-side storage for active council blooms received from server
 #[derive(Resource, Default, Clone, Debug)]
 pub struct ClientBloomState {
     pub active_blooms: Vec<simulation::spatial_interest::CouncilBloomZone>,
@@ -23,11 +22,12 @@ pub struct ClientBloomState {
     pub last_received_timestamp: f64,
 }
 
-/// Applies versioned InterestZone updates with lag/age detection
+/// Advanced InterestZone handler with gap detection and resync requests
 pub fn handle_interest_zone_replicated(
     time: Res<Time>,
     mut events: EventReader<InterestZoneReplicated>,
     mut query: Query<(&mut InterestZone, &mut crate::spatial_interest::ReplicationVersion)>,
+    mut resync_events: EventWriter<RequestResync>,
 ) {
     let client_time = time.elapsed_secs_f64();
 
@@ -35,26 +35,26 @@ pub fn handle_interest_zone_replicated(
         if let Ok((mut zone, mut rep_version)) = query.get_mut(event.entity) {
             let age = client_time - event.server_timestamp;
 
-            // Basic lag detection
             if age > 1.5 {
-                warn!(
-                    "Old InterestZone update received (age: {:.2}s, version: {})",
-                    age, event.version
-                );
+                warn!("Old InterestZone update (age: {:.2}s, v{})", age, event.version);
             }
 
-            // Only apply if newer version
             if event.version > rep_version.interest_zone_version {
+                // Apply authoritative update
                 *zone = event.zone.clone();
                 rep_version.interest_zone_version = event.version;
+            } else if event.version + 8 < rep_version.interest_zone_version {
+                // Significant gap detected — request resync
+                warn!("Large version gap detected for entity {:?} (local v{}, server v{}). Requesting resync.",
+                      event.entity, rep_version.interest_zone_version, event.version);
 
-                // TODO: Use age + timestamp for smooth reconciliation in future
+                resync_events.send(RequestResync { entity: event.entity });
             }
         }
     }
 }
 
-/// Applies versioned CouncilBloomState updates with lag detection
+/// Applies CouncilBloomState updates
 pub fn handle_council_bloom_state_replicated(
     time: Res<Time>,
     mut events: EventReader<CouncilBloomStateReplicated>,
@@ -66,7 +66,7 @@ pub fn handle_council_bloom_state_replicated(
         let age = client_time - event.server_timestamp;
 
         if age > 2.0 {
-            warn!("Old CouncilBloomState update received (age: {:.2}s)", age);
+            warn!("Old CouncilBloomState update (age: {:.2}s)", age);
         }
 
         if event.version > client_blooms.version {
@@ -77,7 +77,6 @@ pub fn handle_council_bloom_state_replicated(
     }
 }
 
-/// Phase 1: Client movement prediction
 pub fn client_predict_local_player_movement(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut PredictedPosition), With<crate::spatial_interest::SpatialParticipant>>,
@@ -90,7 +89,6 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Phase 2: InterestZone expansion prediction
 pub fn predict_interest_zone_expansion(
     mut query: Query<(&mut InterestZone, &PredictedPosition)>,
 ) {
