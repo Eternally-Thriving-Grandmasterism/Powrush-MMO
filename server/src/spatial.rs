@@ -1,17 +1,15 @@
 // server/src/spatial.rs
 // Powrush-MMO Server Spatial Integration
-// Monotonic Timestamp System for Replication
+// Resync Request Handling
 
 use bevy::prelude::*;
-use std::time::Instant;
 use simulation::spatial_interest::{
     SpatialParticipant, InterestZone, ReplicationVersion,
-    InterestZoneReplicated, InterestManager,
-    CouncilBloomStateReplicated, BloomStateVersion,
+    InterestZoneReplicated, RequestResync,
+    InterestManager, CouncilBloomStateReplicated, BloomStateVersion,
 };
+use std::time::Instant;
 
-/// Resource holding the server's start time using a monotonic clock.
-/// This provides stable timestamps independent of game time scaling or pausing.
 #[derive(Resource)]
 pub struct ServerStartTime {
     pub instant: Instant,
@@ -19,18 +17,14 @@ pub struct ServerStartTime {
 
 impl Default for ServerStartTime {
     fn default() -> Self {
-        Self {
-            instant: Instant::now(),
-        }
+        Self { instant: Instant::now() }
     }
 }
 
-/// Returns seconds since server start using a monotonic clock.
 pub fn get_monotonic_server_time(server_start: &ServerStartTime) -> f64 {
     server_start.instant.elapsed().as_secs_f64()
 }
 
-/// Ensures entities get SpatialParticipant + default InterestZone + ReplicationVersion
 pub fn ensure_spatial_participation_system(
     mut commands: Commands,
     query: Query<(Entity, Option<&InterestZone>, Option<&ReplicationVersion>), (With<Transform>, Without<SpatialParticipant>)>,
@@ -41,14 +35,12 @@ pub fn ensure_spatial_participation_system(
         if interest_zone.is_none() {
             commands.entity(entity).insert(InterestZone::new(Vec3::ZERO, 80.0));
         }
-
         if replication_version.is_none() {
             commands.entity(entity).insert(ReplicationVersion::default());
         }
     }
 }
 
-/// Emits versioned InterestZoneReplicated using monotonic time
 pub fn emit_interest_zone_replication_system(
     server_start: Res<ServerStartTime>,
     mut query: Query<(Entity, &InterestZone, &mut ReplicationVersion), (With<SpatialParticipant>, Changed<InterestZone>)>,
@@ -68,7 +60,6 @@ pub fn emit_interest_zone_replication_system(
     }
 }
 
-/// Emits CouncilBloomStateReplicated using monotonic time
 pub fn emit_council_bloom_state_system(
     server_start: Res<ServerStartTime>,
     interest_manager: Res<InterestManager>,
@@ -83,5 +74,26 @@ pub fn emit_council_bloom_state_system(
             version: bloom_version.version,
             server_timestamp: get_monotonic_server_time(&server_start),
         });
+    }
+}
+
+/// Handles client resync requests by sending full current state
+pub fn handle_resync_requests(
+    server_start: Res<ServerStartTime>,
+    mut events: EventReader<RequestResync>,
+    query: Query<(&InterestZone, &ReplicationVersion), With<SpatialParticipant>>,
+    mut resync_events: EventWriter<InterestZoneReplicated>,
+) {
+    let timestamp = get_monotonic_server_time(&server_start);
+
+    for request in events.read() {
+        if let Ok((zone, rep_version)) = query.get(request.entity) {
+            resync_events.send(InterestZoneReplicated {
+                entity: request.entity,
+                zone: zone.clone(),
+                version: rep_version.interest_zone_version,
+                server_timestamp: timestamp,
+            });
+        }
     }
 }
