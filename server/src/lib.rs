@@ -60,6 +60,9 @@ pub mod rathor_integration;
 // === Telemetry & Monitoring (Eternal Observability) ===
 pub mod telemetry_pipeline;
 
+// === Safety Net Sovereignty Layer (v18.37) ===
+pub mod safety_net_broadcast;
+
 use bevy::prelude::*;
 
 // Core plugins
@@ -79,6 +82,7 @@ use crate::technology_system::TechnologySystemPlugin;
 use crate::anti_cheat::AntiCheatPlugin;
 use crate::persistence_polish::PersistencePolishPlugin;
 use crate::ra_thor_mercy_bridge::RaThorMercyBridgePlugin;
+use crate::safety_net_broadcast::SafetyNetBroadcastPlugin;
 
 // Spatial Interest Layer
 use simulation::spatial_interest::SpatialInterestPlugin;
@@ -113,6 +117,9 @@ impl Plugin for ServerCorePlugin {
             .add_plugins(AntiCheatPlugin)
             .add_plugins(PersistencePolishPlugin)
             .add_plugins(RaThorMercyBridgePlugin)
+
+            // === Safety Net Broadcast Sovereignty Layer (v18.37) ===
+            .add_plugins(SafetyNetBroadcastPlugin)
 
             // === Spatial Interest Layer (Authoritative) ===
             .add_plugins(SpatialInterestPlugin)
