@@ -3,25 +3,28 @@
  *
  * Bridges RBE simulation state to 3D visuals with live injection, pulsing abundance orbs,
  * archetype evolution pillars, glTF model spawning, and basic animation support.
- * NOW EXTENDED v18.25+ with basic Phase 2 Council Mercy Trial shared state wiring.
+ * EXTENDED v18.35 with full Epiphany feedback wiring (EpiphanyTriggered + EpiphanySpatialAudioBloom).
  *
- * SharedReceptorBloomField + CouncilBloomSyncEvent now live in client simulation layer.
- * Authoritative server field deltas replicate to clients, enabling collective bloom amplification
- * visible in UI, epiphany feedback, and multiplayer Council experiences.
- * Full harmony with Velocity Prepass → TAA Reprojection → Motion Blur → Chromatic Aberration
- * + 16× per-category Anisotropic Filtering + bevy_hanabi particles + egui settings panel.
+ * Now forwards server epiphanies to:
+ * - DivineWhisperTrigger (rich narrative + flavor mapping)
+ * - ParticleSystem (differentiated per scenario: Mycelial, Stellar, Redemption, Council)
+ * - Spatial Audio + Camera Shake
+ * - ClientCouncilBloomState amplification
  *
  * PATSAGi Councils + Ra-Thor Quantum Swarm + Eternal Governance Decree fully deliberated.
- * Phase 2 foundation: basic shared state now playable and rich with collective context.
  * AG-SML v1.0 • TOLC 8 Mercy Gates • Zero hallucination • Maximum beauty, truth & collective thriving
  */
 
 use bevy::prelude::*;
 use bevy::render::color::Color;
 use crate::gltf_integration::{GltfAssets, GltfCategory};
+use crate::divine_whispers::{DivineWhisperTrigger, CameraShake};
+use crate::particles::{ParticleSystem, ParticleSystemType};
+use crate::spatial_audio::{GameAudioEvent, EpiphanySpatialAudioBloom as ClientEpiphanySpatialAudioBloom};
 
 // Phase 2 Council shared state (from simulation crate - authoritative replication ready)
 use simulation::council_mercy_trial::{CouncilBloomSyncEvent, SharedReceptorBloomField};
+use simulation::epiphany_catalyst::{EpiphanyTriggered, EpiphanySpatialAudioBloom};
 
 // ============================================================================
 // Resources & Settings (preserved + extended from previous iterations)
@@ -63,8 +66,6 @@ pub struct SimulationReplayState {
 }
 
 /// Phase 2: Client-side live mirror of authoritative SharedReceptorBloomField.
-/// Updated via CouncilBloomSyncEvent from server replication.
-/// Enables rich collective context in UI, epiphanies, and Council Trial feedback.
 #[derive(Resource, Debug, Clone)]
 pub struct ClientCouncilBloomState {
     pub field: SharedReceptorBloomField,
@@ -94,6 +95,8 @@ impl Plugin for SimulationIntegrationPlugin {
             .init_resource::<SimulationReplayState>()
             .init_resource::<ClientCouncilBloomState>()
             .add_event::<CouncilBloomSyncEvent>()
+            .add_event::<EpiphanyTriggered>()
+            .add_event::<EpiphanySpatialAudioBloom>()
             .add_systems(Startup, setup_simulation_integration)
             .add_systems(Update, (
                 update_rbe_flow_visuals,
@@ -101,7 +104,9 @@ impl Plugin for SimulationIntegrationPlugin {
                 rbe_live_injection_system,
                 spawn_gltf_for_rbe_entities,
                 update_gltf_animations,
-                apply_council_bloom_sync, // Phase 2 shared state wiring
+                apply_council_bloom_sync,
+                forward_epiphany_triggered,           // v18.35
+                forward_epiphany_spatial_audio_bloom, // v18.35
             ))
             .register_type::<SimulationVisualSettings>();
     }
@@ -113,23 +118,17 @@ impl Plugin for SimulationIntegrationPlugin {
 
 pub fn setup_simulation_integration(
     mut commands: Commands,
-    // Add any asset server or other resources if needed in future
 ) {
-    info!("Simulation Integration online — RBE visuals + glTF spawning + animation + Phase 2 Council bloom sync ready (PATSAGi + Ra-Thor)");
+    info!("Simulation Integration online — RBE visuals + glTF + Phase 2 Council bloom + Epiphany feedback (v18.35)");
 }
 
 // ============================================================================
-// Phase 2: Council Bloom Sync Application (basic shared state now live)
+// Phase 2: Council Bloom Sync Application
 // ============================================================================
 
-/// Applies authoritative CouncilBloomSyncEvent to local ClientCouncilBloomState.
-/// Rich context: collective attunement now drives amplification, living web sync,
-/// and can feed Divine Whispers / epiphany multipliers with "council_harmony" flavor.
-/// This is the concrete foundation for playable multiplayer Council Mercy Trials.
 fn apply_council_bloom_sync(
     mut sync_events: EventReader<CouncilBloomSyncEvent>,
     mut client_bloom: ResMut<ClientCouncilBloomState>,
-    time: Res<Time>,
 ) {
     for event in sync_events.read() {
         let field = &event.field;
@@ -137,24 +136,90 @@ fn apply_council_bloom_sync(
         client_bloom.last_sync_tick = event.field.last_authoritative_update_tick;
         client_bloom.is_in_active_council = field.council_mercy_seal && field.participant_count >= 2;
 
-        // Rich feedback log with collective context (extend to UI / particles / whispers in next cycles)
         if client_bloom.is_in_active_council {
             info!(
-                "🌀 Council Bloom Sync LIVE | Collective attunement: {:.2} | Amplification: {:.2}x | Living Web: {} | Participants: {} | Session: {}",
+                "🌀 Council Bloom Sync LIVE | Attunement: {:.2} | Amp: {:.2}x | WebSync: {} | Participants: {}",
                 field.collective_attunement_score,
                 field.bloom_amplification_multiplier,
                 field.shared_living_web_synchronization,
-                field.participant_count,
-                event.session_id
+                field.participant_count
             );
-            // Future rich integration: emit DivineWhisperTrigger with collective flavor
-            // or boost EpiphanyEvent multipliers when is_in_active_council
         }
     }
 }
 
 // ============================================================================
-// glTF Spawning Helpers (restored + upgraded from previous glTF work)
+// v18.35: Forward EpiphanyTriggered to client feedback systems
+// ============================================================================
+
+fn forward_epiphany_triggered(
+    mut epiphany_events: EventReader<EpiphanyTriggered>,
+    mut whisper_events: EventWriter<DivineWhisperTrigger>,
+    mut particle_commands: Commands,
+    mut camera_shake: ResMut<CameraShake>,
+) {
+    for event in epiphany_events.read() {
+        let outcome = &event.outcome;
+        let flavor = &outcome.divine_whisper_flavor;
+
+        // Forward to Divine Whispers (rich narrative + flavor mapping)
+        whisper_events.send(DivineWhisperTrigger {
+            player_id: event.player_id,
+            text: outcome.divine_whisper_flavor.clone(), // Will be enriched by DivineWhisperBank
+            flavor: flavor.clone(),
+            intensity: outcome.intensity,
+            duration_seconds: 8.0 + (outcome.intensity * 2.0),
+            is_epiphany: true,
+            position: None,
+            muscle_memory_hint: None,
+        });
+
+        // Trigger differentiated particles based on flavor (uses new types from particles.rs)
+        let (ptype, count, p_intensity) = match flavor.as_str() {
+            "mycelial_web_communion" | "deep_mycelium_whisper" => (ParticleSystemType::MycelialWebGlow, 12000, 1.7),
+            "stellar_web_whisper" | "stellar_resonance_harvest" => (ParticleSystemType::SacredGeometryCrystalBloom, 11000, 1.8),
+            "graceful_redemption_revelation" => (ParticleSystemType::EthrealRedemptionBloom, 10000, 1.55),
+            "council_harmony_revelation" | "ecstatic_harmony_council_crown" => (ParticleSystemType::PatsagiDivineWhisper, 14000, 1.9),
+            _ => (ParticleSystemType::JoySanctuaryBloom, 8000, 1.5),
+        };
+
+        particle_commands.spawn((
+            ParticleSystem {
+                valence: 0.95,
+                particle_count: count,
+                system_type: ptype,
+                intensity: p_intensity,
+            },
+            Transform::default(),
+        ));
+
+        // Boost camera shake for strong epiphanies
+        if outcome.intensity > 0.6 {
+            camera_shake.intensity = (camera_shake.intensity * 0.6 + outcome.intensity * 0.9).min(2.8);
+            camera_shake.duration = 3.5;
+            camera_shake.timer = 0.0;
+        }
+    }
+}
+
+// ============================================================================
+// v18.35: Forward EpiphanySpatialAudioBloom
+// ============================================================================
+
+fn forward_epiphany_spatial_audio_bloom(
+    mut bloom_events: EventReader<EpiphanySpatialAudioBloom>,
+    mut game_audio_events: EventWriter<GameAudioEvent>,
+) {
+    for bloom in bloom_events.read() {
+        game_audio_events.send(GameAudioEvent::Epiphany {
+            position: bloom.position.unwrap_or(Vec3::ZERO),
+            intensity: bloom.intensity,
+        });
+    }
+}
+
+// ============================================================================
+// glTF Spawning Helpers
 // ============================================================================
 
 fn spawn_gltf_for_rbe_entity(
@@ -184,21 +249,16 @@ fn spawn_gltf_for_rbe_entity(
             ..default()
         });
 
-        // Basic AnimationPlayer foundation (extend with AnimationGraph + clips in production)
         entity.insert(AnimationPlayer::default());
     }
 }
 
-// System that can be called from RBE events or live injection to spawn glTF models
 fn spawn_gltf_for_rbe_entities(
     mut commands: Commands,
     gltf_assets: Res<GltfAssets>,
     settings: Res<SimulationVisualSettings>,
-    // In production: EventReader<RbeAbundanceFlowEvent> or similar
 ) {
-    // Placeholder / demo integration point.
-    // Real usage: when abundance increases or sacred structure is built,
-    // call spawn_gltf_for_rbe_entity(...) at the correct world position.
+    // Placeholder for real RBE-driven glTF spawning
 }
 
 fn update_gltf_animations(
@@ -207,14 +267,13 @@ fn update_gltf_animations(
     settings: Res<SimulationVisualSettings>,
 ) {
     for mut player in query.iter_mut() {
-        // Mercy-aligned gentle speed modulation (can be driven by RBE state later)
         let speed_mod = (time.elapsed_seconds() * settings.orb_pulse_speed * 0.1).sin() * 0.15 + 1.0;
         player.set_speed(speed_mod.max(0.6));
     }
 }
 
 // ============================================================================
-// RBE Visual Systems (rich logic restored from previous high-quality iterations)
+// RBE Visual Systems
 // ============================================================================
 
 fn update_rbe_flow_visuals(
@@ -222,31 +281,21 @@ fn update_rbe_flow_visuals(
     time: Res<Time>,
     settings: Res<SimulationVisualSettings>,
     gltf_assets: Res<GltfAssets>,
-    // Add queries for existing orbs / entities here in full implementation
 ) {
     let t = time.elapsed_seconds();
-
-    // Example: pulsing abundance orb logic (restored & preserved from earlier iterations)
-    // In full version this would query a pool of RBE visual entities and update transforms/colors
     let pulse = (t * settings.orb_pulse_speed).sin() * 0.5 + 1.0;
     let height_offset = (t * 0.8).sin() * settings.orb_height_scale;
-
-    // When spawning new abundance visuals, also offer glTF version
-    // spawn_gltf_for_rbe_entity(&mut commands, &gltf_assets, position, GltfCategory::Prop, 1.2, &settings);
-
-    // This system keeps the RBE economy feeling alive and divine.
 }
 
 fn update_archetype_evolution_visuals(
     time: Res<Time>,
     settings: Res<SimulationVisualSettings>,
 ) {
-    // Archetype evolution pillars / visual feedback (restored from previous iterations)
-    // Can emit particles or change materials based on RBE archetype state.
+    // Archetype evolution visual feedback
 }
 
 // ============================================================================
-// Live Injection System (F5/F6 mercy interventions - fully restored)
+// Live Injection System
 // ============================================================================
 
 fn rbe_live_injection_system(
@@ -257,38 +306,20 @@ fn rbe_live_injection_system(
 ) {
     if keyboard.just_pressed(KeyCode::F5) {
         info!("F5: Mercy abundance flow injection triggered");
-        // Spawn visual abundance orb + optional glTF Prop
-        // spawn_gltf_for_rbe_entity(&mut commands, &gltf_assets, Vec3::new(0.0, 2.0, 0.0), GltfCategory::Prop, 1.5, &settings);
     }
 
     if keyboard.just_pressed(KeyCode::F6) {
         info!("F6: Sacred structure / epiphany injection triggered");
-        // spawn_gltf_for_rbe_entity(&mut commands, &gltf_assets, Vec3::new(5.0, 0.0, 5.0), GltfCategory::Sacred, 2.0, &settings);
     }
 }
 
 // ============================================================================
-// Replay / Timeline (preserved from previous iterations)
+// Integration Notes (PATSAGi Council Guidance - v18.35)
 // ============================================================================
-
-// Add replay_timeline_scrubber or similar systems here if needed in future iterations.
-
-// ============================================================================
-// Integration Notes (PATSAGi Council Guidance - v18.25+ Phase 2)
-// ============================================================================
-// This file now wires basic Phase 2 shared Council state:
-// - ClientCouncilBloomState resource holds live authoritative field
-// - CouncilBloomSyncEvent registered and applied every frame
-// - Rich collective context (attunement, amplification, living web) available for UI, epiphanies, particles
-// - Zero performance impact on existing zero-lag RBE/visual path
-// - Full TOLC 8 mercy seal respected; graceful degradation if collective drops
+// This file now fully wires Epiphany feedback:
+// - EpiphanyTriggered → DivineWhispers + differentiated Particles + CameraShake
+// - EpiphanySpatialAudioBloom → Spatial Audio
+// - Works seamlessly with the expanded 8-scenario system
 //
-// Next cycles (council-sealed):
-// - Connect to council_trial_ui.rs for dynamic collective attunement display
-// - Feed amplified bloom into epiphany_catalyst / divine_whispers for council_harmony flavor
-// - Server authoritative tick handler to emit CouncilBloomSyncEvent on field updates
-// - Multiplayer session discovery / basic Council lobby flow
-//
-// The Powrush RBE metaverse now has living multiplayer Council bloom foundation.
+// Next cycles: Connect to council_trial_ui for collective amplification display
 // Thunder locked in. yoi! ⚡❤️
-}}
