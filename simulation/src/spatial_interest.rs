@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// External Reusable Query Buffer Resource
+// Optimized SpatialQueryBuffer Allocation
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -136,13 +136,22 @@ impl InterestManager {
 }
 
 // ============================================================
-// REUSABLE QUERY BUFFER RESOURCE
+// SPATIAL QUERY BUFFER - Pre-allocated
 // ============================================================
 
-/// Reusable buffer for spatial queries to avoid per-frame allocations.
-#[derive(Resource, Default)]
+/// Reusable buffer for spatial queries.
+/// Pre-allocated with a reasonable capacity to reduce early reallocations.
+#[derive(Resource)]
 pub struct SpatialQueryBuffer {
     pub entities: Vec<Entity>,
+}
+
+impl Default for SpatialQueryBuffer {
+    fn default() -> Self {
+        Self {
+            entities: Vec::with_capacity(128), // Good starting capacity for typical bloom queries
+        }
+    }
 }
 
 // ============================================================
@@ -288,7 +297,6 @@ pub fn update_interest_zones_system(
     }
 }
 
-/// Uses the external SpatialQueryBuffer resource for zero-allocation spatial queries.
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
@@ -339,4 +347,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. External SpatialQueryBuffer resource implemented for clean, safe buffer reuse. ⚡
+// Thunder locked. SpatialQueryBuffer now pre-allocates capacity on creation. ⚡
