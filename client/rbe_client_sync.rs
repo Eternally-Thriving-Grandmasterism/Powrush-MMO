@@ -1,7 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Full monitoring state exposure + SafetyNetMonitoringUpdate event for telemetry (v18.37)
+// Kalman filter residuals visualization + full monitoring state (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -14,7 +14,7 @@ use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeR
 use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI, receive_divine_whisper_from_server};
 
 // ============================================================
-// SAFETY NET MONITORING EVENT (for Telemetry Pipeline)
+// SAFETY NET MONITORING EVENT
 // ============================================================
 
 #[derive(Event, Debug, Clone)]
@@ -23,30 +23,49 @@ pub struct SafetyNetMonitoringUpdate {
 }
 
 // ============================================================
-// SAFETY NET MONITORING SNAPSHOT
+// SAFETY NET MONITORING SNAPSHOT (with Kalman Residuals)
 // ============================================================
 
 #[derive(Debug, Clone, Default)]
 pub struct SafetyNetMonitoringSnapshot {
     pub timestamp_ms: u64,
+
+    // Raw + Basic
     pub last_latency_ms: u64,
     pub avg_latency_ms: f32,
     pub min_latency_ms: u64,
     pub max_latency_ms: u64,
     pub sample_count: u32,
+
+    // Jitter
     pub last_jitter_ms: u64,
     pub avg_jitter_ms: f32,
     pub max_jitter_ms: u64,
+
+    // Percentiles
     pub p50_ms: u64,
     pub p95_ms: u64,
     pub p99_ms: u64,
+
+    // EMA
     pub ema_latency_ms: f32,
     pub ema_jitter_ms: f32,
+
+    // 1D Kalman + Residuals
     pub kalman_latency_estimate: f32,
     pub kalman_latency_velocity: f32,
+    pub kalman_latency_residual: f32,        // NEW: measurement - prediction
+
+    // 2D Kalman + Residuals
     pub kalman_2d_latency: f32,
     pub kalman_2d_jitter: f32,
+    pub kalman_2d_latency_residual: f32,     // NEW
+    pub kalman_2d_jitter_residual: f32,      // NEW
+
+    // Fixed-Lag Smoother
     pub smoothed_latency: f32,
+
+    // Server authoritative
     pub server_abundance: f64,
     pub server_health: f32,
     pub server_council_engagement: f32,
@@ -58,8 +77,13 @@ impl SafetyNetState {
 
         let kalman_lat = self.kalman_latency.as_ref().map_or(0.0, |k| k.estimate);
         let kalman_vel = self.kalman_latency.as_ref().map_or(0.0, |k| k.velocity);
+        let kalman_res = self.kalman_latency.as_ref().map_or(0.0, |k| k.last_residual);
+
         let kalman_2d_lat = self.kalman_2d.as_ref().map_or(0.0, |k| k.latency);
         let kalman_2d_jit = self.kalman_2d.as_ref().map_or(0.0, |k| k.jitter);
+        let kalman_2d_lat_res = self.kalman_2d.as_ref().map_or(0.0, |k| k.last_latency_residual);
+        let kalman_2d_jit_res = self.kalman_2d.as_ref().map_or(0.0, |k| k.last_jitter_residual);
+
         let smoothed = self.smoother_latency.as_ref().map_or(0.0, |s| s.smoothed_estimate);
 
         SafetyNetMonitoringSnapshot {
@@ -79,8 +103,11 @@ impl SafetyNetState {
             ema_jitter_ms: self.ema_jitter_ms,
             kalman_latency_estimate: kalman_lat,
             kalman_latency_velocity: kalman_vel,
+            kalman_latency_residual: kalman_res,
             kalman_2d_latency: kalman_2d_lat,
             kalman_2d_jitter: kalman_2d_jit,
+            kalman_2d_latency_residual: kalman_2d_lat_res,
+            kalman_2d_jitter_residual: kalman_2d_jit_res,
             smoothed_latency: smoothed,
             server_abundance: self.last_abundance,
             server_health: self.last_health,
@@ -90,7 +117,7 @@ impl SafetyNetState {
 }
 
 // ============================================================
-// CORE MONITORING STRUCTS (Histogram, Kalman, Smoother)
+// CORE MONITORING STRUCTS
 // ============================================================
 
 #[derive(Clone, Debug, Default)]
@@ -128,48 +155,87 @@ impl LatencyHistogram {
     }
 }
 
+// 1D Kalman with residual tracking
 #[derive(Clone, Debug)]
 pub struct KalmanFilter1D {
-    pub estimate: f32, pub velocity: f32,
-    process_noise: f32, measurement_noise: f32,
-    error_estimate: f32, error_velocity: f32,
+    pub estimate: f32,
+    pub velocity: f32,
+    pub last_residual: f32,           // NEW: innovation / residual
+    process_noise: f32,
+    measurement_noise: f32,
+    error_estimate: f32,
+    error_velocity: f32,
 }
 
 impl KalmanFilter1D {
     pub fn new(initial: f32) -> Self {
-        Self { estimate: initial, velocity: 0.0, process_noise: 0.1, measurement_noise: 15.0, error_estimate: 1.0, error_velocity: 1.0 }
+        Self {
+            estimate: initial,
+            velocity: 0.0,
+            last_residual: 0.0,
+            process_noise: 0.1,
+            measurement_noise: 15.0,
+            error_estimate: 1.0,
+            error_velocity: 1.0,
+        }
     }
 
-    pub fn update(&mut self, m: f32, dt: f32) -> f32 {
+    pub fn update(&mut self, measurement: f32, dt: f32) -> f32 {
+        // Prediction
         self.estimate += self.velocity * dt;
         self.error_estimate += dt * (self.error_velocity + self.process_noise);
         self.error_velocity += self.process_noise;
+
+        // Innovation / Residual
+        let residual = measurement - self.estimate;
+        self.last_residual = residual;
+
+        // Update
         let gain = self.error_estimate / (self.error_estimate + self.measurement_noise);
-        let innov = m - self.estimate;
-        self.estimate += gain * innov;
-        self.velocity += gain * (innov / dt.max(0.001));
+        self.estimate += gain * residual;
+        self.velocity += gain * (residual / dt.max(0.001));
         self.error_estimate *= (1.0 - gain);
+
         self.estimate
     }
 }
 
+// 2D Kalman with residual tracking
 #[derive(Clone, Debug)]
 pub struct KalmanFilter2D {
-    pub latency: f32, pub jitter: f32,
-    process_noise: f32, measurement_noise: f32, error_cov: f32,
+    pub latency: f32,
+    pub jitter: f32,
+    pub last_latency_residual: f32,   // NEW
+    pub last_jitter_residual: f32,    // NEW
+    process_noise: f32,
+    measurement_noise: f32,
+    error_cov: f32,
 }
 
 impl KalmanFilter2D {
     pub fn new(lat: f32, jit: f32) -> Self {
-        Self { latency: lat, jitter: jit, process_noise: 0.15, measurement_noise: 20.0, error_cov: 1.0 }
+        Self {
+            latency: lat,
+            jitter: jit,
+            last_latency_residual: 0.0,
+            last_jitter_residual: 0.0,
+            process_noise: 0.15,
+            measurement_noise: 20.0,
+            error_cov: 1.0,
+        }
     }
 
     pub fn update(&mut self, m_lat: f32, m_jit: f32, dt: f32) {
         let alpha = 1.0 - (-dt / 0.6).exp().clamp(0.0, 0.95);
-        let i_lat = m_lat - self.latency;
-        let i_jit = m_jit - self.jitter;
-        self.latency += alpha * i_lat + 0.1 * alpha * i_jit;
-        self.jitter += alpha * i_jit + 0.1 * alpha * i_lat;
+
+        let res_lat = m_lat - self.latency;
+        let res_jit = m_jit - self.jitter;
+
+        self.last_latency_residual = res_lat;
+        self.last_jitter_residual = res_jit;
+
+        self.latency += alpha * res_lat + 0.1 * alpha * res_jit;
+        self.jitter += alpha * res_jit + 0.1 * alpha * res_lat;
     }
 }
 
@@ -365,14 +431,17 @@ impl RbeClientSync {
         safety.previous_latency_ms = latency_ms;
         safety.latency_histogram.record(latency_ms);
 
-        // Emit full monitoring state for Telemetry / Debug UI
+        // Emit full monitoring state (now includes residuals)
         if safety.sample_count % 5 == 0 {
             let snapshot = safety.get_monitoring_snapshot(now_ms);
             monitoring_events.send(SafetyNetMonitoringUpdate { snapshot });
 
             tracing::info!(
-                "[SafetyNet][Telemetry] Emitted SafetyNetMonitoringUpdate | samples={} | smoothed={:.1} | p95={}",
-                snapshot.sample_count, snapshot.smoothed_latency, snapshot.p95_ms
+                "[SafetyNet][Residuals] latency_res={:.1} | 2d_lat_res={:.1} | 2d_jit_res={:.1} | smoothed={:.1}",
+                snapshot.kalman_latency_residual,
+                snapshot.kalman_2d_latency_residual,
+                snapshot.kalman_2d_jitter_residual,
+                snapshot.smoothed_latency
             );
         }
 
