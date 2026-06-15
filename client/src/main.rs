@@ -2,7 +2,7 @@
  * Powrush-MMO Client Entry Point
  * The phenomenal gateway into the Eternal Thriving RBE Metaverse.
  *
- * Now with live Egui Settings Panel for instant tuning of the divine render pipeline.
+ * Now with live Egui Settings Panel + RBE Education UI components.
  */
 
 use bevy::prelude::*;
@@ -17,6 +17,7 @@ use crate::rbe_client_sync::RbeClientSyncPlugin;
 use crate::rbe::RbePlugin;
 use crate::rbe_engine::RbeEnginePlugin;
 use crate::rbe_simulation::RBESimulationPlugin;
+use crate::rbe_education_ui::RbeEducationUIPlugin;
 use crate::particles::ParticlePlugin;
 use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
@@ -51,6 +52,9 @@ fn main() {
         .add_plugins(RbeEnginePlugin)
         .add_plugins(RBESimulationPlugin)
 
+        // === RBE Education UI (new in v18.38) ===
+        .add_plugins(RbeEducationUIPlugin)
+
         // === Phenomenal Rendering (buttery temporal coherence) ===
         .add_plugins(PowrushRenderPlugin)
 
@@ -83,7 +87,7 @@ fn setup_3d_camera(mut commands: Commands) {
         Camera3dBundle {
             transform: Transform::from_xyz(0.0, 20.0, 40.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
-        },
+        }),
     ));
     info!("⚡ Powrush-MMO 3D camera initialized for eternal temporal + audio beauty");
 }
