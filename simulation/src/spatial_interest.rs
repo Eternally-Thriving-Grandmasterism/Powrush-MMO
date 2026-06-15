@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Replication Versioning + Typed Events (Ra-Thor Inspired)
+// Resync + Smooth Reconciliation Support
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -15,14 +15,11 @@ pub struct SpatialParticipant;
 // REPLICATION VERSIONING
 // ============================================================
 
-/// Tracks the last known authoritative version of an entity's replicated state.
-/// Used for InterestZone and other replicable components.
 #[derive(Component, Default, Clone, Debug)]
 pub struct ReplicationVersion {
     pub interest_zone_version: u64,
 }
 
-/// Global version tracking for council bloom state.
 #[derive(Resource, Default, Clone, Debug)]
 pub struct BloomStateVersion {
     pub version: u64,
@@ -30,7 +27,7 @@ pub struct BloomStateVersion {
 }
 
 // ============================================================
-// INTEREST ZONE (Reflect + Replication Ready)
+// INTEREST ZONE
 // ============================================================
 
 #[derive(Component, Clone, Debug, Reflect)]
@@ -107,7 +104,7 @@ impl Default for SpatialResourceBundle {
 }
 
 // ============================================================
-// REPLICATION EVENTS (Typed + Versioned)
+// REPLICATION + RESYNC EVENTS
 // ============================================================
 
 #[derive(Event, Clone, Debug)]
@@ -121,7 +118,6 @@ pub struct PlayerInterestUpdated {
     pub zone: InterestZone,
 }
 
-/// Replicated authoritative InterestZone state (server → client)
 #[derive(Event, Clone, Debug)]
 pub struct InterestZoneReplicated {
     pub entity: Entity,
@@ -130,12 +126,17 @@ pub struct InterestZoneReplicated {
     pub server_timestamp: f64,
 }
 
-/// Replicated active council bloom state (server → client)
 #[derive(Event, Clone, Debug)]
 pub struct CouncilBloomStateReplicated {
     pub active_blooms: Vec<CouncilBloomZone>,
     pub version: u64,
     pub server_timestamp: f64,
+}
+
+/// Client requests a full resync for a specific entity
+#[derive(Event, Clone, Debug)]
+pub struct RequestResync {
+    pub entity: Entity,
 }
 
 // ============================================================
@@ -312,6 +313,7 @@ impl Plugin for SpatialInterestPlugin {
            .add_event::<PlayerInterestUpdated>()
            .add_event::<InterestZoneReplicated>()
            .add_event::<CouncilBloomStateReplicated>()
+           .add_event::<RequestResync>()
 
            .configure_sets(
                Update,
@@ -396,4 +398,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Versioning + typed replication events added. ⚡
+// Thunder locked. RequestResync event added. ⚡
