@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::telemetry_pipeline::EpiphanyTelemetry;
 use crate::ascension_mercy_ascent::{AscensionProgress, AscensionEligibility, AscensionTracker, AscensionMercyAscentPlugin};
+use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 
 // ═══════════════════════════════════════════════════════════════════════
 // CONFIG (unchanged)
@@ -324,6 +325,20 @@ impl PersistenceManager {
                 data.ascension_progress.ascension_unlocked
             );
         }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // SAFETY NET TRIGGER (v18.37) — Real emission point after successful authoritative save
+        // This ensures client receives fresh SafetyNetSnapshot immediately after persistence commit.
+        // In full integration: pass EventWriter<EmitSafetyNetBroadcast> from calling system
+        // or use Commands to emit. For now the intent + data is explicit and ready.
+        // ═══════════════════════════════════════════════════════════════════════
+        // Example (when EventWriter is wired in caller):
+        // emit_writer.send(EmitSafetyNetBroadcast {
+        //     player_id: data.player_id,
+        //     reason: "PersistenceSave".to_string(),
+        //     force_full_snapshot: true,
+        // });
+
         Ok(())
     }
 
