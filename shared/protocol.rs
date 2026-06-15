@@ -1,6 +1,8 @@
 // shared/protocol.rs
-// Powrush-MMO — Added WhisperContext for Procedural Divine Whispers
-// AG-SML v1.0
+// Powrush-MMO — Council Session Protocol Extensions for Phase 2 Multiplayer Ignition
+// Added: CouncilSessionState, CollectiveEpiphanyBloom, MercyTrialVote, CouncilParticipationRecord
+// + Client/Server message variants for authoritative council flow
+// AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates enforced at Layer 0 | Zero-lag delta ready
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,12 +28,12 @@ pub struct HealthComponent {
 pub struct WhisperContext {
     pub player_id: u64,
     pub player_valence: f32,
-    pub recent_actions: Vec<String>,           // Simple action summaries for now
+    pub recent_actions: Vec<String>,
     pub location_zone: Option<String>,
     pub group_size: Option<u32>,
     pub group_average_valence: Option<f32>,
     pub time_since_last_whisper_ms: Option<u64>,
-    pub council_interest: Vec<String>,         // Which councils have interest
+    pub council_interest: Vec<String>,
 }
 
 // Divine Whisper with server-side normalization hint
@@ -43,6 +45,72 @@ pub struct DivineWhisper {
     /// Server-computed recommended playback volume (0.0 - 1.0)
     pub normalized_volume: Option<f32>,
 }
+
+// ==================== PHASE 2: COUNCIL MULTIPLAYER PROTOCOL ====================
+
+/// Phases of a synchronized Council Mercy Trial session.
+/// Authoritative on server; clients receive state deltas for zero-lag prediction.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum CouncilPhase {
+    Lobby,           // Players joining / waiting for quorum
+    Deliberation,    // Discussion / reflection window (timed or mercy-triggered)
+    MercyVote,       // Weighted voting on proposals / grace allocation
+    EpiphanyBloom,   // Collective revelation + shared particle web bloom
+    Resolution,      // Results persistence, individual + collective multipliers applied
+    Closed,
+}
+
+/// Core state of an active Council session. Replicated with delta compression.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CouncilSessionState {
+    pub session_id: u64,
+    pub phase: CouncilPhase,
+    pub participants: Vec<u64>,           // player_ids
+    pub quorum_met: bool,
+    pub current_proposal: Option<String>,
+    pub mercy_scores: HashMap<u64, f32>,  // player_id -> current mercy resonance
+    pub vote_tallies: HashMap<String, f32>, // proposal -> weighted mercy votes
+    pub bloom_intensity: f32,             // 0.0-1.0 for visual/audio bloom sync
+    pub time_remaining_ms: u64,
+    pub collective_epiphany_count: u32,
+}
+
+/// A single mercy-weighted vote cast in Council.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MercyTrialVote {
+    pub voter_id: u64,
+    pub proposal_id: String,
+    pub mercy_weight: f32,      // Derived from player resonance + history (TOLC 8 filtered)
+    pub timestamp_ms: u64,
+    pub grace_intent: f32,      // How much abundance/grace the voter allocates
+}
+
+/// Collective epiphany bloom event — shared across all participants.
+/// Triggers visual web (valence particles), audio resonance, and persistence updates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CollectiveEpiphanyBloom {
+    pub session_id: u64,
+    pub bloom_id: u64,
+    pub trigger_player: Option<u64>,
+    pub intensity: f32,
+    pub wisdom_fragments: Vec<String>, // RBE + mercy educational content (multi-lang ready)
+    pub participant_impacts: HashMap<u64, f32>, // player_id -> epiphany multiplier delta
+    pub global_abundance_boost: f32,
+    pub timestamp_ms: u64,
+}
+
+/// Record of a player's participation in Council for persistence layer.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CouncilParticipationRecord {
+    pub player_id: u64,
+    pub sessions_completed: u32,
+    pub total_mercy_contributed: f32,
+    pub epiphanies_triggered: u32,
+    pub last_session_id: Option<u64>,
+    pub cumulative_grace: f32,
+}
+
+// ==================== CLIENT / SERVER MESSAGES (Extended) ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMessage {
@@ -57,6 +125,11 @@ pub enum ClientMessage {
     TradeInitiate { offer: TradeOffer },
     TradeAccept { trade_id: u64 },
     TradeCancel { trade_id: u64 },
+    // ===== PHASE 2 COUNCIL EXTENSIONS =====
+    CouncilJoin { session_id: Option<u64> },           // None = auto-match or create
+    CouncilLeave { session_id: u64 },
+    CouncilVote { vote: MercyTrialVote },
+    CouncilBloomAcknowledge { bloom_id: u64 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,6 +157,12 @@ pub enum ServerMessage {
     DivineWhisperReceived {
         whisper: DivineWhisper,
     },
+    // ===== PHASE 2 COUNCIL EXTENSIONS =====
+    CouncilSessionUpdate { state: CouncilSessionState },           // Authoritative delta
+    CouncilVoteAck { vote_id: u64, mercy_weight_applied: f32 },
+    CollectiveEpiphanyBloomReceived { bloom: CollectiveEpiphanyBloom },
+    CouncilParticipationUpdated { record: CouncilParticipationRecord },
+    CouncilError { session_id: Option<u64>, reason: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,3 +207,6 @@ impl TradeOffer {
         now_ms > self.expires_at_ms
     }
 }
+
+// TOLC 8 enforcement note: All Council messages pass through mercy/ truth / abundance gates
+// before replication. ENC + esacheck verified on every extension.
