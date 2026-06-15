@@ -1,7 +1,7 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
 // Handles authoritative ServerMessage consumption including SafetyNetBroadcast (v18.37)
-// Includes latency monitoring + histograms + jitter analysis for SafetyNet broadcasts
+// Includes latency monitoring + histograms + jitter analysis + EMA for SafetyNet broadcasts
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -81,7 +81,7 @@ impl LatencyHistogram {
     pub fn p99(&self) -> u64 { self.percentile(0.99) }
 }
 
-/// Safety Net state resource for client-side sovereignty tracking + advanced latency + jitter monitoring
+/// Safety Net state resource for client-side sovereignty tracking + advanced latency + jitter + EMA monitoring
 #[derive(Resource, Clone)]
 pub struct SafetyNetState {
     pub last_tick: u64,
@@ -105,6 +105,11 @@ pub struct SafetyNetState {
     pub avg_jitter_ms: f32,
     pub max_jitter_ms: u64,
     previous_latency_ms: u64,   // internal tracking only
+
+    // Exponential Moving Average (EMA) - more responsive than simple average
+    pub ema_latency_ms: f32,
+    pub ema_jitter_ms: f32,
+    ema_alpha: f32,             // smoothing factor (internal)
 }
 
 impl Default for SafetyNetState {
@@ -125,6 +130,9 @@ impl Default for SafetyNetState {
             avg_jitter_ms: 0.0,
             max_jitter_ms: 0,
             previous_latency_ms: 0,
+            ema_latency_ms: 0.0,
+            ema_jitter_ms: 0.0,
+            ema_alpha: 0.25,   // Good balance for game networking (responsive but smooth)
         }
     }
 }
@@ -194,7 +202,7 @@ impl RbeClientSync {
                 tracing::info!("[Divine] Received whisper from server: {}", whisper.message);
             }
 
-            // ===== SAFETY NET BROADCAST CONSUMPTION + LATENCY + JITTER (v18.37) =====
+            // ===== SAFETY NET BROADCAST CONSUMPTION + LATENCY + JITTER + EMA (v18.37) =====
             if let ServerMessage::SafetyNetBroadcast { broadcast } = &msg {
                 self.handle_safety_net_broadcast(broadcast).await;
             }
@@ -210,7 +218,7 @@ impl RbeClientSync {
         safety.last_health = broadcast.snapshot.current_health;
         safety.last_council_engagement = broadcast.snapshot.council_engagement_score;
 
-        // ===== LATENCY + JITTER ANALYSIS =====
+        // ===== LATENCY + JITTER + EMA ANALYSIS =====
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -237,6 +245,10 @@ impl RbeClientSync {
             safety.avg_latency_ms = latency_ms as f32;
             safety.min_latency_ms = latency_ms;
             safety.max_latency_ms = latency_ms;
+
+            // Initialize EMA on first sample
+            safety.ema_latency_ms = latency_ms as f32;
+            safety.ema_jitter_ms = 0.0;
         } else {
             safety.avg_latency_ms = (safety.avg_latency_ms * (safety.sample_count - 1) as f32 + latency_ms as f32) / safety.sample_count as f32;
             if latency_ms < safety.min_latency_ms {
@@ -245,19 +257,27 @@ impl RbeClientSync {
             if latency_ms > safety.max_latency_ms {
                 safety.max_latency_ms = latency_ms;
             }
+
+            // Exponential Moving Average update (more responsive to recent changes)
+            let alpha = safety.ema_alpha;
+            safety.ema_latency_ms = alpha * (latency_ms as f32) + (1.0 - alpha) * safety.ema_latency_ms;
         }
 
-        // Update jitter stats
+        // Update jitter stats + EMA
         safety.last_jitter_ms = jitter_ms;
         if safety.sample_count > 1 {
             if safety.sample_count == 2 {
                 safety.avg_jitter_ms = jitter_ms as f32;
                 safety.max_jitter_ms = jitter_ms;
+                safety.ema_jitter_ms = jitter_ms as f32;
             } else {
                 safety.avg_jitter_ms = (safety.avg_jitter_ms * (safety.sample_count - 2) as f32 + jitter_ms as f32) / (safety.sample_count - 1) as f32;
                 if jitter_ms > safety.max_jitter_ms {
                     safety.max_jitter_ms = jitter_ms;
                 }
+                // EMA for jitter
+                let alpha = safety.ema_alpha;
+                safety.ema_jitter_ms = alpha * (jitter_ms as f32) + (1.0 - alpha) * safety.ema_jitter_ms;
             }
         }
 
@@ -267,11 +287,13 @@ impl RbeClientSync {
         // Record into histogram for distribution analysis
         safety.latency_histogram.record(latency_ms);
 
-        // Log latency + jitter + key percentiles
+        // Log latency + jitter + EMA + key percentiles
         tracing::info!(
-            "[SafetyNet][Latency] {}ms | jitter={}ms | p50={} p95={} p99={} | reason={} | tick={}",
+            "[SafetyNet][Latency] {}ms | jitter={}ms | ema_lat={:.1} ema_jit={:.1} | p50={} p95={} p99={} | reason={} | tick={}",
             latency_ms,
             jitter_ms,
+            safety.ema_latency_ms,
+            safety.ema_jitter_ms,
             safety.latency_histogram.p50(),
             safety.latency_histogram.p95(),
             safety.latency_histogram.p99(),
@@ -281,8 +303,8 @@ impl RbeClientSync {
 
         if latency_ms > 150 || jitter_ms > 50 {
             tracing::warn!(
-                "[SafetyNet] High latency/jitter detected: {}ms latency, {}ms jitter (p95={})",
-                latency_ms, jitter_ms, safety.latency_histogram.p95()
+                "[SafetyNet] High latency/jitter detected: {}ms latency, {}ms jitter (ema_lat={:.1})",
+                latency_ms, jitter_ms, safety.ema_latency_ms
             );
         }
 
@@ -324,7 +346,7 @@ impl RbeClientSync {
 
         // TODO (next cycle): Emit Bevy event for UI feedback, trigger local persistence safety write if needed,
         // update inventory abundance display, play mercy confirmation audio.
-        // Future: periodically export histogram + jitter snapshot to telemetry_pipeline
+        // Future: periodically export histogram + jitter + EMA snapshot to telemetry_pipeline
     }
 
     // ... other methods remain the same ...
