@@ -154,12 +154,14 @@ pub enum SafetyNetEvent {
 }
 
 /// The main SafetyNetBroadcast payload. Server-authoritative.
+/// Includes emit_timestamp_ms for latency monitoring.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SafetyNetBroadcast {
     pub snapshot: SafetyNetSnapshot,
     pub event: Option<SafetyNetEvent>,
     pub broadcast_reason: String,     // e.g. "CouncilBloom", "PersistenceSave", "ClientRequest", "Heartbeat"
     pub server_tick: u64,
+    pub emit_timestamp_ms: u64,       // Server emission time for latency monitoring
 }
 
 // ==================== CLIENT / SERVER MESSAGES (Extended) ====================
