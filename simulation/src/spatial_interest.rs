@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// InterestZone now Reflect-ready for replication
+// Council Bloom Replication Support
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 // ============================================================
-// CONSTANTS FOR DEFAULTS
+// CONSTANTS
 // ============================================================
 
 const DEFAULT_CELL_SIZE: f32 = 64.0;
@@ -20,7 +20,7 @@ const DEFAULT_SPATIAL_QUERY_BUFFER_CAPACITY: usize = 128;
 const DEFAULT_INTEREST_MANAGER_BLOOM_CAPACITY: usize = 4;
 
 // ============================================================
-// INTEREST ZONE COMPONENT (Reflect-ready for replication)
+// INTEREST ZONE (Reflect-ready)
 // ============================================================
 
 #[derive(Component, Clone, Debug, Reflect)]
@@ -107,6 +107,12 @@ pub struct CouncilBloomTriggered {
 pub struct PlayerInterestUpdated {
     pub player_id: u64,
     pub zone: InterestZone,
+}
+
+/// New event for replicating active council bloom state to clients
+#[derive(Event, Clone, Debug)]
+pub struct CouncilBloomStateUpdated {
+    pub active_blooms: Vec<CouncilBloomZone>,
 }
 
 // ============================================================
@@ -280,6 +286,7 @@ impl Plugin for SpatialInterestPlugin {
 
            .add_event::<CouncilBloomTriggered>()
            .add_event::<PlayerInterestUpdated>()
+           .add_event::<CouncilBloomStateUpdated>()
 
            .configure_sets(
                Update,
@@ -364,4 +371,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. InterestZone is now Reflect-ready for replication. ⚡
+// Thunder locked. CouncilBloomStateUpdated event added for bloom replication. ⚡
