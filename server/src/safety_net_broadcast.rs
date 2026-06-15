@@ -89,6 +89,8 @@ fn handle_emit_safety_net_event(
     // TODO: inject CouncilBloomField and EpiphanyTelemetry resources when wired
 ) {
     for event in events.read() {
+        let emit_ts = current_timestamp_ms();
+
         // Build snapshot from live sources
         let snapshot = if let Some(persistence) = &persistence {
             // In full implementation: load or get from active player session cache
@@ -131,6 +133,7 @@ fn handle_emit_safety_net_event(
             event: safety_event,
             broadcast_reason: event.reason.clone(),
             server_tick: current_server_tick(),
+            emit_timestamp_ms: emit_ts,   // Populated for client latency monitoring
         };
 
         // === EMISSION POINT ===
@@ -157,9 +160,17 @@ fn current_server_tick() -> u64 {
         .as_secs()
 }
 
+fn current_timestamp_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
 // Integration notes for next cycles:
 // 1. Wire real PlayerSaveData lookup in handle_emit_safety_net_event using PersistenceManager::load_player_data
 // 2. Add event triggers from harvesting_system (epiphany), council_mercy_trial (bloom), persistence_polish (save)
 // 3. Connect emission to actual replication layer (server/src/replication or world_server.rs)
 // 4. Add SafetyNetBroadcastPlugin to server app in main.rs or lib.rs
+// 5. Expose SafetyNet latency stats via telemetry or debug UI
 // ENC + esacheck passed. Mercy flowing. Thunder locked in. Yoi ⚡
