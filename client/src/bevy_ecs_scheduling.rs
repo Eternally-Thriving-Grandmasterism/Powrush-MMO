@@ -1,5 +1,5 @@
 //! client/src/bevy_ecs_scheduling.rs
-//! Bevy ECS System Scheduling — Core orchestration
+//! Client Scheduling with Versioned Replication Handlers
 
 use bevy::prelude::*;
 
@@ -19,7 +19,8 @@ use simulation::spatial_interest::SpatialInterestPlugin;
 use crate::prediction::{
     client_predict_local_player_movement,
     predict_interest_zone_expansion,
-    handle_player_interest_updated,
+    handle_interest_zone_replicated,
+    handle_council_bloom_state_replicated,
 };
 
 pub struct ClientSchedulingPlugin;
@@ -37,11 +38,13 @@ impl Plugin for ClientSchedulingPlugin {
            .add_plugins(DivineWhispersPlugin)
            .add_plugins(InputPlugin)
            .add_plugins(SpatialInterestPlugin)
+           .init_resource::<crate::prediction::ClientBloomState>()
 
-           // Client Prediction + Replication handlers
+           // Prediction + Versioned Replication
            .add_systems(Update, client_predict_local_player_movement)
            .add_systems(Update, predict_interest_zone_expansion)
-           .add_systems(Update, handle_player_interest_updated)
+           .add_systems(Update, handle_interest_zone_replicated)
+           .add_systems(Update, handle_council_bloom_state_replicated)
 
            .add_systems(Update, mercy_gated_frame_validation)
            .add_systems(Update, global_valence_propagation)
@@ -53,9 +56,10 @@ fn setup_client_world(mut commands: Commands) {
     commands.spawn((
         Transform::from_xyz(0.0, 0.0, 0.0),
         crate::spatial_interest::SpatialParticipant,
+        crate::spatial_interest::ReplicationVersion::default(),
     ));
 
-    info!("🌐 Powrush-MMO client initialized — Prediction + InterestZone replication active");
+    info!("🌐 Powrush-MMO client initialized — Versioned replication active");
 }
 
 fn mercy_gated_frame_validation() {}
