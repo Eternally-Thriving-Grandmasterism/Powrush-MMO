@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Buffer Reuse for query_radius (Reduced Allocations)
+// External Reusable Query Buffer Resource
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -136,7 +136,17 @@ impl InterestManager {
 }
 
 // ============================================================
-// SPATIAL HASH - Buffer Reuse Optimized
+// REUSABLE QUERY BUFFER RESOURCE
+// ============================================================
+
+/// Reusable buffer for spatial queries to avoid per-frame allocations.
+#[derive(Resource, Default)]
+pub struct SpatialQueryBuffer {
+    pub entities: Vec<Entity>,
+}
+
+// ============================================================
+// SPATIAL HASH
 // ============================================================
 
 type CellEntities = SmallVec<[(Entity, Vec3); 12]>;
@@ -187,7 +197,6 @@ impl SpatialHash {
         self.entity_locations.insert(entity, new_cell);
     }
 
-    /// Fills `out` with entities within radius (buffer reuse to avoid allocation)
     pub fn query_radius(&self, center: Vec3, radius: f32, out: &mut Vec<Entity>) {
         out.clear();
         let cell_radius = (radius / self.cell_size).ceil() as i32;
@@ -241,6 +250,7 @@ impl Plugin for SpatialInterestPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SpatialHash>()
            .init_resource::<InterestManager>()
+           .init_resource::<SpatialQueryBuffer>()
 
            .add_event::<CouncilBloomTriggered>()
            .add_event::<PlayerInterestUpdated>()
@@ -278,15 +288,13 @@ pub fn update_interest_zones_system(
     }
 }
 
-/// Uses a reusable buffer for spatial queries to minimize allocations
+/// Uses the external SpatialQueryBuffer resource for zero-allocation spatial queries.
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
+    mut buffer: ResMut<SpatialQueryBuffer>,
     mut interest_query: Query<(&mut InterestZone, &Transform)>,
 ) {
-    // Reusable buffer to avoid allocating a new Vec every frame / every bloom
-    static mut QUERY_BUFFER: Vec<Entity> = Vec::new();
-
     if interest_manager.council_blooms.is_empty() {
         for (mut zone, _transform) in &mut interest_query {
             zone.council_boost *= 0.92;
@@ -296,11 +304,9 @@ pub fn propagate_council_influence_system(
     }
 
     for bloom in &interest_manager.council_blooms {
-        // SAFETY: This is a single-threaded game loop. In multi-threaded contexts use a thread-local.
-        let buffer = unsafe { &mut QUERY_BUFFER };
-        spatial_hash.query_radius(bloom.center, bloom.radius, buffer);
+        spatial_hash.query_radius(bloom.center, bloom.radius, &mut buffer.entities);
 
-        for &entity in buffer.iter() {
+        for &entity in buffer.entities.iter() {
             if let Ok((mut zone, transform)) = interest_query.get_mut(entity) {
                 let dist = (transform.translation - bloom.center).length();
                 if dist <= bloom.radius {
@@ -333,4 +339,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. query_radius now uses buffer reuse to eliminate per-frame allocations. ⚡
+// Thunder locked. External SpatialQueryBuffer resource implemented for clean, safe buffer reuse. ⚡
