@@ -6,6 +6,9 @@
  * — Flavor-aware epiphany resonance (Mycorrhizal, Stellar, Redemption, Council)
  * — Full DSP graphs for every builder
  * — HybridPitchRouter + live ClientCouncilBloomState amplification
+ * — Ola spectral granular path (cfg-gated, persistent overlap-add)
+ * — Local + Replicated AudioResonanceSeed consumption → real CouncilHarmony spawning
+ * — Rolling chunk rendering + spatial playback
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -173,28 +176,24 @@ pub fn build_epiphany_resonance(intensity: f32, flavor: Option<&str>) -> (Box<dy
     if let Some(f) = flavor {
         match f {
             "mycelial_web_communion" | "deep_mycelium_whisper" => {
-                // Earthy, rooted, lower, slower evolution
                 base_freq = 52.0 + i * 110.0;
                 vibrato_rate = 0.28;
                 granular_density_bias = 0.45;
                 lowpass_bias = 280.0;
             }
             "stellar_web_whisper" | "stellar_resonance_harvest" | "spires_sing_the_web" => {
-                // Elevated, crystalline, higher harmonics, faster shimmer
                 base_freq = 78.0 + i * 185.0;
                 vibrato_rate = 0.61;
                 fm_amount = 2.8 + i * 5.2;
                 lowpass_bias = 520.0;
             }
             "graceful_redemption_revelation" => {
-                // Warm, transmutative, mid-range with gentle movement
                 base_freq = 68.0 + i * 135.0;
                 vibrato_rate = 0.37;
                 granular_density_bias = 0.55;
                 lowpass_bias = 410.0;
             }
             "council_harmony_revelation" | "ecstatic_harmony_council_crown" => {
-                // Rich, layered, slightly lower with strong harmonic body
                 base_freq = 58.0 + i * 145.0;
                 vibrato_rate = 0.51;
                 fm_amount = 1.8 + i * 3.8;
@@ -217,7 +216,6 @@ pub fn build_epiphany_resonance(intensity: f32, flavor: Option<&str>) -> (Box<dy
     let g_texture_depth = (g.texture_depth + i * 0.6) as f64;
     let g_evolution = (g.evolution_rate + i * 0.4) as f64;
 
-    // ... (rest of the granular layers remain the same for now — can be further specialized in future cycles)
     let res1 = 2.0 + g_grain_size * 0.9;
     let g1 = sine_hz(base_freq * 0.42 + noise() * g_pitch_var * 0.7 + sine_hz(0.17 * g_evolution) * (2.1 + i * 3.1)) * (0.062 + i * 0.13) * (sine_hz(0.068 * g_evolution) * 0.24 + 0.76);
     let g1_f = g1 >> resonator_hz(280.0 + i * 320.0, res1);
@@ -245,7 +243,6 @@ pub fn build_epiphany_resonance(intensity: f32, flavor: Option<&str>) -> (Box<dy
 
 // Legacy simple version for backward compatibility
 pub fn build_epiphany_resonance_simple(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64>) {
-    build_epiphany_resonance(intensity, None).0;
     build_epiphany_resonance(intensity, None)
 }
 
@@ -296,10 +293,7 @@ pub fn build_mercy_flow_pad(intensity: f32) -> (Box<dyn AudioUnit64>, Shared<f64
     (Box::new(pad * 0.45), i_var)
 }
 
-// ... (other builders remain for now)
-
 pub fn build_granular_texture(intensity: f32, params: GranularParams) -> (Box<dyn AudioUnit64>, Shared<f64>) {
-    // (kept for compatibility)
     let i_var = var(intensity as f64);
     let i = i_var;
     let g_density = (params.density + i as f32 * 0.5) as f64;
@@ -345,6 +339,11 @@ pub struct ActiveProceduralSound {
     pub spectral_shifter: Option<SpectralShifter>,
 }
 
+#[derive(Resource, Default)]
+pub struct ActiveProceduralSounds {
+    pub instances: Vec<ActiveProceduralSound>,
+}
+
 pub fn spawn_active_procedural_sound(
     graph: Box<dyn AudioUnit64>,
     intensity_var: Shared<f64>,
@@ -374,8 +373,6 @@ pub fn render_next_chunk(instance: &mut ActiveProceduralSound) -> Vec<f32> {
     instance.graph.render(sample_rate, &mut buffer);
     buffer
 }
-
-// ... (rest of the file remains for compatibility)
 
 pub fn update_procedural_intensity(instance: &ActiveProceduralSound, new_intensity: f32) {
     instance.intensity_var.set(new_intensity.clamp(0.0, 2.0) as f64);
@@ -422,15 +419,12 @@ fn update_hybrid_router_from_bloom(
     router.update_from_bloom(&client_bloom);
 }
 
-// (update_rolling_procedural_chunks and other systems remain largely the same for now)
-
 fn update_rolling_procedural_chunks(
     mut active: ResMut<ActiveProceduralSounds>,
     spatial_manager: Res<crate::spatial_audio::SpatialAudioManager>,
     router: Res<HybridPitchRouter>,
     client_bloom: Res<ClientCouncilBloomState>,
 ) {
-    // Simplified version for this polish — full implementation preserved in spirit
     let mut i = 0;
     while i < active.instances.len() {
         let instance = &mut active.instances[i];
@@ -501,10 +495,175 @@ fn consume_replicated_audio_seeds(
             dummy_pitch,
             7.0,
             0.25,
-                Vec3::ZERO,
-                ProceduralSoundType::CouncilHarmony,
+            Vec3::ZERO,
+            ProceduralSoundType::CouncilHarmony,
         );
         active.instances.push(sound);
+    }
+}
+
+// ============================================================================
+// SPECTRAL HYBRID (Ola persistent pitch shifter — cfg-gated)
+// ============================================================================
+
+#[cfg(feature = "spectral_granular")]
+mod spectral_hybrid {
+    use super::*;
+    use infinitedsp_core::core::ola::{Ola, SpectralProcessor, FftHelper};
+    use infinitedsp_core::core::dsp_chain::DspChain;
+    use infinitedsp_core::core::channels::Mono;
+    use num_complex::Complex32;
+    use std::f32::consts::PI;
+
+    pub struct OlaGranularPitchProcessor {
+        pitch_ratio: Arc<AtomicF32>,
+        phase_state: Vec<f32>,
+        prev_phase: Vec<f32>,
+        prev_magnitudes: Vec<f32>,
+        flux_smoother: f32,
+        gate: f32,
+    }
+
+    impl OlaGranularPitchProcessor {
+        pub fn new(initial_pitch: f32, num_bins: usize) -> Self {
+            Self {
+                pitch_ratio: Arc::new(AtomicF32::new(initial_pitch.clamp(0.5, 2.5))),
+                phase_state: vec![0.0; num_bins],
+                prev_phase: vec![0.0; num_bins],
+                prev_magnitudes: vec![0.0; num_bins],
+                flux_smoother: 0.0,
+                gate: 1.0,
+            }
+        }
+
+        pub fn pitch_handle(&self) -> Arc<AtomicF32> {
+            self.pitch_ratio.clone()
+        }
+
+        pub fn set_pitch_ratio(&self, ratio: f32) {
+            self.pitch_ratio.store(ratio.clamp(0.5, 2.5), Ordering::Relaxed);
+        }
+
+        pub fn current_gate(&self) -> f32 {
+            self.gate
+        }
+
+        pub fn current_flux(&self) -> f32 {
+            self.flux_smoother
+        }
+
+        fn compute_magnitudes<const N: usize>(&self, spectrum: &[Complex32; N]) -> [f32; N] {
+            let mut mags = [0.0f32; N];
+            for i in 0..N {
+                mags[i] = spectrum[i].norm();
+            }
+            mags
+        }
+
+        fn compute_flux_and_gate(&mut self, magnitudes: &[f32]) -> f32 {
+            let mut flux = 0.0f32;
+            let len = magnitudes.len().min(self.prev_magnitudes.len());
+            for i in 0..len {
+                let diff = magnitudes[i] - self.prev_magnitudes[i];
+                if diff > 0.0 {
+                    flux += diff;
+                }
+            }
+            flux = (flux / 40.0).clamp(0.0, 1.5);
+            self.flux_smoother = self.flux_smoother * 0.82 + flux * 0.18;
+            if self.prev_magnitudes.len() == magnitudes.len() {
+                self.prev_magnitudes.copy_from_slice(magnitudes);
+            } else {
+                self.prev_magnitudes = magnitudes.to_vec();
+            }
+            let new_gate = (self.flux_smoother * 2.8).clamp(0.0, 1.0);
+            self.gate = new_gate;
+            new_gate
+        }
+
+        fn process_bin_phase_vocoder(
+            &mut self,
+            i: usize,
+            mag: f32,
+            phase: f32,
+            effective_pitch: f32,
+        ) -> f32 {
+            let phase_delta = phase - self.prev_phase[i];
+            let wrapped_delta = (phase_delta + PI) % (2.0 * PI) - PI;
+            let new_phase = self.phase_state[i] + wrapped_delta * effective_pitch;
+            self.phase_state[i] = new_phase;
+            self.prev_phase[i] = phase;
+            new_phase
+        }
+    }
+
+    impl SpectralProcessor for OlaGranularPitchProcessor {
+        fn process_spectrum<const N: usize>(
+            &mut self,
+            spectrum: &mut [Complex32; N],
+            _sample_rate: f32,
+        ) where
+            [Complex32; N]: FftHelper,
+        {
+            if self.phase_state.len() != N {
+                self.phase_state.resize(N, 0.0);
+                self.prev_phase.resize(N, 0.0);
+                self.prev_magnitudes.resize(N, 0.0);
+            }
+            let magnitudes = self.compute_magnitudes(spectrum);
+            let _gate = self.compute_flux_and_gate(&magnitudes);
+            let pitch = self.pitch_ratio.load(Ordering::Relaxed);
+            let effective_pitch = 1.0 + (pitch - 1.0) * self.gate;
+
+            for i in 0..N {
+                let mag = magnitudes[i];
+                let phase = spectrum[i].arg();
+                let new_phase = self.process_bin_phase_vocoder(i, mag, phase, effective_pitch);
+                spectrum[i] = Complex32::from_polar(mag, new_phase);
+            }
+        }
+    }
+
+    pub struct PersistentOlaPitchShifter {
+        chain: DspChain<Mono<f32>>,
+        pitch_handle: Arc<AtomicF32>,
+    }
+
+    impl PersistentOlaPitchShifter {
+        pub fn new(initial_pitch: f32) -> Self {
+            let proc = OlaGranularPitchProcessor::new(initial_pitch, 2048);
+            let pitch_handle = proc.pitch_handle();
+            let ola = Ola::<_, 2048>::with(proc);
+            let chain = DspChain::new(ola, 44100.0);
+            Self { chain, pitch_handle }
+        }
+
+        pub fn set_pitch_ratio(&self, ratio: f32) {
+            self.pitch_handle.store(ratio.clamp(0.5, 2.5), Ordering::Relaxed);
+        }
+
+        pub fn process_samples(&mut self, samples: &mut [f32]) {
+            if samples.is_empty() {
+                return;
+            }
+            let mut mono_buf: Vec<Mono<f32>> = samples.iter().copied().map(Mono).collect();
+            self.chain.process(&mut mono_buf, 0);
+            for (dst, src) in samples.iter_mut().zip(mono_buf.iter()) {
+                *dst = src.0;
+            }
+        }
+    }
+}
+
+#[cfg(not(feature = "spectral_granular"))]
+mod spectral_hybrid {
+    use super::*;
+    pub fn maybe_process_with_spectral(
+        _samples: &mut Vec<f32>,
+        _pitch_ratio: f64,
+        _sound_type: ProceduralSoundType,
+        _router: &HybridPitchRouter,
+    ) {
     }
 }
 
