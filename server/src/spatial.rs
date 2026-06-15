@@ -1,12 +1,14 @@
 // server/src/spatial.rs
 // Powrush-MMO Server Spatial Integration
-// InterestZone change detection + replication event emission
+// Council Bloom State Replication
 
 use bevy::prelude::*;
-use simulation::spatial_interest::{SpatialParticipant, InterestZone, PlayerInterestUpdated};
+use simulation::spatial_interest::{
+    SpatialParticipant, InterestZone, PlayerInterestUpdated,
+    InterestManager, CouncilBloomStateUpdated,
+};
 
-/// Ensures that entities with Transform (especially players) participate
-/// in the server's SpatialHash and Interest system.
+/// Ensures entities with Transform get SpatialParticipant + default InterestZone
 pub fn ensure_spatial_participation_system(
     mut commands: Commands,
     query: Query<(Entity, Option<&InterestZone>), (With<Transform>, Without<SpatialParticipant>)>,
@@ -20,20 +22,28 @@ pub fn ensure_spatial_participation_system(
     }
 }
 
-/// Detects changes to InterestZone on entities with SpatialParticipant
-/// and emits PlayerInterestUpdated events for replication to clients.
-///
-/// This is the basic server → client replication hook for interest zone state.
+/// Detects InterestZone changes and emits replication events
 pub fn detect_interest_zone_changes_system(
     interest_zone_query: Query<(Entity, &InterestZone), (With<SpatialParticipant>, Changed<InterestZone>)>,
     mut events: EventWriter<PlayerInterestUpdated>,
 ) {
     for (entity, zone) in &interest_zone_query {
-        // Temporary: using entity ID as player_id placeholder.
-        // In production, this should map to the actual player account/session ID.
         events.send(PlayerInterestUpdated {
             player_id: entity.to_bits(),
             zone: zone.clone(),
+        });
+    }
+}
+
+/// Emits CouncilBloomStateUpdated when there are active blooms.
+/// This enables clients to receive current council bloom state.
+pub fn emit_council_bloom_state_system(
+    interest_manager: Res<InterestManager>,
+    mut events: EventWriter<CouncilBloomStateUpdated>,
+) {
+    if !interest_manager.council_blooms.is_empty() {
+        events.send(CouncilBloomStateUpdated {
+            active_blooms: interest_manager.council_blooms.clone(),
         });
     }
 }
