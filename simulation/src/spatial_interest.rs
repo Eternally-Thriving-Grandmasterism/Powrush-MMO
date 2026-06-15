@@ -1,6 +1,6 @@
 // simulation/src/spatial_interest.rs
 // Powrush-MMO — Hybrid Spatial Interest Architecture (Layer 2)
-// Documented ECS Bundles (Best Practices)
+// InterestZone now Reflect-ready for replication
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
@@ -20,10 +20,11 @@ const DEFAULT_SPATIAL_QUERY_BUFFER_CAPACITY: usize = 128;
 const DEFAULT_INTEREST_MANAGER_BLOOM_CAPACITY: usize = 4;
 
 // ============================================================
-// INTEREST ZONE COMPONENT
+// INTEREST ZONE COMPONENT (Reflect-ready for replication)
 // ============================================================
 
-#[derive(Component, Clone, Debug)]
+#[derive(Component, Clone, Debug, Reflect)]
+#[reflect(Component)]
 pub struct InterestZone {
     pub center: Vec3,
     pub base_radius: f32,
@@ -48,21 +49,9 @@ impl InterestZone {
 }
 
 // ============================================================
-// ECS BUNDLES - Documented Best Practices
+// BUNDLES
 // ============================================================
 
-/// Base bundle for any entity that participates in the spatial interest system.
-///
-/// Contains the minimal set of components required for:
-/// - Spatial hashing and proximity queries
-/// - Council bloom influence propagation
-/// - Interest zone calculations
-///
-/// This bundle is designed to be composed into more specific bundles
-/// (e.g. `SpatialPlayerBundle`, `SpatialResourceBundle`).
-///
-/// Best Practice: Keep this bundle small and focused.
-/// Do not add gameplay-specific components here.
 #[derive(Bundle, Default)]
 pub struct SpatialEntityBundle {
     pub transform: Transform,
@@ -73,15 +62,6 @@ pub struct SpatialEntityBundle {
     pub spatial_participant: SpatialParticipant,
 }
 
-/// Bundle for player-controlled entities that participate in spatial interest.
-///
-/// Extends `SpatialEntityBundle` with:
-/// - `InterestZone` (so the player can be influenced by council blooms and have dynamic interest radius)
-/// - `Name` (for debugging and UI)
-///
-/// Use this when spawning players or player-controlled units.
-///
-/// Best Practice: Compose from `SpatialEntityBundle` rather than duplicating components.
 #[derive(Bundle)]
 pub struct SpatialPlayerBundle {
     pub spatial: SpatialEntityBundle,
@@ -99,16 +79,6 @@ impl Default for SpatialPlayerBundle {
     }
 }
 
-/// Bundle for resource nodes and harvestable entities.
-///
-/// Extends `SpatialEntityBundle` so resources can:
-/// - Participate in spatial queries (harvesting, targeting)
-/// - Be influenced by council blooms (e.g. abundance effects)
-///
-/// Use this (or a similar extension) when spawning resource nodes.
-///
-/// Best Practice: Keep resource-specific data (e.g. ResourceNode component) outside this bundle
-/// and insert it separately when needed.
 #[derive(Bundle)]
 pub struct SpatialResourceBundle {
     pub spatial: SpatialEntityBundle,
@@ -394,4 +364,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Bundles now include detailed design documentation. ⚡
+// Thunder locked. InterestZone is now Reflect-ready for replication. ⚡
