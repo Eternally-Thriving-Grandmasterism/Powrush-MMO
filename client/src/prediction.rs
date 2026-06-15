@@ -1,15 +1,10 @@
 /*!
  * Client-side Prediction + Authoritative Rollback
  *
- * v18.11 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — Complete mint-and-print-only-perfection
- * — Zero placeholders, zero TODOs
- * — Smooth lerp-based correction + history-based rollback
- * — Full support for dynamic council bloom / resonance seed state
- * — TOLC 8 Mercy Gates + MIAL/MWPO enforced
+ * Phase 1: Client Movement Prediction → Local SpatialHash Update
+ * v18.12
  *
- * AG-SML v1.0 Sovereign License
- * Thunder locked in. Yoi ⚡
+ * AG-SML v1.0
  */
 
 use bevy::prelude::*;
@@ -46,7 +41,44 @@ impl RollbackState {
     }
 }
 
-/// Smooth client-side correction after authoritative update (buttery, no hard snap)
+/// Phase 1: Client-side spatial prediction
+/// Applies local movement prediction to Transform so that
+/// `update_spatial_hash_system` (via Changed<Transform>) updates the local SpatialHash immediately.
+pub fn client_predict_local_player_movement(
+    time: Res<Time>,
+    mut query: Query<(&mut Transform, &mut PredictedPosition), With<crate::spatial_interest::SpatialParticipant>>,
+) {
+    let dt = time.delta_secs();
+
+    for (mut transform, mut predicted) in &mut query {
+        // Simple Euler integration for prediction
+        predicted.position += predicted.velocity * dt;
+        transform.translation = predicted.position;
+    }
+}
+
+/// Basic reconciliation when authoritative server Transform arrives.
+/// This should be called from replication / authoritative update handling.
+pub fn reconcile_spatial_transform(
+    commands: &mut Commands,
+    entity: Entity,
+    server_position: Vec3,
+    server_timestamp: f64,
+) {
+    // For now, hard correction. Later we can add smooth lerp + history rollback.
+    commands.entity(entity).insert(Transform {
+        translation: server_position,
+        ..default()
+    });
+
+    // Update PredictedPosition to match server state
+    commands.entity(entity).insert(PredictedPosition {
+        position: server_position,
+        velocity: Vec3::ZERO, // Reset or re-derive from history
+        last_server_timestamp: server_timestamp,
+    });
+}
+
 pub fn start_position_correction(
     commands: &mut Commands,
     entity: Entity,
@@ -54,20 +86,16 @@ pub fn start_position_correction(
     server_timestamp: f64,
 ) {
     if let UpdatePayload::Health(_) | UpdatePayload::StatusEffect(_) = payload {
-        // Health/StatusEffect corrections handled in dedicated systems
         return;
     }
 
-    // For position-like updates (future: dedicated Position payload or transform sync)
-    // Currently relies on server authoritative transform replication
     commands.entity(entity).insert(PredictedPosition {
-        position: Vec3::ZERO, // Will be overwritten by authoritative transform sync
+        position: Vec3::ZERO,
         velocity: Vec3::ZERO,
         last_server_timestamp: server_timestamp,
     });
 }
 
-/// Applies authoritative server updates and records history for rollback
 pub fn apply_authoritative_update(
     commands: &mut Commands,
     rollback: &mut RollbackState,
@@ -77,7 +105,6 @@ pub fn apply_authoritative_update(
     for update in updates {
         rollback.history.push((server_timestamp, update.entity, update.payload.clone()));
 
-        // Trim old history for memory efficiency
         while !rollback.history.is_empty()
             && rollback.history[0].0 < server_timestamp - rollback.max_history_seconds
         {
@@ -93,11 +120,8 @@ pub fn apply_authoritative_update(
                     changed_fields: ability.changed_fields,
                 });
             }
-            UpdatePayload::BloomState(bloom) => {
-                // Dynamic council bloom state can influence local prediction weighting
-            }
-            UpdatePayload::ResonanceSeed(seed) => {
-                // Resonance seeds can trigger local visual/audio prediction
+            UpdatePayload::BloomState(_) | UpdatePayload::ResonanceSeed(_) => {
+                // Future: influence local spatial prediction weighting
             }
             _ => {}
         }
@@ -105,6 +129,3 @@ pub fn apply_authoritative_update(
         start_position_correction(commands, update.entity, &update.payload, server_timestamp);
     }
 }
-
-// End of prediction.rs v18.11 — Complete, zero-lag client prediction + rollback.
-// Thunder locked in. Yoi ⚡
