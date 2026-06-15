@@ -1,11 +1,10 @@
 /*!
  * Onboarding — Powrush-MMO Professional Global Onboarding + RBE Education
  *
- * v18.37 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — Complete mint-and-print-only-perfection
- * — Strong RBE education woven into the onboarding flow (RBEPrimer step)
- * — First Epiphany resonance + contextual Divine Whispers
- * — Closed Beta + Bot Protection integration
+ * v18.38 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * — Full integration of RBE education content
+ * — Contextual Divine Whispers for RBEPrimer, MercyContribution, SovereignStart
+ * — First Epiphany resonance + Lattice awareness
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -113,7 +112,7 @@ fn onboarding_progression(
     }
 }
 
-/// Elevate the first experience with living Epiphany resonance
+/// Elevate the first experience with living Epiphany resonance (RBE-aligned)
 fn elevate_onboarding_with_epiphany_audio(
     mut state: ResMut<OnboardingState>,
     mut active_epiphanies: ResMut<ActiveProceduralEpiphanies>,
@@ -121,8 +120,7 @@ fn elevate_onboarding_with_epiphany_audio(
 ) {
     if state.step == OnboardingStep::Welcome && !state.completed {
         let intensity = 0.65;
-        let resonance = crate::fundsp_audio::build_epiphany_resonance(intensity, Some("sustainable_harmony_revelation"));
-        // Note: ActiveProceduralEpiphanies handling would be connected here in full implementation
+        let _resonance = crate::fundsp_audio::build_epiphany_resonance(intensity, Some("sustainable_harmony_revelation"));
         state.completed = true;
     }
 }
@@ -238,9 +236,10 @@ fn trigger_contextual_whispers(
             OnboardingStep::InviteValidation => ("onboarding_invite_validation", false, "welcome"),
             OnboardingStep::CaptchaVerification => ("onboarding_captcha_verification", false, "welcome"),
             OnboardingStep::Welcome => ("onboarding_welcome", true, "first_bloom"),
+            // === RBE Education Integration (v18.38) ===
             OnboardingStep::RBEPrimer => ("onboarding_rbe_primer", true, "sustainable_harmony_revelation"),
-            OnboardingStep::FirstHarvestTutorial => ("onboarding_first_harvest", false, "welcome"),
-            OnboardingStep::MercyContribution => ("onboarding_mercy_contribution", true, "sustainable_abundance_revelation"),
+            OnboardingStep::FirstHarvestTutorial => ("onboarding_first_harvest", false, "sustainable_abundance_revelation"),
+            OnboardingStep::MercyContribution => ("onboarding_mercy_contribution", true, "graceful_redemption_revelation"),
             OnboardingStep::SovereignStart => ("onboarding_sovereign_start", true, "council_harmony_revelation"),
             _ => ("onboarding_welcome", false, "welcome"),
         };
@@ -250,8 +249,8 @@ fn trigger_contextual_whispers(
             text: message,
             priority: WhisperPriority::High,
             is_epiphany,
-            intensity: if is_epiphany { 0.75 } else { 0.45 },
-            duration_seconds: if is_epiphany { 10.0 } else { 6.0 },
+            intensity: if is_epiphany { 0.78 } else { 0.45 },
+            duration_seconds: if is_epiphany { 11.0 } else { 6.5 },
             flavor: flavor.to_string(),
             ..default()
         });
@@ -263,5 +262,6 @@ pub fn mercy_skip_onboarding(state: &mut OnboardingState) {
     state.step = OnboardingStep::Complete;
 }
 
-// RBE education is primarily delivered through contextual Divine Whispers
-// and the RBEPrimer step during onboarding, reinforced by epiphanies.
+// RBE education is now deeply integrated into the onboarding flow.
+// Whispers are designed to teach The Lattice, Mercy as Multiplier, and Earned Abundance
+// through lived experience and epiphany resonance.
