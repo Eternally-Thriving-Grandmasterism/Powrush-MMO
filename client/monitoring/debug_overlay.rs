@@ -1,5 +1,5 @@
 // client/monitoring/debug_overlay.rs
-// Debug Overlay with NVML Clock Speeds (v18.37)
+// Debug Overlay with full NVML Clock Speeds (v18.37)
 
 use bevy::prelude::*;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -23,16 +23,25 @@ pub fn update_debug_overlay(
 ) {
     // ... existing updates ...
 
-    // === NVML CLOCK SPEEDS ===
+    // === NVML CLOCK SPEEDS (Graphics + Memory) ===
     if let Some(nvml_res) = nvml {
         let info = nvml_res.0.get_info();
 
         if info.is_available {
             if let Ok(mut text) = gpu_clocks_q.get_single_mut() {
+                let mut parts = Vec::new();
+
                 if info.graphics_clock_mhz > 0 {
-                    text.0 = format!("GPU Clock: {} MHz (Graphics)", info.graphics_clock_mhz);
+                    parts.push(format!("Graphics: {} MHz", info.graphics_clock_mhz));
+                }
+                if info.memory_clock_mhz > 0 {
+                    parts.push(format!("Memory: {} MHz", info.memory_clock_mhz));
+                }
+
+                if !parts.is_empty() {
+                    text.0 = format!("GPU Clocks: {}", parts.join(" | "));
                 } else {
-                    text.0 = "GPU Clock: N/A".to_string();
+                    text.0 = "GPU Clocks: N/A".to_string();
                 }
             }
         }
