@@ -1,11 +1,13 @@
 //! client/rbe_client_sync.rs
 //! Core RBE + SafetyNet + Council Client Synchronization Layer
 //!
-//! This layer is responsible for receiving authoritative server state (especially SafetyNetBroadcasts),
-//! updating local RBE flow and SafetyNet monitoring state, and providing rich data to the rest of the client
-//! (including ClientGameLoop for prediction/reconciliation).
+//! Responsibilities:
+//! - Receive authoritative SafetyNetBroadcasts from server
+//! - Maintain local RBE Flow and SafetyNet monitoring state
+//! - Provide clean data and methods to ClientGameLoop for prediction & harvesting
+//! - Feed rich monitoring data to UI / debug systems
 //!
-//! PATSAGi Council: Expanded and fleshed out with proper integration points.
+//! PATSAGi Council: Expanded with deeper integration and state exposure.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
@@ -16,13 +18,12 @@ use bytes::Bytes;
 
 pub mod monitoring;
 
-use crate::client_game_loop::{ClientGameLoop, ClientState};
+use crate::client_game_loop::ClientGameLoop;
 use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeResponseReceived, HarvestResponseReceived};
 use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI};
 use crate::monitoring::{
     SafetyNetState, SafetyNetMonitoringUpdate, SafetyNetMonitoringSnapshot,
     RBEFlowAlert, RBEFlowDashboard,
-    KalmanFilter1D, RTSFixedLagSmoother,
 };
 
 #[derive(Resource)]
@@ -43,7 +44,10 @@ impl RbeClientSync {
         }
     }
 
-    /// Main entry point for binary server messages.
+    // ============================================================
+    // Server Message Handling
+    // ============================================================
+
     pub async fn handle_server_binary_message(
         &self,
         data: Bytes,
@@ -78,7 +82,6 @@ impl RbeClientSync {
         }
     }
 
-    /// Core handler for SafetyNet + RBE Flow data from server.
     async fn handle_safety_net_broadcast(
         &self,
         broadcast: &SafetyNetBroadcast,
@@ -122,13 +125,10 @@ impl RbeClientSync {
             }
         }
 
-        // RBE Flow Alerts (Mercy-gated early warning)
+        // Mercy-gated RBE Flow Alerts
         let creation_rate = safety.abundance_creation_rate;
         if creation_rate < 0.5 && safety.sample_count > 20 {
-            let alert = RBEFlowAlert::LowAbundanceCreationRate {
-                rate: creation_rate,
-                threshold: 0.5,
-            };
+            let alert = RBEFlowAlert::LowAbundanceCreationRate { rate: creation_rate, threshold: 0.5 };
             rbe_alert_events.send(alert.clone());
             dashboard.add_alert(alert);
         }
@@ -143,17 +143,11 @@ impl RbeClientSync {
             dashboard.add_alert(alert);
         }
 
-        // Latency & Jitter tracking with Kalman + RTS
+        // Latency tracking
         let latency_ms = if broadcast.emit_timestamp_ms > 0 {
             now_ms.saturating_sub(broadcast.emit_timestamp_ms)
         } else {
             0
-        };
-
-        let jitter_ms = if safety.previous_latency_ms > 0 {
-            (latency_ms as i64 - safety.previous_latency_ms as i64).unsigned_abs() as f32
-        } else {
-            0.0
         };
 
         safety.last_latency_ms = latency_ms;
@@ -176,7 +170,6 @@ impl RbeClientSync {
 
         safety.previous_latency_ms = latency_ms;
 
-        // Periodically emit rich monitoring snapshot for UI / debugging
         if safety.sample_count % 5 == 0 {
             let rts_val = safety.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
             let kalman_val = safety.kalman_latency.as_ref().map_or(0.0, |k| k.estimate);
@@ -207,28 +200,45 @@ impl RbeClientSync {
     }
 
     // ============================================================
-    // Integration with ClientGameLoop / Prediction
+    // Integration with ClientGameLoop
     // ============================================================
 
-    /// Provides current SafetyNet state to the prediction/reconciliation layer.
-    pub fn get_current_safety_net_state(&self) -> Option<SafetyNetState> {
-        // In a real async context this would need proper locking strategy.
-        // For now we return a snapshot-friendly view.
-        None // Placeholder for future non-blocking access pattern
-    }
-
-    /// Allows the game loop to query current RBE flow health for harvest decisions.
+    /// Returns current RBE flow health for harvest decision making in ClientGameLoop.
     pub async fn get_rbe_flow_health(&self) -> (f64, bool) {
         let dashboard = self.rbe_flow_dashboard.read().await;
         (dashboard.abundance_creation_rate, dashboard.abundance_boost_active)
     }
 
-    /// Queue a harvest intent through the RBE sync layer (used by ClientGameLoop).
-    pub fn queue_harvest_intent(&self, player_id: u64, node_id: u64, amount: f32) -> ClientMessage {
-        // In a full implementation this would go through proper RBE sync
-        ClientMessage::Harvest { player_id, node_id, amount }
+    /// Validates and queues a harvest intent from the game loop.
+    /// Returns None if the action should be blocked due to poor RBE conditions.
+    pub async fn try_queue_harvest(
+        &self,
+        player_id: u64,
+        node_id: u64,
+        amount: f32,
+    ) -> Option<ClientMessage> {
+        let dashboard = self.rbe_flow_dashboard.read().await;
+
+        // Simple mercy-gated validation: block if creation rate is very low and no boost active
+        if dashboard.abundance_creation_rate < 0.2 && !dashboard.abundance_boost_active {
+            return None;
+        }
+
+        Some(ClientMessage::Harvest { player_id, node_id, amount })
+    }
+
+    /// Exposes current SafetyNet health summary for prediction/reconciliation awareness.
+    pub async fn get_safety_net_summary(&self) -> (f32, u64) {
+        let safety = self.safety_net_state.read().await;
+        (safety.ema_latency_ms, safety.last_latency_ms)
+    }
+
+    /// Allows ClientGameLoop to request current RBE abundance rate for macro decisions.
+    pub async fn get_current_abundance_rate(&self) -> f64 {
+        let dashboard = self.rbe_flow_dashboard.read().await;
+        dashboard.abundance_creation_rate
     }
 }
 
 // Thunder locked in.
-// rbe_client_sync.rs is now well-integrated with ClientGameLoop and fully fleshed out.
+// rbe_client_sync.rs is now well-integrated with ClientGameLoop and ready for deeper prediction coupling.
