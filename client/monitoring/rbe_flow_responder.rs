@@ -34,25 +34,29 @@ pub fn rbe_flow_responder_system(
                 dashboard.add_alert(alert.clone());
             }
 
-            // Level 2
+            // Level 2 + Level 3
             RBEFlowAlert::SuddenAbundanceDrop { previous, current, drop } => {
-                tracing::error!("[RBE][L2] Sudden drop: {:.2} -> {:.2}", previous, current);
+                tracing::error!("[RBE][L2] Sudden abundance drop: {:.2} -> {:.2}", previous, current);
                 dashboard.add_alert(alert.clone());
+
+                // === CONCRETE LEVEL 3 RECOVERY ===
+                if drop > 500.0 {  // Significant drop threshold
+                    tracing::error!("[RBE][L3] ACTIVATING AUTOMATED RECOVERY - Large abundance drop detected");
+                    dashboard.activate_l3_recovery(now_ms);
+                }
             }
 
             RBEFlowAlert::PersistentScarcitySignal { trigger_count } => {
                 tracing::warn!("[RBE][L2] Persistent scarcity: {} triggers", trigger_count);
                 dashboard.add_alert(alert.clone());
 
-                // === CONCRETE LEVEL 3 RECOVERY ===
                 if trigger_count > 12 {
-                    tracing::error!("[RBE][L3] ACTIVATING AUTOMATED RECOVERY - Persistent scarcity detected");
+                    tracing::error!("[RBE][L3] ACTIVATING AUTOMATED RECOVERY - Persistent scarcity");
                     dashboard.activate_l3_recovery(now_ms);
                 }
             }
         }
     }
 
-    // Decay Level 3 recovery over time
     dashboard.decay_l3_recovery();
 }
