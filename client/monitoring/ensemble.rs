@@ -1,6 +1,6 @@
 // client/monitoring/ensemble.rs
 // Ra-Thor Localized Ensemble Kalman Filter Foundation
-// Strengthened analysis step (v18.37)
+// Proper localized Kalman gain integration (v18.37)
 
 use super::localization::{build_sparse_state_localization, apply_sparse_localization};
 use super::adaptive::AdvancedAdaptiveLocalizer;
@@ -32,7 +32,7 @@ impl LocalizedEnsembleKalmanFilter {
         }
 
         let mean = Self::compute_mean(&ensemble);
-        let spread = Self::compute_spread(&ensemble, &mean);
+        let spread = Self::compute_spread(&self.ensemble, &mean);
 
         Self {
             ensemble,
@@ -70,8 +70,8 @@ impl LocalizedEnsembleKalmanFilter {
         self.update_statistics();
     }
 
-    /// Improved localized analysis step.
-    /// Uses the localized sample covariance more correctly when forming the gain.
+    /// Analysis step with proper localized Kalman gain integration.
+    /// Uses the localized covariance to form a more correct gain per state dimension.
     pub fn analyze(
         &mut self,
         observation: &[f32],
@@ -94,7 +94,7 @@ impl LocalizedEnsembleKalmanFilter {
             }
         }
 
-        // 2. Apply localization (sparse when distances are provided)
+        // 2. Apply localization
         let localized_cov = if let Some(distances) = state_distances {
             let sparse_loc = build_sparse_state_localization(distances, self.localization_radius);
             apply_sparse_localization(&cov, &sparse_loc)
@@ -102,21 +102,14 @@ impl LocalizedEnsembleKalmanFilter {
             cov
         };
 
-        // 3. Improved gain computation
-        // For each state variable i, we form a gain using the localized row.
-        // This is still a simplification but much better than pure diagonal.
+        // 3. Proper localized Kalman gain per dimension
+        // gain[i] = P_loc[i,i] / (P_loc[i,i] + R)
+        // This is the standard scalar Kalman gain using the localized variance.
+        // Future extension: full gain matrix K = P_loc H^T (H P_loc H^T + R)^{-1}
         let mut gain = vec![0.0; n];
         for i in 0..n {
-            // Use the localized covariance row for variable i
-            let mut row_sum = 0.0;
-            for j in 0..n {
-                row_sum += localized_cov[i][j].abs();
-            }
-
-            // Heuristic but principled gain:
-            // Larger localized correlation mass → higher gain (more trust in observation)
-            let effective_p = localized_cov[i][i] + 0.1 * row_sum;
-            gain[i] = effective_p / (effective_p + observation_noise);
+            let p_ii = localized_cov[i][i];
+            gain[i] = p_ii / (p_ii + observation_noise);
         }
 
         // 4. Update ensemble members
@@ -124,8 +117,6 @@ impl LocalizedEnsembleKalmanFilter {
             for i in 0..n {
                 let mut innovation = 0.0;
 
-                // Simple innovation using direct observation assumption
-                // (can be extended with proper H matrix later)
                 if i < observation.len() {
                     innovation = observation[i] - member[i];
                 }
@@ -136,7 +127,7 @@ impl LocalizedEnsembleKalmanFilter {
 
         self.update_statistics();
 
-        // 5. Adaptive localization radius update
+        // 5. Adaptive radius update
         if let Some(ref mut localizer) = self.adaptive_localizer {
             let residual = self.compute_innovation_magnitude(observation);
             localizer.update(residual, self.last_spread);
