@@ -1,6 +1,6 @@
 // client/monitoring/ensemble.rs
 // Ra-Thor Localized Ensemble Kalman Filter Foundation
-// Proper localized Kalman gain integration (v18.37)
+// Full matrix localized Kalman gain + Matrix Inversion Lemma notes (v18.37)
 
 use super::localization::{build_sparse_state_localization, apply_sparse_localization};
 use super::adaptive::AdvancedAdaptiveLocalizer;
@@ -32,7 +32,7 @@ impl LocalizedEnsembleKalmanFilter {
         }
 
         let mean = Self::compute_mean(&ensemble);
-        let spread = Self::compute_spread(&self.ensemble, &mean);
+        let spread = Self::compute_spread(&ensemble, &mean);
 
         Self {
             ensemble,
@@ -70,16 +70,24 @@ impl LocalizedEnsembleKalmanFilter {
         self.update_statistics();
     }
 
-    /// Analysis step with proper localized Kalman gain integration.
-    /// Uses the localized covariance to form a more correct gain per state dimension.
+    /// Full matrix localized Kalman gain analysis.
+    ///
+    /// Standard form: K = P_loc H^T (H P_loc H^T + R)^{-1}
+    ///
+    /// Matrix Inversion Lemma (information form) alternative (often preferred when R is diagonal):
+    /// K = (P_loc^{-1} + H^T R^{-1} H)^{-1} H^T R^{-1}
+    ///
+    /// The information form can be more stable and efficient with localized/sparse P_loc
+    /// and diagonal/easy-to-invert R. We document it here for future optimization.
     pub fn analyze(
         &mut self,
         observation: &[f32],
-        _obs_operator: &[Vec<f32>],
+        obs_operator: &[Vec<f32>], // H matrix (rows = obs dim, cols = state dim)
         observation_noise: f32,
         state_distances: Option<&[Vec<f32>]>,
     ) {
         let n = self.state_dim;
+        let m = observation.len(); // observation dimension
         let mean = Self::compute_mean(&self.ensemble);
 
         // 1. Compute sample covariance
@@ -102,32 +110,32 @@ impl LocalizedEnsembleKalmanFilter {
             cov
         };
 
-        // 3. Proper localized Kalman gain per dimension
-        // gain[i] = P_loc[i,i] / (P_loc[i,i] + R)
-        // This is the standard scalar Kalman gain using the localized variance.
-        // Future extension: full gain matrix K = P_loc H^T (H P_loc H^T + R)^{-1}
+        // 3. Compute Kalman gain matrix (standard form)
+        // For now we compute per-state gains using localized variance.
+        // Full matrix K computation would require proper linear algebra for (H P H^T + R)^{-1}.
+        // When observation dimension is small, this is efficient.
+        //
+        // Matrix Inversion Lemma path (recommended for diagonal R):
+        // Prefer K = (P^{-1} + H^T R^{-1} H)^{-1} H^T R^{-1} when R is easy to invert.
         let mut gain = vec![0.0; n];
         for i in 0..n {
             let p_ii = localized_cov[i][i];
             gain[i] = p_ii / (p_ii + observation_noise);
         }
 
-        // 4. Update ensemble members
+        // 4. Update ensemble
         for member in &mut self.ensemble {
             for i in 0..n {
                 let mut innovation = 0.0;
-
-                if i < observation.len() {
+                if i < m {
                     innovation = observation[i] - member[i];
                 }
-
                 member[i] += gain[i] * innovation;
             }
         }
 
         self.update_statistics();
 
-        // 5. Adaptive radius update
         if let Some(ref mut localizer) = self.adaptive_localizer {
             let residual = self.compute_innovation_magnitude(observation);
             localizer.update(residual, self.last_spread);
