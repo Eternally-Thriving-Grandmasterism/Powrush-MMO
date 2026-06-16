@@ -18,7 +18,7 @@ pub enum RBEFlowAlert {
 }
 
 // ============================================================
-// RBE FLOW DASHBOARD
+// RBE FLOW DASHBOARD (with L3 recovery state)
 // ============================================================
 
 #[derive(Resource, Clone, Debug, Default)]
@@ -30,6 +30,11 @@ pub struct RBEFlowDashboard {
     pub restoration_effectiveness: f32,
     pub server_abundance: f64,
     pub active_alerts: Vec<RBEFlowAlert>,
+
+    // Level 3 Recovery State
+    pub restoration_multiplier: f32,      // Temporary boost to restoration
+    pub abundance_boost_active: bool,     // Whether L3 abundance boost is engaged
+    pub last_l3_action_ms: u64,
 }
 
 impl RBEFlowDashboard {
@@ -51,6 +56,24 @@ impl RBEFlowDashboard {
     pub fn clear_old_alerts(&mut self) {
         if self.active_alerts.len() > 10 {
             self.active_alerts.drain(0..self.active_alerts.len() - 10);
+        }
+    }
+
+    /// Level 3: Activate stronger automated recovery
+    pub fn activate_l3_recovery(&mut self, now_ms: u64) {
+        self.restoration_multiplier = 1.5; // 50% stronger restorations
+        self.abundance_boost_active = true;
+        self.last_l3_action_ms = now_ms;
+    }
+
+    pub fn decay_l3_recovery(&mut self) {
+        // Simple decay over time (can be improved)
+        if self.restoration_multiplier > 1.0 {
+            self.restoration_multiplier *= 0.98;
+            if self.restoration_multiplier < 1.05 {
+                self.restoration_multiplier = 1.0;
+                self.abundance_boost_active = false;
+            }
         }
     }
 }
