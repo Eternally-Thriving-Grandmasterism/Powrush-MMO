@@ -1,7 +1,8 @@
 // client/monitoring/ensemble.rs
 // Ra-Thor Localized Ensemble Kalman Filter Foundation
+// Strengthened analysis step (v18.37)
 
-use super::localization::{build_sparse_state_localization, apply_sparse_localization, SparseLocalization};
+use super::localization::{build_sparse_state_localization, apply_sparse_localization};
 use super::adaptive::AdvancedAdaptiveLocalizer;
 
 pub type EnsembleMember = Vec<f32>;
@@ -69,6 +70,8 @@ impl LocalizedEnsembleKalmanFilter {
         self.update_statistics();
     }
 
+    /// Improved localized analysis step.
+    /// Uses the localized sample covariance more correctly when forming the gain.
     pub fn analyze(
         &mut self,
         observation: &[f32],
@@ -76,11 +79,13 @@ impl LocalizedEnsembleKalmanFilter {
         observation_noise: f32,
         state_distances: Option<&[Vec<f32>]>,
     ) {
+        let n = self.state_dim;
         let mean = Self::compute_mean(&self.ensemble);
 
-        let mut cov = vec![vec![0.0; self.state_dim]; self.state_dim];
-        for i in 0..self.state_dim {
-            for j in 0..self.state_dim {
+        // 1. Compute sample covariance
+        let mut cov = vec![vec![0.0; n]; n];
+        for i in 0..n {
+            for j in 0..n {
                 let mut sum = 0.0;
                 for member in &self.ensemble {
                     sum += (member[i] - mean[i]) * (member[j] - mean[j]);
@@ -89,6 +94,7 @@ impl LocalizedEnsembleKalmanFilter {
             }
         }
 
+        // 2. Apply localization (sparse when distances are provided)
         let localized_cov = if let Some(distances) = state_distances {
             let sparse_loc = build_sparse_state_localization(distances, self.localization_radius);
             apply_sparse_localization(&cov, &sparse_loc)
@@ -96,26 +102,41 @@ impl LocalizedEnsembleKalmanFilter {
             cov
         };
 
-        // Simplified gain computation for foundation version
-        let mut gain = vec![0.0; self.state_dim];
-        for i in 0..self.state_dim {
-            gain[i] = localized_cov[i][i] / (localized_cov[i][i] + observation_noise).max(1e-6);
+        // 3. Improved gain computation
+        // For each state variable i, we form a gain using the localized row.
+        // This is still a simplification but much better than pure diagonal.
+        let mut gain = vec![0.0; n];
+        for i in 0..n {
+            // Use the localized covariance row for variable i
+            let mut row_sum = 0.0;
+            for j in 0..n {
+                row_sum += localized_cov[i][j].abs();
+            }
+
+            // Heuristic but principled gain:
+            // Larger localized correlation mass → higher gain (more trust in observation)
+            let effective_p = localized_cov[i][i] + 0.1 * row_sum;
+            gain[i] = effective_p / (effective_p + observation_noise);
         }
 
+        // 4. Update ensemble members
         for member in &mut self.ensemble {
-            for i in 0..self.state_dim {
+            for i in 0..n {
                 let mut innovation = 0.0;
-                for (k, &obs_val) in observation.iter().enumerate() {
-                    if k < gain.len() {
-                        innovation += gain[i] * (obs_val - member[i]);
-                    }
+
+                // Simple innovation using direct observation assumption
+                // (can be extended with proper H matrix later)
+                if i < observation.len() {
+                    innovation = observation[i] - member[i];
                 }
-                member[i] += innovation;
+
+                member[i] += gain[i] * innovation;
             }
         }
 
         self.update_statistics();
 
+        // 5. Adaptive localization radius update
         if let Some(ref mut localizer) = self.adaptive_localizer {
             let residual = self.compute_innovation_magnitude(observation);
             localizer.update(residual, self.last_spread);
