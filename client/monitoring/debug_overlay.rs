@@ -9,7 +9,7 @@ use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::render::renderer::RenderDevice;
 use crate::monitoring::RBEFlowDashboard;
 use crate::monitoring::gpu_timestamps::{GpuTimestampQueries, get_latest_gpu_validation};
-use crate::monitoring::nvml_monitor::{NvmlMonitorResource, NvmlGpuInfo};
+use crate::monitoring::nvml_monitor::{NvmlMonitorResource};
 
 // === DEBUG OVERLAY COMPONENTS ===
 #[derive(Component)]
@@ -36,26 +36,43 @@ pub struct DebugGpuLoad;
 #[derive(Component)]
 pub struct DebugRBEFlowStatus;
 
-// === SETUP: Spawn Debug UI Texts (call once in startup) ===
+// === HISTORY RESOURCES (recovered for profiler continuity) ===
+#[derive(Resource, Default)]
+pub struct FpsHistory(pub Vec<f32>);
+
+#[derive(Resource, Default)]
+pub struct FrameTimeHistory(pub Vec<f32>);
+
+#[derive(Resource, Default)]
+pub struct PerformanceSpikeState {
+    pub recent_spikes: u32,
+    pub last_spike_ms: u64,
+}
+
+#[derive(Resource, Default)]
+pub struct PerformanceSpikeConfig {
+    pub fps_threshold: f32,
+    pub frame_time_threshold_ms: f32,
+}
+
+// === SETUP: Spawn Debug UI Texts ===
 pub fn setup_debug_overlay(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
 ) {
-    // Example positioning - adjust for your HUD layout
-    let font = asset_server.load("fonts/FiraSans-Bold.ttf"); // or your game font
+    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
     let text_style = TextFont {
         font: font.clone(),
         font_size: 14.0,
         ..default()
     };
-    let text_color = TextColor(Color::srgb(0.0, 1.0, 0.8)); // Cyan mercy glow
+    let text_color = TextColor(Color::srgb(0.0, 1.0, 0.8));
 
     commands.spawn((
         Text::new("GPU Clocks: --"),
         text_style.clone(),
         text_color.clone(),
         DebugGpuClocks,
-        // Node for UI positioning...
     ));
 
     commands.spawn((
@@ -108,6 +125,20 @@ pub fn setup_debug_overlay(
     ));
 }
 
+// Back-compat alias
+pub fn spawn_debug_overlay(commands: Commands, asset_server: Res<AssetServer>) {
+    setup_debug_overlay(commands, asset_server);
+}
+
+// === TOGGLE (simple visibility helper - extend with key if desired) ===
+pub fn toggle_debug_overlay(
+    mut query: Query<&mut Visibility, With<DebugGpuClocks>>,
+) {
+    for mut vis in &mut query {
+        *vis = if *vis == Visibility::Visible { Visibility::Hidden } else { Visibility::Visible };
+    }
+}
+
 // === UPDATE: Polished full integration ===
 pub fn update_debug_overlay(
     rbe_dashboard: Res<RBEFlowDashboard>,
@@ -123,128 +154,66 @@ pub fn update_debug_overlay(
     mut load_q: Query<&mut Text, With<DebugGpuLoad>>,
     mut rbe_q: Query<&mut Text, With<DebugRBEFlowStatus>>,
 ) {
-    // === RBE FLOW DASHBOARD STATUS (Mercy aligned player sovereignty) ===
+    // RBE FLOW STATUS
     if let Ok(mut text) = rbe_q.get_single_mut() {
-        let flow_state = if rbe_dashboard.is_flowing {
-            "RBE Flow: Eternal | Sovereign"
-        } else {
-            "RBE Flow: Stabilizing..."
-        };
+        let flow_state = if rbe_dashboard.is_flowing { "RBE Flow: Eternal | Sovereign" } else { "RBE Flow: Stabilizing..." };
         text.0 = flow_state.to_string();
     }
 
-    // === NVML GPU METRICS (Full real hardware data - PATSAGi monitored) ===
+    // NVML GPU METRICS
     if let Some(nvml_res) = nvml {
-        let info = nvml_res.0.get_info();
+        let info = nvml_res.0.lock().map(|g| g.get_info()).unwrap_or_else(|_| NvmlGpuInfo { is_available: false, ..Default::default() });
 
         if info.is_available {
-            // GPU Clocks (Graphics + Memory) - Recovered from iteration chain
             if let Ok(mut text) = gpu_clocks_q.get_single_mut() {
                 let mut parts = Vec::new();
-                if info.graphics_clock_mhz > 0 {
-                    parts.push(format!("Graphics: {} MHz", info.graphics_clock_mhz));
-                }
-                if info.memory_clock_mhz > 0 {
-                    parts.push(format!("Memory: {} MHz", info.memory_clock_mhz));
-                }
-                text.0 = if !parts.is_empty() {
-                    format!("GPU Clocks: {}", parts.join(" | "))
-                } else {
-                    "GPU Clocks: N/A".to_string()
-                };
+                if info.graphics_clock_mhz > 0 { parts.push(format!("Graphics: {} MHz", info.graphics_clock_mhz)); }
+                if info.memory_clock_mhz > 0 { parts.push(format!("Memory: {} MHz", info.memory_clock_mhz)); }
+                text.0 = if !parts.is_empty() { format!("GPU Clocks: {}", parts.join(" | ")) } else { "GPU Clocks: N/A".to_string() };
             }
 
-            // GPU Memory
             if let Ok(mut text) = gpu_memory_q.get_single_mut() {
-                if info.memory_total_mb > 0 {
-                    text.0 = format!("GPU Memory: {} / {} MB ({}% used)", 
-                        info.memory_used_mb, 
-                        info.memory_total_mb,
-                        if info.memory_total_mb > 0 { (info.memory_used_mb * 100 / info.memory_total_mb) } else { 0 });
-                } else {
-                    text.0 = "GPU Memory: N/A".to_string();
-                }
+                text.0 = if info.memory_total_mb > 0 {
+                    format!("GPU Memory: {} / {} MB", info.memory_used_mb, info.memory_total_mb)
+                } else { "GPU Memory: N/A".to_string() };
             }
 
-            // Fan Speed
             if let Ok(mut text) = fan_q.get_single_mut() {
-                if info.fan_speed_percent > 0 {
-                    text.0 = format!("Fan Speed: {}%", info.fan_speed_percent);
-                } else {
-                    text.0 = "Fan Speed: N/A".to_string();
-                }
+                text.0 = if info.fan_speed_percent > 0 { format!("Fan Speed: {}%", info.fan_speed_percent) } else { "Fan Speed: N/A".to_string() };
             }
 
-            // Temperature
             if let Ok(mut text) = temp_q.get_single_mut() {
-                if info.temperature_c > 0 {
-                    text.0 = format!("GPU Temp: {} C", info.temperature_c);
-                } else {
-                    text.0 = "GPU Temp: N/A".to_string();
-                }
+                text.0 = if info.temperature_c > 0 { format!("GPU Temp: {} C", info.temperature_c) } else { "GPU Temp: N/A".to_string() };
             }
 
-            // Power Usage
             if let Ok(mut text) = power_q.get_single_mut() {
-                if info.power_watts > 0.0 {
-                    text.0 = format!("GPU Power: {:.1} W", info.power_watts);
-                } else {
-                    text.0 = "GPU Power: N/A".to_string();
-                }
-            }
-        } else {
-            // NVML not available - graceful degradation
-            for mut q in [&mut gpu_clocks_q, &mut gpu_memory_q, &mut fan_q, &mut temp_q, &mut power_q] {
-                if let Ok(mut text) = q.get_single_mut() {
-                    text.0 = "GPU Metrics: NVML Unavailable (feature flag or driver)".to_string();
-                }
+                text.0 = if info.power_watts > 0.0 { format!("GPU Power: {:.1} W", info.power_watts) } else { "GPU Power: N/A".to_string() };
             }
         }
     }
 
-    // === wgpu REAL GPU FRAME TIME + LOAD (from TimestampQueryNode) ===
+    // wgpu REAL GPU FRAME TIME + LOAD
     if let Some(queries) = gpu_queries {
         let validation = get_latest_gpu_validation(&queries);
 
         if let Ok(mut text) = frame_time_q.get_single_mut() {
-            if validation.is_valid && validation.last_gpu_time_ms > 0.0 {
-                text.0 = format!("GPU Frame Time: {:.2} ms", validation.last_gpu_time_ms);
-            } else if validation.last_error.is_some() {
-                text.0 = format!("GPU Frame Time: {} (fallback)", validation.last_error.as_deref().unwrap_or("measuring..."));
-            } else {
-                text.0 = "GPU Frame Time: measuring...".to_string();
-            }
+            text.0 = if validation.is_valid && validation.last_gpu_time_ms > 0.0 {
+                format!("GPU Frame Time: {:.2} ms", validation.last_gpu_time_ms)
+            } else { "GPU Frame Time: measuring...".to_string() };
         }
 
         if let Ok(mut text) = load_q.get_single_mut() {
             if validation.is_valid && validation.last_gpu_time_ms > 0.0 {
-                // Realistic load estimate based on real GPU time (16.67ms = 60fps target)
                 let load = (validation.last_gpu_time_ms / 16.67).clamp(0.0, 2.0) * 50.0;
                 text.0 = format!("Est. GPU Load: ~{:.0} %", load.min(100.0));
             } else {
                 text.0 = "Est. GPU Load: (initializing)".to_string();
             }
         }
-    } else {
-        if let Ok(mut text) = frame_time_q.get_single_mut() {
-            text.0 = "GPU Frame Time: (wgpu timestamps disabled)".to_string();
-        }
     }
 
-    // === DIAGNOSTICS FALLBACK (Frame time from Bevy if needed) ===
-    if let Some(fps) = diagnostics.get_measurement(&FrameTimeDiagnosticsPlugin::FPS) {
-        // Can extend for additional CPU frame metrics here if desired
-        let _fps_avg = fps.average().unwrap_or(0.0);
+    // Diagnostics fallback
+    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS).and_then(|d| d.average()) {
+        // extend history here if desired
     }
-}
-
-// === Optional: Clear or reset overlay texts ===
-pub fn reset_debug_overlay(
-    mut clocks_q: Query<&mut Text, With<DebugGpuClocks>>,
-    // ... other queries
-) {
-    for mut text in &mut clocks_q {
-        text.0 = "GPU Clocks: --".to_string();
-    }
-    // Extend for others as needed
 }
