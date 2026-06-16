@@ -18,7 +18,7 @@ pub enum RBEFlowAlert {
 }
 
 // ============================================================
-// RBE FLOW DASHBOARD (with L1 informational alerts)
+// RBE FLOW DASHBOARD (with clean L1 / L2 / L3 separation)
 // ============================================================
 
 #[derive(Resource, Clone, Debug, Default)]
@@ -34,6 +34,10 @@ pub struct RBEFlowDashboard {
     // Level 1 - Informational
     pub informational_alerts: Vec<RBEFlowAlert>,
     pub max_informational_alerts: usize,
+
+    // Level 2 - Supportive Alerts
+    pub l2_alerts: Vec<RBEFlowAlert>,
+    pub max_l2_alerts: usize,
 
     // Level 2 Supportive State
     pub l2_multiplier: f32,
@@ -52,6 +56,7 @@ impl RBEFlowDashboard {
     pub fn new() -> Self {
         Self {
             max_informational_alerts: 20,
+            max_l2_alerts: 15,
             l2_multiplier: 1.0,
             l2_boost_active: false,
             l2_decay_rate: 0.25,
@@ -77,12 +82,20 @@ impl RBEFlowDashboard {
         }
     }
 
-    /// Add a pure Level 1 informational alert
+    /// Level 1 - Purely informational
     pub fn add_informational_alert(&mut self, alert: RBEFlowAlert) {
         if self.informational_alerts.len() >= self.max_informational_alerts {
             self.informational_alerts.remove(0);
         }
         self.informational_alerts.push(alert);
+    }
+
+    /// Level 2 - Supportive alerts (trigger mild automated assistance)
+    pub fn add_l2_alert(&mut self, alert: RBEFlowAlert) {
+        if self.l2_alerts.len() >= self.max_l2_alerts {
+            self.l2_alerts.remove(0);
+        }
+        self.l2_alerts.push(alert);
     }
 
     pub fn clear_old_alerts(&mut self) {
@@ -92,9 +105,12 @@ impl RBEFlowDashboard {
         if self.informational_alerts.len() > self.max_informational_alerts {
             self.informational_alerts.drain(0..self.informational_alerts.len() - self.max_informational_alerts);
         }
+        if self.l2_alerts.len() > self.max_l2_alerts {
+            self.l2_alerts.drain(0..self.l2_alerts.len() - self.max_l2_alerts);
+        }
     }
 
-    // Level 2
+    // Level 2 Support
     pub fn activate_l2_support(&mut self, now_ms: u64) {
         self.l2_multiplier = 1.25;
         self.l2_boost_active = true;
@@ -125,7 +141,7 @@ impl RBEFlowDashboard {
         self.last_l2_action_ms = now_ms;
     }
 
-    // Level 3
+    // Level 3 Recovery
     pub fn activate_l3_recovery(&mut self, now_ms: u64) {
         self.restoration_multiplier = 1.5;
         self.abundance_boost_active = true;
