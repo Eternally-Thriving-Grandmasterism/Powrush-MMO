@@ -1,9 +1,63 @@
 // client/monitoring/safety_net.rs
-// Ra-Thor SafetyNet Monitoring State and Events
-// Extended with RBE Flow Dynamics (v18.37)
+// Ra-Thor SafetyNet + RBE Flow Alerts & Dashboard (v18.37)
 
 use bevy::prelude::*;
 use crate::monitoring::{KalmanFilter1D, RTSFixedLagSmoother};
+
+// ============================================================
+// RBE FLOW ALERTS
+// ============================================================
+
+#[derive(Event, Debug, Clone)]
+pub enum RBEFlowAlert {
+    LowAbundanceCreationRate { rate: f64, threshold: f64 },
+    HighSafetyNetTriggerFrequency { count: u32, window_size: usize },
+    LowRestorationEffectiveness { effectiveness: f32, threshold: f32 },
+    SuddenAbundanceDrop { previous: f64, current: f64, drop: f64 },
+    PersistentScarcitySignal { trigger_count: u32 },
+}
+
+// ============================================================
+// RBE FLOW DASHBOARD
+// ============================================================
+
+#[derive(Resource, Clone, Debug, Default)]
+pub struct RBEFlowDashboard {
+    pub abundance_creation_rate: f64,
+    pub abundance_restoration_rate: f64,
+    pub safety_net_trigger_count: u32,
+    pub average_restoration_magnitude: f64,
+    pub restoration_effectiveness: f32,
+    pub server_abundance: f64,
+    pub active_alerts: Vec<RBEFlowAlert>,
+}
+
+impl RBEFlowDashboard {
+    pub fn update_from_snapshot(&mut self, snapshot: &SafetyNetMonitoringSnapshot) {
+        self.abundance_creation_rate = snapshot.abundance_creation_rate;
+        self.abundance_restoration_rate = snapshot.abundance_restoration_rate;
+        self.safety_net_trigger_count = snapshot.safety_net_trigger_count;
+        self.average_restoration_magnitude = snapshot.average_restoration_magnitude;
+        self.restoration_effectiveness = snapshot.restoration_effectiveness;
+        self.server_abundance = snapshot.server_abundance;
+    }
+
+    pub fn add_alert(&mut self, alert: RBEFlowAlert) {
+        if !self.active_alerts.iter().any(|a| std::mem::discriminant(a) == std::mem::discriminant(&alert)) {
+            self.active_alerts.push(alert);
+        }
+    }
+
+    pub fn clear_old_alerts(&mut self) {
+        if self.active_alerts.len() > 10 {
+            self.active_alerts.drain(0..self.active_alerts.len() - 10);
+        }
+    }
+}
+
+// ============================================================
+// SAFETY NET MONITORING
+// ============================================================
 
 #[derive(Event, Debug, Clone)]
 pub struct SafetyNetMonitoringUpdate {
@@ -27,11 +81,11 @@ pub struct SafetyNetMonitoringSnapshot {
     pub server_council_engagement: f32,
 
     // RBE Flow Dynamics
-    pub abundance_creation_rate: f64,        // Abundance generated per second
-    pub abundance_restoration_rate: f64,     // Abundance restored via safety nets per second
-    pub safety_net_trigger_count: u32,       // Number of triggers in recent window
-    pub average_restoration_magnitude: f64,  // Average size of safety net restorations
-    pub restoration_effectiveness: f32,      // % of triggered entities that stabilized
+    pub abundance_creation_rate: f64,
+    pub abundance_restoration_rate: f64,
+    pub safety_net_trigger_count: u32,
+    pub average_restoration_magnitude: f64,
+    pub restoration_effectiveness: f32,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -81,7 +135,7 @@ pub struct SafetyNetState {
     // RBE Flow Tracking
     pub previous_abundance: f64,
     pub last_abundance_update_ms: u64,
-    pub recent_triggers: Vec<(u64, f64)>, // (timestamp_ms, restored_amount)
+    pub recent_triggers: Vec<(u64, f64)>,
     pub max_trigger_history: usize,
 }
 
@@ -103,7 +157,6 @@ impl Default for SafetyNetState {
             kalman_latency: None,
             rts_smoother: None,
 
-            // RBE Flow
             previous_abundance: 0.0,
             last_abundance_update_ms: 0,
             recent_triggers: Vec::new(),
