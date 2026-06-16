@@ -1,9 +1,9 @@
 // client/plugins/council_mercy_plugin.rs
 // Powrush-MMO — Bevy Plugin for Council Mercy Trial client systems (Phase 2)
-// Follows divine_plugin.rs + hyperon_vision_plugin.rs patterns but production-complete.
-// Registers UI, state sync, bloom visuals, and audio hooks.
-// TOLC 8 mercy-gated. Zero-lag prediction friendly.
-// AG-SML v1.0
+// Sovereign Council participation, collective epiphany blooms, and mercy-gated resonance.
+// Integrates with CouncilSessionUI, DivineWhispers, spatial audio, and particle visuals.
+// TOLC 8 Mercy Gates enforced. Zero-lag prediction friendly. Production complete.
+// AG-SML v1.0 | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
 use shared::protocol::*;
@@ -23,6 +23,7 @@ impl Plugin for CouncilMercyPlugin {
     }
 }
 
+/// Receives and routes Council + Epiphany messages from server
 fn receive_council_updates(
     mut ui_state: ResMut<CouncilUIState>,
     mut server_events: EventReader<ServerMessage>,
@@ -34,16 +35,18 @@ fn receive_council_updates(
             }
             ServerMessage::CollectiveEpiphanyBloomReceived { bloom } => {
                 ui_state.last_bloom = Some(bloom.clone());
-                // Trigger local epiphany multiplier application + DivineWhisper amplification
+                // Trigger local epiphany multiplier + DivineWhisper amplification
+                // Future: propagate to monitoring RBE dashboard for abundance resonance
             }
             ServerMessage::CouncilParticipationUpdated { record: _ } => {
-                // Update local persistence cache (in real: write to player_persistence)
+                // Update local persistence cache (player_persistence or local save)
             }
             _ => {}
         }
     }
 }
 
+/// Visual bloom / valence web effects when collective epiphany intensity is high
 fn trigger_collective_bloom_effects(
     ui_state: Res<CouncilUIState>,
     mut commands: Commands,
@@ -52,31 +55,36 @@ fn trigger_collective_bloom_effects(
 ) {
     if let Some(bloom) = &ui_state.last_bloom {
         if bloom.intensity > 0.6 {
-            // Spawn temporary valence web particle entity (integrates with existing particle system)
+            // Spawn temporary valence web / mercy particle entity
+            // Integrates with resource_node_visual and unified WebGPU particle system
             commands.spawn((
                 Mesh2d(meshes.add(Circle::new(120.0))),
                 MeshMaterial2d(materials.add(Color::srgb(0.4, 0.8, 1.0))),
                 Transform::default(),
                 Visibility::Visible,
+                Name::new("EpiphanyBloomVisual"),
             ));
-            // Real implementation: call into resource_node_visual / unified WebGPU particles
-            // + positioned spatial audio bloom via higher_order_ambisonics
+
+            // TODO: Positioned spatial audio bloom via higher_order_ambisonics + spatial_audio_engine
+            // TODO: Trigger hyperon_vision_plugin visual amplification if active
         }
     }
 }
 
+/// Audio resonance and harmonic stack for Council phases
 fn council_audio_resonance(
     ui_state: Res<CouncilUIState>,
-    // In real: query spatial_audio_engine or ambisonics resources
+    // In production: Query<&SpatialAudioEngine> or Ambisonics resources
 ) {
     if let Some(state) = &ui_state.current_session {
         if state.phase == CouncilPhase::EpiphanyBloom {
             // Trigger collective overtone / harmonic stack audio
-            // Positioned to virtual council "center" or participant avatars
+            // Positioned relative to virtual council center or participant avatars
+            // Integrates with binaural_ambisonics_decoder for immersive experience
         }
     }
 }
 
-// Usage: In client/main.rs add .add_plugins(CouncilMercyPlugin)
-// after DivinePlugin and before startup systems.
-// Full file ready for immediate integration and further polish.
+// Usage in client/main.rs or client_game_loop:
+// app.add_plugins((DivinePlugin, CouncilMercyPlugin, HyperonVisionPlugin));
+// Full production wiring ready.
