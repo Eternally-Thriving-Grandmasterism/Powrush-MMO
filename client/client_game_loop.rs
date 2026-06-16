@@ -1,7 +1,7 @@
 //! client/client_game_loop.rs
 //! Core Client Game Loop with client-side prediction + server reconciliation.
 //!
-//! Now includes a unified ActionContext and meaningful server correction handling.
+//! ActionContext now has helper methods and is used for decision making inside the game loop.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use std::collections::VecDeque;
@@ -10,13 +10,33 @@ use crate::rbe_client_sync::RbeClientSync;
 use shared::protocol::ClientMessage;
 use bevy::prelude::*;
 
-/// Unified snapshot of current conditions for decision making.
 #[derive(Clone, Debug, Default)]
 pub struct ActionContext {
     pub abundance_creation_rate: f64,
     pub ema_latency_ms: f32,
     pub harvest_effectiveness: f32,
     pub abundance_boost_active: bool,
+}
+
+impl ActionContext {
+    /// Returns true if harvest is currently viable.
+    pub fn is_harvest_viable(&self) -> bool {
+        self.harvest_effectiveness >= 0.6
+    }
+
+    /// Returns true if the system recommends playing more conservatively.
+    pub fn should_play_conservatively(&self) -> bool {
+        self.ema_latency_ms > 400.0 || self.abundance_creation_rate < 0.3
+    }
+
+    /// Returns a simple overall health score (0.0 - 1.0).
+    pub fn get_overall_health(&self) -> f32 {
+        let latency_health = (1.0 - (self.ema_latency_ms / 1000.0)).clamp(0.0, 1.0);
+        let abundance_health = if self.abundance_creation_rate > 0.5 { 1.0 } else { 0.6 };
+        let harvest_health = self.harvest_effectiveness.clamp(0.5, 1.0);
+
+        (latency_health + abundance_health + harvest_health) / 3.0
+    }
 }
 
 pub struct ClientGameLoop {
@@ -100,7 +120,7 @@ impl ClientGameLoop {
         &self.predicted_state
     }
 
-    /// Returns a unified snapshot of current conditions for decision making.
+    /// Returns current conditions as a single ActionContext.
     pub async fn get_action_context(&self) -> ActionContext {
         let abundance_rate = self.rbe_sync.get_current_abundance_rate().await;
         let (ema_latency, _) = self.rbe_sync.get_safety_net_summary().await;
@@ -116,17 +136,21 @@ impl ClientGameLoop {
     }
 
     pub async fn send_harvest(&mut self, player_id: u64, node_id: u64, amount: f32) {
-        let effectiveness = self.rbe_sync.calculate_harvest_effectiveness().await;
+        let context = self.get_action_context().await;
 
-        if effectiveness < 0.6 {
-            tracing::info!("[ClientGameLoop] Harvest skipped - low effectiveness ({:.2})", effectiveness);
+        if !context.is_harvest_viable() {
+            tracing::info!(
+                "[ClientGameLoop] Harvest skipped | effectiveness={:.2}, health={:.2}",
+                context.harvest_effectiveness,
+                context.get_overall_health()
+            );
             return;
         }
 
         if let Some(_msg) = self.rbe_sync.try_queue_harvest(player_id, node_id, amount).await {
             tracing::info!(
-                "[ClientGameLoop] Harvest dispatched | player={}, node={}, amount={}, effectiveness={:.2}",
-                player_id, node_id, amount, effectiveness
+                "[ClientGameLoop] Harvest dispatched | player={}, node={}, amount={}, health={:.2}",
+                player_id, node_id, amount, context.get_overall_health()
             );
         }
     }
@@ -139,4 +163,4 @@ impl ClientGameLoop {
 }
 
 // Thunder locked in.
-// ClientGameLoop now has a clean ActionContext and stronger correction handling.
+// ActionContext helpers are now actively used for clean decision making.
