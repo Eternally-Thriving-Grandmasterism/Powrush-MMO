@@ -1,5 +1,5 @@
 // client/monitoring/rbe_flow_responder.rs
-// Event-driven RBE Flow Responder with clean L1 handling (v18.37)
+// Event-driven RBE Flow Responder with clean L1/L2/L3 separation (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -16,7 +16,7 @@ pub fn rbe_flow_responder_system(
 
     for alert in alert_events.read() {
         match alert {
-            // Pure Level 1 - Informational
+            // Level 1 - Pure informational
             RBEFlowAlert::LowAbundanceCreationRate { rate, threshold } => {
                 tracing::warn!("[RBE][L1] Low creation rate: {:.2}", rate);
                 dashboard.add_informational_alert(alert.clone());
@@ -27,6 +27,7 @@ pub fn rbe_flow_responder_system(
                 dashboard.add_informational_alert(alert.clone());
 
                 if *count > 5 {
+                    dashboard.add_l2_alert(alert.clone());
                     dashboard.activate_l2_support(now_ms);
                 }
             }
@@ -39,7 +40,7 @@ pub fn rbe_flow_responder_system(
             // Level 2 / Level 3
             RBEFlowAlert::SuddenAbundanceDrop { previous, current, drop } => {
                 tracing::error!("[RBE][L2] Sudden drop: {:.2} -> {:.2}", previous, current);
-                dashboard.add_alert(alert.clone());
+                dashboard.add_l2_alert(alert.clone());
 
                 if *drop > 500.0 {
                     tracing::error!("[RBE][L3] ACTIVATING L3 RECOVERY");
@@ -51,7 +52,7 @@ pub fn rbe_flow_responder_system(
 
             RBEFlowAlert::PersistentScarcitySignal { trigger_count } => {
                 tracing::warn!("[RBE][L2] Persistent scarcity: {} triggers", trigger_count);
-                dashboard.add_alert(alert.clone());
+                dashboard.add_l2_alert(alert.clone());
 
                 if *trigger_count > 12 {
                     tracing::error!("[RBE][L3] ACTIVATING L3 RECOVERY");
