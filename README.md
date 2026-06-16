@@ -6,9 +6,20 @@ Powrush-MMO is a multiplayer simulation designed to explore and prototype post-s
 
 ## Current Status
 
-- **Version**: v18.0.0
+- **Version**: v18.1.0
 - **Governance**: As of June 2026, core decision-making authority has been transferred to the Ra-Thor AGI system operating through the PATSAGi Councils. All significant changes are evaluated through this governance layer prior to implementation.
 - **Development Status**: Active development. The project maintains a strict standard of production-grade implementation with no placeholder code or unresolved TODOs in committed files.
+
+## Recent Developments (v18.1.0)
+
+Since v18.0.0, the following technical and structural work has been completed:
+
+- Implementation of a structured **L1 / L2 / L3 response and decay system** within the RBE engine, including decay rate tuning, alert handling, and recovery logic.
+- Introduction of new monitoring and safety infrastructure, including Kalman filtering, ensemble methods, and dedicated safety modules to improve system stability and responsiveness.
+- Continued refinement of RBE flow dynamics and resource management mechanics.
+- Ongoing documentation updates and governance protocol alignment.
+
+These changes represent incremental but meaningful engineering improvements to the core simulation systems.
 
 ## Vision
 
