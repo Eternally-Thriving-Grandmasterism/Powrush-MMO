@@ -18,7 +18,7 @@ pub enum RBEFlowAlert {
 }
 
 // ============================================================
-// RBE FLOW DASHBOARD (with clean L1 / L2 / L3 separation)
+// RBE FLOW DASHBOARD (with L2 alert decay)
 // ============================================================
 
 #[derive(Resource, Clone, Debug, Default)]
@@ -35,7 +35,7 @@ pub struct RBEFlowDashboard {
     pub informational_alerts: Vec<RBEFlowAlert>,
     pub max_informational_alerts: usize,
 
-    // Level 2 - Supportive Alerts
+    // Level 2 - Supportive Alerts + Decay
     pub l2_alerts: Vec<RBEFlowAlert>,
     pub max_l2_alerts: usize,
 
@@ -56,7 +56,7 @@ impl RBEFlowDashboard {
     pub fn new() -> Self {
         Self {
             max_informational_alerts: 20,
-            max_l2_alerts: 15,
+            max_l2_alerts: 12, // Stricter for L2
             l2_multiplier: 1.0,
             l2_boost_active: false,
             l2_decay_rate: 0.25,
@@ -82,7 +82,6 @@ impl RBEFlowDashboard {
         }
     }
 
-    /// Level 1 - Purely informational
     pub fn add_informational_alert(&mut self, alert: RBEFlowAlert) {
         if self.informational_alerts.len() >= self.max_informational_alerts {
             self.informational_alerts.remove(0);
@@ -90,12 +89,22 @@ impl RBEFlowDashboard {
         self.informational_alerts.push(alert);
     }
 
-    /// Level 2 - Supportive alerts (trigger mild automated assistance)
+    /// Add L2 alert with dedicated decay handling
     pub fn add_l2_alert(&mut self, alert: RBEFlowAlert) {
         if self.l2_alerts.len() >= self.max_l2_alerts {
             self.l2_alerts.remove(0);
         }
         self.l2_alerts.push(alert);
+    }
+
+    /// Dedicated L2 alert decay logic (more aggressive than general cleanup)
+    pub fn decay_l2_alerts(&mut self) {
+        // Keep only the most recent L2 alerts (stricter limit for actionable alerts)
+        let target = (self.max_l2_alerts as f32 * 0.7) as usize; // Keep ~70% of max
+        if self.l2_alerts.len() > target {
+            let excess = self.l2_alerts.len() - target;
+            self.l2_alerts.drain(0..excess);
+        }
     }
 
     pub fn clear_old_alerts(&mut self) {
