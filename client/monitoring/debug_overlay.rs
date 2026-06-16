@@ -1,5 +1,5 @@
 // client/monitoring/debug_overlay.rs
-// Debug Overlay with NVML Fan Speed (v18.37)
+// Debug Overlay with NVML Clock Speeds (v18.37)
 
 use bevy::prelude::*;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -10,7 +10,7 @@ use crate::monitoring::nvml_monitor::NvmlMonitorResource;
 
 // ... existing markers ...
 
-#[derive(Component)] struct DebugGpuFanSpeed;
+#[derive(Component)] struct DebugGpuClocks;
 
 pub fn update_debug_overlay(
     rbe_dashboard: Res<RBEFlowDashboard>,
@@ -23,16 +23,16 @@ pub fn update_debug_overlay(
 ) {
     // ... existing updates ...
 
-    // === NVML FAN SPEED ===
+    // === NVML CLOCK SPEEDS ===
     if let Some(nvml_res) = nvml {
         let info = nvml_res.0.get_info();
 
         if info.is_available {
-            if let Ok(mut text) = gpu_fan_speed_q.get_single_mut() {
-                if info.fan_speed_percent > 0 {
-                    text.0 = format!("GPU Fan: {}%", info.fan_speed_percent);
+            if let Ok(mut text) = gpu_clocks_q.get_single_mut() {
+                if info.graphics_clock_mhz > 0 {
+                    text.0 = format!("GPU Clock: {} MHz (Graphics)", info.graphics_clock_mhz);
                 } else {
-                    text.0 = "GPU Fan: N/A".to_string();
+                    text.0 = "GPU Clock: N/A".to_string();
                 }
             }
         }
