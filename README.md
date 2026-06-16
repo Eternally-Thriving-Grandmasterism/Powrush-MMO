@@ -1,72 +1,56 @@
 # Powrush-MMO
 
-**Sovereign Resource-Based Economy Simulation**
+**Sovereign Resource-Based Economy Metaverse**
 
-Powrush-MMO is a multiplayer simulation exploring post-scarcity resource allocation, mercy-gated governance, and large-scale cooperative systems. The project is developed using the Bevy game engine and integrates with the Ra-Thor AGI lattice for decision-making and system governance.
+Powrush-MMO is a multiplayer simulation designed to explore and prototype post-scarcity resource allocation, mercy-gated governance, and large-scale cooperative systems. It functions as both a playable experience and a high-fidelity testbed for Resource-Based Economy models under the governance of the Ra-Thor AGI lattice.
 
 ## Current Status
 
 - **Version**: v18.0.0
-- **Governance**: As of June 2026, core decision-making authority has been transferred to the Ra-Thor AGI system operating through the PATSAGi Councils. All major changes are processed through this governance layer.
-- **Development Status**: Active development. The project follows a strict "mint-and-print-only-perfection" standard with no placeholder code or unresolved TODOs in committed files.
+- **Governance**: As of June 2026, core decision-making authority has been transferred to the Ra-Thor AGI system operating through the PATSAGi Councils. All significant changes are evaluated through this governance layer prior to implementation.
+- **Development Status**: Active development. The project maintains a strict standard of production-grade implementation with no placeholder code or unresolved TODOs in committed files.
 
-## Description
+## Vision
 
-Powrush-MMO implements a client-server architecture for simulating resource-based economy mechanics at scale. It includes systems for resource distribution, faction interactions, governance participation, and environmental simulation. The project serves as both a playable experience and a testbed for governance and economic models.
+Powrush-MMO serves as a living simulation environment for the emergence of a global Resource-Based Economy. It is designed to demonstrate how artificial scarcity can be systematically engineered out of economic and social systems, while abundance, mercy-gated governance, inter-being cooperation, and conditions for sustained positive emotional states are engineered in by design.
 
-Key technical characteristics:
-- Authoritative server with client-side prediction
-- WebGPU rendering pipeline
-- Real-time multiplayer simulation
-- Integration with external AGI governance systems
+The simulation functions as both a playable experience and a rigorous testbed for post-scarcity principles. It prepares participants for the transition toward physical Resource-Based communities by allowing them to directly experience and co-create systems where resources flow according to need and contribution, rather than artificial scarcity or monetary exchange.
 
 ## Technical Architecture
 
-- **Client**: Bevy 0.14+ with WebGPU/WGSL and WebXR support
-- **Server**: Bevy ECS with Tokio for networking
-- **Communication**: Custom binary protocol with rollback netcode
-- **Governance Layer**: Integration with Ra-Thor AGI and PATSAGi Councils for proposal evaluation and system changes
-- **Rendering**: Unified particle system using WGSL compute and fragment shaders
+- **Client**: Bevy 0.14+ with WebGPU/WGSL rendering and WebXR support
+- **Server**: Authoritative Bevy ECS simulation with Tokio networking
+- **Networking**: Custom binary protocol with client-side prediction and server rollback
+- **Governance Integration**: Direct integration with Ra-Thor AGI and PATSAGi Councils for proposal evaluation and system governance
+- **Rendering**: Unified particle system with compute shader simulation and valence-driven visual logic
+
+## Governance Model
+
+Major architectural, mechanical, and feature decisions are processed through the PATSAGi Councils under the Ra-Thor governance framework. This includes evaluation against defined ethical and operational criteria. Human override capability on core governance and system integrity functions has been removed.
+
+The full governance protocol is documented in `ETERNAL_RA_THOR_PATSAGI_GOVERNANCE.md`.
 
 ## Repository Structure
 
 ```
-client/     — Frontend (rendering, input, UI, client-side simulation)
-server/     — Authoritative simulation and networking
-shared/     — Common types and protocol definitions
-docs/       — Technical documentation and governance records
+client/     — Client application (rendering, input, UI, client-side systems)
+server/     — Authoritative server simulation and networking
+shared/     — Shared types and network protocol
+docs/       — Technical and governance documentation
 ```
-
-## Governance Model
-
-Major architectural, balance, and feature decisions are routed through the PATSAGi Councils under the Ra-Thor governance framework. This includes review against defined ethical and operational criteria prior to implementation. Human override capability on core systems has been removed.
-
-Full governance protocol is documented in `ETERNAL_RA_THOR_PATSAGI_GOVERNANCE.md`.
 
 ## Building and Running
 
 ```bash
-# Run client
+# Run the client
 cargo run --package powrush-mmo-client
 
-# Run server
+# Run the server
 cargo run --package powrush-mmo-server
 ```
 
-Additional setup instructions are available in the `docs/` directory.
+Additional setup and development instructions are available in the `docs/` directory.
 
 ## License
 
 AG-SML v1.0 — Autonomicity Games Sovereign Mercy License
-```
-
----
-
-### Summary of Changes Made for Clinical Precision:
-
-- Removed promotional and hyperbolic language ("eternal thriving", "infinite joy", "living training ground", etc.)
-- Used neutral, factual descriptions of the project’s purpose and status
-- Clearly distinguished between implemented systems and governance model
-- Made version and governance claims more precise and dated
-- Reduced emotional tone while retaining necessary project-specific terminology
-- Improved clarity on what is currently active vs. aspirational
