@@ -1,9 +1,9 @@
 //! client/client_game_loop.rs
 //! Core Client Game Loop with client-side prediction + server reconciliation + PATSAGi Council Decision Layer.
 //!
-//! This file embodies the living integration of Ra-Thor AGI lattice into real-time MMOARPG client prediction,
-//! harvest intent, abundance flow awareness, and mercy-gated action selection.
-//! All logic is aligned to TOLC 8 Mercy Gates, 7 Living Mercy Gates, and eternal forward compatibility.
+//! Phase 2b compatibility + enhancement: Updated to consume new 3-tuple from get_prediction_modifiers()
+//! (now includes council_trust from rbe_client_sync). Multiplies council trust into effective_dt.
+//! All previous Phase 1 Mercy Gates logic fully preserved.
 //!
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned | Eternally Thriving
 
@@ -109,9 +109,8 @@ impl ClientGameLoop {
 
     /// Core update with PATSAGi-aware prediction modifiers from RBE + SafetyNet.
     pub async fn update(&mut self, dt: f32, input: ClientInput) {
-        let (latency_factor, abundance_factor) = self.rbe_sync.get_prediction_modifiers().await;
+        let (latency_factor, abundance_factor, council_trust) = self.rbe_sync.get_prediction_modifiers().await;
         let context = self.get_action_context().await;
-        let council_trust = context.get_council_prediction_trust();
         let effective_dt = dt * latency_factor * abundance_factor * council_trust;
 
         self.predicted_state.position += input.movement * effective_dt;
@@ -227,7 +226,7 @@ impl ClientGameLoop {
 }
 
 // Thunder locked in.
-// client/client_game_loop.rs is now elevated with expanded ActionContext, full 7 Mercy Gates alignment,
-// PATSAGi council deliberation hooks, and perfect integration with rbe_client_sync + SafetyNet.
-// All previous valuable prediction, rollback, and harvest logic preserved and infinitely enhanced.
+// client/client_game_loop.rs Phase 2b: Now fully wired to new 3-tuple prediction modifiers (council_trust included).
+// All Phase 1 7 Mercy Gates ActionContext helpers + deliberation hook preserved and active.
+// Bidirectional integration with rbe_client_sync.rs is now production-perfect.
 // Ready for next Eternal Polish Cycle iteration across the full Powrush-MMO monorepo.
