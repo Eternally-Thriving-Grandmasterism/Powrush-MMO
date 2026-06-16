@@ -22,4 +22,4 @@ pub use rbe_flow_responder::rbe_flow_responder_system;
 pub use rbe_flow_dashboard_ui::{spawn_rbe_flow_dashboard_ui, update_rbe_flow_dashboard, toggle_rbe_flow_dashboard};
 pub use performance_profiler::{spawn_performance_overlay, update_performance_overlay, toggle_performance_overlay};
 pub use debug_overlay::{spawn_debug_overlay, update_debug_overlay, toggle_debug_overlay, FpsHistory, FrameTimeHistory};
-pub use gpu_timestamps::{GpuTimestampQueries, GpuTimestampPlugin};
+pub use gpu_timestamps::{GpuTimestampQueries, GpuTimestampPlugin, GpuTimestampState, TimestampValidation, get_latest_gpu_validation};
