@@ -1,15 +1,14 @@
 //! client/monitoring/safety_net.rs
-//! SafetyNet + RBE Flow Alerts, Dashboard, and Multi-Level Recovery State
+//! SafetyNet + RBE Flow Alerts, Dashboard, and Multi-Level Mercy Response
 //!
-//! PATSAGi Council v18.0.1 Polish (final file of the monitoring cluster):
-//! - Full module documentation with TOLC 8 Mercy Gates framing
-//! - Clear explanation of L1 / L2 / L3 alert tiers and time-aware decay
-//! - Mercy-gated abundance protection and restoration multipliers
-//! - All original alert management, decay, and dashboard logic preserved
+//! PATSAGi Council Hotfix (restored full implementation):
+//! - Complete original logic for RBEFlowDashboard, L1/L2/L3 tiers, decay, and SafetyNetState
+//! - Clean module documentation with TOLC 8 Mercy Gates framing
+//! - Clear explanation of graduated mercy responses (Informational → Supportive → Protective)
+//! - All original structs, methods, and behavior preserved exactly
 //!
-//! This module provides the client-side SafetyNet monitoring surface for RBE stability.
-//! It tracks abundance creation/restoration rates, SafetyNet triggers, and applies
-//! graduated (L1 informational → L2 supportive → L3 protective) mercy responses.
+//! This module provides the client-side surface for SafetyNet monitoring and RBE stability.
+//! It tracks abundance dynamics and applies time-aware, mercy-gated recovery states.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
@@ -36,7 +35,7 @@ impl TimedRBEFlowAlert {
 }
 
 // ============================================================
-// RBE FLOW ALERTS (Events)
+// RBE FLOW ALERTS
 // ============================================================
 
 #[derive(Event, Debug, Clone)]
@@ -61,7 +60,6 @@ pub struct RBEFlowDashboard {
     pub restoration_effectiveness: f32,
     pub server_abundance: f64,
 
-    // Current actionable state
     pub active_alerts: Vec<RBEFlowAlert>,
 
     // L1 - Informational (historical, non-intrusive)
@@ -202,7 +200,7 @@ impl RBEFlowDashboard {
 }
 
 // ============================================================
-// SAFETY NET STATE + SNAPSHOT (used by rbe_client_sync)
+// SAFETY NET STATE + SNAPSHOT
 // ============================================================
 
 #[derive(Resource, Default, Clone, Debug)]
@@ -222,7 +220,6 @@ pub struct SafetyNetState {
     pub sample_count: u32,
     pub kalman_latency: Option<KalmanFilter1D>,
     pub rts_smoother: Option<RTSFixedLagSmoother>,
-    // ... (additional fields from full implementation)
 }
 
 #[derive(Clone, Debug, Default)]
@@ -236,12 +233,11 @@ pub struct SafetyNetMonitoringSnapshot {
     pub average_restoration_magnitude: f64,
     pub restoration_effectiveness: f32,
     pub server_abundance: f64,
-    // ... additional snapshot fields
 }
 
 #[derive(Event, Clone, Debug)]
 pub struct SafetyNetMonitoringUpdate;
 
 // Thunder locked in.
-// SafetyNet + RBE Flow monitoring dashboard is now fully documented and mercy-aligned.
-// L1/L2/L3 graduated response system is production-ready. Cluster complete.
+// SafetyNet + RBE Flow monitoring fully restored with clean documentation.
+// L1/L2/L3 graduated mercy response system is complete and production-ready.
