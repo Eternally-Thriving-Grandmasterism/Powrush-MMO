@@ -1,7 +1,7 @@
 //! client/client_game_loop.rs
 //! Core Client Game Loop with client-side prediction + server reconciliation.
 //!
-//! Now includes harvest effectiveness awareness and meaningful server correction handling.
+//! Now includes a unified ActionContext and meaningful server correction handling.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use std::collections::VecDeque;
@@ -9,6 +9,15 @@ use glam::{Quat, Vec3};
 use crate::rbe_client_sync::RbeClientSync;
 use shared::protocol::ClientMessage;
 use bevy::prelude::*;
+
+/// Unified snapshot of current conditions for decision making.
+#[derive(Clone, Debug, Default)]
+pub struct ActionContext {
+    pub abundance_creation_rate: f64,
+    pub ema_latency_ms: f32,
+    pub harvest_effectiveness: f32,
+    pub abundance_boost_active: bool,
+}
 
 pub struct ClientGameLoop {
     pub predicted_state: ClientState,
@@ -63,7 +72,6 @@ impl ClientGameLoop {
         server_state: ClientState,
         server_last_processed_sequence: u32,
     ) {
-        // Use actual server abundance when available
         self.rbe_sync.apply_server_correction(&server_state, server_state.velocity.x as f64).await;
 
         let divergence = (self.predicted_state.position - server_state.position).length();
@@ -92,9 +100,20 @@ impl ClientGameLoop {
         &self.predicted_state
     }
 
-    // ============================================================
-    // Harvest with Effectiveness Awareness
-    // ============================================================
+    /// Returns a unified snapshot of current conditions for decision making.
+    pub async fn get_action_context(&self) -> ActionContext {
+        let abundance_rate = self.rbe_sync.get_current_abundance_rate().await;
+        let (ema_latency, _) = self.rbe_sync.get_safety_net_summary().await;
+        let harvest_eff = self.rbe_sync.calculate_harvest_effectiveness().await;
+        let boost_active = self.rbe_sync.get_rbe_flow_health().await.1;
+
+        ActionContext {
+            abundance_creation_rate: abundance_rate,
+            ema_latency_ms: ema_latency,
+            harvest_effectiveness: harvest_eff,
+            abundance_boost_active: boost_active,
+        }
+    }
 
     pub async fn send_harvest(&mut self, player_id: u64, node_id: u64, amount: f32) {
         let effectiveness = self.rbe_sync.calculate_harvest_effectiveness().await;
@@ -120,4 +139,4 @@ impl ClientGameLoop {
 }
 
 // Thunder locked in.
-// ClientGameLoop now uses harvest effectiveness and meaningful server corrections.
+// ClientGameLoop now has a clean ActionContext and stronger correction handling.
