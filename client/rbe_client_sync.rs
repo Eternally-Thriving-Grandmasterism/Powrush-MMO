@@ -1,10 +1,10 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
-// Thin integration layer after modularization (v18.37)
+// Wired monitoring modules (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
-use shared::protocol::ServerMessage;
+use shared::protocol::{ClientMessage, ServerMessage, SafetyNetBroadcast};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use bytes::Bytes;
@@ -56,19 +56,16 @@ impl RbeClientSync {
             if let ServerMessage::SafetyNetBroadcast { broadcast } = &msg {
                 self.handle_safety_net_broadcast(broadcast, &mut monitoring_events).await;
             }
-
-            // TODO: Add handling for other message types (GpuPatsagiUpdate, DivineWhisper, etc.)
         }
     }
 
     async fn handle_safety_net_broadcast(
         &self,
-        broadcast: &shared::protocol::SafetyNetBroadcast,
+        broadcast: &SafetyNetBroadcast,
         monitoring_events: &mut EventWriter<SafetyNetMonitoringUpdate>,
     ) {
         let mut safety = self.safety_net_state.write().await;
 
-        // Update basic server state
         safety.last_tick = broadcast.snapshot.tick;
         safety.last_abundance = broadcast.snapshot.abundance;
         safety.last_health = broadcast.snapshot.current_health;
@@ -99,8 +96,8 @@ impl RbeClientSync {
             safety.kalman_latency = Some(KalmanFilter1D::new(latency_ms as f32));
             safety.rts_smoother = Some(RTSFixedLagSmoother::new(8));
         } else {
-            // Update EMA and Kalman
-            let dt_sec = 0.016; // approximate
+            let dt_sec = 0.016;
+
             if let Some(k) = &mut safety.kalman_latency {
                 k.update(latency_ms as f32, dt_sec);
             }
@@ -112,7 +109,6 @@ impl RbeClientSync {
 
         safety.previous_latency_ms = latency_ms;
 
-        // Emit monitoring update periodically
         if safety.sample_count % 5 == 0 {
             let rts_val = safety.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
             let kalman_val = safety.kalman_latency.as_ref().map_or(0.0, |k| k.estimate);
