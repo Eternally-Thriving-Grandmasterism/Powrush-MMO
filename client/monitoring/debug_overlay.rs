@@ -1,7 +1,6 @@
 // client/monitoring/debug_overlay.rs
 // Unified Debug Overlay for Powrush-MMO (v18.37)
-// Combines RBE Flow + Performance into one clean, toggleable panel (F2)
-// Designed for clarity and the best development experience
+// Includes real-time FPS Graph
 
 use bevy::prelude::*;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -19,23 +18,56 @@ use crate::monitoring::RBEFlowDashboard;
 #[derive(Component)] struct DebugFrameTime;
 #[derive(Component)] struct DebugEntities;
 
+#[derive(Component)] struct FpsGraphContainer;
+#[derive(Component)] struct FpsBar { index: usize }
+
 #[derive(Component)] struct DebugOverlayContainer;
 
 #[derive(Resource, Default)]
 pub struct DebugOverlayVisible(pub bool);
 
-/// Spawns the unified Debug Overlay
+/// Stores recent FPS history for graphing
+#[derive(Resource)]
+pub struct FpsHistory {
+    pub values: Vec<f32>,
+    pub max_samples: usize,
+}
+
+impl Default for FpsHistory {
+    fn default() -> Self {
+        Self {
+            values: Vec::with_capacity(90),
+            max_samples: 90,
+        }
+    }
+}
+
+impl FpsHistory {
+    pub fn push(&mut self, fps: f32) {
+        if self.values.len() >= self.max_samples {
+            self.values.remove(0);
+        }
+        self.values.push(fps);
+    }
+
+    pub fn max_fps(&self) -> f32 {
+        self.values.iter().copied().fold(0.0, f32::max)
+    }
+}
+
+/// Spawns the unified Debug Overlay with FPS Graph
 pub fn spawn_debug_overlay(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(DebugOverlayVisible(true));
+    commands.insert_resource(FpsHistory::default());
 
     commands
         .spawn((
             Node {
-                width: Val::Px(460.0),
+                width: Val::Px(480.0),
                 height: Val::Auto,
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(14.0)),
-                row_gap: Val::Px(8.0),
+                row_gap: Val::Px(6.0),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.04, 0.04, 0.07, 0.95)),
@@ -54,7 +86,7 @@ pub fn spawn_debug_overlay(mut commands: Commands, asset_server: Res<AssetServer
         .with_children(|parent| {
             // Header
             parent.spawn((
-                Text::new("DEBUG OVERLAY (F2 to toggle)"),
+                Text::new("DEBUG OVERLAY (F2)"),
                 TextFont {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
                     font_size: 15.0,
@@ -69,14 +101,14 @@ pub fn spawn_debug_overlay(mut commands: Commands, asset_server: Res<AssetServer
 
             // ========== RBE FLOW SECTION ==========
             parent.spawn((
-                Text::new("── RBE FLOW ──"),
+                Text::new("RBE FLOW"),
                 TextFont {
-                    font_size: 13.0,
+                    font_size: 12.0,
                     ..default()
                 },
                 TextColor(Color::srgb(0.7, 0.85, 1.0)),
                 Node {
-                    margin: UiRect::top(Val::Px(4.0)).bottom(Val::Px(4.0)),
+                    margin: UiRect::top(Val::Px(4.0)).bottom(Val::Px(3.0)),
                     ..default()
                 },
             ));
@@ -84,21 +116,20 @@ pub fn spawn_debug_overlay(mut commands: Commands, asset_server: Res<AssetServer
             parent.spawn((Text::new("Abundance: 0"), DebugRbeAbundance));
             parent.spawn((Text::new("Creation: +0.0 /s"), DebugRbeCreation));
             parent.spawn((Text::new("Restoration: +0.0 /s"), DebugRbeRestoration));
-
             parent.spawn((Text::new("L2: Inactive"), DebugL2Boost));
             parent.spawn((Text::new("L3: Inactive"), DebugL3Boost));
             parent.spawn((Text::new("Alerts: None"), DebugAlerts));
 
             // ========== PERFORMANCE SECTION ==========
             parent.spawn((
-                Text::new("── PERFORMANCE ──"),
+                Text::new("PERFORMANCE"),
                 TextFont {
-                    font_size: 13.0,
+                    font_size: 12.0,
                     ..default()
                 },
                 TextColor(Color::srgb(0.6, 0.95, 0.7)),
                 Node {
-                    margin: UiRect::top(Val::Px(8.0)).bottom(Val::Px(4.0)),
+                    margin: UiRect::top(Val::Px(8.0)).bottom(Val::Px(3.0)),
                     ..default()
                 },
             ));
@@ -106,10 +137,50 @@ pub fn spawn_debug_overlay(mut commands: Commands, asset_server: Res<AssetServer
             parent.spawn((Text::new("FPS: 0.0"), DebugFps));
             parent.spawn((Text::new("Frame Time: 0.00 ms"), DebugFrameTime));
             parent.spawn((Text::new("Entities: 0"), DebugEntities));
+
+            // FPS Graph
+            parent.spawn((
+                Text::new("FPS History"),
+                TextFont {
+                    font_size: 11.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.8, 0.9, 0.8)),
+                Node {
+                    margin: UiRect::top(Val::Px(6.0)).bottom(Val::Px(2.0)),
+                    ..default()
+                },
+            ));
+
+            parent
+                .spawn((
+                    Node {
+                        width: Val::Percent(100.0),
+                        height: Val::Px(50.0),
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::FlexEnd,
+                        column_gap: Val::Px(1.0),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.1, 0.1, 0.12, 0.8)),
+                    FpsGraphContainer,
+                ))
+                .with_children(|graph| {
+                    for i in 0..90 {
+                        graph.spawn((
+                            Node {
+                                width: Val::Px(2.0),
+                                height: Val::Px(4.0),
+                                ..default()
+                            },
+                            BackgroundColor(Color::srgb(0.3, 0.8, 0.4)),
+                            FpsBar { index: i },
+                        ));
+                    }
+                });
         });
 }
 
-/// Toggles the entire Debug Overlay with F2
 pub fn toggle_debug_overlay(
     mut visibility: ResMut<DebugOverlayVisible>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -128,11 +199,11 @@ pub fn toggle_debug_overlay(
     }
 }
 
-/// Updates all debug information
 pub fn update_debug_overlay(
     rbe_dashboard: Res<RBEFlowDashboard>,
     diagnostics: Res<DiagnosticsStore>,
     world: &World,
+    mut fps_history: ResMut<FpsHistory>,
     mut abundance_q: Query<&mut Text, With<DebugRbeAbundance>>,
     mut creation_q: Query<&mut Text, With<DebugRbeCreation>>,
     mut restoration_q: Query<&mut Text, With<DebugRbeRestoration>>,
@@ -142,8 +213,9 @@ pub fn update_debug_overlay(
     mut fps_q: Query<&mut Text, With<DebugFps>>,
     mut frame_time_q: Query<&mut Text, With<DebugFrameTime>>,
     mut entities_q: Query<&mut Text, With<DebugEntities>>,
+    mut bars: Query<(&mut Node, &FpsBar, &mut BackgroundColor)>,
 ) {
-    // RBE Flow
+    // RBE Flow metrics
     if let Ok(mut text) = abundance_q.get_single_mut() {
         text.0 = format!("Abundance: {:.0}", rbe_dashboard.server_abundance);
     }
@@ -156,31 +228,26 @@ pub fn update_debug_overlay(
     if let Ok(mut text) = l2_q.get_single_mut() {
         text.0 = if rbe_dashboard.l2_boost_active {
             format!("L2: Active ×{:.2}", rbe_dashboard.l2_multiplier)
-        } else {
-            "L2: Inactive".to_string()
-        };
+        } else { "L2: Inactive".to_string() };
     }
     if let Ok(mut text) = l3_q.get_single_mut() {
         text.0 = if rbe_dashboard.abundance_boost_active {
             format!("L3: Active ×{:.2}", rbe_dashboard.restoration_multiplier)
-        } else {
-            "L3: Inactive".to_string()
-        };
+        } else { "L3: Inactive".to_string() };
     }
     if let Ok(mut text) = alerts_q.get_single_mut() {
         let count = rbe_dashboard.active_alerts.len();
-        text.0 = if count > 0 {
-            format!("Alerts: {} active", count)
-        } else {
-            "Alerts: None".to_string()
-        };
+        text.0 = if count > 0 { format!("Alerts: {} active", count) } else { "Alerts: None".to_string() };
     }
 
-    // Performance
-    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS).and_then(|d| d.average()) {
-        if let Ok(mut text) = fps_q.get_single_mut() {
-            text.0 = format!("FPS: {:.1}", fps);
-        }
+    // Performance metrics
+    let current_fps = diagnostics
+        .get(&FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(|d| d.average())
+        .unwrap_or(0.0);
+
+    if let Ok(mut text) = fps_q.get_single_mut() {
+        text.0 = format!("FPS: {:.1}", current_fps);
     }
 
     if let Some(ft) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FRAME_TIME).and_then(|d| d.average()) {
@@ -192,5 +259,26 @@ pub fn update_debug_overlay(
     let entity_count = world.entities().len();
     if let Ok(mut text) = entities_q.get_single_mut() {
         text.0 = format!("Entities: {}", entity_count);
+    }
+
+    // Update FPS History
+    fps_history.push(current_fps as f32);
+
+    // Update FPS Graph bars
+    let max_fps = fps_history.max_fps().max(30.0);
+    for (mut node, bar, mut color) in &mut bars {
+        if let Some(&fps_val) = fps_history.values.get(bar.index) {
+            let normalized = (fps_val / max_fps).clamp(0.0, 1.0);
+            node.height = Val::Px(4.0 + normalized * 46.0);
+
+            // Color gradient: red (low) -> yellow -> green (high)
+            if fps_val < 30.0 {
+                color.0 = Color::srgb(0.9, 0.3, 0.3);
+            } else if fps_val < 50.0 {
+                color.0 = Color::srgb(0.95, 0.85, 0.3);
+            } else {
+                color.0 = Color::srgb(0.3, 0.85, 0.4);
+            }
+        }
     }
 }
