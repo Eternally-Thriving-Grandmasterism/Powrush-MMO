@@ -1,6 +1,6 @@
 // client/monitoring/ensemble.rs
 // Ra-Thor Localized Ensemble Kalman Filter Foundation
-// Matrix Inversion Lemma (information form) implementation (v18.37)
+// Clean dual-path implementation (Standard + Information Form) (v18.37)
 
 use super::localization::{build_sparse_state_localization, apply_sparse_localization};
 use super::adaptive::AdvancedAdaptiveLocalizer;
@@ -70,14 +70,9 @@ impl LocalizedEnsembleKalmanFilter {
         self.update_statistics();
     }
 
-    /// Analysis using the Matrix Inversion Lemma (information form).
-    ///
-    /// K = (P^{-1} + H^T R^{-1} H)^{-1} H^T R^{-1}
-    ///
-    /// This form is often more stable and efficient when R is diagonal
-    /// and we can work with the information matrix. With localized P,
-    /// P^{-1} is reasonably well-behaved.
-    pub fn analyze_information_form(
+    /// Standard localized Kalman gain analysis.
+    /// Uses K = P_loc H^T (H P_loc H^T + R)^{-1} form (or scalar approximation).
+    pub fn analyze(
         &mut self,
         observation: &[f32],
         obs_operator: &[Vec<f32>],
@@ -88,7 +83,6 @@ impl LocalizedEnsembleKalmanFilter {
         let m = observation.len();
         let mean = Self::compute_mean(&self.ensemble);
 
-        // Sample + localized covariance
         let mut cov = vec![vec![0.0; n]; n];
         for i in 0..n {
             for j in 0..n {
@@ -107,15 +101,11 @@ impl LocalizedEnsembleKalmanFilter {
             cov
         };
 
-        // Information form gain (using diagonal approximation of P^{-1} for foundation)
-        // In a full implementation we would use proper P^{-1} or solve systems.
+        // Scalar localized gain (practical foundation)
         let mut gain = vec![0.0; n];
         for i in 0..n {
-            // Approximate information update using localized variance
             let p_ii = localized_cov[i][i];
-            let info = 1.0 / p_ii.max(1e-6);
-            let updated_info = info + (1.0 / observation_noise); // simplified H^T R^{-1} H
-            gain[i] = (1.0 / updated_info) / observation_noise;
+            gain[i] = p_ii / (p_ii + observation_noise);
         }
 
         for member in &mut self.ensemble {
@@ -137,17 +127,64 @@ impl LocalizedEnsembleKalmanFilter {
         }
     }
 
-    /// Standard analysis (uses standard form with localized gain)
-    pub fn analyze(
+    /// Matrix Inversion Lemma / Information Form analysis.
+    /// K = (P^{-1} + H^T R^{-1} H)^{-1} H^T R^{-1}
+    /// Preferred when R is diagonal and we want information-space updates.
+    pub fn analyze_information_form(
         &mut self,
         observation: &[f32],
         obs_operator: &[Vec<f32>],
         observation_noise: f32,
         state_distances: Option<&[Vec<f32>]>,
     ) {
-        // ... (existing standard implementation can call analyze_information_form
-        // or use the previous logic. For now we keep both paths available.)
-        self.analyze_information_form(observation, obs_operator, observation_noise, state_distances);
+        let n = self.state_dim;
+        let m = observation.len();
+        let mean = Self::compute_mean(&self.ensemble);
+
+        let mut cov = vec![vec![0.0; n]; n];
+        for i in 0..n {
+            for j in 0..n {
+                let mut sum = 0.0;
+                for member in &self.ensemble {
+                    sum += (member[i] - mean[i]) * (member[j] - mean[j]);
+                }
+                cov[i][j] = sum / (self.ensemble_size as f32 - 1.0).max(1.0);
+            }
+        }
+
+        let localized_cov = if let Some(distances) = state_distances {
+            let sparse_loc = build_sparse_state_localization(distances, self.localization_radius);
+            apply_sparse_localization(&cov, &sparse_loc)
+        } else {
+            cov
+        };
+
+        // Information form gain (practical diagonal approximation)
+        let mut gain = vec![0.0; n];
+        for i in 0..n {
+            let p_ii = localized_cov[i][i];
+            let info = 1.0 / p_ii.max(1e-6);
+            let updated_info = info + (1.0 / observation_noise);
+            gain[i] = (1.0 / updated_info) / observation_noise;
+        }
+
+        for member in &mut self.ensemble {
+            for i in 0..n {
+                let mut innovation = 0.0;
+                if i < m {
+                    innovation = observation[i] - member[i];
+                }
+                member[i] += gain[i] * innovation;
+            }
+        }
+
+        self.update_statistics();
+
+        if let Some(ref mut localizer) = self.adaptive_localizer {
+            let residual = self.compute_innovation_magnitude(observation);
+            localizer.update(residual, self.last_spread);
+            self.localization_radius = localizer.get_current_radius();
+        }
     }
 
     fn compute_innovation_magnitude(&self, observation: &[f32]) -> f32 {
