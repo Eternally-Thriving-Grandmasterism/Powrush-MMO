@@ -1,5 +1,5 @@
 // client/monitoring/debug_overlay.rs
-// Debug Overlay with GPU Temperature display (v18.37)
+// Debug Overlay with NVML Power Usage (v18.37)
 
 use bevy::prelude::*;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -10,7 +10,7 @@ use crate::monitoring::nvml_monitor::NvmlMonitorResource;
 
 // ... existing markers ...
 
-#[derive(Component)] struct DebugGpuTemperature;
+#[derive(Component)] struct DebugGpuPower;
 
 pub fn update_debug_overlay(
     rbe_dashboard: Res<RBEFlowDashboard>,
@@ -23,16 +23,16 @@ pub fn update_debug_overlay(
 ) {
     // ... existing updates ...
 
-    // === GPU TEMPERATURE (from real NVML when available) ===
+    // === NVML POWER USAGE ===
     if let Some(nvml_res) = nvml {
         let info = nvml_res.0.get_info();
 
         if info.is_available {
-            if let Ok(mut text) = gpu_temperature_q.get_single_mut() {
-                if info.temperature_c > 0 {
-                    text.0 = format!("GPU Temp: {} °C", info.temperature_c);
+            if let Ok(mut text) = gpu_power_q.get_single_mut() {
+                if info.power_watts > 0.0 {
+                    text.0 = format!("GPU Power: {:.1} W", info.power_watts);
                 } else {
-                    text.0 = "GPU Temp: N/A".to_string();
+                    text.0 = "GPU Power: N/A".to_string();
                 }
             }
         }
