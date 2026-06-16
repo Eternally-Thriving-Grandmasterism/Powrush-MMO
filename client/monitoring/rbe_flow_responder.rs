@@ -1,5 +1,5 @@
 // client/monitoring/rbe_flow_responder.rs
-// Event-driven RBE Flow Responder with improved L3 decay (v18.37)
+// Event-driven RBE Flow Responder with L2 + L3 decay (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -19,11 +19,20 @@ pub fn rbe_flow_responder_system(
             RBEFlowAlert::LowAbundanceCreationRate { rate, threshold } => {
                 tracing::warn!("[RBE][L1] Low creation rate: {:.2}", rate);
                 dashboard.add_alert(alert.clone());
+
+                // Level 2 supportive action
+                if rate < *threshold * 0.6 {
+                    dashboard.activate_l2_support(now_ms);
+                }
             }
 
             RBEFlowAlert::HighSafetyNetTriggerFrequency { count, window_size } => {
                 tracing::warn!("[RBE][L1] High trigger frequency: {}", count);
                 dashboard.add_alert(alert.clone());
+
+                if *count > 5 {
+                    dashboard.activate_l2_support(now_ms);
+                }
             }
 
             RBEFlowAlert::LowRestorationEffectiveness { effectiveness, threshold } => {
@@ -35,9 +44,11 @@ pub fn rbe_flow_responder_system(
                 tracing::error!("[RBE][L2] Sudden drop: {:.2} -> {:.2}", previous, current);
                 dashboard.add_alert(alert.clone());
 
-                if drop > 500.0 {
-                    tracing::error!("[RBE][L3] ACTIVATING RECOVERY - Large abundance drop");
+                if *drop > 500.0 {
+                    tracing::error!("[RBE][L3] ACTIVATING L3 RECOVERY");
                     dashboard.activate_l3_recovery(now_ms);
+                } else {
+                    dashboard.activate_l2_support(now_ms);
                 }
             }
 
@@ -45,14 +56,16 @@ pub fn rbe_flow_responder_system(
                 tracing::warn!("[RBE][L2] Persistent scarcity: {} triggers", trigger_count);
                 dashboard.add_alert(alert.clone());
 
-                if trigger_count > 12 {
-                    tracing::error!("[RBE][L3] ACTIVATING RECOVERY - Persistent scarcity");
+                if *trigger_count > 12 {
+                    tracing::error!("[RBE][L3] ACTIVATING L3 RECOVERY");
                     dashboard.activate_l3_recovery(now_ms);
+                } else if *trigger_count > 6 {
+                    dashboard.activate_l2_support(now_ms);
                 }
             }
         }
     }
 
-    // Improved time-based decay
+    dashboard.decay_l2_support(now_ms);
     dashboard.decay_l3_recovery(now_ms);
 }
