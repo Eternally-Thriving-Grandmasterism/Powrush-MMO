@@ -18,7 +18,7 @@ pub enum RBEFlowAlert {
 }
 
 // ============================================================
-// RBE FLOW DASHBOARD (with L2 alert decay)
+// RBE FLOW DASHBOARD (Tuned decay rates)
 // ============================================================
 
 #[derive(Resource, Clone, Debug, Default)]
@@ -43,26 +43,29 @@ pub struct RBEFlowDashboard {
     pub l2_multiplier: f32,
     pub l2_boost_active: bool,
     pub last_l2_action_ms: u64,
-    pub l2_decay_rate: f32,
+    pub l2_decay_rate: f32,           // Tuned: faster decay for supportive actions
 
     // Level 3 Recovery State
     pub restoration_multiplier: f32,
     pub abundance_boost_active: bool,
     pub last_l3_action_ms: u64,
-    pub l3_decay_rate: f32,
+    pub l3_decay_rate: f32,           // Tuned: slower, more persistent recovery
 }
 
 impl RBEFlowDashboard {
     pub fn new() -> Self {
         Self {
             max_informational_alerts: 20,
-            max_l2_alerts: 12, // Stricter for L2
+            max_l2_alerts: 12,
+
+            // Tuned decay parameters
+            l2_decay_rate: 0.30,      // 30% per second - supportive boosts fade reasonably fast
+            l3_decay_rate: 0.12,      // 12% per second - protective recovery lingers longer
+
             l2_multiplier: 1.0,
             l2_boost_active: false,
-            l2_decay_rate: 0.25,
             restoration_multiplier: 1.0,
             abundance_boost_active: false,
-            l3_decay_rate: 0.15,
             ..Default::default()
         }
     }
@@ -89,7 +92,6 @@ impl RBEFlowDashboard {
         self.informational_alerts.push(alert);
     }
 
-    /// Add L2 alert with dedicated decay handling
     pub fn add_l2_alert(&mut self, alert: RBEFlowAlert) {
         if self.l2_alerts.len() >= self.max_l2_alerts {
             self.l2_alerts.remove(0);
@@ -97,10 +99,8 @@ impl RBEFlowDashboard {
         self.l2_alerts.push(alert);
     }
 
-    /// Dedicated L2 alert decay logic (more aggressive than general cleanup)
     pub fn decay_l2_alerts(&mut self) {
-        // Keep only the most recent L2 alerts (stricter limit for actionable alerts)
-        let target = (self.max_l2_alerts as f32 * 0.7) as usize; // Keep ~70% of max
+        let target = (self.max_l2_alerts as f32 * 0.75) as usize; // Keep 75% of max
         if self.l2_alerts.len() > target {
             let excess = self.l2_alerts.len() - target;
             self.l2_alerts.drain(0..excess);
