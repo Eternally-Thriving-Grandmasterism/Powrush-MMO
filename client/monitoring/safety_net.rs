@@ -1,5 +1,6 @@
 // client/monitoring/safety_net.rs
 // Ra-Thor SafetyNet Monitoring State and Events
+// Extended with RBE Flow Dynamics (v18.37)
 
 use bevy::prelude::*;
 use crate::monitoring::{KalmanFilter1D, RTSFixedLagSmoother};
@@ -12,14 +13,25 @@ pub struct SafetyNetMonitoringUpdate {
 #[derive(Debug, Clone, Default)]
 pub struct SafetyNetMonitoringSnapshot {
     pub timestamp_ms: u64,
+
+    // Network Health
     pub last_latency_ms: u64,
     pub avg_latency_ms: f32,
     pub kalman_latency_residual: f32,
     pub rts_smoothed_latency: f32,
     pub rts_vs_kalman_residual: f32,
+
+    // Server State
     pub server_abundance: f64,
     pub server_health: f32,
     pub server_council_engagement: f32,
+
+    // RBE Flow Dynamics
+    pub abundance_creation_rate: f64,        // Abundance generated per second
+    pub abundance_restoration_rate: f64,     // Abundance restored via safety nets per second
+    pub safety_net_trigger_count: u32,       // Number of triggers in recent window
+    pub average_restoration_magnitude: f64,  // Average size of safety net restorations
+    pub restoration_effectiveness: f32,      // % of triggered entities that stabilized
 }
 
 #[derive(Clone, Debug, Default)]
@@ -65,6 +77,12 @@ pub struct SafetyNetState {
     pub last_ema_update_ms: u64,
     pub kalman_latency: Option<KalmanFilter1D>,
     pub rts_smoother: Option<RTSFixedLagSmoother>,
+
+    // RBE Flow Tracking
+    pub previous_abundance: f64,
+    pub last_abundance_update_ms: u64,
+    pub recent_triggers: Vec<(u64, f64)>, // (timestamp_ms, restored_amount)
+    pub max_trigger_history: usize,
 }
 
 impl Default for SafetyNetState {
@@ -84,6 +102,12 @@ impl Default for SafetyNetState {
             last_ema_update_ms: 0,
             kalman_latency: None,
             rts_smoother: None,
+
+            // RBE Flow
+            previous_abundance: 0.0,
+            last_abundance_update_ms: 0,
+            recent_triggers: Vec::new(),
+            max_trigger_history: 60,
         }
     }
 }
