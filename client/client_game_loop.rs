@@ -1,8 +1,7 @@
 //! client/client_game_loop.rs
 //! Core Client Game Loop with client-side prediction + server reconciliation.
 //!
-//! Refined integration with RbeClientSync for dynamic prediction behavior
-//! and SafetyNet-aware harvesting.
+//! Prediction behavior now dynamically adjusts based on RBE + SafetyNet conditions.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use std::collections::VecDeque;
@@ -45,21 +44,15 @@ impl ClientGameLoop {
         }
     }
 
-    /// Per-frame update. Now considers prediction modifiers from RbeClientSync.
+    /// Per-frame update with dynamic prediction behavior.
     pub async fn update(&mut self, dt: f32, input: ClientInput) {
-        // Query current prediction modifiers (latency + abundance aware)
+        // Get current prediction modifiers from RbeClientSync
         let (latency_factor, abundance_factor) = self.rbe_sync.get_prediction_modifiers().await;
 
-        // Example: Could scale movement or reduce aggressiveness here
-        // For now we just log the factors for visibility
-        if latency_factor < 1.0 || abundance_factor < 1.0 {
-            tracing::debug!(
-                "[ClientGameLoop] Using conservative prediction | latency_factor={:.2}, abundance_factor={:.2}",
-                latency_factor, abundance_factor
-            );
-        }
+        // Apply modifiers to make prediction more conservative when needed
+        let effective_dt = dt * latency_factor * abundance_factor;
 
-        self.predicted_state.position += input.movement * dt;
+        self.predicted_state.position += input.movement * effective_dt;
         self.predicted_state.rotation = (self.predicted_state.rotation * input.rotation_delta).normalize();
 
         self.input_buffer.push_back(input);
@@ -68,21 +61,26 @@ impl ClientGameLoop {
         }
     }
 
-    /// Handle server snapshot + reconciliation.
-    /// Now properly syncs with RbeClientSync.
+    /// Handle server snapshot with SafetyNet-aware divergence handling.
     pub async fn handle_server_snapshot(
         &mut self,
         data: Vec<u8>,
         server_state: ClientState,
         server_last_processed_sequence: u32,
     ) {
-        // Sync RBE state from authoritative correction
         self.rbe_sync.apply_server_correction(&server_state, 0.0).await;
 
         let divergence = (self.predicted_state.position - server_state.position).length();
-        if divergence > 2.0 {
+
+        // Get current SafetyNet health for smarter correction decisions
+        let (ema_latency, _) = self.rbe_sync.get_safety_net_summary().await;
+
+        // Be more conservative with corrections when latency is high
+        let divergence_threshold = if ema_latency > 500.0 { 3.5 } else { 2.0 };
+
+        if divergence > divergence_threshold {
             tracing::warn!(
-                "[ClientGameLoop] Large divergence ({:.2}). PATSAGi mercy review engaged.",
+                "[ClientGameLoop] Large divergence ({:.2}). Latency-aware mercy correction applied.",
                 divergence
             );
         }
@@ -108,10 +106,6 @@ impl ClientGameLoop {
         &self.predicted_state
     }
 
-    // ============================================================
-    // Harvest (using improved RbeClientSync methods)
-    // ============================================================
-
     pub async fn send_harvest(&mut self, player_id: u64, node_id: u64, amount: f32) {
         if let Some(_msg) = self.rbe_sync.try_queue_harvest(player_id, node_id, amount).await {
             tracing::info!(
@@ -131,4 +125,4 @@ impl ClientGameLoop {
 }
 
 // Thunder locked in.
-// ClientGameLoop and RbeClientSync are now well-aligned with dynamic prediction and harvest logic.
+// Prediction and harvest behavior now dynamically responds to RBE + SafetyNet conditions.
