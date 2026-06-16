@@ -1,5 +1,5 @@
 // client/monitoring/rbe_flow_responder.rs
-// Event-driven RBE Flow Responder with L2 + L3 decay (v18.37)
+// Event-driven RBE Flow Responder with clean L1 handling (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
@@ -16,19 +16,15 @@ pub fn rbe_flow_responder_system(
 
     for alert in alert_events.read() {
         match alert {
+            // Pure Level 1 - Informational
             RBEFlowAlert::LowAbundanceCreationRate { rate, threshold } => {
                 tracing::warn!("[RBE][L1] Low creation rate: {:.2}", rate);
-                dashboard.add_alert(alert.clone());
-
-                // Level 2 supportive action
-                if rate < *threshold * 0.6 {
-                    dashboard.activate_l2_support(now_ms);
-                }
+                dashboard.add_informational_alert(alert.clone());
             }
 
             RBEFlowAlert::HighSafetyNetTriggerFrequency { count, window_size } => {
                 tracing::warn!("[RBE][L1] High trigger frequency: {}", count);
-                dashboard.add_alert(alert.clone());
+                dashboard.add_informational_alert(alert.clone());
 
                 if *count > 5 {
                     dashboard.activate_l2_support(now_ms);
@@ -37,9 +33,10 @@ pub fn rbe_flow_responder_system(
 
             RBEFlowAlert::LowRestorationEffectiveness { effectiveness, threshold } => {
                 tracing::warn!("[RBE][L1] Low effectiveness: {:.1}%", effectiveness * 100.0);
-                dashboard.add_alert(alert.clone());
+                dashboard.add_informational_alert(alert.clone());
             }
 
+            // Level 2 / Level 3
             RBEFlowAlert::SuddenAbundanceDrop { previous, current, drop } => {
                 tracing::error!("[RBE][L2] Sudden drop: {:.2} -> {:.2}", previous, current);
                 dashboard.add_alert(alert.clone());
