@@ -18,7 +18,7 @@ pub enum RBEFlowAlert {
 }
 
 // ============================================================
-// RBE FLOW DASHBOARD (with improved L3 recovery decay)
+// RBE FLOW DASHBOARD (with L2 + L3 recovery)
 // ============================================================
 
 #[derive(Resource, Clone, Debug, Default)]
@@ -31,19 +31,28 @@ pub struct RBEFlowDashboard {
     pub server_abundance: f64,
     pub active_alerts: Vec<RBEFlowAlert>,
 
+    // Level 2 Supportive State
+    pub l2_multiplier: f32,
+    pub l2_boost_active: bool,
+    pub last_l2_action_ms: u64,
+    pub l2_decay_rate: f32,
+
     // Level 3 Recovery State
     pub restoration_multiplier: f32,
     pub abundance_boost_active: bool,
     pub last_l3_action_ms: u64,
-    pub l3_decay_rate: f32,           // How fast the multiplier decays per second
+    pub l3_decay_rate: f32,
 }
 
 impl RBEFlowDashboard {
     pub fn new() -> Self {
         Self {
+            l2_multiplier: 1.0,
+            l2_boost_active: false,
+            l2_decay_rate: 0.25, // Faster decay for L2
             restoration_multiplier: 1.0,
             abundance_boost_active: false,
-            l3_decay_rate: 0.15, // 15% decay per second by default
+            l3_decay_rate: 0.15,
             ..Default::default()
         }
     }
@@ -69,14 +78,44 @@ impl RBEFlowDashboard {
         }
     }
 
-    /// Activate Level 3 automated recovery
+    // Level 2 Supportive Actions
+    pub fn activate_l2_support(&mut self, now_ms: u64) {
+        self.l2_multiplier = 1.25; // 25% mild boost
+        self.l2_boost_active = true;
+        self.last_l2_action_ms = now_ms;
+    }
+
+    pub fn decay_l2_support(&mut self, now_ms: u64) {
+        if !self.l2_boost_active || self.l2_multiplier <= 1.0 {
+            self.l2_multiplier = 1.0;
+            self.l2_boost_active = false;
+            return;
+        }
+
+        let dt_sec = if self.last_l2_action_ms > 0 {
+            (now_ms - self.last_l2_action_ms) as f32 / 1000.0
+        } else {
+            0.016
+        };
+
+        let decay_factor = (1.0 - self.l2_decay_rate * dt_sec).max(0.0);
+        self.l2_multiplier *= decay_factor;
+
+        if self.l2_multiplier < 1.05 {
+            self.l2_multiplier = 1.0;
+            self.l2_boost_active = false;
+        }
+
+        self.last_l2_action_ms = now_ms;
+    }
+
+    // Level 3 Recovery Actions
     pub fn activate_l3_recovery(&mut self, now_ms: u64) {
         self.restoration_multiplier = 1.5;
         self.abundance_boost_active = true;
         self.last_l3_action_ms = now_ms;
     }
 
-    /// Improved time-based decay for Level 3 recovery
     pub fn decay_l3_recovery(&mut self, now_ms: u64) {
         if !self.abundance_boost_active || self.restoration_multiplier <= 1.0 {
             self.restoration_multiplier = 1.0;
@@ -90,7 +129,6 @@ impl RBEFlowDashboard {
             0.016
         };
 
-        // Exponential decay
         let decay_factor = (1.0 - self.l3_decay_rate * dt_sec).max(0.0);
         self.restoration_multiplier *= decay_factor;
 
