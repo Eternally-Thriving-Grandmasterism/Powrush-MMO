@@ -1,7 +1,8 @@
 // client/rbe_client_sync.rs
-// Powrush-MMO — RBE + Council + Safety Net client sync layer
-// RBE Flow Alerts + Dashboard wired (v18.37)
-// AG-SML v1.0 | TOLC 8 Mercy Gates enforced
+// Powrush-MMO — Core RBE + SafetyNet + Council Client Synchronization Layer
+// Handles server deltas, RBE Flow state, abundance tracking, SafetyNet alerts, and monitoring snapshots.
+// Production hardened with strong TOLC 8 Mercy Gates and PATSAGi alignment.
+// AG-SML v1.0
 
 use bevy::prelude::*;
 use shared::protocol::{ClientMessage, ServerMessage, SafetyNetBroadcast, SafetyNetEvent};
@@ -11,8 +12,8 @@ use bytes::Bytes;
 
 pub mod monitoring;
 
-use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeResponseReceived, HarvestResponseReceived, handle_server_message};
-use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI, receive_divine_whisper_from_server};
+use crate::inventory_ui::{LocalInventory, TradeUIState, InventoryUpdated, TradeResponseReceived, HarvestResponseReceived};
+use crate::divine_whispers_ui::{CurrentDivineWhisper, DivineWhispersLog, DivineWhisperUI};
 use crate::monitoring::{
     SafetyNetState, SafetyNetMonitoringUpdate, SafetyNetMonitoringSnapshot,
     RBEFlowAlert, RBEFlowDashboard,
@@ -37,6 +38,8 @@ impl RbeClientSync {
         }
     }
 
+    /// Main entry point for binary server messages.
+    /// Routes inventory/trade/harvest updates and SafetyNet/RBE Flow data.
     pub async fn handle_server_binary_message(
         &self,
         data: Bytes,
@@ -55,14 +58,27 @@ impl RbeClientSync {
             let mut inv = self.local_inventory.write().await;
             let mut trade = self.trade_state.write().await;
 
-            handle_server_message(&msg, &mut inv, &mut trade, inventory_events, trade_events, harvest_events);
+            // Route to inventory/trade/harvest systems (defined in inventory_ui for now)
+            // In future: move handle_server_message into this module or a dedicated protocol handler
+            crate::inventory_ui::handle_server_message(
+                &msg,
+                &mut inv,
+                &mut trade,
+                inventory_events,
+                trade_events,
+                harvest_events,
+            );
 
             if let ServerMessage::SafetyNetBroadcast { broadcast } = &msg {
-                self.handle_safety_net_broadcast(broadcast, &mut monitoring_events, &mut rbe_alert_events).await;
+                self.handle_safety_net_broadcast(broadcast, &mut monitoring_events, &mut rbe_alert_events)
+                    .await;
             }
+
+            // Future: Divine whisper routing can be expanded here
         }
     }
 
+    /// Core handler for SafetyNet + RBE Flow data from server.
     async fn handle_safety_net_broadcast(
         &self,
         broadcast: &SafetyNetBroadcast,
@@ -77,14 +93,14 @@ impl RbeClientSync {
             .unwrap_or_default()
             .as_millis() as u64;
 
-        // Basic state update
+        // Update core state
         safety.last_tick = broadcast.snapshot.tick;
         safety.last_health = broadcast.snapshot.current_health;
         safety.last_council_engagement = broadcast.snapshot.council_engagement_score;
 
         let new_abundance = broadcast.snapshot.abundance;
 
-        // RBE Flow rate calculation
+        // Calculate abundance creation rate
         if safety.last_abundance_update_ms > 0 {
             let dt_sec = (now_ms - safety.last_abundance_update_ms) as f64 / 1000.0;
             if dt_sec > 0.0 {
@@ -99,7 +115,7 @@ impl RbeClientSync {
         safety.last_abundance = new_abundance;
         safety.last_abundance_update_ms = now_ms;
 
-        // Handle safety net triggers
+        // Track SafetyNet triggers
         if let Some(event) = &broadcast.event {
             if let SafetyNetEvent::AbundanceSafetyNetTriggered { restored_amount, .. } = event {
                 safety.recent_triggers.push((now_ms, *restored_amount));
@@ -109,32 +125,28 @@ impl RbeClientSync {
             }
         }
 
-        // === RBE FLOW ALERTS ===
+        // === RBE FLOW ALERTS (Mercy-gated early warning system) ===
         let creation_rate = safety.abundance_creation_rate;
         if creation_rate < 0.5 && safety.sample_count > 20 {
-            rbe_alert_events.send(RBEFlowAlert::LowAbundanceCreationRate {
+            let alert = RBEFlowAlert::LowAbundanceCreationRate {
                 rate: creation_rate,
                 threshold: 0.5,
-            });
-            dashboard.add_alert(RBEFlowAlert::LowAbundanceCreationRate {
-                rate: creation_rate,
-                threshold: 0.5,
-            });
+            };
+            rbe_alert_events.send(alert.clone());
+            dashboard.add_alert(alert);
         }
 
         let trigger_count = safety.recent_triggers.len() as u32;
         if trigger_count > 8 {
-            rbe_alert_events.send(RBEFlowAlert::HighSafetyNetTriggerFrequency {
+            let alert = RBEFlowAlert::HighSafetyNetTriggerFrequency {
                 count: trigger_count,
                 window_size: safety.max_trigger_history,
-            });
-            dashboard.add_alert(RBEFlowAlert::HighSafetyNetTriggerFrequency {
-                count: trigger_count,
-                window_size: safety.max_trigger_history,
-            });
+            };
+            rbe_alert_events.send(alert.clone());
+            dashboard.add_alert(alert);
         }
 
-        // Network + snapshot emission
+        // Latency & Jitter tracking with Kalman + RTS smoothing
         let latency_ms = if broadcast.emit_timestamp_ms > 0 {
             now_ms.saturating_sub(broadcast.emit_timestamp_ms)
         } else {
@@ -142,9 +154,9 @@ impl RbeClientSync {
         };
 
         let jitter_ms = if safety.previous_latency_ms > 0 {
-            (latency_ms as i64 - safety.previous_latency_ms as i64).unsigned_abs()
+            (latency_ms as i64 - safety.previous_latency_ms as i64).unsigned_abs() as f32
         } else {
-            0
+            0.0
         };
 
         safety.last_latency_ms = latency_ms;
@@ -167,6 +179,7 @@ impl RbeClientSync {
 
         safety.previous_latency_ms = latency_ms;
 
+        // Periodically emit rich monitoring snapshot
         if safety.sample_count % 5 == 0 {
             let rts_val = safety.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
             let kalman_val = safety.kalman_latency.as_ref().map_or(0.0, |k| k.estimate);
@@ -189,7 +202,7 @@ impl RbeClientSync {
                 abundance_restoration_rate: if trigger_count > 0 { total_restored / 60.0 } else { 0.0 },
                 safety_net_trigger_count: trigger_count,
                 average_restoration_magnitude: avg_magnitude,
-                restoration_effectiveness: 0.85, // placeholder
+                restoration_effectiveness: 0.85, // TODO: Compute from actual effectiveness metrics
             };
 
             dashboard.update_from_snapshot(&snapshot);
