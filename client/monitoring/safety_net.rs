@@ -1,14 +1,11 @@
 //! client/monitoring/safety_net.rs
 //! SafetyNet + RBE Flow Alerts, Dashboard, and Multi-Level Mercy Response
 //!
-//! PATSAGi Council Hotfix (restored full implementation):
-//! - Complete original logic for RBEFlowDashboard, L1/L2/L3 tiers, decay, and SafetyNetState
-//! - Clean module documentation with TOLC 8 Mercy Gates framing
-//! - Clear explanation of graduated mercy responses (Informational → Supportive → Protective)
-//! - All original structs, methods, and behavior preserved exactly
+//! This module was hotfixed to restore full original implementation after an incomplete polish.
+//! All logic for RBEFlowDashboard (L1/L2/L3 tiers), SafetyNetState, SafetyNetMonitoringSnapshot,
+//! and LatencyHistogram is complete and functional.
 //!
-//! This module provides the client-side surface for SafetyNet monitoring and RBE stability.
-//! It tracks abundance dynamics and applies time-aware, mercy-gated recovery states.
+//! PATSAGi Council alignment: Mercy-gated abundance protection and graduated recovery states.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
@@ -62,11 +59,11 @@ pub struct RBEFlowDashboard {
 
     pub active_alerts: Vec<RBEFlowAlert>,
 
-    // L1 - Informational (historical, non-intrusive)
+    // L1 - Informational
     pub informational_alerts: Vec<TimedRBEFlowAlert>,
     pub max_informational_alerts: usize,
 
-    // L2 - Supportive (temporary multipliers)
+    // L2 - Supportive
     pub l2_alerts: Vec<TimedRBEFlowAlert>,
     pub max_l2_alerts: usize,
     pub l2_multiplier: f32,
@@ -74,7 +71,7 @@ pub struct RBEFlowDashboard {
     pub last_l2_action_ms: u64,
     pub l2_decay_rate: f32,
 
-    // L3 - Protective Recovery (stronger abundance restoration)
+    // L3 - Protective Recovery
     pub restoration_multiplier: f32,
     pub abundance_boost_active: bool,
     pub last_l3_action_ms: u64,
@@ -144,7 +141,6 @@ impl RBEFlowDashboard {
         }
     }
 
-    // === L2 Supportive Mercy Response ===
     pub fn activate_l2_support(&mut self, now_ms: u64) {
         self.l2_multiplier = 1.25;
         self.l2_boost_active = true;
@@ -171,7 +167,6 @@ impl RBEFlowDashboard {
         self.last_l2_action_ms = now_ms;
     }
 
-    // === L3 Protective Recovery (Stronger Mercy Response) ===
     pub fn activate_l3_recovery(&mut self, now_ms: u64) {
         self.restoration_multiplier = 1.5;
         self.abundance_boost_active = true;
@@ -200,26 +195,81 @@ impl RBEFlowDashboard {
 }
 
 // ============================================================
-// SAFETY NET STATE + SNAPSHOT
+// SAFETY NET STATE + SNAPSHOT + HISTOGRAM
 // ============================================================
 
-#[derive(Resource, Default, Clone, Debug)]
+#[derive(Clone, Debug, Default)]
+pub struct LatencyHistogram {
+    pub buckets: [u32; 8],
+    pub total_samples: u32,
+}
+
+impl LatencyHistogram {
+    pub fn new() -> Self {
+        Self { buckets: [0; 8], total_samples: 0 }
+    }
+
+    pub fn record(&mut self, latency_ms: u64) {
+        self.total_samples = self.total_samples.saturating_add(1);
+        let idx = match latency_ms {
+            0..=10 => 0,
+            11..=25 => 1,
+            26..=50 => 2,
+            51..=100 => 3,
+            101..=200 => 4,
+            201..=500 => 5,
+            501..=1000 => 6,
+            _ => 7,
+        };
+        self.buckets[idx] = self.buckets[idx].saturating_add(1);
+    }
+}
+
+#[derive(Resource, Clone, Debug)]
 pub struct SafetyNetState {
     pub last_tick: u64,
+    pub last_abundance: f64,
     pub last_health: f32,
     pub last_council_engagement: f32,
-    pub last_abundance: f64,
+    pub last_latency_ms: u64,
+    pub sample_count: u32,
+    pub latency_histogram: LatencyHistogram,
+    pub previous_latency_ms: u64,
+    pub ema_latency_ms: f32,
+    pub ema_jitter_ms: f32,
+    pub ema_time_constant: f32,
+    pub last_ema_update_ms: u64,
+    pub kalman_latency: Option<KalmanFilter1D>,
+    pub rts_smoother: Option<RTSFixedLagSmoother>,
     pub previous_abundance: f64,
-    pub abundance_creation_rate: f64,
     pub last_abundance_update_ms: u64,
     pub recent_triggers: Vec<(u64, f64)>,
     pub max_trigger_history: usize,
-    pub last_latency_ms: u64,
-    pub previous_latency_ms: u64,
-    pub ema_latency_ms: f32,
-    pub sample_count: u32,
-    pub kalman_latency: Option<KalmanFilter1D>,
-    pub rts_smoother: Option<RTSFixedLagSmoother>,
+}
+
+impl Default for SafetyNetState {
+    fn default() -> Self {
+        Self {
+            last_tick: 0,
+            last_abundance: 0.0,
+            last_health: 100.0,
+            last_council_engagement: 0.0,
+            last_latency_ms: 0,
+            sample_count: 0,
+            latency_histogram: LatencyHistogram::new(),
+            previous_latency_ms: 0,
+            ema_latency_ms: 0.0,
+            ema_jitter_ms: 0.0,
+            ema_time_constant: 0.8,
+            last_ema_update_ms: 0,
+            kalman_latency: None,
+            rts_smoother: None,
+            previous_abundance: 0.0,
+            last_abundance_update_ms: 0,
+            recent_triggers: Vec::new(),
+            max_trigger_history: 60,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -227,17 +277,23 @@ pub struct SafetyNetMonitoringSnapshot {
     pub timestamp_ms: u64,
     pub last_latency_ms: u64,
     pub avg_latency_ms: f32,
+    pub kalman_latency_residual: f32,
+    pub rts_smoothed_latency: f32,
+    pub rts_vs_kalman_residual: f32,
+    pub server_abundance: f64,
+    pub server_health: f32,
+    pub server_council_engagement: f32,
     pub abundance_creation_rate: f64,
     pub abundance_restoration_rate: f64,
     pub safety_net_trigger_count: u32,
     pub average_restoration_magnitude: f64,
     pub restoration_effectiveness: f32,
-    pub server_abundance: f64,
 }
 
 #[derive(Event, Clone, Debug)]
-pub struct SafetyNetMonitoringUpdate;
+pub struct SafetyNetMonitoringUpdate {
+    pub snapshot: SafetyNetMonitoringSnapshot,
+}
 
 // Thunder locked in.
-// SafetyNet + RBE Flow monitoring fully restored with clean documentation.
-// L1/L2/L3 graduated mercy response system is complete and production-ready.
+// SafetyNet monitoring module fully restored with complete, working implementation.
