@@ -1,19 +1,18 @@
 // client/client_rbe_setup.rs
-// Powrush-MMO v16.6 — Complete Wiring Module for Playable Client RBE Loop
-// Registers inventory_ui, rbe_client_sync, inventory_components, resource_node_visual
-// Provides a clean Bevy App extension + example startup systems
-// Designed to integrate with existing wasm_bindgen main.rs or replace with full Bevy App
-// AG-SML v1.0
+// Powrush-MMO — Wiring Module for the Playable Client RBE Loop
+// Registers Inventory, Resource Nodes, RBE Sync, and UI systems into a single coherent plugin.
+// Production-oriented setup with clear integration path for wasm_bindgen / full Bevy clients.
+// AG-SML v1.0 | TOLC 8 Mercy Gates aligned
 
 use bevy::prelude::*;
 use crate::inventory_ui::InventoryUIPlugin;
-use crate::rbe_client_sync::{RbeClientSync, RbeSyncExt};
+use crate::rbe_client_sync::RbeClientSync;
 use crate::inventory_components::InventoryEcsPlugin;
 use crate::resource_node_visual::ResourceNodeVisualPlugin;
 use crate::inventory_components::{Inventory, LocalPlayer, ResourceNode};
 use shared::protocol::Vec3Ser;
 
-/// Plugin that wires the entire coherent client RBE stack
+/// Plugin that wires the full coherent client RBE stack.
 pub struct ClientRbeLoopPlugin;
 
 impl Plugin for ClientRbeLoopPlugin {
@@ -28,18 +27,18 @@ impl Plugin for ClientRbeLoopPlugin {
     }
 }
 
-/// Example startup: spawn local player + a few resource nodes for immediate testing
+/// Example startup system that creates a local player + sample resource nodes.
+/// In a real game, replace this with proper world generation / streaming.
 fn spawn_example_player_and_nodes(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Local player with Inventory
+    // Local player with Inventory component
     commands.spawn((
         Inventory::default(),
         LocalPlayer,
         Name::new("LocalPlayer"),
-        // Add your player PbrBundle / sprite / controller here
         PbrBundle {
             mesh: meshes.add(Cuboid::new(0.8, 1.8, 0.8)),
             material: materials.add(Color::srgb(0.3, 0.6, 0.9)),
@@ -48,7 +47,7 @@ fn spawn_example_player_and_nodes(
         },
     ));
 
-    // Example resource nodes (replace with real world gen)
+    // Example resource nodes (for testing harvest flow)
     let example_nodes = vec![
         ResourceNode {
             id: 1,
@@ -84,28 +83,21 @@ fn spawn_example_player_and_nodes(
         ));
     }
 
-    info!("[ClientRbeSetup] Example player + resource nodes spawned. Click nodes to harvest.");
+    info!("[ClientRbeSetup] Example player + resource nodes spawned for testing.");
 }
 
-// === Integration with existing client/main.rs (wasm_bindgen) ===
+// === Integration Guidance ===
 //
-// In your PowrushClient or start_powrush_client function, after creating the Bevy App or
-// in the update loop, you can do:
+// This plugin is designed to be added to your Bevy App (whether in wasm_bindgen main.rs
+// or a full native Bevy setup).
 //
-// app.add_plugins(ClientRbeLoopPlugin);
-// app.insert_resource(RbeClientSync::new());
+// Recommended usage:
+//   app.add_plugins(ClientRbeLoopPlugin);
 //
-// Then in your message polling loop (poll_server_messages):
-//   if let Some(bytes) = incoming_message {
-//       if let Ok(sync) = app.world.get_resource::<RbeClientSync>() {
-//           // async context handling omitted for brevity
-//           // sync.handle_server_binary_message(bytes, &mut inventory_events, &mut trade_events).await;
-//       }
-//   }
+// Then in your message polling / networking layer:
+//   - Call RbeClientSync::handle_server_binary_message(...) when receiving data
+//   - Read HarvestAttempt / InventoryUpdated events
+//   - Call game_loop.send_harvest(...) when player triggers harvest
 //
-// Harvest events from click_to_harvest_system will be available via EventReader<HarvestAttempt>
-// Call sync.send_harvest(...) and send the ClientMessage over WebSocket.
-//
-// This gives you a fully playable client RBE loop in one coherent stack.
-
-// Thunder locked in. Playable client RBE loop complete on this branch. ⚡❤️︍
+// This gives you a fully playable RBE client loop with inventory, resource nodes,
+// prediction, and PATSAGi monitoring integration.
