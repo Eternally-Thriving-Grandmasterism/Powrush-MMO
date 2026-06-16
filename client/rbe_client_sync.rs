@@ -1,10 +1,10 @@
 // client/rbe_client_sync.rs
 // Powrush-MMO — RBE + Council + Safety Net client sync layer
-// Wired monitoring modules (v18.37)
+// RBE Flow Dynamics monitoring wired (v18.37)
 // AG-SML v1.0 | TOLC 8 Mercy Gates enforced
 
 use bevy::prelude::*;
-use shared::protocol::{ClientMessage, ServerMessage, SafetyNetBroadcast};
+use shared::protocol::{ClientMessage, ServerMessage, SafetyNetBroadcast, SafetyNetEvent};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use bytes::Bytes;
@@ -65,17 +65,47 @@ impl RbeClientSync {
         monitoring_events: &mut EventWriter<SafetyNetMonitoringUpdate>,
     ) {
         let mut safety = self.safety_net_state.write().await;
-
-        safety.last_tick = broadcast.snapshot.tick;
-        safety.last_abundance = broadcast.snapshot.abundance;
-        safety.last_health = broadcast.snapshot.current_health;
-        safety.last_council_engagement = broadcast.snapshot.council_engagement_score;
-
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
 
+        // Update basic state
+        safety.last_tick = broadcast.snapshot.tick;
+        safety.last_health = broadcast.snapshot.current_health;
+        safety.last_council_engagement = broadcast.snapshot.council_engagement_score;
+
+        let new_abundance = broadcast.snapshot.abundance;
+
+        // RBE Flow: Calculate creation/restoration rate
+        if safety.last_abundance_update_ms > 0 {
+            let dt_sec = (now_ms - safety.last_abundance_update_ms) as f64 / 1000.0;
+            if dt_sec > 0.0 {
+                let abundance_delta = new_abundance - safety.previous_abundance;
+                // Positive delta = creation, negative can indicate consumption or safety net use
+                if abundance_delta > 0.0 {
+                    safety.abundance_creation_rate = abundance_delta / dt_sec;
+                }
+            }
+        }
+
+        safety.previous_abundance = new_abundance;
+        safety.last_abundance = new_abundance;
+        safety.last_abundance_update_ms = now_ms;
+
+        // Handle Safety Net Events for restoration metrics
+        if let Some(event) = &broadcast.event {
+            if let SafetyNetEvent::AbundanceSafetyNetTriggered { restored_amount, .. } = event {
+                safety.recent_triggers.push((now_ms, *restored_amount));
+
+                // Keep history bounded
+                if safety.recent_triggers.len() > safety.max_trigger_history {
+                    safety.recent_triggers.remove(0);
+                }
+            }
+        }
+
+        // Network metrics
         let latency_ms = if broadcast.emit_timestamp_ms > 0 {
             now_ms.saturating_sub(broadcast.emit_timestamp_ms)
         } else {
@@ -97,7 +127,6 @@ impl RbeClientSync {
             safety.rts_smoother = Some(RTSFixedLagSmoother::new(8));
         } else {
             let dt_sec = 0.016;
-
             if let Some(k) = &mut safety.kalman_latency {
                 k.update(latency_ms as f32, dt_sec);
             }
@@ -109,9 +138,18 @@ impl RbeClientSync {
 
         safety.previous_latency_ms = latency_ms;
 
+        // Emit snapshot with RBE flow metrics
         if safety.sample_count % 5 == 0 {
             let rts_val = safety.rts_smoother.as_ref().map_or(0.0, |r| r.smoothed_estimate);
             let kalman_val = safety.kalman_latency.as_ref().map_or(0.0, |k| k.estimate);
+
+            // Calculate RBE flow metrics from recent triggers
+            let trigger_count = safety.recent_triggers.len() as u32;
+            let total_restored: f64 = safety.recent_triggers.iter().map(|(_, amt)| *amt).sum();
+            let avg_magnitude = if trigger_count > 0 { total_restored / trigger_count as f64 } else { 0.0 };
+
+            // Simple effectiveness heuristic (can be improved later)
+            let effectiveness = if trigger_count > 0 { 0.85 } else { 1.0 }; // placeholder
 
             let snapshot = SafetyNetMonitoringSnapshot {
                 timestamp_ms: now_ms,
@@ -123,6 +161,13 @@ impl RbeClientSync {
                 server_abundance: safety.last_abundance,
                 server_health: safety.last_health,
                 server_council_engagement: safety.last_council_engagement,
+
+                // RBE Flow
+                abundance_creation_rate: safety.abundance_creation_rate,
+                abundance_restoration_rate: if trigger_count > 0 { total_restored / 60.0 } else { 0.0 }, // rough per-minute rate
+                safety_net_trigger_count: trigger_count,
+                average_restoration_magnitude: avg_magnitude,
+                restoration_effectiveness: effectiveness,
             };
 
             monitoring_events.send(SafetyNetMonitoringUpdate { snapshot });
