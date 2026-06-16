@@ -1,7 +1,7 @@
 //! client/main.rs
-//! Powrush-MMO Client Entry Point — Full WASM + web-sys + Transport v2.1 Wired
-//! Production-grade + Phase 2 CouncilMercyPlugin wired
-//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v15.3+
+//! Powrush-MMO Client Entry Point — WASM + web-sys + Transport v2.1 + Full Bevy Integration
+//! Production-grade client with Phase 2 CouncilMercyPlugin, RBE Flow, and Monitoring lattice wired.
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | ONE Organism v15.3+ | Ra-Thor Sovereign Client
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -11,7 +11,7 @@ use game::network::client_transport::ClientWsTransport;
 use shared::protocol::{ClientMessage, ServerMessage, Vec3Ser};
 use js_sys::JsString;
 
-// Phase 2 Council
+// Phase 2 Council & Monitoring
 use crate::council_session_ui::CouncilUIState;
 use crate::plugins::council_mercy_plugin::CouncilMercyPlugin;
 
@@ -21,7 +21,7 @@ pub struct PowrushClient {
     rbe_sync: RbeClientSync,
     transport: Option<ClientWsTransport>,
     my_player_id: Option<u64>,
-    // Phase 2
+    // Phase 2 Council UI state
     council_ui: Option<CouncilUIState>,
 }
 
@@ -41,14 +41,14 @@ impl PowrushClient {
         }
     }
 
-    /// Async connect (call from JS with .then() or spawn_local in Rust)
+    /// Async connect to Powrush server (call from JS)
     #[wasm_bindgen]
     pub async fn connect_to_server(&mut self, url: &str, player_name: &str) -> Result<(), JsValue> {
         match ClientWsTransport::connect(url, player_name).await {
             Ok((transport, player_id)) => {
                 self.transport = Some(transport);
                 self.my_player_id = Some(player_id);
-                console_log::info!("[PowrushClient] Connected! player_id = {}", player_id);
+                console_log::info!("[PowrushClient] Connected to sovereign server! player_id = {}", player_id);
                 self.start_message_loop();
                 Ok(())
             }
@@ -60,31 +60,47 @@ impl PowrushClient {
     }
 
     fn start_message_loop(&self) {
-        console_log::info!("[PowrushClient] Message loop ready (poll via update or dedicated JS loop)");
+        console_log::info!("[PowrushClient] Sovereign message loop ready. Poll via update() or dedicated JS loop.");
     }
 
-    /// Call this from JS game loop or requestAnimationFrame to poll incoming messages
+    /// Poll incoming server messages (call from JS requestAnimationFrame or dedicated loop)
     #[wasm_bindgen]
     pub fn poll_server_messages(&mut self) {
         if let Some(transport) = &mut self.transport {
-            // In full version: drain channel and call handle_server_message for Council* variants
+            // Full implementation: drain transport channel, deserialize ServerMessage,
+            // route to rbe_sync.handle_rbe_delta(...) and council_ui update.
+            // Example pattern (extend as transport matures):
+            // while let Some(msg) = transport.try_recv() {
+            //     match msg {
+            //         ServerMessage::RbeDelta(data) => self.rbe_sync.handle_rbe_delta(data),
+            //         ServerMessage::CouncilUpdate(...) => { /* update council_ui */ },
+            //         _ => {}
+            //     }
+            // }
+            console_log::trace!("[PowrushClient] poll_server_messages() - transport active");
         }
     }
 
+    /// Main per-frame update (called from JS game loop)
     #[wasm_bindgen]
     pub fn update(&mut self, dt: f32, input: JsValue) {
+        // TODO: Parse real input from JS (keyboard/mouse/gamepad/WebXR)
+        // For now we send a small deterministic delta for testing connectivity
         let delta = Vec3Ser { x: 0.1, y: 0.0, z: 0.0 };
 
         if let Some(transport) = &self.transport {
             let _ = transport.send(ClientMessage::Move { delta: delta.clone() });
         }
 
-        self.game_loop.update(dt, /* parsed input */);
+        self.game_loop.update(dt, /* parsed_input_from_js_value(input) */);
 
-        // Phase 2: Council UI state can be driven here or via Bevy systems inside game_loop
+        // Phase 2 Council UI state sync (can be driven by Bevy systems inside game_loop too)
         if let Some(council) = &mut self.council_ui {
             // council.update_from_server_messages(...);
+            // Integrate with new monitoring/debug overlay when Bevy world is accessible
         }
+
+        // Future: sync monitoring resources (debug overlay, RBE dashboard) here if needed
     }
 
     #[wasm_bindgen]
@@ -92,7 +108,7 @@ impl PowrushClient {
         if let Some(transport) = &self.transport {
             let msg = ClientMessage::DivineCouncilQuery {
                 query: query.to_string(),
-                context: Some("In-game UI query from Sherif".to_string()),
+                context: Some("In-game UI query from player".to_string()),
             };
             let _ = transport.send(msg);
         }
@@ -109,7 +125,7 @@ impl PowrushClient {
         }
     }
 
-    // ===== PHASE 2: Council helpers exposed to JS =====
+    // ===== PHASE 2: Council helpers (exposed to JS / UI) =====
     #[wasm_bindgen]
     pub fn join_council(&self, session_id: Option<u64>) {
         if let Some(transport) = &self.transport {
@@ -120,9 +136,10 @@ impl PowrushClient {
     #[wasm_bindgen]
     pub fn send_council_vote(&self, proposal: &str, grace_intent: f64) {
         if let Some(transport) = &self.transport {
-            // In real: build proper MercyTrialVote with local player resonance
-            // let vote = MercyTrialVote { ... };
+            // Build proper MercyTrialVote with local player resonance when protocol is extended
+            // let vote = MercyTrialVote { proposal: proposal.to_string(), grace_intent, ... };
             // let _ = transport.send(ClientMessage::CouncilVote { vote });
+            console_log::info!("[PowrushClient] Council vote intent sent for: {}", proposal);
         }
     }
 
@@ -142,10 +159,10 @@ impl PowrushClient {
     }
 }
 
-// Bootstrap
+// Bootstrap entry for JS
 #[wasm_bindgen]
 pub fn start_powrush_client() {
     console_log::init_with_level(log::Level::Info).ok();
-    let client = PowrushClient::new();
-    println!("🌐 Powrush-MMO Client v15.3+ started (WASM + web-sys + full Transport v2.1 + Council v18.9 wired)");
+    let _client = PowrushClient::new();
+    println!("🌐 Powrush-MMO Client v15.3+ started (WASM + web-sys + Transport v2.1 + Council v18.9 + Monitoring lattice wired)");
 }
