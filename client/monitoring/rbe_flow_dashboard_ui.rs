@@ -1,9 +1,28 @@
 // client/monitoring/rbe_flow_dashboard_ui.rs
-// In-Game RBE Flow Dashboard UI (v18.37)
+// In-Game RBE Flow Dashboard UI with Live Data (v18.37)
 // Designed for clarity, transparency, and the best player experience
 
 use bevy::prelude::*;
 use crate::monitoring::RBEFlowDashboard;
+
+// Marker components for dynamic text elements
+#[derive(Component)]
+struct AbundanceText;
+
+#[derive(Component)]
+struct CreationRateText;
+
+#[derive(Component)]
+struct RestorationRateText;
+
+#[derive(Component)]
+struct L2BoostText;
+
+#[derive(Component)]
+struct L3BoostText;
+
+#[derive(Component)]
+struct AlertsText;
 
 /// Spawns the RBE Flow Dashboard UI
 pub fn spawn_rbe_flow_dashboard_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -13,19 +32,20 @@ pub fn spawn_rbe_flow_dashboard_ui(mut commands: Commands, asset_server: Res<Ass
                 width: Val::Px(420.0),
                 height: Val::Auto,
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(12.0)),
+                padding: UiRect::all(Val::Px(14.0)),
+                row_gap: Val::Px(6.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.08, 0.08, 0.12, 0.92)),
-            BorderColor(Color::srgb(0.3, 0.6, 0.9)),
-            BorderRadius::all(Val::Px(8.0)),
+            BackgroundColor(Color::srgba(0.06, 0.06, 0.10, 0.94)),
+            BorderColor(Color::srgb(0.35, 0.65, 0.95)),
+            BorderRadius::all(Val::Px(10.0)),
             Style {
                 position_type: PositionType::Absolute,
-                top: Val::Px(60.0),
-                right: Val::Px(20.0),
+                top: Val::Px(70.0),
+                right: Val::Px(25.0),
                 ..default()
             },
-            Name::new("RBE Flow Dashboard"),
+            Name::new("RBE Flow Dashboard Container"),
         ))
         .with_children(|parent| {
             // Header
@@ -33,60 +53,106 @@ pub fn spawn_rbe_flow_dashboard_ui(mut commands: Commands, asset_server: Res<Ass
                 Text::new("RBE FLOW DASHBOARD"),
                 TextFont {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 18.0,
+                    font_size: 17.0,
                     ..default()
                 },
-                TextColor(Color::srgb(0.6, 0.85, 1.0)),
+                TextColor(Color::srgb(0.65, 0.88, 1.0)),
                 Node {
-                    margin: UiRect::bottom(Val::Px(8.0)),
+                    margin: UiRect::bottom(Val::Px(6.0)),
                     ..default()
                 },
             ));
 
-            // Metrics Section
-            parent.spawn(Text::new("Current Abundance: 124,850"));
-            parent.spawn(Text::new("Creation Rate: +42.3 / sec"));
-            parent.spawn(Text::new("Restoration Rate: +18.7 / sec"));
+            // === Metrics ===
+            parent.spawn((Text::new("Abundance: 0"), AbundanceText));
+            parent.spawn((Text::new("Creation: +0.0 /s"), CreationRateText));
+            parent.spawn((Text::new("Restoration: +0.0 /s"), RestorationRateText));
 
-            // Active Boosts Section
+            // === Active Boosts ===
             parent.spawn((
                 Text::new("Active Boosts"),
                 TextFont {
-                    font_size: 14.0,
+                    font_size: 13.0,
                     ..default()
                 },
-                TextColor(Color::srgb(0.9, 0.9, 0.6)),
+                TextColor(Color::srgb(0.95, 0.9, 0.55)),
                 Node {
-                    margin: UiRect::top(Val::Px(10.0)).bottom(Val::Px(4.0)),
+                    margin: UiRect::top(Val::Px(8.0)).bottom(Val::Px(2.0)),
                     ..default()
                 },
             ));
-            parent.spawn(Text::new("• L2 Supportive Boost ×1.25"));
-            parent.spawn(Text::new("• L3 Recovery Boost ×1.50"));
+            parent.spawn((Text::new("L2: Inactive"), L2BoostText));
+            parent.spawn((Text::new("L3: Inactive"), L3BoostText));
 
-            // Recent Alerts Section
+            // === Recent Alerts ===
             parent.spawn((
                 Text::new("Recent Alerts"),
                 TextFont {
-                    font_size: 14.0,
+                    font_size: 13.0,
                     ..default()
                 },
-                TextColor(Color::srgb(1.0, 0.7, 0.5)),
+                TextColor(Color::srgb(1.0, 0.75, 0.55)),
                 Node {
-                    margin: UiRect::top(Val::Px(10.0)).bottom(Val::Px(4.0)),
+                    margin: UiRect::top(Val::Px(8.0)).bottom(Val::Px(2.0)),
                     ..default()
                 },
             ));
-            parent.spawn(Text::new("• [L2] High Safety Net Trigger Frequency"));
-            parent.spawn(Text::new("• [L3] Persistent Scarcity Signal"));
+            parent.spawn((Text::new("No active alerts"), AlertsText));
         });
 }
 
-/// System that updates the RBE Flow Dashboard from the resource
+/// Updates the RBE Flow Dashboard with live data from the resource
 pub fn update_rbe_flow_dashboard(
     dashboard: Res<RBEFlowDashboard>,
-    mut query: Query<&mut Text, With<Name>>,
+    mut abundance_q: Query<&mut Text, With<AbundanceText>>,
+    mut creation_q: Query<&mut Text, With<CreationRateText>>,
+    mut restoration_q: Query<&mut Text, With<RestorationRateText>>,
+    mut l2_q: Query<&mut Text, With<L2BoostText>>,
+    mut l3_q: Query<&mut Text, With<L3BoostText>>,
+    mut alerts_q: Query<&mut Text, With<AlertsText>>,
 ) {
-    // TODO: Dynamically update text values from dashboard resource
-    // For now this is a static foundation. We will wire live data next.
+    // Abundance
+    if let Ok(mut text) = abundance_q.get_single_mut() {
+        text.0 = format!("Abundance: {:.0}", dashboard.server_abundance);
+    }
+
+    // Creation Rate
+    if let Ok(mut text) = creation_q.get_single_mut() {
+        text.0 = format!("Creation: +{:.1} /s", dashboard.abundance_creation_rate);
+    }
+
+    // Restoration Rate
+    if let Ok(mut text) = restoration_q.get_single_mut() {
+        text.0 = format!("Restoration: +{:.1} /s", dashboard.abundance_restoration_rate);
+    }
+
+    // L2 Boost
+    if let Ok(mut text) = l2_q.get_single_mut() {
+        if dashboard.l2_boost_active {
+            text.0 = format!("L2: Active ×{:.2}", dashboard.l2_multiplier);
+        } else {
+            text.0 = "L2: Inactive".to_string();
+        }
+    }
+
+    // L3 Boost
+    if let Ok(mut text) = l3_q.get_single_mut() {
+        if dashboard.abundance_boost_active {
+            text.0 = format!("L3: Active ×{:.2}", dashboard.restoration_multiplier);
+        } else {
+            text.0 = "L3: Inactive".to_string();
+        }
+    }
+
+    // Recent Alerts (simple version)
+    if let Ok(mut text) = alerts_q.get_single_mut() {
+        let total_active = dashboard.active_alerts.len();
+        let l2_count = dashboard.l2_alerts.len();
+
+        if total_active > 0 {
+            text.0 = format!("Active Alerts: {} (L2: {})", total_active, l2_count);
+        } else {
+            text.0 = "No active alerts".to_string();
+        }
+    }
 }
