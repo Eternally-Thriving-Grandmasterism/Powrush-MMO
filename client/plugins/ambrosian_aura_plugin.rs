@@ -1,7 +1,8 @@
 //! Ambrosian Aura Visuals Plugin — Powrush Client
 //! Mercy-gated subtle overseer glow: golden-silver halo + valence threads
 //! Tier 4+ resonance only, auto-fade on low coherence
-//! MIT + mercy eternal — Eternally-Thriving-Grandmasterism
+//! Production aligned with monitoring + council systems.
+//! AG-SML v1.0 | TOLC 8 Mercy Gates
 
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderRef};
@@ -14,16 +15,16 @@ pub struct AmbrosianAura;
 #[derive(Component)]
 pub struct AuraWisp;
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct AmbrosianAuraState {
-    active_players: Vec<Entity>, // entities with active aura
+    pub active_players: Vec<Entity>,
 }
 
 #[derive(Component, Reflect, Default)]
 #[reflect(Component)]
 pub struct AmbrosianAuraMaterial {
-    pub valence: f32,           // 0.0–1.0
-    pub tier: u8,               // 0–5
+    pub valence: f32,
+    pub tier: u8,
     pub pulse_speed: f32,
     pub base_color: Color,
 }
@@ -32,7 +33,6 @@ impl Material2d for AmbrosianAuraMaterial {
     fn vertex_shader() -> ShaderRef {
         "shaders/ambrosian_aura.wgsl".into()
     }
-
     fn fragment_shader() -> ShaderRef {
         "shaders/ambrosian_aura.wgsl".into()
     }
@@ -60,10 +60,8 @@ fn setup_aura_assets(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<AmbrosianAuraMaterial>>,
 ) {
-    // Pre-create shared mesh (simple quad for halo)
-    let quad_mesh = meshes.add(shape::Quad::new(Vec2::new(4.0, 4.0)).into());
+    let _quad_mesh = meshes.add(shape::Quad::new(Vec2::new(4.0, 4.0)).into());
 
-    // Placeholder material — updated dynamically
     materials.add(AmbrosianAuraMaterial {
         valence: 0.0,
         tier: 0,
@@ -80,16 +78,12 @@ fn update_ambrosian_aura(
 ) {
     for event in tier_events.read() {
         if event.tier >= 4 {
-            // Spawn or update aura on player
-            let player_entity = event.player_entity; // assume passed in event
-
-            // Remove old aura if exists
-            if let Ok((entity, _, _)) = aura_query.get_single() {
+            // Clean up existing aura
+            for (entity, _, _) in aura_query.iter() {
                 commands.entity(entity).despawn_recursive();
             }
 
-            // Spawn new aura
-            commands.entity(player_entity).with_children(|parent| {
+            commands.entity(event.player_entity).with_children(|parent| {
                 parent.spawn((
                     SpriteBundle {
                         sprite: Sprite {
@@ -106,15 +100,15 @@ fn update_ambrosian_aura(
                         tier: event.tier,
                         pulse_speed: 1.2 + (event.tier as f32 * 0.2),
                         base_color: if event.tier == 5 {
-                            Color::srgba(1.0, 0.95, 0.8, 0.6) // cosmic gold-white
+                            Color::srgba(1.0, 0.95, 0.8, 0.6)
                         } else {
-                            Color::srgba(0.8, 0.9, 1.0, 0.4) // subtle silver-gold
+                            Color::srgba(0.8, 0.9, 1.0, 0.4)
                         },
                     },
                 ));
             });
 
-            state.active_players.push(player_entity);
+            state.active_players.push(event.player_entity);
         }
     }
 }
@@ -140,7 +134,6 @@ fn spawn_wisps_on_tier_advance(
 ) {
     for event in tier_events.read() {
         if event.tier >= 4 {
-            // Spawn Hanabi wisp trail around player
             let wisp_effect = EffectAsset::new(512)
                 .init(InitPositionCircleModifier {
                     center: Vec3::ZERO,
@@ -172,9 +165,9 @@ fn spawn_wisps_on_tier_advance(
                     effect: ParticleEffect::new(effect_handle),
                     transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.1)),
                     ..default()
-                },
+                }),
                 AuraWisp,
-                Parent(event.player_entity), // attach to player
+                Parent(event.player_entity),
             ));
         }
     }
