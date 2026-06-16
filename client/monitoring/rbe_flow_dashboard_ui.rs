@@ -1,11 +1,11 @@
 // client/monitoring/rbe_flow_dashboard_ui.rs
-// In-Game RBE Flow Dashboard UI with Live Data (v18.37)
+// In-Game RBE Flow Dashboard UI with Toggle (v18.37)
 // Designed for clarity, transparency, and the best player experience
 
 use bevy::prelude::*;
 use crate::monitoring::RBEFlowDashboard;
 
-// Marker components for dynamic text elements
+// Marker components
 #[derive(Component)]
 struct AbundanceText;
 
@@ -24,8 +24,17 @@ struct L3BoostText;
 #[derive(Component)]
 struct AlertsText;
 
+#[derive(Component)]
+struct RbeDashboardContainer;
+
+/// Resource to control dashboard visibility
+#[derive(Resource, Default)]
+pub struct RbeDashboardVisible(pub bool);
+
 /// Spawns the RBE Flow Dashboard UI
 pub fn spawn_rbe_flow_dashboard_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.insert_resource(RbeDashboardVisible(true));
+
     commands
         .spawn((
             Node {
@@ -45,6 +54,8 @@ pub fn spawn_rbe_flow_dashboard_ui(mut commands: Commands, asset_server: Res<Ass
                 right: Val::Px(25.0),
                 ..default()
             },
+            Visibility::Visible,
+            RbeDashboardContainer,
             Name::new("RBE Flow Dashboard Container"),
         ))
         .with_children(|parent| {
@@ -63,12 +74,12 @@ pub fn spawn_rbe_flow_dashboard_ui(mut commands: Commands, asset_server: Res<Ass
                 },
             ));
 
-            // === Metrics ===
+            // Metrics
             parent.spawn((Text::new("Abundance: 0"), AbundanceText));
             parent.spawn((Text::new("Creation: +0.0 /s"), CreationRateText));
             parent.spawn((Text::new("Restoration: +0.0 /s"), RestorationRateText));
 
-            // === Active Boosts ===
+            // Active Boosts
             parent.spawn((
                 Text::new("Active Boosts"),
                 TextFont {
@@ -84,7 +95,7 @@ pub fn spawn_rbe_flow_dashboard_ui(mut commands: Commands, asset_server: Res<Ass
             parent.spawn((Text::new("L2: Inactive"), L2BoostText));
             parent.spawn((Text::new("L3: Inactive"), L3BoostText));
 
-            // === Recent Alerts ===
+            // Recent Alerts
             parent.spawn((
                 Text::new("Recent Alerts"),
                 TextFont {
@@ -101,7 +112,26 @@ pub fn spawn_rbe_flow_dashboard_ui(mut commands: Commands, asset_server: Res<Ass
         });
 }
 
-/// Updates the RBE Flow Dashboard with live data from the resource
+/// Toggles the RBE Flow Dashboard visibility when F3 is pressed
+pub fn toggle_rbe_flow_dashboard(
+    mut visibility: ResMut<RbeDashboardVisible>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut query: Query<&mut Visibility, With<RbeDashboardContainer>>,
+) {
+    if keyboard.just_pressed(KeyCode::F3) {
+        visibility.0 = !visibility.0;
+
+        for mut vis in &mut query {
+            *vis = if visibility.0 {
+                Visibility::Visible
+            } else {
+                Visibility::Hidden
+            };
+        }
+    }
+}
+
+/// Updates the dashboard content from the resource
 pub fn update_rbe_flow_dashboard(
     dashboard: Res<RBEFlowDashboard>,
     mut abundance_q: Query<&mut Text, With<AbundanceText>>,
@@ -111,22 +141,18 @@ pub fn update_rbe_flow_dashboard(
     mut l3_q: Query<&mut Text, With<L3BoostText>>,
     mut alerts_q: Query<&mut Text, With<AlertsText>>,
 ) {
-    // Abundance
     if let Ok(mut text) = abundance_q.get_single_mut() {
         text.0 = format!("Abundance: {:.0}", dashboard.server_abundance);
     }
 
-    // Creation Rate
     if let Ok(mut text) = creation_q.get_single_mut() {
         text.0 = format!("Creation: +{:.1} /s", dashboard.abundance_creation_rate);
     }
 
-    // Restoration Rate
     if let Ok(mut text) = restoration_q.get_single_mut() {
         text.0 = format!("Restoration: +{:.1} /s", dashboard.abundance_restoration_rate);
     }
 
-    // L2 Boost
     if let Ok(mut text) = l2_q.get_single_mut() {
         if dashboard.l2_boost_active {
             text.0 = format!("L2: Active ×{:.2}", dashboard.l2_multiplier);
@@ -135,7 +161,6 @@ pub fn update_rbe_flow_dashboard(
         }
     }
 
-    // L3 Boost
     if let Ok(mut text) = l3_q.get_single_mut() {
         if dashboard.abundance_boost_active {
             text.0 = format!("L3: Active ×{:.2}", dashboard.restoration_multiplier);
@@ -144,7 +169,6 @@ pub fn update_rbe_flow_dashboard(
         }
     }
 
-    // Recent Alerts (simple version)
     if let Ok(mut text) = alerts_q.get_single_mut() {
         let total_active = dashboard.active_alerts.len();
         let l2_count = dashboard.l2_alerts.len();
