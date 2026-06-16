@@ -1,6 +1,6 @@
 // client/monitoring/debug_overlay.rs
 // Unified Debug Overlay for Powrush-MMO (v18.37)
-// Includes FPS + Frame Time Graphs
+// Includes FPS Graph, Frame Time Graph, and GPU Metrics
 
 use bevy::prelude::*;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
@@ -18,6 +18,8 @@ use crate::monitoring::RBEFlowDashboard;
 #[derive(Component)] struct DebugFps;
 #[derive(Component)] struct DebugFrameTime;
 #[derive(Component)] struct DebugEntities;
+#[derive(Component)] struct DebugGpuFrameTime;
+#[derive(Component)] struct DebugGpuLoad;
 
 // Graph markers
 #[derive(Component)] struct FpsGraphContainer;
@@ -125,6 +127,11 @@ pub fn spawn_debug_overlay(mut commands: Commands, asset_server: Res<AssetServer
             parent.spawn((Text::new("Frame Time History (ms)"), TextFont { font_size: 11.0, ..default() }, TextColor(Color::srgb(0.8, 0.9, 0.8))));
             parent.spawn((Node { width: Val::Percent(100.0), height: Val::Px(50.0), flex_direction: FlexDirection::Row, align_items: AlignItems::FlexEnd, column_gap: Val::Px(1.0), ..default() }, BackgroundColor(Color::srgba(0.1, 0.1, 0.12, 0.8)), FrameTimeGraphContainer))
                 .with_children(|g| { for i in 0..90 { g.spawn((Node { width: Val::Px(2.0), height: Val::Px(4.0), ..default() }, BackgroundColor(Color::srgb(0.85, 0.5, 0.3)), FrameTimeBar { index: i })); } });
+
+            // GPU Metrics Section
+            parent.spawn((Text::new("GPU METRICS"), TextFont { font_size: 12.0, ..default() }, TextColor(Color::srgb(0.7, 0.85, 1.0))));
+            parent.spawn((Text::new("GPU Frame Time: -- ms"), DebugGpuFrameTime));
+            parent.spawn((Text::new("Est. GPU Load: -- %"), DebugGpuLoad));
         });
 }
 
@@ -154,6 +161,8 @@ pub fn update_debug_overlay(
     mut fps_q: Query<&mut Text, With<DebugFps>>,
     mut frame_time_q: Query<&mut Text, With<DebugFrameTime>>,
     mut entities_q: Query<&mut Text, With<DebugEntities>>,
+    mut gpu_frame_time_q: Query<&mut Text, With<DebugGpuFrameTime>>,
+    mut gpu_load_q: Query<&mut Text, With<DebugGpuLoad>>,
     mut fps_bars: Query<(&mut Node, &FpsBar, &mut BackgroundColor)>,
     mut ft_bars: Query<(&mut Node, &FrameTimeBar, &mut BackgroundColor)>,
 ) {
@@ -165,7 +174,7 @@ pub fn update_debug_overlay(
     if let Ok(mut text) = l3_q.get_single_mut() { text.0 = if rbe_dashboard.abundance_boost_active { format!("L3: Active ×{:.2}", rbe_dashboard.restoration_multiplier) } else { "L3: Inactive".to_string() }; }
     if let Ok(mut text) = alerts_q.get_single_mut() { text.0 = if rbe_dashboard.active_alerts.len() > 0 { format!("Alerts: {} active", rbe_dashboard.active_alerts.len()) } else { "Alerts: None".to_string() }; }
 
-    // Performance metrics
+    // Performance
     let current_fps = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS).and_then(|d| d.average()).unwrap_or(0.0);
     if let Ok(mut text) = fps_q.get_single_mut() { text.0 = format!("FPS: {:.1}", current_fps); }
 
@@ -173,6 +182,18 @@ pub fn update_debug_overlay(
     if let Ok(mut text) = frame_time_q.get_single_mut() { text.0 = format!("Frame Time: {:.2} ms", current_frame_time); }
 
     if let Ok(mut text) = entities_q.get_single_mut() { text.0 = format!("Entities: {}", world.entities().len()); }
+
+    // GPU Metrics (heuristic + placeholder for real data)
+    if let Ok(mut text) = gpu_frame_time_q.get_single_mut() {
+        // For now we approximate GPU frame time as total frame time (more accurate measurement requires wgpu timestamp queries)
+        text.0 = format!("GPU Frame Time: ~{:.2} ms", current_frame_time);
+    }
+
+    if let Ok(mut text) = gpu_load_q.get_single_mut() {
+        // Simple heuristic: if frame time is high, assume higher GPU load
+        let load = (current_frame_time / 33.3).clamp(0.0, 1.0) * 100.0; // Rough estimate
+        text.0 = format!("Est. GPU Load: ~{:.0} %", load);
+    }
 
     // Update histories
     fps_history.push(current_fps as f32);
@@ -188,7 +209,7 @@ pub fn update_debug_overlay(
         }
     }
 
-    // Frame Time Graph (lower is better)
+    // Frame Time Graph
     let max_ft = frame_time_history.max_frame_time().max(16.0);
     for (mut node, bar, mut color) in &mut ft_bars {
         if let Some(&val) = frame_time_history.values.get(bar.index) {
