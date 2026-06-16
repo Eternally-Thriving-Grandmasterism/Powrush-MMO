@@ -11,6 +11,7 @@ pub mod rbe_flow_dashboard_ui;
 pub mod performance_profiler;
 pub mod debug_overlay;
 pub mod gpu_timestamps;
+pub mod nvml_monitor;
 
 // Re-exports
 pub use localization::*;
@@ -23,3 +24,4 @@ pub use rbe_flow_dashboard_ui::{spawn_rbe_flow_dashboard_ui, update_rbe_flow_das
 pub use performance_profiler::{spawn_performance_overlay, update_performance_overlay, toggle_performance_overlay};
 pub use debug_overlay::{spawn_debug_overlay, update_debug_overlay, toggle_debug_overlay, FpsHistory, FrameTimeHistory, PerformanceSpikeConfig, PerformanceSpikeState};
 pub use gpu_timestamps::{GpuTimestampQueries, GpuTimestampPlugin, GpuTimestampState, TimestampValidation, get_latest_gpu_validation};
+pub use nvml_monitor::{NvmlMonitorResource, NvmlGpuInfo, update_nvml_metrics};
