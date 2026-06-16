@@ -1,8 +1,29 @@
 // client/monitoring/safety_net.rs
-// Ra-Thor SafetyNet + RBE Flow Alerts & Dashboard (v18.37)
+// Ra-Thor SafetyNet + RBE Flow Alerts & Dashboard (Production Grade v18.37)
+// Designed for the best human gaming experience
 
 use bevy::prelude::*;
 use crate::monitoring::{KalmanFilter1D, RTSFixedLagSmoother};
+
+// ============================================================
+// TIMED ALERT WRAPPER (for proper age-based decay)
+// ============================================================
+
+#[derive(Debug, Clone)]
+pub struct TimedRBEFlowAlert {
+    pub alert: RBEFlowAlert,
+    pub timestamp_ms: u64,
+}
+
+impl TimedRBEFlowAlert {
+    pub fn new(alert: RBEFlowAlert, now_ms: u64) -> Self {
+        Self { alert, timestamp_ms: now_ms }
+    }
+
+    pub fn age_ms(&self, now_ms: u64) -> u64 {
+        now_ms.saturating_sub(self.timestamp_ms)
+    }
+}
 
 // ============================================================
 // RBE FLOW ALERTS
@@ -18,7 +39,7 @@ pub enum RBEFlowAlert {
 }
 
 // ============================================================
-// RBE FLOW DASHBOARD (Tuned decay rates)
+// RBE FLOW DASHBOARD (Production-grade, UI-ready)
 // ============================================================
 
 #[derive(Resource, Clone, Debug, Default)]
@@ -29,39 +50,38 @@ pub struct RBEFlowDashboard {
     pub average_restoration_magnitude: f64,
     pub restoration_effectiveness: f32,
     pub server_abundance: f64,
+
+    // Current actionable state (what players/councils should see now)
     pub active_alerts: Vec<RBEFlowAlert>,
 
-    // Level 1 - Informational
-    pub informational_alerts: Vec<RBEFlowAlert>,
+    // Historical / Informational alerts (L1)
+    pub informational_alerts: Vec<TimedRBEFlowAlert>,
     pub max_informational_alerts: usize,
 
-    // Level 2 - Supportive Alerts + Decay
-    pub l2_alerts: Vec<RBEFlowAlert>,
+    // Level 2 Supportive Alerts
+    pub l2_alerts: Vec<TimedRBEFlowAlert>,
     pub max_l2_alerts: usize,
 
     // Level 2 Supportive State
     pub l2_multiplier: f32,
     pub l2_boost_active: bool,
     pub last_l2_action_ms: u64,
-    pub l2_decay_rate: f32,           // Tuned: faster decay for supportive actions
+    pub l2_decay_rate: f32,
 
-    // Level 3 Recovery State
+    // Level 3 Protective Recovery State
     pub restoration_multiplier: f32,
     pub abundance_boost_active: bool,
     pub last_l3_action_ms: u64,
-    pub l3_decay_rate: f32,           // Tuned: slower, more persistent recovery
+    pub l3_decay_rate: f32,
 }
 
 impl RBEFlowDashboard {
     pub fn new() -> Self {
         Self {
-            max_informational_alerts: 20,
-            max_l2_alerts: 12,
-
-            // Tuned decay parameters
-            l2_decay_rate: 0.30,      // 30% per second - supportive boosts fade reasonably fast
-            l3_decay_rate: 0.12,      // 12% per second - protective recovery lingers longer
-
+            max_informational_alerts: 25,
+            max_l2_alerts: 15,
+            l2_decay_rate: 0.30,
+            l3_decay_rate: 0.12,
             l2_multiplier: 1.0,
             l2_boost_active: false,
             restoration_multiplier: 1.0,
@@ -79,43 +99,55 @@ impl RBEFlowDashboard {
         self.server_abundance = snapshot.server_abundance;
     }
 
+    // ============================================================
+    // ALERT MANAGEMENT (with timestamps)
+    // ============================================================
+
     pub fn add_alert(&mut self, alert: RBEFlowAlert) {
         if !self.active_alerts.iter().any(|a| std::mem::discriminant(a) == std::mem::discriminant(&alert)) {
             self.active_alerts.push(alert);
         }
     }
 
-    pub fn add_informational_alert(&mut self, alert: RBEFlowAlert) {
+    pub fn add_informational_alert(&mut self, alert: RBEFlowAlert, now_ms: u64) {
+        let timed = TimedRBEFlowAlert::new(alert, now_ms);
         if self.informational_alerts.len() >= self.max_informational_alerts {
             self.informational_alerts.remove(0);
         }
-        self.informational_alerts.push(alert);
+        self.informational_alerts.push(timed);
     }
 
-    pub fn add_l2_alert(&mut self, alert: RBEFlowAlert) {
+    pub fn add_l2_alert(&mut self, alert: RBEFlowAlert, now_ms: u64) {
+        let timed = TimedRBEFlowAlert::new(alert, now_ms);
         if self.l2_alerts.len() >= self.max_l2_alerts {
             self.l2_alerts.remove(0);
         }
-        self.l2_alerts.push(alert);
+        self.l2_alerts.push(timed);
     }
 
-    pub fn decay_l2_alerts(&mut self) {
-        let target = (self.max_l2_alerts as f32 * 0.75) as usize; // Keep 75% of max
-        if self.l2_alerts.len() > target {
-            let excess = self.l2_alerts.len() - target;
-            self.l2_alerts.drain(0..excess);
+    // ============================================================
+    // DECAY LOGIC (Time-aware + State-linked)
+    // ============================================================
+
+    /// Remove old informational alerts (L1)
+    pub fn decay_informational_alerts(&mut self, now_ms: u64, max_age_ms: u64) {
+        self.informational_alerts.retain(|a| a.age_ms(now_ms) < max_age_ms);
+    }
+
+    /// Remove old L2 alerts and also hide them if L2 boost has fully decayed
+    pub fn decay_l2_alerts(&mut self, now_ms: u64, max_age_ms: u64) {
+        // Time-based cleanup
+        self.l2_alerts.retain(|a| a.age_ms(now_ms) < max_age_ms);
+
+        // Also remove if L2 boost is no longer active
+        if !self.l2_boost_active {
+            self.l2_alerts.clear();
         }
     }
 
     pub fn clear_old_alerts(&mut self) {
-        if self.active_alerts.len() > 10 {
-            self.active_alerts.drain(0..self.active_alerts.len() - 10);
-        }
-        if self.informational_alerts.len() > self.max_informational_alerts {
-            self.informational_alerts.drain(0..self.informational_alerts.len() - self.max_informational_alerts);
-        }
-        if self.l2_alerts.len() > self.max_l2_alerts {
-            self.l2_alerts.drain(0..self.l2_alerts.len() - self.max_l2_alerts);
+        if self.active_alerts.len() > 12 {
+            self.active_alerts.drain(0..self.active_alerts.len() - 12);
         }
     }
 
