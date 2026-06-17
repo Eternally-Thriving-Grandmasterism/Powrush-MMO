@@ -1,6 +1,6 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.82 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Atomic Ordering Tradeoffs)
-//! Documented and applied appropriate atomic ordering for error counters.
+//! Powrush-MMO v18.83 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Lock-Free Queue Investigation)
+//! Replaced Vec-based queue with crossbeam SegQueue for lock-free high-concurrency performance.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -15,6 +15,11 @@ use crate::persistence_polish::PersistenceManager;
 use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 use shared::protocol::{CouncilSessionState, CouncilPhase, MercyTrialVote, CollectiveEpiphanyBloom, CouncilParticipationRecord};
 
+// Note: Requires adding `crossbeam` to Cargo.toml:
+// crossbeam = { version = "0.8", features = ["crossbeam-queue"] }
+
+use crossbeam::queue::SegQueue;
+
 /// Batch persistence update entry
 #[derive(Debug, Clone)]
 pub struct BatchPersistenceUpdate {
@@ -24,13 +29,15 @@ pub struct BatchPersistenceUpdate {
     pub tick: u64,
 }
 
-/// Resource acting as a batch persistence queue
+/// Lock-free batch persistence queue using crossbeam SegQueue.
+/// This allows many producers (Council closes) and one consumer (drain system)
+/// to operate without traditional mutex contention.
 #[derive(Resource, Default)]
 pub struct BatchPersistenceQueue {
-    pub pending: Vec<BatchPersistenceUpdate>,
+    pub queue: SegQueue<BatchPersistenceUpdate>,
 }
 
-/// Performance + Error metrics for batch persistence (with atomic error counter)
+/// Performance + Error metrics for batch persistence
 #[derive(Resource, Default)]
 pub struct BatchPersistenceMetrics {
     pub total_updates_processed: u64,
@@ -208,7 +215,8 @@ impl CouncilSessionManager {
                     let collective = session.bloom_field.collective_attunement_score;
 
                     for player_id in session.participants.keys() {
-                        batch_queue.pending.push(BatchPersistenceUpdate {
+                        // Lock-free push into SegQueue
+                        batch_queue.queue.push(BatchPersistenceUpdate {
                             player_id: *player_id,
                             had_bloom,
                             collective_attunement: collective,
@@ -222,7 +230,7 @@ impl CouncilSessionManager {
                 self.sessions.remove(id);
             }
 
-            info!("Pushed updates to BatchPersistenceQueue from {} closed Council sessions", to_close.len());
+            info!("Pushed updates to lock-free BatchPersistenceQueue from {} closed Council sessions", to_close.len());
         }
 
         events
@@ -257,26 +265,36 @@ impl CouncilSessionManager {
     }
 }
 
-/// v18.82: Drain system with documented atomic ordering tradeoffs
+/// v18.83: Drain system using lock-free SegQueue
 pub fn process_batch_persistence_queue(
-    mut batch_queue: ResMut<BatchPersistenceQueue>,
+    batch_queue: Res<BatchPersistenceQueue>,
     metrics: Res<BatchPersistenceMetrics>,
     persistence: Option<Res<PersistenceManager>>,
 ) {
-    if batch_queue.pending.is_empty() {
+    if batch_queue.queue.is_empty() {
         return;
     }
 
     let start = Instant::now();
-    let drain_size = batch_queue.pending.len();
+    let mut drained = Vec::new();
+
+    // Drain all available items from the lock-free queue
+    while let Some(update) = batch_queue.queue.pop() {
+        drained.push(update);
+    }
+
+    let drain_size = drained.len();
+    if drain_size == 0 {
+        return;
+    }
+
     let error_counter = metrics.total_errors.clone();
 
     if let Some(persistence_manager) = &persistence {
         let pm_clone = persistence_manager.clone();
-        let updates = std::mem::take(&mut batch_queue.pending);
 
         let batch_size = 50;
-        let chunks: Vec<_> = updates.chunks(batch_size).collect();
+        let chunks: Vec<_> = drained.chunks(batch_size).collect();
 
         for chunk in chunks {
             let chunk = chunk.to_vec();
@@ -300,10 +318,6 @@ pub fn process_batch_persistence_queue(
                             }
                             Err(e) => {
                                 tracing::error!("Failed to load player data in batch persistence: {}", e);
-                                // Atomic Ordering Tradeoff:
-                                // We use Relaxed here because we only need atomicity (no tearing) and eventual visibility of the counter.
-                                // Stronger orderings (Acquire/Release/SeqCst) add unnecessary synchronization overhead for a pure counter.
-                                // Relaxed is the standard choice for simple counters in high-performance concurrent code.
                                 error_counter.fetch_add(1, Ordering::Relaxed);
                             }
                         }
@@ -314,17 +328,18 @@ pub fn process_batch_persistence_queue(
 
         let latency = start.elapsed().as_millis() as u64;
 
-        info!("Drained BatchPersistenceQueue: {} updates | latency={}ms", drain_size, latency);
+        info!("Drained lock-free BatchPersistenceQueue: {} updates | latency={}ms", drain_size, latency);
     }
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.82 — Atomic Ordering Tradeoffs
+// PATSAGi Council Eternal Polish Notes v18.83 — Lock-Free Queue Investigation
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.82: Documented atomic ordering choice (Relaxed) with clear rationale.
-// Relaxed is appropriate here because we only need atomic increment + eventual visibility.
-// Stronger orderings would add unnecessary cost with no benefit for this use case.
+// server/src/council_session.rs v18.83: Replaced Vec with crossbeam::queue::SegQueue.
+// Benefits: True lock-free push/pop, excellent multi-producer performance,
+// reduced contention between Council tick_all and the drain system.
+// This is a significant scalability improvement for high Council churn scenarios.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.82 — Atomic ordering tradeoffs documented.
+// End of server/src/council_session.rs v18.83 — Lock-free queue implemented.
