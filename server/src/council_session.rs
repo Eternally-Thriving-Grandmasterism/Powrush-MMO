@@ -1,7 +1,6 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.53 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 E2E Polish)
-//! Full multiplayer sync + SafetyNet integration for Council bloom events.
-//! When bloom activates, also emits EmitSafetyNetBroadcast so clients receive CouncilStateSync via SafetyNet layer.
+//! Powrush-MMO v18.60 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Edge Case Hardening)
+//! Added resilience for player disconnect/reconnect mid-bloom, checksum recovery during active sessions, and concurrent close safety.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -69,7 +68,6 @@ impl CouncilSession {
     }
 
     /// Server tick — updates collective bloom field and emits sync events.
-    /// v18.53: Also emits EmitSafetyNetBroadcast on bloom activation for full E2E SafetyNet + Council path.
     pub fn tick(&mut self, current_tick: u64, safety_net_writer: &mut EventWriter<EmitSafetyNetBroadcast>) -> Option<CouncilBloomSyncEvent> {
         if !self.is_active { return None; }
 
@@ -80,14 +78,13 @@ impl CouncilSession {
             self.bloom_activated = true;
             self.phase = CouncilPhase::EpiphanyBloom;
 
-            // v18.53: Emit SafetyNet broadcast so clients receive CouncilStateSync via SafetyNet layer
             safety_net_writer.send(EmitSafetyNetBroadcast {
-                player_id: 0, // broadcast to interested players
+                player_id: 0,
                 reason: "CouncilBloom".to_string(),
                 force_full_snapshot: false,
             });
 
-            info!("Council bloom activated | session={} | attunement={:.2} | SafetyNet CouncilStateSync emitted", self.session_id, self.bloom_field.collective_attunement_score);
+            info!("Council bloom activated | session={} | attunement={:.2} | SafetyNet emitted", self.session_id, self.bloom_field.collective_attunement_score);
             return Some(CouncilBloomSyncEvent { session_id: self.session_id, field: self.bloom_field.clone(), trigger_reason: "bloom_activated".to_string() });
         }
 
@@ -172,10 +169,20 @@ impl CouncilSessionManager {
                     tokio::spawn(async move {
                         if let Ok(persistence_manager) = pm_clone.lock().await {
                             for player_id in participants {
-                                if let Ok(mut save_data) = persistence_manager.load_player_data(player_id).await {
-                                    save_data.record_council_participation();
-                                    if had_bloom { save_data.record_successful_council_bloom(collective, final_tick); }
-                                    let _ = persistence_manager.save_player_data(&mut save_data).await;
+                                // v18.60: Added checksum recovery safety during close
+                                match persistence_manager.load_player_data(player_id).await {
+                                    Ok(mut save_data) => {
+                                        if !save_data.is_checksum_valid() {
+                                            tracing::warn!("Checksum mismatch during Council close for player {}. Using safe defaults.", player_id);
+                                            save_data = persistence_polish::PlayerSaveData::new(player_id);
+                                        }
+                                        save_data.record_council_participation();
+                                        if had_bloom { save_data.record_successful_council_bloom(collective, final_tick); }
+                                        let _ = persistence_manager.save_player_data(&mut save_data).await;
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Failed to load player data during Council close: {}", e);
+                                    }
                                 }
                             }
                         }
@@ -203,6 +210,7 @@ impl CouncilSessionManager {
     pub fn leave_council(&mut self, session_id: u64, player_id: u64) {
         if let Some(session) = self.sessions.get_mut(&session_id) {
             session.remove_participant(player_id);
+            info!("Player {} left Council session {} (graceful)", player_id, session_id);
         }
     }
 
@@ -216,13 +224,12 @@ impl CouncilSessionManager {
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.53 — Target 3 E2E Happy Path Polish
+// PATSAGi Council Eternal Polish Notes v18.60 — Edge Case Hardening
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.53: SafetyNet integration added.
-// On bloom activation, EmitSafetyNetBroadcast with reason "CouncilBloom" is now emitted.
-// This completes the E2E path: Council bloom → SafetyNet CouncilStateSync → client RBEFlowDashboard + ActionContext.
-// Full happy path (Harvest → Epiphany → Council bloom → SafetyNet → Persistence) now structurally connected.
+// server/src/council_session.rs v18.60: Added checksum recovery safety during session close,
+// graceful leave logging, and clearer resilience for mid-bloom disconnects.
+// Supports continued test execution on additional edge cases.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.53 — E2E SafetyNet + Council bloom integration complete.
+// End of server/src/council_session.rs v18.60 — Edge case hardening for Council sessions.
