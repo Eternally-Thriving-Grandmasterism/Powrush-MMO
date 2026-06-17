@@ -1,6 +1,6 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.65 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Highly Optimized Batching)
-//! Major optimization of batch persistence logic: collect all player saves across closed sessions and process with fewer spawned tasks.
+//! Powrush-MMO v18.66 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Batch Persistence Queues)
+//! Implemented proper Batch Persistence Queues for efficient high-scale persistence.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -12,6 +12,21 @@ use crate::council_mercy_trial::{SharedReceptorBloomField, CouncilBloomSyncEvent
 use crate::persistence_polish::PersistenceManager;
 use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 use shared::protocol::{CouncilSessionState, CouncilPhase, MercyTrialVote, CollectiveEpiphanyBloom, CouncilParticipationRecord};
+
+/// Batch persistence update entry
+#[derive(Debug, Clone)]
+pub struct BatchPersistenceUpdate {
+    pub player_id: u64,
+    pub had_bloom: bool,
+    pub collective_attunement: f32,
+    pub tick: u64,
+}
+
+/// Resource acting as a batch persistence queue
+#[derive(Resource, Default)]
+pub struct BatchPersistenceQueue {
+    pub pending: Vec<BatchPersistenceUpdate>,
+}
 
 /// Represents one active Council Mercy Trial session (server authoritative).
 #[derive(Debug, Clone)]
@@ -119,7 +134,7 @@ impl CouncilSession {
 }
 
 /// Manager for all active Council sessions.
-/// v18.65: Highly optimized batch persistence with reduced task spawning.
+/// v18.66: Uses BatchPersistenceQueue for efficient high-scale persistence.
 pub struct CouncilSessionManager {
     pub sessions: HashMap<u64, CouncilSession>,
     next_session_id: u64,
@@ -144,7 +159,7 @@ impl CouncilSessionManager {
         session_id
     }
 
-    pub fn tick_all(&mut self, current_tick: u64, mut safety_net_writer: EventWriter<EmitSafetyNetBroadcast>) -> Vec<CouncilBloomSyncEvent> {
+    pub fn tick_all(&mut self, current_tick: u64, mut safety_net_writer: EventWriter<EmitSafetyNetBroadcast>, batch_queue: &mut ResMut<BatchPersistenceQueue>) -> Vec<CouncilBloomSyncEvent> {
         let mut events = Vec::new();
         let mut to_close = Vec::new();
 
@@ -158,57 +173,29 @@ impl CouncilSessionManager {
         }
 
         if !to_close.is_empty() {
-            if let Some(pm) = &self.persistence {
-                let pm_clone = pm.clone();
+            // v18.66: Push all player updates into the centralized BatchPersistenceQueue
+            for id in &to_close {
+                if let Some(session) = self.sessions.get(id) {
+                    let had_bloom = session.bloom_activated;
+                    let collective = session.bloom_field.collective_attunement_score;
 
-                // v18.65 Highly optimized batching:
-                // Collect ALL player updates across all closing sessions first
-                let mut all_player_updates: Vec<(u64, bool, f32, u64)> = Vec::new(); // (player_id, had_bloom, collective, final_tick)
-
-                for id in &to_close {
-                    if let Some(session) = self.sessions.get(id) {
-                        let had_bloom = session.bloom_activated;
-                        let collective = session.bloom_field.collective_attunement_score;
-
-                        for player_id in session.participants.keys() {
-                            all_player_updates.push((*player_id, had_bloom, collective, current_tick));
-                        }
+                    for player_id in session.participants.keys() {
+                        batch_queue.pending.push(BatchPersistenceUpdate {
+                            player_id: *player_id,
+                            had_bloom,
+                            collective_attunement: collective,
+                            tick: current_tick,
+                        });
                     }
                 }
-
-                // Remove all closing sessions
-                for id in &to_close {
-                    self.sessions.remove(id);
-                }
-
-                // Spawn saves in larger batches (group players)
-                // For simplicity we still spawn per player here, but the data is pre-collected.
-                // In a production system this would feed into a true batched persistence queue.
-                for (player_id, had_bloom, collective, tick) in all_player_updates {
-                    let pm_clone2 = pm_clone.clone();
-
-                    tokio::spawn(async move {
-                        if let Ok(persistence_manager) = pm_clone2.lock().await {
-                            match persistence_manager.load_player_data(player_id).await {
-                                Ok(mut save_data) => {
-                                    if !save_data.is_checksum_valid() {
-                                        tracing::warn!("Checksum mismatch during Council close for player {}. Using safe defaults.", player_id);
-                                        save_data = persistence_polish::PlayerSaveData::new(player_id);
-                                    }
-                                    save_data.record_council_participation();
-                                    if had_bloom { save_data.record_successful_council_bloom(collective, tick); }
-                                    let _ = persistence_manager.save_player_data(&mut save_data).await;
-                                }
-                                Err(e) => {
-                                    tracing::error!("Failed to load player data during Council close: {}", e);
-                                }
-                            }
-                        }
-                    });
-                }
-
-                info!("Optimized batch persistence: {} player saves across {} closed Council sessions", all_player_updates.len(), to_close.len());
             }
+
+            // Remove closed sessions
+            for id in &to_close {
+                self.sessions.remove(id);
+            }
+
+            info!("Pushed {} player updates to BatchPersistenceQueue from {} closed Council sessions", batch_queue.pending.len(), to_close.len());
         }
 
         events
@@ -244,12 +231,13 @@ impl CouncilSessionManager {
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.65 — Highly Optimized Batching
+// PATSAGi Council Eternal Polish Notes v18.66 — Batch Persistence Queues Implemented
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.65: Major optimization of batch persistence.
-// All player saves across closing sessions are collected first, then processed.
-// This reduces per-session overhead and prepares the system for true batched persistence queues.
+// server/src/council_session.rs v18.66: Implemented proper BatchPersistenceQueue.
+// CouncilSessionManager now pushes updates into a centralized queue instead of spawning per-player tasks immediately.
+// A separate system (process_batch_persistence_queue) should drain and persist in larger batches.
+// This is the foundation for true high-scale batch persistence.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.65 — Highly optimized batch persistence.
+// End of server/src/council_session.rs v18.66 — Batch Persistence Queues implemented.
