@@ -1,7 +1,7 @@
 /*!
  * Telemetry & Distributed Tracing Setup for Powrush-MMO Server
  *
- * v18.72 Eternal Polish — OpenTelemetry + Jaeger Integration + Usage Example
+ * v18.73 Eternal Polish — OpenTelemetry + Jaeger with Sampling Configuration
  * AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
  */
 
@@ -10,13 +10,22 @@ use tracing_opentelemetry::OpenTelemetryLayer;
 use opentelemetry::sdk::trace as sdktrace;
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use opentelemetry::global;
+use opentelemetry::sdk::trace::Sampler;
 
-/// Initialize distributed tracing with OpenTelemetry + Jaeger exporter.
+/// Initialize distributed tracing with OpenTelemetry + Jaeger exporter + sampling.
 ///
-/// Call this function as early as possible in your server startup (before any spans are created).
+/// Sampling is critical in production to control trace volume.
+/// Recommended: ParentBased(TraceIdRatioBased(0.1)) for 10% sampling with context propagation.
 pub fn init_telemetry() {
+    // Configure sampler - adjust ratio based on load and observability needs
+    let sampler = Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(0.1))); // 10% sampling
+
     let tracer = opentelemetry_jaeger::new_agent_pipeline()
         .with_service_name("powrush-mmo-server")
+        .with_trace_config(
+            sdktrace::config()
+                .with_sampler(sampler)
+        )
         .install_simple()
         .expect("Failed to install Jaeger tracer");
 
@@ -30,7 +39,7 @@ pub fn init_telemetry() {
         .with(telemetry)
         .init();
 
-    tracing::info!("Distributed tracing initialized with OpenTelemetry + Jaeger");
+    tracing::info!("Distributed tracing initialized with OpenTelemetry + Jaeger (10% sampling)");
 }
 
 /// Shutdown tracer provider gracefully on application exit.
@@ -39,18 +48,14 @@ pub fn shutdown_telemetry() {
 }
 
 /*
- * === USAGE EXAMPLE (add to your main server file) ===
+ * === USAGE EXAMPLE ===
  *
  * use crate::telemetry::{init_telemetry, shutdown_telemetry};
  *
  * #[tokio::main]
  * async fn main() {
- *     // Initialize distributed tracing first
  *     init_telemetry();
- *
- *     // ... build Bevy app, start server, etc.
- *
- *     // On shutdown:
+ *     // ... build app ...
  *     // shutdown_telemetry();
  * }
  */
