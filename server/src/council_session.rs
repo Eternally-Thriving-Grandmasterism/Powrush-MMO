@@ -1,6 +1,6 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.68 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Optimized Drain Concurrency)
-//! Optimized drain system concurrency with controlled task spawning and batch size limiting.
+//! Powrush-MMO v18.69 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Batch Performance Monitoring)
+//! Added basic performance metrics monitoring for the Batch Persistence Queue.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -26,6 +26,15 @@ pub struct BatchPersistenceUpdate {
 #[derive(Resource, Default)]
 pub struct BatchPersistenceQueue {
     pub pending: Vec<BatchPersistenceUpdate>,
+}
+
+/// Simple performance metrics for the batch persistence system
+#[derive(Resource, Default)]
+pub struct BatchPersistenceMetrics {
+    pub total_updates_processed: u64,
+    pub total_drains: u64,
+    pub last_drain_size: usize,
+    pub last_drain_time_ms: u64,
 }
 
 /// Represents one active Council Mercy Trial session (server authoritative).
@@ -227,21 +236,24 @@ impl CouncilSessionManager {
     }
 }
 
-/// v18.,68: Optimized drain system with controlled concurrency
+/// v18.69: Drain system with basic performance metrics
 pub fn process_batch_persistence_queue(
     mut batch_queue: ResMut<BatchPersistenceQueue>,
+    mut metrics: ResMut<BatchPersistenceMetrics>,
     persistence: Option<Res<PersistenceManager>>,
 ) {
     if batch_queue.pending.is_empty() {
         return;
     }
 
+    let drain_start = std::time::Instant::now();
+    let drain_size = batch_queue.pending.len();
+
     if let Some(persistence_manager) = &persistence {
         let pm_clone = persistence_manager.clone();
         let updates = std::mem::take(&mut batch_queue.pending);
 
-        // v18.68: Optimized concurrency - process in controlled batches
-        let batch_size = 50; // Tunable based on load testing
+        let batch_size = 50;
         let chunks: Vec<_> = updates.chunks(batch_size).collect();
 
         for chunk in chunks {
@@ -272,17 +284,25 @@ pub fn process_batch_persistence_queue(
             });
         }
 
-        info!("Drained BatchPersistenceQueue: {} updates in {} batches (batch size: {})", updates.len(), chunks.len(), batch_size);
+        let drain_time = drain_start.elapsed().as_millis() as u64;
+
+        // Update metrics
+        metrics.total_updates_processed += drain_size as u64;
+        metrics.total_drains += 1;
+        metrics.last_drain_size = drain_size;
+        metrics.last_drain_time_ms = drain_time;
+
+        info!("Drained BatchPersistenceQueue: {} updates in {} batches | metrics: total_processed={}, last_drain_time={}ms", drain_size, chunks.len(), metrics.total_updates_processed, drain_time);
     }
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.68 — Optimized Drain Concurrency
+// PATSAGi Council Eternal Polish Notes v18.69 — Batch Performance Metrics
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.68: Optimized drain system concurrency.
-// Now processes the queue in controlled batches (size 50) instead of one task per update.
-// This significantly reduces task overhead while maintaining good parallelism.
+// server/src/council_session.rs v18.69: Added basic performance metrics (BatchPersistenceMetrics resource).
+// Tracks total updates processed, number of drains, last drain size, and last drain time.
+// Useful for monitoring batch persistence performance at scale.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.68 — Optimized drain concurrency.
+// End of server/src/council_session.rs v18.69 — Batch performance metrics added.
