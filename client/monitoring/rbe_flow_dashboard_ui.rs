@@ -1,6 +1,7 @@
 // client/monitoring/rbe_flow_dashboard_ui.rs
-// In-Game RBE Flow Dashboard UI with Toggle (v18.37)
-// Designed for clarity, transparency, and the best player experience
+// In-Game RBE Flow Dashboard UI with Toggle (v18.39 Final Sweep)
+// Designed for clarity, transparency, and making mercy response visible to the player.
+// Ties directly into SafetyNet + ActionContext decision layer awareness.
 
 use bevy::prelude::*;
 use crate::monitoring::RBEFlowDashboard;

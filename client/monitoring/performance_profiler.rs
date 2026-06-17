@@ -1,6 +1,7 @@
 // client/monitoring/performance_profiler.rs
-// Performance Profiling Tools for Powrush-MMO (v18.37)
-// Press F4 to toggle - Clean, informative overlay for development & optimization
+// Performance Profiling Tools for Powrush-MMO (v18.39 Final Sweep)
+// Press F4 to toggle - Clean, informative overlay for development & optimization.
+// Supports monitoring of RBE Flow and SafetyNet systems that feed ActionContext.
 
 use bevy::prelude::*;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
