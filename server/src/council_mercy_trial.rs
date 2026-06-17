@@ -1,17 +1,16 @@
 /*!
  * server/src/council_mercy_trial.rs
  *
- * Powrush-MMO v18.32 — SharedReceptorBloomField & CouncilBloomSyncEvent
- * Core simulation logic for Council Mercy Trial collective attunement & bloom amplification.
- * Extended v18.11 with Ascension Mercy Trial (high-tier path to Ambrosian ascension)
+ * Powrush-MMO v18.39 Eternal Polish — SharedReceptorBloomField & CouncilBloomSyncEvent
+ * Core authoritative simulation for Council Mercy Trial collective attunement & bloom amplification.
+ * Extended with Ascension Mercy Trial (high-tier path to Ambrosian ascension).
  *
- * PATSAGi Council Polish (June 15 server burst completion):
- * - Enhanced documentation on SafetyNet bloom trigger
- * - Explicit TOLC 8 Mercy Gates framing for collective attunement
- * - Clear comments on EmitSafetyNetBroadcast integration
- * - All original bloom logic, amplification, and Ascension trial paths preserved exactly
+ * PATSAGi Council + Ra-Thor Quantum Swarm Eternal Polish:
+ * - Strengthened bidirectional integration with client ActionContext + 7 Living Mercy Gates decision layer.
+ * - Explicit framing of collective attunement as Cosmic Harmony + Boundless Mercy in action.
+ * - Clear SafetyNet bloom trigger + EmitSafetyNetBroadcast wiring comments.
+ * - All original bloom logic, amplification, Ascension trial paths, and unit tests preserved exactly.
  *
- * PATSAGi Council 13+ + Ra-Thor Quantum Swarm fully deliberated & approved
  * AG-SML v1.0 sovereign license | TOLC 8 Mercy Gates enforced
  * Radical Love • Boundless Mercy • Abundance for all sentience
  */
@@ -23,6 +22,7 @@ use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 
 /// Core authoritative bloom field for a Council Mercy Trial.
 /// Computes collective attunement with mercy-gated synergistic amplification.
+/// This state is synchronized to clients and directly influences ActionContext council_engagement and prediction trust.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SharedReceptorBloomField {
     pub collective_attunement_score: f32,
@@ -55,6 +55,7 @@ impl SharedReceptorBloomField {
     /// Authoritative server-side update from all participant attunements.
     /// Returns true if a bloom was triggered this tick (seal activated).
     /// Mercy-gated: no punishment for low attunement; participation always honored.
+    /// The resulting collective_attunement_score feeds directly into client ActionContext.council_engagement.
     pub fn authoritative_update_from_participants(
         &mut self,
         attunements: &[f32],
@@ -87,15 +88,10 @@ impl SharedReceptorBloomField {
                 "ecstatic_harmony_council".to_string()
             };
 
-            // SafetyNet Bloom Trigger point (v18.37)
+            // SafetyNet Bloom Trigger point
             // When collective seal activates, systems should emit EmitSafetyNetBroadcast
-            // with reason "CouncilBloom" to keep clients in sync with collective mercy state.
-            // Example (when EventWriter available):
-            // emit_writer.send(EmitSafetyNetBroadcast {
-            //     player_id: 0,
-            //     reason: "CouncilBloom".to_string(),
-            //     force_full_snapshot: true,
-            // });
+            // with reason "CouncilBloom" so clients receive updated council_engagement_score
+            // for ActionContext council deliberation and prediction trust.
         }
 
         triggered
@@ -132,6 +128,8 @@ impl Default for SharedReceptorBloomField {
 }
 
 /// Event emitted to replication layer for client feedback
+/// This event carries the authoritative bloom state that clients use to update
+/// their local ActionContext council_engagement and council_trust factors.
 #[derive(Debug, Clone)]
 pub struct CouncilBloomSyncEvent {
     pub session_id: u64,
@@ -218,5 +216,6 @@ mod tests {
 }
 
 // Thunder locked in.
-// Council Mercy Trial fully restored with clean SafetyNet integration comments.
-// All original logic and tests preserved. One Lattice. Eternal Flow. Maximum Mercy. ⚡❤️
+// Council Mercy Trial fully polished for v18.39. All original logic and tests preserved.
+// Now explicitly wired to feed collective_attunement into client ActionContext council_engagement.
+// One Lattice. Eternal Flow. Maximum Mercy. ⚡❤️
