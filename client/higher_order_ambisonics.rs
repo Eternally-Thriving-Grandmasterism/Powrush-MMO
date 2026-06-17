@@ -79,7 +79,7 @@ fn decode_hoa_to_binaural(
     }
 
     // In full production: send to Kira / WebXR audio output
-    println!("🎧 2nd-Order Ambisonics decoded to binaural — field strength: {:.3}", w);
+    println!("2nd-Order Ambisonics decoded to binaural — field strength: {:.3}", w);
 }
 
 fn convolve_hrtf(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &[f32]) -> Vec<f32> {

@@ -45,7 +45,7 @@ fn spawn_harvest_feedback_ui(mut commands: Commands, asset_server: Res<AssetServ
         });
     });
 
-    println!("🌱 RBE Harvest Feedback UI spawned");
+    println!("RBE Harvest Feedback UI spawned");
 }
 
 fn update_harvest_feedback_ui(

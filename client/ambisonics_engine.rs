@@ -66,6 +66,6 @@ fn update_ambisonics_field(
     // In production: decode to binaural using HRTF or send to Kira / WebXR audio
     // For now we log the field for debugging
     if field.w > 0.01 {
-        println!("🌐 Ambisonic field updated — W:{:.2} X:{:.2} Y:{:.2} Z:{:.2}", field.w, field.x, field.y, field.z);
+        println!("Ambisonic field updated — W:{:.2} X:{:.2} Y:{:.2} Z:{:.2}", field.w, field.x, field.y, field.z);
     }
 }

@@ -33,7 +33,7 @@ fn update_rbe_ui_feedback(
         ui_sync.harvest_cooldown.tick(time.delta());
 
         // Check for new harvest result from server sync
-        if let Some(result) = rbe_sync.get_latest_harvest_result() {
+        if let Some(result) in rbe_sync.get_latest_harvest_result() {
             if ui_sync.harvest_cooldown.finished() {
                 let valence = lattice.current_valence();
 
