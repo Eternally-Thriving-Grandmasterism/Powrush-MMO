@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO System Integration Map
  *
- * v18.33 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.38 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm + Client Prediction + RBE + Council Decision Layer Ignition)
  * — Complete mint-and-print-only-perfection
  * — Single source of truth for how all major systems connect
  * — Mercy-aligned, TOLC 8 + 7 Living Mercy Gates enforced
@@ -12,34 +12,36 @@
 
 # Powrush-MMO System Integration Map
 
-**Version:** v18.33  
-**Date:** June 14, 2026  
+**Version:** v18.38  
+**Date:** June 16, 2026  
 **Purpose:** Define how all major systems connect to deliver one coherent, high-quality, mint-and-print production player experience.  
-**Philosophy:** Every system must reinforce Epiphany, Persistence, Spatial Presence, and Council/Social meaning. The full player journey loop is now production sealed.
+**Philosophy:** Every system must reinforce Epiphany, Persistence, Spatial Presence, and Council/Social meaning. The full player journey loop is now production sealed and sovereign.
 
 ---
 
-## 1. Core Experience Loop (Production Sealed)
+## 1. Core Experience Loop (Production Sealed + Sovereign Decision Layer)
 
-The heart of Powrush-MMO is a tight, meaningful feedback loop now fully live and production sealed:
+The heart of Powrush-MMO is a tight, meaningful feedback loop now fully live, production sealed, and enhanced with explicit PATSAGi Council + 7 Living Mercy Gates decision awareness on the client:
 
 ```
-Harvest Success
+Harvest Success / Intent
    ↓
-Live Epiphany Evaluation (authoritative in HarvestingSystem)
+Live Epiphany Evaluation (authoritative in HarvestingSystem) + Client ActionContext Mercy Gate Check
    ↓
-EpiphanyTriggered Telemetry Emission
+EpiphanyTriggered Telemetry Emission + Council-Aware Harvest Dispatch
    ↓
 Persistence Recording (record_epiphany_from_telemetry + muscle memory)
    ↓
 Enriched Retention Signals (real epiphany count + abundance on session end)
    ↓
-Strong Client Feedback (Divine Whispers + UI + Camera Shake)
+Strong Client Feedback (Divine Whispers + UI + Camera Shake + Council Bloom Amplification)
    ↓
-Long-term Progression & Meaning
+Long-term Progression & Meaning + Council Participation Eligibility
 ```
 
-Every system below feeds or is fed by this sealed loop.
+The new **Client Prediction + RBE + Council Decision Layer** (client_game_loop.rs + rbe_client_sync.rs) now makes real-time harvest, prediction, and action decisions explicitly through the 7 Living Mercy Gates and PATSAGi Council awareness before they reach the server.
+
+Every system below feeds or is fed by this sealed + sovereign loop.
 
 ---
 
@@ -71,18 +73,29 @@ Every system below feeds or is fed by this sealed loop.
 
 **Core Responsibility:** Deliver rich, visceral feedback on meaningful moments.
 
-**Current Status:** Strong golden Divine Whispers + UI + Camera Shake triggered reliably on every live epiphany.
+**Current Status:** Strong golden Divine Whispers + UI + Camera Shake triggered reliably on every live epiphany. Council Bloom Amplification live.
 
 **Integration Points:**
 - `DivineWhisperTrigger { is_epiphany: true }` sent from `epiphany_scenario_wiring`
 - Camera shake intensity scales with revelation strength
 - Special audio, particles, and extended duration
+- Council participation visibly boosts feedback richness
 
-### 2.4 Harvest / RBE Core Systems
+### 2.4 Harvest / RBE Core Systems + Client Decision Layer (Enhanced v18.38)
 
-**Core Responsibility:** Core gameplay with live epiphany evaluation.
+**Core Responsibility:** Core gameplay with live epiphany evaluation + sovereign client-side decision making.
 
-**Current Status:** Authoritative harvest now includes live epiphany triggering + telemetry emission.
+**Current Status (v18.38):** 
+- Authoritative harvest includes live epiphany triggering + telemetry emission.
+- **New:** Client-side `ActionContext` with explicit 7 Living Mercy Gates helpers (Radical Love, Boundless Mercy, Service, Abundance, Truth, Joy, Cosmic Harmony).
+- `council_deliberate_on_action()` hook for PATSAGi multi-council voting simulation.
+- `rbe_client_sync.rs` now provides council-aware harvest approval (`council_approve_harvest_intent`), divine harvest multipliers, and council_trust in prediction modifiers.
+- Bidirectional integration between `client_game_loop.rs` and `rbe_client_sync.rs` is production-perfect and mercy-gated.
+
+**Integration Points:**
+- Harvest intent flows through client ActionContext Mercy Gate checks before server dispatch.
+- Prediction modifiers now include council_trust factor.
+- Prepares seamless foundation for future Council Mercy Trial multiplayer sync.
 
 ### 2.5 Telemetry Pipeline (Production Sealed)
 
@@ -92,42 +105,44 @@ Every system below feeds or is fed by this sealed loop.
 
 ---
 
-## 3. Cross-System Data & Event Flows (Production Sealed)
+## 3. Cross-System Data & Event Flows (Production Sealed + Sovereign)
 
-### Primary Sealed Loop
+### Primary Sealed Loop (Enhanced)
 
 ```
-Harvest Success
-   → evaluate_epiphany() (live)
+Harvest Success / Intent
+   → Client ActionContext Mercy Gate Evaluation + council_approve_harvest_intent()
+   → evaluate_epiphany() (live) + council-aware dispatch
    → EpiphanyTriggered telemetry
    → record_epiphany_from_telemetry() in PlayerSaveData
    → Enriched end_session retention (real epiphany/abundance counts)
-   → DivineWhisperTrigger {is_epiphany: true}
+   → DivineWhisperTrigger {is_epiphany: true} + Council Bloom Amplification
    → Camera Shake + Golden UI + Special Audio + Particles
 ```
 
 ---
 
-## 4. Integration Priorities (Current v18.33 Focus)
+## 4. Integration Priorities (Current v18.38 Focus)
 
-1. **Council Mercy Trial Multiplayer** (Next major focus)
-2. **Additional Epiphany Scenarios + Spatial Audio Depth**
-3. **Full Vertical Slice Testing** of the now-sealed live loop
-4. **Onboarding RBE Education Content**
+1. **Council Mercy Trial Multiplayer** (Next major focus — client decision layer now ready as strong foundation)
+2. **Safety Net Broadcast** wiring into client consumption (rbe_client_sync + game_loop ready)
+3. **Additional Epiphany Scenarios + Spatial Audio Depth**
+4. **Full Vertical Slice Testing** of the now-sealed live + sovereign loop
+5. **Onboarding RBE Education Content**
 
 ---
 
 ## 5. Documentation & Stewardship Notes
 
-- This map is the single source of truth for the sealed core experience loop.
-- All future systems must integrate into the Harvest → Epiphany → Persistence → Feedback flow.
+- This map is the single source of truth for the sealed core experience loop and the new sovereign client decision layer.
+- All future systems must integrate into the Harvest → Epiphany → Persistence → Feedback flow with explicit mercy-gate and council awareness where decisions are made.
 - Cross-reference: `ROADMAP.md` and `VISION.md`.
 
 ---
 
-**The core player journey loop is now production sealed. Epiphany is the living, visceral heart of Powrush-MMO.**
+**The core player journey loop is now production sealed and sovereign. Epiphany is the living, visceral heart of Powrush-MMO, and client actions are now explicitly mercy-gated and council-participatory.**
 
 **Thunder locked. Mercy maximal. One Lattice. Eternal production quality.** ⚡❤️🔥
 
-// End of docs/SYSTEM_INTEGRATION_MAP.md v18.33 — Sovereign integration map complete.
+// End of docs/SYSTEM_INTEGRATION_MAP.md v18.38 — Sovereign integration map complete.
 // Thunder locked in. Yoi ⚡
