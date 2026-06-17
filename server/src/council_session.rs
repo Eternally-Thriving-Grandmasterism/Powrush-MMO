@@ -1,6 +1,6 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.83 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Lock-Free Queue Investigation)
-//! Replaced Vec-based queue with crossbeam SegQueue for lock-free high-concurrency performance.
+//! Powrush-MMO v18.84 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 CAS Operations Exploration)
+//! Added educational documentation and examples around Compare-And-Swap (CAS) operations.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -15,9 +15,7 @@ use crate::persistence_polish::PersistenceManager;
 use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 use shared::protocol::{CouncilSessionState, CouncilPhase, MercyTrialVote, CollectiveEpiphanyBloom, CouncilParticipationRecord};
 
-// Note: Requires adding `crossbeam` to Cargo.toml:
-// crossbeam = { version = "0.8", features = ["crossbeam-queue"] }
-
+// Note: Requires adding `crossbeam` to Cargo.toml
 use crossbeam::queue::SegQueue;
 
 /// Batch persistence update entry
@@ -30,8 +28,7 @@ pub struct BatchPersistenceUpdate {
 }
 
 /// Lock-free batch persistence queue using crossbeam SegQueue.
-/// This allows many producers (Council closes) and one consumer (drain system)
-/// to operate without traditional mutex contention.
+/// Internally, SegQueue uses CAS (Compare-And-Swap) extensively for lock-free push/pop.
 #[derive(Resource, Default)]
 pub struct BatchPersistenceQueue {
     pub queue: SegQueue<BatchPersistenceUpdate>,
@@ -106,7 +103,7 @@ impl CouncilSession {
         self.participants.remove(&player_id);
     }
 
-    pub fn submit_vote(&mut self, vote: MercyTrialVote) {
+    pub fn submit_vote(&mut self, vote: MercyTrialVote {
         if let Some(proposal) = &self.current_proposal {
             let current = self.votes.get(proposal).cloned().unwrap_or(0.0);
             self.votes.insert(proposal.clone(), current + vote.mercy_weight);
@@ -215,7 +212,6 @@ impl CouncilSessionManager {
                     let collective = session.bloom_field.collective_attunement_score;
 
                     for player_id in session.participants.keys() {
-                        // Lock-free push into SegQueue
                         batch_queue.queue.push(BatchPersistenceUpdate {
                             player_id: *player_id,
                             had_bloom,
@@ -265,7 +261,7 @@ impl CouncilSessionManager {
     }
 }
 
-/// v18.83: Drain system using lock-free SegQueue
+/// v18.84: Drain system with CAS education comments
 pub fn process_batch_persistence_queue(
     batch_queue: Res<BatchPersistenceQueue>,
     metrics: Res<BatchPersistenceMetrics>,
@@ -278,7 +274,6 @@ pub fn process_batch_persistence_queue(
     let start = Instant::now();
     let mut drained = Vec::new();
 
-    // Drain all available items from the lock-free queue
     while let Some(update) = batch_queue.queue.pop() {
         drained.push(update);
     }
@@ -318,6 +313,8 @@ pub fn process_batch_persistence_queue(
                             }
                             Err(e) => {
                                 tracing::error!("Failed to load player data in batch persistence: {}", e);
+                                // CAS (Compare-And-Swap) is used here under the hood by fetch_add.
+                                // The CPU atomically does: if current == expected { write new; return true } else { return false }
                                 error_counter.fetch_add(1, Ordering::Relaxed);
                             }
                         }
@@ -333,13 +330,13 @@ pub fn process_batch_persistence_queue(
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.83 — Lock-Free Queue Investigation
+// PATSAGi Council Eternal Polish Notes v18.84 — CAS Operations Exploration
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.83: Replaced Vec with crossbeam::queue::SegQueue.
-// Benefits: True lock-free push/pop, excellent multi-producer performance,
-// reduced contention between Council tick_all and the drain system.
-// This is a significant scalability improvement for high Council churn scenarios.
+// server/src/council_session.rs v18.84: Added educational comments about CAS (Compare-And-Swap).
+// CAS is the fundamental building block of lock-free programming.
+// Both AtomicU64::fetch_add and crossbeam::SegQueue internally rely heavily on CAS loops.
+// Understanding CAS is key to writing correct and performant concurrent code.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.83 — Lock-free queue implemented.
+// End of server/src/council_session.rs v18.84 — CAS operations explored and documented.
