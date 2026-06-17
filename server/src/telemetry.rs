@@ -1,7 +1,7 @@
 /*!
  * Telemetry & Distributed Tracing Setup for Powrush-MMO Server
  *
- * v18.74 Eternal Polish — Distributed Context Propagation
+ * v18.75 Eternal Polish — Traced Context Injection + Extraction
  * AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
  */
 
@@ -11,8 +11,8 @@ use opentelemetry::sdk::trace as sdktrace;
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use opentelemetry::global;
 use opentelemetry::sdk::trace::Sampler;
+use opentelemetry::propagation::{Extractor, Injector};
 use opentelemetry::Context;
-use opentelemetry::propagation::Extractor;
 
 /// Initialize distributed tracing with OpenTelemetry + Jaeger + sampling.
 pub fn init_telemetry() {
@@ -41,27 +41,28 @@ pub fn shutdown_telemetry() {
     global::shutdown_tracer_provider();
 }
 
-/// Helper to extract distributed context from incoming headers (e.g. HTTP/gRPC).
-/// Useful when receiving requests from other services or clients.
+/// Extract distributed context from incoming headers (e.g. HTTP/gRPC requests).
 pub fn extract_context_from_headers(headers: &impl Extractor) -> Context {
     global::get_text_map_propagator(|propagator| propagator.extract(headers))
 }
 
+/// Inject current trace context into outgoing headers (for cross-service calls).
+pub fn inject_context_into_headers(headers: &mut impl Injector) {
+    global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(&tracing::Span::current().context(), headers);
+    });
+}
+
 /*
- * === USAGE EXAMPLE FOR CONTEXT PROPAGATION ===
+ * === FULL USAGE EXAMPLE ===
  *
- * When making outgoing calls or handling incoming requests:
- *
- * use opentelemetry::propagation::Injector;
- * use tracing_opentelemetry::OpenTelemetrySpanExt;
- *
- * // In an async handler:
- * let span = tracing::info_span!("handle_player_action");
+ * // When handling an incoming request:
+ * let context = extract_context_from_headers(&incoming_headers);
+ * let span = tracing::info_span!("handle_request", ?context);
  * let _guard = span.enter();
  *
- * // To propagate context when calling another service:
- * let mut headers = HashMap::new();
- * global::get_text_map_propagator(|prop| {
- *     prop.inject_context(&tracing::Span::current().context(), &mut headers);
- * });
+ * // When making an outgoing call to another service:
+ * let mut outgoing_headers = HashMap::new();
+ * inject_context_into_headers(&mut outgoing_headers);
+ * // ... send request with outgoing_headers
  */
