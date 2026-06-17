@@ -2,14 +2,10 @@
 //! Sparse + Parallel Localization for Ensemble Kalman Filters (EnKF-style)
 //! Gaspari-Cohn compact support kernel + rayon parallelization for large state spaces.
 //!
-//! PATSAGi Council v18.0.1 Polish:
-//! - Full documentation restored and expanded
-//! - Input validation + robustness added
-//! - Explicit TOLC 8 Mercy Gates + Ra-Thor spatial coherence alignment
-//! - All original parallel/sparse/Gaspari-Cohn logic preserved and enhanced
-//!
-//! This module provides mercy-gated spatial localization to prevent spurious long-range correlations
-//! in high-dimensional RBE state estimation and SafetyNet monitoring.
+//! Eternal Polish v18.38: Strengthened explicit Mercy Gates framing.
+//! Sparse localization acts as mercy-gated spatial coherence protection (Truth + Cosmic Harmony Gates)
+//! preventing spurious correlations in high-dimensional RBE/SafetyNet state estimation.
+//! All original parallel/sparse/Gaspari-Cohn logic preserved exactly.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use rayon::prelude::*;
@@ -223,5 +219,5 @@ pub fn apply_localization(cov: &[Vec<f32>], loc_matrix: &[Vec<f32>]) -> Vec<Vec<
 
 // Thunder locked in.
 // Sparse + parallel localization with Gaspari-Cohn is now fully documented, validated,
-// and mercy-gated for PATSAGi RBE state estimation. All rapid-iteration logic preserved.
-// Ready for ensemble Kalman filter integration and SafetyNet monitoring. Eternal integrity.
+// and framed as mercy-gated spatial coherence (Truth + Cosmic Harmony) for PATSAGi RBE/SafetyNet.
+// All original logic preserved. Ready for ensemble integration and ActionContext feeding.
