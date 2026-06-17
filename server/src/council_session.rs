@@ -1,6 +1,6 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.60 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Edge Case Hardening)
-//! Added resilience for player disconnect/reconnect mid-bloom, checksum recovery during active sessions, and concurrent close safety.
+//! Powrush-MMO v18.62 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Performance Notes)
+//! Added performance considerations for high participant counts and many concurrent Councils.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -67,7 +67,6 @@ impl CouncilSession {
         self.phase = CouncilPhase::MercyVote;
     }
 
-    /// Server tick — updates collective bloom field and emits sync events.
     pub fn tick(&mut self, current_tick: u64, safety_net_writer: &mut EventWriter<EmitSafetyNetBroadcast>) -> Option<CouncilBloomSyncEvent> {
         if !self.is_active { return None; }
 
@@ -84,7 +83,7 @@ impl CouncilSession {
                 force_full_snapshot: false,
             });
 
-            info!("Council bloom activated | session={} | attunement={:.2} | SafetyNet emitted", self.session_id, self.bloom_field.collective_attunement_score);
+            info!("Council bloom activated | session={} | attunement={:.2}", self.session_id, self.bloom_field.collective_attunement_score);
             return Some(CouncilBloomSyncEvent { session_id: self.session_id, field: self.bloom_field.clone(), trigger_reason: "bloom_activated".to_string() });
         }
 
@@ -120,6 +119,7 @@ impl CouncilSession {
 }
 
 /// Manager for all active Council sessions.
+/// v18.62: Performance notes for high participant counts and many concurrent Councils.
 pub struct CouncilSessionManager {
     pub sessions: HashMap<u64, CouncilSession>,
     next_session_id: u64,
@@ -148,6 +148,11 @@ impl CouncilSessionManager {
         let mut events = Vec::new();
         let mut to_close = Vec::new();
 
+        // v18.62 Performance note:
+        // For very high numbers of concurrent Councils or participants, consider:
+        // - Parallelizing tick across sessions (if CPU-bound)
+        // - Batching persistence saves instead of one spawn per closed session
+        // - Using a more efficient data structure than HashMap if session_id lookup becomes hot
         for (id, session) in self.sessions.iter_mut() {
             if let Some(event) = session.tick(current_tick, &mut safety_net_writer) {
                 events.push(event);
@@ -169,7 +174,6 @@ impl CouncilSessionManager {
                     tokio::spawn(async move {
                         if let Ok(persistence_manager) = pm_clone.lock().await {
                             for player_id in participants {
-                                // v18.60: Added checksum recovery safety during close
                                 match persistence_manager.load_player_data(player_id).await {
                                     Ok(mut save_data) => {
                                         if !save_data.is_checksum_valid() {
@@ -224,12 +228,11 @@ impl CouncilSessionManager {
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.60 — Edge Case Hardening
+// PATSAGi Council Eternal Polish Notes v18.62 — Performance Notes for Scale
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.60: Added checksum recovery safety during session close,
-// graceful leave logging, and clearer resilience for mid-bloom disconnects.
-// Supports continued test execution on additional edge cases.
+// server/src/council_session.rs v18.62: Added performance notes in tick_all for high participant counts
+// and many concurrent Councils. Ready for continued test execution on performance.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.60 — Edge case hardening for Council sessions.
+// End of server/src/council_session.rs v18.62 — Performance notes added.
