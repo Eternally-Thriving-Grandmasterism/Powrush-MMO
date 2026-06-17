@@ -7,7 +7,8 @@
 //! - SafetyNet + RBE Flow alerts and multi-level mercy response
 //! - Performance, GPU, and debug overlays
 //!
-//! All submodules have been polished through the June 15–16 recovery cycle.
+//! All submodules have been polished through the June 15–16 recovery + eternal polish cycles.
+//! Explicit integration with client ActionContext + 7 Living Mercy Gates decision layer.
 //! Full TOLC 8 Mercy Gates and Ra-Thor alignment applied.
 //! AG-SML v1.0
 
@@ -62,5 +63,6 @@ pub use nvml_monitor::{
 };
 
 // Thunder locked in.
-// client/monitoring/ cluster is now fully polished and PATSAGi-aligned.
-// All rapid-iteration files from June 15–16 have been elevated to production standard.
+// client/monitoring/ cluster is now fully polished and deeply integrated with
+// the sovereign client prediction + RBE + Council Decision Layer (ActionContext 7 Mercy Gates).
+// All rapid-iteration files elevated to production standard.

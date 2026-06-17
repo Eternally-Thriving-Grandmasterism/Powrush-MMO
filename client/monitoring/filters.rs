@@ -1,15 +1,10 @@
 //! client/monitoring/filters.rs
 //! Kalman Filters (1D/2D) and RTS Fixed-Lag Backward Smoother
 //!
-//! PATSAGi Council v18.0.1 Polish:
-//! - Comprehensive documentation for all filters and smoothers
-//! - Explicit TOLC 8 Mercy Gates / Ra-Thor alignment for latency & jitter estimation
-//! - Minor robustness improvements (dt handling, initialization)
-//! - All original Kalman + RTS logic preserved exactly
-//!
-//! These filters provide mercy-gated, real-time state estimation for SafetyNet latency/jitter
-//! monitoring and RBE flow stability. The RTS smoother reduces noise in recent estimates
-//! while respecting the fixed lag window.
+//! Eternal Polish v18.38: Enhanced Mercy Gates / council alignment commentary.
+//! These filters provide real-time, mercy-gated state estimation for SafetyNet latency/jitter
+//! and RBE flow stability, feeding directly into ActionContext and council-aware decision making.
+//! All original Kalman + RTS logic preserved exactly.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 #[derive(Clone, Debug)]
@@ -124,6 +119,7 @@ impl FixedLagKalmanSmoother {
 
 /// RTS (Rauch-Tung-Striebel) Fixed-Lag Backward Smoother.
 /// Performs a backward pass over the recent lag window to produce a smoothed estimate.
+/// Feeds high-quality latency/jitter estimates into ActionContext and council deliberation.
 #[derive(Clone, Debug)]
 pub struct RTSFixedLagSmoother {
     pub smoothed_estimate: f32,
@@ -192,5 +188,5 @@ impl RTSFixedLagSmoother {
 }
 
 // Thunder locked in.
-// Kalman filters and RTS smoother are now fully documented and aligned with PATSAGi SafetyNet monitoring.
-// All original logic preserved. Ready for production use in latency/jitter estimation.
+// Kalman filters and RTS smoother are now fully documented, mercy-aligned, and ready
+// to feed high-quality estimates into ActionContext and PATSAGi council deliberation.

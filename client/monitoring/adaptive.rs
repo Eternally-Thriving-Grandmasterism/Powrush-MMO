@@ -1,21 +1,18 @@
 //! client/monitoring/adaptive.rs
 //! Advanced Adaptive Localization Radius + Innovation-Based Radius Optimizer
 //!
-//! PATSAGi Council v18.0.1 Polish:
-//! - Full documentation for all public APIs and helpers
-//! - Explicit TOLC 8 Mercy Gates + Ra-Thor alignment (adaptive radius as mercy-gated uncertainty response)
-//! - Input validation and robustness improvements
-//! - All original heuristic + principled optimization logic preserved
+//! Eternal Polish v18.38: Strengthened Mercy Gates alignment and integration readiness
+//! with client ActionContext + council deliberation layer.
 //!
-//! These components dynamically adjust localization radius in the Ensemble Kalman Filter
-//! based on recent innovations and ensemble spread. This prevents over- or under-localization,
-//! maintaining stable RBE state estimation and SafetyNet latency monitoring under varying conditions.
+//! Adaptive radius acts as a living mercy-gated response to uncertainty (Boundless Mercy + Truth Gate).
+//! All original heuristic + principled optimization logic preserved exactly.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use super::localization::SparseLocalization;
 
 /// Computes a smoothed adaptive localization radius using residual magnitude and ensemble spread.
 /// Used by the heuristic `AdvancedAdaptiveLocalizer`.
+/// (Mercy-gated: high residual/spread triggers protective radius adjustment to preserve filter stability)
 pub fn compute_advanced_adaptive_radius(
     avg_residual: f32,
     ensemble_spread: f32,
@@ -32,8 +29,8 @@ pub fn compute_advanced_adaptive_radius(
 }
 
 /// Maintains running statistics and dynamically adjusts localization radius using a heuristic
-/// based on recent residuals and ensemble spread. Mercy-gated: larger spread or high residuals
-/// can trigger tighter or wider localization to preserve filter stability.
+/// based on recent residuals and ensemble spread.
+/// Mercy-gated: larger spread or high residuals trigger tighter/wider localization to preserve stability.
 #[derive(Clone, Debug)]
 pub struct AdvancedAdaptiveLocalizer {
     pub current_radius: f32,
@@ -206,5 +203,5 @@ impl LocalizationRadiusOptimizer {
 }
 
 // Thunder locked in.
-// Adaptive localization radius logic is now fully documented and mercy-aligned.
-// Both heuristic and innovation-optimizer paths are production-ready for EnKF + SafetyNet.
+// Adaptive localization radius logic is now fully documented, mercy-aligned, and ready
+// for deep integration with ActionContext and council deliberation in the client decision layer.
