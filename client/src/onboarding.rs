@@ -1,10 +1,10 @@
 /*!
  * Onboarding — Powrush-MMO Professional Global Onboarding + RBE Education
  *
- * v18.38 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — Full integration of RBE education content
- * — Contextual Divine Whispers for RBEPrimer, MercyContribution, SovereignStart
- * — First Epiphany resonance + Lattice awareness
+ * v18.50 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm + Target 3 Integration)
+ * — Full integration of expanded RBE Onboarding Education (v18.49)
+ * — Added support for FirstCouncilBloom educational step
+ * — Better SafetyNet sovereignty education triggers
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -48,6 +48,7 @@ pub enum OnboardingStep {
     FirstHarvestTutorial,
     MercyContribution,
     SovereignStart,
+    FirstCouncilBloom, // v18.50 new — from expanded RBE education v18.49
     Complete,
 }
 
@@ -236,11 +237,11 @@ fn trigger_contextual_whispers(
             OnboardingStep::InviteValidation => ("onboarding_invite_validation", false, "welcome"),
             OnboardingStep::CaptchaVerification => ("onboarding_captcha_verification", false, "welcome"),
             OnboardingStep::Welcome => ("onboarding_welcome", true, "first_bloom"),
-            // === RBE Education Integration (v18.38) ===
             OnboardingStep::RBEPrimer => ("onboarding_rbe_primer", true, "sustainable_harmony_revelation"),
             OnboardingStep::FirstHarvestTutorial => ("onboarding_first_harvest", false, "sustainable_abundance_revelation"),
             OnboardingStep::MercyContribution => ("onboarding_mercy_contribution", true, "graceful_redemption_revelation"),
             OnboardingStep::SovereignStart => ("onboarding_sovereign_start", true, "council_harmony_revelation"),
+            OnboardingStep::FirstCouncilBloom => ("onboarding_first_council_bloom", true, "ecstatic_harmony_council_crown"), // v18.50 new
             _ => ("onboarding_welcome", false, "welcome"),
         };
 
@@ -262,6 +263,9 @@ pub fn mercy_skip_onboarding(state: &mut OnboardingState) {
     state.step = OnboardingStep::Complete;
 }
 
-// RBE education is now deeply integrated into the onboarding flow.
-// Whispers are designed to teach The Lattice, Mercy as Multiplier, and Earned Abundance
-// through lived experience and epiphany resonance.
+// RBE education (expanded v18.49) is deeply integrated.
+// Includes SafetyNet sovereignty protection and First Council Bloom education.
+// Whispers teach The Lattice, Mercy as Multiplier, Earned Abundance, and Council as Living Governance
+// through lived experience.
+// See content/rbe_onboarding_education.md v18.49 for full content.
+}}
