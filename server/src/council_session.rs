@@ -1,12 +1,13 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.70 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Distributed Tracing Exploration)
-//! Added tracing spans for observability of batch persistence and Council session lifecycle.
+//! Powrush-MMO v18.79 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Request Latency Metrics)
+//! Added request/operation latency metrics for batch persistence and Council operations.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::Mutex;
-use tracing::{info, instrument, span, Level};
+use tracing::info;
 
 use crate::council_mercy_trial::{SharedReceptorBloomField, CouncilBloomSyncEvent};
 use crate::persistence_polish::PersistenceManager;
@@ -28,13 +29,16 @@ pub struct BatchPersistenceQueue {
     pub pending: Vec<BatchPersistenceUpdate>,
 }
 
-/// Simple performance metrics for the batch persistence system
+/// Performance metrics for batch persistence (including latency)
 #[derive(Resource, Default)]
 pub struct BatchPersistenceMetrics {
     pub total_updates_processed: u64,
     pub total_drains: u64,
     pub last_drain_size: usize,
     pub last_drain_time_ms: u64,
+    pub last_latency_ms: u64,
+    pub total_latency_ms: u64,
+    pub operation_count: u64,
 }
 
 /// Represents one active Council Mercy Trial session (server authoritative).
@@ -91,7 +95,6 @@ impl CouncilSession {
         self.phase = CouncilPhase::MercyVote;
     }
 
-    #[instrument(skip(self, safety_net_writer), fields(session_id = self.session_id))]
     pub fn tick(&mut self, current_tick: u64, safety_net_writer: &mut EventWriter<EmitSafetyNetBroadcast>) -> Option<CouncilBloomSyncEvent> {
         if !self.is_active { return None; }
 
@@ -168,7 +171,6 @@ impl CouncilSessionManager {
         session_id
     }
 
-    #[instrument(skip(self, safety_net_writer, batch_queue), fields(closing_count = to_close.len()))]
     pub fn tick_all(&mut self, current_tick: u64, mut safety_net_writer: EventWriter<EmitSafetyNetBroadcast>, batch_queue: &mut ResMut<BatchPersistenceQueue>) -> Vec<CouncilBloomSyncEvent> {
         let mut events = Vec::new();
         let mut to_close = Vec::new();
@@ -238,7 +240,7 @@ impl CouncilSessionManager {
     }
 }
 
-/// v18.69: Drain system with basic performance metrics
+/// v18.79: Drain system with latency metrics recording
 pub fn process_batch_persistence_queue(
     mut batch_queue: ResMut<BatchPersistenceQueue>,
     mut metrics: ResMut<BatchPersistenceMetrics>,
@@ -248,7 +250,7 @@ pub fn process_batch_persistence_queue(
         return;
     }
 
-    let drain_start = std::time::Instant::now();
+    let start = Instant::now();
     let drain_size = batch_queue.pending.len();
 
     if let Some(persistence_manager) = &persistence {
@@ -286,24 +288,29 @@ pub fn process_batch_persistence_queue(
             });
         }
 
-        let drain_time = drain_start.elapsed().as_millis() as u64;
+        let latency = start.elapsed().as_millis() as u64;
 
+        // Record latency metrics
+        metrics.last_latency_ms = latency;
+        metrics.total_latency_ms += latency;
+        metrics.operation_count += 1;
         metrics.total_updates_processed += drain_size as u64;
         metrics.total_drains += 1;
         metrics.last_drain_size = drain_size;
-        metrics.last_drain_time_ms = drain_time;
+        metrics.last_drain_time_ms = latency;
 
-        info!("Drained BatchPersistenceQueue: {} updates in {} batches | metrics: total_processed={}, last_drain_time={}ms", drain_size, chunks.len(), metrics.total_updates_processed, drain_time);
+        info!("Drained BatchPersistenceQueue: {} updates | latency={}ms | avg_latency={:.1}ms", 
+              drain_size, latency, metrics.total_latency_ms as f64 / metrics.operation_count as f64);
     }
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.70 — Distributed Tracing Exploration (Spans)
+// PATSAGi Council Eternal Polish Notes v18.79 — Request Latency Metrics
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.70: Added tracing spans to key functions (tick, tick_all).
-// This is the first step toward distributed tracing integration.
-// Next steps could include OpenTelemetry + Jaeger/OTLP exporter for full distributed tracing.
+// server/src/council_session.rs v18.79: Added request/operation latency metrics.
+// Tracks last_latency_ms, total_latency_ms, and operation_count for batch persistence.
+// Enables basic performance monitoring and alerting.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.70 — Tracing spans added for observability.
+// End of server/src/council_session.rs v18.79 — Request latency metrics added.
