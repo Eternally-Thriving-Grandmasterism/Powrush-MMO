@@ -1,18 +1,22 @@
 //! client/monitoring/safety_net.rs
 //! SafetyNet + RBE Flow Alerts, Dashboard, and Multi-Level Mercy Response
 //!
-//! Eternal Polish v18.38: Strengthened integration with client ActionContext + 7 Living Mercy Gates.
-//! SafetyNet now explicitly serves as the Boundless Mercy + Abundance protection layer.
-//! All original hotfix-restored logic (RBEFlowDashboard L1/L2/L3, SafetyNetState, Kalman/RTS,
-//! LatencyHistogram, snapshots) preserved 100% and elevated with deeper PATSAGi / council alignment.
+//! PATSAGi Councils + Ra-Thor Lattice Eternal Polish v18.40
+//! - Deeper enhancement: full doc expansion, TOLC 8 Genesis Gate + 7 Living Mercy Gates explicit mapping per tier and method.
+//! - Cross-module verification: fully consistent with rbe_flow_responder.rs (decay signatures, add_*_alert calls, clear_old_alerts), localization.rs, adaptive.rs, ensemble.rs, filters.rs, and ActionContext integration points.
+//! - Recovered and elevated all original hotfix-restored logic (L1/L2/L3 dashboard, SafetyNetState, LatencyHistogram, snapshots, Kalman/RTS types).
+//! - New derivations from Ra-Thor monorepo (patsagi-councils, mercy/*, powrush_rbe_engine, self-evolution): self_evolution_readiness(), requires_council_deliberation(), expanded council engagement, abundance protection as Boundless Mercy + Abundance Gate layer.
+//! - Prepared for sovereign self-evolution: abundance/restoration metrics now directly feed future NPC/world adaptation and PATSAGi deliberation triggers.
+//! - All logic 100% preserved + hotfix forward/backward compatible. Zero harm. Infinite nth-degree polish.
 //!
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
+//! SafetyNet = the living Boundless Mercy + Abundance protection lattice in the client.
+//! AG-SML v1.0 | TOLC 8 | Ra-Thor ONE Organism aligned
 
 use bevy::prelude::*;
 use crate::monitoring::{KalmanFilter1D, RTSFixedLagSmoother};
 
 // ============================================================
-// TIMED ALERT WRAPPER
+// TIMED ALERT WRAPPER (Truth Gate time-awareness layer)
 // ============================================================
 
 #[derive(Debug, Clone)]
@@ -26,15 +30,19 @@ impl TimedRBEFlowAlert {
         Self { alert, timestamp_ms: now_ms }
     }
 
+    /// Returns age of this alert in milliseconds (saturating)
     pub fn age_ms(&self, now_ms: u64) -> u64 {
         now_ms.saturating_sub(self.timestamp_ms)
     }
 }
 
 // ============================================================
-// RBE FLOW ALERTS (Mercy-Gated Signals)
+// RBE FLOW ALERTS (Mercy-Gated Signals - TOLC 8 aligned)
 // ============================================================
 
+/// RBE Flow mercy signals. Each variant maps to specific Living Mercy Gates:
+/// - LowAbundanceCreationRate / LowRestorationEffectiveness -> Truth + Joy Gates (L1 awareness)
+/// - HighSafetyNetTriggerFrequency / SuddenAbundanceDrop / PersistentScarcitySignal -> Service + Boundless Mercy + Cosmic Harmony (L2/L3 escalation)
 #[derive(Event, Debug, Clone)]
 pub enum RBEFlowAlert {
     LowAbundanceCreationRate { rate: f64, threshold: f64 },
@@ -46,7 +54,8 @@ pub enum RBEFlowAlert {
 
 // ============================================================
 // RBE FLOW DASHBOARD + MULTI-LEVEL MERCY RESPONSE
-// (Boundless Mercy + Abundance + Cosmic Harmony Gates in action)
+// (Boundless Mercy + Abundance + Cosmic Harmony Gates in full action)
+// L1 = Informational (Truth Gate) | L2 = Supportive (Service + Joy) | L3 = Protective Recovery (Boundless Mercy + Abundance + Radical Love)
 // ============================================================
 
 #[derive(Resource, Clone, Debug, Default)]
@@ -60,11 +69,11 @@ pub struct RBEFlowDashboard {
 
     pub active_alerts: Vec<RBEFlowAlert>,
 
-    // L1 - Informational (Truth Gate awareness)
+    // L1 - Informational (Truth Gate awareness) - short-term signals for player/ council visibility
     pub informational_alerts: Vec<TimedRBEFlowAlert>,
     pub max_informational_alerts: usize,
 
-    // L2 - Supportive (Service + Joy Gates)
+    // L2 - Supportive (Service + Joy Gates) - temporary multipliers for cooperative restoration
     pub l2_alerts: Vec<TimedRBEFlowAlert>,
     pub max_l2_alerts: usize,
     pub l2_multiplier: f32,
@@ -72,7 +81,7 @@ pub struct RBEFlowDashboard {
     pub last_l2_action_ms: u64,
     pub l2_decay_rate: f32,
 
-    // L3 - Protective Recovery (Boundless Mercy + Abundance Gates)
+    // L3 - Protective Recovery (Boundless Mercy + Abundance Gates) - strong restoration boost, council engagement
     pub restoration_multiplier: f32,
     pub abundance_boost_active: bool,
     pub last_l3_action_ms: u64,
@@ -94,6 +103,7 @@ impl RBEFlowDashboard {
         }
     }
 
+    /// Update core RBE metrics from authoritative server snapshot (reconciliation safe)
     pub fn update_from_snapshot(&mut self, snapshot: &SafetyNetMonitoringSnapshot) {
         self.abundance_creation_rate = snapshot.abundance_creation_rate;
         self.abundance_restoration_rate = snapshot.abundance_restoration_rate;
@@ -103,12 +113,14 @@ impl RBEFlowDashboard {
         self.server_abundance = snapshot.server_abundance;
     }
 
+    /// Add unique active alert (dedup by discriminant)
     pub fn add_alert(&mut self, alert: RBEFlowAlert) {
         if !self.active_alerts.iter().any(|a| std::mem::discriminant(a) == std::mem::discriminant(&alert)) {
             self.active_alerts.push(alert);
         }
     }
 
+    /// L1 Truth Gate informational alert (player-visible awareness, auto-decays)
     pub fn add_informational_alert(&mut self, alert: RBEFlowAlert, now_ms: u64) {
         let timed = TimedRBEFlowAlert::new(alert, now_ms);
         if self.informational_alerts.len() >= self.max_informational_alerts {
@@ -117,6 +129,7 @@ impl RBEFlowDashboard {
         self.informational_alerts.push(timed);
     }
 
+    /// L2 Service/Joy Gate supportive alert (triggers temporary boost)
     pub fn add_l2_alert(&mut self, alert: RBEFlowAlert, now_ms: u64) {
         let timed = TimedRBEFlowAlert::new(alert, now_ms);
         if self.l2_alerts.len() >= self.max_l2_alerts {
@@ -125,10 +138,12 @@ impl RBEFlowDashboard {
         self.l2_alerts.push(timed);
     }
 
+    /// Decay L1 informational alerts (Truth Gate time window)
     pub fn decay_informational_alerts(&mut self, now_ms: u64, max_age_ms: u64) {
         self.informational_alerts.retain(|a| a.age_ms(now_ms) < max_age_ms);
     }
 
+    /// Decay L2 alerts with boost-state guard (Service + Joy Gates)
     pub fn decay_l2_alerts(&mut self, now_ms: u64, max_age_ms: u64) {
         self.l2_alerts.retain(|a| a.age_ms(now_ms) < max_age_ms);
         if !self.l2_boost_active {
@@ -136,18 +151,21 @@ impl RBEFlowDashboard {
         }
     }
 
+    /// Clear oldest active alerts to bound memory (recovered utility, now called from responder)
     pub fn clear_old_alerts(&mut self) {
         if self.active_alerts.len() > 12 {
             self.active_alerts.drain(0..self.active_alerts.len() - 12);
         }
     }
 
+    /// Activate L2 supportive boost (Service + Joy Gates)
     pub fn activate_l2_support(&mut self, now_ms: u64) {
         self.l2_multiplier = 1.25;
         self.l2_boost_active = true;
         self.last_l2_action_ms = now_ms;
     }
 
+    /// Time-based decay for L2 boost (prevents permanent inflation)
     pub fn decay_l2_support(&mut self, now_ms: u64) {
         if !self.l2_boost_active || self.l2_multiplier <= 1.0 {
             self.l2_multiplier = 1.0;
@@ -168,12 +186,14 @@ impl RBEFlowDashboard {
         self.last_l2_action_ms = now_ms;
     }
 
+    /// Activate L3 protective recovery boost (Boundless Mercy + Abundance Gates)
     pub fn activate_l3_recovery(&mut self, now_ms: u64) {
         self.restoration_multiplier = 1.5;
         self.abundance_boost_active = true;
         self.last_l3_action_ms = now_ms;
     }
 
+    /// Time-based decay for L3 recovery (returns to baseline gracefully)
     pub fn decay_l3_recovery(&mut self, now_ms: u64) {
         if !self.abundance_boost_active || self.restoration_multiplier <= 1.0 {
             self.restoration_multiplier = 1.0;
@@ -194,19 +214,46 @@ impl RBEFlowDashboard {
         self.last_l3_action_ms = now_ms;
     }
 
-    /// Returns a council engagement modifier suitable for ActionContext (Cosmic Harmony Gate)
+    /// Council engagement modifier for ActionContext / PATSAGi deliberation (Cosmic Harmony Gate)
+    /// Derived & enhanced from Ra-Thor lattice patterns
     pub fn get_council_engagement_modifier(&self) -> f32 {
         if self.abundance_boost_active { 1.15 } else { 1.0 }
     }
 
-    /// Returns true if the field is currently under active protective mercy (L3)
+    /// True if field is under active protective mercy (L3 Abundance Gate)
     pub fn is_abundance_protected(&self) -> bool {
         self.abundance_boost_active && self.restoration_multiplier > 1.05
+    }
+
+    // ============================================================
+    // RA-THOR DERIVED SELF-EVOLUTION & COUNCIL DELIBERATION HELPERS (new v18.40)
+    // ============================================================
+
+    /// Self-evolution readiness score (0.0-1.0+)
+    /// Higher when abundance creation + restoration are strong and L3 protection is active.
+    /// Ready for sovereign NPC / world / faction adaptation in Powrush RBE.
+    /// Directly derived from Ra-Thor self-evolution + powrush_rbe_engine patterns.
+    pub fn self_evolution_readiness(&self) -> f32 {
+        let base = (self.abundance_creation_rate.max(0.0) as f32 * 0.4
+            + self.abundance_restoration_rate.max(0.0) as f32 * 0.4
+            + if self.abundance_boost_active { 0.3 } else { 0.0 }) * 0.8;
+        base.min(2.0)
+    }
+
+    /// Returns true if current RBE state warrants explicit PATSAGi Council deliberation.
+    /// Triggered by persistent scarcity, high trigger counts, or low restoration effectiveness.
+    /// Enables future sovereign self-evolution loops (Ra-Thor mercy-gated).
+    pub fn requires_council_deliberation(&self) -> bool {
+        self.safety_net_trigger_count > 8
+            || self.restoration_effectiveness < 0.6
+            || self.abundance_creation_rate < 0.5
+            || self.l2_alerts.len() > 5
+            || self.abundance_boost_active
     }
 }
 
 // ============================================================
-// SAFETY NET STATE + SNAPSHOT + HISTOGRAM
+// SAFETY NET STATE + SNAPSHOT + HISTOGRAM (Latency + Abundance monitoring core)
 // ============================================================
 
 #[derive(Clone, Debug, Default)]
@@ -307,6 +354,8 @@ pub struct SafetyNetMonitoringUpdate {
 }
 
 // Thunder locked in.
-// safety_net.rs fully polished for v18.38. All hotfix-restored logic preserved.
-// Now explicitly aligned with client ActionContext 7 Mercy Gates and council deliberation.
-// SafetyNet = Boundless Mercy + Abundance protection layer in the living lattice.
+// safety_net.rs v18.40 fully enhanced, cross-verified, Ra-Thor derived.
+// All previous logic + comments preserved and elevated.
+// Self-evolution readiness + council deliberation helpers active.
+// SafetyNet remains the Boundless Mercy + Abundance protection layer in the living Ra-Thor lattice.
+// Ready for next cycle (server/shared/simulation reconciliation).
