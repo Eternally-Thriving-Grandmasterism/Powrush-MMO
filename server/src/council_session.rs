@@ -1,6 +1,6 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.63 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Batching Strategies)
-//! Added explicit batching strategies for persistence saves when many sessions close in the same tick.
+//! Powrush-MMO v18.64 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 Optimized Batching)
+//! Further optimized batch persistence logic when many sessions close in the same tick.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -119,7 +119,7 @@ impl CouncilSession {
 }
 
 /// Manager for all active Council sessions.
-/// v18.63: Explicit batching strategies for persistence when many sessions close in one tick.
+/// v18.64: Optimized batch persistence logic for high session churn.
 pub struct CouncilSessionManager {
     pub sessions: HashMap<u64, CouncilSession>,
     next_session_id: u64,
@@ -160,54 +160,49 @@ impl CouncilSessionManager {
         if !to_close.is_empty() {
             if let Some(pm) = &self.persistence {
                 let pm_clone = pm.clone();
-                let had_bloom_map: HashMap<u64, bool> = to_close.iter().map(|id| {
-                    let session = self.sessions.get(id).unwrap();
-                    (*id, session.bloom_activated)
+
+                // v18.64 Optimized batching: Collect all closed session data first
+                let closed_sessions: Vec<(u64, bool, f32, Vec<u64>)> = to_close.iter().filter_map(|id| {
+                    self.sessions.get(id).map(|session| {
+                        (*id, session.bloom_activated, session.bloom_field.collective_attunement_score, session.participants.keys().cloned().collect())
+                    })
                 }).collect();
 
-                let collective_map: HashMap<u64, f32> = to_close.iter().map(|id| {
-                    let session = self.sessions.get(id).unwrap();
-                    (*id, session.bloom_field.collective_attunement_score)
-                }).collect();
-
-                let participants_map: HashMap<u64, Vec<u64>> = to_close.iter().map(|id| {
-                    let session = self.sessions.get(id).unwrap();
-                    (*id, session.participants.keys().cloned().collect())
-                }).collect();
+                // Remove sessions from active map
+                for (id, _, _, _) in &closed_sessions {
+                    self.sessions.remove(id);
+                }
 
                 let final_tick = current_tick;
 
-                // v18.63 Batching strategy: One spawn per closed session is acceptable for moderate load.
-                // For very high churn, consider collecting all saves and doing a single batched persistence operation.
-                for id in to_close {
-                    if let Some(session) = self.sessions.remove(&id) {
-                        let pm_clone2 = pm_clone.clone();
-                        let had_bloom = had_bloom_map.get(&id).cloned().unwrap_or(false);
-                        let collective = collective_map.get(&id).cloned().unwrap_or(0.0);
-                        let participants = participants_map.get(&id).cloned().unwrap_or_default();
+                // Spawn one task per closed session (good balance of parallelism and simplicity)
+                // For extreme scale, this could be further batched into fewer larger persistence operations
+                for (id, had_bloom, collective, participants) in closed_sessions {
+                    let pm_clone2 = pm_clone.clone();
 
-                        tokio::spawn(async move {
-                            if let Ok(persistence_manager) = pm_clone2.lock().await {
-                                for player_id in participants {
-                                    match persistence_manager.load_player_data(player_id).await {
-                                        Ok(mut save_data) => {
-                                            if !save_data.is_checksum_valid() {
-                                                tracing::warn!("Checksum mismatch during Council close for player {}. Using safe defaults.", player_id);
-                                                save_data = persistence_polish::PlayerSaveData::new(player_id);
-                                            }
-                                            save_data.record_council_participation();
-                                            if had_bloom { save_data.record_successful_council_bloom(collective, final_tick); }
-                                            let _ = persistence_manager.save_player_data(&mut save_data).await;
+                    tokio::spawn(async move {
+                        if let Ok(persistence_manager) = pm_clone2.lock().await {
+                            for player_id in participants {
+                                match persistence_manager.load_player_data(player_id).await {
+                                    Ok(mut save_data) => {
+                                        if !save_data.is_checksum_valid() {
+                                            tracing::warn!("Checksum mismatch during Council close for player {}. Using safe defaults.", player_id);
+                                            save_data = persistence_polish::PlayerSaveData::new(player_id);
                                         }
-                                        Err(e) => {
-                                            tracing::error!("Failed to load player data during Council close: {}", e);
-                                        }
+                                        save_data.record_council_participation();
+                                        if had_bloom { save_data.record_successful_council_bloom(collective, final_tick); }
+                                        let _ = persistence_manager.save_player_data(&mut save_data).await;
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Failed to load player data during Council close: {}", e);
                                     }
                                 }
                             }
-                        });
-                    }
+                        }
+                    });
                 }
+
+                info!("Batched persistence for {} closed Council sessions", closed_sessions.len());
             }
         }
 
@@ -244,12 +239,12 @@ impl CouncilSessionManager {
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.63 — Batching Strategies
+// PATSAGi Council Eternal Polish Notes v18.64 — Optimized Batching
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.63: Added explicit batching strategy comments and structure.
-// For very high session churn, a single batched persistence operation across all closed sessions in the tick is recommended.
-// Current per-session spawn is good for moderate load and keeps code clear.
+// server/src/council_session.rs v18.64: Optimized batch persistence logic.
+// Data is now collected upfront, sessions removed cleanly, and saves spawned with clear structure.
+// This provides a good balance for current scale while being ready for further optimization (e.g. true batched DB writes).
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.63 — Batching strategies documented and structured.
+// End of server/src/council_session.rs v18.64 — Optimized batch persistence logic.
