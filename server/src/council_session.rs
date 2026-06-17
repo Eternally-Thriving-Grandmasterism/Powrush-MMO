@@ -1,6 +1,6 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.84 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 CAS Operations Exploration)
-//! Added educational documentation and examples around Compare-And-Swap (CAS) operations.
+//! Powrush-MMO v18.85 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 CAS Educational Integration)
+//! Integrated educational CAS (Compare-And-Swap) examples and explanations directly into the code.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -15,7 +15,6 @@ use crate::persistence_polish::PersistenceManager;
 use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 use shared::protocol::{CouncilSessionState, CouncilPhase, MercyTrialVote, CollectiveEpiphanyBloom, CouncilParticipationRecord};
 
-// Note: Requires adding `crossbeam` to Cargo.toml
 use crossbeam::queue::SegQueue;
 
 /// Batch persistence update entry
@@ -27,14 +26,13 @@ pub struct BatchPersistenceUpdate {
     pub tick: u64,
 }
 
-/// Lock-free batch persistence queue using crossbeam SegQueue.
-/// Internally, SegQueue uses CAS (Compare-And-Swap) extensively for lock-free push/pop.
+/// Lock-free batch persistence queue (internally uses CAS heavily)
 #[derive(Resource, Default)]
 pub struct BatchPersistenceQueue {
     pub queue: SegQueue<BatchPersistenceUpdate>,
 }
 
-/// Performance + Error metrics for batch persistence
+/// Performance + Error metrics
 #[derive(Resource, Default)]
 pub struct BatchPersistenceMetrics {
     pub total_updates_processed: u64,
@@ -103,7 +101,7 @@ impl CouncilSession {
         self.participants.remove(&player_id);
     }
 
-    pub fn submit_vote(&mut self, vote: MercyTrialVote {
+    pub fn submit_vote(&mut self, vote: MercyTrialVote) {
         if let Some(proposal) = &self.current_proposal {
             let current = self.votes.get(proposal).cloned().unwrap_or(0.0);
             self.votes.insert(proposal.clone(), current + vote.mercy_weight);
@@ -261,7 +259,7 @@ impl CouncilSessionManager {
     }
 }
 
-/// v18.84: Drain system with CAS education comments
+/// v18.85: Drain system with integrated CAS education
 pub fn process_batch_persistence_queue(
     batch_queue: Res<BatchPersistenceQueue>,
     metrics: Res<BatchPersistenceMetrics>,
@@ -313,8 +311,32 @@ pub fn process_batch_persistence_queue(
                             }
                             Err(e) => {
                                 tracing::error!("Failed to load player data in batch persistence: {}", e);
-                                // CAS (Compare-And-Swap) is used here under the hood by fetch_add.
-                                // The CPU atomically does: if current == expected { write new; return true } else { return false }
+
+                                // ============================================================
+                                // CAS (Compare-And-Swap) Educational Example
+                                // ============================================================
+                                // This fetch_add is implemented using CAS under the hood.
+                                // A manual CAS loop would look like this:
+                                //
+                                // let mut current = error_counter.load(Ordering::Relaxed);
+                                // loop {
+                                //     let new = current + 1;
+                                //     match error_counter.compare_exchange_weak(
+                                //         current, new,
+                                //         Ordering::Relaxed,
+                                //         Ordering::Relaxed,
+                                //     ) {
+                                //         Ok(_) => break,           // Success
+                                //         Err(actual) => current = actual, // Retry with latest value
+                                //     }
+                                // }
+                                //
+                                // Why we don't do this manually here:
+                                // - fetch_add is simpler and correct
+                                // - crossbeam::SegQueue already uses optimized CAS internally
+                                // - Manual CAS is error-prone (ABA problem, memory ordering)
+                                //
+                                // We keep this example for learning purposes.
                                 error_counter.fetch_add(1, Ordering::Relaxed);
                             }
                         }
@@ -330,13 +352,12 @@ pub fn process_batch_persistence_queue(
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.84 — CAS Operations Exploration
+// PATSAGi Council Eternal Polish Notes v18.85 — CAS Use Cases Integrated
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.84: Added educational comments about CAS (Compare-And-Swap).
-// CAS is the fundamental building block of lock-free programming.
-// Both AtomicU64::fetch_add and crossbeam::SegQueue internally rely heavily on CAS loops.
-// Understanding CAS is key to writing correct and performant concurrent code.
+// We integrated a clear educational CAS example directly into the error path.
+// This shows both the high-level usage (fetch_add) and the low-level CAS pattern.
+// Production code stays on safe abstractions. Educational value is preserved.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.84 — CAS operations explored and documented.
+// End of server/src/council_session.rs v18.85 — CAS educational use case integrated.
