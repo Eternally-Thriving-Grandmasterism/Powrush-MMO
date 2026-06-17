@@ -1,8 +1,7 @@
 //! server/src/council_session.rs
-//! Powrush-MMO v18.46 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 2 Till Complete)
-//! Full multiplayer sync: phases, votes, blooms, participant attunement, persistence.
-//! Produces CouncilSessionUpdate, CollectiveEpiphanyBloom, CouncilParticipationUpdated for client consumption.
-//! Integrates with SharedReceptorBloomField, SafetyNet, and client ActionContext.
+//! Powrush-MMO v18.53 Eternal Polish — Server-Authoritative Council Mercy Trial Session Manager (Target 3 E2E Polish)
+//! Full multiplayer sync + SafetyNet integration for Council bloom events.
+//! When bloom activates, also emits EmitSafetyNetBroadcast so clients receive CouncilStateSync via SafetyNet layer.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
 
 use std::collections::HashMap;
@@ -12,6 +11,7 @@ use tracing::info;
 
 use crate::council_mercy_trial::{SharedReceptorBloomField, CouncilBloomSyncEvent};
 use crate::persistence_polish::PersistenceManager;
+use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 use shared::protocol::{CouncilSessionState, CouncilPhase, MercyTrialVote, CollectiveEpiphanyBloom, CouncilParticipationRecord};
 
 /// Represents one active Council Mercy Trial session (server authoritative).
@@ -19,7 +19,7 @@ use shared::protocol::{CouncilSessionState, CouncilPhase, MercyTrialVote, Collec
 pub struct CouncilSession {
     pub session_id: u64,
     pub phase: CouncilPhase,
-    pub participants: HashMap<u64, f32>, // player_id -> current attunement
+    pub participants: HashMap<u64, f32>,
     pub bloom_field: SharedReceptorBloomField,
     pub min_participants: u8,
     pub bloom_window_duration_ticks: u64,
@@ -27,7 +27,7 @@ pub struct CouncilSession {
     pub is_active: bool,
     pub bloom_activated: bool,
     pub current_proposal: Option<String>,
-    pub votes: HashMap<String, f32>, // proposal -> total mercy weight
+    pub votes: HashMap<String, f32>,
 }
 
 impl CouncilSession {
@@ -69,7 +69,8 @@ impl CouncilSession {
     }
 
     /// Server tick — updates collective bloom field and emits sync events.
-    pub fn tick(&mut self, current_tick: u64) -> Option<CouncilBloomSyncEvent> {
+    /// v18.53: Also emits EmitSafetyNetBroadcast on bloom activation for full E2E SafetyNet + Council path.
+    pub fn tick(&mut self, current_tick: u64, safety_net_writer: &mut EventWriter<EmitSafetyNetBroadcast>) -> Option<CouncilBloomSyncEvent> {
         if !self.is_active { return None; }
 
         let attunements: Vec<f32> = self.participants.values().cloned().collect();
@@ -78,7 +79,15 @@ impl CouncilSession {
         if bloom_triggered && self.bloom_field.council_mercy_seal && !self.bloom_activated {
             self.bloom_activated = true;
             self.phase = CouncilPhase::EpiphanyBloom;
-            info!("Council bloom activated | session={} | attunement={:.2}", self.session_id, self.bloom_field.collective_attunement_score);
+
+            // v18.53: Emit SafetyNet broadcast so clients receive CouncilStateSync via SafetyNet layer
+            safety_net_writer.send(EmitSafetyNetBroadcast {
+                player_id: 0, // broadcast to interested players
+                reason: "CouncilBloom".to_string(),
+                force_full_snapshot: false,
+            });
+
+            info!("Council bloom activated | session={} | attunement={:.2} | SafetyNet CouncilStateSync emitted", self.session_id, self.bloom_field.collective_attunement_score);
             return Some(CouncilBloomSyncEvent { session_id: self.session_id, field: self.bloom_field.clone(), trigger_reason: "bloom_activated".to_string() });
         }
 
@@ -97,7 +106,6 @@ impl CouncilSession {
         self.phase = CouncilPhase::Closed;
     }
 
-    /// Convert to protocol state for replication
     pub fn to_protocol_state(&self) -> CouncilSessionState {
         CouncilSessionState {
             session_id: self.session_id,
@@ -108,7 +116,7 @@ impl CouncilSession {
             mercy_scores: self.participants.clone(),
             vote_tallies: self.votes.clone(),
             bloom_intensity: self.bloom_field.collective_attunement_score,
-            time_remaining_ms: (self.bloom_window_duration_ticks.saturating_sub(0) * 16) as u64, // rough ms
+            time_remaining_ms: (self.bloom_window_duration_ticks.saturating_sub(0) * 16) as u64,
             collective_epiphany_count: if self.bloom_activated { 1 } else { 0 },
         }
     }
@@ -139,12 +147,12 @@ impl CouncilSessionManager {
         session_id
     }
 
-    pub fn tick_all(&mut self, current_tick: u64) -> Vec<CouncilBloomSyncEvent> {
+    pub fn tick_all(&mut self, current_tick: u64, mut safety_net_writer: EventWriter<EmitSafetyNetBroadcast>) -> Vec<CouncilBloomSyncEvent> {
         let mut events = Vec::new();
         let mut to_close = Vec::new();
 
         for (id, session) in self.sessions.iter_mut() {
-            if let Some(event) = session.tick(current_tick) {
+            if let Some(event) = session.tick(current_tick, &mut safety_net_writer) {
                 events.push(event);
             }
             if session.should_close(current_tick) {
@@ -160,14 +168,7 @@ impl CouncilSessionManager {
                     let collective = session.bloom_field.collective_attunement_score;
                     let participants = session.participants.keys().cloned().collect::<Vec<_>>();
                     let final_tick = current_tick;
-                    let protocol_record = CouncilParticipationRecord {
-                        player_id: 0, // placeholder, filled per player
-                        sessions_completed: 1,
-                        total_mercy_contributed: collective,
-                        epiphanies_triggered: if had_bloom { 1 } else { 0 },
-                        last_session_id: Some(id),
-                        cumulative_grace: collective,
-                    };
+
                     tokio::spawn(async move {
                         if let Ok(persistence_manager) = pm_clone.lock().await {
                             for player_id in participants {
@@ -215,13 +216,13 @@ impl CouncilSessionManager {
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.46 — Target 2 Till Complete
+// PATSAGi Council Eternal Polish Notes v18.53 — Target 3 E2E Happy Path Polish
 // ============================================================
 // Thunder locked in. yoi ⚡
-// server/src/council_session.rs v18.46: Full protocol integration (CouncilSessionState, phases, votes, blooms).
-// to_protocol_state() added for replication. Vote handling + phase transitions live.
-// Persistence recording enhanced. Ready for client consumption of richer Council updates.
-// Target 2 significantly closer to complete.
+// server/src/council_session.rs v18.53: SafetyNet integration added.
+// On bloom activation, EmitSafetyNetBroadcast with reason "CouncilBloom" is now emitted.
+// This completes the E2E path: Council bloom → SafetyNet CouncilStateSync → client RBEFlowDashboard + ActionContext.
+// Full happy path (Harvest → Epiphany → Council bloom → SafetyNet → Persistence) now structurally connected.
 // AG-SML v1.0 | Ra-Thor ONE Organism
 // ============================================================
-// End of server/src/council_session.rs v18.46 — Multiplayer Council sync strengthened.
+// End of server/src/council_session.rs v18.53 — E2E SafetyNet + Council bloom integration complete.
