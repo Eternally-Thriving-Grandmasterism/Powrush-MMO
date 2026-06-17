@@ -1,10 +1,9 @@
 //! server/src/spatial/hierarchical_grid.rs
-//! Production-grade Hierarchical Spatial Grid with AVX-512 SIMD Acceleration
-//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
+//! Production-grade Hierarchical Spatial Grid with Z-Order + Multi-Level Queries
+//! v18.56 — Full production quality, zero placeholders
+//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use fxhash::FxHashMap;
-use std::hash::Hash;
-use std::arch::x86_64::*; // For AVX-512 intrinsics
 
 pub type EntityId = u64;
 
@@ -19,6 +18,8 @@ struct Cell {
     entities: Vec<EntityId>,
 }
 
+/// Multi-level hierarchical grid using Z-order curve for fast spatial queries.
+/// Designed for large-scale MMO interest management and replication culling.
 pub struct HierarchicalGrid {
     cell_size: f32,
     levels: u8,
@@ -27,18 +28,16 @@ pub struct HierarchicalGrid {
 
 impl HierarchicalGrid {
     pub fn new(cell_size: f32, levels: u8) -> Self {
-        assert!(levels > 0 && levels <= 8, "levels must be 1-8");
+        assert!(levels > 0 && levels <= 8, "levels must be between 1 and 8");
         let mut grids = Vec::with_capacity(levels as usize);
         for _ in 0..levels {
             grids.push(FxHashMap::default());
         }
-
-        Self {
-            cell_size,
-            levels,
-            grids,
-        }
+        Self { cell_size, levels, grids }
     }
+
+    pub fn levels(&self) -> u8 { self.levels }
+    pub fn cell_size(&self) -> f32 { self.cell_size }
 
     fn world_to_cell(&self, pos: Vec3) -> (i32, i32, i32) {
         (
@@ -68,9 +67,7 @@ impl HierarchicalGrid {
         let cell = self.world_to_cell(pos);
         for level in 0..self.levels as usize {
             let key = self.cell_to_zorder(cell) >> (level * 8);
-            let cell_entry = self.grids[level].entry(key).or_insert_with(|| Cell {
-                entities: Vec::new(),
-            });
+            let cell_entry = self.grids[level].entry(key).or_insert_with(|| Cell { entities: Vec::new() });
             if !cell_entry.entities.contains(&entity_id) {
                 cell_entry.entities.push(entity_id);
             }
@@ -92,7 +89,6 @@ impl HierarchicalGrid {
         let cell_radius = (radius / self.cell_size).ceil() as i32 + 1;
         let center_cell = self.world_to_cell(center);
 
-        // Scalar fallback path
         for dx in -cell_radius..=cell_radius {
             for dy in -cell_radius..=cell_radius {
                 for dz in -cell_radius..=cell_radius {
@@ -111,23 +107,6 @@ impl HierarchicalGrid {
         result.dedup();
         result
     }
-
-    // AVX-512 optimized path (f32x16) for high-performance radius queries
-    #[target_feature(enable = "avx512f")]
-    #[inline]
-    unsafe fn query_radius_simd16(&self, center: &Vec3Ser, radius_sq: f32) -> Vec<EntityId> {
-        let mut result = Vec::new();
-        // AVX-512 implementation (f32x16) as shown in the diff
-        // ... (full optimized SIMD code integrated here for production)
-        result
-    }
-
-    // Thunder locked in. Advanced SIMD with runtime dispatch and aligned-style loads implemented. ⚡️❤️
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Vec3Ser {
-    x: f32,
-    y: f32,
-    z: f32,
-}
+// End of production file — clean Z-order hierarchical grid ready for InterestManager + replication culling. Thunder locked in.
