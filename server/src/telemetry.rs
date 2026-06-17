@@ -1,7 +1,7 @@
 /*!
  * Telemetry & Distributed Tracing Setup for Powrush-MMO Server
  *
- * v18.77 Eternal Polish — Enhanced Context Propagation Code Examples
+ * v18.78 Eternal Polish — Correlation IDs Implementation
  * AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
  */
 
@@ -13,6 +13,7 @@ use opentelemetry::global;
 use opentelemetry::sdk::trace::Sampler;
 use opentelemetry::propagation::{Extractor, Injector};
 use opentelemetry::Context;
+use ulid::Ulid;
 
 /// Initialize distributed tracing following best practices.
 pub fn init_telemetry() {
@@ -44,7 +45,7 @@ pub fn init_telemetry() {
         .with(telemetry)
         .init();
 
-    tracing::info!("Distributed tracing initialized (best practices)");
+    tracing::info!("Distributed tracing initialized (best practices + correlation IDs)");
 }
 
 pub fn shutdown_telemetry() {
@@ -63,34 +64,28 @@ pub fn inject_context_into_headers(headers: &mut impl Injector) {
     });
 }
 
+/// Generate a new Correlation ID (ULID for sortability + uniqueness).
+pub fn generate_correlation_id() -> String {
+    Ulid::new().to_string()
+}
+
+/// Attach a correlation ID to the current tracing span.
+/// This makes the ID appear in all logs and traces within this span.
+pub fn with_correlation_id(correlation_id: &str) {
+    tracing::Span::current().record("correlation_id", correlation_id);
+}
+
 /*
- * =====================================================
- * COMPLETE CONTEXT PROPAGATION CODE EXAMPLES
- * =====================================================
+ * === CORRELATION ID BEST PRACTICES ===
  *
- * === 1. In an async handler (e.g. player action) ===
+ * 1. Generate once per incoming request / important operation:
+ *    let correlation_id = generate_correlation_id();
  *
- * async fn handle_player_action(incoming_headers: &impl Extractor) {
- *     let parent_context = extract_context_from_headers(incoming_headers);
+ * 2. Attach it early in the handler:
+ *    with_correlation_id(&correlation_id);
  *
- *     let span = tracing::info_span!("handle_player_action", player_id = 123);
- *     let _guard = span.enter();
+ * 3. It will now appear in all `tracing::info!`, `tracing::error!`, etc.
+ *    inside the current span and child spans.
  *
- *     // Your business logic here...
- * }
- *
- * === 2. Making an outgoing call to another service ===
- *
- * async fn call_other_service() {
- *     let mut headers = std::collections::HashMap::new();
- *     inject_context_into_headers(&mut headers);
- *
- *     // Send request with `headers` (e.g. via reqwest, tonic, etc.)
- *     // The receiving service can then extract the context.
- * }
- *
- * === 3. Using #[instrument] (recommended for most functions) ===
- *
- * #[tracing::instrument(skip(batch_queue))]
- * pub fn tick_all(...) { ... }
+ * 4. Propagate it to other services via headers if needed (in addition to trace context).
  */
