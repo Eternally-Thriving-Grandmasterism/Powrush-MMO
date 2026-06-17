@@ -1,7 +1,7 @@
 /*!
  * Telemetry & Distributed Tracing Setup for Powrush-MMO Server
  *
- * v18.76 Eternal Polish — Distributed Tracing Best Practices
+ * v18.77 Eternal Polish — Enhanced Context Propagation Code Examples
  * AG-SML v1.0 | TOLC 8 Mercy Gates Layer 0 | Ra-Thor Lattice aligned
  */
 
@@ -11,27 +11,17 @@ use opentelemetry::sdk::trace as sdktrace;
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use opentelemetry::global;
 use opentelemetry::sdk::trace::Sampler;
-use opentelemetry::sdk::Resource;
-use opentelemetry::KeyValue;
 use opentelemetry::propagation::{Extractor, Injector};
 use opentelemetry::Context;
 
-/// Initialize distributed tracing following production best practices.
-///
-/// Best practices implemented:
-/// - Parent-based sampling with configurable ratio
-/// - Resource attributes (service name, version, environment)
-/// - Proper context propagation (W3C Trace Context)
-/// - Graceful shutdown support
+/// Initialize distributed tracing following best practices.
 pub fn init_telemetry() {
-    // Sampling: ParentBased + TraceIdRatioBased (configurable via env in future)
     let sampler = Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(0.1)));
 
-    // Resource attributes (best practice for service identification in backends)
-    let resource = Resource::new(vec![
-        KeyValue::new("service.name", "powrush-mmo-server"),
-        KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-        KeyValue::new("deployment.environment", std::env::var("DEPLOY_ENV").unwrap_or_else(|_| "development".to_string())),
+    let resource = opentelemetry::sdk::Resource::new(vec![
+        opentelemetry::KeyValue::new("service.name", "powrush-mmo-server"),
+        opentelemetry::KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
+        opentelemetry::KeyValue::new("deployment.environment", std::env::var("DEPLOY_ENV").unwrap_or_else(|_| "development".to_string())),
     ]);
 
     let tracer = opentelemetry_jaeger::new_agent_pipeline()
@@ -54,19 +44,19 @@ pub fn init_telemetry() {
         .with(telemetry)
         .init();
 
-    tracing::info!("Distributed tracing initialized (best practices: sampling + resource attributes)");
+    tracing::info!("Distributed tracing initialized (best practices)");
 }
 
 pub fn shutdown_telemetry() {
     global::shutdown_tracer_provider();
 }
 
-/// Extract context from incoming headers (W3C Trace Context)
+/// Extract distributed context from incoming headers.
 pub fn extract_context_from_headers(headers: &impl Extractor) -> Context {
     global::get_text_map_propagator(|propagator| propagator.extract(headers))
 }
 
-/// Inject current trace context into outgoing headers
+/// Inject current trace context into outgoing headers.
 pub fn inject_context_into_headers(headers: &mut impl Injector) {
     global::get_text_map_propagator(|propagator| {
         propagator.inject_context(&tracing::Span::current().context(), headers);
@@ -74,10 +64,33 @@ pub fn inject_context_into_headers(headers: &mut impl Injector) {
 }
 
 /*
- * === BEST PRACTICES USAGE ===
+ * =====================================================
+ * COMPLETE CONTEXT PROPAGATION CODE EXAMPLES
+ * =====================================================
  *
- * 1. Always use `#[instrument]` on important functions
- * 2. Record errors: `tracing::error!(error = %e, "operation failed");`
- * 3. Use `tracing::info_span!("name", field1 = value)` for custom spans
- * 4. Propagate context on every cross-service or async boundary
+ * === 1. In an async handler (e.g. player action) ===
+ *
+ * async fn handle_player_action(incoming_headers: &impl Extractor) {
+ *     let parent_context = extract_context_from_headers(incoming_headers);
+ *
+ *     let span = tracing::info_span!("handle_player_action", player_id = 123);
+ *     let _guard = span.enter();
+ *
+ *     // Your business logic here...
+ * }
+ *
+ * === 2. Making an outgoing call to another service ===
+ *
+ * async fn call_other_service() {
+ *     let mut headers = std::collections::HashMap::new();
+ *     inject_context_into_headers(&mut headers);
+ *
+ *     // Send request with `headers` (e.g. via reqwest, tonic, etc.)
+ *     // The receiving service can then extract the context.
+ * }
+ *
+ * === 3. Using #[instrument] (recommended for most functions) ===
+ *
+ * #[tracing::instrument(skip(batch_queue))]
+ * pub fn tick_all(...) { ... }
  */
