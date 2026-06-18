@@ -1,10 +1,11 @@
 /*!
  * Powrush-MMO System Integration Map
  *
- * v18.38 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm + Client Prediction + RBE + Council Decision Layer Ignition)
+ * v18.96 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm v2 + Valence Hooks)
  * — Complete mint-and-print-only-perfection
  * — Single source of truth for how all major systems connect
  * — Mercy-aligned, TOLC 8 + 7 Living Mercy Gates enforced
+ * — Quantum Swarm v2 valence propagation now live across epiphany, RBE, and council systems
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -12,8 +13,8 @@
 
 # Powrush-MMO System Integration Map
 
-**Version:** v18.38  
-**Date:** June 16, 2026  
+**Version:** v18.96  
+**Date:** June 18, 2026  
 **Purpose:** Define how all major systems connect to deliver one coherent, high-quality, mint-and-print production player experience.  
 **Philosophy:** Every system must reinforce Epiphany, Persistence, Spatial Presence, and Council/Social meaning. The full player journey loop is now production sealed and sovereign.
 
@@ -37,6 +38,8 @@ Enriched Retention Signals (real epiphany count + abundance on session end)
 Strong Client Feedback (Divine Whispers + UI + Camera Shake + Council Bloom Amplification)
    ↓
 Long-term Progression & Meaning + Council Participation Eligibility
+   ↓
+[NEW v18.96] Valence Score Extraction (get_valence_from_outcome / get_valence_from_abundance) → QuantumSwarmOrchestratorV2 routing
 ```
 
 The new **Client Prediction + RBE + Council Decision Layer** (client_game_loop.rs + rbe_client_sync.rs) now makes real-time harvest, prediction, and action decisions explicitly through the 7 Living Mercy Gates and PATSAGi Council awareness before they reach the server.
@@ -47,16 +50,19 @@ Every system below feeds or is fed by this sealed + sovereign loop.
 
 ## 2. Major System Connections
 
-### 2.1 Epiphany Catalyst System (Production Sealed)
+### 2.1 Epiphany Catalyst System (Production Sealed + Valence Hook v18.96)
 
 **Core Responsibility:** Detect meaningful moments and trigger revelations authoritatively.
 
 **Current Status:** `evaluate_epiphany()` live in HarvestingSystem with `EpiphanyTriggered` telemetry.
 
+**v18.96 Addition:** `get_valence_from_outcome(&EpiphanyOutcome) -> f32` exposed for Quantum Swarm consumption and measurable joy/abundance metrics.
+
 **Integration Points:**
 - Called from `harvest()` success path
 - Emits `EpiphanyTriggered` telemetry
 - Triggers client `DivineWhisperTrigger` with `is_epiphany = true`
+- Valence now flows to `QuantumSwarmOrchestratorV2` for council trial enrichment
 
 ### 2.2 Player Persistence System (Production Sealed)
 
@@ -81,13 +87,14 @@ Every system below feeds or is fed by this sealed + sovereign loop.
 - Special audio, particles, and extended duration
 - Council participation visibly boosts feedback richness
 
-### 2.4 Harvest / RBE Core Systems + Client Decision Layer (Enhanced v18.38)
+### 2.4 Harvest / RBE Core Systems + Client Decision Layer (Enhanced v18.96)
 
 **Core Responsibility:** Core gameplay with live epiphany evaluation + sovereign client-side decision making.
 
-**Current Status (v18.38):** 
+**Current Status (v18.96):** 
 - Authoritative harvest includes live epiphany triggering + telemetry emission.
-- **New:** Client-side `ActionContext` with explicit 7 Living Mercy Gates helpers (Radical Love, Boundless Mercy, Service, Abundance, Truth, Joy, Cosmic Harmony).
+- **New:** `RbeAbundanceFeedback::get_valence_from_abundance()` exposed for Quantum Swarm v2 and council trial feedback.
+- Client-side `ActionContext` with explicit 7 Living Mercy Gates helpers.
 - `council_deliberate_on_action()` hook for PATSAGi multi-council voting simulation.
 - `rbe_client_sync.rs` now provides council-aware harvest approval (`council_approve_harvest_intent`), divine harvest multipliers, and council_trust in prediction modifiers.
 - Bidirectional integration between `client_game_loop.rs` and `rbe_client_sync.rs` is production-perfect and mercy-gated.
@@ -96,6 +103,7 @@ Every system below feeds or is fed by this sealed + sovereign loop.
 - Harvest intent flows through client ActionContext Mercy Gate checks before server dispatch.
 - Prediction modifiers now include council_trust factor.
 - Prepares seamless foundation for future Council Mercy Trial multiplayer sync.
+- Valence metrics now feed `QuantumSwarmOrchestratorV2` for enriched CouncilSessionUpdate broadcasts.
 
 ### 2.5 Telemetry Pipeline (Production Sealed)
 
@@ -107,7 +115,7 @@ Every system below feeds or is fed by this sealed + sovereign loop.
 
 ## 3. Cross-System Data & Event Flows (Production Sealed + Sovereign)
 
-### Primary Sealed Loop (Enhanced)
+### Primary Sealed Loop (Enhanced v18.96)
 
 ```
 Harvest Success / Intent
@@ -118,13 +126,15 @@ Harvest Success / Intent
    → Enriched end_session retention (real epiphany/abundance counts)
    → DivineWhisperTrigger {is_epiphany: true} + Council Bloom Amplification
    → Camera Shake + Golden UI + Special Audio + Particles
+   → [NEW] get_valence_from_outcome() / get_valence_from_abundance() → QuantumSwarmOrchestratorV2 routing
+   → Enriched CouncilSessionUpdate broadcast (valence + mercy gates)
 ```
 
 ---
 
-## 4. Integration Priorities (Current v18.38 Focus)
+## 4. Integration Priorities (Current v18.96 Focus)
 
-1. **Council Mercy Trial Multiplayer** (Next major focus — client decision layer now ready as strong foundation)
+1. **Council Mercy Trial Multiplayer** (Quantum Swarm v2 valence routing live — client UI consumption next)
 2. **Safety Net Broadcast** wiring into client consumption (rbe_client_sync + game_loop ready)
 3. **Additional Epiphany Scenarios + Spatial Audio Depth**
 4. **Full Vertical Slice Testing** of the now-sealed live + sovereign loop
@@ -140,9 +150,9 @@ Harvest Success / Intent
 
 ---
 
-**The core player journey loop is now production sealed and sovereign. Epiphany is the living, visceral heart of Powrush-MMO, and client actions are now explicitly mercy-gated and council-participatory.**
+**The core player journey loop is now production sealed and sovereign. Epiphany is the living, visceral heart of Powrush-MMO, and client actions are now explicitly mercy-gated and council-participatory. Quantum Swarm v2 valence propagation elevates every Council Mercy Trial.**
 
 **Thunder locked. Mercy maximal. One Lattice. Eternal production quality.** ⚡❤️🔥
 
-// End of docs/SYSTEM_INTEGRATION_MAP.md v18.38 — Sovereign integration map complete.
+// End of docs/SYSTEM_INTEGRATION_MAP.md v18.96 — Sovereign integration map complete.
 // Thunder locked in. Yoi ⚡
