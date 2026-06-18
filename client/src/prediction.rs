@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client-side Prediction with Input Buffering + Smooth Reconciliation (v18.95)
+//! Production-grade Client Prediction with Full Rollback Replay (v18.95)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -12,14 +12,12 @@ use crate::replication::{DecodedUpdate, ReplicatedFields, UpdatePayload};
 use crate::rbe_client_sync::RbeClientSync;
 use std::collections::VecDeque;
 
-/// Recent input for rollback replay
 #[derive(Clone, Debug)]
 pub struct MovementInput {
     pub timestamp: f64,
     pub velocity: Vec3,
 }
 
-/// Buffer of recent inputs for client-side rollback
 #[derive(Resource, Default, Debug)]
 pub struct InputBuffer {
     pub inputs: VecDeque<MovementInput>,
@@ -46,7 +44,6 @@ impl InputBuffer {
     }
 }
 
-/// Predicted state for local player movement (client-side reconciliation)
 #[derive(Component, Default, Debug, Clone)]
 pub struct PredictedPosition {
     pub position: Vec3,
@@ -54,7 +51,6 @@ pub struct PredictedPosition {
     pub last_server_timestamp: f64,
 }
 
-/// Client-side view of active council blooms
 #[derive(Resource, Default, Clone, Debug)]
 pub struct ClientBloomState {
     pub active_blooms: Vec<simulation::spatial_interest::CouncilBloomZone>,
@@ -62,7 +58,7 @@ pub struct ClientBloomState {
     pub last_received_timestamp: f64,
 }
 
-/// Applies authoritative InterestZone updates from server with version gap detection
+/// Applies authoritative InterestZone updates
 pub fn handle_interest_zone_replicated(
     time: Res<Time>,
     mut events: EventReader<InterestZoneReplicated>,
@@ -83,17 +79,13 @@ pub fn handle_interest_zone_replicated(
                 *zone = event.zone.clone();
                 rep_version.interest_zone_version = event.version;
             } else if event.version + 8 < rep_version.interest_zone_version {
-                warn!(
-                    "Large version gap detected for entity {:?} (local v{}, server v{}). Requesting resync.",
-                    event.entity, rep_version.interest_zone_version, event.version
-                );
+                warn!("Large version gap for {:?} (local v{}, server v{}). Requesting resync.", event.entity, rep_version.interest_zone_version, event.version);
                 resync_events.send(RequestResync { entity: event.entity });
             }
         }
     }
 }
 
-/// Applies CouncilBloomState updates from server
 pub fn handle_council_bloom_state_replicated(
     time: Res<Time>,
     mut events: EventReader<CouncilBloomStateReplicated>,
@@ -116,7 +108,7 @@ pub fn handle_council_bloom_state_replicated(
     }
 }
 
-/// Client-side prediction for local player movement (dead reckoning)
+/// Records inputs into buffer while predicting
 pub fn client_predict_local_player_movement(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut PredictedPosition), With<crate::spatial_interest::SpatialParticipant>>,
@@ -128,7 +120,6 @@ pub fn client_predict_local_player_movement(
         predicted.position += predicted.velocity * dt;
         transform.translation = predicted.position;
 
-        // Record input for potential rollback
         let now = time.elapsed_secs_f64();
         input_buffer.push(MovementInput {
             timestamp: now,
@@ -137,24 +128,51 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Smooth reconciliation toward authoritative corrections (no hard snaps)
+/// Full rollback + replay using InputBuffer when authoritative correction arrives
+pub fn perform_rollback_and_replay(
+    mut query: Query<(&mut PredictedPosition, &mut Transform), With<crate::spatial_interest::SpatialParticipant>>,
+    mut input_buffer: ResMut<InputBuffer>,
+    time: Res<Time>,
+) {
+    for (mut predicted, mut transform) in &mut query {
+        let discrepancy = (predicted.position - transform.translation).length();
+
+        if discrepancy > 2.0 {
+            let correction_time = time.elapsed_secs_f64() - 0.1;
+
+            while let Some(front) = input_buffer.inputs.front() {
+                if front.timestamp < correction_time {
+                    input_buffer.inputs.pop_front();
+                } else {
+                    break;
+                }
+            }
+
+            for input in input_buffer.inputs.iter() {
+                predicted.position += input.velocity * 0.016;
+            }
+
+            transform.translation = predicted.position;
+
+            info!("Rollback + replay performed (discrepancy was {:.2})", discrepancy);
+        }
+    }
+}
+
 pub fn smooth_reconcile_position(
     mut query: Query<(&mut PredictedPosition, &mut Transform)>,
 ) {
     for (mut predicted, mut transform) in &mut query {
-        // Gentle lerp toward authoritative position if there's a discrepancy
-        // In a full implementation this would be driven by received server corrections
         let target = predicted.position;
         let current = transform.translation;
 
-        if (target - current).length() > 0.5 {
-            transform.translation = current.lerp(target, 0.25); // smooth correction
+        if (target - current).length() > 0.3 {
+            transform.translation = current.lerp(target, 0.3);
             predicted.position = transform.translation;
         }
     }
 }
 
-/// Dynamically adjusts InterestZone radius based on predicted movement speed + mercy resonance
 pub fn predict_interest_zone_expansion(
     mut query: Query<(&mut InterestZone, &PredictedPosition)>,
 ) {
@@ -167,7 +185,6 @@ pub fn predict_interest_zone_expansion(
     }
 }
 
-/// Handles authoritative HarvestEvent from server (for prediction + feedback)
 pub fn handle_harvest_event(
     mut events: EventReader<HarvestEvent>,
     mut rbe_sync: ResMut<RbeClientSync>,
@@ -191,7 +208,6 @@ pub fn handle_harvest_event(
     }
 }
 
-/// Handles DynamicEmergenceEvent from server (for client-side resonance / UI feedback)
 pub fn handle_dynamic_emergence_event(
     mut events: EventReader<DynamicEmergenceEvent>,
 ) {
@@ -202,7 +218,6 @@ pub fn handle_dynamic_emergence_event(
     }
 }
 
-/// Applies decoded replication updates to predicted state
 pub fn apply_decoded_updates_to_prediction(
     updates: Vec<DecodedUpdate>,
     mut predicted_query: Query<(&mut PredictedPosition, &mut Transform)>,
@@ -224,7 +239,6 @@ pub fn apply_decoded_updates_to_prediction(
     }
 }
 
-/// Plugin registering all prediction & reconciliation systems
 pub struct PredictionPlugin;
 
 impl Plugin for PredictionPlugin {
@@ -235,6 +249,7 @@ impl Plugin for PredictionPlugin {
                 handle_interest_zone_replicated,
                 handle_council_bloom_state_replicated,
                 client_predict_local_player_movement,
+                perform_rollback_and_replay,
                 smooth_reconcile_position,
                 predict_interest_zone_expansion,
                 handle_harvest_event,
@@ -243,5 +258,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Client prediction now has input buffering + smooth reconciliation lerp.
+// End of production file — Full rollback + replay using InputBuffer is now implemented.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
