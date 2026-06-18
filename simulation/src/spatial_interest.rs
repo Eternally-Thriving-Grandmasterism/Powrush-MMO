@@ -175,6 +175,7 @@ pub struct InterestManager {
     pub council_blooms: Vec<CouncilBloomZone>,
     pub recently_changed_zones: Vec<InterestZoneReplicated>,
     previous_zones: HashMap<u64, InterestZone>,
+    pub last_interest_dirty_version: u64,
 }
 
 impl Default for InterestManager {
@@ -183,6 +184,7 @@ impl Default for InterestManager {
             council_blooms: Vec::with_capacity(DEFAULT_INTEREST_MANAGER_BLOOM_CAPACITY),
             recently_changed_zones: Vec::new(),
             previous_zones: HashMap::new(),
+            last_interest_dirty_version: 0,
         }
     }
 }
@@ -254,7 +256,7 @@ impl Default for SpatialQueryBuffer {
 }
 
 // ============================================================
-// SPATIAL HASH with dirty version for interest invalidation
+// SPATIAL HASH with dirty version
 // ============================================================
 
 #[derive(Resource)]
@@ -262,7 +264,6 @@ pub struct SpatialHash {
     pub cell_size: f32,
     cells: HashMap<IVec2, CellEntities>,
     entity_locations: HashMap<Entity, IVec2>,
-    /// Incremented when interest zones change significantly (for dirty cell invalidation)
     pub interest_dirty_version: u64,
 }
 
@@ -286,7 +287,6 @@ impl SpatialHash {
         (expected_query_radius * 0.7).clamp(16.0, 256.0)
     }
 
-    /// Called when interest zones change to invalidate cached spatial queries
     pub fn mark_interest_dirty(&mut self) {
         self.interest_dirty_version = self.interest_dirty_version.wrapping_add(1);
     }
@@ -414,12 +414,23 @@ pub fn update_interest_zones_system(
     }
 }
 
+/// Council influence propagation now respects the spatial hash dirty version.
+/// Only performs expensive spatial queries when interest data has actually changed
+/// or when there are active council blooms.
 pub fn propagate_council_influence_system(
     mut interest_manager: ResMut<InterestManager>,
     spatial_hash: Res<SpatialHash>,
     mut buffer: ResMut<SpatialQueryBuffer>,
     mut interest_query: Query<(&mut InterestZone, &Transform)>,
 ) {
+    // Skip expensive work if nothing has changed and there are no active blooms
+    let dirty_version = spatial_hash.interest_dirty_version;
+    if dirty_version == interest_manager.last_interest_dirty_version && interest_manager.council_blooms.is_empty() {
+        return;
+    }
+
+    interest_manager.last_interest_dirty_version = dirty_version;
+
     if interest_manager.council_blooms.is_empty() {
         for (mut zone, _transform) in &mut interest_query {
             zone.council_boost = zone.council_boost.lerp(0.0, 0.1);
@@ -478,8 +489,6 @@ pub fn smooth_interest_zone_correction_system(
     }
 }
 
-/// Marks SpatialHash as dirty when interest zones change significantly.
-/// This allows downstream systems to know when spatial queries may need re-evaluation.
 pub fn mark_spatial_hash_dirty_on_interest_change(
     mut events: EventReader<InterestZoneReplicated>,
     mut spatial_hash: ResMut<SpatialHash>,
@@ -498,4 +507,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. SpatialHash now has interest_dirty_version and is marked dirty on InterestZone changes.
+// Thunder locked. propagate_council_influence_system now uses the dirty version for early exit.
