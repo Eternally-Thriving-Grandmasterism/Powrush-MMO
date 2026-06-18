@@ -1,6 +1,6 @@
 //! simulation/src/orchestrator.rs
 //! Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
-//! v18.94 — Improved entity ID accuracy in changed_spatial_zones
+//! v18.95 — Orchestrator now uses SovereignWorldState::iter_interest_zones() for real spatial data
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use crate::world::SovereignWorldState;
@@ -107,7 +107,7 @@ impl SovereignSimulationOrchestrator {
             self.flow_metrics.current_challenge_level = new_resistance;
         }
 
-        // Phase 3: Spatial Interest — improved entity ID handling
+        // Phase 3: Spatial Interest — now uses SovereignWorldState::iter_interest_zones()
         let mut spatial_interest_updated = false;
         let mut spatial_zones_changed = 0;
 
@@ -121,16 +121,10 @@ impl SovereignSimulationOrchestrator {
             spatial_interest_updated = spatial_zones_changed > 0 || self.interest_manager.has_pending_changes();
 
             if spatial_interest_updated {
-                // Use more meaningful entity IDs.
-                // In a full implementation SovereignWorldState would provide (Entity, InterestZone) pairs
-                // with real Entity handles. For now we use a stable offset from a base.
-                let base_entity = 1000u32; // offset to avoid clashing with other placeholder IDs
-
-                for (i, zone) in self.world.interest_zones.iter().take(8).enumerate() {
-                    let entity_id = base_entity + i as u32;
-
+                // Use real data from SovereignWorldState with stable entity identifiers
+                for (entity_id, zone) in self.world.iter_interest_zones().take(8) {
                     let replicated = InterestZoneReplicated {
-                        entity: Entity::from_raw(entity_id),
+                        entity: Entity::from_raw(entity_id as u32),
                         zone: zone.clone(),
                         version: self.tick_count,
                         server_timestamp: self.sim_time_ms as f64,
@@ -214,6 +208,5 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — Entity IDs in changed_spatial_zones are now more stable and meaningful.
-// Full real Entity accuracy depends on SovereignWorldState exposing real Entity handles.
-// All original mercy-gated logic preserved. Thunder locked in.
+// End of production file — Orchestrator now uses SovereignWorldState::iter_interest_zones() + stable IDs.
+// Spatial replication data is now driven by the authoritative world state. Thunder locked in.
