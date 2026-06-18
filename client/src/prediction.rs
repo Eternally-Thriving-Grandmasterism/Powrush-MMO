@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction with Advanced Rollback (Velocity Correction + Visual Indicators) v18.95
+//! Production-grade Client Prediction + Visual Rollback + Harvest/Emergence VFX (v18.95)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -22,7 +22,7 @@ pub struct MovementInput {
 pub struct RollbackConfig {
     pub discrepancy_threshold: f32,
     pub max_rollback_age_seconds: f64,
-    pub velocity_correction_weight: f32, // how strongly to blend velocity on correction
+    pub velocity_correction_weight: f32,
 }
 
 impl Default for RollbackConfig {
@@ -61,7 +61,7 @@ impl InputBuffer {
     }
 }
 
-/// Optional visual indicator that a rollback just occurred
+/// Visual indicator component for rollback events
 #[derive(Component, Debug, Default)]
 pub struct RollbackVisualIndicator {
     pub active_until: f64,
@@ -150,7 +150,7 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Advanced rollback with velocity correction + visual indicator trigger
+/// Advanced rollback with velocity correction + triggers visual indicator
 pub fn perform_rollback_and_replay(
     mut query: Query<(&mut PredictedPosition, &mut Transform, Option<&mut RollbackVisualIndicator>), With<crate::spatial_interest::SpatialParticipant>>,
     mut input_buffer: ResMut<InputBuffer>,
@@ -189,27 +189,34 @@ pub fn perform_rollback_and_replay(
             transform.translation = predicted.position;
 
             if let Some(indicator) = &mut maybe_indicator {
-                indicator.active_until = now + 0.6;
-                indicator.intensity = (discrepancy / 4.0).clamp(0.3, 1.0);
+                indicator.active_until = now + 0.7;
+                indicator.intensity = (discrepancy / 3.5).clamp(0.4, 1.0);
             }
 
-            info!("Advanced rollback+replay | discrepancy={:.2} | inputs={}", discrepancy, input_buffer.inputs.len());
+            info!("Rollback+replay | discrepancy={:.2}", discrepancy);
         }
     }
 }
 
+/// Visual rollback indicator (color flash + scale pulse)
 pub fn update_rollback_visual_indicator(
     time: Res<Time>,
-    mut query: Query<(&mut RollbackVisualIndicator, &mut Sprite)>,
+    mut query: Query<(&mut RollbackVisualIndicator, &mut Sprite, &mut Transform)>,
 ) {
     let now = time.elapsed_secs_f64();
 
-    for (mut indicator, mut sprite) in &mut query {
+    for (mut indicator, mut sprite, mut transform) in &mut query {
         if now < indicator.active_until {
-            let t = ((indicator.active_until - now) / 0.6) as f32;
-            sprite.color = Color::srgb(1.0, 0.3 + t * 0.5, 0.3 + t * 0.5);
+            let remaining = (indicator.active_until - now) / 0.7;
+            let flash = (remaining * 3.0).sin().abs() * indicator.intensity;
+
+            sprite.color = Color::srgb(1.0, 0.25 + flash * 0.5, 0.35 + flash * 0.4);
+
+            let scale_pulse = 1.0 + flash * 0.15;
+            transform.scale = Vec3::splat(scale_pulse);
         } else {
             sprite.color = Color::WHITE;
+            transform.scale = Vec3::ONE;
         }
     }
 }
@@ -240,25 +247,58 @@ pub fn predict_interest_zone_expansion(
     }
 }
 
+#[derive(Component, Debug, Default)]
+pub struct HarvestEpiphanyVisual {
+    pub lifetime: f32,
+    pub max_lifetime: f32,
+}
+
 pub fn handle_harvest_event(
     mut events: EventReader<HarvestEvent>,
-    mut rbe_sync: ResMut<RbeClientSync>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    query: Query<&Transform, With<crate::spatial_interest::SpatialParticipant>>,
 ) {
     for event in events.read() {
-        if event.player_id != 0 {
-            if event.epiphany_triggered {
-                rbe_sync.set_latest_harvest_result(
-                    crate::rbe_client_sync::RbeHarvestResult::Epiphany(event.amount)
-                );
-            } else if event.sustainable {
-                rbe_sync.set_latest_harvest_result(
-                    crate::rbe_client_sync::RbeHarvestResult::Success(event.amount)
-                );
-            } else {
-                rbe_sync.set_latest_harvest_result(
-                    crate::rbe_client_sync::RbeHarvestResult::Failed("Unsustainable harvest".to_string())
-                );
+        if event.epiphany_triggered {
+            if let Ok(player_transform) = query.get_single() {
+                let color = Color::srgb(0.6, 0.9, 1.0);
+
+                commands.spawn((
+                    Mesh2d(meshes.add(Circle::new(28.0))),
+                    MeshMaterial2d(materials.add(ColorMaterial::from(color))),
+                    Transform::from_translation(player_transform.translation + Vec3::new(0.0, 40.0, 0.0)),
+                    HarvestEpiphanyVisual {
+                        lifetime: 0.0,
+                        max_lifetime: 1.8,
+                    },
+                ));
             }
+        }
+    }
+}
+
+pub fn update_harvest_epiphany_visuals(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut HarvestEpiphanyVisual, &mut Transform, &mut MeshMaterial2d<ColorMaterial>)>,
+) {
+    let dt = time.delta_secs();
+
+    for (entity, mut visual, mut transform, mut material) in &mut query {
+        visual.lifetime += dt;
+
+        let t = visual.lifetime / visual.max_lifetime;
+
+        if t >= 1.0 {
+            commands.entity(entity).despawn();
+        } else {
+            let scale = 1.0 + t * 2.8;
+            transform.scale = Vec3::splat(scale);
+
+            let alpha = (1.0 - t).powf(0.7);
+            material.0.color = Color::srgba(0.6, 0.9, 1.0, alpha);
         }
     }
 }
@@ -310,10 +350,11 @@ impl Plugin for PredictionPlugin {
                 smooth_reconcile_position,
                 predict_interest_zone_expansion,
                 handle_harvest_event,
+                update_harvest_epiphany_visuals,
                 handle_dynamic_emergence_event,
             ));
     }
 }
 
-// End of production file — Rollback now includes velocity correction + visual indicator support.
+// End of production file — Rollback VFX + Harvest Epiphany visuals implemented.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
