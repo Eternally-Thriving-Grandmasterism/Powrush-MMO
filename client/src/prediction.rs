@@ -38,7 +38,6 @@ pub fn play_spatial_audio_system(
     for event in events.read() {
         match event {
             AudioTriggerEvent::RollbackWhoosh { intensity } => {
-                // Rollback whoosh can stay non-spatial or positioned at player
                 let handle: Handle<AudioSource> = asset_server.load("audio/rollback_whoosh.ogg");
                 audio.play(handle).with_volume(*intensity.clamp(0.3, 1.0));
             }
@@ -46,7 +45,6 @@ pub fn play_spatial_audio_system(
                 let handle: Handle<AudioSource> = asset_server.load("audio/epiphany_bloom.ogg");
                 let pos = position.unwrap_or(Vec3::ZERO);
 
-                // Spawn a short-lived spatial audio entity
                 commands.spawn((
                     AudioBundle {
                         source: handle,
@@ -159,6 +157,10 @@ pub struct ClientBloomState {
     pub last_received_timestamp: f64,
 }
 
+// ============================================================
+// REPLICATION & INTEREST HANDLERS
+// ============================================================
+
 pub fn handle_interest_zone_replicated(
     time: Res<Time>,
     mut events: EventReader<InterestZoneReplicated>,
@@ -207,6 +209,10 @@ pub fn handle_council_bloom_state_replicated(
         }
     }
 }
+
+// ============================================================
+// CORE PREDICTION + ROLLBACK
+// ============================================================
 
 pub fn client_predict_local_player_movement(
     time: Res<Time>,
@@ -321,6 +327,10 @@ pub fn predict_interest_zone_expansion(
     }
 }
 
+// ============================================================
+// VISUALS (Harvest + Emergence)
+// ============================================================
+
 #[derive(Component, Debug, Default)]
 pub struct HarvestEpiphanyVisual {
     pub lifetime: f32,
@@ -423,6 +433,10 @@ pub fn apply_decoded_updates_to_prediction(
     }
 }
 
+// ============================================================
+// PLUGIN + SYSTEM REGISTRATION (Refactored for clarity)
+// ============================================================
+
 pub struct PredictionPlugin;
 
 impl Plugin for PredictionPlugin {
@@ -431,22 +445,32 @@ impl Plugin for PredictionPlugin {
             .init_resource::<InputBuffer>()
             .init_resource::<RollbackConfig>()
             .add_event::<AudioTriggerEvent>()
+            // Replication & Interest handlers
             .add_systems(Update, (
                 handle_interest_zone_replicated,
                 handle_council_bloom_state_replicated,
+            ))
+            // Core prediction + rollback (rollback should run after prediction movement)
+            .add_systems(Update, (
                 client_predict_local_player_movement,
                 perform_rollback_and_replay,
                 update_rollback_visual_indicator,
                 smooth_reconcile_position,
+            ).chain())
+            // Visuals
+            .add_systems(Update, (
                 predict_interest_zone_expansion,
                 handle_harvest_event,
                 update_harvest_epiphany_visuals,
                 handle_dynamic_emergence_event,
+            ))
+            // Spatial Audio (spawn first, then update lifetimes)
+            .add_systems(Update, (
                 play_spatial_audio_system,
                 update_spatial_audio_sources,
-            ));
+            ).chain());
     }
 }
 
-// End of production file — 3D Spatial Audio implemented for epiphany and emergence events.
+// End of production file — Refactored system registration for clarity and logical grouping.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
