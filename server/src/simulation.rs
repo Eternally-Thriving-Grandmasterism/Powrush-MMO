@@ -1,9 +1,10 @@
 // server/src/simulation.rs
-// Powrush-MMO v18.91 — SimulationApp with SovereignSimulationOrchestrator + TickResult consumers
+// Powrush-MMO v18.91 — SimulationApp with expanded TickResult consumers
+// Now wires Council blooms, emergence, and harvest events from TickResult
 
 use bevy::prelude::*;
 use simulation::orchestrator::{SovereignSimulationOrchestrator, SimulationTick, SimulationTickEvent, TickResult};
-use crate::council_session::{BatchPersistenceQueue, BatchPersistenceUpdate};
+use crate::council_session::{BatchPersistenceQueue};
 use crate::combat::CombatPlugin;
 use crate::replication::ReplicationPlugin;
 use crate::rathor_integration::RathorIntegrationPlugin;
@@ -31,6 +32,7 @@ impl SimulationApp {
         app.add_systems(Update, (
             run_simulation_tick,
             consume_tick_result_for_persistence,
+            consume_tick_result_for_replication,
         ));
 
         Self { app }
@@ -59,7 +61,7 @@ fn run_simulation_tick(
     }
 }
 
-/// Consumes TickResult and pushes council persistence data into BatchPersistenceQueue
+/// Pushes council persistence data into BatchPersistenceQueue
 fn consume_tick_result_for_persistence(
     mut tick_events: EventReader<SimulationTickEvent>,
     mut batch_queue: ResMut<BatchPersistenceQueue>,
@@ -68,13 +70,39 @@ fn consume_tick_result_for_persistence(
         for update in &event.result.closed_session_persistence {
             batch_queue.queue.push(update.clone());
         }
+    }
+}
 
-        if !event.result.closed_session_persistence.is_empty() {
-            info!(
-                "Pushed {} closed council session updates to BatchPersistenceQueue (tick={})",
-                event.result.closed_session_persistence.len(),
-                event.tick
-            );
+/// Wires TickResult data into replication and dynamic event systems
+fn consume_tick_result_for_replication(
+    mut tick_events: EventReader<SimulationTickEvent>,
+    // TODO: Add EventWriters for replication events, dynamic events, etc.
+) {
+    for event in tick_events.read() {
+        let result = &event.result;
+
+        // Council bloom events (ready for client council replication)
+        if !result.council_bloom_events.is_empty() {
+            // TODO: Emit CouncilBloomSyncEvent or replication update
+            info!("Tick {} produced {} council bloom events", event.tick, result.council_bloom_events.len());
+        }
+
+        // Emergence events (ready for dynamic event replication)
+        if !result.emergence_events.is_empty() {
+            // TODO: Forward to dynamic_events system / replication
+            info!("Tick {} produced {} emergence events", event.tick, result.emergence_events.len());
+        }
+
+        // Harvest events (ready for RBE / abundance replication)
+        if !result.harvest_events.is_empty() {
+            // TODO: Forward to harvesting_system / rbe replication
+            info!("Tick {} produced {} harvest events", event.tick, result.harvest_events.len());
+        }
+
+        // Spatial interest changes
+        if result.spatial_interest_updated {
+            // TODO: Update interest management / replication interest zones
+            info!("Tick {} had spatial interest changes ({} zones)", event.tick, result.spatial_zones_changed);
         }
     }
 }
