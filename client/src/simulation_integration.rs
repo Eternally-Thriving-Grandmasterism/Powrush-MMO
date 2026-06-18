@@ -2,9 +2,9 @@
  * Simulation Integration for Powrush-MMO
  *
  * Bridges SovereignSimulationOrchestrator and Council systems to rich client visuals.
- * Includes debug system + minimal Council Trial HUD for rapid testing and embodiment.
+ * Includes polished minimal Council Trial UI for high-quality testing and embodiment.
  *
- * v18.95 — Minimal Council Trial Debug HUD added.
+ * v18.95 — Polished Council Trial UI layer added.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -87,14 +87,14 @@ impl Plugin for SimulationIntegrationPlugin {
             .add_event::<CouncilSessionUpdate>()
             .add_event::<CouncilTrialResolved>()
             .add_systems(Startup, setup_simulation_integration)
-            .add_systems(Startup, spawn_council_debug_hud)
+            .add_systems(Startup, spawn_council_ui_panel)
             .add_systems(Update, (
                 apply_council_bloom_sync,
                 handle_harvest_event_visuals,
                 handle_dynamic_emergence_event_visuals,
                 handle_council_trial_resolved,
                 debug_council_trial_system,
-                update_council_debug_hud,
+                update_council_ui_panel,
                 update_rbe_flow_visuals,
                 update_archetype_evolution_visuals,
                 rbe_live_injection_system,
@@ -106,59 +106,161 @@ impl Plugin for SimulationIntegrationPlugin {
 }
 
 pub fn setup_simulation_integration(mut commands: Commands) {
-    info!("Simulation Integration online — TickResult + CouncilTrialResolved + Debug HUD (v18.95)");
+    info!("Simulation Integration online — Polished Council UI layer active (v18.95)");
 }
 
 // ============================================================================
-// Council Debug HUD (Minimal Status Display)
+// Polished Minimal Council Trial UI Panel
 // ============================================================================
 
 #[derive(Component)]
-pub struct CouncilDebugHud;
+pub struct CouncilUiPanel;
 
-fn spawn_council_debug_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn((
-        Text::new("Council Trial: Inactive"),
-        TextFont {
-            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-            font_size: 22.0,
-            ..default()
-        },
-        TextColor(Color::srgb(0.6, 0.95, 1.0)),
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(80.0),
-            left: Val::Px(20.0),
-            ..default()
-        },
-        CouncilDebugHud,
-    ));
+#[derive(Component)]
+pub struct CouncilPhaseText;
+
+#[derive(Component)]
+pub struct CouncilAttunementBar;
+
+#[derive(Component)]
+pub struct CouncilVotesText;
+
+fn spawn_council_ui_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands
+        .spawn((
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(60.0),
+                left: Val::Px(20.0),
+                width: Val::Px(320.0),
+                padding: UiRect::all(Val::Px(12.0)),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(8.0),
+                border: UiRect::all(Val::Px(2.0)),
+                ..default()
+            },
+            BorderColor(Color::srgb(0.4, 0.75, 0.95)),
+            BackgroundColor(Color::srgba(0.05, 0.08, 0.12, 0.92)),
+            CouncilUiPanel,
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("Council Mercy Trial"),
+                TextFont {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 18.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.7, 0.92, 1.0)),
+            ));
+
+            parent.spawn((
+                Text::new("Phase: Lobby"),
+                TextFont {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                CouncilPhaseText,
+            ));
+
+            parent
+                .spawn(Node {
+                    width: Val::Percent(100.0),
+                    height: Val::Px(18.0),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(8.0),
+                    ..default()
+                })
+                .with_children(|bar_parent| {
+                    bar_parent.spawn((
+                        Text::new("Attunement"),
+                        TextFont {
+                            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                            font_size: 13.0,
+                            ..default()
+                        },
+                        TextColor(Color::srgb(0.75, 0.9, 1.0)),
+                    ));
+
+                    bar_parent
+                        .spawn((
+                            Node {
+                                width: Val::Px(160.0),
+                                height: Val::Px(12.0),
+                                border: UiRect::all(Val::Px(1.0)),
+                                ..default()
+                            },
+                            BorderColor(Color::srgb(0.3, 0.6, 0.85)),
+                            BackgroundColor(Color::srgb(0.1, 0.15, 0.2)),
+                        ))
+                        .with_children(|inner| {
+                            inner.spawn((
+                                Node {
+                                    width: Val::Percent(45.0),
+                                    height: Val::Percent(100.0),
+                                    ..default()
+                                },
+                                BackgroundColor(Color::srgb(0.4, 0.85, 1.0)),
+                                CouncilAttunementBar,
+                            ));
+                        });
+                });
+
+            parent.spawn((
+                Text::new("Votes: 0"),
+                TextFont {
+                    font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+                    font_size: 15.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.85, 0.95, 1.0)),
+                CouncilVotesText,
+            ));
+        });
 }
 
-fn update_council_debug_hud(
+fn update_council_ui_panel(
     debug_trial: Res<DebugCouncilTrial>,
-    mut query: Query<&mut Text, With<CouncilDebugHud>>,
+    mut phase_query: Query<&mut Text, With<CouncilPhaseText>>,
+    mut attunement_bar_query: Query<&mut Node, With<CouncilAttunementBar>>,
+    mut votes_query: Query<&mut Text, With<CouncilVotesText>>,
+    mut panel_query: Query<&mut Visibility, With<CouncilUiPanel>>,
 ) {
-    for mut text in query.iter_mut() {
-        if debug_trial.active {
-            let phase_str = match debug_trial.phase {
-                CouncilMercyTrialPhase::Lobby => "Lobby",
-                CouncilMercyTrialPhase::Attunement => "Attunement",
-                CouncilMercyTrialPhase::Deliberation => "Deliberation",
-                CouncilMercyTrialPhase::Voting => "Voting",
-                CouncilMercyTrialPhase::Resolution => "Resolution",
-                CouncilMercyTrialPhase::Completed => "Completed",
-            };
+    let is_active = debug_trial.active;
 
-            text.0 = format!(
-                "Council Trial Active | Phase: {} | Attunement: {:.0}% | Votes: {}",
-                phase_str,
-                debug_trial.attunement * 100.0,
-                debug_trial.votes
-            );
+    for mut visibility in panel_query.iter_mut() {
+        *visibility = if is_active {
+            Visibility::Visible
         } else {
-            text.0 = "Council Trial: Inactive (F8 to start)".to_string();
-        }
+            Visibility::Hidden
+        };
+    }
+
+    if !is_active {
+        return;
+    }
+
+    for mut text in phase_query.iter_mut() {
+        let phase_str = match debug_trial.phase {
+            CouncilMercyTrialPhase::Lobby => "Lobby",
+            CouncilMercyTrialPhase::Attunement => "Attunement",
+            CouncilMercyTrialPhase::Deliberation => "Deliberation",
+            CouncilMercyTrialPhase::Voting => "Voting",
+            CouncilMercyTrialPhase::Resolution => "Resolution",
+            CouncilMercyTrialPhase::Completed => "Completed",
+        };
+        text.0 = format!("Phase: {}", phase_str);
+    }
+
+    for mut bar in attunement_bar_query.iter_mut() {
+        bar.width = Val::Percent((debug_trial.attunement * 100.0).clamp(0.0, 100.0));
+    }
+
+    for mut text in votes_query.iter_mut() {
+        text.0 = format!("Votes: {}", debug_trial.votes);
     }
 }
 
@@ -411,6 +513,5 @@ fn update_gltf_animations(
     }
 }
 
-// End of production file — Minimal Council Trial Debug HUD added.
-// F8 = start/progress trial, F9 = vote during Voting phase.
+// End of production file — Polished minimal Council Trial UI with phase, attunement bar, and votes.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
