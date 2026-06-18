@@ -1,17 +1,15 @@
 /*!
  * Dynamic Music System for Powrush-MMO
  *
- * Real audio file support with procedural fallback.
+ * Looping support enabled for music layers.
  *
- * v18.97 — Layer activation now prefers real audio files.
+ * v18.99 — Music layers now loop seamlessly by default.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
 use bevy::prelude::*;
 use crate::oddio_backend::OddioAudioBackend;
-use oddio::{Gain, Stop};
-use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MusicLayerType {
@@ -22,7 +20,6 @@ pub enum MusicLayerType {
 }
 
 impl MusicLayerType {
-    /// Returns the recommended filename for this layer
     pub fn filename(&self) -> &'static str {
         match self {
             MusicLayerType::BaseHarmony => "base_harmony.wav",
@@ -43,7 +40,7 @@ pub struct MusicState {
 }
 
 pub struct ActiveLayer {
-    pub handle: Option<oddio::Handle<Gain<f32, Stop<Box<dyn oddio::Source<Frame = [f32; 2]> + Send>>>>>,
+    pub handle: Option<oddio::Handle<oddio::Gain<f32, oddio::Stop<Box<dyn oddio::Source<Frame = [f32; 2]> + Send>>>>>,
     pub target_volume: f32,
     pub current_volume: f32,
     pub is_playing: bool,
@@ -68,14 +65,14 @@ impl Default for ActiveLayer {
 
 #[derive(Resource, Debug)]
 pub struct DynamicMusicController {
-    pub layers: HashMap<MusicLayerType, ActiveLayer>,
+    pub layers: std::collections::HashMap<MusicLayerType, ActiveLayer>,
     pub state: MusicState,
     time: f32,
 }
 
 impl Default for DynamicMusicController {
     fn default() -> Self {
-        let mut layers = HashMap::new();
+        let mut layers = std::collections::HashMap::new();
 
         layers.insert(MusicLayerType::BaseHarmony, ActiveLayer {
             fade_speed: 1.6, modulation_depth: 0.06, modulation_rate: 0.4, ..default()
@@ -182,7 +179,7 @@ impl DynamicMusicController {
     }
 }
 
-/// Activate layers — prefers real audio files, falls back to procedural
+/// Activate layers with looping enabled by default for music
 pub fn activate_music_layers(
     mut controller: ResMut<DynamicMusicController>,
     backend: Res<OddioAudioBackend>,
@@ -193,16 +190,16 @@ pub fn activate_music_layers(
         if should_play && !layer.is_playing {
             let filename = format!("assets/audio/music_layers/{}", layer_type.filename());
 
-            // Try real audio file first
-            match backend.play_audio_file(&filename, layer.target_volume) {
+            // Try real audio first, with looping enabled
+            match backend.play_audio_file(&filename, layer.target_volume, true) {
                 Ok(handle) => {
                     layer.handle = Some(handle);
                     layer.is_playing = true;
                     layer.current_volume = layer.target_volume;
-                    info!("🎵 Loaded real audio: {} (layer: {:?})", filename, layer_type);
+                    info!("🎵 Looping real audio: {} (layer: {:?})", filename, layer_type);
                 }
                 Err(_) => {
-                    // Fallback to procedural tone
+                    // Fallback to procedural with looping
                     let frequency = match layer_type {
                         MusicLayerType::BaseHarmony => 55.0,
                         MusicLayerType::AttunementPads => 110.0,
@@ -210,12 +207,12 @@ pub fn activate_music_layers(
                         MusicLayerType::BloomResonance => 330.0,
                     };
 
-                    let handle = backend.play_procedural_layer(frequency, layer.target_volume);
+                    let handle = backend.play_procedural_layer(frequency, layer.target_volume, true);
                     layer.handle = Some(handle);
                     layer.is_playing = true;
                     layer.current_volume = layer.target_volume;
 
-                    info!("🎵 Using procedural fallback for layer: {:?}", layer_type);
+                    info!("🎵 Looping procedural fallback: {:?}", layer_type);
                 }
             }
         }
