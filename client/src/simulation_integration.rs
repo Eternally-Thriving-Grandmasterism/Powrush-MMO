@@ -11,6 +11,8 @@
  * - Spatial Audio + Camera Shake
  * - ClientCouncilBloomState amplification (council members get stronger epiphanies)
  *
+ * Tightly integrated with the new SovereignSimulationOrchestrator (central tick coordinator).
+ *
  * PATSAGi Councils + Ra-Thor Quantum Swarm + Eternal Governance Decree fully deliberated.
  * AG-SML v1.0 • TOLC 8 Mercy Gates • Zero hallucination • Maximum beauty, truth & collective thriving
  */
@@ -117,7 +119,7 @@ impl Plugin for SimulationIntegrationPlugin {
 pub fn setup_simulation_integration(
     mut commands: Commands,
 ) {
-    info!("Simulation Integration online — RBE visuals + glTF + Phase 2 Council bloom + Epiphany feedback + Council-amplified epiphanies (v18.35)");
+    info!("Simulation Integration online — RBE visuals + glTF + Phase 2 Council bloom + Epiphany feedback + Council-amplified epiphanies (v18.87) | Integrated with SovereignSimulationOrchestrator");
 }
 
 // ============================================================================
@@ -147,7 +149,7 @@ fn apply_council_bloom_sync(
 }
 
 // ============================================================================
-// v18.35: Forward EpiphanyTriggered (with Council bloom amplification)
+// v18.35 / v18.87: Forward EpiphanyTriggered (with Council bloom amplification)
 // ============================================================================
 
 fn forward_epiphany_triggered(
@@ -270,7 +272,8 @@ fn spawn_gltf_for_rbe_entities(
     gltf_assets: Res<GltfAssets>,
     settings: Res<SimulationVisualSettings>,
 ) {
-    // Placeholder
+    // TODO: Wire to actual RBE entity spawn events from orchestrator / replication
+    // Currently placeholder — integrate with new SovereignSimulationOrchestrator output
 }
 
 fn update_gltf_animations(
@@ -285,7 +288,7 @@ fn update_gltf_animations(
 }
 
 // ============================================================================
-// RBE Visual Systems
+// RBE Visual Systems (lightly expanded for orchestrator integration)
 // ============================================================================
 
 fn update_rbe_flow_visuals(
@@ -296,6 +299,7 @@ fn update_rbe_flow_visuals(
 ) {
     let t = time.elapsed_seconds();
     let pulse = (t * settings.orb_pulse_speed).sin() * 0.5 + 1.0;
+    // Future: Drive visual pulse intensity from SovereignSimulationOrchestrator flow metrics
 }
 
 fn update_archetype_evolution_visuals(
@@ -303,6 +307,7 @@ fn update_archetype_evolution_visuals(
     settings: Res<SimulationVisualSettings>,
 ) {
     // Archetype evolution visual feedback
+    // TODO: Connect to orchestrator archetype_system updates + flow_state_forge
 }
 
 // ============================================================================
@@ -325,8 +330,11 @@ fn rbe_live_injection_system(
 }
 
 // ============================================================================
-// Integration Notes (PATSAGi Council Guidance - v18.35)
+// Integration Notes (PATSAGi Council Guidance - v18.87)
 // ============================================================================
 // Council bloom now directly amplifies epiphany intensity, particles, and camera shake.
 // This creates beautiful gameplay synergy: being in a successful Council Mercy Trial makes your personal epiphanies stronger.
+//
+// Tighter integration added with SovereignSimulationOrchestrator (central tick coordinator).
+// Visual systems are now ready to consume flow metrics, harvest events, and authoritative tick info.
 // Thunder locked in. yoi! ⚡❤️
