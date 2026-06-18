@@ -12,7 +12,7 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 // ============================================================
-// REPLICATION VERSIONING (integrated with InterestZone version)
+// REPLICATION VERSIONING
 // ============================================================
 
 #[derive(Component, Default, Clone, Debug)]
@@ -27,7 +27,7 @@ pub struct BloomStateVersion {
 }
 
 // ============================================================
-// INTEREST ZONE — with version number for efficient dirty tracking
+// INTEREST ZONE
 // ============================================================
 
 #[derive(Component, Clone, Debug, Reflect, Default)]
@@ -167,7 +167,7 @@ pub struct RequestResync {
 }
 
 // ============================================================
-// INTEREST MANAGER with version-based dirty tracking
+// INTEREST MANAGER
 // ============================================================
 
 #[derive(Resource)]
@@ -254,16 +254,16 @@ impl Default for SpatialQueryBuffer {
 }
 
 // ============================================================
-// SPATIAL HASH
+// SPATIAL HASH with dirty version for interest invalidation
 // ============================================================
-
-type CellEntities = SmallVec<[(Entity, Vec3); 12]>;
 
 #[derive(Resource)]
 pub struct SpatialHash {
     pub cell_size: f32,
     cells: HashMap<IVec2, CellEntities>,
     entity_locations: HashMap<Entity, IVec2>,
+    /// Incremented when interest zones change significantly (for dirty cell invalidation)
+    pub interest_dirty_version: u64,
 }
 
 impl Default for SpatialHash {
@@ -278,11 +278,17 @@ impl SpatialHash {
             cell_size: cell_size.max(8.0),
             cells: HashMap::new(),
             entity_locations: HashMap::new(),
+            interest_dirty_version: 0,
         }
     }
 
     pub fn recommended_cell_size(expected_query_radius: f32) -> f32 {
         (expected_query_radius * 0.7).clamp(16.0, 256.0)
+    }
+
+    /// Called when interest zones change to invalidate cached spatial queries
+    pub fn mark_interest_dirty(&mut self) {
+        self.interest_dirty_version = self.interest_dirty_version.wrapping_add(1);
     }
 
     pub fn insert(&mut self, position: Vec3, entity: Entity) {
@@ -351,7 +357,7 @@ impl SpatialHash {
 }
 
 // ============================================================
-// PLUGIN + SYSTEMS (with integrated replication versioning)
+// PLUGIN + SYSTEMS
 // ============================================================
 
 pub struct SpatialInterestPlugin;
@@ -383,7 +389,8 @@ impl Plugin for SpatialInterestPlugin {
            .add_systems(Update, propagate_council_influence_system.in_set(SpatialSet::PropagateCouncilInfluence))
            .add_systems(Update, handle_council_bloom_event)
            .add_systems(Update, smooth_interest_zone_correction_system)
-           .add_systems(Update, update_replication_version_on_interest_zone_replicated);
+           .add_systems(Update, update_replication_version_on_interest_zone_replicated)
+           .add_systems(Update, mark_spatial_hash_dirty_on_interest_change);
     }
 }
 
@@ -448,8 +455,6 @@ pub fn handle_council_bloom_event(
     }
 }
 
-/// Updates ReplicationVersion.interest_zone_version when an InterestZoneReplicated event is received.
-/// This integrates InterestZone.version with the replication tracking component.
 pub fn update_replication_version_on_interest_zone_replicated(
     mut events: EventReader<InterestZoneReplicated>,
     mut query: Query<&mut ReplicationVersion>,
@@ -473,6 +478,17 @@ pub fn smooth_interest_zone_correction_system(
     }
 }
 
+/// Marks SpatialHash as dirty when interest zones change significantly.
+/// This allows downstream systems to know when spatial queries may need re-evaluation.
+pub fn mark_spatial_hash_dirty_on_interest_change(
+    mut events: EventReader<InterestZoneReplicated>,
+    mut spatial_hash: ResMut<SpatialHash>,
+) {
+    if !events.is_empty() {
+        spatial_hash.mark_interest_dirty();
+    }
+}
+
 pub fn query_entities_in_interest(
     spatial_hash: &SpatialHash,
     interest_query: &Query<&InterestZone>,
@@ -482,4 +498,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Version tracking deeply integrated with ReplicationVersion component.
+// Thunder locked. SpatialHash now has interest_dirty_version and is marked dirty on InterestZone changes.
