@@ -1,15 +1,33 @@
 /*!
  * Dynamic Music System for Powrush-MMO
  *
- * Enhanced dramatic transitions for Resolution phase.
+ * Phase 1 of AssetServer integration: Basic asset-aware structure.
  *
- * v19.00 — Resolution now feels more powerful and emotionally resonant.
+ * v19.01 — Introduced MusicLayerHandle and asset-oriented layer management.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
 use bevy::prelude::*;
 use crate::oddio_backend::OddioAudioBackend;
+use std::collections::HashMap;
+
+/// Represents a reference to a music layer asset.
+/// In later steps this will become a proper Bevy Handle.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct MusicLayerHandle {
+    pub id: String,
+}
+
+impl MusicLayerHandle {
+    pub fn new(name: &str) -> Self {
+        Self { id: name.to_string() }
+    }
+
+    pub fn filename(&self) -> String {
+        format!("assets/audio/music_layers/{}.wav", self.id)
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MusicLayerType {
@@ -20,13 +38,14 @@ pub enum MusicLayerType {
 }
 
 impl MusicLayerType {
-    pub fn filename(&self) -> &'static str {
-        match self {
-            MusicLayerType::BaseHarmony => "base_harmony.wav",
-            MusicLayerType::AttunementPads => "attunement_pads.wav",
-            MusicLayerType::RhythmicPulse => "rhythmic_pulse.wav",
-            MusicLayerType::BloomResonance => "bloom_resonance.wav",
-        }
+    pub fn default_handle(&self) -> MusicLayerHandle {
+        let name = match self {
+            MusicLayerType::BaseHarmony => "base_harmony",
+            MusicLayerType::AttunementPads => "attunement_pads",
+            MusicLayerType::RhythmicPulse => "rhythmic_pulse",
+            MusicLayerType::BloomResonance => "bloom_resonance",
+        };
+        MusicLayerHandle::new(name)
     }
 }
 
@@ -41,6 +60,7 @@ pub struct MusicState {
 
 pub struct ActiveLayer {
     pub handle: Option<oddio::Handle<oddio::Gain<f32, oddio::Stop<Box<dyn oddio::Source<Frame = [f32; 2]> + Send>>>>>,
+    pub asset: MusicLayerHandle,
     pub target_volume: f32,
     pub current_volume: f32,
     pub is_playing: bool,
@@ -53,6 +73,7 @@ impl Default for ActiveLayer {
     fn default() -> Self {
         Self {
             handle: None,
+            asset: MusicLayerHandle::new("base_harmony"),
             target_volume: 0.0,
             current_volume: 0.0,
             is_playing: false,
@@ -65,7 +86,7 @@ impl Default for ActiveLayer {
 
 #[derive(Resource, Debug)]
 pub struct DynamicMusicController {
-    pub layers: std::collections::HashMap<MusicLayerType, ActiveLayer>,
+    pub layers: HashMap<MusicLayerType, ActiveLayer>,
     pub state: MusicState,
     time: f32,
     resolution_swell_timer: f32,
@@ -73,20 +94,48 @@ pub struct DynamicMusicController {
 
 impl Default for DynamicMusicController {
     fn default() -> Self {
-        let mut layers = std::collections::HashMap::new();
+        let mut layers = HashMap::new();
 
-        layers.insert(MusicLayerType::BaseHarmony, ActiveLayer {
-            fade_speed: 1.6, modulation_depth: 0.06, modulation_rate: 0.4, ..default()
-        });
-        layers.insert(MusicLayerType::AttunementPads, ActiveLayer {
-            fade_speed: 2.0, modulation_depth: 0.1, modulation_rate: 0.7, ..default()
-        });
-        layers.insert(MusicLayerType::RhythmicPulse, ActiveLayer {
-            fade_speed: 2.8, modulation_depth: 0.12, modulation_rate: 1.2, ..default()
-        });
-        layers.insert(MusicLayerType::BloomResonance, ActiveLayer {
-            fade_speed: 2.4, modulation_depth: 0.18, modulation_rate: 0.85, ..default()
-        });
+        layers.insert(
+            MusicLayerType::BaseHarmony,
+            ActiveLayer {
+                asset: MusicLayerType::BaseHarmony.default_handle(),
+                fade_speed: 1.6,
+                modulation_depth: 0.06,
+                modulation_rate: 0.4,
+                ..default()
+            },
+        );
+        layers.insert(
+            MusicLayerType::AttunementPads,
+            ActiveLayer {
+                asset: MusicLayerType::AttunementPads.default_handle(),
+                fade_speed: 2.0,
+                modulation_depth: 0.1,
+                modulation_rate: 0.7,
+                ..default()
+            },
+        );
+        layers.insert(
+            MusicLayerType::RhythmicPulse,
+            ActiveLayer {
+                asset: MusicLayerType::RhythmicPulse.default_handle(),
+                fade_speed: 2.8,
+                modulation_depth: 0.12,
+                modulation_rate: 1.2,
+                ..default()
+            },
+        );
+        layers.insert(
+            MusicLayerType::BloomResonance,
+            ActiveLayer {
+                asset: MusicLayerType::BloomResonance.default_handle(),
+                fade_speed: 2.4,
+                modulation_depth: 0.18,
+                modulation_rate: 0.85,
+                ..default()
+            },
+        );
 
         Self {
             layers,
@@ -100,8 +149,8 @@ impl Default for DynamicMusicController {
 impl DynamicMusicController {
     pub fn apply_state_to_layers(&mut self) {
         let is_major_transition = self.state.previous_phase != self.state.council_phase;
-        let entering_resolution =
-            is_major_transition && self.state.council_phase == Some(simulation::council_mercy_trial::CouncilMercyTrialPhase::Resolution);
+        let entering_resolution = is_major_transition
+            && self.state.council_phase == Some(simulation::council_mercy_trial::CouncilMercyTrialPhase::Resolution);
 
         if let Some(phase) = self.state.council_phase {
             let att = self.state.attunement.clamp(0.0, 1.0);
@@ -121,15 +170,13 @@ impl DynamicMusicController {
                     self.set_layer_target(MusicLayerType::BloomResonance, 0.0);
                 }
                 simulation::council_mercy_trial::CouncilMercyTrialPhase::Resolution => {
-                    // Enhanced dramatic swell for Resolution
-                    let swell_strength = 0.15 + (att * 0.25); // Stronger swell with higher attunement
+                    let swell_strength = 0.15 + (att * 0.25);
 
                     self.set_layer_target(MusicLayerType::BaseHarmony, 0.92);
                     self.set_layer_target(MusicLayerType::AttunementPads, 1.0 + swell_strength * 0.6);
                     self.set_layer_target(MusicLayerType::RhythmicPulse, 0.75);
                     self.set_layer_target(MusicLayerType::BloomResonance, 1.12 + swell_strength);
 
-                    // Heightened modulation during Resolution for emotional intensity
                     if let Some(bloom) = self.layers.get_mut(&MusicLayerType::BloomResonance) {
                         bloom.modulation_depth = 0.32 + (att * 0.15);
                         bloom.modulation_rate = 1.15;
@@ -142,9 +189,8 @@ impl DynamicMusicController {
                 _ => {}
             }
 
-            // Trigger a clear "arrival" swell when first entering Resolution
             if entering_resolution {
-                self.resolution_swell_timer = 4.5; // Duration of heightened swell
+                self.resolution_swell_timer = 4.5;
 
                 if let Some(bloom) = self.layers.get_mut(&MusicLayerType::BloomResonance) {
                     bloom.target_volume = 1.22 + (att * 0.2);
@@ -161,11 +207,9 @@ impl DynamicMusicController {
             }
         }
 
-        // Decay the extra Resolution swell over time
         if self.resolution_swell_timer > 0.0 {
             self.resolution_swell_timer -= 0.016;
             if self.resolution_swell_timer <= 0.0 {
-                // Return Bloom and AttunementPads to their normal Resolution targets
                 if let Some(bloom) = self.layers.get_mut(&MusicLayerType::BloomResonance) {
                     bloom.target_volume = 1.12;
                 }
@@ -221,14 +265,14 @@ pub fn activate_music_layers(
         let should_play = layer.target_volume > 0.035;
 
         if should_play && !layer.is_playing {
-            let filename = format!("assets/audio/music_layers/{}", layer_type.filename());
+            let filename = layer.asset.filename();
 
             match backend.play_audio_file(&filename, layer.target_volume, true) {
                 Ok(handle) => {
                     layer.handle = Some(handle);
                     layer.is_playing = true;
                     layer.current_volume = layer.target_volume;
-                    info!("🎵 Looping real audio: {} (layer: {:?})", filename, layer_type);
+                    info!("🎵 Loaded layer asset: {} (type: {:?})", filename, layer_type);
                 }
                 Err(_) => {
                     let frequency = match layer_type {
@@ -243,7 +287,7 @@ pub fn activate_music_layers(
                     layer.is_playing = true;
                     layer.current_volume = layer.target_volume;
 
-                    info!("🎵 Looping procedural fallback: {:?}", layer_type);
+                    info!("🎵 Procedural fallback for layer: {:?}", layer_type);
                 }
             }
         }
