@@ -1,38 +1,27 @@
 /*!
- * Hybrid CPU + GPU Economic / RBE Layer (v17.99.5 — Actual WGSL Dispatch)
+ * Hybrid CPU + GPU Economic / RBE Layer (v18.95)
  * 
- * Unifies and elevates ALL valuable prior logic from:
- * - game/resource_nodes.rs v16.5.54 (ResourceNode fields, regenerate dynamics, abundance_flow response,
- *   stress propagation, harvest restrictions, sustainability_score, now_ms patterns)
- * - engine/patsagi_economic.wgsl v16.5.58 (GPU kernel for depletion/regen/abundance/sustainability/stress)
- * - Previous simulation stubs and RBE pool mechanics
+ * Now with direct apply_harvest_event integration from TickResult.
+ * Every harvest meaningfully affects RBE pools, abundance, and sustainability.
  * 
- * Provides precise CPU path (deterministic golden master) and real GPU-accelerated path
- * for large-scale MMO simulation via actual wgpu compute dispatch.
- * 
- * EVERY economic micro-tick passes non-bypassable TOLC 8 Mercy Gate (Layer 0).
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use crate::world::SovereignWorldState;
 use crate::mercy::{MercyGate, MercyViolation};
-use crate::harvest::HarvestingSystem;
+use crate::harvest::HarvestEvent;
 use tracing::{info_span, instrument, warn};
 
 #[cfg(feature = "gpu")]
 use crate::gpu_economic::dispatch_gpu_economic_update;
 
-/// Hybrid economic layer with CPU precision and optional real GPU scale.
 pub struct EconomicLayer {
     pub cpu_precision_mode: bool,
-    harvest_system: HarvestingSystem,
 }
 
 impl EconomicLayer {
     pub fn new() -> Self {
-        Self {
-            cpu_precision_mode: true,
-            harvest_system: HarvestingSystem::new(),
-        }
+        Self { cpu_precision_mode: true }
     }
 
     #[instrument(skip(self, world, mercy_gate))]
@@ -65,12 +54,10 @@ impl EconomicLayer {
         Ok(())
     }
 
-    #[instrument(skip(self, world))]
     fn cpu_economic_update(&self, world: &mut SovereignWorldState) -> Result<(), MercyViolation> {
         let _span = info_span!("cpu_economic_update").entered();
         let now_ms = world.sim_time;
 
-        // === Unified ResourceNode regeneration & dynamics (elevated from game/resource_nodes.rs) ===
         for node in world.resource_nodes.values_mut() {
             if node.depletion > 0.0 {
                 node.depletion = (node.depletion - node.regen_rate).max(0.0);
@@ -105,9 +92,41 @@ impl EconomicLayer {
             pool.pressure = (pool.pressure * 0.9).max(0.0);
         }
 
-        // === Integrated HarvestingSystem pass ===
-        self.harvest_system.process_harvest_opportunities(world, now_ms)?;
+        Ok(())
+    }
 
+    /// Directly applies a HarvestEvent from TickResult into the economic simulation.
+    /// Updates RBE pools, abundance, and sustainability based on harvest outcome.
+    pub fn apply_harvest_event(
+        &mut self,
+        event: &HarvestEvent,
+        world: &mut SovereignWorldState,
+        mercy_gate: &MercyGate,
+    ) -> Result<(), MercyViolation> {
+        mercy_gate.pre_economic_tick_validate(world)?;
+
+        if let Some(node) = world.resource_nodes.get_mut(&event.node_id) {
+            // Apply harvest impact
+            if event.sustainable {
+                node.sustainability_score = (node.sustainability_score + 0.08).min(1.0);
+                node.abundance_flow = (node.abundance_flow + 0.05).min(2.5);
+            } else {
+                node.stress_level = (node.stress_level + 0.15).min(1.0);
+                node.abundance_flow = (node.abundance_flow - 0.08).max(-1.5);
+            }
+
+            // RBE pool resonance from harvest
+            for pool in world.rbe_pools.values_mut() {
+                if event.council_amplified {
+                    pool.abundance_flow = (pool.abundance_flow + 0.12).min(3.0);
+                    pool.sustainability_score = (pool.sustainability_score + 0.04).min(1.0);
+                } else {
+                    pool.abundance_flow = (pool.abundance_flow + 0.03).min(2.5);
+                }
+            }
+        }
+
+        mercy_gate.post_economic_tick_validate(world)?;
         Ok(())
     }
 }
