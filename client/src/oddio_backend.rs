@@ -1,9 +1,9 @@
 /*!
  * Oddio Audio Backend for Powrush-MMO
  *
- * Hybrid system refinements: Caching + improved error handling.
+ * Looping support for music layers.
  *
- * v18.98 — Added audio frame caching and better diagnostics.
+ * v18.99 — Added seamless looping for real audio and procedural sources.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -11,7 +11,7 @@
 use bevy::prelude::*;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use hound::WavReader;
-use oddio::{Gain, Mixer, Source, Stop};
+use oddio::{Gain, Loop, Mixer, Source, Stop};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -19,7 +19,6 @@ use std::sync::{Arc, Mutex};
 pub struct OddioAudioBackend {
     pub mixer: Arc<Mutex<Mixer<[f32; 2]>>>,
     _stream: cpal::Stream,
-    /// Cache of decoded audio frames (keyed by file path)
     audio_cache: Arc<Mutex<HashMap<String, Vec<[f32; 2]>>>>,
 }
 
@@ -62,49 +61,63 @@ impl OddioAudioBackend {
         self.mixer.lock().unwrap().handle()
     }
 
-    /// Play a procedural layer (development / fallback)
-    pub fn play_procedural_layer(&self, frequency: f64, initial_volume: f32) -> oddio::Handle<Gain<f32, Stop<Box<dyn Source<Frame = [f32; 2]> + Send>>>> {
+    /// Play a procedural source. Set `looping = true` for continuous music layers.
+    pub fn play_procedural_layer(
+        &self,
+        frequency: f64,
+        initial_volume: f32,
+        looping: bool,
+    ) -> oddio::Handle<Gain<f32, Stop<Box<dyn Source<Frame = [f32; 2]> + Send>>>> {
         use fundsp::prelude::*;
 
-        let source = (sine_hz(frequency) * 0.6 + sine_hz(frequency * 2.0) * 0.25 + sine_hz(frequency * 3.0) * 0.15)
-            >> split::<U2>()
-            >> map(|(l, r)| [l as f32, r as f32]);
+        let base_source = sine_hz(frequency) * 0.6 + sine_hz(frequency * 2.0) * 0.25 + sine_hz(frequency * 3.0) * 0.15;
 
-        let boxed: Box<dyn Source<Frame = [f32; 2]> + Send> = Box::new(source);
-        let stopped = Stop::new(boxed);
+        let source: Box<dyn Source<Frame = [f32; 2]> + Send> = if looping {
+            Box::new(Loop::new(base_source >> split::<U2>() >> map(|(l, r)| [l as f32, r as f32])))
+        } else {
+            Box::new(base_source >> split::<U2>() >> map(|(l, r)| [l as f32, r as f32]))
+        };
+
+        let stopped = Stop::new(source);
         let gained = Gain::new(stopped, initial_volume);
 
         self.mixer_handle().play(gained)
     }
 
-    /// Play a real WAV file. Uses internal cache to avoid repeated decoding.
+    /// Play a real WAV file. Set `looping = true` for music layers that should repeat seamlessly.
     pub fn play_audio_file(
         &self,
         path: &str,
         initial_volume: f32,
+        looping: bool,
     ) -> Result<oddio::Handle<Gain<f32, Stop<Box<dyn Source<Frame = [f32; 2]> + Send>>>>, String> {
         // Check cache first
         {
             let cache = self.audio_cache.lock().unwrap();
             if let Some(frames) = cache.get(path) {
-                let source = oddio::SamplesSource::from_frames(frames.clone());
-                let boxed: Box<dyn Source<Frame = [f32; 2]> + Send> = Box::new(source);
-                let stopped = Stop::new(boxed);
+                let base_source = oddio::SamplesSource::from_frames(frames.clone());
+                let source: Box<dyn Source<Frame = [f32; 2]> + Send> = if looping {
+                    Box::new(Loop::new(base_source))
+                } else {
+                    Box::new(base_source)
+                };
+
+                let stopped = Stop::new(source);
                 let gained = Gain::new(stopped, initial_volume);
                 return Ok(self.mixer_handle().play(gained));
             }
         }
 
-        // Not cached — decode from disk
+        // Decode from disk
         let mut reader = WavReader::open(path)
             .map_err(|e| format!("[Audio] Failed to open WAV '{}': {}", path, e))?;
 
         let spec = reader.spec();
         if spec.channels != 2 {
-            return Err(format!("[Audio] Only stereo WAV files are supported (file: {})", path));
+            return Err(format!("[Audio] Only stereo WAV supported (file: {})", path));
         }
         if spec.sample_rate != 44100 {
-            return Err(format!("[Audio] Only 44.1kHz WAV files are supported (file: {})", path));
+            return Err(format!("[Audio] Only 44.1kHz WAV supported (file: {})", path));
         }
 
         let samples: Vec<f32> = reader
@@ -121,18 +134,23 @@ impl OddioAudioBackend {
             return Err(format!("[Audio] WAV file is empty: {}", path));
         }
 
-        // Store in cache
+        // Cache the decoded frames
         {
             let mut cache = self.audio_cache.lock().unwrap();
             cache.insert(path.to_string(), frames.clone());
         }
 
-        let source = oddio::SamplesSource::from_frames(frames);
-        let boxed: Box<dyn Source<Frame = [f32; 2]> + Send> = Box::new(source);
-        let stopped = Stop::new(boxed);
+        let base_source = oddio::SamplesSource::from_frames(frames);
+        let source: Box<dyn Source<Frame = [f32; 2]> + Send> = if looping {
+            Box::new(Loop::new(base_source))
+        } else {
+            Box::new(base_source)
+        };
+
+        let stopped = Stop::new(source);
         let gained = Gain::new(stopped, initial_volume);
 
-        info!("[Audio] Loaded and cached: {}", path);
+        info!("[Audio] Loaded (looping={}): {}", looping, path);
         Ok(self.mixer_handle().play(gained))
     }
 }
