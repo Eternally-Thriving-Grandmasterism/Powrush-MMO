@@ -1,9 +1,9 @@
 /*!
  * Oddio Audio Backend for Powrush-MMO
  *
- * Looping support for music layers.
+ * Wired to use MusicLayerRegistry for caching.
  *
- * v18.99 — Added seamless looping for real audio and procedural sources.
+ * v19.03 — Caching responsibility moved to MusicLayerRegistry.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -12,14 +12,14 @@ use bevy::prelude::*;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use hound::WavReader;
 use oddio::{Gain, Loop, Mixer, Source, Stop};
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+use crate::dynamic_music::{MusicLayerHandle, MusicLayerRegistry};
 
 #[derive(Resource)]
 pub struct OddioAudioBackend {
     pub mixer: Arc<Mutex<Mixer<[f32; 2]>>>,
     _stream: cpal::Stream,
-    audio_cache: Arc<Mutex<HashMap<String, Vec<[f32; 2]>>>>,
 }
 
 impl OddioAudioBackend {
@@ -34,7 +34,6 @@ impl OddioAudioBackend {
         let mixer_clone = mixer.clone();
 
         let mixer = Arc::new(Mutex::new(mixer));
-        let audio_cache = Arc::new(Mutex::new(HashMap::new()));
 
         let err_fn = |err| eprintln!("Audio stream error: {}", err);
 
@@ -53,7 +52,6 @@ impl OddioAudioBackend {
         Self {
             mixer,
             _stream: stream,
-            audio_cache,
         }
     }
 
@@ -61,7 +59,7 @@ impl OddioAudioBackend {
         self.mixer.lock().unwrap().handle()
     }
 
-    /// Play a procedural source. Set `looping = true` for continuous music layers.
+    /// Play a procedural source (looping supported).
     pub fn play_procedural_layer(
         &self,
         frequency: f64,
@@ -84,17 +82,19 @@ impl OddioAudioBackend {
         self.mixer_handle().play(gained)
     }
 
-    /// Play a real WAV file. Set `looping = true` for music layers that should repeat seamlessly.
+    /// Play a real audio file. Caching is now handled by MusicLayerRegistry.
     pub fn play_audio_file(
         &self,
-        path: &str,
+        registry: &mut MusicLayerRegistry,
+        handle: &MusicLayerHandle,
         initial_volume: f32,
         looping: bool,
     ) -> Result<oddio::Handle<Gain<f32, Stop<Box<dyn Source<Frame = [f32; 2]> + Send>>>>, String> {
-        // Check cache first
-        {
-            let cache = self.audio_cache.lock().unwrap();
-            if let Some(frames) = cache.get(path) {
+        let path = handle.filename();
+
+        // Check registry cache first
+        if let Some(data) = registry.get(handle) {
+            if let Some(frames) = &data.cached_frames {
                 let base_source = oddio::SamplesSource::from_frames(frames.clone());
                 let source: Box<dyn Source<Frame = [f32; 2]> + Send> = if looping {
                     Box::new(Loop::new(base_source))
@@ -108,8 +108,8 @@ impl OddioAudioBackend {
             }
         }
 
-        // Decode from disk
-        let mut reader = WavReader::open(path)
+        // Not cached — decode from disk
+        let mut reader = WavReader::open(&path)
             .map_err(|e| format!("[Audio] Failed to open WAV '{}': {}", path, e))?;
 
         let spec = reader.spec();
@@ -134,11 +134,8 @@ impl OddioAudioBackend {
             return Err(format!("[Audio] WAV file is empty: {}", path));
         }
 
-        // Cache the decoded frames
-        {
-            let mut cache = self.audio_cache.lock().unwrap();
-            cache.insert(path.to_string(), frames.clone());
-        }
+        // Store in registry
+        registry.mark_loaded(handle, frames.clone());
 
         let base_source = oddio::SamplesSource::from_frames(frames);
         let source: Box<dyn Source<Frame = [f32; 2]> + Send> = if looping {
@@ -150,7 +147,7 @@ impl OddioAudioBackend {
         let stopped = Stop::new(source);
         let gained = Gain::new(stopped, initial_volume);
 
-        info!("[Audio] Loaded (looping={}): {}", looping, path);
+        info!("[Audio] Loaded and cached via registry: {}", path);
         Ok(self.mixer_handle().play(gained))
     }
 }
