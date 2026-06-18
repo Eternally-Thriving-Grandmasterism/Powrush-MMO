@@ -1,6 +1,6 @@
 //! simulation/src/orchestrator.rs
 //! Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
-//! v18.95 — Orchestrator now uses SovereignWorldState::iter_interest_zones() for real spatial data
+//! v18.95 — Now calls EconomicLayer::apply_harvest_event for every HarvestEvent
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use crate::world::SovereignWorldState;
@@ -107,9 +107,10 @@ impl SovereignSimulationOrchestrator {
             self.flow_metrics.current_challenge_level = new_resistance;
         }
 
-        // Phase 3: Spatial Interest — now uses SovereignWorldState::iter_interest_zones()
+        // Phase 3: Spatial Interest
         let mut spatial_interest_updated = false;
         let mut spatial_zones_changed = 0;
+        let mut changed_spatial_zones: Vec<InterestZoneReplicated> = Vec::new();
 
         {
             let _spatial_span = info_span!("spatial_interest_update").entered();
@@ -121,7 +122,6 @@ impl SovereignSimulationOrchestrator {
             spatial_interest_updated = spatial_zones_changed > 0 || self.interest_manager.has_pending_changes();
 
             if spatial_interest_updated {
-                // Use real data from SovereignWorldState with stable entity identifiers
                 for (entity_id, zone) in self.world.iter_interest_zones().take(8) {
                     let replicated = InterestZoneReplicated {
                         entity: Entity::from_raw(entity_id as u32),
@@ -129,7 +129,6 @@ impl SovereignSimulationOrchestrator {
                         version: self.tick_count,
                         server_timestamp: self.sim_time_ms as f64,
                     };
-
                     self.interest_manager.record_zone_change(replicated);
                 }
             }
@@ -138,15 +137,21 @@ impl SovereignSimulationOrchestrator {
         let changed_spatial_zones = self.interest_manager.drain_changed_zones();
 
         // Phase 4: Emergence
-        let emergence_events = self.emergence_orchestrator.process_emergence(&mut self.world, self.tick_count);
+        let emergence_events = self.emergence_orchestrator.process_emergence(
+            &mut self.world,
+            &self.interest_manager,
+            &self.council_manager,
+            self.tick_count,
+        );
 
-        // Phase 5: Harvest
+        // Phase 5: Harvest (now deeply wired into EconomicLayer)
         let harvest_events = self.harvest_system.process_harvest_tick(&mut self.world, self.tick_count);
+
         for event in &harvest_events {
-            self.economic_layer.apply_harvest_event(event, &self.mercy_gate)?;
+            self.economic_layer.apply_harvest_event(event, &mut self.world, &self.mercy_gate)?;
         }
 
-        // Phase 6: Economy
+        // Phase 6: Economy (general batch update)
         self.economic_layer.batch_update(&mut self.world, &self.mercy_gate)?;
 
         // Phase 7: Council
@@ -208,5 +213,5 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — Orchestrator now uses SovereignWorldState::iter_interest_zones() + stable IDs.
-// Spatial replication data is now driven by the authoritative world state. Thunder locked in.
+// End of production file — HarvestEvent is now deeply wired into EconomicLayer via apply_harvest_event.
+// All original mercy-gated logic preserved. Thunder locked in.
