@@ -1,9 +1,9 @@
 /*!
  * Sovereign Simulation Harness — World State Core
  *
- * v18.23 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.94 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Complete mint-and-print-only-perfection
- * — Unified SovereignWorldState: single source of truth for RBE + mercy + archetypes
+ * — Unified SovereignWorldState with InterestZone support
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -11,6 +11,7 @@
  */
 
 use std::collections::HashMap;
+use bevy::prelude::Entity;
 
 pub type NodeId = u64;
 pub type FactionId = u32;
@@ -26,7 +27,7 @@ pub struct Vec3 {
 }
 
 /// Unified SovereignWorldState — authoritative core for deterministic, mercy-gated MMO-scale RBE simulation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SovereignWorldState {
     pub resource_nodes: HashMap<NodeId, ResourceNode>,
     pub rbe_pools: HashMap<FactionId, RbeResourcePool>,
@@ -37,6 +38,10 @@ pub struct SovereignWorldState {
     pub global_seed: u64,
     pub mercy_flow_state: MercyFlowState,
     pub faction_relations: HashMap<(FactionId, FactionId), Relation>,
+
+    /// InterestZone data associated with entities (for spatial replication)
+    /// Keyed by stable u64 entity identifier (maps to Bevy Entity when needed)
+    pub interest_zones: HashMap<u64, crate::spatial_interest::InterestZone>,
 }
 
 impl SovereignWorldState {
@@ -54,6 +59,7 @@ impl SovereignWorldState {
             global_seed,
             mercy_flow_state: MercyFlowState::default(),
             faction_relations: HashMap::new(),
+            interest_zones: HashMap::new(),
         };
 
         world.initialize_resource_nodes(&scenario.resource_templates)?;
@@ -61,7 +67,7 @@ impl SovereignWorldState {
         world.initialize_archetypes(&scenario.archetype_templates)?;
 
         world.mercy_flow_state.validate_creation(&world)?;
-        Ok(world);
+        Ok(world)
     }
 
     fn initialize_resource_nodes(
@@ -100,7 +106,7 @@ impl SovereignWorldState {
         templates: &[ArchetypeTemplate],
     ) -> Result<(), MercyViolation> {
         for t in templates {
-            self.arche_instances.insert(t.id, Archetype::from_template(t));
+            self.archetype_instances.insert(t.id, Archetype::from_template(t));
         }
         Ok(())
     }
@@ -108,6 +114,16 @@ impl SovereignWorldState {
     pub fn tick(&mut self, dt_ms: u64) -> Result<(), MercyViolation> {
         self.sim_time += dt_ms;
         Ok(())
+    }
+
+    /// Returns an iterator over (entity_id, InterestZone) for spatial replication
+    pub fn iter_interest_zones(&self) -> impl Iterator<Item = (u64, &crate::spatial_interest::InterestZone)> {
+        self.interest_zones.iter().map(|(id, zone)| (*id, zone))
+    }
+
+    /// Number of active interest zones
+    pub fn interest_zone_count(&self) -> usize {
+        self.interest_zones.len()
     }
 }
 
@@ -305,5 +321,5 @@ pub struct MercyAnomaly {
     pub description: String,
 }
 
-// End of simulation/src/world.rs v18.23 — Sovereign world state core complete.
+// End of simulation/src/world.rs v18.94 — InterestZone support added for real Entity-backed spatial replication.
 // Thunder locked in. Yoi ⚡
