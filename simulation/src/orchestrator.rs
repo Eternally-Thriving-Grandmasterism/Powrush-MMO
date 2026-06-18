@@ -1,6 +1,6 @@
 //! simulation/src/orchestrator.rs
 //! Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
-//! v18.88 — Phase 7 Council Logic Fully Implemented + TickResult
+//! v18.89 — Enriched TickResult with Emergence + Harvest Events
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use crate::world::SovereignWorldState;
@@ -16,14 +16,24 @@ use crate::council_mercy_trial::{CouncilSessionManager, CouncilBloomSyncEvent};
 use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
 
-/// Result of a single simulation tick.
-/// Contains events and data that higher layers (server) can use for
-/// persistence, replication, and safety net broadcasting.
+/// Rich result of a single simulation tick.
+/// Contains all significant events and data generated during the tick.
+/// Higher layers (server replication, persistence, client prediction) can consume this.
 #[derive(Debug, Default)]
 pub struct TickResult {
+    /// Council bloom and session events
     pub council_bloom_events: Vec<CouncilBloomSyncEvent>,
-    /// Data ready to be pushed into BatchPersistenceQueue by the server layer
+    /// Data ready to be pushed into BatchPersistenceQueue
     pub closed_session_persistence: Vec<crate::council_mercy_trial::BatchPersistenceUpdate>,
+
+    /// Emergence events generated this tick
+    pub emergence_events: Vec<DynamicEmergenceEvent>,
+
+    /// Harvest / RBE flow events generated this tick
+    pub harvest_events: Vec<HarvestEvent>,
+
+    /// Whether flow state metrics were significantly updated
+    pub flow_state_updated: bool,
 }
 
 /// Core deterministic orchestrator for the Sovereign Simulation Harness.
@@ -78,6 +88,7 @@ impl SovereignSimulationOrchestrator {
         }
 
         // === PHASE 2: Flow State & Dynamic Challenge (fatigue-aware mercy) ===
+        let mut flow_state_updated = false;
         {
             let _flow_span = info_span!("flow_state_update").entered();
             let previous_resistance = 0.5; // TODO: integrate real previous tick resistance history
@@ -89,6 +100,9 @@ impl SovereignSimulationOrchestrator {
                 self.tick_count,
                 &ChallengeBalancerConfig::default(),
             );
+            if (new_resistance - self.flow_metrics.current_challenge_level).abs() > 0.01 {
+                flow_state_updated = true;
+            }
             self.flow_metrics.current_challenge_level = new_resistance;
         }
 
@@ -99,21 +113,19 @@ impl SovereignSimulationOrchestrator {
         }
 
         // === PHASE 4: Emergence & Dynamic Events ===
-        {
+        let emergence_events = {
             let _emergence_span = info_span!("emergence_update").entered();
-            let events = self.emergence_orchestrator.process_emergence(&mut self.world, self.tick_count);
-            for event in events {
-                info!(event = ?event, "Emergence event processed");
-            }
-        }
+            self.emergence_orchestrator.process_emergence(&mut self.world, self.tick_count)
+        };
 
         // === PHASE 5: Harvest & RBE Flow Reconciliation ===
-        {
+        let harvest_events = {
             let _harvest_span = info_span!("harvest_update").entered();
-            let harvest_events = self.harvest_system.process_harvest_tick(&mut self.world, self.tick_count);
-            for event in harvest_events {
-                self.economic_layer.apply_harvest_event(&event, &self.mercy_gate)?;
-            }
+            self.harvest_system.process_harvest_tick(&mut self.world, self.tick_count)
+        };
+
+        for event in &harvest_events {
+            self.economic_layer.apply_harvest_event(event, &self.mercy_gate)?;
         }
 
         // === PHASE 6: Economic Layer (RBE batch update) ===
@@ -122,16 +134,19 @@ impl SovereignSimulationOrchestrator {
             self.economic_layer.batch_update(&mut self.world, &self.mercy_gate)?;
         }
 
-        // === PHASE 7: Council Mercy Trials & Bloom Activation (FULLY IMPLEMENTED) ===
-        let mut tick_result = TickResult::default();
+        // === PHASE 7: Council Mercy Trials & Bloom Activation ===
+        let mut tick_result = TickResult {
+            emergence_events,
+            harvest_events,
+            flow_state_updated,
+            ..Default::default()
+        };
+
         {
             let _council_span = info_span!("council_update").entered();
-
-            // Tick all active council sessions and collect bloom events
             let bloom_events = self.council_manager.tick_sessions(self.tick_count);
             tick_result.council_bloom_events = bloom_events;
 
-            // Collect closed sessions for persistence (server layer will push to BatchPersistenceQueue)
             let closed_updates = self.council_manager.collect_closed_session_persistence(self.tick_count);
             tick_result.closed_session_persistence = closed_updates;
         }
@@ -188,5 +203,5 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — Phase 7 Council Logic fully implemented with TickResult.
+// End of production file — TickResult now enriched with Emergence, Harvest, and Flow State data.
 // All original mercy-gated logic preserved. Thunder locked in.
