@@ -88,6 +88,19 @@ pub fn update_spatial_audio_sources(
     }
 }
 
+// ============================================================
+// SYSTEM SETS (for clean, scalable ordering)
+// ============================================================
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PredictionSet {
+    Replication,
+    CorePrediction,
+    Rollback,
+    Visuals,
+    Audio,
+}
+
 #[derive(Clone, Debug)]
 pub struct MovementInput {
     pub timestamp: f64,
@@ -434,7 +447,7 @@ pub fn apply_decoded_updates_to_prediction(
 }
 
 // ============================================================
-// PLUGIN + SYSTEM REGISTRATION (Refactored for clarity)
+// PLUGIN + SYSTEM SETS REGISTRATION
 // ============================================================
 
 pub struct PredictionPlugin;
@@ -445,32 +458,41 @@ impl Plugin for PredictionPlugin {
             .init_resource::<InputBuffer>()
             .init_resource::<RollbackConfig>()
             .add_event::<AudioTriggerEvent>()
+            // Define ordering between logical phases
+            .configure_sets(Update, (
+                PredictionSet::Replication,
+                PredictionSet::CorePrediction.after(PredictionSet::Replication),
+                PredictionSet::Rollback.after(PredictionSet::CorePrediction),
+                PredictionSet::Visuals.after(PredictionSet::Rollback),
+                PredictionSet::Audio.after(PredictionSet::Visuals),
+            ))
             // Replication & Interest handlers
             .add_systems(Update, (
                 handle_interest_zone_replicated,
                 handle_council_bloom_state_replicated,
-            ))
-            // Core prediction + rollback (rollback should run after prediction movement)
+            ).in_set(PredictionSet::Replication))
+            // Core prediction movement
+            .add_systems(Update, client_predict_local_player_movement.in_set(PredictionSet::CorePrediction))
+            // Rollback systems (must run after prediction movement)
             .add_systems(Update, (
-                client_predict_local_player_movement,
                 perform_rollback_and_replay,
                 update_rollback_visual_indicator,
                 smooth_reconcile_position,
-            ).chain())
-            // Visuals
+            ).in_set(PredictionSet::Rollback))
+            // Visual systems
             .add_systems(Update, (
                 predict_interest_zone_expansion,
                 handle_harvest_event,
                 update_harvest_epiphany_visuals,
                 handle_dynamic_emergence_event,
-            ))
-            // Spatial Audio (spawn first, then update lifetimes)
+            ).in_set(PredictionSet::Visuals))
+            // Spatial Audio systems
             .add_systems(Update, (
                 play_spatial_audio_system,
                 update_spatial_audio_sources,
-            ).chain());
+            ).in_set(PredictionSet::Audio));
     }
 }
 
-// End of production file — Refactored system registration for clarity and logical grouping.
+// End of production file — Refactored to use proper System Sets with clear phase ordering.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
