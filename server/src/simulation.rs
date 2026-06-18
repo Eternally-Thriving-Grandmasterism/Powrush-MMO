@@ -1,10 +1,11 @@
 // server/src/simulation.rs
-// Powrush-MMO v18.91 — SimulationApp with complete TickResult forwarding structure
-// Council + Emergence fully forwarded. Harvest + Spatial prepared.
+// Powrush-MMO v18.91 — SimulationApp with complete TickResult forwarding
+// All major categories now have forwarding structure (Council, Emergence, Harvest, Spatial)
 
 use bevy::prelude::*;
 use simulation::orchestrator::{SovereignSimulationOrchestrator, SimulationTick, SimulationTickEvent, TickResult};
 use simulation::emergence::DynamicEmergenceEvent;
+use simulation::harvest::HarvestEvent;
 use crate::council_mercy_trial::CouncilBloomSyncEvent;
 use crate::council_session::{BatchPersistenceQueue};
 use crate::combat::CombatPlugin;
@@ -76,12 +77,12 @@ fn consume_tick_result_for_persistence(
 }
 
 /// Forwards TickResult data into replication and dynamic event systems
-/// Council and Emergence are fully wired. Harvest and Spatial have forwarding structure ready.
+/// Council, Emergence, and Harvest are now fully structured. Spatial has forwarding hooks.
 fn consume_tick_result_for_replication(
     mut tick_events: EventReader<SimulationTickEvent>,
     mut council_bloom_writer: EventWriter<CouncilBloomSyncEvent>,
     mut emergence_writer: EventWriter<DynamicEmergenceEvent>,
-    // TODO: Add EventWriter<HarvestEvent> and spatial replication events when registered
+    mut harvest_writer: EventWriter<HarvestEvent>,
 ) {
     for event in tick_events.read() {
         let result = &event.result;
@@ -96,22 +97,21 @@ fn consume_tick_result_for_replication(
             emergence_writer.send(emergence.clone());
         }
 
-        // === Harvest Events ===
+        // === Harvest Events (now wired) ===
+        for harvest in &result.harvest_events {
+            harvest_writer.send(harvest.clone());
+        }
+
         if !result.harvest_events.is_empty() {
-            // TODO: Emit to HarvestEvent writer + RBE replication when available
-            // For now we log + could push to a generic replication channel
-            info!("Tick {} produced {} harvest events (ready for HarvestEvent forwarding)", 
-                  event.tick, result.harvest_events.len());
+            info!("Forwarded {} harvest events (tick={})", result.harvest_events.len(), event.tick);
         }
 
         // === Spatial Interest Changes ===
         if result.spatial_interest_updated || result.spatial_zones_changed > 0 {
-            // TODO: Emit InterestZoneReplicated or similar spatial replication events
-            info!("Tick {} had spatial interest update ({} zones changed) — ready for spatial replication", 
-                  event.tick, result.spatial_zones_changed);
+            // TODO: Emit spatial replication events (InterestZoneReplicated etc.) when ready
+            info!("Tick {} had spatial interest update ({} zones) — forwarding ready", event.tick, result.spatial_zones_changed);
         }
 
-        // Summary
         if result.any_significant_change {
             info!("Tick {} had significant simulation changes", event.tick);
         }
