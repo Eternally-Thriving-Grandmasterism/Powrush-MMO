@@ -2,9 +2,9 @@
  * Simulation Integration for Powrush-MMO
  *
  * Bridges SovereignSimulationOrchestrator and Council systems to rich client visuals.
- * Includes polished minimal Council Trial UI + audio support for resolution.
+ * Phase 1 Dynamic Music integration added.
  *
- * v18.95 — Council Trial resolution now triggers spatial audio.
+ * v18.95 — DynamicMusicController wired to DebugCouncilTrial.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -18,6 +18,7 @@ use simulation::harvest::HarvestEvent;
 use simulation::emergence::DynamicEmergenceEvent;
 use simulation::council_mercy_trial::{CouncilTrialResolved, CouncilSessionUpdate, CouncilMercyTrialPhase, CollectiveEpiphanyBloom};
 use crate::prediction::AudioTriggerEvent;
+use crate::dynamic_music::{DynamicMusicController, update_music_layer_volumes};
 
 // ============================================================================
 // Resources
@@ -85,6 +86,7 @@ impl Plugin for SimulationIntegrationPlugin {
             .init_resource::<SimulationReplayState>()
             .init_resource::<ClientCouncilBloomState>()
             .init_resource::<DebugCouncilTrial>()
+            .init_resource::<DynamicMusicController>()
             .add_event::<CouncilSessionUpdate>()
             .add_event::<CouncilTrialResolved>()
             .add_systems(Startup, setup_simulation_integration)
@@ -96,6 +98,8 @@ impl Plugin for SimulationIntegrationPlugin {
                 handle_council_trial_resolved,
                 debug_council_trial_system,
                 update_council_ui_panel,
+                update_council_music_from_debug,
+                update_music_layer_volumes,
                 update_rbe_flow_visuals,
                 update_archetype_evolution_visuals,
                 rbe_live_injection_system,
@@ -107,7 +111,27 @@ impl Plugin for SimulationIntegrationPlugin {
 }
 
 pub fn setup_simulation_integration(mut commands: Commands) {
-    info!("Simulation Integration online — Council Trial audio + polished UI (v18.95)");
+    info!("Simulation Integration online — Council Trial audio + polished UI + Dynamic Music (v18.95)");
+}
+
+// New system: Drive MusicState from DebugCouncilTrial
+fn update_council_music_from_debug(
+    debug_trial: Res<DebugCouncilTrial>,
+    mut music: ResMut<DynamicMusicController>,
+) {
+    if debug_trial.active {
+        music.state.council_phase = Some(debug_trial.phase);
+        music.state.attunement = debug_trial.attunement;
+        music.state.intensity = (debug_trial.attunement * 0.7 + 0.3).clamp(0.0, 1.0);
+        music.state.is_resolving = debug_trial.phase == CouncilMercyTrialPhase::Resolution;
+    } else {
+        music.state.council_phase = None;
+        music.state.attunement = 0.0;
+        music.state.intensity = 0.0;
+        music.state.is_resolving = false;
+    }
+
+    music.apply_state_to_layers();
 }
 
 // ============================================================================
@@ -522,6 +546,5 @@ fn update_gltf_animations(
     }
 }
 
-// End of production file — Council Trial resolution now emits CouncilMercyResolution audio.
-// Expected file: assets/audio/council_mercy_resolution.ogg
+// End of production file — Dynamic Music Controller (Phase 1) integrated.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
