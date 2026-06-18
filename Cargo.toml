@@ -1,6 +1,6 @@
 [package]
 name = "powrush-mmo"
-version = "0.18.95"
+version = "0.18.97"
 edition = "2021"
 
 [dependencies]
@@ -16,6 +16,7 @@ kira = { version = "0.8", features = ["cpal"] }
 fundsp = "0.18"
 oddio = "0.7"
 cpal = "0.15"
+hound = "3.5"   # WAV file decoding for real audio layer support
 
 # Optional: FMOD prototype
 # bevy_fmod = { git = "https://github.com/kyren/bevy_fmod", branch = "main" }
