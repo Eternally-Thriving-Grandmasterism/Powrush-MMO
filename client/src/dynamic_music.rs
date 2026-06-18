@@ -1,9 +1,9 @@
 /*!
  * Dynamic Music System for Powrush-MMO
  *
- * Dramatic phase transition effects (especially Resolution swells).
+ * Real audio file support with procedural fallback.
  *
- * v18.97 — Added transition detection and expressive swells.
+ * v18.97 — Layer activation now prefers real audio files.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -19,6 +19,18 @@ pub enum MusicLayerType {
     AttunementPads,
     RhythmicPulse,
     BloomResonance,
+}
+
+impl MusicLayerType {
+    /// Returns the recommended filename for this layer
+    pub fn filename(&self) -> &'static str {
+        match self {
+            MusicLayerType::BaseHarmony => "base_harmony.wav",
+            MusicLayerType::AttunementPads => "attunement_pads.wav",
+            MusicLayerType::RhythmicPulse => "rhythmic_pulse.wav",
+            MusicLayerType::BloomResonance => "bloom_resonance.wav",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -108,13 +120,11 @@ impl DynamicMusicController {
                     self.set_layer_target(MusicLayerType::BloomResonance, 0.0);
                 }
                 simulation::council_mercy_trial::CouncilMercyTrialPhase::Resolution => {
-                    // Dramatic swell on Resolution
                     self.set_layer_target(MusicLayerType::BaseHarmony, 0.92);
                     self.set_layer_target(MusicLayerType::AttunementPads, 1.0);
                     self.set_layer_target(MusicLayerType::RhythmicPulse, 0.7);
                     self.set_layer_target(MusicLayerType::BloomResonance, 1.05);
 
-                    // Boost modulation on Bloom during Resolution for extra expressiveness
                     if let Some(bloom) = self.layers.get_mut(&MusicLayerType::BloomResonance) {
                         bloom.modulation_depth = 0.28;
                         bloom.modulation_rate = 1.1;
@@ -123,7 +133,6 @@ impl DynamicMusicController {
                 _ => {}
             }
 
-            // If we just entered Resolution, give Bloom an extra temporary boost
             if is_major_transition && phase == simulation::council_mercy_trial::CouncilMercyTrialPhase::Resolution {
                 if let Some(bloom) = self.layers.get_mut(&MusicLayerType::BloomResonance) {
                     bloom.target_volume = 1.15;
@@ -173,13 +182,7 @@ impl DynamicMusicController {
     }
 }
 
-pub fn sync_music_volumes(
-    time: Res<Time>,
-    mut controller: ResMut<DynamicMusicController>,
-) {
-    controller.sync_volumes_to_audio(time.delta_secs());
-}
-
+/// Activate layers — prefers real audio files, falls back to procedural
 pub fn activate_music_layers(
     mut controller: ResMut<DynamicMusicController>,
     backend: Res<OddioAudioBackend>,
@@ -188,19 +191,40 @@ pub fn activate_music_layers(
         let should_play = layer.target_volume > 0.035;
 
         if should_play && !layer.is_playing {
-            let frequency = match layer_type {
-                MusicLayerType::BaseHarmony => 55.0,
-                MusicLayerType::AttunementPads => 110.0,
-                MusicLayerType::RhythmicPulse => 220.0,
-                MusicLayerType::BloomResonance => 330.0,
-            };
+            let filename = format!("assets/audio/music_layers/{}", layer_type.filename());
 
-            let handle = backend.play_procedural_layer(frequency, layer.target_volume);
-            layer.handle = Some(handle);
-            layer.is_playing = true;
-            layer.current_volume = layer.target_volume;
+            // Try real audio file first
+            match backend.play_audio_file(&filename, layer.target_volume) {
+                Ok(handle) => {
+                    layer.handle = Some(handle);
+                    layer.is_playing = true;
+                    layer.current_volume = layer.target_volume;
+                    info!("🎵 Loaded real audio: {} (layer: {:?})", filename, layer_type);
+                }
+                Err(_) => {
+                    // Fallback to procedural tone
+                    let frequency = match layer_type {
+                        MusicLayerType::BaseHarmony => 55.0,
+                        MusicLayerType::AttunementPads => 110.0,
+                        MusicLayerType::RhythmicPulse => 220.0,
+                        MusicLayerType::BloomResonance => 330.0,
+                    };
 
-            info!("🎵 Activated: {:?}", layer_type);
+                    let handle = backend.play_procedural_layer(frequency, layer.target_volume);
+                    layer.handle = Some(handle);
+                    layer.is_playing = true;
+                    layer.current_volume = layer.target_volume;
+
+                    info!("🎵 Using procedural fallback for layer: {:?}", layer_type);
+                }
+            }
         }
     }
+}
+
+pub fn sync_music_volumes(
+    time: Res<Time>,
+    mut controller: ResMut<DynamicMusicController>,
+) {
+    controller.sync_volumes_to_audio(time.delta_secs());
 }
