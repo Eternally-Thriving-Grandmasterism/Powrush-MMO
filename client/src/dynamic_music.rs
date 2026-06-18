@@ -1,9 +1,9 @@
 /*!
  * Dynamic Music System for Powrush-MMO
  *
- * Phase 1 of AssetServer integration: Basic asset-aware structure.
+ * MusicLayerRegistry introduced for cleaner asset management.
  *
- * v19.01 — Introduced MusicLayerHandle and asset-oriented layer management.
+ * v19.02 — Phase 1 AssetServer progress: Added MusicLayerRegistry resource.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -12,8 +12,7 @@ use bevy::prelude::*;
 use crate::oddio_backend::OddioAudioBackend;
 use std::collections::HashMap;
 
-/// Represents a reference to a music layer asset.
-/// In later steps this will become a proper Bevy Handle.
+/// Lightweight handle representing a music layer asset.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MusicLayerHandle {
     pub id: String,
@@ -26,6 +25,56 @@ impl MusicLayerHandle {
 
     pub fn filename(&self) -> String {
         format!("assets/audio/music_layers/{}.wav", self.id)
+    }
+}
+
+/// Data stored for each music layer asset.
+#[derive(Clone, Debug)]
+pub struct MusicLayerAssetData {
+    pub loaded: bool,
+    pub cached_frames: Option<Vec<[f32; 2]>>,
+}
+
+impl Default for MusicLayerAssetData {
+    fn default() -> Self {
+        Self {
+            loaded: false,
+            cached_frames: None,
+        }
+    }
+}
+
+/// Central registry for music layer assets.
+/// This will evolve to work with Bevy's AssetServer.
+#[derive(Resource, Debug, Default)]
+pub struct MusicLayerRegistry {
+    layers: HashMap<MusicLayerHandle, MusicLayerAssetData>,
+}
+
+impl MusicLayerRegistry {
+    pub fn new() -> Self {
+        Self {
+            layers: HashMap::new(),
+        }
+    }
+
+    pub fn register(&mut self, handle: MusicLayerHandle) {
+        self.layers.entry(handle).or_insert_with(MusicLayerAssetData::default);
+    }
+
+    pub fn get(&self, handle: &MusicLayerHandle) -> Option<&MusicLayerAssetData> {
+        self.layers.get(handle)
+    }
+
+    pub fn get_mut(&mut self, handle: &MusicLayerHandle) -> Option<&mut MusicLayerAssetData> {
+        self.layers.get_mut(handle)
+    }
+
+    pub fn mark_loaded(&mut self, handle: &MusicLayerHandle, frames: Vec<[f32; 2]>) {
+        if let Some(data) = self.layers.get_mut(handle) {
+            data.loaded = true;
+            data.cached_frames = Some(frames);
+        }
     }
 }
 
