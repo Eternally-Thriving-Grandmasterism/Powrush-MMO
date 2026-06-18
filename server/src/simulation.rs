@@ -1,9 +1,10 @@
 // server/src/simulation.rs
-// Powrush-MMO v18.91 — SimulationApp with expanded TickResult consumers
-// Now wires Council blooms, emergence, and harvest events from TickResult
+// Powrush-MMO v18.91 — SimulationApp with real TickResult forwarding
+// Council bloom events from TickResult are now emitted as CouncilBloomSyncEvent
 
 use bevy::prelude::*;
 use simulation::orchestrator::{SovereignSimulationOrchestrator, SimulationTick, SimulationTickEvent, TickResult};
+use crate::council_mercy_trial::CouncilBloomSyncEvent;
 use crate::council_session::{BatchPersistenceQueue};
 use crate::combat::CombatPlugin;
 use crate::replication::ReplicationPlugin;
@@ -73,35 +74,40 @@ fn consume_tick_result_for_persistence(
     }
 }
 
-/// Wires TickResult data into replication and dynamic event systems
+/// Forwards data from TickResult into replication and dynamic event systems
 fn consume_tick_result_for_replication(
     mut tick_events: EventReader<SimulationTickEvent>,
-    // TODO: Add EventWriters for replication events, dynamic events, etc.
+    mut council_bloom_writer: EventWriter<CouncilBloomSyncEvent>,
+    // TODO: Add more EventWriters for emergence, harvest, spatial, etc.
 ) {
     for event in tick_events.read() {
         let result = &event.result;
 
-        // Council bloom events (ready for client council replication)
+        // === Council Bloom Events ===
+        for bloom in &result.council_bloom_events {
+            council_bloom_writer.send(bloom.clone());
+        }
+
         if !result.council_bloom_events.is_empty() {
-            // TODO: Emit CouncilBloomSyncEvent or replication update
-            info!("Tick {} produced {} council bloom events", event.tick, result.council_bloom_events.len());
+            info!(
+                "Forwarded {} council bloom events to replication (tick={})",
+                result.council_bloom_events.len(),
+                event.tick
+            );
         }
 
-        // Emergence events (ready for dynamic event replication)
+        // === Emergence Events (placeholder for future wiring) ===
         if !result.emergence_events.is_empty() {
-            // TODO: Forward to dynamic_events system / replication
-            info!("Tick {} produced {} emergence events", event.tick, result.emergence_events.len());
+            info!("Tick {} produced {} emergence events (forwarding TODO)", event.tick, result.emergence_events.len());
         }
 
-        // Harvest events (ready for RBE / abundance replication)
+        // === Harvest Events (placeholder) ===
         if !result.harvest_events.is_empty() {
-            // TODO: Forward to harvesting_system / rbe replication
-            info!("Tick {} produced {} harvest events", event.tick, result.harvest_events.len());
+            info!("Tick {} produced {} harvest events (forwarding TODO)", event.tick, result.harvest_events.len());
         }
 
-        // Spatial interest changes
+        // === Spatial Interest ===
         if result.spatial_interest_updated {
-            // TODO: Update interest management / replication interest zones
             info!("Tick {} had spatial interest changes ({} zones)", event.tick, result.spatial_zones_changed);
         }
     }
