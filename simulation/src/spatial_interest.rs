@@ -160,13 +160,15 @@ pub struct RequestResync {
 }
 
 // ============================================================
-// INTEREST MANAGER with real change tracking
+// INTEREST MANAGER with proper per-entity dirty tracking
 // ============================================================
 
 #[derive(Resource)]
 pub struct InterestManager {
     pub council_blooms: Vec<CouncilBloomZone>,
     pub recently_changed_zones: Vec<InterestZoneReplicated>,
+    /// Previous tick snapshot for dirty detection
+    previous_zones: HashMap<u64, InterestZone>,
 }
 
 impl Default for InterestManager {
@@ -174,6 +176,7 @@ impl Default for InterestManager {
         Self {
             council_blooms: Vec::with_capacity(DEFAULT_INTEREST_MANAGER_BLOOM_CAPACITY),
             recently_changed_zones: Vec::new(),
+            previous_zones: HashMap::new(),
         }
     }
 }
@@ -200,13 +203,40 @@ impl InterestManager {
         !self.recently_changed_zones.is_empty()
     }
 
-    /// Called by the orchestrator every tick.
-    /// In a full implementation this would detect which InterestZone components
-    /// actually changed and record them via record_zone_change().
+    /// Proper per-entity dirty tracking.
+    /// Compares current InterestZone state against previous tick and only records changes.
     pub fn update_zones(&mut self, world: &mut crate::world::SovereignWorldState, current_tick: u64) {
-        // Placeholder for real change detection logic.
-        // When real per-zone change tracking is added, this method will
-        // call self.record_zone_change(...) for each changed zone.
+        let mut new_changed = Vec::new();
+
+        for (entity_id, current_zone) in world.iter_interest_zones() {
+            let changed = match self.previous_zones.get(&entity_id) {
+                Some(prev) => {
+                    // Simple but effective dirty check
+                    (prev.center - current_zone.center).length_squared() > 0.01 ||
+                    (prev.base_radius - current_zone.base_radius).abs() > 0.1 ||
+                    (prev.valence_multiplier - current_zone.valence_multiplier).abs() > 0.01 ||
+                    (prev.mercy_resonance - current_zone.mercy_resonance).abs() > 0.01
+                }
+                None => true, // New zone
+            };
+
+            if changed {
+                new_changed.push(InterestZoneReplicated {
+                    entity: Entity::from_raw(entity_id as u32),
+                    zone: current_zone.clone(),
+                    version: current_tick,
+                    server_timestamp: world.sim_time as f64,
+                });
+            }
+
+            // Update previous state
+            self.previous_zones.insert(entity_id, current_zone.clone());
+        }
+
+        // Only keep newly detected changes
+        for change in new_changed {
+            self.record_zone_change(change);
+        }
     }
 }
 
@@ -442,4 +472,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. update_zones now ready to record real zone changes.
+// Thunder locked. Proper per-entity dirty tracking implemented in InterestManager.
