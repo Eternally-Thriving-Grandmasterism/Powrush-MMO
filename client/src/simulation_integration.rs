@@ -2,9 +2,9 @@
  * Simulation Integration for Powrush-MMO
  *
  * Bridges SovereignSimulationOrchestrator and Council systems to rich client visuals.
- * Includes debug system to trigger and observe Council Mercy Trials locally.
+ * Includes debug system + minimal Council Trial HUD for rapid testing and embodiment.
  *
- * v18.95 — Minimal Council Trial Debug System added for rapid testing and embodiment.
+ * v18.95 — Minimal Council Trial Debug HUD added.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -87,12 +87,14 @@ impl Plugin for SimulationIntegrationPlugin {
             .add_event::<CouncilSessionUpdate>()
             .add_event::<CouncilTrialResolved>()
             .add_systems(Startup, setup_simulation_integration)
+            .add_systems(Startup, spawn_council_debug_hud)
             .add_systems(Update, (
                 apply_council_bloom_sync,
                 handle_harvest_event_visuals,
                 handle_dynamic_emergence_event_visuals,
                 handle_council_trial_resolved,
                 debug_council_trial_system,
+                update_council_debug_hud,
                 update_rbe_flow_visuals,
                 update_archetype_evolution_visuals,
                 rbe_live_injection_system,
@@ -104,7 +106,60 @@ impl Plugin for SimulationIntegrationPlugin {
 }
 
 pub fn setup_simulation_integration(mut commands: Commands) {
-    info!("Simulation Integration online — TickResult + CouncilTrialResolved + Debug Council Trial (v18.95)");
+    info!("Simulation Integration online — TickResult + CouncilTrialResolved + Debug HUD (v18.95)");
+}
+
+// ============================================================================
+// Council Debug HUD (Minimal Status Display)
+// ============================================================================
+
+#[derive(Component)]
+pub struct CouncilDebugHud;
+
+fn spawn_council_debug_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.spawn((
+        Text::new("Council Trial: Inactive"),
+        TextFont {
+            font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+            font_size: 22.0,
+            ..default()
+        },
+        TextColor(Color::srgb(0.6, 0.95, 1.0)),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(80.0),
+            left: Val::Px(20.0),
+            ..default()
+        },
+        CouncilDebugHud,
+    ));
+}
+
+fn update_council_debug_hud(
+    debug_trial: Res<DebugCouncilTrial>,
+    mut query: Query<&mut Text, With<CouncilDebugHud>>,
+) {
+    for mut text in query.iter_mut() {
+        if debug_trial.active {
+            let phase_str = match debug_trial.phase {
+                CouncilMercyTrialPhase::Lobby => "Lobby",
+                CouncilMercyTrialPhase::Attunement => "Attunement",
+                CouncilMercyTrialPhase::Deliberation => "Deliberation",
+                CouncilMercyTrialPhase::Voting => "Voting",
+                CouncilMercyTrialPhase::Resolution => "Resolution",
+                CouncilMercyTrialPhase::Completed => "Completed",
+            };
+
+            text.0 = format!(
+                "Council Trial Active | Phase: {} | Attunement: {:.0}% | Votes: {}",
+                phase_str,
+                debug_trial.attunement * 100.0,
+                debug_trial.votes
+            );
+        } else {
+            text.0 = "Council Trial: Inactive (F8 to start)".to_string();
+        }
+    }
 }
 
 // ============================================================================
@@ -185,10 +240,8 @@ fn debug_council_trial_system(
     mut resolved_events: EventWriter<CouncilTrialResolved>,
     time: Res<Time>,
 ) {
-    // F8 = Start or progress a local debug Council Mercy Trial
     if keyboard.just_pressed(KeyCode::F8) {
         if !debug_trial.active {
-            // Start new debug trial
             debug_trial.active = true;
             debug_trial.session_id = 999;
             debug_trial.phase = CouncilMercyTrialPhase::Lobby;
@@ -197,7 +250,6 @@ fn debug_council_trial_system(
 
             info!("🔮 DEBUG: Council Mercy Trial started (local simulation)");
         } else {
-            // Progress to next phase
             debug_trial.phase = match debug_trial.phase {
                 CouncilMercyTrialPhase::Lobby => CouncilMercyTrialPhase::Attunement,
                 CouncilMercyTrialPhase::Attunement => CouncilMercyTrialPhase::Deliberation,
@@ -214,7 +266,6 @@ fn debug_council_trial_system(
 
             info!("🔮 DEBUG Council Trial Phase: {:?} | Attunement: {:.2}", debug_trial.phase, debug_trial.attunement);
 
-            // If we just reached Completed, emit a resolved bloom
             if debug_trial.phase == CouncilMercyTrialPhase::Completed {
                 let bloom = CollectiveEpiphanyBloom {
                     session_id: debug_trial.session_id,
@@ -236,7 +287,6 @@ fn debug_council_trial_system(
         }
     }
 
-    // F9 = Simulate casting a vote (during Voting phase)
     if keyboard.just_pressed(KeyCode::F9) && debug_trial.active && debug_trial.phase == CouncilMercyTrialPhase::Voting {
         debug_trial.votes += 1;
         debug_trial.attunement = (debug_trial.attunement + 0.08).min(0.98);
@@ -361,5 +411,6 @@ fn update_gltf_animations(
     }
 }
 
-// End of production file — Minimal Council Trial Debug System added (F8 to start/progress, F9 to vote).
+// End of production file — Minimal Council Trial Debug HUD added.
+// F8 = start/progress trial, F9 = vote during Voting phase.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
