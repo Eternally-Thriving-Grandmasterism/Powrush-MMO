@@ -2,9 +2,9 @@
  * Simulation Integration for Powrush-MMO
  *
  * Bridges SovereignSimulationOrchestrator and Council systems to rich client visuals.
- * Includes polished minimal Council Trial UI for high-quality testing and embodiment.
+ * Includes polished minimal Council Trial UI + audio support for resolution.
  *
- * v18.95 — Polished Council Trial UI layer added.
+ * v18.95 — Council Trial resolution now triggers spatial audio.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -17,6 +17,7 @@ use crate::spatial_audio::{GameAudioEvent};
 use simulation::harvest::HarvestEvent;
 use simulation::emergence::DynamicEmergenceEvent;
 use simulation::council_mercy_trial::{CouncilTrialResolved, CouncilSessionUpdate, CouncilMercyTrialPhase, CollectiveEpiphanyBloom};
+use crate::prediction::AudioTriggerEvent;
 
 // ============================================================================
 // Resources
@@ -106,7 +107,7 @@ impl Plugin for SimulationIntegrationPlugin {
 }
 
 pub fn setup_simulation_integration(mut commands: Commands) {
-    info!("Simulation Integration online — Polished Council UI layer active (v18.95)");
+    info!("Simulation Integration online — Council Trial audio + polished UI (v18.95)");
 }
 
 // ============================================================================
@@ -294,6 +295,7 @@ fn handle_council_trial_resolved(
     mut resolved_events: EventReader<CouncilTrialResolved>,
     mut commands: Commands,
     mut camera_shake: ResMut<CameraShake>,
+    mut audio_events: EventWriter<AudioTriggerEvent>,
 ) {
     for event in resolved_events.read() {
         let bloom = &event.bloom;
@@ -324,6 +326,13 @@ fn handle_council_trial_resolved(
             },
             Transform::default(),
         ));
+
+        if bloom.intensity > 0.55 {
+            audio_events.send(AudioTriggerEvent::CouncilMercyResolution {
+                intensity: bloom.intensity,
+                position: None,
+            });
+        }
 
         info!(
             "🌟 Council Mercy Trial RESOLVED | intensity={:.2} | rbe_amp={:.2}x",
@@ -513,5 +522,6 @@ fn update_gltf_animations(
     }
 }
 
-// End of production file — Polished minimal Council Trial UI with phase, attunement bar, and votes.
+// End of production file — Council Trial resolution now emits CouncilMercyResolution audio.
+// Expected file: assets/audio/council_mercy_resolution.ogg
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
