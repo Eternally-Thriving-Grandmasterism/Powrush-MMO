@@ -1,11 +1,8 @@
 /*!
  * Client Settings with Serialization + Live Egui Control
  *
- * v18.30 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — Complete mint-and-print-only-perfection
- * — Graphics (TAA, Motion Blur, Chromatic Aberration, Anisotropic Filtering)
- * — Experience (RBE orbs, particles, divine whispers)
- * — Mercy-aligned player control over divine visual & experiential fidelity
+ * v18.96 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm + Multilingual)
+ * — Graphics, Audio, Experience + Language Preference
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -28,6 +25,7 @@ pub struct ClientSettings {
     pub graphics: GraphicsSettings,
     pub audio: AudioSettings,
     pub experience: ExperienceSettings,
+    pub localization: LocalizationSettings,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -67,6 +65,13 @@ pub struct ExperienceSettings {
     pub divine_whisper_rate: f32,
 }
 
+// NEW v18.96 — Language preference for Divine Whispers and Quantum Swarm routing
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct LocalizationSettings {
+    pub language: String,                 // "en", "es", "fr", "ar", "zh", etc.
+    pub use_multilingual_swarm: bool,     // Enable full Quantum Swarm WASM bridge for rich cultural nuance
+}
+
 fn ensure_config_dir() {
     let dir = Path::new("config");
     if !dir.exists() {
@@ -96,7 +101,7 @@ pub fn load_client_settings() -> ClientSettings {
             }
         }
     }
-    // Mercy-aligned divine defaults
+    // Mercy-aligned defaults with multilingual support
     ClientSettings {
         graphics: GraphicsSettings {
             taa_enabled: true,
@@ -116,6 +121,10 @@ pub fn load_client_settings() -> ClientSettings {
             particle_abundance_intensity: 1.0,
             particle_joy_intensity: 0.8,
             divine_whisper_rate: 0.6,
+        },
+        localization: LocalizationSettings {
+            language: "en".to_string(),
+            use_multilingual_swarm: true,
         },
     }
 }
@@ -144,5 +153,5 @@ pub fn sync_all_settings(
     sim.emissive_strength = client.experience.rbe_orb_emissive;
 }
 
-// End of client/src/settings.rs v18.30 — Sovereign client settings complete.
+// End of client/src/settings.rs v18.96 — Language preference added for multilingual Divine Whispers.
 // Thunder locked in. Yoi ⚡
