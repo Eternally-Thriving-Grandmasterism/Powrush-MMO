@@ -2,9 +2,9 @@
  * Simulation Integration for Powrush-MMO
  *
  * Bridges SovereignSimulationOrchestrator and Council systems to rich client visuals.
- * Now includes reaction to resolved Council Mercy Trials.
+ * Includes debug system to trigger and observe Council Mercy Trials locally.
  *
- * v18.95 — CouncilTrialResolved visual + audio integration added.
+ * v18.95 — Minimal Council Trial Debug System added for rapid testing and embodiment.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -16,8 +16,7 @@ use crate::particles::{ParticleSystem, ParticleSystemType};
 use crate::spatial_audio::{GameAudioEvent};
 use simulation::harvest::HarvestEvent;
 use simulation::emergence::DynamicEmergenceEvent;
-use simulation::council_mercy_trial::CouncilTrialResolved;
-use simulation::council_mercy_trial::CouncilSessionUpdate;
+use simulation::council_mercy_trial::{CouncilTrialResolved, CouncilSessionUpdate, CouncilMercyTrialPhase, CollectiveEpiphanyBloom};
 
 // ============================================================================
 // Resources
@@ -63,6 +62,16 @@ pub struct ClientCouncilBloomState {
     pub last_sync_tick: u64,
 }
 
+/// Debug resource to track a local simulated Council Mercy Trial
+#[derive(Resource, Debug, Default)]
+pub struct DebugCouncilTrial {
+    pub active: bool,
+    pub session_id: u64,
+    pub phase: CouncilMercyTrialPhase,
+    pub attunement: f32,
+    pub votes: u32,
+}
+
 // ============================================================================
 // Plugin
 // ============================================================================
@@ -74,6 +83,7 @@ impl Plugin for SimulationIntegrationPlugin {
         app.init_resource::<SimulationVisualSettings>()
             .init_resource::<SimulationReplayState>()
             .init_resource::<ClientCouncilBloomState>()
+            .init_resource::<DebugCouncilTrial>()
             .add_event::<CouncilSessionUpdate>()
             .add_event::<CouncilTrialResolved>()
             .add_systems(Startup, setup_simulation_integration)
@@ -82,6 +92,7 @@ impl Plugin for SimulationIntegrationPlugin {
                 handle_harvest_event_visuals,
                 handle_dynamic_emergence_event_visuals,
                 handle_council_trial_resolved,
+                debug_council_trial_system,
                 update_rbe_flow_visuals,
                 update_archetype_evolution_visuals,
                 rbe_live_injection_system,
@@ -93,7 +104,7 @@ impl Plugin for SimulationIntegrationPlugin {
 }
 
 pub fn setup_simulation_integration(mut commands: Commands) {
-    info!("Simulation Integration online — TickResult + CouncilTrialResolved wired (v18.95)");
+    info!("Simulation Integration online — TickResult + CouncilTrialResolved + Debug Council Trial (v18.95)");
 }
 
 // ============================================================================
@@ -107,7 +118,7 @@ fn apply_council_bloom_sync(
     for event in sync_events.read() {
         client_bloom.last_sync_tick = event.new_state.start_time as u64;
         client_bloom.is_in_active_council =
-            event.new_state.phase != simulation::council_mercy_trial::CouncilMercyTrialPhase::Completed;
+            event.new_state.phase != CouncilMercyTrialPhase::Completed;
 
         if client_bloom.is_in_active_council {
             info!(
@@ -161,6 +172,75 @@ fn handle_council_trial_resolved(
             "🌟 Council Mercy Trial RESOLVED | intensity={:.2} | rbe_amp={:.2}x",
             bloom.intensity, bloom.rbe_amplification
         );
+    }
+}
+
+// ============================================================================
+// Debug Council Mercy Trial System (Minimal Playable Loop)
+// ============================================================================
+
+fn debug_council_trial_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut debug_trial: ResMut<DebugCouncilTrial>,
+    mut resolved_events: EventWriter<CouncilTrialResolved>,
+    time: Res<Time>,
+) {
+    // F8 = Start or progress a local debug Council Mercy Trial
+    if keyboard.just_pressed(KeyCode::F8) {
+        if !debug_trial.active {
+            // Start new debug trial
+            debug_trial.active = true;
+            debug_trial.session_id = 999;
+            debug_trial.phase = CouncilMercyTrialPhase::Lobby;
+            debug_trial.attunement = 0.45;
+            debug_trial.votes = 0;
+
+            info!("🔮 DEBUG: Council Mercy Trial started (local simulation)");
+        } else {
+            // Progress to next phase
+            debug_trial.phase = match debug_trial.phase {
+                CouncilMercyTrialPhase::Lobby => CouncilMercyTrialPhase::Attunement,
+                CouncilMercyTrialPhase::Attunement => CouncilMercyTrialPhase::Deliberation,
+                CouncilMercyTrialPhase::Deliberation => CouncilMercyTrialPhase::Voting,
+                CouncilMercyTrialPhase::Voting => CouncilMercyTrialPhase::Resolution,
+                CouncilMercyTrialPhase::Resolution => CouncilMercyTrialPhase::Completed,
+                CouncilMercyTrialPhase::Completed => {
+                    debug_trial.active = false;
+                    CouncilMercyTrialPhase::Completed
+                }
+            };
+
+            debug_trial.attunement = (debug_trial.attunement + 0.12).min(0.95);
+
+            info!("🔮 DEBUG Council Trial Phase: {:?} | Attunement: {:.2}", debug_trial.phase, debug_trial.attunement);
+
+            // If we just reached Completed, emit a resolved bloom
+            if debug_trial.phase == CouncilMercyTrialPhase::Completed {
+                let bloom = CollectiveEpiphanyBloom {
+                    session_id: debug_trial.session_id,
+                    intensity: 0.82 + (debug_trial.attunement - 0.5) * 0.3,
+                    mercy_resonance: debug_trial.attunement,
+                    bloom_amplification: 1.0 + debug_trial.attunement * 0.8,
+                    participant_contributions: vec![],
+                    rbe_amplification: 1.8 + debug_trial.attunement * 1.4,
+                    created_at: time.elapsed_secs_f64(),
+                };
+
+                resolved_events.send(CouncilTrialResolved {
+                    session_id: debug_trial.session_id,
+                    bloom,
+                });
+
+                debug_trial.active = false;
+            }
+        }
+    }
+
+    // F9 = Simulate casting a vote (during Voting phase)
+    if keyboard.just_pressed(KeyCode::F9) && debug_trial.active && debug_trial.phase == CouncilMercyTrialPhase::Voting {
+        debug_trial.votes += 1;
+        debug_trial.attunement = (debug_trial.attunement + 0.08).min(0.98);
+        info!("🗳️ DEBUG: Vote cast | Total votes: {} | Attunement: {:.2}", debug_trial.votes, debug_trial.attunement);
     }
 }
 
@@ -281,5 +361,5 @@ fn update_gltf_animations(
     }
 }
 
-// End of production file — CouncilTrialResolved visual + audio reactions integrated.
+// End of production file — Minimal Council Trial Debug System added (F8 to start/progress, F9 to vote).
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
