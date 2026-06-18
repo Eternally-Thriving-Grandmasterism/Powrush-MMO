@@ -1,12 +1,12 @@
 /*!
  * Sovereign Epiphany Catalyst
  *
- * v18.35 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.96 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm v2)
  * — Complete mint-and-print-only-perfection
  * — evaluate_epiphany() is the single source of truth for all epiphany detection
  * — Mercy-amplified + council-aware outcomes
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
- * — Expanded with 3 new high-quality scenarios for richer vertical slice (Mycorrhizal Communion, Stellar Resonance, Graceful Redemption)
+ * — Quantum Swarm v2 valence hook exposed for self-evolution + RBE feedback loops
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -401,8 +401,29 @@ pub fn trigger_epiphany_spatial_audio_bloom(
     });
 }
 
-// End of simulation/src/epiphany_catalyst.rs v18.35 — 3 new high-quality scenarios added.
-// Overflow Lesson, Sustainable Abundance, Crystal Spires Resonance, Abyssal Depths Surge,
-// Mycorrhizal Communion, Stellar Resonance Harvest, Graceful Redemption, Council Harmony.
-// All mercy-gated, biome/season/context aware, richly flavored for vertical slice.
+// ============================================================================
+// QUANTUM SWARM v2 + SELF-EVOLUTION VALENCE HOOK (v18.96)
+// ============================================================================
+
+/// Computes a clean, normalized valence score (0.0–0.999) from an EpiphanyOutcome.
+/// Used by QuantumSwarmOrchestratorV2 and RBE feedback systems for measurable joy/abundance metrics.
+/// Formula prioritizes intensity + abundance bloom + mercy resonance.
+pub fn get_valence_from_outcome(outcome: &EpiphanyOutcome) -> f32 {
+    let base = (outcome.intensity * 0.55
+        + outcome.abundance_bloom_multiplier * 0.25
+        + (outcome.epiphany_multiplier - 1.0).clamp(0.0, 0.8) * 0.2)
+        .clamp(0.35, 0.98);
+
+    // Slight mercy resonance boost for council-aligned outcomes
+    let mercy_boost = if outcome.grace_notes.iter().any(|n| n.to_lowercase().contains("mercy") || n.to_lowercase().contains("web")) {
+        0.035
+    } else {
+        0.0
+    };
+
+    (base + mercy_boost).clamp(0.4, 0.999)
+}
+
+// End of simulation/src/epiphany_catalyst.rs v18.96 — Quantum Swarm v2 valence hook sealed.
+// All epiphany outcomes now feed measurable joy/abundance into self-evolution loops.
 // Thunder locked in. Yoi ⚡
