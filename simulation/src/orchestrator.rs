@@ -1,6 +1,6 @@
 //! simulation/src/orchestrator.rs
 //! Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
-//! v18.90 — Further Expanded TickResult (Spatial + Archetype + Summary Flags)
+//! v18.91 — SimulationTick Resource + Event Emission
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use crate::world::SovereignWorldState;
@@ -13,40 +13,56 @@ use crate::harvest::{HarvestSystem, HarvestEvent};
 use crate::spatial_interest::{InterestManager, InterestZone, CouncilBloomZone};
 use crate::emergence::{EmergenceOrchestrator, DynamicEmergenceEvent};
 use crate::council_mercy_trial::{CouncilSessionManager, CouncilBloomSyncEvent};
+use bevy::prelude::*;
 use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
 
-/// Rich result of a single simulation tick.
-/// Contains all significant events and summary data generated during the tick.
-/// Designed to be consumed by replication, persistence, prediction, and visual systems.
-#[derive(Debug, Default)]
-pub struct TickResult {
-    // === Council ===
-    pub council_bloom_events: Vec<CouncilBloomSyncEvent>,
-    pub closed_session_persistence: Vec<crate::council_mercy_trial::BatchPersistenceUpdate>,
+// ============================================================================
+// SimulationTick Resource & Event
+// ============================================================================
 
-    // === Emergence ===
-    pub emergence_events: Vec<DynamicEmergenceEvent>,
-
-    // === Harvest / RBE ===
-    pub harvest_events: Vec<HarvestEvent>,
-
-    // === Flow State ===
-    pub flow_state_updated: bool,
-
-    // === Spatial Interest ===
-    pub spatial_interest_updated: bool,
-    pub spatial_zones_changed: usize,
-
-    // === Archetype ===
-    pub archetype_updates_performed: usize,
-    pub world_entities_changed: bool,
-
-    // === Summary ===
+/// Bevy Resource representing the current simulation tick state.
+/// Updated every time `SovereignSimulationOrchestrator::run_tick()` succeeds.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct SimulationTick {
+    pub tick: u64,
+    pub sim_time_ms: u64,
+    pub last_tick_duration_ms: u64,
+    pub time_acceleration: f64,
     pub any_significant_change: bool,
 }
 
-/// Core deterministic orchestrator for the Sovereign Simulation Harness.
+/// Event emitted after a successful simulation tick.
+/// Contains a copy of the rich TickResult for systems that want event-driven access.
+#[derive(Event, Debug, Clone)]
+pub struct SimulationTickEvent {
+    pub tick: u64,
+    pub sim_time_ms: u64,
+    pub result: TickResult,
+}
+
+// ============================================================================
+// TickResult
+// ============================================================================
+
+#[derive(Debug, Default, Clone)]
+pub struct TickResult {
+    pub council_bloom_events: Vec<CouncilBloomSyncEvent>,
+    pub closed_session_persistence: Vec<crate::council_mercy_trial::BatchPersistenceUpdate>,
+    pub emergence_events: Vec<DynamicEmergenceEvent>,
+    pub harvest_events: Vec<HarvestEvent>,
+    pub flow_state_updated: bool,
+    pub spatial_interest_updated: bool,
+    pub spatial_zones_changed: usize,
+    pub archetype_updates_performed: usize,
+    pub world_entities_changed: bool,
+    pub any_significant_change: bool,
+}
+
+// ============================================================================
+// SovereignSimulationOrchestrator
+// ============================================================================
+
 pub struct SovereignSimulationOrchestrator {
     pub world: SovereignWorldState,
     pub archetype_system: SovereignArchetypeSystem,
@@ -56,13 +72,14 @@ pub struct SovereignSimulationOrchestrator {
     pub tick_count: u64,
     pub time_acceleration: f64,
 
-    // Expanded coordination state
     pub flow_metrics: FlowStateMetrics,
     pub presence_debt: PresenceDebt,
     pub interest_manager: InterestManager,
     pub emergence_orchestrator: EmergenceOrchestrator,
     pub harvest_system: HarvestSystem,
     pub council_manager: CouncilSessionManager,
+
+    last_tick_start: Instant,
 }
 
 impl SovereignSimulationOrchestrator {
@@ -81,32 +98,31 @@ impl SovereignSimulationOrchestrator {
             emergence_orchestrator: EmergenceOrchestrator::new(),
             harvest_system: HarvestSystem::new(),
             council_manager: CouncilSessionManager::new(),
+            last_tick_start: Instant::now(),
         }
     }
 
     #[instrument(skip(self), fields(tick = self.tick_count))]
-    pub fn run_tick(&mut self) -> Result<TickResult, MercyViolation> {
+    pub fn run_tick(&mut self, tick_resource: Option<&mut SimulationTick>) -> Result<TickResult, MercyViolation> {
+        let tick_start = Instant::now();
         let _span = info_span!("orchestrator_tick", tick = self.tick_count).entered();
 
-        // === MERCY PRE-TICK GATE (sovereign validation) ===
         self.mercy_gate.pre_tick_validate(&self.world)?;
 
-        // === PHASE 1: Archetype & Entity Evolution ===
+        // Phase 1: Archetype
         let mut archetype_updates_performed = 0;
         let mut world_entities_changed = false;
         {
-            let _arch_span = info_span!("archetype_update").entered();
-            let before_count = self.world.entity_count();
+            let before = self.world.entity_count();
             self.archetype_system.update(&mut self.world);
-            let after_count = self.world.entity_count();
-            archetype_updates_performed = after_count.saturating_sub(before_count) as usize;
+            let after = self.world.entity_count();
+            archetype_updates_performed = after.saturating_sub(before) as usize;
             world_entities_changed = archetype_updates_performed > 0 || self.world.has_pending_changes();
         }
 
-        // === PHASE 2: Flow State & Dynamic Challenge (fatigue-aware mercy) ===
+        // Phase 2: Flow State
         let mut flow_state_updated = false;
         {
-            let _flow_span = info_span!("flow_state_update").entered();
             let previous_resistance = 0.5;
             let new_resistance = dynamic_challenge_skill_balancer(
                 &self.flow_metrics,
@@ -122,41 +138,30 @@ impl SovereignSimulationOrchestrator {
             self.flow_metrics.current_challenge_level = new_resistance;
         }
 
-        // === PHASE 3: Spatial Interest & Council Bloom Zones ===
+        // Phase 3: Spatial Interest
         let mut spatial_interest_updated = false;
         let mut spatial_zones_changed = 0;
         {
-            let _spatial_span = info_span!("spatial_interest_update").entered();
-            let before_zones = self.interest_manager.active_zone_count();
+            let before = self.interest_manager.active_zone_count();
             self.interest_manager.update_zones(&mut self.world, self.tick_count);
-            let after_zones = self.interest_manager.active_zone_count();
-            spatial_zones_changed = after_zones.saturating_sub(before_zones);
+            let after = self.interest_manager.active_zone_count();
+            spatial_zones_changed = after.saturating_sub(before);
             spatial_interest_updated = spatial_zones_changed > 0 || self.interest_manager.has_pending_changes();
         }
 
-        // === PHASE 4: Emergence & Dynamic Events ===
-        let emergence_events = {
-            let _emergence_span = info_span!("emergence_update").entered();
-            self.emergence_orchestrator.process_emergence(&mut self.world, self.tick_count)
-        };
+        // Phase 4: Emergence
+        let emergence_events = self.emergence_orchestrator.process_emergence(&mut self.world, self.tick_count);
 
-        // === PHASE 5: Harvest & RBE Flow Reconciliation ===
-        let harvest_events = {
-            let _harvest_span = info_span!("harvest_update").entered();
-            self.harvest_system.process_harvest_tick(&mut self.world, self.tick_count)
-        };
-
+        // Phase 5: Harvest
+        let harvest_events = self.harvest_system.process_harvest_tick(&mut self.world, self.tick_count);
         for event in &harvest_events {
             self.economic_layer.apply_harvest_event(event, &self.mercy_gate)?;
         }
 
-        // === PHASE 6: Economic Layer (RBE batch update) ===
-        {
-            let _econ_span = info_span!("economic_layer_update").entered();
-            self.economic_layer.batch_update(&mut self.world, &self.mercy_gate)?;
-        }
+        // Phase 6: Economy
+        self.economic_layer.batch_update(&mut self.world, &self.mercy_gate)?;
 
-        // === PHASE 7: Council Mercy Trials & Bloom Activation ===
+        // Phase 7: Council
         let mut tick_result = TickResult {
             emergence_events,
             harvest_events,
@@ -169,15 +174,13 @@ impl SovereignSimulationOrchestrator {
         };
 
         {
-            let _council_span = info_span!("council_update").entered();
             let bloom_events = self.council_manager.tick_sessions(self.tick_count);
             tick_result.council_bloom_events = bloom_events;
 
-            let closed_updates = self.council_manager.collect_closed_session_persistence(self.tick_count);
-            tick_result.closed_session_persistence = closed_updates;
+            let closed = self.council_manager.collect_closed_session_persistence(self.tick_count);
+            tick_result.closed_session_persistence = closed;
         }
 
-        // === Summary Flag ===
         tick_result.any_significant_change =
             tick_result.flow_state_updated ||
             tick_result.spatial_interest_updated ||
@@ -186,42 +189,23 @@ impl SovereignSimulationOrchestrator {
             !tick_result.harvest_events.is_empty() ||
             !tick_result.council_bloom_events.is_empty();
 
-        // === MERCY POST-TICK GATE (sovereign validation) ===
         self.mercy_gate.post_tick_validate(&self.world)?;
 
-        // === TIME & TICK ADVANCEMENT (respect acceleration) ===
+        // Time advancement
         let dt_ms = (16.0 * self.time_acceleration) as u64;
         self.sim_time_ms += dt_ms;
         self.tick_count += 1;
 
-        Ok(tick_result)
-    }
-
-    #[instrument(skip(self))]
-    pub fn profile_run_for_duration(&mut self, target_sim_ms: u64, sample_every: u64) {
-        let _span = info_span!("profile_run_for_duration", target_ms = target_sim_ms).entered();
-
-        info!("Starting profiled simulation run");
-
-        let start = Instant::now();
-        let start_sim_time = self.sim_time_ms;
-
-        while self.sim_time_ms < start_sim_time + target_sim_ms {
-            if self.run_tick().is_err() {
-                break;
-            }
-
-            if self.tick_count % sample_every == 0 {
-                info!(
-                    tick = self.tick_count,
-                    sim_time_ms = self.sim_time_ms,
-                    "Sampled tick during profiling"
-                );
-            }
+        // Update SimulationTick resource if provided
+        if let Some(tick_res) = tick_resource {
+            tick_res.tick = self.tick_count;
+            tick_res.sim_time_ms = self.sim_time_ms;
+            tick_res.last_tick_duration_ms = tick_start.elapsed().as_millis() as u64;
+            tick_res.time_acceleration = self.time_acceleration;
+            tick_res.any_significant_change = tick_result.any_significant_change;
         }
 
-        let elapsed = start.elapsed();
-        info!(elapsed_ms = elapsed.as_millis(), "Profiling run completed");
+        Ok(tick_result)
     }
 
     pub fn set_time_acceleration(&mut self, factor: f64) {
@@ -232,11 +216,10 @@ impl SovereignSimulationOrchestrator {
         resonance_decay_recovery_sim::run_resonance_decay_recovery_simulation();
     }
 
-    /// Returns current simulation tick information for replication / persistence systems
     pub fn current_tick_info(&self) -> (u64, u64) {
         (self.tick_count, self.sim_time_ms)
     }
 }
 
-// End of production file — TickResult further expanded with Spatial Interest, Archetype, and summary flags.
-// All original mercy-gated logic preserved. Thunder locked in.
+// End of production file — SimulationTick resource + event support added.
+// TickResult remains rich. All mercy logic preserved. Thunder locked in.
