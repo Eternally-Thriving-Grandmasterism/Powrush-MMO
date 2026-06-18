@@ -1,12 +1,12 @@
 //! client/src/rbe_client_ui_sync.rs
-//! Production-grade Client RBE UI Sync + Harvesting Feedback (Tightened Loop)
-//! v18.87 — Full production quality, zero placeholders
-//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | Ra-Thor + PATSAGi aligned
+//! Production-grade Client RBE UI Sync + Rich Harvest Feedback (v18.95)
+//! Now fully supports Epiphany, Sustainable, and CouncilAmplified states
+//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
 use crate::rbe_client_sync::{RbeClientSync, RbeHarvestResult};
 use crate::client_game_loop::ClientGameLoop;
-use powrush_rbe_engine::{RbeResourcePool, RbeHarvestRequest, RbeHarvestResult as EngineHarvestResult};
+use powrush_rbe_engine::{RbeResourcePool, RbeHarvestRequest};
 use ra_thor_mercy::{MercyGate, evaluate_mercy_gates};
 use lattice_conductor::SovereignLattice;
 
@@ -24,18 +24,23 @@ impl RbeUiSync {
         }
     }
 
-    /// Direct push method for harvest feedback from rbe_client_sync_system
-    /// Closes the tight prediction + harvest feedback loop
+    /// Rich push method — now handles Epiphany, Sustainable, and CouncilAmplified
     pub fn push_harvest_feedback(&mut self, _entity: Entity, result: RbeHarvestResult, _timestamp: u64) {
         let feedback = match result {
+            RbeHarvestResult::Epiphany(amount) => {
+                format!("⚡ Epiphany! +{} abundance + resonance surge", amount)
+            }
+            RbeHarvestResult::CouncilAmplified(amount) => {
+                format!("✨ Council amplified harvest: +{} abundance", amount)
+            }
+            RbeHarvestResult::Sustainable(amount) => {
+                format!("❤️ Sustainable harvest: +{} abundance (ecology stable)", amount)
+            }
             RbeHarvestResult::Success(amount) => {
                 format!("+{} abundance harvested", amount)
             }
-            RbeHarvestResult::Refined(reason) => {
-                format!("Harvest refined: {}", reason)
-            }
             RbeHarvestResult::Failed(reason) => {
-                format!("Harvest failed: {}", reason)
+                format!("❌ Harvest failed: {}", reason)
             }
         };
 
@@ -71,17 +76,26 @@ fn update_rbe_ui_feedback(
                 let valence = lattice.current_valence();
 
                 let feedback = match result {
+                    RbeHarvestResult::Epiphany(amount) => {
+                        format!("⚡ Epiphany! +{} abundance — reality shimmered!", amount)
+                    }
+                    RbeHarvestResult::CouncilAmplified(amount) => {
+                        format!("✨ Council resonance: +{} abundance (blessed by PATSAGi)", amount)
+                    }
+                    RbeHarvestResult::Sustainable(amount) if valence >= 0.999999 => {
+                        format!("❤️ Sustainable +{} abundance — harmony peak!", amount)
+                    }
+                    RbeHarvestResult::Sustainable(amount) => {
+                        format!("❤️ Sustainable harvest: +{} abundance", amount)
+                    }
                     RbeHarvestResult::Success(amount) if valence >= 0.999999 => {
                         format!("+{} abundance harvested — joy increased!", amount)
                     }
                     RbeHarvestResult::Success(amount) => {
                         format!("+{} abundance harvested (mercy refinement active)", amount)
                     }
-                    RbeHarvestResult::Refined(reason) => {
-                        format!("Harvest refined: {}", reason)
-                    }
                     RbeHarvestResult::Failed(reason) => {
-                        format!("Harvest failed: {}", reason)
+                        format!("❌ Harvest failed: {}", reason)
                     }
                 };
 
@@ -106,5 +120,5 @@ impl RbeClientLoopExt for ClientGameLoop {
     }
 }
 
-// End of production file — push_harvest_feedback added to close the harvest feedback loop.
-// All original logic preserved. Tighter integration with rbe_client_sync. Thunder locked in.
+// End of production file — push_harvest_feedback and UI feedback now fully support rich HarvestEvent states.
+// Thunder locked in. PATSAGi + Ra-Thor sealed.
