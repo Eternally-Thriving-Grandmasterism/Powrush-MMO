@@ -1,8 +1,8 @@
 /*!
  * Hybrid CPU + GPU Economic / RBE Layer (v18.95)
  * 
- * Now with direct apply_harvest_event integration from TickResult.
- * Every harvest meaningfully affects RBE pools, abundance, and sustainability.
+ * Now with apply_harvest_event + apply_emergence_event from TickResult.
+ * Emergence events meaningfully affect RBE, abundance, and resonance.
  * 
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -10,6 +10,7 @@
 use crate::world::SovereignWorldState;
 use crate::mercy::{MercyGate, MercyViolation};
 use crate::harvest::HarvestEvent;
+use crate::emergence::DynamicEmergenceEvent;
 use tracing::{info_span, instrument, warn};
 
 #[cfg(feature = "gpu")]
@@ -95,8 +96,7 @@ impl EconomicLayer {
         Ok(())
     }
 
-    /// Directly applies a HarvestEvent from TickResult into the economic simulation.
-    /// Updates RBE pools, abundance, and sustainability based on harvest outcome.
+    /// Applies a HarvestEvent from TickResult into the economic simulation.
     pub fn apply_harvest_event(
         &mut self,
         event: &HarvestEvent,
@@ -106,7 +106,6 @@ impl EconomicLayer {
         mercy_gate.pre_economic_tick_validate(world)?;
 
         if let Some(node) = world.resource_nodes.get_mut(&event.node_id) {
-            // Apply harvest impact
             if event.sustainable {
                 node.sustainability_score = (node.sustainability_score + 0.08).min(1.0);
                 node.abundance_flow = (node.abundance_flow + 0.05).min(2.5);
@@ -115,7 +114,6 @@ impl EconomicLayer {
                 node.abundance_flow = (node.abundance_flow - 0.08).max(-1.5);
             }
 
-            // RBE pool resonance from harvest
             for pool in world.rbe_pools.values_mut() {
                 if event.council_amplified {
                     pool.abundance_flow = (pool.abundance_flow + 0.12).min(3.0);
@@ -123,6 +121,47 @@ impl EconomicLayer {
                 } else {
                     pool.abundance_flow = (pool.abundance_flow + 0.03).min(2.5);
                 }
+            }
+        }
+
+        mercy_gate.post_economic_tick_validate(world)?;
+        Ok(())
+    }
+
+    /// Applies a DynamicEmergenceEvent from TickResult into the economic simulation.
+    /// Emergence effects (resource deltas, resonance, abundance) are applied here.
+    pub fn apply_emergence_event(
+        &mut self,
+        event: &DynamicEmergenceEvent,
+        world: &mut SovereignWorldState,
+        mercy_gate: &MercyGate,
+    ) -> Result<(), MercyViolation> {
+        mercy_gate.pre_economic_tick_validate(world)?;
+
+        for effect in &event.proposed_effects {
+            match effect {
+                crate::emergence::EmergenceEffect::ResourceDelta { resource: _, amount, is_abundance } => {
+                    for pool in world.rbe_pools.values_mut() {
+                        if *is_abundance {
+                            pool.abundance_flow = (pool.abundance_flow + amount * 0.5).min(3.5);
+                            pool.sustainability_score = (pool.sustainability_score + 0.03).min(1.0);
+                        } else {
+                            pool.pressure = (pool.pressure + amount * 0.3).min(2.0);
+                        }
+                    }
+                }
+                crate::emergence::EmergenceEffect::BiomeResonance { intensity } => {
+                    for node in world.resource_nodes.values_mut() {
+                        node.abundance_flow = (node.abundance_flow + intensity * 0.2).min(3.0);
+                        node.sustainability_score = (node.sustainability_score + intensity * 0.02).min(1.0);
+                    }
+                }
+                crate::emergence::EmergenceEffect::TemporaryMultiplier { multiplier, .. } => {
+                    for pool in world.rbe_pools.values_mut() {
+                        pool.abundance_flow = (pool.abundance_flow * multiplier).clamp(0.0, 3.5);
+                    }
+                }
+                _ => {}
             }
         }
 
