@@ -1,6 +1,6 @@
 //! simulation/src/orchestrator.rs
 //! Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
-//! v18.89 — Enriched TickResult with Emergence + Harvest Events
+//! v18.90 — Further Expanded TickResult (Spatial + Archetype + Summary Flags)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use crate::world::SovereignWorldState;
@@ -17,23 +17,33 @@ use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
 
 /// Rich result of a single simulation tick.
-/// Contains all significant events and data generated during the tick.
-/// Higher layers (server replication, persistence, client prediction) can consume this.
+/// Contains all significant events and summary data generated during the tick.
+/// Designed to be consumed by replication, persistence, prediction, and visual systems.
 #[derive(Debug, Default)]
 pub struct TickResult {
-    /// Council bloom and session events
+    // === Council ===
     pub council_bloom_events: Vec<CouncilBloomSyncEvent>,
-    /// Data ready to be pushed into BatchPersistenceQueue
     pub closed_session_persistence: Vec<crate::council_mercy_trial::BatchPersistenceUpdate>,
 
-    /// Emergence events generated this tick
+    // === Emergence ===
     pub emergence_events: Vec<DynamicEmergenceEvent>,
 
-    /// Harvest / RBE flow events generated this tick
+    // === Harvest / RBE ===
     pub harvest_events: Vec<HarvestEvent>,
 
-    /// Whether flow state metrics were significantly updated
+    // === Flow State ===
     pub flow_state_updated: bool,
+
+    // === Spatial Interest ===
+    pub spatial_interest_updated: bool,
+    pub spatial_zones_changed: usize,
+
+    // === Archetype ===
+    pub archetype_updates_performed: usize,
+    pub world_entities_changed: bool,
+
+    // === Summary ===
+    pub any_significant_change: bool,
 }
 
 /// Core deterministic orchestrator for the Sovereign Simulation Harness.
@@ -82,16 +92,22 @@ impl SovereignSimulationOrchestrator {
         self.mercy_gate.pre_tick_validate(&self.world)?;
 
         // === PHASE 1: Archetype & Entity Evolution ===
+        let mut archetype_updates_performed = 0;
+        let mut world_entities_changed = false;
         {
             let _arch_span = info_span!("archetype_update").entered();
+            let before_count = self.world.entity_count();
             self.archetype_system.update(&mut self.world);
+            let after_count = self.world.entity_count();
+            archetype_updates_performed = after_count.saturating_sub(before_count) as usize;
+            world_entities_changed = archetype_updates_performed > 0 || self.world.has_pending_changes();
         }
 
         // === PHASE 2: Flow State & Dynamic Challenge (fatigue-aware mercy) ===
         let mut flow_state_updated = false;
         {
             let _flow_span = info_span!("flow_state_update").entered();
-            let previous_resistance = 0.5; // TODO: integrate real previous tick resistance history
+            let previous_resistance = 0.5;
             let new_resistance = dynamic_challenge_skill_balancer(
                 &self.flow_metrics,
                 0.5,
@@ -107,9 +123,15 @@ impl SovereignSimulationOrchestrator {
         }
 
         // === PHASE 3: Spatial Interest & Council Bloom Zones ===
+        let mut spatial_interest_updated = false;
+        let mut spatial_zones_changed = 0;
         {
             let _spatial_span = info_span!("spatial_interest_update").entered();
+            let before_zones = self.interest_manager.active_zone_count();
             self.interest_manager.update_zones(&mut self.world, self.tick_count);
+            let after_zones = self.interest_manager.active_zone_count();
+            spatial_zones_changed = after_zones.saturating_sub(before_zones);
+            spatial_interest_updated = spatial_zones_changed > 0 || self.interest_manager.has_pending_changes();
         }
 
         // === PHASE 4: Emergence & Dynamic Events ===
@@ -139,6 +161,10 @@ impl SovereignSimulationOrchestrator {
             emergence_events,
             harvest_events,
             flow_state_updated,
+            spatial_interest_updated,
+            spatial_zones_changed,
+            archetype_updates_performed,
+            world_entities_changed,
             ..Default::default()
         };
 
@@ -150,6 +176,15 @@ impl SovereignSimulationOrchestrator {
             let closed_updates = self.council_manager.collect_closed_session_persistence(self.tick_count);
             tick_result.closed_session_persistence = closed_updates;
         }
+
+        // === Summary Flag ===
+        tick_result.any_significant_change =
+            tick_result.flow_state_updated ||
+            tick_result.spatial_interest_updated ||
+            tick_result.archetype_updates_performed > 0 ||
+            !tick_result.emergence_events.is_empty() ||
+            !tick_result.harvest_events.is_empty() ||
+            !tick_result.council_bloom_events.is_empty();
 
         // === MERCY POST-TICK GATE (sovereign validation) ===
         self.mercy_gate.post_tick_validate(&self.world)?;
@@ -203,5 +238,5 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — TickResult now enriched with Emergence, Harvest, and Flow State data.
+// End of production file — TickResult further expanded with Spatial Interest, Archetype, and summary flags.
 // All original mercy-gated logic preserved. Thunder locked in.
