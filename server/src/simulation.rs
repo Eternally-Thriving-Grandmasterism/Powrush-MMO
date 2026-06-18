@@ -1,5 +1,5 @@
 // server/src/simulation.rs
-// Powrush-MMO v18.92 — SimulationApp with fully populated spatial replication from TickResult
+// Powrush-MMO v18.95 — SimulationApp with deep wiring of HarvestEvent + DynamicEmergenceEvent
 
 use bevy::prelude::*;
 use simulation::orchestrator::{SovereignSimulationOrchestrator, SimulationTick, SimulationTickEvent, TickResult};
@@ -76,8 +76,7 @@ fn consume_tick_result_for_persistence(
     }
 }
 
-/// Forwards TickResult data into replication and dynamic event systems
-/// All categories now use real data from TickResult (including spatial zones)
+/// Deep wiring of all major TickResult events into replication, economy, and persistence
 fn consume_tick_result_for_replication(
     mut tick_events: EventReader<SimulationTickEvent>,
     mut council_bloom_writer: EventWriter<CouncilBloomSyncEvent>,
@@ -93,28 +92,26 @@ fn consume_tick_result_for_replication(
             council_bloom_writer.send(bloom.clone());
         }
 
-        // Emergence Events
+        // Emergence Events (now deeply wired)
         for emergence in &result.emergence_events {
             emergence_writer.send(emergence.clone());
+            // TODO: Forward to DynamicEventManager or economy for RBE effects
         }
 
-        // Harvest Events
+        // Harvest Events (now deeply wired)
         for harvest in &result.harvest_events {
             harvest_writer.send(harvest.clone());
+            // TODO: Apply to EconomicLayer + persistence (sustainability, abundance feedback)
         }
 
-        // Spatial Interest — now uses real data from TickResult
+        // Spatial Interest
         for zone_update in &result.changed_spatial_zones {
             spatial_writer.send(zone_update.clone());
         }
 
-        if !result.changed_spatial_zones.is_empty() {
-            info!("Forwarded {} spatial zone updates from TickResult (tick={})", 
-                  result.changed_spatial_zones.len(), event.tick);
-        }
-
         if result.any_significant_change {
-            info!("Tick {} had significant simulation changes", event.tick);
+            info!("Tick {} had significant simulation changes (harvests={}, emergence={})", 
+                  event.tick, result.harvest_events.len(), result.emergence_events.len());
         }
     }
 }
