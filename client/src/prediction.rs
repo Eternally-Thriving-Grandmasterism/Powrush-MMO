@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction + Full Audio System (Events + Real Playback) v18.95
+//! Production-grade Client Prediction + Professional Audio Asset System v18.95
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -13,8 +13,25 @@ use crate::rbe_client_sync::RbeClientSync;
 use std::collections::VecDeque;
 
 // ============================================================
-// AUDIO SYSTEM
+// PROFESSIONAL AUDIO ASSET SYSTEM
 // ============================================================
+
+#[derive(Resource, Debug)]
+pub struct AudioAssets {
+    pub rollback_whoosh: Handle<AudioSource>,
+    pub epiphany_bloom: Handle<AudioSource>,
+    pub emergence_resonance: Handle<AudioSource>,
+}
+
+impl AudioAssets {
+    pub fn new(asset_server: &AssetServer) -> Self {
+        Self {
+            rollback_whoosh: asset_server.load("audio/rollback_whoosh.ogg"),
+            epiphany_bloom: asset_server.load("audio/epiphany_bloom.ogg"),
+            emergence_resonance: asset_server.load("audio/emergence_resonance.ogg"),
+        }
+    }
+}
 
 #[derive(Event, Debug, Clone)]
 pub enum AudioTriggerEvent {
@@ -26,24 +43,21 @@ pub enum AudioTriggerEvent {
 pub fn audio_playback_system(
     mut events: EventReader<AudioTriggerEvent>,
     audio: Res<Audio>,
-    asset_server: Res<AssetServer>,
+    audio_assets: Res<AudioAssets>,
 ) {
     for event in events.read() {
         match event {
             AudioTriggerEvent::RollbackWhoosh { intensity } => {
-                let handle: Handle<AudioSource> = asset_server.load("audio/rollback_whoosh.ogg");
-                audio.play(handle).with_volume(*intensity);
-                info!("[AUDIO] Playing rollback_whoosh | intensity={:.2}", intensity);
+                audio.play(audio_assets.rollback_whoosh.clone())
+                    .with_volume(*intensity.clamp(0.3, 1.0));
             }
-            AudioTriggerEvent::EpiphanyBloomResonance { amount } => {
-                let handle: Handle<AudioSource> = asset_server.load("audio/epiphany_bloom.ogg");
-                audio.play(handle).with_volume(0.85);
-                info!("[AUDIO] Playing epiphany_bloom_resonance | amount={}", amount);
+            AudioTriggerEvent::EpiphanyBloomResonance { amount: _ } => {
+                audio.play(audio_assets.epiphany_bloom.clone())
+                    .with_volume(0.9);
             }
-            AudioTriggerEvent::EmergenceResonanceField { id } => {
-                let handle: Handle<AudioSource> = asset_server.load("audio/emergence_resonance.ogg");
-                audio.play(handle).with_volume(0.75);
-                info!("[AUDIO] Playing emergence_resonance_field | id={}", id);
+            AudioTriggerEvent::EmergenceResonanceField { id: _ } => {
+                audio.play(audio_assets.emergence_resonance.clone())
+                    .with_volume(0.8);
             }
         }
     }
@@ -463,5 +477,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Full audio system: Visuals now emit AudioTriggerEvent + real Bevy audio playback.
+// End of production file — Professional AudioAssets resource + preloaded handles + real playback.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
