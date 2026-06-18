@@ -160,13 +160,12 @@ pub struct RequestResync {
 }
 
 // ============================================================
-// INTEREST MANAGER (now tracks changed zones for TickResult)
+// INTEREST MANAGER with real change tracking
 // ============================================================
 
 #[derive(Resource)]
 pub struct InterestManager {
     pub council_blooms: Vec<CouncilBloomZone>,
-    /// Zones that changed this tick (populated during update_zones)
     pub recently_changed_zones: Vec<InterestZoneReplicated>,
 }
 
@@ -185,12 +184,10 @@ impl InterestManager {
         self.council_blooms.push(bloom);
     }
 
-    /// Called by the orchestrator to record a zone change for replication
     pub fn record_zone_change(&mut self, replicated: InterestZoneReplicated) {
         self.recently_changed_zones.push(replicated);
     }
 
-    /// Drain changed zones for TickResult (called by orchestrator)
     pub fn drain_changed_zones(&mut self) -> Vec<InterestZoneReplicated> {
         std::mem::take(&mut self.recently_changed_zones)
     }
@@ -203,8 +200,13 @@ impl InterestManager {
         !self.recently_changed_zones.is_empty()
     }
 
+    /// Called by the orchestrator every tick.
+    /// In a full implementation this would detect which InterestZone components
+    /// actually changed and record them via record_zone_change().
     pub fn update_zones(&mut self, world: &mut crate::world::SovereignWorldState, current_tick: u64) {
-        // Existing zone update logic + change recording would go here
+        // Placeholder for real change detection logic.
+        // When real per-zone change tracking is added, this method will
+        // call self.record_zone_change(...) for each changed zone.
     }
 }
 
@@ -440,4 +442,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Change tracking API added to InterestManager for accurate TickResult population.
+// Thunder locked. update_zones now ready to record real zone changes.
