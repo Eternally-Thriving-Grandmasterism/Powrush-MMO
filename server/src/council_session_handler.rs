@@ -1,8 +1,7 @@
 /*!
  * Council Session Handler (Server Authoritative)
  *
- * Manages the full lifecycle of Council Mercy Trials.
- * This is the authoritative source of truth for trial state and phase progression.
+ * Manages the full lifecycle of Council Mercy Trials, including resolution and bloom generation.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -25,12 +24,21 @@ impl Plugin for CouncilSessionPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ActiveCouncilTrials>()
             .add_event::<CouncilTrialEvent>()
+            .add_event::<CouncilTrialResolved>()
             .add_systems(Update, (
                 handle_council_trial_events,
                 advance_trial_phases,
+                resolve_completed_trials,
                 broadcast_council_updates,
             ));
     }
+}
+
+/// Event emitted when a Council Mercy Trial successfully resolves
+#[derive(Event, Clone, Debug)]
+pub struct CouncilTrialResolved {
+    pub session_id: u64,
+    pub bloom: CollectiveEpiphanyBloom,
 }
 
 /// Main system that processes CouncilTrialEvent commands
@@ -54,44 +62,41 @@ fn handle_council_trial_events(
                 state.phase = CouncilMercyTrialPhase::Lobby;
                 state.start_time = now;
                 state.current_phase_start = now;
-                state.phase_duration = 45.0; // Lobby duration
+                state.phase_duration = 45.0;
 
                 trials.sessions.insert(session_id, state);
 
                 info!(
-                    "Council Mercy Trial started | session={} | host={:?} | participants={}",
-                    session_id, host, participants.len()
+                    "Council Mercy Trial started | session={} | participants={}",
+                    session_id, participants.len()
                 );
             }
 
-            CouncilTrialEvent::AdvancePhase => {
-                // Server can force phase advancement (e.g. from admin or timer)
-                // Full logic will be expanded in next iteration
-            }
-
             CouncilTrialEvent::CastVote { participant, vote } => {
-                // Find session this participant belongs to and record vote
                 for state in trials.sessions.values_mut() {
                     if state.participants.contains(participant) {
                         state.votes.insert(*participant, *vote);
-                        info!("Vote recorded | session={} | participant={:?}", state.session_id, participant);
                         break;
                     }
                 }
             }
 
             CouncilTrialEvent::ResolveTrial => {
-                // Trigger resolution logic (calculate bloom, distribute RBE, etc.)
+                for state in trials.sessions.values_mut() {
+                    if state.phase == CouncilMercyTrialPhase::Voting {
+                        state.phase = CouncilMercyTrialPhase::Resolution;
+                        state.current_phase_start = now;
+                        state.phase_duration = 15.0;
+                    }
+                }
             }
 
-            CouncilTrialEvent::CancelTrial => {
-                // Cleanup session
-            }
+            _ => {}
         }
     }
 }
 
-/// System that automatically advances phases based on timers
+/// Automatically advances phases based on timers
 fn advance_trial_phases(
     mut trials: ResMut<ActiveCouncilTrials>,
     time: Res<Time>,
@@ -102,8 +107,7 @@ fn advance_trial_phases(
         let elapsed = (now - state.current_phase_start) as f32;
 
         if elapsed >= state.phase_duration {
-            // Advance to next logical phase
-            state.phase = match state.phase {
+            let next_phase = match state.phase {
                 CouncilMercyTrialPhase::Lobby => CouncilMercyTrialPhase::Attunement,
                 CouncilMercyTrialPhase::Attunement => CouncilMercyTrialPhase::Deliberation,
                 CouncilMercyTrialPhase::Deliberation => CouncilMercyTrialPhase::Voting,
@@ -112,32 +116,108 @@ fn advance_trial_phases(
                 CouncilMercyTrialPhase::Completed => CouncilMercyTrialPhase::Completed,
             };
 
+            state.phase = next_phase;
             state.current_phase_start = now;
-            state.phase_duration = match state.phase {
+
+            state.phase_duration = match next_phase {
                 CouncilMercyTrialPhase::Attunement => 60.0,
                 CouncilMercyTrialPhase::Deliberation => 90.0,
                 CouncilMercyTrialPhase::Voting => 30.0,
-                CouncilMercyTrialPhase::Resolution => 20.0,
+                CouncilMercyTrialPhase::Resolution => 15.0,
                 _ => 30.0,
             };
 
-            info!("Council trial advanced | session={} | new_phase={:?}", state.session_id, state.phase);
+            info!("Council trial phase advanced | session={} | phase={:?}", state.session_id, next_phase);
         }
     }
 }
 
-/// Broadcasts state updates to connected clients (placeholder for networking layer)
+/// Resolves trials that have reached the Completed phase and generates the final bloom
+fn resolve_completed_trials(
+    mut trials: ResMut<ActiveCouncilTrials>,
+    mut resolved_events: EventWriter<CouncilTrialResolved>,
+) {
+    let mut to_remove = Vec::new();
+
+    for (session_id, state) in trials.sessions.iter_mut() {
+        if state.phase == CouncilMercyTrialPhase::Completed {
+            let bloom = calculate_collective_bloom(state);
+
+            resolved_events.send(CouncilTrialResolved {
+                session_id: *session_id,
+                bloom: bloom.clone(),
+            });
+
+            info!(
+                "Council Mercy Trial RESOLVED | session={} | intensity={:.2} | rbe_amp={:.2}x",
+                session_id, bloom.intensity, bloom.rbe_amplification
+            );
+
+            to_remove.push(*session_id);
+        }
+    }
+
+    for id in to_remove {
+        trials.sessions.remove(&id);
+    }
+}
+
+/// Core resolution logic: calculates the final CollectiveEpiphanyBloom
+fn calculate_collective_bloom(state: &CouncilSessionState) -> CollectiveEpiphanyBloom {
+    let participant_count = state.participants.len() as f32;
+    if participant_count == 0.0 {
+        return CollectiveEpiphanyBloom {
+            session_id: state.session_id,
+            intensity: 0.3,
+            mercy_resonance: 0.5,
+            bloom_amplification: 1.0,
+            participant_contributions: vec![],
+            rbe_amplification: 1.0,
+            created_at: 0.0,
+        };
+    }
+
+    let mut full_mercy = 0;
+    let mut balanced = 0;
+    let mut cautious = 0;
+
+    for vote in state.votes.values() {
+        match vote {
+            MercyTrialVote::FullMercy => full_mercy += 1,
+            MercyTrialVote::BalancedMercy => balanced += 1,
+            MercyTrialVote::CautiousMercy => cautious += 1,
+        }
+    }
+
+    let base_intensity = (state.collective_attunement * 0.6 + (participant_count / 8.0).min(1.0) * 0.4).clamp(0.4, 0.95);
+
+    let vote_influence = (full_mercy as f32 * 1.15 + balanced as f32 * 0.95 + cautious as f32 * 0.75)
+        / participant_count.max(1.0);
+
+    let final_intensity = (base_intensity * 0.7 + vote_influence * 0.3).clamp(0.5, 0.98);
+
+    let rbe_amp = (1.0 + (final_intensity - 0.5) * 1.8 + state.collective_attunement * 0.6).clamp(1.0, 3.5);
+
+    CollectiveEpiphanyBloom {
+        session_id: state.session_id,
+        intensity: final_intensity,
+        mercy_resonance: state.collective_attunement,
+        bloom_amplification: state.bloom_amplification,
+        participant_contributions: vec![],
+        rbe_amplification: rbe_amp,
+        created_at: state.current_phase_start,
+    }
+}
+
 fn broadcast_council_updates(
     trials: Res<ActiveCouncilTrials>,
-    // mut net: EventWriter<NetworkBroadcast>, // TODO: wire to actual networking
 ) {
     for state in trials.sessions.values() {
         if state.phase != CouncilMercyTrialPhase::Completed {
-            // TODO: Send CouncilSessionUpdate to relevant clients
-            // net.send(...);
+            // TODO: Send CouncilSessionUpdate to clients
         }
     }
 }
 
-// End of initial skeleton — Phase machine + event handling in place.
-// Next: Full resolution logic + RBE integration + client replication.
+// End of resolution logic implementation.
+// Next: Client-side reaction to CouncilTrialResolved + RBE integration.
