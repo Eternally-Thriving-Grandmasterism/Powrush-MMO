@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction + Full Visual Suite (Rollback + Harvest + Emergence VFX) v18.95
+//! Production-grade Client Prediction + Polished Visual Suite v18.95
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -209,7 +209,7 @@ pub fn update_rollback_visual_indicator(
 
             sprite.color = Color::srgb(1.0, 0.25 + flash * 0.5, 0.35 + flash * 0.4);
 
-            let scale_pulse = 1.0 + flash * 0.15;
+            let scale_pulse = 1.0 + flash * 0.12;
             transform.scale = Vec3::splat(scale_pulse);
         } else {
             sprite.color = Color::WHITE;
@@ -260,16 +260,20 @@ pub fn handle_harvest_event(
     for event in events.read() {
         if event.epiphany_triggered {
             if let Ok(player_transform) = query.get_single() {
-                let color = Color::srgb(0.6, 0.9, 1.0);
+                let pos = player_transform.translation + Vec3::new(0.0, 45.0, 0.0);
 
                 commands.spawn((
-                    Mesh2d(meshes.add(Circle::new(28.0))),
-                    MeshMaterial2d(materials.add(ColorMaterial::from(color))),
-                    Transform::from_translation(player_transform.translation + Vec3::new(0.0, 40.0, 0.0)),
-                    HarvestEpiphanyVisual {
-                        lifetime: 0.0,
-                        max_lifetime: 1.8,
-                    },
+                    Mesh2d(meshes.add(Circle::new(22.0))),
+                    MeshMaterial2d(materials.add(ColorMaterial::from(Color::srgb(0.7, 0.95, 1.0)))),
+                    Transform::from_translation(pos),
+                    HarvestEpiphanyVisual { lifetime: 0.0, max_lifetime: 1.6 },
+                ));
+
+                commands.spawn((
+                    Mesh2d(meshes.add(Circle::new(38.0))),
+                    MeshMaterial2d(materials.add(ColorMaterial::from(Color::srgba(0.5, 0.85, 1.0, 0.6)))),
+                    Transform::from_translation(pos),
+                    HarvestEpiphanyVisual { lifetime: 0.0, max_lifetime: 2.1 },
                 ));
             }
         }
@@ -291,11 +295,12 @@ pub fn update_harvest_epiphany_visuals(
         if t >= 1.0 {
             commands.entity(entity).despawn();
         } else {
-            let scale = 1.0 + t * 2.8;
+            let scale = 1.0 + t * 3.2;
             transform.scale = Vec3::splat(scale);
 
-            let alpha = (1.0 - t).powf(0.7);
-            material.0.color = Color::srgba(0.6, 0.9, 1.0, alpha);
+            let alpha = (1.0 - t * 0.9).powf(0.65);
+            let base_color = if visual.max_lifetime > 1.9 { Color::srgba(0.5, 0.85, 1.0, alpha) } else { Color::srgba(0.7, 0.95, 1.0, alpha) };
+            material.0.color = base_color;
         }
     }
 }
@@ -312,23 +317,28 @@ pub fn handle_dynamic_emergence_event(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    query: Query<&Transform, With<crate::spatial_interest::SpatialParticipant>>,
 ) {
     for event in events.read() {
         if matches!(event.phase, simulation::emergence::DynamicEmergenceEventPhase::Resolution { .. }) {
-            let color = Color::srgb(0.4, 0.85, 0.6);
+            let spawn_pos = if let Ok(player_t) = query.get_single() {
+                player_t.translation + Vec3::new(0.0, 20.0, 0.0)
+            } else {
+                Vec3::new(0.0, 30.0, 0.0)
+            };
 
             commands.spawn((
-                Mesh2d(meshes.add(Circle::new(55.0))),
-                MeshMaterial2d(materials.add(ColorMaterial::from(color))),
-                Transform::from_xyz(0.0, 0.0, 0.0),
+                Mesh2d(meshes.add(Circle::new(52.0))),
+                MeshMaterial2d(materials.add(ColorMaterial::from(Color::srgb(0.35, 0.82, 0.55)))),
+                Transform::from_translation(spawn_pos),
                 EmergenceResonanceField {
                     lifetime: 0.0,
-                    max_lifetime: 2.4,
+                    max_lifetime: 2.6,
                     intensity: 1.0,
                 },
             ));
 
-            info!("Spawned Emergence Resonance Field (id={})", event.id);
+            info!("Emergence Resonance Field spawned");
         }
     }
 }
@@ -348,13 +358,13 @@ pub fn update_emergence_resonance_fields(
         if t >= 1.0 {
             commands.entity(entity).despawn();
         } else {
-            let pulse = (t * 6.0).sin().abs() * 0.3 + 0.85;
-            let scale = 1.0 + t * 1.6;
+            let pulse = ((t * 5.5).sin().abs() * 0.25 + 0.88) * field.intensity;
+            let scale = 1.0 + t * 1.7;
 
             transform.scale = Vec3::splat(scale * pulse);
 
-            let alpha = (1.0 - t * 0.85).powf(0.6) * field.intensity;
-            material.0.color = Color::srgba(0.4, 0.85, 0.6, alpha);
+            let alpha = (1.0 - t * 0.88).powf(0.55) * field.intensity;
+            material.0.color = Color::srgba(0.35, 0.82, 0.55, alpha);
         }
     }
 }
@@ -403,6 +413,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — DynamicEmergenceEvent resonance field VFX added.
-// Full visual suite complete: Rollback + Harvest Epiphany + Emergence Resonance.
+// End of production file — Visuals polished with better positioning, double-ring epiphany effect, improved pulses, and cleaner animations.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
