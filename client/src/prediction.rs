@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction with Full Rollback Replay (v18.95)
+//! Production-grade Client Prediction with Polished Rollback + Server Timestamp Handling (v18.95)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -18,6 +18,21 @@ pub struct MovementInput {
     pub velocity: Vec3,
 }
 
+#[derive(Resource, Debug)]
+pub struct RollbackConfig {
+    pub discrepancy_threshold: f32,
+    pub max_rollback_age_seconds: f64,
+}
+
+impl Default for RollbackConfig {
+    fn default() -> Self {
+        Self {
+            discrepancy_threshold: 1.8,
+            max_rollback_age_seconds: 0.25,
+        }
+    }
+}
+
 #[derive(Resource, Default, Debug)]
 pub struct InputBuffer {
     pub inputs: VecDeque<MovementInput>,
@@ -27,8 +42,8 @@ pub struct InputBuffer {
 impl InputBuffer {
     pub fn new() -> Self {
         Self {
-            inputs: VecDeque::with_capacity(32),
-            max_size: 32,
+            inputs: VecDeque::with_capacity(48),
+            max_size: 48,
         }
     }
 
@@ -58,7 +73,6 @@ pub struct ClientBloomState {
     pub last_received_timestamp: f64,
 }
 
-/// Applies authoritative InterestZone updates
 pub fn handle_interest_zone_replicated(
     time: Res<Time>,
     mut events: EventReader<InterestZoneReplicated>,
@@ -108,7 +122,7 @@ pub fn handle_council_bloom_state_replicated(
     }
 }
 
-/// Records inputs into buffer while predicting
+/// Records inputs while predicting forward
 pub fn client_predict_local_player_movement(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut PredictedPosition), With<crate::spatial_interest::SpatialParticipant>>,
@@ -128,17 +142,24 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Full rollback + replay using InputBuffer when authoritative correction arrives
+/// Polished rollback + replay with server timestamp awareness
 pub fn perform_rollback_and_replay(
     mut query: Query<(&mut PredictedPosition, &mut Transform), With<crate::spatial_interest::SpatialParticipant>>,
     mut input_buffer: ResMut<InputBuffer>,
+    config: Res<RollbackConfig>,
     time: Res<Time>,
 ) {
+    let now = time.elapsed_secs_f64();
+
     for (mut predicted, mut transform) in &mut query {
         let discrepancy = (predicted.position - transform.translation).length();
 
-        if discrepancy > 2.0 {
-            let correction_time = time.elapsed_secs_f64() - 0.1;
+        if discrepancy > config.discrepancy_threshold {
+            let correction_time = if predicted.last_server_timestamp > 0.0 {
+                predicted.last_server_timestamp
+            } else {
+                now - config.max_rollback_age_seconds.min(0.25)
+            };
 
             while let Some(front) = input_buffer.inputs.front() {
                 if front.timestamp < correction_time {
@@ -148,13 +169,15 @@ pub fn perform_rollback_and_replay(
                 }
             }
 
+            let replay_dt = 1.0 / 60.0;
             for input in input_buffer.inputs.iter() {
-                predicted.position += input.velocity * 0.016;
+                predicted.position += input.velocity * replay_dt;
             }
 
             transform.translation = predicted.position;
 
-            info!("Rollback + replay performed (discrepancy was {:.2})", discrepancy);
+            info!("Rollback+replay executed | discrepancy={:.2} | inputs_replayed={}", 
+                  discrepancy, input_buffer.inputs.len());
         }
     }
 }
@@ -166,8 +189,8 @@ pub fn smooth_reconcile_position(
         let target = predicted.position;
         let current = transform.translation;
 
-        if (target - current).length() > 0.3 {
-            transform.translation = current.lerp(target, 0.3);
+        if (target - current).length() > 0.25 {
+            transform.translation = current.lerp(target, 0.35);
             predicted.position = transform.translation;
         }
     }
@@ -245,6 +268,7 @@ impl Plugin for PredictionPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ClientBloomState>()
             .init_resource::<InputBuffer>()
+            .init_resource::<RollbackConfig>()
             .add_systems(Update, (
                 handle_interest_zone_replicated,
                 handle_council_bloom_state_replicated,
@@ -258,5 +282,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Full rollback + replay using InputBuffer is now implemented.
+// End of production file — Rollback logic polished with configurable thresholds, server timestamp awareness, and cleaner replay.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
