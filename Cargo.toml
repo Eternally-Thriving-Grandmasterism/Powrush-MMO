@@ -1,6 +1,6 @@
 [package]
 name = "powrush-mmo"
-version = "0.1.0"
+version = "0.18.95"
 edition = "2021"
 
 [dependencies]
@@ -9,11 +9,13 @@ bevy_kira_audio = "0.20"
 simulation = { path = "simulation" }
 bevy_hanabi = { version = "0.10", features = ["3d"] }
 bevy_egui = "0.25"
-bevy_gltf = "0.14"  # glTF 2.0 model + scene loading for player, structures, ships, props
+bevy_gltf = "0.14"
 
 # Audio
 kira = { version = "0.8", features = ["cpal"] }
-fundsp = "0.18"  # Procedural audio synthesis
+fundsp = "0.18"
+oddio = "0.7"
+cpal = "0.15"
 
 # Optional: FMOD prototype
 # bevy_fmod = { git = "https://github.com/kyren/bevy_fmod", branch = "main" }
