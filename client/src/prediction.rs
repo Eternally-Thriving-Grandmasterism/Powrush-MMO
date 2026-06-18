@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction with Polished Rollback + Server Timestamp Handling (v18.95)
+//! Production-grade Client Prediction with Advanced Rollback (Velocity Correction + Visual Indicators) v18.95
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -22,13 +22,15 @@ pub struct MovementInput {
 pub struct RollbackConfig {
     pub discrepancy_threshold: f32,
     pub max_rollback_age_seconds: f64,
+    pub velocity_correction_weight: f32, // how strongly to blend velocity on correction
 }
 
 impl Default for RollbackConfig {
     fn default() -> Self {
         Self {
-            discrepancy_threshold: 1.8,
-            max_rollback_age_seconds: 0.25,
+            discrepancy_threshold: 1.6,
+            max_rollback_age_seconds: 0.3,
+            velocity_correction_weight: 0.6,
         }
     }
 }
@@ -57,6 +59,13 @@ impl InputBuffer {
     pub fn clear(&mut self) {
         self.inputs.clear();
     }
+}
+
+/// Optional visual indicator that a rollback just occurred
+#[derive(Component, Debug, Default)]
+pub struct RollbackVisualIndicator {
+    pub active_until: f64,
+    pub intensity: f32,
 }
 
 #[derive(Component, Default, Debug, Clone)]
@@ -122,7 +131,6 @@ pub fn handle_council_bloom_state_replicated(
     }
 }
 
-/// Records inputs while predicting forward
 pub fn client_predict_local_player_movement(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut PredictedPosition), With<crate::spatial_interest::SpatialParticipant>>,
@@ -142,23 +150,23 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Polished rollback + replay with server timestamp awareness
+/// Advanced rollback with velocity correction + visual indicator trigger
 pub fn perform_rollback_and_replay(
-    mut query: Query<(&mut PredictedPosition, &mut Transform), With<crate::spatial_interest::SpatialParticipant>>,
+    mut query: Query<(&mut PredictedPosition, &mut Transform, Option<&mut RollbackVisualIndicator>), With<crate::spatial_interest::SpatialParticipant>>,
     mut input_buffer: ResMut<InputBuffer>,
     config: Res<RollbackConfig>,
     time: Res<Time>,
 ) {
     let now = time.elapsed_secs_f64();
 
-    for (mut predicted, mut transform) in &mut query {
+    for (mut predicted, mut transform, mut maybe_indicator) in &mut query {
         let discrepancy = (predicted.position - transform.translation).length();
 
         if discrepancy > config.discrepancy_threshold {
             let correction_time = if predicted.last_server_timestamp > 0.0 {
                 predicted.last_server_timestamp
             } else {
-                now - config.max_rollback_age_seconds.min(0.25)
+                now - config.max_rollback_age_seconds.min(0.3)
             };
 
             while let Some(front) = input_buffer.inputs.front() {
@@ -170,14 +178,38 @@ pub fn perform_rollback_and_replay(
             }
 
             let replay_dt = 1.0 / 60.0;
+            let mut replayed_velocity = predicted.velocity;
+
             for input in input_buffer.inputs.iter() {
                 predicted.position += input.velocity * replay_dt;
+                replayed_velocity = replayed_velocity.lerp(input.velocity, config.velocity_correction_weight);
             }
 
+            predicted.velocity = replayed_velocity;
             transform.translation = predicted.position;
 
-            info!("Rollback+replay executed | discrepancy={:.2} | inputs_replayed={}", 
-                  discrepancy, input_buffer.inputs.len());
+            if let Some(indicator) = &mut maybe_indicator {
+                indicator.active_until = now + 0.6;
+                indicator.intensity = (discrepancy / 4.0).clamp(0.3, 1.0);
+            }
+
+            info!("Advanced rollback+replay | discrepancy={:.2} | inputs={}", discrepancy, input_buffer.inputs.len());
+        }
+    }
+}
+
+pub fn update_rollback_visual_indicator(
+    time: Res<Time>,
+    mut query: Query<(&mut RollbackVisualIndicator, &mut Sprite)>,
+) {
+    let now = time.elapsed_secs_f64();
+
+    for (mut indicator, mut sprite) in &mut query {
+        if now < indicator.active_until {
+            let t = ((indicator.active_until - now) / 0.6) as f32;
+            sprite.color = Color::srgb(1.0, 0.3 + t * 0.5, 0.3 + t * 0.5);
+        } else {
+            sprite.color = Color::WHITE;
         }
     }
 }
@@ -189,8 +221,8 @@ pub fn smooth_reconcile_position(
         let target = predicted.position;
         let current = transform.translation;
 
-        if (target - current).length() > 0.25 {
-            transform.translation = current.lerp(target, 0.35);
+        if (target - current).length() > 0.2 {
+            transform.translation = current.lerp(target, 0.4);
             predicted.position = transform.translation;
         }
     }
@@ -274,6 +306,7 @@ impl Plugin for PredictionPlugin {
                 handle_council_bloom_state_replicated,
                 client_predict_local_player_movement,
                 perform_rollback_and_replay,
+                update_rollback_visual_indicator,
                 smooth_reconcile_position,
                 predict_interest_zone_expansion,
                 handle_harvest_event,
@@ -282,5 +315,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Rollback logic polished with configurable thresholds, server timestamp awareness, and cleaner replay.
+// End of production file — Rollback now includes velocity correction + visual indicator support.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
