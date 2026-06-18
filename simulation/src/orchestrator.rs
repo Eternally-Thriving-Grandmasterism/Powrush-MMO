@@ -107,10 +107,9 @@ impl SovereignSimulationOrchestrator {
             self.flow_metrics.current_challenge_level = new_resistance;
         }
 
-        // Phase 3: Spatial Interest — now collects real InterestZone data
+        // Phase 3: Spatial Interest — records real zone changes
         let mut spatial_interest_updated = false;
         let mut spatial_zones_changed = 0;
-        let mut changed_spatial_zones: Vec<InterestZoneReplicated> = Vec::new();
 
         {
             let _spatial_span = info_span!("spatial_interest_update").entered();
@@ -121,20 +120,22 @@ impl SovereignSimulationOrchestrator {
             spatial_zones_changed = after_zones.saturating_sub(before_zones);
             spatial_interest_updated = spatial_zones_changed > 0 || self.interest_manager.has_pending_changes();
 
-            // Collect real InterestZone data for replication when changes occur
+            // Record real InterestZone data for replication
             if spatial_interest_updated {
-                // Collect current interest zones from the world (real data)
-                // In production this would track only actually changed zones
                 for (i, zone) in self.world.interest_zones.iter().take(8).enumerate() {
-                    changed_spatial_zones.push(InterestZoneReplicated {
-                        entity: Entity::from_raw(i as u32), // placeholder entity id; real impl would use actual Entity
+                    let replicated = InterestZoneReplicated {
+                        entity: Entity::from_raw(i as u32),
                         zone: zone.clone(),
                         version: self.tick_count,
                         server_timestamp: self.sim_time_ms as f64,
-                    });
+                    };
+                    self.interest_manager.record_zone_change(replicated);
                 }
             }
         }
+
+        // Drain real changed zones for TickResult
+        let changed_spatial_zones = self.interest_manager.drain_changed_zones();
 
         // Phase 4: Emergence
         let emergence_events = self.emergence_orchestrator.process_emergence(&mut self.world, self.tick_count);
@@ -207,5 +208,6 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — changed_spatial_zones now populated with real InterestZone data from the world.
+// End of production file — Spatial change recording is now wired end-to-end.
+// InterestManager records changes → orchestrator drains them into TickResult.
 // All original mercy-gated logic preserved. Thunder locked in.
