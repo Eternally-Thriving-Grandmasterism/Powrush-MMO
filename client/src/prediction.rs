@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction with Advanced Rollback + Polish (v18.95)
+//! Production-grade Client Prediction with Advanced Rollback + Rich Visuals + Audio Triggers (v18.95)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -8,9 +8,20 @@ use simulation::spatial_interest::{
 };
 use simulation::harvest::HarvestEvent;
 use simulation::emergence::DynamicEmergenceEvent;
-use crate::replication::{DecodedUpdate, ReplicatedFields, UpdatePayload};
+use crate::replication::{DecodedUpdate, UpdatePayload};
 use crate::rbe_client_sync::RbeClientSync;
 use std::collections::VecDeque;
+
+// ============================================================
+// AUDIO TRIGGER EVENTS (playback system can live in plugin or separate file)
+// ============================================================
+
+#[derive(Event, Debug, Clone)]
+pub enum AudioTriggerEvent {
+    RollbackWhoosh { intensity: f32 },
+    EpiphanyBloomResonance { amount: f32 },
+    EmergenceResonanceField { id: u64 },
+}
 
 #[derive(Clone, Debug)]
 pub struct MovementInput {
@@ -149,7 +160,7 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Polished rollback + replay with better timestamp handling
+/// Polished rollback + replay
 pub fn perform_rollback_and_replay(
     mut query: Query<(&mut PredictedPosition, &mut Transform, Option<&mut RollbackVisualIndicator>), With<crate::spatial_interest::SpatialParticipant>>,
     mut input_buffer: ResMut<InputBuffer>,
@@ -192,7 +203,7 @@ pub fn perform_rollback_and_replay(
                 indicator.intensity = (discrepancy / 3.2).clamp(0.4, 1.0);
             }
 
-            info!("Rollback+replay | discrepancy={:.2} | inputs_replayed={}", discrepancy, input_buffer.inputs.len());
+            info!("Rollback+replay | discrepancy={:.2} | inputs={}", discrepancy, input_buffer.inputs.len());
         }
     }
 }
@@ -255,7 +266,7 @@ pub fn handle_harvest_event(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut audio_events: EventWriter<crate::prediction::AudioTriggerEvent>,
+    mut audio_events: EventWriter<AudioTriggerEvent>,
     query: Query<&Transform, With<crate::spatial_interest::SpatialParticipant>>,
 ) {
     for event in events.read() {
@@ -277,7 +288,7 @@ pub fn handle_harvest_event(
                     HarvestEpiphanyVisual { lifetime: 0.0, max_lifetime: 2.1 },
                 ));
 
-                audio_events.send(crate::prediction::AudioTriggerEvent::EpiphanyBloomResonance { amount: event.amount });
+                audio_events.send(AudioTriggerEvent::EpiphanyBloomResonance { amount: event.amount });
             }
         }
     }
@@ -310,11 +321,11 @@ pub fn update_harvest_epiphany_visuals(
 
 pub fn handle_dynamic_emergence_event(
     mut events: EventReader<DynamicEmergenceEvent>,
-    mut audio_events: EventWriter<crate::prediction::AudioTriggerEvent>,
+    mut audio_events: EventWriter<AudioTriggerEvent>,
 ) {
     for event in events.read() {
         if matches!(event.phase, simulation::emergence::DynamicEmergenceEventPhase::Resolution { .. }) {
-            audio_events.send(crate::prediction::AudioTriggerEvent::EmergenceResonanceField { id: event.id });
+            audio_events.send(AudioTriggerEvent::EmergenceResonanceField { id: event.id });
         }
     }
 }
@@ -347,7 +358,7 @@ impl Plugin for PredictionPlugin {
         app.init_resource::<ClientBloomState>()
             .init_resource::<InputBuffer>()
             .init_resource::<RollbackConfig>()
-            .add_event::<crate::prediction::AudioTriggerEvent>()
+            .add_event::<AudioTriggerEvent>()
             .add_systems(Update, (
                 handle_interest_zone_replicated,
                 handle_council_bloom_state_replicated,
@@ -363,5 +374,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Further prediction polish applied (tighter rollback, better lerp, improved buffers).
+// End of production file — Clean, consistent, production-grade prediction + visuals + audio triggers.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
