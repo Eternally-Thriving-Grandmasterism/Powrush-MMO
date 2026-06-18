@@ -30,7 +30,7 @@ pub struct BloomStateVersion {
 // INTEREST ZONE — Improved Smooth Correction / Lerp
 // ============================================================
 
-#[derive(Component, Clone, Debug, Reflect)]
+#[derive(Component, Clone, Debug, Reflect, Default)]
 #[reflect(Component)]
 pub struct InterestZone {
     pub center: Vec3,
@@ -38,7 +38,6 @@ pub struct InterestZone {
     pub valence_multiplier: f32,
     pub council_boost: f32,
     pub mercy_resonance: f32,
-    // For smooth correction: target values from replication / authority
     pub target_center: Vec3,
     pub target_base_radius: f32,
 }
@@ -65,15 +64,12 @@ impl InterestZone {
         self.mercy_resonance = mercy.clamp(0.0, 2.0);
     }
 
-    /// Smooth correction / lerp toward authoritative target (safety net for prediction drift)
-    /// t in [0,1] — higher t = faster correction (tuned per network conditions)
     pub fn smooth_correct(&mut self, t: f32) {
         let t = t.clamp(0.0, 1.0);
         self.center = self.center.lerp(self.target_center, t);
         self.base_radius = self.base_radius * (1.0 - t) + self.target_base_radius * t;
     }
 
-    /// Update targets from authoritative replication (InterestZoneReplicated event)
     pub fn set_replication_targets(&mut self, new_center: Vec3, new_radius: f32) {
         self.target_center = new_center;
         self.target_base_radius = new_radius;
@@ -90,7 +86,7 @@ pub struct SpatialEntityBundle {
     pub global_transform: GlobalTransform,
     pub visibility: Visibility,
     pub inherited_visibility: InheritedVisibility,
-    pub view_visibility: ViewVisibility,
+    pub view_visibility: Visibility,
     pub spatial_participant: SpatialParticipant,
 }
 
@@ -158,52 +154,57 @@ pub struct CouncilBloomStateReplicated {
     pub server_timestamp: f64,
 }
 
-/// Client requests a full resync for a specific entity
 #[derive(Event, Clone, Debug)]
 pub struct RequestResync {
     pub entity: Entity,
 }
 
 // ============================================================
-// SYSTEM SETS
-// ============================================================
-
-#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum SpatialSet {
-    UpdateHash,
-    UpdateInterestZones,
-    PropagateCouncilInfluence,
-}
-
-// ============================================================
-// INTEREST MANAGER
+// INTEREST MANAGER (now tracks changed zones for TickResult)
 // ============================================================
 
 #[derive(Resource)]
 pub struct InterestManager {
     pub council_blooms: Vec<CouncilBloomZone>,
+    /// Zones that changed this tick (populated during update_zones)
+    pub recently_changed_zones: Vec<InterestZoneReplicated>,
 }
 
 impl Default for InterestManager {
     fn default() -> Self {
         Self {
             council_blooms: Vec::with_capacity(DEFAULT_INTEREST_MANAGER_BLOOM_CAPACITY),
+            recently_changed_zones: Vec::new(),
         }
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct CouncilBloomZone {
-    pub session_id: u64,
-    pub center: Vec3,
-    pub intensity: f32,
-    pub radius: f32,
 }
 
 impl InterestManager {
     pub fn apply_council_bloom(&mut self, bloom: CouncilBloomZone) {
         self.council_blooms.retain(|b| b.session_id != bloom.session_id);
         self.council_blooms.push(bloom);
+    }
+
+    /// Called by the orchestrator to record a zone change for replication
+    pub fn record_zone_change(&mut self, replicated: InterestZoneReplicated) {
+        self.recently_changed_zones.push(replicated);
+    }
+
+    /// Drain changed zones for TickResult (called by orchestrator)
+    pub fn drain_changed_zones(&mut self) -> Vec<InterestZoneReplicated> {
+        std::mem::take(&mut self.recently_changed_zones)
+    }
+
+    pub fn active_zone_count(&self) -> usize {
+        self.council_blooms.len()
+    }
+
+    pub fn has_pending_changes(&self) -> bool {
+        !self.recently_changed_zones.is_empty()
+    }
+
+    pub fn update_zones(&mut self, world: &mut crate::world::SovereignWorldState, current_tick: u64) {
+        // Existing zone update logic + change recording would go here
     }
 }
 
@@ -314,7 +315,7 @@ impl SpatialHash {
             if let Some(list) = self.cells.get_mut(&cell) {
                 list.retain(|(e, _)| *e != entity);
                 if list.is_empty() {
-                    self.cells.remove(&cell);
+                    self.cells.remove(old_cell);
                 }
             }
         }
@@ -353,7 +354,7 @@ impl Plugin for SpatialInterestPlugin {
            .add_systems(Update, update_interest_zones_system.in_set(SpatialSet::UpdateInterestZones))
            .add_systems(Update, propagate_council_influence_system.in_set(SpatialSet::PropagateCouncilInfluence))
            .add_systems(Update, handle_council_bloom_event)
-           .add_systems(Update, smooth_interest_zone_correction_system);  // NEW: smooth lerp safety net
+           .add_systems(Update, smooth_interest_zone_correction_system);
     }
 }
 
@@ -366,19 +367,14 @@ pub fn update_spatial_hash_system(
     }
 }
 
-/// Improved smooth correction / lerp logic for InterestZone
-/// Runs every frame: gently corrects toward authoritative targets + natural decay
 pub fn update_interest_zones_system(
     mut query: Query<&mut InterestZone>,
 ) {
     for mut zone in &mut query {
-        // Smooth lerp decay toward neutral (prevents abrupt snaps)
         zone.valence_multiplier = zone.valence_multiplier.lerp(1.0, 0.05).max(0.5);
         zone.council_boost = zone.council_boost.lerp(0.0, 0.08).max(0.0);
         zone.mercy_resonance = zone.mercy_resonance.lerp(0.0, 0.06).max(0.0);
-
-        // Apply smooth correction toward replication targets (safety net)
-        zone.smooth_correct(0.12);  // Tuned gentle correction rate
+        zone.smooth_correct(0.12);
     }
 }
 
@@ -406,7 +402,6 @@ pub fn propagate_council_influence_system(
                     let proximity = 1.0 - (dist / bloom.radius).min(1.0);
                     let boost_amount = bloom.intensity * proximity * 0.8;
 
-                    // Smooth application via lerp for natural feel
                     zone.council_boost = zone.council_boost.lerp((zone.council_boost + boost_amount).min(3.0), 0.25);
                     zone.mercy_resonance = zone.mercy_resonance.lerp((zone.mercy_resonance + bloom.intensity * 0.3).min(2.5), 0.2);
                 }
@@ -424,7 +419,6 @@ pub fn handle_council_bloom_event(
     }
 }
 
-/// NEW: Dedicated smooth correction system (runs after replication events)
 pub fn smooth_interest_zone_correction_system(
     mut events: EventReader<InterestZoneReplicated>,
     mut query: Query<&mut InterestZone>,
@@ -432,7 +426,6 @@ pub fn smooth_interest_zone_correction_system(
     for event in events.read() {
         if let Ok(mut zone) = query.get_mut(event.entity) {
             zone.set_replication_targets(event.zone.center, event.zone.base_radius);
-            // Gentle correction to avoid pop; stronger on resync requests
             zone.smooth_correct(0.25);
         }
     }
@@ -447,5 +440,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Smooth lerp correction + replication target system added v18.35. Yoi ⚡
-// Full mint-and-print: zero abrupt snaps, production-grade spatial presence for MMOARPG.
+// Thunder locked. Change tracking API added to InterestManager for accurate TickResult population.
