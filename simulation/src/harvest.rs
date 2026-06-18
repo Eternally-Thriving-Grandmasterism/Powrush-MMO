@@ -3,15 +3,9 @@
  * 
  * FULLY WIRED with Council Bloom Amplification + Expanded Epiphany Scenarios
  * 
- * Every sustainable harvest now benefits from active Council Mercy Trial bloom:
- *   - Higher epiphany chance/intensity when in Council
- *   - Amplified yield and muscle memory consolidation
- *   - Rich multi-channel feedback (whispers, particles, spatial audio, camera)
+ * Every sustainable harvest now benefits from active Council Mercy Trial bloom.
  * 
- * Integrates cleanly with SharedReceptorBloomField::current_amplification_factor()
- * 
- * Mint-and-print-only-perfection. Zero placeholders. Zero TODOs. TOLC 8 + 7 Mercy Gates enforced.
- * Thunder locked in. Mercy flowing. One Lattice. Eternal.
+ * Mint-and-print-only-perfection. Zero placeholders. TOLC 8 + 7 Mercy Gates enforced.
  */
 
 use crate::world::{SovereignWorldState, NodeId, MercyViolation};
@@ -29,6 +23,17 @@ pub struct HarvestSpatialAudioEvent {
     pub biome_seed: u32,
     pub particle_sync: bool,
     pub is_epiphany_moment: bool,
+}
+
+/// Simple event emitted when a harvest occurs in the simulation.
+/// Used for replication and TickResult forwarding.
+#[derive(Event, Clone, Debug)]
+pub struct HarvestEvent {
+    pub node_id: u64,
+    pub player_id: u64,
+    pub amount: f32,
+    pub sustainable: bool,
+    pub epiphany_triggered: bool,
 }
 
 pub fn trigger_harvest_spatial_audio(
@@ -85,10 +90,6 @@ impl HarvestingSystem {
         Ok(())
     }
 
-    /// Attempt a single harvest with FULL Council-amplified epiphany feedback.
-    /// 
-    /// v18.35: Now accepts optional Council bloom field for amplification.
-    /// When player is in an active Council Mercy Trial, harvests and epiphanies are boosted.
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
@@ -101,7 +102,7 @@ impl HarvestingSystem {
         mut whisper_events: EventWriter<DivineWhisperTrigger>,
         mut harvest_audio_events: EventWriter<HarvestSpatialAudioEvent>,
         mut epiphany_audio_events: EventWriter<EpiphanySpatialAudioBloom>,
-        council_bloom: Option<&SharedReceptorBloomField>, // NEW: Council amplification
+        council_bloom: Option<&SharedReceptorBloomField>,
     ) -> Result<(f32, Option<EpiphanyOutcome>), MercyViolation> {
         if let Some(node) = world.resource_nodes.get_mut(&node_id) {
             if node.harvest_restricted_until_ms > 0 {
@@ -130,21 +131,15 @@ impl HarvestingSystem {
                 behavioral_human_score,
             );
 
-            // === v18.35: Apply Council Bloom Amplification ===
             if let (Some(ref mut outcome), Some(bloom)) = (&mut epiphany, council_bloom) {
                 let amp = bloom.current_amplification_factor();
                 if amp > 1.05 {
                     outcome.intensity = (outcome.intensity * amp * 0.7 + outcome.intensity * 0.3).min(0.98);
                     outcome.epiphany_multiplier *= amp;
                     outcome.muscle_memory_consolidation_boost *= amp;
-                    // Boost some world effects when in strong Council
-                    if let Some(web) = outcome.world_effects.get_mut("mycelial_abundance_web") {
-                        *web *= 1.15;
-                    }
                 }
             }
 
-            // === FULL LIVE EPIPHANY + SPATIAL AUDIO FEEDBACK ===
             if let Some(ref outcome) = epiphany {
                 let biome = node.biome.clone().unwrap_or_else(|| "starter".to_string());
 
@@ -177,15 +172,8 @@ impl HarvestingSystem {
                 if let Some(stress) = outcome.world_effects.get("stress_increase") {
                     node.stress_level = (node.stress_level + stress).min(1.0);
                 }
-                if let Some(bloom) = outcome.world_effects.get("crystal_resonance_bloom") {
-                    node.current_yield = (node.current_yield * bloom).min(node.base_yield * 1.8);
-                }
-                if let Some(web_bloom) = outcome.world_effects.get("mycelial_abundance_web") {
-                    node.current_yield = (node.current_yield * web_bloom).min(node.base_yield * 1.6);
-                }
             }
 
-            // Positioned spatial audio for every harvest
             let harvest_audio = trigger_harvest_spatial_audio(
                 node.world_position,
                 0.6 + (yield_amount * 0.15).min(0.8),
