@@ -1,9 +1,10 @@
 // server/src/simulation.rs
-// Powrush-MMO v18.91 — SimulationApp with real TickResult forwarding
-// Council bloom events from TickResult are now emitted as CouncilBloomSyncEvent
+// Powrush-MMO v18.91 — SimulationApp with expanded TickResult forwarding
+// Council + Emergence events now forwarded from TickResult
 
 use bevy::prelude::*;
 use simulation::orchestrator::{SovereignSimulationOrchestrator, SimulationTick, SimulationTickEvent, TickResult};
+use simulation::emergence::DynamicEmergenceEvent;
 use crate::council_mercy_trial::CouncilBloomSyncEvent;
 use crate::council_session::{BatchPersistenceQueue};
 use crate::combat::CombatPlugin;
@@ -74,11 +75,11 @@ fn consume_tick_result_for_persistence(
     }
 }
 
-/// Forwards data from TickResult into replication and dynamic event systems
+/// Forwards TickResult data into replication and dynamic event systems
 fn consume_tick_result_for_replication(
     mut tick_events: EventReader<SimulationTickEvent>,
     mut council_bloom_writer: EventWriter<CouncilBloomSyncEvent>,
-    // TODO: Add more EventWriters for emergence, harvest, spatial, etc.
+    mut emergence_writer: EventWriter<DynamicEmergenceEvent>,
 ) {
     for event in tick_events.read() {
         let result = &event.result;
@@ -89,24 +90,24 @@ fn consume_tick_result_for_replication(
         }
 
         if !result.council_bloom_events.is_empty() {
-            info!(
-                "Forwarded {} council bloom events to replication (tick={})",
-                result.council_bloom_events.len(),
-                event.tick
-            );
+            info!("Forwarded {} council bloom events (tick={})", result.council_bloom_events.len(), event.tick);
         }
 
-        // === Emergence Events (placeholder for future wiring) ===
+        // === Emergence Events ===
+        for emergence in &result.emergence_events {
+            emergence_writer.send(emergence.clone());
+        }
+
         if !result.emergence_events.is_empty() {
-            info!("Tick {} produced {} emergence events (forwarding TODO)", event.tick, result.emergence_events.len());
+            info!("Forwarded {} emergence events (tick={})", result.emergence_events.len(), event.tick);
         }
 
-        // === Harvest Events (placeholder) ===
+        // === Harvest Events (TODO: add HarvestEvent writer when available) ===
         if !result.harvest_events.is_empty() {
             info!("Tick {} produced {} harvest events (forwarding TODO)", event.tick, result.harvest_events.len());
         }
 
-        // === Spatial Interest ===
+        // === Spatial Interest Changes ===
         if result.spatial_interest_updated {
             info!("Tick {} had spatial interest changes ({} zones)", event.tick, result.spatial_zones_changed);
         }
