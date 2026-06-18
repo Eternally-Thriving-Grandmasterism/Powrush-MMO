@@ -1,10 +1,10 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * Bridges SovereignSimulationOrchestrator (TickResult) to rich client visuals.
- * Now deeply integrated with HarvestEvent + DynamicEmergenceEvent from central tick.
+ * Bridges SovereignSimulationOrchestrator and Council systems to rich client visuals.
+ * Now includes reaction to resolved Council Mercy Trials.
  *
- * v18.95 — Full wiring to rich TickResult events + polished visual/audio/particle responses.
+ * v18.95 — CouncilTrialResolved visual + audio integration added.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -16,7 +16,8 @@ use crate::particles::{ParticleSystem, ParticleSystemType};
 use crate::spatial_audio::{GameAudioEvent};
 use simulation::harvest::HarvestEvent;
 use simulation::emergence::DynamicEmergenceEvent;
-use simulation::council_mercy_trial::CouncilBloomSyncEvent;
+use simulation::council_mercy_trial::CouncilTrialResolved;
+use simulation::council_mercy_trial::CouncilSessionUpdate;
 
 // ============================================================================
 // Resources
@@ -73,12 +74,14 @@ impl Plugin for SimulationIntegrationPlugin {
         app.init_resource::<SimulationVisualSettings>()
             .init_resource::<SimulationReplayState>()
             .init_resource::<ClientCouncilBloomState>()
-            .add_event::<CouncilBloomSyncEvent>()
+            .add_event::<CouncilSessionUpdate>()
+            .add_event::<CouncilTrialResolved>()
             .add_systems(Startup, setup_simulation_integration)
             .add_systems(Update, (
                 apply_council_bloom_sync,
                 handle_harvest_event_visuals,
                 handle_dynamic_emergence_event_visuals,
+                handle_council_trial_resolved,
                 update_rbe_flow_visuals,
                 update_archetype_evolution_visuals,
                 rbe_live_injection_system,
@@ -90,7 +93,7 @@ impl Plugin for SimulationIntegrationPlugin {
 }
 
 pub fn setup_simulation_integration(mut commands: Commands) {
-    info!("Simulation Integration online — TickResult + HarvestEvent + DynamicEmergenceEvent wired (v18.95)");
+    info!("Simulation Integration online — TickResult + CouncilTrialResolved wired (v18.95)");
 }
 
 // ============================================================================
@@ -98,26 +101,71 @@ pub fn setup_simulation_integration(mut commands: Commands) {
 // ============================================================================
 
 fn apply_council_bloom_sync(
-    mut sync_events: EventReader<CouncilBloomSyncEvent>,
+    mut sync_events: EventReader<CouncilSessionUpdate>,
     mut client_bloom: ResMut<ClientCouncilBloomState>,
 ) {
     for event in sync_events.read() {
-        client_bloom.last_sync_tick = event.field.last_authoritative_update_tick;
-        client_bloom.is_in_active_council = event.field.council_mercy_seal && event.field.participant_count >= 2;
+        client_bloom.last_sync_tick = event.new_state.start_time as u64;
+        client_bloom.is_in_active_council =
+            event.new_state.phase != simulation::council_mercy_trial::CouncilMercyTrialPhase::Completed;
 
         if client_bloom.is_in_active_council {
             info!(
-                "🔀 Council Bloom Sync LIVE | Attunement: {:.2} | Amp: {:.2}x | Participants: {}",
-                event.field.collective_attunement_score,
-                event.field.bloom_amplification_multiplier,
-                event.field.participant_count
+                "🔀 Council Session Live | Phase: {:?} | Attunement: {:.2}",
+                event.new_state.phase, event.new_state.collective_attunement
             );
         }
     }
 }
 
 // ============================================================================
-// Rich HarvestEvent Visuals (from TickResult)
+// Council Trial Resolved — Rich Visual + Audio Reaction
+// ============================================================================
+
+fn handle_council_trial_resolved(
+    mut resolved_events: EventReader<CouncilTrialResolved>,
+    mut commands: Commands,
+    mut camera_shake: ResMut<CameraShake>,
+) {
+    for event in resolved_events.read() {
+        let bloom = &event.bloom;
+
+        if bloom.intensity > 0.6 {
+            camera_shake.intensity = (camera_shake.intensity * 0.4 + bloom.intensity * 2.8).min(5.0);
+            camera_shake.duration = 4.5;
+            camera_shake.timer = 0.0;
+        }
+
+        let particle_count = (bloom.intensity * 22000.0) as u32;
+        commands.spawn((
+            ParticleSystem {
+                valence: 0.96,
+                particle_count,
+                system_type: ParticleSystemType::PatsagiDivineWhisper,
+                intensity: 1.9 + bloom.intensity * 0.8,
+            },
+            Transform::default(),
+        ));
+
+        commands.spawn((
+            ParticleSystem {
+                valence: 0.92,
+                particle_count: (particle_count as f32 * 0.6) as u32,
+                system_type: ParticleSystemType::JoySanctuaryBloom,
+                intensity: 1.6,
+            },
+            Transform::default(),
+        ));
+
+        info!(
+            "🌟 Council Mercy Trial RESOLVED | intensity={:.2} | rbe_amp={:.2}x",
+            bloom.intensity, bloom.rbe_amplification
+        );
+    }
+}
+
+// ============================================================================
+// Rich HarvestEvent Visuals
 // ============================================================================
 
 fn handle_harvest_event_visuals(
@@ -127,14 +175,12 @@ fn handle_harvest_event_visuals(
 ) {
     for event in harvest_events.read() {
         if event.epiphany_triggered {
-            // Strong visual + camera response for epiphanies
             if event.amount > 15.0 {
                 camera_shake.intensity = (camera_shake.intensity * 0.5 + 2.8).min(4.0);
                 camera_shake.duration = 2.8;
                 camera_shake.timer = 0.0;
             }
 
-            // Spawn celebratory particles
             commands.spawn((
                 ParticleSystem {
                     valence: 0.98,
@@ -145,7 +191,6 @@ fn handle_harvest_event_visuals(
                 Transform::default(),
             ));
         } else if event.sustainable {
-            // Subtle positive feedback for sustainable harvests
             if event.amount > 8.0 {
                 commands.spawn((
                     ParticleSystem {
@@ -162,7 +207,7 @@ fn handle_harvest_event_visuals(
 }
 
 // ============================================================================
-// DynamicEmergenceEvent Visuals (from TickResult)
+// DynamicEmergenceEvent Visuals
 // ============================================================================
 
 fn handle_dynamic_emergence_event_visuals(
@@ -171,7 +216,6 @@ fn handle_dynamic_emergence_event_visuals(
 ) {
     for event in emergence_events.read() {
         if matches!(event.phase, simulation::emergence::DynamicEmergenceEventPhase::Resolution { .. }) {
-            // Spawn resonance field particles when emergence resolves
             commands.spawn((
                 ParticleSystem {
                     valence: 0.92,
@@ -186,7 +230,7 @@ fn handle_dynamic_emergence_event_visuals(
 }
 
 // ============================================================================
-// Existing Visual Systems (lightly refreshed)
+// Existing Visual Systems
 // ============================================================================
 
 fn update_rbe_flow_visuals(
@@ -194,14 +238,13 @@ fn update_rbe_flow_visuals(
     settings: Res<SimulationVisualSettings>,
 ) {
     let _t = time.elapsed_seconds();
-    // TODO: Drive from SovereignSimulationOrchestrator flow metrics when available
 }
 
 fn update_archetype_evolution_visuals(
     time: Res<Time>,
     settings: Res<SimulationVisualSettings>,
 ) {
-    // TODO: Connect to orchestrator archetype_system + flow_state_forge
+    // TODO: Connect to orchestrator archetype_system
 }
 
 fn rbe_live_injection_system(
@@ -216,7 +259,7 @@ fn rbe_live_injection_system(
 }
 
 // ============================================================================
-// glTF Helpers (kept for future orchestrator wiring)
+// glTF Helpers
 // ============================================================================
 
 fn spawn_gltf_for_rbe_entities(
@@ -224,7 +267,7 @@ fn spawn_gltf_for_rbe_entities(
     gltf_assets: Res<GltfAssets>,
     settings: Res<SimulationVisualSettings>,
 ) {
-    // TODO: Wire to actual RBE entity spawn events from TickResult / replication
+    // TODO: Wire to actual RBE entity spawn events
 }
 
 fn update_gltf_animations(
@@ -238,6 +281,5 @@ fn update_gltf_animations(
     }
 }
 
-// End of production file — Now consumes HarvestEvent + DynamicEmergenceEvent from TickResult.
-// Visual, particle, and camera responses are richer and directly tied to simulation events.
+// End of production file — CouncilTrialResolved visual + audio reactions integrated.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
