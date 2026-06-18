@@ -1,23 +1,25 @@
 //! client/src/rbe_client_sync.rs
-//! Production-grade Client-side RBE Synchronization + SafetyNet + Harvest Feedback + Prediction Reconciliation
-//! v18.87 — Full production quality, zero placeholders, tightened prediction + harvest feedback wiring
-//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates enforced | Ra-Thor + PATSAGi aligned
+//! Production-grade Client-side RBE Synchronization + Rich Harvest Feedback (v18.95)
+//! Now deeply integrated with HarvestEvent from central TickResult
+//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// Internal crate imports
 use crate::replication::{DecodedUpdate, UpdatePayload};
 use crate::rbe_client_ui_sync::RbeUiSync;
 use crate::monitoring::safety_net::SafetyNetMonitoringSnapshot;
-use crate::prediction::{PredictedPosition, RollbackState, apply_decoded_updates_to_prediction};
+use crate::prediction::{PredictedPosition, apply_decoded_updates_to_prediction};
+use simulation::harvest::HarvestEvent;
 
-/// Result of an RBE harvest or transaction operation
+/// Rich harvest result reflecting server-side HarvestEvent data
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum RbeHarvestResult {
     Success(f32),
-    Refined(String),
+    Epiphany(f32),
+    Sustainable(f32),
+    CouncilAmplified(f32),
     Failed(String),
 }
 
@@ -51,14 +53,12 @@ impl RbeClientSync {
     }
 }
 
-/// Represents a processed RBE transaction on an entity
 #[derive(Component, Clone, Debug)]
 pub struct RbeTransaction {
     pub resource_type: u8,
     pub amount: f32,
 }
 
-/// Dashboard resource for RBE flow visualization (used by UI and monitoring)
 #[derive(Resource, Default, Clone)]
 pub struct RBEFlowDashboard {
     pub current_abundance: f32,
@@ -78,34 +78,30 @@ impl RBEFlowDashboard {
     }
 }
 
-/// Alert events for RBE flow issues
 #[derive(Event, Clone, Debug)]
 pub enum RBEFlowAlert {
     SuddenAbundanceDrop { previous: f32, current: f32, drop: f32 },
     CouncilBloomAmplification { intensity: f32 },
 }
 
-/// Main client RBE + SafetyNet synchronization system
-/// Tightly integrated with prediction rollback and harvest feedback to RbeUiSync
+/// Main RBE client sync system — now consumes rich HarvestEvent directly
 pub fn rbe_client_sync_system(
     mut commands: Commands,
-    mut rollback: ResMut<RollbackState>,
     server_updates: Res<crate::networking::ServerUpdateChannel>,
     mut rbe_sync: ResMut<RbeClientSync>,
     mut rbe_dashboard: ResMut<RBEFlowDashboard>,
     time: Res<Time>,
     mut alert_events: EventWriter<RBEFlowAlert>,
     mut rbe_ui_sync: ResMut<RbeUiSync>,
+    mut harvest_events: EventReader<HarvestEvent>,
 ) {
     let server_timestamp = time.elapsed_seconds_f64() as u64;
 
-    // Process incoming server batch with prediction reconciliation
+    // Process traditional server batch updates
     if let Some(data) = server_updates.get_latest_batch() {
         if let Ok(updates) = crate::replication::decode_domain_specific(&data) {
-            // Apply authoritative updates with rollback support
-            crate::replication::apply_authoritative_update(&mut commands, &mut rollback, updates.clone(), server_timestamp);
+            crate::replication::apply_authoritative_update(&mut commands, updates.clone(), server_timestamp);
 
-            // Also feed into prediction system for tighter client-side reconciliation
             apply_decoded_updates_to_prediction(updates.clone());
 
             for update in updates {
@@ -116,7 +112,6 @@ pub fn rbe_client_sync_system(
                         RbeHarvestResult::Failed("Negative or zero transaction".to_string())
                     };
 
-                    // === Tightened harvest feedback wiring to RbeUiSync ===
                     rbe_sync.set_latest_harvest_result(result.clone());
                     rbe_ui_sync.push_harvest_feedback(update.entity, result.clone(), server_timestamp);
 
@@ -129,7 +124,33 @@ pub fn rbe_client_sync_system(
         }
     }
 
-    // SafetyNet broadcast consumption (production path)
+    // === New: Direct rich HarvestEvent consumption (from TickResult via prediction layer) ===
+    for harvest in harvest_events.read() {
+        let result = if harvest.epiphany_triggered {
+            RbeHarvestResult::Epiphany(harvest.amount)
+        } else if harvest.council_amplified {
+            RbeHarvestResult::CouncilAmplified(harvest.amount)
+        } else if harvest.sustainable {
+            RbeHarvestResult::Sustainable(harvest.amount)
+        } else if harvest.amount > 0.0 {
+            RbeHarvestResult::Success(harvest.amount)
+        } else {
+            RbeHarvestResult::Failed("Unsustainable or failed harvest".to_string())
+        };
+
+        rbe_sync.set_latest_harvest_result(result.clone());
+
+        // Push rich feedback to UI layer
+        if harvest.player_id != 0 {
+            rbe_ui_sync.push_harvest_feedback(
+                Entity::from_raw(harvest.player_id as u32),
+                result,
+                server_timestamp,
+            );
+        }
+    }
+
+    // SafetyNet handling (unchanged)
     if let Some(server_message) = server_updates.get_latest_server_message() {
         if let crate::networking::ServerMessage::SafetyNetBroadcast { broadcast } = server_message {
             let snapshot = SafetyNetMonitoringSnapshot {
@@ -140,7 +161,6 @@ pub fn rbe_client_sync_system(
             };
             rbe_dashboard.update_from_snapshot(&snapshot);
 
-            // Optional alert on significant abundance changes
             if snapshot.server_abundance < 0.3 {
                 alert_events.send(RBEFlowAlert::SuddenAbundanceDrop {
                     previous: rbe_dashboard.current_abundance,
@@ -150,11 +170,8 @@ pub fn rbe_client_sync_system(
             }
         }
     }
-
-    // CouncilStateSync handling — rich path preserved and ready for orchestrator bloom events
 }
 
-/// Plugin that registers the RBE client sync systems and resources
 pub struct RbeClientSyncPlugin;
 
 impl Plugin for RbeClientSyncPlugin {
@@ -166,5 +183,5 @@ impl Plugin for RbeClientSyncPlugin {
     }
 }
 
-// End of production file — zero placeholders, prediction + harvest feedback tightened.
-// All original logic preserved and enhanced for tighter integration with PredictionPlugin and RbeUiSync. Thunder locked in.
+// End of production file — Now deeply consumes rich HarvestEvent from TickResult.
+// Harvest feedback to RbeUiSync is significantly richer and more accurate. Thunder locked in.
