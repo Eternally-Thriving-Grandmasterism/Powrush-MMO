@@ -89,15 +89,37 @@ pub fn update_spatial_audio_sources(
 }
 
 // ============================================================
-// SYSTEM SETS (for clean, scalable ordering)
+// SYSTEM SETS — Client Prediction Phase Model
 // ============================================================
 
+/// Logical execution phases for the client-side prediction and simulation systems.
+///
+/// These sets establish a clear, mercy-aligned order of operations:
+///
+/// 1. **Replication** — Ingest authoritative state from the server (interest zones, council blooms).
+/// 2. **CorePrediction** — Run local client-side prediction (movement, input buffering).
+/// 3. **Rollback** — Reconcile prediction with authoritative corrections (rollback + replay).
+/// 4. **Visuals** — Update all visual, particle, and VFX systems based on reconciled state.
+/// 5. **Audio** — Handle spatial and event-driven audio playback.
+///
+/// This ordering ensures that rollback and visuals always operate on the most correct data.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PredictionSet {
+    /// Ingests replicated data from the server (InterestZone, CouncilBloomState, etc.).
     Replication,
+
+    /// Runs core client prediction (local movement, input buffering).
     CorePrediction,
+
+    /// Performs rollback + reconciliation when authoritative corrections arrive.
+    /// Must run after CorePrediction.
     Rollback,
+
+    /// Updates all visual, particle, and VFX representations.
+    /// Runs after rollback has produced a stable state.
     Visuals,
+
+    /// Handles spatial audio playback and cleanup of temporary audio entities.
     Audio,
 }
 
@@ -458,7 +480,7 @@ impl Plugin for PredictionPlugin {
             .init_resource::<InputBuffer>()
             .init_resource::<RollbackConfig>()
             .add_event::<AudioTriggerEvent>()
-            // Define ordering between logical phases
+            // Define clear phase ordering using System Sets
             .configure_sets(Update, (
                 PredictionSet::Replication,
                 PredictionSet::CorePrediction.after(PredictionSet::Replication),
@@ -494,5 +516,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Refactored to use proper System Sets with clear phase ordering.
+// End of production file — Enhanced with detailed PredictionSet documentation and clear phase model.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
