@@ -12,7 +12,7 @@ use std::collections::HashMap;
 pub struct SpatialParticipant;
 
 // ============================================================
-// REPLICATION VERSIONING
+// REPLICATION VERSIONING (integrated with InterestZone version)
 // ============================================================
 
 #[derive(Component, Default, Clone, Debug)]
@@ -40,7 +40,6 @@ pub struct InterestZone {
     pub mercy_resonance: f32,
     pub target_center: Vec3,
     pub target_base_radius: f32,
-    /// Incremented whenever the zone meaningfully changes (for efficient dirty tracking)
     pub version: u64,
 }
 
@@ -65,7 +64,7 @@ impl InterestZone {
     pub fn apply_valence_and_mercy(&mut self, valence: f32, mercy: f32) {
         self.valence_multiplier = valence.clamp(0.5, 3.0);
         self.mercy_resonance = mercy.clamp(0.0, 2.0);
-        self.version += 1; // Mark as changed
+        self.version += 1;
     }
 
     pub fn smooth_correct(&mut self, t: f32) {
@@ -210,7 +209,6 @@ impl InterestManager {
         !self.recently_changed_zones.is_empty()
     }
 
-    /// Version-based dirty tracking (much faster than field comparison)
     pub fn update_zones(&mut self, world: &mut crate::world::SovereignWorldState, current_tick: u64) {
         let mut new_changed = Vec::new();
 
@@ -353,7 +351,7 @@ impl SpatialHash {
 }
 
 // ============================================================
-// PLUGIN + SYSTEMS
+// PLUGIN + SYSTEMS (with integrated replication versioning)
 // ============================================================
 
 pub struct SpatialInterestPlugin;
@@ -384,7 +382,8 @@ impl Plugin for SpatialInterestPlugin {
            .add_systems(Update, update_interest_zones_system.in_set(SpatialSet::UpdateInterestZones))
            .add_systems(Update, propagate_council_influence_system.in_set(SpatialSet::PropagateCouncilInfluence))
            .add_systems(Update, handle_council_bloom_event)
-           .add_systems(Update, smooth_interest_zone_correction_system);
+           .add_systems(Update, smooth_interest_zone_correction_system)
+           .add_systems(Update, update_replication_version_on_interest_zone_replicated);
     }
 }
 
@@ -449,6 +448,19 @@ pub fn handle_council_bloom_event(
     }
 }
 
+/// Updates ReplicationVersion.interest_zone_version when an InterestZoneReplicated event is received.
+/// This integrates InterestZone.version with the replication tracking component.
+pub fn update_replication_version_on_interest_zone_replicated(
+    mut events: EventReader<InterestZoneReplicated>,
+    mut query: Query<&mut ReplicationVersion>,
+) {
+    for event in events.read() {
+        if let Ok(mut rep_version) = query.get_mut(event.entity) {
+            rep_version.interest_zone_version = event.version;
+        }
+    }
+}
+
 pub fn smooth_interest_zone_correction_system(
     mut events: EventReader<InterestZoneReplicated>,
     mut query: Query<&mut InterestZone>,
@@ -470,4 +482,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Version-based dirty tracking + version field on InterestZone implemented.
+// Thunder locked. Version tracking deeply integrated with ReplicationVersion component.
