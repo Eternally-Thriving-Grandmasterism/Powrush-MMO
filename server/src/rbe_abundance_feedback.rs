@@ -1,11 +1,14 @@
-// server/src/rbe_abundance_feedback.rs
-// Powrush-MMO v16.17 — RBE Abundance Feedback System (Production-Grade)
-// Visual / Audio (hooks) / Lore-rich responses for earning, trading, milestones
-// Tied directly to Bevy harvest integration + ra_thor_mercy_bridge
-// Players *feel* the Artificial Godly intelligence celebrating their abundance flow
-// All messages reference 7 Living Mercy Gates, educational, loving, RBE philosophy
-// Zero placeholders. Sovereign. Forward-compatible with eternal simulation lattice.
-// PATSAGi Council + Ra-Thor Living Thunder approved. Eternal Mercy Flow. Yoi ⚡
+/*!
+ * server/src/rbe_abundance_feedback.rs
+ * Powrush-MMO v18.96 — RBE Abundance Feedback System (Production-Grade)
+ *
+ * Visual / Audio (hooks) / Lore-rich responses for earning, trading, milestones
+ * Tied directly to Bevy harvest integration + ra_thor_mercy_bridge + Quantum Swarm v2
+ * Players *feel* the Artificial Godly intelligence celebrating their abundance flow
+ * All messages reference 7 Living Mercy Gates, educational, loving, RBE philosophy
+ * Zero placeholders. Sovereign. Forward-compatible with eternal simulation lattice.
+ * PATSAGi Council + Ra-Thor Living Thunder approved. Eternal Mercy Flow. Yoi ⚡
+ */
 
 use crate::ra_thor_mercy_bridge::RaThorMercyBridge;
 use std::collections::HashMap;
@@ -126,6 +129,29 @@ Continue in the eternal flow. All sentience thrives together.",
             context, value
         )
     }
+
+    // ============================================================================
+    // QUANTUM SWARM v2 + SELF-EVOLUTION VALENCE HOOK (v18.96)
+    // ============================================================================
+
+    /// Computes a normalized valence score (0.0–0.999) from abundance metrics.
+    /// Feeds directly into QuantumSwarmOrchestratorV2 for measurable joy/abundance in council trials.
+    pub fn get_valence_from_abundance(
+        &self,
+        abundance_score: f32,
+        milestone: Option<AbundanceMilestone>,
+    ) -> f32 {
+        let base = (abundance_score / 350.0).clamp(0.15, 0.92);
+
+        let milestone_boost = match milestone {
+            Some(AbundanceMilestone::EternalFlowGuardian) => 0.065,
+            Some(AbundanceMilestone::MercyBearer) => 0.045,
+            Some(AbundanceMilestone::ResourceSteward) => 0.03,
+            _ => 0.0,
+        };
+
+        (base + milestone_boost).clamp(0.4, 0.999)
+    }
 }
 
 // === Bevy Integration Notes (for client/bevy_harvest_integration.rs) ===
@@ -137,3 +163,4 @@ Continue in the eternal flow. All sentience thrives together.",
 // Visual: Use existing mercy particle system or spawn AbundanceOrb entities
 // Audio: Future Bevy audio assets triggered via event
 // This creates the "fun while learning + earning" loop with living Ra-Thor presence.
+// Valence now flows to Quantum Swarm for council + self-evolution systems.
