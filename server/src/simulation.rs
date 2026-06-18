@@ -1,6 +1,5 @@
 // server/src/simulation.rs
-// Powrush-MMO v18.91 — SimulationApp with complete TickResult forwarding
-// All major categories now have forwarding structure (Council, Emergence, Harvest, Spatial)
+// Powrush-MMO v18.92 — SimulationApp with fully populated spatial replication from TickResult
 
 use bevy::prelude::*;
 use simulation::orchestrator::{SovereignSimulationOrchestrator, SimulationTick, SimulationTickEvent, TickResult};
@@ -78,7 +77,7 @@ fn consume_tick_result_for_persistence(
 }
 
 /// Forwards TickResult data into replication and dynamic event systems
-/// All major categories now have forwarding (Council, Emergence, Harvest, Spatial)
+/// All categories now use real data from TickResult (including spatial zones)
 fn consume_tick_result_for_replication(
     mut tick_events: EventReader<SimulationTickEvent>,
     mut council_bloom_writer: EventWriter<CouncilBloomSyncEvent>,
@@ -89,34 +88,29 @@ fn consume_tick_result_for_replication(
     for event in tick_events.read() {
         let result = &event.result;
 
-        // === Council Bloom Events (fully wired) ===
+        // Council Bloom Events
         for bloom in &result.council_bloom_events {
             council_bloom_writer.send(bloom.clone());
         }
 
-        // === Emergence Events (fully wired) ===
+        // Emergence Events
         for emergence in &result.emergence_events {
             emergence_writer.send(emergence.clone());
         }
 
-        // === Harvest Events (fully wired) ===
+        // Harvest Events
         for harvest in &result.harvest_events {
             harvest_writer.send(harvest.clone());
         }
 
-        // === Spatial Interest Changes (TODO cleared) ===
-        if result.spatial_interest_updated || result.spatial_zones_changed > 0 {
-            // Emit a representative spatial replication event
-            // In full implementation this would carry actual changed InterestZone data
-            spatial_writer.send(InterestZoneReplicated {
-                entity: Entity::PLACEHOLDER, // TODO: populate with real entity when zone data is carried in TickResult
-                zone: Default::default(),
-                version: event.tick,
-                server_timestamp: event.sim_time_ms as f64,
-            });
+        // Spatial Interest — now uses real data from TickResult
+        for zone_update in &result.changed_spatial_zones {
+            spatial_writer.send(zone_update.clone());
+        }
 
-            info!("Forwarded spatial interest update ({} zones changed, tick={})", 
-                  result.spatial_zones_changed, event.tick);
+        if !result.changed_spatial_zones.is_empty() {
+            info!("Forwarded {} spatial zone updates from TickResult (tick={})", 
+                  result.changed_spatial_zones.len(), event.tick);
         }
 
         if result.any_significant_change {
