@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction + Visual Rollback + Harvest/Emergence VFX (v18.95)
+//! Production-grade Client Prediction + Full Visual Suite (Rollback + Harvest + Emergence VFX) v18.95
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -61,7 +61,6 @@ impl InputBuffer {
     }
 }
 
-/// Visual indicator component for rollback events
 #[derive(Component, Debug, Default)]
 pub struct RollbackVisualIndicator {
     pub active_until: f64,
@@ -150,7 +149,6 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Advanced rollback with velocity correction + triggers visual indicator
 pub fn perform_rollback_and_replay(
     mut query: Query<(&mut PredictedPosition, &mut Transform, Option<&mut RollbackVisualIndicator>), With<crate::spatial_interest::SpatialParticipant>>,
     mut input_buffer: ResMut<InputBuffer>,
@@ -198,7 +196,6 @@ pub fn perform_rollback_and_replay(
     }
 }
 
-/// Visual rollback indicator (color flash + scale pulse)
 pub fn update_rollback_visual_indicator(
     time: Res<Time>,
     mut query: Query<(&mut RollbackVisualIndicator, &mut Sprite, &mut Transform)>,
@@ -303,12 +300,61 @@ pub fn update_harvest_epiphany_visuals(
     }
 }
 
+#[derive(Component, Debug, Default)]
+pub struct EmergenceResonanceField {
+    pub lifetime: f32,
+    pub max_lifetime: f32,
+    pub intensity: f32,
+}
+
 pub fn handle_dynamic_emergence_event(
     mut events: EventReader<DynamicEmergenceEvent>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     for event in events.read() {
         if matches!(event.phase, simulation::emergence::DynamicEmergenceEventPhase::Resolution { .. }) {
-            info!("Client received resolved emergence event (id={})", event.id);
+            let color = Color::srgb(0.4, 0.85, 0.6);
+
+            commands.spawn((
+                Mesh2d(meshes.add(Circle::new(55.0))),
+                MeshMaterial2d(materials.add(ColorMaterial::from(color))),
+                Transform::from_xyz(0.0, 0.0, 0.0),
+                EmergenceResonanceField {
+                    lifetime: 0.0,
+                    max_lifetime: 2.4,
+                    intensity: 1.0,
+                },
+            ));
+
+            info!("Spawned Emergence Resonance Field (id={})", event.id);
+        }
+    }
+}
+
+pub fn update_emergence_resonance_fields(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut EmergenceResonanceField, &mut Transform, &mut MeshMaterial2d<ColorMaterial>)>,
+) {
+    let dt = time.delta_secs();
+
+    for (entity, mut field, mut transform, mut material) in &mut query {
+        field.lifetime += dt;
+
+        let t = field.lifetime / field.max_lifetime;
+
+        if t >= 1.0 {
+            commands.entity(entity).despawn();
+        } else {
+            let pulse = (t * 6.0).sin().abs() * 0.3 + 0.85;
+            let scale = 1.0 + t * 1.6;
+
+            transform.scale = Vec3::splat(scale * pulse);
+
+            let alpha = (1.0 - t * 0.85).powf(0.6) * field.intensity;
+            material.0.color = Color::srgba(0.4, 0.85, 0.6, alpha);
         }
     }
 }
@@ -352,9 +398,11 @@ impl Plugin for PredictionPlugin {
                 handle_harvest_event,
                 update_harvest_epiphany_visuals,
                 handle_dynamic_emergence_event,
+                update_emergence_resonance_fields,
             ));
     }
 }
 
-// End of production file — Rollback VFX + Harvest Epiphany visuals implemented.
+// End of production file — DynamicEmergenceEvent resonance field VFX added.
+// Full visual suite complete: Rollback + Harvest Epiphany + Emergence Resonance.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
