@@ -21,6 +21,7 @@ pub enum AudioTriggerEvent {
     RollbackWhoosh { intensity: f32 },
     EpiphanyBloomResonance { amount: f32, position: Option<Vec3> },
     EmergenceResonanceField { id: u64, position: Option<Vec3> },
+    CouncilMercyResolution { intensity: f32, position: Option<Vec3> },
 }
 
 /// Component for short-lived spatial audio entities
@@ -67,6 +68,21 @@ pub fn play_spatial_audio_system(
                     },
                     Transform::from_translation(pos),
                     SpatialAudioSource { lifetime: 4.0 },
+                ));
+            }
+            AudioTriggerEvent::CouncilMercyResolution { intensity, position } => {
+                let handle: Handle<AudioSource> = asset_server.load("audio/council_mercy_resolution.ogg");
+                let pos = position.unwrap_or(Vec3::ZERO);
+                let volume = (0.7 + intensity * 0.5).clamp(0.6, 1.3);
+
+                commands.spawn((
+                    AudioBundle {
+                        source: handle,
+                        settings: PlaybackSettings::default().with_volume(volume),
+                        ..default()
+                    },
+                    Transform::from_translation(pos),
+                    SpatialAudioSource { lifetime: 5.0 },
                 ));
             }
         }
@@ -480,7 +496,6 @@ impl Plugin for PredictionPlugin {
             .init_resource::<InputBuffer>()
             .init_resource::<RollbackConfig>()
             .add_event::<AudioTriggerEvent>()
-            // Define clear phase ordering using System Sets
             .configure_sets(Update, (
                 PredictionSet::Replication,
                 PredictionSet::CorePrediction.after(PredictionSet::Replication),
@@ -488,27 +503,22 @@ impl Plugin for PredictionPlugin {
                 PredictionSet::Visuals.after(PredictionSet::Rollback),
                 PredictionSet::Audio.after(PredictionSet::Visuals),
             ))
-            // Replication & Interest handlers
             .add_systems(Update, (
                 handle_interest_zone_replicated,
                 handle_council_bloom_state_replicated,
             ).in_set(PredictionSet::Replication))
-            // Core prediction movement
             .add_systems(Update, client_predict_local_player_movement.in_set(PredictionSet::CorePrediction))
-            // Rollback systems (must run after prediction movement)
             .add_systems(Update, (
                 perform_rollback_and_replay,
                 update_rollback_visual_indicator,
                 smooth_reconcile_position,
             ).in_set(PredictionSet::Rollback))
-            // Visual systems
             .add_systems(Update, (
                 predict_interest_zone_expansion,
                 handle_harvest_event,
                 update_harvest_epiphany_visuals,
                 handle_dynamic_emergence_event,
             ).in_set(PredictionSet::Visuals))
-            // Spatial Audio systems
             .add_systems(Update, (
                 play_spatial_audio_system,
                 update_spatial_audio_sources,
@@ -516,5 +526,6 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Enhanced with detailed PredictionSet documentation and clear phase model.
+// End of production file — CouncilMercyResolution audio variant added.
+// Expected audio file: assets/audio/council_mercy_resolution.ogg
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
