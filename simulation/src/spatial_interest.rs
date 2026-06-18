@@ -27,7 +27,7 @@ pub struct BloomStateVersion {
 }
 
 // ============================================================
-// INTEREST ZONE — Improved Smooth Correction / Lerp
+// INTEREST ZONE — with version number for efficient dirty tracking
 // ============================================================
 
 #[derive(Component, Clone, Debug, Reflect, Default)]
@@ -40,6 +40,8 @@ pub struct InterestZone {
     pub mercy_resonance: f32,
     pub target_center: Vec3,
     pub target_base_radius: f32,
+    /// Incremented whenever the zone meaningfully changes (for efficient dirty tracking)
+    pub version: u64,
 }
 
 impl InterestZone {
@@ -52,6 +54,7 @@ impl InterestZone {
             mercy_resonance: 0.0,
             target_center: center,
             target_base_radius: base_radius,
+            version: 0,
         }
     }
 
@@ -62,17 +65,22 @@ impl InterestZone {
     pub fn apply_valence_and_mercy(&mut self, valence: f32, mercy: f32) {
         self.valence_multiplier = valence.clamp(0.5, 3.0);
         self.mercy_resonance = mercy.clamp(0.0, 2.0);
+        self.version += 1; // Mark as changed
     }
 
     pub fn smooth_correct(&mut self, t: f32) {
         let t = t.clamp(0.0, 1.0);
         self.center = self.center.lerp(self.target_center, t);
         self.base_radius = self.base_radius * (1.0 - t) + self.target_base_radius * t;
+        if t > 0.01 {
+            self.version += 1;
+        }
     }
 
     pub fn set_replication_targets(&mut self, new_center: Vec3, new_radius: f32) {
         self.target_center = new_center;
         self.target_base_radius = new_radius;
+        self.version += 1;
     }
 }
 
@@ -160,14 +168,13 @@ pub struct RequestResync {
 }
 
 // ============================================================
-// INTEREST MANAGER with proper per-entity dirty tracking
+// INTEREST MANAGER with version-based dirty tracking
 // ============================================================
 
 #[derive(Resource)]
 pub struct InterestManager {
     pub council_blooms: Vec<CouncilBloomZone>,
     pub recently_changed_zones: Vec<InterestZoneReplicated>,
-    /// Previous tick snapshot for dirty detection
     previous_zones: HashMap<u64, InterestZone>,
 }
 
@@ -203,37 +210,28 @@ impl InterestManager {
         !self.recently_changed_zones.is_empty()
     }
 
-    /// Proper per-entity dirty tracking.
-    /// Compares current InterestZone state against previous tick and only records changes.
+    /// Version-based dirty tracking (much faster than field comparison)
     pub fn update_zones(&mut self, world: &mut crate::world::SovereignWorldState, current_tick: u64) {
         let mut new_changed = Vec::new();
 
         for (entity_id, current_zone) in world.iter_interest_zones() {
             let changed = match self.previous_zones.get(&entity_id) {
-                Some(prev) => {
-                    // Simple but effective dirty check
-                    (prev.center - current_zone.center).length_squared() > 0.01 ||
-                    (prev.base_radius - current_zone.base_radius).abs() > 0.1 ||
-                    (prev.valence_multiplier - current_zone.valence_multiplier).abs() > 0.01 ||
-                    (prev.mercy_resonance - current_zone.mercy_resonance).abs() > 0.01
-                }
-                None => true, // New zone
+                Some(prev) => current_zone.version != prev.version,
+                None => true,
             };
 
             if changed {
                 new_changed.push(InterestZoneReplicated {
                     entity: Entity::from_raw(entity_id as u32),
                     zone: current_zone.clone(),
-                    version: current_tick,
+                    version: current_zone.version,
                     server_timestamp: world.sim_time as f64,
                 });
             }
 
-            // Update previous state
             self.previous_zones.insert(entity_id, current_zone.clone());
         }
 
-        // Only keep newly detected changes
         for change in new_changed {
             self.record_zone_change(change);
         }
@@ -472,4 +470,4 @@ pub fn query_entities_in_interest(
     Vec::new()
 }
 
-// Thunder locked. Proper per-entity dirty tracking implemented in InterestManager.
+// Thunder locked. Version-based dirty tracking + version field on InterestZone implemented.
