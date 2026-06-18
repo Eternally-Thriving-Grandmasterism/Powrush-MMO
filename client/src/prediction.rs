@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction with Advanced Rollback + Rich Visuals + Audio Triggers (v18.95)
+//! Production-grade Client Prediction with 3D Spatial Audio (v18.95)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -13,14 +13,81 @@ use crate::rbe_client_sync::RbeClientSync;
 use std::collections::VecDeque;
 
 // ============================================================
-// AUDIO TRIGGER EVENTS (playback system can live in plugin or separate file)
+// SPATIAL AUDIO SYSTEM
 // ============================================================
 
 #[derive(Event, Debug, Clone)]
 pub enum AudioTriggerEvent {
     RollbackWhoosh { intensity: f32 },
-    EpiphanyBloomResonance { amount: f32 },
-    EmergenceResonanceField { id: u64 },
+    EpiphanyBloomResonance { amount: f32, position: Option<Vec3> },
+    EmergenceResonanceField { id: u64, position: Option<Vec3> },
+}
+
+/// Component for short-lived spatial audio entities
+#[derive(Component, Debug)]
+pub struct SpatialAudioSource {
+    pub lifetime: f32,
+}
+
+pub fn play_spatial_audio_system(
+    mut commands: Commands,
+    mut events: EventReader<AudioTriggerEvent>,
+    audio: Res<Audio>,
+    asset_server: Res<AssetServer>,
+) {
+    for event in events.read() {
+        match event {
+            AudioTriggerEvent::RollbackWhoosh { intensity } => {
+                // Rollback whoosh can stay non-spatial or positioned at player
+                let handle: Handle<AudioSource> = asset_server.load("audio/rollback_whoosh.ogg");
+                audio.play(handle).with_volume(*intensity.clamp(0.3, 1.0));
+            }
+            AudioTriggerEvent::EpiphanyBloomResonance { amount: _, position } => {
+                let handle: Handle<AudioSource> = asset_server.load("audio/epiphany_bloom.ogg");
+                let pos = position.unwrap_or(Vec3::ZERO);
+
+                // Spawn a short-lived spatial audio entity
+                commands.spawn((
+                    AudioBundle {
+                        source: handle,
+                        settings: PlaybackSettings::default().with_volume(0.9),
+                        ..default()
+                    },
+                    Transform::from_translation(pos),
+                    SpatialAudioSource { lifetime: 3.5 },
+                ));
+            }
+            AudioTriggerEvent::EmergenceResonanceField { id: _, position } => {
+                let handle: Handle<AudioSource> = asset_server.load("audio/emergence_resonance.ogg");
+                let pos = position.unwrap_or(Vec3::ZERO);
+
+                commands.spawn((
+                    AudioBundle {
+                        source: handle,
+                        settings: PlaybackSettings::default().with_volume(0.8),
+                        ..default()
+                    },
+                    Transform::from_translation(pos),
+                    SpatialAudioSource { lifetime: 4.0 },
+                ));
+            }
+        }
+    }
+}
+
+pub fn update_spatial_audio_sources(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut SpatialAudioSource)>,
+) {
+    let dt = time.delta_secs();
+
+    for (entity, mut source) in &mut query {
+        source.lifetime -= dt;
+        if source.lifetime <= 0.0 {
+            commands.entity(entity).despawn();
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -160,7 +227,6 @@ pub fn client_predict_local_player_movement(
     }
 }
 
-/// Polished rollback + replay
 pub fn perform_rollback_and_replay(
     mut query: Query<(&mut PredictedPosition, &mut Transform, Option<&mut RollbackVisualIndicator>), With<crate::spatial_interest::SpatialParticipant>>,
     mut input_buffer: ResMut<InputBuffer>,
@@ -288,7 +354,10 @@ pub fn handle_harvest_event(
                     HarvestEpiphanyVisual { lifetime: 0.0, max_lifetime: 2.1 },
                 ));
 
-                audio_events.send(AudioTriggerEvent::EpiphanyBloomResonance { amount: event.amount });
+                audio_events.send(AudioTriggerEvent::EpiphanyBloomResonance {
+                    amount: event.amount,
+                    position: Some(pos),
+                });
             }
         }
     }
@@ -325,7 +394,10 @@ pub fn handle_dynamic_emergence_event(
 ) {
     for event in events.read() {
         if matches!(event.phase, simulation::emergence::DynamicEmergenceEventPhase::Resolution { .. }) {
-            audio_events.send(AudioTriggerEvent::EmergenceResonanceField { id: event.id });
+            audio_events.send(AudioTriggerEvent::EmergenceResonanceField {
+                id: event.id,
+                position: None,
+            });
         }
     }
 }
@@ -370,9 +442,11 @@ impl Plugin for PredictionPlugin {
                 handle_harvest_event,
                 update_harvest_epiphany_visuals,
                 handle_dynamic_emergence_event,
+                play_spatial_audio_system,
+                update_spatial_audio_sources,
             ));
     }
 }
 
-// End of production file — Clean, consistent, production-grade prediction + visuals + audio triggers.
+// End of production file — 3D Spatial Audio implemented for epiphany and emergence events.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
