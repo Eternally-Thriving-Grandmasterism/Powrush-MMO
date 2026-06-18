@@ -1,9 +1,9 @@
 /*!
  * Dynamic Music System for Powrush-MMO
  *
- * Looping support enabled for music layers.
+ * Enhanced dramatic transitions for Resolution phase.
  *
- * v18.99 — Music layers now loop seamlessly by default.
+ * v19.00 — Resolution now feels more powerful and emotionally resonant.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
@@ -68,6 +68,7 @@ pub struct DynamicMusicController {
     pub layers: std::collections::HashMap<MusicLayerType, ActiveLayer>,
     pub state: MusicState,
     time: f32,
+    resolution_swell_timer: f32,
 }
 
 impl Default for DynamicMusicController {
@@ -91,6 +92,7 @@ impl Default for DynamicMusicController {
             layers,
             state: MusicState::default(),
             time: 0.0,
+            resolution_swell_timer: 0.0,
         }
     }
 }
@@ -98,6 +100,8 @@ impl Default for DynamicMusicController {
 impl DynamicMusicController {
     pub fn apply_state_to_layers(&mut self) {
         let is_major_transition = self.state.previous_phase != self.state.council_phase;
+        let entering_resolution =
+            is_major_transition && self.state.council_phase == Some(simulation::council_mercy_trial::CouncilMercyTrialPhase::Resolution);
 
         if let Some(phase) = self.state.council_phase {
             let att = self.state.attunement.clamp(0.0, 1.0);
@@ -117,27 +121,57 @@ impl DynamicMusicController {
                     self.set_layer_target(MusicLayerType::BloomResonance, 0.0);
                 }
                 simulation::council_mercy_trial::CouncilMercyTrialPhase::Resolution => {
-                    self.set_layer_target(MusicLayerType::BaseHarmony, 0.92);
-                    self.set_layer_target(MusicLayerType::AttunementPads, 1.0);
-                    self.set_layer_target(MusicLayerType::RhythmicPulse, 0.7);
-                    self.set_layer_target(MusicLayerType::BloomResonance, 1.05);
+                    // Enhanced dramatic swell for Resolution
+                    let swell_strength = 0.15 + (att * 0.25); // Stronger swell with higher attunement
 
+                    self.set_layer_target(MusicLayerType::BaseHarmony, 0.92);
+                    self.set_layer_target(MusicLayerType::AttunementPads, 1.0 + swell_strength * 0.6);
+                    self.set_layer_target(MusicLayerType::RhythmicPulse, 0.75);
+                    self.set_layer_target(MusicLayerType::BloomResonance, 1.12 + swell_strength);
+
+                    // Heightened modulation during Resolution for emotional intensity
                     if let Some(bloom) = self.layers.get_mut(&MusicLayerType::BloomResonance) {
-                        bloom.modulation_depth = 0.28;
-                        bloom.modulation_rate = 1.1;
+                        bloom.modulation_depth = 0.32 + (att * 0.15);
+                        bloom.modulation_rate = 1.15;
+                    }
+                    if let Some(pads) = self.layers.get_mut(&MusicLayerType::AttunementPads) {
+                        pads.modulation_depth = 0.18 + (att * 0.12);
+                        pads.modulation_rate = 0.95;
                     }
                 }
                 _ => {}
             }
 
-            if is_major_transition && phase == simulation::council_mercy_trial::CouncilMercyTrialPhase::Resolution {
+            // Trigger a clear "arrival" swell when first entering Resolution
+            if entering_resolution {
+                self.resolution_swell_timer = 4.5; // Duration of heightened swell
+
                 if let Some(bloom) = self.layers.get_mut(&MusicLayerType::BloomResonance) {
-                    bloom.target_volume = 1.15;
+                    bloom.target_volume = 1.22 + (att * 0.2);
                 }
+                if let Some(pads) = self.layers.get_mut(&MusicLayerType::AttunementPads) {
+                    pads.target_volume = 1.15 + (att * 0.15);
+                }
+
+                info!("🌟 Resolution swell triggered | attunement={:.2}", att);
             }
         } else {
             for layer in self.layers.values_mut() {
                 layer.target_volume = 0.0;
+            }
+        }
+
+        // Decay the extra Resolution swell over time
+        if self.resolution_swell_timer > 0.0 {
+            self.resolution_swell_timer -= 0.016;
+            if self.resolution_swell_timer <= 0.0 {
+                // Return Bloom and AttunementPads to their normal Resolution targets
+                if let Some(bloom) = self.layers.get_mut(&MusicLayerType::BloomResonance) {
+                    bloom.target_volume = 1.12;
+                }
+                if let Some(pads) = self.layers.get_mut(&MusicLayerType::AttunementPads) {
+                    pads.target_volume = 1.0;
+                }
             }
         }
 
@@ -146,7 +180,7 @@ impl DynamicMusicController {
 
     fn set_layer_target(&mut self, layer_type: MusicLayerType, volume: f32) {
         if let Some(layer) = self.layers.get_mut(&layer_type) {
-            layer.target_volume = volume.clamp(0.0, 1.3);
+            layer.target_volume = volume.clamp(0.0, 1.4);
         }
     }
 
@@ -179,7 +213,6 @@ impl DynamicMusicController {
     }
 }
 
-/// Activate layers with looping enabled by default for music
 pub fn activate_music_layers(
     mut controller: ResMut<DynamicMusicController>,
     backend: Res<OddioAudioBackend>,
@@ -190,7 +223,6 @@ pub fn activate_music_layers(
         if should_play && !layer.is_playing {
             let filename = format!("assets/audio/music_layers/{}", layer_type.filename());
 
-            // Try real audio first, with looping enabled
             match backend.play_audio_file(&filename, layer.target_volume, true) {
                 Ok(handle) => {
                     layer.handle = Some(handle);
@@ -199,7 +231,6 @@ pub fn activate_music_layers(
                     info!("🎵 Looping real audio: {} (layer: {:?})", filename, layer_type);
                 }
                 Err(_) => {
-                    // Fallback to procedural with looping
                     let frequency = match layer_type {
                         MusicLayerType::BaseHarmony => 55.0,
                         MusicLayerType::AttunementPads => 110.0,
