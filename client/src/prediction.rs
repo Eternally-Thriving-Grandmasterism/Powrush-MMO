@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction + Audio Playback System v18.95
+//! Production-grade Client Prediction + Full Audio System (Events + Real Playback) v18.95
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -13,7 +13,7 @@ use crate::rbe_client_sync::RbeClientSync;
 use std::collections::VecDeque;
 
 // ============================================================
-// AUDIO TRIGGER EVENTS + PLAYBACK SYSTEM
+// AUDIO SYSTEM
 // ============================================================
 
 #[derive(Event, Debug, Clone)]
@@ -25,17 +25,25 @@ pub enum AudioTriggerEvent {
 
 pub fn audio_playback_system(
     mut events: EventReader<AudioTriggerEvent>,
+    audio: Res<Audio>,
+    asset_server: Res<AssetServer>,
 ) {
     for event in events.read() {
         match event {
             AudioTriggerEvent::RollbackWhoosh { intensity } => {
-                info!("[AUDIO PLAY] rollback_whoosh | intensity={:.2}", intensity);
+                let handle: Handle<AudioSource> = asset_server.load("audio/rollback_whoosh.ogg");
+                audio.play(handle).with_volume(*intensity);
+                info!("[AUDIO] Playing rollback_whoosh | intensity={:.2}", intensity);
             }
             AudioTriggerEvent::EpiphanyBloomResonance { amount } => {
-                info!("[AUDIO PLAY] epiphany_bloom_resonance | amount={}", amount);
+                let handle: Handle<AudioSource> = asset_server.load("audio/epiphany_bloom.ogg");
+                audio.play(handle).with_volume(0.85);
+                info!("[AUDIO] Playing epiphany_bloom_resonance | amount={}", amount);
             }
             AudioTriggerEvent::EmergenceResonanceField { id } => {
-                info!("[AUDIO PLAY] emergence_resonance_field | id={}", id);
+                let handle: Handle<AudioSource> = asset_server.load("audio/emergence_resonance.ogg");
+                audio.play(handle).with_volume(0.75);
+                info!("[AUDIO] Playing emergence_resonance_field | id={}", id);
             }
         }
     }
@@ -181,6 +189,7 @@ pub fn client_predict_local_player_movement(
 pub fn perform_rollback_and_replay(
     mut query: Query<(&mut PredictedPosition, &mut Transform, Option<&mut RollbackVisualIndicator>), With<crate::spatial_interest::SpatialParticipant>>,
     mut input_buffer: ResMut<InputBuffer>,
+    mut audio_events: EventWriter<AudioTriggerEvent>,
     config: Res<RollbackConfig>,
     time: Res<Time>,
 ) {
@@ -218,9 +227,11 @@ pub fn perform_rollback_and_replay(
             if let Some(indicator) = &mut maybe_indicator {
                 indicator.active_until = now + 0.7;
                 indicator.intensity = (discrepancy / 3.5).clamp(0.4, 1.0);
-            }
 
-            info!("[AUDIO] Trigger rollback_whoosh sound | intensity={:.2}", indicator.as_ref().map_or(0.5, |i| i.intensity));
+                audio_events.send(AudioTriggerEvent::RollbackWhoosh {
+                    intensity: indicator.intensity,
+                });
+            }
         }
     }
 }
@@ -284,6 +295,7 @@ pub fn handle_harvest_event(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut audio_events: EventWriter<AudioTriggerEvent>,
     query: Query<&Transform, With<crate::spatial_interest::SpatialParticipant>>,
 ) {
     for event in events.read() {
@@ -305,7 +317,9 @@ pub fn handle_harvest_event(
                     HarvestEpiphanyVisual { lifetime: 0.0, max_lifetime: 2.1 },
                 ));
 
-                info!("[AUDIO] Trigger epiphany_bloom_resonance | amount={}", event.amount);
+                audio_events.send(AudioTriggerEvent::EpiphanyBloomResonance {
+                    amount: event.amount,
+                });
             }
         }
     }
@@ -348,6 +362,7 @@ pub fn handle_dynamic_emergence_event(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut audio_events: EventWriter<AudioTriggerEvent>,
     query: Query<&Transform, With<crate::spatial_interest::SpatialParticipant>>,
 ) {
     for event in events.read() {
@@ -369,7 +384,9 @@ pub fn handle_dynamic_emergence_event(
                 },
             ));
 
-            info!("[AUDIO] Trigger emergence_resonance_field | id={}", event.id);
+            audio_events.send(AudioTriggerEvent::EmergenceResonanceField {
+                id: event.id,
+            });
         }
     }
 }
@@ -446,5 +463,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Audio playback system implemented with event-driven triggers.
-// Ready for real audio assets. Thunder locked in. PATSAGi + Ra-Thor sealed.
+// End of production file — Full audio system: Visuals now emit AudioTriggerEvent + real Bevy audio playback.
+// Thunder locked in. PATSAGi + Ra-Thor sealed.
