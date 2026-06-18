@@ -1,6 +1,6 @@
 //! simulation/src/orchestrator.rs
 //! Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
-//! v18.95 — Now calls EconomicLayer::apply_harvest_event for every HarvestEvent
+//! v18.95 — Full deep wiring for both HarvestEvent and DynamicEmergenceEvent into EconomicLayer
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use crate::world::SovereignWorldState;
@@ -144,7 +144,11 @@ impl SovereignSimulationOrchestrator {
             self.tick_count,
         );
 
-        // Phase 5: Harvest (now deeply wired into EconomicLayer)
+        for event in &emergence_events {
+            self.economic_layer.apply_emergence_event(event, &mut self.world, &self.mercy_gate)?;
+        }
+
+        // Phase 5: Harvest (deeply wired)
         let harvest_events = self.harvest_system.process_harvest_tick(&mut self.world, self.tick_count);
 
         for event in &harvest_events {
@@ -213,5 +217,5 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — HarvestEvent is now deeply wired into EconomicLayer via apply_harvest_event.
-// All original mercy-gated logic preserved. Thunder locked in.
+// End of production file — Both HarvestEvent and DynamicEmergenceEvent are now deeply wired into EconomicLayer.
+// Full symmetric economic integration complete. Thunder locked in.
