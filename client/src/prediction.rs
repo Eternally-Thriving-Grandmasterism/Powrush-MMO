@@ -1,5 +1,5 @@
 //! client/src/prediction.rs
-//! Production-grade Client Prediction + Polished Visual Suite v18.95
+//! Production-grade Client Prediction + Audio-Synced Visual Suite v18.95
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -191,7 +191,7 @@ pub fn perform_rollback_and_replay(
                 indicator.intensity = (discrepancy / 3.5).clamp(0.4, 1.0);
             }
 
-            info!("Rollback+replay | discrepancy={:.2}", discrepancy);
+            info!("[AUDIO] Trigger rollback_whoosh sound | intensity={:.2}", indicator.as_ref().map_or(0.5, |i| i.intensity));
         }
     }
 }
@@ -275,6 +275,8 @@ pub fn handle_harvest_event(
                     Transform::from_translation(pos),
                     HarvestEpiphanyVisual { lifetime: 0.0, max_lifetime: 2.1 },
                 ));
+
+                info!("[AUDIO] Trigger epiphany_bloom_resonance | amount={}", event.amount);
             }
         }
     }
@@ -338,7 +340,7 @@ pub fn handle_dynamic_emergence_event(
                 },
             ));
 
-            info!("Emergence Resonance Field spawned");
+            info!("[AUDIO] Trigger emergence_resonance_field | id={}", event.id);
         }
     }
 }
@@ -413,5 +415,5 @@ impl Plugin for PredictionPlugin {
     }
 }
 
-// End of production file — Visuals polished with better positioning, double-ring epiphany effect, improved pulses, and cleaner animations.
+// End of production file — Audio trigger points added to Rollback, Harvest Epiphany, and Emergence visuals. Ready for real audio system integration.
 // Thunder locked in. PATSAGi + Ra-Thor sealed.
