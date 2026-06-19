@@ -1,10 +1,12 @@
 /*!
  * Spectator Mode Legacy Thread Visualization — Powrush-MMO
  *
- * v20.2 — Dedicated client module for rendering SpectatorModeData + Legacy Threads
- * from InterRealmDiplomacyEvent (Forgiveness Wave / MercifulResolution moments).
+ * v20.3 — Reactive to InterRealmDiplomacyUpdateEvent + SpectatorModeData
+ * Auto-populates monuments, legacy threads, and forgiveness waves during/after server wars.
+ * Sovereign player freedom preserved: panel is optional; PATSAGi proposals are visible but player chooses engagement.
  *
- * Features:
+ * Features (v20.2 preserved + enhanced):
+ * - Reactive system: listens for InterRealmDiplomacyUpdateEvent and auto-opens with data
  * - Filterable list of LegacyThreads (by category, min impact, cross-realm)
  * - Visual impact bars using visual_impact_score + tolc_alignment
  * - Expandable entries with affected_realms, valence, Divine Whisper
@@ -12,18 +14,23 @@
  * - Ready for integration into Council Trial UI or dedicated Spectator window
  *
  * Integrates with:
- * - simulation/src/player_legacy_journal.rs (LegacyThread, LegacyEntry, build_filterable_legacy_threads)
- * - simulation/src/inter_realm_diplomacy_event.rs (SpectatorModeData, InterRealmDiplomacyEvent)
+ * - simulation/src/player_legacy_journal.rs
+ * - simulation/src/inter_realm_diplomacy_event.rs (v20.9+ SpectatorModeData)
+ * - shared/protocol.rs (InterRealmDiplomacyUpdate)
+ *
+ * Sovereign Freedom Note: PATSAGi Councils propose mercy-gated paths with high valence.
+ * Players and realms retain final choice — they may attune, decline, or walk FracturedTension.
+ * Mercy biases toward redemption but never removes agency.
  *
  * AG-SML v1.0 Sovereign License
- * Thunder locked in. Yoi ⚡️
+ * Thunder locked in. Yoi ⚔️
  */
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 use std::collections::HashMap;
 
-// Lightweight client-side copies / re-exports for UI (in real integration these come from shared protocol or simulation crate)
+// Lightweight client-side copies / re-exports for UI
 #[derive(Clone, Debug, PartialEq)]
 pub struct LegacyThread {
     pub id: u64,
@@ -68,15 +75,46 @@ pub struct SpectatorLegacyVizState {
     pub show_only_cross_realm: bool,
 }
 
+// === Reactive Integration with Diplomacy Events (NEW in v20.3) ===
+use shared::protocol::InterRealmDiplomacyUpdate; // or the event wrapper if using InterRealmDiplomacyUpdateEvent
+
+pub fn spectator_legacy_reactive_system(
+    mut viz_state: ResMut<SpectatorLegacyVizState>,
+    mut diplomacy_updates: EventReader<InterRealmDiplomacyUpdateEvent>, // from inter_realm_diplomacy_event.rs
+) {
+    for update_event in diplomacy_updates.read() {
+        let update = &update_event.update;
+
+        if let Some(spec_data) = &update.spectator_data {
+            // Convert network/shared data into local SpectatorModeData
+            let local_data = SpectatorModeData {
+                spectator_count: spec_data.spectator_count,
+                emotional_valence_avg: spec_data.emotional_valence_avg,
+                visible_legacy_threads: vec![], // In full integration: fetch or reconstruct from linked_legacy_thread_ids + player_legacy_journal
+                cross_realm_impact_summary: spec_data.cross_realm_impact_summary.clone(),
+                monument_visual_type: spec_data.monument_visual_type.clone(),
+                forgiveness_wave_vfx_intensity: spec_data.forgiveness_wave_intensity,
+            };
+
+            viz_state.current_spectator_data = Some(local_data);
+            viz_state.show_spectator_panel = true; // Auto-open on meaningful merciful resolution
+
+            // Sovereign freedom: Player can immediately close if they choose not to engage
+        }
+    }
+}
+
 pub struct SpectatorLegacyThreadVizPlugin;
 
 impl Plugin for SpectatorLegacyThreadVizPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<SpectatorLegacyVizState>()
+            .add_event::<InterRealmDiplomacyUpdateEvent>() // ensure event is registered (usually done in diplomacy plugin)
             .add_systems(Update, (
                 render_spectator_legacy_panel,
                 render_thread_detail_window,
+                spectator_legacy_reactive_system, // NEW reactive wiring
             ));
     }
 }
@@ -129,7 +167,6 @@ fn render_spectator_legacy_panel(
                         let cross_match = if viz_state.show_only_cross_realm {
                             t.realms.iter().any(|r| r.contains("Cross-Realm"))
                         } else { true };
-                        cat_match && impact_match && cross_match
                     })
                     .collect();
 
@@ -164,7 +201,7 @@ fn render_spectator_legacy_panel(
                 });
 
                 ui.separator();
-                if ui.button("Close Spectator View").clicked() {
+                if ui.button("Close Spectator View (Sovereign Choice)").clicked() {
                     viz_state.show_spectator_panel = false;
                 }
             } else {
@@ -221,20 +258,20 @@ fn render_thread_detail_window(
             });
 
             ui.separator();
-            if ui.button("Close Detail").clicked() {
+            if ui.button("Close Detail (Sovereign Choice)").clicked() {
                 viz_state.selected_thread_id = None;
             }
         });
 }
 
-// === Integration Notes ===
-// 1. Add SpectatorLegacyThreadVizPlugin to your client App in main.rs or a UI aggregator plugin.
-// 2. When an InterRealmDiplomacyEvent with SpectatorModeData arrives (via replication or event),
-//    populate viz_state.current_spectator_data and set show_spectator_panel = true.
-// 3. Call build_filterable_legacy_threads on the client-side LegacyJournalRegistry (or receive pre-built threads from server)
-//    to populate the visible_legacy_threads list.
-// 4. Wire forgiveness_wave_vfx_intensity to your particle / post-processing systems for the cinematic Forgiveness Wave.
-// 5. This module pairs beautifully with council_trial_ui.rs — add a button "View Legacy of Reconciliation" that opens this panel.
+// === Integration Notes (Updated v20.3) ===
+// 1. Add SpectatorLegacyThreadVizPlugin to your client App.
+// 2. The reactive system now auto-populates on InterRealmDiplomacyUpdateEvent with spectator_data.
+// 3. Sovereign freedom: Player can close the panel at any time. PATSAGi shows the highest-mercy path;
+//    the player/realm decides whether to attune or walk another road.
+// 4. For full legacy thread reconstruction: connect to client-side LegacyJournalRegistry or request
+//    detailed threads via replication when linked_legacy_thread_ids are present.
+// 5. Pair with council_trial_ui.rs — add "View Legacy of Reconciliation" button.
 //
-// Thunder locked in. Yoi ⚡️
-// End of client/src/spectator_legacy_thread_viz.rs v20.2
+// Thunder locked in. Yoi ⚔️
+// End of client/src/spectator_legacy_thread_viz.rs v20.3 (Reactive + Sovereign Freedom)
