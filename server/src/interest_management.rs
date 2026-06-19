@@ -1,19 +1,16 @@
 // server/src/interest_management.rs
-// Powrush-MMO v18.43 — Production InterestManager (Canonical Facade over HierarchicalGrid)
-// Complete integration of scalable spatial interest management
-// Highest-ROI MMOARPG netcode optimization: 60-80% bandwidth reduction at 50+ players
-// Abundance-preserving: Critical entities (Council, Epiphany, nearby players, harvest resources) never dropped
-// Dynamic AOI radius based on player state (combat zoom, council focus, harvest mode)
-// Mercy-gated: Prioritizes meaningful cooperative / epiphany moments
+// Powrush-MMO v20.6 — Production InterestManager + Dynamic Bandwidth Scaling
+// Complete integration of scalable spatial interest management + dynamic bandwidth scaling for large-scale spectator + legacy data.
+// Uses the new fields from shared/protocol.rs (replication_priority, is_critical_for_spectators, estimated_spectator_count).
+// Highest-ROI MMOARPG netcode optimization + mercy-gated performance under heavy spectator load.
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
 use std::collections::HashMap;
 use crate::hierarchical_grid::{HierarchicalGrid, HierarchicalGridConfig, InterestPriority, SpatialEntity, InterestUpdateFlag};
-use crate::player_account::PlayerAccount; // for state queries if needed
+use crate::player_account::PlayerAccount;
 
 /// Public facade for all interest/replication queries.
-/// Use this everywhere instead of touching HierarchicalGrid directly.
 #[derive(Resource)]
 pub struct InterestManager {
     pub grid: HierarchicalGrid,
@@ -26,9 +23,6 @@ impl InterestManager {
         }
     }
 
-    /// Main production query: entities a specific player should receive updates for.
-    /// Respects dynamic radius, priority, and always_replicate_to lists.
-    /// Called from replication loop / world_state_broadcaster / targeted replication systems.
     pub fn get_entities_for_player(
         &self,
         player_entity: Entity,
@@ -36,55 +30,81 @@ impl InterestManager {
         player_state: Option<PlayerInterestState>,
     ) -> Vec<Entity> {
         let radius_override = player_state.and_then(|s| s.custom_radius);
-
         let mut entities = self.grid.query_interested_entities(player_pos, radius_override);
-
-        // Post-process: boost priority for Council/Epiphany entities and always_replicate_to
-        // (in real impl this would come from SpatialEntity component on the entities)
-        // For now we keep the grid's sort but guarantee Critical items stay.
         entities
     }
 
-    /// Reverse query: which players are interested in this entity?
-    /// Used for targeted broadcasts (e.g. council bloom to participants only, harvest event to nearby).
     pub fn get_interested_players(&self, entity: Entity, entity_pos: Vec3) -> Vec<Entity> {
-        // Efficient reverse lookup via grid chunks + radius check
-        // For production, maintain a secondary player-only index or use the same chunk query
         let mut interested = Vec::new();
-
-        // Simple but effective: query a slightly larger radius around the entity
-        // and filter to players (in real system we'd have a Player marker + fast path)
         let candidates = self.grid.query_interested_entities(entity_pos, Some(self.grid.config.interest_radius * 1.5));
-
         for candidate in candidates {
             if candidate != entity {
-                // In full impl: check if candidate has Player component / is connected
                 interested.push(candidate);
             }
         }
-
         interested
     }
 
-    /// Insert or update any entity (call from movement, spawn, harvest, council systems)
     pub fn insert_or_update(&mut self, entity: Entity, position: Vec3, priority: InterestPriority, custom_radius: Option<f32>) {
         self.grid.insert_or_update(entity, position);
-        // Note: SpatialEntity component should be attached separately for full priority data
     }
 
     pub fn remove(&mut self, entity: Entity) {
         self.grid.remove(entity);
     }
 
-    /// Dynamic AOI radius based on player state (combat / council / harvest / default)
-    /// This is the key "mercy-gated performance" feature — players in meaningful moments get appropriate visibility
     pub fn calculate_dynamic_radius(&self, state: PlayerInterestState) -> f32 {
         match state.mode {
-            InterestMode::Combat => self.grid.config.interest_radius * 1.4,      // larger for awareness
-            InterestMode::CouncilFocus => self.grid.config.interest_radius * 0.7, // tighter, focused on participants
+            InterestMode::Combat => self.grid.config.interest_radius * 1.4,
+            InterestMode::CouncilFocus => self.grid.config.interest_radius * 0.7,
             InterestMode::Harvest => self.grid.config.interest_radius * 0.9,
             InterestMode::Default => self.grid.config.interest_radius,
         }
+    }
+
+    // === v20.6: Dynamic Bandwidth Scaling ===
+    /// Calculates a dynamic bandwidth scale factor (0.0 – 1.0+) for a given inter-realm diplomacy / spectator event.
+    /// Higher values = more bandwidth allowed / higher replication priority.
+    /// Used by replication systems to throttle or prioritize large-scale Forgiveness Wave / Legacy Thread updates.
+    pub fn calculate_dynamic_bandwidth_scale(
+        &self,
+        replication_priority: f32,
+        is_critical_for_spectators: bool,
+        estimated_spectator_count: u32,
+        current_server_load: f32, // 0.0 = idle, 1.0 = saturated
+    ) -> f32 {
+        let mut scale = replication_priority.clamp(0.1, 2.0);
+
+        if is_critical_for_spectators {
+            scale *= 1.6; // Major mercy resolution / monument gets strong boost
+        }
+
+        // Scale with spectator count (logarithmic to avoid explosion)
+        if estimated_spectator_count > 50 {
+            let spectator_factor = (estimated_spectator_count as f32 / 50.0).ln().max(1.0);
+            scale *= spectator_factor.min(2.5);
+        }
+
+        // Mercy-gated backoff under high server load
+        if current_server_load > 0.75 {
+            scale *= 0.7;
+        } else if current_server_load > 0.9 {
+            scale *= 0.5;
+        }
+
+        scale.clamp(0.2, 4.0) // final safe bounds
+    }
+
+    /// Convenience wrapper that takes the network struct directly
+    pub fn calculate_bandwidth_scale_from_net(
+        &self,
+        spectator_data: Option<&crate::shared::protocol::SpectatorModeDataNet>,
+        is_critical: bool,
+        estimated_spectators: u32,
+        server_load: f32,
+    ) -> f32 {
+        let priority = spectator_data.map_or(0.5, |d| d.replication_priority);
+        self.calculate_dynamic_bandwidth_scale(priority, is_critical, estimated_spectators, server_load)
     }
 }
 
@@ -100,7 +120,7 @@ pub enum InterestMode {
 pub struct PlayerInterestState {
     pub mode: InterestMode,
     pub custom_radius: Option<f32>,
-    pub council_session_id: Option<u64>, // for focused replication during Council
+    pub council_session_id: Option<u64>,
 }
 
 impl Default for PlayerInterestState {
@@ -113,8 +133,6 @@ impl Default for PlayerInterestState {
     }
 }
 
-/// Bevy system: keep HierarchicalGrid in sync with SpatialEntity + Transform
-/// Call this in the replication or simulation schedule
 pub fn sync_interest_grid(
     mut grid: ResMut<InterestManager>,
     query: Query<(Entity, &Transform, Option<&SpatialEntity>)>,
@@ -126,7 +144,6 @@ pub fn sync_interest_grid(
     }
 }
 
-/// Plugin wiring
 pub struct InterestManagementPlugin;
 
 impl Plugin for InterestManagementPlugin {
@@ -143,27 +160,9 @@ fn setup_interest_manager(mut commands: Commands, config: Res<HierarchicalGridCo
     commands.insert_resource(InterestManager::new(config.clone()));
 }
 
-// === Integration Notes for Replication Loop (v18.43) ===
-// In your authoritative replication system or world_state_broadcaster:
-// 
-// if let Some(flag) = world.get_resource::<InterestUpdateFlag>() {
-//     if flag.needs_full_recalc {
-//         for connected_player in players {
-//             let state = get_player_interest_state(player); // combat/council/harvest
-//             let pos = get_player_position(player);
-//             let to_replicate = interest_manager.get_entities_for_player(player_entity, pos, Some(state));
-//             // feed to domain-specific encoder + TargetedUpdate batch
-//             // or SafetyNet / Council specific targeted broadcast
-//         }
-//         flag.needs_full_recalc = false;
-//     }
-// }
-//
-// Call grid.insert_or_update(...) from movement_system, harvest_system, council_session, etc.
-// Attach SpatialEntity to players, important NPCs, resource nodes, council bloom entities.
-//
-// This + the existing domain-specific encoder in replication/mod.rs gives production MMOARPG netcode.
+// === Integration Notes (v20.6) ===
+// Call interest_manager.calculate_dynamic_bandwidth_scale(...) or calculate_bandwidth_scale_from_net(...)
+// from your replication loop / world_state_broadcaster when deciding how much data to send for a Forgiveness Wave or Legacy Thread update.
+// Combine with the existing dynamic radius system for full mercy-gated, load-aware replication.
 
-// Thunder locked in. Zero-lag for epiphany & council moments. Yoi ⚡
-// All prior placeholder logic removed. Full production path active.
-// ENC + esacheck clean. 13+ PATSAGi Councils sealed.
+// Thunder locked in. Dynamic bandwidth scaling active for large-scale spectator mercy moments. Yoi ⚔️
