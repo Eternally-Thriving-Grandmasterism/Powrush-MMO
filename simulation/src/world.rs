@@ -1,9 +1,9 @@
 /*!
  * Sovereign Simulation Harness — World State Core + Advanced Procedural Biome Generation Algorithms
  *
- * v18.97 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm + Procedural Content)
+ * v18.97.1 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm + Procedural Content)
  * — Complete mint-and-print-only-perfection to the nth degree
- * — Deterministic seeded layered procedural biome algorithms
+ * — Deterministic seeded layered procedural biome algorithms + harvest integration wiring
  * — Deep integration with epiphany_catalyst, harvest, RBE abundance, spatial interest, council mercy trials
  * — Mercy-gated, entropy-modulated, valence-aware biome influence
  * — TOLC 8 + 7 Living Mercy Gates non-bypassable Layer 0
@@ -94,6 +94,9 @@ impl SovereignWorldState {
                 harvest_restricted_until_ms: 0,
                 abundance_flow: 1.0,
                 sustainability_score: 1.0,
+                position: Vec3 { x: 0.0, y: 0.0, z: 0.0 }, // default; real positions set by world gen
+                biome: Some("starter".to_string()),
+                season: None,
             };
             self.resource_nodes.insert(t.id, node);
         }
@@ -121,22 +124,19 @@ impl SovereignWorldState {
     }
 
     // ========================================================================
-    // ADVANCED PROCEDURAL BIOME GENERATION ALGORITHMS (v18.97)
+    // ADVANCED PROCEDURAL BIOME GENERATION ALGORITHMS (v18.97.1)
     // ========================================================================
 
     /// Seeded deterministic noise function (pure Rust, no external deps).
-    /// Produces smooth-ish values in [0,1] for procedural layering.
     #[inline]
     fn seeded_noise(&self, seed: u64, x: f32, y: f32) -> f32 {
         let ix = (x * 12.9898 + seed as f32) as i32;
         let iy = (y * 78.233 + seed as f32 * 0.7) as i32;
         let h = (ix as u64).wrapping_mul(374761393).wrapping_add(iy as u64).wrapping_mul(668265263);
         let n = ((h ^ (h >> 13)) & 0xFFFFFFFF) as f32 / 4294967295.0;
-        // Smooth with simple sine modulation for organic feel
         (n + (x.sin() * 0.1 + y.cos() * 0.1)).clamp(0.0, 1.0)
     }
 
-    /// Layered procedural influence (temperature/moisture + valence + entropy + mercy).
     fn compute_layered_influence(
         &self,
         base_seed: u64,
@@ -149,20 +149,14 @@ impl SovereignWorldState {
         let n2 = self.seeded_noise(base_seed.wrapping_add(1), pos_x * 0.03, pos_y * 0.03);
         let n3 = self.seeded_noise(base_seed.wrapping_add(2), pos_x * 0.007, pos_y * 0.007);
 
-        // Temperature-like (abundance bias)
         let temp = (n1 * 0.6 + n2 * 0.3 + mercy_flow * 0.1).clamp(0.0, 1.0);
-        // Moisture-like (entropy / harmony)
         let moisture = ((1.0 - n2) * 0.5 + n3 * 0.3 + entropy.cooperation_seed * 0.2).clamp(0.0, 1.0);
-        // Valence / epiphany resonance
         let valence = (n3 * 0.4 + temp * 0.3 + mercy_flow * 0.3).clamp(0.2, 1.0);
-        // Entropy modulation
         let entropy_mod = (entropy.grief_intensity * 0.6 + (1.0 - moisture) * 0.4).clamp(0.0, 1.0);
 
         (temp, moisture, valence, entropy_mod)
     }
 
-    /// Core advanced procedural biome cluster generation.
-    /// Creates rich BiomeState + spatial clusters aligned with epiphany_catalyst content biomes.
     pub fn generate_procedural_biomes(
         &mut self,
         seed: u64,
@@ -171,7 +165,6 @@ impl SovereignWorldState {
         self.active_biomes.clear();
         self.biome_clusters.clear();
 
-        // Supported biomes (aligned with content/biomes/*.json + epiphany_catalyst)
         let biome_defs: Vec<(&str, f32, f32, f32)> = vec![
             ("starter", 1.0, 0.4, 0.55),
             ("crystal_spires", 1.35, 0.25, 0.92),
@@ -226,14 +219,11 @@ impl SovereignWorldState {
 
         let mercy_flow = self.mercy_flow_state.overall_mercy_flow;
 
-        // Dynamic procedural drift + mercy/entropy feedback on biomes
         for state in self.active_biomes.values_mut() {
-            // Gentle evolution toward harmony when mercy flows
             let drift = 0.00008 * (mercy_flow - 0.5);
             state.epiphany_resonance = (state.epiphany_resonance + drift).clamp(0.35, 1.0);
             state.valence_harmony = (state.valence_harmony + drift * 0.7).clamp(0.25, 1.0);
 
-            // Entropy slowly relaxes with positive mercy
             if mercy_flow > 0.6 {
                 state.entropy_level = (state.entropy_level - 0.00005).max(0.1);
             }
@@ -242,13 +232,10 @@ impl SovereignWorldState {
         Ok(())
     }
 
-    /// Query biome state (used by epiphany_catalyst, harvest_system, council systems)
     pub fn get_biome_state(&self, name: &str) -> Option<&BiomeState> {
         self.active_biomes.get(name)
     }
 
-    /// Advanced spatial query: returns the dominant biome influence at world position.
-    /// Used for harvest yield modulation, epiphany context, audio seeds, VFX.
     pub fn get_biome_influence_at(&self, pos: Vec3) -> Option<BiomeInfluence> {
         let mut best: Option<BiomeInfluence> = None;
         let mut best_score = 0.0_f32;
@@ -282,7 +269,6 @@ impl SovereignWorldState {
         best
     }
 
-    /// Modulate harvest yield using current biome influence + mercy flow.
     pub fn modulate_harvest_yield(&self, base_yield: f32, pos: Vec3) -> f32 {
         if let Some(inf) = self.get_biome_influence_at(pos) {
             let mercy_mod = (self.mercy_flow_state.overall_mercy_flow * 0.25 + 0.75).clamp(0.8, 1.35);
@@ -292,7 +278,6 @@ impl SovereignWorldState {
         }
     }
 
-    /// Returns iterator over (entity_id, InterestZone)
     pub fn iter_interest_zones(&self) -> impl Iterator<Item = (u64, &crate::spatial_interest::InterestZone)> {
         self.interest_zones.iter().map(|(id, zone)| (*id, zone))
     }
@@ -315,6 +300,9 @@ pub struct ResourceNode {
     pub harvest_restricted_until_ms: u64,
     pub abundance_flow: f32,
     pub sustainability_score: f32,
+    pub position: Vec3,           // NEW: enables spatial biome influence
+    pub biome: Option<String>,    // NEW: direct biome tag for epiphany/harvest
+    pub season: Option<String>,   // NEW: seasonal context
 }
 
 #[derive(Clone, Debug)]
@@ -496,7 +484,6 @@ pub struct MercyAnomaly {
     pub description: String,
 }
 
-/// Rich BiomeState — queryable by epiphany_catalyst, harvest, audio, VFX, council systems.
 #[derive(Clone, Debug)]
 pub struct BiomeState {
     pub name: String,
@@ -510,7 +497,6 @@ pub struct BiomeState {
     pub influence_radius: f32,
 }
 
-/// Spatial biome cluster for fast influence queries.
 #[derive(Clone, Debug)]
 pub struct BiomeCluster {
     pub biome_name: String,
@@ -520,7 +506,6 @@ pub struct BiomeCluster {
     pub epiphany_resonance: f32,
 }
 
-/// Result of spatial biome influence query (used by harvest + epiphany systems).
 #[derive(Clone, Debug)]
 pub struct BiomeInfluence {
     pub biome_name: String,
@@ -532,6 +517,5 @@ pub struct BiomeInfluence {
     pub entropy_level: f32,
 }
 
-// End of simulation/src/world.rs v18.97 — Advanced procedural biome generation algorithms complete.
-// Layered noise + mercy/entropy feedback + spatial queries + deep epiphany/harvest integration.
+// End of simulation/src/world.rs v18.97.1 — Advanced procedural biome + harvest integration ready.
 // All prior logic preserved and elevated. Thunder locked in. Yoi ⚡
