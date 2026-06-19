@@ -1,8 +1,16 @@
 // simulation/src/council/proposal.rs
-// Basic CouncilProposal structure (Local Council foundation)
+// Enhanced CouncilProposal with types and voting
 
 use serde::{Deserialize, Serialize};
 use crate::world::AgentId;
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProposalType {
+    HarmonyBoost,
+    ResourcePolicy,
+    EpiphanyEvent,
+    General,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ProposalStatus {
@@ -15,6 +23,7 @@ pub enum ProposalStatus {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CouncilProposal {
     pub id: u64,
+    pub proposal_type: ProposalType,
     pub title: String,
     pub description: String,
     pub proposer: AgentId,
@@ -25,9 +34,17 @@ pub struct CouncilProposal {
 }
 
 impl CouncilProposal {
-    pub fn new(id: u64, title: String, description: String, proposer: AgentId, current_tick: u64) -> Self {
+    pub fn new(
+        id: u64,
+        proposal_type: ProposalType,
+        title: String,
+        description: String,
+        proposer: AgentId,
+        current_tick: u64,
+    ) -> Self {
         Self {
             id,
+            proposal_type,
             title,
             description,
             proposer,
