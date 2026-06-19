@@ -5,23 +5,50 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  validate:
+  validate-full-files:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check for placeholder patterns in diffs
+      - name: Validate no placeholder or partial file patterns
+        id: validate
         run: |
-          echo "Checking for placeholder comments and partial file indicators..."
+          echo "Running Full File Delivery Validation..."
           
-          # Common placeholder patterns that violate full file delivery rule
-          if git diff origin/main...HEAD | grep -E '(// \.\.\.|// \.\.\. \(rest of the file|// TODO: expand later|// placeholder|// partial|// truncated)' ; then
-            echo "::error::Placeholder or partial file patterns detected in diff."
-            echo "All files must be delivered in full. No placeholders allowed."
+          # Define forbidden patterns (placeholder / partial file indicators)
+          FORBIDDEN_PATTERNS=(
+            '// \.\.\. \(rest of the file'
+            '// \.\.\.'
+            '// TODO: expand later'
+            '// placeholder'
+            '// partial'
+            '// truncated'
+            '// implement later'
+            '// fill in'
+            '// coming soon'
+          )
+
+          FOUND_ISSUES=0
+          
+          # Get the diff
+          DIFF=$(git diff origin/main...HEAD)
+
+          for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
+            if echo "$DIFF" | grep -q "$pattern"; then
+              echo "::error::Forbidden pattern detected: $pattern"
+              FOUND_ISSUES=$((FOUND_ISSUES + 1))
+            fi
+          done
+
+          if [ $FOUND_ISSUES -gt 0 ]; then
+            echo ""
+            echo "::error::Validation failed. Full file delivery is required."
+            echo "Please deliver complete files instead of using placeholders or partial diffs."
+            echo "This ensures long-term maintainability and coherence across the monorepo."
             exit 1
           fi
-          
-          echo "No placeholder patterns found. Validation passed."
+
+          echo "Validation passed. No placeholder patterns found."
