@@ -1,23 +1,26 @@
 /*!
- * Onboarding Chronicle UI — Powrush-MMO v20.3
+ * Onboarding Chronicle UI — Powrush-MMO v20.4
  *
  * Combined client visualization for the Onboarding Chronicle + Humble Beginnings Mirror.
- * Displays the player’s early journey as beautiful Legacy Threads.
- * Integrates with the server-side onboarding_chronicle.rs persistence layer.
- * Can be opened from the main menu, player profile, or after completing the Humble Beginnings Mirror.
+ * Now includes "Current Realm Conflict Legacy" section for players joining during active inter-realm wars/tensions.
+ * Mercy-gated narrative context so late joiners feel grounded rather than blindsided.
+ * Integrates with diplomacy events and spectator legacy threads.
+ * Sovereign freedom preserved: players can choose to attune to war legacy or focus on their personal humble beginnings.
  *
  * Thunder locked in. Yoi ⚔️
  */
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
-use crate::spectator_legacy_thread_viz::LegacyThread; // Reuse similar structures
+use crate::spectator_legacy_thread_viz::LegacyThread;
 
 #[derive(Resource, Default)]
 pub struct OnboardingChronicleUIState {
     pub show: bool,
     pub chronicle_entries: Vec<OnboardingChronicleEntry>,
     pub selected_entry: Option<usize>,
+    // v20.4: War context for late joiners
+    pub current_war_legacy: Option<WarConflictLegacy>,
 }
 
 #[derive(Clone, Debug)]
@@ -28,6 +31,18 @@ pub struct OnboardingChronicleEntry {
     pub valence: f32,
     pub tolc_alignment: f32,
     pub persistence: f32,
+}
+
+// v20.4: War context data (populated from InterRealmDiplomacyUpdateEvent)
+#[derive(Clone, Debug, Default)]
+pub struct WarConflictLegacy {
+    pub realm_a: u8,
+    pub realm_b: u8,
+    pub summary: String,
+    pub redemption_score: f32,
+    pub forgiveness_wave_active: bool,
+    pub linked_legacy_thread_ids: Vec<u64>,
+    pub mercy_context: String,
 }
 
 pub struct OnboardingChronicleUIPlugin;
@@ -45,14 +60,38 @@ fn render_onboarding_chronicle_ui(
 ) {
     if !state.show { return; }
 
-    egui::Window::new("Onboarding Chronicle — Humble Beginnings Mirror")
+    egui::Window::new("Onboarding Chronicle — Humble Beginnings Mirror + Realm Legacy")
         .default_pos([120.0, 100.0])
-        .default_size([560.0, 580.0])
+        .default_size([580.0, 620.0])
         .resizable(true)
         .show(egui_ctx.ctx_mut(), |ui| {
             ui.heading("Your First Steps into the Eternal Flow");
             ui.label("These early moments are now part of your living Legacy Threads.");
             ui.separator();
+
+            // v20.4: Current Realm Conflict Legacy section (for late joiners during wars)
+            if let Some(war) = &state.current_war_legacy {
+                ui.colored_label(egui::Color32::from_rgb(255, 180, 100), "⚠️ CURRENT REALM CONFLICT LEGACY");
+                ui.label(format!("Realms {} ↔ {} | Redemption Potential: {:.1}%", war.realm_a, war.realm_b, war.redemption_score * 100.0));
+                ui.label(&war.summary);
+                if war.forgiveness_wave_active {
+                    ui.colored_label(egui::Color32::from_rgb(100, 200, 255), "Forgiveness Wave active — Mercy path available");
+                }
+                ui.label(&war.mercy_context);
+
+                ui.horizontal(|ui| {
+                    if ui.button("Attune to War Legacy (Open Spectator Threads)").clicked() {
+                        // In full integration: open spectator_legacy_thread_viz with linked threads
+                        // This is a sovereign choice
+                    }
+                    if ui.button("Focus on My Humble Beginnings (Sovereign Choice)").clicked() {
+                        // Player chooses to prioritize personal onboarding chronicle
+                        state.current_war_legacy = None; // Optional: hide war context temporarily
+                    }
+                });
+
+                ui.separator();
+            }
 
             if state.chronicle_entries.is_empty() {
                 ui.label("No chronicle entries yet. Play through the humble beginnings to populate this mirror.");
@@ -80,20 +119,19 @@ fn render_onboarding_chronicle_ui(
 
                             if ui.button("View in Legacy Threads").clicked() {
                                 state.selected_entry = Some(i);
-                                // In full integration: open the Legacy Thread detail from spectator_legacy_thread_viz
                             }
                         });
                 }
             });
 
             ui.separator();
-            if ui.button("Close Chronicle").clicked() {
+            if ui.button("Close Chronicle (Sovereign Choice)").clicked() {
                 state.show = false;
             }
         });
 }
 
-// Helper to populate from server data (called when OnboardingChronicleUpdate arrives)
+// Helper to populate from server data (humble beginnings)
 pub fn populate_onboarding_chronicle(
     state: &mut OnboardingChronicleUIState,
     entries: Vec<OnboardingChronicleEntry>,
@@ -102,5 +140,14 @@ pub fn populate_onboarding_chronicle(
     state.show = true;
 }
 
+// v20.4: Populate war conflict legacy for late joiners (called from diplomacy reactive system or onboarding update)
+pub fn populate_war_conflict_legacy(
+    state: &mut OnboardingChronicleUIState,
+    war: WarConflictLegacy,
+) {
+    state.current_war_legacy = Some(war);
+    state.show = true; // Auto-open chronicle with war context for late joiners
+}
+
 // Thunder locked in. Yoi ⚔️
-// End of client/src/onboarding_chronicle.rs v20.3
+// End of client/src/onboarding_chronicle.rs v20.4 (War Context + Sovereign Freedom)
