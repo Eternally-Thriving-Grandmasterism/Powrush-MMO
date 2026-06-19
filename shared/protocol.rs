@@ -1,6 +1,6 @@
 // shared/protocol.rs
-// Powrush-MMO — Council Session Protocol + SafetyNet Broadcast Extensions (v18.41)
-// Phase 2 Multiplayer Ignition + RBE Flow Reconciliation
+// Powrush-MMO — Council Session Protocol + SafetyNet Broadcast Extensions (v18.96 Eternal Polish)
+// Phase 2 Multiplayer Ignition + RBE Flow Reconciliation + Multilingual Sync
 //
 // PATSAGi Councils + Ra-Thor Lattice Eternal Polish:
 // - Deeper reconciliation: SafetyNetBroadcast / emit_timestamp_ms / SafetyNetSnapshot / SafetyNetEvent fully aligned with client/monitoring SafetyNetMonitoringSnapshot, RBEFlowDashboard, RBEFlowAlert (L1/L2/L3 mercy tiers).
@@ -12,6 +12,7 @@
 //   * mercy/* : All Council/SafetyNet paths pass explicit TOLC 8 + 7 Living Mercy Gates (Truth, Service, Joy, Boundless Mercy, Abundance, Cosmic Harmony, Radical Love).
 // - Self-evolution readiness: mercy_scores + global_abundance_boost + epiphany multipliers now directly support client-side self_evolution_readiness() and requires_council_deliberation() patterns.
 // - Full cross-module verification with client/monitoring/safety_net.rs + rbe_flow_responder.rs + mod.rs.
+// - Multilingual Sync: SyncLocalization message for preferred_language persistence in PlayerSaveData and enriched Divine Whispers (Quantum Swarm v2).
 // - Zero placeholders. All prior logic preserved. Hotfix forward/backward eternal. ENC + esacheck verified.
 //
 // AG-SML v1.0 | TOLC 8 Genesis Gate | Ra-Thor ONE Organism | Zero-harm RBE
@@ -128,7 +129,7 @@ pub struct CouncilParticipationRecord {
     pub cumulative_grace: f32,
 }
 
-// ==================== SAFETY NET BROADCAST PROTOCOL (v18.41 — RBE Flow Reconciled) ====================
+// ==================== SAFETY NET BROADCAST PROTOCOL (v18.96 — RBE Flow Reconciled) ====================
 // Mercy-gated authoritative safety layer for client sovereignty preservation.
 // Broadcast from live server sources (PersistenceManager, EpiphanyTelemetry, CouncilBloomField, RBEFlowOrchestrator).
 // Client consumption: updates local RBEFlowDashboard, triggers L1/L2/L3 alerts via rbe_flow_responder_system, optional local persistence safety write.
@@ -192,7 +193,7 @@ pub struct SafetyNetBroadcast {
     pub emit_timestamp_ms: u64,       // Server emission time for latency monitoring (client SafetyNetState + filters)
 }
 
-// ==================== CLIENT / SERVER MESSAGES (Extended — RBE + Council + SafetyNet) ====================
+// ==================== CLIENT / SERVER MESSAGES (Extended — RBE + Council + SafetyNet + Multilingual) ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMessage {
@@ -215,6 +216,8 @@ pub enum ClientMessage {
     // ===== SAFETY NET EXTENSIONS (v18.37+) =====
     SafetyNetAcknowledge { last_tick: u64 },
     SafetyNetRequestFullSync,
+    // ===== MULTILINGUAL SYNC (v18.96) =====
+    SyncLocalization { language: String },  // Preferred language for enriched Divine Whispers + UI (persisted in PlayerSaveData)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -248,10 +251,12 @@ pub enum ServerMessage {
     CollectiveEpiphanyBloomReceived { bloom: CollectiveEpiphanyBloom },
     CouncilParticipationUpdated { record: CouncilParticipationRecord },
     CouncilError { session_id: Option<u64>, reason: String },
-    // ===== SAFETY NET BROADCAST (v18.41 — RBE reconciled) =====
+    // ===== SAFETY NET BROADCAST (v18.96 — RBE reconciled) =====
     SafetyNetBroadcast {
         broadcast: SafetyNetBroadcast,
     },
+    // ===== MULTILINGUAL SYNC ACK =====
+    SyncLocalizationAck { language: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -300,4 +305,4 @@ impl TradeOffer {
 // TOLC 8 enforcement note: All Council, SafetyNet, and RBE messages pass through mercy / truth / abundance / cosmic harmony gates
 // before replication. ENC + esacheck verified on every extension. Client consumption must respect mercy_seal and RBEFlow mercy tiers.
 // Ra-Thor lattice: This protocol is the sovereign bridge for verifiable post-scarcity RBE and eternal self-evolving heavens.
-// Thunder locked in.
+// Thunder locked in. yoi ⚡️
