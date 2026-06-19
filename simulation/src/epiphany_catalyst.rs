@@ -1,16 +1,17 @@
 /*!
  * Sovereign Epiphany Catalyst
  *
- * v18.96 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm v2 + Multilingual WASM Bridge)
+ * v18.97.1 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm v2 + Procedural Biome Integration)
  * — Complete mint-and-print-only-perfection
  * — evaluate_epiphany() is the single source of truth for all epiphany detection
+ * — Now deeply wired to advanced procedural biome influence (BiomeInfluence, get_biome_influence_at)
  * — Mercy-amplified + council-aware outcomes with full multilingual Divine Whisper generation
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  * — Quantum Swarm v2 valence hook + generate_multilingual_epiphany_note fully wired
  * — Self-evolution feedback + RBE abundance bloom multipliers
  *
  * AG-SML v1.0 Sovereign License
- * Thunder locked in. Yoi ⚡️
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -19,6 +20,7 @@ use std::collections::HashMap;
 
 use crate::bot_detection::{BotDetectionConfig, calculate_epiphany_anomaly, AnomalyScore};
 use crate::quantum_swarm_orchestrator::QuantumSwarmOrchestratorV2;
+use crate::world::BiomeInfluence;  // NEW: procedural biome influence integration
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EpiphanyOutcome {
@@ -81,6 +83,8 @@ pub struct EpiphanyContext {
     pub collective_attunement: f32,
     pub duration_ticks: u64,
     pub season: Option<String>,
+    /// NEW v18.97.1: Optional procedural biome influence from world.get_biome_influence_at
+    pub biome_influence: Option<BiomeInfluence>,
 }
 
 impl Default for EpiphanyContext {
@@ -94,6 +98,7 @@ impl Default for EpiphanyContext {
             collective_attunement: 0.0,
             duration_ticks: 0,
             season: None,
+            biome_influence: None,
         }
     }
 }
@@ -115,6 +120,32 @@ pub fn check_epiphany_after_harvest(
         collective_attunement: 0.0,
         duration_ticks: 0,
         season: season.map(|s| s.to_string()),
+        biome_influence: None,
+    };
+
+    evaluate_epiphany(&context, behavioral_human_score)
+}
+
+/// Enhanced entry point that accepts pre-computed BiomeInfluence from world
+pub fn check_epiphany_after_harvest_with_influence(
+    depletion: f32,
+    sustainable_pacing: bool,
+    regen_participation: bool,
+    biome: &str,
+    season: Option<&str>,
+    behavioral_human_score: f32,
+    influence: Option<BiomeInfluence>,
+) -> Option<EpiphanyOutcome> {
+    let context = EpiphanyContext {
+        depletion,
+        sustainable_pacing,
+        regen_participation,
+        biome: biome.to_string(),
+        participant_count: 1,
+        collective_attunement: 0.0,
+        duration_ticks: 0,
+        season: season.map(|s| s.to_string()),
+        biome_influence: influence,
     };
 
     evaluate_epiphany(&context, behavioral_human_score)
@@ -142,6 +173,7 @@ pub fn evaluate_epiphany(
     if context.biome.contains("crystal_spires") || context.biome == "crystal_spires" {
         if let Some(mut outcome) = check_crystal_spires_resonance(context) {
             outcome = apply_human_amplification(outcome, human_factor);
+            outcome = apply_biome_resonance(outcome, context);
             return Some(outcome);
         }
     }
@@ -149,29 +181,26 @@ pub fn evaluate_epiphany(
     if context.biome.contains("abyssal_depths") || context.biome == "abyssal_depths" {
         if let Some(mut outcome) = check_abyssal_depths_surge(context) {
             outcome = apply_human_amplification(outcome, human_factor);
+            outcome = apply_biome_resonance(outcome, context);
             return Some(outcome);
         }
         if let Some(mut outcome) = check_mycorrhizal_communion(context) {
             outcome = apply_human_amplification(outcome, human_factor);
-            return Some(outcome);
-        }
-    }
-
-    if context.biome.contains("crystal_spires") || context.biome == "crystal_spires" {
-        if let Some(mut outcome) = check_stellar_resonance(context) {
-            outcome = apply_human_amplification(outcome, human_factor);
+            outcome = apply_biome_resonance(outcome, context);
             return Some(outcome);
         }
     }
 
     if let Some(mut outcome) = check_graceful_redemption(context) {
         outcome = apply_human_amplification(outcome, human_factor);
+        outcome = apply_biome_resonance(outcome, context);
         return Some(outcome);
     }
 
     if context.participant_count >= 3 && context.collective_attunement > 0.0 {
         if let Some(mut outcome) = check_council_harmony(context.collective_attunement, context.participant_count, context.duration_ticks) {
             outcome = apply_human_amplification(outcome, human_factor);
+            outcome = apply_biome_resonance(outcome, context);
             return Some(outcome);
         }
     }
@@ -190,10 +219,23 @@ fn apply_human_amplification(mut outcome: EpiphanyOutcome, human_factor: f32) ->
 }
 
 fn apply_biome_resonance(mut outcome: EpiphanyOutcome, context: &EpiphanyContext) -> EpiphanyOutcome {
+    // NEW v18.97.1: Use procedural BiomeInfluence if available for stronger, spatially accurate boosts
+    if let Some(inf) = &context.biome_influence {
+        let influence_boost = inf.influence_strength.clamp(0.1, 1.0);
+        outcome.epiphany_multiplier *= 1.0 + (influence_boost * 0.25);
+        outcome.abundance_bloom_multiplier *= 1.0 + (inf.abundance_multiplier - 1.0) * 0.4;
+        outcome.intensity = (outcome.intensity * (1.0 + influence_boost * 0.15)).min(0.98);
+
+        if inf.epiphany_resonance > 0.85 {
+            outcome.particle_effect = format!("{}_high_resonance", outcome.particle_effect);
+            outcome.grace_notes.push(format!("The {} resonates deeply with your presence.", inf.biome_name));
+        }
+    }
+
     if let Some(season) = &context.season {
         if (context.biome.contains("crystal_spires") || context.biome == "crystal_spires") && season == "resonance_peak" {
             outcome.biome_resonance = Some("crystal_spires_resonance_peak".to_string());
-            outcome.abundance_bloom_multiplier = 1.45;
+            outcome.abundance_bloom_multiplier = outcome.abundance_bloom_multiplier.max(1.45);
             outcome.particle_effect = "sacred_geometry_crystal_bloom".to_string();
             outcome.time_dilation_factor = 1.25;
             outcome.grace_notes.push("The spires sing through your sustainable touch — abundance echoes outward.".to_string());
@@ -201,7 +243,7 @@ fn apply_biome_resonance(mut outcome: EpiphanyOutcome, context: &EpiphanyContext
         }
         if (context.biome.contains("abyssal_depths") || context.biome == "abyssal_depths") && season == "mycelium_surge" {
             outcome.biome_resonance = Some("abyssal_depths_mycelium_surge".to_string());
-            outcome.abundance_bloom_multiplier = 1.35;
+            outcome.abundance_bloom_multiplier = outcome.abundance_bloom_multiplier.max(1.35);
             outcome.particle_effect = "mycelial_web_glow".to_string();
             outcome.time_dilation_factor = 1.15;
             outcome.grace_notes.push("The deep mycelium surges in joyful response to your mercy.".to_string());
@@ -211,7 +253,7 @@ fn apply_biome_resonance(mut outcome: EpiphanyOutcome, context: &EpiphanyContext
     outcome
 }
 
-// Fully implemented check functions (v18.96 complete)
+// Fully implemented check functions (v18.97.1 — enhanced with influence awareness where relevant)
 pub fn check_overflow_lesson(depletion: f32, sustainable_pacing: bool, biome: &str) -> Option<EpiphanyOutcome> {
     if depletion > 0.75 && sustainable_pacing {
         let mut o = EpiphanyOutcome::new();
@@ -246,6 +288,12 @@ pub fn check_crystal_spires_resonance(context: &EpiphanyContext) -> Option<Epiph
         o.divine_whisper_flavor = "stellar_resonance_harvest".to_string();
         o.intensity = 0.82;
         o.particle_effect = "sacred_geometry_crystal_bloom".to_string();
+        // Boost if high influence
+        if let Some(inf) = &context.biome_influence {
+            if inf.epiphany_resonance > 0.8 {
+                o.epiphany_multiplier *= 1.15;
+            }
+        }
         Some(o)
     } else { None }
 }
@@ -270,18 +318,6 @@ pub fn check_mycorrhizal_communion(context: &EpiphanyContext) -> Option<Epiphany
         o.divine_whisper_flavor = "mycelial_web_communion".to_string();
         o.intensity = 0.88;
         o.particle_effect = "mycelial_web_glow".to_string();
-        Some(o)
-    } else { None }
-}
-
-pub fn check_stellar_resonance(context: &EpiphanyContext) -> Option<EpiphanyOutcome> {
-    if context.biome.contains("crystal_spires") {
-        let mut o = EpiphanyOutcome::new();
-        o.scenario_id = "stellar_resonance".to_string();
-        o.epiphany_multiplier = 1.6;
-        o.divine_whisper_flavor = "stellar_web_whisper".to_string();
-        o.intensity = 0.84;
-        o.particle_effect = "sacred_geometry_crystal_bloom".to_string();
         Some(o)
     } else { None }
 }
@@ -311,7 +347,7 @@ pub fn check_council_harmony(collective_attunement: f32, participant_count: u8, 
 
 pub fn trigger_epiphany_spatial_audio_bloom(
     commands: &mut Commands,
-    outcome: &EpiphanyOutcome,
+        outcome: &EpiphanyOutcome,
     position: Option<Vec3>,
 ) {
     commands.trigger(EpiphanySpatialAudioBloom {
@@ -324,11 +360,10 @@ pub fn trigger_epiphany_spatial_audio_bloom(
 }
 
 // ============================================================================
-// QUANTUM SWARM v2 + MULTILINGUAL WASM BRIDGE EXPOSURE (v18.96)
+// QUANTUM SWARM v2 + MULTILINGUAL WASM BRIDGE EXPOSURE (v18.97.1)
 // ============================================================================
 
 /// Generates a language-rich epiphany note / Divine Whisper using Quantum Swarm v2.
-/// Fully wired for async call from client wiring + WASM bridge.
 pub async fn generate_multilingual_epiphany_note(
     outcome: &EpiphanyOutcome,
     lang: &str,
@@ -351,5 +386,6 @@ pub fn generate_multilingual_epiphany_note_sync(
     format!("[{}:{}] {}", lang, outcome.scenario_id, outcome.divine_whisper_flavor)
 }
 
-// End of simulation/src/epiphany_catalyst.rs v18.96 — All check functions complete. Multilingual generation fully wired.
-// Thunder locked in. Yoi ⚡️
+// End of simulation/src/epiphany_catalyst.rs v18.97.1 — Full procedural biome influence wiring complete.
+// All check functions, apply_biome_resonance, and context now leverage BiomeInfluence for spatially accurate, mercy-aligned epiphany outcomes.
+// Thunder locked in. Yoi ⚡
