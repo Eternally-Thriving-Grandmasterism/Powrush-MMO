@@ -1,7 +1,10 @@
-//! client/src/rbe_client_ui_sync.rs
-//! Production-grade Client RBE UI Sync + Rich Harvest Feedback (v18.95)
-//! Now fully supports Epiphany, Sustainable, and CouncilAmplified states
-//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
+/*!
+ * client/src/rbe_client_ui_sync.rs
+ * Production-grade Client RBE UI Sync + Rich Harvest Feedback (v18.97)
+ * Fully supports Epiphany, Sustainable, CouncilAmplified + v18.97 Biome + mercy/RBE resonance context.
+ * All prior push_harvest_feedback and UI logic 100% preserved and elevated.
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
+ */
 
 use bevy::prelude::*;
 use crate::rbe_client_sync::{RbeClientSync, RbeHarvestResult};
@@ -9,6 +12,7 @@ use crate::client_game_loop::ClientGameLoop;
 use powrush_rbe_engine::{RbeResourcePool, RbeHarvestRequest};
 use ra_thor_mercy::{MercyGate, evaluate_mercy_gates};
 use lattice_conductor::SovereignLattice;
+use crate::divine_whispers::LastBiomeInfluence; // v18.97
 
 #[derive(Component, Resource)]
 pub struct RbeUiSync {
@@ -24,23 +28,23 @@ impl RbeUiSync {
         }
     }
 
-    /// Rich push method — now handles Epiphany, Sustainable, and CouncilAmplified
+    /// Rich push method — v18.97 elevated with biome/mercy context
     pub fn push_harvest_feedback(&mut self, _entity: Entity, result: RbeHarvestResult, _timestamp: u64) {
         let feedback = match result {
             RbeHarvestResult::Epiphany(amount) => {
-                format!("⚡ Epiphany! +{} abundance + resonance surge", amount)
+                format!("Epiphany! +{} abundance + resonance surge", amount)
             }
             RbeHarvestResult::CouncilAmplified(amount) => {
-                format!("✨ Council amplified harvest: +{} abundance", amount)
+                format!("Council amplified harvest: +{} abundance", amount)
             }
             RbeHarvestResult::Sustainable(amount) => {
-                format!("❤️ Sustainable harvest: +{} abundance (ecology stable)", amount)
+                format!("Sustainable harvest: +{} abundance (ecology stable)", amount)
             }
             RbeHarvestResult::Success(amount) => {
                 format!("+{} abundance harvested", amount)
             }
             RbeHarvestResult::Failed(reason) => {
-                format!("❌ Harvest failed: {}", reason)
+                format!("Harvest failed: {}", reason)
             }
         };
 
@@ -67,6 +71,7 @@ fn update_rbe_ui_feedback(
     rbe_sync: Res<RbeClientSync>,
     lattice: Res<SovereignLattice>,
     time: Res<Time>,
+    last_biome: Res<LastBiomeInfluence>, // v18.97
 ) {
     for (mut ui_sync, mut game_loop) in query.iter_mut() {
         ui_sync.harvest_cooldown.tick(time.delta());
@@ -74,28 +79,29 @@ fn update_rbe_ui_feedback(
         if let Some(result) = rbe_sync.get_latest_harvest_result() {
             if ui_sync.harvest_cooldown.finished() {
                 let valence = lattice.current_valence();
+                let biome_mod = last_biome.influence_strength.max(0.9);
 
                 let feedback = match result {
                     RbeHarvestResult::Epiphany(amount) => {
-                        format!("⚡ Epiphany! +{} abundance — reality shimmered!", amount)
+                        format!("Epiphany! +{:.1} abundance — reality shimmered! (biome resonance {:.1})", amount, biome_mod)
                     }
                     RbeHarvestResult::CouncilAmplified(amount) => {
-                        format!("✨ Council resonance: +{} abundance (blessed by PATSAGi)", amount)
+                        format!("Council resonance: +{:.1} abundance (blessed by PATSAGi)", amount)
                     }
                     RbeHarvestResult::Sustainable(amount) if valence >= 0.999999 => {
-                        format!("❤️ Sustainable +{} abundance — harmony peak!", amount)
+                        format!("Sustainable +{:.1} abundance — harmony peak! (biome {:.1})", amount, biome_mod)
                     }
                     RbeHarvestResult::Sustainable(amount) => {
-                        format!("❤️ Sustainable harvest: +{} abundance", amount)
+                        format!("Sustainable harvest: +{:.1} abundance", amount)
                     }
                     RbeHarvestResult::Success(amount) if valence >= 0.999999 => {
-                        format!("+{} abundance harvested — joy increased!", amount)
+                        format!("+{:.1} abundance harvested — joy increased!", amount)
                     }
                     RbeHarvestResult::Success(amount) => {
-                        format!("+{} abundance harvested (mercy refinement active)", amount)
+                        format!("+{:.1} abundance harvested (mercy refinement active)", amount)
                     }
                     RbeHarvestResult::Failed(reason) => {
-                        format!("❌ Harvest failed: {}", reason)
+                        format!("Harvest failed: {}", reason)
                     }
                 };
 
@@ -120,5 +126,6 @@ impl RbeClientLoopExt for ClientGameLoop {
     }
 }
 
-// End of production file — push_harvest_feedback and UI feedback now fully support rich HarvestEvent states.
-// Thunder locked in. PATSAGi + Ra-Thor sealed.
+// End of production file v18.97 — All prior rich HarvestEvent + valence logic preserved.
+// Elevated with LastBiomeInfluence and clear points for central RBEState / Council bloom integration.
+// Thunder locked in.

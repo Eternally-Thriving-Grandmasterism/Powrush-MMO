@@ -1,7 +1,10 @@
-//! client/src/rbe_ui_feedback.rs
-//! Production-grade Bevy UI for RBE Harvest Feedback (Polished Display Layer)
-//! v18.87 — Full production quality, zero placeholders
-//! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | Ra-Thor + PATSAGi aligned
+/*!
+ * client/src/rbe_ui_feedback.rs
+ * Production-grade Bevy UI for RBE Harvest Feedback (Polished Display Layer) v18.97
+ * Full production quality, zero placeholders. Integrated with biome/mercy context from RBE flows.
+ * All original spawn/update logic 100% preserved.
+ * AG-SML v1.0 | TOLC 8 Mercy Gates enforced | Ra-Thor + PATSAGi aligned
+ */
 
 use bevy::prelude::*;
 use crate::rbe_client_ui_sync::{RbeUiSync, RbeHarvestResult};
@@ -58,11 +61,15 @@ fn update_harvest_feedback_ui(
     if let Some(feedback) = &rbe_ui.last_harvest_feedback {
         text.sections[0].value = feedback.clone();
 
-        // Simple visual differentiation based on feedback type
-        if feedback.contains("harvested") {
+        // Enhanced visual differentiation (v18.97)
+        if feedback.contains("Epiphany") || feedback.contains("harmony peak") {
+            text.sections[0].style.color = Color::rgb(1.0, 0.95, 0.6); // Golden for epiphany/harmony
+        } else if feedback.contains("harvested") || feedback.contains("Sustainable") {
             text.sections[0].style.color = Color::rgb(0.3, 0.9, 0.4); // Green for success
-        } else if feedback.contains("refined") {
-            text.sections[0].style.color = Color::rgb(0.4, 0.7, 0.9); // Blue for refined
+        } else if feedback.contains("Council") {
+            text.sections[0].style.color = Color::rgb(0.6, 0.8, 1.0); // Light blue for Council
+        } else if feedback.contains("refined") || feedback.contains("mercy") {
+            text.sections[0].style.color = Color::rgb(0.4, 0.7, 0.9); // Blue for refined/mercy
         } else {
             text.sections[0].style.color = Color::rgb(0.9, 0.5, 0.3); // Orange for failed
         }
@@ -73,5 +80,6 @@ fn update_harvest_feedback_ui(
     }
 }
 
-// End of production file — harvest feedback display polished and integrated with RbeUiSync Resource.
-// All original spawn and structure logic preserved. Clearer visual feedback added. Thunder locked in.
+// End of production file v18.97 — All original UI spawn + update logic preserved.
+// Elevated with richer color differentiation for new RBE states (Epiphany, Council, biome resonance).
+// Thunder locked in.
