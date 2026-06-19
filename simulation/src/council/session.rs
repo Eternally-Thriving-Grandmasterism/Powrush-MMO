@@ -1,5 +1,6 @@
 // simulation/src/council/session.rs
-// CouncilSession with improved deliberation and voting logic
+// CouncilSession with deliberation and voting logic
+// Part of Local Council foundation (v20.1)
 
 use crate::council::proposal::{CouncilProposal, ProposalStatus};
 use serde::{Deserialize, Serialize};
@@ -24,7 +25,8 @@ impl CouncilSession {
         self.active_proposals.push(proposal);
     }
 
-    /// Runs deliberation with archetype and mercy influence
+    /// Runs deliberation round. Currently simple; designed to be extended
+    /// with archetype influence, council reputation, and time-based momentum.
     pub fn run_deliberation(&mut self, average_mercy: f32, current_tick: u64) -> Vec<CouncilProposal> {
         let mut resolved = vec![];
 
@@ -34,7 +36,6 @@ impl CouncilSession {
 
                 let total_votes = proposal.votes_for + proposal.votes_against;
                 if total_votes >= 3 {
-                    // Factor in average mercy of participants for more mercy-aligned outcomes
                     let mercy_factor = (average_mercy / 100.0) * 0.3;
                     let effective_for = proposal.votes_for as f32 * (1.0 + mercy_factor);
 
