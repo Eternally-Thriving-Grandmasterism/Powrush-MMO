@@ -1,9 +1,5 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// InterRealmDiplomacyEvent v19 Architecture Evolution
-// Addresses high-priority improvements:
-// - Council deliberation influence on outcome & redemption_score
-// - RBE abundance sharing integration
-// - Cleaner real GraceBlessing application
+// InterRealmDiplomacyEvent v19 (reconciled after #176 merge)
 
 use std::collections::HashMap;
 use bevy::prelude::*;
@@ -13,14 +9,10 @@ use crate::world::{Agent, AgentId, SovereignWorldState, RbeResourcePool};
 use crate::player_legacy_journal::{LegacyJournalRegistry, LegacyEventType, LegacyThreadId};
 use crate::grace_blessing::{GraceBlessing, apply_grace_blessing, BlessingContext, calculate_grace_blessing};
 
-// ============================================================
-// COUNCIL INPUT
-// ============================================================
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CouncilDeliberationInput {
     pub average_mercy_of_participants: f32,
-    pub vote_ratio: f32,                    // from Council Mercy Trial
+    pub vote_ratio: f32,
     pub resolution_quality: f32,
     pub dominant_archetype_influence: f32,
 }
@@ -44,10 +36,6 @@ impl CouncilDeliberationInput {
         (base + mercy_bonus).clamp(0.0, 1.0)
     }
 }
-
-// ============================================================
-// CORE TYPES
-// ============================================================
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum DiplomacyOutcome {
@@ -84,45 +72,24 @@ pub struct InterRealmDiplomacyRegistry {
 
 impl InterRealmDiplomacyRegistry {
     pub fn new(global_seed: u64) -> Self {
-        Self {
-            active_events: vec![],
-            historical_events: vec![],
-            realm_monuments: HashMap::new(),
-            global_seed,
-        }
+        Self { active_events: vec![], historical_events: vec![], realm_monuments: HashMap::new(), global_seed }
     }
 
     pub fn trigger_diplomacy_event(
-        &mut self,
-        realm_a: u8,
-        realm_b: u8,
-        tension_score: f32,
-        participants: Vec<AgentId>,
-        spectators: Vec<AgentId>,
-        current_tick: u64,
+        &mut self, realm_a: u8, realm_b: u8, tension_score: f32,
+        participants: Vec<AgentId>, spectators: Vec<AgentId>, current_tick: u64
     ) -> InterRealmDiplomacyEvent {
         let event = InterRealmDiplomacyEvent {
-            tick: current_tick,
-            realm_a,
-            realm_b,
-            tension_score,
-            participating_agents: participants,
-            spectator_agents: spectators,
-            outcome: None,
-            forgiveness_wave_triggered: false,
-            redemption_score: 0.0,
-            abundance_shared: 0.0,
-            harmony_surge: 0.0,
-            monument_id: None,
-            linked_legacy_thread_id: None,
+            tick: current_tick, realm_a, realm_b, tension_score,
+            participating_agents: participants, spectator_agents: spectators,
+            outcome: None, forgiveness_wave_triggered: false,
+            redemption_score: 0.0, abundance_shared: 0.0, harmony_surge: 0.0,
+            monument_id: None, linked_legacy_thread_id: None,
         };
         self.active_events.push(event.clone());
         event
     }
 
-    // ============================================================
-    // MAIN RESOLUTION (now accepts Council input)
-    // ============================================================
     pub fn resolve_event(
         &mut self,
         event_index: usize,
@@ -130,14 +97,13 @@ impl InterRealmDiplomacyRegistry {
         legacy_registry: &mut LegacyJournalRegistry,
         grace_blessing_resource: &mut GraceBlessing,
         agents: &mut Vec<Agent>,
-        rbe_pools: &mut HashMap<u8, RbeResourcePool>, // RBE integration
+        rbe_pools: &mut HashMap<u8, RbeResourcePool>,
         current_tick: u64,
     ) {
         if let Some(event) = self.active_events.get_mut(event_index) {
             let (outcome, redemption_score) = if let Some(input) = council_input {
                 (input.determine_outcome(), input.calculate_redemption_score())
             } else {
-                // Fallback simulation path
                 if rand::random::<f32>() > 0.25 {
                     (DiplomacyOutcome::MercifulResolution, 0.88)
                 } else {
@@ -148,23 +114,15 @@ impl InterRealmDiplomacyRegistry {
             event.outcome = Some(outcome.clone());
             event.redemption_score = redemption_score;
 
-            let is_forgiveness = outcome == DiplomacyOutcome::MercifulResolution;
-            event.forgiveness_wave_triggered = is_forgiveness;
-
-            if is_forgiveness {
-                // Create monument
+            if outcome == DiplomacyOutcome::MercifulResolution {
                 let monument_id = (event.realm_a as u64 * 1000) + (event.realm_b as u64) + current_tick;
                 event.monument_id = Some(monument_id);
                 self.realm_monuments.insert((event.realm_a, event.realm_b), monument_id);
 
-                // RBE Abundance Sharing
                 self.apply_rbe_abundance_sharing(event, rbe_pools, redemption_score);
-
-                // Auto GraceBlessing cascade
                 self.apply_grace_blessing_cascade(event, agents, legacy_registry, grace_blessing_resource, current_tick);
             }
 
-            // Legacy thread linking
             let thread_id: LegacyThreadId = (current_tick as u64 * 10007) + (event.realm_a as u64 * 1009) + event.realm_b as u64;
             event.linked_legacy_thread_id = Some(thread_id);
 
@@ -174,72 +132,28 @@ impl InterRealmDiplomacyRegistry {
         }
     }
 
-    fn apply_rbe_abundance_sharing(
-        &self,
-        event: &InterRealmDiplomacyEvent,
-        rbe_pools: &mut HashMap<u8, RbeResourcePool>,
-        redemption_score: f32,
-    ) {
+    fn apply_rbe_abundance_sharing(&self, event: &InterRealmDiplomacyEvent, rbe_pools: &mut HashMap<u8, RbeResourcePool>, redemption_score: f32) {
         let shared = 8.0 + (redemption_score * 12.0);
-        if let Some(pool_a) = rbe_pools.get_mut(&event.realm_a) {
-            pool_a.abundance_flow += shared * 0.5;
-        }
-        if let Some(pool_b) = rbe_pools.get_mut(&event.realm_b) {
-            pool_b.abundance_flow += shared * 0.5;
-        }
-        // In real impl: also update sustainability_score and pressure
+        if let Some(pool) = rbe_pools.get_mut(&event.realm_a) { pool.abundance_flow += shared * 0.5; }
+        if let Some(pool) = rbe_pools.get_mut(&event.realm_b) { pool.abundance_flow += shared * 0.5; }
     }
 
-    fn apply_grace_blessing_cascade(
-        &self,
-        event: &InterRealmDiplomacyEvent,
-        agents: &mut Vec<Agent>,
-        legacy_registry: &mut LegacyJournalRegistry,
-        grace_blessing_resource: &mut GraceBlessing,
-        current_tick: u64,
-    ) {
-        // Simplified real application (production version would query proper ECS components)
+    fn apply_grace_blessing_cascade(&self, event: &InterRealmDiplomacyEvent, agents: &mut Vec<Agent>, legacy_registry: &mut LegacyJournalRegistry, grace_blessing_resource: &mut GraceBlessing, current_tick: u64) {
         let high_mercy: Vec<_> = agents.iter().filter(|a| a.mercy_score > 65.0).cloned().collect();
         let low_mercy: Vec<_> = agents.iter().filter(|a| a.mercy_score < 55.0).cloned().collect();
 
         for mentor in high_mercy.iter().take(2) {
             for mentee in low_mercy.iter().take(2) {
                 if mentor.id == mentee.id { continue; }
-
-                let result = calculate_grace_blessing(
-                    mentor.mercy_score,
-                    mentee.mercy_score,
-                    mentor.archetype_id.clone(),
-                    BlessingContext::PostForgivenessWave,
-                    250.0,
-                );
-
+                let result = calculate_grace_blessing(mentor.mercy_score, mentee.mercy_score, mentor.archetype_id.clone(), BlessingContext::PostForgivenessWave, 250.0);
                 if let Some(m) = agents.iter_mut().find(|a| a.id == mentee.id) {
                     m.mercy_score = (m.mercy_score + result.mentee_mercy_boost).min(99.0);
                 }
-
-                legacy_registry.record_event(
-                    mentor.id,
-                    event.realm_a,
-                    LegacyEventType::GraceBlessingGiven {
-                        recipient_id: mentee.id,
-                        mercy_boost: result.mentee_mercy_boost,
-                    },
-                    mentor.mercy_score,
-                    result.mentor_persistence_gain,
-                    result.valence,
-                    current_tick,
-                    true,
-                    Some("Auto GraceBlessing after Forgiveness Wave".to_string()),
-                );
+                legacy_registry.record_event(mentor.id, event.realm_a, LegacyEventType::GraceBlessingGiven { recipient_id: mentee.id, mercy_boost: result.mentee_mercy_boost }, mentor.mercy_score, result.mentor_persistence_gain, result.valence, current_tick, true, Some("Auto after Forgiveness Wave".to_string()));
             }
         }
     }
 }
-
-// ============================================================
-// SYSTEM
-// ============================================================
 
 pub fn inter_realm_diplomacy_resolution_system(
     mut diplomacy_registry: ResMut<InterRealmDiplomacyRegistry>,
@@ -248,22 +162,12 @@ pub fn inter_realm_diplomacy_resolution_system(
     time: Res<Time>,
 ) {
     let current_tick = time.elapsed_secs() as u64;
-    let mut to_resolve = vec![];
+    let mut to_resolve: Vec<usize> = vec![];
     for (i, e) in diplomacy_registry.active_events.iter().enumerate() {
         if e.outcome.is_none() { to_resolve.push(i); }
     }
-
     for idx in to_resolve.into_iter().rev() {
-        // In real flow, CouncilDeliberationInput would come from council session
-        diplomacy_registry.resolve_event(
-            idx,
-            None, // or Some(council_input)
-            &mut legacy_registry,
-            &mut grace_blessing,
-            &mut vec![], // placeholder for real agents
-            &mut HashMap::new(), // placeholder for RBE pools
-            current_tick,
-        );
+        diplomacy_registry.resolve_event(idx, None, &mut legacy_registry, &mut grace_blessing, &mut vec![], &mut HashMap::new(), current_tick);
     }
 }
 
