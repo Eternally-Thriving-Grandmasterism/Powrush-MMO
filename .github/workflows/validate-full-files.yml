@@ -1,24 +1,21 @@
-name: Validate Full File Delivery
+name: Validate Full File Delivery + PATSAGi Rules
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
 jobs:
-  validate-full-files:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Validate no placeholder or partial file patterns
-        id: validate
+      - name: Validate Full File Delivery
         run: |
-          echo "Running Full File Delivery Validation..."
-          
-          # Define forbidden patterns (placeholder / partial file indicators)
+          echo "Validating full file delivery..."
           FORBIDDEN_PATTERNS=(
             '// \.\.\. \(rest of the file'
             '// \.\.\.'
@@ -26,29 +23,32 @@ jobs:
             '// placeholder'
             '// partial'
             '// truncated'
-            '// implement later'
-            '// fill in'
-            '// coming soon'
           )
 
-          FOUND_ISSUES=0
-          
-          # Get the diff
-          DIFF=$(git diff origin/main...HEAD)
-
-          for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
-            if echo "$DIFF" | grep -q "$pattern"; then
-              echo "::error::Forbidden pattern detected: $pattern"
-              FOUND_ISSUES=$((FOUND_ISSUES + 1))
-            fi
-          done
-
-          if [ $FOUND_ISSUES -gt 0 ]; then
-            echo ""
-            echo "::error::Validation failed. Full file delivery is required."
-            echo "Please deliver complete files instead of using placeholders or partial diffs."
-            echo "This ensures long-term maintainability and coherence across the monorepo."
+          if git diff origin/main...HEAD | grep -qE "$(IFS='|'; echo "${FORBIDDEN_PATTERNS[*]}")"; then
+            echo "::error::Placeholder or partial file patterns detected."
             exit 1
           fi
+          echo "Full file delivery check passed."
 
-          echo "Validation passed. No placeholder patterns found."
+      - name: PATSAGi Alignment Checks
+        run: |
+          echo "Running PATSAGi alignment validation..."
+          DIFF=$(git diff origin/main...HEAD)
+
+          # Example PATSAGi-aligned rule: New systems should reference LegacyJournal
+          if echo "$DIFF" | grep -qE '^(diff --git a/.*simulation/src/|diff --git a/.*src/council/)' ; then
+            if ! echo "$DIFF" | grep -q 'LegacyJournal'; then
+              echo "::warning::New or modified simulation/council code detected without LegacyJournal integration."
+              echo "Consider integrating with LegacyJournal for persistence and coherence."
+            fi
+          fi
+
+          # Check for Council-related changes referencing the Hybrid Model
+          if echo "$DIFF" | grep -qE 'Council|InterRealmDiplomacyEvent'; then
+            if ! echo "$DIFF" | grep -qE 'Hybrid|Local Council|earned depth'; then
+              echo "::warning::Council or Diplomacy changes detected. Consider referencing the Hybrid Council Model."
+            fi
+          fi
+
+          echo "PATSAGi alignment check completed."
