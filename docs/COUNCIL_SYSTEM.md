@@ -1,49 +1,22 @@
-# Council System Architecture
+# Council System Architecture (Updated v20.1)
 
-**Version**: v20  
 **Model**: Hybrid (Local from start + Earned Regional/Global depth)
 
-## Overview
+## Local Council
 
-The Council system is the central governance layer of Powrush-MMO. It allows players and agents to participate in meaningful decision-making that shapes realms and the broader metaverse.
-
-## Hybrid Model (Approved by PATSAGi Councils)
-
-- **Local Council**: Available from the very beginning on every server/realm.
-- **Regional Council**: Unlocked through collective metrics (mercy, harmony, participation).
-- **Global / PATSAGi-level**: Highest tier, earned through exceptional redemptive history and large-scale cooperation.
-
-## Local Council (Current Focus)
-
-### Responsibilities
-- Handle local realm proposals
-- Basic deliberation and voting
-- Issue simple persistent decisions
-- Feed into `CouncilDeliberationInput` for InterRealmDiplomacyEvent
-
-### Core Components (Planned)
+### Core Components
 - `CouncilProposal`
-- `CouncilSession`
-- `CouncilDecision` (persistent effects)
-- `CouncilState` resource
+- `CouncilSession` (with `run_deliberation()`)
+- `CouncilDecision` + `CouncilDecisions` resource
 
-### Progression Hooks
-- Metrics tracked: Average mercy, harmony, participation rate, successful redemptive resolutions
-- Thresholds will unlock Regional Council capabilities
+### Deliberation & Voting
+- Proposals move through Draft → Deliberating → Passed/Rejected
+- Resolution influenced by vote count and average participant mercy
+- Simple but extensible logic ready for archetype and council influence
 
-## Integration Points
+### Integration
+- `get_council_deliberation_input()` provides data to `InterRealmDiplomacyEvent`
+- Passed decisions stored persistently and can apply world effects
 
-| System                    | How Council Interacts                              |
-|---------------------------|----------------------------------------------------|
-| InterRealmDiplomacyEvent  | Provides `CouncilDeliberationInput`                |
-| GraceBlessing             | Can trigger blessings after major council decisions|
-| RBE Economy               | Future: Council can influence resource policies    |
-| LegacyJournal             | All major decisions and proposals are recorded     |
-| World Simulation          | Future: Council decisions can affect biomes        |
-
-## Future Evolution
-
-- Richer proposal types
-- Multi-level council hierarchy
-- Spectator participation in council sessions
-- Persistent world effects from passed proposals
+## Progression
+Local Council is available immediately. Regional and Global tiers unlock based on collective mercy, harmony, and redemptive outcomes.
