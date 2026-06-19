@@ -1,14 +1,16 @@
 /*!
- * Sovereign HarvestingSystem v18.95
+ * Sovereign HarvestingSystem v18.97.1
  * 
  * Production-grade HarvestSystem with rich TickResult output.
  * Generates meaningful HarvestEvents every tick.
  * Includes sustainability, regen, council amplification hooks, and RBE feedback.
+ * Now fully wired to advanced procedural biome influence (get_biome_influence_at + modulate_harvest_yield).
  * 
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * Thunder locked in. Yoi ⚡
  */
 
-use crate::world::{SovereignWorldState, NodeId, MercyViolation};
+use crate::world::{SovereignWorldState, NodeId, MercyViolation, Vec3};
 use crate::epiphany_catalyst::{check_epiphany_after_harvest, EpiphanyOutcome};
 use bevy::prelude::*;
 
@@ -71,6 +73,7 @@ impl HarvestingSystem {
     /// Called every simulation tick by the orchestrator.
     /// Produces background harvest opportunities and state updates.
     /// Populates TickResult with meaningful HarvestEvents.
+    /// Now applies procedural biome modulation where positions are available.
     pub fn process_harvest_tick(
         &mut self,
         world: &mut SovereignWorldState,
@@ -79,6 +82,14 @@ impl HarvestingSystem {
         let mut events = Vec::new();
 
         for (node_id, node) in world.resource_nodes.iter_mut() {
+            // Apply procedural biome modulation to current_yield if position is set
+            if node.position.x != 0.0 || node.position.z != 0.0 {
+                let modulated = world.modulate_harvest_yield(node.current_yield, node.position);
+                if modulated > node.current_yield {
+                    node.current_yield = modulated;
+                }
+            }
+
             // Natural regen
             if node.depletion > 0.0 {
                 node.current_yield = (node.current_yield + node.regen_rate * 0.1).min(node.base_yield);
@@ -102,7 +113,6 @@ impl HarvestingSystem {
                     council_amplified: false,
                 });
 
-                // Slightly deplete on background harvest
                 node.current_yield = (node.current_yield - amount * 0.3).max(0.0);
             }
         }
@@ -111,7 +121,7 @@ impl HarvestingSystem {
         events
     }
 
-    /// Player-initiated harvest (kept from previous high-quality implementation).
+    /// Player-initiated harvest — fully wired to advanced procedural biome system (v18.97.1).
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
@@ -126,7 +136,12 @@ impl HarvestingSystem {
                 return Err(MercyViolation { reason: "Node is harvest-restricted".to_string() });
             }
 
-            let mut yield_amount = node.current_yield * (0.5 + agent_mercy * 0.5);
+            // Apply advanced procedural biome modulation
+            let mut yield_amount = world.modulate_harvest_yield(
+                node.current_yield * (0.5 + agent_mercy * 0.5),
+                node.position,
+            );
+
             node.depletion = (node.depletion + 0.15).min(1.0);
             node.current_yield = node.base_yield * (1.0 - node.depletion * 0.7);
 
@@ -137,11 +152,18 @@ impl HarvestingSystem {
             let sustainable_pacing = agent_mercy > 0.6;
             let regen_participation = sustainable_pacing && (node.depletion < 0.4);
 
+            // Determine effective biome from influence or direct tag
+            let effective_biome = if let Some(inf) = world.get_biome_influence_at(node.position) {
+                inf.biome_name
+            } else {
+                node.biome.clone().unwrap_or_else(|| "starter".to_string())
+            };
+
             let mut epiphany: Option<EpiphanyOutcome> = check_epiphany_after_harvest(
                 node.depletion,
                 sustainable_pacing,
                 regen_participation,
-                &node.biome.clone().unwrap_or_else(|| "starter".to_string()),
+                &effective_biome,
                 node.season.as_deref(),
                 behavioral_human_score,
             );
