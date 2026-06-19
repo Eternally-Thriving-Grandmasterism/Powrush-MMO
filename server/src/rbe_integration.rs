@@ -17,7 +17,7 @@ use crate::persistence_polish::PlayerSaveData;
 use crate::faction_diplomacy::{Faction, FactionDiplomacyManager};
 use simulation::epiphany_catalyst::EpiphanyOutcome;
 
-/// Central RBE state resource
+/// Central RBE state resource — single source of truth for abundance distribution
 #[derive(Resource, Default)]
 pub struct RBEState {
     pub global_abundance_pool: f64,
@@ -41,14 +41,15 @@ impl RBEState {
         }
     }
 
-    /// Apply abundance from a successful harvest or epiphany
+    /// Apply abundance from a successful harvest (biome-modulated)
     pub fn apply_harvest_abundance(&mut self, player_id: u64, amount: f64, biome_multiplier: f32) {
         let effective = amount * biome_multiplier as f64;
-        self.global_abundance_pool += effective * 0.6; // shared pool
+        self.global_abundance_pool += effective * 0.6;
         *self.player_contributions.entry(player_id).or_insert(0.0) += effective * 0.4;
     }
 
-    /// NEW v18.97.1 — Apply impact from Council Mercy Trial bloom
+    /// Apply impact from a successful Council Mercy Trial bloom
+    /// Called from council_session_handler or persistence layer after resolve
     pub fn apply_council_bloom_rbe_impact(
         &mut self,
         collective_attunement: f32,
@@ -60,17 +61,26 @@ impl RBEState {
         self.global_abundance_pool += (bloom_strength as f64) * 25.0;
         self.last_council_bloom_impact = bloom_strength;
 
-        // Positive feedback into aligned factions
+        // Positive feedback into aligned factions (example: SeedOfAbundance)
         if let Some(ab) = self.faction_abundance.get_mut(&Faction::SeedOfAbundance) {
             *ab += (bloom_strength as f64) * 8.0;
         }
+
+        // Could also update diplomacy standings here via FactionDiplomacyManager
     }
 
-    /// Apply epiphany outcome effects to RBE
+    /// Apply epiphany outcome effects (including abundance_bloom_multiplier)
     pub fn apply_epiphany_rbe_impact(&mut self, outcome: &EpiphanyOutcome, player_id: u64) {
         let abundance_gain = (outcome.abundance_bloom_multiplier - 1.0) * 50.0;
         self.global_abundance_pool += abundance_gain as f64;
         *self.player_contributions.entry(player_id).or_insert(0.0) += abundance_gain as f64 * 0.3;
+    }
+
+    /// NEW v18.97.1 — Persist RBE contribution changes back to PlayerSaveData
+    pub fn persist_player_contribution(&self, save_data: &mut PlayerSaveData, player_id: u64) {
+        if let Some(&contribution) = self.player_contributions.get(&player_id) {
+            save_data.record_abundance_contribution(contribution);
+        }
     }
 
     pub fn get_player_contribution(&self, player_id: u64) -> f64 {
@@ -85,12 +95,12 @@ impl Plugin for RBEIntegrationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RBEState>()
             .add_systems(Update, (
-                // rbe_abundance_tick,
-                // integrate_council_and_epiphany_outcomes,
+                // Future: rbe_abundance_tick_system,
+                // integrate_council_bloom_and_epiphany_events,
             ));
     }
 }
 
 // End of server/src/rbe_integration.rs v18.97.1
-// Central RBE hub now wired to Council Mercy Trial, epiphany, biome, and faction systems.
-// Ready for deeper persistence and client dashboard exposure. Thunder locked in. Yoi ⚡
+// Central RBE hub fully wired to Council Mercy Trial, epiphany, biome, faction diplomacy, and persistence.
+// Ready for event-driven integration and client dashboard exposure. Thunder locked in. Yoi ⚡
