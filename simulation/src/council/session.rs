@@ -1,5 +1,5 @@
 // simulation/src/council/session.rs
-// CouncilSession with deliberation and voting logic
+// CouncilSession with improved deliberation and voting logic
 
 use crate::council::proposal::{CouncilProposal, ProposalStatus};
 use serde::{Deserialize, Serialize};
@@ -24,18 +24,21 @@ impl CouncilSession {
         self.active_proposals.push(proposal);
     }
 
-    /// Runs a simple deliberation round and resolves proposals
-    pub fn run_deliberation(&mut self, current_tick: u64) -> Vec<CouncilProposal> {
+    /// Runs deliberation with archetype and mercy influence
+    pub fn run_deliberation(&mut self, average_mercy: f32, current_tick: u64) -> Vec<CouncilProposal> {
         let mut resolved = vec![];
 
         for proposal in self.active_proposals.iter_mut() {
             if proposal.status == ProposalStatus::Draft || proposal.status == ProposalStatus::Deliberating {
                 proposal.status = ProposalStatus::Deliberating;
 
-                // Simple resolution logic (can be expanded with agent voting later)
                 let total_votes = proposal.votes_for + proposal.votes_against;
                 if total_votes >= 3 {
-                    if proposal.votes_for > proposal.votes_against {
+                    // Factor in average mercy of participants for more mercy-aligned outcomes
+                    let mercy_factor = (average_mercy / 100.0) * 0.3;
+                    let effective_for = proposal.votes_for as f32 * (1.0 + mercy_factor);
+
+                    if effective_for > proposal.votes_against as f32 {
                         proposal.status = ProposalStatus::Passed;
                     } else {
                         proposal.status = ProposalStatus::Rejected;
@@ -45,9 +48,7 @@ impl CouncilSession {
             }
         }
 
-        // Remove resolved proposals
         self.active_proposals.retain(|p| p.status != ProposalStatus::Passed && p.status != ProposalStatus::Rejected);
-
         self.last_session_tick = current_tick;
         resolved
     }
