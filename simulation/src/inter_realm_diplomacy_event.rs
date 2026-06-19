@@ -1,24 +1,83 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete and polished version (v20.2 — Forgiveness Wave VFX Readiness + Monument Visualization + Legacy Thread Deep Integration)
+// Complete and polished version (v20.3 — Rich MonumentVisualType + Forgiveness Wave VFX Params + WGSL Hints)
 //
-// Builds directly on v18.99 Legacy Threads + GraceBlessing + harness polish.
-// Delivers production-ready Forgiveness Wave + redemption scoring + monument system
-// with explicit VFX hooks, spectator mode, monument visual descriptors, and full
-// wiring to PlayerLegacyJournal (filterable threads + visual_impact).
-// Closes remaining human experience gaps around spectacular redemptive conflict resolution
-// and visible legacy of mercy in inter-realm events.
-// TOLC 8 + 7 Living Mercy Gates enforced on every outcome and monument.
-// All prior logic (v20.1) 100% preserved and elevated.
-// AG-SML v1.0 licensed. Zero-harm, sovereign, hotfix-capable.
+// Deepened VFX layer for Option 2: more detailed monument_visual_type variants
+// + structured parameters consumable by WGSL shaders for the Forgiveness Wave effect.
+// All prior logic (v20.2) preserved and elevated.
+// TOLC 8 + 7 Living Mercy Gates alignment strengthened.
+// AG-SML v1.0 licensed.
 
 use std::collections::HashMap;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::world::{Agent, AgentId, RbeResourcePool};
-use crate::player_legacy_journal::{LegacyJournalRegistry, LegacyEventType, LegacyThreadId, LegacyThread};
+use crate::player_legacy_journal::{LegacyJournalRegistry, LegacyEventType, LegacyThreadId};
 use crate::grace_blessing::{GraceBlessing, BlessingContext, calculate_grace_blessing};
 use crate::council::decision::CouncilDecisions;
+
+// === v20.3: Rich Monument & VFX Types ===
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MonumentVisualType {
+    PendingResolution,
+    ReconciledRealmsObelisk,           // Stable diplomacy
+    ForgivenessWaveMonolith,           // Primary MercifulResolution
+    MercyAscentPillar,                 // High redemption + high valence
+    HarmonyWeaveSpire,                 // Multi-realm strong harmony surge
+    RedemptionBloomObelisk,            // Post-forgiveness with heavy Grace cascade
+    EternalMercyArch,                  // Rare: very high mercy_resonance + cross-realm threads
+}
+
+impl MonumentVisualType {
+    pub fn shader_variant_name(&self) -> &'static str {
+        match self {
+            MonumentVisualType::PendingResolution => "pending",
+            MonumentVisualType::ReconciledRealmsObelisk => "reconciled_obelisk",
+            MonumentVisualType::ForgivenessWaveMonolith => "forgiveness_wave",
+            MonumentVisualType::MercyAscentPillar => "mercy_ascent",
+            MonumentVisualType::HarmonyWeaveSpire => "harmony_weave",
+            MonumentVisualType::RedemptionBloomObelisk => "redemption_bloom",
+            MonumentVisualType::EternalMercyArch => "eternal_mercy",
+        }
+    }
+
+    pub fn base_color_shift(&self) -> [f32; 3] {
+        match self {
+            MonumentVisualType::ForgivenessWaveMonolith => [0.4, 0.7, 1.0],      // Soft blue-white wave
+            MonumentVisualType::MercyAscentPillar => [0.9, 0.6, 0.3],          // Warm golden ascent
+            MonumentVisualType::HarmonyWeaveSpire => [0.5, 0.9, 0.6],          // Green harmony
+            MonumentVisualType::RedemptionBloomObelisk => [0.8, 0.4, 0.9],     // Violet redemption
+            MonumentVisualType::EternalMercyArch => [1.0, 0.95, 0.7],         // Bright eternal gold
+            _ => [0.6, 0.6, 0.7],
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ForgivenessWaveVfxParams {
+    pub intensity: f32,                    // 0.0 - 1.0 (maps to forgiveness_wave_vfx_intensity)
+    pub wave_speed: f32,                   // Shader animation speed
+    pub particle_density: f32,             // How many particles / wave rings
+    pub color_shift: [f32; 3],             // RGB from MonumentVisualType::base_color_shift
+    pub monument_glow_radius: f32,
+    pub legacy_thread_pulse: bool,         // Whether Legacy Threads should pulse in sync
+    pub spectator_emotion_amplify: f32,    // How much spectator valence boosts the effect
+}
+
+impl Default for ForgivenessWaveVfxParams {
+    fn default() -> Self {
+        Self {
+            intensity: 0.85,
+            wave_speed: 1.2,
+            particle_density: 0.7,
+            color_shift: [0.4, 0.7, 1.0],
+            monument_glow_radius: 12.0,
+            legacy_thread_pulse: true,
+            spectator_emotion_amplify: 0.6,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CouncilDeliberationInput {
@@ -71,9 +130,9 @@ pub struct InterRealmDiplomacyEvent {
     pub harmony_surge: f32,
     pub monument_id: Option<u64>,
     pub linked_legacy_thread_id: Option<LegacyThreadId>,
-    // === v20.2 VFX + Visualization Readiness ===
-    pub forgiveness_wave_vfx_intensity: f32,   // 0.0-1.0 for client particle/cinematic system
-    pub monument_visual_type: String,          // "ReconciledRealmsObelisk", "ForgivenessWaveMonolith", etc.
+    // === v20.3 Rich VFX ===
+    pub monument_visual_type: MonumentVisualType,
+    pub forgiveness_wave_vfx_params: ForgivenessWaveVfxParams,
     pub spectator_mode_data: Option<SpectatorModeData>,
 }
 
@@ -81,7 +140,7 @@ pub struct InterRealmDiplomacyEvent {
 pub struct SpectatorModeData {
     pub spectator_count: u32,
     pub emotional_valence_avg: f32,
-    pub visible_legacy_threads: Vec<LegacyThreadId>,  // Links to filterable Legacy Threads for UI
+    pub visible_legacy_threads: Vec<LegacyThreadId>,
     pub cross_realm_impact_summary: String,
 }
 
@@ -121,8 +180,8 @@ impl InterRealmDiplomacyRegistry {
             harmony_surge: 0.0,
             monument_id: None,
             linked_legacy_thread_id: None,
-            forgiveness_wave_vfx_intensity: 0.0,
-            monument_visual_type: "PendingResolution".to_string(),
+            monument_visual_type: MonumentVisualType::PendingResolution,
+            forgiveness_wave_vfx_params: ForgivenessWaveVfxParams::default(),
             spectator_mode_data: None,
         };
         self.active_events.push(event.clone());
@@ -159,10 +218,26 @@ impl InterRealmDiplomacyRegistry {
                 self.realm_monuments.insert((event.realm_a, event.realm_b), monument_id);
 
                 event.forgiveness_wave_triggered = true;
-                event.forgiveness_wave_vfx_intensity = (redemption_score * 0.7 + 0.3).clamp(0.6, 1.0);
-                event.monument_visual_type = "ForgivenessWaveMonolith".to_string();
 
-                // Build spectator mode data with links to Legacy Threads
+                // === v20.3: Set rich visual type + VFX params ===
+                event.monument_visual_type = if redemption_score > 0.92 {
+                    MonumentVisualType::EternalMercyArch
+                } else if redemption_score > 0.82 {
+                    MonumentVisualType::MercyAscentPillar
+                } else if event.harmony_surge > 6.0 {
+                    MonumentVisualType::HarmonyWeaveSpire
+                } else {
+                    MonumentVisualType::ForgivenessWaveMonolith
+                };
+
+                let mut vfx = ForgivenessWaveVfxParams::default();
+                vfx.intensity = (redemption_score * 0.75 + 0.25).clamp(0.6, 1.0);
+                vfx.color_shift = event.monument_visual_type.base_color_shift();
+                vfx.legacy_thread_pulse = true;
+                vfx.spectator_emotion_amplify = 0.55 + (redemption_score * 0.3);
+                event.forgiveness_wave_vfx_params = vfx;
+
+                // Build spectator data (same as v20.2)
                 let visible_threads: Vec<LegacyThreadId> = legacy_registry.build_filterable_legacy_threads(
                     if !event.participating_agents.is_empty() { event.participating_agents[0] } else { 0 },
                     Some("Diplomacy".to_string())
@@ -178,14 +253,16 @@ impl InterRealmDiplomacyRegistry {
                 self.apply_rbe_abundance_sharing(event, rbe_pools, redemption_score);
                 self.apply_grace_blessing_cascade(event, agents, legacy_registry, grace_blessing_resource, current_tick);
             } else if outcome == DiplomacyOutcome::StableDiplomacy {
-                event.monument_visual_type = "ReconciledRealmsObelisk".to_string();
-                event.forgiveness_wave_vfx_intensity = 0.35;
+                event.monument_visual_type = MonumentVisualType::ReconciledRealmsObelisk;
+                let mut vfx = ForgivenessWaveVfxParams::default();
+                vfx.intensity = 0.35;
+                vfx.color_shift = event.monument_visual_type.base_color_shift();
+                event.forgiveness_wave_vfx_params = vfx;
             }
 
             let thread_id: LegacyThreadId = (current_tick as u64 * 10007) + (event.realm_a as u64 * 1009) + event.realm_b as u64;
             event.linked_legacy_thread_id = Some(thread_id);
 
-            // Record rich event into LegacyJournal for participants (now with VFX/monument data context)
             for pid in &event.participating_agents {
                 legacy_registry.record_event(
                     *pid,
@@ -201,7 +278,7 @@ impl InterRealmDiplomacyRegistry {
                     redemption_score,
                     current_tick,
                     true,
-                    Some(format!("Inter-realm {} resolution. Redemption {:.2}. Monument created.", outcome_str(outcome.clone()), redemption_score)),
+                    Some(format!("Inter-realm {} resolution. Monument: {:?}", outcome_str(outcome.clone()), event.monument_visual_type)),
                 );
             }
 
@@ -291,9 +368,21 @@ pub fn get_council_deliberation_input(council_decisions: &crate::council::decisi
     })
 }
 
-// === v20.2 Client VFX / UI Integration Notes ===
-// forgiveness_wave_vfx_intensity + monument_visual_type → feed Bevy particle / cinematic systems
-// spectator_mode_data.visible_legacy_threads → link directly to build_filterable_legacy_threads() results for beautiful cross-realm legacy viz in spectator mode
-// This completes spectacular, redemptive conflict resolution with persistent monument + Legacy Thread visibility.
+// === v20.3 WGSL Shader Integration Hints ===
+// The client should pass these to the shader:
+// - monument_visual_type.shader_variant_name() → select shader variant / branch
+// - forgiveness_wave_vfx_params.intensity, wave_speed, particle_density, color_shift
+// - forgiveness_wave_vfx_params.legacy_thread_pulse → pulse Legacy Threads in spectator view
+// Example WGSL uniform struct (to be used in client shader):
+// struct ForgivenessWaveParams {
+//     intensity: f32,
+//     wave_speed: f32,
+//     particle_density: f32,
+//     color_shift: vec3<f32>,
+//     glow_radius: f32,
+//     legacy_thread_pulse: u32,
+// };
+// See client/assets/shaders/forgiveness_wave.wgsl for starter implementation.
+
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.2 (Forgiveness Wave VFX + Monument Polish)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.3 (Rich VFX Deepening)
