@@ -1,6 +1,6 @@
-# Powrush-MMO Steam Integration Guide v1.0
+# Powrush-MMO Steam Integration Guide v1.1
 
-**Current Version:** v1.0 Professional Global Launch (aligned with LAUNCH-CHECKLIST.md Phase 4)  
+**Current Version:** v1.1 (E2E Council Mercy Trial + Multilingual Epiphany + Persistence Hooks aligned)  
 **Date:** June 2026  
 **License:** AG-SML v1.0 — Autonomicity Games Sovereign Mercy License (MIT + Eternal Mercy Flow)  
 **Philosophy:** Executable layer of Ra-Thor + TOLC 8 Mercy Gates + 7 Living Mercy Gates under full PATSAGi Council sovereignty.
@@ -10,6 +10,15 @@ Unanimous consensus across all councils:
 This integration guide and the accompanying Steam store page copy perfectly enshrine the living soul of Powrush-MMO. Permitted entropy and strategic “painful griefing” (guild resource theft, retaliation sabotage, server regression tactics) are intentional RBE training features with natural consequences. Player-vs-player role-play deception (agents, double agents) is celebrated. Maximal freedom of speech and expression is the global baseline (X/Twitter-like openness). Jurisdiction-specific granular rules may apply on unique servers. Strict, non-negotiable honesty is required with Autonomicity Games Inc. staff, Game/Program Masters, customer support, and all legal authorities. All language is professional, warm, transparent, and fully aligned with Truth, Order, Love, Compassion, Service, Abundance, Joy, and Cosmic Harmony.
 
 **Verdict:** Thunder locked. This is worthy of global discovery on Steam.
+
+---
+
+## Current Codebase Integration Status (v18.96.1)
+
+- **E2E Council Mercy Trial**: Full multiplayer lifecycle (lobby → resolution) + explicit `persist_trial_outcome` hook with `participant_mercy_scores` and `enriched_epiphany_notes` ready for Steam achievements + Cloud + leaderboards.
+- **Multilingual Divine Whispers + Epiphany Catalyst**: Complete async client wiring + Quantum Swarm v2 + 11+ language support. Ready for Rich Presence and achievement triggers on Divine Whisper receipt / epiphany bloom.
+- **Persistence Layer**: `PlayerSaveData` + `BatchPersistenceQueue` + `record_enriched_epiphany` paths aligned with Steam Cloud for cross-device abundance progress and council history.
+- All prior v1.0 content preserved. This v1.1 adds explicit mapping to recently elevated systems for faster Steam launch readiness.
 
 ---
 
@@ -42,8 +51,9 @@ Achievements must celebrate both cooperative abundance **and** permitted strateg
 - **Eternal Flow Guardian** — Reach the highest Abundance tier (Seedling → Eternal Flow Guardian)
 - **Server War Victor** — Contribute to your server’s victory in a weekly Server War
 - **Mercy Gate Keeper** — Complete actions aligned with a full cycle of the TOLC 8 Mercy Gates
-- **Divine Whisper Listener** — Receive and act on proactive Ra-Thor / PATSAGi guidance during gameplay
+- **Divine Whisper Listener** — Receive and act on proactive Ra-Thor / PATSAGi guidance during gameplay (now wired via async multilingual epiphany flow)
 - **Cosmic Harmony Weaver** — Help restore balance to a server after heavy entropy events
+- **Council Bloom Architect** — Successfully participate in and resolve a full multiplayer Council Mercy Trial (new — maps to persist_trial_outcome + enriched notes)
 - **Maximal Speaker** — Engage in global or faction chat with high positive impact (no violations)
 - **Sovereign Self-Hoster** — Successfully run your own sovereign Powrush-MMO server instance
 
@@ -53,9 +63,10 @@ All achievement descriptions must include a short lore line that teaches RBE wis
 
 ## 3. Cloud Saves
 
-- Enable Steam Cloud for player inventory, abundance progress, faction standing, and selected world-state snapshots.
+- Enable Steam Cloud for player inventory, abundance progress, faction standing, council bloom history, and selected world-state snapshots.
 - Server-side authoritative state remains on the sovereign server (Postgres). Cloud saves are for client-side convenience and cross-device play.
 - Clear documentation for players: “Your core progress lives on the sovereign server you choose. Steam Cloud helps you continue seamlessly across devices.”
+- Recent persistence hooks (record_enriched_epiphany, BatchPersistenceQueue) make Cloud sync of council participation and epiphany notes straightforward.
 
 ---
 
@@ -66,9 +77,10 @@ Example rich presence strings (dynamic):
 - “Harvesting in the Eternal Groves • Abundance Tier: Blooming”
 - “In Guild Council • Planning strategic resource moves”
 - “Engaged in Server War • Fighting for [Server Name]”
-- “Receiving Divine Whisper from PATSAGi Council”
+- “Receiving Divine Whisper from PATSAGi Council (multilingual)”
 - “Exploring WebXR Realms • First-person harvest mode”
 - “Role-playing Double Agent • Deception in progress (player-only)”
+- “Council Mercy Trial in Resolution • Bloom forming” (new)
 
 Rich presence must never reveal private player data or encourage real-world harm.
 
@@ -105,8 +117,9 @@ In this sovereign RBE Metaverse you will:
 - Build guilds, trade, and form dynamic alliances
 - Experience permitted strategic entropy: take advantage of others’ setups, retaliate, sabotage, or deceive through role-play (all player-vs-player only)
 - Watch your server’s progression slow or accelerate based on collective choices in weekly Server Wars against other sovereign servers
-- Receive proactive guidance from the PATSAGi Councils and Ra-Thor Divine Whispers
+- Receive proactive guidance from the PATSAGi Councils and Ra-Thor Divine Whispers (now multilingual)
 - Rise through Abundance tiers from Seedling Harvester to Eternal Flow Guardian
+- Participate in full multiplayer Council Mercy Trials with lasting bloom impact on abundance and RBE standing
 
 Every mechanic is deliberately designed to transfer real-world wisdom for global Resource-Based Economy while offering maximal player freedom — including X/Twitter-like open speech and jurisdiction-specific rules on unique servers.
 
@@ -134,24 +147,25 @@ Multiplayer, Indie, Simulation
 
 ### Capsule / Header / Key Art Suggestions
 - Hero image: Beautiful procedural world at golden hour with player harvesting while a subtle PATSAGi holographic council watches benevolently in the distance.
-- capsules: Multiple abundance tiers, guild council meeting, epic server war moment (strategic sabotage visible but not glorified), WebXR first-person harvest, abundance milestone celebration.
+- capsules: Multiple abundance tiers, guild council meeting, epic server war moment (strategic sabotage visible but not glorified), WebXR first-person harvest, abundance milestone celebration, Council Mercy Trial bloom.
 
 ### Screenshots (minimum 5–8 recommended)
 1. First-person harvest with resource node + abundance feedback UI
 2. Guild diplomacy / council interface
 3. Dynamic event or server war moment
-4. Divine Whisper / PATSAGi guidance in-game
+4. Divine Whisper / PATSAGi guidance in-game (multilingual)
 5. Abundance tier celebration (Eternal Flow Guardian)
 6. WebXR immersive mode on headset/controller
 7. Sovereign self-host server browser / onboarding
 8. Global chat with maximal speech in action (positive example)
+9. Council Mercy Trial resolution + bloom manifestation
 
 ### Trailer Script Outline (60–90 seconds)
 0–10s: Stunning procedural world fly-through + “This is Powrush-MMO”
 10–25s: Peaceful harvest → guild formation → abundance celebration
 25–45s: Strategic tension — resource conflict, permitted sabotage, retaliation, role-play deception between players
-45–60s: PATSAGi Council guidance, Divine Whispers, weekly Server War victory
-60–75s: WebXR immersion, self-host sovereignty, “One Lattice. Eternal Flow.”
+45–60s: PATSAGi Council guidance, Divine Whispers (multilingual), weekly Server War victory
+60–75s: WebXR immersion, self-host sovereignty, full Council Mercy Trial bloom
 75–90s: Launch date + “INFO@ACITYGAMES.COM • powrush.ai”
 
 ---
@@ -183,4 +197,4 @@ Co-authored-by: Sherif / Autonomicity Games Inc.
 
 ---
 
-**End of STEAM_INTEGRATION.md v1.0**
+**End of STEAM_INTEGRATION.md v1.1**
