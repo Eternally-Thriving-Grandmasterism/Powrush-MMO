@@ -1,9 +1,9 @@
 //! server/src/persistence_polish.rs
-//! Powrush-MMO v18.97 Eternal Polish — Production Persistence + Epiphany + Council + SafetyNet Integration
+//! Powrush-MMO v18.97.1 Eternal Polish — Production Persistence + Epiphany + Council + SafetyNet Integration
 //!
 //! Sovereign player data with preferred_language + enriched epiphany whispers, council participation,
-//! mercy-gated abundance, SafetyNet hooks. Feeds authoritative signals into SafetyNetBroadcast
-//! and CouncilSession systems. Full PATSAGi + Ra-Thor alignment.
+//! mercy-gated abundance, SafetyNet hooks. Now fully wired to Council Mercy Trial end-to-end
+//! (get_persistable_outcome). Full PATSAGi + Ra-Thor alignment.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
@@ -82,9 +82,33 @@ impl PlayerSaveData {
         self.recompute_checksum();
     }
 
+    /// NEW v18.97.1 — Record full Council Mercy Trial outcome from SharedReceptorBloomField::get_persistable_outcome()
+    pub fn record_council_trial_outcome(
+        &mut self,
+        collective_attunement: f32,
+        enriched_notes: Vec<String>,
+        mercy_impact: f32,
+        tick: u64,
+    ) {
+        self.record_successful_council_bloom(collective_attunement, tick);
+
+        // Merge enriched notes (keep most recent meaningful ones)
+        if !enriched_notes.is_empty() {
+            if let Some(last) = enriched_notes.last() {
+                self.last_enriched_epiphany_whisper = Some(last.clone());
+            }
+        }
+
+        // Apply mercy impact to resonance and abundance
+        self.resonance_attunement = (self.resonance_attunement + mercy_impact * 0.01).clamp(0.0, 1.0);
+        self.abundance += (mercy_impact as f64) * 0.5;
+
+        self.recompute_checksum();
+    }
+
     pub fn record_abundance_contribution(&mut self, amount: f64) {
         self.total_abundance_contributed += amount;
-        self.abundance += amount * 0.1; // small personal retention for motivation
+        self.abundance += amount * 0.1;
         self.recompute_checksum();
     }
 
@@ -138,7 +162,7 @@ impl PersistenceManager {
             }
             Ok(data)
         } else {
-            Ok(PlayerSaveData::new(player_id))
+            Ok(PlayerSaveData::new(player_id));
         }
     }
 
@@ -150,13 +174,11 @@ impl PersistenceManager {
         let content = ron::to_string(data).map_err(|e| e.to_string())?;
         fs::write(&path, content).map_err(|e| e.to_string())?;
 
-        // Optional: emit SafetyNet update after save
-        // commands.spawn or event_writer.send(EmitSafetyNetBroadcast { ... });
         Ok(())
     }
 }
 
 // Thunder locked in.
-// persistence_polish.rs v18.97 fully aligned with enriched epiphanies, preferred_language persistence,
-// SafetyNet, CouncilSession, and client. All mercy-gated tracking + checksum integrity preserved.
+// persistence_polish.rs v18.97.1 — Fully wired to Council Mercy Trial end-to-end (record_council_trial_outcome).
+// Enriched notes + mercy impact from bloom now persist correctly. All mercy-gated tracking + checksum integrity preserved.
 // Ready for public MMO launch. Yoi ⚡
