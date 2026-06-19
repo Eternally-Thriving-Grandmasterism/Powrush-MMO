@@ -1,7 +1,7 @@
 // simulation/src/council/session.rs
-// Basic CouncilSession for Local Council
+// CouncilSession with deliberation and voting logic
 
-use crate::council::proposal::CouncilProposal;
+use crate::council::proposal::{CouncilProposal, ProposalStatus};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -22,5 +22,32 @@ impl CouncilSession {
 
     pub fn add_proposal(&mut self, proposal: CouncilProposal) {
         self.active_proposals.push(proposal);
+    }
+
+    pub fn run_deliberation(&mut self, average_mercy: f32, current_tick: u64) -> Vec<CouncilProposal> {
+        let mut resolved = vec![];
+
+        for proposal in self.active_proposals.iter_mut() {
+            if proposal.status == ProposalStatus::Draft || proposal.status == ProposalStatus::Deliberating {
+                proposal.status = ProposalStatus::Deliberating;
+
+                let total_votes = proposal.votes_for + proposal.votes_against;
+                if total_votes >= 3 {
+                    let mercy_factor = (average_mercy / 100.0) * 0.3;
+                    let effective_for = proposal.votes_for as f32 * (1.0 + mercy_factor);
+
+                    if effective_for > proposal.votes_against as f32 {
+                        proposal.status = ProposalStatus::Passed;
+                    } else {
+                        proposal.status = ProposalStatus::Rejected;
+                    }
+                    resolved.push(proposal.clone());
+                }
+            }
+        }
+
+        self.active_proposals.retain(|p| p.status != ProposalStatus::Passed && p.status != ProposalStatus::Rejected);
+        self.last_session_tick = current_tick;
+        resolved
     }
 }
