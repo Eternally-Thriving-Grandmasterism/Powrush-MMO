@@ -1,0 +1,54 @@
+name: Validate Full File Delivery + PATSAGi Rules
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Full File Delivery
+        run: |
+          echo "Validating full file delivery..."
+          FORBIDDEN_PATTERNS=(
+            '// \.\.\. \(rest of the file'
+            '// \.\.\.'
+            '// TODO: expand later'
+            '// placeholder'
+            '// partial'
+            '// truncated'
+          )
+
+          if git diff origin/main...HEAD | grep -qE "$(IFS='|'; echo "${FORBIDDEN_PATTERNS[*]}")"; then
+            echo "::error::Placeholder or partial file patterns detected."
+            exit 1
+          fi
+          echo "Full file delivery check passed."
+
+      - name: PATSAGi Alignment Checks
+        run: |
+          echo "Running PATSAGi alignment validation..."
+          DIFF=$(git diff origin/main...HEAD)
+
+          # Example PATSAGi-aligned rule: New systems should reference LegacyJournal
+          if echo "$DIFF" | grep -qE '^(diff --git a/.*simulation/src/|diff --git a/.*src/council/)' ; then
+            if ! echo "$DIFF" | grep -q 'LegacyJournal'; then
+              echo "::warning::New or modified simulation/council code detected without LegacyJournal integration."
+              echo "Consider integrating with LegacyJournal for persistence and coherence."
+            fi
+          fi
+
+          # Check for Council-related changes referencing the Hybrid Model
+          if echo "$DIFF" | grep -qE 'Council|InterRealmDiplomacyEvent'; then
+            if ! echo "$DIFF" | grep -qE 'Hybrid|Local Council|earned depth'; then
+              echo "::warning::Council or Diplomacy changes detected. Consider referencing the Hybrid Council Model."
+            fi
+          fi
+
+          echo "PATSAGi alignment check completed."
