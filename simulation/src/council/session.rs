@@ -1,7 +1,7 @@
 // simulation/src/council/session.rs
-// CouncilSession with deliberation and voting logic
+// CouncilSession with support for different proposal types and voting
 
-use crate::council::proposal::{CouncilProposal, ProposalStatus};
+use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
