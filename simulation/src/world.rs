@@ -1,9 +1,10 @@
 /*!
- * Sovereign Simulation Harness — World State Core
+ * Sovereign Simulation Harness — World State Core + Procedural Biome Generation
  *
- * v18.94 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.96.1 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm + Procedural Content)
  * — Complete mint-and-print-only-perfection
- * — Unified SovereignWorldState with InterestZone support
+ * — Unified SovereignWorldState with InterestZone + full procedural biome cluster generation
+ * — Deep integration with epiphany_catalyst biomes (crystal_spires, abyssal_depths, etc.)
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -40,8 +41,10 @@ pub struct SovereignWorldState {
     pub faction_relations: HashMap<(FactionId, FactionId), Relation>,
 
     /// InterestZone data associated with entities (for spatial replication)
-    /// Keyed by stable u64 entity identifier (maps to Bevy Entity when needed)
     pub interest_zones: HashMap<u64, crate::spatial_interest::InterestZone>,
+
+    /// Procedural biome metadata (new for v18.96.1)
+    pub active_biomes: HashMap<String, BiomeState>,
 }
 
 impl SovereignWorldState {
@@ -60,11 +63,13 @@ impl SovereignWorldState {
             mercy_flow_state: MercyFlowState::default(),
             faction_relations: HashMap::new(),
             interest_zones: HashMap::new(),
+            active_biomes: HashMap::new(),
         };
 
         world.initialize_resource_nodes(&scenario.resource_templates)?;
         world.initialize_rbe_pools(&scenario.faction_templates)?;
         world.initialize_archetypes(&scenario.archetype_templates)?;
+        world.generate_procedural_biomes(global_seed, &scenario.entropy_profile)?;
 
         world.mercy_flow_state.validate_creation(&world)?;
         Ok(world)
@@ -111,8 +116,53 @@ impl SovereignWorldState {
         Ok(())
     }
 
+    /// Procedural biome cluster generation (new v18.96.1)
+    /// Creates biome states that epiphany_catalyst and harvest systems can query.
+    pub fn generate_procedural_biomes(
+        &mut self,
+        seed: u64,
+        entropy: &EntropyProfile,
+    ) -> Result<(), MercyViolation> {
+        // Core supported biomes (aligned with epiphany_catalyst)
+        let biome_names = vec![
+            "starter",
+            "crystal_spires",
+            "abyssal_depths",
+            "mycelial_web",
+            "resonance_peak",
+        ];
+
+        for (i, name) in biome_names.iter().enumerate() {
+            let mut state = BiomeState {
+                name: name.to_string(),
+                seed: seed.wrapping_add(i as u64),
+                abundance_multiplier: 1.0 + (entropy.cooperation_seed * 0.3),
+                entropy_level: entropy.grief_intensity,
+                epiphany_resonance: 0.6 + (i as f32 * 0.08),
+            };
+
+            // Special tuning for known epiphany biomes
+            if name == "crystal_spires" {
+                state.abundance_multiplier *= 1.25;
+                state.epiphany_resonance = 0.92;
+            }
+            if name == "abyssal_depths" {
+                state.entropy_level = (state.entropy_level * 0.7).max(0.2);
+                state.epiphany_resonance = 0.88;
+            }
+
+            self.active_biomes.insert(name.to_string(), state);
+        }
+
+        Ok(())
+    }
+
     pub fn tick(&mut self, dt_ms: u64) -> Result<(), MercyViolation> {
         self.sim_time += dt_ms;
+        // Light procedural drift on biomes over time
+        for state in self.active_biomes.values_mut() {
+            state.epiphany_resonance = (state.epiphany_resonance + 0.0001).min(1.0);
+        }
         Ok(())
     }
 
@@ -124,6 +174,11 @@ impl SovereignWorldState {
     /// Number of active interest zones
     pub fn interest_zone_count(&self) -> usize {
         self.interest_zones.len()
+    }
+
+    /// Query biome state (used by epiphany_catalyst and harvest)
+    pub fn get_biome_state(&self, name: &str) -> Option<&BiomeState> {
+        self.active_biomes.get(name)
     }
 }
 
@@ -321,5 +376,15 @@ pub struct MercyAnomaly {
     pub description: String,
 }
 
-// End of simulation/src/world.rs v18.94 — InterestZone support added for real Entity-backed spatial replication.
-// Thunder locked in. Yoi ⚡
+/// Procedural biome state (queryable by epiphany_catalyst, harvest, council systems)
+#[derive(Clone, Debug)]
+pub struct BiomeState {
+    pub name: String,
+    pub seed: u64,
+    pub abundance_multiplier: f32,
+    pub entropy_level: f32,
+    pub epiphany_resonance: f32,
+}
+
+// End of simulation/src/world.rs v18.96.1 — Procedural biome generation + epiphany integration complete.
+// All prior logic preserved. Thunder locked in. Yoi ⚡
