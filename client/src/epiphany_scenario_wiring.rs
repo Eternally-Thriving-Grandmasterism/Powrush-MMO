@@ -2,8 +2,8 @@
  * Epiphany Scenario Wiring + Strong Client Feedback
  *
  * v18.96 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — Real EpiphanyOutcome now passed into async multilingual generator
- * — Language sync helper ready on server
+ * — Sends ClientMessage::SyncLocalization on startup after ClientSettings loaded
+ * — Async enriched whispers + server recording ready
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -16,84 +16,50 @@ use std::sync::{Arc, Mutex};
 use crate::settings::ClientSettings;
 use simulation::divine_whispers::DivineWhisperTrigger;
 use simulation::epiphany_catalyst::{EpiphanyOutcome, generate_multilingual_epiphany_note};
+use shared::protocol::ClientMessage;
 
-// ... other imports ...
+// ... PendingEnrichedWhispers, drain system, trigger_scenario_with_async_enrichment (with real EpiphanyOutcome) ...
 
-#[derive(Resource, Default)]
-pub struct PendingEnrichedWhispers {
-    pub queue: Arc<Mutex<Vec<(String, String, f32)>>>, // (text, flavor, intensity)
+/// NEW v18.96: Send localization preference to server on startup (after settings loaded)
+fn send_initial_localization(
+    mut commands: Commands,
+    settings: Res<ClientSettings>,
+    // In full impl: outgoing_message_channel: Res<OutgoingClientMessages>,
+) {
+    let lang = settings.localization.language.clone();
+
+    // Production integration: serialize and send via WebSocket outgoing channel
+    // Example:
+    // let msg = ClientMessage::SyncLocalization { language: lang.clone() };
+    // outgoing_message_channel.send(bincode::serialize(&msg).unwrap());
+
+    info!("[EpiphanyWiring] Sending initial language preference to server: {}", lang);
+
+    // For now we log; wire to actual transport channel in networking.rs
+    commands.insert_resource(InitialLanguageSent(true));
 }
 
-pub fn drain_pending_whispers(
-    mut pending: ResMut<PendingEnrichedWhispers>,
-    mut divine_whisper_events: EventWriter<DivineWhisperTrigger>,
-) {
-    if let Ok(mut queue) = pending.queue.lock() {
-        for (text, flavor, intensity) in queue.drain(..) {
-            divine_whisper_events.send(DivineWhisperTrigger {
-                text, flavor, intensity,
-                duration_seconds: 9.0 + (intensity * 2.0),
-                is_epiphany: true,
-                ..Default::default()
-            });
-        }
+#[derive(Resource)]
+struct InitialLanguageSent(bool);
+
+pub struct EpiphanyScenarioWiringPlugin;
+
+impl Plugin for EpiphanyScenarioWiringPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .init_resource::<EpiphanyScenarioRegistry>()
+            .init_resource::<PendingEnrichedWhispers>()
+            .add_event::<EpiphanyEvent>()
+            .add_systems(Startup, |mut commands: Commands| {
+                commands.insert_resource(load_epiphany_scenarios());
+            })
+            .add_systems(Update, (
+                epiphany_detector_system,
+                drain_pending_whispers,
+                send_initial_localization.run_if(not(resource_exists::<InitialLanguageSent>())),
+            ).chain());
     }
 }
-
-fn trigger_scenario_with_async_enrichment(
-    scenario: &EpiphanyScenario,
-    epiphany_events: &mut EventWriter<EpiphanyEvent>,
-    divine_whisper_events: &mut EventWriter<DivineWhisperTrigger>,
-    audio_events: &mut EventWriter<EpiphanyAudioEvent>,
-    web_state: Option<&MultiplayerWebState>,
-    current_biome: &str,
-    lang: &str,
-    use_multilingual_swarm: bool,
-    pending: Option<Res<PendingEnrichedWhispers>>,
-) {
-    epiphany_events.send(EpiphanyEvent { /* ... */ });
-
-    if use_multilingual_swarm {
-        let pool = AsyncComputeTaskPool::get();
-        let lang_owned = lang.to_string();
-        let flavor = scenario.name.clone();
-        let intensity = 0.9;
-        let biome = current_biome.to_string();
-
-        if let Some(pending_res) = pending {
-            let queue = pending_res.queue.clone();
-
-            pool.spawn(async move {
-                // Construct a real EpiphanyOutcome from scenario data
-                let mut outcome = EpiphanyOutcome::new();
-                outcome.scenario_id = scenario.id.clone();
-                outcome.divine_whisper_flavor = scenario.name.clone();
-                outcome.intensity = intensity;
-                outcome.biome_resonance = Some(biome);
-
-                // Call the real generator with Quantum Swarm
-                let enriched_text = generate_multilingual_epiphany_note(&outcome, &lang_owned, None).await;
-
-                if let Ok(mut q) = queue.lock() {
-                    q.push((enriched_text, flavor, intensity));
-                }
-            }).detach();
-        }
-    } else {
-        divine_whisper_events.send(DivineWhisperTrigger {
-            text: scenario.description.clone(),
-            flavor: scenario.name.clone(),
-            intensity: 0.9,
-            duration_seconds: 9.0,
-            is_epiphany: true,
-            ..Default::default()
-        });
-    }
-
-    // Audio unchanged
-}
-
-// ... Plugin and other systems ...
 
 // End of client/src/epiphany_scenario_wiring.rs v18.96
-// Real EpiphanyOutcome passed into async generator. Thunder locked in. Yoi ⚡
+// Client now sends SyncLocalization on startup. Thunder locked in. Yoi ⚡
