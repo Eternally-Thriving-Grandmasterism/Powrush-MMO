@@ -1,0 +1,27 @@
+name: Validate Full File Delivery
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for placeholder patterns in diffs
+        run: |
+          echo "Checking for placeholder comments and partial file indicators..."
+          
+          # Common placeholder patterns that violate full file delivery rule
+          if git diff origin/main...HEAD | grep -E '(// \.\.\.|// \.\.\. \(rest of the file|// TODO: expand later|// placeholder|// partial|// truncated)' ; then
+            echo "::error::Placeholder or partial file patterns detected in diff."
+            echo "All files must be delivered in full. No placeholders allowed."
+            exit 1
+          fi
+          
+          echo "No placeholder patterns found. Validation passed."
