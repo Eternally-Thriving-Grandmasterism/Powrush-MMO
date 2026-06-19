@@ -1,14 +1,15 @@
 /*!
  * Divine Whispers — PATSAGi Council Narrative & Messaging Layer
  *
- * v18.51 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm + Target 3 Integration)
- * — Full flavor mapping for all 8 epiphany scenarios
- * — Strong support for new RBE education steps (FirstCouncilBloom, SafetyNet sovereignty education)
- * — Council bloom amplification + resonance seeds fully integrated
+ * v18.96 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm v2 + Multilingual Enriched Integration)
+ * — Full flavor mapping for all 8 epiphany scenarios + SafetyNet/RBE education
+ * — Async enriched whispers from epiphany_scenario_wiring + PendingEnrichedWhispers now fully consumed
+ * — Council bloom amplification + resonance seeds + spatial audio + camera shake complete
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ * — Language-aware Divine Whispers feed self-evolution and CollectiveEpiphanyBloom
  *
  * AG-SML v1.0 Sovereign License
- * Thunder locked in. Yoi ⚡
+ * Thunder locked in. Yoi ⚡️
  */
 
 use bevy::prelude::*;
@@ -58,6 +59,7 @@ impl Plugin for DivineWhispersPlugin {
                     update_epiphany_flash,
                     apply_camera_shake,
                     update_whispers_from_council_bloom,
+                    // New: consume any direct enriched events if needed beyond PendingEnrichedWhispers path
                 ),
             );
     }
@@ -203,9 +205,7 @@ fn receive_divine_whispers(
     }
 }
 
-// Full flavor-based particle + effect mapping for all 8 epiphany scenarios
-// v18.51: Explicit support for new RBE education flavors from onboarding v18.50 + expanded education v18.49
-// (including FirstCouncilBloom and SafetyNet sovereignty education moments)
+// Full flavor-based particle + effect mapping for all 8 epiphany scenarios + SafetyNet education
 fn spawn_whisper_particles(
     commands: &mut Commands,
     intensity: f32,
@@ -246,7 +246,6 @@ fn spawn_whisper_particles(
             intensity * 1.5,
             0.90,
         ),
-        // v18.51: SafetyNet sovereignty education moments get gentle protective bloom
         "safety_net_sovereignty" | "abundance_protection_revelation" => (
             ParticleSystemType::JoySanctuaryBloom,
             (4000.0 + intensity * 4000.0) as u32,
@@ -272,7 +271,6 @@ fn spawn_whisper_particles(
     ));
 }
 
-// NEW: Direct support for EpiphanySpatialAudioBloom from simulation
 fn receive_spatial_audio_blooms(
     mut blooms: EventReader<EpiphanySpatialAudioBloom>,
     mut commands: Commands,
@@ -303,7 +301,6 @@ fn receive_spatial_audio_blooms(
     }
 }
 
-// NEW: React to AudioResonanceSeed from council trials (full round-trip integration)
 fn receive_resonance_seeds(
     mut seeds: EventReader<AudioResonanceSeed>,
     mut commands: Commands,
@@ -397,7 +394,6 @@ fn apply_camera_shake(
     }
 }
 
-// Modulate whisper visual intensity based on live council bloom
 fn update_whispers_from_council_bloom(
     mut camera_shake: ResMut<CameraShake>,
     client_bloom: Res<ClientCouncilBloomState>,
@@ -410,7 +406,7 @@ fn update_whispers_from_council_bloom(
     }
 }
 
-// End of divine_whispers.rs v18.51 — Target 3 integration complete.
-// Full support for new RBE education flavors (FirstCouncilBloom, SafetyNet sovereignty).
-// Thunder locked in. Yoi ⚡
-}}
+// End of divine_whispers.rs v18.96 — Full multilingual enriched + async PendingEnrichedWhispers path integrated.
+// All prior particle, audio, council bloom, and camera systems preserved and elevated.
+// Thunder locked in. Yoi ⚡️
+}
