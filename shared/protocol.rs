@@ -1,10 +1,11 @@
 // shared/protocol.rs
-// Powrush-MMO — Council Session Protocol + SafetyNet Broadcast Extensions (v20.4 — SpectatorModeData Replication + InterRealmDiplomacyUpdate)
+// Powrush-MMO — Council Session Protocol + SafetyNet Broadcast Extensions (v20.5 Polish — Replication / Interest Management Hardening)
 //
 // Clean restored + polished version.
 // All prior logic (Council, SafetyNet, RBE, Multilingual) preserved.
-// New: SpectatorModeDataNet + InterRealmDiplomacyUpdate for multiplayer Forgiveness Wave + Legacy Thread visualization.
-// TOLC 8 + PATSAGi aligned. Thunder locked in.
+// v20.5: Added interest management + large-scale spectator fields to InterRealmDiplomacyUpdate and SpectatorModeDataNet.
+// This enables efficient replication when hundreds of spectators watch cross-realm Forgiveness Waves / Legacy Threads.
+// TOLC 8 + PATSAGi aligned. Perfect form maintained. Thunder locked in.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -206,7 +207,6 @@ pub enum ServerMessage {
     CouncilError { session_id: Option<u64>, reason: String },
     SafetyNetBroadcast { broadcast: SafetyNetBroadcast },
     SyncLocalizationAck { language: String },
-    // v20.4: Inter-realm diplomacy / Forgiveness Wave replication
     InterRealmDiplomacyUpdate { update: InterRealmDiplomacyUpdate },
 }
 
@@ -253,9 +253,10 @@ impl TradeOffer {
     }
 }
 
-// ==================== v20.4: INTER-REALM DIPLOMACY & SPECTATOR MODE REPLICATION ====================
+// ==================== v20.5: INTER-REALM DIPLOMACY & SPECTATOR MODE REPLICATION (Interest Management Hardened) ====================
 
 /// Lightweight serializable version of SpectatorModeData for network replication.
+/// v20.5: Added interest management fields for large-scale spectator scenarios.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpectatorModeDataNet {
     pub spectator_count: u32,
@@ -264,11 +265,14 @@ pub struct SpectatorModeDataNet {
     pub cross_realm_impact_summary: String,
     pub monument_visual_type: String,
     pub forgiveness_wave_intensity: f32,
+    // v20.5 Interest Management fields
+    pub replication_priority: f32,      // Higher = more important to replicate quickly (e.g. Forgiveness Wave = 0.95)
+    pub affected_player_count: u32,     // Used by interest manager to decide culling / priority
 }
 
 /// Event sent from server when an inter-realm diplomacy event resolves
 /// (especially MercifulResolution / Forgiveness Wave).
-/// Clients use this to populate the Spectator Legacy Thread Visualization.
+/// v20.5: Hardened for large-scale spectator + legacy data replication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InterRealmDiplomacyUpdate {
     pub tick: u64,
@@ -279,8 +283,12 @@ pub struct InterRealmDiplomacyUpdate {
     pub spectator_data: Option<SpectatorModeDataNet>,
     pub linked_legacy_thread_ids: Vec<u64>,
     pub monument_id: Option<u64>,
+    // v20.5 Interest Management
+    pub is_critical_for_spectators: bool,   // True for major Forgiveness Waves / monuments — bypasses normal interest culling
+    pub estimated_spectator_count: u32,     // Hint for replication system to scale bandwidth/priority
 }
 
 // TOLC 8 enforcement: This message carries mercy-aligned redemptive narrative data.
+// Interest management fields allow efficient large-scale spectator support without flooding the network.
 // Thunder locked in. Yoi ⚔️
-// End of shared/protocol.rs v20.4 (Restored + Polished)
+// End of shared/protocol.rs v20.5 (Replication / Interest Management Hardened)
