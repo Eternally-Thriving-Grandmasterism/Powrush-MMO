@@ -1,22 +1,23 @@
-# Council System Architecture (Updated v20.1)
+# Council System Architecture
 
-**Model**: Hybrid (Local from start + Earned Regional/Global depth)
+**Model**: Hybrid (Local Council from start + Earned Regional/Global depth)
 
 ## Local Council
 
-### Core Components
-- `CouncilProposal`
-- `CouncilSession` (with `run_deliberation()`)
-- `CouncilDecision` + `CouncilDecisions` resource
+### Components
+- CouncilProposal
+- CouncilSession (with run_deliberation)
+- CouncilDecision + CouncilDecisions resource
 
-### Deliberation & Voting
-- Proposals move through Draft → Deliberating → Passed/Rejected
-- Resolution influenced by vote count and average participant mercy
-- Simple but extensible logic ready for archetype and council influence
+### Deliberation
+- Simple but mercy-influenced resolution logic
+- Ready for future expansion with archetype weighting and reputation
 
 ### Integration
-- `get_council_deliberation_input()` provides data to `InterRealmDiplomacyEvent`
-- Passed decisions stored persistently and can apply world effects
+- Provides CouncilDeliberationInput to InterRealmDiplomacyEvent
+- Decisions can apply persistent world effects
 
-## Progression
-Local Council is available immediately. Regional and Global tiers unlock based on collective mercy, harmony, and redemptive outcomes.
+## Next Steps
+- Expand proposal types
+- Add voting from agents/players
+- Unlock Regional and Global tiers based on metrics

@@ -1,5 +1,5 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete file with improved Council integration
+// Complete and polished version (v20.1 final)
 
 use std::collections::HashMap;
 use bevy::prelude::*;

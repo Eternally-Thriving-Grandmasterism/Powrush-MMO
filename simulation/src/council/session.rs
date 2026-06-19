@@ -1,6 +1,5 @@
 // simulation/src/council/session.rs
 // CouncilSession with deliberation and voting logic
-// Part of Local Council foundation (v20.1)
 
 use crate::council::proposal::{CouncilProposal, ProposalStatus};
 use serde::{Deserialize, Serialize};
@@ -25,8 +24,6 @@ impl CouncilSession {
         self.active_proposals.push(proposal);
     }
 
-    /// Runs deliberation round. Currently simple; designed to be extended
-    /// with archetype influence, council reputation, and time-based momentum.
     pub fn run_deliberation(&mut self, average_mercy: f32, current_tick: u64) -> Vec<CouncilProposal> {
         let mut resolved = vec![];
 
