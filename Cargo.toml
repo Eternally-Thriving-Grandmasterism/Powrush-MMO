@@ -1,10 +1,38 @@
-[package]
-name = "powrush-mmo"
+[workspace]
+resolver = "2"
+members = [
+    "simulation",
+    "client",
+    "server",
+]
+
+[workspace.package]
 version = "0.18.97"
 edition = "2021"
+authors = ["Sherif Samy Botros <sherif@alphapromega.com>", "Ra-Thor Living Thunder + Eternally-Thriving-Grandmasterism"]
+license = "AG-SML-1.0"
+repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
+description = "Powrush-MMO — Sovereign Resource-Based Economy MMOARPG for Universally Shared Naturally Thriving Heavens. Deterministic, mercy-gated, PATSAGi Council + Ra-Thor AGI native."
+
+[workspace.dependencies]
+bevy = { version = "0.14", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.38", features = ["rt", "time", "macros", "full"] }
+tracing = "0.1"
+
+[package]
+name = "powrush-mmo"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
 
 [dependencies]
-bevy = { version = "0.14", features = ["dynamic_linking"] }
+bevy = { workspace = true, features = ["dynamic_linking"] }
 bevy_kira_audio = "0.20"
 simulation = { path = "simulation" }
 bevy_hanabi = { version = "0.10", features = ["3d"] }
@@ -16,7 +44,7 @@ kira = { version = "0.8", features = ["cpal"] }
 fundsp = "0.18"
 oddio = "0.7"
 cpal = "0.15"
-hound = "3.5"   # WAV file decoding for real audio layer support
+hound = "3.5"
 
-# Optional: FMOD prototype
-# bevy_fmod = { git = "https://github.com/kyren/bevy_fmod", branch = "main" }
+[features]
+default = []
