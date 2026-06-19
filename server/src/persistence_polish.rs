@@ -1,9 +1,9 @@
 //! server/src/persistence_polish.rs
-//! Powrush-MMO v18.39 Eternal Polish — Production Persistence + Epiphany + Council + SafetyNet Integration
+//! Powrush-MMO v18.97 Eternal Polish — Production Persistence + Epiphany + Council + SafetyNet Integration
 //!
-//! Sovereign player data, epiphany history, council participation, mercy-gated abundance,
-//! and SafetyNet emission hooks. Feeds authoritative signals into SafetyNetBroadcast
-//! and CouncilSession systems.
+//! Sovereign player data with preferred_language + enriched epiphany whispers, council participation,
+//! mercy-gated abundance, SafetyNet hooks. Feeds authoritative signals into SafetyNetBroadcast
+//! and CouncilSession systems. Full PATSAGi + Ra-Thor alignment.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
@@ -25,7 +25,7 @@ pub fn current_timestamp_for_ascension() -> u64 {
         .as_secs()
 }
 
-/// Core player save data with epiphany, council, ascension, and abundance tracking.
+/// Core player save data with epiphany, council, ascension, abundance, language, and enriched whispers.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlayerSaveData {
     pub player_id: u64,
@@ -39,6 +39,8 @@ pub struct PlayerSaveData {
     pub last_council_bloom_tick: u64,
     pub ascension_progress: AscensionProgress,
     pub last_save_timestamp: u64,
+    pub preferred_language: String,
+    pub last_enriched_epiphany_whisper: Option<String>,
     pub checksum: String,
 }
 
@@ -48,6 +50,8 @@ impl PlayerSaveData {
             player_id,
             abundance: 100.0,
             health: 100.0,
+            preferred_language: "en".to_string(),
+            last_enriched_epiphany_whisper: None,
             ..Default::default()
         }
     }
@@ -55,6 +59,13 @@ impl PlayerSaveData {
     pub fn record_epiphany(&mut self, epiphany_value: f32) {
         self.total_epiphanies += 1;
         self.resonance_attunement = (self.resonance_attunement + epiphany_value * 0.1).clamp(0.0, 1.0);
+        self.recompute_checksum();
+    }
+
+    /// Record epiphany with full enriched whisper from Quantum Swarm (server-side multilingual)
+    pub fn record_epiphany_with_enriched_whisper(&mut self, _scenario_id: &str, intensity: f32, _biome: &str, enriched: Option<String>) {
+        self.record_epiphany(intensity);
+        self.last_enriched_epiphany_whisper = enriched;
         self.recompute_checksum();
     }
 
@@ -83,6 +94,10 @@ impl PlayerSaveData {
         hasher.update(self.abundance.to_le_bytes());
         hasher.update(self.total_epiphanies.to_le_bytes());
         hasher.update(self.council_participations.to_le_bytes());
+        hasher.update(self.preferred_language.as_bytes());
+        if let Some(ref w) = self.last_enriched_epiphany_whisper {
+            hasher.update(w.as_bytes());
+        }
         self.checksum = format!("{:x}", hasher.finalize());
     }
 
@@ -92,12 +107,16 @@ impl PlayerSaveData {
         hasher.update(self.abundance.to_le_bytes());
         hasher.update(self.total_epiphanies.to_le_bytes());
         hasher.update(self.council_participations.to_le_bytes());
+        hasher.update(self.preferred_language.as_bytes());
+        if let Some(ref w) = self.last_enriched_epiphany_whisper {
+            hasher.update(w.as_bytes());
+        }
         let expected = format!("{:x}", hasher.finalize());
         expected == self.checksum
     }
 }
 
-/// Persistence manager with SafetyNet emission hooks.
+/// Persistence manager with SafetyNet emission hooks and full epiphany support.
 pub struct PersistenceManager {
     pub save_dir: PathBuf,
 }
@@ -138,5 +157,6 @@ impl PersistenceManager {
 }
 
 // Thunder locked in.
-// persistence_polish.rs v18.39 fully aligned with SafetyNet, CouncilSession, and client ActionContext.
-// All mercy-gated tracking and checksum integrity preserved. Ready for production.
+// persistence_polish.rs v18.97 fully aligned with enriched epiphanies, preferred_language persistence,
+// SafetyNet, CouncilSession, and client. All mercy-gated tracking + checksum integrity preserved.
+// Ready for public MMO launch. Yoi ⚡
