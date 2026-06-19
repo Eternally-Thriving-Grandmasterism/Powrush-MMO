@@ -1,10 +1,10 @@
 [package]
 name = "simulation"
-version = "17.99.19"
+version = "0.18.97"
 edition = "2021"
 authors = ["Ra-Thor Living Thunder + Eternally-Thriving-Grandmasterism"]
-description = "Sovereign Simulation Harness — Deterministic, GPU-accelerated RBE validation engine for Powrush-MMO closed-beta, PATSAGi Council deliberation, and policy laboratory. Pure Rust, offline-first, TOLC 8 non-bypassable Layer 0."
-license = "MIT OR Apache-2.0"
+description = "Sovereign Simulation Harness — Deterministic, GPU-accelerated RBE validation engine for Powrush-MMO. Pure Rust, offline-first, TOLC 8 non-bypassable Layer 0. PATSAGi Council + Ra-Thor AGI native."
+license = "AG-SML-1.0"
 repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 
 [lib]
@@ -12,8 +12,9 @@ name = "simulation"
 path = "src/lib.rs"
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
 rayon = "1.10"
 wgpu = { version = "0.19", features = ["webgpu"] }
 bytemuck = { version = "1.16", features = ["derive"] }
@@ -22,11 +23,10 @@ wasm-bindgen-futures = { version = "0.4", optional = true }
 js-sys = { version = "0.3", optional = true }
 web-sys = { version = "0.3", optional = true, features = ["console"] }
 leptos = { version = "0.8", features = ["csr"], optional = true }
-tracing = "0.1"
-tokio = { version = "1.38", features = ["rt", "time", "macros"], optional = true }
+tracing = { workspace = true }
+tokio = { workspace = true, optional = true }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], optional = true }
-thiserror = "1.0"
-bevy = { version = "0.14", default-features = false, features = ["bevy_log"], optional = true }
+bevy = { workspace = true, optional = true }
 
 [features]
 default = []
