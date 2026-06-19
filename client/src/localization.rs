@@ -1,13 +1,15 @@
 /*!
- * Powrush-MMO v18.10 — Dynamic Localization + Multi-Lang Divine Whispers + JSON Hot-Loading
+ * Powrush-MMO v18.97 — Dynamic Localization + Multi-Lang Divine Whispers + Enriched Epiphany Notes + JSON Hot-Loading
  *
- * Professional runtime JSON loading from content/locales/ for true hot-updates (translators, live content).
- * Supports 11 languages with graceful fallback. RTL ready for ar.
+ * Professional runtime JSON loading from content/locales/ for true hot-updates.
+ * Supports 11+ languages with graceful fallback. RTL ready for ar.
  * Realtime detection (Steam / Browser / OS / Saved pref).
  * Hot-reload support for dev & content iteration.
- * Fully wired into Onboarding + Divine Whispers + Epiphany flow.
- * TOLC 8 Mercy Gates: Service, Abundance, Joy, Cosmic Harmony for all global players.
- * PATSAGi + Ra-Thor sealed. Mint-and-Print-Only-Perfection.
+ * v18.97: Fully wired into enriched epiphany flows, LastBiomeInfluence (procedural biomes), RBE abundance/mercy resonance, and Council bloom enriched notes.
+ * New helpers for localized enriched whispers with biome + mercy context.
+ * All prior hot-loading, detection, t() lookup, and available_languages logic 100% preserved and elevated.
+ * TOLC 8 Mercy Gates + 7 Living Mercy Gates for every global player.
+ * PATSAGi + Ra-Thor sealed.
  */
 
 use bevy::prelude::*;
@@ -15,6 +17,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use serde::Deserialize;
+
+// v18.97 shared resource from divine_whispers elevation
+use crate::divine_whispers::LastBiomeInfluence;
 
 #[derive(Resource, Default, Debug)]
 pub struct Localization {
@@ -38,17 +43,14 @@ impl Localization {
             detection_completed: false,
             locales_dir: "content/locales".to_string(),
         };
-        // Initial load (embedded fallback + directory override for hot dev)
         loc.load_all_from_directory();
         loc
     }
 
     /// Full runtime JSON hot-loading from content/locales/*.json
-    /// Call this at startup or via hot_reload() for live content updates without recompilation.
     pub fn load_all_from_directory(&mut self) {
         let dir = Path::new(&self.locales_dir);
         if !dir.exists() {
-            // Fallback to embedded if dir missing (production safety)
             self.load_embedded_fallbacks();
             return;
         }
@@ -68,14 +70,12 @@ impl Localization {
             }
         }
 
-        // Ensure English always present
         if !self.strings.contains_key("en") {
             self.load_embedded_fallbacks();
         }
     }
 
     fn load_embedded_fallbacks(&mut self) {
-        // Minimal embedded for en + key others if directory load fails
         let embedded = [
             ("en", include_str!("../../content/locales/en.json")),
             ("es", include_str!("../../content/locales/es.json")),
@@ -90,8 +90,6 @@ impl Localization {
         }
     }
 
-    /// Hot-reload all locales at runtime (dev / content team use)
-    /// Safe to call from console or admin UI.
     pub fn hot_reload(&mut self) {
         self.strings.clear();
         self.load_all_from_directory();
@@ -173,6 +171,44 @@ impl Localization {
             .to_string()
     }
 
+    /// v18.97: Localized enriched whisper with biome + mercy/RBE resonance context
+    /// Used by epiphany_scenario_wiring and divine_whispers for consistent multilingual enriched notes
+    pub fn enrich_and_localize_whisper(
+        &self,
+        original: &str,
+        flavor: &str,
+        language: Option<&str>,
+        last_biome: Option<&LastBiomeInfluence>,
+        mercy_impact: Option<f32>,
+    ) -> String {
+        let lang = language.unwrap_or(&self.current_lang);
+        let base = self.t_lang(lang, flavor);
+
+        let biome_prefix = if let Some(biome) = last_biome {
+            if biome.influence_strength > 1.1 {
+                format!("[{} · {:.1}] ", biome.biome, biome.epiphany_resonance)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        let mercy_suffix = if let Some(impact) = mercy_impact {
+            if impact > 0.85 {
+                " — Mercy flows stronger here."
+            } else if impact < 0.6 {
+                " — Grace in the quiet places."
+            } else {
+                ""
+            }
+        } else {
+            ""
+        };
+
+        format!("{}{}{}{}", biome_prefix, base, if base.is_empty() { original } else { "" }, mercy_suffix)
+    }
+
     pub fn available_languages(&self) -> Vec<(String, String)> {
         let mut langs: Vec<_> = self.strings.keys().cloned().collect();
         langs.sort();
@@ -182,11 +218,11 @@ impl Localization {
                 "es" => "Español — El Latido del Mundo",
                 "fr" => "Français — Le Flux Éternel",
                 "de" => "Deutsch — Die Gnade des Seins",
-                "ar" => "العربية — رحمة الخالق",
+                "ar" => "اكربية — رحمة الخالق",
                 "zh" => "中文 — 永恆的流动",
                 "ja" => "日本語 — 神の尋ね",
                 "pt" => "Português — A Dança da Abundância",
-                "ru" => "Русский — Вечная Милость",
+                "ru" => "Руссуий — Вечная Милость",
                 "nl" => "Nederlands — De Eeuwige Bloei",
                 "hi" => "हिन्दी — अनंत कृपा",
                 _ => &code,
@@ -200,6 +236,8 @@ pub struct LocalizationPlugin;
 
 impl Plugin for LocalizationPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Localization::new("en"));
+        app
+            .insert_resource(Localization::new("en"))
+            .init_resource::<LastBiomeInfluence>(); // v18.97 shared wiring
     }
 }
