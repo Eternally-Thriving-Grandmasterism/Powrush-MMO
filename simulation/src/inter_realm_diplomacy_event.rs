@@ -1,5 +1,5 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// InterRealmDiplomacyEvent v20.1 - Complete file with Council integration
+// Complete file with improved Council integration
 
 use std::collections::HashMap;
 use bevy::prelude::*;
@@ -73,12 +73,7 @@ pub struct InterRealmDiplomacyRegistry {
 
 impl InterRealmDiplomacyRegistry {
     pub fn new(global_seed: u64) -> Self {
-        Self {
-            active_events: vec![],
-            historical_events: vec![],
-            realm_monuments: HashMap::new(),
-            global_seed,
-        }
+        Self { active_events: vec![], historical_events: vec![], realm_monuments: HashMap::new(), global_seed }
     }
 
     pub fn trigger_diplomacy_event(
@@ -158,12 +153,8 @@ impl InterRealmDiplomacyRegistry {
         redemption_score: f32,
     ) {
         let shared = 8.0 + (redemption_score * 12.0);
-        if let Some(pool) = rbe_pools.get_mut(&event.realm_a) {
-            pool.abundance_flow += shared * 0.5;
-        }
-        if let Some(pool) = rbe_pools.get_mut(&event.realm_b) {
-            pool.abundance_flow += shared * 0.5;
-        }
+        if let Some(pool) = rbe_pools.get_mut(&event.realm_a) { pool.abundance_flow += shared * 0.5; }
+        if let Some(pool) = rbe_pools.get_mut(&event.realm_b) { pool.abundance_flow += shared * 0.5; }
     }
 
     fn apply_grace_blessing_cascade(
@@ -180,30 +171,11 @@ impl InterRealmDiplomacyRegistry {
         for mentor in high_mercy.iter().take(2) {
             for mentee in low_mercy.iter().take(2) {
                 if mentor.id == mentee.id { continue; }
-                let result = calculate_grace_blessing(
-                    mentor.mercy_score,
-                    mentee.mercy_score,
-                    mentor.archetype_id.clone(),
-                    BlessingContext::PostForgivenessWave,
-                    250.0,
-                );
+                let result = calculate_grace_blessing(mentor.mercy_score, mentee.mercy_score, mentor.archetype_id.clone(), BlessingContext::PostForgivenessWave, 250.0);
                 if let Some(m) = agents.iter_mut().find(|a| a.id == mentee.id) {
                     m.mercy_score = (m.mercy_score + result.mentee_mercy_boost).min(99.0);
                 }
-                legacy_registry.record_event(
-                    mentor.id,
-                    event.realm_a,
-                    LegacyEventType::GraceBlessingGiven {
-                        recipient_id: mentee.id,
-                        mercy_boost: result.mentee_mercy_boost,
-                    },
-                    mentor.mercy_score,
-                    result.mentor_persistence_gain,
-                    result.valence,
-                    current_tick,
-                    true,
-                    Some("Auto after Forgiveness Wave".to_string()),
-                );
+                legacy_registry.record_event(mentor.id, event.realm_a, LegacyEventType::GraceBlessingGiven { recipient_id: mentee.id, mercy_boost: result.mentee_mercy_boost }, mentor.mercy_score, result.mentor_persistence_gain, result.valence, current_tick, true, Some("Auto after Forgiveness Wave".to_string()));
             }
         }
     }
@@ -218,20 +190,10 @@ pub fn inter_realm_diplomacy_resolution_system(
     let current_tick = time.elapsed_secs() as u64;
     let mut to_resolve: Vec<usize> = vec![];
     for (i, event) in diplomacy_registry.active_events.iter().enumerate() {
-        if event.outcome.is_none() {
-            to_resolve.push(i);
-        }
+        if event.outcome.is_none() { to_resolve.push(i); }
     }
     for idx in to_resolve.into_iter().rev() {
-        diplomacy_registry.resolve_event(
-            idx,
-            None,
-            &mut legacy_registry,
-            &mut grace_blessing,
-            &mut vec![],
-            &mut HashMap::new(),
-            current_tick,
-        );
+        diplomacy_registry.resolve_event(idx, None, &mut legacy_registry, &mut grace_blessing, &mut vec![], &mut HashMap::new(), current_tick);
     }
 }
 
@@ -239,14 +201,11 @@ pub struct InterRealmDiplomacyPlugin;
 
 impl Plugin for InterRealmDiplomacyPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<InterRealmDiplomacyRegistry>()
-           .add_event::<InterRealmDiplomacyEvent>()
-           .add_systems(Update, inter_realm_diplomacy_resolution_system);
+        app.init_resource::<InterRealmDiplomacyRegistry>().add_event::<InterRealmDiplomacyEvent>().add_systems(Update, inter_realm_diplomacy_resolution_system);
     }
 }
 
-// Integration helper (can be expanded)
-pub fn get_council_deliberation_input(council_decisions: &CouncilDecisions) -> Option<CouncilDeliberationInput> {
+pub fn get_council_deliberation_input(council_decisions: &crate::council::decision::CouncilDecisions) -> Option<CouncilDeliberationInput> {
     if council_decisions.decisions.is_empty() {
         return None;
     }
