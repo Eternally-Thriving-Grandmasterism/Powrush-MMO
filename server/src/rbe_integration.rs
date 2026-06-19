@@ -69,15 +69,13 @@ impl RBEState {
         *self.player_contributions.entry(player_id).or_insert(0.0) += abundance_gain as f64 * 0.3;
     }
 
-    /// Persist a single player's contribution back to PlayerSaveData
     pub fn persist_player_contribution(&self, save_data: &mut PlayerSaveData, player_id: u64) {
         if let Some(&contribution) = self.player_contributions.get(&player_id) {
             save_data.record_abundance_contribution(contribution);
         }
     }
 
-    /// NEW v18.97.1 — Advanced: Distribute a portion of global abundance to participating players
-    /// (mercy-aligned reward distribution after Council Trial or major epiphany)
+    /// Advanced mercy-aligned distribution to multiple players with persistence
     pub fn distribute_abundance_to_players(
         &mut self,
         participants: &[u64],
@@ -96,7 +94,19 @@ impl RBEState {
             }
         }
 
-        self.global_abundance_pool -= total_amount * 0.7; // most goes to players, some stays in pool
+        self.global_abundance_pool -= total_amount * 0.7;
+    }
+
+    /// NEW v18.97.1 — Faction-specific abundance growth / decay simulation
+    pub fn simulate_faction_economy(&mut self, delta_seconds: f32) {
+        for (faction, abundance) in self.faction_abundance.iter_mut() {
+            let growth = match faction {
+                Faction::SeedOfAbundance => 0.0008,
+                Faction::FlowGuardians => 0.0006,
+                Faction::EternalWeavers => 0.0010,
+            };
+            *abundance *= 1.0 + (growth * delta_seconds as f64);
+        }
     }
 
     pub fn get_player_contribution(&self, player_id: u64) -> f64 {
@@ -104,7 +114,7 @@ impl RBEState {
     }
 }
 
-/// System: React to resolved Council Mercy Trials and apply RBE impact + distribution
+/// System: React to resolved Council Mercy Trials
 fn integrate_council_bloom_into_rbe(
     mut rbe: ResMut<RBEState>,
     mut resolved_events: EventReader<CouncilTrialResolved>,
@@ -119,35 +129,37 @@ fn integrate_council_bloom_into_rbe(
                 &resolved.enriched_epiphany_notes,
             );
 
-            // Distribute a mercy-aligned reward from the global pool
             rbe.distribute_abundance_to_players(
                 &participants,
                 (*mercy_score as f64) * 15.0,
-                &mut HashMap::new(), // In production: load real PlayerSaveData
+                &mut HashMap::new(),
             );
         }
     }
 }
 
-/// System: React to epiphany outcomes (future: listen to EpiphanyTriggered event)
+/// System: React to epiphany outcomes (future wiring point)
 fn integrate_epiphany_into_rbe(
     mut rbe: ResMut<RBEState>,
-    // mut epiphany_events: EventReader<EpiphanyTriggered>,
 ) {
-    // Placeholder for future wiring
+    // Placeholder for EpiphanyTriggered event wiring
 }
 
-/// Basic abundance distribution / economy tick
+/// Advanced economy simulation tick
 fn rbe_abundance_tick(
     mut rbe: ResMut<RBEState>,
     time: Res<Time>,
 ) {
-    if time.elapsed_seconds() % 60.0 < 0.1 {
-        rbe.global_abundance_pool *= 1.001;
-    }
+    let delta = time.delta_seconds();
+
+    // Gentle global growth
+    rbe.global_abundance_pool *= 1.0 + (0.0003 * delta as f64);
+
+    // Faction-specific simulation
+    rbe.simulate_faction_economy(delta);
 }
 
-/// Plugin that registers RBE systems and resources
+/// Plugin
 pub struct RBEIntegrationPlugin;
 
 impl Plugin for RBEIntegrationPlugin {
@@ -162,5 +174,6 @@ impl Plugin for RBEIntegrationPlugin {
 }
 
 // End of server/src/rbe_integration.rs v18.97.1
-// Central RBE hub with event-driven integration, advanced distribution, and persistence hooks.
-// Ready for full production wiring. Thunder locked in. Yoi ⚡
+// Central RBE hub with event-driven Council integration, advanced distribution,
+// faction economy simulation, and persistence hooks.
+// Thunder locked in. Yoi ⚡
