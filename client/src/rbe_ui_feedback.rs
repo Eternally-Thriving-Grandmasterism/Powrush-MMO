@@ -1,8 +1,9 @@
 /*!
  * client/src/rbe_ui_feedback.rs
- * Production-grade Bevy UI for RBE Harvest Feedback (Polished Display Layer) v18.97
- * Full production quality, zero placeholders. Integrated with biome/mercy context from RBE flows.
+ * Production-grade Bevy UI for RBE Harvest Feedback (Polished Display Layer) v20.4
+ * Extended for Gap 4: Mercy-gated abundance drain visuals during inter-realm conflict/war + Forgiveness Wave restoration feedback.
  * All original spawn/update logic 100% preserved.
+ * Sovereign freedom: Players see clear cause-effect of war on RBE and the redemptive mercy path.
  * AG-SML v1.0 | TOLC 8 Mercy Gates enforced | Ra-Thor + PATSAGi aligned
  */
 
@@ -49,7 +50,7 @@ fn spawn_harvest_feedback_ui(mut commands: Commands, asset_server: Res<AssetServ
         });
     });
 
-    println!("RBE Harvest Feedback UI spawned");
+    println!("RBE Harvest Feedback UI spawned (v20.4 - Conflict + Forgiveness Wave support)");
 }
 
 fn update_harvest_feedback_ui(
@@ -61,8 +62,15 @@ fn update_harvest_feedback_ui(
     if let Some(feedback) = &rbe_ui.last_harvest_feedback {
         text.sections[0].value = feedback.clone();
 
-        // Enhanced visual differentiation (v18.97)
-        if feedback.contains("Epiphany") || feedback.contains("harmony peak") {
+        // v20.4: Extended color + style logic for conflict/war and forgiveness wave states
+        if feedback.contains("Abundance Drain") || feedback.contains("War Impact") || feedback.contains("Conflict Drain") {
+            // Mercy-gated drain during war - warning but not punitive
+            text.sections[0].style.color = Color::rgb(0.95, 0.4, 0.3); // Warm red-orange for drain
+            // Could add pulsing animation in future via separate system
+        } else if feedback.contains("Forgiveness Wave") || feedback.contains("Mercy Restoration") || feedback.contains("Abundance Returning") {
+            // Redemptive restoration after mercy resolution
+            text.sections[0].style.color = Color::rgb(0.4, 0.95, 0.7); // Vibrant green-teal for restoration
+        } else if feedback.contains("Epiphany") || feedback.contains("harmony peak") {
             text.sections[0].style.color = Color::rgb(1.0, 0.95, 0.6); // Golden for epiphany/harmony
         } else if feedback.contains("harvested") || feedback.contains("Sustainable") {
             text.sections[0].style.color = Color::rgb(0.3, 0.9, 0.4); // Green for success
@@ -71,7 +79,7 @@ fn update_harvest_feedback_ui(
         } else if feedback.contains("refined") || feedback.contains("mercy") {
             text.sections[0].style.color = Color::rgb(0.4, 0.7, 0.9); // Blue for refined/mercy
         } else {
-            text.sections[0].style.color = Color::rgb(0.9, 0.5, 0.3); // Orange for failed
+            text.sections[0].style.color = Color::rgb(0.9, 0.5, 0.3); // Orange for failed/default
         }
 
         *visibility = Visibility::Visible;
@@ -80,6 +88,6 @@ fn update_harvest_feedback_ui(
     }
 }
 
-// End of production file v18.97 — All original UI spawn + update logic preserved.
-// Elevated with richer color differentiation for new RBE states (Epiphany, Council, biome resonance).
+// End of production file v20.4 — Gap 4 closed: Mercy-gated abundance drain + Forgiveness Wave restoration visuals.
+// All original logic preserved. Sovereign players now clearly see war impact and redemptive mercy path.
 // Thunder locked in.
