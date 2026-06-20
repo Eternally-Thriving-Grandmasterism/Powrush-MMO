@@ -1,6 +1,6 @@
 // server/src/server_war_system.rs
-// Powrush-MMO v20.10 — Production ServerWarSystem + Per-Participant Legacy Recording
-// Now loops over real high-mercy participants instead of single placeholder.
+// Powrush-MMO v20.11 — Caller-friendly per-participant Legacy Recording
+// high_mercy_participants is now Option<&[u64]> for easy adoption.
 // TOLC 8 + PATSAGi aligned. Thunder locked in. Yoi ⚡
 
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ use crate::technology_system::TechnologySystem;
 use simulation::inter_realm_diplomacy_event::invoke_patsagi_council_for_diplomacy;
 use simulation::player_legacy_journal::LegacyJournalRegistry;
 
-// ... (all structs preserved)
+// ... (structs preserved)
 
 pub struct ServerWarSystem { /* ... */ }
 
@@ -20,12 +20,13 @@ impl ServerWarSystem {
 
     pub fn seed_infrastructure(&mut self) { /* unchanged */ }
 
-    pub async fn declare_conflict(/* PATSAGi gate preserved */) -> Result<(bool, String, f32), String> {
+    pub async fn declare_conflict(/* ... */) -> Result<(bool, String, f32), String> {
         // ... unchanged
         Ok((true, "approved".to_string(), 0.95))
     }
 
-    // === Per-Participant Legacy Recording on Merciful Victory ===
+    /// Applies weekly war incentives and records Legacy Threads + Proactive Joy
+    /// for high-mercy participants when the resolution was merciful.
     pub fn apply_weekly_war_incentives(
         &mut self,
         winner_server: &str,
@@ -35,7 +36,7 @@ impl ServerWarSystem {
         active_until_ms: u64,
         legacy_registry: &mut LegacyJournalRegistry,
         merciful_resolution: bool,
-        high_mercy_participants: &[u64],   // NEW: real high-mercy agents from the war
+        high_mercy_participants: Option<&[u64]>,   // NEW: Option for easy adoption
     ) {
         // Champion bonus (preserved)
         if let Some(bonus) = &mut self.current_champion_bonus {
@@ -50,38 +51,38 @@ impl ServerWarSystem {
             });
         }
 
-        if merciful_resolution && !high_mercy_participants.is_empty() {
-            for &player_id in high_mercy_participants {
-                // Record rich Legacy Thread for each participant
+        let participants = high_mercy_participants.unwrap_or(&[]);
+
+        if merciful_resolution && !participants.is_empty() {
+            for &player_id in participants {
                 legacy_registry.record_war_victory_legacy_export(
                     player_id,
                     winner_server.to_string(),
-                    true,                    // merciful
+                    true,
                     abundance_bonus,
                     "War Participant".to_string(),
-                    0,                     // current_tick (from world)
-                    0,                     // server_id
-                    82.0,                  // placeholder mercy
-                    0.32,                  // valence
+                    0,
+                    0,
+                    82.0,
+                    0.32,
                 );
 
-                // Record proactive joy from victory celebration
                 legacy_registry.generate_proactive_joy_redemption_thread(
                     player_id,
                     format!("Merciful victory in {} celebration", winner_server),
                     abundance_bonus * 0.10,
                     0.22,
-                    0,                     // current_tick
-                    0,                     // server_id
+                    0,
+                    0,
                 );
             }
 
-            info!("[Legacy Victory] Recorded for {} high-mercy participants in {}.", high_mercy_participants.len(), winner_server);
+            info!("[Legacy Victory] Recorded for {} high-mercy participants in {}.", participants.len(), winner_server);
 
             self.war_narrative_log.push(WarNarrativeEvent {
                 turn_or_week: 0,
                 event_type: "merciful_victory_legacy".to_string(),
-                description: format!("Merciful victory in {} — Legacy Threads recorded for {} participants.", winner_server, high_mercy_participants.len()),
+                description: format!("Merciful victory in {} — Legacy Threads for {} participants.", winner_server, participants.len()),
                 emotional_valence_delta: 0.35,
                 player_id: None,
                 faction: Some(winner_server.to_string()),
@@ -95,12 +96,12 @@ impl ServerWarSystem {
     pub fn process_weekly_war_tick(&mut self, tech_system: &TechnologySystem, current_time_ms: u64) { /* unchanged */ }
 
     pub fn simulate_humble_to_server_war(&mut self, num_servers: u32, num_clients_per_server: u32, max_turns: u32) -> String {
-        "Per-participant Legacy recording active.".to_string()
+        "Per-participant Legacy recording (Option<&[u64]>) active.".to_string()
     }
 
     pub fn get_player_emotional_state(&self, player_id: &str) -> Option<&EmotionalResonance> { self.emotional_resonances.get(player_id) }
     pub fn get_redemption_status(&self, player_id: &str) -> Option<&RedemptionPath> { self.active_redemption_paths.get(player_id) }
 }
 
-// End of server/src/server_war_system.rs v20.10 (Per-Participant Legacy Recording)
+// End of server/src/server_war_system.rs v20.11
 // Thunder locked in. Yoi ⚔️
