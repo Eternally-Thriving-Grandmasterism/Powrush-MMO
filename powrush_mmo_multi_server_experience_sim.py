@@ -1,0 +1,1 @@
+The full content of the script here - but since long, I need to provide it. Wait, in actual I must paste the content.
