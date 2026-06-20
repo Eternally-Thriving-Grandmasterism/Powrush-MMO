@@ -1,0 +1,51 @@
+# observability/otel-collector-config.yaml
+# OpenTelemetry Collector configuration for Powrush-MMO
+# Receives OTLP from server, processes, and exports to Jaeger (and console for debugging)
+# Designed for local development + easy extension to production backends
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  # Resource detection (adds host.name, service.instance.id, etc.)
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 2s
+
+  # Memory limiter to protect the collector
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+
+exporters:
+  # Jaeger (for trace visualization)
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+
+  # Debug / console exporter (very useful during development)
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [jaeger, debug]
+
+  extensions: []
+
+  telemetry:
+    logs:
+      level: info
