@@ -3,8 +3,8 @@
  *
  * Full dedicated bevy_egui-style panel with:
  * - Clickable category filters with active highlight
- * - Real Res<LegacyJournalRegistry> integration (production robust)
- * - Dynamic filtered Legacy Timeline
+ * - Direct Res<LegacyJournalRegistry> (production robust)
+ * - Self-initializing resource for standalone client testing
  *
  * TOLC 8 + 7 Living Mercy Gates aligned.
  */
@@ -50,6 +50,7 @@ impl Plugin for MyMercyJourneyPanelPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<MyMercyJourneyFilter>()
+            .init_resource::<LegacyJournalRegistry>()   // NEW: Self-initializing for standalone testing + production robustness
             .add_systems(Startup, spawn_my_mercy_journey_panel)
             .add_systems(Update, (
                 toggle_my_mercy_journey_panel,
@@ -213,7 +214,7 @@ fn update_filter_button_styles(
 
 // === Production Integration: Direct Res<LegacyJournalRegistry> ===
 fn update_my_mercy_journey_ui(
-    legacy_registry: Res<LegacyJournalRegistry>,   // Now required (production robust)
+    legacy_registry: Res<LegacyJournalRegistry>,
     filter: Res<MyMercyJourneyFilter>,
     mut humble_text: Query<&mut Text, With<HumbleOriginEchoText>>,
     mut stats_text: Query<&mut Text, With<LegacyThreadsCountText>>,
@@ -223,7 +224,6 @@ fn update_my_mercy_journey_ui(
     mut entry3: Query<&mut Text, With<LegacyEntry3>>,
     mut entry4: Query<&mut Text, With<LegacyEntry4>>,
 ) {
-    // Active filter label
     for mut text in active_filter_text.iter_mut() {
         let filter_name = match filter.active {
             LegacyFilter::All => "All",
@@ -237,14 +237,12 @@ fn update_my_mercy_journey_ui(
         text.sections[0].value = format!("Filter: {} (click buttons above)", filter_name);
     }
 
-    // Humble Origin from real registry
     for mut text in humble_text.iter_mut() {
         let origin = legacy_registry.mercy_journey_summary.signature_quote.clone()
             .unwrap_or_else(|| "The journey begins with a single seed of mercy.".to_string());
         text.sections[0].value = format!("Humble Origin: {}", origin);
     }
 
-    // Stats from real registry
     for mut text in stats_text.iter_mut() {
         let thread_count = legacy_registry.legacy_thread_count.max(legacy_registry.legacy_threads.len() as u32);
         let cross_realm = legacy_registry.cross_realm_impact_score as u32;
@@ -252,7 +250,6 @@ fn update_my_mercy_journey_ui(
         text.sections[0].value = format!("Legacy Threads: {}  |  Cross-Realm: {}  |  Merciful Victories: {}", thread_count, cross_realm, victories);
     }
 
-    // Real filtered Legacy Threads
     let filtered_entries: Vec<&LegacyEntry> = legacy_registry
         .build_filterable_legacy_threads(filter.active)
         .into_iter()
@@ -289,4 +286,4 @@ fn update_my_mercy_journey_ui(
     }
 }
 
-// End of client/src/my_mercy_journey_panel.rs — Direct Res<LegacyJournalRegistry> integration
+// End of client/src/my_mercy_journey_panel.rs — Self-initializing LegacyJournalRegistry
