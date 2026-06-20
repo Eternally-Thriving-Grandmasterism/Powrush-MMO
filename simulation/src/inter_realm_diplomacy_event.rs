@@ -1,8 +1,8 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.16 — Bevy Profiling Tools)
+// Complete restored + PATSAGi-hardened version (v20.17 — Span Attributes)
 //
-// Added tracing spans for Bevy-compatible profiling of the priority queue + Renet broadcast.
-// Enables visibility in tracing, Tracy, puffin, and Bevy trace features.
+// Added rich attributes to the diplomacy priority queue tracing span.
+// Now includes high_priority and normal_priority counts for Tracy / puffin visibility.
 // All previous logic preserved. Minimal precise addition.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
@@ -424,7 +424,7 @@ fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendM
     }
 }
 
-/// Production networking broadcast with full Bevy Diagnostics + Profiling spans
+/// Production networking broadcast with Bevy Diagnostics + rich span attributes
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
     #[cfg(feature = "renet")]
@@ -434,9 +434,6 @@ pub fn broadcast_inter_realm_diplomacy_update(
 ) {
     let mut high_priority_count: u32 = 0;
     let mut normal_priority_count: u32 = 0;
-
-    // Bevy Profiling Span — makes priority queue + Renet work visible in Tracy / tracing / puffin
-    let _span = tracing::info_span!("broadcast_diplomacy_priority_queue").entered();
 
     for event in events.read() {
         let update = &event.update;
@@ -467,7 +464,14 @@ pub fn broadcast_inter_realm_diplomacy_update(
         diagnostics.add_measurement(&NORMAL_PRIORITY_DIPLOMACY, || normal_priority_count as f64);
     }
 
+    // Rich span attributes for Tracy / puffin / tracing viewers
     if high_priority_count > 0 || normal_priority_count > 0 {
+        let _span = tracing::info_span!(
+            "broadcast_diplomacy_priority_queue",
+            high_priority = high_priority_count,
+            normal_priority = normal_priority_count,
+        ).entered();
+
         info!("[Networking | Priority Queue] High: {} | Normal: {} | Tick processed",
               high_priority_count, normal_priority_count);
     }
@@ -521,4 +525,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.16 (Bevy Profiling Tools)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.17 (Span Attributes)
