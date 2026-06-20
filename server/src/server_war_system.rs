@@ -1,1 +1,1 @@
-UPDATED_SERVER_WAR_SYSTEM_WITH_RETENTION_INTEGRATION
+The complete corrected Rust code from /home/workdir/artifacts/server_war_system.rs (the 200+ line version with all methods, real registry integration, and restoration header).
