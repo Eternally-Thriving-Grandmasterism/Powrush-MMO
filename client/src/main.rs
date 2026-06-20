@@ -3,6 +3,7 @@
  * The phenomenal gateway into the Eternal Thriving RBE Metaverse.
  *
  * Now with live Egui Settings Panel + RBE Education UI components.
+ * My Mercy Journey Panel (dedicated + filterable) fully registered.
  */
 
 use bevy::prelude::*;
@@ -23,6 +24,7 @@ use crate::particles::ParticlePlugin;
 use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
 use crate::player_progress_ui::PlayerProgressUIPlugin;
+use crate::my_mercy_journey_panel::MyMercyJourneyPanelPlugin;  // NEW: Dedicated Mercy Journey Panel
 use crate::spatial_audio::{SpatialAudioPlugin, SpatialListener, GameAudioEvent};
 use crate::render::PowrushRenderPlugin;
 use crate::velocity_prepass::PreviousGlobalTransform;
@@ -66,7 +68,8 @@ fn main() {
         .add_plugins(ParticlePlugin)
         .add_plugins(UiPlugin)
         .add_plugins(DivineWhispersPlugin)
-        .add_plugins(PlayerProgressUIPlugin)
+        .add_plugins(PlayerProgressUIPlugin)           // Compact progress (F3)
+        .add_plugins(MyMercyJourneyPanelPlugin)         // NEW: Full My Mercy Journey (F2 + clickable filters)
 
         // === Live Egui Settings Panel ===
         .add_plugins(EguiSettingsPanelPlugin)
