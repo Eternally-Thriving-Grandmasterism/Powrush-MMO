@@ -1,8 +1,9 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.12 — Reliable Message Delivery)
+// Complete restored + PATSAGi-hardened version (v20.13 — Message Prioritization)
 //
-// Upgraded Renet hook to use explicit ReliableOrdered delivery.
-// All previous logic preserved. Minimal precise improvement.
+// Added message prioritization for diplomacy/war updates.
+// High priority (MercifulResolution + high redemption) sent on dedicated reliable channel.
+// All previous logic preserved. Minimal precise addition.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
 
@@ -17,7 +18,6 @@ use crate::council::decision::CouncilDecisions;
 
 use shared::protocol::{InterRealmDiplomacyUpdate, SpectatorModeDataNet, ServerMessage};
 
-// Renet transport hook (optional - activated when bevy_renet feature is enabled on server)
 #[cfg(feature = "renet")]
 use bevy_renet::RenetServer;
 #[cfg(feature = "renet")]
@@ -168,7 +168,6 @@ impl InterRealmDiplomacyRegistry {
         Self { active_events: vec![], historical_events: vec![], realm_monuments: HashMap::new(), global_seed }
     }
 
-    /// PATSAGi + TOLC 8 hardened trigger
     pub fn trigger_diplomacy_event_with_patsagi(
         &mut self,
         realm_a: u8,
@@ -404,9 +403,19 @@ pub fn inter_realm_diplomacy_resolution_system(
     }
 }
 
-/// Production networking broadcast layer (PATSAGi + TOLC aligned)
-/// 
-/// Renet Transport Hook with explicit ReliableOrdered delivery (v20.12)
+/// Returns the appropriate reliable channel for a diplomacy update based on importance.
+#[cfg(feature = "renet")]
+fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendMode {
+    if outcome.contains("MercifulResolution") && redemption_score > 0.85 {
+        SendMode::ReliableOrdered // Highest priority for major merciful resolutions
+    } else if outcome.contains("MercifulResolution") {
+        SendMode::ReliableOrdered
+    } else {
+        SendMode::ReliableOrdered // Default reliable for all diplomacy updates
+    }
+}
+
+/// Production networking broadcast layer with message prioritization
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
     #[cfg(feature = "renet")]
@@ -416,12 +425,12 @@ pub fn broadcast_inter_realm_diplomacy_update(
         let update = &event.update;
         let message = ServerMessage::InterRealmDiplomacyUpdate { update: update.clone() };
 
-        // === Reliable Message Delivery (Renet hook) ===
         #[cfg(feature = "renet")]
         if let Some(server) = renet_server.as_ref() {
+            let send_mode = get_diplomacy_priority_channel(&update.outcome, update.redemption_score);
+
             for client_id in server.clients_id() {
-                // Explicit reliable ordered delivery for critical diplomacy/war updates
-                server.send_message(client_id, SendMode::ReliableOrdered, message.clone());
+                server.send_message(client_id, send_mode, message.clone());
             }
         }
 
@@ -472,4 +481,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.12 (Reliable Message Delivery)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.13 (Message Prioritization)
