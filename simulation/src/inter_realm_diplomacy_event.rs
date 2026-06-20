@@ -1,8 +1,8 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.15 — Bevy Diagnostics Integration)
+// Complete restored + PATSAGi-hardened version (v20.16 — Bevy Profiling Tools)
 //
-// Integrated proper Bevy Diagnostics for priority queue metrics.
-// High/Normal priority message counts are now first-class diagnostics.
+// Added tracing spans for Bevy-compatible profiling of the priority queue + Renet broadcast.
+// Enables visibility in tracing, Tracy, puffin, and Bevy trace features.
 // All previous logic preserved. Minimal precise addition.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
@@ -23,11 +23,10 @@ use bevy_renet::RenetServer;
 #[cfg(feature = "renet")]
 use renet::SendMode;
 
-// Bevy Diagnostics integration (only when bevy feature is enabled)
 #[cfg(feature = "bevy")]
 use bevy::diagnostic::{Diagnostic, DiagnosticPath, Diagnostics, RegisterDiagnostic};
 
-// Diagnostic paths for priority queue observability
+// Diagnostic paths
 #[cfg(feature = "bevy")]
 pub const HIGH_PRIORITY_DIPLOMACY: DiagnosticPath =
     DiagnosticPath::const_new("powrush/diplomacy/high_priority_messages");
@@ -172,7 +171,7 @@ pub struct InterRealmDiplomacyUpdateEvent {
 pub struct InterRealmDiplomacyRegistry {
     pub active_events: Vec<InterRealmDiplomacyEvent>,
     pub historical_events: Vec<InterRealmDiplomacyEvent>,
-    pub realm_monuments: HashMap<(u8, u8), u64>,
+    pub realm_monuments: HashMap<(u8, u8), u64],
     pub global_seed: u64,
 }
 
@@ -416,7 +415,6 @@ pub fn inter_realm_diplomacy_resolution_system(
     }
 }
 
-/// Returns SendMode based on message importance.
 #[cfg(feature = "renet")]
 fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendMode {
     if outcome.contains("MercifulResolution") && redemption_score > 0.85 {
@@ -426,7 +424,7 @@ fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendM
     }
 }
 
-/// Production networking broadcast with Bevy Diagnostics integration
+/// Production networking broadcast with full Bevy Diagnostics + Profiling spans
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
     #[cfg(feature = "renet")]
@@ -436,6 +434,9 @@ pub fn broadcast_inter_realm_diplomacy_update(
 ) {
     let mut high_priority_count: u32 = 0;
     let mut normal_priority_count: u32 = 0;
+
+    // Bevy Profiling Span — makes priority queue + Renet work visible in Tracy / tracing / puffin
+    let _span = tracing::info_span!("broadcast_diplomacy_priority_queue").entered();
 
     for event in events.read() {
         let update = &event.update;
@@ -460,7 +461,6 @@ pub fn broadcast_inter_realm_diplomacy_update(
               update.realm_a, update.realm_b, update.outcome, update.redemption_score);
     }
 
-    // Record into Bevy Diagnostics (when available)
     #[cfg(feature = "bevy")]
     {
         diagnostics.add_measurement(&HIGH_PRIORITY_DIPLOMACY, || high_priority_count as f64);
@@ -486,7 +486,6 @@ impl Plugin for InterRealmDiplomacyPlugin {
                 broadcast_inter_realm_diplomacy_update,
             ));
 
-        // Register Bevy Diagnostics for priority queue observability
         #[cfg(feature = "bevy")]
         {
             app.register_diagnostic(Diagnostic::new(HIGH_PRIORITY_DIPLOMACY));
@@ -522,4 +521,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.15 (Bevy Diagnostics Integration)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.16 (Bevy Profiling Tools)
