@@ -1,8 +1,8 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.14 — Priority Queue Metrics)
+// Complete restored + PATSAGi-hardened version (v20.15 — Bevy Diagnostics Integration)
 //
-// Added metrics for priority queue behavior in diplomacy broadcast.
-// Tracks high vs normal priority message volume per tick.
+// Integrated proper Bevy Diagnostics for priority queue metrics.
+// High/Normal priority message counts are now first-class diagnostics.
 // All previous logic preserved. Minimal precise addition.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
@@ -22,6 +22,19 @@ use shared::protocol::{InterRealmDiplomacyUpdate, SpectatorModeDataNet, ServerMe
 use bevy_renet::RenetServer;
 #[cfg(feature = "renet")]
 use renet::SendMode;
+
+// Bevy Diagnostics integration (only when bevy feature is enabled)
+#[cfg(feature = "bevy")]
+use bevy::diagnostic::{Diagnostic, DiagnosticPath, Diagnostics, RegisterDiagnostic};
+
+// Diagnostic paths for priority queue observability
+#[cfg(feature = "bevy")]
+pub const HIGH_PRIORITY_DIPLOMACY: DiagnosticPath =
+    DiagnosticPath::const_new("powrush/diplomacy/high_priority_messages");
+
+#[cfg(feature = "bevy")]
+pub const NORMAL_PRIORITY_DIPLOMACY: DiagnosticPath =
+    DiagnosticPath::const_new("powrush/diplomacy/normal_priority_messages");
 
 // ... (all previous enums and structs unchanged for compatibility)
 
@@ -403,7 +416,7 @@ pub fn inter_realm_diplomacy_resolution_system(
     }
 }
 
-/// Returns SendMode based on message importance (high priority for major merciful resolutions).
+/// Returns SendMode based on message importance.
 #[cfg(feature = "renet")]
 fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendMode {
     if outcome.contains("MercifulResolution") && redemption_score > 0.85 {
@@ -413,11 +426,13 @@ fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendM
     }
 }
 
-/// Production networking broadcast with prioritization + metrics
+/// Production networking broadcast with Bevy Diagnostics integration
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
     #[cfg(feature = "renet")]
     renet_server: Option<Res<RenetServer>>,
+    #[cfg(feature = "bevy")]
+    mut diagnostics: Diagnostics,
 ) {
     let mut high_priority_count: u32 = 0;
     let mut normal_priority_count: u32 = 0;
@@ -430,7 +445,6 @@ pub fn broadcast_inter_realm_diplomacy_update(
         if let Some(server) = renet_server.as_ref() {
             let send_mode = get_diplomacy_priority_channel(&update.outcome, update.redemption_score);
 
-            // Track priority metrics
             if update.outcome.contains("MercifulResolution") && update.redemption_score > 0.85 {
                 high_priority_count += 1;
             } else {
@@ -446,7 +460,13 @@ pub fn broadcast_inter_realm_diplomacy_update(
               update.realm_a, update.realm_b, update.outcome, update.redemption_score);
     }
 
-    // Priority Queue Metrics (logged when any messages were processed)
+    // Record into Bevy Diagnostics (when available)
+    #[cfg(feature = "bevy")]
+    {
+        diagnostics.add_measurement(&HIGH_PRIORITY_DIPLOMACY, || high_priority_count as f64);
+        diagnostics.add_measurement(&NORMAL_PRIORITY_DIPLOMACY, || normal_priority_count as f64);
+    }
+
     if high_priority_count > 0 || normal_priority_count > 0 {
         info!("[Networking | Priority Queue] High: {} | Normal: {} | Tick processed",
               high_priority_count, normal_priority_count);
@@ -465,6 +485,13 @@ impl Plugin for InterRealmDiplomacyPlugin {
                 inter_realm_diplomacy_resolution_system,
                 broadcast_inter_realm_diplomacy_update,
             ));
+
+        // Register Bevy Diagnostics for priority queue observability
+        #[cfg(feature = "bevy")]
+        {
+            app.register_diagnostic(Diagnostic::new(HIGH_PRIORITY_DIPLOMACY));
+            app.register_diagnostic(Diagnostic::new(NORMAL_PRIORITY_DIPLOMACY));
+        }
     }
 }
 
@@ -495,4 +522,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.14 (Priority Queue Metrics)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.15 (Bevy Diagnostics Integration)
