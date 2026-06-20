@@ -2,9 +2,9 @@
  * My Mercy Journey Panel (Dedicated File)
  *
  * Full dedicated bevy_egui-style panel with:
- * - Clickable category filters
- * - Active filter now visually highlighted (distinct background + border)
- * - Real-time filtered Legacy Timeline
+ * - Clickable category filters with active highlight
+ * - Real Res<LegacyJournalRegistry> integration (production robust)
+ * - Dynamic filtered Legacy Timeline
  *
  * TOLC 8 + 7 Living Mercy Gates aligned.
  */
@@ -54,7 +54,7 @@ impl Plugin for MyMercyJourneyPanelPlugin {
             .add_systems(Update, (
                 toggle_my_mercy_journey_panel,
                 handle_filter_button_clicks,
-                update_filter_button_styles,      // NEW: Visual polish for active filter
+                update_filter_button_styles,
                 update_my_mercy_journey_ui,
             ));
     }
@@ -195,27 +195,25 @@ fn handle_filter_button_clicks(
     }
 }
 
-/// NEW: Visual polish — Update filter button styles based on active filter
+/// Visual polish — Active filter button highlighting
 fn update_filter_button_styles(
     filter: Res<MyMercyJourneyFilter>,
     mut button_query: Query<(&FilterButton, &mut BackgroundColor, &mut BorderColor)>,
 ) {
     for (filter_button, mut bg_color, mut border_color) in button_query.iter_mut() {
         if filter_button.0 == filter.active {
-            // Active filter — highlighted
             *bg_color = Color::srgb(0.25, 0.45, 0.65).into();
             *border_color = Color::srgb(0.6, 0.85, 1.0).into();
         } else {
-            // Inactive filter — normal
             *bg_color = Color::srgb(0.15, 0.18, 0.22).into();
             *border_color = Color::srgb(0.4, 0.5, 0.6).into();
         }
     }
 }
 
-// === Filterable Legacy Threads with Clickable Buttons (Real Data) ===
+// === Production Integration: Direct Res<LegacyJournalRegistry> ===
 fn update_my_mercy_journey_ui(
-    legacy_registry: Option<Res<LegacyJournalRegistry>>,
+    legacy_registry: Res<LegacyJournalRegistry>,   // Now required (production robust)
     filter: Res<MyMercyJourneyFilter>,
     mut humble_text: Query<&mut Text, With<HumbleOriginEchoText>>,
     mut stats_text: Query<&mut Text, With<LegacyThreadsCountText>>,
@@ -225,68 +223,70 @@ fn update_my_mercy_journey_ui(
     mut entry3: Query<&mut Text, With<LegacyEntry3>>,
     mut entry4: Query<&mut Text, With<LegacyEntry4>>,
 ) {
-    if let Some(registry) = legacy_registry {
-        for mut text in active_filter_text.iter_mut() {
-            let filter_name = match filter.active {
-                LegacyFilter::All => "All",
-                LegacyFilter::Harvest => "Harvest",
-                LegacyFilter::Epiphany => "Epiphany",
-                LegacyFilter::WarVictory => "War & Victory",
-                LegacyFilter::JoyRedemption => "Joy & Redemption",
-                LegacyFilter::Council => "Council",
-                _ => "All",
-            };
-            text.sections[0].value = format!("Filter: {} (click buttons above)", filter_name);
-        }
+    // Active filter label
+    for mut text in active_filter_text.iter_mut() {
+        let filter_name = match filter.active {
+            LegacyFilter::All => "All",
+            LegacyFilter::Harvest => "Harvest",
+            LegacyFilter::Epiphany => "Epiphany",
+            LegacyFilter::WarVictory => "War & Victory",
+            LegacyFilter::JoyRedemption => "Joy & Redemption",
+            LegacyFilter::Council => "Council",
+            _ => "All",
+        };
+        text.sections[0].value = format!("Filter: {} (click buttons above)", filter_name);
+    }
 
-        for mut text in humble_text.iter_mut() {
-            let origin = registry.mercy_journey_summary.signature_quote.clone()
-                .unwrap_or_else(|| "The journey begins with a single seed of mercy.".to_string());
-            text.sections[0].value = format!("Humble Origin: {}", origin);
-        }
+    // Humble Origin from real registry
+    for mut text in humble_text.iter_mut() {
+        let origin = legacy_registry.mercy_journey_summary.signature_quote.clone()
+            .unwrap_or_else(|| "The journey begins with a single seed of mercy.".to_string());
+        text.sections[0].value = format!("Humble Origin: {}", origin);
+    }
 
-        for mut text in stats_text.iter_mut() {
-            let thread_count = registry.legacy_thread_count.max(registry.legacy_threads.len() as u32);
-            let cross_realm = registry.cross_realm_impact_score as u32;
-            let victories = registry.forgiveness_waves_participated + registry.mercy_journey_summary.server_war_victories;
-            text.sections[0].value = format!("Legacy Threads: {}  |  Cross-Realm: {}  |  Merciful Victories: {}", thread_count, cross_realm, victories);
-        }
+    // Stats from real registry
+    for mut text in stats_text.iter_mut() {
+        let thread_count = legacy_registry.legacy_thread_count.max(legacy_registry.legacy_threads.len() as u32);
+        let cross_realm = legacy_registry.cross_realm_impact_score as u32;
+        let victories = legacy_registry.forgiveness_waves_participated + legacy_registry.mercy_journey_summary.server_war_victories;
+        text.sections[0].value = format!("Legacy Threads: {}  |  Cross-Realm: {}  |  Merciful Victories: {}", thread_count, cross_realm, victories);
+    }
 
-        let filtered_entries: Vec<&LegacyEntry> = registry
-            .build_filterable_legacy_threads(filter.active)
-            .into_iter()
-            .take(4)
-            .collect();
+    // Real filtered Legacy Threads
+    let filtered_entries: Vec<&LegacyEntry> = legacy_registry
+        .build_filterable_legacy_threads(filter.active)
+        .into_iter()
+        .take(4)
+        .collect();
 
-        let mut entries_iter = filtered_entries.into_iter();
-        let entries = [&mut entry1, &mut entry2, &mut entry3, &mut entry4];
-        let default_texts = [
-            "• Humble seed planted — the journey begins",
-            "• Sustainable harvest — abundance from mercy",
-            "• Epiphany bloomed — True power serves the whole",
-            "• Merciful Victory — Legacy Thread forged across realms",
-        ];
+    let mut entries_iter = filtered_entries.into_iter();
+    let entries = [&mut entry1, &mut entry2, &mut entry3, &mut entry4];
+    let default_texts = [
+        "• Humble seed planted — the journey begins",
+        "• Sustainable harvest — abundance from mercy",
+        "• Epiphany bloomed — True power serves the whole",
+        "• Merciful Victory — Legacy Thread forged across realms",
+    ];
 
-        for (i, entry_query) in entries.iter_mut().enumerate() {
-            if let Some(e) = entries_iter.next() {
-                for mut text in entry_query.iter_mut() {
-                    let icon = match e.event_type {
-                        LegacyEventType::ServerWarVictory => "⚔️",
-                        LegacyEventType::Harvest => "🌾",
-                        LegacyEventType::Epiphany => "✨",
-                        LegacyEventType::ProactiveJoy => "💫",
-                        LegacyEventType::CouncilBloom => "🕊️",
-                        _ => "•",
-                    };
-                    text.sections[0].value = format!("{} {} (Mercy +{:.0}, Valence +{:.2})", icon, e.description, e.mercy_impact, e.valence_delta);
-                }
-            } else {
-                for mut text in entry_query.iter_mut() {
-                    text.sections[0].value = default_texts[i].to_string();
-                }
+    for (i, entry_query) in entries.iter_mut().enumerate() {
+        if let Some(e) = entries_iter.next() {
+            for mut text in entry_query.iter_mut() {
+                let icon = match e.event_type {
+                    LegacyEventType::ServerWarVictory => "⚔️",
+                    LegacyEventType::Harvest => "🌾",
+                    LegacyEventType::Epiphany => "✨",
+                    LegacyEventType::ProactiveJoy => "💫",
+                    LegacyEventType::CouncilBloom => "🕊️",
+                    _ => "•",
+                };
+                text.sections[0].value = format!("{} {} (Mercy +{:.0}, Valence +{:.2})", icon, e.description, e.mercy_impact, e.valence_delta);
+            }
+        } else {
+            for mut text in entry_query.iter_mut() {
+                text.sections[0].value = default_texts[i].to_string();
             }
         }
     }
 }
 
-// End of client/src/my_mercy_journey_panel.rs — Active filter visually highlighted
+// End of client/src/my_mercy_journey_panel.rs — Direct Res<LegacyJournalRegistry> integration
