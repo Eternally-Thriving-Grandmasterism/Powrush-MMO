@@ -1,0 +1,48 @@
+# observability/docker-compose.yml
+# One-command local OpenTelemetry stack for Powrush-MMO
+# Brings up:
+#   - OpenTelemetry Collector (receives OTLP from server)
+#   - Jaeger (trace visualization UI)
+#
+# Usage:
+#   cd observability
+#   docker compose up -d
+#
+# Then run the Powrush server with:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 cargo run -p server
+
+version: '3.8'
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.102.0
+    container_name: powrush-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # Prometheus metrics (collector self-monitoring)
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: powrush-jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC (for collector)
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    restart: unless-stopped
+
+# Optional: Add Prometheus + Grafana later for metrics
+# prometheus:
+#   image: prom/prometheus
+#   ...
+#
+# grafana:
+#   image: grafana/grafana
+#   ...
