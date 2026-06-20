@@ -1,5 +1,5 @@
 /*!
- * Sovereign HarvestingSystem v18.97.1 + Proactive Joy Wiring
+ * Sovereign HarvestingSystem v18.97.1 + Real Proactive Joy Recording
  * 
  * After successful sustainable or high-yield harvests, we now call
  * generate_proactive_joy_redemption_thread() for positive (non-scar)
@@ -11,18 +11,16 @@
 
 use crate::world::{SovereignWorldState, NodeId, MercyViolation, Vec3};
 use crate::epiphany_catalyst::{check_epiphany_after_harvest, EpiphanyOutcome};
-use crate::player_legacy_journal::LegacyJournalRegistry; // NEW: for proactive joy
+use crate::player_legacy_journal::LegacyJournalRegistry;
 use bevy::prelude::*;
 
-// ... (existing structs and functions preserved)
+#[derive(Event, Clone, Debug)]
+pub struct HarvestSpatialAudioEvent { /* ... */ }
 
 #[derive(Event, Clone, Debug)]
-pub struct HarvestSpatialAudioEvent { /* ... unchanged ... */ }
+pub struct HarvestEvent { /* ... */ }
 
-#[derive(Event, Clone, Debug)]
-pub struct HarvestEvent { /* ... unchanged ... */ }
-
-pub fn trigger_harvest_spatial_audio(/* ... unchanged ... */) -> HarvestSpatialAudioEvent { /* ... */ }
+pub fn trigger_harvest_spatial_audio(/* ... */) -> HarvestSpatialAudioEvent { /* ... */ }
 
 fn simple_biome_hash(biome: &str) -> u32 { /* ... */ }
 
@@ -40,14 +38,13 @@ impl HarvestingSystem {
         world: &mut SovereignWorldState,
         current_tick: u64,
     ) -> Vec<HarvestEvent> {
-        // ... (unchanged background harvest logic)
+        // ... existing background harvest logic ...
         let mut events = Vec::new();
-        // ... existing code ...
         self.current_sim_tick = current_tick;
         events
     }
 
-    /// Player-initiated harvest — now with proactive joy wiring on strong sustainable harvests
+    /// Player-initiated harvest — now with real proactive joy recording
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
@@ -56,8 +53,7 @@ impl HarvestingSystem {
         behavioral_human_score: f32,
         player_id: u64,
         council_bloom: Option<&crate::council_mercy_trial::SharedReceptorBloomField>,
-        // NEW: Pass registry for proactive joy (or access via world resource in full ECS)
-        legacy_registry: Option<&mut LegacyJournalRegistry>,
+        legacy_registry: &mut LegacyJournalRegistry,
     ) -> Result<(f32, Option<EpiphanyOutcome>), MercyViolation> {
         if let Some(node) = world.resource_nodes.get_mut(&node_id) {
             if node.harvest_restricted_until_ms > 0 {
@@ -102,20 +98,16 @@ impl HarvestingSystem {
                 }
             }
 
-            // === NEW: Proactive Joy on strong sustainable / high-yield harvests (non-scar) ===
-            if sustainable_pacing && yield_amount > node.base_yield * 0.4 {
-                if let Some(registry) = legacy_registry {
-                    // In full ECS this would be the real player/agent id
-                    // registry.generate_proactive_joy_redemption_thread(
-                    //     player_id as u64,
-                    //     format!("Sustainable harvest in {} — abundance flows from mercy", effective_biome),
-                    //     yield_amount * 0.08,
-                    //     0.18,
-                    //     self.current_sim_tick,
-                    //     0, // server_id placeholder
-                    // );
-                    // For now we log the integration point
-                }
+            // === REAL: Record proactive joy on strong sustainable / high-yield harvests ===
+            if sustainable_pacing && yield_amount > node.base_yield * 0.35 {
+                legacy_registry.generate_proactive_joy_redemption_thread(
+                    player_id,
+                    format!("Sustainable harvest in {} — abundance flows from mercy", effective_biome),
+                    yield_amount * 0.08,
+                    0.18,
+                    self.current_sim_tick,
+                    0, // server_id placeholder
+                );
             }
 
             Ok((yield_amount, epiphany))
