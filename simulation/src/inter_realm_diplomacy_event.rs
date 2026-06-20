@@ -1,9 +1,8 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.20 — OpenTelemetry Ready)
+// Complete restored + PATSAGi-hardened version (v20.21 — PATSAGi Council Traces)
 //
-// Existing high-quality tracing spans are now ready for distributed tracing via OpenTelemetry.
-// Workspace dependencies added (opentelemetry, opentelemetry-otlp, tracing-opentelemetry).
-// Spans will automatically export when server binary attaches the tracing-opentelemetry layer.
+// Added tracing span for PATSAGi council deliberation inside resolve_event.
+// Council deliberation is now visible in distributed traces alongside diplomacy broadcasts.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
 
@@ -240,6 +239,18 @@ impl InterRealmDiplomacyRegistry {
         mut update_writer: EventWriter<InterRealmDiplomacyUpdateEvent>,
     ) -> Option<InterRealmDiplomacyUpdate> {
         if let Some(event) = self.active_events.get_mut(event_index) {
+            // === PATSAGi Council Deliberation Tracing ===
+            let _council_span = if council_input.is_some() {
+                Some(tracing::info_span!(
+                    "patsagi_council_deliberation",
+                    vote_ratio = council_input.as_ref().map(|i| i.vote_ratio).unwrap_or(0.0),
+                    resolution_quality = council_input.as_ref().map(|i| i.resolution_quality).unwrap_or(0.0),
+                    average_mercy = council_input.as_ref().map(|i| i.average_mercy_of_participants).unwrap_or(0.0),
+                ).entered())
+            } else {
+                None
+            };
+
             let (outcome, redemption_score) = if let Some(input) = council_input {
                 (input.determine_outcome(), input.calculate_redemption_score())
             } else {
@@ -534,4 +545,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.20 (OpenTelemetry Ready)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.21 (PATSAGi Council Traces)
