@@ -1,14 +1,17 @@
 # observability/docker-compose.yml
-# One-command local OpenTelemetry stack for Powrush-MMO
-# Brings up:
-#   - OpenTelemetry Collector (receives OTLP from server)
-#   - Jaeger (trace visualization UI)
+# Full local observability stack for Powrush-MMO
+#
+# Services:
+#   - OpenTelemetry Collector (traces + metrics)
+#   - Jaeger (trace visualization)
+#   - Prometheus (metrics storage)
+#   - Grafana (dashboards)
 #
 # Usage:
 #   cd observability
 #   docker compose up -d
 #
-# Then run the Powrush server with:
+# Then run the server with:
 #   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 cargo run -p server
 
 version: '3.8'
@@ -21,9 +24,9 @@ services:
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
     ports:
-      - "4317:4317"   # OTLP gRPC
-      - "4318:4318"   # OTLP HTTP
-      - "8888:8888"   # Prometheus metrics (collector self-monitoring)
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8889:8889"   # Prometheus exporter (powrush_* metrics)
     depends_on:
       - jaeger
     restart: unless-stopped
@@ -38,11 +41,29 @@ services:
       - COLLECTOR_OTLP_ENABLED=true
     restart: unless-stopped
 
-# Optional: Add Prometheus + Grafana later for metrics
-# prometheus:
-#   image: prom/prometheus
-#   ...
-#
-# grafana:
-#   image: grafana/grafana
-#   ...
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: powrush-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: powrush-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=powrush
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  grafana-storage:
