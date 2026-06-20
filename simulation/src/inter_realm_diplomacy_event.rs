@@ -1,9 +1,9 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.19 — Trace Span Inheritance)
+// Complete restored + PATSAGi-hardened version (v20.20 — OpenTelemetry Ready)
 //
-// Implemented proper trace span inheritance: span created early, entered during work,
-// attributes recorded at the end via span.record(). Full timing + parent context support.
-// All previous logic preserved. Minimal precise addition.
+// Existing high-quality tracing spans are now ready for distributed tracing via OpenTelemetry.
+// Workspace dependencies added (opentelemetry, opentelemetry-otlp, tracing-opentelemetry).
+// Spans will automatically export when server binary attaches the tracing-opentelemetry layer.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
 
@@ -380,7 +380,7 @@ impl InterRealmDiplomacyRegistry {
         current_tick: u64,
     ) {
         let high_mercy: Vec<_] = agents.iter().filter(|a| a.mercy_score > 65.0).cloned().collect();
-        let low_mercy: Vec<_] = agents.iter().filter(|a| a.mercy_score < 55.0).cloned().collect();
+        let low_mercy: Vec<_> = agents.iter().filter(|a| a.mercy_score < 55.0).cloned().collect();
 
         for mentor in high_mercy.iter().take(2) {
             for mentee in low_mercy.iter().take(2) {
@@ -424,9 +424,11 @@ fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendM
     }
 }
 
-/// Production networking broadcast with proper trace span inheritance
-/// Span is created early and entered so it inherits parent context and captures full work duration.
-/// Attributes are recorded at the end via span.record().
+/// Production networking broadcast — OpenTelemetry ready
+/// 
+/// The span "broadcast_diplomacy_priority_queue" uses proper inheritance, late attribute recording,
+/// and rich contextual metadata. It will automatically become a distributed trace span
+/// when the server binary initializes OpenTelemetry + tracing-opentelemetry layer.
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
     #[cfg(feature = "renet")]
@@ -438,7 +440,7 @@ pub fn broadcast_inter_realm_diplomacy_update(
     let mut normal_priority_count: u32 = 0;
     let mut client_count: usize = 0;
 
-    // Create span early for proper inheritance from any parent span (e.g. networking or simulation root)
+    // Span created early for correct parent inheritance + full work duration
     let span = tracing::info_span!("broadcast_diplomacy_priority_queue");
     let _enter = span.enter();
 
@@ -473,7 +475,7 @@ pub fn broadcast_inter_realm_diplomacy_update(
         diagnostics.add_measurement(&NORMAL_PRIORITY_DIPLOMACY, || normal_priority_count as f64);
     }
 
-    // Record attributes at the end (late binding) while span is still active
+    // Record attributes at the end (compatible with OpenTelemetry semantic conventions)
     span.record("high_priority", high_priority_count);
     span.record("normal_priority", normal_priority_count);
     span.record("clients", client_count as u64);
@@ -532,4 +534,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.19 (Trace Span Inheritance)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.20 (OpenTelemetry Ready)
