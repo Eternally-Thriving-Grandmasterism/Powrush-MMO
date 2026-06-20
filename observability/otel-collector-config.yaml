@@ -1,7 +1,12 @@
 # observability/otel-collector-config.yaml
 # OpenTelemetry Collector configuration for Powrush-MMO
-# Receives OTLP from server, processes, and exports to Jaeger (and console for debugging)
-# Designed for local development + easy extension to production backends
+#
+# Features:
+#   - OTLP receiver (gRPC + HTTP)
+#   - Tail sampling tuned for high-volume diplomacy/war events
+#   - Prometheus metrics export (for Bevy diagnostics + priority queue counters)
+#   - Jaeger trace export
+#   - Resource detection + batching + memory protection
 
 receivers:
   otlp:
@@ -16,24 +21,58 @@ processors:
     timeout: 1s
     send_batch_size: 1024
 
-  # Resource detection (adds host.name, service.instance.id, etc.)
   resourcedetection:
     detectors: [env, system]
     timeout: 2s
 
-  # Memory limiter to protect the collector
   memory_limiter:
     check_interval: 1s
     limit_mib: 512
 
+  # === Tail Sampling for Powrush Diplomacy & War ===
+  # Keeps high-value traces during busy server wars / council events
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 100
+    expected_new_traces_per_sec: 10
+    policies:
+      # Always keep traces with high_priority attribute set
+      - name: high_priority_diplomacy
+        type: string_attribute
+        string_attribute:
+          key: high_priority
+          values: ["true", "1"]
+          enabled: true
+
+      # Keep long-running traces (interesting war resolutions, complex council deliberation)
+      - name: long_duration
+        type: latency
+        latency:
+          threshold_ms: 500
+
+      # Keep all error traces
+      - name: error_traces
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+
+      # Probabilistic fallback (10% of normal traces)
+      - name: probabilistic
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
 exporters:
-  # Jaeger (for trace visualization)
   jaeger:
     endpoint: jaeger:14250
     tls:
       insecure: true
 
-  # Debug / console exporter (very useful during development)
+  # Prometheus exporter — exposes powrush_* metrics
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: powrush
+
   debug:
     verbosity: detailed
 
@@ -41,8 +80,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resourcedetection, batch]
+      processors: [memory_limiter, resourcedetection, batch, tail_sampling]
       exporters: [jaeger, debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [prometheus, debug]
 
   extensions: []
 
