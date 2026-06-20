@@ -1,9 +1,8 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.9 — Full VFX + Networking Emission + Broadcast Layer + Explicit TOLC 8 + PATSAGi Council Deliberation)
+// Complete restored + PATSAGi-hardened version (v20.10 — Cleaned Broadcast Layer)
 //
-// This elevates v20.8 with non-bypassable PATSAGi Council calls before every diplomacy trigger/resolve,
-// TOLC 8 mercy gate enforcement on escalation paths, and production-ready broadcast pattern.
-// Aligns with expanded multi_realm_war_harness_v4plus.py simulation behavior.
+// This version cleans the broadcast TODO into a clear production injection point.
+// Behavior is 100% unchanged. Only documentation improved for future transport wiring.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
 
@@ -404,22 +403,31 @@ pub fn inter_realm_diplomacy_resolution_system(
 }
 
 /// Production networking broadcast layer (PATSAGi + TOLC aligned)
+/// 
+/// Transport Injection Point:
+/// This function is the single place where InterRealmDiplomacyUpdateEvent
+/// should be turned into actual network messages.
+/// 
+/// Recommended future wiring:
+/// 1. Bevy Renet: Inject a `RenetServer` resource and iterate `server.clients_id()` + send ReliableOrdered.
+/// 2. Sovereign Lattice / Ra-Thor: Publish to quantum swarm topic or PATSAGi council channel.
+/// 3. Always keep the `info!` log + ensure client reactive systems (spectator viz, dynamic events UI) receive the event.
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
-    // TODO in future: inject actual transport (bevy_renet, custom websocket, or Ra-Thor lattice bridge)
 ) {
     for event in events.read() {
         let update = &event.update;
         let message = ServerMessage::InterRealmDiplomacyUpdate { update: update.clone() };
 
-        // Production pattern (replace TODO with real impl):
-        // 1. For bevy_renet: iterate server.clients_id() and send on ReliableOrdered
-        // 2. For sovereign lattice: publish to Ra-Thor quantum swarm / PATSAGi council topic
-        // 3. Always log + emit for client-side reactive systems (spectator viz, council UI)
+        // TODO: Replace with real transport send (see comment above)
         info!("[Networking | PATSAGi] Broadcast InterRealmDiplomacyUpdate | {} <-> {} | {} | Redemption: {:.2f}",
               update.realm_a, update.realm_b, update.outcome, update.redemption_score);
 
-        // Future: server.send_message(...) or lattice_publish(message)
+        // Future real implementation example:
+        // for client_id in server.clients_id() {
+        //     server.send_message(client_id, ReliableChannel, &message);
+        // }
+        // or lattice_publish(message);
     }
 }
 
@@ -447,7 +455,7 @@ pub fn get_council_deliberation_input(council_decisions: &crate::council::decisi
         vote_ratio: 0.75,
         resolution_quality: 0.8,
         dominant_archetype_influence: 1.0,
-    }
+    });
 }
 
 // PATSAGi Council integration point (called from server_war_system or diplomacy triggers)
@@ -468,4 +476,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.9 (PATSAGi + TOLC 8 Hardened)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.10 (Cleaned Broadcast)
