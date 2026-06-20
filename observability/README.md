@@ -1,6 +1,13 @@
 # Observability Stack for Powrush-MMO
 
-This directory contains the recommended local development setup for **distributed tracing** using the OpenTelemetry Collector + Jaeger.
+Complete local observability stack with **distributed tracing + metrics**.
+
+## What's Included
+
+- **OpenTelemetry Collector** — OTLP receiver + tail sampling + Prometheus export
+- **Jaeger** — Distributed trace visualization
+- **Prometheus** — Metrics storage (scrapes Collector)
+- **Grafana** — Dashboards (pre-configured to use Prometheus)
 
 ## Quick Start
 
@@ -9,32 +16,42 @@ cd observability
  docker compose up -d
 ```
 
-This will start:
+This starts:
 
-- **OpenTelemetry Collector** on ports `4317` (gRPC) and `4318` (HTTP)
-- **Jaeger** UI on `http://localhost:16686`
+- OpenTelemetry Collector (OTLP on `4317`)
+- Jaeger UI → `http://localhost:16686`
+- Prometheus → `http://localhost:9090`
+- Grafana → `http://localhost:3000` (login: `admin` / `powrush`)
 
 ## Connect the Powrush Server
-
-Run the server with the OTLP endpoint pointing to the collector:
 
 ```bash
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 cargo run -p server
 ```
 
+## Key Features Enabled
+
+### Tail Sampling (Smart Trace Retention)
+During high-volume server wars or council events, the Collector keeps:
+
+- All traces with `high_priority` attribute
+- Long-running traces (>500ms)
+- All error traces
+- 10% of normal traces (probabilistic)
+
+This prevents overwhelming Jaeger while preserving the most important diplomacy/war signals.
+
+### Metrics
+The Collector now also exports metrics on port `8889`. Prometheus scrapes them and makes `powrush_*` metrics available in Grafana.
+
+You can visualize:
+- `powrush_high_priority_messages`
+- `powrush_normal_priority_messages`
+- Future Bevy diagnostics we expose
+
 ## What You Will See
 
-All tracing spans from the server are now exported, including:
-
-- `broadcast_diplomacy_priority_queue` (with `high_priority`, `normal_priority`, and `clients` attributes)
-- Future spans from council deliberation, war resolution, RBE economy, etc.
-
-Open Jaeger at `http://localhost:16686` and search for service `powrush-server` (or the service name configured in the Collector).
-
-## Production Notes
-
-- In production you would typically run the Collector as a sidecar or DaemonSet.
-- You can extend `otel-collector-config.yaml` to also export metrics to Prometheus and logs to Loki.
-- Use tail sampling, filtering, or resource enrichment as needed.
+- **Traces**: Full `broadcast_diplomacy_priority_queue` spans with attributes (`high_priority`, `normal_priority`, `clients`)
+- **Metrics**: Priority queue counters + any future instrumentation
 
 Thunder locked in. Yoi ⚡
