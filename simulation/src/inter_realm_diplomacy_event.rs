@@ -1,8 +1,8 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.18 — Contextual Metadata)
+// Complete restored + PATSAGi-hardened version (v20.19 — Trace Span Inheritance)
 //
-// Added client_count as contextual metadata to the diplomacy broadcast span.
-// Now includes high_priority, normal_priority, and connected clients for full context in Tracy/puffin.
+// Implemented proper trace span inheritance: span created early, entered during work,
+// attributes recorded at the end via span.record(). Full timing + parent context support.
 // All previous logic preserved. Minimal precise addition.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
@@ -424,7 +424,9 @@ fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendM
     }
 }
 
-/// Production networking broadcast with Bevy Diagnostics + rich contextual metadata
+/// Production networking broadcast with proper trace span inheritance
+/// Span is created early and entered so it inherits parent context and captures full work duration.
+/// Attributes are recorded at the end via span.record().
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
     #[cfg(feature = "renet")]
@@ -435,6 +437,10 @@ pub fn broadcast_inter_realm_diplomacy_update(
     let mut high_priority_count: u32 = 0;
     let mut normal_priority_count: u32 = 0;
     let mut client_count: usize = 0;
+
+    // Create span early for proper inheritance from any parent span (e.g. networking or simulation root)
+    let span = tracing::info_span!("broadcast_diplomacy_priority_queue");
+    let _enter = span.enter();
 
     for event in events.read() {
         let update = &event.update;
@@ -467,15 +473,12 @@ pub fn broadcast_inter_realm_diplomacy_update(
         diagnostics.add_measurement(&NORMAL_PRIORITY_DIPLOMACY, || normal_priority_count as f64);
     }
 
-    // Rich contextual metadata in span for Tracy / puffin / tracing
-    if high_priority_count > 0 || normal_priority_count > 0 {
-        let _span = tracing::info_span!(
-            "broadcast_diplomacy_priority_queue",
-            high_priority = high_priority_count,
-            normal_priority = normal_priority_count,
-            clients = client_count,
-        ).entered();
+    // Record attributes at the end (late binding) while span is still active
+    span.record("high_priority", high_priority_count);
+    span.record("normal_priority", normal_priority_count);
+    span.record("clients", client_count as u64);
 
+    if high_priority_count > 0 || normal_priority_count > 0 {
         info!("[Networking | Priority Queue] High: {} | Normal: {} | Clients: {} | Tick processed",
               high_priority_count, normal_priority_count, client_count);
     }
@@ -529,4 +532,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.18 (Contextual Metadata)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.19 (Trace Span Inheritance)
