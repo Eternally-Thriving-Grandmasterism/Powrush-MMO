@@ -6,8 +6,8 @@ Complete local observability stack with **distributed tracing + metrics**.
 
 - **OpenTelemetry Collector** — OTLP receiver + tail sampling + Prometheus export
 - **Jaeger** — Distributed trace visualization
-- **Prometheus** — Metrics storage (scrapes Collector)
-- **Grafana** — Dashboards (pre-configured to use Prometheus)
+- **Prometheus** — Metrics storage
+- **Grafana** — Dashboards with pre-built Powrush Diplomacy view
 
 ## Quick Start
 
@@ -16,12 +16,10 @@ cd observability
  docker compose up -d
 ```
 
-This starts:
-
-- OpenTelemetry Collector (OTLP on `4317`)
-- Jaeger UI → `http://localhost:16686`
-- Prometheus → `http://localhost:9090`
-- Grafana → `http://localhost:3000` (login: `admin` / `powrush`)
+Access points:
+- **Jaeger**: http://localhost:16686
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000 (admin / powrush)
 
 ## Connect the Powrush Server
 
@@ -29,29 +27,32 @@ This starts:
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 cargo run -p server
 ```
 
-## Key Features Enabled
+## Diplomacy Priority Queue Dashboard
 
-### Tail Sampling (Smart Trace Retention)
-During high-volume server wars or council events, the Collector keeps:
+A ready-made Grafana dashboard focused on the diplomacy/war priority system is included:
 
-- All traces with `high_priority` attribute
+`grafana-dashboard-diplomacy.json`
+
+### How to import it:
+
+1. Open Grafana at http://localhost:3000
+2. Go to **Dashboards** → **Import**
+3. Upload the file `observability/grafana-dashboard-diplomacy.json`
+4. Select the Prometheus data source
+
+The dashboard shows:
+- High vs Normal priority message rates
+- Connected clients during broadcasts
+- Recent high-priority diplomacy events
+
+## Tail Sampling Behavior
+
+During busy server wars or council events, the Collector intelligently keeps:
+- All `high_priority` diplomacy traces
 - Long-running traces (>500ms)
 - All error traces
-- 10% of normal traces (probabilistic)
+- 10% of normal traces
 
-This prevents overwhelming Jaeger while preserving the most important diplomacy/war signals.
-
-### Metrics
-The Collector now also exports metrics on port `8889`. Prometheus scrapes them and makes `powrush_*` metrics available in Grafana.
-
-You can visualize:
-- `powrush_high_priority_messages`
-- `powrush_normal_priority_messages`
-- Future Bevy diagnostics we expose
-
-## What You Will See
-
-- **Traces**: Full `broadcast_diplomacy_priority_queue` spans with attributes (`high_priority`, `normal_priority`, `clients`)
-- **Metrics**: Priority queue counters + any future instrumentation
+This protects Jaeger from overload while preserving the most valuable signals from `broadcast_diplomacy_priority_queue`.
 
 Thunder locked in. Yoi ⚡
