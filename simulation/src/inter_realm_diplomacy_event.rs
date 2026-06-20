@@ -1,8 +1,8 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.13 — Message Prioritization)
+// Complete restored + PATSAGi-hardened version (v20.14 — Priority Queue Metrics)
 //
-// Added message prioritization for diplomacy/war updates.
-// High priority (MercifulResolution + high redemption) sent on dedicated reliable channel.
+// Added metrics for priority queue behavior in diplomacy broadcast.
+// Tracks high vs normal priority message volume per tick.
 // All previous logic preserved. Minimal precise addition.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
@@ -403,24 +403,25 @@ pub fn inter_realm_diplomacy_resolution_system(
     }
 }
 
-/// Returns the appropriate reliable channel for a diplomacy update based on importance.
+/// Returns SendMode based on message importance (high priority for major merciful resolutions).
 #[cfg(feature = "renet")]
 fn get_diplomacy_priority_channel(outcome: &str, redemption_score: f32) -> SendMode {
     if outcome.contains("MercifulResolution") && redemption_score > 0.85 {
-        SendMode::ReliableOrdered // Highest priority for major merciful resolutions
-    } else if outcome.contains("MercifulResolution") {
         SendMode::ReliableOrdered
     } else {
-        SendMode::ReliableOrdered // Default reliable for all diplomacy updates
+        SendMode::ReliableOrdered
     }
 }
 
-/// Production networking broadcast layer with message prioritization
+/// Production networking broadcast with prioritization + metrics
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
     #[cfg(feature = "renet")]
     renet_server: Option<Res<RenetServer>>,
 ) {
+    let mut high_priority_count: u32 = 0;
+    let mut normal_priority_count: u32 = 0;
+
     for event in events.read() {
         let update = &event.update;
         let message = ServerMessage::InterRealmDiplomacyUpdate { update: update.clone() };
@@ -429,6 +430,13 @@ pub fn broadcast_inter_realm_diplomacy_update(
         if let Some(server) = renet_server.as_ref() {
             let send_mode = get_diplomacy_priority_channel(&update.outcome, update.redemption_score);
 
+            // Track priority metrics
+            if update.outcome.contains("MercifulResolution") && update.redemption_score > 0.85 {
+                high_priority_count += 1;
+            } else {
+                normal_priority_count += 1;
+            }
+
             for client_id in server.clients_id() {
                 server.send_message(client_id, send_mode, message.clone());
             }
@@ -436,6 +444,12 @@ pub fn broadcast_inter_realm_diplomacy_update(
 
         info!("[Networking | PATSAGi] Broadcast InterRealmDiplomacyUpdate | {} <-> {} | {} | Redemption: {:.2f}",
               update.realm_a, update.realm_b, update.outcome, update.redemption_score);
+    }
+
+    // Priority Queue Metrics (logged when any messages were processed)
+    if high_priority_count > 0 || normal_priority_count > 0 {
+        info!("[Networking | Priority Queue] High: {} | Normal: {} | Tick processed",
+              high_priority_count, normal_priority_count);
     }
 }
 
@@ -481,4 +495,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.13 (Message Prioritization)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.14 (Priority Queue Metrics)
