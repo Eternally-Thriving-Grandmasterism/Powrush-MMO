@@ -1,13 +1,11 @@
 /*!
  * My Mercy Journey Panel (Dedicated File)
  *
- * Full dedicated bevy_egui-style panel showing:
- * - Humble Origin prominently
- * - Clickable category filters (All / Harvest / Epiphany / War & Victory / Joy & Redemption / Council)
- * - Real-time filtered Legacy Timeline using build_filterable_legacy_threads()
- * - Dynamic stats from LegacyJournalRegistry
+ * Full dedicated bevy_egui-style panel with:
+ * - Clickable category filters
+ * - Active filter now visually highlighted (distinct background + border)
+ * - Real-time filtered Legacy Timeline
  *
- * Extracted for clean architecture from player_progress_ui.rs
  * TOLC 8 + 7 Living Mercy Gates aligned.
  */
 
@@ -56,6 +54,7 @@ impl Plugin for MyMercyJourneyPanelPlugin {
             .add_systems(Update, (
                 toggle_my_mercy_journey_panel,
                 handle_filter_button_clicks,
+                update_filter_button_styles,      // NEW: Visual polish for active filter
                 update_my_mercy_journey_ui,
             ));
     }
@@ -196,6 +195,24 @@ fn handle_filter_button_clicks(
     }
 }
 
+/// NEW: Visual polish — Update filter button styles based on active filter
+fn update_filter_button_styles(
+    filter: Res<MyMercyJourneyFilter>,
+    mut button_query: Query<(&FilterButton, &mut BackgroundColor, &mut BorderColor)>,
+) {
+    for (filter_button, mut bg_color, mut border_color) in button_query.iter_mut() {
+        if filter_button.0 == filter.active {
+            // Active filter — highlighted
+            *bg_color = Color::srgb(0.25, 0.45, 0.65).into();
+            *border_color = Color::srgb(0.6, 0.85, 1.0).into();
+        } else {
+            // Inactive filter — normal
+            *bg_color = Color::srgb(0.15, 0.18, 0.22).into();
+            *border_color = Color::srgb(0.4, 0.5, 0.6).into();
+        }
+    }
+}
+
 // === Filterable Legacy Threads with Clickable Buttons (Real Data) ===
 fn update_my_mercy_journey_ui(
     legacy_registry: Option<Res<LegacyJournalRegistry>>,
@@ -272,4 +289,4 @@ fn update_my_mercy_journey_ui(
     }
 }
 
-// End of client/src/my_mercy_journey_panel.rs — Clean dedicated panel
+// End of client/src/my_mercy_journey_panel.rs — Active filter visually highlighted
