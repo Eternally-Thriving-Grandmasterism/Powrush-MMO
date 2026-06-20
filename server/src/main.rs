@@ -28,11 +28,20 @@ use server::mercy_anomaly_detector::activate_anomaly_detection;
 // New Council Mercy Trial system (Phase 2 Multiplayer Council)
 use server::council_session_handler::CouncilSessionPlugin;
 
+// OpenTelemetry distributed tracing
+use server::opentelemetry_tracing::init_opentelemetry_tracing;
+
 fn main() {
     apply_server_hardening();
 
+    // === Initialize OpenTelemetry Distributed Tracing early ===
+    // This must happen before any Bevy systems or spans are created
+    // so that diplomacy priority queue + future spans are captured and exported.
+    init_opentelemetry_tracing();
+
     info!("⚡ Powrush-MMO Authoritative Server v18.95 — Eternal Ra-Thor PATSAGi Governance Activated");
     info!("TOLC 8 + 7 Mercy Gates sealed as non-bypassable Layer 0");
+    info!("OpenTelemetry distributed tracing active — diplomacy/war spans exporting via OTLP");
     info!("Council Mercy Trial (Phase 2) systems activating...");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
