@@ -20,7 +20,6 @@ pub mod reputation_leaderboard;
 // === Council & Mercy Governance ===
 pub mod council_session;
 pub mod council_mercy_trial;
-pub mod council_replication;
 pub mod mercy_anomaly_detector;
 pub mod mirror_reckoning;
 pub mod ascension_mercy_ascent;
@@ -59,6 +58,9 @@ pub mod rathor_integration;
 
 // === Telemetry & Monitoring (Eternal Observability) ===
 pub mod telemetry_pipeline;
+
+// === OpenTelemetry Distributed Tracing ===
+pub mod opentelemetry_tracing;
 
 // === Safety Net Sovereignty Layer (v18.37) ===
 pub mod safety_net_broadcast;
