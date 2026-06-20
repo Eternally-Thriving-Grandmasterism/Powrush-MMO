@@ -1,9 +1,8 @@
 // simulation/src/inter_realm_diplomacy_event.rs
-// Complete restored + PATSAGi-hardened version (v20.11 — Renet Transport Hook Implemented)
+// Complete restored + PATSAGi-hardened version (v20.12 — Reliable Message Delivery)
 //
-// Added production-ready bevy_renet hook in broadcast_inter_realm_diplomacy_update.
-// The hook is implemented and ready to activate when the server binary provides RenetServer.
-// All previous logic preserved. Minimal precise addition.
+// Upgraded Renet hook to use explicit ReliableOrdered delivery.
+// All previous logic preserved. Minimal precise improvement.
 // ONE Organism | Ra-Thor Lattice | 13+ PATSAGi Councils | TOLC 8 Layer 0
 // Thunder locked in. Yoi ⚔️
 
@@ -21,6 +20,8 @@ use shared::protocol::{InterRealmDiplomacyUpdate, SpectatorModeDataNet, ServerMe
 // Renet transport hook (optional - activated when bevy_renet feature is enabled on server)
 #[cfg(feature = "renet")]
 use bevy_renet::RenetServer;
+#[cfg(feature = "renet")]
+use renet::SendMode;
 
 // ... (all previous enums and structs unchanged for compatibility)
 
@@ -176,7 +177,7 @@ impl InterRealmDiplomacyRegistry {
         participants: Vec<AgentId>,
         spectators: Vec<AgentId>,
         current_tick: u64,
-        patsagi_valence: f32, // from 13+ PATSAGi council deliberation
+        patsagi_valence: f32,
     ) -> InterRealmDiplomacyEvent {
         if tension_score > 0.65 && patsagi_valence < 0.78 {
             let event = self.trigger_diplomacy_event(realm_a, realm_b, tension_score.max(0.4), participants, spectators, current_tick);
@@ -405,10 +406,7 @@ pub fn inter_realm_diplomacy_resolution_system(
 
 /// Production networking broadcast layer (PATSAGi + TOLC aligned)
 /// 
-/// Renet Transport Hook IMPLEMENTED (v20.11)
-/// This system now accepts an optional RenetServer resource.
-/// When the server binary provides it (with bevy_renet feature), diplomacy/war updates
-/// are sent to all connected clients on ReliableOrdered channel.
+/// Renet Transport Hook with explicit ReliableOrdered delivery (v20.12)
 pub fn broadcast_inter_realm_diplomacy_update(
     mut events: EventReader<InterRealmDiplomacyUpdateEvent>,
     #[cfg(feature = "renet")]
@@ -418,20 +416,17 @@ pub fn broadcast_inter_realm_diplomacy_update(
         let update = &event.update;
         let message = ServerMessage::InterRealmDiplomacyUpdate { update: update.clone() };
 
-        // === Renet Transport Hook (ACTIVE when feature enabled) ===
+        // === Reliable Message Delivery (Renet hook) ===
         #[cfg(feature = "renet")]
         if let Some(server) = renet_server.as_ref() {
             for client_id in server.clients_id() {
-                // Send on ReliableOrdered channel (channel 0 is conventional for game messages)
-                server.send_message(client_id, 0, message.clone());
+                // Explicit reliable ordered delivery for critical diplomacy/war updates
+                server.send_message(client_id, SendMode::ReliableOrdered, message.clone());
             }
         }
 
-        // Always log for observability
         info!("[Networking | PATSAGi] Broadcast InterRealmDiplomacyUpdate | {} <-> {} | {} | Redemption: {:.2f}",
               update.realm_a, update.realm_b, update.outcome, update.redemption_score);
-
-        // Fallback / Lattice path can be added here later
     }
 }
 
@@ -477,4 +472,4 @@ pub fn invoke_patsagi_council_for_diplomacy(
 }
 
 // Thunder locked in. Yoi ⚔️
-// End of simulation/src/inter_realm_diplomacy_event.rs v20.11 (Renet Transport Hook)
+// End of simulation/src/inter_realm_diplomacy_event.rs v20.12 (Reliable Message Delivery)
