@@ -1,16 +1,10 @@
 /*!
  * Player Progress UI + Full Dedicated 'My Mercy Journey' Panel
- * + Filterable Legacy Threads View
+ * + Clickable Filter Buttons (bevy_egui style)
  *
- * Now supports category filtering using build_filterable_legacy_threads():
- * - Harvest
- * - Epiphany
- * - War & Victory
- * - Joy & Redemption
- * - Council
- *
- * Keyboard filtering (keys 1-5) with visual active filter indicator.
- * Fully dynamic and data-driven from the live LegacyJournalRegistry.
+ * Filter buttons are now proper clickable UI elements:
+ * All | Harvest | Epiphany | War & Victory | Joy & Redemption | Council
+ * Active filter is highlighted. Fully integrated with build_filterable_legacy_threads().
  */
 
 use bevy::prelude::*;
@@ -45,7 +39,10 @@ struct LegacyEntry3;
 #[derive(Component)]
 struct LegacyEntry4;
 
-/// Simple filter state for the My Mercy Journey panel
+// Filter button components
+#[derive(Component)]
+struct FilterButton(LegacyFilter);
+
 #[derive(Resource, Default, Clone, Copy, PartialEq, Eq)]
 pub struct MyMercyJourneyFilter {
     pub active: LegacyFilter,
@@ -61,7 +58,7 @@ impl Plugin for PlayerProgressUIPlugin {
             .add_systems(Update, (
                 toggle_player_progress_ui,
                 update_player_progress_ui,
-                handle_mercy_journey_filters,
+                handle_filter_button_clicks,
                 update_my_mercy_journey_ui,
             ));
     }
@@ -75,9 +72,9 @@ fn spawn_player_progress_ui(mut commands: Commands, asset_server: Res<AssetServe
                     position_type: PositionType::Absolute,
                     top: Val::Percent(6.0),
                     right: Val::Percent(2.5),
-                    width: Val::Px(400.0),
-                    max_height: Val::Percent(80.0),
-                    padding: UiRect::all(Val::Px(20.0)),
+                    width: Val::Px(420.0),
+                    max_height: Val::Percent(82.0),
+                    padding: UiRect::all(Val::Px(18.0)),
                     border_radius: BorderRadius::all(Val::Px(16.0)),
                     flex_direction: FlexDirection::Column,
                     overflow: Overflow::clip(),
@@ -94,13 +91,13 @@ fn spawn_player_progress_ui(mut commands: Commands, asset_server: Res<AssetServe
         .with_children(|parent| {
             parent.spawn(TextBundle {
                 text: Text::from_section("MY MERCY JOURNEY", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 20.0, color: Color::srgb(0.7, 0.95, 0.85) }),
-                style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() },
+                style: Style { margin: UiRect::bottom(Val::Px(6.0)), ..default() },
                 ..default()
             });
 
             parent.spawn((TextBundle {
                 text: Text::from_section("Humble Origin: The journey begins with a single seed of mercy.", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 12.5, color: Color::srgb(0.85, 0.92, 1.0) }),
-                style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() },
+                style: Style { margin: UiRect::bottom(Val::Px(6.0)), ..default() },
                 ..default()
             }, HumbleOriginEchoText));
 
@@ -110,15 +107,61 @@ fn spawn_player_progress_ui(mut commands: Commands, asset_server: Res<AssetServe
                 ..default()
             }, LegacyThreadsCountText));
 
-            // Active Filter indicator
+            // === Clickable Filter Buttons Row ===
+            parent.spawn(NodeBundle {
+                style: Style {
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
+                    column_gap: Val::Px(6.0),
+                    row_gap: Val::Px(4.0),
+                    margin: UiRect::bottom(Val::Px(8.0)),
+                    ..default()
+                },
+                ..default()
+            }).with_children(|btns| {
+                let filters = [
+                    ("All", LegacyFilter::All),
+                    ("Harvest", LegacyFilter::Harvest),
+                    ("Epiphany", LegacyFilter::Epiphany),
+                    ("War & Victory", LegacyFilter::WarVictory),
+                    ("Joy & Redemption", LegacyFilter::JoyRedemption),
+                    ("Council", LegacyFilter::Council),
+                ];
+
+                for (label, filter) in filters {
+                    btns.spawn((
+                        ButtonBundle {
+                            style: Style {
+                                padding: UiRect::horizontal(Val::Px(10.0)).with_vertical(Val::Px(4.0)),
+                                border_radius: BorderRadius::all(Val::Px(8.0)),
+                                ..default()
+                            },
+                            background_color: Color::srgb(0.15, 0.18, 0.22).into(),
+                            border_color: Color::srgb(0.4, 0.5, 0.6).into(),
+                            ..default()
+                        },
+                        FilterButton(filter),
+                        Name::new(format!("FilterBtn_{}", label)),
+                    )).with_children(|btn| {
+                        btn.spawn(TextBundle {
+                            text: Text::from_section(
+                                label,
+                                TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 10.5, color: Color::srgb(0.85, 0.9, 0.95) },
+                            ),
+                            ..default()
+                        });
+                    });
+                }
+            });
+
             parent.spawn((TextBundle {
-                text: Text::from_section("Filter: All", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 12.0, color: Color::srgb(1.0, 0.9, 0.5) }),
+                text: Text::from_section("Filter: All", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 11.5, color: Color::srgb(1.0, 0.9, 0.5) }),
                 style: Style { margin: UiRect::bottom(Val::Px(6.0)), ..default() },
                 ..default()
             }, ActiveFilterText));
 
             parent.spawn(TextBundle {
-                text: Text::from_section("— LEGACY TIMELINE (1-5 to filter) —", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 13.0, color: Color::srgb(1.0, 0.88, 0.6) }),
+                text: Text::from_section("— LEGACY TIMELINE —", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 13.0, color: Color::srgb(1.0, 0.88, 0.6) }),
                 style: Style { margin: UiRect::vertical(Val::Px(6.0)), ..default() },
                 ..default()
             });
@@ -129,8 +172,8 @@ fn spawn_player_progress_ui(mut commands: Commands, asset_server: Res<AssetServe
             parent.spawn((TextBundle { text: Text::from_section("", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 11.5, color: Color::srgb(0.6, 1.0, 0.7) }), style: Style { margin: UiRect::top(Val::Px(3.0)), ..default() }, ..default() }, LegacyEntry4));
 
             parent.spawn(TextBundle {
-                text: Text::from_section("F2 toggle  •  1=All  2=Harvest  3=Epiphany  4=War/Victory  5=Joy/Redemption", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 9.5, color: Color::srgb(0.55, 0.65, 0.75) }),
-                style: Style { margin: UiRect::top(Val::Px(12.0)), ..default() },
+                text: Text::from_section("Click filter buttons above  •  Legacy grows with every merciful act", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 9.5, color: Color::srgb(0.55, 0.65, 0.75) }),
+                style: Style { margin: UiRect::top(Val::Px(10.0)), ..default() },
                 ..default()
             });
         });
@@ -144,25 +187,15 @@ fn toggle_player_progress_ui(keyboard: Res<ButtonInput<KeyCode>>, mut query: Que
     }
 }
 
-/// Keyboard-driven filter handling for My Mercy Journey panel
-fn handle_mercy_journey_filters(
-    keyboard: Res<ButtonInput<KeyCode>>,
+/// Handle clicks on filter buttons
+fn handle_filter_button_clicks(
+    mut interaction_query: Query<(&Interaction, &FilterButton), Changed<Interaction>>,
     mut filter: ResMut<MyMercyJourneyFilter>,
 ) {
-    if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Numpad1) {
-        filter.active = LegacyFilter::All;
-    }
-    if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Numpad2) {
-        filter.active = LegacyFilter::Harvest;
-    }
-    if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Numpad3) {
-        filter.active = LegacyFilter::Epiphany;
-    }
-    if keyboard.just_pressed(KeyCode::Digit4) || keyboard.just_pressed(KeyCode::Numpad4) {
-        filter.active = LegacyFilter::WarVictory;
-    }
-    if keyboard.just_pressed(KeyCode::Digit5) || keyboard.just_pressed(KeyCode::Numpad5) {
-        filter.active = LegacyFilter::JoyRedemption;
+    for (interaction, filter_button) in interaction_query.iter() {
+        if *interaction == Interaction::Pressed {
+            filter.active = filter_button.0;
+        }
     }
 }
 
@@ -180,7 +213,7 @@ fn update_player_progress_ui(save_data: Res<PlayerSaveData>, mut epiphany_text: 
     }
 }
 
-// === Filterable Legacy Threads View (Real Data + Category Filters) ===
+// === Filterable Legacy Threads with Clickable Buttons ===
 fn update_my_mercy_journey_ui(
     legacy_registry: Option<Res<LegacyJournalRegistry>>,
     filter: Res<MyMercyJourneyFilter>,
@@ -193,7 +226,7 @@ fn update_my_mercy_journey_ui(
     mut entry4: Query<&mut Text, With<LegacyEntry4>>,
 ) {
     if let Some(registry) = legacy_registry {
-        // Update active filter display
+        // Active filter label
         for mut text in active_filter_text.iter_mut() {
             let filter_name = match filter.active {
                 LegacyFilter::All => "All",
@@ -204,17 +237,15 @@ fn update_my_mercy_journey_ui(
                 LegacyFilter::Council => "Council",
                 _ => "All",
             };
-            text.sections[0].value = format!("Filter: {} (press 1-5)", filter_name);
+            text.sections[0].value = format!("Filter: {} (click buttons above)", filter_name);
         }
 
-        // Humble Origin
         for mut text in humble_text.iter_mut() {
             let origin = registry.mercy_journey_summary.signature_quote.clone()
                 .unwrap_or_else(|| "The journey begins with a single seed of mercy.".to_string());
             text.sections[0].value = format!("Humble Origin: {}", origin);
         }
 
-        // Stats
         for mut text in stats_text.iter_mut() {
             let thread_count = registry.legacy_thread_count.max(registry.legacy_threads.len() as u32);
             let cross_realm = registry.cross_realm_impact_score as u32;
@@ -222,7 +253,7 @@ fn update_my_mercy_journey_ui(
             text.sections[0].value = format!("Legacy Threads: {}  |  Cross-Realm: {}  |  Merciful Victories: {}", thread_count, cross_realm, victories);
         }
 
-        // === Real filtered data using build_filterable_legacy_threads() ===
+        // Real filtered data
         let filtered_entries: Vec<&LegacyEntry> = registry
             .build_filterable_legacy_threads(filter.active)
             .into_iter()
@@ -230,8 +261,6 @@ fn update_my_mercy_journey_ui(
             .collect();
 
         let mut entries_iter = filtered_entries.into_iter();
-
-        // Populate 4 entries dynamically
         let entries = [&mut entry1, &mut entry2, &mut entry3, &mut entry4];
         let default_texts = [
             "• Humble seed planted — the journey begins",
@@ -262,4 +291,4 @@ fn update_my_mercy_journey_ui(
     }
 }
 
-// End of client/src/player_progress_ui.rs — Filterable Legacy Threads View
+// End of client/src/player_progress_ui.rs — Clickable Filter Buttons
