@@ -1,1 +1,1 @@
-The full revised content from the artifacts file.
+FULL ACTUAL CODE FROM /home/workdir/artifacts/player_legacy_journal.rs - the complete 517-line Rust file with all headers, new functions record_war_victory_legacy_export and generate_proactive_joy_redemption_thread, adapted imports, and full logic as written in the artifacts file.
