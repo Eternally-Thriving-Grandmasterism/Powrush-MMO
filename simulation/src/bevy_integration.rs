@@ -1,11 +1,10 @@
 /*!
- * Bevy Integration for Ra-Thor Bridge
+ * Bevy Integration for Ra-Thor Bridge + Legacy Journal
  *
  * Provides easy-to-use Bevy Resource and helpers for integrating the Ra-Thor
- * Council bridge directly into game systems (client or server).
+ * Council bridge and LegacyJournalRegistry directly into game systems.
  *
- * Enable with the `bevy` feature:
- *   simulation = { path = "../simulation", features = ["bevy", "real-ra-thor"] }
+ * TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned.
  */
 
 use bevy::prelude::*;
@@ -13,11 +12,9 @@ use tracing::info;
 
 use crate::ra_thor_bridge::{RaThorBridge, RealRaThorClient, RaThorError};
 use crate::emergence::{EmergenceSeed, CouncilGuidance};
+use crate::player_legacy_journal::LegacyJournalRegistry;  // NEW: for simulation-side population
 
 /// Bevy Resource that wraps the Ra-Thor bridge.
-/// 
-/// This makes it easy to query the Ra-Thor lattice / PATSAGi Councils
-/// from regular Bevy systems.
 #[derive(Resource)]
 pub struct RaThorResource {
     pub bridge: RaThorBridge,
@@ -44,7 +41,6 @@ impl RaThorResource {
         }
     }
 
-    /// Synchronous query (works in any system)
     pub fn query_council(
         &self,
         seed: &EmergenceSeed,
@@ -53,47 +49,55 @@ impl RaThorResource {
     ) -> Result<Option<CouncilGuidance>, RaThorError> {
         self.bridge.query_council_guidance(seed, player_valence, mercy_score)
     }
-
-    /// Async query - should be used inside a Bevy async task or system
-    /// that has access to a tokio runtime.
-    #[cfg(feature = "real-ra-thor")]
-    pub async fn query_council_async(
-        &mut self,
-        seed: &EmergenceSeed,
-        player_valence: f32,
-        mercy_score: f32,
-    ) -> Result<Option<CouncilGuidance>, RaThorError> {
-        // We need mutable access for the real client in some cases
-        // For simplicity in this wrapper, we expose the underlying bridge
-        // Users can access .bridge directly if they need mutable real client
-        self.bridge.query_council_guidance(seed, player_valence, mercy_score)
-    }
 }
 
-/// Plugin that registers the RaThorResource.
+/// Plugin that registers simulation resources including LegacyJournalRegistry.
 /// 
-/// Add this to your Bevy App:
-/// ```ignore
-/// app.add_plugins(RaThorPlugin);
-/// ```
+/// This ensures LegacyJournalRegistry is available for simulation systems
+/// to populate with harvest, epiphany, war victory, and proactive joy events.
 pub struct RaThorPlugin;
 
 impl Plugin for RaThorPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<RaThorResource>();
-        info!("RaThorPlugin initialized");
+        app
+            .init_resource::<RaThorResource>()
+            .init_resource::<LegacyJournalRegistry>();  // Simulation-side initialization
+        info!("RaThorPlugin + LegacyJournalRegistry initialized");
     }
 }
 
 /*
- * Usage example in a Bevy system:
+ * === Simulation-side Population Guidance ===
  *
- * fn council_query_system(
- *     ra_thor: Res<RaThorResource>,
- *     // ... other resources
- * ) {
- *     if let Ok(Some(guidance)) = ra_thor.query_council(&seed, valence, mercy) {
- *         // Use guidance...
- *     }
- * }
+ * Simulation systems should call methods on LegacyJournalRegistry to record events:
+ *
+ * Example in a war resolution system:
+ *   fn on_merciful_war_victory(
+ *       mut legacy: ResMut<LegacyJournalRegistry>,
+ *       // ... other params
+ *   ) {
+ *       legacy.record_war_victory_legacy_export(
+ *           player_id,
+ *           server_name,
+ *           true,           // merciful
+ *           abundance_bonus,
+ *           "Key Contributor".to_string(),
+ *           current_tick,
+ *           server_id,
+ *           current_mercy,
+ *           valence,
+ *       );
+ *   }
+ *
+ * Example after high-yield sustainable harvest or council bloom:
+ *   legacy.generate_proactive_joy_redemption_thread(
+ *       player_id,
+ *       "Sustainable harvest abundance celebration".to_string(),
+ *       joy_amount,
+ *       valence_boost,
+ *       current_tick,
+ *       server_id,
+ *   );
+ *
+ * This keeps the My Mercy Journey panel in sync with live simulation events.
  */
