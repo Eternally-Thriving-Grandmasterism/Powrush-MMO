@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -10,11 +10,12 @@ struct CouncilEvent {
 }
 
 // ============================================================
-// p50 / p99 LATENCY PERCENTILES
+// p50 / p99 LATENCY PERCENTILES (with higher sample size for stability)
 // ============================================================
 
 fn bench_latency_percentiles(c: &mut Criterion) {
     let mut group = c.benchmark_group("latency_p50_p99");
+    group.sample_size(50); // Increase samples for more stable percentile estimates
 
     group.bench_function("flume", |b| {
         b.iter(|| {
@@ -99,13 +100,13 @@ fn bench_latency_percentiles(c: &mut Criterion) {
 }
 
 // ============================================================
-// MULTI-PRODUCER LATENCY (4 producers) - Expanded
+// MULTI-PRODUCER LATENCY (4 producers) with higher sample size
 // ============================================================
 
 fn bench_multi_producer_latency(c: &mut Criterion) {
     let mut group = c.benchmark_group("multi_producer_latency_p50_p99");
+    group.sample_size(30); // Slightly lower for expensive multi-producer tests
 
-    // Flume 4 producers
     group.bench_function("flume_4p", |b| {
         b.iter(|| {
             let (tx, rx) = flume::bounded::<u64>(1024);
@@ -141,7 +142,6 @@ fn bench_multi_producer_latency(c: &mut Criterion) {
         });
     });
 
-    // Kanal 4 producers
     group.bench_function("kanal_4p", |b| {
         b.iter(|| {
             let (tx, rx) = kanal::bounded::<u64>(1024);
@@ -177,7 +177,6 @@ fn bench_multi_producer_latency(c: &mut Criterion) {
         });
     });
 
-    // Crossbeam-channel 4 producers
     group.bench_function("crossbeam_4p", |b| {
         b.iter(|| {
             let (tx, rx) = crossbeam_channel::bounded::<u64>(1024);
