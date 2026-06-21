@@ -1,6 +1,6 @@
 //! simulation/src/ability_tree.rs
 //! Powrush-MMO Ability Tree System with Mutation Synergy Chains + Stage 0/1/2 + Cross-Race Chain Synergy
-//! v1.7 — Event Emission for Synergy Effects Added
+//! v1.8 — Added agent_id to SynergyEffectEvent for richer per-agent observability
 //! Derived from Ra-Thor powrush-mmo-simulator v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | PATSAGi aligned
 
@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::epigenetic_modulation::{MutationType, EpigeneticProfile};
+use crate::world::AgentId;
 
 /// Core ability definition (extensible for advanced effects).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,15 +250,16 @@ impl AbilityTree {
     }
 
     // ========================================================================
-    // MECHANICAL SYNERGY BONUS APPLICATION + EVENT EMISSION (v1.7)
-    // Applies real effects + returns structured events for observability (tracing, UI, client sync).
+    // MECHANICAL SYNERGY BONUS APPLICATION + EVENT EMISSION (v1.8)
+    // Applies real effects + returns structured events with agent_id for per-agent observability.
     // ========================================================================
 
     /// Applies the mechanical effects of active synergy bonuses directly to the agent's epigenetic profile.
-    /// Returns a list of `SynergyEffectEvent` describing exactly what changed — ready for structured emission.
-    /// Called every tick from the production evolutionary processing loop.
+    /// Returns a list of `SynergyEffectEvent` (now including `agent_id`) describing exactly what changed.
+    /// Called every tick from the production evolutionary processing loop in orchestrator.
     pub fn apply_synergy_bonuses_to_profile(
         &self,
+        agent_id: AgentId,
         profile: &mut EpigeneticProfile,
         synergies: &[SynergyBonus],
     ) -> Vec<SynergyEffectEvent> {
@@ -297,8 +299,9 @@ impl AbilityTree {
                 SynergyType::GlobalCooldownReduction { reduction_percent: _ } => {}
             }
 
-            // Emit structured event describing the change
+            // Emit structured event describing the change (now with agent_id)
             events.push(SynergyEffectEvent {
+                agent_id,
                 chain_name: bonus.name.clone(),
                 stage: bonus.stage,
                 bonus_type: format!("{:?}", bonus.bonus_type),
@@ -325,9 +328,10 @@ pub struct AbilityState {
 }
 
 /// Structured event emitted when synergy bonuses are applied.
-/// Enables rich observability, tracing, future UI sync, and client replication.
+/// Now includes `agent_id` for per-agent filtering, UI sync, and rich observability.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SynergyEffectEvent {
+    pub agent_id: AgentId,
     pub chain_name: String,
     pub stage: u8,
     pub bonus_type: String,
