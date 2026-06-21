@@ -1,7 +1,8 @@
 /*!
- * CouncilEventBus with CRC64 Checksums for Stronger Data Integrity.
+ * CouncilEventBus with CRC64 + Graceful Error Handling on Corruption.
  *
- * Uses CRC-64 (ECMA-182) for significantly better error detection than CRC32.
+ * When checksum verification fails, corrupted records are skipped with a warning
+ * instead of failing the entire load. This provides practical resilience.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -178,22 +179,41 @@ fn compute_crc64(data: &str) -> u64 {
     digest.finalize()
 }
 
+/// Loads events and verifies CRC64 checksums when present.
+/// Corrupted records are skipped with a warning (graceful degradation).
 pub fn load_events_from_log<P: AsRef<Path>>(path: P) -> std::io::Result<Vec<CouncilEvent>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut events = Vec::new();
 
-    for line in reader.lines() {
-        let line = line?;
+    for (line_num, line_result) in reader.lines().enumerate() {
+        let line = line_result?;
         if line.trim().is_empty() { continue; }
 
-        let json_part = if let Some(pos) = line.rfind("|crc64:") {
-            &line[..pos]
-        } else if let Some(pos) = line.rfind("|crc32:") { // backward compat
-            &line[..pos]
+        let (json_part, stored_checksum) = if let Some(pos) = line.rfind("|crc64:") {
+            let json = &line[..pos];
+            let checksum_str = &line[pos + 7..];
+            let checksum = u64::from_str_radix(checksum_str, 16).unwrap_or(0);
+            (json, Some(checksum))
+        } else if let Some(pos) = line.rfind("|crc32:") {
+            // Legacy CRC32 support (no verification)
+            (&line[..pos], None)
         } else {
-            &line
+            (&line, None)
         };
+
+        // Verify checksum if present
+        if let Some(expected) = stored_checksum {
+            let actual = compute_crc64(json_part);
+            if actual != expected {
+                eprintln!(
+                    "Warning: CRC64 mismatch in {} at line {}. Skipping corrupted record.",
+                    path.as_ref().display(),
+                    line_num + 1
+                );
+                continue; // Skip corrupted record
+            }
+        }
 
         if let Ok(event) = serde_json::from_str::<CouncilEvent>(json_part) {
             events.push(event);
