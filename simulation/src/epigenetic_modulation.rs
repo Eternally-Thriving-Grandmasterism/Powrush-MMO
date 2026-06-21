@@ -176,6 +176,68 @@ pub fn apply_corruption_lifecycle(
     }
 }
 
-// Note: Mutation triggers (Harmonic Rebirth, Volatile Surge, Corrupted Echo) are intentionally
-// left for the next derivation phase so we can first stabilize the core volatility lifecycle.
-// They will be added as a clean extension that reads from this module.
+// ============================================================================
+// EPIGENETIC MUTATION TRIGGERS (Phase C — Evolutionary Branch Points)
+// Derived from Ra-Thor v15.20
+// ============================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum MutationType {
+    /// Redemptive / stabilizing path — triggered by high harmony + Resilience synergy
+    HarmonicRebirth,
+    /// High-risk / high-reward power spike path
+    VolatileSurge,
+    /// Dangerous long-term consequence from extreme corruption
+    CorruptedEcho,
+}
+
+impl MutationType {
+    pub fn name(&self) -> &'static str {
+        match self {
+            MutationType::HarmonicRebirth => "Harmonic Rebirth",
+            MutationType::VolatileSurge => "Volatile Surge",
+            MutationType::CorruptedEcho => "Corrupted Echo",
+        }
+    }
+
+/// Attempts to trigger a permanent epigenetic mutation when conditions are met.
+/// This is the key evolutionary branch point on top of the volatility lifecycle.
+/// Returns Some(mutation) if a mutation successfully triggers (one-time per type in practice).
+pub fn try_trigger_epigenetic_mutation(
+    profile: &EpigeneticProfile,
+    in_high_risk: bool,
+    has_resilience_synergy: bool,
+    global_harmony: f32,
+    current_tick: u64,
+) -> Option<MutationType> {
+    if !in_high_risk {
+        return None;
+    }
+
+    // Core trigger conditions (corruption + volatility threshold)
+    if profile.corruption <= 1.05 || profile.volatility <= 1.40 {
+        return None;
+    }
+
+    // Check window (every ~55 ticks)
+    if current_tick % 55 != 0 {
+        return None;
+    }
+
+    // Probabilistic trigger (~32% base, scales with corruption)
+    let trigger_chance = 0.32 + (profile.corruption - 1.0) * 0.08;
+    if rand::random::<f32>() >= trigger_chance.clamp(0.25, 0.65) {
+        return None;
+    }
+
+    // Priority order: Harmonic Rebirth (redemption) > Corrupted Echo (extreme taint) > Volatile Surge (default risky power)
+    if global_harmony > 1.9 && has_resilience_synergy && profile.cooperation_score > 0.85 {
+        return Some(MutationType::HarmonicRebirth);
+    }
+
+    if profile.corruption > 1.65 {
+        return Some(MutationType::CorruptedEcho);
+    }
+
+    Some(MutationType::VolatileSurge)
+}
