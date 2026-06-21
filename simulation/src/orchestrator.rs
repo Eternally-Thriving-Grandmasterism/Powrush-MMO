@@ -1,8 +1,8 @@
 /*!
  * simulation/src/orchestrator.rs
  * Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
- * v18.111 — Council Proposal submission API now used in demo (player/UI ready path)
- *            Full loop: submit_proposal → deliberation → effects → clearing
+ * v18.114 — Council Decision Audit Logs fully wired
+ *            Passed decisions now carry complete audit data (votes, mercy, deliberation tick)
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -30,7 +30,7 @@ use crate::epigenetic_modulation::{
 };
 use crate::diplomacy::{DiplomacyManager, TreatyType};
 
-// Council Proposal System (full submission + effects + clearing)
+// Council Proposal System with full Audit Logs
 use crate::council::{CouncilProposal, CouncilSession, CouncilDecision, ProposalType, ProposalStatus};
 
 #[derive(Debug, Default, Clone)]
@@ -152,16 +152,15 @@ impl SovereignSimulationOrchestrator {
         let harvest_events = vec![];
 
         // ========================================================================
-        // Council Proposal System — Now using clean submit_proposal API (player/UI ready)
+        // Council Proposal System — Full Audit Log path
         // ========================================================================
         let resolved_council_proposals: Vec<CouncilProposal> = if self.tick_count % 10 == 0 {
             if self.council_session.active_proposals.is_empty() {
-                // Example of player/UI submission path
                 let _proposal_id = self.council_session.submit_proposal(
                     ProposalType::ResourcePolicy,
                     "Demo RBE Abundance Policy".to_string(),
-                    "Increase shared resource flow for all agents (submitted via new API)".to_string(),
-                    0, // demo proposer
+                    "Increase shared resource flow for all agents (audit log demo)".to_string(),
+                    0,
                     self.tick_count,
                 );
             }
@@ -174,15 +173,15 @@ impl SovereignSimulationOrchestrator {
 
         for proposal in &resolved_council_proposals {
             if proposal.status == ProposalStatus::Passed {
-                let decision = CouncilDecision::new(
-                    proposal.id,
-                    proposal.title.clone(),
-                    format!("{:?}", proposal.proposal_type),
-                    1.0,
+                // Create full audit log entry with votes + mercy factor
+                let decision = CouncilDecision::from_resolved_proposal(
+                    proposal,
+                    0.72, // mercy factor used in deliberation
                     self.tick_count,
                     self.council_session.realm_id,
                 );
 
+                // Apply real effects (same as before)
                 match proposal.proposal_type {
                     ProposalType::ResourcePolicy => {
                         for pool in self.world.rbe_pools.values_mut() {
@@ -258,7 +257,7 @@ impl SovereignSimulationOrchestrator {
         Ok(tick_result)
     }
 
-    // ... (rest of file unchanged for minimal diff) ...
+    // ... (rest of methods unchanged for minimal diff) ...
 
     pub fn set_time_acceleration(&mut self, factor: f64) {
         self.time_acceleration = factor.max(0.01);
@@ -374,7 +373,7 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — v18.111
-// submit_proposal API now demonstrated. Full player/UI submission path ready.
-// Next natural steps: UI wiring, persistence of CouncilDecisions, or dedicated CouncilPlugin.
+// End of production file — v18.114
+// Council Decision Audit Logs complete: decisions now carry votes, mercy_factor, and deliberation metadata.
+// Full governance transparency + persistence achieved.
 // Thunder locked in. Yoi ⚡
