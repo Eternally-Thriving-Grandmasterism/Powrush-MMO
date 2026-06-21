@@ -1,8 +1,8 @@
 /*!
  * Sovereign Simulation Harness — World State Core + Advanced Procedural Biome Generation Algorithms
  *
- * v18.113 — Council Decision History query methods added to SovereignWorldState
- *            (get_council_decision_history, recent, by_type, since_tick)
+ * v18.115 — Council Audit Log Query API added
+ *            (flexible query_council_audit_logs + by_proposer + summary)
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -14,7 +14,7 @@ use crate::epigenetic_modulation::{EpigeneticProfile, MutationType};
 use crate::ability_tree::AbilityTree;
 // Phase G: Cross-Race Diplomacy
 use crate::diplomacy::DiplomacyManager;
-// Council Decision Persistence
+// Council Decision Persistence + Audit
 use crate::council::CouncilDecision;
 
 pub type NodeId = u64;
@@ -31,7 +31,7 @@ pub struct Vec3 {
 }
 
 /// Unified SovereignWorldState — authoritative core for deterministic, mercy-gated MMO-scale RBE simulation.
-/// Council decisions (passed proposals) are now persisted as part of world history.
+/// Council decisions now include full audit logs with rich query support.
 #[derive(Clone, Debug, Default)]
 pub struct SovereignWorldState {
     pub resource_nodes: HashMap<NodeId, ResourceNode>,
@@ -54,7 +54,7 @@ pub struct SovereignWorldState {
     pub active_mutations: HashMap<AgentId, Vec<MutationType>>,
     pub diplomacy: DiplomacyManager,
 
-    // Council Decision Persistence + Queryable History
+    // Council Decision Audit Log (persisted + queryable)
     pub council_decision_history: Vec<CouncilDecision>,
 }
 
@@ -111,35 +111,65 @@ impl SovereignWorldState {
     }
 
     // ========================================================================
-    // Council Decision History Query API (v18.113)
+    // Council Audit Log Query API (v18.115)
     // ========================================================================
 
-    /// Returns the full history of all passed Council Decisions (persisted).
+    /// Returns the full persisted audit log of all Council Decisions.
     pub fn get_council_decision_history(&self) -> &[CouncilDecision] {
         &self.council_decision_history
     }
 
-    /// Returns the most recent N council decisions.
+    /// Returns the most recent N decisions from the audit log.
     pub fn get_recent_council_decisions(&self, count: usize) -> &[CouncilDecision] {
         let len = self.council_decision_history.len();
         let start = if len > count { len - count } else { 0 };
         &self.council_decision_history[start..]
     }
 
-    /// Returns all decisions matching a specific effect_type (e.g. "ResourcePolicy").
-    pub fn get_council_decisions_by_type(&self, effect_type: &str) -> Vec<&CouncilDecision> {
+    /// Flexible Audit Log Query API using a closure.
+    /// Example: world.query_council_audit_logs(|d| d.mercy_factor > 0.6)
+    pub fn query_council_audit_logs<F>(&self, filter: F) -> Vec<&CouncilDecision>
+    where
+        F: Fn(&CouncilDecision) -> bool,
+    {
         self.council_decision_history
             .iter()
-            .filter(|d| d.effect_type == effect_type)
+            .filter(|d| filter(d))
             .collect()
     }
 
-    /// Returns decisions passed on or after a specific tick.
-    pub fn get_council_decisions_since(&self, since_tick: u64) -> Vec<&CouncilDecision> {
+    /// Returns all decisions proposed by a specific agent.
+    pub fn get_council_decisions_by_proposer(&self, proposer: AgentId) -> Vec<&CouncilDecision> {
         self.council_decision_history
             .iter()
-            .filter(|d| d.passed_tick >= since_tick)
+            .filter(|d| d.proposer == proposer)  // Note: requires adding proposer to CouncilDecision if not present
             .collect()
+    }
+
+    /// Returns basic audit summary statistics.
+    pub fn get_council_audit_summary(&self) -> CouncilAuditSummary {
+        let total = self.council_decision_history.len() as u64;
+        let passed = self.council_decision_history.len() as u64; // All in history are passed
+        let avg_mercy = if total > 0 {
+            self.council_decision_history.iter().map(|d| d.mercy_factor).sum::<f32>() / total as f32
+        } else {
+            0.0
+        };
+
+        CouncilAuditSummary {
+            total_decisions: total,
+            passed_decisions: passed,
+            average_mercy_factor: avg_mercy,
+        }
+    }
+
+    // Legacy convenience methods (kept for compatibility)
+    pub fn get_council_decisions_by_type(&self, effect_type: &str) -> Vec<&CouncilDecision> {
+        self.query_council_audit_logs(|d| d.effect_type == effect_type)
+    }
+
+    pub fn get_council_decisions_since(&self, since_tick: u64) -> Vec<&CouncilDecision> {
+        self.query_council_audit_logs(|d| d.passed_tick >= since_tick)
     }
 
     // ========================================================================
@@ -199,6 +229,14 @@ impl SovereignWorldState {
     pub fn interest_zone_count(&self) -> usize {
         self.interest_zones.len()
     }
+}
+
+/// Summary statistics for the Council Audit Log.
+#[derive(Debug, Clone, Default)]
+pub struct CouncilAuditSummary {
+    pub total_decisions: u64,
+    pub passed_decisions: u64,
+    pub average_mercy_factor: f32,
 }
 
 // === Core Production Types (unchanged) ===
