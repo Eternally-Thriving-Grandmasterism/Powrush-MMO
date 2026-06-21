@@ -1,9 +1,5 @@
 /*!
- * CouncilSession with Dynamic Mercy Threshold + Telemetry Logging.
- *
- * Comprehensive observability for Ra-Thor consensus behavior.
- *
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * CouncilSession with last dynamic threshold exposed.
  */
 
 use tracing::info;
@@ -21,6 +17,7 @@ pub struct CouncilSession {
     next_proposal_id: u64,
     #[serde(skip)]
     pub event_bus: Option<CouncilEventBus>,
+    last_dynamic_threshold: Option<f32>,   // NEW: for observability
 }
 
 impl CouncilSession {
@@ -31,12 +28,18 @@ impl CouncilSession {
             last_session_tick: current_tick,
             next_proposal_id: current_tick,
             event_bus: None,
+            last_dynamic_threshold: None,
         }
     }
 
     pub fn with_event_bus(mut self, bus: CouncilEventBus) -> Self {
         self.event_bus = Some(bus);
         self
+    }
+
+    /// Returns the dynamic mercy threshold used in the last deliberation.
+    pub fn last_dynamic_threshold(&self) -> Option<f32> {
+        self.last_dynamic_threshold
     }
 
     pub fn submit_proposal(
@@ -79,13 +82,13 @@ impl CouncilSession {
     pub fn run_deliberation(&mut self, average_mercy: f32, current_tick: u64) -> Vec<CouncilProposal> {
         let mut resolved = vec![];
 
-        // === Dynamic Mercy Threshold Scaling ===
         let base_threshold: f32 = 0.72;
         let mercy_health = (average_mercy / 100.0).clamp(0.0, 1.0);
         let scaling = (mercy_health - 0.5) * 0.12;
         let dynamic_threshold = (base_threshold - scaling).clamp(0.60, 0.85);
 
-        // Telemetry: Log current deliberation context
+        self.last_dynamic_threshold = Some(dynamic_threshold); // store for observability
+
         info!(
             target: "ra_thor::consensus",
             realm_id = self.realm_id,
@@ -132,7 +135,6 @@ impl CouncilSession {
                             proposal.status = ProposalStatus::Rejected;
                         }
 
-                        // Telemetry: Log individual proposal evaluation
                         info!(
                             target: "ra_thor::consensus",
                             realm_id = self.realm_id,
