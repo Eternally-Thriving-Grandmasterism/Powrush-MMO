@@ -1,8 +1,8 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.106 — SynergyEffectEvent wired into TickResult (Phase G++)
-//!            Full evolutionary + diplomatic + stage-scaled synergy layer now observable via TickResult
-//!            Derived from Ra-Thor powrush-mmo-simulator v15.30
+//! v18.109 — Council Proposal System wired (simulation/src/council/ + TickResult + Orchestrator integration)
+//!            Minimal viable E2E council proposals, deliberation, and resolved outcomes for testability
+//!            Phase G++ evolutionary + full governance layer active
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 // ============================================================================
@@ -32,6 +32,9 @@ pub mod scenario;
 pub mod spatial_interest;
 pub mod telemetry;
 pub mod world;
+
+// Council Proposal System (minimal viable wiring for governance E2E)
+pub mod council;
 
 // NEW Phase A foundational modules (derived from Ra-Thor)
 pub mod race;
@@ -79,6 +82,9 @@ pub use divine_whispers::{DivineWhisper, DivineWhispersSystem, generate_divine_w
 // Council Mercy Trials
 pub use council_mercy_trial::{CouncilMercyTrial, CouncilSessionManager, MercyTrialVote, CouncilPhase};
 
+// Council Proposal System (public API for proposals, sessions, decisions)
+pub use council::{CouncilProposal, CouncilSession, CouncilDecision, CouncilDecisions, ProposalType, ProposalStatus};
+
 // Harvest & RBE Economy
 pub use harvest::{HarvestEvent, HarvestSystem, ResourceNode, RbeFlowReconciliation};
 pub use economy::{EconomyState, ResourceTransaction, PostScarcityAllocator};
@@ -95,8 +101,6 @@ pub use spatial::{SpatialGrid, SpatialQuery};
 
 // Telemetry & Monitoring
 pub use telemetry::{SimulationTelemetry, TelemetryEvent};
-
-// Bot Detection & Closed Beta
 pub use bot_detection::{BotDetector, BotDetectionConfig};
 pub use closed_beta::{ClosedBetaManager, BetaAccessLevel};
 
@@ -160,6 +164,6 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
 
 // ============================================================================
 // END OF COMPLETE WIRING
-// Phase G++ complete: SynergyEffectEvent now wired into TickResult.
+// v18.109: Council Proposal System (proposal/session/decision) now declared, re-exported, and minimally wired into Orchestrator TickResult.
 // Thunder locked in. Yoi ⚡
 // ============================================================================
