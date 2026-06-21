@@ -1,7 +1,6 @@
 // simulation/src/council/decision.rs
-// Persistent Council Decisions with effect application + history persistence
-// Applied decisions are now recorded into SovereignWorldState.council_decision_history
-// so they survive simulation restarts and contribute to long-term governance memory.
+// CouncilDecision now includes full audit fields for governance transparency and persistence.
+// This turns the decision history into a complete audit log.
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -14,11 +13,56 @@ pub struct CouncilDecision {
     pub magnitude: f32,
     pub passed_tick: u64,
     pub realm_id: u8,
+
+    // === Audit Log Fields ===
+    pub votes_for: u32,
+    pub votes_against: u32,
+    pub mercy_factor: f32,
+    pub deliberation_tick: u64,
 }
 
 impl CouncilDecision {
-    pub fn new(proposal_id: u64, title: String, effect_type: String, magnitude: f32, passed_tick: u64, realm_id: u8) -> Self {
-        Self { proposal_id, title, effect_type, magnitude, passed_tick, realm_id }
+    pub fn new(
+        proposal_id: u64,
+        title: String,
+        effect_type: String,
+        magnitude: f32,
+        passed_tick: u64,
+        realm_id: u8,
+    ) -> Self {
+        Self {
+            proposal_id,
+            title,
+            effect_type,
+            magnitude,
+            passed_tick,
+            realm_id,
+            votes_for: 0,
+            votes_against: 0,
+            mercy_factor: 0.0,
+            deliberation_tick: passed_tick,
+        }
+    }
+
+    /// Creates a fully populated audit entry from a resolved proposal.
+    pub fn from_resolved_proposal(
+        proposal: &crate::council::CouncilProposal,
+        mercy_factor: f32,
+        deliberation_tick: u64,
+        realm_id: u8,
+    ) -> Self {
+        Self {
+            proposal_id: proposal.id,
+            title: proposal.title.clone(),
+            effect_type: format!("{:?}", proposal.proposal_type),
+            magnitude: 1.0,
+            passed_tick: deliberation_tick,
+            realm_id,
+            votes_for: proposal.votes_for,
+            votes_against: proposal.votes_against,
+            mercy_factor,
+            deliberation_tick,
+        }
     }
 }
 
@@ -37,7 +81,7 @@ impl CouncilDecisions {
     }
 }
 
-/// ECS System: Applies effects + records applied decisions into world history for persistence.
+/// ECS System: Applies effects + records into persistent audit history.
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut query: Query<&mut crate::world::SovereignWorldState>,
@@ -80,12 +124,10 @@ pub fn apply_council_decision_effects(
                 _ => {}
             }
 
-            // Record into persistent history (this is what gets saved with the world)
             world.council_decision_history.push(decision.clone());
         }
     }
 
-    // Clear pending queue after processing + persisting
     if !decisions.decisions.is_empty() {
         decisions.clear();
     }
