@@ -1,8 +1,8 @@
 /*!
- * Bevy Integration for Ra-Thor Bridge + Legacy Journal
+ * Bevy Integration for Ra-Thor Bridge + Legacy Journal + Council Governance
  *
  * Provides easy-to-use Bevy Resource and helpers for integrating the Ra-Thor
- * Council bridge and LegacyJournalRegistry directly into game systems.
+ * Council bridge, LegacyJournalRegistry, and now CouncilDecisions for proposal effects.
  *
  * TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned.
  */
@@ -12,7 +12,8 @@ use tracing::info;
 
 use crate::ra_thor_bridge::{RaThorBridge, RealRaThorClient, RaThorError};
 use crate::emergence::{EmergenceSeed, CouncilGuidance};
-use crate::player_legacy_journal::LegacyJournalRegistry;  // NEW: for simulation-side population
+use crate::player_legacy_journal::LegacyJournalRegistry;
+use crate::council::CouncilDecisions;  // NEW: for applied council proposal effects in ECS
 
 /// Bevy Resource that wraps the Ra-Thor bridge.
 #[derive(Resource)]
@@ -51,53 +52,25 @@ impl RaThorResource {
     }
 }
 
-/// Plugin that registers simulation resources including LegacyJournalRegistry.
-/// 
-/// This ensures LegacyJournalRegistry is available for simulation systems
-/// to populate with harvest, epiphany, war victory, and proactive joy events.
+/// Plugin that registers simulation resources including LegacyJournalRegistry and CouncilDecisions.
+/// CouncilDecisions enables the apply_council_decision_effects system to react to passed proposals.
 pub struct RaThorPlugin;
 
 impl Plugin for RaThorPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<RaThorResource>()
-            .init_resource::<LegacyJournalRegistry>();  // Simulation-side initialization
-        info!("RaThorPlugin + LegacyJournalRegistry initialized");
+            .init_resource::<LegacyJournalRegistry>()
+            .init_resource::<CouncilDecisions>();  // NEW: Council proposal decisions now available in ECS
+        info!("RaThorPlugin + LegacyJournalRegistry + CouncilDecisions initialized");
     }
 }
 
 /*
  * === Simulation-side Population Guidance ===
  *
- * Simulation systems should call methods on LegacyJournalRegistry to record events:
- *
- * Example in a war resolution system:
- *   fn on_merciful_war_victory(
- *       mut legacy: ResMut<LegacyJournalRegistry>,
- *       // ... other params
- *   ) {
- *       legacy.record_war_victory_legacy_export(
- *           player_id,
- *           server_name,
- *           true,           // merciful
- *           abundance_bonus,
- *           "Key Contributor".to_string(),
- *           current_tick,
- *           server_id,
- *           current_mercy,
- *           valence,
- *       );
- *   }
- *
- * Example after high-yield sustainable harvest or council bloom:
- *   legacy.generate_proactive_joy_redemption_thread(
- *       player_id,
- *       "Sustainable harvest abundance celebration".to_string(),
- *       joy_amount,
- *       valence_boost,
- *       current_tick,
- *       server_id,
- *   );
- *
- * This keeps the My Mercy Journey panel in sync with live simulation events.
+ * Simulation systems should call methods on LegacyJournalRegistry to record events.
+ * The apply_council_decision_effects system (in council/decision.rs) now automatically
+ * applies RBE abundance, sustainability, and harmony effects when CouncilDecisions is populated
+ * (by orchestrator, council systems, or external bridge).
  */
