@@ -1,7 +1,12 @@
-// simulation/src/council/session.rs
-// CouncilSession with support for different proposal types and voting
-// Now includes clean submit_proposal API for player/UI submission.
+/*!
+ * CouncilSession with CouncilEventBus integration.
+ *
+ * Emits ProposalSubmitted and ProposalPassed events when the bus is present.
+ *
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ */
 
+use crate::council::event_bus::{CouncilEvent, CouncilEventBus};
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +15,10 @@ pub struct CouncilSession {
     pub realm_id: u8,
     pub active_proposals: Vec<CouncilProposal>,
     pub last_session_tick: u64,
-    next_proposal_id: u64,  // Simple ID generator for submissions
+    next_proposal_id: u64,
+    /// Optional event bus for emitting governance events.
+    #[serde(skip)]
+    pub event_bus: Option<CouncilEventBus>,
 }
 
 impl CouncilSession {
@@ -19,13 +27,17 @@ impl CouncilSession {
             realm_id,
             active_proposals: vec![],
             last_session_tick: current_tick,
-            next_proposal_id: current_tick,  // Start ID from current tick for uniqueness
+            next_proposal_id: current_tick,
+            event_bus: None,
         }
     }
 
-    /// Clean submission API for players, UI, or external systems.
-    /// Creates a properly formed CouncilProposal and adds it to the session.
-    /// Status starts as Draft. Ready for deliberation.
+    /// Attach an existing event bus (e.g. from Bevy Resource).
+    pub fn with_event_bus(mut self, bus: CouncilEventBus) -> Self {
+        self.event_bus = Some(bus);
+        self
+    }
+
     pub fn submit_proposal(
         &mut self,
         proposal_type: ProposalType,
@@ -45,6 +57,16 @@ impl CouncilSession {
             proposer,
             current_tick,
         );
+
+        // Emit event if bus is attached
+        if let Some(bus) = &self.event_bus {
+            let _ = bus.send(CouncilEvent::ProposalSubmitted {
+                proposal_id: id,
+                proposer,
+                proposal_type,
+                title: title.clone(),
+            });
+        }
 
         self.active_proposals.push(proposal);
         id
@@ -68,6 +90,16 @@ impl CouncilSession {
 
                     if effective_for > proposal.votes_against as f32 {
                         proposal.status = ProposalStatus::Passed;
+
+                        // Emit ProposalPassed event
+                        if let Some(bus) = &self.event_bus {
+                            let _ = bus.send(CouncilEvent::ProposalPassed {
+                                proposal_id: proposal.id,
+                                votes_for: proposal.votes_for,
+                                votes_against: proposal.votes_against,
+                                mercy_factor: (average_mercy / 100.0) * 0.3,
+                            });
+                        }
                     } else {
                         proposal.status = ProposalStatus::Rejected;
                     }
