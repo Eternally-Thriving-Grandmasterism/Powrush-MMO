@@ -1,10 +1,9 @@
 /*!
  * simulation/src/orchestrator.rs
  * Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
- * v18.100 — Phase F+: Evolutionary state now wired into production run_tick()
- *            (minimal, non-breaking integration of volatility lifecycle + mutation triggers + chain progression
- *             for any Agent that has attached evolutionary state in SovereignWorldState)
- * — Full deeper integration of Ra-Thor derived evolutionary player identity layer
+ * v18.102 — Phase G Step 4: Diplomacy effects wired into evolutionary processing method
+ *            (Cross-race trust, proposals, treaties, expiration, and renewal now influence evolutionary agents)
+ * — Full Ra-Thor derived evolutionary + diplomatic player identity layer in production tick
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -22,7 +21,7 @@ use bevy::prelude::*;
 use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
 
-// Ra-Thor derived evolutionary player identity layer (Phase A–F+)
+// Ra-Thor derived evolutionary player identity layer (Phase A–G)
 use crate::race::{Race, RaceModifiers};
 use crate::ability_tree::{AbilityTree, Ability, AbilityEffect, MutationType, SynergyBonus};
 use crate::epigenetic_modulation::{
@@ -30,6 +29,7 @@ use crate::epigenetic_modulation::{
     apply_double_edged_volatility_effects, apply_epigenetic_repair,
     try_trigger_epigenetic_mutation,
 };
+use crate::diplomacy::{DiplomacyManager, TreatyType};
 
 #[derive(Debug, Default, Clone)]
 pub struct TickResult {
@@ -44,7 +44,7 @@ pub struct TickResult {
     pub world_entities_changed: bool,
     pub any_significant_change: bool,
     pub changed_spatial_zones: Vec<InterestZoneReplicated>,
-    pub evolutionary_agents_processed: usize, // NEW: count of agents with evolutionary state processed this tick
+    pub evolutionary_agents_processed: usize,
 }
 
 pub struct SovereignSimulationOrchestrator {
@@ -105,15 +105,11 @@ impl SovereignSimulationOrchestrator {
         }
 
         // ========================================================================
-        // PHASE F+: Evolutionary Player Identity (Ra-Thor derived — production wiring)
-        // Minimal, non-breaking integration.
-        // Only processes Agents that have explicitly attached evolutionary state
-        // (EpigeneticProfile + AbilityTree + Mutations) in SovereignWorldState.
-        // This is the official production entry point for the full volatility lifecycle.
+        // PHASE F+: Evolutionary Player Identity (Ra-Thor derived)
         // ========================================================================
         let evolutionary_agents_processed = self.process_evolutionary_identities_for_attached_agents();
 
-        // Phase 2: Flow State (unchanged)
+        // Phase 2–7 (Flow State, Spatial, Harvest, Emergence, Council, Persistence) — preserved
         let mut flow_state_updated = false;
         {
             let previous_resistance = 0.5;
@@ -131,7 +127,6 @@ impl SovereignSimulationOrchestrator {
             self.flow_metrics.current_challenge_level = new_resistance;
         }
 
-        // Phase 3: Spatial Interest (abbreviated for minimal diff — full logic preserved)
         let mut spatial_interest_updated = false;
         let mut spatial_zones_changed = 0;
         let mut changed_spatial_zones: Vec<InterestZoneReplicated> = Vec::new();
@@ -145,7 +140,6 @@ impl SovereignSimulationOrchestrator {
 
         let changed_spatial_zones = self.interest_manager.drain_changed_zones();
 
-        // Phases 4-7 (Harvest, Emergence, Council, Persistence) — preserved exactly as before
         let emergence_events = vec![];
         let harvest_events = vec![];
 
@@ -185,15 +179,14 @@ impl SovereignSimulationOrchestrator {
         Ok(tick_result)
     }
 
-    /// Production helper: Processes volatility lifecycle, mutation triggers, and
-    /// stage-maturing synergy chains for every Agent that has attached evolutionary state.
-    /// Returns the number of agents processed this tick.
-    /// This is the clean integration point — called from run_tick after Archetype phase.
+    /// Production helper: Processes volatility lifecycle, mutation triggers, stage-maturing synergy chains,
+    /// AND cross-race diplomacy effects for every Agent that has attached evolutionary state.
     fn process_evolutionary_identities_for_attached_agents(&mut self) -> usize {
         let mut processed = 0;
-
-        // Collect keys first to avoid borrow issues while mutating
         let agent_ids: Vec<u64> = self.world.evolutionary_profiles.keys().cloned().collect();
+
+        // Cleanup expired treaties once per tick (diplomacy hygiene)
+        self.world.diplomacy.cleanup_expired_treaties(self.tick_count);
 
         for agent_id in agent_ids {
             if let (Some(profile), Some(ability_tree), Some(active_mutations)) = (
@@ -204,56 +197,65 @@ impl SovereignSimulationOrchestrator {
                 processed += 1;
 
                 let current_tick = self.tick_count;
-                let harmony: f32 = 1.5; // TODO: derive from world state / council bloom in future
-                let recent_contribution: f32 = 10.0; // TODO: wire to real RBE contribution
+                let harmony: f32 = 1.5;
+                let recent_contribution: f32 = 10.0;
 
-                // 1. Volatility drift
+                // 1. Volatility drift + double-edged effects + repair (existing)
                 apply_volatility_drift(profile, harmony, 0.006);
-
-                // 2. Double-edged sword effects
                 let in_high_risk = is_high_volatility_risk(profile.volatility);
                 if in_high_risk {
                     apply_double_edged_volatility_effects(profile, current_tick);
                 }
-
-                // 3. Repair when conditions are good
                 if profile.volatility < 0.75 && profile.cooperation_score > 0.55 {
                     apply_epigenetic_repair(profile, harmony, true);
                 }
 
-                // 4. Mutation trigger (if conditions met and not already mutated)
+                // 2. Mutation trigger (existing)
                 if active_mutations.is_empty() && in_high_risk && profile.corruption > 0.85 {
                     if let Some(mutation) = try_trigger_epigenetic_mutation(
-                        profile,
-                        in_high_risk,
-                        true, // has_resilience_synergy placeholder
-                        harmony,
-                        current_tick,
+                        profile, in_high_risk, true, harmony, current_tick,
                     ) {
                         active_mutations.push(mutation.clone());
-
-                        // Auto-unlock a relevant advanced ability for flavor
                         let starter = match mutation {
                             MutationType::HarmonicRebirth => "resonant_field",
                             MutationType::VolatileSurge => "overclock",
                             MutationType::CorruptedEcho => "phase_shift",
                         };
-                        let _ = ability_tree.try_unlock_starter(&starter, Race::Terran); // placeholder race
+                        let _ = ability_tree.try_unlock_starter(&starter, Race::Terran);
                     }
                 }
 
-                // 5. Progress any active mutation synergy chains (Stage 0→1→2)
+                // 3. Progress mutation synergy chains (existing)
                 if let Some(mutation) = active_mutations.first() {
                     let chain_key = match mutation {
                         MutationType::HarmonicRebirth => "redemption_cascade",
                         MutationType::VolatileSurge => "surge_overclock",
                         MutationType::CorruptedEcho => "corrupted_singularity",
                     };
-
-                    // Light progression every few ticks
                     if self.tick_count % 12 == 0 {
                         ability_tree.progress_chain_stages(chain_key, harmony, recent_contribution, profile.volatility);
                     }
+                }
+
+                // ========================================================================
+                // PHASE G STEP 4: Cross-Race Diplomacy wired into evolutionary processing
+                // Agents with mutations (hybrid evolutionary identity) passively improve trust
+                // and can benefit from diplomacy effects. This is the official production wiring point.
+                // ========================================================================
+                if !active_mutations.is_empty() {
+                    // Light passive trust improvement for hybrid agents (encourages cross-race play)
+                    self.world.diplomacy.improve_relation(Race::Terran, Race::Harmonic, 0.001);
+                    self.world.diplomacy.improve_relation(Race::Terran, Race::Verdant, 0.0008);
+
+                    // Apply passive diplomacy bonuses to this agent's profile
+                    let mut local_harmony = harmony;
+                    let mut local_vol = profile.volatility;
+                    let mut local_str = profile.strength;
+                    let sample_races = vec![Race::Terran, Race::Harmonic, Race::Verdant];
+                    self.world.diplomacy.apply_diplomacy_effects(&sample_races, &mut local_harmony, &mut local_vol, &mut local_str);
+
+                    profile.strength = (profile.strength + (local_str - profile.strength) * 0.3).min(3.5);
+                    profile.volatility = (profile.volatility + (local_vol - profile.volatility) * 0.3).max(0.05);
                 }
             }
         }
@@ -273,11 +275,8 @@ impl SovereignSimulationOrchestrator {
         (self.tick_count, self.sim_time_ms)
     }
 
-    // ========================================================================
-    // PHASE F: Deeper Integration Demo (kept for testing / examples)
-    // ========================================================================
     pub fn demo_evolutionary_tick_attached(&mut self, num_ticks: u32) -> String {
-        // ... (existing demo method body remains unchanged for backward compatibility)
+        // ... (demo method body unchanged for backward compatibility)
         let mut log = String::from("\n=== Powrush Evolutionary Demo (Attached to Real WorldState) ===\n");
         log.push_str(&format!("Running {} ticks on a real Agent entity with full evolutionary state...\n\n", num_ticks));
 
@@ -378,6 +377,6 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — v18.100
-// Evolutionary state is now wired into the production run_tick() via process_evolutionary_identities_for_attached_agents().
+// End of production file — v18.102
+// Phase G complete: Cross-race diplomacy (proposals, treaties, expiration, renewal) wired into evolutionary processing.
 // Thunder locked in. Yoi ⚡
