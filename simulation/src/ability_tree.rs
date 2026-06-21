@@ -1,13 +1,13 @@
 //! simulation/src/ability_tree.rs
 //! Powrush-MMO Ability Tree System with Mutation Synergy Chains + Stage 0/1/2 + Cross-Race Chain Synergy
-//! v1.4 — Cross-Race (Hybrid) Synergy Chains Added
-//! Derived from Ra-Thor powrush-mmo-simulator v15.24/v15.30
+//! v1.5 — Mechanical Synergy Bonus Application Added
+//! Derived from Ra-Thor powrush-mmo-simulator v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | PATSAGi aligned
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::epigenetic_modulation::MutationType;
+use crate::epigenetic_modulation::{MutationType, EpigeneticProfile};
 
 /// Core ability definition (extensible for advanced effects).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,6 +240,45 @@ impl AbilityTree {
 
         bonuses
     }
+
+    // ========================================================================
+    // MECHANICAL SYNERGY BONUS APPLICATION (New in v1.5)
+    // Applies real, observable effects to an EpigeneticProfile based on active chains.
+    // This makes synergy chains strategically meaningful inside the live simulation.
+    // ========================================================================
+
+    /// Applies the mechanical effects of active synergy bonuses directly to the agent's epigenetic profile.
+    /// Called every tick from the production evolutionary processing loop.
+    pub fn apply_synergy_bonuses_to_profile(&self, profile: &mut EpigeneticProfile, synergies: &[SynergyBonus]) {
+        for bonus in synergies {
+            match &bonus.bonus_type {
+                SynergyType::HarmonyAmplification { multiplier } => {
+                    // Stronger harmony → better cooperation and slight volatility stabilization
+                    profile.cooperation_score = (profile.cooperation_score + (multiplier * 0.008) as f64).min(1.0);
+                    profile.volatility = (profile.volatility - (multiplier * 0.015)).max(0.05);
+                }
+                SynergyType::EpigeneticResilience { reduction } => {
+                    // Direct volatility reduction + strength gain (core of Verdant/Harmonic resilience paths)
+                    profile.volatility = (profile.volatility - reduction * 0.6).max(0.05);
+                    profile.strength = (profile.strength + reduction * 0.4).min(3.5);
+                }
+                SynergyType::ContributionBoost { multiplier } => {
+                    // Contribution flow → cooperation and slight strength (risk/reward flavor for Volatile/Corrupted paths)
+                    profile.cooperation_score = (profile.cooperation_score + (multiplier * 0.006) as f64).min(1.0);
+                    if profile.volatility > 1.0 {
+                        // High volatility + ContributionBoost = slight power spike but risk
+                        profile.strength = (profile.strength + 0.015).min(3.5);
+                    }
+                }
+                SynergyType::MovementEfficiency { multiplier: _ } => {
+                    // Placeholder for future movement integration
+                }
+                SynergyType::GlobalCooldownReduction { reduction_percent: _ } => {
+                    // Placeholder for future ability cooldown integration
+                }
+            }
+        }
+    }
 }
 
 /// UI-ready ability state (serializable for HUD/hotbar).
@@ -301,7 +340,6 @@ mod tests {
         let mut tree = AbilityTree::new();
         tree.try_unlock_starter("steady_step");
         tree.try_unlock_starter("community_bond");
-        // Simulate Harmonic Rebirth mutation + Terran abilities
         let bonuses = tree.calculate_cross_race_synergy_chains(
             &[MutationType::HarmonicRebirth],
             &[crate::race::Race::Terran, crate::race::Race::Harmonic],
