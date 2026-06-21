@@ -1,8 +1,8 @@
 /*!
  * Sovereign Simulation Harness — World State Core + Advanced Procedural Biome Generation Algorithms
  *
- * v18.117 — Query performance optimized with secondary indices for Council Audit Logs
- *            (by_proposer and by_type indices for O(1) common queries)
+ * v18.118 — Index maintenance overhead addressed
+ *            + rebuild_council_audit_indices() for load-time reconstruction
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -31,7 +31,7 @@ pub struct Vec3 {
 }
 
 /// Unified SovereignWorldState — authoritative core for deterministic, mercy-gated MMO-scale RBE simulation.
-/// Council audit log now has secondary indices for high-performance common queries.
+/// Council audit log indices are maintained incrementally at runtime and can be rebuilt on load.
 #[derive(Clone, Debug, Default)]
 pub struct SovereignWorldState {
     pub resource_nodes: HashMap<NodeId, ResourceNode>,
@@ -54,7 +54,7 @@ pub struct SovereignWorldState {
     pub active_mutations: HashMap<AgentId, Vec<MutationType>>,
     pub diplomacy: DiplomacyManager,
 
-    // Council Decision Audit Log + Performance Indices
+    // Council Decision Audit Log + Indices
     pub council_decision_history: Vec<CouncilDecision>,
     pub council_decision_indices_by_proposer: HashMap<AgentId, Vec<usize>>,
     pub council_decision_indices_by_type: HashMap<String, Vec<usize>>,
@@ -115,7 +115,31 @@ impl SovereignWorldState {
     }
 
     // ========================================================================
-    // Council Audit Log Query API (optimized with indices)
+    // Council Audit Log Index Maintenance
+    // ========================================================================
+
+    /// Rebuilds all secondary indices from the current history.
+    /// Call this after loading a persisted world state.
+    /// Runtime appends continue to maintain indices incrementally.
+    pub fn rebuild_council_audit_indices(&mut self) {
+        self.council_decision_indices_by_proposer.clear();
+        self.council_decision_indices_by_type.clear();
+
+        for (index, decision) in self.council_decision_history.iter().enumerate() {
+            self.council_decision_indices_by_proposer
+                .entry(decision.proposer)
+                .or_default()
+                .push(index);
+
+            self.council_decision_indices_by_type
+                .entry(decision.effect_type.clone())
+                .or_default()
+                .push(index);
+        }
+    }
+
+    // ========================================================================
+    // Council Audit Log Query API (optimized)
     // ========================================================================
 
     pub fn get_council_decision_history(&self) -> &[CouncilDecision] {
@@ -128,7 +152,7 @@ impl SovereignWorldState {
         &self.council_decision_history[start..]
     }
 
-    /// Optimized: Uses proposer index when available.
+    /// Uses proposer index (O(1) after incremental maintenance or rebuild).
     pub fn get_council_decisions_by_proposer(&self, proposer: AgentId) -> Vec<&CouncilDecision> {
         if let Some(indices) = self.council_decision_indices_by_proposer.get(&proposer) {
             indices.iter().map(|&i| &self.council_decision_history[i]).collect()
@@ -137,7 +161,7 @@ impl SovereignWorldState {
         }
     }
 
-    /// Optimized: Uses type index when available.
+    /// Uses type index (O(1) after incremental maintenance or rebuild).
     pub fn get_council_decisions_by_type(&self, effect_type: &str) -> Vec<&CouncilDecision> {
         if let Some(indices) = self.council_decision_indices_by_type.get(effect_type) {
             indices.iter().map(|&i| &self.council_decision_history[i]).collect()
