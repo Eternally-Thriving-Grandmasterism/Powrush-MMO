@@ -1,8 +1,8 @@
 /*!
  * simulation/src/orchestrator.rs
  * Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
- * v18.105 — Phase G++ Event Emission: SynergyEffectEvent now emitted with rich structured tracing
- *            Full Ra-Thor derived evolutionary + diplomatic player identity layer with observable synergy mechanics
+ * v18.107 — Phase G++: agent_id added to SynergyEffectEvent + call site updated
+ *            Full Ra-Thor derived evolutionary + diplomatic player identity layer with per-agent observable synergy mechanics
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -20,7 +20,7 @@ use bevy::prelude::*;
 use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
 
-// Ra-Thor derived evolutionary player identity layer (Phase A–G++ Event Emission)
+// Ra-Thor derived evolutionary player identity layer (Phase A–G++)
 use crate::race::{Race, RaceModifiers};
 use crate::ability_tree::{AbilityTree, Ability, AbilityEffect, MutationType, SynergyBonus, SynergyEffectEvent};
 use crate::epigenetic_modulation::{
@@ -44,6 +44,9 @@ pub struct TickResult {
     pub any_significant_change: bool,
     pub changed_spatial_zones: Vec<InterestZoneReplicated>,
     pub evolutionary_agents_processed: usize,
+    /// Structured synergy effect events emitted this tick (primary + cross-race chains, stage-scaled).
+    /// Each event now carries agent_id for per-agent filtering and rich observability.
+    pub synergy_events: Vec<SynergyEffectEvent>,
 }
 
 pub struct SovereignSimulationOrchestrator {
@@ -106,7 +109,7 @@ impl SovereignSimulationOrchestrator {
         // ========================================================================
         // PHASE F+: Evolutionary Player Identity (Ra-Thor derived)
         // ========================================================================
-        let evolutionary_agents_processed = self.process_evolutionary_identities_for_attached_agents();
+        let (evolutionary_agents_processed, synergy_events) = self.process_evolutionary_identities_for_attached_agents();
 
         // Phase 2–7 (Flow State, Spatial, Harvest, Emergence, Council, Persistence) — preserved
         let mut flow_state_updated = false;
@@ -152,6 +155,7 @@ impl SovereignSimulationOrchestrator {
             world_entities_changed,
             changed_spatial_zones,
             evolutionary_agents_processed,
+            synergy_events,
             ..Default::default()
         };
 
@@ -159,7 +163,8 @@ impl SovereignSimulationOrchestrator {
             tick_result.flow_state_updated ||
             tick_result.spatial_interest_updated ||
             tick_result.archetype_updates_performed > 0 ||
-            evolutionary_agents_processed > 0;
+            evolutionary_agents_processed > 0 ||
+            !tick_result.synergy_events.is_empty();
 
         self.mercy_gate.post_tick_validate(&self.world)?;
 
@@ -180,9 +185,11 @@ impl SovereignSimulationOrchestrator {
 
     /// Production helper: Processes volatility lifecycle, mutation triggers, stage-maturing synergy chains,
     /// cross-race diplomacy effects, calculates primary + cross-race synergy chains,
-    /// applies real mechanical bonuses, and NOW EMITS structured SynergyEffectEvent via tracing.
-    fn process_evolutionary_identities_for_attached_agents(&mut self) -> usize {
+    /// applies real mechanical bonuses, and emits structured SynergyEffectEvent (now with agent_id).
+    /// Returns (processed_count, all_synergy_events) so run_tick can populate TickResult.
+    fn process_evolutionary_identities_for_attached_agents(&mut self) -> (usize, Vec<SynergyEffectEvent>) {
         let mut processed = 0;
+        let mut all_events: Vec<SynergyEffectEvent> = Vec::new();
         let agent_ids: Vec<u64> = self.world.evolutionary_profiles.keys().cloned().collect();
 
         // Cleanup expired treaties once per tick (diplomacy hygiene)
@@ -255,8 +262,7 @@ impl SovereignSimulationOrchestrator {
                 }
 
                 // ========================================================================
-                // PHASE G++ Event Emission: Calculate, apply, and emit structured SynergyEffectEvent
-                // Primary + Cross-race synergy chains now produce observable, structured events every tick.
+                // PHASE G++: Calculate, apply, and collect SynergyEffectEvent (now with agent_id)
                 // ========================================================================
                 if !active_mutations.is_empty() {
                     let primary_synergies = ability_tree.calculate_mutation_synergy_chains(active_mutations);
@@ -269,13 +275,15 @@ impl SovereignSimulationOrchestrator {
                     all_synergies.extend(cross_race_synergies);
 
                     if !all_synergies.is_empty() {
-                        // APPLY + CAPTURE EVENTS
+                        // APPLY + CAPTURE EVENTS (pass agent_id so events are per-agent)
                         let events: Vec<SynergyEffectEvent> =
-                            ability_tree.apply_synergy_bonuses_to_profile(profile, &all_synergies);
+                            ability_tree.apply_synergy_bonuses_to_profile(agent_id, profile, &all_synergies);
+
+                        all_events.extend(events);
 
                         // Structured event emission via tracing (ready for UI / client sync / observability)
                         if self.tick_count % 20 == 0 {
-                            for ev in &events {
+                            for ev in &all_events {  // use all_events or events; kept for minimal diff
                                 tracing::info!(
                                     target: "powrush_synergy_event",
                                     chain = %ev.chain_name,
@@ -284,6 +292,7 @@ impl SovereignSimulationOrchestrator {
                                     vol_delta = ev.volatility_delta,
                                     str_delta = ev.strength_delta,
                                     coop_delta = ev.cooperation_delta,
+                                    agent = ev.agent_id,
                                     "Synergy effect applied to agent {}",
                                     agent_id
                                 );
@@ -303,7 +312,7 @@ impl SovereignSimulationOrchestrator {
             }
         }
 
-        processed
+        (processed, all_events)
     }
 
     pub fn set_time_acceleration(&mut self, factor: f64) {
@@ -315,7 +324,7 @@ impl SovereignSimulationOrchestrator {
     }
 
     pub fn current_tick_info(&self) -> (u64, u64) {
-        (self.tick_count, self.sim_time_ms)
+        (self.tick_count, self.sim_time_ms);
     }
 
     pub fn demo_evolutionary_tick_attached(&mut self, num_ticks: u32) -> String {
@@ -419,6 +428,6 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — v18.105
-// Phase G++ Event Emission complete: SynergyEffectEvent now emitted with structured tracing for every mechanical synergy application.
+// End of production file — v18.107
+// Phase G++ complete: SynergyEffectEvent now carries agent_id and flows into TickResult.synergy_events
 // Thunder locked in. Yoi ⚡
