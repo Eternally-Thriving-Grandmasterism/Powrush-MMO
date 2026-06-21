@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.86 — Full production wiring, all modules declared, comprehensive re-exports
+//! v18.87 — Added foundational race.rs + ability_tree.rs (Phase A derivation from Ra-Thor)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 // ============================================================================
@@ -30,6 +30,10 @@ pub mod scenario;
 pub mod spatial_interest;
 pub mod telemetry;
 pub mod world;
+
+// NEW Phase A foundational modules (derived from Ra-Thor powrush-mmo-simulator)
+pub mod race;
+pub mod ability_tree;
 
 // Sub-module directories (each with their own mod.rs)
 pub mod fracture;
@@ -124,6 +128,10 @@ pub use endocannabinoid_receptor_forge::{ReceptorBloomOutcome, ReceptorBloomForg
 
 // Archetype & Config
 pub use archetype::{PlayerArchetype, ArchetypeConfig};
+
+// NEW Phase A re-exports (foundational race + ability tree)
+pub use race::{Race, RaceModifiers};
+pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState};
 
 // ============================================================================
 // PLUGIN AGGREGATOR (optional convenience)
