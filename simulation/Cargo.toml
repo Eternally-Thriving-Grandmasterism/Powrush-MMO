@@ -28,18 +28,11 @@ tokio = { workspace = true, optional = true }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], optional = true }
 bevy = { workspace = true, optional = true }
 
-[features]
-default = []
-web = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures", "dep:js-sys", "dep:web-sys"]
-leptos-ui = ["web", "dep:leptos"]
-gpu = []
-async = ["dep:tokio"]
-real-ra-thor = ["async", "dep:reqwest"]
-bevy = ["dep:bevy"]
-
 [dev-dependencies]
 criterion = "0.5"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+flume = "0.11"
+kanal = "0.1"
 
 [[bench]]
 name = "resonance_decay_recovery_bench"
@@ -47,6 +40,10 @@ harness = false
 
 [[bench]]
 name = "orchestrator_bench"
+harness = false
+
+[[bench]]
+name = "channel_bench"
 harness = false
 
 [[example]]
