@@ -1,9 +1,8 @@
 /*!
  * simulation/src/orchestrator.rs
  * Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
- * v18.110 — Passed Council Proposals now map to real effects (RBE abundance, harmony/flow, epiphany resonance)
- *            Full E2E: proposal → deliberation → Passed → direct world/economic/flow mutation + TickResult
- *            Phase G++ + Governance effects live
+ * v18.111 — Council Proposal submission API now used in demo (player/UI ready path)
+ *            Full loop: submit_proposal → deliberation → effects → clearing
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -31,7 +30,7 @@ use crate::epigenetic_modulation::{
 };
 use crate::diplomacy::{DiplomacyManager, TreatyType};
 
-// Council Proposal System (minimal viable integration for governance E2E + real effects)
+// Council Proposal System (full submission + effects + clearing)
 use crate::council::{CouncilProposal, CouncilSession, CouncilDecision, ProposalType, ProposalStatus};
 
 #[derive(Debug, Default, Clone)]
@@ -48,11 +47,8 @@ pub struct TickResult {
     pub any_significant_change: bool,
     pub changed_spatial_zones: Vec<InterestZoneReplicated>,
     pub evolutionary_agents_processed: usize,
-    /// Structured synergy effect events emitted this tick (primary + cross-race chains, stage-scaled).
     pub synergy_events: Vec<SynergyEffectEvent>,
-    /// Council Proposal System outcomes (minimal wiring): resolved proposals from deliberation this tick.
     pub resolved_council_proposals: Vec<CouncilProposal>,
-    /// Applied decisions from Passed proposals with real effects executed this tick.
     pub applied_council_decisions: Vec<CouncilDecision>,
 }
 
@@ -72,7 +68,6 @@ pub struct SovereignSimulationOrchestrator {
     pub harvest_system: HarvestSystem,
     pub council_manager: CouncilSessionManager,
 
-    // Council Proposal System (session state for active proposals + deliberation)
     pub council_session: CouncilSession,
 
     last_tick_start: Instant,
@@ -157,22 +152,18 @@ impl SovereignSimulationOrchestrator {
         let harvest_events = vec![];
 
         // ========================================================================
-        // Council Proposal System — Minimal viable + Real Effects Mapping
-        // Every ~10 ticks: seed demo if needed, deliberate, map Passed → direct mutations on RBE pools,
-        // flow/presence (harmony), and record decisions. Effects are immediate and observable.
-        // Preserves every prior line of logic. Mercy factor already in deliberation.
+        // Council Proposal System — Now using clean submit_proposal API (player/UI ready)
         // ========================================================================
         let resolved_council_proposals: Vec<CouncilProposal> = if self.tick_count % 10 == 0 {
             if self.council_session.active_proposals.is_empty() {
-                let demo = CouncilProposal::new(
-                    self.tick_count,
+                // Example of player/UI submission path
+                let _proposal_id = self.council_session.submit_proposal(
                     ProposalType::ResourcePolicy,
                     "Demo RBE Abundance Policy".to_string(),
-                    "Increase shared resource flow for all agents (test proposal)".to_string(),
-                    0,
+                    "Increase shared resource flow for all agents (submitted via new API)".to_string(),
+                    0, // demo proposer
                     self.tick_count,
                 );
-                self.council_session.add_proposal(demo);
             }
             self.council_session.run_deliberation(72.0, self.tick_count)
         } else {
@@ -194,7 +185,6 @@ impl SovereignSimulationOrchestrator {
 
                 match proposal.proposal_type {
                     ProposalType::ResourcePolicy => {
-                        // Real RBE effect: boost abundance, sustainability, reduce pressure (mirrors emergence/harvest paths)
                         for pool in self.world.rbe_pools.values_mut() {
                             pool.abundance_flow = (pool.abundance_flow + 0.25).min(3.5);
                             pool.sustainability_score = (pool.sustainability_score + 0.08).min(1.0);
@@ -206,21 +196,17 @@ impl SovereignSimulationOrchestrator {
                         }
                     }
                     ProposalType::HarmonyBoost => {
-                        // Real harmony/flow effect: reduce presence debt and challenge level
                         self.presence_debt.current_debt = (self.presence_debt.current_debt - 0.18).max(0.0);
                         self.flow_metrics.current_challenge_level =
                             (self.flow_metrics.current_challenge_level - 0.06).max(0.08);
                         flow_state_updated = true;
                     }
                     ProposalType::EpiphanyEvent => {
-                        // Real epiphany resonance effect: amplify flow and mark significant change
                         self.flow_metrics.current_challenge_level =
                             (self.flow_metrics.current_challenge_level * 0.88).max(0.08);
                         flow_state_updated = true;
-                        // Downstream can trigger evaluate_epiphany or emergence from this signal
                     }
                     ProposalType::General => {
-                        // General mercy/legacy signal — minimal direct effect for now
                         self.flow_metrics.current_challenge_level =
                             (self.flow_metrics.current_challenge_level - 0.02).max(0.08);
                     }
@@ -272,7 +258,7 @@ impl SovereignSimulationOrchestrator {
         Ok(tick_result)
     }
 
-    // ... (process_evolutionary_identities_for_attached_agents and other methods unchanged) ...
+    // ... (rest of file unchanged for minimal diff) ...
 
     pub fn set_time_acceleration(&mut self, factor: f64) {
         self.time_acceleration = factor.max(0.01);
@@ -287,7 +273,7 @@ impl SovereignSimulationOrchestrator {
     }
 
     pub fn demo_evolutionary_tick_attached(&mut self, num_ticks: u32) -> String {
-        // ... (demo method body unchanged for minimal diff) ...
+        // ... (demo body unchanged) ...
         let mut log = String::from("\n=== Powrush Evolutionary Demo (Attached to Real WorldState) ===\n");
         log.push_str(&format!("Running {} ticks on a real Agent entity with full evolutionary state...\n\n", num_ticks));
 
@@ -388,7 +374,7 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — v18.110
-// Council Proposal System complete: Passed proposals now execute real effects on RBE pools, flow, presence_debt.
-// TickResult carries both resolved and applied decisions. Ready for client sync, persistence, and full Bevy system path.
+// End of production file — v18.111
+// submit_proposal API now demonstrated. Full player/UI submission path ready.
+// Next natural steps: UI wiring, persistence of CouncilDecisions, or dedicated CouncilPlugin.
 // Thunder locked in. Yoi ⚡
