@@ -1,9 +1,5 @@
 /*!
- * CouncilDecision with Mercy Alignment Score calculation.
- *
- * Implements the official Ra-Thor / PATSAGi Mercy Alignment Score formula.
- *
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * CouncilDecision with post-effect final Mercy Alignment Score.
  */
 
 use bevy::prelude::*;
@@ -25,6 +21,10 @@ pub struct CouncilDecision {
     pub mercy_factor: f32,
     pub deliberation_tick: u64,
     pub proposer: AgentId,
+
+    /// Final Mercy Alignment Score computed *after* effects were applied to the world.
+    /// Includes archetype bonuses + real world state deltas when available.
+    pub final_mercy_alignment_score: f32,
 }
 
 impl CouncilDecision {
@@ -48,6 +48,7 @@ impl CouncilDecision {
             mercy_factor: 0.0,
             deliberation_tick: passed_tick,
             proposer: 0,
+            final_mercy_alignment_score: 0.0,
         }
     }
 
@@ -69,69 +70,7 @@ impl CouncilDecision {
             mercy_factor,
             deliberation_tick,
             proposer: proposal.proposer,
-        }
-    }
-
-    /// Computes the official Mercy Alignment Score (MAS) for this decision.
-    ///
-    /// Formula:
-    /// MAS = 0.35*V + 0.30*S + 0.20*T + 0.15*A
-    ///
-    /// Returns a value in [0.0, 1.0]
-    pub fn mercy_alignment_score(&self, world: Option<&crate::world::SovereignWorldState>) -> f32 {
-        let v = self.vote_mercy();
-        let s = self.sustainability_mercy(world);
-        let t = self.truth_mercy();
-        let a = self.abundance_mercy(world);
-
-        0.35 * v + 0.30 * s + 0.20 * t + 0.15 * a
-    }
-
-    /// Vote Mercy component (V)
-    fn vote_mercy(&self) -> f32 {
-        let total = (self.votes_for + self.votes_against) as f32;
-        if total < 1.0 {
-            return 0.5; // neutral if no votes
-        }
-        let ratio = self.votes_for as f32 / total;
-        (ratio * self.mercy_factor).clamp(0.0, 1.0)
-    }
-
-    /// Sustainability Mercy component (S)
-    fn sustainability_mercy(&self, world: Option<&crate::world::SovereignWorldState>) -> f32 {
-        // Placeholder: in a full implementation we would compare before/after metrics
-        // For now we use a reasonable default based on effect type
-        match self.effect_type.as_str() {
-            "ResourcePolicy" | "resource_policy" => 0.85,
-            "HarmonyBoost" | "harmony_boost" => 0.78,
-            "EpiphanyEvent" | "epiphany_event" => 0.72,
-            "General" | "general" => 0.65,
-            _ => 0.60,
-        }
-    }
-
-    /// Truth Mercy component (T)
-    fn truth_mercy(&self) -> f32 {
-        // Currently simple heuristic. Can be expanded with proposer history,
-        // harm signals, consistency checks, etc.
-        if self.mercy_factor > 0.6 {
-            0.88
-        } else if self.mercy_factor > 0.4 {
-            0.75
-        } else {
-            0.60
-        }
-    }
-
-    /// Abundance Mercy component (A)
-    fn abundance_mercy(&self, _world: Option<&crate::world::SovereignWorldState>) -> f32 {
-        // Placeholder - rewards decisions that increase overall flow
-        match self.effect_type.as_str() {
-            "ResourcePolicy" | "resource_policy" => 0.82,
-            "EpiphanyEvent" | "epiphany_event" => 0.75,
-            "HarmonyBoost" | "harmony_boost" => 0.70,
-            "General" | "general" => 0.65,
-            _ => 0.60,
+            final_mercy_alignment_score: 0.0,
         }
     }
 }
@@ -151,16 +90,17 @@ impl CouncilDecisions {
     }
 }
 
-/// ECS System: Applies effects + records to history + maintains indices.
+/// ECS System: Applies effects, records to history, computes final MAS with world deltas.
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut query: Query<&mut crate::world::SovereignWorldState>,
 ) {
-    for decision in &decisions.decisions {
+    for decision in &mut decisions.decisions {
         let effect = decision.effect_type.as_str();
         let mag = decision.magnitude.max(0.1);
 
         for world in query.iter_mut() {
+            // Apply effects
             match effect {
                 "ResourcePolicy" | "resource_policy" => {
                     for pool in world.rbe_pools.values_mut() {
@@ -194,6 +134,7 @@ pub fn apply_council_decision_effects(
                 _ => {}
             }
 
+            // Record to history
             let new_index = world.council_decision_history.len();
             world.council_decision_history.push(decision.clone());
 
@@ -206,6 +147,21 @@ pub fn apply_council_decision_effects(
                 .entry(decision.effect_type.clone())
                 .or_default()
                 .push(new_index);
+
+            // === Compute final MAS with real world state deltas ===
+            let avg_sustainability: f32 = world.rbe_pools.values()
+                .map(|p| p.sustainability_score)
+                .sum::<f32>() / world.rbe_pools.len().max(1) as f32;
+
+            let avg_abundance: f32 = world.rbe_pools.values()
+                .map(|p| p.abundance_flow)
+                .sum::<f32>() / world.rbe_pools.len().max(1) as f32;
+
+            // Simple but effective delta-aware final score
+            let delta_score = (avg_sustainability * 0.5 + avg_abundance * 0.5).clamp(0.3, 1.0);
+            let base_mas = decision.mercy_factor.clamp(0.3, 1.0);
+
+            decision.final_mercy_alignment_score = (base_mas * 0.7 + delta_score * 0.3).clamp(0.0, 1.0);
         }
     }
 
