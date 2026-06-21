@@ -1,8 +1,8 @@
 /*!
  * Sovereign Simulation Harness — World State Core + Advanced Procedural Biome Generation Algorithms
  *
- * v18.118 — Index maintenance overhead addressed
- *            + rebuild_council_audit_indices() for load-time reconstruction
+ * v18.119 — Index rebuild performance optimized with capacity hints
+ *            (reduced reallocations during large audit log reconstruction)
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -31,7 +31,7 @@ pub struct Vec3 {
 }
 
 /// Unified SovereignWorldState — authoritative core for deterministic, mercy-gated MMO-scale RBE simulation.
-/// Council audit log indices are maintained incrementally at runtime and can be rebuilt on load.
+/// Council audit log indices support fast rebuild with capacity hints for large histories.
 #[derive(Clone, Debug, Default)]
 pub struct SovereignWorldState {
     pub resource_nodes: HashMap<NodeId, ResourceNode>,
@@ -115,25 +115,34 @@ impl SovereignWorldState {
     }
 
     // ========================================================================
-    // Council Audit Log Index Maintenance
+    // Council Audit Log Index Maintenance (optimized rebuild)
     // ========================================================================
 
-    /// Rebuilds all secondary indices from the current history.
-    /// Call this after loading a persisted world state.
-    /// Runtime appends continue to maintain indices incrementally.
+    /// Rebuilds secondary indices from history with capacity hints.
+    /// Significantly faster on large audit logs by reducing Vec/HashMap reallocations.
+    /// Call after loading a persisted world.
     pub fn rebuild_council_audit_indices(&mut self) {
-        self.council_decision_indices_by_proposer.clear();
-        self.council_decision_indices_by_type.clear();
+        let history_len = self.council_decision_history.len();
+
+        // Capacity hints to minimize reallocations during rebuild
+        let estimated_unique_proposers = (history_len / 25).max(16);
+        let estimated_unique_types = 8; // ProposalType variants are few
+
+        self.council_decision_indices_by_proposer =
+            HashMap::with_capacity(estimated_unique_proposers);
+        self.council_decision_indices_by_type =
+            HashMap::with_capacity(estimated_unique_types);
 
         for (index, decision) in self.council_decision_history.iter().enumerate() {
+            // Use or_insert_with with capacity hint for inner vectors
             self.council_decision_indices_by_proposer
                 .entry(decision.proposer)
-                .or_default()
+                .or_insert_with(|| Vec::with_capacity(32))
                 .push(index);
 
             self.council_decision_indices_by_type
                 .entry(decision.effect_type.clone())
-                .or_default()
+                .or_insert_with(|| Vec::with_capacity(128))
                 .push(index);
         }
     }
@@ -152,7 +161,6 @@ impl SovereignWorldState {
         &self.council_decision_history[start..]
     }
 
-    /// Uses proposer index (O(1) after incremental maintenance or rebuild).
     pub fn get_council_decisions_by_proposer(&self, proposer: AgentId) -> Vec<&CouncilDecision> {
         if let Some(indices) = self.council_decision_indices_by_proposer.get(&proposer) {
             indices.iter().map(|&i| &self.council_decision_history[i]).collect()
@@ -161,7 +169,6 @@ impl SovereignWorldState {
         }
     }
 
-    /// Uses type index (O(1) after incremental maintenance or rebuild).
     pub fn get_council_decisions_by_type(&self, effect_type: &str) -> Vec<&CouncilDecision> {
         if let Some(indices) = self.council_decision_indices_by_type.get(effect_type) {
             indices.iter().map(|&i| &self.council_decision_history[i]).collect()
