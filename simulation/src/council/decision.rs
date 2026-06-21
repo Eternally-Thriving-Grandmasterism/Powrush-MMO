@@ -2,6 +2,7 @@
 // Persistent Council Decisions with effect application
 // Now wired into ECS: apply_council_decision_effects performs real mutations on SovereignWorldState
 // (RBE pools, abundance, sustainability, pressure, flow harmony) when CouncilDecisions resource is populated.
+// Includes decision clearing logic to prevent re-application every frame.
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -38,11 +39,11 @@ impl CouncilDecisions {
 }
 
 /// ECS System: Applies effects from passed Council Decisions to the world state.
-/// Called when CouncilDecisions resource has new decisions (populated by orchestrator, council systems, or bridge).
+/// Then clears the decisions to prevent re-application on subsequent frames.
 /// Real effects mirror the direct mutations in Orchestrator for consistency between manual tick and full ECS paths.
 /// TOLC 8 + 7 Living Mercy Gates aligned.
 pub fn apply_council_decision_effects(
-    decisions: Res<CouncilDecisions>,
+    mut decisions: ResMut<CouncilDecisions>,
     mut query: Query<&mut crate::world::SovereignWorldState>,
 ) {
     for decision in &decisions.decisions {
@@ -65,8 +66,6 @@ pub fn apply_council_decision_effects(
                 }
                 "HarmonyBoost" | "harmony_boost" => {
                     // Reduce presence/flow debt and challenge for harmony effect
-                    // (presence_debt and flow_metrics are typically on orchestrator; here we can adjust world-level harmony if extended,
-                    // or rely on downstream systems reading the decision. For now we boost sustainability as proxy.)
                     for pool in world.rbe_pools.values_mut() {
                         pool.sustainability_score = (pool.sustainability_score + 0.06 * mag).min(1.0);
                     }
@@ -90,10 +89,14 @@ pub fn apply_council_decision_effects(
             }
         }
     }
+
+    // Clearing logic: remove processed decisions so effects are not re-applied every Update.
+    // This keeps the system idempotent and efficient.
+    if !decisions.decisions.is_empty() {
+        decisions.clear();
+    }
 }
 
-// Note: To fully activate in Bevy schedule, add the system in FullSimulationPlugins or a CouncilPlugin:
-// app.add_systems(Update, apply_council_decision_effects);
-// Also ensure .init_resource::<CouncilDecisions>() is called in a plugin (e.g. RaThorPlugin or OrchestratorPlugin).
-// The orchestrator already applies equivalent direct effects for its manual tick path and populates applied_council_decisions in TickResult.
-// This ECS system provides the parallel full-schedule path when decisions are fed into the CouncilDecisions resource.
+// Note: The system is scheduled in RaThorPlugin (Update stage).
+// Orchestrator continues to apply equivalent direct effects in its manual tick and populates TickResult.
+// Both paths remain consistent. Clearing only affects the ECS resource path.
