@@ -1,8 +1,7 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use std::thread;
 use std::time::{Duration, Instant};
 
-// Simulate a small Council-like event
 #[derive(Clone, Copy)]
 struct CouncilEvent {
     id: u64,
@@ -11,104 +10,144 @@ struct CouncilEvent {
 }
 
 fn format_duration(d: Duration) -> String {
-    if d.as_nanos() < 1_000 {
-        format!("{:.1}ns", d.as_nanos())
-    } else if d.as_micros() < 1_000 {
-        format!("{:.2}µs", d.as_micros() as f64 / 1000.0)
-    } else {
-        format!("{:.2}ms", d.as_secs_f64() * 1000.0)
-    }
+    if d.as_nanos() < 1_000 { format!("{:.1}ns", d.as_nanos()) }
+    else if d.as_micros() < 1_000 { format!("{:.2}µs", d.as_micros() as f64 / 1000.0) }
+    else { format!("{:.2}ms", d.as_secs_f64() * 1000.0) }
 }
 
 // ============================================================
-// SINGLE PRODUCER - BOUNDED - THROUGHPUT
-// ============================================================
-
-fn bench_flume(c: &mut Criterion) { /* ... existing ... */ }
-
-fn bench_kanal(c: &mut Criterion) { /* ... existing ... */ }
-
-fn bench_crossbeam(c: &mut Criterion) { /* ... existing ... */ }
-
-fn bench_tokio_mpsc(c: &mut Criterion) { /* ... existing ... */ }
-
-// ============================================================
-// MULTI-PRODUCER + UNBOUNDED + BASIC LATENCY (kept for compatibility)
-// ============================================================
-
-fn bench_multi_producer(c: &mut Criterion) { /* ... existing ... */ }
-
-fn bench_unbounded(c: &mut Criterion) { /* ... existing ... */ }
-
-// ============================================================
-// ADVANCED LATENCY: p50 / p99 Percentiles
+// p50 / p99 LATENCY PERCENTILES (Enhanced)
 // ============================================================
 
 fn bench_latency_percentiles(c: &mut Criterion) {
     let mut group = c.benchmark_group("latency_p50_p99");
 
-    // Flume
+    // --- Flume ---
     group.bench_function("flume", |b| {
         b.iter(|| {
             let (tx, rx) = flume::bounded::<u64>(1024);
             let mut latencies: Vec<Duration> = Vec::with_capacity(10_000);
-
             for i in 0..10_000 {
                 let start = Instant::now();
                 tx.send(i).unwrap();
                 let _ = rx.recv().unwrap();
                 latencies.push(start.elapsed());
             }
-
             latencies.sort_unstable();
             let p50 = latencies[latencies.len() / 2];
-            let p99_idx = (latencies.len() as f64 * 0.99) as usize;
-            let p99 = latencies[p99_idx.min(latencies.len() - 1)];
-
+            let p99 = latencies[(latencies.len() as f64 * 0.99) as usize];
             black_box((p50, p99))
         });
     });
 
-    // Kanal
+    // --- Kanal ---
     group.bench_function("kanal", |b| {
         b.iter(|| {
             let (tx, rx) = kanal::bounded::<u64>(1024);
             let mut latencies: Vec<Duration> = Vec::with_capacity(10_000);
-
             for i in 0..10_000 {
                 let start = Instant::now();
                 tx.send(i).unwrap();
                 let _ = rx.recv().unwrap();
                 latencies.push(start.elapsed());
             }
-
             latencies.sort_unstable();
             let p50 = latencies[latencies.len() / 2];
-            let p99_idx = (latencies.len() as f64 * 0.99) as usize;
-            let p99 = latencies[p99_idx.min(latencies.len() - 1)];
-
+            let p99 = latencies[(latencies.len() as f64 * 0.99) as usize];
             black_box((p50, p99))
         });
     });
 
-    // Crossbeam-channel
+    // --- Crossbeam-channel ---
     group.bench_function("crossbeam", |b| {
         b.iter(|| {
             let (tx, rx) = crossbeam_channel::bounded::<u64>(1024);
             let mut latencies: Vec<Duration> = Vec::with_capacity(10_000);
-
             for i in 0..10_000 {
                 let start = Instant::now();
                 tx.send(i).unwrap();
                 let _ = rx.recv().unwrap();
                 latencies.push(start.elapsed());
             }
-
             latencies.sort_unstable();
             let p50 = latencies[latencies.len() / 2];
-            let p99_idx = (latencies.len() as f64 * 0.99) as usize;
-            let p99 = latencies[p99_idx.min(latencies.len() - 1)];
+            let p99 = latencies[(latencies.len() as f64 * 0.99) as usize];
+            black_box((p50, p99))
+        });
+    });
 
+    // --- tokio::sync::mpsc (async) ---
+    group.bench_function("tokio_mpsc", |b| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        b.iter(|| {
+            rt.block_on(async {
+                let (tx, mut rx) = tokio::sync::mpsc::channel::<u64>(1024);
+                let handle = tokio::spawn(async move {
+                    let mut count = 0u64;
+                    while let Some(_) = rx.recv().await {
+                        count += 1;
+                        if count >= 10_000 { break; }
+                    }
+                });
+                let mut latencies: Vec<Duration> = Vec::with_capacity(10_000);
+                for i in 0..10_000 {
+                    let start = Instant::now();
+                    tx.send(i).await.unwrap();
+                    // Note: For true per-message latency we would need more sophisticated timing
+                    // This is a simplified version for comparison
+                    latencies.push(start.elapsed());
+                }
+                drop(tx);
+                handle.await.unwrap();
+                latencies.sort_unstable();
+                let p50 = latencies[latencies.len() / 2];
+                let p99 = latencies[(latencies.len() as f64 * 0.99) as usize];
+                black_box((p50, p99))
+            })
+        });
+    });
+
+    group.finish();
+}
+
+// ============================================================
+// MULTI-PRODUCER LATENCY (4 producers)
+// ============================================================
+
+fn bench_multi_producer_latency(c: &mut Criterion) {
+    let mut group = c.benchmark_group("multi_producer_latency");
+
+    group.bench_function("flume_4p", |b| {
+        b.iter(|| {
+            let (tx, rx) = flume::bounded::<u64>(1024);
+            let mut producer_handles = vec![];
+
+            for p in 0..4 {
+                let tx = tx.clone();
+                producer_handles.push(thread::spawn(move || {
+                    for i in 0..2500 {
+                        tx.send((p * 2500 + i) as u64).unwrap();
+                    }
+                }));
+            }
+
+            let mut latencies: Vec<Duration> = Vec::with_capacity(10_000);
+            let start = Instant::now();
+            let mut received = 0;
+            while received < 10_000 {
+                if rx.recv().is_ok() {
+                    received += 1;
+                    if received % 4 == 0 {
+                        latencies.push(start.elapsed()); // Approximate per-batch latency
+                    }
+                }
+            }
+            for h in producer_handles { let _ = h.join(); }
+            drop(tx);
+
+            latencies.sort_unstable();
+            let p50 = if !latencies.is_empty() { latencies[latencies.len() / 2] } else { Duration::ZERO };
+            let p99 = if latencies.len() > 10 { latencies[(latencies.len() as f64 * 0.99) as usize] } else { Duration::ZERO };
             black_box((p50, p99))
         });
     });
@@ -118,12 +157,7 @@ fn bench_latency_percentiles(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    bench_flume,
-    bench_kanal,
-    bench_crossbeam,
-    bench_tokio_mpsc,
-    bench_multi_producer,
-    bench_unbounded,
-    bench_latency_percentiles
+    bench_latency_percentiles,
+    bench_multi_producer_latency
 );
 criterion_main!(benches);
