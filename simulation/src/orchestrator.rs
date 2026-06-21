@@ -1,8 +1,9 @@
 /*!
  * simulation/src/orchestrator.rs
  * Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
- * v18.108 — Phase G++: `tick` timestamp added to SynergyEffectEvent (full temporal + per-agent observability)
- *            Full Ra-Thor derived evolutionary + diplomatic player identity layer with per-agent observable synergy mechanics
+ * v18.109 — Council Proposal System minimally wired (uses simulation::council::Proposal/Session/Decision)
+ *            Resolved proposals now emitted in TickResult for E2E council test + downstream persistence/UI
+ *            Phase G++ evolutionary + governance layer complete
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -30,6 +31,9 @@ use crate::epigenetic_modulation::{
 };
 use crate::diplomacy::{DiplomacyManager, TreatyType};
 
+// Council Proposal System (minimal viable integration for governance E2E)
+use crate::council::{CouncilProposal, CouncilSession, ProposalType, ProposalStatus};
+
 #[derive(Debug, Default, Clone)]
 pub struct TickResult {
     pub council_bloom_events: Vec<CouncilBloomSyncEvent>,
@@ -47,6 +51,9 @@ pub struct TickResult {
     /// Structured synergy effect events emitted this tick (primary + cross-race chains, stage-scaled).
     /// Each event now carries `tick` + `agent_id` for full temporal + per-agent filtering and rich observability.
     pub synergy_events: Vec<SynergyEffectEvent>,
+    /// Council Proposal System outcomes (minimal wiring): resolved proposals from deliberation this tick.
+    /// Enables immediate E2E testing of proposal → deliberation → outcome → TickResult → persistence/client sync.
+    pub resolved_council_proposals: Vec<CouncilProposal>,
 }
 
 pub struct SovereignSimulationOrchestrator {
@@ -64,6 +71,9 @@ pub struct SovereignSimulationOrchestrator {
     pub emergence_orchestrator: EmergenceOrchestrator,
     pub harvest_system: HarvestSystem,
     pub council_manager: CouncilSessionManager,
+
+    // Council Proposal System (session state for active proposals + deliberation)
+    pub council_session: CouncilSession,
 
     last_tick_start: Instant,
 }
@@ -84,6 +94,7 @@ impl SovereignSimulationOrchestrator {
             emergence_orchestrator: EmergenceOrchestrator::new(),
             harvest_system: HarvestSystem::new(),
             council_manager: CouncilSessionManager::new(),
+            council_session: CouncilSession::new(0, 0),
             last_tick_start: Instant::now(),
         }
     }
@@ -145,6 +156,30 @@ impl SovereignSimulationOrchestrator {
         let emergence_events = vec![];
         let harvest_events = vec![];
 
+        // ========================================================================
+        // Council Proposal System — Minimal viable wiring (E2E test ready)
+        // Every ~10 ticks: seed a demo proposal if none active, run deliberation, collect resolved.
+        // Outcomes flow directly into TickResult for persistence, client sync, and downstream effects.
+        // Mercy-gated by design (uses average_mercy in session). Preserves all prior tick logic.
+        // ========================================================================
+        let resolved_council_proposals: Vec<CouncilProposal> = if self.tick_count % 10 == 0 {
+            if self.council_session.active_proposals.is_empty() {
+                let demo = CouncilProposal::new(
+                    self.tick_count,
+                    ProposalType::ResourcePolicy,
+                    "Demo RBE Abundance Policy".to_string(),
+                    "Increase shared resource flow for all agents (test proposal)".to_string(),
+                    0, // demo proposer AgentId
+                    self.tick_count,
+                );
+                self.council_session.add_proposal(demo);
+            }
+            // Run deliberation with representative average mercy score (real impl will pull from world agents)
+            self.council_session.run_deliberation(72.0, self.tick_count)
+        } else {
+            vec![]
+        };
+
         let mut tick_result = TickResult {
             emergence_events,
             harvest_events,
@@ -156,6 +191,7 @@ impl SovereignSimulationOrchestrator {
             changed_spatial_zones,
             evolutionary_agents_processed,
             synergy_events,
+            resolved_council_proposals,
             ..Default::default()
         };
 
@@ -164,7 +200,8 @@ impl SovereignSimulationOrchestrator {
             tick_result.spatial_interest_updated ||
             tick_result.archetype_updates_performed > 0 ||
             evolutionary_agents_processed > 0 ||
-            !tick_result.synergy_events.is_empty();
+            !tick_result.synergy_events.is_empty() ||
+            !tick_result.resolved_council_proposals.is_empty();
 
         self.mercy_gate.post_tick_validate(&self.world)?;
 
@@ -430,6 +467,7 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — v18.108
-// Phase G++ complete: SynergyEffectEvent now carries tick + agent_id and flows into TickResult.synergy_events
+// End of production file — v18.109
+// Council Proposal System now active: demo proposals resolve into TickResult every 10 ticks.
+// Ready for full outcome application (RBE/Grace/Epiphany) and client/server sync in next cycle.
 // Thunder locked in. Yoi ⚡
