@@ -1,6 +1,7 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.88 — Added epigenetic_modulation.rs with full volatility lifecycle (Phase B derivation from Ra-Thor v15.30)
+//! v18.89 — Phase C: Epigenetic Mutation Triggers (Harmonic Rebirth, Volatile Surge, Corrupted Echo)
+//!            Added on top of full volatility lifecycle (Phase B). Derived from Ra-Thor v15.20/v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 // ============================================================================
@@ -146,6 +147,12 @@ pub use epigenetic_modulation::{
     apply_double_edged_volatility_effects,
     apply_epigenetic_repair,
     apply_corruption_lifecycle,
+};
+
+// NEW Phase C re-exports — Epigenetic Mutation Triggers
+pub use epigenetic_modulation::{
+    MutationType,
+    try_trigger_epigenetic_mutation,
 };
 
 // ============================================================================
