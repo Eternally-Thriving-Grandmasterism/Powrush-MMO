@@ -1,11 +1,13 @@
 /*!
- * CouncilSession with CouncilEventBus integration.
+ * CouncilSession with Mercy Alignment Score integrated into consensus.
  *
- * Emits ProposalSubmitted and ProposalPassed events when the bus is present.
+ * A proposal now only reaches Passed status if it passes both the vote threshold
+ * *and* the Mercy Alignment Score threshold.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
+use crate::council::decision::CouncilDecision;
 use crate::council::event_bus::{CouncilEvent, CouncilEventBus};
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
 use serde::{Deserialize, Serialize};
@@ -16,7 +18,6 @@ pub struct CouncilSession {
     pub active_proposals: Vec<CouncilProposal>,
     pub last_session_tick: u64,
     next_proposal_id: u64,
-    /// Optional event bus for emitting governance events.
     #[serde(skip)]
     pub event_bus: Option<CouncilEventBus>,
 }
@@ -32,7 +33,6 @@ impl CouncilSession {
         }
     }
 
-    /// Attach an existing event bus (e.g. from Bevy Resource).
     pub fn with_event_bus(mut self, bus: CouncilEventBus) -> Self {
         self.event_bus = Some(bus);
         self
@@ -52,19 +52,18 @@ impl CouncilSession {
         let proposal = CouncilProposal::new(
             id,
             proposal_type,
-            title,
+            title.clone(),
             description,
             proposer,
             current_tick,
         );
 
-        // Emit event if bus is attached
         if let Some(bus) = &self.event_bus {
             let _ = bus.send(CouncilEvent::ProposalSubmitted {
                 proposal_id: id,
                 proposer,
                 proposal_type,
-                title: title.clone(),
+                title,
             });
         }
 
@@ -88,21 +87,38 @@ impl CouncilSession {
                     let mercy_factor = (average_mercy / 100.0) * 0.3;
                     let effective_for = proposal.votes_for as f32 * (1.0 + mercy_factor);
 
-                    if effective_for > proposal.votes_against as f32 {
-                        proposal.status = ProposalStatus::Passed;
+                    let would_pass_vote = effective_for > proposal.votes_against as f32;
 
-                        // Emit ProposalPassed event
-                        if let Some(bus) = &self.event_bus {
-                            let _ = bus.send(CouncilEvent::ProposalPassed {
-                                proposal_id: proposal.id,
-                                votes_for: proposal.votes_for,
-                                votes_against: proposal.votes_against,
-                                mercy_factor: (average_mercy / 100.0) * 0.3,
-                            });
+                    if would_pass_vote {
+                        // Build a temporary decision to calculate Mercy Alignment Score
+                        let temp_decision = CouncilDecision::from_resolved_proposal(
+                            proposal,
+                            mercy_factor,
+                            current_tick,
+                            self.realm_id,
+                        );
+
+                        let mas = temp_decision.mercy_alignment_score(None);
+
+                        // Ra-Thor Consensus requires both vote win + Mercy Alignment Score
+                        if mas >= 0.72 {
+                            proposal.status = ProposalStatus::Passed;
+
+                            if let Some(bus) = &self.event_bus {
+                                let _ = bus.send(CouncilEvent::ProposalPassed {
+                                    proposal_id: proposal.id,
+                                    votes_for: proposal.votes_for,
+                                    votes_against: proposal.votes_against,
+                                    mercy_factor,
+                                });
+                            }
+                        } else {
+                            proposal.status = ProposalStatus::Rejected;
                         }
                     } else {
                         proposal.status = ProposalStatus::Rejected;
                     }
+
                     resolved.push(proposal.clone());
                 }
             }
