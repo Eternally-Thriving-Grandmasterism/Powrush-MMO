@@ -1,8 +1,7 @@
 /*!
- * CouncilSession with Weighted Council Influence.
+ * CouncilSession with Council Archetype Defaults.
  *
- * Different PATSAGi Councils can now have different influence weights
- * in the final consensus aggregation.
+ * Predefined PATSAGi Council archetypes aligned with the 7 Living Mercy Gates.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -14,12 +13,52 @@ use crate::council::event_bus::{CouncilEvent, CouncilEventBus};
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CouncilArchetype {
+    Truth,        // Emphasizes truth-seeking and anti-hallucination
+    Abundance,    // Focuses on resource flow and shared prosperity
+    Harmony,      // Prioritizes systemic balance and sustainability
+    Service,      // Values benefit to the many over the few
+    Mercy,        // Strong emphasis on compassion and redemption
+    Joy,          // Favors decisions that increase overall well-being
+    Cosmic,       // Long-term, large-scale, future-oriented view
+}
+
+impl CouncilArchetype {
+    /// Returns a human-readable name
+    pub fn name(&self) -> &'static str {
+        match self {
+            CouncilArchetype::Truth => "Truth Council",
+            CouncilArchetype::Abundance => "Abundance Council",
+            CouncilArchetype::Harmony => "Harmony Council",
+            CouncilArchetype::Service => "Service Council",
+            CouncilArchetype::Mercy => "Mercy Council",
+            CouncilArchetype::Joy => "Joy Council",
+            CouncilArchetype::Cosmic => "Cosmic Council",
+        }
+    }
+
+    /// Returns a suggested influence weight for this archetype
+    pub fn default_weight(&self) -> f32 {
+        match self {
+            CouncilArchetype::Truth => 1.15,
+            CouncilArchetype::Abundance => 1.10,
+            CouncilArchetype::Harmony => 1.05,
+            CouncilArchetype::Service => 1.00,
+            CouncilArchetype::Mercy => 1.08,
+            CouncilArchetype::Joy => 0.95,
+            CouncilArchetype::Cosmic => 1.12,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CouncilVote {
     pub council_id: u8,
     pub approved: bool,
     pub mercy_alignment_score: f32,
-    pub weight: f32,                    // NEW: influence weight
+    pub weight: f32,
+    pub archetype: Option<CouncilArchetype>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -32,7 +71,8 @@ pub struct CouncilSession {
     pub event_bus: Option<CouncilEventBus>,
     last_dynamic_threshold: Option<f32>,
     num_parallel_councils: usize,
-    council_weights: Vec<f32>,          // NEW: per-council influence weights
+    council_weights: Vec<f32>,
+    council_archetypes: Vec<Option<CouncilArchetype>>, // NEW
 }
 
 impl CouncilSession {
@@ -46,22 +86,46 @@ impl CouncilSession {
             event_bus: None,
             last_dynamic_threshold: None,
             num_parallel_councils: default_councils,
-            council_weights: vec![1.0; default_councils], // equal weight by default
+            council_weights: vec![1.0; default_councils],
+            council_archetypes: vec![None; default_councils],
         }
     }
 
     pub fn with_num_parallel_councils(mut self, count: usize) -> Self {
         self.num_parallel_councils = count.max(1);
         self.council_weights = vec![1.0; self.num_parallel_councils];
+        self.council_archetypes = vec![None; self.num_parallel_councils];
         self
     }
 
-    /// Set custom influence weights for each council.
-    /// Length must match num_parallel_councils.
     pub fn with_council_weights(mut self, weights: Vec<f32>) -> Self {
         if weights.len() == self.num_parallel_councils {
             self.council_weights = weights;
         }
+        self
+    }
+
+    /// Assigns the 7 Living Mercy Gate archetypes with sensible default weights.
+    pub fn with_archetype_defaults(mut self) -> Self {
+        let archetypes = vec![
+            Some(CouncilArchetype::Truth),
+            Some(CouncilArchetype::Abundance),
+            Some(CouncilArchetype::Harmony),
+            Some(CouncilArchetype::Service),
+            Some(CouncilArchetype::Mercy),
+            Some(CouncilArchetype::Joy),
+            Some(CouncilArchetype::Cosmic),
+        ];
+
+        let count = self.num_parallel_councils.min(archetypes.len());
+
+        for i in 0..count {
+            self.council_archetypes[i] = archetypes[i].clone();
+            if let Some(archetype) = &archetypes[i] {
+                self.council_weights[i] = archetype.default_weight();
+            }
+        }
+
         self
     }
 
@@ -127,7 +191,7 @@ impl CouncilSession {
             average_mercy = average_mercy,
             dynamic_threshold = dynamic_threshold,
             num_councils = self.num_parallel_councils,
-            "Ra-Thor weighted multi-council deliberation started"
+            "Ra-Thor archetype-weighted deliberation started"
         );
 
         for proposal in self.active_proposals.iter_mut() {
@@ -150,10 +214,18 @@ impl CouncilSession {
 
                         for council_id in 0..self.num_parallel_councils {
                             let weight = self.council_weights.get(council_id).copied().unwrap_or(1.0);
+                            let archetype = self.council_archetypes.get(council_id).cloned().flatten();
                             total_weight += weight;
 
-                            // Simulate specialization via slight MAS variation
-                            let variation = (council_id as f32 * 0.012) - 0.04;
+                            // Archetype-aware variation (can be expanded later)
+                            let variation = match archetype {
+                                Some(CouncilArchetype::Truth) => 0.03,
+                                Some(CouncilArchetype::Abundance) => 0.02,
+                                Some(CouncilArchetype::Harmony) => 0.01,
+                                Some(CouncilArchetype::Mercy) => -0.01,
+                                _ => 0.0,
+                            };
+
                             let temp_decision = CouncilDecision::from_resolved_proposal(
                                 proposal,
                                 mercy_factor,
@@ -177,10 +249,10 @@ impl CouncilSession {
                                 approved,
                                 mercy_alignment_score: council_mas,
                                 weight,
+                                archetype,
                             });
                         }
 
-                        // === Weighted Aggregation ===
                         let weighted_approval_ratio = if total_weight > 0.0 {
                             weighted_approvals / total_weight
                         } else {
@@ -193,7 +265,6 @@ impl CouncilSession {
                             0.0
                         };
 
-                        // Final consensus rule (weighted)
                         let passes_consensus =
                             weighted_approval_ratio >= (2.0 / 3.0) && avg_weighted_mas >= dynamic_threshold;
 
@@ -221,7 +292,7 @@ impl CouncilSession {
                             dynamic_threshold = dynamic_threshold,
                             passes_consensus = passes_consensus,
                             status = ?proposal.status,
-                            "Weighted multi-council aggregation complete"
+                            "Archetype-weighted multi-council aggregation complete"
                         );
                     } else {
                         proposal.status = ProposalStatus::Rejected;
