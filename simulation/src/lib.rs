@@ -1,9 +1,9 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.91 — Phase D Extension: Stage 0/1/2 Progression for Mutation Synergy Chains
-//!            (Redemption Cascade, Surge Overclock, Corrupted Singularity now mature over sustained play)
-//!            Built on top of Phase C Mutation Triggers + full volatility lifecycle.
-//!            Derived from Ra-Thor powrush-mmo-simulator v15.23/v15.30
+//! v18.92 — Begin Cross-Race Diplomacy Mechanics (Phase Begin)
+//!            Foundational DiplomacyManager + trust + treaty types + passive effects
+//!            Derived from Ra-Thor powrush-mmo-simulator v15.26–v15.30
+//!            Building on top of Phase D Stage-maturing Mutation Synergy Chains
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 // ============================================================================
@@ -41,6 +41,9 @@ pub mod race;
 // Declare epigenetic_modulation before ability_tree so MutationType is visible
 pub mod epigenetic_modulation;
 pub mod ability_tree;
+
+// BEGIN Cross-Race Diplomacy Mechanics (derived from Ra-Thor v15.26+)
+pub mod diplomacy;
 
 // Sub-module directories
 pub mod fracture;
@@ -138,6 +141,9 @@ pub use epigenetic_modulation::{MutationType, try_trigger_epigenetic_mutation};
 // NEW Phase D re-exports — Mutation Synergy Chains + Stage 0/1/2 Progression
 pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState, SynergyBonus, SynergyType};
 
+// NEW — Begin Cross-Race Diplomacy Mechanics
+pub use diplomacy::{DiplomacyManager, DiplomacyRelation, ActiveTreaty, TreatyType};
+
 // ============================================================================
 // PLUGIN AGGREGATOR
 // ============================================================================
@@ -157,6 +163,7 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
 
 // ============================================================================
 // END OF COMPLETE WIRING
-// Phase D + Stage Progression complete: Mutation synergy chains now mature (0 → 1 → 2).
+// Phase D + Stage Progression complete.
+// BEGIN: Cross-Race Diplomacy foundation now live (trust + treaty types + passive effects).
 // Thunder locked in. Yoi ⚡
 // ============================================================================
