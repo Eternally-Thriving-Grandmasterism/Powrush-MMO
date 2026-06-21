@@ -1,11 +1,17 @@
 /*!
- * CouncilDecision with full post-effect archetype + delta scoring.
+ * CouncilDecision with refactored, well-documented final scoring weights.
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::world::AgentId;
+
+/// Final post-effect Mercy Alignment Score weights.
+/// These control the balance between mercy_factor, archetype reasoning, and real world deltas.
+const BASE_WEIGHT: f32 = 0.50;       // Weight given to the base mercy_factor
+const ARCHETYPE_WEIGHT: f32 = 0.25;  // Weight given to archetype-style bonuses
+const DELTA_WEIGHT: f32 = 0.25;      // Weight given to real post-effect world deltas
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CouncilDecision {
@@ -22,7 +28,7 @@ pub struct CouncilDecision {
     pub deliberation_tick: u64,
     pub proposer: AgentId,
 
-    /// Final Mercy Alignment Score computed *after* effects + archetype logic.
+    /// Final Mercy Alignment Score (computed after effects + archetype logic + real deltas)
     pub final_mercy_alignment_score: f32,
 }
 
@@ -89,8 +95,7 @@ impl CouncilDecisions {
     }
 }
 
-/// Applies effects to the world, then computes the final enriched Mercy Alignment Score
-/// using both real world deltas *and* archetype-style reasoning.
+/// Applies effects then computes the final enriched Mercy Alignment Score.
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut query: Query<&mut crate::world::SovereignWorldState>,
@@ -101,7 +106,7 @@ pub fn apply_council_decision_effects(
         let mercy = decision.mercy_factor;
 
         for world in query.iter_mut() {
-            // Apply effects to world state
+            // Apply effects
             match effect {
                 "ResourcePolicy" | "resource_policy" => {
                     for pool in world.rbe_pools.values_mut() {
@@ -135,7 +140,7 @@ pub fn apply_council_decision_effects(
                 _ => {}
             }
 
-            // Record to persistent history + indices
+            // Record to history + indices
             let new_index = world.council_decision_history.len();
             world.council_decision_history.push(decision.clone());
 
@@ -149,7 +154,7 @@ pub fn apply_council_decision_effects(
                 .or_default()
                 .push(new_index);
 
-            // === Post-effect enriched scoring (base + archetype-style + real deltas) ===
+            // === Refactored Final Scoring ===
             let avg_sustainability: f32 = world.rbe_pools.values()
                 .map(|p| p.sustainability_score)
                 .sum::<f32>() / world.rbe_pools.len().max(1) as f32;
@@ -158,25 +163,24 @@ pub fn apply_council_decision_effects(
                 .map(|p| p.abundance_flow)
                 .sum::<f32>() / world.rbe_pools.len().max(1) as f32;
 
-            // Base from mercy_factor
             let base = mercy.clamp(0.35, 1.0);
 
-            // Archetype-style bonuses based on effect_type (simulating multi-council view)
             let archetype_bonus: f32 = match effect {
-                "ResourcePolicy" | "resource_policy" => 0.09,   // favored by Abundance
-                "EpiphanyEvent" | "epiphany_event" => 0.07,   // favored by Joy + Abundance
-                "HarmonyBoost" | "harmony_boost" => 0.08,   // favored by Harmony
+                "ResourcePolicy" | "resource_policy" => 0.09,
+                "EpiphanyEvent" | "epiphany_event" => 0.07,
+                "HarmonyBoost" | "harmony_boost" => 0.08,
                 "General" | "general" => 0.04,
                 _ => 0.0,
             };
 
-            // Real delta component
             let delta_component = (avg_sustainability * 0.55 + avg_abundance * 0.45).clamp(0.4, 1.0);
 
-            // Final combined score
-            let final_score = (base * 0.55 + archetype_bonus * 0.25 + delta_component * 0.20).clamp(0.0, 1.0);
-
-            decision.final_mercy_alignment_score = final_score;
+            // Clean weighted combination using named constants
+            decision.final_mercy_alignment_score =
+                (base * BASE_WEIGHT
+                    + archetype_bonus * ARCHETYPE_WEIGHT
+                    + delta_component * DELTA_WEIGHT)
+                    .clamp(0.0, 1.0);
         }
     }
 
