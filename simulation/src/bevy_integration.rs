@@ -1,9 +1,7 @@
 /*!
  * Bevy Integration for Ra-Thor Bridge + Legacy Journal + Council Governance
  *
- * Now uses the dedicated CouncilPlugin for clean modular initialization.
- *
- * TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned.
+ * Now includes CouncilEventBus as a proper Bevy Resource.
  */
 
 use bevy::prelude::*;
@@ -12,9 +10,8 @@ use tracing::info;
 use crate::ra_thor_bridge::{RaThorBridge, RealRaThorClient, RaThorError};
 use crate::emergence::{EmergenceSeed, CouncilGuidance};
 use crate::player_legacy_journal::LegacyJournalRegistry;
-use crate::council::CouncilPlugin;  // NEW: dedicated Council plugin
+use crate::council::{CouncilPlugin, CouncilEventBus};
 
-/// Bevy Resource that wraps the Ra-Thor bridge.
 #[derive(Resource)]
 pub struct RaThorResource {
     pub bridge: RaThorBridge,
@@ -59,17 +56,9 @@ impl Plugin for RaThorPlugin {
         app
             .init_resource::<RaThorResource>()
             .init_resource::<LegacyJournalRegistry>()
-            .add_plugins(CouncilPlugin);  // Clean delegation to dedicated Council plugin
+            .init_resource::<CouncilEventBus>()   // Bevy Resource adapter for Council events
+            .add_plugins(CouncilPlugin);
 
-        info!("RaThorPlugin initialized with CouncilPlugin");
+        info!("RaThorPlugin initialized with CouncilEventBus and CouncilPlugin");
     }
 }
-
-/*
- * === Simulation-side Population Guidance ===
- *
- * The CouncilPlugin now handles:
- * - CouncilDecisions resource
- * - apply_council_decision_effects system
- * - Full audit logging into SovereignWorldState.council_decision_history
- */
