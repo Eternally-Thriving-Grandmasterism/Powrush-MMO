@@ -34,6 +34,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 flume = "0.11"
 kanal = "0.1"
 crossbeam-channel = "0.5"
+tokio = { version = "1", features = ["rt", "sync"] }
 
 [[bench]]
 name = "resonance_decay_recovery_bench"
