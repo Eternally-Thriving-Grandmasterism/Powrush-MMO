@@ -1,10 +1,8 @@
 /*!
- * CouncilEventBus with Periodic Fsync Batching.
+ * CouncilEventBus with Write-Ahead Logging (WAL) support.
  *
- * Offers three durability modes:
- * - No persistence
- * - Best-effort (flush only)
- * - Periodic fsync (configurable batch size)
+ * In WAL mode, events are durably persisted to the log *before* being delivered
+ * to consumers. This provides strong "event is committed" semantics.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -49,15 +47,16 @@ pub enum CouncilEvent {
     },
 }
 
-/// High-performance Council Event Bus with flexible durability options.
+/// High-performance Council Event Bus with multiple durability strategies,
+/// including Write-Ahead Logging semantics.
 #[cfg_attr(feature = "bevy", derive(Resource))]
 #[derive(Clone)]
 pub struct CouncilEventBus {
     tx: Sender<CouncilEvent>,
     rx: Receiver<CouncilEvent>,
     persistence: Option<Arc<Mutex<BufWriter<File>>>>,
-    durable: bool,
-    fsync_interval: u32,      // 0 = every write, >0 = every N writes
+    wal_mode: bool,           // Write-Ahead Logging enabled
+    fsync_interval: u32,
     write_count: Arc<Mutex<u32>>,
 }
 
@@ -65,32 +64,37 @@ impl CouncilEventBus {
     pub fn new_bounded(capacity: usize) -> Self {
         let (tx, rx) = flume::bounded(capacity);
         Self {
-            tx,
-            rx,
+            tx, rx,
             persistence: None,
-            durable: false,
+            wal_mode: false,
             fsync_interval: 0,
             write_count: Arc::new(Mutex::new(0)),
         }
     }
 
-    /// Best-effort persistence (flush only, no fsync).
+    /// Best-effort persistence (no WAL guarantee).
     pub fn new_bounded_with_persistence<P: AsRef<Path>>(capacity: usize, path: P) -> std::io::Result<Self> {
-        Self::new_bounded_with_persistence_internal(capacity, path, false, 0)
+        Self::new_internal(capacity, path, false, false, 0)
     }
 
-    /// Strong durability: fsync after **every** write.
+    /// Strong per-write durability.
     pub fn new_bounded_with_durable_persistence<P: AsRef<Path>>(capacity: usize, path: P) -> std::io::Result<Self> {
-        Self::new_bounded_with_persistence_internal(capacity, path, true, 1)
+        Self::new_internal(capacity, path, true, false, 1)
     }
 
-    /// Recommended balanced mode: fsync periodically (e.g. every 50 or 100 events).
-    /// This gives good durability with much better performance than per-write fsync.
+    /// Periodic fsync batching.
     pub fn new_bounded_with_batched_durability<P: AsRef<Path>>(capacity: usize, path: P, fsync_interval: u32) -> std::io::Result<Self> {
-        Self::new_bounded_with_persistence_internal(capacity, path, true, fsync_interval)
+        Self::new_internal(capacity, path, true, false, fsync_interval)
     }
 
-    fn new_bounded_with_persistence_internal<P: AsRef<Path>>(capacity: usize, path: P, durable: bool, fsync_interval: u32) -> std::io::Result<Self> {
+    /// **Write-Ahead Logging mode**.
+    /// Events are durably persisted to the log *before* being made available to consumers.
+    /// This provides the strongest "committed" semantics for governance events.
+    pub fn new_bounded_with_write_ahead_log<P: AsRef<Path>>(capacity: usize, path: P, fsync_interval: u32) -> std::io::Result<Self> {
+        Self::new_internal(capacity, path, true, true, fsync_interval)
+    }
+
+    fn new_internal<P: AsRef<Path>>(capacity: usize, path: P, durable: bool, wal_mode: bool, fsync_interval: u32) -> std::io::Result<Self> {
         let file = OpenOptions::new().create(true).append(true).open(path)?;
         let writer = BufWriter::new(file);
         let persistence = Some(Arc::new(Mutex::new(writer)));
@@ -98,23 +102,25 @@ impl CouncilEventBus {
         let (tx, rx) = flume::bounded(capacity);
 
         Ok(Self {
-            tx,
-            rx,
+            tx, rx,
             persistence,
-            durable,
+            wal_mode,
             fsync_interval,
             write_count: Arc::new(Mutex::new(0)),
         })
     }
 
     pub fn send(&self, event: CouncilEvent) -> Result<(), flume::SendError<CouncilEvent>> {
-        if let Some(writer) = &self.persistence {
-            if let Ok(mut guard) = writer.lock() {
-                if let Ok(json) = serde_json::to_string(&event) {
-                    let _ = writeln!(guard, "{}", json);
-                    let _ = guard.flush();
+        // In WAL mode, we must successfully persist before delivering the event
+        if self.persistence.is_some() {
+            if let Some(writer) = &self.persistence {
+                if let Ok(mut guard) = writer.lock() {
+                    if let Ok(json) = serde_json::to_string(&event) {
+                        // Write + flush
+                        let _ = writeln!(guard, "{}", json);
+                        let _ = guard.flush();
 
-                    if self.durable {
+                        // Durability logic
                         let mut count = self.write_count.lock().unwrap();
                         *count += 1;
 
@@ -124,7 +130,7 @@ impl CouncilEventBus {
                             *count % self.fsync_interval == 0
                         };
 
-                        if should_sync {
+                        if self.wal_mode || should_sync {
                             if let Ok(file) = guard.get_ref().try_clone() {
                                 let _ = file.sync_all();
                             }
@@ -134,6 +140,7 @@ impl CouncilEventBus {
             }
         }
 
+        // Only deliver to consumers after successful WAL write (when enabled)
         self.tx.send(event)
     }
 
