@@ -1,6 +1,6 @@
 //! simulation/src/ability_tree.rs
 //! Powrush-MMO Ability Tree System with Mutation Synergy Chains + Stage 0/1/2 + Cross-Race Chain Synergy
-//! v1.6 — Stage-Scaled Synergy Multipliers Implemented
+//! v1.7 — Event Emission for Synergy Effects Added
 //! Derived from Ra-Thor powrush-mmo-simulator v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | PATSAGi aligned
 
@@ -249,15 +249,20 @@ impl AbilityTree {
     }
 
     // ========================================================================
-    // MECHANICAL SYNERGY BONUS APPLICATION (v1.5 → v1.6 Stage-Scaled)
-    // Applies real, observable effects to an EpigeneticProfile based on active chains.
-    // Bonuses are now explicitly scaled by chain maturity (Stage 0/1/2).
+    // MECHANICAL SYNERGY BONUS APPLICATION + EVENT EMISSION (v1.7)
+    // Applies real effects + returns structured events for observability (tracing, UI, client sync).
     // ========================================================================
 
     /// Applies the mechanical effects of active synergy bonuses directly to the agent's epigenetic profile.
+    /// Returns a list of `SynergyEffectEvent` describing exactly what changed — ready for structured emission.
     /// Called every tick from the production evolutionary processing loop.
-    /// Effects are scaled by the maturity stage of the originating chain.
-    pub fn apply_synergy_bonuses_to_profile(&self, profile: &mut EpigeneticProfile, synergies: &[SynergyBonus]) {
+    pub fn apply_synergy_bonuses_to_profile(
+        &self,
+        profile: &mut EpigeneticProfile,
+        synergies: &[SynergyBonus],
+    ) -> Vec<SynergyEffectEvent> {
+        let mut events = Vec::new();
+
         for bonus in synergies {
             let stage_scale: f32 = match bonus.stage {
                 0 => 1.0,
@@ -265,6 +270,10 @@ impl AbilityTree {
                 2 => 2.6,
                 _ => 1.0,
             };
+
+            let before_vol = profile.volatility;
+            let before_str = profile.strength;
+            let before_coop = profile.cooperation_score;
 
             match &bonus.bonus_type {
                 SynergyType::HarmonyAmplification { multiplier } => {
@@ -284,14 +293,22 @@ impl AbilityTree {
                         profile.strength = (profile.strength + (scaled * 0.012)).min(3.5);
                     }
                 }
-                SynergyType::MovementEfficiency { multiplier: _ } => {
-                    // Placeholder for future movement integration
-                }
-                SynergyType::GlobalCooldownReduction { reduction_percent: _ } => {
-                    // Placeholder for future ability cooldown integration
-                }
+                SynergyType::MovementEfficiency { multiplier: _ } => {}
+                SynergyType::GlobalCooldownReduction { reduction_percent: _ } => {}
             }
+
+            // Emit structured event describing the change
+            events.push(SynergyEffectEvent {
+                chain_name: bonus.name.clone(),
+                stage: bonus.stage,
+                bonus_type: format!("{:?}", bonus.bonus_type),
+                volatility_delta: profile.volatility - before_vol,
+                strength_delta: profile.strength - before_str,
+                cooperation_delta: profile.cooperation_score - before_coop,
+            });
         }
+
+        events
     }
 }
 
@@ -305,6 +322,18 @@ pub struct AbilityState {
     pub on_cooldown: bool,
     pub remaining_cooldown_ticks: u32,
     pub cooldown_progress: f32,
+}
+
+/// Structured event emitted when synergy bonuses are applied.
+/// Enables rich observability, tracing, future UI sync, and client replication.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SynergyEffectEvent {
+    pub chain_name: String,
+    pub stage: u8,
+    pub bonus_type: String,
+    pub volatility_delta: f32,
+    pub strength_delta: f32,
+    pub cooperation_delta: f64,
 }
 
 /// Synergy bonus types (foundation for mutation chains and future cross-race chains).
