@@ -1,5 +1,5 @@
 // simulation/src/council/decision.rs
-// CouncilDecision with full audit fields + proposer for rich audit queries.
+// CouncilDecision with full audit fields. Indices are maintained in SovereignWorldState.
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,13 +15,10 @@ pub struct CouncilDecision {
     pub passed_tick: u64,
     pub realm_id: u8,
 
-    // Audit fields
     pub votes_for: u32,
     pub votes_against: u32,
     pub mercy_factor: f32,
     pub deliberation_tick: u64,
-
-    // For proposer-based audit queries
     pub proposer: AgentId,
 }
 
@@ -86,7 +83,7 @@ impl CouncilDecisions {
     }
 }
 
-/// ECS System: Applies effects + records into persistent audit history.
+/// ECS System: Applies effects, records to history, and maintains query indices.
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut query: Query<&mut crate::world::SovereignWorldState>,
@@ -96,6 +93,7 @@ pub fn apply_council_decision_effects(
         let mag = decision.magnitude.max(0.1);
 
         for world in query.iter_mut() {
+            // Apply effects (unchanged)
             match effect {
                 "ResourcePolicy" | "resource_policy" => {
                     for pool in world.rbe_pools.values_mut() {
@@ -129,7 +127,20 @@ pub fn apply_council_decision_effects(
                 _ => {}
             }
 
+            // Record to history
+            let new_index = world.council_decision_history.len();
             world.council_decision_history.push(decision.clone());
+
+            // Maintain secondary indices for fast queries
+            world.council_decision_indices_by_proposer
+                .entry(decision.proposer)
+                .or_default()
+                .push(new_index);
+
+            world.council_decision_indices_by_type
+                .entry(decision.effect_type.clone())
+                .or_default()
+                .push(new_index);
         }
     }
 
