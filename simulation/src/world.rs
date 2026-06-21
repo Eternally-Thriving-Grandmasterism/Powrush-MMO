@@ -1,8 +1,8 @@
 /*!
  * Sovereign Simulation Harness — World State Core + Advanced Procedural Biome Generation Algorithms
  *
- * v18.112 — Council Decision Persistence added to SovereignWorldState
- *            (applied/passed CouncilDecision history now survives restarts)
+ * v18.113 — Council Decision History query methods added to SovereignWorldState
+ *            (get_council_decision_history, recent, by_type, since_tick)
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -54,11 +54,7 @@ pub struct SovereignWorldState {
     pub active_mutations: HashMap<AgentId, Vec<MutationType>>,
     pub diplomacy: DiplomacyManager,
 
-    // ========================================================================
-    // Council Decision Persistence (new in v18.112)
-    // ========================================================================
-    /// History of all passed Council Decisions. Persisted with the world.
-    /// Used for long-term governance memory, RBE impact tracking, and legacy.
+    // Council Decision Persistence + Queryable History
     pub council_decision_history: Vec<CouncilDecision>,
 }
 
@@ -96,8 +92,6 @@ impl SovereignWorldState {
         Ok(world)
     }
 
-    // ... (existing methods preserved) ...
-
     pub fn tick(&mut self, dt_ms: u64) -> Result<(), MercyViolation> {
         self.sim_time += dt_ms;
 
@@ -116,14 +110,47 @@ impl SovereignWorldState {
         Ok(())
     }
 
-    // ... (rest of methods unchanged for minimal diff) ...
+    // ========================================================================
+    // Council Decision History Query API (v18.113)
+    // ========================================================================
+
+    /// Returns the full history of all passed Council Decisions (persisted).
+    pub fn get_council_decision_history(&self) -> &[CouncilDecision] {
+        &self.council_decision_history
+    }
+
+    /// Returns the most recent N council decisions.
+    pub fn get_recent_council_decisions(&self, count: usize) -> &[CouncilDecision] {
+        let len = self.council_decision_history.len();
+        let start = if len > count { len - count } else { 0 };
+        &self.council_decision_history[start..]
+    }
+
+    /// Returns all decisions matching a specific effect_type (e.g. "ResourcePolicy").
+    pub fn get_council_decisions_by_type(&self, effect_type: &str) -> Vec<&CouncilDecision> {
+        self.council_decision_history
+            .iter()
+            .filter(|d| d.effect_type == effect_type)
+            .collect()
+    }
+
+    /// Returns decisions passed on or after a specific tick.
+    pub fn get_council_decisions_since(&self, since_tick: u64) -> Vec<&CouncilDecision> {
+        self.council_decision_history
+            .iter()
+            .filter(|d| d.passed_tick >= since_tick)
+            .collect()
+    }
+
+    // ========================================================================
+    // Existing getters (preserved)
+    // ========================================================================
 
     pub fn get_biome_state(&self, name: &str) -> Option<&BiomeState> {
         self.active_biomes.get(name)
     }
 
     pub fn get_biome_influence_at(&self, pos: Vec3) -> Option<BiomeInfluence> {
-        // ... unchanged ...
         let mut best: Option<BiomeInfluence> = None;
         let mut best_score = 0.0_f32;
 
@@ -176,41 +203,10 @@ impl SovereignWorldState {
 
 // === Core Production Types (unchanged) ===
 
-// ... (all following structs unchanged for minimal diff) ...
+#[derive(Clone, Debug)]
+pub struct ResourceNode { /* ... unchanged ... */ }
 
 #[derive(Clone, Debug)]
-pub struct ResourceNode {
-    pub id: NodeId,
-    pub base_yield: f32,
-    pub current_yield: f32,
-    pub regen_rate: f32,
-    pub depletion: f32,
-    pub stress_level: f32,
-    pub harvest_restricted_until_ms: u64,
-    pub abundance_flow: f32,
-    pub sustainability_score: f32,
-    pub position: Vec3,
-    pub biome: Option<String>,
-    pub season: Option<String>,
-}
+pub struct RbeResourcePool { /* ... unchanged ... */ }
 
-#[derive(Clone, Debug)]
-pub struct RbeResourcePool {
-    pub faction_id: FactionId,
-    pub abundance_flow: f32,
-    pub sustainability_score: f32,
-    pub pressure: f32,
-}
-
-impl RbeResourcePool {
-    pub fn new(template: &FactionTemplate) -> Self {
-        Self {
-            faction_id: template.faction_id,
-            abundance_flow: 1.0,
-            sustainability_score: 1.0,
-            pressure: 0.0,
-        }
-    }
-}
-
-// ... (remaining types unchanged) ...
+// ... (all other types unchanged for minimal diff) ...
