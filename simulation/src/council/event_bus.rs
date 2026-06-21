@@ -1,7 +1,7 @@
 /*!
- * CouncilEventBus with Checksums for Data Integrity.
+ * CouncilEventBus with CRC64 Checksums for Stronger Data Integrity.
  *
- * Every persisted event line includes a CRC32 checksum for corruption detection.
+ * Uses CRC-64 (ECMA-182) for significantly better error detection than CRC32.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -14,12 +14,14 @@ use std::sync::{Arc, Mutex};
 use flume::{Receiver, Sender};
 use serde::{Deserialize, Serialize};
 
-use crc32fast::Hasher;
+use crc::{Crc, CRC_64_ECMA_182};
 
 use crate::world::AgentId;
 
 #[cfg(feature = "bevy")]
 use bevy::prelude::Resource;
+
+const CRC64: Crc<u64> = Crc::<u64>::new(&CRC_64_ECMA_182);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CouncilEvent {
@@ -124,9 +126,8 @@ impl CouncilEventBus {
                 }
 
                 if let Ok(json) = serde_json::to_string(&event) {
-                    // Append CRC32 checksum for integrity
-                    let checksum = compute_crc32(&json);
-                    let line = format!("{}|crc32:{:08x}", json, checksum);
+                    let checksum = compute_crc64(&json);
+                    let line = format!("{}|crc64:{:016x}", json, checksum);
 
                     let _ = writeln!(guard, "{}", line);
                     let _ = guard.flush();
@@ -171,10 +172,10 @@ impl Default for CouncilEventBus {
     fn default() -> Self { Self::new_bounded(1024) }
 }
 
-fn compute_crc32(data: &str) -> u32 {
-    let mut hasher = Hasher::new();
-    hasher.update(data.as_bytes());
-    hasher.finalize()
+fn compute_crc64(data: &str) -> u64 {
+    let mut digest = CRC64.digest();
+    digest.update(data.as_bytes());
+    digest.finalize()
 }
 
 pub fn load_events_from_log<P: AsRef<Path>>(path: P) -> std::io::Result<Vec<CouncilEvent>> {
@@ -186,8 +187,9 @@ pub fn load_events_from_log<P: AsRef<Path>>(path: P) -> std::io::Result<Vec<Coun
         let line = line?;
         if line.trim().is_empty() { continue; }
 
-        // Support both old format (no checksum) and new format with |crc32:xxxxxxxx
-        let json_part = if let Some(pos) = line.rfind("|crc32:") {
+        let json_part = if let Some(pos) = line.rfind("|crc64:") {
+            &line[..pos]
+        } else if let Some(pos) = line.rfind("|crc32:") { // backward compat
             &line[..pos]
         } else {
             &line
