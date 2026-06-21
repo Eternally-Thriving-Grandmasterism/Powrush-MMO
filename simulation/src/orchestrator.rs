@@ -1,6 +1,7 @@
 //! simulation/src/orchestrator.rs
 //! Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
-//! v18.95 — Full deep wiring for both HarvestEvent and DynamicEmergenceEvent into EconomicLayer
+//! v18.96 — Phase E: Full evolutionary demo tick wiring (volatility + mutations + stage-maturing chains)
+//!            Derived from Ra-Thor powrush-mmo-simulator v15.30 + ability_tree v1.3
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use crate::world::SovereignWorldState;
@@ -16,6 +17,15 @@ use crate::council_mercy_trial::{CouncilSessionManager, CouncilBloomSyncEvent};
 use bevy::prelude::*;
 use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
+
+// Ra-Thor derived evolutionary player identity layer (Phase A–D)
+use crate::race::{Race, RaceModifiers};
+use crate::ability_tree::{AbilityTree, Ability, AbilityEffect, MutationType, SynergyBonus};
+use crate::epigenetic_modulation::{
+    EpigeneticProfile, apply_volatility_drift, is_high_volatility_risk,
+    apply_double_edged_volatility_effects, apply_epigenetic_repair,
+    try_trigger_epigenetic_mutation,
+};
 
 #[derive(Debug, Default, Clone)]
 pub struct TickResult {
@@ -215,7 +225,142 @@ impl SovereignSimulationOrchestrator {
     pub fn current_tick_info(&self) -> (u64, u64) {
         (self.tick_count, self.sim_time_ms)
     }
+
+    // ========================================================================
+    // PHASE E DEMO WIRING — Evolutionary Player Identity Layer (Ra-Thor derived)
+    // ========================================================================
+    /// Demo helper that exercises the full volatility lifecycle + mutation triggers
+    /// + stage-maturing synergy chains in a self-contained, observable way.
+    /// Does not modify the main world/archetype state (safe for production orchestrator).
+    /// Returns a rich multi-line status string suitable for CLI harness, tests, or future UI.
+    pub fn demo_evolutionary_tick(&mut self, num_ticks: u32) -> String {
+        let mut log = String::from("\n=== Powrush Evolutionary Demo (Ra-Thor Derived) ===\n");
+        log.push_str(&format!("Running {} simulation ticks on demo Terran entity...\n\n", num_ticks));
+
+        // === Demo Entity Setup ===
+        let demo_race = Race::Terran;
+        let mut ability_tree = AbilityTree::new();
+        // Give the demo entity the Terran starter ability
+        let _ = ability_tree.try_unlock_starter("steady_step", demo_race);
+
+        let mut profile = EpigeneticProfile {
+            strength: 1.0,
+            volatility: 0.65,
+            layer_alignment: 0.8,
+            cooperation_score: 0.7,
+            corruption: 0.0,
+        };
+
+        let mut active_mutation: Option<MutationType> = None;
+        let mut chain_key = "redemption_cascade".to_string(); // Will switch based on mutation
+        let mut harmony: f32 = 1.4;
+        let mut recent_contribution: f32 = 8.0;
+
+        let mut mutation_triggered = false;
+        let mut final_stage: u8 = 0;
+
+        for t in 0..num_ticks {
+            let current_tick = self.tick_count + t as u64;
+
+            // 1. Apply volatility drift (natural entropy modulated by harmony)
+            apply_volatility_drift(&mut profile, harmony, 0.006);
+
+            // 2. Double-edged sword effects (power or backlash risk)
+            let in_high_risk = is_high_volatility_risk(profile.volatility);
+            if in_high_risk {
+                apply_double_edged_volatility_effects(&mut profile, current_tick);
+            }
+
+            // 3. Repair if conditions are good (low volatility + cooperation)
+            if profile.volatility < 0.75 && profile.cooperation_score > 0.6 {
+                apply_epigenetic_repair(&mut profile, harmony, true);
+            }
+
+            // 4. Check for mutation trigger (only once for demo clarity)
+            if !mutation_triggered && in_high_risk && profile.corruption > 0.9 {
+                if let Some(mutation) = try_trigger_epigenetic_mutation(
+                    &profile,
+                    in_high_risk,
+                    true, // has_resilience_synergy for demo
+                    harmony,
+                    current_tick,
+                ) {
+                    active_mutation = Some(mutation.clone());
+                    mutation_triggered = true;
+                    match mutation {
+                        MutationType::HarmonicRebirth => {
+                            chain_key = "redemption_cascade".to_string();
+                            log.push_str(&format!("[TICK {}] *** MUTATION: Harmonic Rebirth (Redemptive path) ***\n", current_tick));
+                        }
+                        MutationType::VolatileSurge => {
+                            chain_key = "surge_overclock".to_string();
+                            log.push_str(&format!("[TICK {}] *** MUTATION: Volatile Surge (High-risk power) ***\n", current_tick));
+                        }
+                        MutationType::CorruptedEcho => {
+                            chain_key = "corrupted_singularity".to_string();
+                            log.push_str(&format!("[TICK {}] *** MUTATION: Corrupted Echo (Dangerous path) ***\n", current_tick));
+                        }
+                    }
+                }
+            }
+
+            // 5. If mutated, progress the corresponding synergy chain
+            if let Some(_m) = &active_mutation {
+                // Simulate improving conditions over time for demo progression
+                if t % 8 == 0 {
+                    harmony = (harmony + 0.08).min(2.8);
+                    recent_contribution += 1.5;
+                }
+
+                ability_tree.progress_chain_stages(
+                    &chain_key,
+                    harmony,
+                    recent_contribution,
+                    profile.volatility,
+                );
+
+                let stage = ability_tree.get_chain_stage(&chain_key);
+                if stage > final_stage {
+                    final_stage = stage;
+                    log.push_str(&format!("[TICK {}] Chain '{}' advanced to Stage {}\n", current_tick, chain_key, stage));
+                }
+            }
+
+            // Occasional status line
+            if t % 12 == 0 || (mutation_triggered && t % 5 == 0) {
+                log.push_str(&format!(
+                    "Tick {} | Vol: {:.2} | Str: {:.2} | Cor: {:.2} | Harmony: {:.1} | Mutation: {:?}\n",
+                    current_tick,
+                    profile.volatility,
+                    profile.strength,
+                    profile.corruption,
+                    harmony,
+                    active_mutation
+                ));
+            }
+        }
+
+        // Final summary
+        log.push_str("\n=== Demo Complete ===\n");
+        if let Some(m) = active_mutation {
+            log.push_str(&format!("Final Mutation: {:?} | Final Chain Stage: {}\n", m, final_stage));
+            let chains = ability_tree.calculate_mutation_synergy_chains(&[m]);
+            if !chains.is_empty() {
+                log.push_str("Active Synergy Chains:\n");
+                for c in chains {
+                    log.push_str(&format!("  - {} (Stage {}): {}\n", c.name, final_stage, c.description));
+                }
+            }
+        } else {
+            log.push_str("No mutation triggered in this run (try higher corruption or more ticks).\n");
+        }
+
+        log.push_str("\nThunder locked in. Yoi ⚡\n");
+        log
+    }
 }
 
-// End of production file — Both HarvestEvent and DynamicEmergenceEvent are now deeply wired into EconomicLayer.
-// Full symmetric economic integration complete. Thunder locked in.
+// End of production file — Evolutionary demo tick wired (Phase E).
+// Full volatility lifecycle + mutation triggers + stage-maturing chains now observable from orchestrator.
+// Ready for deeper integration into world entities and EconomicLayer in future phases.
+// Thunder locked in. Yoi ⚡
