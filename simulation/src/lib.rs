@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.87 — Added foundational race.rs + ability_tree.rs (Phase A derivation from Ra-Thor)
+//! v18.88 — Added epigenetic_modulation.rs with full volatility lifecycle (Phase B derivation from Ra-Thor v15.30)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 // ============================================================================
@@ -34,6 +34,9 @@ pub mod world;
 // NEW Phase A foundational modules (derived from Ra-Thor powrush-mmo-simulator)
 pub mod race;
 pub mod ability_tree;
+
+// NEW Phase B — Volatility Lifecycle (drift, hysteresis, double-edged sword, backlash, repair, corruption)
+pub mod epigenetic_modulation;
 
 // Sub-module directories (each with their own mod.rs)
 pub mod fracture;
@@ -132,6 +135,18 @@ pub use archetype::{PlayerArchetype, ArchetypeConfig};
 // NEW Phase A re-exports (foundational race + ability tree)
 pub use race::{Race, RaceModifiers};
 pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState};
+
+// NEW Phase B re-exports — Volatility Lifecycle
+pub use epigenetic_modulation::{
+    EpigeneticProfile,
+    EpigeneticChange,
+    apply_change,
+    apply_volatility_drift,
+    is_high_volatility_risk,
+    apply_double_edged_volatility_effects,
+    apply_epigenetic_repair,
+    apply_corruption_lifecycle,
+};
 
 // ============================================================================
 // PLUGIN AGGREGATOR (optional convenience)
