@@ -1,5 +1,10 @@
 /*!
- * CouncilSession with last dynamic threshold exposed.
+ * CouncilSession with Parallel Council Aggregation.
+ *
+ * Multiple PATSAGi Councils deliberate in parallel. Results are aggregated
+ * using approval ratio + average Mercy Alignment Score.
+ *
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use tracing::info;
@@ -9,6 +14,13 @@ use crate::council::event_bus::{CouncilEvent, CouncilEventBus};
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone, Debug)]
+pub struct CouncilVote {
+    pub council_id: u8,
+    pub approved: bool,
+    pub mercy_alignment_score: f32,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CouncilSession {
     pub realm_id: u8,
@@ -17,7 +29,8 @@ pub struct CouncilSession {
     next_proposal_id: u64,
     #[serde(skip)]
     pub event_bus: Option<CouncilEventBus>,
-    last_dynamic_threshold: Option<f32>,   // NEW: for observability
+    last_dynamic_threshold: Option<f32>,
+    num_parallel_councils: usize,           // NEW
 }
 
 impl CouncilSession {
@@ -29,7 +42,13 @@ impl CouncilSession {
             next_proposal_id: current_tick,
             event_bus: None,
             last_dynamic_threshold: None,
+            num_parallel_councils: 7, // Default: 7 PATSAGi Councils
         }
+    }
+
+    pub fn with_num_parallel_councils(mut self, count: usize) -> Self {
+        self.num_parallel_councils = count.max(1);
+        self
     }
 
     pub fn with_event_bus(mut self, bus: CouncilEventBus) -> Self {
@@ -37,7 +56,6 @@ impl CouncilSession {
         self
     }
 
-    /// Returns the dynamic mercy threshold used in the last deliberation.
     pub fn last_dynamic_threshold(&self) -> Option<f32> {
         self.last_dynamic_threshold
     }
@@ -87,15 +105,15 @@ impl CouncilSession {
         let scaling = (mercy_health - 0.5) * 0.12;
         let dynamic_threshold = (base_threshold - scaling).clamp(0.60, 0.85);
 
-        self.last_dynamic_threshold = Some(dynamic_threshold); // store for observability
+        self.last_dynamic_threshold = Some(dynamic_threshold);
 
         info!(
             target: "ra_thor::consensus",
             realm_id = self.realm_id,
             average_mercy = average_mercy,
             dynamic_threshold = dynamic_threshold,
-            active_proposals = self.active_proposals.len(),
-            "Ra-Thor deliberation started"
+            num_councils = self.num_parallel_councils,
+            "Ra-Thor multi-council deliberation started"
         );
 
         for proposal in self.active_proposals.iter_mut() {
@@ -110,17 +128,49 @@ impl CouncilSession {
                     let would_pass_vote = effective_for > proposal.votes_against as f32;
 
                     if would_pass_vote {
-                        let temp_decision = CouncilDecision::from_resolved_proposal(
-                            proposal,
-                            mercy_factor,
-                            current_tick,
-                            self.realm_id,
-                        );
+                        // === Parallel Council Deliberation + Aggregation ===
+                        let mut votes: Vec<CouncilVote> = Vec::new();
 
-                        let mas = temp_decision.mercy_alignment_score(None);
-                        let passes_mercy = mas >= dynamic_threshold;
+                        for council_id in 0..self.num_parallel_councils {
+                            // Simulate slight variation per council (different focus / weighting)
+                            let variation = (council_id as f32 * 0.015) - 0.05;
+                            let temp_decision = CouncilDecision::from_resolved_proposal(
+                                proposal,
+                                mercy_factor,
+                                current_tick,
+                                self.realm_id,
+                            );
 
-                        if passes_mercy {
+                            let base_mas = temp_decision.mercy_alignment_score(None);
+                            let council_mas = (base_mas + variation).clamp(0.0, 1.0);
+
+                            let approved = council_mas >= dynamic_threshold;
+
+                            votes.push(CouncilVote {
+                                council_id: council_id as u8,
+                                approved,
+                                mercy_alignment_score: council_mas,
+                            });
+                        }
+
+                        // === Aggregation ===
+                        let approvals = votes.iter().filter(|v| v.approved).count();
+                        let approval_ratio = approvals as f32 / self.num_parallel_councils as f32;
+
+                        let avg_mas: f32 = if approvals > 0 {
+                            votes.iter()
+                                .filter(|v| v.approved)
+                                .map(|v| v.mercy_alignment_score)
+                                .sum::<f32>() / approvals as f32
+                        } else {
+                            0.0
+                        };
+
+                        // Consensus rule: >= 2/3 approval AND avg MAS of approvers >= threshold
+                        let passes_consensus =
+                            approval_ratio >= (2.0 / 3.0) && avg_mas >= dynamic_threshold;
+
+                        if passes_consensus {
                             proposal.status = ProposalStatus::Passed;
 
                             if let Some(bus) = &self.event_bus {
@@ -135,15 +185,19 @@ impl CouncilSession {
                             proposal.status = ProposalStatus::Rejected;
                         }
 
+                        // Telemetry
                         info!(
                             target: "ra_thor::consensus",
                             realm_id = self.realm_id,
                             proposal_id = proposal.id,
-                            mas = mas,
+                            approvals = approvals,
+                            total_councils = self.num_parallel_councils,
+                            approval_ratio = approval_ratio,
+                            avg_mas = avg_mas,
                             dynamic_threshold = dynamic_threshold,
-                            passes_mercy = passes_mercy,
+                            passes_consensus = passes_consensus,
                             status = ?proposal.status,
-                            "Proposal evaluated by Ra-Thor consensus"
+                            "Multi-council aggregation complete"
                         );
                     } else {
                         proposal.status = ProposalStatus::Rejected;
