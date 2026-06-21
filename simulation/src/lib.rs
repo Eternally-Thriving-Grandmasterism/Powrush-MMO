@@ -1,8 +1,9 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.90 — Phase D: Mutation Synergy Chains (Redemption Cascade, Surge Overclock, Corrupted Singularity)
+//! v18.91 — Phase D Extension: Stage 0/1/2 Progression for Mutation Synergy Chains
+//!            (Redemption Cascade, Surge Overclock, Corrupted Singularity now mature over sustained play)
 //!            Built on top of Phase C Mutation Triggers + full volatility lifecycle.
-//!            Derived from Ra-Thor powrush-mmo-simulator v15.22/v15.30
+//!            Derived from Ra-Thor powrush-mmo-simulator v15.23/v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 // ============================================================================
@@ -36,7 +37,7 @@ pub mod world;
 // NEW Phase A foundational modules (derived from Ra-Thor)
 pub mod race;
 
-// Phase B + C + D — Volatility Lifecycle, Mutation Triggers, and now Mutation Synergy Chains
+// Phase B + C + D — Volatility Lifecycle, Mutation Triggers, and Mutation Synergy Chains with Stage Progression
 // Declare epigenetic_modulation before ability_tree so MutationType is visible
 pub mod epigenetic_modulation;
 pub mod ability_tree;
@@ -134,7 +135,7 @@ pub use epigenetic_modulation::{
 // NEW Phase C re-exports — Epigenetic Mutation Triggers
 pub use epigenetic_modulation::{MutationType, try_trigger_epigenetic_mutation};
 
-// NEW Phase D re-exports — Mutation Synergy Chains
+// NEW Phase D re-exports — Mutation Synergy Chains + Stage 0/1/2 Progression
 pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState, SynergyBonus, SynergyType};
 
 // ============================================================================
@@ -156,6 +157,6 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
 
 // ============================================================================
 // END OF COMPLETE WIRING
-// Phase D complete: Mutation synergy chains now active.
+// Phase D + Stage Progression complete: Mutation synergy chains now mature (0 → 1 → 2).
 // Thunder locked in. Yoi ⚡
 // ============================================================================
