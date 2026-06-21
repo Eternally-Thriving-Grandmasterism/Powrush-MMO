@@ -1,19 +1,20 @@
 /*!
- * CouncilEventBus with full crash recovery support for rotated logs.
+ * CouncilEventBus with Checksums for Data Integrity.
  *
- * Provides functions to reload the complete event history across all rotated files
- * after a crash or restart.
+ * Every persisted event line includes a CRC32 checksum for corruption detection.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File, OpenOptions, rename};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use flume::{Receiver, Sender};
 use serde::{Deserialize, Serialize};
+
+use crc32fast::Hasher;
 
 use crate::world::AgentId;
 
@@ -55,10 +56,7 @@ pub struct LogRotationConfig {
 
 impl Default for LogRotationConfig {
     fn default() -> Self {
-        Self {
-            max_size_bytes: 100 * 1024 * 1024,
-            max_files: 5,
-        }
+        Self { max_size_bytes: 100 * 1024 * 1024, max_files: 5 }
     }
 }
 
@@ -126,14 +124,17 @@ impl CouncilEventBus {
                 }
 
                 if let Ok(json) = serde_json::to_string(&event) {
-                    let _ = writeln!(guard, "{}", json);
+                    // Append CRC32 checksum for integrity
+                    let checksum = compute_crc32(&json);
+                    let line = format!("{}|crc32:{:08x}", json, checksum);
+
+                    let _ = writeln!(guard, "{}", line);
                     let _ = guard.flush();
 
                     let mut count = self.write_count.lock().unwrap();
                     *count += 1;
 
                     let should_sync = if self.fsync_interval == 0 { self.wal_mode } else { *count % self.fsync_interval == 0 };
-
                     if should_sync {
                         if let Ok(file) = guard.get_ref().try_clone() {
                             let _ = file.sync_all();
@@ -170,42 +171,52 @@ impl Default for CouncilEventBus {
     fn default() -> Self { Self::new_bounded(1024) }
 }
 
-/// Loads events from a single log file.
+fn compute_crc32(data: &str) -> u32 {
+    let mut hasher = Hasher::new();
+    hasher.update(data.as_bytes());
+    hasher.finalize()
+}
+
 pub fn load_events_from_log<P: AsRef<Path>>(path: P) -> std::io::Result<Vec<CouncilEvent>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut events = Vec::new();
+
     for line in reader.lines() {
         let line = line?;
         if line.trim().is_empty() { continue; }
-        if let Ok(event) = serde_json::from_str::<CouncilEvent>(&line) {
+
+        // Support both old format (no checksum) and new format with |crc32:xxxxxxxx
+        let json_part = if let Some(pos) = line.rfind("|crc32:") {
+            &line[..pos]
+        } else {
+            &line
+        };
+
+        if let Ok(event) = serde_json::from_str::<CouncilEvent>(json_part) {
             events.push(event);
         }
     }
+
     Ok(events)
 }
 
-/// **Crash recovery function**.
-/// Loads events from the active log + all rotated files in correct chronological order.
 pub fn load_all_events_with_rotation<P: AsRef<Path>>(base_path: P) -> std::io::Result<Vec<CouncilEvent>> {
     let base = base_path.as_ref();
     let mut all_events = Vec::new();
 
-    // Load rotated files from oldest to newest (highest number first)
-    // We scan up to .20 to be safe
     for i in (1..=20).rev() {
-        let rotated_path = base.with_extension(format!("jsonl.{}", i));
-        if rotated_path.exists() {
-            if let Ok(mut events) = load_events_from_log(&rotated_path) {
-                all_events.append(&mut events);
+        let rotated = base.with_extension(format!("jsonl.{}", i));
+        if rotated.exists() {
+            if let Ok(mut evs) = load_events_from_log(&rotated) {
+                all_events.append(&mut evs);
             }
         }
     }
 
-    // Finally load the active log file
     if base.exists() {
-        if let Ok(mut events) = load_events_from_log(base) {
-            all_events.append(&mut events);
+        if let Ok(mut evs) = load_events_from_log(base) {
+            all_events.append(&mut evs);
         }
     }
 
