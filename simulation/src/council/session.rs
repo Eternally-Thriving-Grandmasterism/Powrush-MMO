@@ -1,8 +1,8 @@
 /*!
- * CouncilSession with Parallel Council Aggregation.
+ * CouncilSession with Weighted Council Influence.
  *
- * Multiple PATSAGi Councils deliberate in parallel. Results are aggregated
- * using approval ratio + average Mercy Alignment Score.
+ * Different PATSAGi Councils can now have different influence weights
+ * in the final consensus aggregation.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -19,6 +19,7 @@ pub struct CouncilVote {
     pub council_id: u8,
     pub approved: bool,
     pub mercy_alignment_score: f32,
+    pub weight: f32,                    // NEW: influence weight
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -30,11 +31,13 @@ pub struct CouncilSession {
     #[serde(skip)]
     pub event_bus: Option<CouncilEventBus>,
     last_dynamic_threshold: Option<f32>,
-    num_parallel_councils: usize,           // NEW
+    num_parallel_councils: usize,
+    council_weights: Vec<f32>,          // NEW: per-council influence weights
 }
 
 impl CouncilSession {
     pub fn new(realm_id: u8, current_tick: u64) -> Self {
+        let default_councils = 7;
         Self {
             realm_id,
             active_proposals: vec![],
@@ -42,12 +45,23 @@ impl CouncilSession {
             next_proposal_id: current_tick,
             event_bus: None,
             last_dynamic_threshold: None,
-            num_parallel_councils: 7, // Default: 7 PATSAGi Councils
+            num_parallel_councils: default_councils,
+            council_weights: vec![1.0; default_councils], // equal weight by default
         }
     }
 
     pub fn with_num_parallel_councils(mut self, count: usize) -> Self {
         self.num_parallel_councils = count.max(1);
+        self.council_weights = vec![1.0; self.num_parallel_councils];
+        self
+    }
+
+    /// Set custom influence weights for each council.
+    /// Length must match num_parallel_councils.
+    pub fn with_council_weights(mut self, weights: Vec<f32>) -> Self {
+        if weights.len() == self.num_parallel_councils {
+            self.council_weights = weights;
+        }
         self
     }
 
@@ -113,7 +127,7 @@ impl CouncilSession {
             average_mercy = average_mercy,
             dynamic_threshold = dynamic_threshold,
             num_councils = self.num_parallel_councils,
-            "Ra-Thor multi-council deliberation started"
+            "Ra-Thor weighted multi-council deliberation started"
         );
 
         for proposal in self.active_proposals.iter_mut() {
@@ -128,12 +142,18 @@ impl CouncilSession {
                     let would_pass_vote = effective_for > proposal.votes_against as f32;
 
                     if would_pass_vote {
-                        // === Parallel Council Deliberation + Aggregation ===
                         let mut votes: Vec<CouncilVote> = Vec::new();
+                        let mut total_weight: f32 = 0.0;
+                        let mut weighted_approvals: f32 = 0.0;
+                        let mut weighted_mas_sum: f32 = 0.0;
+                        let mut approving_weight: f32 = 0.0;
 
                         for council_id in 0..self.num_parallel_councils {
-                            // Simulate slight variation per council (different focus / weighting)
-                            let variation = (council_id as f32 * 0.015) - 0.05;
+                            let weight = self.council_weights.get(council_id).copied().unwrap_or(1.0);
+                            total_weight += weight;
+
+                            // Simulate specialization via slight MAS variation
+                            let variation = (council_id as f32 * 0.012) - 0.04;
                             let temp_decision = CouncilDecision::from_resolved_proposal(
                                 proposal,
                                 mercy_factor,
@@ -146,29 +166,36 @@ impl CouncilSession {
 
                             let approved = council_mas >= dynamic_threshold;
 
+                            if approved {
+                                weighted_approvals += weight;
+                                weighted_mas_sum += council_mas * weight;
+                                approving_weight += weight;
+                            }
+
                             votes.push(CouncilVote {
                                 council_id: council_id as u8,
                                 approved,
                                 mercy_alignment_score: council_mas,
+                                weight,
                             });
                         }
 
-                        // === Aggregation ===
-                        let approvals = votes.iter().filter(|v| v.approved).count();
-                        let approval_ratio = approvals as f32 / self.num_parallel_councils as f32;
-
-                        let avg_mas: f32 = if approvals > 0 {
-                            votes.iter()
-                                .filter(|v| v.approved)
-                                .map(|v| v.mercy_alignment_score)
-                                .sum::<f32>() / approvals as f32
+                        // === Weighted Aggregation ===
+                        let weighted_approval_ratio = if total_weight > 0.0 {
+                            weighted_approvals / total_weight
                         } else {
                             0.0
                         };
 
-                        // Consensus rule: >= 2/3 approval AND avg MAS of approvers >= threshold
+                        let avg_weighted_mas = if approving_weight > 0.0 {
+                            weighted_mas_sum / approving_weight
+                        } else {
+                            0.0
+                        };
+
+                        // Final consensus rule (weighted)
                         let passes_consensus =
-                            approval_ratio >= (2.0 / 3.0) && avg_mas >= dynamic_threshold;
+                            weighted_approval_ratio >= (2.0 / 3.0) && avg_weighted_mas >= dynamic_threshold;
 
                         if passes_consensus {
                             proposal.status = ProposalStatus::Passed;
@@ -185,19 +212,16 @@ impl CouncilSession {
                             proposal.status = ProposalStatus::Rejected;
                         }
 
-                        // Telemetry
                         info!(
                             target: "ra_thor::consensus",
                             realm_id = self.realm_id,
                             proposal_id = proposal.id,
-                            approvals = approvals,
-                            total_councils = self.num_parallel_councils,
-                            approval_ratio = approval_ratio,
-                            avg_mas = avg_mas,
+                            weighted_approval_ratio = weighted_approval_ratio,
+                            avg_weighted_mas = avg_weighted_mas,
                             dynamic_threshold = dynamic_threshold,
                             passes_consensus = passes_consensus,
                             status = ?proposal.status,
-                            "Multi-council aggregation complete"
+                            "Weighted multi-council aggregation complete"
                         );
                     } else {
                         proposal.status = ProposalStatus::Rejected;
