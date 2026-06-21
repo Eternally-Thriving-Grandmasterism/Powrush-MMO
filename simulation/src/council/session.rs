@@ -1,7 +1,7 @@
 /*!
- * CouncilSession with Council Archetype Defaults.
+ * CouncilSession with Archetype-Specific Scoring Logic.
  *
- * Predefined PATSAGi Council archetypes aligned with the 7 Living Mercy Gates.
+ * Each CouncilArchetype now applies its own evaluation bias when scoring proposals.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -15,17 +15,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CouncilArchetype {
-    Truth,        // Emphasizes truth-seeking and anti-hallucination
-    Abundance,    // Focuses on resource flow and shared prosperity
-    Harmony,      // Prioritizes systemic balance and sustainability
-    Service,      // Values benefit to the many over the few
-    Mercy,        // Strong emphasis on compassion and redemption
-    Joy,          // Favors decisions that increase overall well-being
-    Cosmic,       // Long-term, large-scale, future-oriented view
+    Truth,
+    Abundance,
+    Harmony,
+    Service,
+    Mercy,
+    Joy,
+    Cosmic,
 }
 
 impl CouncilArchetype {
-    /// Returns a human-readable name
     pub fn name(&self) -> &'static str {
         match self {
             CouncilArchetype::Truth => "Truth Council",
@@ -38,7 +37,6 @@ impl CouncilArchetype {
         }
     }
 
-    /// Returns a suggested influence weight for this archetype
     pub fn default_weight(&self) -> f32 {
         match self {
             CouncilArchetype::Truth => 1.15,
@@ -48,6 +46,57 @@ impl CouncilArchetype {
             CouncilArchetype::Mercy => 1.08,
             CouncilArchetype::Joy => 0.95,
             CouncilArchetype::Cosmic => 1.12,
+        }
+    }
+
+    /// Archetype-specific scoring adjustment.
+    /// Returns a modifier in roughly [-0.15, +0.15] range that is added to base MAS.
+    pub fn score_proposal(&self, decision: &CouncilDecision) -> f32 {
+        let effect = decision.effect_type.as_str();
+        let mercy = decision.mercy_factor;
+
+        match self {
+            CouncilArchetype::Truth => {
+                // Truth Council favors high mercy_factor and is cautious of low-mercy proposals
+                if mercy > 0.75 { 0.08 } else if mercy < 0.45 { -0.10 } else { 0.02 }
+            }
+            CouncilArchetype::Abundance => {
+                // Abundance Council strongly favors ResourcePolicy and EpiphanyEvent
+                match effect {
+                    "ResourcePolicy" | "resource_policy" => 0.12,
+                    "EpiphanyEvent" | "epiphany_event" => 0.09,
+                    "HarmonyBoost" | "harmony_boost" => 0.03,
+                    _ => 0.0,
+                }
+            }
+            CouncilArchetype::Harmony => {
+                // Harmony Council prefers balanced, low-pressure outcomes
+                match effect {
+                    "HarmonyBoost" | "harmony_boost" => 0.10,
+                    "General" | "general" => 0.05,
+                    "ResourcePolicy" | "resource_policy" => -0.02, // can increase pressure
+                    _ => 0.0,
+                }
+            }
+            CouncilArchetype::Service => {
+                // Service Council slightly favors proposals that benefit many
+                if mercy > 0.6 { 0.06 } else { 0.0 }
+            }
+            CouncilArchetype::Mercy => {
+                // Mercy Council is more forgiving on lower mercy_factor proposals
+                if mercy < 0.5 { 0.07 } else if mercy > 0.8 { 0.03 } else { 0.0 }
+            }
+            CouncilArchetype::Joy => {
+                // Joy Council likes EpiphanyEvent and high-mercy outcomes
+                match effect {
+                    "EpiphanyEvent" | "epiphany_event" => 0.08,
+                    _ => if mercy > 0.7 { 0.04 } else { 0.0 },
+                }
+            }
+            CouncilArchetype::Cosmic => {
+                // Cosmic Council prefers long-term thinking (currently approximated via mercy_factor)
+                if mercy > 0.65 { 0.06 } else { -0.03 }
+            }
         }
     }
 }
@@ -72,7 +121,7 @@ pub struct CouncilSession {
     last_dynamic_threshold: Option<f32>,
     num_parallel_councils: usize,
     council_weights: Vec<f32>,
-    council_archetypes: Vec<Option<CouncilArchetype>>, // NEW
+    council_archetypes: Vec<Option<CouncilArchetype>>,
 }
 
 impl CouncilSession {
@@ -105,7 +154,6 @@ impl CouncilSession {
         self
     }
 
-    /// Assigns the 7 Living Mercy Gate archetypes with sensible default weights.
     pub fn with_archetype_defaults(mut self) -> Self {
         let archetypes = vec![
             Some(CouncilArchetype::Truth),
@@ -191,7 +239,7 @@ impl CouncilSession {
             average_mercy = average_mercy,
             dynamic_threshold = dynamic_threshold,
             num_councils = self.num_parallel_councils,
-            "Ra-Thor archetype-weighted deliberation started"
+            "Ra-Thor archetype-scoring deliberation started"
         );
 
         for proposal in self.active_proposals.iter_mut() {
@@ -217,15 +265,6 @@ impl CouncilSession {
                             let archetype = self.council_archetypes.get(council_id).cloned().flatten();
                             total_weight += weight;
 
-                            // Archetype-aware variation (can be expanded later)
-                            let variation = match archetype {
-                                Some(CouncilArchetype::Truth) => 0.03,
-                                Some(CouncilArchetype::Abundance) => 0.02,
-                                Some(CouncilArchetype::Harmony) => 0.01,
-                                Some(CouncilArchetype::Mercy) => -0.01,
-                                _ => 0.0,
-                            };
-
                             let temp_decision = CouncilDecision::from_resolved_proposal(
                                 proposal,
                                 mercy_factor,
@@ -233,9 +272,14 @@ impl CouncilSession {
                                 self.realm_id,
                             );
 
+                            // Base MAS + archetype-specific scoring
                             let base_mas = temp_decision.mercy_alignment_score(None);
-                            let council_mas = (base_mas + variation).clamp(0.0, 1.0);
+                            let archetype_bonus = archetype
+                                .as_ref()
+                                .map(|a| a.score_proposal(&temp_decision))
+                                .unwrap_or(0.0);
 
+                            let council_mas = (base_mas + archetype_bonus).clamp(0.0, 1.0);
                             let approved = council_mas >= dynamic_threshold;
 
                             if approved {
@@ -292,7 +336,7 @@ impl CouncilSession {
                             dynamic_threshold = dynamic_threshold,
                             passes_consensus = passes_consensus,
                             status = ?proposal.status,
-                            "Archetype-weighted multi-council aggregation complete"
+                            "Archetype-scoring multi-council aggregation complete"
                         );
                     } else {
                         proposal.status = ProposalStatus::Rejected;
