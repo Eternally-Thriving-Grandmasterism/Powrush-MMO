@@ -1,8 +1,8 @@
 /*!
  * Sovereign Simulation Harness — World State Core + Advanced Procedural Biome Generation Algorithms
  *
- * v18.116 — Pagination added to Council Audit Log Query API
- *            (query_council_audit_logs_paginated + PaginatedCouncilAuditLog)
+ * v18.117 — Query performance optimized with secondary indices for Council Audit Logs
+ *            (by_proposer and by_type indices for O(1) common queries)
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -31,7 +31,7 @@ pub struct Vec3 {
 }
 
 /// Unified SovereignWorldState — authoritative core for deterministic, mercy-gated MMO-scale RBE simulation.
-/// Council decisions now include full audit logs with rich query + pagination support.
+/// Council audit log now has secondary indices for high-performance common queries.
 #[derive(Clone, Debug, Default)]
 pub struct SovereignWorldState {
     pub resource_nodes: HashMap<NodeId, ResourceNode>,
@@ -54,8 +54,10 @@ pub struct SovereignWorldState {
     pub active_mutations: HashMap<AgentId, Vec<MutationType>>,
     pub diplomacy: DiplomacyManager,
 
-    // Council Decision Audit Log (persisted + queryable + paginated)
+    // Council Decision Audit Log + Performance Indices
     pub council_decision_history: Vec<CouncilDecision>,
+    pub council_decision_indices_by_proposer: HashMap<AgentId, Vec<usize>>,
+    pub council_decision_indices_by_type: HashMap<String, Vec<usize>>,
 }
 
 impl SovereignWorldState {
@@ -81,6 +83,8 @@ impl SovereignWorldState {
             active_mutations: HashMap::new(),
             diplomacy: DiplomacyManager::new(),
             council_decision_history: Vec::new(),
+            council_decision_indices_by_proposer: HashMap::new(),
+            council_decision_indices_by_type: HashMap::new(),
         };
 
         world.initialize_resource_nodes(&scenario.resource_templates)?;
@@ -111,23 +115,47 @@ impl SovereignWorldState {
     }
 
     // ========================================================================
-    // Council Audit Log Query API with Pagination (v18.116)
+    // Council Audit Log Query API (optimized with indices)
     // ========================================================================
 
-    /// Returns the full persisted audit log.
     pub fn get_council_decision_history(&self) -> &[CouncilDecision] {
         &self.council_decision_history
     }
 
-    /// Returns the most recent N decisions.
     pub fn get_recent_council_decisions(&self, count: usize) -> &[CouncilDecision] {
         let len = self.council_decision_history.len();
         let start = if len > count { len - count } else { 0 };
         &self.council_decision_history[start..]
     }
 
-    /// Flexible Audit Log Query with Pagination support.
-    /// Returns owned items for safe pagination across large histories.
+    /// Optimized: Uses proposer index when available.
+    pub fn get_council_decisions_by_proposer(&self, proposer: AgentId) -> Vec<&CouncilDecision> {
+        if let Some(indices) = self.council_decision_indices_by_proposer.get(&proposer) {
+            indices.iter().map(|&i| &self.council_decision_history[i]).collect()
+        } else {
+            vec![]
+        }
+    }
+
+    /// Optimized: Uses type index when available.
+    pub fn get_council_decisions_by_type(&self, effect_type: &str) -> Vec<&CouncilDecision> {
+        if let Some(indices) = self.council_decision_indices_by_type.get(effect_type) {
+            indices.iter().map(|&i| &self.council_decision_history[i]).collect()
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn query_council_audit_logs<F>(&self, filter: F) -> Vec<&CouncilDecision>
+    where
+        F: Fn(&CouncilDecision) -> bool,
+    {
+        self.council_decision_history
+            .iter()
+            .filter(|d| filter(d))
+            .collect()
+    }
+
     pub fn query_council_audit_logs_paginated<F>(
         &self,
         filter: F,
@@ -153,30 +181,13 @@ impl SovereignWorldState {
             vec![]
         };
 
-        let has_more = end < total_count;
-
         PaginatedCouncilAuditLog {
             items,
             total_count,
             page,
             page_size,
-            has_more,
+            has_more: end < total_count,
         }
-    }
-
-    /// Non-paginated flexible query (for small result sets).
-    pub fn query_council_audit_logs<F>(&self, filter: F) -> Vec<&CouncilDecision>
-    where
-        F: Fn(&CouncilDecision) -> bool,
-    {
-        self.council_decision_history
-            .iter()
-            .filter(|d| filter(d))
-            .collect()
-    }
-
-    pub fn get_council_decisions_by_proposer(&self, proposer: AgentId) -> Vec<&CouncilDecision> {
-        self.query_council_audit_logs(|d| d.proposer == proposer)
     }
 
     pub fn get_council_audit_summary(&self) -> CouncilAuditSummary {
@@ -192,11 +203,6 @@ impl SovereignWorldState {
             passed_decisions: total,
             average_mercy_factor: avg_mercy,
         }
-    }
-
-    // Legacy methods now use the query API
-    pub fn get_council_decisions_by_type(&self, effect_type: &str) -> Vec<&CouncilDecision> {
-        self.query_council_audit_logs(|d| d.effect_type == effect_type)
     }
 
     pub fn get_council_decisions_since(&self, since_tick: u64) -> Vec<&CouncilDecision> {
@@ -262,8 +268,6 @@ impl SovereignWorldState {
     }
 }
 
-/// Paginated result for large Council Audit Logs.
-/// Items are cloned for safe ownership across frames/UI.
 #[derive(Debug, Clone)]
 pub struct PaginatedCouncilAuditLog {
     pub items: Vec<CouncilDecision>,
@@ -273,7 +277,6 @@ pub struct PaginatedCouncilAuditLog {
     pub has_more: bool,
 }
 
-/// Summary statistics for the Council Audit Log.
 #[derive(Debug, Clone, Default)]
 pub struct CouncilAuditSummary {
     pub total_decisions: u64,
