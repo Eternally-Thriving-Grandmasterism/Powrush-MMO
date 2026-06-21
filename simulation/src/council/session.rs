@@ -1,7 +1,7 @@
 /*!
- * CouncilSession with Archetype-Specific Scoring Logic.
+ * CouncilSession with World State Delta Scoring.
  *
- * Each CouncilArchetype now applies its own evaluation bias when scoring proposals.
+ * Archetype scoring now considers real changes in RBE metrics when world state is available.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -11,6 +11,7 @@ use tracing::info;
 use crate::council::decision::CouncilDecision;
 use crate::council::event_bus::{CouncilEvent, CouncilEventBus};
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
+use crate::world::SovereignWorldState;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -49,55 +50,69 @@ impl CouncilArchetype {
         }
     }
 
-    /// Archetype-specific scoring adjustment.
-    /// Returns a modifier in roughly [-0.15, +0.15] range that is added to base MAS.
-    pub fn score_proposal(&self, decision: &CouncilDecision) -> f32 {
+    /// Archetype-specific scoring with optional world state delta awareness.
+    pub fn score_proposal(
+        &self,
+        decision: &CouncilDecision,
+        world: Option<&SovereignWorldState>,
+    ) -> f32 {
         let effect = decision.effect_type.as_str();
         let mercy = decision.mercy_factor;
 
-        match self {
+        // Base archetype bias
+        let base_bias = match self {
             CouncilArchetype::Truth => {
-                // Truth Council favors high mercy_factor and is cautious of low-mercy proposals
                 if mercy > 0.75 { 0.08 } else if mercy < 0.45 { -0.10 } else { 0.02 }
             }
-            CouncilArchetype::Abundance => {
-                // Abundance Council strongly favors ResourcePolicy and EpiphanyEvent
-                match effect {
-                    "ResourcePolicy" | "resource_policy" => 0.12,
-                    "EpiphanyEvent" | "epiphany_event" => 0.09,
-                    "HarmonyBoost" | "harmony_boost" => 0.03,
-                    _ => 0.0,
-                }
-            }
-            CouncilArchetype::Harmony => {
-                // Harmony Council prefers balanced, low-pressure outcomes
-                match effect {
-                    "HarmonyBoost" | "harmony_boost" => 0.10,
-                    "General" | "general" => 0.05,
-                    "ResourcePolicy" | "resource_policy" => -0.02, // can increase pressure
-                    _ => 0.0,
-                }
-            }
+            CouncilArchetype::Abundance => match effect {
+                "ResourcePolicy" | "resource_policy" => 0.12,
+                "EpiphanyEvent" | "epiphany_event" => 0.09,
+                "HarmonyBoost" | "harmony_boost" => 0.03,
+                _ => 0.0,
+            },
+            CouncilArchetype::Harmony => match effect {
+                "HarmonyBoost" | "harmony_boost" => 0.10,
+                "General" | "general" => 0.05,
+                "ResourcePolicy" | "resource_policy" => -0.02,
+                _ => 0.0,
+            },
             CouncilArchetype::Service => {
-                // Service Council slightly favors proposals that benefit many
                 if mercy > 0.6 { 0.06 } else { 0.0 }
-            }
+            },
             CouncilArchetype::Mercy => {
-                // Mercy Council is more forgiving on lower mercy_factor proposals
                 if mercy < 0.5 { 0.07 } else if mercy > 0.8 { 0.03 } else { 0.0 }
-            }
-            CouncilArchetype::Joy => {
-                // Joy Council likes EpiphanyEvent and high-mercy outcomes
-                match effect {
-                    "EpiphanyEvent" | "epiphany_event" => 0.08,
-                    _ => if mercy > 0.7 { 0.04 } else { 0.0 },
-                }
-            }
+            },
+            CouncilArchetype::Joy => match effect {
+                "EpiphanyEvent" | "epiphany_event" => 0.08,
+                _ => if mercy > 0.7 { 0.04 } else { 0.0 },
+            },
             CouncilArchetype::Cosmic => {
-                // Cosmic Council prefers long-term thinking (currently approximated via mercy_factor)
                 if mercy > 0.65 { 0.06 } else { -0.03 }
+            },
+        };
+
+        // World state delta bonus (when available)
+        let delta_bonus: f32 = if let Some(w) = world {
+            // Simple heuristic using average sustainability and abundance
+            let avg_sustainability: f32 = w.rbe_pools.values()
+                .map(|p| p.sustainability_score)
+                .sum::<f32>() / w.rbe_pools.len().max(1) as f32;
+
+            let avg_abundance: f32 = w.rbe_pools.values()
+                .map(|p| p.abundance_flow)
+                .sum::<f32>() / w.rbe_pools.len().max(1) as f32;
+
+            match self {
+                CouncilArchetype::Abundance => (avg_abundance - 1.5).clamp(-0.1, 0.12),
+                CouncilArchetype::Harmony => (avg_sustainability - 0.6).clamp(-0.08, 0.10),
+                CouncilArchetype::Truth => if avg_sustainability > 0.75 { 0.04 } else { -0.02 },
+                _ => 0.0,
             }
-        }
+        } else {
+            0.0
+        };
+
+        (base_bias + delta_bonus).clamp(-0.15, 0.15)
     }
 }
 
@@ -239,7 +254,7 @@ impl CouncilSession {
             average_mercy = average_mercy,
             dynamic_threshold = dynamic_threshold,
             num_councils = self.num_parallel_councils,
-            "Ra-Thor archetype-scoring deliberation started"
+            "Ra-Thor world-delta archetype scoring started"
         );
 
         for proposal in self.active_proposals.iter_mut() {
@@ -272,11 +287,11 @@ impl CouncilSession {
                                 self.realm_id,
                             );
 
-                            // Base MAS + archetype-specific scoring
+                            // Base MAS + archetype scoring (with optional world delta)
                             let base_mas = temp_decision.mercy_alignment_score(None);
                             let archetype_bonus = archetype
                                 .as_ref()
-                                .map(|a| a.score_proposal(&temp_decision))
+                                .map(|a| a.score_proposal(&temp_decision, None)) // world state not yet available here
                                 .unwrap_or(0.0);
 
                             let council_mas = (base_mas + archetype_bonus).clamp(0.0, 1.0);
@@ -336,7 +351,7 @@ impl CouncilSession {
                             dynamic_threshold = dynamic_threshold,
                             passes_consensus = passes_consensus,
                             status = ?proposal.status,
-                            "Archetype-scoring multi-council aggregation complete"
+                            "World-delta archetype scoring complete"
                         );
                     } else {
                         proposal.status = ProposalStatus::Rejected;
