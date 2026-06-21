@@ -1,7 +1,7 @@
 //! simulation/src/ability_tree.rs
-//! Powrush-MMO Ability Tree System with Mutation Synergy Chains + Stage 0/1/2 Progression
-//! v1.3 — Full Stage 0 → 1 → 2 Progression for Mutation Synergy Chains
-//! Derived from Ra-Thor powrush-mmo-simulator v15.23/v15.30
+//! Powrush-MMO Ability Tree System with Mutation Synergy Chains + Stage 0/1/2 + Cross-Race Chain Synergy
+//! v1.4 — Cross-Race (Hybrid) Synergy Chains Added
+//! Derived from Ra-Thor powrush-mmo-simulator v15.24/v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | PATSAGi aligned
 
 use serde::{Deserialize, Serialize};
@@ -179,6 +179,67 @@ impl AbilityTree {
 
         bonuses
     }
+
+    // ========================================================================
+    // CROSS-RACE (HYBRID) CHAIN SYNERGY (Phase G Extension)
+    // Derived from Ra-Thor v15.24
+    // Rewards true multi-race identity builds with stronger hybrid bonuses.
+    // ========================================================================
+
+    /// Calculates cross-race (hybrid) synergy chains.
+    /// Activated when an entity has abilities spanning multiple races + relevant mutations.
+    /// These bonuses are stronger than single-race chains and create emergent hybrid playstyles.
+    pub fn calculate_cross_race_synergy_chains(
+        &self,
+        active_mutations: &[MutationType],
+        unlocked_races: &[crate::race::Race],
+    ) -> Vec<SynergyBonus> {
+        let mut bonuses = Vec::new();
+
+        // Hybrid 1: Harmonic Rebirth + Terran abilities → Allied Resonance
+        if active_mutations.contains(&MutationType::HarmonicRebirth)
+            && unlocked_races.contains(&crate::race::Race::Terran)
+            && self.unlocked.iter().any(|a| a.contains("steady") || a.contains("community") || a.contains("fortress"))
+        {
+            let stage = self.get_chain_stage("allied_resonance_cross");
+            let mult = 1.30 + (stage as f32 * 0.15);
+            bonuses.push(SynergyBonus {
+                name: format!("Allied Resonance Cross-Chain (Stage {})", stage),
+                description: "Hybrid Terran-Harmonic resonance. Stronger group harmony, shared epigenetic stability, and cross-race cooperation bonuses.".to_string(),
+                bonus_type: SynergyType::HarmonyAmplification { multiplier: mult },
+            });
+        }
+
+        // Hybrid 2: Volatile Surge + Voidfarer abilities → Chaotic Void
+        if active_mutations.contains(&MutationType::VolatileSurge)
+            && unlocked_races.contains(&crate::race::Race::Voidfarer)
+            && self.unlocked.iter().any(|a| a.contains("void") || a.contains("phase") || a.contains("singularity"))
+        {
+            let stage = self.get_chain_stage("chaotic_void_cross");
+            let mult = 1.25 + (stage as f64 * 0.18);
+            bonuses.push(SynergyBonus {
+                name: format!("Chaotic Void Cross-Chain (Stage {})", stage),
+                description: "Hybrid Volatile-Voidfarer path. High-risk contribution spikes with dimensional instability flavor.".to_string(),
+                bonus_type: SynergyType::ContributionBoost { multiplier: mult },
+            });
+        }
+
+        // Hybrid 3: Corrupted Echo + Synthetic abilities → Corrupted Tech
+        if active_mutations.contains(&MutationType::CorruptedEcho)
+            && unlocked_races.contains(&crate::race::Race::Synthetic)
+            && self.unlocked.iter().any(|a| a.contains("overclock") || a.contains("systems"))
+        {
+            let stage = self.get_chain_stage("corrupted_tech_hybrid");
+            let mult = 1.22 + (stage as f64 * 0.14);
+            bonuses.push(SynergyBonus {
+                name: format!("Corrupted Tech Hybrid Chain (Stage {})", stage),
+                description: "Hybrid Corrupted-Synthetic path. Innovation gains with managed epigenetic cost and tech-corruption synergy.".to_string(),
+                bonus_type: SynergyType::ContributionBoost { multiplier: mult },
+            });
+        }
+
+        bonuses
+    }
 }
 
 /// UI-ready ability state (serializable for HUD/hotbar).
@@ -228,11 +289,23 @@ mod tests {
         let mut tree = AbilityTree::new();
         tree.try_unlock_starter("resonant_jump");
         tree.try_unlock_starter("cosmic_attunement");
-        // Simulate progression
         tree.progress_chain_stages("redemption_cascade", 2.1, 15.0, 0.4);
         let bonuses = tree.calculate_mutation_synergy_chains(&[MutationType::HarmonicRebirth]);
         assert!(!bonuses.is_empty());
         let stage = tree.get_chain_stage("redemption_cascade");
         assert!(stage >= 1);
+    }
+
+    #[test]
+    fn test_cross_race_chain_activation() {
+        let mut tree = AbilityTree::new();
+        tree.try_unlock_starter("steady_step");
+        tree.try_unlock_starter("community_bond");
+        // Simulate Harmonic Rebirth mutation + Terran abilities
+        let bonuses = tree.calculate_cross_race_synergy_chains(
+            &[MutationType::HarmonicRebirth],
+            &[crate::race::Race::Terran, crate::race::Race::Harmonic],
+        );
+        assert!(!bonuses.is_empty());
     }
 }
