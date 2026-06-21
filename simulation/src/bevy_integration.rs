@@ -2,7 +2,7 @@
  * Bevy Integration for Ra-Thor Bridge + Legacy Journal + Council Governance
  *
  * Provides easy-to-use Bevy Resource and helpers for integrating the Ra-Thor
- * Council bridge, LegacyJournalRegistry, and now CouncilDecisions for proposal effects.
+ * Council bridge, LegacyJournalRegistry, and now CouncilDecisions + the effects system.
  *
  * TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned.
  */
@@ -13,7 +13,7 @@ use tracing::info;
 use crate::ra_thor_bridge::{RaThorBridge, RealRaThorClient, RaThorError};
 use crate::emergence::{EmergenceSeed, CouncilGuidance};
 use crate::player_legacy_journal::LegacyJournalRegistry;
-use crate::council::CouncilDecisions;  // NEW: for applied council proposal effects in ECS
+use crate::council::CouncilDecisions;  // Council proposal decisions resource
 
 /// Bevy Resource that wraps the Ra-Thor bridge.
 #[derive(Resource)]
@@ -52,8 +52,9 @@ impl RaThorResource {
     }
 }
 
-/// Plugin that registers simulation resources including LegacyJournalRegistry and CouncilDecisions.
-/// CouncilDecisions enables the apply_council_decision_effects system to react to passed proposals.
+/// Plugin that registers simulation resources and the Council effects system.
+/// CouncilDecisions + apply_council_decision_effects provide the full ECS path for
+/// passed proposals affecting RBE, abundance, sustainability, and harmony.
 pub struct RaThorPlugin;
 
 impl Plugin for RaThorPlugin {
@@ -61,16 +62,18 @@ impl Plugin for RaThorPlugin {
         app
             .init_resource::<RaThorResource>()
             .init_resource::<LegacyJournalRegistry>()
-            .init_resource::<CouncilDecisions>();  // NEW: Council proposal decisions now available in ECS
-        info!("RaThorPlugin + LegacyJournalRegistry + CouncilDecisions initialized");
+            .init_resource::<CouncilDecisions>()
+            .add_systems(Update, crate::council::decision::apply_council_decision_effects);  // Wire effects system into Bevy schedule
+        info!("RaThorPlugin + LegacyJournalRegistry + CouncilDecisions + effects system initialized");
     }
 }
 
 /*
  * === Simulation-side Population Guidance ===
  *
- * Simulation systems should call methods on LegacyJournalRegistry to record events.
- * The apply_council_decision_effects system (in council/decision.rs) now automatically
- * applies RBE abundance, sustainability, and harmony effects when CouncilDecisions is populated
- * (by orchestrator, council systems, or external bridge).
+ * The apply_council_decision_effects system now runs every Update.
+ * It reacts to CouncilDecisions resource being populated (by orchestrator tick,
+ * council systems, or external input) and applies real RBE/harmony effects to SovereignWorldState.
+ * Orchestrator continues direct application for its manual tick path.
+ * Both paths are consistent.
  */
