@@ -127,13 +127,7 @@ impl SovereignWorldState {
     }
 
     /// Flexible Audit Log Query with Pagination support.
-    /// 
-    /// Example:
-    /// let page = world.query_council_audit_logs_paginated(
-    ///     |d| d.mercy_factor > 0.6,
-    ///     0,   // page
-    ///     50,  // page_size
-    /// );
+    /// Returns owned items for safe pagination across large histories.
     pub fn query_council_audit_logs_paginated<F>(
         &self,
         filter: F,
@@ -143,9 +137,10 @@ impl SovereignWorldState {
     where
         F: Fn(&CouncilDecision) -> bool,
     {
-        let filtered: Vec<&CouncilDecision> = self.council_decision_history
+        let filtered: Vec<CouncilDecision> = self.council_decision_history
             .iter()
             .filter(|d| filter(d))
+            .cloned()
             .collect();
 
         let total_count = filtered.len();
@@ -268,9 +263,10 @@ impl SovereignWorldState {
 }
 
 /// Paginated result for large Council Audit Logs.
+/// Items are cloned for safe ownership across frames/UI.
 #[derive(Debug, Clone)]
 pub struct PaginatedCouncilAuditLog {
-    pub items: Vec<&'static CouncilDecision>, // Note: In real use this would be Vec<&CouncilDecision> with proper lifetime or owned
+    pub items: Vec<CouncilDecision>,
     pub total_count: usize,
     pub page: usize,
     pub page_size: usize,
