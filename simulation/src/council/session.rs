@@ -1,5 +1,6 @@
 // simulation/src/council/session.rs
 // CouncilSession with support for different proposal types and voting
+// Now includes clean submit_proposal API for player/UI submission.
 
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
 use serde::{Deserialize, Serialize};
@@ -9,6 +10,7 @@ pub struct CouncilSession {
     pub realm_id: u8,
     pub active_proposals: Vec<CouncilProposal>,
     pub last_session_tick: u64,
+    next_proposal_id: u64,  // Simple ID generator for submissions
 }
 
 impl CouncilSession {
@@ -17,7 +19,35 @@ impl CouncilSession {
             realm_id,
             active_proposals: vec![],
             last_session_tick: current_tick,
+            next_proposal_id: current_tick,  // Start ID from current tick for uniqueness
         }
+    }
+
+    /// Clean submission API for players, UI, or external systems.
+    /// Creates a properly formed CouncilProposal and adds it to the session.
+    /// Status starts as Draft. Ready for deliberation.
+    pub fn submit_proposal(
+        &mut self,
+        proposal_type: ProposalType,
+        title: String,
+        description: String,
+        proposer: crate::world::AgentId,
+        current_tick: u64,
+    ) -> u64 {
+        let id = self.next_proposal_id;
+        self.next_proposal_id += 1;
+
+        let proposal = CouncilProposal::new(
+            id,
+            proposal_type,
+            title,
+            description,
+            proposer,
+            current_tick,
+        );
+
+        self.active_proposals.push(proposal);
+        id
     }
 
     pub fn add_proposal(&mut self, proposal: CouncilProposal) {
