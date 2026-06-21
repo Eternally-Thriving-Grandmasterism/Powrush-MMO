@@ -1,7 +1,7 @@
 //! simulation/src/ability_tree.rs
-//! Powrush-MMO Ability Tree System with Mutation Synergy Chains
-//! v1.2 — Mutation-Specific Synergy Chains (Stage-aware foundation) + Core Ability/Effect/Tree
-//! Derived from Ra-Thor powrush-mmo-simulator v15.22/v15.30
+//! Powrush-MMO Ability Tree System with Mutation Synergy Chains + Stage 0/1/2 Progression
+//! v1.3 — Full Stage 0 → 1 → 2 Progression for Mutation Synergy Chains
+//! Derived from Ra-Thor powrush-mmo-simulator v15.23/v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | PATSAGi aligned
 
 use serde::{Deserialize, Serialize};
@@ -35,6 +35,8 @@ pub enum AbilityEffect {
 pub struct AbilityTree {
     pub unlocked: Vec<String>,
     pub cooldowns: HashMap<String, u64>,
+    /// Tracks raw progress points for each mutation synergy chain (maturing over sustained play).
+    pub chain_progress: HashMap<String, u32>,
 }
 
 impl AbilityTree {
@@ -83,13 +85,45 @@ impl AbilityTree {
     }
 
     // ========================================================================
-    // MUTATION SYNERGY CHAINS (Phase D — Evolutionary Synergy Layer)
-    // Derived from Ra-Thor v15.22
+    // MUTATION SYNERGY CHAINS + STAGE 0/1/2 PROGRESSION (Phase D Extension)
+    // Derived from Ra-Thor v15.23
     // ========================================================================
 
+    /// Progresses a mutation synergy chain based on current simulation state.
+    /// High harmony, contribution, and stability accelerate maturation.
+    /// Poor conditions cause slow natural decay.
+    pub fn progress_chain_stages(&mut self, chain_key: &str, harmony: f32, contribution: f32, volatility: f32) {
+        let progress = self.chain_progress.entry(chain_key.to_string()).or_insert(0);
+        let mut delta: u32 = 0;
+
+        if harmony > 1.8 {
+            delta += 2;
+        } else if harmony > 1.2 {
+            delta += 1;
+        }
+        if contribution > 10.0 {
+            delta += 1;
+        }
+        if volatility < 0.6 {
+            delta += 1; // stability bonus
+        }
+
+        if delta == 0 && *progress > 0 {
+            // slow decay under poor conditions
+            *progress = progress.saturating_sub(1);
+        } else {
+            *progress = (*progress + delta).min(200); // cap at stage 2 threshold
+        }
+    }
+
+    /// Returns current stage (0, 1, or 2) for a given chain.
+    pub fn get_chain_stage(&self, chain_key: &str) -> u8 {
+        let p = self.chain_progress.get(chain_key).copied().unwrap_or(0);
+        if p >= 150 { 2 } else if p >= 75 { 1 } else { 0 }
+    }
+
     /// Calculates active mutation-specific synergy chains.
-    /// These chains activate when a player has a specific mutation + relevant abilities unlocked.
-    /// Returns powerful, flavor-rich bonuses that scale with long-term investment.
+    /// Now fully stage-aware: bonuses escalate as chains mature (Stage 0 → 1 → 2).
     pub fn calculate_mutation_synergy_chains(
         &self,
         active_mutations: &[MutationType],
@@ -99,35 +133,44 @@ impl AbilityTree {
         for mutation in active_mutations {
             match mutation {
                 MutationType::HarmonicRebirth => {
-                    // Redemption Cascade Chain (Harmonic Rebirth path)
+                    let stage = self.get_chain_stage("redemption_cascade");
                     if self.unlocked.iter().any(|a| a.contains("resonant") || a.contains("cosmic")) {
+                        let (mult, name, desc) = match stage {
+                            2 => (1.55, "Redemption Cascade (Stage 2 — Mastered)", "Maximum redemptive power: powerful ongoing epigenetic healing + harmony mastery."),
+                            1 => (1.40, "Redemption Cascade (Stage 1)", "Escalating repair strength and corruption resistance."),
+                            _ => (1.25, "Redemption Cascade (Stage 0)", "Foundational harmony repair + corruption resistance."),
+                        };
                         bonuses.push(SynergyBonus {
-                            name: "Redemption Cascade (Harmonic Rebirth)".to_string(),
-                            description: "Stronger HarmonyAmplification + EpigeneticResilience. Passive positive drift and enhanced repair.".to_string(),
-                            bonus_type: SynergyType::HarmonyAmplification { multiplier: 1.35 },
+                            name: name.to_string(),
+                            description: desc.to_string(),
+                            bonus_type: SynergyType::HarmonyAmplification { multiplier: mult },
                         });
                         bonuses.push(SynergyBonus {
-                            name: "Redemption Cascade (Stage 1)".to_string(),
-                            description: "Escalating repair strength and corruption resistance.".to_string(),
-                            bonus_type: SynergyType::EpigeneticResilience { reduction: 0.25 },
+                            name: format!("Redemption Cascade (Stage {})", stage),
+                            description: "EpigeneticResilience scaling with chain maturity.".to_string(),
+                            bonus_type: SynergyType::EpigeneticResilience { reduction: 0.20 + (stage as f32 * 0.08) },
                         });
                     }
                 }
                 MutationType::VolatileSurge => {
+                    let stage = self.get_chain_stage("surge_overclock");
                     if self.unlocked.iter().any(|a| a.contains("overclock") || a.contains("systems")) {
+                        let mult = 1.20 + (stage as f64 * 0.12);
                         bonuses.push(SynergyBonus {
-                            name: "Surge Overclock Chain (Volatile Surge)".to_string(),
-                            description: "Amplified ContributionBoost while in high-volatility risk state. High-risk high-reward.".to_string(),
-                            bonus_type: SynergyType::ContributionBoost { multiplier: 1.28 },
+                            name: format!("Surge Overclock Chain (Stage {})", stage),
+                            description: "Amplified ContributionBoost while in high-volatility risk state. Scales with maturity.".to_string(),
+                            bonus_type: SynergyType::ContributionBoost { multiplier: mult },
                         });
                     }
                 }
                 MutationType::CorruptedEcho => {
+                    let stage = self.get_chain_stage("corrupted_singularity");
                     if self.unlocked.iter().any(|a| a.contains("phase") || a.contains("singularity")) {
+                        let mult = 1.15 + (stage as f64 * 0.10);
                         bonuses.push(SynergyBonus {
-                            name: "Corrupted Singularity Chain (Corrupted Echo)".to_string(),
-                            description: "High ContributionBoost at the cost of slow corruption accumulation. Dangerous power.".to_string(),
-                            bonus_type: SynergyType::ContributionBoost { multiplier: 1.22 },
+                            name: format!("Corrupted Singularity Chain (Stage {})", stage),
+                            description: "High ContributionBoost at the cost of slow corruption accumulation. Dangerous power path.".to_string(),
+                            bonus_type: SynergyType::ContributionBoost { multiplier: mult },
                         });
                     }
                 }
@@ -181,11 +224,15 @@ mod tests {
     }
 
     #[test]
-    fn test_mutation_synergy_chain_placeholder() {
-        let tree = AbilityTree::new();
-        // In full integration this would check against actual unlocked abilities + mutations
+    fn test_mutation_synergy_chain_with_stages() {
+        let mut tree = AbilityTree::new();
+        tree.try_unlock_starter("resonant_jump");
+        tree.try_unlock_starter("cosmic_attunement");
+        // Simulate progression
+        tree.progress_chain_stages("redemption_cascade", 2.1, 15.0, 0.4);
         let bonuses = tree.calculate_mutation_synergy_chains(&[MutationType::HarmonicRebirth]);
-        // Placeholder: chain logic exists and returns bonuses when conditions met in future wiring
-        assert!(bonuses.len() <= 3);
+        assert!(!bonuses.is_empty());
+        let stage = tree.get_chain_stage("redemption_cascade");
+        assert!(stage >= 1);
     }
 }
