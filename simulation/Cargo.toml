@@ -33,6 +33,7 @@ criterion = "0.5"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 flume = "0.11"
 kanal = "0.1"
+crossbeam-channel = "0.5"
 
 [[bench]]
 name = "resonance_decay_recovery_bench"
