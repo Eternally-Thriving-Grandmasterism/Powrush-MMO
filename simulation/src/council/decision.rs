@@ -86,7 +86,7 @@ impl CouncilDecisions {
     }
 }
 
-/// ECS System with audit logging into world history.
+/// ECS System: Applies effects + records into persistent audit history.
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut query: Query<&mut crate::world::SovereignWorldState>,
@@ -97,10 +97,35 @@ pub fn apply_council_decision_effects(
 
         for world in query.iter_mut() {
             match effect {
-                "ResourcePolicy" | "resource_policy" => { /* ... effects unchanged ... */ }
-                "HarmonyBoost" | "harmony_boost" => { /* ... */ }
-                "EpiphanyEvent" | "epiphany_event" => { /* ... */ }
-                "General" | "general" => { /* ... */ }
+                "ResourcePolicy" | "resource_policy" => {
+                    for pool in world.rbe_pools.values_mut() {
+                        pool.abundance_flow = (pool.abundance_flow + 0.25 * mag).min(3.5);
+                        pool.sustainability_score = (pool.sustainability_score + 0.08 * mag).min(1.0);
+                        pool.pressure = (pool.pressure * (1.0 - 0.35 * mag)).max(0.0);
+                    }
+                    for node in world.resource_nodes.values_mut() {
+                        node.abundance_flow = (node.abundance_flow + 0.12 * mag).min(3.0);
+                        node.sustainability_score = (node.sustainability_score + 0.05 * mag).min(1.0);
+                    }
+                }
+                "HarmonyBoost" | "harmony_boost" => {
+                    for pool in world.rbe_pools.values_mut() {
+                        pool.sustainability_score = (pool.sustainability_score + 0.06 * mag).min(1.0);
+                    }
+                }
+                "EpiphanyEvent" | "epiphany_event" => {
+                    for pool in world.rbe_pools.values_mut() {
+                        pool.abundance_flow = (pool.abundance_flow + 0.15 * mag).min(3.5);
+                    }
+                    for node in world.resource_nodes.values_mut() {
+                        node.abundance_flow = (node.abundance_flow + 0.08 * mag).min(3.0);
+                    }
+                }
+                "General" | "general" => {
+                    for pool in world.rbe_pools.values_mut() {
+                        pool.sustainability_score = (pool.sustainability_score + 0.03 * mag).min(1.0);
+                    }
+                }
                 _ => {}
             }
 
