@@ -117,5 +117,45 @@ fn bench_crossbeam(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_flume, bench_kanal, bench_crossbeam);
+fn bench_tokio_mpsc(c: &mut Criterion) {
+    let mut group = c.benchmark_group("tokio::sync::mpsc");
+    group.throughput(Throughput::Elements(100_000));
+
+    group.bench_function("bounded_100k_msgs", |b| {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        b.iter(|| {
+            rt.block_on(async {
+                let (tx, mut rx) = tokio::sync::mpsc::channel::<CouncilEvent>(1024);
+
+                let handle = tokio::spawn(async move {
+                    let mut count = 0u64;
+                    while let Some(_msg) = rx.recv().await {
+                        count += 1;
+                        if count >= 100_000 {
+                            break;
+                        }
+                    }
+                    count
+                });
+
+                for i in 0..100_000 {
+                    let event = CouncilEvent {
+                        id: i,
+                        proposer: i % 128,
+                        mercy_factor: 0.72,
+                    };
+                    tx.send(black_box(event)).await.unwrap();
+                }
+
+                drop(tx);
+                handle.await.unwrap()
+            })
+        });
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_flume, bench_kanal, bench_crossbeam, bench_tokio_mpsc);
 criterion_main!(benches);
