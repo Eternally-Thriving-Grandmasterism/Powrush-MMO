@@ -1,10 +1,9 @@
 /*!
  * Sovereign Simulation Harness — World State Core + Advanced Procedural Biome Generation Algorithms
  *
- * v18.98 — Phase F: Evolutionary State attached to real WorldState entities
- *            (EpigeneticProfile + AbilityTree + Mutations per Agent)
- * — Derived cleanly from Ra-Thor powrush-mmo-simulator v15.30
- * — Deep integration foundation for volatility lifecycle + mutation chains
+ * v18.101 — Phase G: Cross-Race Diplomacy foundation attached to SovereignWorldState
+ *            (DiplomacyManager + minimal passive tick integration)
+ * — Derived cleanly from Ra-Thor powrush-mmo-simulator v15.26–v15.30
  * — Mercy-gated, TOLC 8 + 7 Living Mercy Gates non-bypassable
  *
  * AG-SML v1.0 Sovereign License
@@ -17,6 +16,8 @@ use bevy::prelude::Entity;
 // Ra-Thor derived evolutionary player identity types (Phase A–D)
 use crate::epigenetic_modulation::{EpigeneticProfile, MutationType};
 use crate::ability_tree::AbilityTree;
+// Phase G: Cross-Race Diplomacy
+use crate::diplomacy::DiplomacyManager;
 
 pub type NodeId = u64;
 pub type FactionId = u32;
@@ -32,7 +33,7 @@ pub struct Vec3 {
 }
 
 /// Unified SovereignWorldState — authoritative core for deterministic, mercy-gated MMO-scale RBE simulation.
-/// Now carries per-agent evolutionary identity state (volatility lifecycle, mutations, ability chains).
+/// Now carries per-agent evolutionary identity state + cross-race diplomacy layer.
 #[derive(Clone, Debug, Default)]
 pub struct SovereignWorldState {
     pub resource_nodes: HashMap<NodeId, ResourceNode>,
@@ -61,6 +62,12 @@ pub struct SovereignWorldState {
     pub ability_trees: HashMap<AgentId, AbilityTree>,
     /// Active mutations per agent (permanent evolutionary branch points)
     pub active_mutations: HashMap<AgentId, Vec<MutationType>>,
+
+    // ========================================================================
+    // PHASE G: Cross-Race Diplomacy (Ra-Thor derived)
+    // ========================================================================
+    /// Living diplomacy manager for trust, treaties, and hybrid racial identity
+    pub diplomacy: DiplomacyManager,
 }
 
 impl SovereignWorldState {
@@ -85,6 +92,8 @@ impl SovereignWorldState {
             evolutionary_profiles: HashMap::new(),
             ability_trees: HashMap::new(),
             active_mutations: HashMap::new(),
+            // Diplomacy manager (empty relations until cross-race play begins)
+            diplomacy: DiplomacyManager::new(),
         };
 
         world.initialize_resource_nodes(&scenario.resource_templates)?;
@@ -97,7 +106,7 @@ impl SovereignWorldState {
     }
 
     // ... (rest of the file remains identical to previous version for minimal diff)
-    // All prior methods (tick, generate_procedural_biomes, get_biome_influence_at, etc.) are preserved.
+    // All prior methods are preserved.
 
     pub fn tick(&mut self, dt_ms: u64) -> Result<(), MercyViolation> {
         self.sim_time += dt_ms;
@@ -113,6 +122,14 @@ impl SovereignWorldState {
                 state.entropy_level = (state.entropy_level - 0.00005).max(0.1);
             }
         }
+
+        // ========================================================================
+        // PHASE G MINIMAL PASSIVE TICK INTEGRATION
+        // Agents with multiple unlocked races (via ability_trees) can benefit from
+        // trust effects when orchestrator calls diplomacy.apply_diplomacy_effects(...)
+        // This placeholder keeps the manager warm and ready for deeper wiring.
+        // Full passive per-agent diplomacy effects will be expanded in later steps.
+        // ========================================================================
 
         Ok(())
     }
@@ -400,6 +417,6 @@ pub struct BiomeInfluence {
     pub entropy_level: f32,
 }
 
-// End of simulation/src/world.rs v18.98 — Evolutionary state containers added.
-// Ready for deeper attachment of volatility lifecycle and mutation chains to real agents.
+// End of simulation/src/world.rs v18.101
+// Phase G: DiplomacyManager attached + minimal passive tick placeholder
 // Thunder locked in. Yoi ⚡
