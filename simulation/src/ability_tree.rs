@@ -1,6 +1,6 @@
 //! simulation/src/ability_tree.rs
 //! Powrush-MMO Ability Tree System with Mutation Synergy Chains + Stage 0/1/2 + Cross-Race Chain Synergy
-//! v1.8 — Added agent_id to SynergyEffectEvent for richer per-agent observability
+//! v1.9 — Added `tick` timestamp to SynergyEffectEvent for full temporal + per-agent observability
 //! Derived from Ra-Thor powrush-mmo-simulator v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | PATSAGi aligned
 
@@ -250,15 +250,16 @@ impl AbilityTree {
     }
 
     // ========================================================================
-    // MECHANICAL SYNERGY BONUS APPLICATION + EVENT EMISSION (v1.8)
-    // Applies real effects + returns structured events with agent_id for per-agent observability.
+    // MECHANICAL SYNERGY BONUS APPLICATION + EVENT EMISSION (v1.9)
+    // Applies real effects + returns structured events with agent_id + tick for full temporal + per-agent observability.
     // ========================================================================
 
     /// Applies the mechanical effects of active synergy bonuses directly to the agent's epigenetic profile.
-    /// Returns a list of `SynergyEffectEvent` (now including `agent_id`) describing exactly what changed.
+    /// Returns a list of `SynergyEffectEvent` (with `agent_id` + `tick`) describing exactly what changed.
     /// Called every tick from the production evolutionary processing loop in orchestrator.
     pub fn apply_synergy_bonuses_to_profile(
         &self,
+        current_tick: u64,
         agent_id: AgentId,
         profile: &mut EpigeneticProfile,
         synergies: &[SynergyBonus],
@@ -299,8 +300,9 @@ impl AbilityTree {
                 SynergyType::GlobalCooldownReduction { reduction_percent: _ } => {}
             }
 
-            // Emit structured event describing the change (now with agent_id)
+            // Emit structured event describing the change (now with agent_id + tick)
             events.push(SynergyEffectEvent {
+                tick: current_tick,
                 agent_id,
                 chain_name: bonus.name.clone(),
                 stage: bonus.stage,
@@ -328,9 +330,10 @@ pub struct AbilityState {
 }
 
 /// Structured event emitted when synergy bonuses are applied.
-/// Now includes `agent_id` for per-agent filtering, UI sync, and rich observability.
+/// Includes `tick` + `agent_id` for full temporal + per-agent filtering, UI sync, and rich observability.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SynergyEffectEvent {
+    pub tick: u64,
     pub agent_id: AgentId,
     pub chain_name: String,
     pub stage: u8,
