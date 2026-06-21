@@ -1,8 +1,8 @@
 /*!
- * CouncilSession with Mercy Alignment Score integrated into consensus.
+ * CouncilSession with Dynamic Mercy Threshold Scaling.
  *
- * A proposal now only reaches Passed status if it passes both the vote threshold
- * *and* the Mercy Alignment Score threshold.
+ * The Mercy Alignment Score threshold now adapts based on system mercy health.
+ * This creates a self-regulating feedback loop aligned with Ra-Thor principles.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -78,6 +78,19 @@ impl CouncilSession {
     pub fn run_deliberation(&mut self, average_mercy: f32, current_tick: u64) -> Vec<CouncilProposal> {
         let mut resolved = vec![];
 
+        // === Dynamic Mercy Threshold Scaling ===
+        // Base threshold: 0.72
+        // When system mercy is high -> slightly more permissive
+        // When system mercy is low  -> more strict (protects the system)
+        let base_threshold: f32 = 0.72;
+        let mercy_health = (average_mercy / 100.0).clamp(0.0, 1.0);
+
+        // Scaling: mercy_health deviation from 0.5 adjusts the threshold
+        // High mercy -> lower threshold (more permissive)
+        // Low mercy  -> higher threshold (more protective)
+        let scaling = (mercy_health - 0.5) * 0.12;
+        let dynamic_threshold = (base_threshold - scaling).clamp(0.60, 0.85);
+
         for proposal in self.active_proposals.iter_mut() {
             if proposal.status == ProposalStatus::Draft || proposal.status == ProposalStatus::Deliberating {
                 proposal.status = ProposalStatus::Deliberating;
@@ -90,7 +103,6 @@ impl CouncilSession {
                     let would_pass_vote = effective_for > proposal.votes_against as f32;
 
                     if would_pass_vote {
-                        // Build a temporary decision to calculate Mercy Alignment Score
                         let temp_decision = CouncilDecision::from_resolved_proposal(
                             proposal,
                             mercy_factor,
@@ -100,8 +112,8 @@ impl CouncilSession {
 
                         let mas = temp_decision.mercy_alignment_score(None);
 
-                        // Ra-Thor Consensus requires both vote win + Mercy Alignment Score
-                        if mas >= 0.72 {
+                        // Use dynamic threshold instead of static 0.72
+                        if mas >= dynamic_threshold {
                             proposal.status = ProposalStatus::Passed;
 
                             if let Some(bus) = &self.event_bus {
