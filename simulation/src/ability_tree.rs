@@ -1,6 +1,6 @@
 //! simulation/src/ability_tree.rs
 //! Powrush-MMO Ability Tree System with Mutation Synergy Chains + Stage 0/1/2 + Cross-Race Chain Synergy
-//! v1.5 — Mechanical Synergy Bonus Application Added
+//! v1.6 — Stage-Scaled Synergy Multipliers Implemented
 //! Derived from Ra-Thor powrush-mmo-simulator v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | PATSAGi aligned
 
@@ -144,11 +144,13 @@ impl AbilityTree {
                             name: name.to_string(),
                             description: desc.to_string(),
                             bonus_type: SynergyType::HarmonyAmplification { multiplier: mult },
+                            stage,
                         });
                         bonuses.push(SynergyBonus {
                             name: format!("Redemption Cascade (Stage {})", stage),
                             description: "EpigeneticResilience scaling with chain maturity.".to_string(),
                             bonus_type: SynergyType::EpigeneticResilience { reduction: 0.20 + (stage as f32 * 0.08) },
+                            stage,
                         });
                     }
                 }
@@ -160,6 +162,7 @@ impl AbilityTree {
                             name: format!("Surge Overclock Chain (Stage {})", stage),
                             description: "Amplified ContributionBoost while in high-volatility risk state. Scales with maturity.".to_string(),
                             bonus_type: SynergyType::ContributionBoost { multiplier: mult },
+                            stage,
                         });
                     }
                 }
@@ -171,6 +174,7 @@ impl AbilityTree {
                             name: format!("Corrupted Singularity Chain (Stage {})", stage),
                             description: "High ContributionBoost at the cost of slow corruption accumulation. Dangerous power path.".to_string(),
                             bonus_type: SynergyType::ContributionBoost { multiplier: mult },
+                            stage,
                         });
                     }
                 }
@@ -207,6 +211,7 @@ impl AbilityTree {
                 name: format!("Allied Resonance Cross-Chain (Stage {})", stage),
                 description: "Hybrid Terran-Harmonic resonance. Stronger group harmony, shared epigenetic stability, and cross-race cooperation bonuses.".to_string(),
                 bonus_type: SynergyType::HarmonyAmplification { multiplier: mult },
+                stage,
             });
         }
 
@@ -221,6 +226,7 @@ impl AbilityTree {
                 name: format!("Chaotic Void Cross-Chain (Stage {})", stage),
                 description: "Hybrid Volatile-Voidfarer path. High-risk contribution spikes with dimensional instability flavor.".to_string(),
                 bonus_type: SynergyType::ContributionBoost { multiplier: mult },
+                stage,
             });
         }
 
@@ -235,6 +241,7 @@ impl AbilityTree {
                 name: format!("Corrupted Tech Hybrid Chain (Stage {})", stage),
                 description: "Hybrid Corrupted-Synthetic path. Innovation gains with managed epigenetic cost and tech-corruption synergy.".to_string(),
                 bonus_type: SynergyType::ContributionBoost { multiplier: mult },
+                stage,
             });
         }
 
@@ -242,32 +249,39 @@ impl AbilityTree {
     }
 
     // ========================================================================
-    // MECHANICAL SYNERGY BONUS APPLICATION (New in v1.5)
+    // MECHANICAL SYNERGY BONUS APPLICATION (v1.5 → v1.6 Stage-Scaled)
     // Applies real, observable effects to an EpigeneticProfile based on active chains.
-    // This makes synergy chains strategically meaningful inside the live simulation.
+    // Bonuses are now explicitly scaled by chain maturity (Stage 0/1/2).
     // ========================================================================
 
     /// Applies the mechanical effects of active synergy bonuses directly to the agent's epigenetic profile.
     /// Called every tick from the production evolutionary processing loop.
+    /// Effects are scaled by the maturity stage of the originating chain.
     pub fn apply_synergy_bonuses_to_profile(&self, profile: &mut EpigeneticProfile, synergies: &[SynergyBonus]) {
         for bonus in synergies {
+            let stage_scale: f32 = match bonus.stage {
+                0 => 1.0,
+                1 => 1.65,
+                2 => 2.6,
+                _ => 1.0,
+            };
+
             match &bonus.bonus_type {
                 SynergyType::HarmonyAmplification { multiplier } => {
-                    // Stronger harmony → better cooperation and slight volatility stabilization
-                    profile.cooperation_score = (profile.cooperation_score + (multiplier * 0.008) as f64).min(1.0);
-                    profile.volatility = (profile.volatility - (multiplier * 0.015)).max(0.05);
+                    let scaled = *multiplier * stage_scale;
+                    profile.cooperation_score = (profile.cooperation_score + (scaled * 0.008) as f64).min(1.0);
+                    profile.volatility = (profile.volatility - (scaled * 0.015)).max(0.05);
                 }
                 SynergyType::EpigeneticResilience { reduction } => {
-                    // Direct volatility reduction + strength gain (core of Verdant/Harmonic resilience paths)
-                    profile.volatility = (profile.volatility - reduction * 0.6).max(0.05);
-                    profile.strength = (profile.strength + reduction * 0.4).min(3.5);
+                    let scaled = *reduction * stage_scale;
+                    profile.volatility = (profile.volatility - scaled * 0.6).max(0.05);
+                    profile.strength = (profile.strength + scaled * 0.4).min(3.5);
                 }
                 SynergyType::ContributionBoost { multiplier } => {
-                    // Contribution flow → cooperation and slight strength (risk/reward flavor for Volatile/Corrupted paths)
-                    profile.cooperation_score = (profile.cooperation_score + (multiplier * 0.006) as f64).min(1.0);
+                    let scaled = *multiplier as f32 * stage_scale;
+                    profile.cooperation_score = (profile.cooperation_score + (scaled * 0.006) as f64).min(1.0);
                     if profile.volatility > 1.0 {
-                        // High volatility + ContributionBoost = slight power spike but risk
-                        profile.strength = (profile.strength + 0.015).min(3.5);
+                        profile.strength = (profile.strength + (scaled * 0.012)).min(3.5);
                     }
                 }
                 SynergyType::MovementEfficiency { multiplier: _ } => {
@@ -304,11 +318,13 @@ pub enum SynergyType {
 }
 
 /// Active synergy bonus with rich flavor.
+/// `stage` enables explicit stage-scaled multipliers in apply_synergy_bonuses_to_profile.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SynergyBonus {
     pub name: String,
     pub description: String,
     pub bonus_type: SynergyType,
+    pub stage: u8,
 }
 
 #[cfg(test)]
