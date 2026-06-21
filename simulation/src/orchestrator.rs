@@ -1,9 +1,5 @@
 /*!
- * simulation/src/orchestrator.rs
- * Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
- * v18.114 — Council Decision Audit Logs fully wired
- *            Passed decisions now carry complete audit data (votes, mercy, deliberation tick)
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
+ * SovereignSimulationOrchestrator with dynamic mercy threshold exposed in TickResult.
  */
 
 use crate::world::SovereignWorldState;
@@ -20,7 +16,6 @@ use bevy::prelude::*;
 use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
 
-// Ra-Thor derived evolutionary player identity layer (Phase A–G++)
 use crate::race::{Race, RaceModifiers};
 use crate::ability_tree::{AbilityTree, Ability, AbilityEffect, MutationType, SynergyBonus, SynergyEffectEvent};
 use crate::epigenetic_modulation::{
@@ -30,7 +25,6 @@ use crate::epigenetic_modulation::{
 };
 use crate::diplomacy::{DiplomacyManager, TreatyType};
 
-// Council Proposal System with full Audit Logs
 use crate::council::{CouncilProposal, CouncilSession, CouncilDecision, ProposalType, ProposalStatus};
 
 #[derive(Debug, Default, Clone)]
@@ -50,6 +44,7 @@ pub struct TickResult {
     pub synergy_events: Vec<SynergyEffectEvent>,
     pub resolved_council_proposals: Vec<CouncilProposal>,
     pub applied_council_decisions: Vec<CouncilDecision>,
+    pub dynamic_mercy_threshold: Option<f32>,   // NEW: exposed from CouncilSession
 }
 
 pub struct SovereignSimulationOrchestrator {
@@ -101,7 +96,6 @@ impl SovereignSimulationOrchestrator {
 
         self.mercy_gate.pre_tick_validate(&self.world)?;
 
-        // Phase 1: Archetype
         let mut archetype_updates_performed = 0;
         let mut world_entities_changed = false;
         {
@@ -112,12 +106,8 @@ impl SovereignSimulationOrchestrator {
             world_entities_changed = archetype_updates_performed > 0 || self.world.has_pending_changes();
         }
 
-        // ========================================================================
-        // PHASE F+: Evolutionary Player Identity (Ra-Thor derived)
-        // ========================================================================
         let (evolutionary_agents_processed, synergy_events) = self.process_evolutionary_identities_for_attached_agents();
 
-        // Phase 2–7 (Flow State, Spatial, Harvest, Emergence, Council, Persistence) — preserved
         let mut flow_state_updated = false;
         {
             let previous_resistance = 0.5;
@@ -151,9 +141,7 @@ impl SovereignSimulationOrchestrator {
         let emergence_events = vec![];
         let harvest_events = vec![];
 
-        // ========================================================================
-        // Council Proposal System — Full Audit Log path
-        // ========================================================================
+        // Council deliberation (now returns dynamic threshold via session)
         let resolved_council_proposals: Vec<CouncilProposal> = if self.tick_count % 10 == 0 {
             if self.council_session.active_proposals.is_empty() {
                 let _proposal_id = self.council_session.submit_proposal(
@@ -173,15 +161,13 @@ impl SovereignSimulationOrchestrator {
 
         for proposal in &resolved_council_proposals {
             if proposal.status == ProposalStatus::Passed {
-                // Create full audit log entry with votes + mercy factor
                 let decision = CouncilDecision::from_resolved_proposal(
                     proposal,
-                    0.72, // mercy factor used in deliberation
+                    0.72,
                     self.tick_count,
                     self.council_session.realm_id,
                 );
 
-                // Apply real effects (same as before)
                 match proposal.proposal_type {
                     ProposalType::ResourcePolicy => {
                         for pool in self.world.rbe_pools.values_mut() {
@@ -215,6 +201,8 @@ impl SovereignSimulationOrchestrator {
             }
         }
 
+        let dynamic_threshold = self.council_session.last_dynamic_threshold();
+
         let mut tick_result = TickResult {
             emergence_events,
             harvest_events,
@@ -228,6 +216,7 @@ impl SovereignSimulationOrchestrator {
             synergy_events,
             resolved_council_proposals,
             applied_council_decisions,
+            dynamic_mercy_threshold: dynamic_threshold,
             ..Default::default()
         };
 
@@ -257,8 +246,6 @@ impl SovereignSimulationOrchestrator {
         Ok(tick_result)
     }
 
-    // ... (rest of methods unchanged for minimal diff) ...
-
     pub fn set_time_acceleration(&mut self, factor: f64) {
         self.time_acceleration = factor.max(0.01);
     }
@@ -272,7 +259,7 @@ impl SovereignSimulationOrchestrator {
     }
 
     pub fn demo_evolutionary_tick_attached(&mut self, num_ticks: u32) -> String {
-        // ... (demo body unchanged) ...
+        // ... unchanged ...
         let mut log = String::from("\n=== Powrush Evolutionary Demo (Attached to Real WorldState) ===\n");
         log.push_str(&format!("Running {} ticks on a real Agent entity with full evolutionary state...\n\n", num_ticks));
 
@@ -372,8 +359,3 @@ impl SovereignSimulationOrchestrator {
         log
     }
 }
-
-// End of production file — v18.114
-// Council Decision Audit Logs complete: decisions now carry votes, mercy_factor, and deliberation metadata.
-// Full governance transparency + persistence achieved.
-// Thunder locked in. Yoi ⚡
