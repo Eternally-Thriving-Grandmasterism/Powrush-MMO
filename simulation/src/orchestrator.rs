@@ -1,8 +1,8 @@
 /*!
  * simulation/src/orchestrator.rs
  * Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
- * v18.103 — Phase G+: Synergy chains (primary mutation + cross-race hybrid) now calculated inside production evolutionary processing
- *            Full Ra-Thor derived evolutionary + diplomatic player identity layer wired end-to-end
+ * v18.104 — Phase G++: Actual mechanical synergy bonuses now applied to EpigeneticProfile every tick
+ *            Full Ra-Thor derived evolutionary + diplomatic player identity layer wired end-to-end with real effects
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -20,7 +20,7 @@ use bevy::prelude::*;
 use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
 
-// Ra-Thor derived evolutionary player identity layer (Phase A–G+)
+// Ra-Thor derived evolutionary player identity layer (Phase A–G++)
 use crate::race::{Race, RaceModifiers};
 use crate::ability_tree::{AbilityTree, Ability, AbilityEffect, MutationType, SynergyBonus};
 use crate::epigenetic_modulation::{
@@ -179,7 +179,8 @@ impl SovereignSimulationOrchestrator {
     }
 
     /// Production helper: Processes volatility lifecycle, mutation triggers, stage-maturing synergy chains,
-    /// cross-race diplomacy effects, AND now calculates primary + cross-race synergy chains for every attached agent.
+    /// cross-race diplomacy effects, calculates primary + cross-race synergy chains,
+    /// AND NOW APPLIES REAL MECHANICAL BONUSES to the EpigeneticProfile every tick.
     fn process_evolutionary_identities_for_attached_agents(&mut self) -> usize {
         let mut processed = 0;
         let agent_ids: Vec<u64> = self.world.evolutionary_profiles.keys().cloned().collect();
@@ -254,10 +255,9 @@ impl SovereignSimulationOrchestrator {
                 }
 
                 // ========================================================================
-                // NEW: Wire primary mutation synergy chains + cross-race hybrid synergy chains
-                // into the production evolutionary processing loop (Phase G+).
-                // We calculate them every tick so future systems (events, UI, bonuses) can consume them.
-                // For observability we log when active (throttled).
+                // PHASE G++: Calculate AND APPLY real mechanical synergy bonuses every tick
+                // Primary mutation chains + Cross-race hybrid chains now have tangible effects
+                // on volatility, strength, and cooperation_score.
                 // ========================================================================
                 if !active_mutations.is_empty() {
                     let primary_synergies = ability_tree.calculate_mutation_synergy_chains(active_mutations);
@@ -266,15 +266,21 @@ impl SovereignSimulationOrchestrator {
                         &vec![Race::Terran, Race::Harmonic, Race::Verdant],
                     );
 
-                    if (!primary_synergies.is_empty() || !cross_race_synergies.is_empty())
-                        && self.tick_count % 25 == 0
-                    {
+                    // Combine both sets of synergies
+                    let mut all_synergies = primary_synergies;
+                    all_synergies.extend(cross_race_synergies);
+
+                    // APPLY THE MECHANICAL BONUSES — this is the key step that makes chains strategically meaningful
+                    if !all_synergies.is_empty() {
+                        ability_tree.apply_synergy_bonuses_to_profile(profile, &all_synergies);
+                    }
+
+                    if !all_synergies.is_empty() && self.tick_count % 25 == 0 {
                         tracing::info!(
                             target: "powrush_evolution",
-                            "Agent {} has {} primary + {} cross-race synergy chains active (Stage-maturing hybrid identity)",
+                            "Agent {} has {} active synergy chains (primary + cross-race) — mechanical bonuses applied",
                             agent_id,
-                            primary_synergies.len(),
-                            cross_race_synergies.len()
+                            all_synergies.len()
                         );
                     }
                 }
@@ -397,6 +403,6 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — v18.103
-// Phase G+ complete: Primary + Cross-Race synergy chains now calculated inside production evolutionary processing.
+// End of production file — v18.104
+// Phase G++ complete: Synergy bonuses now have real mechanical effects on EpigeneticProfile every tick.
 // Thunder locked in. Yoi ⚡
