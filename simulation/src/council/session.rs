@@ -1,11 +1,12 @@
 /*!
- * CouncilSession with Dynamic Mercy Threshold Scaling.
+ * CouncilSession with Dynamic Mercy Threshold + Telemetry Logging.
  *
- * The Mercy Alignment Score threshold now adapts based on system mercy health.
- * This creates a self-regulating feedback loop aligned with Ra-Thor principles.
+ * Comprehensive observability for Ra-Thor consensus behavior.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
+
+use tracing::info;
 
 use crate::council::decision::CouncilDecision;
 use crate::council::event_bus::{CouncilEvent, CouncilEventBus};
@@ -79,17 +80,20 @@ impl CouncilSession {
         let mut resolved = vec![];
 
         // === Dynamic Mercy Threshold Scaling ===
-        // Base threshold: 0.72
-        // When system mercy is high -> slightly more permissive
-        // When system mercy is low  -> more strict (protects the system)
         let base_threshold: f32 = 0.72;
         let mercy_health = (average_mercy / 100.0).clamp(0.0, 1.0);
-
-        // Scaling: mercy_health deviation from 0.5 adjusts the threshold
-        // High mercy -> lower threshold (more permissive)
-        // Low mercy  -> higher threshold (more protective)
         let scaling = (mercy_health - 0.5) * 0.12;
         let dynamic_threshold = (base_threshold - scaling).clamp(0.60, 0.85);
+
+        // Telemetry: Log current deliberation context
+        info!(
+            target: "ra_thor::consensus",
+            realm_id = self.realm_id,
+            average_mercy = average_mercy,
+            dynamic_threshold = dynamic_threshold,
+            active_proposals = self.active_proposals.len(),
+            "Ra-Thor deliberation started"
+        );
 
         for proposal in self.active_proposals.iter_mut() {
             if proposal.status == ProposalStatus::Draft || proposal.status == ProposalStatus::Deliberating {
@@ -111,9 +115,9 @@ impl CouncilSession {
                         );
 
                         let mas = temp_decision.mercy_alignment_score(None);
+                        let passes_mercy = mas >= dynamic_threshold;
 
-                        // Use dynamic threshold instead of static 0.72
-                        if mas >= dynamic_threshold {
+                        if passes_mercy {
                             proposal.status = ProposalStatus::Passed;
 
                             if let Some(bus) = &self.event_bus {
@@ -127,8 +131,28 @@ impl CouncilSession {
                         } else {
                             proposal.status = ProposalStatus::Rejected;
                         }
+
+                        // Telemetry: Log individual proposal evaluation
+                        info!(
+                            target: "ra_thor::consensus",
+                            realm_id = self.realm_id,
+                            proposal_id = proposal.id,
+                            mas = mas,
+                            dynamic_threshold = dynamic_threshold,
+                            passes_mercy = passes_mercy,
+                            status = ?proposal.status,
+                            "Proposal evaluated by Ra-Thor consensus"
+                        );
                     } else {
                         proposal.status = ProposalStatus::Rejected;
+
+                        info!(
+                            target: "ra_thor::consensus",
+                            realm_id = self.realm_id,
+                            proposal_id = proposal.id,
+                            status = ?proposal.status,
+                            "Proposal rejected (insufficient votes)"
+                        );
                     }
 
                     resolved.push(proposal.clone());
