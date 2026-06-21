@@ -1,8 +1,7 @@
 // simulation/src/council/decision.rs
-// Persistent Council Decisions with effect application
-// Now wired into ECS: apply_council_decision_effects performs real mutations on SovereignWorldState
-// (RBE pools, abundance, sustainability, pressure, flow harmony) when CouncilDecisions resource is populated.
-// Includes decision clearing logic to prevent re-application every frame.
+// Persistent Council Decisions with effect application + history persistence
+// Applied decisions are now recorded into SovereignWorldState.council_decision_history
+// so they survive simulation restarts and contribute to long-term governance memory.
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -38,10 +37,7 @@ impl CouncilDecisions {
     }
 }
 
-/// ECS System: Applies effects from passed Council Decisions to the world state.
-/// Then clears the decisions to prevent re-application on subsequent frames.
-/// Real effects mirror the direct mutations in Orchestrator for consistency between manual tick and full ECS paths.
-/// TOLC 8 + 7 Living Mercy Gates aligned.
+/// ECS System: Applies effects + records applied decisions into world history for persistence.
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut query: Query<&mut crate::world::SovereignWorldState>,
@@ -53,7 +49,6 @@ pub fn apply_council_decision_effects(
         for world in query.iter_mut() {
             match effect {
                 "ResourcePolicy" | "resource_policy" => {
-                    // Boost shared abundance and sustainability across RBE pools and nodes
                     for pool in world.rbe_pools.values_mut() {
                         pool.abundance_flow = (pool.abundance_flow + 0.25 * mag).min(3.5);
                         pool.sustainability_score = (pool.sustainability_score + 0.08 * mag).min(1.0);
@@ -65,13 +60,11 @@ pub fn apply_council_decision_effects(
                     }
                 }
                 "HarmonyBoost" | "harmony_boost" => {
-                    // Reduce presence/flow debt and challenge for harmony effect
                     for pool in world.rbe_pools.values_mut() {
                         pool.sustainability_score = (pool.sustainability_score + 0.06 * mag).min(1.0);
                     }
                 }
                 "EpiphanyEvent" | "epiphany_event" => {
-                    // Amplify resonance / abundance to seed epiphany conditions
                     for pool in world.rbe_pools.values_mut() {
                         pool.abundance_flow = (pool.abundance_flow + 0.15 * mag).min(3.5);
                     }
@@ -80,23 +73,20 @@ pub fn apply_council_decision_effects(
                     }
                 }
                 "General" | "general" => {
-                    // Light positive mercy signal
                     for pool in world.rbe_pools.values_mut() {
                         pool.sustainability_score = (pool.sustainability_score + 0.03 * mag).min(1.0);
                     }
                 }
                 _ => {}
             }
+
+            // Record into persistent history (this is what gets saved with the world)
+            world.council_decision_history.push(decision.clone());
         }
     }
 
-    // Clearing logic: remove processed decisions so effects are not re-applied every Update.
-    // This keeps the system idempotent and efficient.
+    // Clear pending queue after processing + persisting
     if !decisions.decisions.is_empty() {
         decisions.clear();
     }
 }
-
-// Note: The system is scheduled in RaThorPlugin (Update stage).
-// Orchestrator continues to apply equivalent direct effects in its manual tick and populates TickResult.
-// Both paths remain consistent. Clearing only affects the ECS resource path.
