@@ -1,7 +1,10 @@
 /*!
- * CouncilEventBus with Append-Only Log + Optional fsync Durability.
+ * CouncilEventBus with Periodic Fsync Batching.
  *
- * Supports both best-effort and strong durability modes.
+ * Offers three durability modes:
+ * - No persistence
+ * - Best-effort (flush only)
+ * - Periodic fsync (configurable batch size)
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -46,8 +49,7 @@ pub enum CouncilEvent {
     },
 }
 
-/// High-performance Council Event Bus with optional append-only persistence.
-/// Supports both normal and durable (fsync) modes.
+/// High-performance Council Event Bus with flexible durability options.
 #[cfg_attr(feature = "bevy", derive(Resource))]
 #[derive(Clone)]
 pub struct CouncilEventBus {
@@ -55,10 +57,11 @@ pub struct CouncilEventBus {
     rx: Receiver<CouncilEvent>,
     persistence: Option<Arc<Mutex<BufWriter<File>>>>,
     durable: bool,
+    fsync_interval: u32,      // 0 = every write, >0 = every N writes
+    write_count: Arc<Mutex<u32>>,
 }
 
 impl CouncilEventBus {
-    /// Creates a new bounded event bus (in-memory only).
     pub fn new_bounded(capacity: usize) -> Self {
         let (tx, rx) = flume::bounded(capacity);
         Self {
@@ -66,22 +69,28 @@ impl CouncilEventBus {
             rx,
             persistence: None,
             durable: false,
+            fsync_interval: 0,
+            write_count: Arc::new(Mutex::new(0)),
         }
     }
 
-    /// Creates a bounded event bus with append-only JSON Lines persistence.
-    /// Durability is best-effort (flush only).
+    /// Best-effort persistence (flush only, no fsync).
     pub fn new_bounded_with_persistence<P: AsRef<Path>>(capacity: usize, path: P) -> std::io::Result<Self> {
-        Self::new_bounded_with_persistence_internal(capacity, path, false)
+        Self::new_bounded_with_persistence_internal(capacity, path, false, 0)
     }
 
-    /// Creates a bounded event bus with append-only persistence **and fsync** after every write.
-    /// This provides stronger durability guarantees at the cost of performance.
+    /// Strong durability: fsync after **every** write.
     pub fn new_bounded_with_durable_persistence<P: AsRef<Path>>(capacity: usize, path: P) -> std::io::Result<Self> {
-        Self::new_bounded_with_persistence_internal(capacity, path, true)
+        Self::new_bounded_with_persistence_internal(capacity, path, true, 1)
     }
 
-    fn new_bounded_with_persistence_internal<P: AsRef<Path>>(capacity: usize, path: P, durable: bool) -> std::io::Result<Self> {
+    /// Recommended balanced mode: fsync periodically (e.g. every 50 or 100 events).
+    /// This gives good durability with much better performance than per-write fsync.
+    pub fn new_bounded_with_batched_durability<P: AsRef<Path>>(capacity: usize, path: P, fsync_interval: u32) -> std::io::Result<Self> {
+        Self::new_bounded_with_persistence_internal(capacity, path, true, fsync_interval)
+    }
+
+    fn new_bounded_with_persistence_internal<P: AsRef<Path>>(capacity: usize, path: P, durable: bool, fsync_interval: u32) -> std::io::Result<Self> {
         let file = OpenOptions::new().create(true).append(true).open(path)?;
         let writer = BufWriter::new(file);
         let persistence = Some(Arc::new(Mutex::new(writer)));
@@ -93,11 +102,11 @@ impl CouncilEventBus {
             rx,
             persistence,
             durable,
+            fsync_interval,
+            write_count: Arc::new(Mutex::new(0)),
         })
     }
 
-    /// Send an event. If persistence is enabled, the event is appended.
-    /// If durable mode is enabled, fsync is called after every write.
     pub fn send(&self, event: CouncilEvent) -> Result<(), flume::SendError<CouncilEvent>> {
         if let Some(writer) = &self.persistence {
             if let Ok(mut guard) = writer.lock() {
@@ -106,9 +115,19 @@ impl CouncilEventBus {
                     let _ = guard.flush();
 
                     if self.durable {
-                        // Stronger durability: force data to disk
-                        if let Ok(file) = guard.get_ref().try_clone() {
-                            let _ = file.sync_all();
+                        let mut count = self.write_count.lock().unwrap();
+                        *count += 1;
+
+                        let should_sync = if self.fsync_interval == 0 {
+                            true
+                        } else {
+                            *count % self.fsync_interval == 0
+                        };
+
+                        if should_sync {
+                            if let Ok(file) = guard.get_ref().try_clone() {
+                                let _ = file.sync_all();
+                            }
                         }
                     }
                 }
@@ -141,7 +160,6 @@ impl Default for CouncilEventBus {
     }
 }
 
-/// Loads historical events from a JSON Lines persistence file.
 pub fn load_events_from_log<P: AsRef<Path>>(path: P) -> std::io::Result<Vec<CouncilEvent>> {
     let file = File::open(path)?;
     let reader = BufReader::new(file);
