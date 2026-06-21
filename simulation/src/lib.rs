@@ -1,9 +1,8 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.92 — Begin Cross-Race Diplomacy Mechanics (Phase Begin)
-//!            Foundational DiplomacyManager + trust + treaty types + passive effects
-//!            Derived from Ra-Thor powrush-mmo-simulator v15.26–v15.30
-//!            Building on top of Phase D Stage-maturing Mutation Synergy Chains
+//! v18.106 — SynergyEffectEvent wired into TickResult (Phase G++)
+//!            Full evolutionary + diplomatic + stage-scaled synergy layer now observable via TickResult
+//!            Derived from Ra-Thor powrush-mmo-simulator v15.30
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 // ============================================================================
@@ -38,7 +37,6 @@ pub mod world;
 pub mod race;
 
 // Phase B + C + D — Volatility Lifecycle, Mutation Triggers, and Mutation Synergy Chains with Stage Progression
-// Declare epigenetic_modulation before ability_tree so MutationType is visible
 pub mod epigenetic_modulation;
 pub mod ability_tree;
 
@@ -55,7 +53,7 @@ pub mod web;
 // RE-EXPORTS — Public Simulation API
 // ============================================================================
 
-// ... (existing re-exports unchanged for brevity in this minimal update) ...
+// ... (existing re-exports unchanged for brevity) ...
 
 // Ra-Thor Bridge & Council Query
 pub use ra_thor_bridge::{RaThorBridge, CouncilQueryRequest, CouncilQueryResponse, RaThorCouncilQuery};
@@ -89,8 +87,7 @@ pub use economy::{EconomyState, ResourceTransaction, PostScarcityAllocator};
 pub use player_persistence::{PlayerSaveData, PersistenceManager, save_player_data, load_player_data};
 
 // Orchestration & World
-pub use orchestrator::{SimulationOrchestrator, SimulationTick, OrchestratorPlugin};
-pub use world::{WorldState, WorldPlugin};
+pub use orchestrator::{SimulationOrchestrator, SimulationTick, OrchestratorPlugin, TickResult};
 
 // Spatial & Fracture
 pub use fracture::{LatticeFractureSolver, FractureEvent};
@@ -138,8 +135,8 @@ pub use epigenetic_modulation::{
 // NEW Phase C re-exports — Epigenetic Mutation Triggers
 pub use epigenetic_modulation::{MutationType, try_trigger_epigenetic_mutation};
 
-// NEW Phase D re-exports — Mutation Synergy Chains + Stage 0/1/2 Progression
-pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState, SynergyBonus, SynergyType};
+// NEW Phase D re-exports — Mutation Synergy Chains + Stage 0/1/2 + SynergyEffectEvent (for TickResult)
+pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState, SynergyBonus, SynergyType, SynergyEffectEvent};
 
 // NEW — Begin Cross-Race Diplomacy Mechanics
 pub use diplomacy::{DiplomacyManager, DiplomacyRelation, ActiveTreaty, TreatyType};
@@ -163,7 +160,6 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
 
 // ============================================================================
 // END OF COMPLETE WIRING
-// Phase D + Stage Progression complete.
-// BEGIN: Cross-Race Diplomacy foundation now live (trust + treaty types + passive effects).
+// Phase G++ complete: SynergyEffectEvent now wired into TickResult.
 // Thunder locked in. Yoi ⚡
 // ============================================================================
