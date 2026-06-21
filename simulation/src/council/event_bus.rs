@@ -1,15 +1,15 @@
 /*!
- * CouncilEventBus with Write-Ahead Logging (WAL) support.
+ * CouncilEventBus with Log Rotation support.
  *
- * In WAL mode, events are durably persisted to the log *before* being delivered
- * to consumers. This provides strong "event is committed" semantics.
+ * Prevents unbounded growth of the persistence log by automatically rotating files
+ * when they reach a configured size limit.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions, rename};
 use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use flume::{Receiver, Sender};
@@ -47,15 +47,31 @@ pub enum CouncilEvent {
     },
 }
 
-/// High-performance Council Event Bus with multiple durability strategies,
-/// including Write-Ahead Logging semantics.
+/// Configuration for log rotation.
+#[derive(Clone, Debug)]
+pub struct LogRotationConfig {
+    pub max_size_bytes: u64,     // Rotate when file exceeds this size
+    pub max_files: usize,        // How many rotated files to keep (e.g. 5)
+}
+
+impl Default for LogRotationConfig {
+    fn default() -> Self {
+        Self {
+            max_size_bytes: 100 * 1024 * 1024, // 100 MB default
+            max_files: 5,
+        }
+    }
+}
+
 #[cfg_attr(feature = "bevy", derive(Resource))]
 #[derive(Clone)]
 pub struct CouncilEventBus {
     tx: Sender<CouncilEvent>,
     rx: Receiver<CouncilEvent>,
     persistence: Option<Arc<Mutex<BufWriter<File>>>>,
-    wal_mode: bool,           // Write-Ahead Logging enabled
+    log_path: Option<PathBuf>,
+    rotation_config: Option<LogRotationConfig>,
+    wal_mode: bool,
     fsync_interval: u32,
     write_count: Arc<Mutex<u32>>,
 }
@@ -66,82 +82,113 @@ impl CouncilEventBus {
         Self {
             tx, rx,
             persistence: None,
+            log_path: None,
+            rotation_config: None,
             wal_mode: false,
             fsync_interval: 0,
             write_count: Arc::new(Mutex::new(0)),
         }
     }
 
-    /// Best-effort persistence (no WAL guarantee).
     pub fn new_bounded_with_persistence<P: AsRef<Path>>(capacity: usize, path: P) -> std::io::Result<Self> {
-        Self::new_internal(capacity, path, false, false, 0)
+        Self::new_with_rotation_internal(capacity, path, None, false, 0)
     }
 
-    /// Strong per-write durability.
-    pub fn new_bounded_with_durable_persistence<P: AsRef<Path>>(capacity: usize, path: P) -> std::io::Result<Self> {
-        Self::new_internal(capacity, path, true, false, 1)
-    }
-
-    /// Periodic fsync batching.
     pub fn new_bounded_with_batched_durability<P: AsRef<Path>>(capacity: usize, path: P, fsync_interval: u32) -> std::io::Result<Self> {
-        Self::new_internal(capacity, path, true, false, fsync_interval)
+        Self::new_with_rotation_internal(capacity, path, None, true, fsync_interval)
     }
 
-    /// **Write-Ahead Logging mode**.
-    /// Events are durably persisted to the log *before* being made available to consumers.
-    /// This provides the strongest "committed" semantics for governance events.
     pub fn new_bounded_with_write_ahead_log<P: AsRef<Path>>(capacity: usize, path: P, fsync_interval: u32) -> std::io::Result<Self> {
-        Self::new_internal(capacity, path, true, true, fsync_interval)
+        Self::new_with_rotation_internal(capacity, path, None, true, fsync_interval)
     }
 
-    fn new_internal<P: AsRef<Path>>(capacity: usize, path: P, durable: bool, wal_mode: bool, fsync_interval: u32) -> std::io::Result<Self> {
-        let file = OpenOptions::new().create(true).append(true).open(path)?;
+    /// Creates a persistent event bus with automatic log rotation.
+    pub fn new_bounded_with_rotation<P: AsRef<Path>>(capacity: usize, path: P, config: LogRotationConfig) -> std::io::Result<Self> {
+        Self::new_with_rotation_internal(capacity, path, Some(config), true, 50)
+    }
+
+    fn new_with_rotation_internal<P: AsRef<Path>>(capacity: usize, path: P, rotation: Option<LogRotationConfig>, durable: bool, fsync_interval: u32) -> std::io::Result<Self> {
+        let path_buf = path.as_ref().to_path_buf();
+        let file = OpenOptions::new().create(true).append(true).open(&path_buf)?;
         let writer = BufWriter::new(file);
-        let persistence = Some(Arc::new(Mutex::new(writer)));
 
         let (tx, rx) = flume::bounded(capacity);
 
         Ok(Self {
             tx, rx,
-            persistence,
-            wal_mode,
+            persistence: Some(Arc::new(Mutex::new(writer))),
+            log_path: Some(path_buf),
+            rotation_config: rotation,
+            wal_mode: durable,
             fsync_interval,
             write_count: Arc::new(Mutex::new(0)),
         })
     }
 
     pub fn send(&self, event: CouncilEvent) -> Result<(), flume::SendError<CouncilEvent>> {
-        // In WAL mode, we must successfully persist before delivering the event
-        if self.persistence.is_some() {
-            if let Some(writer) = &self.persistence {
-                if let Ok(mut guard) = writer.lock() {
-                    if let Ok(json) = serde_json::to_string(&event) {
-                        // Write + flush
-                        let _ = writeln!(guard, "{}", json);
-                        let _ = guard.flush();
-
-                        // Durability logic
-                        let mut count = self.write_count.lock().unwrap();
-                        *count += 1;
-
-                        let should_sync = if self.fsync_interval == 0 {
-                            true
-                        } else {
-                            *count % self.fsync_interval == 0
-                        };
-
-                        if self.wal_mode || should_sync {
-                            if let Ok(file) = guard.get_ref().try_clone() {
-                                let _ = file.sync_all();
+        if let Some(writer) = &self.persistence {
+            if let Ok(mut guard) = writer.lock() {
+                // Check for rotation before writing
+                if let (Some(path), Some(config)) = (&self.log_path, &self.rotation_config) {
+                    if let Ok(metadata) = fs::metadata(path) {
+                        if metadata.len() > config.max_size_bytes {
+                            // Perform rotation
+                            let _ = self.rotate_logs(path, config);
+                            // Reopen new file
+                            if let Ok(new_file) = OpenOptions::new().create(true).append(true).open(path) {
+                                *guard = BufWriter::new(new_file);
                             }
+                        }
+                    }
+                }
+
+                if let Ok(json) = serde_json::to_string(&event) {
+                    let _ = writeln!(guard, "{}", json);
+                    let _ = guard.flush();
+
+                    // Durability (WAL / batched fsync)
+                    let mut count = self.write_count.lock().unwrap();
+                    *count += 1;
+
+                    let should_sync = if self.fsync_interval == 0 {
+                        self.wal_mode
+                    } else {
+                        *count % self.fsync_interval == 0
+                    };
+
+                    if should_sync {
+                        if let Ok(file) = guard.get_ref().try_clone() {
+                            let _ = file.sync_all();
                         }
                     }
                 }
             }
         }
 
-        // Only deliver to consumers after successful WAL write (when enabled)
         self.tx.send(event)
+    }
+
+    fn rotate_logs(&self, current_path: &Path, config: &LogRotationConfig) -> std::io::Result<()> {
+        // Remove oldest rotated file if we have too many
+        let oldest = current_path.with_extension(format!("jsonl.{}", config.max_files));
+        if oldest.exists() {
+            fs::remove_file(oldest)?;
+        }
+
+        // Shift existing rotated files
+        for i in (1..config.max_files).rev() {
+            let src = current_path.with_extension(format!("jsonl.{}", i));
+            let dst = current_path.with_extension(format!("jsonl.{}", i + 1));
+            if src.exists() {
+                rename(src, dst)?;
+            }
+        }
+
+        // Rename current file to .1
+        let rotated = current_path.with_extension("jsonl.1");
+        rename(current_path, rotated)?;
+
+        Ok(())
     }
 
     pub fn try_recv(&self) -> Result<CouncilEvent, flume::TryRecvError> {
