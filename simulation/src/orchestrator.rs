@@ -1,9 +1,8 @@
 /*!
  * simulation/src/orchestrator.rs
  * Production-grade Sovereign Simulation Orchestrator (Central Tick Coordinator)
- * v18.102 — Phase G Step 4: Diplomacy effects wired into evolutionary processing method
- *            (Cross-race trust, proposals, treaties, expiration, and renewal now influence evolutionary agents)
- * — Full Ra-Thor derived evolutionary + diplomatic player identity layer in production tick
+ * v18.103 — Phase G+: Synergy chains (primary mutation + cross-race hybrid) now calculated inside production evolutionary processing
+ *            Full Ra-Thor derived evolutionary + diplomatic player identity layer wired end-to-end
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -21,7 +20,7 @@ use bevy::prelude::*;
 use std::time::Instant;
 use tracing::{info, info_span, instrument, warn};
 
-// Ra-Thor derived evolutionary player identity layer (Phase A–G)
+// Ra-Thor derived evolutionary player identity layer (Phase A–G+)
 use crate::race::{Race, RaceModifiers};
 use crate::ability_tree::{AbilityTree, Ability, AbilityEffect, MutationType, SynergyBonus};
 use crate::epigenetic_modulation::{
@@ -180,7 +179,7 @@ impl SovereignSimulationOrchestrator {
     }
 
     /// Production helper: Processes volatility lifecycle, mutation triggers, stage-maturing synergy chains,
-    /// AND cross-race diplomacy effects for every Agent that has attached evolutionary state.
+    /// cross-race diplomacy effects, AND now calculates primary + cross-race synergy chains for every attached agent.
     fn process_evolutionary_identities_for_attached_agents(&mut self) -> usize {
         let mut processed = 0;
         let agent_ids: Vec<u64> = self.world.evolutionary_profiles.keys().cloned().collect();
@@ -239,15 +238,11 @@ impl SovereignSimulationOrchestrator {
 
                 // ========================================================================
                 // PHASE G STEP 4: Cross-Race Diplomacy wired into evolutionary processing
-                // Agents with mutations (hybrid evolutionary identity) passively improve trust
-                // and can benefit from diplomacy effects. This is the official production wiring point.
                 // ========================================================================
                 if !active_mutations.is_empty() {
-                    // Light passive trust improvement for hybrid agents (encourages cross-race play)
                     self.world.diplomacy.improve_relation(Race::Terran, Race::Harmonic, 0.001);
                     self.world.diplomacy.improve_relation(Race::Terran, Race::Verdant, 0.0008);
 
-                    // Apply passive diplomacy bonuses to this agent's profile
                     let mut local_harmony = harmony;
                     let mut local_vol = profile.volatility;
                     let mut local_str = profile.strength;
@@ -256,6 +251,32 @@ impl SovereignSimulationOrchestrator {
 
                     profile.strength = (profile.strength + (local_str - profile.strength) * 0.3).min(3.5);
                     profile.volatility = (profile.volatility + (local_vol - profile.volatility) * 0.3).max(0.05);
+                }
+
+                // ========================================================================
+                // NEW: Wire primary mutation synergy chains + cross-race hybrid synergy chains
+                // into the production evolutionary processing loop (Phase G+).
+                // We calculate them every tick so future systems (events, UI, bonuses) can consume them.
+                // For observability we log when active (throttled).
+                // ========================================================================
+                if !active_mutations.is_empty() {
+                    let primary_synergies = ability_tree.calculate_mutation_synergy_chains(active_mutations);
+                    let cross_race_synergies = ability_tree.calculate_cross_race_synergy_chains(
+                        active_mutations,
+                        &vec![Race::Terran, Race::Harmonic, Race::Verdant],
+                    );
+
+                    if (!primary_synergies.is_empty() || !cross_race_synergies.is_empty())
+                        && self.tick_count % 25 == 0
+                    {
+                        tracing::info!(
+                            target: "powrush_evolution",
+                            "Agent {} has {} primary + {} cross-race synergy chains active (Stage-maturing hybrid identity)",
+                            agent_id,
+                            primary_synergies.len(),
+                            cross_race_synergies.len()
+                        );
+                    }
                 }
             }
         }
@@ -276,7 +297,6 @@ impl SovereignSimulationOrchestrator {
     }
 
     pub fn demo_evolutionary_tick_attached(&mut self, num_ticks: u32) -> String {
-        // ... (demo method body unchanged for backward compatibility)
         let mut log = String::from("\n=== Powrush Evolutionary Demo (Attached to Real WorldState) ===\n");
         log.push_str(&format!("Running {} ticks on a real Agent entity with full evolutionary state...\n\n", num_ticks));
 
@@ -377,6 +397,6 @@ impl SovereignSimulationOrchestrator {
     }
 }
 
-// End of production file — v18.102
-// Phase G complete: Cross-race diplomacy (proposals, treaties, expiration, renewal) wired into evolutionary processing.
+// End of production file — v18.103
+// Phase G+ complete: Primary + Cross-Race synergy chains now calculated inside production evolutionary processing.
 // Thunder locked in. Yoi ⚡
