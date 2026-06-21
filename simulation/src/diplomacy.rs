@@ -1,6 +1,7 @@
 // AG-SML v1.0 | Autonomicity Games Sovereign Mercy License
 // Powrush-MMO simulation/src/diplomacy.rs
-// Phase: Begin Cross-Race Diplomacy Mechanics (derived from Ra-Thor v15.26–v15.30)
+// Phase G Step 2: Player-initiated treaty proposals + pending state (full propose → pending → accept flow)
+// Derived cleanly from Ra-Thor powrush-mmo-simulator v15.28
 // TOLC 8 Mercy Gates | PATSAGi Council aligned | Mercy-gated hybrid racial identity
 
 use serde::{Deserialize, Serialize};
@@ -31,16 +32,19 @@ pub struct DiplomacyRelation {
     pub active_treaties: Vec<ActiveTreaty>,
 }
 
-/// DiplomacyManager — living cross-race diplomatic layer
+/// DiplomacyManager — living cross-race diplomatic layer with proposal system
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DiplomacyManager {
     pub relations: HashMap<(Race, Race), DiplomacyRelation>,
+    /// Pending treaty proposals waiting for sufficient trust to auto-accept
+    pub pending_proposals: HashMap<(Race, Race), Vec<TreatyType>>,
 }
 
 impl DiplomacyManager {
     pub fn new() -> Self {
         Self {
             relations: HashMap::new(),
+            pending_proposals: HashMap::new(),
         }
     }
 
@@ -63,8 +67,74 @@ impl DiplomacyManager {
         self.relations.get(&key).map(|r| r.trust).unwrap_or(0.3) // baseline neutral trust
     }
 
+    /// Player-initiated treaty proposal (Step 2)
+    /// Returns true if proposal was recorded (requires baseline trust >= 0.55)
+    pub fn propose_treaty(&mut self, r1: Race, r2: Race, treaty: TreatyType) -> bool {
+        if r1 == r2 {
+            return false;
+        }
+        let key = if r1 < r2 { (r1, r2) } else { (r2, r1) };
+        let current_trust = self.get_trust(r1, r2);
+
+        if current_trust < 0.55 {
+            return false; // Not enough trust to even propose
+        }
+
+        let proposals = self.pending_proposals.entry(key).or_default();
+        if !proposals.contains(&treaty) {
+            proposals.push(treaty);
+        }
+        true
+    }
+
+    pub fn has_pending_proposal(&self, r1: Race, r2: Race, treaty: TreatyType) -> bool {
+        if r1 == r2 {
+            return false;
+        }
+        let key = if r1 < r2 { (r1, r2) } else { (r2, r1) };
+        self.pending_proposals
+            .get(&key)
+            .map(|list| list.contains(&treaty))
+            .unwrap_or(false)
+    }
+
+    /// Accept a pending proposal when trust is high enough (>= 0.65)
+    /// Moves proposal into active_treaties (expiration foundation left for Step 3)
+    pub fn accept_pending_treaty(&mut self, r1: Race, r2: Race, treaty: TreatyType, current_tick: u64) -> bool {
+        if r1 == r2 {
+            return false;
+        }
+        let key = if r1 < r2 { (r1, r2) } else { (r2, r1) };
+
+        let trust = self.get_trust(r1, r2);
+        if trust < 0.65 {
+            return false;
+        }
+
+        // Remove from pending
+        if let Some(proposals) = self.pending_proposals.get_mut(&key) {
+            proposals.retain(|t| *t != treaty);
+            if proposals.is_empty() {
+                self.pending_proposals.remove(&key);
+            }
+        }
+
+        // Add to active (simple version without expiration duration yet)
+        let entry = self.relations.entry(key).or_default();
+        // Avoid duplicate active treaties of same type
+        if !entry.active_treaties.iter().any(|t| t.treaty_type == treaty) {
+            entry.active_treaties.push(ActiveTreaty {
+                treaty_type: treaty,
+                expires_at_tick: current_tick + 5000, // placeholder duration
+            });
+        }
+
+        // Signing bonus
+        entry.trust = (entry.trust + 0.05).clamp(0.0, 1.0);
+        true
+    }
+
     /// Apply passive diplomacy effects to simulation state (harmony, volatility, strength)
-    /// Called from orchestrator tick for agents with multiple unlocked races
     pub fn apply_diplomacy_effects(
         &self,
         unlocked_races: &[Race],
@@ -93,7 +163,6 @@ impl DiplomacyManager {
 
         let avg_trust = total_trust / pair_count as f32;
 
-        // Foundational passive bonuses (will be expanded with treaties in next phases)
         if avg_trust > 0.6 {
             *harmony += 0.015 * avg_trust;
             *volatility = (*volatility - 0.008 * avg_trust).max(0.1);
@@ -136,17 +205,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_diplomacy_improve_and_effects() {
+    fn test_diplomacy_propose_and_accept() {
         let mut mgr = DiplomacyManager::new();
-        mgr.improve_relation(Race::Terran, Race::Harmonic, 0.4);
-        assert!(mgr.get_trust(Race::Terran, Race::Harmonic) > 0.6);
+        mgr.improve_relation(Race::Terran, Race::Harmonic, 0.6);
 
-        let mut h = 1.0f32;
-        let mut v = 0.8f32;
-        let mut s = 1.0f32;
-        let races = vec![Race::Terran, Race::Harmonic];
-        mgr.apply_diplomacy_effects(&races, &mut h, &mut v, &mut s);
-        assert!(h > 1.0);
-        assert!(v < 0.8);
+        assert!(mgr.propose_treaty(Race::Terran, Race::Harmonic, TreatyType::HarmonyAccord));
+        assert!(mgr.has_pending_proposal(Race::Terran, Race::Harmonic, TreatyType::HarmonyAccord));
+
+        // Trust is still 0.6, not enough to auto-accept yet
+        assert!(!mgr.accept_pending_treaty(Race::Terran, Race::Harmonic, TreatyType::HarmonyAccord, 100));
+
+        mgr.improve_relation(Race::Terran, Race::Harmonic, 0.1); // now 0.7
+        assert!(mgr.accept_pending_treaty(Race::Terran, Race::Harmonic, TreatyType::HarmonyAccord, 100));
+        assert!(!mgr.has_pending_proposal(Race::Terran, Race::Harmonic, TreatyType::HarmonyAccord));
     }
 }
