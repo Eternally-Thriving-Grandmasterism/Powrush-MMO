@@ -1,14 +1,14 @@
 /*!
  * Sovereign Simulation Harness — World State Core + Advanced Procedural Biome Generation Algorithms
  *
- * v18.120 — Parallel index construction for Council Audit Log rebuild
- *            (Rayon-powered parallel fold + reduce for large histories)
+ * v18.121 — Rayon thread pool size optimized for index rebuild
+ *            (dedicated small pool to avoid oversubscription with main simulation loop)
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
 use std::collections::HashMap;
 use bevy::prelude::Entity;
-use rayon::prelude::*;
+use rayon::{ThreadPoolBuilder, prelude::*};
 
 // Ra-Thor derived evolutionary player identity types (Phase A–D)
 use crate::epigenetic_modulation::{EpigeneticProfile, MutationType};
@@ -32,7 +32,7 @@ pub struct Vec3 {
 }
 
 /// Unified SovereignWorldState — authoritative core for deterministic, mercy-gated MMO-scale RBE simulation.
-/// Council audit log now supports high-performance parallel index reconstruction.
+/// Council audit log index rebuild uses a dedicated small Rayon thread pool.
 #[derive(Clone, Debug, Default)]
 pub struct SovereignWorldState {
     pub resource_nodes: HashMap<NodeId, ResourceNode>,
@@ -116,12 +116,12 @@ impl SovereignWorldState {
     }
 
     // ========================================================================
-    // Council Audit Log Index Maintenance (parallel rebuild)
+    // Council Audit Log Index Maintenance (optimized parallel rebuild)
     // ========================================================================
 
-    /// Rebuilds secondary indices using parallel processing (Rayon).
-    /// Significantly faster on large audit logs by parallelizing index construction.
-    /// Call after loading a persisted world or when indices need full reconstruction.
+    /// Rebuilds secondary indices using a dedicated small Rayon thread pool (4 threads).
+    /// This avoids oversubscription with the main simulation/game thread.
+    /// Significantly faster on large histories while remaining simulation-friendly.
     pub fn rebuild_council_audit_indices(&mut self) {
         let history = &self.council_decision_history;
 
@@ -131,30 +131,38 @@ impl SovereignWorldState {
             return;
         }
 
-        // Parallel fold + reduce using Rayon
-        let (by_proposer, by_type) = history
-            .par_iter()
-            .enumerate()
-            .fold(
-                || (HashMap::<AgentId, Vec<usize>>::new(), HashMap::<String, Vec<usize>>::new()),
-                |(mut prop_map, mut type_map), (idx, decision)| {
-                    prop_map.entry(decision.proposer).or_default().push(idx);
-                    type_map.entry(decision.effect_type.clone()).or_default().push(idx);
-                    (prop_map, type_map)
-                },
-            )
-            .reduce(
-                || (HashMap::new(), HashMap::new()),
-                |(mut acc_prop, mut acc_type), (prop, typ)| {
-                    for (k, mut v) in prop {
-                        acc_prop.entry(k).or_default().append(&mut v);
-                    }
-                    for (k, mut v) in typ {
-                        acc_type.entry(k).or_default().append(&mut v);
-                    }
-                    (acc_prop, acc_type)
-                },
-            );
+        // Dedicated small thread pool to prevent contention with main loop
+        let pool = ThreadPoolBuilder::new()
+            .num_threads(4)
+            .thread_name(|i| format!("council-index-rebuild-{}", i))
+            .build()
+            .expect("Failed to create Rayon thread pool for index rebuild");
+
+        let (by_proposer, by_type) = pool.install(|| {
+            history
+                .par_iter()
+                .enumerate()
+                .fold(
+                    || (HashMap::<AgentId, Vec<usize>>::new(), HashMap::<String, Vec<usize>>::new()),
+                    |(mut prop_map, mut type_map), (idx, decision)| {
+                        prop_map.entry(decision.proposer).or_default().push(idx);
+                        type_map.entry(decision.effect_type.clone()).or_default().push(idx);
+                        (prop_map, type_map)
+                    },
+                )
+                .reduce(
+                    || (HashMap::new(), HashMap::new()),
+                    |(mut acc_prop, mut acc_type), (prop, typ)| {
+                        for (k, mut v) in prop {
+                            acc_prop.entry(k).or_default().append(&mut v);
+                        }
+                        for (k, mut v) in typ {
+                            acc_type.entry(k).or_default().append(&mut v);
+                        }
+                        (acc_prop, acc_type)
+                    },
+                )
+        });
 
         self.council_decision_indices_by_proposer = by_proposer;
         self.council_decision_indices_by_type = by_type;
