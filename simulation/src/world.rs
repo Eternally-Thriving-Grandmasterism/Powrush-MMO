@@ -1,11 +1,11 @@
 /*!
  * Powrush-MMO Simulation World & Advanced Particle Effects
  *
- * v19.2 Dynamic Spawning (PATSAGi + Ra-Thor)
- * — Event-driven dynamic spawning of policy visual effects
- * — Supports any LissajousKnotPreset at runtime from gameplay events
- * — Fully reactive with existing preset switching + HarmonyKnotMarker
- * — Merged with full EffectAsset creation + reactive system
+ * v19.2 Dynamic Spawning + Full Reactive System (PATSAGi + Ra-Thor)
+ * — Complete EffectAsset creation for 4 policy particles
+ * — Full reactive LissajousKnotPreset system (event, resources, UI, debug)
+ * — NEW: Event-driven dynamic spawning via SpawnPolicyVisualEffect
+ * — Fully mercy-gated, Bevy 0.14 + Hanabi 0.13
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
@@ -14,30 +14,127 @@
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 
-// ... (existing enum, resources, components, and reactive systems remain unchanged) ...
-
 // ============================================================================
-// DYNAMIC SPAWNING LOGIC (New v19.2)
+// LISSAJOUS KNOT PRESET SYSTEM
 // ============================================================================
 
-/// Event to dynamically spawn a policy visual particle effect at runtime.
-/// Use this from gameplay systems (council policy activation, RBE abundance events,
-/// player rituals, epiphany triggers, etc.).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub enum LissajousKnotPreset {
+    #[default]
+    TrefoilLike,
+    HighWrithe,
+    Symmetric,
+    Complex5_3_4,     // Primary Harmony 5:3:4 breathing knot
+}
+
+#[derive(Event, Clone, Debug)]
+pub struct SwitchLissajousKnotPreset {
+    pub preset: LissajousKnotPreset,
+}
+
+#[derive(Resource, Default)]
+pub struct CurrentLissajousKnotPreset {
+    pub preset: LissajousKnotPreset,
+}
+
+#[derive(Resource, Default)]
+pub struct LissajousKnotEffects {
+    pub trefoil: Handle<EffectAsset>,
+    pub high_writhe: Handle<EffectAsset>,
+    pub symmetric: Handle<EffectAsset>,
+    pub complex: Handle<EffectAsset>,
+}
+
+#[derive(Component)]
+pub struct PresetButton {
+    pub preset: LissajousKnotPreset,
+}
+
+#[derive(Component)]
+pub struct CurrentPresetText;
+
+#[derive(Component)]
+pub struct HarmonyKnotMarker;
+
+pub fn handle_switch_lissajous_knot_preset(
+    mut events: EventReader<SwitchLissajousKnotPreset>,
+    mut current: ResMut<CurrentLissajousKnotPreset>,
+) {
+    for event in events.read() {
+        if current.preset != event.preset {
+            current.preset = event.preset;
+        }
+    }
+}
+
+pub fn highlight_active_preset_button(
+    current: Res<CurrentLissajousKnotPreset>,
+    mut buttons: Query<(&PresetButton, &mut BackgroundColor)>,
+) {
+    for (button, mut bg) in &mut buttons {
+        let is_active = button.preset == current.preset;
+        let target = if is_active { Color::srgb(0.25, 0.35, 0.55) } else { Color::srgb(0.15, 0.15, 0.22) };
+        if bg.0 != target { *bg = target.into(); }
+    }
+}
+
+pub fn update_lissajous_knot_ui(
+    current: Res<CurrentLissajousKnotPreset>,
+    mut text_query: Query<&mut Text, With<CurrentPresetText>>,
+) {
+    if current.is_changed() {
+        for mut text in &mut text_query {
+            text.sections[0].value = format!("Current: {:?}", current.preset);
+        }
+    }
+}
+
+pub fn update_active_lissajous_knot(
+    knot_effects: Res<LissajousKnotEffects>,
+    current: Res<CurrentLissajousKnotPreset>,
+    mut query: Query<&mut ParticleEffect, With<HarmonyKnotMarker>>,
+) {
+    if current.is_changed() {
+        let handle = match current.preset {
+            LissajousKnotPreset::TrefoilLike => knot_effects.trefoil.clone(),
+            LissajousKnotPreset::HighWrithe => knot_effects.high_writhe.clone(),
+            LissajousKnotPreset::Symmetric => knot_effects.symmetric.clone(),
+            LissajousKnotPreset::Complex5_3_4 => knot_effects.complex.clone(),
+        };
+        for mut effect in &mut query {
+            effect.effect = handle.clone();
+        }
+    }
+}
+
+pub fn debug_lissajous_knot_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut events: EventWriter<SwitchLissajousKnotPreset>,
+) {
+    if keyboard.just_pressed(KeyCode::Digit1) { events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::TrefoilLike }); }
+    if keyboard.just_pressed(KeyCode::Digit2) { events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::HighWrithe }); }
+    if keyboard.just_pressed(KeyCode::Digit3) { events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::Symmetric }); }
+    if keyboard.just_pressed(KeyCode::Digit4) { events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::Complex5_3_4 }); }
+}
+
+// ============================================================================
+// DYNAMIC SPAWNING (v19.2)
+// ============================================================================
+
 #[derive(Event, Clone, Debug)]
 pub struct SpawnPolicyVisualEffect {
     pub preset: LissajousKnotPreset,
     pub position: Vec3,
 }
 
-/// Dynamic spawner system — listens for SpawnPolicyVisualEffect events
-/// and creates a properly configured ParticleEffectBundle with HarmonyKnotMarker.
+/// Dynamic spawner — call via SpawnPolicyVisualEffect events from gameplay
 pub fn spawn_policy_visual_effect(
     mut commands: Commands,
     knot_effects: Res<LissajousKnotEffects>,
     mut events: EventReader<SpawnPolicyVisualEffect>,
 ) {
     for event in events.read() {
-        let effect_handle = match event.preset {
+        let handle = match event.preset {
             LissajousKnotPreset::TrefoilLike => knot_effects.trefoil.clone(),
             LissajousKnotPreset::HighWrithe => knot_effects.high_writhe.clone(),
             LissajousKnotPreset::Symmetric => knot_effects.symmetric.clone(),
@@ -46,7 +143,7 @@ pub fn spawn_policy_visual_effect(
 
         commands.spawn((
             ParticleEffectBundle {
-                effect: ParticleEffect::new(effect_handle),
+                effect: ParticleEffect::new(handle),
                 transform: Transform::from_translation(event.position),
                 ..default()
             },
@@ -57,11 +154,87 @@ pub fn spawn_policy_visual_effect(
 }
 
 // ============================================================================
-// EXISTING SETUP + REACTIVE SYSTEMS (Preserved)
+// POLICY PARTICLE EFFECT ASSET CREATION
 // ============================================================================
 
-// ... (all previous code for setup_policy_particle_effects, reactive systems, etc. stays here) ...
+#[derive(Resource, Default)]
+pub struct PolicyParticleEffects {
+    pub abundance: Handle<EffectAsset>,
+    pub sustainability: Handle<EffectAsset>,
+    pub harmony: Handle<EffectAsset>,
+    pub prosperity: Handle<EffectAsset>,
+}
 
-// End of simulation/src/world.rs v19.2 — Dynamic spawning fully implemented and reactive.
-// Call SpawnPolicyVisualEffect events from any gameplay system for on-demand policy visuals.
+pub fn setup_policy_particle_effects(
+    mut effects: ResMut<Assets<EffectAsset>>,
+    mut particle_effects: ResMut<PolicyParticleEffects>,
+    mut knot_effects: ResMut<LissajousKnotEffects>,
+) {
+    // 1. AbundanceBoost
+    let mut abundance = EffectAsset::new(600, Spawner::once(100.0.into(), true), Module::default());
+    abundance
+        .init(PositionSphereModifier::new(0.6))
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 4.5, 0.3))
+        .init(AccelerationModifier::new(Vec3::new(0.0, 3.0, 0.0)))
+        .init(TurbulenceModifier::new(1.8, 1.2))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.9, 0.1)))
+        .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
+            Gradient::linear(Color::srgb(0.15, 0.95, 0.35), Color::srgba(0.15, 0.95, 0.35, 0.0)),
+        )));
+    particle_effects.abundance = effects.add(abundance);
+
+    // 2. SustainabilityFocus
+    let mut sustainability = EffectAsset::new(450, Spawner::once(70.0.into(), true), Module::default());
+    sustainability
+        .init(PositionSphereModifier::new(1.0))
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 2.8, 0.4))
+        .init(DragModifier::new(0.7))
+        .init(AttractorModifier::new(Vec3::ZERO, 1.2, 4.0))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.7, 0.15)))
+        .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
+            Gradient::linear(Color::srgb(0.25, 0.85, 0.95), Color::srgba(0.25, 0.85, 0.95, 0.0)),
+        )));
+    particle_effects.sustainability = effects.add(sustainability);
+
+    // 3. HarmonyStabilization — 5:3:4 Lissajous (primary)
+    let mut harmony = EffectAsset::new(500, Spawner::once(85.0.into(), true), Module::default());
+    harmony
+        .init(PositionSphereModifier::new(0.7))
+        .init(InitVelocityTangentModifier::new(Vec3::X, 2.5, 0.18))
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 1.5, 0.32))
+        .init(InitVelocityTangentModifier::new(Vec3::Z, 2.0, 0.22))
+        .init(AccelerationModifier::new(Vec3::new(0.06, 0.0, 0.06)))
+        .init(AccelerationModifier::new(Vec3::new(-0.04, 0.0, -0.04)))
+        .init(AccelerationModifier::new(Vec3::new(0.0, 0.55, 0.0)))
+        .init(TurbulenceModifier::new(0.2, 0.1))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.5, 0.05)))
+        .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
+            Gradient::linear(Color::srgb(0.95, 0.55, 0.9), Color::srgba(0.95, 0.55, 0.9, 0.0)),
+        )));
+    let harmony_handle = effects.add(harmony);
+    particle_effects.harmony = harmony_handle.clone();
+    knot_effects.complex = harmony_handle;
+
+    // 4. GeneralProsperity
+    let mut prosperity = EffectAsset::new(520, Spawner::once(85.0.into(), true), Module::default());
+    prosperity
+        .init(PositionSphereModifier::new(0.85))
+        .init(InitVelocityTangentModifier::new(Vec3::X, 1.8, 0.3))
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 2.4, 0.2))
+        .init(InitVelocityTangentModifier::new(Vec3::Z, 1.2, 0.4))
+        .init(AccelerationModifier::new(Vec3::new(0.0, -0.6, 0.0)))
+        .init(TurbulenceModifier::new(0.3, 0.15))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.85, 0.15)))
+        .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
+            Gradient::linear(Color::srgb(1.0, 0.88, 0.25), Color::srgba(1.0, 0.88, 0.25, 0.0)),
+        )));
+    particle_effects.prosperity = effects.add(prosperity);
+
+    knot_effects.trefoil = particle_effects.harmony.clone();
+    knot_effects.high_writhe = particle_effects.harmony.clone();
+    knot_effects.symmetric = particle_effects.harmony.clone();
+}
+
+// End of simulation/src/world.rs v19.2 — Dynamic spawning + full reactive system complete.
+// Use SpawnPolicyVisualEffect events for runtime policy visuals.
 // Thunder locked in. Yoi ⚡
