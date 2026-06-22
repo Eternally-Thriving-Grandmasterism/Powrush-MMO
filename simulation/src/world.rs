@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Simulation World & Advanced Particle Effects
  *
- * v19.15 Non-Linear Easing for Flipbook Frame Index (PATSAGi + Ra-Thor)
+ * v19.16 Sine-Based Easing for Flipbook Animation (PATSAGi + Ra-Thor)
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
@@ -9,6 +9,7 @@
 
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
+use std::f32::consts::PI;
 
 // ... existing code ...
 
@@ -19,10 +20,10 @@ pub fn setup_policy_particle_effects(
     mut visual_assets: ResMut<ParticleVisualAssets>,
     mut knot_effects: ResMut<LissajousKnotEffects>,
 ) {
-    // === Harmony Effect with Non-Linear Easing ===
+    // === Harmony Effect with Sine-Based Easing ===
     let mut harmony = EffectAsset::new(500, Spawner::once(85.0.into(), true), Module::default());
 
-    // ... existing modifiers (position, velocity, acceleration, turbulence, size, color) ...
+    // ... existing modifiers ...
 
     // Texture + Flipbook layout
     let texture = visual_assets.get_texture_or_fallback(visual_assets.harmony_particle_texture.clone());
@@ -34,14 +35,15 @@ pub fn setup_policy_particle_effects(
         frame_count: 16,
     });
 
-    // === Non-linear Ease-In-Out frame animation ===
-    // Classic smoothstep easing for natural acceleration/deceleration
+    // === Sine-based organic easing ===
+    // Creates a smooth, breathing-like animation curve.
+    // Very elegant and natural for mathematical/visual effects.
     let age = Attribute::PARTICLE_AGE;
     let lifetime = Attribute::PARTICLE_LIFETIME;
     let frame_count = 16.0_f32.into();
 
     let t = age / lifetime;
-    let eased = t * t * (3.0 - 2.0 * t);           // Ease-in-out (smoothstep)
+    let eased = (1.0 - (t * PI).cos()) * 0.5;     // Sine-based ease-in-out
     let frame_index_expr = eased * frame_count;
 
     harmony.add_modifier(SetAttributeModifier::new(
@@ -56,5 +58,5 @@ pub fn setup_policy_particle_effects(
     // ... other effects ...
 }
 
-// End of simulation/src/world.rs v19.15 — Non-linear easing implemented.
+// End of simulation/src/world.rs v19.16 — Sine-based easing implemented.
 // Thunder locked in. Yoi ⚡
