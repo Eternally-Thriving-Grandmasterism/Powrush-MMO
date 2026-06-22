@@ -1,15 +1,22 @@
 /*!
- * Added zone_node_cache field to SovereignWorldState.
+ * Automatic periodic rebuild of zone_node_cache in tick().
  */
 
-#[derive(Clone, Debug, Default)]
-pub struct SovereignWorldState {
-    // ... existing fields ...
+impl SovereignWorldState {
+    pub fn tick(&mut self, dt_ms: u64) -> Result<(), MercyViolation> {
+        self.sim_time += dt_ms;
 
-    pub zone_node_cache: HashMap<u64, Vec<NodeId>>,  // NEW: reverse cache zone -> nodes
+        // ... existing biome logic ...
+
+        // === Periodic spatial cache rebuild for policy performance ===
+        // Rebuild every 200 ticks (~3-4 seconds at 60 TPS) to keep queries fast
+        // without significant overhead.
+        if self.sim_time % 200 == 0 {
+            self.rebuild_zone_node_cache();
+        }
+
+        self.apply_and_decay_policies();
+
+        Ok(())
+    }
 }
-
-// In new_from_scenario, after generating zones and nodes:
-// world.rebuild_zone_node_cache();
-
-// Also call it in tick() occasionally or when zones change.
