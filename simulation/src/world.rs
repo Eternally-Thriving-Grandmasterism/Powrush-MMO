@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Simulation World & Advanced Particle Effects
  *
- * v19.14 Real Attribute Expression for PARTICLE_FRAME_INDEX (PATSAGi + Ra-Thor)
+ * v19.15 Non-Linear Easing for Flipbook Frame Index (PATSAGi + Ra-Thor)
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
@@ -19,10 +19,10 @@ pub fn setup_policy_particle_effects(
     mut visual_assets: ResMut<ParticleVisualAssets>,
     mut knot_effects: ResMut<LissajousKnotEffects>,
 ) {
-    // === Harmony Effect with Real Custom Frame Expression ===
+    // === Harmony Effect with Non-Linear Easing ===
     let mut harmony = EffectAsset::new(500, Spawner::once(85.0.into(), true), Module::default());
 
-    // ... existing modifiers ...
+    // ... existing modifiers (position, velocity, acceleration, turbulence, size, color) ...
 
     // Texture + Flipbook layout
     let texture = visual_assets.get_texture_or_fallback(visual_assets.harmony_particle_texture.clone());
@@ -34,14 +34,15 @@ pub fn setup_policy_particle_effects(
         frame_count: 16,
     });
 
-    // === Real attribute-driven frame index expression ===
-    // frame = (age / lifetime) * frame_count
-    // This creates smooth animation based on each particle's normalized age.
+    // === Non-linear Ease-In-Out frame animation ===
+    // Classic smoothstep easing for natural acceleration/deceleration
     let age = Attribute::PARTICLE_AGE;
     let lifetime = Attribute::PARTICLE_LIFETIME;
     let frame_count = 16.0_f32.into();
 
-    let frame_index_expr = (age / lifetime) * frame_count;
+    let t = age / lifetime;
+    let eased = t * t * (3.0 - 2.0 * t);           // Ease-in-out (smoothstep)
+    let frame_index_expr = eased * frame_count;
 
     harmony.add_modifier(SetAttributeModifier::new(
         Attribute::PARTICLE_FRAME_INDEX,
@@ -55,5 +56,5 @@ pub fn setup_policy_particle_effects(
     // ... other effects ...
 }
 
-// End of simulation/src/world.rs v19.14 — Real working expression for custom frame index.
+// End of simulation/src/world.rs v19.15 — Non-linear easing implemented.
 // Thunder locked in. Yoi ⚡
