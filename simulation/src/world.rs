@@ -1,22 +1,17 @@
 /*!
- * Automatic periodic rebuild of zone_node_cache in tick().
+ * Boost zone visualization when spatially targeted policies are applied.
  */
 
-impl SovereignWorldState {
-    pub fn tick(&mut self, dt_ms: u64) -> Result<(), MercyViolation> {
-        self.sim_time += dt_ms;
+if let Some(zone_id) = target_zone {
+    if let Some(zone) = self.interest_zones.get_mut(&zone_id) {
+        // Increase visual highlight when policy affects this zone
+        zone.visual_highlight = (zone.visual_highlight + strength * 0.8).min(1.0);
 
-        // ... existing biome logic ...
-
-        // === Periodic spatial cache rebuild for policy performance ===
-        // Rebuild every 200 ticks (~3-4 seconds at 60 TPS) to keep queries fast
-        // without significant overhead.
-        if self.sim_time % 200 == 0 {
-            self.rebuild_zone_node_cache();
+        // Optional: tint based on policy type
+        match policy_type {
+            PolicyType::AbundanceBoost => zone.visual_tint = [0.2, 0.9, 0.4],
+            PolicyType::SustainabilityFocus => zone.visual_tint = [0.3, 0.8, 0.9],
+            _ => {}
         }
-
-        self.apply_and_decay_policies();
-
-        Ok(())
     }
 }
