@@ -1,51 +1,33 @@
 /*!
- * Reactive UI updates for Lissajous knot presets.
+ * Button highlight logic for reactive preset UI.
  */
 
 use bevy::prelude::*;
 
 #[derive(Component)]
-pub struct LissajousKnotPanel;
+pub struct PresetButton {
+    pub preset: LissajousKnotPreset,
+}
 
-#[derive(Component)]
-pub struct CurrentPresetText;
-
-// System that reactively updates the UI when the preset changes
-pub fn update_lissajous_knot_ui(
+// System that highlights the currently active preset button
+pub fn highlight_active_preset_button(
     current: Res<CurrentLissajousKnotPreset>,
-    mut text_query: Query<&mut Text, With<CurrentPresetText>>,
+    mut buttons: Query<(&PresetButton, &mut BackgroundColor)>,
 ) {
     if current.is_changed() {
-        for mut text in &mut text_query {
-            text.sections[0].value = format!("Current: {:?}", current.preset);
+        for (button, mut bg) in &mut buttons {
+            if button.preset == current.preset {
+                *bg = Color::srgb(0.25, 0.35, 0.55).into(); // Highlighted
+            } else {
+                *bg = Color::srgb(0.15, 0.15, 0.22).into(); // Normal
+            }
         }
     }
 }
 
-// Enhanced panel spawn function with marker components
-pub fn lissajous_knot_ui_panel(
-    mut commands: Commands,
-) {
-    commands.spawn((
-        NodeBundle { /* ... polished styling ... */ },
-        LissajousKnotPanel,
-        Name::new("LissajousKnotPanel"),
-    )).with_children(|parent| {
-        parent.spawn(TextBundle::from_section(
-            "LISSAJOUS KNOT PRESETS",
-            TextStyle { font_size: 13.0, color: Color::srgb(0.7, 0.75, 0.9), ..default() },
-        ));
-
-        // Current preset text (marked for reactive updates)
-        parent.spawn((
-            TextBundle::from_section(
-                "Current: Complex5_3_4",
-                TextStyle { font_size: 11.0, color: Color::srgb(0.6, 0.85, 0.7), ..default() },
-            ),
-            CurrentPresetText,
-        ));
-
-        // Buttons with observers (same as before)
-        // ...
-    });
-}
+// When spawning buttons, attach the PresetButton component:
+// parent.spawn((
+//     ButtonBundle { ... },
+//     PresetButton { preset },
+// ))
+// .observe(...);
