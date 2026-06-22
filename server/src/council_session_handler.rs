@@ -171,6 +171,14 @@ fn resolve_completed_trials(
         if state.phase == CouncilPhase::Completed {
             let bloom = calculate_collective_bloom(state);
 
+            // Light bridge to simulation layer (optional future enhancement):
+            // If SharedReceptorBloomField is available in the world, we can apply
+            // additional amplification from simulation::council_mercy_trial here.
+            // Example:
+            // if let Some(field) = /* simulation_world */ .get_resource::<simulation::council_mercy_trial::SharedReceptorBloomField>() {
+            //     // bloom-related adjustments using field.current_amplification_factor()
+            // }
+
             let mut participant_mercy_scores = HashMap::new();
             let mut enriched_notes = Vec::new();
 
