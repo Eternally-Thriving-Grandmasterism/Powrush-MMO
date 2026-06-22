@@ -15,7 +15,7 @@
  */
 
 use bevy::prelude::*;
-use shared::council_mercy_trial::{CouncilPhase, CouncilSessionState, CollectiveEpiphanyBloom, MercyTrialVote};
+use shared::council_mercy_trial::{CouncilMercyTrialPhase as CouncilPhase, CouncilSessionState, CollectiveEpiphanyBloom, MercyTrialVote};
 use std::collections::HashMap;
 
 use simulation::quantum_swarm_orchestrator::QuantumSwarmOrchestratorV2;
