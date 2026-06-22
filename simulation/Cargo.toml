@@ -1,1 +1,4 @@
 bevy_hanabi = { version = "0.13", features = ["bevy"], optional = true }
+
+[dependencies]
+async-channel = "2"

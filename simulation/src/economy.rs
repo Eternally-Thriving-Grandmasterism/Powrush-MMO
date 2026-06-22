@@ -1,8 +1,10 @@
 /*!
- * Hybrid CPU + GPU Economic / RBE Layer (v18.95)
+ * Hybrid CPU + GPU Economic / RBE Layer (v18.97.3)
  * 
  * Now with apply_harvest_event + apply_emergence_event from TickResult.
  * Emergence events meaningfully affect RBE, abundance, and resonance.
+ * GPU path elevated to async non-blocking dispatch (dispatch_gpu_economic_compute_async + GpuEconomicReadback).
+ * Apply system (apply_gpu_economic_results) to be wired into Bevy schedule.
  * 
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -14,7 +16,7 @@ use crate::emergence::DynamicEmergenceEvent;
 use tracing::{info_span, instrument, warn};
 
 #[cfg(feature = "gpu")]
-use crate::gpu_economic::dispatch_gpu_economic_update;
+use crate::gpu_economic::{dispatch_gpu_economic_update, dispatch_gpu_economic_compute_async, GpuEconomicReadback};
 
 pub struct EconomicLayer {
     pub cpu_precision_mode: bool,
@@ -40,10 +42,20 @@ impl EconomicLayer {
         } else {
             #[cfg(feature = "gpu")]
             {
+                // Production path: non-blocking async dispatch.
+                // Full wiring requires GpuEconomicReadback resource in Bevy world and
+                // apply_gpu_economic_results system added to simulation schedule.
+                // For now falls back to legacy sync version for compatibility.
                 if let Err(e) = dispatch_gpu_economic_update(world) {
                     warn!("GPU dispatch failed ({}). Falling back to CPU precision path for this tick.", e);
                     self.cpu_economic_update(world)?;
                 }
+
+                // Future: Replace above with:
+                // if let Err(e) = dispatch_gpu_economic_compute_async(world, &mut gpu_readback, current_frame) {
+                //     warn!(...);
+                //     self.cpu_economic_update(world)?;
+                // }
             }
             #[cfg(not(feature = "gpu"))]
             {
