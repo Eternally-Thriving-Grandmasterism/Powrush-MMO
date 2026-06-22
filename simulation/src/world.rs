@@ -1,5 +1,7 @@
 /*!
- * SovereignWorldState with Cross-Type Policy Synergies.
+ * SovereignWorldState with Policy Conflicts.
+ *
+ * Certain policy combinations now create tension or reduced effectiveness.
  */
 
 use std::collections::HashSet;
@@ -21,8 +23,11 @@ impl SovereignWorldState {
             self.apply_policy_effect_with_strength(*policy_type, *strength);
         }
 
-        // === Cross-Type Synergies ===
+        // Synergies (positive interactions)
         self.apply_policy_synergies(&active_types, &effective_strengths);
+
+        // Conflicts (negative interactions)
+        self.apply_policy_conflicts(&active_types, &effective_strengths);
 
         // Decay
         let mut i = 0;
@@ -39,44 +44,49 @@ impl SovereignWorldState {
         }
     }
 
-    fn apply_policy_synergies(
+    fn apply_policy_conflicts(
         &mut self,
         active_types: &HashSet<PolicyType>,
         effective: &std::collections::HashMap<PolicyType, f32>,
     ) {
-        // Synergy 1: Abundance + Sustainability (strong economic harmony)
+        // Conflict 1: AbundanceBoost + PressureReduction (growth increases systemic stress)
         if active_types.contains(&PolicyType::AbundanceBoost)
-            && active_types.contains(&PolicyType::SustainabilityFocus)
-        {
-            let bonus = effective.get(&PolicyType::AbundanceBoost).unwrap_or(&0.0) * 0.15;
-            for pool in self.rbe_pools.values_mut() {
-                pool.sustainability_score = (pool.sustainability_score + bonus * 0.6).min(1.0);
-                pool.abundance_flow = (pool.abundance_flow + bonus * 0.4).min(4.0);
-            }
-        }
-
-        // Synergy 2: Harmony + Pressure Reduction (systemic stability)
-        if active_types.contains(&PolicyType::HarmonyStabilization)
             && active_types.contains(&PolicyType::PressureReduction)
         {
-            let bonus = effective.get(&PolicyType::HarmonyStabilization).unwrap_or(&0.0) * 0.12;
+            let conflict_penalty = effective.get(&PolicyType::AbundanceBoost).unwrap_or(&0.0) * 0.08;
             for pool in self.rbe_pools.values_mut() {
-                pool.sustainability_score = (pool.sustainability_score + bonus).min(1.0);
-                pool.pressure = (pool.pressure - bonus * 0.5).max(0.0);
+                pool.pressure = (pool.pressure + conflict_penalty * 0.6).min(2.0);
+                pool.sustainability_score = (pool.sustainability_score - conflict_penalty * 0.3).max(0.1);
             }
         }
 
-        // Synergy 3: GeneralProsperity amplifies other policies slightly
-        if active_types.contains(&PolicyType::GeneralProsperity) {
+        // Conflict 2: GeneralProsperity + strong SustainabilityFocus (aggressive growth vs conservation)
+        if active_types.contains(&PolicyType::GeneralProsperity)
+            && active_types.contains(&PolicyType::SustainabilityFocus)
+        {
             let prosperity = effective.get(&PolicyType::GeneralProsperity).unwrap_or(&0.0);
-            if prosperity > &0.1 {
+            if *prosperity > 0.15 {
+                let conflict = prosperity * 0.06;
                 for pool in self.rbe_pools.values_mut() {
-                    pool.abundance_flow = (pool.abundance_flow + prosperity * 0.006).min(4.0);
-                    pool.sustainability_score = (pool.sustainability_score + prosperity * 0.004).min(1.0);
+                    pool.pressure = (pool.pressure + conflict).min(2.0);
+                    pool.sustainability_score = (pool.sustainability_score - conflict * 0.5).max(0.1);
+                }
+            }
+        }
+
+        // Conflict 3: Very strong AbundanceBoost weakens HarmonyStabilization
+        if active_types.contains(&PolicyType::AbundanceBoost)
+            && active_types.contains(&PolicyType::HarmonyStabilization)
+        {
+            let abundance = effective.get(&PolicyType::AbundanceBoost).unwrap_or(&0.0);
+            if *abundance > 0.25 {
+                let penalty = (*abundance - 0.25) * 0.4;
+                for pool in self.rbe_pools.values_mut() {
+                    pool.sustainability_score = (pool.sustainability_score - penalty * 0.4).max(0.1);
                 }
             }
         }
     }
 
-    // ... rest of the methods ...
+    // ... rest of methods ...
 }
