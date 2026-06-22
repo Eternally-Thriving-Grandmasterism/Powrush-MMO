@@ -1,31 +1,44 @@
 /*!
- * CouncilDecision - Wired create_active_policy helper into apply_council_decision_effects.
+ * Fully wired create_active_policy in apply_council_decision_effects.
  */
 
-// Inside apply_council_decision_effects, after applying effects to the world
-// but before creating policies, we now calculate the final score first:
+// Updated structure inside the inner loop (after applying effects):
 
-// (pseudocode of the updated structure)
+// Calculate enriched score first (post-effect)
+let avg_sustainability: f32 = world.rbe_pools.values()
+    .map(|p| p.sustainability_score)
+    .sum::<f32>() / world.rbe_pools.len().max(1) as f32;
 
-for world in query.iter_mut() {
-    // 1. Apply immediate effects to world (existing match)
-    // ...
+let avg_abundance: f32 = world.rbe_pools.values()
+    .map(|p| p.abundance_flow)
+    .sum::<f32>() / world.rbe_pools.len().max(1) as f32;
 
-    // 2. Calculate final_mercy_alignment_score (using post-effect world state)
-    let avg_sustainability = ...;
-    let avg_abundance = ...;
-    // ... calculate decision.final_mercy_alignment_score ...
+let base = mercy.clamp(0.35, 1.0);
+let archetype_bonus: f32 = match effect { /* ... */ };
+let delta_component = (avg_sustainability * 0.55 + avg_abundance * 0.45).clamp(0.4, 1.0);
 
-    // 3. Now create policies using the helper (which reads final_mercy_alignment_score)
-    match effect {
-        "ResourcePolicy" | "resource_policy" => {
-            // ...
-            world.active_policies.push(
-                decision.create_active_policy(PolicyType::AbundanceBoost, 0.15 * mag, 120)
-            );
-        }
-        // similar for other branches
+decision.final_mercy_alignment_score =
+    (base * 0.50 + archetype_bonus * 0.25 + delta_component * 0.25).clamp(0.0, 1.0);
+
+// Then create policies using the helper
+match effect {
+    "ResourcePolicy" | "resource_policy" => {
+        // immediate effects...
+        world.active_policies.push(
+            decision.create_active_policy(PolicyType::AbundanceBoost, 0.15 * mag, 120)
+        );
     }
-
-    // 4. Record to history, etc.
+    "HarmonyBoost" | "harmony_boost" => {
+        // immediate effects...
+        world.active_policies.push(
+            decision.create_active_policy(PolicyType::HarmonyStabilization, 0.12 * mag, 90)
+        );
+    }
+    "EpiphanyEvent" | "epiphany_event" => {
+        // immediate effects...
+        world.active_policies.push(
+            decision.create_active_policy(PolicyType::GeneralProsperity, 0.10 * mag, 60)
+        );
+    }
+    _ => {}
 }
