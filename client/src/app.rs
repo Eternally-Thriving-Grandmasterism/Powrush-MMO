@@ -1,2 +1,2 @@
-app.init_resource::<ParticleVisualAssets>()
-       .init_resource::<ParticleVisualPool>()
+.add_systems(Startup, setup_policy_particle_effects)
+       // AssetServer is automatically provided by Bevy
