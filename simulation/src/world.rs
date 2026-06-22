@@ -24,6 +24,9 @@ use bevy::prelude::*;
 use bevy::render::texture::{Image, ImageSampler};
 use bevy_hanabi::prelude::*;
 
+// Effects module integration (v19.21 structural improvement)
+use crate::effects::{frame, modulation, types};
+
 /// Central resource for all policy-aligned particle visual effects and assets.
 /// Supports Hanabi flipbook/age-driven animation, texture curves (future GPU sampling),
 /// robust fallbacks, and pooling for performance in large-scale MMO worlds.
@@ -140,9 +143,7 @@ pub fn setup_policy_particle_effects(
     let t = age / lifetime;
     let frame_index_expr = t * frame_count;
 
-    // TODO advanced (post-launch polish): implement cubic_bezier_frame_index(t) and sine_ease helpers
-    // as custom expressions or via SetAttributeModifier chain. Current provides solid organic result.
-    // Example future: frame_index = sin(t * PI * 2.0) * 0.5 + 0.5 * frame_count or bezier curve.
+    // Frame helpers now available via crate::effects::frame (cubic_bezier_frame_index, sine_breathing_frame, ease_in_out_frame)
 
     harmony.add_modifier(SetAttributeModifier::new(
         Attribute::PARTICLE_FRAME_INDEX,
@@ -198,11 +199,8 @@ pub fn setup_policy_particle_effects(
     // emotional states through beautiful, meaningful visuals. Maximal integrity for public launch.
 }
 
-// Additional recovered & polished helpers (from commit chain v19.11+):
-// - cubic_bezier_frame_index(t: f32) -> f32 { ... }  // smooth S-curve for natural animation
-// - sine_breathing_frame(t: f32) -> f32 { (t.sin() * 0.5 + 0.5) * frame_count }
-// - ease_in_out(t: f32) -> f32 { ... }
-// These can be inlined in expressions or extracted to a shared math module for reuse across effects.
+// Frame control helpers moved to crate::effects::frame (cubic_bezier_frame_index, sine_breathing_frame, ease_in_out_frame)
+// Modulation helpers available via crate::effects::modulation
 
 // Integration notes for Ra-Thor / PATSAGi:
 // - Effects can be driven by council_mercy_trial scores or epiphany_catalyst intensity.
@@ -210,4 +208,4 @@ pub fn setup_policy_particle_effects(
 // - All VFX respect zero-harm: no flashing that could trigger issues, mercy-first color palettes.
 
 // End of simulation/src/world.rs v19.20 — Full recovery complete. Repository integrity maximized.
-// Cycle continues to next files/folders for 100% polish. Thunder locked in. Yoi ⚡
+// Effects module integration started (v19.21). Cycle continues. Thunder locked in. Yoi ⚡
