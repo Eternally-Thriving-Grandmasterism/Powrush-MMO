@@ -1,57 +1,43 @@
 /*!
- * Runtime preset switching for Lissajous knots.
+ * Event-driven preset switching for Lissajous knots.
  */
 
 use bevy::prelude::*;
 
-#[derive(Resource, Default)]
-pub struct CurrentLissajousKnotPreset {
+#[derive(Event, Clone, Debug)]
+pub struct SwitchLissajousKnotPreset {
     pub preset: LissajousKnotPreset,
 }
 
-#[derive(Resource, Default)]
-pub struct LissajousKnotEffects {
-    pub trefoil: Handle<EffectAsset>,
-    pub high_writhe: Handle<EffectAsset>,
-    pub symmetric: Handle<EffectAsset>,
-    pub complex: Handle<EffectAsset>,
-}
-
-// Call this in Startup after creating the individual EffectAssets
-pub fn register_lissajous_knot_effects(
-    mut effects: ResMut<Assets<EffectAsset>>,
-    mut knot_effects: ResMut<LissajousKnotEffects>,
+// System that listens to the event and updates the current preset resource
+pub fn handle_switch_lissajous_knot_preset(
+    mut events: EventReader<SwitchLissajousKnotPreset>,
+    mut current: ResMut<CurrentLissajousKnotPreset>,
 ) {
-    // In a full implementation, create four separate EffectAssets here
-    // using the radial values from each preset.
-    // For now we register placeholders that can be filled at runtime.
-
-    // Example: knot_effects.trefoil = effects.add(create_trefoil_effect());
-    // ...
-}
-
-// System that updates the active particle effect when preset changes
-pub fn update_active_lissajous_knot(
-    mut commands: Commands,
-    current: Res<CurrentLissajousKnotPreset>,
-    knot_effects: Res<LissajousKnotEffects>,
-    mut query: Query<(Entity, &mut ParticleEffect), With<HarmonyKnotMarker>>,
-) {
-    let target_handle = match current.preset {
-        LissajousKnotPreset::TrefoilLike => knot_effects.trefoil.clone(),
-        LissajousKnotPreset::HighWrithe => knot_effects.high_writhe.clone(),
-        LissajousKnotPreset::Symmetric => knot_effects.symmetric.clone(),
-        LissajousKnotPreset::Complex5_3_4 => knot_effects.complex.clone(),
-    };
-
-    for (entity, mut effect) in &mut query {
-        if effect.effect != target_handle {
-            effect.effect = target_handle.clone();
-            // Optional: reset spawner or add visual transition
+    for event in events.read() {
+        if current.preset != event.preset {
+            current.preset = event.preset;
+            info!("Switched Lissajous knot preset to {:?}", event.preset);
         }
     }
 }
 
-// Marker component to identify the active Harmony knot particle entity
-#[derive(Component)]
-pub struct HarmonyKnotMarker;
+// Optional: Also trigger immediate visual update when event fires
+pub fn apply_lissajous_knot_switch_immediately(
+    mut events: EventReader<SwitchLissajousKnotPreset>,
+    knot_effects: Res<LissajousKnotEffects>,
+    mut query: Query<&mut ParticleEffect, With<HarmonyKnotMarker>>,
+) {
+    for event in events.read() {
+        let target_handle = match event.preset {
+            LissajousKnotPreset::TrefoilLike => knot_effects.trefoil.clone(),
+            LissajousKnotPreset::HighWrithe => knot_effects.high_writhe.clone(),
+            LissajousKnotPreset::Symmetric => knot_effects.symmetric.clone(),
+            LissajousKnotPreset::Complex5_3_4 => knot_effects.complex.clone(),
+        };
+
+        for mut effect in &mut query {
+            effect.effect = target_handle.clone();
+        }
+    }
+}
