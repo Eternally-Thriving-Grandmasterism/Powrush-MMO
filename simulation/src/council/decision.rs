@@ -1,17 +1,15 @@
 /*!
- * CouncilDecision with refactored, well-documented final scoring weights.
+ * CouncilDecision with Persistent Policy Modifiers.
+ *
+ * Council decisions now create lasting, decaying policy effects on the world.
+ *
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::world::AgentId;
-
-/// Final post-effect Mercy Alignment Score weights.
-/// These control the balance between mercy_factor, archetype reasoning, and real world deltas.
-const BASE_WEIGHT: f32 = 0.50;       // Weight given to the base mercy_factor
-const ARCHETYPE_WEIGHT: f32 = 0.25;  // Weight given to archetype-style bonuses
-const DELTA_WEIGHT: f32 = 0.25;      // Weight given to real post-effect world deltas
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CouncilDecision {
@@ -28,8 +26,27 @@ pub struct CouncilDecision {
     pub deliberation_tick: u64,
     pub proposer: AgentId,
 
-    /// Final Mercy Alignment Score (computed after effects + archetype logic + real deltas)
     pub final_mercy_alignment_score: f32,
+}
+
+/// Persistent policy effect created by a Council decision.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ActivePolicy {
+    pub decision_id: u64,
+    pub policy_type: PolicyType,
+    pub target_faction: Option<u32>, // None = global
+    pub strength: f32,
+    pub remaining_ticks: u64,
+    pub created_tick: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PolicyType {
+    AbundanceBoost,
+    SustainabilityFocus,
+    PressureReduction,
+    HarmonyStabilization,
+    GeneralProsperity,
 }
 
 impl CouncilDecision {
@@ -95,7 +112,7 @@ impl CouncilDecisions {
     }
 }
 
-/// Applies effects then computes the final enriched Mercy Alignment Score.
+/// Applies effects + creates Persistent Policy Modifiers.
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut query: Query<&mut crate::world::SovereignWorldState>,
@@ -104,9 +121,10 @@ pub fn apply_council_decision_effects(
         let effect = decision.effect_type.as_str();
         let mag = decision.magnitude.max(0.1);
         let mercy = decision.mercy_factor;
+        let decision_id = decision.proposal_id;
 
         for world in query.iter_mut() {
-            // Apply effects
+            // Apply immediate effects
             match effect {
                 "ResourcePolicy" | "resource_policy" => {
                     for pool in world.rbe_pools.values_mut() {
@@ -118,24 +136,44 @@ pub fn apply_council_decision_effects(
                         node.abundance_flow = (node.abundance_flow + 0.12 * mag).min(3.0);
                         node.sustainability_score = (node.sustainability_score + 0.05 * mag).min(1.0);
                     }
+
+                    // Create persistent policy
+                    world.active_policies.push(ActivePolicy {
+                        decision_id,
+                        policy_type: PolicyType::AbundanceBoost,
+                        target_faction: None,
+                        strength: 0.15 * mag,
+                        remaining_ticks: 120 + (mercy * 80.0) as u64,
+                        created_tick: decision.passed_tick,
+                    });
                 }
                 "HarmonyBoost" | "harmony_boost" => {
                     for pool in world.rbe_pools.values_mut() {
                         pool.sustainability_score = (pool.sustainability_score + 0.06 * mag).min(1.0);
                     }
+
+                    world.active_policies.push(ActivePolicy {
+                        decision_id,
+                        policy_type: PolicyType::HarmonyStabilization,
+                        target_faction: None,
+                        strength: 0.12 * mag,
+                        remaining_ticks: 90 + (mercy * 60.0) as u64,
+                        created_tick: decision.passed_tick,
+                    });
                 }
                 "EpiphanyEvent" | "epiphany_event" => {
                     for pool in world.rbe_pools.values_mut() {
                         pool.abundance_flow = (pool.abundance_flow + 0.15 * mag).min(3.5);
                     }
-                    for node in world.resource_nodes.values_mut() {
-                        node.abundance_flow = (node.abundance_flow + 0.08 * mag).min(3.0);
-                    }
-                }
-                "General" | "general" => {
-                    for pool in world.rbe_pools.values_mut() {
-                        pool.sustainability_score = (pool.sustainability_score + 0.03 * mag).min(1.0);
-                    }
+
+                    world.active_policies.push(ActivePolicy {
+                        decision_id,
+                        policy_type: PolicyType::GeneralProsperity,
+                        target_faction: None,
+                        strength: 0.10 * mag,
+                        remaining_ticks: 60 + (mercy * 40.0) as u64,
+                        created_tick: decision.passed_tick,
+                    });
                 }
                 _ => {}
             }
@@ -154,7 +192,7 @@ pub fn apply_council_decision_effects(
                 .or_default()
                 .push(new_index);
 
-            // === Refactored Final Scoring ===
+            // Final post-effect score (TOLC 8 dynamic)
             let avg_sustainability: f32 = world.rbe_pools.values()
                 .map(|p| p.sustainability_score)
                 .sum::<f32>() / world.rbe_pools.len().max(1) as f32;
@@ -164,23 +202,16 @@ pub fn apply_council_decision_effects(
                 .sum::<f32>() / world.rbe_pools.len().max(1) as f32;
 
             let base = mercy.clamp(0.35, 1.0);
-
             let archetype_bonus: f32 = match effect {
                 "ResourcePolicy" | "resource_policy" => 0.09,
                 "EpiphanyEvent" | "epiphany_event" => 0.07,
                 "HarmonyBoost" | "harmony_boost" => 0.08,
-                "General" | "general" => 0.04,
                 _ => 0.0,
             };
-
             let delta_component = (avg_sustainability * 0.55 + avg_abundance * 0.45).clamp(0.4, 1.0);
 
-            // Clean weighted combination using named constants
             decision.final_mercy_alignment_score =
-                (base * BASE_WEIGHT
-                    + archetype_bonus * ARCHETYPE_WEIGHT
-                    + delta_component * DELTA_WEIGHT)
-                    .clamp(0.0, 1.0);
+                (base * 0.50 + archetype_bonus * 0.25 + delta_component * 0.25).clamp(0.0, 1.0);
         }
     }
 
