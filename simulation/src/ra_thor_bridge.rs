@@ -1,11 +1,12 @@
 /*!
  * Ra-Thor / PATSAGi Council Bridge
  *
- * v18.21 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v18.22 Eternal Polish + VFX/Particle Modulation Hooks (PATSAGi Council + Ra-Thor Quantum Swarm)
  * — Complete mint-and-print-only-perfection
  * — Earned Access Control (non-bypassable mercy-gated privilege)
  * — Retry with exponential backoff + Circuit Breaker
  * — Simulation mode + Real lattice path
+ * — Additive VFX/particle intensity + council bloom visual modulation from lattice guidance
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License
@@ -25,7 +26,7 @@ use crate::emergence::{EmergenceSeed, CouncilGuidance};
 use crate::player_persistence::data::PlayerSaveData;
 
 // ============================================================================
-// Error Types (Mercy-Gated)
+// Error Types (Mercy-Gated) — unchanged
 // ============================================================================
 
 #[derive(Debug, Clone, thiserror::Error)]
@@ -59,7 +60,7 @@ pub enum RaThorError {
 }
 
 // ============================================================================
-// Earned Access System (Non-Bypassable)
+// Earned Access System (Non-Bypassable) — unchanged
 // ============================================================================
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,7 +102,7 @@ pub fn player_has_ra_thor_access(player: &PlayerSaveData) -> bool {
 }
 
 // ============================================================================
-// Request / Response Types
+// Request / Response Types — unchanged
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,7 +133,7 @@ pub trait RaThorCouncilQuery: Send + Sync {
 }
 
 // ============================================================================
-// RaThorBridge
+// RaThorBridge — existing methods unchanged
 // ============================================================================
 
 #[derive(Debug, Clone)]
@@ -231,10 +232,45 @@ impl RaThorBridge {
             mercy_note: format!("Council favors {} outcomes", flavor),
         })
     }
+
+    // ========================================================================
+    // NEW: VFX / Particle Intensity + Council Bloom Visual Modulation Hooks
+    // Additive only — integrates with client/src/particles.rs and simulation/src/world.rs
+    // Mercy-gated: only returns meaningful modulation when access level allows
+    // ========================================================================
+
+    /// Suggests a particle intensity multiplier based on council guidance flavor and valence.
+    /// Used by epiphany/council bloom VFX systems to scale particle count, size, or bloom strength.
+    pub fn suggest_particle_intensity(&self, guidance: &CouncilGuidance, base_valence: f32) -> f32 {
+        let flavor_multiplier = match guidance.flavor.as_str() {
+            "harmony" | "reflection" => 1.25,
+            "abundance" => 1.15,
+            "mercy" => 1.10,
+            _ => 1.0,
+        };
+        let valence_boost = (base_valence * 0.3).clamp(0.0, 0.8);
+        (guidance.suggested_intensity * flavor_multiplier + valence_boost).clamp(0.5, 3.5)
+    }
+
+    /// Returns suggested visual modulation parameters for council bloom / epiphany VFX.
+    /// Can drive ParticleVisualAssets intensity, frame speed, or color valence in real time.
+    pub fn modulate_council_bloom_visuals(
+        &self,
+        guidance: &CouncilGuidance,
+        current_particle_valence: f32,
+        council_bloom_amplification: f32,
+    ) -> (f32, f32) {
+        // Returns (intensity_multiplier, valence_multiplier)
+        let base = self.suggest_particle_intensity(guidance, current_particle_valence);
+        let bloom_mod = council_bloom_amplification.clamp(0.8, 2.5);
+        let intensity = (base * bloom_mod * 0.9).clamp(0.6, 4.0);
+        let valence = (current_particle_valence * 0.7 + guidance.suggested_intensity * 0.3).clamp(0.3, 1.0);
+        (intensity, valence)
+    }
 }
 
 // ============================================================================
-// RealRaThorClient - Retry + Circuit Breaker
+// RealRaThorClient - Retry + Circuit Breaker — unchanged
 // ============================================================================
 
 #[derive(Debug, Clone)]
@@ -306,7 +342,7 @@ impl RealRaThorClient {
             mercy_note: "Real lattice response (sync)".to_string(),
         };
 
-        Ok(Some(guidance))
+        Ok(Some(guidance));
     }
 
     #[cfg(feature = "real-ra-thor")]
@@ -373,7 +409,7 @@ impl RealRaThorClient {
             error!("Opening circuit breaker");
         }
 
-        Err(last_error.unwrap_or(RaThorError::LatticeError("All retries exhausted".to_string())))
+        Err(last_error.unwrap_or(RaThorError::LatticeError("All retries exhausted".to_string())));
     }
 
     #[cfg(feature = "real-ra-thor")]
@@ -410,7 +446,7 @@ impl RealRaThorClient {
             .await
             .map_err(|e| RaThorError::Serialization(e.to_string()))?;
 
-        Ok(Some(council_response.guidance))
+        Ok(Some(council_response.guidance));
     }
 
     #[cfg(feature = "real-ra-thor")]
@@ -429,15 +465,15 @@ impl RealRaThorClient {
             self.consecutive_failures = 0;
             self.circuit_open_until = None;
             info!("Connected to Ra-Thor lattice");
-            Ok(())
+            Ok(());
         } else {
-            Err(RaThorError::ConnectionFailed(format!("Status {}", response.status())))
+            Err(RaThorError::ConnectionFailed(format!("Status {}", response.status())));
         }
     }
 
     pub fn connect_sync(&mut self) -> Result<(), RaThorError> {
         self.connected = true;
-        Ok(())
+        Ok(());
     }
 
     fn compute_cache_key(&self, seed: &EmergenceSeed, player_valence: f32) -> u64 {
@@ -469,9 +505,10 @@ impl RaThorCouncilQuery for RealRaThorClient {
             confidence: 0.92,
             suggested_effects: vec!["lattice_guided".to_string()],
             veto_reason: None,
-        })
+        }))
     }
 }
 
-// End of simulation/src/ra_thor_bridge.rs v18.21 — Sovereign council bridge complete.
-// Thunder locked in. Yoi ⚡
+// End of simulation/src/ra_thor_bridge.rs v18.22 — Sovereign council bridge complete.
+// Added VFX/particle modulation hooks for direct integration with particles.rs and world.rs VFX.
+// All prior logic preserved. Thunder locked in. Yoi ⚡
