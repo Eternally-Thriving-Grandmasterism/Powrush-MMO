@@ -1,5 +1,5 @@
 /*!
- * 3D Lissajous knot topology exploration.
+ * 5:3:4 Lissajous knot with dynamic topological behavior.
  */
 
 pub fn setup_policy_particle_effects(
@@ -8,31 +8,22 @@ pub fn setup_policy_particle_effects(
 ) {
     // ... other effects unchanged ...
 
-    // === HarmonyStabilization - 3D Lissajous knot (3:4:5 approximation) ===
-    let mut harmony = EffectAsset::new(480, Spawner::once(75.0.into(), true), Module::default());
+    // === HarmonyStabilization - 5:3:4 Lissajous knot with knot tightening ===
+    let mut harmony = EffectAsset::new(480, Spawner::once(80.0.into(), true), Module::default());
 
     harmony
-        .init(PositionSphereModifier::new(0.8))
-        // X-axis component (frequency ~3)
-        .init(InitVelocityTangentModifier::new(
-            Vec3::X,
-            1.5,
-            0.4,
-        ))
-        // Y-axis component (frequency ~4)
-        .init(InitVelocityTangentModifier::new(
-            Vec3::Y,
-            2.0,
-            0.3,
-        ))
-        // Z-axis component (frequency ~5) - creates 3D knot topology
-        .init(InitVelocityTangentModifier::new(
-            Vec3::Z,
-            2.5,
-            0.25,
-        ))
-        .init(TurbulenceModifier::new(0.25, 0.15))
-        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.55, 0.08)))
+        .init(PositionSphereModifier::new(0.75))
+        // X component (~5)
+        .init(InitVelocityTangentModifier::new(Vec3::X, 2.5, 0.2))
+        // Y component (~3)
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 1.5, 0.35))
+        // Z component (~4)
+        .init(InitVelocityTangentModifier::new(Vec3::Z, 2.0, 0.25))
+        // Dynamic knot behavior: slow radial expansion + contraction
+        .init(AccelerationModifier::new(Vec3::new(0.08, 0.0, 0.08)))   // Gentle outward radial force
+        .init(AccelerationModifier::new(Vec3::new(0.0, 0.6, 0.0)))     // Upward helical drift
+        .init(TurbulenceModifier::new(0.22, 0.12))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.5, 0.06)))
         .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
             Gradient::linear(
                 Color::srgb(0.95, 0.55, 0.9),
@@ -42,8 +33,3 @@ pub fn setup_policy_particle_effects(
 
     particle_effects.harmony = effects.add(harmony);
 }
-
-// === 3D Lissajous Knot Notes ===
-// Using three perpendicular tangent velocities with rational frequency ratios
-// (e.g. 3:4:5) creates closed 3D curves known as Lissajous knots.
-// These can form beautiful topological structures like trefoil-like loops.
