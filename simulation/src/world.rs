@@ -1,5 +1,5 @@
 /*!
- * Phase shift effects on Lissajous knot topology.
+ * Mapping phase parameters to knot invariants.
  */
 
 pub fn setup_policy_particle_effects(
@@ -8,18 +8,22 @@ pub fn setup_policy_particle_effects(
 ) {
     // ... other effects unchanged ...
 
-    // === HarmonyStabilization - Exploring phase shift effects ===
-    // Different radial components create effective phase shifts between axes
+    // === HarmonyStabilization - Phase-to-Invariant Mapping ===
+    // Radial components act as effective phase shifts.
+    // We can map them conceptually to knot invariants:
+    //
+    // - Larger spread in radial values → Higher crossing number / complexity
+    // - Asymmetric radial distribution → Non-zero writhe (chirality)
+    // - Specific ratios + phases → Different knot types (trefoil, cinquefoil, etc.)
+    //
+    // Current configuration: Moderate asymmetry → Balanced writhe + complexity
     let mut harmony = EffectAsset::new(480, Spawner::once(80.0.into(), true), Module::default());
 
     harmony
         .init(PositionSphereModifier::new(0.6))
-        // X axis with small radial component (phase ~0)
-        .init(InitVelocityTangentModifier::new(Vec3::X, 1.8, 0.10))
-        // Y axis with medium radial component (phase shift)
-        .init(InitVelocityTangentModifier::new(Vec3::Y, 2.4, 0.35))
-        // Z axis with larger radial component (stronger phase shift)
-        .init(InitVelocityTangentModifier::new(Vec3::Z, 3.0, 0.55))
+        .init(InitVelocityTangentModifier::new(Vec3::X, 1.8, 0.10))  // Low radial  → lower local complexity
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 2.4, 0.35))  // Medium radial → moderate crossing
+        .init(InitVelocityTangentModifier::new(Vec3::Z, 3.0, 0.55))  // High radial  → higher writhe contribution
         .init(AccelerationModifier::new(Vec3::new(0.0, 0.5, 0.0)))
         .init(TurbulenceModifier::new(0.15, 0.08))
         .init(SizeOverLifetimeModifier::new(Gradient::linear(0.42, 0.03)))
@@ -33,13 +37,18 @@ pub fn setup_policy_particle_effects(
     particle_effects.harmony = effects.add(harmony);
 }
 
-// === Phase Shift Effects on Knot Topology ===
-// In true Lissajous knots, phase shifts (φx, φy, φz) dramatically change
-// the geometry and can even change whether the curve is knotted.
+// === Phase → Knot Invariant Mapping (Conceptual) ===
+// In mathematical Lissajous knots:
+// - Phase differences directly affect the embedding and thus the invariants.
+// - Writhe (average signed crossings) is sensitive to phase.
+// - Different phases can change a curve from being the unknot to a trefoil.
 //
-// In our Hanabi approximation, we simulate phase shifts by varying
-// the radial velocity component in InitVelocityTangentModifier.
-// Smaller radial = less phase offset; larger radial = stronger phase shift.
+// In our approximation:
+// - The three radial values (0.10, 0.35, 0.55) create relative phase shifts.
+// - Greater asymmetry between them tends to increase visual complexity
+//   and effective writhe.
+// - More symmetric radial values produce simpler, more reversible knots.
+// - Extreme asymmetry can produce highly chiral (handed) structures.
 //
-// This allows us to explore how different "phases" affect the
-// complexity and crossing patterns of the resulting 3D knot.
+// This gives us a practical way to "tune" topological character
+// by adjusting the three radial parameters.
