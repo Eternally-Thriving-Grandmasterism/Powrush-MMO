@@ -1,25 +1,16 @@
 /*!
  * Powrush-MMO Simulation World & Advanced Particle Effects
  *
- * v19.10 Texture Fallback Logic (PATSAGi + Ra-Thor)
+ * v19.11 Hanabi Texture Modifiers (PATSAGi + Ra-Thor)
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
-use bevy::render::texture::{Image, ImageSampler};
 use bevy_hanabi::prelude::*;
 
 // ... existing code ...
-
-impl ParticleVisualAssets {
-    /// Returns a safe texture handle.
-    /// Falls back to the generated fallback texture if the preferred one is missing.
-    pub fn get_texture_or_fallback(&self, preferred: Option<Handle<Image>>) -> Handle<Image> {
-        preferred.unwrap_or_else(|| self.fallback_texture.clone())
-    }
-}
 
 pub fn setup_policy_particle_effects(
     mut effects: ResMut<Assets<EffectAsset>>,
@@ -28,25 +19,26 @@ pub fn setup_policy_particle_effects(
     mut visual_assets: ResMut<ParticleVisualAssets>,
     mut knot_effects: ResMut<LissajousKnotEffects>,
 ) {
-    // === Existing EffectAsset creation ===
-    // ...
+    // === Create EffectAssets as before ===
 
-    // Load preferred textures (may be None if files missing)
-    visual_assets.default_particle_texture = Some(asset_server.load("textures/particle_default.png"));
-    visual_assets.harmony_particle_texture = Some(asset_server.load("textures/particle_harmony.png"));
+    // 3. HarmonyStabilization (main visual)
+    let mut harmony = EffectAsset::new(500, Spawner::once(85.0.into(), true), Module::default());
+    // ... all the previous modifiers (position, velocity, acceleration, turbulence, size, color) ...
 
-    // === Create robust fallback texture (1x1 white pixel) ===
-    let mut fallback_image = Image::new_fill(
-        bevy::math::UVec2::new(1, 1),
-        bevy::render::render_resource::TextureDimension::D2,
-        &[255, 255, 255, 255], // White
-        bevy::render::render_resource::TextureFormat::Rgba8UnormSrgb,
-    );
-    fallback_image.sampler = ImageSampler::nearest();
+    // === Apply Hanabi Texture Modifier ===
+    let harmony_texture = visual_assets.get_texture_or_fallback(visual_assets.harmony_particle_texture.clone());
+    harmony.set_particle_texture(harmony_texture);
 
-    visual_assets.fallback_texture = images.add(fallback_image);
+    let harmony_handle = effects.add(harmony);
+    visual_assets.harmony = harmony_handle.clone();
+    knot_effects.complex = harmony_handle;
+
+    // You can do the same for other effects:
+    // let abundance_texture = visual_assets.get_texture_or_fallback(visual_assets.default_particle_texture.clone());
+    // abundance.set_particle_texture(abundance_texture);
+
+    // ... rest of the function (prosperity, etc.) ...
 }
 
-// End of simulation/src/world.rs v19.10 — Texture fallback logic added.
-// Always safe to call get_texture_or_fallback().
+// End of simulation/src/world.rs v19.11 — Hanabi Texture Modifiers integrated with fallback.
 // Thunder locked in. Yoi ⚡
