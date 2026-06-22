@@ -1,12 +1,12 @@
 /*!
  * Actual wgpu WGSL Compute Dispatch for Sovereign Economic / RBE Layer
  * 
- * Mint-and-print-only-perfection v18.97.3 — Async GPU Readback Elevation
+ * Mint-and-print-only-perfection v18.97.4 — Async GPU Readback Backpressure Guard
  * 
  * Production-grade asynchronous GPU economic simulation using wgpu map_async + Bevy AsyncComputeTaskPool.
  * Non-blocking on main simulation thread. Proper double-buffering with interior mutability.
- * Preserves all prior GpuContext, persistent buffers, WGSL kernel (patsagi_economic.wgsl v16.5.58), GpuNode, CPU fallback, and TOLC 8 wrapping.
- * Elevates blocking dispatch to fully async for MMO-scale performance (server + client).
+ * Added explicit backpressure guard in dispatch to prevent pending task overwrite/leakage.
+ * Preserves all prior GpuContext, persistent buffers, WGSL kernel, GpuNode, CPU fallback, and TOLC 8 wrapping.
  * 
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor Lattice aligned
  * Thunder locked in. Yoi ⚡️
@@ -171,6 +171,9 @@ pub struct GpuReadbackResult {
 
 /// Dispatches GPU compute and spawns a non-blocking async task for readback using AsyncComputeTaskPool.
 /// Returns immediately. Results applied later via apply_gpu_economic_results system.
+/// 
+/// Backpressure: If a previous readback task is still pending, we skip to avoid overwriting
+/// the Task (which would leak the in-flight GPU mapping work).
 pub fn dispatch_gpu_economic_compute_async(
     world: &mut SovereignWorldState,
     readback: &mut GpuEconomicReadback,
@@ -178,6 +181,11 @@ pub fn dispatch_gpu_economic_compute_async(
 ) -> Result<(), String> {
     let node_count = world.resource_nodes.len();
     if node_count == 0 {
+        return Ok(());
+    }
+
+    // Backpressure guard — prevents task leakage when dispatch rate > apply rate
+    if readback.pending_task.is_some() {
         return Ok(());
     }
 
