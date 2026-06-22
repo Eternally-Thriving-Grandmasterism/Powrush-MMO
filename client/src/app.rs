@@ -1,2 +1,2 @@
-app.init_resource::<ParticleVisualPool>()
-       // ... other inits
+.add_systems(Startup, prewarm_visual_pool)
+       // after other startup systems
