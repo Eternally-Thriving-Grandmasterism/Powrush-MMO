@@ -269,22 +269,22 @@ fn integrate_rbe_abundance_signals(
     }
 }
 
-/// E2E Persistence hook — now calls the new record_council_trial_outcome on PlayerSaveData
+/// E2E Persistence hook — records council trial outcome into PlayerSaveData
+/// TODO: Wire real PersistenceManager / PlayerSaveData when available
 fn persist_trial_outcome(
     mut resolved_events: EventReader<CouncilTrialResolved>,
-    // In real usage: mut persistence: ResMut<PersistenceManager>
 ) {
     for resolved in resolved_events.read() {
-        // Example production integration:
+        // Production integration path (activate when PersistenceManager is wired):
         // for (participant, mercy_score) in &resolved.participant_mercy_scores {
-        //     if let Ok(mut save_data) = persistence.load_player_data(*participant).await {
+        //     if let Some(mut save_data) = persistence.get_player_data(*participant) {
         //         save_data.record_council_trial_outcome(
         //             mercy_score,
         //             resolved.enriched_epiphany_notes.clone(),
         //             mercy_score * 10.0,
-        //             /* current tick */ 0,
+        //             /* current_tick */ 0,
         //         );
-        //         let _ = persistence.save_player_data(&mut save_data).await;
+        //         let _ = persistence.save_player_data(&mut save_data);
         //     }
         // }
 
