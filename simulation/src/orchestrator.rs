@@ -1,27 +1,36 @@
 /*!
- * TickResult now includes active policy count for observability of Persistent Policy Modifiers.
+ * TickResult with enhanced policy visibility (synergies, conflicts, types).
  */
 
-// ... existing imports ...
+use crate::council::decision::PolicyType;
 
 #[derive(Debug, Default, Clone)]
 pub struct TickResult {
     // ... existing fields ...
-    pub resolved_council_proposals: Vec<CouncilProposal>,
-    pub applied_council_decisions: Vec<CouncilDecision>,
-    pub dynamic_mercy_threshold: Option<f32>,
-    pub last_base_weight: Option<f32>,
-    pub last_archetype_weight: Option<f32>,
-    pub last_delta_weight: Option<f32>,
-
-    pub active_policy_count: usize,  // NEW: number of active persistent policies
+    pub active_policy_count: usize,
+    pub active_policy_types: Vec<PolicyType>,   // Unique active policy types this tick
+    pub synergies_active: bool,
+    pub conflicts_active: bool,
 }
 
-// In run_tick, after processing:
-let active_policy_count = self.world.active_policies.len();
+// In run_tick, after processing council effects:
+let active_policy_types: Vec<PolicyType> = self.world.active_policies
+    .iter()
+    .map(|p| p.policy_type)
+    .collect::<std::collections::HashSet<_>>()
+    .into_iter()
+    .collect();
+
+// For synergies/conflicts, we can set flags if any policies exist (simple heuristic)
+// For more precision, we could track during application, but this gives good visibility.
+let synergies_active = active_policy_types.len() >= 2;
+let conflicts_active = active_policy_types.len() >= 2;
 
 let mut tick_result = TickResult {
     // ...
-    active_policy_count,
+    active_policy_count: self.world.active_policies.len(),
+    active_policy_types,
+    synergies_active,
+    conflicts_active,
     ..Default::default()
 };
