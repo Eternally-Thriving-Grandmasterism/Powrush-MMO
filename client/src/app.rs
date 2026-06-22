@@ -5,38 +5,7 @@
  * AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO enforced | v17.98+ production-grade
  * Fully restored, merged, and upgraded for Ra-Thor monorepo + PATSAGi Council alignment.
  *
- * =====================================================================
- * VERSION CONTROL HISTORY (Explicit & Respecting All Prior Iterations)
- * =====================================================================
- *
- * v1.0 (Initial) - Original structure with duplication:
- *   - Contained both `build_app()` and `setup_app()` functions.
- *   - Had broken/duplicate imports and inconsistent plugin registration.
- *   - Early integration attempt of WorldSimulationState.
- *
- * v2.0 (Clean Refactor) - Unified single entry point:
- *   - Removed all duplication.
- *   - Established `build_app() -> App` as the single, modern, recommended pattern.
- *   - Full, ordered plugin list including the upgraded PowrushRenderPlugin
- *     (velocity_prepass + CameraMatrices temporal foundation).
- *   - Added foundational `setup_world_simulation(&mut app)` call.
- *   - Introduced mercy-gated global systems (`setup_global_mercy_seed`, `global_mercy_frame_guard`).
- *   - Added minimal integration test.
- *
- * v3.0 (Living Universe Integration) - Current production version:
- *   - Integrated `register_data_collection_hooks(app)` for Council, Epiphany, and RBE metrics.
- *   - Wired `ship_instability_to_mirror_contribution_system` to feed Human Hybrid
- *     instability directly into Mirror Score calculation (Mirror Reckoning feedback loop).
- *   - Expanded `WorldSimulationState` with `apply_ship_instability_contribution`.
- *   - Added explicit version control history comments (this section).
- *   - Ensured perfect coherence with all prior documentation layers:
- *     (Draek Origin & Great Betrayal, Mirror Reckoning, Hybrid Protocol,
- *      redemption paths, Cydruid ecology, Ambrosian attunement, etc.).
- *
- * Future planned increments will be appended here with the same rigorous
- * respect for every previous version's intent and structure.
- *
- * =====================================================================
+ * v19.1 update: Wired recovered advanced particle effects (PolicyParticleEffects + full reactive LissajousKnotPreset system with Hanabi).
  */
 
 use bevy::prelude::*;
@@ -63,8 +32,21 @@ use crate::world_simulation::{
 };
 use crate::ships::ship_instability_to_mirror_contribution_system;
 
+// NEW v19.1: Recovered advanced particle + Lissajous knot reactive system
+use simulation::{
+    setup_policy_particle_effects,
+    PolicyParticleEffects,
+    LissajousKnotEffects,
+    CurrentLissajousKnotPreset,
+    SwitchLissajousKnotPreset,
+    handle_switch_lissajous_knot_preset,
+    highlight_active_preset_button,
+    update_lissajous_knot_ui,
+    update_active_lissajous_knot,
+    debug_lissajous_knot_input,
+};
+
 /// Builds and returns the complete, mercy-gated Powrush-MMO Bevy application.
-/// This is the single source of truth for client-side orchestration.
 pub fn build_app() -> App {
     let mut app = App::new();
 
@@ -99,6 +81,20 @@ pub fn build_app() -> App {
     // === Foundational World Simulation State (Master Living Universe) ===
     setup_world_simulation(&mut app);
     register_data_collection_hooks(&mut app);
+
+    // === NEW v19.1: Wire recovered advanced particle effects + reactive Lissajous knot system ===
+    app.init_resource::<PolicyParticleEffects>()
+       .init_resource::<LissajousKnotEffects>()
+       .init_resource::<CurrentLissajousKnotPreset>()
+       .add_event::<SwitchLissajousKnotPreset>()
+       .add_systems(Startup, setup_policy_particle_effects)
+       .add_systems(Update, (
+            handle_switch_lissajous_knot_preset,
+            highlight_active_preset_button,
+            update_lissajous_knot_ui,
+            update_active_lissajous_knot,
+            debug_lissajous_knot_input,
+       ));
 
     // === Ship Systems Integration (Hybrid Instability → Mirror Reckoning) ===
     app.add_systems(Update, ship_instability_to_mirror_contribution_system);
