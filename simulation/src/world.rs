@@ -1,116 +1,96 @@
 /*!
- * Comprehensive Bevy 0.14 compatible refactor of the Lissajous knot UI system.
+ * Full EffectAsset creation for all policy particle effects (Bevy 0.14 + Hanabi 0.13).
  */
 
-use bevy::prelude::*;
-use bevy::input::pointer::Pointer;
+use bevy_hanabi::prelude::*;
 
-// === Event ===
-#[derive(Event, Clone, Debug)]
-pub struct SwitchLissajousKnotPreset {
-    pub preset: LissajousKnotPreset,
-}
-
-// === Resources ===
-#[derive(Resource, Default)]
-pub struct CurrentLissajousKnotPreset {
-    pub preset: LissajousKnotPreset,
-}
-
-#[derive(Resource, Default)]
-pub struct LissajousKnotEffects {
-    pub trefoil: Handle<EffectAsset>,
-    pub high_writhe: Handle<EffectAsset>,
-    pub symmetric: Handle<EffectAsset>,
-    pub complex: Handle<EffectAsset>,
-}
-
-// === Components ===
-#[derive(Component)]
-pub struct PresetButton {
-    pub preset: LissajousKnotPreset,
-}
-
-#[derive(Component)]
-pub struct CurrentPresetText;
-
-#[derive(Component)]
-pub struct HarmonyKnotMarker;
-
-// === Systems ===
-
-pub fn handle_switch_lissajous_knot_preset(
-    mut events: EventReader<SwitchLissajousKnotPreset>,
-    mut current: ResMut<CurrentLissajousKnotPreset>,
+pub fn setup_policy_particle_effects(
+    mut effects: ResMut<Assets<EffectAsset>>,
+    mut particle_effects: ResMut<PolicyParticleEffects>,
 ) {
-    for event in events.read() {
-        if current.preset != event.preset {
-            current.preset = event.preset;
-        }
-    }
-}
+    // === 1. AbundanceBoost - Energetic green upward burst with turbulence ===
+    let mut abundance = EffectAsset::new(
+        600,
+        Spawner::once(100.0.into(), true),
+        Module::default(),
+    );
+    abundance
+        .init(PositionSphereModifier::new(0.6))
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 4.5, 0.3))
+        .init(AccelerationModifier::new(Vec3::new(0.0, 3.0, 0.0)))
+        .init(TurbulenceModifier::new(1.8, 1.2))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.9, 0.1)))
+        .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
+            Gradient::linear(
+                Color::srgb(0.15, 0.95, 0.35),
+                Color::srgba(0.15, 0.95, 0.35, 0.0),
+            ),
+        )));
+    particle_effects.abundance = effects.add(abundance);
 
-pub fn highlight_active_preset_button(
-    current: Res<CurrentLissajousKnotPreset>,
-    mut buttons: Query<(&PresetButton, &mut BackgroundColor)>,
-) {
-    for (button, mut bg) in &mut buttons {
-        let is_active = button.preset == current.preset;
-        let target = if is_active {
-            Color::srgb(0.25, 0.35, 0.55)
-        } else {
-            Color::srgb(0.15, 0.15, 0.22)
-        };
-        if bg.0 != target {
-            *bg = target.into();
-        }
-    }
-}
+    // === 2. SustainabilityFocus - Calm cyan flow with drag + attractor ===
+    let mut sustainability = EffectAsset::new(
+        450,
+        Spawner::once(70.0.into(), true),
+        Module::default(),
+    );
+    sustainability
+        .init(PositionSphereModifier::new(1.0))
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 2.8, 0.4))
+        .init(DragModifier::new(0.7))
+        .init(AttractorModifier::new(Vec3::ZERO, 1.2, 4.0))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.7, 0.15)))
+        .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
+            Gradient::linear(
+                Color::srgb(0.25, 0.85, 0.95),
+                Color::srgba(0.25, 0.85, 0.95, 0.0),
+            ),
+        )));
+    particle_effects.sustainability = effects.add(sustainability);
 
-pub fn update_lissajous_knot_ui(
-    current: Res<CurrentLissajousKnotPreset>,
-    mut text_query: Query<&mut Text, With<CurrentPresetText>>,
-) {
-    if current.is_changed() {
-        for mut text in &mut text_query {
-            text.sections[0].value = format!("Current: {:?}", current.preset);
-        }
-    }
-}
+    // === 3. HarmonyStabilization - Pink 5:3:4 3D Lissajous knot with breathing ===
+    let mut harmony = EffectAsset::new(
+        500,
+        Spawner::once(85.0.into(), true),
+        Module::default(),
+    );
+    harmony
+        .init(PositionSphereModifier::new(0.7))
+        .init(InitVelocityTangentModifier::new(Vec3::X, 2.5, 0.18))
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 1.5, 0.32))
+        .init(InitVelocityTangentModifier::new(Vec3::Z, 2.0, 0.22))
+        .init(AccelerationModifier::new(Vec3::new(0.06, 0.0, 0.06)))
+        .init(AccelerationModifier::new(Vec3::new(-0.04, 0.0, -0.04)))
+        .init(AccelerationModifier::new(Vec3::new(0.0, 0.55, 0.0)))
+        .init(TurbulenceModifier::new(0.2, 0.1))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.5, 0.05)))
+        .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
+            Gradient::linear(
+                Color::srgb(0.95, 0.55, 0.9),
+                Color::srgba(0.95, 0.55, 0.9, 0.0),
+            ),
+        )));
+    particle_effects.harmony = effects.add(harmony);
 
-pub fn update_active_lissajous_knot(
-    knot_effects: Res<LissajousKnotEffects>,
-    current: Res<CurrentLissajousKnotPreset>,
-    mut query: Query<&mut ParticleEffect, With<HarmonyKnotMarker>>,
-) {
-    if current.is_changed() {
-        let handle = match current.preset {
-            LissajousKnotPreset::TrefoilLike => knot_effects.trefoil.clone(),
-            LissajousKnotPreset::HighWrithe => knot_effects.high_writhe.clone(),
-            LissajousKnotPreset::Symmetric => knot_effects.symmetric.clone(),
-            LissajousKnotPreset::Complex5_3_4 => knot_effects.complex.clone(),
-        };
-        for mut effect in &mut query {
-            effect.effect = handle.clone();
-        }
-    }
-}
-
-// Debug keyboard input
-pub fn debug_lissajous_knot_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut events: EventWriter<SwitchLissajousKnotPreset>,
-) {
-    if keyboard.just_pressed(KeyCode::Digit1) {
-        events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::TrefoilLike });
-    }
-    if keyboard.just_pressed(KeyCode::Digit2) {
-        events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::HighWrithe });
-    }
-    if keyboard.just_pressed(KeyCode::Digit3) {
-        events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::Symmetric });
-    }
-    if keyboard.just_pressed(KeyCode::Digit4) {
-        events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::Complex5_3_4 });
-    }
+    // === 4. GeneralProsperity - Gold expanding burst with gentle gravity ===
+    let mut prosperity = EffectAsset::new(
+        520,
+        Spawner::once(85.0.into(), true),
+        Module::default(),
+    );
+    prosperity
+        .init(PositionSphereModifier::new(0.85))
+        .init(InitVelocityTangentModifier::new(Vec3::X, 1.8, 0.3))
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 2.4, 0.2))
+        .init(InitVelocityTangentModifier::new(Vec3::Z, 1.2, 0.4))
+        .init(AccelerationModifier::new(Vec3::new(0.0, -0.6, 0.0)))
+        .init(TurbulenceModifier::new(0.3, 0.15))
+        .init(SizeOverLifetimeModifier::new(Gradient::linear(0.85, 0.15)))
+        .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
+            Gradient::linear(
+                Color::srgb(1.0, 0.88, 0.25),
+                Color::srgba(1.0, 0.88, 0.25, 0.0),
+            ),
+        )));
+    particle_effects.prosperity = effects.add(prosperity);
 }
