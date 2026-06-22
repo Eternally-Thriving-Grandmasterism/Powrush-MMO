@@ -1,43 +1,64 @@
 /*!
- * Event-driven preset switching for Lissajous knots.
+ * Debug console + UI panel for Lissajous knot preset switching.
  */
 
 use bevy::prelude::*;
 
-#[derive(Event, Clone, Debug)]
-pub struct SwitchLissajousKnotPreset {
-    pub preset: LissajousKnotPreset,
-}
-
-// System that listens to the event and updates the current preset resource
-pub fn handle_switch_lissajous_knot_preset(
-    mut events: EventReader<SwitchLissajousKnotPreset>,
-    mut current: ResMut<CurrentLissajousKnotPreset>,
+// Keyboard debug controls (1-4 keys)
+pub fn debug_lissajous_knot_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut events: EventWriter<SwitchLissajousKnotPreset>,
 ) {
-    for event in events.read() {
-        if current.preset != event.preset {
-            current.preset = event.preset;
-            info!("Switched Lissajous knot preset to {:?}", event.preset);
-        }
+    if keyboard.just_pressed(KeyCode::Digit1) {
+        events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::TrefoilLike });
+    }
+    if keyboard.just_pressed(KeyCode::Digit2) {
+        events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::HighWrithe });
+    }
+    if keyboard.just_pressed(KeyCode::Digit3) {
+        events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::Symmetric });
+    }
+    if keyboard.just_pressed(KeyCode::Digit4) {
+        events.send(SwitchLissajousKnotPreset { preset: LissajousKnotPreset::Complex5_3_4 });
     }
 }
 
-// Optional: Also trigger immediate visual update when event fires
-pub fn apply_lissajous_knot_switch_immediately(
-    mut events: EventReader<SwitchLissajousKnotPreset>,
-    knot_effects: Res<LissajousKnotEffects>,
-    mut query: Query<&mut ParticleEffect, With<HarmonyKnotMarker>>,
+// Simple Bevy UI panel for preset switching
+pub fn lissajous_knot_ui_panel(
+    mut commands: Commands,
+    mut events: EventWriter<SwitchLissajousKnotPreset>,
 ) {
-    for event in events.read() {
-        let target_handle = match event.preset {
-            LissajousKnotPreset::TrefoilLike => knot_effects.trefoil.clone(),
-            LissajousKnotPreset::HighWrithe => knot_effects.high_writhe.clone(),
-            LissajousKnotPreset::Symmetric => knot_effects.symmetric.clone(),
-            LissajousKnotPreset::Complex5_3_4 => knot_effects.complex.clone(),
-        };
+    commands.spawn(NodeBundle {
+        style: Style {
+            position_type: PositionType::Absolute,
+            left: Val::Px(10.0),
+            top: Val::Px(10.0),
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+        background_color: Color::srgba(0.1, 0.1, 0.1, 0.8).into(),
+        ..default()
+    }).with_children(|parent| {
+        parent.spawn(TextBundle::from_section(
+            "Lissajous Knot Presets",
+            TextStyle { font_size: 16.0, color: Color::WHITE, ..default() },
+        ));
 
-        for mut effect in &mut query {
-            effect.effect = target_handle.clone();
+        for (label, preset) in [
+            ("1. Trefoil-like", LissajousKnotPreset::TrefoilLike),
+            ("2. High Writhe", LissajousKnotPreset::HighWrithe),
+            ("3. Symmetric", LissajousKnotPreset::Symmetric),
+            ("4. Complex 5:3:4", LissajousKnotPreset::Complex5_3_4),
+        ] {
+            parent.spawn(ButtonBundle {
+                style: Style { margin: UiRect::all(Val::Px(4.0)), ..default() },
+                background_color: Color::srgb(0.2, 0.2, 0.3).into(),
+                ..default()
+            }).with_children(|btn| {
+                btn.spawn(TextBundle::from_section(label, TextStyle { font_size: 14.0, ..default() }));
+            }).observe(move |_: Trigger<Pointer<Click>>, mut ev: EventWriter<SwitchLissajousKnotPreset>| {
+                ev.send(SwitchLissajousKnotPreset { preset });
+            });
         }
-    }
+    });
 }
