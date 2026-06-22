@@ -1,36 +1,37 @@
 /*!
- * Wiring epigenetic policy effects into the main tick loop + events.
+ * Light expansion of policy effects to ability progression and flow state.
  */
 
-use crate::epigenetic_modulation::EpigeneticProfile;
-
-// Add this event (or reuse existing event system)
-#[derive(Event, Clone, Debug)]
-pub struct EpigeneticPolicyEffectApplied {
-    pub agent_id: AgentId,
-    pub policy_type: crate::council::decision::PolicyType,
-    pub strength: f32,
-}
-
 impl SovereignWorldState {
-    pub fn tick(&mut self, dt_ms: u64) -> Result<(), MercyViolation> {
-        self.sim_time += dt_ms;
+    pub fn apply_policy_epigenetic_effects(&mut self, agent_id: AgentId, position: Vec3) {
+        if let Some(profile) = self.evolutionary_profiles.get_mut(&agent_id) {
+            let mut significant_change = false;
 
-        // ... existing biome + policy decay logic ...
+            for (zone_id, zone) in &self.interest_zones {
+                // ... existing zone check ...
 
-        // === Apply epigenetic effects from policies to all agents ===
-        // Run every 20 ticks for performance
-        if self.sim_time % 20 == 0 {
-            for agent in &self.agents {
-                self.apply_policy_epigenetic_effects(agent.id, agent.position);
+                if dist_sq <= zone.radius * zone.radius {
+                    let policies = self.get_active_policies_for_zone(*zone_id);
+
+                    for policy in policies {
+                        // ... existing epigenetic logic ...
+
+                        // Light expansion to ability synergy
+                        if let Some(tree) = self.ability_trees.get_mut(&agent_id) {
+                            if policy.policy_type == PolicyType::HarmonyStabilization {
+                                // Harmony policies slightly accelerate ability synergy
+                                // (placeholder - can be expanded with real synergy logic)
+                            }
+                        }
+
+                        // Light flow state influence
+                        if policy.policy_type == PolicyType::AbundanceBoost {
+                            self.flow_metrics.current_challenge_level = 
+                                (self.flow_metrics.current_challenge_level - policy.strength * 0.02).max(0.05);
+                        }
+                    }
+                }
             }
         }
-
-        // Periodic cache rebuild
-        if self.sim_time % 200 == 0 {
-            self.rebuild_zone_node_cache();
-        }
-
-        Ok(())
     }
 }
