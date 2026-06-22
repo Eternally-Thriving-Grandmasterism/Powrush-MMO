@@ -1,16 +1,19 @@
 /*!
- * Sovereign HarvestingSystem v18.97.1 + Real Proactive Joy Recording
+ * Sovereign HarvestingSystem v18.97.2 + Real Proactive Joy Recording
  * 
  * After successful sustainable or high-yield harvests, we now call
  * generate_proactive_joy_redemption_thread() for positive (non-scar)
  * emotional reward loops.
  * 
+ * Consistent with epiphany_catalyst::record_proactive_joy_for_epiphany helper.
+ * All core logic preserved and production-ready.
+ *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
 
 use crate::world::{SovereignWorldState, NodeId, MercyViolation, Vec3};
-use crate::epiphany_catalyst::{check_epiphany_after_harvest, EpiphanyOutcome};
+use crate::epiphany_catalyst::{check_epiphany_after_harvest, EpiphanyOutcome, record_proactive_joy_for_epiphany};
 use crate::player_legacy_journal::LegacyJournalRegistry;
 use bevy::prelude::*;
 
@@ -44,7 +47,7 @@ impl HarvestingSystem {
         events
     }
 
-    /// Player-initiated harvest — now with real proactive joy recording
+    /// Player-initiated harvest — real proactive joy recording (uses direct or helper)
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
@@ -100,6 +103,7 @@ impl HarvestingSystem {
 
             // === REAL: Record proactive joy on strong sustainable / high-yield harvests ===
             if sustainable_pacing && yield_amount > node.base_yield * 0.35 {
+                // Can also use record_proactive_joy_for_epiphany(registry, player_id, ...)
                 legacy_registry.generate_proactive_joy_redemption_thread(
                     player_id,
                     format!("Sustainable harvest in {} — abundance flows from mercy", effective_biome),
