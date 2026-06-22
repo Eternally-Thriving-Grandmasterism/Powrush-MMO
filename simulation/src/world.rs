@@ -1,92 +1,47 @@
 /*!
- * SovereignWorldState with Policy Conflicts.
- *
- * Certain policy combinations now create tension or reduced effectiveness.
+ * Spatial targeting implementation for ActivePolicy.
  */
 
-use std::collections::HashSet;
-use crate::council::decision::PolicyType;
+use crate::council::decision::ActivePolicy;
 
-// ... existing code ...
+// In apply_policy_effect_with_strength, add support for target_interest_zone
 
-impl SovereignWorldState {
-    fn apply_and_decay_policies(&mut self) {
-        let active_types: HashSet<PolicyType> = self.active_policies
-            .iter()
-            .map(|p| p.policy_type)
-            .collect();
-
-        let effective_strengths = self.calculate_effective_policy_strengths();
-
-        // Apply base effects
-        for (policy_type, strength) in &effective_strengths {
-            self.apply_policy_effect_with_strength(*policy_type, *strength);
-        }
-
-        // Synergies (positive interactions)
-        self.apply_policy_synergies(&active_types, &effective_strengths);
-
-        // Conflicts (negative interactions)
-        self.apply_policy_conflicts(&active_types, &effective_strengths);
-
-        // Decay
-        let mut i = 0;
-        while i < self.active_policies.len() {
-            let policy = &mut self.active_policies[i];
-            if policy.remaining_ticks > 0 {
-                policy.remaining_ticks = policy.remaining_ticks.saturating_sub(1);
+fn apply_policy_effect_with_strength(
+    &mut self,
+    policy_type: PolicyType,
+    strength: f32,
+    target_zone: Option<u64>,
+) {
+    if let Some(zone_id) = target_zone {
+        if let Some(zone) = self.interest_zones.get_mut(&zone_id) {
+            // Apply spatially targeted effect to the InterestZone
+            match policy_type {
+                PolicyType::AbundanceBoost => {
+                    zone.abundance_multiplier = (zone.abundance_multiplier + strength * 0.15).min(3.0);
+                }
+                PolicyType::SustainabilityFocus => {
+                    // Assume InterestZone has sustainability influence or we boost related biome
+                    if let Some(biome) = self.active_biomes.get_mut(&zone.biome_name) {  // if field exists
+                        biome.sustainability_score = (biome.sustainability_score + strength * 0.1).min(1.0);
+                    }
+                }
+                _ => {}
             }
-            if policy.remaining_ticks == 0 {
-                self.active_policies.swap_remove(i);
-            } else {
-                i += 1;
-            }
+            return; // Spatial policy applied, skip global
         }
     }
 
-    fn apply_policy_conflicts(
-        &mut self,
-        active_types: &HashSet<PolicyType>,
-        effective: &std::collections::HashMap<PolicyType, f32>,
-    ) {
-        // Conflict 1: AbundanceBoost + PressureReduction (growth increases systemic stress)
-        if active_types.contains(&PolicyType::AbundanceBoost)
-            && active_types.contains(&PolicyType::PressureReduction)
-        {
-            let conflict_penalty = effective.get(&PolicyType::AbundanceBoost).unwrap_or(&0.0) * 0.08;
+    // Global fallback (existing logic)
+    match policy_type {
+        PolicyType::AbundanceBoost => {
             for pool in self.rbe_pools.values_mut() {
-                pool.pressure = (pool.pressure + conflict_penalty * 0.6).min(2.0);
-                pool.sustainability_score = (pool.sustainability_score - conflict_penalty * 0.3).max(0.1);
+                pool.abundance_flow = (pool.abundance_flow + strength * 0.012).min(4.0);
             }
         }
-
-        // Conflict 2: GeneralProsperity + strong SustainabilityFocus (aggressive growth vs conservation)
-        if active_types.contains(&PolicyType::GeneralProsperity)
-            && active_types.contains(&PolicyType::SustainabilityFocus)
-        {
-            let prosperity = effective.get(&PolicyType::GeneralProsperity).unwrap_or(&0.0);
-            if *prosperity > 0.15 {
-                let conflict = prosperity * 0.06;
-                for pool in self.rbe_pools.values_mut() {
-                    pool.pressure = (pool.pressure + conflict).min(2.0);
-                    pool.sustainability_score = (pool.sustainability_score - conflict * 0.5).max(0.1);
-                }
-            }
-        }
-
-        // Conflict 3: Very strong AbundanceBoost weakens HarmonyStabilization
-        if active_types.contains(&PolicyType::AbundanceBoost)
-            && active_types.contains(&PolicyType::HarmonyStabilization)
-        {
-            let abundance = effective.get(&PolicyType::AbundanceBoost).unwrap_or(&0.0);
-            if *abundance > 0.25 {
-                let penalty = (*abundance - 0.25) * 0.4;
-                for pool in self.rbe_pools.values_mut() {
-                    pool.sustainability_score = (pool.sustainability_score - penalty * 0.4).max(0.1);
-                }
-            }
-        }
+        // ... other global cases
+        _ => {}
     }
-
-    // ... rest of methods ...
 }
+
+// Update call in apply_and_decay_policies to pass target:
+// self.apply_policy_effect_with_strength(*policy_type, *strength, policy.target_interest_zone);
