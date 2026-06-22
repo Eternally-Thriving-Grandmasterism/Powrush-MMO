@@ -1,5 +1,5 @@
 /*!
- * Figure-8 (Lissajous) particle paths using advanced tangent techniques.
+ * Exploring different Lissajous frequency ratios in Hanabi.
  */
 
 pub fn setup_policy_particle_effects(
@@ -8,26 +8,26 @@ pub fn setup_policy_particle_effects(
 ) {
     // ... other effects unchanged ...
 
-    // === HarmonyStabilization - Figure-8 Lissajous orbiting ===
+    // === HarmonyStabilization - 3:2 Lissajous frequency ratio ===
+    // Classic beautiful multi-looped figure-8 variant
     let mut harmony = EffectAsset::new(420, Spawner::once(65.0.into(), true), Module::default());
 
     harmony
         .init(PositionSphereModifier::new(0.9))
-        // Primary orbital motion (Y axis)
+        // Y-axis frequency (higher)
         .init(InitVelocityTangentModifier::new(
             Vec3::Y,
-            2.0,
-            0.25,
+            2.4,               // Frequency ~3
+            0.2,
         ))
-        // Secondary perpendicular motion to create figure-8 crossing
+        // X-axis frequency (lower)
         .init(InitVelocityTangentModifier::new(
-            Vec3::X,           // Perpendicular axis
-            1.3,
-            0.6,
+            Vec3::X,
+            1.6,               // Frequency ~2
+            0.5,
         ))
-        // Gentle upward drift
         .init(AccelerationModifier::new(Vec3::new(0.0, 0.7, 0.0)))
-        .init(TurbulenceModifier::new(0.35, 0.2))
+        .init(TurbulenceModifier::new(0.3, 0.2))
         .init(SizeOverLifetimeModifier::new(Gradient::linear(0.6, 0.12)))
         .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
             Gradient::linear(
@@ -38,3 +38,11 @@ pub fn setup_policy_particle_effects(
 
     particle_effects.harmony = effects.add(harmony);
 }
+
+// === Frequency Ratio Guide ===
+// 1:1  → Circle / Ellipse
+// 2:1  → Classic Figure-8 (parabola)
+// 3:1  → More loops
+// 3:2  → Beautiful complex figure-8 (current)
+// 4:3  → Intricate multi-loop patterns
+// 5:2  → Very complex Lissajous curves
