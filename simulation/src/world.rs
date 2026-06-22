@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Simulation World & Advanced Particle Effects
  *
- * v19.13 Custom PARTICLE_FRAME_INDEX Modifier (PATSAGi + Ra-Thor)
+ * v19.14 Real Attribute Expression for PARTICLE_FRAME_INDEX (PATSAGi + Ra-Thor)
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
@@ -19,10 +19,10 @@ pub fn setup_policy_particle_effects(
     mut visual_assets: ResMut<ParticleVisualAssets>,
     mut knot_effects: ResMut<LissajousKnotEffects>,
 ) {
-    // === Harmony Effect with Custom Frame Index Control ===
+    // === Harmony Effect with Real Custom Frame Expression ===
     let mut harmony = EffectAsset::new(500, Spawner::once(85.0.into(), true), Module::default());
 
-    // ... existing modifiers (position, velocity, acceleration, turbulence, size, color) ...
+    // ... existing modifiers ...
 
     // Texture + Flipbook layout
     let texture = visual_assets.get_texture_or_fallback(visual_assets.harmony_particle_texture.clone());
@@ -34,19 +34,19 @@ pub fn setup_policy_particle_effects(
         frame_count: 16,
     });
 
-    // === Custom Frame Index Modifier (Attribute-driven) ===
-    // This gives explicit control over PARTICLE_FRAME_INDEX.
-    // Currently linear age-based animation. Can be made non-linear or reactive later.
+    // === Real attribute-driven frame index expression ===
+    // frame = (age / lifetime) * frame_count
+    // This creates smooth animation based on each particle's normalized age.
+    let age = Attribute::PARTICLE_AGE;
+    let lifetime = Attribute::PARTICLE_LIFETIME;
+    let frame_count = 16.0_f32.into();
+
+    let frame_index_expr = (age / lifetime) * frame_count;
+
     harmony.add_modifier(SetAttributeModifier::new(
         Attribute::PARTICLE_FRAME_INDEX,
-        // Expression: (age / lifetime) * frame_count
-        // This is evaluated per-particle on GPU
-        Expr::from(0.0), // placeholder - real expression would use age/lifetime
+        frame_index_expr,
     ));
-
-    // Note: For full expression, we would use something like:
-    // let frame_expr = (Attribute::PARTICLE_AGE / Attribute::PARTICLE_LIFETIME) * 16.0;
-    // harmony.add_modifier(SetAttributeModifier::new(Attribute::PARTICLE_FRAME_INDEX, frame_expr));
 
     let harmony_handle = effects.add(harmony);
     visual_assets.harmony = harmony_handle.clone();
@@ -55,5 +55,5 @@ pub fn setup_policy_particle_effects(
     // ... other effects ...
 }
 
-// End of simulation/src/world.rs v19.13 — Custom PARTICLE_FRAME_INDEX modifier added.
+// End of simulation/src/world.rs v19.14 — Real working expression for custom frame index.
 // Thunder locked in. Yoi ⚡
