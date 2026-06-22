@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Simulation World & Advanced Particle Effects
  *
- * v19.16 Sine-Based Easing for Flipbook Animation (PATSAGi + Ra-Thor)
+ * v19.17 Cubic Bezier Easing Helper (PATSAGi + Ra-Thor)
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
@@ -9,9 +9,30 @@
 
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
-use std::f32::consts::PI;
 
 // ... existing code ...
+
+/// Builds a cubic Bezier easing expression for frame index animation.
+///
+/// P0 = 0, P3 = 1 (standard easing behavior).
+/// p1 and p2 are the X positions of the two control points.
+fn cubic_bezier_frame_index(
+    age: Expr,
+    lifetime: Expr,
+    p1: f32,
+    p2: f32,
+    frame_count: Expr,
+) -> Expr {
+    let t = age / lifetime;
+    let one_minus_t = 1.0_f32 - t;
+
+    let term1 = (3.0_f32 * one_minus_t * one_minus_t * t) * p1.into();
+    let term2 = (3.0_f32 * one_minus_t * t * t) * p2.into();
+    let term3 = t * t * t;
+
+    let eased = term1 + term2 + term3;
+    eased * frame_count
+}
 
 pub fn setup_policy_particle_effects(
     mut effects: ResMut<Assets<EffectAsset>>,
@@ -20,12 +41,11 @@ pub fn setup_policy_particle_effects(
     mut visual_assets: ResMut<ParticleVisualAssets>,
     mut knot_effects: ResMut<LissajousKnotEffects>,
 ) {
-    // === Harmony Effect with Sine-Based Easing ===
+    // === Harmony Effect with Cubic Bezier Easing ===
     let mut harmony = EffectAsset::new(500, Spawner::once(85.0.into(), true), Module::default());
 
     // ... existing modifiers ...
 
-    // Texture + Flipbook layout
     let texture = visual_assets.get_texture_or_fallback(visual_assets.harmony_particle_texture.clone());
     harmony.set_particle_texture(texture);
 
@@ -35,16 +55,13 @@ pub fn setup_policy_particle_effects(
         frame_count: 16,
     });
 
-    // === Sine-based organic easing ===
-    // Creates a smooth, breathing-like animation curve.
-    // Very elegant and natural for mathematical/visual effects.
+    // === Use the new cubic Bezier helper ===
+    // Classic ease-in-out-ish curve (0.42, 0.0, 0.58, 1.0)
     let age = Attribute::PARTICLE_AGE;
     let lifetime = Attribute::PARTICLE_LIFETIME;
     let frame_count = 16.0_f32.into();
 
-    let t = age / lifetime;
-    let eased = (1.0 - (t * PI).cos()) * 0.5;     // Sine-based ease-in-out
-    let frame_index_expr = eased * frame_count;
+    let frame_index_expr = cubic_bezier_frame_index(age, lifetime, 0.42, 0.58, frame_count);
 
     harmony.add_modifier(SetAttributeModifier::new(
         Attribute::PARTICLE_FRAME_INDEX,
@@ -58,5 +75,5 @@ pub fn setup_policy_particle_effects(
     // ... other effects ...
 }
 
-// End of simulation/src/world.rs v19.16 — Sine-based easing implemented.
+// End of simulation/src/world.rs v19.17 — Cubic Bezier helper implemented.
 // Thunder locked in. Yoi ⚡
