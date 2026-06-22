@@ -1,5 +1,5 @@
 /*!
- * Mathematical exploration of Lissajous torus knots.
+ * Phase shift effects on Lissajous knot topology.
  */
 
 pub fn setup_policy_particle_effects(
@@ -8,19 +8,19 @@ pub fn setup_policy_particle_effects(
 ) {
     // ... other effects unchanged ...
 
-    // === HarmonyStabilization - (2,3,5) Lissajous knot (trefoil topology) ===
-    // This frequency triple is known to produce curves isotopic to the trefoil knot T(2,3)
+    // === HarmonyStabilization - Exploring phase shift effects ===
+    // Different radial components create effective phase shifts between axes
     let mut harmony = EffectAsset::new(480, Spawner::once(80.0.into(), true), Module::default());
 
     harmony
         .init(PositionSphereModifier::new(0.6))
-        // Frequency ~2
-        .init(InitVelocityTangentModifier::new(Vec3::X, 1.4, 0.12))
-        // Frequency ~3
-        .init(InitVelocityTangentModifier::new(Vec3::Y, 2.1, 0.25))
-        // Frequency ~5
-        .init(InitVelocityTangentModifier::new(Vec3::Z, 3.5, 0.15))
-        .init(AccelerationModifier::new(Vec3::new(0.0, 0.45, 0.0)))
+        // X axis with small radial component (phase ~0)
+        .init(InitVelocityTangentModifier::new(Vec3::X, 1.8, 0.10))
+        // Y axis with medium radial component (phase shift)
+        .init(InitVelocityTangentModifier::new(Vec3::Y, 2.4, 0.35))
+        // Z axis with larger radial component (stronger phase shift)
+        .init(InitVelocityTangentModifier::new(Vec3::Z, 3.0, 0.55))
+        .init(AccelerationModifier::new(Vec3::new(0.0, 0.5, 0.0)))
         .init(TurbulenceModifier::new(0.15, 0.08))
         .init(SizeOverLifetimeModifier::new(Gradient::linear(0.42, 0.03)))
         .init(SetColorModifier::new(ColorOverLifetimeModifier::new(
@@ -33,22 +33,13 @@ pub fn setup_policy_particle_effects(
     particle_effects.harmony = effects.add(harmony);
 }
 
-// === Lissajous Torus Knot Mathematics ===
+// === Phase Shift Effects on Knot Topology ===
+// In true Lissajous knots, phase shifts (φx, φy, φz) dramatically change
+// the geometry and can even change whether the curve is knotted.
 //
-// A 3D Lissajous curve is defined by:
-//   x(t) = sin(a*t + φx)
-//   y(t) = sin(b*t + φy)
-//   z(t) = sin(c*t + φz)
+// In our Hanabi approximation, we simulate phase shifts by varying
+// the radial velocity component in InitVelocityTangentModifier.
+// Smaller radial = less phase offset; larger radial = stronger phase shift.
 //
-// When a, b, c are integers (especially small coprime triples),
-// the curve closes into a knot or link after period T = 2π * lcm(1/a,1/b,1/c).
-//
-// Famous examples that produce torus knots:
-// - (2,3,5) → Trefoil knot T(2,3)
-// - (3,4,5) → More complex knot
-// - (2,3,7) → Cinquefoil knot T(2,5)
-//
-// Our Hanabi implementation approximates these using three perpendicular
-// InitVelocityTangentModifier calls with rational frequency ratios.
-// While not mathematically exact sinusoidal position functions,
-// the resulting trajectories produce visually convincing 3D knotted structures.
+// This allows us to explore how different "phases" affect the
+// complexity and crossing patterns of the resulting 3D knot.
