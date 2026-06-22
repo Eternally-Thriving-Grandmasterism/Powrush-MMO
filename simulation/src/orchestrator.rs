@@ -1,5 +1,5 @@
 /*!
- * SovereignSimulationOrchestrator with dynamic mercy threshold exposed in TickResult.
+ * SovereignSimulationOrchestrator with live TOLC 8 dynamic weights exposed in TickResult.
  */
 
 use crate::world::SovereignWorldState;
@@ -44,7 +44,12 @@ pub struct TickResult {
     pub synergy_events: Vec<SynergyEffectEvent>,
     pub resolved_council_proposals: Vec<CouncilProposal>,
     pub applied_council_decisions: Vec<CouncilDecision>,
-    pub dynamic_mercy_threshold: Option<f32>,   // NEW: exposed from CouncilSession
+    pub dynamic_mercy_threshold: Option<f32>,
+
+    // === TOLC 8 Live Dynamic Weights (exposed for observability) ===
+    pub last_base_weight: Option<f32>,
+    pub last_archetype_weight: Option<f32>,
+    pub last_delta_weight: Option<f32>,
 }
 
 pub struct SovereignSimulationOrchestrator {
@@ -141,7 +146,7 @@ impl SovereignSimulationOrchestrator {
         let emergence_events = vec![];
         let harvest_events = vec![];
 
-        // Council deliberation (now returns dynamic threshold via session)
+        // Council deliberation
         let resolved_council_proposals: Vec<CouncilProposal> = if self.tick_count % 10 == 0 {
             if self.council_session.active_proposals.is_empty() {
                 let _proposal_id = self.council_session.submit_proposal(
@@ -201,7 +206,30 @@ impl SovereignSimulationOrchestrator {
             }
         }
 
+        // Apply council effects (this now computes the final TOLC 8 dynamic weights internally)
+        // For observability we compute the live weights here as well
         let dynamic_threshold = self.council_session.last_dynamic_threshold();
+
+        // Compute current live TOLC 8 weights based on current world state
+        let avg_sustainability: f32 = if !self.world.rbe_pools.is_empty() {
+            self.world.rbe_pools.values().map(|p| p.sustainability_score).sum::<f32>() / self.world.rbe_pools.len() as f32
+        } else { 0.7 };
+
+        let avg_abundance: f32 = if !self.world.rbe_pools.is_empty() {
+            self.world.rbe_pools.values().map(|p| p.abundance_flow).sum::<f32>() / self.world.rbe_pools.len() as f32
+        } else { 1.8 };
+
+        let mercy_health = 0.72_f32; // Using the deliberation mercy factor as proxy
+        let system_stability = (avg_sustainability * 0.6 + avg_abundance * 0.4).clamp(0.4, 1.0);
+
+        let base_w     = (0.45 + (1.0 - mercy_health) * 0.15).clamp(0.40, 0.65);
+        let archetype_w = (0.25 + (mercy_health - 0.5) * 0.10).clamp(0.15, 0.35);
+        let delta_w     = (0.30 + (system_stability - 0.6) * 0.12).clamp(0.20, 0.40);
+
+        let total = base_w + archetype_w + delta_w;
+        let last_base_weight = Some(base_w / total);
+        let last_archetype_weight = Some(archetype_w / total);
+        let last_delta_weight = Some(delta_w / total);
 
         let mut tick_result = TickResult {
             emergence_events,
@@ -217,6 +245,9 @@ impl SovereignSimulationOrchestrator {
             resolved_council_proposals,
             applied_council_decisions,
             dynamic_mercy_threshold: dynamic_threshold,
+            last_base_weight,
+            last_archetype_weight,
+            last_delta_weight,
             ..Default::default()
         };
 
@@ -259,7 +290,7 @@ impl SovereignSimulationOrchestrator {
     }
 
     pub fn demo_evolutionary_tick_attached(&mut self, num_ticks: u32) -> String {
-        // ... unchanged ...
+        // ... unchanged for minimal diff ...
         let mut log = String::from("\n=== Powrush Evolutionary Demo (Attached to Real WorldState) ===\n");
         log.push_str(&format!("Running {} ticks on a real Agent entity with full evolutionary state...\n\n", num_ticks));
 
