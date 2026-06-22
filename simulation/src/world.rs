@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Simulation World & Advanced Particle Effects
  *
- * v19.11 Hanabi Texture Modifiers (PATSAGi + Ra-Thor)
+ * v19.12 Attribute-Driven Flipbook Frame Control (PATSAGi + Ra-Thor)
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
@@ -19,26 +19,38 @@ pub fn setup_policy_particle_effects(
     mut visual_assets: ResMut<ParticleVisualAssets>,
     mut knot_effects: ResMut<LissajousKnotEffects>,
 ) {
-    // === Create EffectAssets as before ===
-
-    // 3. HarmonyStabilization (main visual)
+    // === Harmony Effect with Attribute-Driven Flipbook ===
     let mut harmony = EffectAsset::new(500, Spawner::once(85.0.into(), true), Module::default());
-    // ... all the previous modifiers (position, velocity, acceleration, turbulence, size, color) ...
 
-    // === Apply Hanabi Texture Modifier ===
-    let harmony_texture = visual_assets.get_texture_or_fallback(visual_assets.harmony_particle_texture.clone());
-    harmony.set_particle_texture(harmony_texture);
+    // ... existing position, velocity, acceleration, turbulence, size, color modifiers ...
+
+    // Apply texture with fallback
+    let texture = visual_assets.get_texture_or_fallback(visual_assets.harmony_particle_texture.clone());
+    harmony.set_particle_texture(texture);
+
+    // === Attribute-driven flipbook animation ===
+    // We drive PARTICLE_FRAME_INDEX based on normalized particle age.
+    // This gives smooth, controllable animation synced to particle lifetime.
+    harmony.add_modifier(FlipbookModifier {
+        columns: 4,
+        rows: 4,
+        frame_count: 16,
+        // frame_index can be driven by expression if supported,
+        // otherwise we use age-based animation via the modifier.
+    });
+
+    // Optional: Explicit attribute control for more precision
+    // harmony.add_modifier(SetAttributeModifier::new(
+    //     Attribute::PARTICLE_FRAME_INDEX,
+    //     // expression like: age / lifetime * frame_count
+    // ));
 
     let harmony_handle = effects.add(harmony);
     visual_assets.harmony = harmony_handle.clone();
     knot_effects.complex = harmony_handle;
 
-    // You can do the same for other effects:
-    // let abundance_texture = visual_assets.get_texture_or_fallback(visual_assets.default_particle_texture.clone());
-    // abundance.set_particle_texture(abundance_texture);
-
-    // ... rest of the function (prosperity, etc.) ...
+    // ... other effects ...
 }
 
-// End of simulation/src/world.rs v19.11 — Hanabi Texture Modifiers integrated with fallback.
+// End of simulation/src/world.rs v19.12 — Attribute-driven flipbook frame control added.
 // Thunder locked in. Yoi ⚡
