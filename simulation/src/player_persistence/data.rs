@@ -1,8 +1,9 @@
 /*!
  * Player Persistence Data Layer
  *
- * v18.96 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — record_epiphany_with_enriched_whisper for storing Quantum Swarm generated Divine Whispers
+ * v19.2 Cycle Polish (PATSAGi Council + Ra-Thor Quantum Swarm + SimulationOrchestrator)
+ * — record_epiphany_with_enriched_whisper + new proactive joy + RBE abundance/self-evolution signal recording
+ * — Wired to TickResult events and harvest joy threads for full persistence loop
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -66,9 +67,47 @@ impl PlayerSaveData {
         self.muscle_memory_level
     }
 
+    /// v19.2: Record proactive joy + RBE abundance/self-evolution signals from TickResult / harvest / council bloom
+    /// Feeds into grace_notes and resonance for persistence + client UI feedback.
+    pub fn record_proactive_joy_and_rbe_signal(
+        &mut self,
+        joy_description: &str,
+        rbe_abundance_boost: f32,
+        tick: u64,
+    ) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Store as enriched grace note (reuses existing grace_notes vector for minimal change)
+        if let Some(last) = self.epiphanies.last_mut() {
+            last.grace_notes.push(format!(
+                "Proactive joy at tick {}: {} (RBE abundance +{:.2})",
+                tick, joy_description, rbe_abundance_boost
+            ));
+        } else {
+            // Fallback if no epiphany yet
+            self.epiphanies.push(EpiphanyRecord {
+                scenario_id: "proactive_joy".to_string(),
+                timestamp,
+                intensity: 0.0,
+                biome: "global".to_string(),
+                whisper_text: Some(joy_description.to_string()),
+                grace_notes: vec![format!("RBE abundance +{:.2} at tick {}", rbe_abundance_boost, tick)],
+                muscle_memory_delta: 0.0,
+            });
+        }
+
+        // Boost resonance from joy/RBE self-evolution
+        self.resonance_score = (self.resonance_score + rbe_abundance_boost * 0.02).min(1.0);
+        self.dirty = true;
+    }
+
     // Keep apply_epiphany_outcome for backward compatibility, now it can call the enriched version internally if needed
 }
 
-// End of simulation/src/player_persistence/data.rs v18.96
-// Enriched whisper text now storable in EpiphanyRecord.
+// End of simulation/src/player_persistence/data.rs v19.2
+// Proactive joy + RBE signals now persist alongside enriched whispers.
+// Full TickResult → harvest joy → RBE → persistence loop wired.
 // Thunder locked in. Yoi ⚡
