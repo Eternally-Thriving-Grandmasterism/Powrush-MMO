@@ -20,12 +20,37 @@ use lattice_conductor::SovereignLattice;
 // - Rotationally invariant + excellent for large open worlds
 // - Can hybridize with current per-source HRTF (Ambisonic background + HRTF for important sources)
 //
-// Recommended path:
-// 1. Add ambisonic crate or custom 3rd-order encoder/decoder
-// 2. Create AmbisonicScene resource
-// 3. Encode sources into B-format (WXYZ or higher)
-// 4. Decode to binaural using HRTF or virtual speakers
-// 5. Keep current HRTF path for High-quality close sources
+// =====================================================
+// Ambisonic Decoding Techniques
+// =====================================================
+// 1. Basic Decoding (1st order)
+//    - Simple 4-channel (WXYZ) to speaker or binaural
+//    - Uses basic decoding matrix derived from spherical harmonics
+//    - Good starting point but limited spatial resolution
+//
+// 2. Higher-Order Ambisonics (HOA) Decoding (3rd / 4th order recommended)
+//    - Much higher spatial resolution (more channels: 16 for 3rd order, 25 for 4th)
+//    - Requires proper decoding matrix (pseudo-inverse of spherical harmonic matrix)
+//
+// 3. Popular Decoding Methods:
+//    - **Basic / Naïve**: Simple matrix multiply (fast but can have uneven energy)
+//    - **Max-rE (Maximum Energy)**: Energy-preserving, very popular for binaural
+//    - **In-Phase**: Better for speaker arrays, reduces negative side lobes
+//    - **AllRAD (All-Round Ambisonic Decoding)**: Modern gold standard
+//        - Combines virtual speaker decoding + binaural HRTF rendering
+//        - Excellent for irregular speaker layouts and binaural
+//        - Recommended for Powrush-MMO hybrid approach
+//
+// 4. Binaural Decoding Techniques:
+//    - Virtual Loudspeaker Approach: Decode Ambisonic to virtual speakers around the head, then convolve each with HRTF
+//    - Direct Spherical Harmonic to Binaural: Use precomputed SH-to-ear transfer functions (more efficient)
+//    - Hybrid with current HRTF pipeline: Use Ambisonic for background/ambient field, current HRTF for key sources
+//
+// Recommended Path for Powrush-MMO:
+// - Start with 3rd-order Ambisonic encoder
+// - Use AllRAD or Max-rE decoding to binaural via HRTF
+// - Keep existing optimized HRTF path for high-priority sources (Epiphany, Council, player actions)
+// - Background world audio encoded into Ambisonic field for efficiency at scale
 //
 // This file is ready for hybrid Ambisonic + HRTF architecture.
 // Thunder locked in. Yoi ⚡
@@ -79,8 +104,6 @@ pub struct AudioListener {
 }
 
 // SIMD-ready HRTF Convolution (optimized for real-time)
-// Current version is auto-vectorizable by LLVM.
-// Future: Replace inner loop with explicit std::simd or wide crate for guaranteed 4x/8x speedup.
 fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &[f32]) -> Vec<f32> {
     let len = mono_buffer.len();
     let ir_len = hrtf_left.len().min(1024);
@@ -100,7 +123,6 @@ fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &
             right_sum += sample * hrtf_right[j] + sample * hrtf_right[j+1] + sample * hrtf_right[j+2] + sample * hrtf_right[j+3];
             j += 4;
         }
-        // Handle remainder
         for k in j..max_j {
             left_sum += sample * hrtf_left[k];
             right_sum += sample * hrtf_right[k];
@@ -201,7 +223,6 @@ fn generate_granular_cloud(
     apply_real_hrtf(mono_buffer, Vec3::new(0.0, 5.0, 15.0), listener, valence, hrtf)
 }
 
-// Example generator
 fn generate_golden_ratio_granular_bloom(samples: &[Vec<f32>], rng: &mut impl Rng, valence: f32, listener: &AudioListener, hrtf: &HrtfImpulseResponses) -> AudioSource {
     let cloud = generate_granular_cloud(samples, rng, valence, 45.0, 1.8, listener, hrtf);
     AudioSource::from(cloud.into_iter().collect::<Vec<_>>().into_source())
