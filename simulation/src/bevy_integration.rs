@@ -2,6 +2,7 @@
  * Bevy Integration for Ra-Thor Bridge + Legacy Journal + Council Governance
  *
  * Now includes CouncilEventBus as a proper Bevy Resource.
+ * GPU Economic Async Readback setup added (v18.97.5).
  */
 
 use bevy::prelude::*;
@@ -11,6 +12,7 @@ use crate::ra_thor_bridge::{RaThorBridge, RealRaThorClient, RaThorError};
 use crate::emergence::{EmergenceSeed, CouncilGuidance};
 use crate::player_legacy_journal::LegacyJournalRegistry;
 use crate::council::{CouncilPlugin, CouncilEventBus};
+use crate::orchestrator::setup_gpu_economic_async_readback;
 
 #[derive(Resource)]
 pub struct RaThorResource {
@@ -59,6 +61,9 @@ impl Plugin for RaThorPlugin {
             .init_resource::<CouncilEventBus>()   // Bevy Resource adapter for Council events
             .add_plugins(CouncilPlugin);
 
-        info!("RaThorPlugin initialized with CouncilEventBus and CouncilPlugin");
+        // Wire production async GPU economic readback (resource + apply system)
+        setup_gpu_economic_async_readback(app);
+
+        info!("RaThorPlugin initialized with CouncilEventBus, CouncilPlugin, and GPU Economic Async Readback");
     }
 }

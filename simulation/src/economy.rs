@@ -1,10 +1,10 @@
 /*!
- * Hybrid CPU + GPU Economic / RBE Layer (v18.97.3)
+ * Hybrid CPU + GPU Economic / RBE Layer (v18.97.5)
  * 
  * Now with apply_harvest_event + apply_emergence_event from TickResult.
  * Emergence events meaningfully affect RBE, abundance, and resonance.
- * GPU path elevated to async non-blocking dispatch (dispatch_gpu_economic_compute_async + GpuEconomicReadback).
- * Apply system (apply_gpu_economic_results) to be wired into Bevy schedule.
+ * GPU path elevated to async non-blocking dispatch.
+ * setup_gpu_economic_async_readback called from RaThorPlugin.
  * 
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -42,17 +42,18 @@ impl EconomicLayer {
         } else {
             #[cfg(feature = "gpu")]
             {
-                // Production path: non-blocking async dispatch.
-                // Full wiring requires GpuEconomicReadback resource in Bevy world and
-                // apply_gpu_economic_results system added to simulation schedule.
-                // For now falls back to legacy sync version for compatibility.
+                // Production async path is now wired (see setup_gpu_economic_async_readback).
+                // The apply system runs automatically in Update schedule.
+                // For full non-blocking dispatch from here, pass &mut GpuEconomicReadback
+                // or move dispatch logic into a dedicated Bevy system that has ResMut<GpuEconomicReadback>.
+                // Currently using legacy sync version for compatibility during transition.
                 if let Err(e) = dispatch_gpu_economic_update(world) {
                     warn!("GPU dispatch failed ({}). Falling back to CPU precision path for this tick.", e);
                     self.cpu_economic_update(world)?;
                 }
 
-                // Future: Replace above with:
-                // if let Err(e) = dispatch_gpu_economic_compute_async(world, &mut gpu_readback, current_frame) {
+                // Example of desired future call (requires resource access):
+                // if let Err(e) = dispatch_gpu_economic_compute_async(world, gpu_readback, current_frame) {
                 //     warn!(...);
                 //     self.cpu_economic_update(world)?;
                 // }
@@ -137,7 +138,7 @@ impl EconomicLayer {
         }
 
         mercy_gate.post_economic_tick_validate(world)?;
-        Ok(())
+        Ok(());
     }
 
     /// Applies a DynamicEmergenceEvent from TickResult into the economic simulation.
@@ -178,6 +179,6 @@ impl EconomicLayer {
         }
 
         mercy_gate.post_economic_tick_validate(world)?;
-        Ok(())
+        Ok(());
     }
 }
