@@ -1,5 +1,5 @@
 /*!
- * Council Systems - Voting, Resolution, Valence & Mercy Resonance Tracking (v19.2.9)
+ * Council Systems - Voting, Resolution, Valence & Mercy Resonance (v19.2.9)
  */
 
 use bevy::prelude::*;
@@ -7,14 +7,12 @@ use crate::game_state::CouncilState;
 use crate::council_mercy_trial::CouncilSessionManager;
 use crate::world::SovereignWorldState;
 
-/// Event: A player casts a vote in council
 #[derive(Event, Clone, Debug)]
 pub struct CastVote {
     pub player_id: u64,
     pub vote_strength: f32,
 }
 
-/// Event: Council has finished resolving
 #[derive(Event, Clone, Debug)]
 pub struct CouncilResolved {
     pub final_attunement: f32,
@@ -23,13 +21,18 @@ pub struct CouncilResolved {
     pub valence_score: f32,
 }
 
-/// Tracks recent mercy resonance across council resolutions
+/// Tracks recent mercy resonance
 #[derive(Resource, Default)]
 pub struct RecentMercyResonance {
-    pub value: f32, // 0.0 - 1.0, higher = more recent positive/mercy-aligned outcomes
+    pub value: f32,
 }
 
-/// Calculates valence score with mercy resonance context
+/// Stores the last council valence score for UI display
+#[derive(Resource, Default)]
+pub struct LastCouncilValence {
+    pub value: f32,
+}
+
 pub fn calculate_valence_score(
     average_attunement: f32,
     participant_count: u8,
@@ -42,10 +45,9 @@ pub fn calculate_valence_score(
     let mercy_context = (recent_mercy_resonance - 0.5) * 0.25;
 
     let raw_valence = base_valence + participation_bonus + sustainability_bonus + mercy_context;
-    raw_valence.clamp(0.0, 1.0) * 0.92 + 0.08 // slight mercy-positive floor
+    raw_valence.clamp(0.0, 1.0) * 0.92 + 0.08
 }
 
-/// System that processes votes while in Voting state
 pub fn council_voting_system(
     mut events: EventReader<CastVote>,
     mut council_manager: ResMut<CouncilSessionManager>,
@@ -54,26 +56,26 @@ pub fn council_voting_system(
     if current_state.get() != &CouncilState::Voting {
         return;
     }
-
     for vote in events.read() {
         council_manager.add_participant_attunement(vote.vote_strength);
     }
 }
 
-/// Updates recent mercy resonance after each council resolution
+/// Updates resonance and stores last valence after resolution
 pub fn update_recent_mercy_resonance(
     mut events: EventReader<CouncilResolved>,
     mut resonance: ResMut<RecentMercyResonance>,
+    mut last_valence: ResMut<LastCouncilValence>,
 ) {
     for event in events.read() {
         let target = if event.success { 0.82 } else { 0.28 };
-        // Exponential moving average for smooth tracking
         resonance.value = resonance.value * 0.65 + target * 0.35;
         resonance.value = resonance.value.clamp(0.0, 1.0);
+
+        last_valence.value = event.valence_score;
     }
 }
 
-/// Computes real sustainability impact from world state
 fn compute_sustainability_impact(world: &SovereignWorldState) -> f32 {
     if world.resource_nodes.is_empty() {
         return 0.0;
@@ -85,7 +87,6 @@ fn compute_sustainability_impact(world: &SovereignWorldState) -> f32 {
     (avg - 0.5) * 0.6
 }
 
-/// Resolves the council using real data + mercy resonance
 pub fn council_resolution_system(
     mut next_state: ResMut<NextState<CouncilState>>,
     mut council_manager: ResMut<CouncilSessionManager>,
@@ -96,25 +97,14 @@ pub fn council_resolution_system(
     let min_participants = 3;
     let biome = "council_chamber";
 
-    if let Some(bloom) = council_manager.resolve_and_set_bloom_from_real_data(
-        0,
-        min_participants,
-        biome,
-    ) {
+    if let Some(bloom) = council_manager.resolve_and_set_bloom_from_real_data(0, min_participants, biome) {
         let attunement = bloom.collective_attunement_score;
         let mut success = bloom.council_mercy_seal;
         let mut was_tie = false;
 
         let sustainability_impact = compute_sustainability_impact(&world);
+        let valence = calculate_valence_score(attunement, bloom.participant_count, sustainability_impact, resonance.value);
 
-        let valence = calculate_valence_score(
-            attunement,
-            bloom.participant_count,
-            sustainability_impact,
-            resonance.value,
-        );
-
-        // Tie-breaking influenced by valence and resonance
         let epsilon = 0.02;
         if (attunement - 0.5).abs() < epsilon {
             was_tie = true;
@@ -130,10 +120,8 @@ pub fn council_resolution_system(
             valence_score: valence,
         });
 
-        info!(
-            "Council resolved. Success: {}, Attunement: {:.2}, Valence: {:.2}, Resonance: {:.2}, Tie: {}",
-            success, attunement, valence, resonance.value, was_tie
-        );
+        info!("Council resolved. Success: {}, Attunement: {:.2}, Valence: {:.2}, Resonance: {:.2}, Tie: {}",
+              success, attunement, valence, resonance.value, was_tie);
 
         next_state.set(CouncilState::Inactive);
     }
@@ -145,6 +133,7 @@ impl Plugin for CouncilSystemsPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<RecentMercyResonance>()
+            .init_resource::<LastCouncilValence>()
             .add_event::<CastVote>()
             .add_event::<CouncilResolved>()
             .add_systems(Update, (
