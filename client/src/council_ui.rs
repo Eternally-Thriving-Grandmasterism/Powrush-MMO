@@ -1,11 +1,11 @@
 /*!
- * Council UI - State Driven + Resonance/Valence Display (v19.2.9)
+ * Council UI - State Driven + Resonance/Valence + Visual Feedback (v19.2.9)
  */
 
 use bevy::prelude::*;
 use simulation::game_state::GameState;
 use simulation::council_mercy_trial::{CouncilAttunementAction, CouncilUIHooksPlugin};
-use simulation::council_systems::RecentMercyResonance;
+use simulation::council_systems::{RecentMercyResonance, LastCouncilValence};
 
 #[derive(Component)]
 pub struct CouncilPanel;
@@ -36,6 +36,7 @@ impl Plugin for CouncilUIPlugin {
                     handle_council_buttons,
                     handle_council_toggle_input,
                     update_resonance_display,
+                    update_panel_visuals,
                 )
                 .run_if(in_state(GameState::InCouncil)),
             );
@@ -67,91 +68,24 @@ fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
         ))
         .with_children(|parent| {
             parent.spawn(TextBundle {
-                text: Text::from_section(
-                    "COUNCIL OF MERCY",
-                    TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                        font_size: 18.0,
-                        color: Color::srgb(0.85, 0.75, 1.0),
-                    },
-                ),
-                style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() },
-                ..default()
+                text: Text::from_section("COUNCIL OF MERCY", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 18.0, color: Color::srgb(0.85, 0.75, 1.0) }), style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() }, ..default()
             });
 
-            // Mercy Resonance Display
-            parent.spawn((TextBundle {
-                text: Text::from_section(
-                    "Mercy Resonance: 0.50",
-                    TextStyle { font_size: 13.0, color: Color::srgb(0.7, 0.9, 0.7) },
-                    ..default()
-                ),
-                style: Style { margin: UiRect::bottom(Val::Px(4.0)), ..default() },
-                ..default()
-            }, MercyResonanceText));
-
-            // Last Valence Display
-            parent.spawn((TextBundle {
-                text: Text::from_section(
-                    "Last Valence: --",
-                    TextStyle { font_size: 13.0, color: Color::srgb(0.9, 0.85, 0.6) },
-                    ..default()
-                ),
-                style: Style { margin: UiRect::bottom(Val::Px(10.0)), ..default() },
-                ..default()
-            }, LastValenceText));
+            parent.spawn((TextBundle { text: Text::from_section("Mercy Resonance: 0.50", TextStyle { font_size: 13.0, color: Color::srgb(0.7, 0.9, 0.7) }), style: Style { margin: UiRect::bottom(Val::Px(4.0)), ..default() }, ..default() }, MercyResonanceText));
+            parent.spawn((TextBundle { text: Text::from_section("Last Valence: --", TextStyle { font_size: 13.0, color: Color::srgb(0.9, 0.85, 0.6) }), style: Style { margin: UiRect::bottom(Val::Px(10.0)), ..default() }, ..default() }, LastValenceText));
 
             create_attunement_button(parent, &asset_server, "Focus Deeply", 0.25);
             create_attunement_button(parent, &asset_server, "Vote with Conviction", 0.45);
             create_attunement_button(parent, &asset_server, "Meditate in Harmony", 0.35);
             create_attunement_button(parent, &asset_server, "Offer Grace", 0.55);
 
-            parent.spawn(TextBundle {
-                text: Text::from_section(
-                    "F2 to leave  •  Your attunement shapes the RBE",
-                    TextStyle { font_size: 11.0, color: Color::srgb(0.7, 0.65, 0.85) },
-                    ..default()
-                ),
-                style: Style { margin: UiRect::top(Val::Px(12.0)), ..default() },
-                ..default()
-            });
+            parent.spawn(TextBundle { text: Text::from_section("F2 to leave  •  Your attunement shapes the RBE", TextStyle { font_size: 11.0, color: Color::srgb(0.7, 0.65, 0.85) }), style: Style { margin: UiRect::top(Val::Px(12.0)), ..default() }, ..default() });
         });
 }
 
-fn create_attunement_button(
-    parent: &mut ChildBuilder,
-    asset_server: &Res<AssetServer>,
-    label: &str,
-    delta: f32,
-) {
-    parent
-        .spawn((
-            ButtonBundle {
-                style: Style {
-                    width: Val::Percent(100.0),
-                    padding: UiRect::all(Val::Px(8.0)),
-                    margin: UiRect::bottom(Val::Px(6.0)),
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                background_color: Color::srgb(0.25, 0.2, 0.35).into(),
-                ..default()
-            },
-            CouncilAttunementButton { attunement_delta: delta },
-        ))
-        .with_children(|btn| {
-            btn.spawn(TextBundle {
-                text: Text::from_section(
-                    label,
-                    TextStyle {
-                        font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                        font_size: 14.0,
-                        color: Color::WHITE,
-                    },
-                ),
-                ..default()
-            });
-        });
+fn create_attunement_button(parent: &mut ChildBuilder, asset_server: &Res<AssetServer>, label: &str, delta: f32) {
+    parent.spawn((ButtonBundle { style: Style { width: Val::Percent(100.0), padding: UiRect::all(Val::Px(8.0)), margin: UiRect::bottom(Val::Px(6.0)), justify_content: JustifyContent::Center, ..default() }, background_color: Color::srgb(0.25, 0.2, 0.35).into(), ..default() }, CouncilAttunementButton { attunement_delta: delta }))
+        .with_children(|btn| { btn.spawn(TextBundle { text: Text::from_section(label, TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 14.0, color: Color::WHITE }), ..default() }); });
 }
 
 fn handle_council_buttons(
@@ -161,10 +95,7 @@ fn handle_council_buttons(
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
-            events.send(CouncilAttunementAction {
-                player_id: local_player.id,
-                attunement_delta: button.attunement_delta,
-            });
+            events.send(CouncilAttunementAction { player_id: local_player.id, attunement_delta: button.attunement_delta });
         }
     }
 }
@@ -179,22 +110,28 @@ fn handle_council_toggle_input(
     }
 }
 
-/// Updates resonance and valence displays in the Council UI
 fn update_resonance_display(
     resonance: Res<RecentMercyResonance>,
+    last_valence: Res<LastCouncilValence>,
     mut resonance_text: Query<&mut Text, With<MercyResonanceText>>,
     mut valence_text: Query<&mut Text, With<LastValenceText>>,
 ) {
     for mut text in resonance_text.iter_mut() {
         text.sections[0].value = format!("Mercy Resonance: {:.2}", resonance.value);
     }
-
-    // Note: Last valence is updated via events or could be stored in a resource
     for mut text in valence_text.iter_mut() {
-        // Placeholder until we store last valence
-        if text.sections[0].value == "Last Valence: --" {
-            text.sections[0].value = format!("Last Valence: {:.2}", resonance.value * 0.9 + 0.1);
-        }
+        text.sections[0].value = format!("Last Valence: {:.2}", last_valence.value);
+    }
+}
+
+/// Simple visual feedback: border color intensity based on resonance
+fn update_panel_visuals(
+    resonance: Res<RecentMercyResonance>,
+    mut panel_query: Query<&mut BorderColor, With<CouncilPanel>>,
+) {
+    let intensity = 0.4 + resonance.value * 0.6;
+    for mut border in panel_query.iter_mut() {
+        *border = Color::srgb(0.5 * intensity, 0.4 * intensity, 0.9 * intensity).into();
     }
 }
 
