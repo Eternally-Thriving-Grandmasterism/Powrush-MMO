@@ -1,17 +1,11 @@
 /*!
- * Hybrid CPU + GPU Economic / RBE Layer (v18.97.5 + v19.2.9 Sustainability Depth)
+ * Hybrid CPU + GPU Economic / RBE Layer (v18.97.5 + v19.2.9 Sustainability + Council Policy Integration)
  * 
- * Now with apply_harvest_event + apply_emergence_event from TickResult.
- * Emergence events meaningfully affect RBE, abundance, and resonance.
- * GPU path elevated to async non-blocking dispatch.
- * setup_gpu_economic_async_readback called from RaThorPlugin.
- *
- * v19.2.9: Added substantial RBE Sustainability Depth layer:
- * - Time-based pressure accumulation
- * - Sustainability decay on depleted/stressed nodes and pools
- * - Over-harvest and negative abundance consequences
- * - Clear extension points for synergy/policy influence from ability_tree / TickResult
- * - Foundation for long-term RBE consequences and player-driven sustainability
+ * RBE Council Policy Integration implemented:
+ * - Council attunement and bloom outcomes now directly influence RBE pools, nodes, abundance, pressure, and sustainability.
+ * - High mercy/attunement = economic blessing (abundance boost, pressure relief, sustainability gain).
+ * - Low attunement or failed council = economic friction (pressure increase, reduced abundance/regeneration).
+ * - Designed to be called from orchestrator TickResult or council resolution systems.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -102,59 +96,93 @@ impl EconomicLayer {
             pool.pressure = (pool.pressure * 0.9).max(0.0);
         }
 
-        // v19.2.9: Apply new RBE sustainability depth layer
         self.apply_rbe_sustainability_tick(world);
 
         Ok(())
     }
 
     /// v19.2.9: Core RBE Sustainability Depth system.
-    /// Applies time-based pressure accumulation, sustainability decay, and long-term consequences.
-    /// This makes RBE feel alive and consequential.
-    /// Designed to later accept synergy/policy influence from ability_tree / TickResult.
     pub fn apply_rbe_sustainability_tick(&self, world: &mut SovereignWorldState) {
         for node in world.resource_nodes.values_mut() {
-            // Pressure builds slowly when depleted or stressed
             if node.depletion > 0.4 || node.stress_level > 0.5 {
                 node.pressure = (node.pressure + 0.015).min(5.0);
             } else if node.depletion < 0.15 && node.stress_level < 0.3 {
-                // Natural recovery when healthy
                 node.pressure = (node.pressure - 0.008).max(0.0);
             }
 
-            // Sustainability decay over time under pressure
             if node.pressure > 1.5 {
                 let decay = 0.002 * (node.pressure - 1.0);
                 node.sustainability_score = (node.sustainability_score - decay).max(0.1);
             }
 
-            // Long-term consequence: high pressure reduces regen and increases restriction risk
             if node.pressure > 3.0 {
                 node.regen_rate = (node.regen_rate * 0.985).max(0.3);
                 if node.pressure > 4.0 && node.harvest_restricted_until_ms == 0 {
-                    // Future: trigger council or emergence event instead of hard restriction
                     node.harvest_restricted_until_ms = world.sim_time + 60_000;
                 }
             }
         }
 
         for pool in world.rbe_pools.values_mut() {
-            // Pool-level pressure accumulation from overall system stress
             if pool.pressure > 2.0 || pool.sustainability_score < 0.4 {
                 pool.pressure = (pool.pressure + 0.01).min(8.0);
             } else {
                 pool.pressure = (pool.pressure - 0.005).max(0.0);
             }
 
-            // Sustainability decay on pools under sustained pressure
             if pool.pressure > 3.5 {
                 let decay = 0.0015 * (pool.pressure - 2.0);
                 pool.sustainability_score = (pool.sustainability_score - decay).max(0.15);
             }
 
-            // High pressure reduces abundance flow capacity (economic "friction")
             if pool.pressure > 4.5 {
                 pool.abundance_flow = (pool.abundance_flow * 0.97).max(-1.0);
+            }
+        }
+    }
+
+    /// RBE Council Policy Integration (v19.2.9)
+    /// Applies real economic consequences from Council Mercy Trial outcomes.
+    /// High collective attunement and successful blooms = RBE blessing.
+    /// Low attunement or failed seals = economic friction and pressure.
+    /// Call this from orchestrator TickResult or council resolution when a council session ends.
+    pub fn apply_council_policy_impact(
+        &mut self,
+        collective_attunement: f32,
+        bloom_success: bool,
+        participant_count: u8,
+        world: &mut SovereignWorldState,
+    ) {
+        let mercy_factor = collective_attunement.clamp(0.0, 1.0);
+        let is_strong_council = bloom_success && mercy_factor > 0.65 && participant_count >= 3;
+
+        for pool in world.rbe_pools.values_mut() {
+            if is_strong_council {
+                // Council blessing: abundance flows more freely, pressure relieved, sustainability improved
+                pool.abundance_flow = (pool.abundance_flow + mercy_factor * 0.8).min(4.0);
+                pool.sustainability_score = (pool.sustainability_score + mercy_factor * 0.06).min(1.0);
+                pool.pressure = (pool.pressure - mercy_factor * 1.2).max(0.0);
+            } else if mercy_factor < 0.4 {
+                // Weak or failed council: economic friction increases
+                pool.pressure = (pool.pressure + (1.0 - mercy_factor) * 0.9).min(8.0);
+                pool.abundance_flow = (pool.abundance_flow - (1.0 - mercy_factor) * 0.35).max(-2.0);
+                pool.sustainability_score = (pool.sustainability_score - 0.015).max(0.1);
+            } else {
+                // Moderate council: mild positive effect
+                pool.abundance_flow = (pool.abundance_flow + mercy_factor * 0.25).min(3.0);
+                pool.pressure = (pool.pressure - mercy_factor * 0.4).max(0.0);
+            }
+        }
+
+        for node in world.resource_nodes.values_mut() {
+            if is_strong_council {
+                node.abundance_flow = (node.abundance_flow + mercy_factor * 0.6).min(3.5);
+                node.sustainability_score = (node.sustainability_score + mercy_factor * 0.05).min(1.0);
+                node.pressure = (node.pressure - mercy_factor * 0.8).max(0.0);
+                node.regen_rate = (node.regen_rate * (1.0 + mercy_factor * 0.3)).min(4.0);
+            } else if mercy_factor < 0.4 {
+                node.pressure = (node.pressure + (1.0 - mercy_factor) * 0.7).min(5.0);
+                node.abundance_flow = (node.abundance_flow - (1.0 - mercy_factor) * 0.25).max(-1.5);
             }
         }
     }
@@ -172,12 +200,10 @@ impl EconomicLayer {
             if event.sustainable {
                 node.sustainability_score = (node.sustainability_score + 0.08).min(1.0);
                 node.abundance_flow = (node.abundance_flow + 0.05).min(2.5);
-                // Sustainable harvest slightly reduces pressure
                 node.pressure = (node.pressure - 0.3).max(0.0);
             } else {
                 node.stress_level = (node.stress_level + 0.15).min(1.0);
                 node.abundance_flow = (node.abundance_flow - 0.08).max(-1.5);
-                // Unsustainable harvest increases pressure
                 node.pressure = (node.pressure + 0.6).min(5.0);
             }
 
@@ -196,7 +222,6 @@ impl EconomicLayer {
     }
 
     /// Applies a DynamicEmergenceEvent from TickResult into the economic simulation.
-    /// Emergence effects (resource deltas, resonance, abundance) are applied here.
     pub fn apply_emergence_event(
         &mut self,
         event: &DynamicEmergenceEvent,
@@ -212,7 +237,7 @@ impl EconomicLayer {
                         if *is_abundance {
                             pool.abundance_flow = (pool.abundance_flow + amount * 0.5).min(3.5);
                             pool.sustainability_score = (pool.sustainability_score + 0.03).min(1.0);
-                            pool.pressure = (pool.pressure - 0.2).max(0.0); // emergence can relieve pressure
+                            pool.pressure = (pool.pressure - 0.2).max(0.0);
                         } else {
                             pool.pressure = (pool.pressure + amount * 0.3).min(2.0);
                         }
