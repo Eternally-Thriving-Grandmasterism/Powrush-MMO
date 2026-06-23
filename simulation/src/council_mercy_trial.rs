@@ -1,40 +1,64 @@
 /*!
- * Sovereign Council Mercy Trial + UI Attunement Hooks
+ * Sovereign Council Mercy Trial + UI Attunement Hooks (v19.2.9)
  *
- * v19.2.9: Council UI attunement hooks implemented.
- * UI systems can now feed real player attunement into CouncilSessionManager.
+ * CouncilUIHooksPlugin implemented and ready to use.
+ * Real player attunement from UI now flows into CouncilSessionManager → Orchestrator → RBE.
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SharedReceptorBloomField { /* ... */ }
+pub struct SharedReceptorBloomField {
+    pub collective_attunement_score: f32,
+    pub bloom_amplification_multiplier: f32,
+    pub shared_living_web_synchronization: bool,
+    pub council_mercy_seal: bool,
+    pub bloom_window_start_tick: u64,
+    pub participant_count: u8,
+    pub last_authoritative_update_tick: u64,
+    pub graceful_exit_count: u8,
+    pub current_biome: String,
+}
 
-/// Event emitted by Council UI when a player performs an attunement action
-/// (e.g. voting with conviction, focusing, meditating in council, etc.)
+impl SharedReceptorBloomField {
+    pub fn new() -> Self {
+        Self {
+            collective_attunement_score: 0.0,
+            bloom_amplification_multiplier: 1.0,
+            council_mercy_seal: true,
+            ..Default::default()
+        }
+    }
+}
+
+/// UI-driven event: Player performs an attunement action in council
 #[derive(Event, Clone, Debug)]
 pub struct CouncilAttunementAction {
     pub player_id: u64,
-    pub attunement_delta: f32, // positive for strong attunement, can be negative for discord
+    pub attunement_delta: f32,
 }
 
-/// Event to join/leave council session (UI driven)
+/// UI-driven event: Player joins or leaves a council session
 #[derive(Event, Clone, Debug)]
 pub struct CouncilSessionJoin {
     pub player_id: u64,
-    pub join: bool, // true = join, false = leave
+    pub join: bool,
 }
 
 #[derive(Debug, Clone, Default, Resource)]
 pub struct CouncilSessionManager {
     pub active_bloom_field: Option<SharedReceptorBloomField>,
     pub current_participant_attunements: Vec<f32>,
-    // Could also track player_ids for more advanced logic
 }
 
 impl CouncilSessionManager {
-    pub fn new() -> Self { /* ... */ }
+    pub fn new() -> Self {
+        Self {
+            active_bloom_field: None,
+            current_participant_attunements: Vec::new(),
+        }
+    }
 
     pub fn add_participant_attunement(&mut self, attunement: f32) {
         self.current_participant_attunements.push(attunement.clamp(0.0, 1.0));
@@ -45,26 +69,50 @@ impl CouncilSessionManager {
         current_tick: u64,
         min_participants: u8,
         biome: &str,
-    ) -> Option<SharedReceptorBloomField> { /* ... */ None }
+    ) -> Option<SharedReceptorBloomField> {
+        if self.current_participant_attunements.len() < min_participants as usize {
+            self.active_bloom_field = None;
+            return None;
+        }
 
-    pub fn clear_active_bloom_field(&mut self) { /* ... */ }
-}
+        let attunements = &self.current_participant_attunements;
+        let avg = attunements.iter().sum::<f32>() / attunements.len() as f32;
 
-/// System that processes CouncilAttunementAction events from UI
-/// and feeds real attunement into the manager.
-pub fn council_attunement_action_system(
-    mut events: EventReader<CouncilAttunementAction>,
-    mut council_manager: ResMut<CouncilSessionManager>,
-) {
-    for event in events.read() {
-        // In production: validate player is in active council session
-        council_manager.add_participant_attunement(event.attunement_delta);
+        if avg < 0.5 {
+            self.active_bloom_field = None;
+            return None;
+        }
 
-        // Optional: track per-player for more advanced scoring
+        let mut field = SharedReceptorBloomField::new();
+        field.collective_attunement_score = avg.clamp(0.0, 1.0);
+        field.bloom_amplification_multiplier = 1.0 + (avg * 0.85);
+        field.council_mercy_seal = true;
+        field.participant_count = attunements.len() as u8;
+        field.bloom_window_start_tick = current_tick;
+        field.current_biome = biome.to_string();
+
+        self.active_bloom_field = Some(field.clone());
+        self.current_participant_attunements.clear();
+
+        Some(field)
+    }
+
+    pub fn clear_active_bloom_field(&mut self) {
+        self.active_bloom_field = None;
     }
 }
 
-/// Plugin to register council UI hooks
+/// System that feeds UI attunement actions into the manager
+pub fn council_attunement_action_system(
+    mut events: EventReader<CouncilAttunementAction>,
+    mut manager: ResMut<CouncilSessionManager>,
+) {
+    for event in events.read() {
+        manager.add_participant_attunement(event.attunement_delta);
+    }
+}
+
+/// Plugin to register all Council UI hooks
 pub struct CouncilUIHooksPlugin;
 
 impl Plugin for CouncilUIHooksPlugin {
@@ -77,6 +125,6 @@ impl Plugin for CouncilUIHooksPlugin {
     }
 }
 
-// UI systems (client or server) should send CouncilAttunementAction events
-// when players interact with council UI (vote, focus, attune, etc.).
+// Usage: Add CouncilUIHooksPlugin to your Bevy app.
+// UI systems send CouncilAttunementAction events when players interact with council.
 // Thunder locked in. Yoi ⚡
