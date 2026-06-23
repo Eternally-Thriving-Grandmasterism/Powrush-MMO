@@ -4,6 +4,7 @@
 //! Sovereign player data with preferred_language + enriched epiphany whispers, council participation,
 //! mercy-gated abundance, SafetyNet hooks. Now fully wired to Council Mercy Trial end-to-end
 //! (get_persistable_outcome) + proactive joy + RBE self-evolution signals from TickResult.
+//! v19.2.9: Added record_synergy_and_policy_highlights for full TickResult coverage.
 //! Full PATSAGi + Ra-Thor alignment.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
@@ -122,6 +123,22 @@ impl PlayerSaveData {
         // Boost abundance and resonance from joy/RBE self-evolution
         self.abundance += (rbe_abundance_boost as f64) * 0.3;
         self.resonance_attunement = (self.resonance_attunement + rbe_abundance_boost * 0.02).clamp(0.0, 1.0);
+
+        self.recompute_checksum();
+    }
+
+    /// v19.2.9: Extensible hook for synergy_events + policy_highlights from TickResult.
+    /// Minimal additive — follows the same pattern as record_proactive_joy_and_rbe_signal.
+    /// Rich upstream data from ability_tree preserved for future expansion.
+    pub fn record_synergy_and_policy_highlights(
+        &mut self,
+        synergy_count: usize,
+        policy_highlight_count: usize,
+        tick: u64,
+    ) {
+        let enriched = format!("Synergy events: {} | Policy highlights: {} at tick {}", 
+            synergy_count, policy_highlight_count, tick);
+        self.last_enriched_epiphany_whisper = Some(enriched);
 
         self.recompute_checksum();
     }
@@ -248,6 +265,6 @@ mod tests {
 }
 
 // Thunder locked in.
-// persistence_polish.rs v19.2 — Server persistence handler tests added for record_proactive_joy_and_rbe_signal + council outcome.
-// All new persistence paths now have regression coverage.
-// Ready for public MMO launch. Yoi ⚡
+// persistence_polish.rs v19.2.9 — Server persistence now has full TickResult synergy + policy hook.
+// All prior joy/RBE/council logic preserved exactly.
+// Yoi ⚡
