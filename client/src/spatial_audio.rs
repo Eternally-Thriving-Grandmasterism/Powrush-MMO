@@ -2,7 +2,7 @@
  * Spatial Audio + Game Audio Event System — Powrush-MMO
  *
  * v18.99 — Long-term Hybrid: Ambisonic + Selective HRTF
- * N: Routing logic for HighSalienceAudio sources
+ * O: Connected routing logic to real GameAudioEvent
  *
  * AG-SML v1.0
  */
@@ -10,31 +10,39 @@
 use bevy::prelude::*;
 
 use game::ambisonic::AmbisonicScene;
-use game::procedural_music::{HrtfImpulseResponses, apply_real_hrtf};
 
-// ... other imports ...
+// ... imports ...
 
-/// Routes audio based on HighSalienceAudio marker.
-/// High-salience sources (Epiphany, Council, important actions) use HRTF.
-/// Everything else goes to the efficient Ambisonic background.
-fn route_audio(
-    commands: Commands,
+fn handle_game_audio_events(
+    mut game_events: EventReader<GameAudioEvent>,
     mut ambisonic: ResMut<AmbisonicScene>,
     spatial_manager: Res<SpatialAudioManager>,
-    // In real use we would query for entities with audio + HighSalienceAudio
+    // We can later query entities for HighSalienceAudio component
 ) {
-    // Example routing logic (to be expanded with real event/entity data):
-    //
-    // if entity has HighSalienceAudio {
-    //     // Use high-quality HRTF path (3D3A)
-    //     spatial_manager.play_spatial_with_hrtf(...);
-    // } else {
-    //     // Use efficient Ambisonic background
-    //     ambisonic.emit(position, signal, gain);
-    // }
-}
+    for event in game_events.read() {
+        match event {
+            GameAudioEvent::Epiphany { position, intensity } => {
+                // Epiphany is high-salience → HRTF path (when 3D3A ready)
+                // For now, emit to Ambisonic as example
+                ambisonic.emit(*position, *intensity, 1.0);
 
-// This function will be expanded as we connect real GameAudioEvents
-// and entity queries to the routing decision.
+                // Future:
+                // if high_salience {
+                //     spatial_manager.play_spatial_with_hrtf(...)
+                // }
+            }
+            GameAudioEvent::CouncilTrial { position, intensity } => {
+                // Council events are high-salience
+                ambisonic.emit(*position, *intensity, 1.0);
+            }
+            GameAudioEvent::RbeFlow { position, abundance } => {
+                // RBE flows can be ambient (Ambisonic) or high-salience depending on context
+                ambisonic.emit(*position, *abundance, 0.8);
+            }
+            // Other events...
+            _ => {}
+        }
+    }
+}
 
 // ... rest of file ...
