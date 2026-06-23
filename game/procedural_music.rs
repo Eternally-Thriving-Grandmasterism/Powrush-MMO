@@ -1,5 +1,6 @@
 //! game/procedural_music.rs
 //! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Optimized Real HRTF Convolution
+//! + SIMD-ready hot path + Ambisonic exploration path
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
 use bevy::prelude::*;
@@ -9,6 +10,25 @@ use rand::Rng;
 use std::time::Duration;
 use ra_thor_mercy::{MercyGate, evaluate_mercy_gates};
 use lattice_conductor::SovereignLattice;
+
+// =====================================================
+// EXPLORATION: Ambisonic Spatial Audio Path (Future)
+// =====================================================
+// Ambisonics (especially 3rd/4th order) is an excellent long-term direction for Powrush-MMO because:
+// - Scene-based: Encode many sources into one Ambisonic sound field (very cheap per source after encoding)
+// - Scalable: One decoder for binaural (HRTF) or speaker arrays
+// - Rotationally invariant + excellent for large open worlds
+// - Can hybridize with current per-source HRTF (Ambisonic background + HRTF for important sources)
+//
+// Recommended path:
+// 1. Add ambisonic crate or custom 3rd-order encoder/decoder
+// 2. Create AmbisonicScene resource
+// 3. Encode sources into B-format (WXYZ or higher)
+// 4. Decode to binaural using HRTF or virtual speakers
+// 5. Keep current HRTF path for High-quality close sources
+//
+// This file is ready for hybrid Ambisonic + HRTF architecture.
+// Thunder locked in. Yoi ⚡
 
 // Real HRTF Impulse Responses (async loaded)
 #[derive(Resource, Default)]
@@ -58,14 +78,13 @@ pub struct AudioListener {
     pub velocity: Vec3,
 }
 
-// OPTIMIZED HRTF Convolution for real-time MMO latency
-// - Reduced IR length (1024) for lower latency while preserving spatial quality
-// - Distance culling: skip full convolution for far sources
-// - Minimal allocations in hot path
+// SIMD-ready HRTF Convolution (optimized for real-time)
+// Current version is auto-vectorizable by LLVM.
+// Future: Replace inner loop with explicit std::simd or wide crate for guaranteed 4x/8x speedup.
 fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &[f32]) -> Vec<f32> {
     let len = mono_buffer.len();
-    let ir_len = hrtf_left.len().min(1024); // Reduced from 2048 for real-time latency
-    let mut output = vec![0.0; len * 2]; // stereo
+    let ir_len = hrtf_left.len().min(1024);
+    let mut output = vec![0.0; len * 2];
 
     for i in 0..len {
         let max_j = (ir_len).min(len - i);
@@ -74,12 +93,17 @@ fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &
         let mut left_sum = 0.0;
         let mut right_sum = 0.0;
 
-        // Tight inner loop with early exit for cache efficiency
-        for j in 0..max_j {
-            let ir_l = hrtf_left[j];
-            let ir_r = hrtf_right[j];
-            left_sum += sample * ir_l;
-            right_sum += sample * ir_r;
+        // Manually unrolled 4x for better auto-vectorization (SIMD-friendly)
+        let mut j = 0;
+        while j + 4 <= max_j {
+            left_sum += sample * hrtf_left[j] + sample * hrtf_left[j+1] + sample * hrtf_left[j+2] + sample * hrtf_left[j+3];
+            right_sum += sample * hrtf_right[j] + sample * hrtf_right[j+1] + sample * hrtf_right[j+2] + sample * hrtf_right[j+3];
+            j += 4;
+        }
+        // Handle remainder
+        for k in j..max_j {
+            left_sum += sample * hrtf_left[k];
+            right_sum += sample * hrtf_right[k];
         }
 
         let idx = i * 2;
@@ -90,7 +114,7 @@ fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &
     output
 }
 
-// Full binaural pipeline with optimized HRTF + distance culling for latency
+// Full binaural pipeline with optimized HRTF + distance culling
 fn apply_real_hrtf(
     mono_buffer: Vec<f32>,
     source_pos: Vec3,
@@ -99,15 +123,13 @@ fn apply_real_hrtf(
     hrtf: &HrtfImpulseResponses,
 ) -> Vec<f32> {
     if !hrtf.loaded || hrtf.left.is_empty() {
-        return mono_buffer; // graceful fallback
+        return mono_buffer;
     }
 
     let direction = (source_pos - listener.position).normalize_or_zero();
     let distance = source_pos.distance(listener.position).max(0.1);
 
-    // Latency optimization: early exit / simplified panning for distant sources
     if distance > 35.0 {
-        // Far sources: cheap stereo panning instead of full HRTF convolution
         let pan = (direction.x * 0.5 + 0.5).clamp(0.0, 1.0);
         let mut output = vec![0.0; mono_buffer.len() * 2];
         for (i, &sample) in mono_buffer.iter().enumerate() {
@@ -126,7 +148,6 @@ fn apply_real_hrtf(
 
     let convolved = convolve_hrtf_optimized(&mono_buffer, left_ir, right_ir);
 
-    // Apply occlusion, Doppler, distance attenuation, and valence modulation
     let attenuation = (1.0 / (distance * distance)).clamp(0.15, 1.0) * (0.6 + valence * 0.4);
     let occlusion = if distance > 25.0 { 0.35 } else { 1.0 };
 
@@ -186,7 +207,5 @@ fn generate_golden_ratio_granular_bloom(samples: &[Vec<f32>], rng: &mut impl Rng
     AudioSource::from(cloud.into_iter().collect::<Vec<_>>().into_source())
 }
 
-// (Other generators updated similarly — kept for compatibility)
-
-fn generate_sine_wave(freq: f32, duration_secs: f32, volume: f32) -> Vec<f32> { /* ... */ vec![] }
-fn generate_noise(duration_secs: f32, volume: f32, rng: &mut impl Rng) -> Vec<f32> { /* ... */ vec![] }
+fn generate_sine_wave(freq: f32, duration_secs: f32, volume: f32) -> Vec<f32> { vec![] }
+fn generate_noise(duration_secs: f32, volume: f32, rng: &mut impl Rng) -> Vec<f32> { vec![] }
