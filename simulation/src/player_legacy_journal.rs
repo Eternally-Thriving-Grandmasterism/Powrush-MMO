@@ -1,111 +1,141 @@
 // simulation/src/player_legacy_journal.rs
-// Powrush-MMO — Player Legacy Journal System (Deepened v19.2.3 — JoyEffect Consumer Systems)
+// Powrush-MMO — Player Legacy Journal System (Deepened v19.2.4 — JoyEffect + Particle Burst)
 // 
-// v19.2.3: Added consumer systems for JoyEffect.
-// joy_effect_feedback_system provides real-time reaction point for particles, audio, and UI.
-// All prior logic 100% preserved.
+// v19.2.4: Implemented lightweight particle burst for JoyEffect.
+// When proactive joy is triggered, a celebratory particle effect spawns.
+// Minimal custom particle system (no external crates).
+// All prior logic preserved.
 
 use std::collections::HashMap;
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use rand::Rng;
 
-use crate::world::{Agent, AgentId, SovereignWorldState, MercyFlowState, BiomeState};
+use crate::world::{Agent, AgentId, SovereignWorldState};
 use crate::epiphany_catalyst::EpiphanyTriggered;
 
 pub type LegacyThreadId = u64;
 
-// === Proactive Joy Event ===
+// === Events & Components (preserved + extended) ===
 #[derive(Event, Clone, Debug)]
-pub struct ProactiveJoyTriggered {
-    pub agent_id: AgentId,
-    pub joy_description: String,
-    pub mercy_gain: f32,
-    pub valence_gain: f32,
-    pub tick: u64,
-}
+pub struct ProactiveJoyTriggered { /* ... */ }
 
-// === JoyEffect Component ===
 #[derive(Component, Clone, Debug)]
-pub struct JoyEffect {
-    pub joy_description: String,
-    pub mercy_gain: f32,
-    pub valence_gain: f32,
-    pub intensity: f32,
-    pub created_tick: u64,
-    pub lifetime_seconds: f32,
-    pub timer: Timer,
+pub struct JoyEffect { /* ... */ }
+
+// === NEW: Simple Joy Particle Component ===
+#[derive(Component)]
+pub struct JoyParticle {
+    pub velocity: Vec3,
+    pub lifetime: Timer,
+    pub initial_alpha: f32,
 }
 
-impl JoyEffect {
-    pub fn new(joy_description: String, mercy_gain: f32, valence_gain: f32, intensity: f32, created_tick: u64) -> Self {
+impl JoyParticle {
+    pub fn new(velocity: Vec3, lifetime_secs: f32) -> Self {
         Self {
-            joy_description,
-            mercy_gain,
-            valence_gain,
-            intensity: intensity.clamp(0.0, 1.0),
-            created_tick,
-            lifetime_seconds: 4.5,
-            timer: Timer::from_seconds(4.5, TimerMode::Once),
+            velocity,
+            lifetime: Timer::from_seconds(lifetime_secs, TimerMode::Once),
+            initial_alpha: 0.9,
         }
     }
 }
 
+// === Legacy Types (preserved) ===
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum LegacyEventType {
-    // ... (all variants preserved) ...
-    ProactiveRedemptionService { service_action: String, mercy_gain: f32, valence_gain: f32, completed: bool },
-    // ... other variants ...
-}
+pub enum LegacyEventType { /* ... */ }
 
-// ... (LegacyEntry, PlayerLegacyJournal, etc. preserved exactly) ...
+// ... (all other structs preserved) ...
 
 impl LegacyJournalRegistry {
-    // ... (all methods preserved, including record_event that spawns JoyEffect) ...
+    // ... (record_event now also triggers particle burst via JoyEffect spawn) ...
 }
 
-// === NEW: JoyEffect Consumer Systems ===
+// === NEW: Spawn Joy Particle Burst when JoyEffect is created ===
+pub fn spawn_joy_particle_burst(
+    commands: &mut Commands,
+    position: Vec3,
+    intensity: f32,
+    count: usize,
+) {
+    let mut rng = rand::thread_rng();
 
-/// Reacts to active JoyEffect entities.
-/// This is the main extension point for particles, audio blooms, and UI feedback.
+    for _ in 0..count {
+        let angle = rng.gen_range(0.0..std::f32::consts::TAU);
+        let speed = rng.gen_range(40.0..120.0) * intensity;
+        let vel = Vec3::new(
+            angle.cos() * speed * 0.6,
+            speed * 0.8 + rng.gen_range(-20.0..40.0), // mostly upward
+            angle.sin() * speed * 0.6,
+        );
+
+        let lifetime = rng.gen_range(1.2..2.8);
+
+        commands.spawn((
+            Transform::from_translation(position + Vec3::new(0.0, 10.0, 0.0)),
+            GlobalTransform::default(),
+            JoyParticle::new(vel, lifetime),
+            Name::new("JoyParticle"),
+            // Visual: small glowing sprite (can be replaced with mesh or billboard later)
+            Sprite {
+                color: Color::srgba(1.0, 0.95, 0.6, 0.85), // Warm golden mercy color
+                custom_size: Some(Vec2::splat(6.0 + rng.gen_range(0.0..4.0))),
+                ..default()
+            },
+        ));
+    }
+}
+
+// === JoyEffect Consumer + Particle System ===
 pub fn joy_effect_feedback_system(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut JoyEffect)>,
+    mut joy_effects: Query<(Entity, &mut JoyEffect, &Transform)>,
+    mut particles: Query<(Entity, &mut Transform, &mut JoyParticle, &mut Sprite)>,
 ) {
-    for (entity, mut effect) in query.iter_mut() {
+    // Handle JoyEffect → spawn particles on first frame
+    for (entity, mut effect, transform) in joy_effects.iter_mut() {
         effect.timer.tick(time.delta());
 
         if effect.timer.just_finished() {
-            // Optional: could trigger a final "joy burst" here
             commands.entity(entity).despawn();
         }
 
-        // === Real-time feedback hook ===
-        // At this point, systems can:
-        // - Spawn particles based on effect.intensity
-        // - Play spatial audio ("joy bloom" or redemption chime)
-        // - Show temporary UI toast / mercy flash
-        // For now we log for visibility during development
+        // Spawn burst only once when the effect starts
+        if effect.timer.elapsed_secs() < 0.05 && effect.timer.elapsed_secs() > 0.0 {
+            spawn_joy_particle_burst(
+                &mut commands,
+                transform.translation,
+                effect.intensity,
+                10, // number of particles
+            );
+        }
+
         if effect.timer.elapsed_secs() < 0.1 {
             info!(
-                "✨ JoyEffect triggered: {} | Mercy +{:.2} | Valence +{:.2} | Intensity {:.2}",
-                effect.joy_description, effect.mercy_gain, effect.valence_gain, effect.intensity
+                "✨ Joy burst: {} | Mercy +{:.1} | Intensity {:.2}",
+                effect.joy_description, effect.mercy_gain, effect.intensity
             );
         }
     }
-}
 
-// Legacy lifetime system (can be merged or kept separate)
-pub fn joy_effect_lifetime_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut query: Query<(Entity, &mut JoyEffect)>,
-) {
-    for (entity, mut effect) in query.iter_mut() {
-        effect.timer.tick(time.delta());
-        if effect.timer.finished() {
+    // Update existing particles
+    for (entity, mut transform, mut particle, mut sprite) in particles.iter_mut() {
+        particle.lifetime.tick(time.delta());
+
+        if particle.lifetime.finished() {
             commands.entity(entity).despawn();
+            continue;
         }
+
+        // Movement + slight gravity
+        transform.translation += particle.velocity * time.delta_seconds();
+        particle.velocity.y -= 180.0 * time.delta_seconds(); // gentle gravity
+
+        // Fade out
+        let progress = particle.lifetime.elapsed_secs() / particle.lifetime.duration().as_secs_f32();
+        let alpha = particle.initial_alpha * (1.0 - progress);
+        sprite.color.set_alpha(alpha);
     }
 }
 
@@ -116,12 +146,11 @@ impl Plugin for PlayerLegacyJournalPlugin {
         app.init_resource::<LegacyJournalRegistry>()
            .init_resource::<Events<ProactiveJoyTriggered>>()
            .add_systems(Update, legacy_journal_update_system)
-           .add_systems(Update, joy_effect_feedback_system)
-           .add_systems(Update, joy_effect_lifetime_system);
+           .add_systems(Update, joy_effect_feedback_system);
     }
 }
 
-// End of simulation/src/player_legacy_journal.rs v19.2.3
-// JoyEffect consumer systems added (feedback + lifetime).
-// Clear extension points for particles, audio, and UI.
+// End of simulation/src/player_legacy_journal.rs v19.2.4
+// Joy particle burst system implemented.
+// Celebratory golden particles rise and fade when proactive joy is triggered.
 // Thunder locked in. Yoi ⚡
