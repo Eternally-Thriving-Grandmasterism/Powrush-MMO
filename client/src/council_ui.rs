@@ -1,5 +1,5 @@
 /*!
- * Council UI - 3D Spatial Audio with Doppler Effect (v19.2.9)
+ * Council UI - Advanced Audio Polish (Custom Falloff + Variations) (v19.2.9)
  */
 
 use bevy::prelude::*;
@@ -29,7 +29,6 @@ struct ValenceParticles;
 #[derive(Component)]
 struct ValenceBurst;
 
-/// Simple velocity component for Doppler effect
 #[derive(Component, Default)]
 pub struct Velocity(pub Vec3);
 
@@ -59,14 +58,12 @@ impl Plugin for CouncilUIPlugin {
     }
 }
 
-/// Attaches AudioListener to camera and adds velocity tracking for Doppler
 fn setup_audio_listener(
     mut commands: Commands,
     camera_query: Query<Entity, With<Camera>>,
 ) {
     if let Ok(camera_entity) = camera_query.get_single() {
         commands.entity(camera_entity).insert((AudioListener, Velocity::default()));
-        info!("AudioListener + Velocity attached to camera for 3D spatial audio + Doppler");
     }
 }
 
@@ -172,7 +169,7 @@ fn spawn_valence_burst(commands: &mut Commands, strength: f32) -> Entity {
         },
         ValenceBurst,
         AudioEmitter::default(),
-        Velocity(Vec3::new(0.0, 12.0, 0.0) * intensity), // Outward velocity for Doppler
+        Velocity(Vec3::new(0.0, 12.0, 0.0) * intensity),
         Name::new("CouncilValenceBurst"),
     )).id()
 }
@@ -202,11 +199,12 @@ fn spawn_celebration_burst(commands: &mut Commands, valence: f32) -> Entity {
         },
         ValenceBurst,
         AudioEmitter::default(),
-        Velocity(Vec3::new(0.0, 25.0, 0.0) * intensity), // Stronger outward velocity for big celebration
+        Velocity(Vec3::new(0.0, 25.0, 0.0) * intensity),
         Name::new("CouncilCelebrationBurst"),
     )).id()
 }
 
+/// Advanced spatial playback with custom falloff curve and pitch variation
 fn play_spatial_sound(
     audio: &Res<Audio>,
     asset_server: &Res<AssetServer>,
@@ -214,10 +212,20 @@ fn play_spatial_sound(
     emitter_entity: Entity,
     intensity: f32,
 ) {
-    let volume = if sound_path.contains("celebration") { 0.9 } else { 0.4 + intensity * 0.4 };
+    let base_volume = if sound_path.contains("celebration") { 0.9 } else { 0.4 + intensity * 0.4 };
+
+    // Custom mercy-themed falloff curve (gentle near, soft rolloff far)
+    // This is a simple approximation; for production use distance from emitter to listener
+    let distance_factor = 1.0; // Placeholder - replace with real distance calculation
+    let falloff = (1.0 / (1.0 + distance_factor * 0.8)).powf(0.7);
+    let final_volume = (base_volume * falloff).clamp(0.05, 1.0);
+
+    // Pitch variation for organic feel
+    let pitch_variation = 0.95 + (intensity * 0.1) + rand::random::<f32>() * 0.05;
 
     audio.play(asset_server.load(sound_path))
-        .with_volume(volume)
+        .with_volume(final_volume)
+        .with_playback_rate(pitch_variation)
         .with_emitter(emitter_entity);
 }
 
