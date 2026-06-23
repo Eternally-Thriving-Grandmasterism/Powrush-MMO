@@ -21,45 +21,50 @@ use lattice_conductor::SovereignLattice;
 // - Reduced sense of externalization (sound feels "inside the head")
 // Individual differences in head/ear shape (pinna, head radius, ear canal) create unique spectral cues.
 //
-// Main Personalization Approaches:
+// =====================================================
+// Practical Anthropometric Measurement Techniques
+// =====================================================
+// Most important measurements for HRTF personalization (ranked by impact):
 //
-// 1. Anthropometric-based Selection / Morphing
-//    - Measure key dimensions (head width, pinna size/angle, ear canal length)
-//    - Select closest HRTF from a large database or morph existing HRTFs
-//    - Practical for games: can use simple webcam measurements or user input
-//    - Tools: SADIE II database, HUTUBS, etc.
+// 1. Head Width (Interaural Distance) - Critical for ITD (Interaural Time Difference)
+// 2. Pinna Height & Width - Major influence on spectral notches (elevation cues)
+// 3. Cavum Concha dimensions - Important for low-mid frequency cues
+// 4. Pinna Flare / Rotation Angle - Affects how sound enters the ear
+// 5. Head Depth & Height - Secondary but useful
+// 6. Ear Canal Length / Entrance (harder to measure)
 //
-// 2. Numerical Simulation from 3D Scans
-//    - Create 3D model of head + ears (photogrammetry or depth sensor)
-//    - Simulate sound propagation using Boundary Element Method (BEM) or Fast Multipole Method (FMM)
-//    - Highest accuracy but computationally heavy and requires good 3D scan
-//    - Currently mostly research / high-end VR labs
+// Game-Friendly Measurement Methods:
 //
-// 3. Machine Learning / Neural Prediction
-//    - Recent research (2023-2025): Predict personalized HRTF from ear photos, head measurements, or even single images
-//    - Promising for consumer applications
-//    - Can run inference client-side or on lightweight server
-//    - Still maturing but likely to become practical soon
+// A. Assisted Manual Measurement (Highest accuracy, moderate friction)
+//    - User uses a ruler, caliper, or printable template
+//    - Simple on-screen instructions + visual references
+//    - Best for dedicated players who want maximum quality
+//    - Can be done once and saved to profile
 //
-// 4. Perceptual Calibration / User Tuning
-//    - Simple in-game tests: "Point to where the sound is coming from"
-//    - Adjust parameters (ITD scaling, spectral notch frequencies, pinna simulation strength)
-//    - Low-tech but effective for reducing front-back confusion
-//    - Can be done with just stereo headphones
+// B. Webcam / Phone Camera Estimation (Good balance)
+//    - Take front + side photos following on-screen guides
+//    - Use simple computer vision or ML to estimate head width and pinna size
+//    - Increasingly feasible with modern phone cameras
+//    - Lower friction than manual measurement
 //
-// 5. Hybrid / Practical Game Approach (Recommended starting point for Powrush-MMO)
-//    - Default: High-quality generic HRTF (current mit_kemar path) with distance culling + SIMD-friendly convolution
-//    - Optional: Anthropometric quick profile (head width + simple ear questions)
-//    - Future: Add ML-based prediction or in-game calibration mini-game
-//    - Keep the current optimized HRTF pipeline as the foundation
+// C. AR-based Measurement (Future, low friction)
+//    - Use ARKit / ARCore face tracking to measure head and ear dimensions in real time
+//    - Very low friction once devices support it well
+//    - High potential for consumer games
 //
-// This investigation keeps the audio engine ready to adopt personalization when it becomes practical at scale.
+// D. ML from Selfie / Single Image (Emerging)
+//    - Research models can predict key anthropometrics from a single ear/head photo
+//    - Will become practical as models improve and run efficiently on-device
+//
+// Recommended Minimal Viable Set for Powrush-MMO:
+// - Start with optional Head Width + simple Pinna Size questions (text + visual guide)
+// - Offer a "Quick Profile" that takes < 2 minutes
+// - Store per-account so it applies across sessions
+// - Default to high-quality generic HRTF if user skips
+// - Future: Add webcam-assisted or AR measurement as nice-to-have
+//
+// This keeps personalization accessible while the core HRTF pipeline (with distance culling + SIMD) remains excellent for everyone.
 // Thunder locked in. Yoi ⚡
-
-// =====================================================
-// EXPLORATION: Ambisonic Spatial Audio Path (Future)
-// =====================================================
-// ... (previous Ambisonic section preserved)
 
 // Real HRTF Impulse Responses (async loaded)
 #[derive(Resource, Default)]
