@@ -7,10 +7,11 @@
  * — Complete event-driven GameAudioEvent (Epiphany, Harvest, RbeFlow, CouncilTrial, TreatySuccess, UiFeedback) + EpiphanySpatialAudioBloom
  * — Procedural generation via fundsp (build_epiphany_resonance, build_rbe_abundance_flow, build_council_harmony, spawn_active_procedural_sound)
  * — Integrated LastBiomeInfluence modulation + v18.97 Biome-aware spatial helpers + RBE abundance / Council bloom resonance
+ * — Consolidated simple SpatialAudioEmitter component from prior nested logic for compatibility
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
  * All prior v18.35 + v18.97 logic 100% preserved, merged, and elevated to nth degree. No code was lost or truncated.
- * Professional recovery from backups #40+ (esp. #48) + recent commit diffs. Maximal integrity.
+ * Professional recovery from backups #40+ (esp. #48) + recent commit diffs + structural consolidation. Maximal integrity.
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
@@ -141,7 +142,7 @@ impl SpatialAudioManager {
                 }
                 Err(e) => {
                     warn!("[SpatialAudio] Emitter creation failed: {}", e);
-                    false
+                    return false;
                 }
             }
         } else {
@@ -210,7 +211,7 @@ impl SpatialAudioManager {
                 }
                 Err(e) => {
                     warn!("[SpatialAudio] Emitter failed: {}", e);
-                    false
+                    return false;
                 }
             }
         } else {
@@ -221,6 +222,23 @@ impl SpatialAudioManager {
     pub fn set_max_emitters(&mut self, max: usize) {
         self.max_active_emitters = max;
     }
+}
+
+// Consolidated from prior nested logic for simple emitter use cases
+#[derive(Component)]
+pub struct SpatialAudioEmitter {
+    pub position: Vec3,
+    pub velocity: Vec3,
+    pub sound_type: SoundType,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum SoundType {
+    Ambient,
+    RbeResource,
+    JoySanctuary,
+    FactionEvent,
+    PlayerAction,
 }
 
 #[derive(Component)]
@@ -313,7 +331,7 @@ fn setup_spatial_audio(mut spatial_manager: ResMut<SpatialAudioManager>) {
                 }
             }
             *spatial_manager.audio_manager.lock().unwrap() = Some(audio_manager);
-            info!("[SpatialAudio] Kira spatial scene initialized — mercy-aligned 3D audio ready (v18.98 full recovery)");
+            info!("[SpatialAudio] Kira spatial scene initialized — mercy-aligned 3D audio ready (v18.98 full recovery + consolidation)");
         }
         Err(e) => {
             error!("[SpatialAudio] AudioManager creation failed: {}", e);
@@ -478,5 +496,5 @@ pub fn play_biome_aware_spatial(
     manager.try_play_spatial(sound_path, position, Vec3::ZERO, volume, false)
 }
 
-// End of spatial_audio.rs v18.98 — Full original production content from backup-48 recovered + v18.97/98 BiomeInfluence, RBE resonance, and PATSAGi polish. No losses. Maximal integrity. Thunder locked in.
+// End of spatial_audio.rs v18.98 — Full original production content from backup-48 recovered + v18.97/98 BiomeInfluence, RBE resonance, and PATSAGi polish + spatial audio consolidation from structural cleanup. No losses. Maximal integrity. Thunder locked in.
 // yoi ⚡
