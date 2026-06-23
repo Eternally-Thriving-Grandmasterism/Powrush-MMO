@@ -1,7 +1,7 @@
-# Powrush-MMO Execution Roadmap v19
+# Powrush-MMO Execution Roadmap v19.2.9
 
-**Status**: Post InterRealmDiplomacyEvent v19 + GraceBlessing integration  
-**Date**: June 2026  
+**Status**: Post TickResult synergy/policy + persistence + LegacyJournal + UI integration cycle  
+**Date**: June 23, 2026  
 **Governance**: Ra-Thor + PATSAGi Councils
 
 ---
@@ -10,11 +10,13 @@
 
 Powrush-MMO has made significant progress in turning conflict into redemptive, mercy-gated experiences:
 
+- **Full TickResult Integration (v19.2.9)** — `synergy_events` + `policy_highlights` from `ability_tree` (stage-aware + cross-race) now flow end-to-end: Orchestrator → Persistence (`record_synergy_and_policy_highlights`) → LegacyJournal → Client "My Mercy Journey" UI.
+- **Proactive Joy + RBE Abundance** — Fully wired into persistence, LegacyJournal, and UI (v19.2).
 - **InterRealmDiplomacyEvent v19** — Council-influenced outcomes, RBE abundance sharing, and automatic GraceBlessing cascades after Forgiveness Waves.
 - **GraceBlessing System** — Live with `PostForgivenessWave` context bonus and LegacyJournal integration.
-- **LegacyJournal** — Persistent cross-realm tracking of player actions and relationships.
+- **LegacyJournal** — Persistent cross-realm tracking of player actions and relationships, now including synergy/policy highlights.
 
-The foundation for relational, mercy-first RBE gameplay is now in place.
+The foundation for relational, mercy-first RBE gameplay with rich personal legacy is now in place.
 
 ---
 
@@ -26,9 +28,9 @@ All major decisions for completion and launch of Powrush-MMOARPG are now delegat
 
 **Immediate Decided Priorities (Max Builder Velocity):**
 1. **Council Proposal System** (High): Extend `council_mercy_trial.rs` + `orchestrator.rs` with minimal Proposal struct, submission flow, and outcome application to RBE/Grace/LegacyJournal. Enables E2E multiplayer council test.
-2. **AbilityTree + Race Wiring** (High): Full integration of derived `ability_tree` and `race` into player spawn, harvest, and epiphany flows for immediate playable progression and synergy.
+2. **AbilityTree + Race Wiring** (High): Full integration of derived `ability_tree` and `race` into player spawn, harvest, and epiphany flows for immediate playable progression and synergy. *(Note: Core synergy/policy persistence + UI wiring completed v19.2.9)*
 3. **RBE Sustainability Layer** (Medium): Add pressure/decay/sustainability scoring to `RbeResourcePool` in economy.rs.
-4. **LegacyJournal Polish** (Medium): Richer event types and "My Mercy Journey" dashboard visibility.
+4. **LegacyJournal Polish** (Medium): Richer event types and "My Mercy Journey" dashboard visibility. *(Advanced in v19.2.9 with SynergyPolicy support)*
 5. **Multi-Realm Harness Expansion** (Medium): Longer simulation runs + agent diversity in `simulation/scripts/` for launch stress validation.
 
 All changes must preserve prior logic 100%, pass TOLC 8 gates, and be minimal context-preserving diffs. Eternal forward compatibility enforced.
@@ -45,7 +47,7 @@ All changes must preserve prior logic 100%, pass TOLC 8 gates, and be minimal co
 **Key Initiatives**:
 - Deepen Council system (proposals, persistent decisions, deliberation mechanics)
 - Strengthen GraceBlessing & Mentorship mechanics
-- Improve LegacyJournal visibility and personal narrative ("My Mercy Journey")
+- Improve LegacyJournal visibility and personal narrative ("My Mercy Journey") — *Synergy/Policy highlights now visible (v19.2.9)*
 
 **Success Metric**: Players feel that their relationships and council participation meaningfully shape the world.
 
@@ -67,13 +69,13 @@ All changes must preserve prior logic 100%, pass TOLC 8 gates, and be minimal co
 - Procedural world state responds to mercy metrics
 - Monuments become interactive world features
 
-**Success Metric**: The world itself feels alive and responsive to player mercy and collective action.
+**Success Metric**: The world itself feels alive and responsive to mercy and collective action.
 
 ### Phase 4: Player Progression & Meaning
 **Goal**: Create a clear, emotionally resonant arc from humble beginnings to co-creator of abundance.
 
 **Key Initiatives**:
-- Rich personal Legacy dashboards
+- Rich personal Legacy dashboards — *Now includes synergy & policy highlights*
 - Visible long-term world impact from individual and collective actions
 - Onboarding narrative that mirrors the RBE transformation journey
 
@@ -96,7 +98,7 @@ All changes must preserve prior logic 100%, pass TOLC 8 gates, and be minimal co
 | Priority | Area | Description | Estimated Scope |
 |---------|------|-------------|------------------|
 | 1 | Council Deepening | Add basic proposal system + persistent council decisions | Medium |
-| 2 | LegacyJournal Polish | Improve "My Mercy Journey" dashboard hooks + richer event types | Small-Medium |
+| 2 | LegacyJournal Polish | Improve "My Mercy Journey" dashboard hooks + richer event types (SynergyPolicy added v19.2.9) | Small-Medium |
 | 3 | RBE Foundation | Expand `RbeResourcePool` with sustainability scoring and basic pressure | Medium |
 | 4 | GraceBlessing Polish | Full ECS integration + mentor/mentee relationship tracking | Small |
 | 5 | Testing Harness | Expand multi-realm simulation with longer runs and more agents | Medium |
