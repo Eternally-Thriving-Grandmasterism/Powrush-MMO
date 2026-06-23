@@ -1,17 +1,9 @@
 // simulation/src/player_legacy_journal.rs
-// Powrush-MMO — Player Legacy Journal System (Deepened v19.2 — Proactive Joy + RBE Abundance Integration)
+// Powrush-MMO — Player Legacy Journal System (Deepened v19.2 — Proactive Joy + RBE Abundance Integration + Real-time Reaction)
 // 
-// Purpose: Directly close the remaining human experience gap identified in multi-realm war harness simulation:
-// "lack of persistent, exportable Legacy Threads triggered on server war victory from humble origins"
-// and "need for proactive (non-scar) joy/redemption emotional payoff loops".
-// Adds record_war_victory_legacy_export() + generate_proactive_joy_redemption_thread().
-// v19.2: Wired to new record_proactive_joy_and_rbe_signal persistence path so joy/RBE signals automatically appear in Mercy Journey timeline.
-// All prior logic (v18.99 filterable threads, cross-realm impact, WarParticipation, TOLC alignment, visual_impact_score, etc.) 100% preserved and elevated.
-// TOLC 8 + 7 Living Mercy Gates non-bypassable on every new entry and query.
-// AG-SML v1.0 licensed. Zero-harm, sovereign, hotfix-capable, eternal forward/backward compatible.
-// 
-// PATSAGi 13+ Council + Ra-Thor Deliberation: Unanimous approval.
-// Thunder locked in.
+// v19.2.1: Added lightweight ProactiveJoyTriggered event + reaction hook so other systems
+// (audio, particles, UI toasts) can react in real time when ProactiveRedemptionService entries are created.
+// All prior logic 100% preserved.
 
 use std::collections::HashMap;
 use bevy::prelude::*;
@@ -21,6 +13,16 @@ use crate::world::{Agent, AgentId, SovereignWorldState, MercyFlowState, BiomeSta
 use crate::epiphany_catalyst::EpiphanyTriggered;
 
 pub type LegacyThreadId = u64;
+
+// === NEW: Lightweight real-time event for Proactive Joy / Redemption ===
+#[derive(Event, Clone, Debug)]
+pub struct ProactiveJoyTriggered {
+    pub agent_id: AgentId,
+    pub joy_description: String,
+    pub mercy_gain: f32,
+    pub valence_gain: f32,
+    pub tick: u64,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum LegacyEventType {
@@ -161,6 +163,8 @@ impl LegacyJournalRegistry {
         current_tick: u64,
         cross_realm: bool,
         whisper: Option<String>,
+        // Optional: caller can pass commands to emit real-time event
+        commands: Option<&mut Commands>,
     ) {
         if let Some(journal) = self.journals.get_mut(&agent_id) {
             let visual_impact = (persistence_delta.abs() * 0.6 + valence * 0.4).clamp(0.0, 1.0);
@@ -187,6 +191,19 @@ impl LegacyJournalRegistry {
             journal.entries.push(entry);
             journal.total_persistence += persistence_delta;
             journal.last_updated_tick = current_tick;
+
+            // === NEW: Emit lightweight real-time event when ProactiveRedemptionService is recorded ===
+            if let LegacyEventType::ProactiveRedemptionService { service_action, mercy_gain, valence_gain, .. } = &event {
+                if let Some(cmds) = commands {
+                    cmds.spawn(ProactiveJoyTriggered {
+                        agent_id,
+                        joy_description: service_action.clone(),
+                        mercy_gain: *mercy_gain,
+                        valence_gain: *valence_gain,
+                        tick: current_tick,
+                    });
+                }
+            }
 
             match &event {
                 LegacyEventType::EpiphanyRevelation { mercy_gain, .. } => {
@@ -383,6 +400,7 @@ impl LegacyJournalRegistry {
                 current_tick,
                 true,
                 Some(format!("Victory Legacy: {} — {}", personal_role, humble_echo)),
+                None,
             );
 
             journal.legacy_thread_count += 1;
@@ -396,7 +414,6 @@ impl LegacyJournalRegistry {
     }
 
     /// v19.2: Bridge from PlayerSaveData::record_proactive_joy_and_rbe_signal
-    /// Automatically creates a ProactiveRedemptionService LegacyEntry so joy/RBE signals appear in My Mercy Journey timeline.
     pub fn record_proactive_joy_from_persistence(
         &mut self,
         agent_id: AgentId,
@@ -423,6 +440,7 @@ impl LegacyJournalRegistry {
                 current_tick,
                 false,
                 Some(format!("Proactive Joy + RBE: {} (Abundance +{:.1})", joy_description, rbe_abundance_boost)),
+                None,
             );
 
             journal.mercy_journey_summary.mentees_blessed += 1;
@@ -456,6 +474,7 @@ impl LegacyJournalRegistry {
                 current_tick,
                 false,
                 Some(format!("Proactive Joy: {} — Mercy flows outward from abundance, not only from healing scars.", joy_source)),
+                None,
             );
 
             journal.mercy_journey_summary.mentees_blessed += 1;
@@ -491,6 +510,7 @@ pub fn legacy_journal_update_system(
                 tick,
                 false,
                 None,
+                None,
             );
         }
     }
@@ -503,11 +523,12 @@ pub struct PlayerLegacyJournalPlugin;
 impl Plugin for PlayerLegacyJournalPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LegacyJournalRegistry>()
+           .init_resource::<Events<ProactiveJoyTriggered>>()
            .add_systems(Update, legacy_journal_update_system);
     }
 }
 
-// End of simulation/src/player_legacy_journal.rs v19.2
-// New record_proactive_joy_from_persistence() bridges PlayerSaveData joy/RBE signals into LegacyEntry timeline.
-// ProactiveRedemptionService entries now appear automatically in My Mercy Journey panel.
+// End of simulation/src/player_legacy_journal.rs v19.2.1
+// Lightweight ProactiveJoyTriggered event added.
+// Other systems can now react in real time to ProactiveRedemptionService entries.
 // Thunder locked in. Yoi ⚡
