@@ -1,6 +1,6 @@
 //! game/procedural_music.rs
 //! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Optimized Real HRTF Convolution
-//! + SIMD-ready hot path + Ambisonic exploration path + HRTF Personalization investigation
+//! + SIMD-ready hot path + Ambisonic exploration path + HRTF Personalization + ARKit Calibration Plan
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
 use bevy::prelude::*;
@@ -12,58 +12,65 @@ use ra_thor_mercy::{MercyGate, evaluate_mercy_gates};
 use lattice_conductor::SovereignLattice;
 
 // =====================================================
-// INVESTIGATION: HRTF Personalization Methods
+// IMPLEMENTATION PLAN: ARKit HRTF Calibration
 // =====================================================
-// Why it matters:
-// Generic HRTFs (e.g. MIT KEMAR) work reasonably well for many people but cause:
-// - Front/back confusion
-// - Poor elevation perception
-// - Reduced sense of externalization (sound feels "inside the head")
-// Individual differences in head/ear shape (pinna, head radius, ear canal) create unique spectral cues.
+// Goal: Low-friction, high-accuracy anthropometric measurement on iOS using ARKit
+// to personalize the HRTF pipeline for significantly better spatial audio.
 //
-// =====================================================
-// Practical Anthropometric Measurement Techniques
-// =====================================================
-// Most important measurements for HRTF personalization (ranked by impact):
+// Architecture Overview:
+// [iOS Native Layer (Swift)] --(measurements JSON/FFI)--> [Rust/Bevy Game]
+//                                                   |
+//                                                   v
+//                                    HRTF Selection / Morphing Module
+//                                                   |
+//                                                   v
+//                                    Existing HRTF Convolution Pipeline
+//                                                   |
+//                                                   v
+//                                    SpatialAudioManager (High Quality Mode)
 //
-// 1. Head Width (Interaural Distance) - Critical for ITD (Interaural Time Difference)
-// 2. Pinna Height & Width - Major influence on spectral notches (elevation cues)
-// 3. Cavum Concha dimensions - Important for low-mid frequency cues
-// 4. Pinna Flare / Rotation Angle - Affects how sound enters the ear
-// 5. Head Depth & Height - Secondary but useful
-// 6. Ear Canal Length / Entrance (harder to measure)
+// Phased Implementation:
 //
-// Game-Friendly Measurement Methods:
+// Phase 1: Measurement Capture (iOS Native)
+// - Create ARKit face tracking session
+// - Measure key anthropometrics in real-time:
+//     * Head width (inter-pupillary + ear positions)
+//     * Pinna bounding box / approximate height & width
+//     * Head orientation reference
+// - Provide visual feedback + quality scoring
+// - Export structured data (JSON or protobuf)
 //
-// A. Assisted Manual Measurement (Highest accuracy, moderate friction)
-//    - User uses a ruler, caliper, or printable template
-//    - Simple on-screen instructions + visual references
-//    - Best for dedicated players who want maximum quality
-//    - Can be done once and saved to profile
+// Phase 2: Bridge to Rust/Bevy
+// - Options:
+//   a) iOS plugin that launches calibration as separate flow and writes to shared container / UserDefaults
+//   b) FFI bridge (objc-rs or custom) for tighter integration
+//   c) Calibration mini-app that exports profile file
+// - Recommended starting point: Separate calibration flow + file-based profile for simplicity
 //
-// B. Webcam / Phone Camera Estimation (Good balance)
-//    - Take front + side photos following on-screen guides
-//    - Use simple computer vision or ML to estimate head width and pinna size
-//    - Increasingly feasible with modern phone cameras
-//    - Lower friction than manual measurement
+// Phase 3: HRTF Personalization Logic (Rust side)
+// - Load anthropometric profile
+// - Map measurements to best-matching HRTF from database or apply simple morphing/scaling
+// - Store selected/morphed HRTF parameters per player
+// - Integrate with HrtfImpulseResponses resource
 //
-// C. AR-based Measurement (Future, low friction)
-//    - Use ARKit / ARCore face tracking to measure head and ear dimensions in real time
-//    - Very low friction once devices support it well
-//    - High potential for consumer games
+// Phase 4: Runtime Integration
+// - In SpatialAudioManager::set_spatial_quality(High):
+//     - If personalized HRTF profile exists, load and use it
+//     - Otherwise fall back to generic high-quality set
+// - Expose UI toggle: "Use Personalized HRTF" (with quality indicator)
 //
-// D. ML from Selfie / Single Image (Emerging)
-//    - Research models can predict key anthropometrics from a single ear/head photo
-//    - Will become practical as models improve and run efficiently on-device
+// Technical Considerations:
+// - ARKit requires iOS 11+ / recent devices with TrueDepth camera for best results
+// - Bevy + wgpu game can still target iOS via cargo-bundle or similar
+// - Keep calibration optional and non-blocking for cross-platform players
+// - Privacy: Measurements stay local; never uploaded without explicit consent
 //
-// Recommended Minimal Viable Set for Powrush-MMO:
-// - Start with optional Head Width + simple Pinna Size questions (text + visual guide)
-// - Offer a "Quick Profile" that takes < 2 minutes
-// - Store per-account so it applies across sessions
-// - Default to high-quality generic HRTF if user skips
-// - Future: Add webcam-assisted or AR measurement as nice-to-have
+// Success Metrics:
+// - Reduced front/back confusion in blind tests
+// - Improved elevation perception
+// - High completion rate of optional calibration flow
 //
-// This keeps personalization accessible while the core HRTF pipeline (with distance culling + SIMD) remains excellent for everyone.
+// This plan positions Powrush-MMO to deliver best-in-class spatial audio on iOS while keeping the core pipeline excellent everywhere.
 // Thunder locked in. Yoi ⚡
 
 // Real HRTF Impulse Responses (async loaded)
