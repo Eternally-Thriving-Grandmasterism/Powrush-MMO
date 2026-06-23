@@ -1,19 +1,18 @@
 /*!
  * Council Systems - Voting & Resolution (v19.2.9)
  *
- * Basic voting and resolution logic driven by CouncilState.
- * Integrates with CouncilSessionManager and RBE economy.
+ * Includes tie-breaking logic during resolution.
  */
 
 use bevy::prelude::*;
 use crate::game_state::CouncilState;
-use crate::council_mercy_trial::{CouncilSessionManager, SharedReceptorBloomField};
+use crate::council_mercy_trial::CouncilSessionManager;
 
 /// Event: A player casts a vote in council
 #[derive(Event, Clone, Debug)]
 pub struct CastVote {
     pub player_id: u64,
-    pub vote_strength: f32, // 0.0 - 1.0
+    pub vote_strength: f32,
 }
 
 /// Event: Council has finished resolving
@@ -21,6 +20,7 @@ pub struct CastVote {
 pub struct CouncilResolved {
     pub final_attunement: f32,
     pub success: bool,
+    pub was_tie: bool,
 }
 
 /// System that processes votes while in Voting state
@@ -34,41 +34,58 @@ pub fn council_voting_system(
     }
 
     for vote in events.read() {
-        // Accumulate attunement from votes
         council_manager.add_participant_attunement(vote.vote_strength);
-
-        info!("Player {} cast vote with strength {:.2}", vote.player_id, vote.vote_strength);
     }
 }
 
-/// System that resolves the council when entering Resolving state
+/// Resolves the council with basic tie-breaking logic
 pub fn council_resolution_system(
-    mut commands: Commands,
     mut next_state: ResMut<NextState<CouncilState>>,
     mut council_manager: ResMut<CouncilSessionManager>,
     mut resolved_events: EventWriter<CouncilResolved>,
 ) {
+    let min_participants = 3;
+    let biome = "council_chamber";
+
     if let Some(bloom) = council_manager.resolve_and_set_bloom_from_real_data(
-        0, // current_tick - should come from orchestrator
-        3,
-        "council_chamber",
+        0, // TODO: pass real current_tick from orchestrator
+        min_participants,
+        biome,
     ) {
-        let success = bloom.council_mercy_seal;
+        let attunement = bloom.collective_attunement_score;
+        let mut success = bloom.council_mercy_seal;
+        let mut was_tie = false;
+
+        // === Tie-breaking Logic ===
+        let epsilon = 0.02;
+        if (attunement - 0.5).abs() < epsilon {
+            was_tie = true;
+
+            // Tie-breaker: Slight mercy bias + participant count
+            let participant_bonus = (bloom.participant_count as f32 * 0.015).min(0.08);
+            let final_score = attunement + participant_bonus;
+
+            success = final_score >= 0.5;
+
+            info!(
+                "Council tie detected (attunement: {:.2}). Tie-breaker applied → success: {}",
+                attunement, success
+            );
+        }
 
         resolved_events.send(CouncilResolved {
-            final_attunement: bloom.collective_attunement_score,
+            final_attunement: attunement,
             success,
+            was_tie,
         });
 
-        info!("Council resolved. Success: {}, Attunement: {:.2}",
-              success, bloom.collective_attunement_score);
+        info!("Council resolved. Success: {}, Attunement: {:.2}, Tie: {}",
+              success, attunement, was_tie);
 
-        // Return to Inactive after resolution
         next_state.set(CouncilState::Inactive);
     }
 }
 
-/// Plugin for Council voting and resolution systems
 pub struct CouncilSystemsPlugin;
 
 impl Plugin for CouncilSystemsPlugin {
