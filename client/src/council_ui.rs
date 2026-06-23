@@ -1,5 +1,5 @@
 /*!
- * Council UI - Spatial Audio + Full Sensory Feedback (v19.2.9)
+ * Council UI - 3D Spatial Audio with Emitters (v19.2.9)
  */
 
 use bevy::prelude::*;
@@ -37,6 +37,7 @@ impl Plugin for CouncilUIPlugin {
             .add_plugins(CouncilUIHooksPlugin)
             .add_plugins(AudioPlugin)
             .init_resource::<LocalPlayer>()
+            .add_systems(Startup, setup_audio_listener)
             .add_systems(OnEnter(GameState::InCouncil), spawn_council_panel)
             .add_systems(OnExit(GameState::InCouncil), (despawn_council_panel, cleanup_valence_particles))
             .add_systems(
@@ -52,6 +53,14 @@ impl Plugin for CouncilUIPlugin {
                 .run_if(in_state(GameState::InCouncil)),
             );
     }
+}
+
+/// Sets up a 3D audio listener on the main camera
+fn setup_audio_listener(mut commands: Commands) {
+    commands.spawn((
+        AudioListener,
+        Name::new("MainAudioListener"),
+    ));
 }
 
 fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -111,8 +120,8 @@ fn handle_council_buttons(
                 attunement_delta: button.attunement_delta,
             });
 
-            spawn_valence_burst(&mut commands, button.attunement_delta);
-            play_spatial_burst_sound(&audio, &asset_server, button.attunement_delta);
+            let burst_entity = spawn_valence_burst(&mut commands, button.attunement_delta);
+            play_spatial_sound(&audio, &asset_server, "sounds/council_burst.ogg", burst_entity, button.attunement_delta);
         }
     }
 }
@@ -125,13 +134,13 @@ fn handle_council_resolved_bursts(
 ) {
     for event in events.read() {
         if event.success && event.valence_score > 0.7 {
-            spawn_celebration_burst(&mut commands, event.valence_score);
-            play_spatial_celebration_sound(&audio, &asset_server);
+            let burst_entity = spawn_celebration_burst(&mut commands, event.valence_score);
+            play_spatial_sound(&audio, &asset_server, "sounds/council_celebration.ogg", burst_entity, event.valence_score);
         }
     }
 }
 
-fn spawn_valence_burst(commands: &mut Commands, strength: f32) {
+fn spawn_valence_burst(commands: &mut Commands, strength: f32) -> Entity {
     let intensity = strength.clamp(0.1, 1.0);
 
     let mut effect = ParticleEffect::default();
@@ -155,11 +164,12 @@ fn spawn_valence_burst(commands: &mut Commands, strength: f32) {
             ..default()
         },
         ValenceBurst,
+        AudioEmitter::default(), // 3D Audio Emitter
         Name::new("CouncilValenceBurst"),
-    ));
+    )).id()
 }
 
-fn spawn_celebration_burst(commands: &mut Commands, valence: f32) {
+fn spawn_celebration_burst(commands: &mut Commands, valence: f32) -> Entity {
     let intensity = valence.clamp(0.6, 1.0);
 
     let mut effect = ParticleEffect::default();
@@ -183,24 +193,24 @@ fn spawn_celebration_burst(commands: &mut Commands, valence: f32) {
             ..default()
         },
         ValenceBurst,
+        AudioEmitter::default(), // 3D Audio Emitter
         Name::new("CouncilCelebrationBurst"),
-    ));
+    )).id()
 }
 
-/// Spatial audio playback for normal bursts
-fn play_spatial_burst_sound(audio: &Res<Audio>, asset_server: &Res<AssetServer>, strength: f32) {
-    let volume = 0.4 + strength * 0.4;
-    // Play with slight panning based on strength (can be expanded with real position)
-    audio.play(asset_server.load("sounds/council_burst.ogg"))
+/// Plays a sound with 3D spatial positioning from an AudioEmitter entity
+fn play_spatial_sound(
+    audio: &Res<Audio>,
+    asset_server: &Res<AssetServer>,
+    sound_path: &str,
+    emitter_entity: Entity,
+    intensity: f32,
+) {
+    let volume = if sound_path.contains("celebration") { 0.9 } else { 0.4 + intensity * 0.4 };
+
+    audio.play(asset_server.load(sound_path))
         .with_volume(volume)
-        .with_panning((strength - 0.5) * 0.3); // Simple panning effect
-}
-
-/// Spatial audio for celebration bursts (more centered and powerful)
-fn play_spatial_celebration_sound(audio: &Res<Audio>, asset_server: &Res<AssetServer>) {
-    audio.play(asset_server.load("sounds/council_celebration.ogg"))
-        .with_volume(0.9)
-        .with_panning(0.0); // Centered for big moments
+        .with_emitter(emitter_entity); // Links sound to the 3D emitter
 }
 
 fn handle_council_toggle_input(
