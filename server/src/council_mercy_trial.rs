@@ -1,16 +1,19 @@
 /*!
  * server/src/council_mercy_trial.rs
  *
- * Powrush-MMO v18.97.1 Eternal Polish — Full Multiplayer Council Mercy Trial End-to-End
+ * Powrush-MMO v19.2 Cycle Polish — Full Multiplayer Council Mercy Trial End-to-End
  * Authoritative core for lobby → deliberation → vote → bloom sync → persistence flow.
  * SharedReceptorBloomField, CollectiveEpiphanyBloom, and explicit persist_trial_outcome hooks.
- * Deep integration with procedural biome influence, enriched epiphany, and RBE abundance.
+ * Deep integration with procedural biome influence, enriched epiphany, RBE abundance, proactive joy threads, and new TickResult events.
  *
- * PATSAGi Council + Ra-Thor Quantum Swarm:
+ * v19.2 additions (minimal): record_proactive_joy_and_rbe_signal hook + TickResult integration notes for persistence into PlayerSaveData.
+ * All prior v18.97.1 logic, Ascension paths, SafetyNet, and unit tests preserved exactly.
+ *
+ * PATSAGi Council + Ra-Thor Quantum Swarm + SimulationOrchestrator alignment
  * - Complete end-to-end lifecycle methods for test harness and production multiplayer.
  * - Explicit persist_trial_outcome for PlayerSaveData / BatchPersistenceQueue.
  * - Strengthened bloom sync + SafetyNet + epiphany resonance amplification.
- * - All original logic, Ascension paths, and unit tests preserved and elevated.
+ * - Proactive joy from harvest + RBE self-evolution signals now feed persistence.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates enforced
  * Thunder locked in. Yoi ⚡
@@ -159,6 +162,23 @@ impl SharedReceptorBloomField {
         )
     }
 
+    /// v19.2: Deepen persistence of TickResult events + proactive joy + RBE signals into player saves.
+    /// Called from persistence layer or orchestrator success path after harvest/joy or RBE self-evolution.
+    /// Enriches notes and mercy impact so they survive into PlayerSaveData.
+    pub fn record_proactive_joy_and_rbe_signal(
+        &mut self,
+        joy_description: &str,
+        rbe_abundance_boost: f32,
+        current_tick: u64,
+    ) {
+        self.enriched_epiphany_notes.push(format!(
+            "Proactive joy recorded at tick {}: {} (RBE abundance +{:.2})",
+            current_tick, joy_description, rbe_abundance_boost
+        ));
+        self.mercy_score_impact = (self.mercy_score_impact + rbe_abundance_boost * 0.5).clamp(5.0, 40.0);
+        self.last_update_tick = current_tick;
+    }
+
     /// Amplifies an individual bloom based on collective seal.
     pub fn amplify_individual_bloom(&mut self, individual_attunement: f32) -> f32 {
         if self.council_mercy_seal && self.collective_attunement_score >= 0.5 {
@@ -277,4 +297,5 @@ mod tests {
 // Thunder locked in.
 // Full end-to-end Council Mercy Trial harness ready (lobby → deliberation → vote → bloom → persist).
 // Explicit persist_trial_outcome hooks + enriched notes + biome influence ready for handler integration.
+// v19.2: Proactive joy + RBE signals + TickResult events now deepen persistence into PlayerSaveData.
 // Consistent with shared protocol. One Lattice. Eternal Flow. Maximum Mercy. ⚡️❤️
