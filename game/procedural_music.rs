@@ -58,10 +58,13 @@ pub struct AudioListener {
     pub velocity: Vec3,
 }
 
-// OPTIMIZED HRTF Convolution (cache-friendly, early exit, no unnecessary allocations)
+// OPTIMIZED HRTF Convolution for real-time MMO latency
+// - Reduced IR length (1024) for lower latency while preserving spatial quality
+// - Distance culling: skip full convolution for far sources
+// - Minimal allocations in hot path
 fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &[f32]) -> Vec<f32> {
     let len = mono_buffer.len();
-    let ir_len = hrtf_left.len().min(2048); // cap IR length for performance
+    let ir_len = hrtf_left.len().min(1024); // Reduced from 2048 for real-time latency
     let mut output = vec![0.0; len * 2]; // stereo
 
     for i in 0..len {
@@ -71,7 +74,7 @@ fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &
         let mut left_sum = 0.0;
         let mut right_sum = 0.0;
 
-        // Unrolled inner loop for better cache performance
+        // Tight inner loop with early exit for cache efficiency
         for j in 0..max_j {
             let ir_l = hrtf_left[j];
             let ir_r = hrtf_right[j];
@@ -87,7 +90,7 @@ fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &
     output
 }
 
-// Full binaural pipeline with optimized HRTF
+// Full binaural pipeline with optimized HRTF + distance culling for latency
 fn apply_real_hrtf(
     mono_buffer: Vec<f32>,
     source_pos: Vec3,
@@ -100,6 +103,21 @@ fn apply_real_hrtf(
     }
 
     let direction = (source_pos - listener.position).normalize_or_zero();
+    let distance = source_pos.distance(listener.position).max(0.1);
+
+    // Latency optimization: early exit / simplified panning for distant sources
+    if distance > 35.0 {
+        // Far sources: cheap stereo panning instead of full HRTF convolution
+        let pan = (direction.x * 0.5 + 0.5).clamp(0.0, 1.0);
+        let mut output = vec![0.0; mono_buffer.len() * 2];
+        for (i, &sample) in mono_buffer.iter().enumerate() {
+            let idx = i * 2;
+            output[idx] = sample * (1.0 - pan);
+            output[idx + 1] = sample * pan;
+        }
+        return output;
+    }
+
     let azimuth = direction.x.atan2(direction.z).to_degrees() as i32;
     let ir_index = ((azimuth + 180) % 360 / 45) as usize % hrtf.left.len();
 
@@ -109,7 +127,6 @@ fn apply_real_hrtf(
     let convolved = convolve_hrtf_optimized(&mono_buffer, left_ir, right_ir);
 
     // Apply occlusion, Doppler, distance attenuation, and valence modulation
-    let distance = source_pos.distance(listener.position).max(0.1);
     let attenuation = (1.0 / (distance * distance)).clamp(0.15, 1.0) * (0.6 + valence * 0.4);
     let occlusion = if distance > 25.0 { 0.35 } else { 1.0 };
 
@@ -140,7 +157,7 @@ fn generate_granular_cloud(
 
     let mut time = 0.0;
     while time < length_secs {
-        let source = &samples[rng.gen_range(0..samples.len())];
+        let source = &samples[rng.gen_range(0.0..(source.len() as f32 / sample_rate - grain_duration))];
         let start_pos = rng.gen_range(0.0..(source.len() as f32 / sample_rate - grain_duration));
 
         let grain_samples = (grain_duration * sample_rate) as usize;
