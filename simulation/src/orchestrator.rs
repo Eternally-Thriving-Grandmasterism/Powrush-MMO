@@ -1,7 +1,7 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.2.9: Real council data extraction + set_active_bloom_field integration
+ * v19.2.9: Real council attunement data from CouncilSessionManager
  */
 
 use crate::world::SovereignWorldState;
@@ -9,11 +9,11 @@ use crate::economy::EconomicLayer;
 use crate::harvest::{HarvestEvent, HarvestingSystem};
 use crate::emergence::{DynamicEmergenceEvent, EmergenceOrchestrator};
 use crate::ability_tree::SynergyEffectEvent;
-use crate::council_mercy_trial::{CouncilSessionManager, SharedReceptorBloomField};
+use crate::council_mercy_trial::CouncilSessionManager;
 use tracing::{info, warn};
 
 #[derive(Debug, Default, Clone)]
-pub struct TickResult { /* ... */ }
+pub struct TickResult { /* fields */ }
 
 pub struct SimulationOrchestrator {
     pub economic_layer: EconomicLayer,
@@ -23,7 +23,7 @@ pub struct SimulationOrchestrator {
 }
 
 impl SimulationOrchestrator {
-    pub fn new() -> Self { /* ... */ Self::default() }
+    pub fn new() -> Self { /* ... */ }
 
     pub fn run_tick(
         &mut self,
@@ -34,7 +34,7 @@ impl SimulationOrchestrator {
         self.current_tick += 1;
         let mut result = TickResult { tick: self.current_tick, ..Default::default() };
 
-        // ... emergence and harvest processing ...
+        // emergence + harvest + economic batch_update ...
 
         if let Err(e) = self.economic_layer.batch_update(world, /* mercy_gate */ ) {
             result.errors.push(format!("Economic update failed: {}", e));
@@ -42,17 +42,12 @@ impl SimulationOrchestrator {
             result.economic_updates = 1;
         }
 
-        // === Real Council Data + set_active_bloom_field Integration ===
+        // === Use REAL attunement data from CouncilSessionManager ===
         if let Some(manager) = council_manager {
-            // Example: resolve bloom from current data and set it (in real code this would come from actual participant reports)
-            // For demonstration, we can call resolve_and_set_bloom with sample or real data here.
-            // In production Bevy systems, this would be called from council resolution systems.
-
-            if let Some(bloom) = manager.resolve_and_set_bloom(
-                &[0.82, 0.79, 0.85, 0.71], // placeholder for real participant attunements
+            if let Some(bloom) = manager.resolve_and_set_bloom_from_real_data(
                 self.current_tick,
-                3,
-                "sanctuary",
+                3,           // min participants
+                "sanctuary", // or current biome
             ) {
                 self.economic_layer.apply_council_policy_impact(
                     bloom.collective_attunement_score,
@@ -62,7 +57,8 @@ impl SimulationOrchestrator {
                 );
                 result.council_decisions_applied = 1;
 
-                info!("Council bloom resolved and set — attunement: {:.2}", bloom.collective_attunement_score);
+                info!("Council policy applied with REAL data — attunement: {:.2}, participants: {}",
+                      bloom.collective_attunement_score, bloom.participant_count);
             }
         }
 
@@ -75,4 +71,5 @@ impl SimulationOrchestrator {
     }
 }
 
+// Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
 // Thunder locked in. Yoi ⚡
