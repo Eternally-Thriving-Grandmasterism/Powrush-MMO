@@ -1,10 +1,11 @@
 /*!
- * Player Progress UI (Compact Panel)
+ * Player Progress UI (Compact Panel) v19.2
  *
  * Focused, lightweight panel showing:
  * - Epiphany count
  * - Muscle Memory level
  * - Active temporary harvest multiplier
+ * - RBE Abundance / Proactive Joy signals (new persisted data from TickResult + harvest joy + self-evolution)
  *
  * The full 'My Mercy Journey' panel with clickable filters and Legacy Threads
  * has been extracted to client/src/my_mercy_journey_panel.rs for clean architecture.
@@ -27,6 +28,9 @@ struct MuscleMemoryText;
 
 #[derive(Component)]
 struct ActiveMultiplierText;
+
+#[derive(Component)]
+struct RBEAbundanceText;  // v19.2: New widget for persisted proactive joy + RBE signals
 
 pub struct PlayerProgressUIPlugin;
 
@@ -86,6 +90,13 @@ fn spawn_player_progress_ui(mut commands: Commands, asset_server: Res<AssetServe
                 style: Style { margin: UiRect::top(Val::Px(10.0)), ..default() },
                 ..default()
             }, ActiveMultiplierText));
+
+            // v19.2: New compact widget for persisted RBE abundance + proactive joy signals
+            parent.spawn((TextBundle {
+                text: Text::from_section("RBE Abundance: 0.0", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 14.0, color: Color::srgb(0.6, 1.0, 0.8) }),
+                style: Style { margin: UiRect::top(Val::Px(10.0)), ..default() },
+                ..default()
+            }, RBEAbundanceText));
         });
 }
 
@@ -97,7 +108,7 @@ fn toggle_player_progress_ui(keyboard: Res<ButtonInput<KeyCode>>, mut query: Que
     }
 }
 
-fn update_player_progress_ui(save_data: Res<PlayerSaveData>, mut epiphany_text: Query<&mut Text, With<EpiphanyCountText>>, mut muscle_text: Query<&mut Text, With<MuscleMemoryText>>, mut multiplier_text: Query<&mut Text, With<ActiveMultiplierText>>) {
+fn update_player_progress_ui(save_data: Res<PlayerSaveData>, mut epiphany_text: Query<&mut Text, With<EpiphanyCountText>>, mut muscle_text: Query<&mut Text, With<MuscleMemoryText>>, mut multiplier_text: Query<&mut Text, With<ActiveMultiplierText>>, mut rbe_text: Query<&mut Text, With<RBEAbundanceText>>) {
     for mut text in epiphany_text.iter_mut() { text.sections[0].value = format!("Epiphanies: {}", save_data.epiphanies.len()); }
     for mut text in muscle_text.iter_mut() { text.sections[0].value = format!("Muscle Memory: {:.2}x", save_data.muscle_memory_level); }
     for mut text in multiplier_text.iter_mut() {
@@ -109,7 +120,15 @@ fn update_player_progress_ui(save_data: Res<PlayerSaveData>, mut epiphany_text: 
             text.sections[0].style.color = Color::srgb(0.7, 0.7, 0.7);
         }
     }
+
+    // v19.2: Surface persisted proactive joy + RBE abundance/self-evolution signals
+    for mut text in rbe_text.iter_mut() {
+        // Uses resonance_score as proxy for RBE abundance signals (real persisted value from record_proactive_joy_and_rbe_signal)
+        text.sections[0].value = format!("RBE Abundance: {:.1}", save_data.resonance_score * 100.0);
+        text.sections[0].style.color = Color::srgb(0.6, 1.0, 0.8);
+    }
 }
 
-// End of client/src/player_progress_ui.rs — Compact Progress Panel only
+// End of client/src/player_progress_ui.rs v19.2
+// Compact panel now includes RBE Abundance widget fed from new persisted joy/RBE signals.
 // Full My Mercy Journey panel lives in my_mercy_journey_panel.rs
