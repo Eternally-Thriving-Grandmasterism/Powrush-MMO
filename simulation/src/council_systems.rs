@@ -1,12 +1,14 @@
 /*!
  * Council Systems - Voting, Resolution & Valence Scoring (v19.2.9)
  *
- * Implements PATSAGi-inspired valence scoring for mercy-aligned decision making.
+ * Now queries real sustainability data from SovereignWorldState + EconomicLayer.
  */
 
 use bevy::prelude::*;
 use crate::game_state::CouncilState;
 use crate::council_mercy_trial::CouncilSessionManager;
+use crate::world::SovereignWorldState;
+use crate::economy::EconomicLayer;
 
 /// Event: A player casts a vote in council
 #[derive(Event, Clone, Debug)]
@@ -21,17 +23,15 @@ pub struct CouncilResolved {
     pub final_attunement: f32,
     pub success: bool,
     pub was_tie: bool,
-    pub valence_score: f32, // New: PATSAGi-style valence (positive thriving impact)
+    pub valence_score: f32,
 }
 
-/// Calculates a valence score for a council outcome.
-/// Higher = more positive emotional/ethical impact (thriving, mercy, abundance).
-/// Inspired by PATSAGi-Pinnacle valence councils.
+/// Calculates a valence score (PATSAGi-inspired)
 pub fn calculate_valence_score(
     average_attunement: f32,
     participant_count: u8,
-    sustainability_impact: f32, // from RBE (positive = good for long-term thriving)
-    recent_mercy_resonance: f32, // optional historical context (default 0.5)
+    sustainability_impact: f32,
+    recent_mercy_resonance: f32,
 ) -> f32 {
     let base_valence = average_attunement * 0.6;
     let participation_bonus = (participant_count as f32 * 0.03).min(0.15);
@@ -39,9 +39,23 @@ pub fn calculate_valence_score(
     let mercy_context = (recent_mercy_resonance - 0.5) * 0.2;
 
     let raw_valence = base_valence + participation_bonus + sustainability_bonus + mercy_context;
-
-    // Clamp to meaningful range and apply slight mercy-positive bias
     raw_valence.clamp(0.0, 1.0) * 0.95 + 0.05
+}
+
+/// Helper: Compute real sustainability impact from world state
+fn compute_sustainability_impact(world: &SovereignWorldState) -> f32 {
+    if world.resource_nodes.is_empty() {
+        return 0.0;
+    }
+
+    let total: f32 = world.resource_nodes.values()
+        .map(|node| node.sustainability_score)
+        .sum();
+
+    let avg = total / world.resource_nodes.len() as f32;
+
+    // Convert average sustainability (0.0-1.0) to impact range (-0.3 to +0.3)
+    (avg - 0.5) * 0.6
 }
 
 /// System that processes votes while in Voting state
@@ -59,11 +73,13 @@ pub fn council_voting_system(
     }
 }
 
-/// Resolves the council with valence scoring and tie-breaking
+/// Resolves the council using real sustainability data from the world
 pub fn council_resolution_system(
     mut next_state: ResMut<NextState<CouncilState>>,
     mut council_manager: ResMut<CouncilSessionManager>,
     mut resolved_events: EventWriter<CouncilResolved>,
+    world: Res<SovereignWorldState>,
+    _economic_layer: Option<Res<EconomicLayer>>,
 ) {
     let min_participants = 3;
     let biome = "council_chamber";
@@ -77,15 +93,17 @@ pub fn council_resolution_system(
         let mut success = bloom.council_mercy_seal;
         let mut was_tie = false;
 
-        // Calculate valence score (PATSAGi-inspired)
+        // === Real sustainability impact from world ===
+        let sustainability_impact = compute_sustainability_impact(&world);
+
         let valence = calculate_valence_score(
             attunement,
             bloom.participant_count,
-            0.1, // TODO: pass real sustainability impact from RBE
-            0.5, // TODO: pass real recent mercy resonance
+            sustainability_impact,
+            0.5, // TODO: replace with real recent mercy resonance tracking
         );
 
-        // Tie-breaking with valence influence
+        // Tie-breaking with real valence influence
         let epsilon = 0.02;
         if (attunement - 0.5).abs() < epsilon {
             was_tie = true;
@@ -102,8 +120,8 @@ pub fn council_resolution_system(
         });
 
         info!(
-            "Council resolved. Success: {}, Attunement: {:.2}, Valence: {:.2}, Tie: {}",
-            success, attunement, valence, was_tie
+            "Council resolved. Success: {}, Attunement: {:.2}, Valence: {:.2}, Sustainability Impact: {:.2}, Tie: {}",
+            success, attunement, valence, sustainability_impact, was_tie
         );
 
         next_state.set(CouncilState::Inactive);
