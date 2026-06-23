@@ -1,12 +1,11 @@
 /*!
  * Actual wgpu WGSL Compute Dispatch for Sovereign Economic / RBE Layer
  * 
- * Mint-and-print-only-perfection v18.97.6 — SystemSet-based Chaining
+ * Mint-and-print-only-perfection v18.97.6 — SystemSet-based Chaining + Telemetry
  * 
  * Production-grade asynchronous GPU economic simulation using wgpu map_async + Bevy AsyncComputeTaskPool.
- * Uses explicit SystemSet for clear, maintainable ordering between dispatch and apply.
- * Non-blocking on main simulation thread. Proper double-buffering with interior mutability.
- * Backpressure guard + dedicated Bevy systems.
+ * Uses explicit SystemSet for clear, maintainable ordering.
+ * Includes basic telemetry system for monitoring GPU economic health.
  * 
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor Lattice aligned
  * Thunder locked in. Yoi ⚡️
@@ -15,7 +14,7 @@
 use crate::world::{SovereignWorldState, ResourceNode};
 use std::cell::Cell;
 use std::sync::OnceLock;
-use tracing::warn;
+use tracing::{warn, info};
 use wgpu::util::DeviceExt;
 use bevy::tasks::{AsyncComputeTaskPool, Task};
 use bevy::prelude::{SystemSet, ResMut, Resource};
@@ -173,10 +172,10 @@ pub struct GpuReadbackResult {
 pub enum GpuEconomicSystemSet {
     Dispatch,
     Apply,
+    Telemetry,
 }
 
 /// Dispatches GPU compute and spawns a non-blocking async task for readback using AsyncComputeTaskPool.
-/// Returns immediately. Results applied later via apply_gpu_economic_results system.
 pub fn dispatch_gpu_economic_compute_async(
     world: &mut SovereignWorldState,
     readback: &mut GpuEconomicReadback,
@@ -329,6 +328,25 @@ pub fn apply_gpu_economic_results(
                 readback.pending_task = Some(returned_task);
             }
         }
+    }
+}
+
+/// Simple telemetry system for the GPU economic layer.
+/// Logs key metrics every frame for monitoring and debugging.
+pub fn gpu_economic_telemetry_system(
+    readback: ResMut<GpuEconomicReadback>,
+    world: ResMut<SovereignWorldState>,
+) {
+    let node_count = world.resource_nodes.len();
+    let has_pending = readback.pending_task.is_some();
+
+    if node_count > 0 || has_pending {
+        info!(
+            target: "gpu_economic",
+            node_count = node_count,
+            has_pending_readback = has_pending,
+            "GPU Economic Telemetry"
+        );
     }
 }
 
