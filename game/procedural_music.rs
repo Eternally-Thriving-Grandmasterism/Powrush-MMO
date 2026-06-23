@@ -1,6 +1,6 @@
 //! game/procedural_music.rs
 //! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Optimized Real HRTF Convolution
-//! + SIMD-ready hot path + Ambisonic exploration path + HRTF Personalization + ARKit Calibration Plan + OpenHRTF Database investigation
+//! + SIMD-ready hot path + Ambisonic exploration path + HRTF Personalization + ARKit Calibration Plan + OpenHRTF Database investigation + 3D3A Adoption Plan
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
 use bevy::prelude::*;
@@ -12,45 +12,43 @@ use ra_thor_mercy::{MercyGate, evaluate_mercy_gates};
 use lattice_conductor::SovereignLattice;
 
 // =====================================================
-// INVESTIGATION: Open HRTF Databases
+// 3D3A (Princeton) HRTF Database Adoption Plan
 // =====================================================
-// There is no single "OpenHRTF Database", but several high-quality, publicly available HRTF datasets.
-// The best ones for game use combine good licensing, spatial resolution, subject count, and anthropometric/3D data.
+// Decision: Use 3D3A Lab HRTF Database as the primary high-quality open HRTF source for Powrush-MMO.
+// License: CC-BY-4.0 (requires attribution)
+// Subjects: 32+
+// Strengths: Measured + computed HRTFs, 3D head/torso scans, permissive license
 //
-// Top Recommended Open Databases (as of 2026):
+// Concrete Tasks:
 //
-// 1. SONICOM HRTF Dataset (Imperial College / SONICOM project)
-//    - ~200 subjects
-//    - High-resolution (96 kHz), SOFA format
-//    - Includes 3D head/ear/torso models + depth images
-//    - Excellent for personalization research
-//    - License: Research-friendly (check current terms)
+// Phase 1: Acquisition & Evaluation (1-2 days)
+// - [ ] Download latest 3D3A release from Princeton 3D3A Lab
+// - [ ] Review data format (raw IRs vs SOFA)
+// - [ ] Select a high-quality subset of subjects for initial integration (e.g. 8-12 best measured)
+// - [ ] Document attribution text required by CC-BY-4.0
 //
-// 2. 3D3A Lab HRTF Database (Princeton University)
-//    - 32+ subjects with both measured and numerically computed HRTFs
-//    - Includes high-quality 3D head/torso scans
-//    - CC-BY-4.0 license (very permissive)
-//    - Strong candidate for games
+// Phase 2: Loader Development (3-5 days)
+// - [ ] Create hrtf_3d3a_loader.rs (stub already created)
+// - [ ] Implement parsing of chosen 3D3A HRTF format into HrtfImpulseResponses
+// - [ ] Add support for both measured and computed versions
+// - [ ] Add simple subject selection / quality scoring
 //
-// 3. SS2 HRTF Dataset (Facebook Research / RLR Audio)
-//    - 78 subjects, high spatial resolution
-//    - CC-BY-4.0 license
-//    - Freely available
+// Phase 3: Integration (2-3 days)
+// - [ ] Wire loader into HrtfImpulseResponses resource initialization
+// - [ ] Add UI option: "Use 3D3A HRTF Set" in High spatial quality mode
+// - [ ] Implement graceful fallback to current generic HRTF
+// - [ ] Add proper attribution in audio credits
 //
-// 4. ARI HRTF Database (Austrian Academy of Sciences)
-//    - Largest: 250+ subjects
-//    - High resolution, long history
-//    - Good for broad matching
+// Phase 4: Validation & Polish (2 days)
+// - [ ] Perceptual testing of 3D3A set vs current baseline
+// - [ ] Optimize memory usage (HRTF data can be large)
+// - [ ] Document how to add more subjects from 3D3A in the future
 //
-// 5. Other notable: HUTUBS (TU Berlin), Aachen HRTF Database, CIPIC
+// Long-term Vision:
+// - Make 3D3A the default for High quality spatial audio
+// - Use included 3D scan data for future anthropometric personalization
+// - Maintain clear separation between generic high-quality path and personalized path
 //
-// Recommendation for Powrush-MMO:
-// - Start with a high-quality baseline (current mit_kemar or a curated subset from 3D3A / SONICOM)
-// - For personalization: Use 3D3A or SONICOM because they include 3D scans + anthropometric data
-// - Long-term: Build or adopt a small curated "Powrush HRTF Library" with clear licensing
-// - SOFA format is the industry standard — consider adding SOFA loading support in the future
-//
-// These databases make high-quality personalized spatial audio much more accessible than before.
 // Thunder locked in. Yoi ⚡
 
 // Real HRTF Impulse Responses (async loaded)
