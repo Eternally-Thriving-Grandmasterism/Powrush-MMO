@@ -1,5 +1,5 @@
 /*!
- * Council UI - 3D Spatial Audio with Emitters (v19.2.9)
+ * Council UI - 3D Spatial Audio (AudioListener attached to Camera) (v19.2.9)
  */
 
 use bevy::prelude::*;
@@ -55,12 +55,17 @@ impl Plugin for CouncilUIPlugin {
     }
 }
 
-/// Sets up a 3D audio listener on the main camera
-fn setup_audio_listener(mut commands: Commands) {
-    commands.spawn((
-        AudioListener,
-        Name::new("MainAudioListener"),
-    ));
+/// Attaches the AudioListener to the main camera for proper 3D spatial audio
+fn setup_audio_listener(
+    mut commands: Commands,
+    camera_query: Query<Entity, With<Camera>>,
+) {
+    if let Ok(camera_entity) = camera_query.get_single() {
+        commands.entity(camera_entity).insert(AudioListener);
+        info!("AudioListener attached to main camera for 3D spatial audio");
+    } else {
+        warn!("No camera found when setting up AudioListener");
+    }
 }
 
 fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -164,7 +169,7 @@ fn spawn_valence_burst(commands: &mut Commands, strength: f32) -> Entity {
             ..default()
         },
         ValenceBurst,
-        AudioEmitter::default(), // 3D Audio Emitter
+        AudioEmitter::default(),
         Name::new("CouncilValenceBurst"),
     )).id()
 }
@@ -193,12 +198,11 @@ fn spawn_celebration_burst(commands: &mut Commands, valence: f32) -> Entity {
             ..default()
         },
         ValenceBurst,
-        AudioEmitter::default(), // 3D Audio Emitter
+        AudioEmitter::default(),
         Name::new("CouncilCelebrationBurst"),
     )).id()
 }
 
-/// Plays a sound with 3D spatial positioning from an AudioEmitter entity
 fn play_spatial_sound(
     audio: &Res<Audio>,
     asset_server: &Res<AssetServer>,
@@ -210,7 +214,7 @@ fn play_spatial_sound(
 
     audio.play(asset_server.load(sound_path))
         .with_volume(volume)
-        .with_emitter(emitter_entity); // Links sound to the 3D emitter
+        .with_emitter(emitter_entity);
 }
 
 fn handle_council_toggle_input(
