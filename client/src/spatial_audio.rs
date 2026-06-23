@@ -1,35 +1,40 @@
 /*!
  * Spatial Audio + Game Audio Event System — Powrush-MMO
  *
- * v18.99 — Long-term Hybrid: Ambisonic Background + Selective HRTF
- * M: Beginning Selective HRTF layer for high-salience sources
- *
- * High-salience sources (Epiphany, Council, PlayerAction, etc.) will use
- * high-quality 3D3A HRTF, while ambient/world audio uses Ambisonic.
+ * v18.99 — Long-term Hybrid: Ambisonic + Selective HRTF
+ * N: Routing logic for HighSalienceAudio sources
  *
  * AG-SML v1.0
  */
 
 use bevy::prelude::*;
 
-// ... imports ...
-
 use game::ambisonic::AmbisonicScene;
+use game::procedural_music::{HrtfImpulseResponses, apply_real_hrtf};
 
-/// Marker for sources that should use high-quality HRTF instead of (or in addition to) Ambisonic
-#[derive(Component)]
-pub struct HighSalienceAudio;
+// ... other imports ...
 
-// In handle_game_audio_events or a new routing system, we will check for HighSalienceAudio
-// and route accordingly:
-// - HighSalience → HRTF path (3D3A when available)
-// - Normal      → Ambisonic background field
+/// Routes audio based on HighSalienceAudio marker.
+/// High-salience sources (Epiphany, Council, important actions) use HRTF.
+/// Everything else goes to the efficient Ambisonic background.
+fn route_audio(
+    commands: Commands,
+    mut ambisonic: ResMut<AmbisonicScene>,
+    spatial_manager: Res<SpatialAudioManager>,
+    // In real use we would query for entities with audio + HighSalienceAudio
+) {
+    // Example routing logic (to be expanded with real event/entity data):
+    //
+    // if entity has HighSalienceAudio {
+    //     // Use high-quality HRTF path (3D3A)
+    //     spatial_manager.play_spatial_with_hrtf(...);
+    // } else {
+    //     // Use efficient Ambisonic background
+    //     ambisonic.emit(position, signal, gain);
+    // }
+}
 
-// Example routing logic (to be expanded):
-// if entity has HighSalienceAudio {
-//     spatial_manager.play_spatial_with_hrtf(...)
-// } else {
-//     ambisonic.emit(...)
-// }
+// This function will be expanded as we connect real GameAudioEvents
+// and entity queries to the routing decision.
 
 // ... rest of file ...
