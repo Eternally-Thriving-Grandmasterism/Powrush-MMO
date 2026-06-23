@@ -31,33 +31,21 @@ let mut tick_result = TickResult {
 
 use bevy::prelude::*;
 
-/// Registers the `GpuEconomicReadback` resource and the non-blocking
-/// `apply_gpu_economic_results` system into the Bevy application.
+/// Registers the `GpuEconomicReadback` resource and both dedicated GPU economic systems:
+/// - `gpu_economic_dispatch_system` (submits work)
+/// - `apply_gpu_economic_results` (applies completed readbacks)
 ///
-/// This enables the production async GPU economic simulation path:
-/// - Call `dispatch_gpu_economic_compute_async(...)` to submit work
-/// - The registered system automatically polls and applies results every frame
-///
-/// # Usage
-/// Call once during plugin initialization, e.g.:
-///
-/// ```ignore
-/// impl Plugin for OrchestratorPlugin {
-///     fn build(&self, app: &mut App) {
-///         // ... other setup ...
-///         setup_gpu_economic_async_readback(app);
-///     }
-/// }
-/// ```
-///
-/// After this call, the async readback path is fully active in the `Update` schedule.
+/// Call once during plugin initialization.
 pub fn setup_gpu_economic_async_readback(app: &mut App) {
     app
         .init_resource::<crate::gpu_economic::GpuEconomicReadback>()
-        .add_systems(Update, crate::gpu_economic::apply_gpu_economic_results);
+        .add_systems(Update, (
+            crate::gpu_economic::gpu_economic_dispatch_system,
+            crate::gpu_economic::apply_gpu_economic_results,
+        ).chain());  // dispatch first, then apply in same frame when possible
 }
 
 // Note for full integration:
-// In economy.rs (gpu branch of batch_update), transition from the legacy
-// dispatch_gpu_economic_update(...) to dispatch_gpu_economic_compute_async(...)
-// when the gpu feature is enabled and cpu_precision_mode is false.
+// The dedicated dispatch system now handles submission every frame.
+// `EconomicLayer::batch_update` can remain CPU-only or be gradually deprecated
+// in favor of the Bevy systems for the GPU path.

@@ -1,11 +1,11 @@
 /*!
  * Actual wgpu WGSL Compute Dispatch for Sovereign Economic / RBE Layer
  * 
- * Mint-and-print-only-perfection v18.97.4 — Async GPU Readback Backpressure Guard
+ * Mint-and-print-only-perfection v18.97.5 — Dedicated Bevy Dispatch System
  * 
  * Production-grade asynchronous GPU economic simulation using wgpu map_async + Bevy AsyncComputeTaskPool.
  * Non-blocking on main simulation thread. Proper double-buffering with interior mutability.
- * Added explicit backpressure guard in dispatch to prevent pending task overwrite/leakage.
+ * Added explicit backpressure guard + dedicated Bevy dispatch system.
  * Preserves all prior GpuContext, persistent buffers, WGSL kernel, GpuNode, CPU fallback, and TOLC 8 wrapping.
  * 
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor Lattice aligned
@@ -306,7 +306,7 @@ pub fn dispatch_gpu_economic_compute_async(
 }
 
 /// Non-blocking system to poll and apply completed GPU readback results.
-/// Add to simulation schedule after dispatch (e.g. in EconomyPlugin or SovereignSimulation).
+/// Add to simulation schedule (recommended after gpu_economic_dispatch_system).
 pub fn apply_gpu_economic_results(
     mut readback: bevy::prelude::ResMut<GpuEconomicReadback>,
     mut world: bevy::prelude::ResMut<SovereignWorldState>,
@@ -329,6 +329,24 @@ pub fn apply_gpu_economic_results(
                 readback.pending_task = Some(returned_task);
             }
         }
+    }
+}
+
+/// Dedicated Bevy system that submits GPU economic compute work every frame.
+///
+/// This is the production dispatch entry point. It should be scheduled to run
+/// every frame (or on a fixed timestep) when GPU acceleration is active.
+/// It automatically respects the internal backpressure guard.
+/// Pair it with `apply_gpu_economic_results` (run after or in parallel).
+pub fn gpu_economic_dispatch_system(
+    mut world: bevy::prelude::ResMut<SovereignWorldState>,
+    mut readback: bevy::prelude::ResMut<GpuEconomicReadback>,
+) {
+    // TODO: Replace with real frame/tick from SimulationTime or Tick resource
+    let current_frame: u64 = 0;
+
+    if let Err(e) = dispatch_gpu_economic_compute_async(&mut world, &mut readback, current_frame) {
+        warn!("GPU economic dispatch failed: {}. CPU fallback or previous results will be used.", e);
     }
 }
 
