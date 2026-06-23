@@ -1,8 +1,9 @@
 // server/src/dynamic_events.rs
-// Powrush-MMO v17.54 — Dynamic Events + Security & Validation
+// Powrush-MMO v17.54 — Dynamic Events + Security & Validation + Server Audio Sync
 // PATSAGi Councils guided • 7 Living Mercy Gates aware
 // Added input validation, boost rate limiting, bounds checking, and anti-spam safeguards
 // Maintains full tunability while improving robustness and security
+// Server-side audio cue mapping for client GameAudioEvent sync (CouncilTrial, RbeFlow, DivineWhisper, etc.)
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -273,7 +274,7 @@ impl DynamicEventManager {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// REPLICATION WIRING
+// REPLICATION WIRING + SERVER AUDIO SYNC
 // ═════════════════════════════════════════════════════════════════════════
 
 pub fn map_server_event_to_client(event: &DynamicEvent) -> Option<ClientWorldEventMirror> {
@@ -295,6 +296,25 @@ pub fn map_server_event_to_client(event: &DynamicEvent) -> Option<ClientWorldEve
         }),
         _ => None,
     }
+}
+
+// Server-side audio cue mapping for client GameAudioEvent sync
+// These map to client spatial_audio::GameAudioEvent for Epiphany, CouncilTrial, RbeFlow, etc.
+pub fn map_event_to_audio_cue(event: &DynamicEvent) -> Option<AudioCue> {
+    match &event.event_type {
+        DynamicEventType::DivineWhisperCascade { intensity, .. } => Some(AudioCue::DivineWhisper { intensity: *intensity }),
+        DynamicEventType::AbundanceSurge { multiplier, .. } => Some(AudioCue::RbeAbundance { abundance: *multiplier }),
+        // CouncilTrial / Epiphany audio cues can be emitted from council_mercy_trial or epiphany systems
+        _ => None,
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum AudioCue {
+    DivineWhisper { intensity: f32 },
+    RbeAbundance { abundance: f32 },
+    CouncilTrial { intensity: f32 },
+    Epiphany { intensity: f32 },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -322,7 +342,7 @@ impl Plugin for DynamicEventsPlugin {
 fn setup_dynamic_events(mut commands: Commands, config: Res<DynamicEventsConfig>) {
     let manager = DynamicEventManager::new(config.clone());
     commands.insert_resource(manager);
-    info!("⚡ Dynamic Events v17.54 + Security & Validation online");
+    info!("⚡ Dynamic Events v17.54 + Security & Validation + Server Audio Sync online");
 }
 
 fn dynamic_events_tick_system(
@@ -339,4 +359,6 @@ fn dynamic_events_tick_system(
 // - boost_events_for_player has simple cooldown-based rate limiting.
 // - mercy_alignment is clamped on event creation.
 // - All boosts and priority values have upper bounds.
+// Server Audio Sync: map_event_to_audio_cue provides hooks for client GameAudioEvent (CouncilTrial, RbeFlow, DivineWhisper).
+// Future: Wire council_mercy_trial and epiphany systems to emit AudioCue events for full server-driven audio.
 // Future: Add admin permission checks and more advanced anomaly detection.
