@@ -1,5 +1,5 @@
 /*!
- * Council UI - 3D Spatial Audio (AudioListener attached to Camera) (v19.2.9)
+ * Council UI - 3D Spatial Audio with Doppler Effect (v19.2.9)
  */
 
 use bevy::prelude::*;
@@ -29,6 +29,10 @@ struct ValenceParticles;
 #[derive(Component)]
 struct ValenceBurst;
 
+/// Simple velocity component for Doppler effect
+#[derive(Component, Default)]
+pub struct Velocity(pub Vec3);
+
 pub struct CouncilUIPlugin;
 
 impl Plugin for CouncilUIPlugin {
@@ -55,16 +59,14 @@ impl Plugin for CouncilUIPlugin {
     }
 }
 
-/// Attaches the AudioListener to the main camera for proper 3D spatial audio
+/// Attaches AudioListener to camera and adds velocity tracking for Doppler
 fn setup_audio_listener(
     mut commands: Commands,
     camera_query: Query<Entity, With<Camera>>,
 ) {
     if let Ok(camera_entity) = camera_query.get_single() {
-        commands.entity(camera_entity).insert(AudioListener);
-        info!("AudioListener attached to main camera for 3D spatial audio");
-    } else {
-        warn!("No camera found when setting up AudioListener");
+        commands.entity(camera_entity).insert((AudioListener, Velocity::default()));
+        info!("AudioListener + Velocity attached to camera for 3D spatial audio + Doppler");
     }
 }
 
@@ -170,6 +172,7 @@ fn spawn_valence_burst(commands: &mut Commands, strength: f32) -> Entity {
         },
         ValenceBurst,
         AudioEmitter::default(),
+        Velocity(Vec3::new(0.0, 12.0, 0.0) * intensity), // Outward velocity for Doppler
         Name::new("CouncilValenceBurst"),
     )).id()
 }
@@ -199,6 +202,7 @@ fn spawn_celebration_burst(commands: &mut Commands, valence: f32) -> Entity {
         },
         ValenceBurst,
         AudioEmitter::default(),
+        Velocity(Vec3::new(0.0, 25.0, 0.0) * intensity), // Stronger outward velocity for big celebration
         Name::new("CouncilCelebrationBurst"),
     )).id()
 }
