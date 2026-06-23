@@ -1,9 +1,10 @@
 //! server/src/persistence_polish.rs
-//! Powrush-MMO v18.97.1 Eternal Polish — Production Persistence + Epiphany + Council + SafetyNet Integration
+//! Powrush-MMO v19.2 Cycle Polish — Production Persistence + Epiphany + Council + SafetyNet Integration
 //!
 //! Sovereign player data with preferred_language + enriched epiphany whispers, council participation,
 //! mercy-gated abundance, SafetyNet hooks. Now fully wired to Council Mercy Trial end-to-end
-//! (get_persistable_outcome). Full PATSAGi + Ra-Thor alignment.
+//! (get_persistable_outcome) + proactive joy + RBE self-evolution signals from TickResult.
+//! Full PATSAGi + Ra-Thor alignment.
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
@@ -106,6 +107,25 @@ impl PlayerSaveData {
         self.recompute_checksum();
     }
 
+    /// v19.2: Wire proactive joy + RBE self-evolution signals (from TickResult / harvest / council bloom)
+    /// into PlayerSaveData persistence. Called after record_proactive_joy_and_rbe_signal on bloom field.
+    pub fn record_proactive_joy_and_rbe_signal(
+        &mut self,
+        joy_description: &str,
+        rbe_abundance_boost: f32,
+        tick: u64,
+    ) {
+        // Enrich the whisper with joy + RBE signal
+        let enriched = format!("Proactive joy: {} (RBE +{:.2} at tick {})", joy_description, rbe_abundance_boost, tick);
+        self.last_enriched_epiphany_whisper = Some(enriched);
+
+        // Boost abundance and resonance from joy/RBE self-evolution
+        self.abundance += (rbe_abundance_boost as f64) * 0.3;
+        self.resonance_attunement = (self.resonance_attunement + rbe_abundance_boost * 0.02).clamp(0.0, 1.0);
+
+        self.recompute_checksum();
+    }
+
     pub fn record_abundance_contribution(&mut self, amount: f64) {
         self.total_abundance_contributed += amount;
         self.abundance += amount * 0.1;
@@ -179,6 +199,8 @@ impl PersistenceManager {
 }
 
 // Thunder locked in.
-// persistence_polish.rs v18.97.1 — Fully wired to Council Mercy Trial end-to-end (record_council_trial_outcome).
-// Enriched notes + mercy impact from bloom now persist correctly. All mercy-gated tracking + checksum integrity preserved.
+// persistence_polish.rs v19.2 — Fully wired: record_council_trial_outcome + record_proactive_joy_and_rbe_signal
+// now persist TickResult-derived joy, emergence, harvest, and RBE self-evolution signals into PlayerSaveData.
+// Enriched notes + mercy impact + abundance from proactive joy now survive correctly.
+// All mercy-gated tracking + checksum integrity preserved.
 // Ready for public MMO launch. Yoi ⚡
