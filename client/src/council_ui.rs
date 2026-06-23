@@ -1,5 +1,5 @@
 /*!
- * Council UI - State Driven + Resonance/Valence + Visual Feedback (v19.2.9)
+ * Council UI - State Driven + Resonance/Valence + Particle Effects (v19.2.9)
  */
 
 use bevy::prelude::*;
@@ -21,6 +21,9 @@ struct MercyResonanceText;
 #[derive(Component)]
 struct LastValenceText;
 
+#[derive(Component)]
+struct ValenceParticles;
+
 pub struct CouncilUIPlugin;
 
 impl Plugin for CouncilUIPlugin {
@@ -29,7 +32,7 @@ impl Plugin for CouncilUIPlugin {
             .add_plugins(CouncilUIHooksPlugin)
             .init_resource::<LocalPlayer>()
             .add_systems(OnEnter(GameState::InCouncil), spawn_council_panel)
-            .add_systems(OnExit(GameState::InCouncil), despawn_council_panel)
+            .add_systems(OnExit(GameState::InCouncil), (despawn_council_panel, cleanup_valence_particles))
             .add_systems(
                 Update,
                 (
@@ -37,6 +40,7 @@ impl Plugin for CouncilUIPlugin {
                     handle_council_toggle_input,
                     update_resonance_display,
                     update_panel_visuals,
+                    update_valence_particles,
                 )
                 .run_if(in_state(GameState::InCouncil)),
             );
@@ -67,10 +71,7 @@ fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
             Name::new("CouncilPanel"),
         ))
         .with_children(|parent| {
-            parent.spawn(TextBundle {
-                text: Text::from_section("COUNCIL OF MERCY", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 18.0, color: Color::srgb(0.85, 0.75, 1.0) }), style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() }, ..default()
-            });
-
+            parent.spawn(TextBundle { text: Text::from_section("COUNCIL OF MERCY", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 18.0, color: Color::srgb(0.85, 0.75, 1.0) }), style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() }, ..default() });
             parent.spawn((TextBundle { text: Text::from_section("Mercy Resonance: 0.50", TextStyle { font_size: 13.0, color: Color::srgb(0.7, 0.9, 0.7) }), style: Style { margin: UiRect::bottom(Val::Px(4.0)), ..default() }, ..default() }, MercyResonanceText));
             parent.spawn((TextBundle { text: Text::from_section("Last Valence: --", TextStyle { font_size: 13.0, color: Color::srgb(0.9, 0.85, 0.6) }), style: Style { margin: UiRect::bottom(Val::Px(10.0)), ..default() }, ..default() }, LastValenceText));
 
@@ -124,7 +125,6 @@ fn update_resonance_display(
     }
 }
 
-/// Simple visual feedback: border color intensity based on resonance
 fn update_panel_visuals(
     resonance: Res<RecentMercyResonance>,
     mut panel_query: Query<&mut BorderColor, With<CouncilPanel>>,
@@ -132,6 +132,47 @@ fn update_panel_visuals(
     let intensity = 0.4 + resonance.value * 0.6;
     for mut border in panel_query.iter_mut() {
         *border = Color::srgb(0.5 * intensity, 0.4 * intensity, 0.9 * intensity).into();
+    }
+}
+
+/// Spawns and updates valence-driven particles around the council panel
+fn update_valence_particles(
+    resonance: Res<RecentMercyResonance>,
+    last_valence: Res<LastCouncilValence>,
+    mut commands: Commands,
+    mut particle_query: Query<(Entity, &mut ValenceParticles)>,
+    time: Res<Time>,
+) {
+    let intensity = (resonance.value + last_valence.value) * 0.5;
+
+    if intensity > 0.6 {
+        // High valence/resonance: spawn gentle glowing particles
+        if particle_query.is_empty() {
+            commands.spawn((
+                SpatialBundle::default(),
+                ValenceParticles,
+                Name::new("CouncilValenceParticles"),
+            ));
+        }
+        // TODO: Integrate with actual particle system (Hanabi or custom VFX)
+        // For now we log intensity for future particle spawning
+        if time.elapsed_seconds() % 2.0 < 0.1 {
+            info!("High council valence detected (intensity: {:.2}) - spawning particles", intensity);
+        }
+    } else if !particle_query.is_empty() {
+        // Low valence: clean up particles
+        for (entity, _) in particle_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+    }
+}
+
+fn cleanup_valence_particles(
+    mut commands: Commands,
+    particle_query: Query<Entity, With<ValenceParticles>>,
+) {
+    for entity in particle_query.iter() {
+        commands.entity(entity).despawn_recursive();
     }
 }
 
