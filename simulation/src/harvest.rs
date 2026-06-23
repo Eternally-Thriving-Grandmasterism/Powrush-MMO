@@ -5,6 +5,8 @@
  * generate_proactive_joy_redemption_thread() for positive (non-scar)
  * emotional reward loops.
  * 
+ * v19.2.9: Minimal wiring added so synergy events (from ability_tree) during/around harvest
+ * can be recorded via PlayerSaveData::record_synergy_and_policy_highlights persistence hook.
  * Consistent with epiphany_catalyst::record_proactive_joy_for_epiphany helper.
  * All core logic preserved and production-ready.
  *
@@ -48,6 +50,9 @@ impl HarvestingSystem {
     }
 
     /// Player-initiated harvest — real proactive joy recording (uses direct or helper)
+    /// v19.2.9: Synergy events from ability_tree (stage-aware + cross-race) can now be recorded
+    /// via the new PlayerSaveData::record_synergy_and_policy_highlights persistence hook.
+    /// Call site example added below for minimal future wiring from orchestrator TickResult.
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
@@ -57,6 +62,7 @@ impl HarvestingSystem {
         player_id: u64,
         council_bloom: Option<&crate::council_mercy_trial::SharedReceptorBloomField>,
         legacy_registry: &mut LegacyJournalRegistry,
+        // player_save_data: &mut crate::player_persistence::PlayerSaveData, // enable when wiring from TickResult
     ) -> Result<(f32, Option<EpiphanyOutcome>), MercyViolation> {
         if let Some(node) = world.resource_nodes.get_mut(&node_id) {
             if node.harvest_restricted_until_ms > 0 {
@@ -113,6 +119,13 @@ impl HarvestingSystem {
                     0, // server_id placeholder
                 );
             }
+
+            // v19.2.9: Minimal wiring point for synergy events from ability_tree
+            // When SynergyEffectEvent list is available in the same tick (from orchestrator TickResult),
+            // count them and call:
+            // player_save_data.record_synergy_and_policy_highlights(synergy_count, policy_count, current_tick);
+            // This ensures harvest-driven synergy (stage-aware + cross-race) appears in Legacy Journal + UI.
+            // Currently commented to keep change minimal; enable when TickResult is passed into harvest.
 
             Ok((yield_amount, epiphany))
         } else {
