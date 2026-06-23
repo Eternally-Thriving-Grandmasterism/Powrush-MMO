@@ -1,8 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.109 — Council Proposal System wired (simulation/src/council/ + TickResult + Orchestrator integration)
-//!            Minimal viable E2E council proposals, deliberation, and resolved outcomes for testability
-//!            Phase G++ evolutionary + full governance layer active
+//! v18.97.7 — GpuEconomicPlugin re-exported
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 // ============================================================================
@@ -56,7 +54,19 @@ pub mod web;
 // RE-EXPORTS — Public Simulation API
 // ============================================================================
 
-// ... (existing re-exports unchanged for brevity) ...
+// GPU Economic Plugin & Systems (new in v18.97.7)
+pub use gpu_economic::{
+    GpuEconomicPlugin,
+    GpuEconomicSystemSet,
+    GpuEconomicReadback,
+    GpuReadbackResult,
+    gpu_economic_dispatch_system,
+    apply_gpu_economic_results,
+    gpu_economic_telemetry_system,
+};
+
+// Legacy GPU Economic items (kept for compatibility)
+pub use gpu_economic::{GpuEconomicCompute, PATSAGiEconomicParams};
 
 // Ra-Thor Bridge & Council Query
 pub use ra_thor_bridge::{RaThorBridge, CouncilQueryRequest, CouncilQueryResponse, RaThorCouncilQuery};
@@ -108,8 +118,7 @@ pub use closed_beta::{ClosedBetaManager, BetaAccessLevel};
 pub use cloud_sync::{CloudSyncManager, CloudSyncEvent};
 pub use mycorrhizal_volatile_sync::{MycorrhizalSync, VolatileResource};
 
-// GPU Economic & PATSAGi Tunables
-pub use gpu_economic::{GpuEconomicCompute, PATSAGiEconomicParams};
+// PATSAGi Tunables
 pub use patsagi_council_tunable_config::{PatsagiCouncilTunableConfig, TunableParameter};
 
 // Resonance & Scenario
@@ -184,6 +193,6 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
 
 // ============================================================================
 // END OF COMPLETE WIRING
-// v19.1: Recovered + wired advanced Hanabi + Lissajous particle effects system
-// Thunder locked in. Yoi ⚡
+// v18.97.7: GpuEconomicPlugin + SystemSet fully re-exported
+// Thunder locked in. Yoi ⚡️
 // ============================================================================
