@@ -1,7 +1,7 @@
 /*!
- * Council Systems - Voting & Resolution (v19.2.9)
+ * Council Systems - Voting, Resolution & Valence Scoring (v19.2.9)
  *
- * Includes tie-breaking logic during resolution.
+ * Implements PATSAGi-inspired valence scoring for mercy-aligned decision making.
  */
 
 use bevy::prelude::*;
@@ -21,6 +21,27 @@ pub struct CouncilResolved {
     pub final_attunement: f32,
     pub success: bool,
     pub was_tie: bool,
+    pub valence_score: f32, // New: PATSAGi-style valence (positive thriving impact)
+}
+
+/// Calculates a valence score for a council outcome.
+/// Higher = more positive emotional/ethical impact (thriving, mercy, abundance).
+/// Inspired by PATSAGi-Pinnacle valence councils.
+pub fn calculate_valence_score(
+    average_attunement: f32,
+    participant_count: u8,
+    sustainability_impact: f32, // from RBE (positive = good for long-term thriving)
+    recent_mercy_resonance: f32, // optional historical context (default 0.5)
+) -> f32 {
+    let base_valence = average_attunement * 0.6;
+    let participation_bonus = (participant_count as f32 * 0.03).min(0.15);
+    let sustainability_bonus = sustainability_impact.clamp(-0.3, 0.3) * 0.25;
+    let mercy_context = (recent_mercy_resonance - 0.5) * 0.2;
+
+    let raw_valence = base_valence + participation_bonus + sustainability_bonus + mercy_context;
+
+    // Clamp to meaningful range and apply slight mercy-positive bias
+    raw_valence.clamp(0.0, 1.0) * 0.95 + 0.05
 }
 
 /// System that processes votes while in Voting state
@@ -38,7 +59,7 @@ pub fn council_voting_system(
     }
 }
 
-/// Resolves the council with basic tie-breaking logic
+/// Resolves the council with valence scoring and tie-breaking
 pub fn council_resolution_system(
     mut next_state: ResMut<NextState<CouncilState>>,
     mut council_manager: ResMut<CouncilSessionManager>,
@@ -48,7 +69,7 @@ pub fn council_resolution_system(
     let biome = "council_chamber";
 
     if let Some(bloom) = council_manager.resolve_and_set_bloom_from_real_data(
-        0, // TODO: pass real current_tick from orchestrator
+        0,
         min_participants,
         biome,
     ) {
@@ -56,31 +77,34 @@ pub fn council_resolution_system(
         let mut success = bloom.council_mercy_seal;
         let mut was_tie = false;
 
-        // === Tie-breaking Logic ===
+        // Calculate valence score (PATSAGi-inspired)
+        let valence = calculate_valence_score(
+            attunement,
+            bloom.participant_count,
+            0.1, // TODO: pass real sustainability impact from RBE
+            0.5, // TODO: pass real recent mercy resonance
+        );
+
+        // Tie-breaking with valence influence
         let epsilon = 0.02;
         if (attunement - 0.5).abs() < epsilon {
             was_tie = true;
-
-            // Tie-breaker: Slight mercy bias + participant count
             let participant_bonus = (bloom.participant_count as f32 * 0.015).min(0.08);
-            let final_score = attunement + participant_bonus;
-
+            let final_score = attunement + participant_bonus + (valence - 0.5) * 0.1;
             success = final_score >= 0.5;
-
-            info!(
-                "Council tie detected (attunement: {:.2}). Tie-breaker applied → success: {}",
-                attunement, success
-            );
         }
 
         resolved_events.send(CouncilResolved {
             final_attunement: attunement,
             success,
             was_tie,
+            valence_score: valence,
         });
 
-        info!("Council resolved. Success: {}, Attunement: {:.2}, Tie: {}",
-              success, attunement, was_tie);
+        info!(
+            "Council resolved. Success: {}, Attunement: {:.2}, Valence: {:.2}, Tie: {}",
+            success, attunement, valence, was_tie
+        );
 
         next_state.set(CouncilState::Inactive);
     }
