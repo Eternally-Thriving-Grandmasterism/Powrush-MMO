@@ -1,9 +1,10 @@
 /*!
- * Council UI - Full Sensory Feedback (Bursts + Celebration + Sound) (v19.2.9)
+ * Council UI - Full Sensory Feedback with bevy_kira_audio (v19.2.9)
  */
 
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
+use bevy_kira_audio::prelude::*;
 use simulation::game_state::GameState;
 use simulation::council_mercy_trial::{CouncilAttunementAction, CouncilUIHooksPlugin};
 use simulation::council_systems::{RecentMercyResonance, LastCouncilValence, CouncilResolved};
@@ -34,6 +35,7 @@ impl Plugin for CouncilUIPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_plugins(CouncilUIHooksPlugin)
+            .add_plugins(AudioPlugin) // bevy_kira_audio
             .init_resource::<LocalPlayer>()
             .add_systems(OnEnter(GameState::InCouncil), spawn_council_panel)
             .add_systems(OnExit(GameState::InCouncil), (despawn_council_panel, cleanup_valence_particles))
@@ -100,6 +102,7 @@ fn handle_council_buttons(
     local_player: Res<crate::local_player::LocalPlayer>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -109,7 +112,7 @@ fn handle_council_buttons(
             });
 
             spawn_valence_burst(&mut commands, button.attunement_delta);
-            play_burst_sound(&mut commands, &asset_server, button.attunement_delta);
+            play_burst_sound(&audio, &asset_server, button.attunement_delta);
         }
     }
 }
@@ -118,12 +121,12 @@ fn handle_council_resolved_bursts(
     mut events: EventReader<CouncilResolved>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
 ) {
     for event in events.read() {
         if event.success && event.valence_score > 0.7 {
-            // Big celebration burst for high-valence successful resolutions
             spawn_celebration_burst(&mut commands, event.valence_score);
-            play_celebration_sound(&mut commands, &asset_server);
+            play_celebration_sound(&audio, &asset_server);
         }
     }
 }
@@ -184,20 +187,15 @@ fn spawn_celebration_burst(commands: &mut Commands, valence: f32) {
     ));
 }
 
-fn play_burst_sound(commands: &mut Commands, asset_server: &Res<AssetServer>, strength: f32) {
-    // TODO: Replace with actual sound asset
-    commands.spawn(AudioBundle {
-        source: asset_server.load("sounds/council_burst.ogg"),
-        settings: PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.4 + strength * 0.4)),
-    });
+fn play_burst_sound(audio: &Res<Audio>, asset_server: &Res<AssetServer>, strength: f32) {
+    let volume = 0.4 + strength * 0.4;
+    audio.play(asset_server.load("sounds/council_burst.ogg"))
+        .with_volume(volume);
 }
 
-fn play_celebration_sound(commands: &mut Commands, asset_server: &Res<AssetServer>) {
-    // TODO: Replace with actual sound asset
-    commands.spawn(AudioBundle {
-        source: asset_server.load("sounds/council_celebration.ogg"),
-        settings: PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.9)),
-    });
+fn play_celebration_sound(audio: &Res<Audio>, asset_server: &Res<AssetServer>) {
+    audio.play(asset_server.load("sounds/council_celebration.ogg"))
+        .with_volume(0.9);
 }
 
 fn handle_council_toggle_input(
