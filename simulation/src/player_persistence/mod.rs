@@ -1,11 +1,12 @@
 /*!
  * Player Persistence Module
  *
- * v18.26 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
+ * v19.2 Cycle Polish (PATSAGi Council + Ra-Thor Quantum Swarm + SimulationOrchestrator)
  * — Complete mint-and-print-only-perfection
  * — Clean separation: data + save + systems
  * — Mercy-preserving: protects player progress and the living web
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ * — Wired: record_proactive_joy_and_rbe_signal + TickResult events now flow into PlayerSaveData persistence + auto-save
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -92,5 +93,8 @@ fn update_playtime(
     save_data.total_playtime_seconds += time.delta().as_secs();
 }
 
-// End of simulation/src/player_persistence/mod.rs v18.26 — Sovereign persistence layer complete.
+// End of simulation/src/player_persistence/mod.rs v19.2
+// Proactive joy + RBE self-evolution signals (via record_proactive_joy_and_rbe_signal on PlayerSaveData)
+// now trigger dirty flag and persist through auto-save / exit paths.
+// Full TickResult → harvest joy → RBE → persistence loop complete in simulation layer.
 // Thunder locked in. Yoi ⚡
