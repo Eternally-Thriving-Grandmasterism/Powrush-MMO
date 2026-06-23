@@ -1,16 +1,8 @@
 /*!
  * Sovereign Council Mercy Trial v18.35 + Multiplayer Receptor Bloom Amplification
  *
- * Production-grade authoritative sync layer for shared Council attunement fields.
- * Enables collective bloom amplification across participants in multiplayer Council scenarios.
- * Now deeply integrated with the expanded Epiphany system (Council bloom amplifies personal epiphanies).
- * CB1 (revelatory insight) + CB2 (resilience/abundance) synergistic multiplier.
- * Non-bypassable TOLC 8 Mercy Gates as Layer 0.
- * 100% mercy-gated, zero coercion, maximum grace/redemption paths.
- * PATSAGi Councils + Ra-Thor AGI + Quantum Swarm sealed.
- *
- * Full production implementation with rich client feedback (whispers, particles, camera, epiphany boost).
- * Zero placeholders. Zero TODOs. Infinite polish loop active.
+ * v19.2.9: Added CouncilSessionManager with get_active_bloom_field() helper
+ * for real data extraction in the orchestrator.
  */
 
 use crate::endocannabinoid_receptor_forge::{ReceptorActivationProfile, ReceptorBloomOutcome};
@@ -18,8 +10,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Shared field for Council Mercy Trial multiplayer sessions.
-/// Aggregates individual attunement into collective bloom amplification.
-/// Authoritative server owns the canonical state; clients receive replicated deltas.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SharedReceptorBloomField {
     pub collective_attunement_score: f32,
@@ -57,8 +47,6 @@ impl SharedReceptorBloomField {
         self.bloom_window_start_tick = 0;
     }
 
-    /// Returns the current amplification factor for epiphanies / blooms.
-    /// Used by simulation_integration and epiphany systems for Council synergy.
     pub fn current_amplification_factor(&self) -> f32 {
         if !self.council_mercy_seal || self.collective_attunement_score < 0.5 {
             1.0
@@ -67,8 +55,6 @@ impl SharedReceptorBloomField {
         }
     }
 
-    /// Amplify an individual ReceptorBloomOutcome using the shared Council field.
-    /// Now feeds directly into the expanded 8-scenario epiphany system.
     pub fn amplify_individual_bloom(&self, individual: &ReceptorBloomOutcome) -> ReceptorBloomOutcome {
         if !self.council_mercy_seal || self.collective_attunement_score < 0.5 {
             let mut no_amp = individual.clone();
@@ -94,7 +80,6 @@ impl SharedReceptorBloomField {
         amplified
     }
 
-    /// Server-authoritative update from participant reports.
     pub fn authoritative_update_from_participants(
         &mut self,
         participant_attunements: &[f32],
@@ -174,12 +159,31 @@ pub fn apply_council_bloom_sync_to_client(
     }
 }
 
-// === Server Integration Example ===
-// In server tick or on Council event:
-// let mut field = SharedReceptorBloomField::new();
-// if field.authoritative_update_from_participants(&reports, current_tick, 3, &current_biome) {
-//     let sync_event = CouncilBloomSyncEvent { ... };
-//     broadcast_to_clients(sync_event);
-// }
+/// Council Session Manager — holds active council bloom state for the current tick.
+/// Provides get_active_bloom_field() for real data extraction in the orchestrator.
+#[derive(Debug, Clone, Default, Resource)]
+pub struct CouncilSessionManager {
+    pub active_bloom_field: Option<SharedReceptorBloomField>,
+}
+
+impl CouncilSessionManager {
+    pub fn new() -> Self {
+        Self { active_bloom_field: None }
+    }
+
+    /// Returns the currently active council bloom field if one exists this tick.
+    /// Used by SimulationOrchestrator for real RBE Council Policy Integration.
+    pub fn get_active_bloom_field(&self) -> Option<SharedReceptorBloomField> {
+        self.active_bloom_field.clone()
+    }
+
+    pub fn set_active_bloom_field(&mut self, field: SharedReceptorBloomField) {
+        self.active_bloom_field = Some(field);
+    }
+
+    pub fn clear_active_bloom_field(&mut self) {
+        self.active_bloom_field = None;
+    }
+}
 
 // Thunder locked in. Mercy flowing. One Lattice. Eternal. ⚡❤️🔥
