@@ -1,12 +1,12 @@
 /*!
- * Council UI - State Driven + Resonance/Valence + Hanabi + Burst Effects (v19.2.9)
+ * Council UI - Full Sensory Feedback (Bursts + Celebration + Sound) (v19.2.9)
  */
 
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 use simulation::game_state::GameState;
 use simulation::council_mercy_trial::{CouncilAttunementAction, CouncilUIHooksPlugin};
-use simulation::council_systems::{RecentMercyResonance, LastCouncilValence};
+use simulation::council_systems::{RecentMercyResonance, LastCouncilValence, CouncilResolved};
 
 #[derive(Component)]
 pub struct CouncilPanel;
@@ -41,6 +41,7 @@ impl Plugin for CouncilUIPlugin {
                 Update,
                 (
                     handle_council_buttons,
+                    handle_council_resolved_bursts,
                     handle_council_toggle_input,
                     update_resonance_display,
                     update_panel_visuals,
@@ -98,6 +99,7 @@ fn handle_council_buttons(
     mut events: EventWriter<CouncilAttunementAction>,
     local_player: Res<crate::local_player::LocalPlayer>,
     mut commands: Commands,
+    asset_server: Res<AssetServer>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -106,13 +108,26 @@ fn handle_council_buttons(
                 attunement_delta: button.attunement_delta,
             });
 
-            // Trigger burst effect on button press
             spawn_valence_burst(&mut commands, button.attunement_delta);
+            play_burst_sound(&mut commands, &asset_server, button.attunement_delta);
         }
     }
 }
 
-/// Spawns a one-shot Hanabi burst effect for attunement actions
+fn handle_council_resolved_bursts(
+    mut events: EventReader<CouncilResolved>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+) {
+    for event in events.read() {
+        if event.success && event.valence_score > 0.7 {
+            // Big celebration burst for high-valence successful resolutions
+            spawn_celebration_burst(&mut commands, event.valence_score);
+            play_celebration_sound(&mut commands, &asset_server);
+        }
+    }
+}
+
 fn spawn_valence_burst(commands: &mut Commands, strength: f32) {
     let intensity = strength.clamp(0.1, 1.0);
 
@@ -139,6 +154,50 @@ fn spawn_valence_burst(commands: &mut Commands, strength: f32) {
         ValenceBurst,
         Name::new("CouncilValenceBurst"),
     ));
+}
+
+fn spawn_celebration_burst(commands: &mut Commands, valence: f32) {
+    let intensity = valence.clamp(0.6, 1.0);
+
+    let mut effect = ParticleEffect::default();
+    effect
+        .init(InitPositionSphereModifier { center: Vec3::ZERO, radius: 120.0, ..default() })
+        .init(InitVelocitySphereModifier { center: Vec3::ZERO, speed: 80.0 * intensity, ..default() })
+        .init(InitLifetimeModifier { lifetime: 1.6 })
+        .update(LinearDragModifier { drag: 1.2 })
+        .render(ColorOverLifetimeModifier {
+            gradient: Gradient::from_colors([
+                Color::srgba(0.9, 0.85, 1.0, 1.0),
+                Color::srgba(0.6, 0.5, 0.95, 0.0),
+            ]),
+        })
+        .render(SizeOverLifetimeModifier { gradient: Gradient::constant(Vec2::splat(6.0)) });
+
+    commands.spawn((
+        ParticleEffectBundle {
+            effect,
+            transform: Transform::from_xyz(0.0, 0.0, 0.0),
+            ..default()
+        },
+        ValenceBurst,
+        Name::new("CouncilCelebrationBurst"),
+    ));
+}
+
+fn play_burst_sound(commands: &mut Commands, asset_server: &Res<AssetServer>, strength: f32) {
+    // TODO: Replace with actual sound asset
+    commands.spawn(AudioBundle {
+        source: asset_server.load("sounds/council_burst.ogg"),
+        settings: PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.4 + strength * 0.4)),
+    });
+}
+
+fn play_celebration_sound(commands: &mut Commands, asset_server: &Res<AssetServer>) {
+    // TODO: Replace with actual sound asset
+    commands.spawn(AudioBundle {
+        source: asset_server.load("sounds/council_celebration.ogg"),
+        settings: PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.9)),
+    });
 }
 
 fn handle_council_toggle_input(
