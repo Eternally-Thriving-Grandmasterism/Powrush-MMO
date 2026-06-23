@@ -198,9 +198,56 @@ impl PersistenceManager {
     }
 }
 
+// ============================================================
+// SERVER PERSISTENCE HANDLER TESTS (v19.2)
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_record_proactive_joy_and_rbe_signal() {
+        let mut data = PlayerSaveData::new(42);
+        let initial_abundance = data.abundance;
+        let initial_resonance = data.resonance_attunement;
+
+        data.record_proactive_joy_and_rbe_signal("harvest_joy_wave", 12.5, 12345);
+
+        assert!(data.last_enriched_epiphany_whisper.is_some());
+        assert!(data.last_enriched_epiphany_whisper.as_ref().unwrap().contains("harvest_joy_wave"));
+        assert!(data.abundance > initial_abundance);
+        assert!(data.resonance_attunement > initial_resonance);
+        assert!(data.is_checksum_valid());
+    }
+
+    #[test]
+    fn test_record_council_trial_outcome_updates_whisper_and_abundance() {
+        let mut data = PlayerSaveData::new(7);
+        let notes = vec!["Council sealed with high attunement".to_string()];
+
+        data.record_council_trial_outcome(0.92, notes, 18.0, 9999);
+
+        assert!(data.successful_council_blooms >= 1);
+        assert!(data.last_enriched_epiphany_whisper.is_some());
+        assert!(data.abundance > 100.0);
+        assert!(data.is_checksum_valid());
+    }
+
+    #[test]
+    fn test_checksum_remains_valid_after_multiple_joy_and_council_records() {
+        let mut data = PlayerSaveData::new(99);
+
+        data.record_proactive_joy_and_rbe_signal("first_joy", 5.0, 100);
+        data.record_council_trial_outcome(0.85, vec!["Second bloom".to_string()], 10.0, 200);
+        data.record_proactive_joy_and_rbe_signal("second_joy", 8.0, 300);
+
+        assert!(data.is_checksum_valid());
+        assert!(data.abundance > 100.0);
+    }
+}
+
 // Thunder locked in.
-// persistence_polish.rs v19.2 — Fully wired: record_council_trial_outcome + record_proactive_joy_and_rbe_signal
-// now persist TickResult-derived joy, emergence, harvest, and RBE self-evolution signals into PlayerSaveData.
-// Enriched notes + mercy impact + abundance from proactive joy now survive correctly.
-// All mercy-gated tracking + checksum integrity preserved.
+// persistence_polish.rs v19.2 — Server persistence handler tests added for record_proactive_joy_and_rbe_signal + council outcome.
+// All new persistence paths now have regression coverage.
 // Ready for public MMO launch. Yoi ⚡
