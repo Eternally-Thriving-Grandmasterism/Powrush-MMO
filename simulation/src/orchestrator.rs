@@ -3,49 +3,31 @@
  */
 
 #[derive(Debug, Default, Clone)]
-pub struct TickResult {
-    // ... existing fields ...
-    pub active_policy_count: usize,
-    pub active_policy_types: Vec<PolicyType>,
-    pub synergies_active: bool,
-    pub conflicts_active: bool,
+pub struct TickResult { ... }
 
-    pub zones_with_visual_highlight: usize,  // NEW: zones currently highlighted by policies
-}
-
-// In run_tick, after world updates:
-let zones_with_visual_highlight = self.world.interest_zones
-    .values()
-    .filter(|z| z.visual_highlight > 0.15)
-    .count();
-
-let mut tick_result = TickResult {
-    // ...
-    zones_with_visual_highlight,
-    ..Default::default()
-};
+// In run_tick... (unchanged)
 
 // ============================================================================
-// GPU Economic Async Readback Setup (v18.97.5)
+// GPU Economic Async Readback Setup (v18.97.6) - SystemSet Chaining
 // ============================================================================
 
 use bevy::prelude::*;
+use crate::gpu_economic::{GpuEconomicSystemSet, gpu_economic_dispatch_system, apply_gpu_economic_results, GpuEconomicReadback};
 
-/// Registers the `GpuEconomicReadback` resource and both dedicated GPU economic systems:
-/// - `gpu_economic_dispatch_system` (submits work)
-/// - `apply_gpu_economic_results` (applies completed readbacks)
-///
-/// Call once during plugin initialization.
+/// Registers GPU economic systems using explicit SystemSet ordering.
+/// This is the recommended Bevy pattern for clear, maintainable system ordering.
 pub fn setup_gpu_economic_async_readback(app: &mut App) {
     app
-        .init_resource::<crate::gpu_economic::GpuEconomicReadback>()
-        .add_systems(Update, (
-            crate::gpu_economic::gpu_economic_dispatch_system,
-            crate::gpu_economic::apply_gpu_economic_results,
-        ).chain());  // dispatch first, then apply in same frame when possible
+        .init_resource::<GpuEconomicReadback>()
+        .configure_sets(
+            Update,
+            (
+                GpuEconomicSystemSet::Dispatch,
+                GpuEconomicSystemSet::Apply,
+            ).chain(),
+        )
+        .add_systems(Update, gpu_economic_dispatch_system.in_set(GpuEconomicSystemSet::Dispatch))
+        .add_systems(Update, apply_gpu_economic_results.in_set(GpuEconomicSystemSet::Apply));
 }
 
-// Note for full integration:
-// The dedicated dispatch system now handles submission every frame.
-// `EconomicLayer::batch_update` can remain CPU-only or be gradually deprecated
-// in favor of the Bevy systems for the GPU path.
+// Note: SystemSet makes future additions (e.g. telemetry, validation) easy to order correctly.
