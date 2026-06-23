@@ -1,10 +1,8 @@
 /*!
  * game/ambisonic/decoder.rs
  *
- * Basic Ambisonic Decoder to Binaural
- * Long-term foundation for Powrush-MMO
- *
- * Phase 1: Simple virtual speaker + existing HRTF path
+ * Ambisonic Decoder to Binaural (Improved for Phase 1)
+ * Long-term Hybrid Architecture
  *
  * AG-SML v1.0
  */
@@ -12,26 +10,29 @@
 use glam::Vec3;
 use super::AmbisonicCoefficients;
 
-/// Decode 1st-order Ambisonic coefficients to stereo (binaural approximation).
-///
-/// Current implementation: Simple virtual speaker decoding.
-/// Future: Integrate with HRTF or proper binaural decoder.
+/// Decode 1st-order Ambisonic to stereo with improved virtual speaker layout.
+/// This is a simple but effective starting point.
 pub fn decode_1st_order_to_stereo(coeffs: &AmbisonicCoefficients) -> (f32, f32) {
-    // Very basic virtual speaker decoding for left/right
-    // W contributes to both, X contributes to left/right balance
-    let left = coeffs.w + coeffs.x * 0.5;
-    let right = coeffs.w - coeffs.x * 0.5;
+    // Basic virtual speaker decoding for 1st order
+    // W is common to both channels
+    // X controls left/right
+    let w = coeffs.w;
+    let x = coeffs.x;
 
-    // Simple Y/Z contribution (can be improved later)
-    let left = left + coeffs.y * 0.3 + coeffs.z * 0.2;
-    let right = right - coeffs.y * 0.3 + coeffs.z * 0.2;
+    // Simple cardioid-style virtual speakers at ±90°
+    let left = w + x;
+    let right = w - x;
+
+    // Gentle Y/Z contribution for height and front/back feel
+    let left = left + coeffs.y * 0.4 + coeffs.z * 0.3;
+    let right = right - coeffs.y * 0.4 + coeffs.z * 0.3;
 
     (left, right)
 }
 
-/// General decode entry point
 pub fn decode_to_stereo(coeffs: &AmbisonicCoefficients) -> (f32, f32) {
     decode_1st_order_to_stereo(coeffs)
 }
 
+// Future: Proper binaural decoder using HRTF or spherical harmonics
 // Thunder locked in. Yoi ⚡
