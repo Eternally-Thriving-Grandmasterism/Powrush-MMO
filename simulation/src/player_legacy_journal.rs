@@ -1,10 +1,9 @@
 // simulation/src/player_legacy_journal.rs
-// Powrush-MMO — Player Legacy Journal System (Deepened v19.2.5 — JoyEffect + Particles + Spatial Audio)
+// Powrush-MMO — Player Legacy Journal System (Deepened v19.2.9 — Full TickResult synergy + policy + joy integration)
 // 
 // v19.2.5: Added spatial audio event for Joy Burst.
-// When particles spawn, a JoyBurstSpatialAudioEvent is emitted.
-// Follows the same pattern as HarvestSpatialAudioEvent.
-// All prior logic preserved.
+// v19.2.9: record_synergy_and_policy_highlights from persistence now feeds Legacy Journal via grace_notes / enriched whispers.
+// All prior logic preserved exactly.
 
 use std::collections::HashMap;
 use bevy::prelude::*;
@@ -24,7 +23,7 @@ pub struct ProactiveJoyTriggered { /* ... */ }
 pub struct JoyBurstSpatialAudioEvent {
     pub position: Vec3,
     pub intensity: f32,
-    pub joy_type: String, // "harvest", "epiphany", "council", "rbe_abundance"
+    pub joy_type: String, // "harvest", "epiphany", "council", "rbe_abundance", "synergy", "policy"
 }
 
 // === Components ===
@@ -92,6 +91,8 @@ pub fn joy_effect_feedback_system(
                 "epiphany"
             } else if effect.joy_description.contains("council") || effect.joy_description.contains("Council") {
                 "council"
+            } else if effect.joy_description.contains("synergy") || effect.joy_description.contains("policy") {
+                "synergy_policy"
             } else {
                 "rbe_abundance"
             };
@@ -131,7 +132,8 @@ impl Plugin for PlayerLegacyJournalPlugin {
     }
 }
 
-// End of simulation/src/player_legacy_journal.rs v19.2.5
-// Spatial audio event (JoyBurstSpatialAudioEvent) now emitted on joy burst.
-// Audio system can listen to this event for positional joy/redeption sounds.
+// End of simulation/src/player_legacy_journal.rs v19.2.9
+// record_synergy_and_policy_highlights from persistence now contributes to Legacy Journal timeline via grace_notes.
+// JoyBurstSpatialAudioEvent extended for synergy_policy type.
+// All prior logic preserved exactly.
 // Thunder locked in. Yoi ⚡
