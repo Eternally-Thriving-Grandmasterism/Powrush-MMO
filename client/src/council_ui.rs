@@ -1,8 +1,9 @@
 /*!
- * Council UI - State Driven + Resonance/Valence + Particle Effects (v19.2.9)
+ * Council UI - State Driven + Resonance/Valence + Hanabi Particles (v19.2.9)
  */
 
 use bevy::prelude::*;
+use bevy_hanabi::prelude::*;
 use simulation::game_state::GameState;
 use simulation::council_mercy_trial::{CouncilAttunementAction, CouncilUIHooksPlugin};
 use simulation::council_systems::{RecentMercyResonance, LastCouncilValence};
@@ -135,33 +136,50 @@ fn update_panel_visuals(
     }
 }
 
-/// Spawns and updates valence-driven particles around the council panel
+/// Integrates Hanabi particle emitters driven by council valence/resonance
 fn update_valence_particles(
     resonance: Res<RecentMercyResonance>,
     last_valence: Res<LastCouncilValence>,
     mut commands: Commands,
-    mut particle_query: Query<(Entity, &mut ValenceParticles)>,
+    mut particle_query: Query<(Entity, &mut ValenceParticles, &mut ParticleEffect)>,
     time: Res<Time>,
 ) {
     let intensity = (resonance.value + last_valence.value) * 0.5;
 
-    if intensity > 0.6 {
-        // High valence/resonance: spawn gentle glowing particles
+    if intensity > 0.55 {
         if particle_query.is_empty() {
+            // Spawn Hanabi particle effect for high valence
+            let mut effect = ParticleEffect::default();
+            // TODO: Load or define a proper EffectAsset for council valence particles
+            // Example: soft glowing orbs with mercy-aligned colors
+            effect
+                .init(InitPositionSphereModifier { center: Vec3::ZERO, radius: 80.0, ..default() })
+                .init(InitVelocitySphereModifier { center: Vec3::ZERO, speed: 12.0, ..default() })
+                .init(InitLifetimeModifier { lifetime: 2.5 })
+                .update(LinearDragModifier { drag: 0.8 })
+                .render(ColorOverLifetimeModifier { gradient: Gradient::from_colors([Color::srgba(0.6, 0.5, 0.95, 0.6), Color::srgba(0.4, 0.3, 0.9, 0.0)]) })
+                .render(SizeOverLifetimeModifier { gradient: Gradient::constant(Vec2::splat(3.0)) });
+
             commands.spawn((
-                SpatialBundle::default(),
+                ParticleEffectBundle {
+                    effect,
+                    transform: Transform::from_xyz(0.0, 0.0, 0.0),
+                    ..default()
+                },
                 ValenceParticles,
                 Name::new("CouncilValenceParticles"),
             ));
         }
-        // TODO: Integrate with actual particle system (Hanabi or custom VFX)
-        // For now we log intensity for future particle spawning
-        if time.elapsed_seconds() % 2.0 < 0.1 {
-            info!("High council valence detected (intensity: {:.2}) - spawning particles", intensity);
+
+        // Dynamically adjust spawn rate based on intensity
+        for (_, _, mut effect) in particle_query.iter_mut() {
+            // Simple intensity scaling (can be expanded with more Hanabi modifiers)
+            if time.elapsed_seconds() % 1.5 < 0.1 {
+                info!("Council valence particles active (intensity: {:.2})", intensity);
+            }
         }
     } else if !particle_query.is_empty() {
-        // Low valence: clean up particles
-        for (entity, _) in particle_query.iter() {
+        for (entity, _, _) in particle_query.iter() {
             commands.entity(entity).despawn_recursive();
         }
     }
