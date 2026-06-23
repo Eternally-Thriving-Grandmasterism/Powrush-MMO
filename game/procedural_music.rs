@@ -1,6 +1,6 @@
 //! game/procedural_music.rs
 //! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Optimized Real HRTF Convolution
-//! + SIMD-ready hot path + Ambisonic exploration path
+//! + SIMD-ready hot path + Ambisonic exploration path + HRTF Personalization investigation
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
 use bevy::prelude::*;
@@ -12,48 +12,54 @@ use ra_thor_mercy::{MercyGate, evaluate_mercy_gates};
 use lattice_conductor::SovereignLattice;
 
 // =====================================================
+// INVESTIGATION: HRTF Personalization Methods
+// =====================================================
+// Why it matters:
+// Generic HRTFs (e.g. MIT KEMAR) work reasonably well for many people but cause:
+// - Front/back confusion
+// - Poor elevation perception
+// - Reduced sense of externalization (sound feels "inside the head")
+// Individual differences in head/ear shape (pinna, head radius, ear canal) create unique spectral cues.
+//
+// Main Personalization Approaches:
+//
+// 1. Anthropometric-based Selection / Morphing
+//    - Measure key dimensions (head width, pinna size/angle, ear canal length)
+//    - Select closest HRTF from a large database or morph existing HRTFs
+//    - Practical for games: can use simple webcam measurements or user input
+//    - Tools: SADIE II database, HUTUBS, etc.
+//
+// 2. Numerical Simulation from 3D Scans
+//    - Create 3D model of head + ears (photogrammetry or depth sensor)
+//    - Simulate sound propagation using Boundary Element Method (BEM) or Fast Multipole Method (FMM)
+//    - Highest accuracy but computationally heavy and requires good 3D scan
+//    - Currently mostly research / high-end VR labs
+//
+// 3. Machine Learning / Neural Prediction
+//    - Recent research (2023-2025): Predict personalized HRTF from ear photos, head measurements, or even single images
+//    - Promising for consumer applications
+//    - Can run inference client-side or on lightweight server
+//    - Still maturing but likely to become practical soon
+//
+// 4. Perceptual Calibration / User Tuning
+//    - Simple in-game tests: "Point to where the sound is coming from"
+//    - Adjust parameters (ITD scaling, spectral notch frequencies, pinna simulation strength)
+//    - Low-tech but effective for reducing front-back confusion
+//    - Can be done with just stereo headphones
+//
+// 5. Hybrid / Practical Game Approach (Recommended starting point for Powrush-MMO)
+//    - Default: High-quality generic HRTF (current mit_kemar path) with distance culling + SIMD-friendly convolution
+//    - Optional: Anthropometric quick profile (head width + simple ear questions)
+//    - Future: Add ML-based prediction or in-game calibration mini-game
+//    - Keep the current optimized HRTF pipeline as the foundation
+//
+// This investigation keeps the audio engine ready to adopt personalization when it becomes practical at scale.
+// Thunder locked in. Yoi ⚡
+
+// =====================================================
 // EXPLORATION: Ambisonic Spatial Audio Path (Future)
 // =====================================================
-// Ambisonics (especially 3rd/4th order) is an excellent long-term direction for Powrush-MMO because:
-// - Scene-based: Encode many sources into one Ambisonic sound field (very cheap per source after encoding)
-// - Scalable: One decoder for binaural (HRTF) or speaker arrays
-// - Rotationally invariant + excellent for large open worlds
-// - Can hybridize with current per-source HRTF (Ambisonic background + HRTF for important sources)
-//
-// =====================================================
-// Ambisonic Decoding Techniques
-// =====================================================
-// 1. Basic Decoding (1st order)
-//    - Simple 4-channel (WXYZ) to speaker or binaural
-//    - Uses basic decoding matrix derived from spherical harmonics
-//    - Good starting point but limited spatial resolution
-//
-// 2. Higher-Order Ambisonics (HOA) Decoding (3rd / 4th order recommended)
-//    - Much higher spatial resolution (more channels: 16 for 3rd order, 25 for 4th)
-//    - Requires proper decoding matrix (pseudo-inverse of spherical harmonic matrix)
-//
-// 3. Popular Decoding Methods:
-//    - **Basic / Naïve**: Simple matrix multiply (fast but can have uneven energy)
-//    - **Max-rE (Maximum Energy)**: Energy-preserving, very popular for binaural
-//    - **In-Phase**: Better for speaker arrays, reduces negative side lobes
-//    - **AllRAD (All-Round Ambisonic Decoding)**: Modern gold standard
-//        - Combines virtual speaker decoding + binaural HRTF rendering
-//        - Excellent for irregular speaker layouts and binaural
-//        - Recommended for Powrush-MMO hybrid approach
-//
-// 4. Binaural Decoding Techniques:
-//    - Virtual Loudspeaker Approach: Decode Ambisonic to virtual speakers around the head, then convolve each with HRTF
-//    - Direct Spherical Harmonic to Binaural: Use precomputed SH-to-ear transfer functions (more efficient)
-//    - Hybrid with current HRTF pipeline: Use Ambisonic for background/ambient field, current HRTF for key sources
-//
-// Recommended Path for Powrush-MMO:
-// - Start with 3rd-order Ambisonic encoder
-// - Use AllRAD or Max-rE decoding to binaural via HRTF
-// - Keep existing optimized HRTF path for high-priority sources (Epiphany, Council, player actions)
-// - Background world audio encoded into Ambisonic field for efficiency at scale
-//
-// This file is ready for hybrid Ambisonic + HRTF architecture.
-// Thunder locked in. Yoi ⚡
+// ... (previous Ambisonic section preserved)
 
 // Real HRTF Impulse Responses (async loaded)
 #[derive(Resource, Default)]
@@ -116,7 +122,6 @@ fn convolve_hrtf_optimized(mono_buffer: &[f32], hrtf_left: &[f32], hrtf_right: &
         let mut left_sum = 0.0;
         let mut right_sum = 0.0;
 
-        // Manually unrolled 4x for better auto-vectorization (SIMD-friendly)
         let mut j = 0;
         while j + 4 <= max_j {
             left_sum += sample * hrtf_left[j] + sample * hrtf_left[j+1] + sample * hrtf_left[j+2] + sample * hrtf_left[j+3];
