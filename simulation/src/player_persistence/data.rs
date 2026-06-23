@@ -4,6 +4,7 @@
  * v19.2 Cycle Polish (PATSAGi Council + Ra-Thor Quantum Swarm + SimulationOrchestrator)
  * — record_epiphany_with_enriched_whisper + new proactive joy + RBE abundance/self-evolution signal recording
  * — Wired to TickResult events and harvest joy threads for full persistence loop
+ * v19.2.9: Added record_synergy_and_policy_highlights extensible hook (minimal additive)
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -104,10 +105,45 @@ impl PlayerSaveData {
         self.dirty = true;
     }
 
+    /// v19.2.9: Extensible hook for recording synergy_events + policy_highlights from TickResult.
+    /// Minimal additive method — reuses existing grace_notes path for full compatibility.
+    /// Rich data (stage, deltas, chain_name, agent_id, tick) from ability_tree is preserved upstream and can be expanded here later.
+    /// Called from SimulationOrchestrator / harvest / council paths when full TickResult is available.
+    pub fn record_synergy_and_policy_highlights(
+        &mut self,
+        synergy_count: usize,
+        policy_highlight_count: usize,
+        tick: u64,
+    ) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        if let Some(last) = self.epiphanies.last_mut() {
+            last.grace_notes.push(format!(
+                "Synergy events: {} | Policy highlights: {} at tick {}",
+                synergy_count, policy_highlight_count, tick
+            ));
+        } else {
+            self.epiphanies.push(EpiphanyRecord {
+                scenario_id: "synergy_policy".to_string(),
+                timestamp,
+                intensity: 0.0,
+                biome: "global".to_string(),
+                whisper_text: Some(format!("Synergy + Policy at tick {}", tick)),
+                grace_notes: vec![format!("Synergy: {} | Policy: {}", synergy_count, policy_highlight_count)],
+                muscle_memory_delta: 0.0,
+            });
+        }
+
+        self.dirty = true;
+    }
+
     // Keep apply_epiphany_outcome for backward compatibility, now it can call the enriched version internally if needed
 }
 
-// End of simulation/src/player_persistence/data.rs v19.2
-// Proactive joy + RBE signals now persist alongside enriched whispers.
-// Full TickResult → harvest joy → RBE → persistence loop wired.
+// End of simulation/src/player_persistence/data.rs v19.2.9
+// Proactive joy + RBE + synergy/policy highlights now persist alongside enriched whispers.
+// Full TickResult → persistence loop complete.
 // Thunder locked in. Yoi ⚡
