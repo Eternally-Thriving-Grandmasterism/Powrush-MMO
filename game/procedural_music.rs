@@ -1,6 +1,6 @@
 //! game/procedural_music.rs
 //! Mercy-Gated Procedural Music System with Granular Synthesis + Golden-Ratio Timing + ADSR + Optimized Real HRTF Convolution
-//! + SIMD-ready hot path + Ambisonic exploration path + HRTF Personalization + ARKit Calibration Plan
+//! + SIMD-ready hot path + Ambisonic exploration path + HRTF Personalization + ARKit Calibration Plan + OpenHRTF Database investigation
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
 
 use bevy::prelude::*;
@@ -12,65 +12,45 @@ use ra_thor_mercy::{MercyGate, evaluate_mercy_gates};
 use lattice_conductor::SovereignLattice;
 
 // =====================================================
-// IMPLEMENTATION PLAN: ARKit HRTF Calibration
+// INVESTIGATION: Open HRTF Databases
 // =====================================================
-// Goal: Low-friction, high-accuracy anthropometric measurement on iOS using ARKit
-// to personalize the HRTF pipeline for significantly better spatial audio.
+// There is no single "OpenHRTF Database", but several high-quality, publicly available HRTF datasets.
+// The best ones for game use combine good licensing, spatial resolution, subject count, and anthropometric/3D data.
 //
-// Architecture Overview:
-// [iOS Native Layer (Swift)] --(measurements JSON/FFI)--> [Rust/Bevy Game]
-//                                                   |
-//                                                   v
-//                                    HRTF Selection / Morphing Module
-//                                                   |
-//                                                   v
-//                                    Existing HRTF Convolution Pipeline
-//                                                   |
-//                                                   v
-//                                    SpatialAudioManager (High Quality Mode)
+// Top Recommended Open Databases (as of 2026):
 //
-// Phased Implementation:
+// 1. SONICOM HRTF Dataset (Imperial College / SONICOM project)
+//    - ~200 subjects
+//    - High-resolution (96 kHz), SOFA format
+//    - Includes 3D head/ear/torso models + depth images
+//    - Excellent for personalization research
+//    - License: Research-friendly (check current terms)
 //
-// Phase 1: Measurement Capture (iOS Native)
-// - Create ARKit face tracking session
-// - Measure key anthropometrics in real-time:
-//     * Head width (inter-pupillary + ear positions)
-//     * Pinna bounding box / approximate height & width
-//     * Head orientation reference
-// - Provide visual feedback + quality scoring
-// - Export structured data (JSON or protobuf)
+// 2. 3D3A Lab HRTF Database (Princeton University)
+//    - 32+ subjects with both measured and numerically computed HRTFs
+//    - Includes high-quality 3D head/torso scans
+//    - CC-BY-4.0 license (very permissive)
+//    - Strong candidate for games
 //
-// Phase 2: Bridge to Rust/Bevy
-// - Options:
-//   a) iOS plugin that launches calibration as separate flow and writes to shared container / UserDefaults
-//   b) FFI bridge (objc-rs or custom) for tighter integration
-//   c) Calibration mini-app that exports profile file
-// - Recommended starting point: Separate calibration flow + file-based profile for simplicity
+// 3. SS2 HRTF Dataset (Facebook Research / RLR Audio)
+//    - 78 subjects, high spatial resolution
+//    - CC-BY-4.0 license
+//    - Freely available
 //
-// Phase 3: HRTF Personalization Logic (Rust side)
-// - Load anthropometric profile
-// - Map measurements to best-matching HRTF from database or apply simple morphing/scaling
-// - Store selected/morphed HRTF parameters per player
-// - Integrate with HrtfImpulseResponses resource
+// 4. ARI HRTF Database (Austrian Academy of Sciences)
+//    - Largest: 250+ subjects
+//    - High resolution, long history
+//    - Good for broad matching
 //
-// Phase 4: Runtime Integration
-// - In SpatialAudioManager::set_spatial_quality(High):
-//     - If personalized HRTF profile exists, load and use it
-//     - Otherwise fall back to generic high-quality set
-// - Expose UI toggle: "Use Personalized HRTF" (with quality indicator)
+// 5. Other notable: HUTUBS (TU Berlin), Aachen HRTF Database, CIPIC
 //
-// Technical Considerations:
-// - ARKit requires iOS 11+ / recent devices with TrueDepth camera for best results
-// - Bevy + wgpu game can still target iOS via cargo-bundle or similar
-// - Keep calibration optional and non-blocking for cross-platform players
-// - Privacy: Measurements stay local; never uploaded without explicit consent
+// Recommendation for Powrush-MMO:
+// - Start with a high-quality baseline (current mit_kemar or a curated subset from 3D3A / SONICOM)
+// - For personalization: Use 3D3A or SONICOM because they include 3D scans + anthropometric data
+// - Long-term: Build or adopt a small curated "Powrush HRTF Library" with clear licensing
+// - SOFA format is the industry standard — consider adding SOFA loading support in the future
 //
-// Success Metrics:
-// - Reduced front/back confusion in blind tests
-// - Improved elevation perception
-// - High completion rate of optional calibration flow
-//
-// This plan positions Powrush-MMO to deliver best-in-class spatial audio on iOS while keeping the core pipeline excellent everywhere.
+// These databases make high-quality personalized spatial audio much more accessible than before.
 // Thunder locked in. Yoi ⚡
 
 // Real HRTF Impulse Responses (async loaded)
