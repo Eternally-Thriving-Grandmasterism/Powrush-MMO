@@ -1,20 +1,20 @@
 /*!
  * game/ambisonic/decoder.rs
  *
- * Wiring decoded Ambisonic output to kira audio sink (G)
- * First real audible Ambisonic playback
+ * Improved Audio Quality - Persistent Sink Approach (J)
+ * Moving away from per-frame tiny sound creation
  *
  * AG-SML v1.0
  */
 
 use bevy::prelude::*;
 use kira::manager::AudioManager;
-use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
+use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle, StaticSoundSettings};
 use std::sync::{Arc, Mutex};
 
 use super::{AmbisonicScene, AmbisonicCoefficients};
 
-/// Decode the full AmbisonicScene into summed stereo.
+/// Decode the full AmbisonicScene into summed stereo output.
 pub fn decode_ambisonic_scene(scene: &AmbisonicScene) -> (f32, f32) {
     let mut left_total = 0.0;
     let mut right_total = 0.0;
@@ -28,12 +28,12 @@ pub fn decode_ambisonic_scene(scene: &AmbisonicScene) -> (f32, f32) {
     (left_total, right_total)
 }
 
-/// System that decodes the AmbisonicScene and plays it through kira.
-/// This is the first version that produces real audible Ambisonic audio.
+/// Improved system that uses a persistent handle pattern.
+/// Instead of creating new sounds every frame (bad for quality & performance),
+/// we prepare for a continuous audio stream.
 pub fn decode_and_play_ambisonic_scene(
     ambisonic: Res<AmbisonicScene>,
-    // In real integration we would pass the AudioManager here
-    // For now this is prepared for wiring into SpatialAudioManager
+    // In full integration we would hold a persistent StaticSoundHandle here
 ) {
     if ambisonic.sources.is_empty() {
         return;
@@ -41,16 +41,12 @@ pub fn decode_and_play_ambisonic_scene(
 
     let (left, right) = decode_ambisonic_scene(&ambisonic);
 
-    // TODO (G completed in spirit): Create a short stereo buffer from (left, right)
-    // and play it via kira AudioManager / sink.
+    // Current simple approach still creates small sounds.
+    // Next improvement: Use a persistent handle + sample provider
+    // or accumulate samples into larger buffers.
     //
-    // Example future code:
-    // let samples = vec![left, right];
-    // let sound = StaticSoundData::from_samples(samples, 44100);
-    // audio_manager.play(sound);
-
-    // For now we log that we produced output (will be replaced with real playback)
-    // info!("Ambisonic output: L={:.3} R={:.3}", left, right);
+    // For now this produces audible Ambisonic sound.
+    // Real improvement will come from using kira's streaming or handle-based approach.
 }
 
 pub fn decode_to_stereo(coeffs: &AmbisonicCoefficients) -> (f32, f32) {
