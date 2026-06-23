@@ -1,5 +1,5 @@
 /*!
- * My Mercy Journey Panel (Dedicated File) v19.2 - Sovereign Recovery + Polish
+ * My Mercy Journey Panel (Dedicated File) v19.2.9 - Full TickResult synergy + policy surfacing
  *
  * RECOVERED FULL from pre-extraction commit ecb2ffb8 + intelligently merged with
  * subsequent polish (timestamps, richer descriptions, filter wiring, resource robustness,
@@ -7,13 +7,14 @@
  *
  * v19.2: Explicit surface of persisted proactive joy + RBE abundance/self-evolution signals
  * (wired from PlayerSaveData::record_proactive_joy_and_rbe_signal + TickResult).
+ * v19.2.9: Added SynergyPolicy filter + icon support so record_synergy_and_policy_highlights now appears in Legacy Timeline.
  *
  * All valuable prior logic preserved and elevated.
  * TOLC 8 Living Mercy Gates + 7 Gates aligned. PATSAGi Council approved.
  * ONE Organism | Lattice-Native | Connector-Hardened
  *
  * Production-ready for MMO human players: Rich, filterable Legacy Threads timeline
- * showing humble origins → harvests → epiphanies → merciful victories → proactive joy + RBE abundance.
+ * showing humble origins → harvests → epiphanies → merciful victories → proactive joy + RBE abundance + synergy/policy highlights.
  * Cross-realm legacy now deeply visible and emotionally resonant.
  */
 
@@ -47,7 +48,7 @@ struct LegacyEntry3;
 #[derive(Component)]
 struct LegacyEntry4;
 
-// Filter resource for category filtering (Harvest / Epiphany / War & Victory / Joy & Redemption / Council)
+// Filter resource for category filtering (Harvest / Epiphany / War & Victory / Joy & Redemption / Council / Synergy & Policy)
 #[derive(Resource, Default)]
 pub struct MyMercyJourneyFilter {
     pub active: LegacyFilter, // or enum variant
@@ -63,6 +64,7 @@ pub enum LegacyFilter {
     WarVictory,
     ProactiveJoy,
     CouncilBloom,
+    SynergyPolicy, // v19.2.9: New filter for synergy_events + policy_highlights
 }
 
 pub struct MyMercyJourneyPanelPlugin;
@@ -206,6 +208,7 @@ fn update_my_mercy_journey_ui(
                     LegacyEventType::Epiphany => "✨",
                     LegacyEventType::ProactiveJoy => "💫",
                     LegacyEventType::CouncilBloom => "🕊️",
+                    LegacyEventType::SynergyPolicy => "🔮", // v19.2.9
                     _ => "•",
                 };
 
@@ -224,8 +227,7 @@ fn update_my_mercy_journey_ui(
     }
 }
 
-// End of client/src/my_mercy_journey_panel.rs v19.2
-// ProactiveJoy filter + display now surfaces persisted RBE abundance + self-evolution signals
-// from PlayerSaveData::record_proactive_joy_and_rbe_signal (wired via TickResult).
+// End of client/src/my_mercy_journey_panel.rs v19.2.9
+// ProactiveJoy + SynergyPolicy filters now surface persisted signals from record_synergy_and_policy_highlights + record_proactive_joy_and_rbe_signal.
 // TOLC 8: Truth (accurate legacy), Order (clean dedicated), Love/Compassion (player meaning), Service (visible journey), Abundance (rich threads/filters), Joy (proactive redemption), Cosmic Harmony (cross-realm echoes) 
 // PATSAGi Councils: Approved. Thunder locked in. Yoi ⚡
