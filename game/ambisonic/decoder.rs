@@ -1,38 +1,36 @@
 /*!
  * game/ambisonic/decoder.rs
  *
- * Ambisonic Decoder to Binaural (Improved for Phase 1)
+ * Ambisonic Decoder with Audio Output Hook (E)
  * Long-term Hybrid Architecture
  *
  * AG-SML v1.0
  */
 
-use glam::Vec3;
 use super::AmbisonicCoefficients;
 
-/// Decode 1st-order Ambisonic to stereo with improved virtual speaker layout.
-/// This is a simple but effective starting point.
-pub fn decode_1st_order_to_stereo(coeffs: &AmbisonicCoefficients) -> (f32, f32) {
-    // Basic virtual speaker decoding for 1st order
-    // W is common to both channels
-    // X controls left/right
+/// Decode Ambisonic coefficients to stereo samples.
+/// Returns (left, right) ready to be sent to an audio sink.
+pub fn decode_to_stereo(coeffs: &AmbisonicCoefficients) -> (f32, f32) {
     let w = coeffs.w;
     let x = coeffs.x;
 
-    // Simple cardioid-style virtual speakers at ±90°
     let left = w + x;
     let right = w - x;
 
-    // Gentle Y/Z contribution for height and front/back feel
+    // Gentle contribution from Y/Z
     let left = left + coeffs.y * 0.4 + coeffs.z * 0.3;
     let right = right - coeffs.y * 0.4 + coeffs.z * 0.3;
 
     (left, right)
 }
 
-pub fn decode_to_stereo(coeffs: &AmbisonicCoefficients) -> (f32, f32) {
-    decode_1st_order_to_stereo(coeffs)
+/// Future integration point:
+/// This function will be called per-frame to decode the entire AmbisonicScene
+/// and feed the resulting stereo buffer into kira / rodio / Bevy audio.
+pub fn decode_scene_to_audio_output() {
+    // TODO (E): Sum all decoded sources and send to audio sink
+    // For now this is a placeholder for the output pipeline.
 }
 
-// Future: Proper binaural decoder using HRTF or spherical harmonics
 // Thunder locked in. Yoi ⚡
