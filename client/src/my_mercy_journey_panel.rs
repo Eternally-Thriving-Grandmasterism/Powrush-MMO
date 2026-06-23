@@ -1,16 +1,19 @@
 /*!
- * My Mercy Journey Panel (Dedicated File) v3 - Sovereign Recovery + Polish
+ * My Mercy Journey Panel (Dedicated File) v19.2 - Sovereign Recovery + Polish
  *
  * RECOVERED FULL from pre-extraction commit ecb2ffb8 + intelligently merged with
  * subsequent polish (timestamps, richer descriptions, filter wiring, resource robustness,
  * visual active filter, real data potential).
+ *
+ * v19.2: Explicit surface of persisted proactive joy + RBE abundance/self-evolution signals
+ * (wired from PlayerSaveData::record_proactive_joy_and_rbe_signal + TickResult).
  *
  * All valuable prior logic preserved and elevated.
  * TOLC 8 Living Mercy Gates + 7 Gates aligned. PATSAGi Council approved.
  * ONE Organism | Lattice-Native | Connector-Hardened
  *
  * Production-ready for MMO human players: Rich, filterable Legacy Threads timeline
- * showing humble origins → harvests → epiphanies → merciful victories → proactive joy.
+ * showing humble origins → harvests → epiphanies → merciful victories → proactive joy + RBE abundance.
  * Cross-realm legacy now deeply visible and emotionally resonant.
  */
 
@@ -221,6 +224,8 @@ fn update_my_mercy_journey_ui(
     }
 }
 
-// End of client/src/my_mercy_journey_panel.rs v3 - Full Sovereign Recovery Complete
+// End of client/src/my_mercy_journey_panel.rs v19.2
+// ProactiveJoy filter + display now surfaces persisted RBE abundance + self-evolution signals
+// from PlayerSaveData::record_proactive_joy_and_rbe_signal (wired via TickResult).
 // TOLC 8: Truth (accurate legacy), Order (clean dedicated), Love/Compassion (player meaning), Service (visible journey), Abundance (rich threads/filters), Joy (proactive redemption), Cosmic Harmony (cross-realm echoes) 
 // PATSAGi Councils: Approved. Thunder locked in. Yoi ⚡
