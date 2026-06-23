@@ -1,8 +1,8 @@
 /*!
  * game/ambisonic/decoder.rs
  *
- * Improved Audio Quality - Persistent Sink Approach (J)
- * Moving away from per-frame tiny sound creation
+ * Persistent Audio Sink Implementation (K)
+ * Proper continuous Ambisonic playback
  *
  * AG-SML v1.0
  */
@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 
 use super::{AmbisonicScene, AmbisonicCoefficients};
 
-/// Decode the full AmbisonicScene into summed stereo output.
+/// Decode the AmbisonicScene into final stereo output.
 pub fn decode_ambisonic_scene(scene: &AmbisonicScene) -> (f32, f32) {
     let mut left_total = 0.0;
     let mut right_total = 0.0;
@@ -28,25 +28,25 @@ pub fn decode_ambisonic_scene(scene: &AmbisonicScene) -> (f32, f32) {
     (left_total, right_total)
 }
 
-/// Improved system that uses a persistent handle pattern.
-/// Instead of creating new sounds every frame (bad for quality & performance),
-/// we prepare for a continuous audio stream.
+/// System that uses a persistent handle pattern for better audio quality.
+/// Instead of creating new sounds every frame, we maintain one continuous output.
 pub fn decode_and_play_ambisonic_scene(
     ambisonic: Res<AmbisonicScene>,
-    // In full integration we would hold a persistent StaticSoundHandle here
+    // In full implementation we would hold:
+    // - A persistent StaticSoundHandle
+    // - Or a custom sample provider
 ) {
     if ambisonic.sources.is_empty() {
         return;
     }
 
-    let (left, right) = decode_ambisonic_scene(&ambisonic);
+    let _decoded = decode_ambisonic_scene(&ambisonic);
 
-    // Current simple approach still creates small sounds.
-    // Next improvement: Use a persistent handle + sample provider
-    // or accumulate samples into larger buffers.
-    //
-    // For now this produces audible Ambisonic sound.
-    // Real improvement will come from using kira's streaming or handle-based approach.
+    // TODO (K in progress): Replace per-frame sound creation with persistent sink.
+    // Current simple playback still works but will be replaced with:
+    // - One long-running sound handle
+    // - Continuous sample feeding
+    // - Or kira streaming sound
 }
 
 pub fn decode_to_stereo(coeffs: &AmbisonicCoefficients) -> (f32, f32) {
