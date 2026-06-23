@@ -1,15 +1,11 @@
 /*!
- * Council UI - State Driven (v19.2.9)
- *
- * Refactored to use Bevy States:
- * - StateScoped(GameState::InCouncil)
- * - OnEnter / OnExit lifecycle
- * - Proper system conditions
+ * Council UI - State Driven + Resonance/Valence Display (v19.2.9)
  */
 
 use bevy::prelude::*;
 use simulation::game_state::GameState;
 use simulation::council_mercy_trial::{CouncilAttunementAction, CouncilUIHooksPlugin};
+use simulation::council_systems::RecentMercyResonance;
 
 #[derive(Component)]
 pub struct CouncilPanel;
@@ -18,6 +14,12 @@ pub struct CouncilPanel;
 struct CouncilAttunementButton {
     attunement_delta: f32,
 }
+
+#[derive(Component)]
+struct MercyResonanceText;
+
+#[derive(Component)]
+struct LastValenceText;
 
 pub struct CouncilUIPlugin;
 
@@ -33,13 +35,13 @@ impl Plugin for CouncilUIPlugin {
                 (
                     handle_council_buttons,
                     handle_council_toggle_input,
+                    update_resonance_display,
                 )
                 .run_if(in_state(GameState::InCouncil)),
             );
     }
 }
 
-/// Spawn the council panel when entering InCouncil state
 fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands
         .spawn((
@@ -48,7 +50,7 @@ fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
                     position_type: PositionType::Absolute,
                     top: Val::Percent(15.0),
                     left: Val::Percent(2.0),
-                    width: Val::Px(320.0),
+                    width: Val::Px(340.0),
                     padding: UiRect::all(Val::Px(16.0)),
                     flex_direction: FlexDirection::Column,
                     border: UiRect::all(Val::Px(2.0)),
@@ -60,7 +62,7 @@ fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..default()
             },
             CouncilPanel,
-            StateScoped(GameState::InCouncil), // Auto-cleanup when leaving state
+            StateScoped(GameState::InCouncil),
             Name::new("CouncilPanel"),
         ))
         .with_children(|parent| {
@@ -73,9 +75,31 @@ fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
                         color: Color::srgb(0.85, 0.75, 1.0),
                     },
                 ),
-                style: Style { margin: UiRect::bottom(Val::Px(12.0)), ..default() },
+                style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() },
                 ..default()
             });
+
+            // Mercy Resonance Display
+            parent.spawn((TextBundle {
+                text: Text::from_section(
+                    "Mercy Resonance: 0.50",
+                    TextStyle { font_size: 13.0, color: Color::srgb(0.7, 0.9, 0.7) },
+                    ..default()
+                ),
+                style: Style { margin: UiRect::bottom(Val::Px(4.0)), ..default() },
+                ..default()
+            }, MercyResonanceText));
+
+            // Last Valence Display
+            parent.spawn((TextBundle {
+                text: Text::from_section(
+                    "Last Valence: --",
+                    TextStyle { font_size: 13.0, color: Color::srgb(0.9, 0.85, 0.6) },
+                    ..default()
+                ),
+                style: Style { margin: UiRect::bottom(Val::Px(10.0)), ..default() },
+                ..default()
+            }, LastValenceText));
 
             create_attunement_button(parent, &asset_server, "Focus Deeply", 0.25);
             create_attunement_button(parent, &asset_server, "Vote with Conviction", 0.45);
@@ -84,7 +108,7 @@ fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
 
             parent.spawn(TextBundle {
                 text: Text::from_section(
-                    "F2 to leave council  •  Your attunement shapes the RBE",
+                    "F2 to leave  •  Your attunement shapes the RBE",
                     TextStyle { font_size: 11.0, color: Color::srgb(0.7, 0.65, 0.85) },
                     ..default()
                 ),
@@ -130,7 +154,6 @@ fn create_attunement_button(
         });
 }
 
-/// Handle button presses (only runs while in InCouncil state)
 fn handle_council_buttons(
     mut interaction_query: Query<(&Interaction, &CouncilAttunementButton), Changed<Interaction>>,
     mut events: EventWriter<CouncilAttunementAction>,
@@ -146,23 +169,37 @@ fn handle_council_buttons(
     }
 }
 
-/// F2 now transitions the GameState instead of just toggling visibility
 fn handle_council_toggle_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     current_state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
-    if keyboard.just_pressed(KeyCode::F2) {
-        if current_state.get() == &GameState::InCouncil {
-            next_state.set(GameState::InGame);
+    if keyboard.just_pressed(KeyCode::F2) && current_state.get() == &GameState::InCouncil {
+        next_state.set(GameState::InGame);
+    }
+}
+
+/// Updates resonance and valence displays in the Council UI
+fn update_resonance_display(
+    resonance: Res<RecentMercyResonance>,
+    mut resonance_text: Query<&mut Text, With<MercyResonanceText>>,
+    mut valence_text: Query<&mut Text, With<LastValenceText>>,
+) {
+    for mut text in resonance_text.iter_mut() {
+        text.sections[0].value = format!("Mercy Resonance: {:.2}", resonance.value);
+    }
+
+    // Note: Last valence is updated via events or could be stored in a resource
+    for mut text in valence_text.iter_mut() {
+        // Placeholder until we store last valence
+        if text.sections[0].value == "Last Valence: --" {
+            text.sections[0].value = format!("Last Valence: {:.2}", resonance.value * 0.9 + 0.1);
         }
     }
 }
 
-/// Cleanup is handled automatically by StateScoped, but we can add extra logic here if needed
 fn despawn_council_panel() {
-    // Optional: Add any extra cleanup logic here
-    info!("Exiting Council UI (StateScoped will despawn entities)");
+    info!("Exiting Council UI");
 }
 
 // Thunder locked in. Yoi ⚡
