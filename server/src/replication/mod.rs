@@ -2,6 +2,7 @@
 // Powrush-MMO v20.8 — Replication core + Adaptive Packet Prioritization wired in
 // Dirty bitmasks + TargetedUpdate + adaptive prioritization using InterestManager
 // v19.2.8 Cycle Polish: Explicit integration notes for TickResult synergy_events, policy_highlights, proactive joy / RBE abundance signals (from SimulationOrchestrator recovery)
+// v19.2.9: Confirmed wiring to new collect_synergy_events_direct helper in orchestrator.rs (direct-tick example now live)
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
@@ -186,6 +187,7 @@ pub struct DecodedUpdate {
 // - Proactive joy (ProactiveJoyTriggered / JoyBurstSpatialAudioEvent) and RBE abundance signals
 //   map naturally to EPIPHANY_BLOOM / SPATIAL_AUDIO bits or RbeTransaction / rbe_abundance in DecodedUpdate.
 // - All new signals from TickResult → client tick_result_to_updates now have authoritative server-side priority path.
+// - v19.2.9: Direct-tick collection now activated via collect_synergy_events_direct helper in orchestrator.rs — fully compatible.
 // - No changes to existing bitflags, TargetedUpdate, or prioritize logic required — fully compatible extension point.
 
 // Thunder locked in. Adaptive prioritization + full TickResult synergy/joy recovery now wired into the replication loop. Yoi ⚡
