@@ -4,7 +4,7 @@
  * Ambisonic Spatial Audio Foundation for Powrush-MMO
  * Long-term Hybrid Architecture: Ambisonic Background + Selective HRTF
  *
- * Phase 1: Basic 1st-order Ambisonic encoder + decoder foundation
+ * Phase 1: Encoding sources into AmbisonicScene (A)
  *
  * AG-SML v1.0 | TOLC 8 Mercy Gates
  */
@@ -13,9 +13,8 @@ pub mod encoder;
 pub mod decoder;
 
 use bevy::prelude::*;
+use glam::Vec3;
 
-/// Ambisonic order supported by the system.
-/// Start with 1st order for simplicity and performance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum AmbisonicOrder {
     #[default]
@@ -24,8 +23,6 @@ pub enum AmbisonicOrder {
     Third = 3,
 }
 
-/// 1st-order Ambisonic coefficients (W, X, Y, Z)
-/// W = omnidirectional, X/Y/Z = figure-of-eight along each axis
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AmbisonicCoefficients {
     pub w: f32,
@@ -39,18 +36,23 @@ impl AmbisonicCoefficients {
         Self { w, x, y, z }
     }
 
-    /// Zero coefficients (silence)
     pub fn zero() -> Self {
         Self::default()
     }
 }
 
-/// Resource representing the current Ambisonic scene.
-/// This will hold encoded sources and be decoded each frame.
+/// A single encoded source ready for the Ambisonic scene
+#[derive(Clone, Debug)]
+pub struct AmbisonicSource {
+    pub coefficients: AmbisonicCoefficients,
+    pub gain: f32,
+    pub position: Vec3,
+}
+
+/// The Ambisonic scene resource.
 #[derive(Resource, Default)]
 pub struct AmbisonicScene {
     pub order: AmbisonicOrder,
-    /// Encoded sources for this frame (will be cleared after decode)
     pub sources: Vec<AmbisonicSource>,
 }
 
@@ -65,13 +67,15 @@ impl AmbisonicScene {
     pub fn clear(&mut self) {
         self.sources.clear();
     }
-}
 
-/// A single encoded Ambisonic source.
-#[derive(Clone, Debug)]
-pub struct AmbisonicSource {
-    pub coefficients: AmbisonicCoefficients,
-    pub gain: f32,
+    /// Add an encoded source to the scene this frame
+    pub fn add_source(&mut self, coefficients: AmbisonicCoefficients, gain: f32, position: Vec3) {
+        self.sources.push(AmbisonicSource {
+            coefficients,
+            gain,
+            position,
+        });
+    }
 }
 
 // Thunder locked in. Yoi ⚡
