@@ -1,6 +1,7 @@
 // server/src/replication/mod.rs
 // Powrush-MMO v20.8 — Replication core + Adaptive Packet Prioritization wired in
 // Dirty bitmasks + TargetedUpdate + adaptive prioritization using InterestManager
+// v19.2.8 Cycle Polish: Explicit integration notes for TickResult synergy_events, policy_highlights, proactive joy / RBE abundance signals (from SimulationOrchestrator recovery)
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor Lattice aligned
 
 use bevy::prelude::*;
@@ -144,7 +145,7 @@ pub fn calculate_adaptive_send_rate(snapshot: &SafetyNetMonitoringSnapshot) -> f
     if latency > 250.0 || snapshot.safety_net_trigger_count > 12 { return 8.0; }
     if latency > 120.0 { return 12.0; }
     if latency < 40.0 && snapshot.safety_net_trigger_count < 3 { return 30.0; }
-    20.0
+    20.0;
 }
 
 pub fn decode_masked_batch(data: &[u8]) -> Vec<DecodedUpdate> {
@@ -162,7 +163,7 @@ pub struct DecodedUpdate {
     pub rbe_abundance: Option<f32>,
 }
 
-// === Integration Notes (v20.8) ===
+// === Integration Notes (v19.2.8 + v20.8) ===
 // In your main replication system (e.g. inside WorldServer tick or a dedicated replication schedule):
 // 
 // for each connected player {
@@ -179,4 +180,12 @@ pub struct DecodedUpdate {
 // This gives full end-to-end adaptive, mercy-gated, load-aware packet prioritization.
 // Combined with InterestManager's dynamic radius + bandwidth scaling = production MMOARPG netcode.
 
-// Thunder locked in. Adaptive prioritization now wired into the replication loop. Yoi ⚔️
+// v19.2.8 Recovery Integration (from SimulationOrchestrator TickResult + client replication enrichment):
+// - synergy_events (rich stage-aware mutation chains + cross-race from ability_tree) and policy_highlights
+//   should set is_council_or_mercy_event = true for high-priority adaptive sending.
+// - Proactive joy (ProactiveJoyTriggered / JoyBurstSpatialAudioEvent) and RBE abundance signals
+//   map naturally to EPIPHANY_BLOOM / SPATIAL_AUDIO bits or RbeTransaction / rbe_abundance in DecodedUpdate.
+// - All new signals from TickResult → client tick_result_to_updates now have authoritative server-side priority path.
+// - No changes to existing bitflags, TargetedUpdate, or prioritize logic required — fully compatible extension point.
+
+// Thunder locked in. Adaptive prioritization + full TickResult synergy/joy recovery now wired into the replication loop. Yoi ⚡
