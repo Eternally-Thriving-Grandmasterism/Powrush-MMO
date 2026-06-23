@@ -1,5 +1,5 @@
 /*!
- * Council UI - Real Distance-Based Audio Falloff (v19.2.9)
+ * Council UI - Full Real Distance-Based 3D Audio Falloff (v19.2.9)
  */
 
 use bevy::prelude::*;
@@ -116,6 +116,7 @@ fn handle_council_buttons(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
+    transform_query: Query<&GlobalTransform>,
 ) {
     for (interaction, button) in interaction_query.iter() {
         if *interaction == Interaction::Pressed {
@@ -125,7 +126,17 @@ fn handle_council_buttons(
             });
 
             let burst_entity = spawn_valence_burst(&mut commands, button.attunement_delta);
-            play_spatial_sound(&audio, &asset_server, "sounds/council_burst.ogg", burst_entity, button.attunement_delta, &commands);
+
+            // Calculate real distance between camera (listener) and burst (emitter)
+            let distance = if let (Ok(listener_tf), Ok(emitter_tf)) =
+                (transform_query.get_single(), transform_query.get(burst_entity))
+            {
+                listener_tf.translation().distance(emitter_tf.translation())
+            } else {
+                100.0 // fallback
+            };
+
+            play_spatial_sound(&audio, &asset_server, "sounds/council_burst.ogg", burst_entity, button.attunement_delta, distance);
         }
     }
 }
@@ -135,11 +146,22 @@ fn handle_council_resolved_bursts(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     audio: Res<Audio>,
+    transform_query: Query<&GlobalTransform>,
 ) {
     for event in events.read() {
         if event.success && event.valence_score > 0.7 {
             let burst_entity = spawn_celebration_burst(&mut commands, event.valence_score);
-            play_spatial_sound(&audio, &asset_server, "sounds/council_celebration.ogg", burst_entity, event.valence_score, &commands);
+
+            // Calculate real distance
+            let distance = if let (Ok(listener_tf), Ok(emitter_tf)) =
+                (transform_query.get_single(), transform_query.get(burst_entity))
+            {
+                listener_tf.translation().distance(emitter_tf.translation())
+            } else {
+                100.0
+            };
+
+            play_spatial_sound(&audio, &asset_server, "sounds/council_celebration.ogg", burst_entity, event.valence_score, distance);
         }
     }
 }
@@ -204,30 +226,22 @@ fn spawn_celebration_burst(commands: &mut Commands, valence: f32) -> Entity {
     )).id()
 }
 
-/// Plays sound with real distance-based falloff between listener and emitter
+/// Real distance-based spatial audio with custom mercy falloff
 fn play_spatial_sound(
     audio: &Res<Audio>,
     asset_server: &Res<AssetServer>,
     sound_path: &str,
     emitter_entity: Entity,
     intensity: f32,
-    commands: &Commands, // We use this to access world data if needed; in practice query in system
+    distance: f32,
 ) {
-    // For real distance, we should query transforms here.
-    // Since this is a helper called from systems, we'll calculate a simplified version.
-    // In a full implementation, pass GlobalTransform queries.
-
     let base_volume = if sound_path.contains("celebration") { 0.9 } else { 0.4 + intensity * 0.4 };
 
-    // Placeholder real distance calculation (replace with actual query)
-    // In production: get GlobalTransform of emitter and listener (camera), compute distance
-    let distance = 50.0; // TODO: Replace with real distance between AudioListener and AudioEmitter
+    // Real distance-based mercy-themed falloff curve
+    let falloff = (1.0 / (1.0 + distance * 0.012)).powf(0.82);
+    let final_volume = (base_volume * falloff).clamp(0.02, 1.0);
 
-    // Custom mercy-themed falloff curve
-    let falloff = (1.0 / (1.0 + distance * 0.015)).powf(0.85);
-    let final_volume = (base_volume * falloff).clamp(0.03, 1.0);
-
-    // Pitch variation
+    // Pitch variation for organic feel
     let pitch_variation = 0.95 + (intensity * 0.1) + rand::random::<f32>() * 0.04;
 
     audio.play(asset_server.load(sound_path))
