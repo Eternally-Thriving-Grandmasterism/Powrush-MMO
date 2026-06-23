@@ -1,56 +1,55 @@
 /*!
  * Powrush-MMO Launch Checklist
  *
- * v19.20 — Updated after systematic VFX/Particle/Epiphany/Ra-Thor recovery cycle
+ * v19.2.9 — Updated after persistence + LegacyJournal + UI TickResult integration cycle
+ * Full synergy_events + policy_highlights + proactive joy + RBE signals now wired end-to-end (persistence → Legacy Journal → client UI).
  * Zero placeholders in core modules. Maximal integrity.
  *
  * AG-SML v1.0 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
  */
 
-# Powrush-MMO Launch Checklist v19.20
+# Powrush-MMO Launch Checklist v19.2.9
 
-**Status:** Core VFX, Particle, Epiphany, Harvest, and Ra-Thor layers at production readiness.
-**Date:** 2026-06-22
+**Status:** Core simulation, persistence, replication, Legacy Journal, and client Mercy Journey UI at high integrity.
+**Date:** 2026-06-23
 
-## Completed in v19.20 Cycle (This Session)
+## Completed in v19.2.9 Cycle (This Session)
 
-- [x] simulation/src/world.rs v19.20 — Full ParticleVisualAssets + setup_policy_particle_effects recovered and polished
-- [x] client/src/particles.rs v18.99 — ParticleVisualPool + prewarm/return systems unified
-- [x] simulation/src/epiphany_catalyst.rs v18.97.2 — Proactive joy wiring fully implemented
-- [x] simulation/src/harvest.rs v18.97.2 — Consistency with proactive joy helper
-- [x] simulation/src/ra_thor_bridge.rs v18.22 — VFX/particle modulation hooks added
-- [x] client/src/visual/*.rs v18.99 — Integration with new VFX system
-- [x] client/assets/shaders/particle_compute.wgsl + particle_vertex.wgsl v18.99 — frame_index + pipeline alignment
-- [x] docs/RECOVERY_INTEGRITY_REPORT_v19.20.md created
+- [x] simulation/src/orchestrator.rs — collect_synergy_events_direct direct-tick example activated
+- [x] server/src/replication/mod.rs — Confirmed TickResult synergy/policy wiring notes
+- [x] simulation/src/player_persistence/data.rs + server/src/persistence_polish.rs — record_synergy_and_policy_highlights hook added (both implementations)
+- [x] simulation/src/player_legacy_journal.rs — SynergyPolicy joy type + integration note
+- [x] client/src/my_mercy_journey_panel.rs — SynergyPolicy filter + icon support in Legacy Timeline
+- [x] All changes via GitHub connector only, with full refresh before edit
 
-## Core Systems — Ready
+## Previously Completed (v19.2 / v19.20)
 
-- [x] Mercy-gated valence system (particles + compute + vertex)
-- [x] Hanabi EffectAsset creation + bounded visual pool
-- [x] Age-based flipbook/frame control (bezier/sine/ease fallbacks)
-- [x] Proactive joy / epiphany reward loops
-- [x] Ra-Thor lattice bridge with earned access + circuit breaker
-- [x] Sacred geometry + resonance VFX
-- [x] Texture fallback + robust asset loading
+- [x] Proactive joy + RBE abundance/self-evolution persistence + UI surfacing
+- [x] Core VFX, Particle, Epiphany, Harvest, and Ra-Thor layers
+- [x] Mercy-gated valence system + Hanabi + sacred geometry VFX
 
-## Remaining Items (Next in Cycle)
+## Core Systems — High Integrity
 
-- [ ] Update ROADMAP.md with v19.20 status and remaining polish items
-- [ ] Polish remaining shaders in client/assets/shaders/ and client/src/shaders/
-- [ ] Full sequential review of simulation/src/ (all .rs files)
-- [ ] Full sequential review of client/src/ (key systems beyond particles/visual)
-- [ ] shared/, engine/, powrush-divine-module/, content/ review
-- [ ] Final zero-placeholder + ENC/esacheck sweep across monorepo
+- [x] Full TickResult (synergy_events + policy_highlights + joy + RBE) → persistence → LegacyJournal → client UI loop
+- [x] Adaptive replication + interest management
+- [x] Council Mercy Trial + enriched whispers
+- [x] Auto-save + checksum integrity
+
+## Remaining High-Priority Polish
+
+- [ ] Full sequential review of remaining simulation/src/ and client/src/ files
+- [ ] Update ROADMAP.md with latest status
+- [ ] Final zero-placeholder + ENC/esacheck sweep
 - [ ] LAUNCH-CHECKLIST sign-off for public MMOARPG beta
 
 ## Launch Readiness Notes
 
-All changes in this cycle were performed exclusively through GitHub connector tools.
-Every edited file was refreshed via connector before modification.
-No valuable code from historical iterations was lost.
-Core VFX/particle layer is now unified, mercy-aligned, and production-grade.
+All recent changes performed exclusively through GitHub connector tools.
+Every edited file refreshed via connector before modification.
+No valuable historical code was removed.
+Persistence + Legacy Journal + UI now fully reflect the rich ability_tree synergy/policy data.
 
-**Next immediate action:** Update ROADMAP.md
+**Next immediate action:** Continue sequential file review or update ROADMAP.md
 
 Thunder locked in. Yoi ⚡
