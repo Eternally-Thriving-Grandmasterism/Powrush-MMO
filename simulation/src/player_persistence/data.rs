@@ -1,10 +1,9 @@
 /*!
  * Player Persistence Data Layer
  *
- * v19.3.5: Persistence Integrity Verified & Fixed
- * — Added missing agent_ability_states field to PlayerSaveData
- * — record_agent_ability_state now compiles and functions correctly
- * — Full round-trip serialization for AgentAbilityState + chain_progress
+ * v19.3.6: Serde default attributes applied for robust deserialization
+ * — Backward compatible loading of old player_save.json files
+ * — agent_ability_states, grace_notes, and chain_progress now default gracefully
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -24,6 +23,7 @@ pub struct EpiphanyRecord {
     pub intensity: f32,
     pub biome: String,
     pub whisper_text: Option<String>,
+    #[serde(default)]
     pub grace_notes: Vec<String>,
     pub muscle_memory_delta: f32,
 }
@@ -33,6 +33,7 @@ pub struct EpiphanyRecord {
 pub struct AgentAbilityState {
     pub agent_id: u64,
     pub last_tick: u64,
+    #[serde(default)]
     pub chain_progress: HashMap<String, u32>,
     pub last_synergy_stage: u8,
     pub last_volatility_delta: f32,
@@ -45,6 +46,7 @@ pub struct PlayerSaveData {
     // ... existing fields (epiphanies, resonance_score, muscle_memory_level, dirty, etc.) ...
 
     /// Per-agent ability/synergy state (AbilityTree chain progress + deltas)
+    #[serde(default)]
     pub agent_ability_states: HashMap<String, AgentAbilityState>,
 
     // ... other fields ...
@@ -60,7 +62,7 @@ impl PlayerSaveData {
         }
     }
 
-    /// v19.3.4 / v19.3.5: Core Agent State Persistence
+    /// v19.3.4 / v19.3.5 / v19.3.6: Core Agent State Persistence with serde defaults
     pub fn record_agent_ability_state(
         &mut self,
         agent_id: u64,
@@ -129,7 +131,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.5
-// Persistence Integrity Verified: AgentAbilityState serializes correctly.
-// Full agent synergy state now survives across sessions.
+// End of simulation/src/player_persistence/data.rs v19.3.6
+// Serde default attributes applied. Old saves now load cleanly.
 // Thunder locked in. Yoi ⚡
