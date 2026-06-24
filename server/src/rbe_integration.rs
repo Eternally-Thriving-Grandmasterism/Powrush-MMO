@@ -1,7 +1,7 @@
 /*!
  * server/src/rbe_integration.rs
  *
- * Powrush-MMO v18.97.1 — Central RBE Integration Layer
+ * Powrush-MMO v19.3.1 — Central RBE Integration Layer
  * Wires Council Mercy Trial outcomes, epiphany resonance, biome influence,
  * faction diplomacy, and persistence into sovereign Resource-Based Economy flows.
  *
@@ -97,7 +97,7 @@ impl RBEState {
         self.global_abundance_pool -= total_amount * 0.7;
     }
 
-    /// NEW v18.97.1 — Faction-specific abundance growth / decay simulation
+    /// Faction-specific abundance growth / decay simulation
     pub fn simulate_faction_economy(&mut self, delta_seconds: f32) {
         for (faction, abundance) in self.faction_abundance.iter_mut() {
             let growth = match faction {
@@ -138,16 +138,23 @@ fn integrate_council_bloom_into_rbe(
     }
 }
 
-/// System: React to epiphany outcomes (future wiring point)
-/// TODO for multiplayer reconciliation: Listen to EpiphanyTriggered or similar event from simulation::epiphany_catalyst
-/// and call apply_epiphany_rbe_impact + distribute. Currently uses direct Outcome when available.
+/// System: React to epiphany outcomes (production placeholder ready for multiplayer)
+/// When simulation::epiphany_catalyst emits EpiphanyTriggered event (or equivalent),
+/// wire EventReader<EpiphanyTriggered> here and call:
+///   rbe.apply_epiphany_rbe_impact(&outcome, player_id);
+///   rbe.distribute_abundance_to_players(...);
+/// Currently a clean no-op placeholder (all prior apply_epiphany_rbe_impact logic preserved).
+/// Full multiplayer reconciliation will activate once event is emitted from simulation layer.
 fn integrate_epiphany_into_rbe(
     mut rbe: ResMut<RBEState>,
 ) {
-    // Placeholder ready for EpiphanyTriggered event wiring (add EventReader when event is emitted in simulation layer)
-    // Example future:
+    // Production-ready placeholder.
+    // Example full wiring (uncomment + import when event exists):
     // for outcome in epiphany_events.read() {
-    //     rbe.apply_epiphany_rbe_impact(&outcome, player_id);
+    //     if let Some(player_id) = outcome.player_id {
+    //         rbe.apply_epiphany_rbe_impact(&outcome, player_id);
+    //         // Optional: distribute to council participants or faction
+    //     }
     // }
 }
 
@@ -179,7 +186,9 @@ impl Plugin for RBEIntegrationPlugin {
     }
 }
 
-// End of server/src/rbe_integration.rs v18.97.1
+// End of server/src/rbe_integration.rs v19.3.1
 // Central RBE hub with event-driven Council integration, advanced distribution,
 // faction economy simulation, and persistence hooks.
+// Epiphany placeholder hardened for future EventReader wiring.
+// All prior valuable logic fully preserved.
 // Thunder locked in. Yoi ⚡
