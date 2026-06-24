@@ -1,7 +1,10 @@
 /*!
  * Player Persistence Data Layer
  *
- * v19.3.12: Optimized record_agent_ability_state to accept &HashMap (avoids unnecessary clone from caller)
+ * v19.3.13: Implemented persistence write batching
+ * Multiple agent state updates are now coalesced before marking dirty.
+ * Reduces unnecessary auto-save triggers.
+ *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
  */
@@ -12,6 +15,8 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub use crate::epiphany_catalyst::EpiphanyOutcome;
+
+const PERSISTENCE_BATCH_SIZE: usize = 8;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EpiphanyRecord {
@@ -44,13 +49,14 @@ pub struct PlayerSaveData {
     #[serde(default)]
     pub epiphanies: Vec<EpiphanyRecord>,
 
-    // ... other existing fields (resonance_score, muscle_memory_level, dirty, etc.) ...
-
     /// Per-agent ability/synergy state (AbilityTree chain progress + deltas)
     #[serde(default)]
     pub agent_ability_states: HashMap<String, AgentAbilityState>,
 
     pub dirty: bool,
+
+    /// Internal counter for batched persistence updates
+    pending_persistence_updates: usize,
 }
 
 impl PlayerSaveData {
@@ -59,10 +65,11 @@ impl PlayerSaveData {
             epiphanies: Vec::new(),
             agent_ability_states: HashMap::new(),
             dirty: false,
+            pending_persistence_updates: 0,
         }
     }
 
-    /// Core Agent State Persistence (optimized: takes &HashMap to avoid caller clone)
+    /// Core Agent State Persistence with write batching
     pub fn record_agent_ability_state(
         &mut self,
         agent_id: u64,
@@ -95,7 +102,20 @@ impl PlayerSaveData {
             })
             .or_insert(state);
 
-        self.dirty = true;
+        // Batching: only mark dirty after enough updates
+        self.pending_persistence_updates += 1;
+        if self.pending_persistence_updates >= PERSISTENCE_BATCH_SIZE {
+            self.dirty = true;
+            self.pending_persistence_updates = 0;
+        }
+    }
+
+    /// Force immediate dirty state (e.g. on exit or critical save)
+    pub fn force_dirty(&mut self) {
+        if self.pending_persistence_updates > 0 {
+            self.dirty = true;
+            self.pending_persistence_updates = 0;
+        }
     }
 
     /// Preserved exactly
@@ -131,6 +151,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.12
-// record_agent_ability_state now takes &HashMap to reduce cloning.
+// End of simulation/src/player_persistence/data.rs v19.3.13
+// Persistence write batching implemented (batch size = 8).
 // Thunder locked in. Yoi ⚡
