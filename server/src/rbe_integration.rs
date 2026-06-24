@@ -139,10 +139,16 @@ fn integrate_council_bloom_into_rbe(
 }
 
 /// System: React to epiphany outcomes (future wiring point)
+/// TODO for multiplayer reconciliation: Listen to EpiphanyTriggered or similar event from simulation::epiphany_catalyst
+/// and call apply_epiphany_rbe_impact + distribute. Currently uses direct Outcome when available.
 fn integrate_epiphany_into_rbe(
     mut rbe: ResMut<RBEState>,
 ) {
-    // Placeholder for EpiphanyTriggered event wiring
+    // Placeholder ready for EpiphanyTriggered event wiring (add EventReader when event is emitted in simulation layer)
+    // Example future:
+    // for outcome in epiphany_events.read() {
+    //     rbe.apply_epiphany_rbe_impact(&outcome, player_id);
+    // }
 }
 
 /// Advanced economy simulation tick
