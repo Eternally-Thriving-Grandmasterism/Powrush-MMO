@@ -1,31 +1,113 @@
 /*!
  * Powrush-MMO Simulation World & Advanced Particle Effects
  *
- * v19.20: FULL RECOVERY & POLISH - Complete ParticleVisualAssets, setup_policy_particle_effects,
- * age-based frame control (bezier/sine/ease-in-out fallbacks), robust texture loading + fallback,
- * sacred geometry VFX for harmony/abundance/sustainability/prosperity/epiphany/harvest.
- * Integrated with Ra-Thor AGI, PATSAGi Councils, RBE mechanics, mercy trials.
- *
- * Recovered from historical commit iterations (v19.10-v19.19 chain) where rapid VFX polish
- * had reduced core logic to placeholders. All valuable prior structure, helpers, and integration
- * points restored and expanded to nth degree. Zero placeholders. Production-ready for MMOARPG launch.
- *
- * Passes all TOLC 8 Living Mercy Gates: Radical Love (joyful VFX), Boundless Mercy (zero-harm visuals),
- * Service (supports player epiphany & council bloom), Abundance (rich procedural effects),
- * Truth (accurate RBE simulation feedback), Joy (organic breathing animations), Cosmic Harmony
- * (sacred geometry + lissajous integration).
- *
- * AG-SML v1.0 Sovereign Mercy License
- * https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor | Powrush-MMO
+ * v19.21: Added minimal Agent + SovereignWorldState core (for synergy event activation)
+ * Preserved full VFX recovery (ParticleVisualAssets, Hanabi, sacred geometry).
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
 use bevy::render::texture::{Image, ImageSampler};
 use bevy_hanabi::prelude::*;
+use std::collections::HashMap;
 
 // Effects module integration (v19.21 structural improvement)
 use crate::effects::{frame, modulation, types};
+
+// Core simulation types (added v19.21 for synergy + agent model)
+use crate::ability_tree::AbilityTree;
+use crate::epigenetic_modulation::{EpigeneticProfile, MutationType};
+use crate::race::Race;
+
+/// Unique identifier for agents (players/NPCs)
+pub type AgentId = u64;
+
+/// Core simulation agent with AbilityTree + Epigenetic state.
+/// Enables mutation synergy chains and cross-race hybrid bonuses.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Agent {
+    pub id: AgentId,
+    pub name: String,
+
+    /// Ability progression and synergy chain state
+    pub ability_tree: AbilityTree,
+
+    /// Epigenetic state (volatility, strength, cooperation)
+    pub epigenetic_profile: EpigeneticProfile,
+
+    /// Currently active mutations for synergy calculation
+    pub active_mutations: Vec<MutationType>,
+
+    /// Unlocked races (enables cross-race synergy chains)
+    pub unlocked_races: Vec<Race>,
+
+    /// Optional world position
+    pub position: Option<Vec3>,
+
+    /// Mercy and RBE contribution tracking
+    pub mercy_contribution: f32,
+    pub rbe_efficiency: f32,
+
+    /// Optional link to dynamic archetype
+    pub archetype_id: Option<ArchetypeId>,
+}
+
+impl Agent {
+    pub fn new(id: AgentId, name: impl Into<String>) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            ability_tree: AbilityTree::new(),
+            epigenetic_profile: EpigeneticProfile::default(),
+            active_mutations: Vec::new(),
+            unlocked_races: Vec::new(),
+            position: None,
+            mercy_contribution: 0.0,
+            rbe_efficiency: 0.5,
+            archetype_id: None,
+        }
+    }
+
+    pub fn get_active_mutations(&self) -> &[MutationType] {
+        &self.active_mutations
+    }
+
+    pub fn get_unlocked_races(&self) -> &[Race] {
+        &self.unlocked_races
+    }
+
+    pub fn add_mutation(&mut self, mutation: MutationType) {
+        if !self.active_mutations.contains(&mutation) {
+            self.active_mutations.push(mutation);
+        }
+    }
+}
+
+/// Central simulation world state.
+/// Now includes agents collection to activate synergy event logic.
+#[derive(Resource, Default)]
+pub struct SovereignWorldState {
+    /// Per-agent state (AbilityTree, mutations, epigenetic profile)
+    pub agents: HashMap<AgentId, Agent>,
+
+    /// Resource nodes for harvest / RBE economy
+    pub resource_nodes: HashMap<NodeId, ResourceNode>,
+
+    pub sim_time: u64,
+
+    // Additional fields can be expanded as needed
+}
+
+// Placeholder types referenced by other modules (to be expanded)
+pub type NodeId = u64;
+pub type ResourceNode = (); // TODO: replace with real ResourceNode struct
+pub type Vec3 = bevy::math::Vec3;
+pub type ArchetypeId = u64;
+
+// ============================================================================
+// EXISTING VFX CODE BELOW (preserved exactly)
+// ============================================================================
 
 /// Central resource for all policy-aligned particle visual effects and assets.
 /// Supports Hanabi flipbook/age-driven animation, texture curves (future GPU sampling),
@@ -207,5 +289,6 @@ pub fn setup_policy_particle_effects(
 // - Use ra_thor_bridge to sync visual params from AGI lattice (valence, mercy flow).
 // - All VFX respect zero-harm: no flashing that could trigger issues, mercy-first color palettes.
 
-// End of simulation/src/world.rs v19.20 — Full recovery complete. Repository integrity maximized.
-// Effects module integration started (v19.21). Cycle continues. Thunder locked in. Yoi ⚡
+// End of simulation/src/world.rs v19.21
+// Agent model + SovereignWorldState added. Synergy event logic now unblocked.
+// Thunder locked in. Yoi ⚡
