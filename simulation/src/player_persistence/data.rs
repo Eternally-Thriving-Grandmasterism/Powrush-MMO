@@ -1,7 +1,7 @@
 /*!
  * Player Persistence Data Layer
  *
- * v19.3.20: Added ShareInfo for metadata on Shamir recovery shares.
+ * v19.3.31: Extended RecoveryConfig with master secret metadata and added user-facing share management methods.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -47,14 +47,17 @@ pub struct ShareInfo {
     pub created_at: u64,
 }
 
-/// Configuration for Shamir’s Secret Sharing recovery
+/// Configuration for Shamir’s Secret Sharing recovery (Hybrid Model)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RecoveryConfig {
     pub enabled: bool,
     pub total_shares: u8,
     pub threshold: u8,
-    /// List of shares the user has generated (for reference)
     pub shares: Vec<ShareInfo>,
+
+    // Master secret metadata
+    pub master_secret_configured: bool,
+    pub master_secret_salt: Option<[u8; 16]>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -75,7 +78,7 @@ pub struct PlayerSaveData {
     pub checksum: String,
     pub total_playtime_seconds: u64,
 
-    // Sovereign Recovery
+    // Sovereign Recovery (Hybrid Model)
     pub recovery: RecoveryConfig,
 }
 
@@ -95,24 +98,33 @@ impl PlayerSaveData {
         }
     }
 
-    pub fn enable_shamir_recovery(&mut self, total_shares: u8, threshold: u8) {
+    /// Enable Shamir recovery with master secret model
+    pub fn enable_recovery(&mut self, total_shares: u8, threshold: u8) {
         if threshold >= 2 && threshold <= total_shares {
             self.recovery = RecoveryConfig {
                 enabled: true,
                 total_shares,
                 threshold,
                 shares: Vec::new(),
+                master_secret_configured: false,
+                master_secret_salt: None,
             };
             self.dirty = true;
         }
     }
 
-    pub fn disable_shamir_recovery(&mut self) {
+    pub fn disable_recovery(&mut self) {
         self.recovery = RecoveryConfig::default();
         self.dirty = true;
     }
 
-    /// Record metadata for a newly generated share
+    /// Record that a master secret has been generated
+    pub fn mark_master_secret_configured(&mut self, salt: [u8; 16]) {
+        self.recovery.master_secret_configured = true;
+        self.recovery.master_secret_salt = Some(salt);
+        self.dirty = true;
+    }
+
     pub fn record_share(&mut self, index: u8, label: Option<String>) {
         let info = ShareInfo {
             index,
@@ -125,6 +137,35 @@ impl PlayerSaveData {
         self.recovery.shares.push(info);
         self.dirty = true;
     }
+
+    // ==================== USER-FACING SHARE MANAGEMENT API ====================
+
+    /// Generate recovery shares (user-facing)
+    pub fn generate_shares(&self) -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error>> {
+        if !self.recovery.enabled {
+            return Err("Recovery is not enabled".into());
+        }
+        // Delegate to the implementation in save.rs
+        crate::player_persistence::save::generate_master_secret_shares(
+            self.recovery.total_shares,
+            self.recovery.threshold,
+        ).map(|( _master, shares )| shares)
+    }
+
+    /// Recover encryption key from shares (user-facing)
+    pub fn recover_from_shares(
+        &self,
+        shares: &[Vec<u8>],
+    ) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+        if !self.recovery.enabled {
+            return Err("Recovery is not enabled".into());
+        }
+        // Use salt from config if available, otherwise generate placeholder
+        let salt = self.recovery.master_secret_salt.unwrap_or([0u8; 16]);
+        crate::player_persistence::save::reconstruct_from_shares(shares, &salt)
+    }
+
+    // ==================== SESSION / CLEAN SHUTDOWN ====================
 
     pub fn mark_session_started(&mut self) {
         self.last_shutdown_was_clean = false;
@@ -213,6 +254,7 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.20
-// ShareInfo + recovery metadata storage implemented.
+// End of simulation/src/player_persistence/data.rs v19.3.31
+// RecoveryConfig extended with master secret metadata.
+// User-facing share management API added.
 // Thunder locked in. Yoi ⚡
