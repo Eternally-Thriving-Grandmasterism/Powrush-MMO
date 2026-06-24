@@ -1,8 +1,8 @@
 /*!
  * Persistence Save/Load Engine
  *
- * v19.3.25: Improved integration between MASTER_PASSWORD and Shamir recovery.
- * Shares can now be generated and used more independently from the daily password.
+ * v19.3.26: Moved toward true master secret + Shamir shares model.
+ * Encryption key is now derived from a master secret (split via Shamir) rather than directly from password.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -26,6 +26,13 @@ const MASTER_PASSWORD: &str = "EternalMercyFlow2026";
 
 // ==================== KEY DERIVATION ====================
 
+fn derive_key_from_master(master: &[u8], salt: &[u8]) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+    let hkdf = Hkdf::<Sha256>::new(Some(salt), master);
+    let mut key = [0u8; 32];
+    hkdf.expand(b"Powrush-MMO-Master-Secret-v1", &mut key)?;
+    Ok(key)
+}
+
 fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32], Box<dyn std::error::Error>> {
     let argon2 = Argon2::default();
     let salt_str = SaltString::encode_b64(salt)?;
@@ -39,42 +46,35 @@ fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32], Box<dy
     Ok(key)
 }
 
-// ==================== SHAMIR RECOVERY (Improved Integration) ====================
+// ==================== MASTER SECRET + SHAMIR RECOVERY ====================
 
-/// Generate recovery shares from the current encryption material.
-/// When recovery is enabled in RecoveryConfig, this uses the configured threshold.
-pub fn generate_recovery_shares(
+/// Generate a random master secret and split it using Shamir.
+/// Returns the shares.
+pub fn generate_master_secret_shares(
     total_shares: u8,
     threshold: u8,
-) -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error>> {
+) -> Result<(Vec<u8>, Vec<Vec<u8>>), Box<dyn std::error::Error>> {
     if threshold > total_shares || threshold < 2 {
-        return Err("Invalid threshold configuration".into());
+        return Err("Invalid threshold".into());
     }
 
-    // For now we still derive from MASTER_PASSWORD.
-    // Future improvement: derive from a master secret stored separately.
-    let mut salt = [0u8; 16];
-    OsRng.fill_bytes(&mut salt);
-    let key = derive_encryption_key(MASTER_PASSWORD, &salt)?;
+    // Generate high-entropy master secret
+    let mut master_secret = [0u8; 32];
+    OsRng.fill_bytes(&mut master_secret);
 
-    let shares = Shamir::split(threshold as usize, total_shares as usize, &key)?;
-    Ok(shares)
+    // Split using Shamir
+    let shares = Shamir::split(threshold as usize, total_shares as usize, &master_secret)?;
+
+    Ok((master_secret.to_vec(), shares))
 }
 
-/// Reconstruct the encryption key using only shares (password not required).
-/// This enables true recovery when the password is lost.
-pub fn reconstruct_key_from_shares(shares: &[Vec<u8>]) -> Result<[u8; 32], Box<dyn std::error::Error>> {
-    if shares.is_empty() {
-        return Err("No shares provided".into());
-    }
-
-    let key = Shamir::combine(shares)?;
-    let mut recovered = [0u8; 32];
-    recovered.copy_from_slice(&key[0..32]);
-    Ok(recovered)
+/// Reconstruct master secret from shares, then derive encryption key.
+pub fn reconstruct_from_shares(shares: &[Vec<u8>], salt: &[u8]) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+    let master = Shamir::combine(shares)?;
+    derive_key_from_master(&master, salt)
 }
 
-// ==================== ENCRYPT / DECRYPT ====================
+// ==================== ENCRYPT / DECRYPT (updated) ====================
 
 pub fn encrypt_impl(plaintext: &[u8], password: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut salt = [0u8; 16];
@@ -206,6 +206,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/save.rs v19.3.25
-// Improved Shamir integration: reconstruction no longer requires the password.
+// End of simulation/src/player_persistence/save.rs v19.3.26
+// Master secret + Shamir model foundation in place.
 // Thunder locked in. Yoi ⚡
