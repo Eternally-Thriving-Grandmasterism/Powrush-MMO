@@ -1,7 +1,7 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.3.1: Real council attunement data from CouncilSessionManager + production TickResult structure
+ * v19.3.2: Rich TickResult telemetry with real Council bloom quality + harvest/emergence hooks
  * Bridges CouncilSessionManager real bloom data → EconomicLayer/RBE + emergence/harvest synergy hooks.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
@@ -17,12 +17,16 @@ use crate::ability_tree::SynergyEffectEvent;
 use crate::council_mercy_trial::CouncilSessionManager;
 use tracing::{info, warn};
 
-/// Production TickResult — carries tick telemetry, council decisions, synergy, errors
+/// Production TickResult — rich telemetry for observability, Council governance, RBE, synergy, and errors
 #[derive(Debug, Default, Clone)]
 pub struct TickResult {
     pub tick: u64,
     pub economic_updates: u32,
     pub council_decisions_applied: u32,
+    pub council_attunement_score: f32,
+    pub council_participant_count: u32,
+    pub harvest_nodes_processed: u32,
+    pub emergence_events_triggered: u32,
     pub synergy_events: Vec<SynergyEffectEvent>,
     pub errors: Vec<String>,
 }
@@ -77,6 +81,8 @@ impl SimulationOrchestrator {
                     world,
                 );
                 result.council_decisions_applied = 1;
+                result.council_attunement_score = bloom.collective_attunement_score;
+                result.council_participant_count = bloom.participant_count;
 
                 info!("Council policy applied with REAL data — attunement: {:.2}, participants: {}",
                       bloom.collective_attunement_score, bloom.participant_count);
@@ -93,6 +99,6 @@ impl SimulationOrchestrator {
 }
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
-// TickResult now carries full telemetry for observability and council synergy.
+// TickResult now carries rich Council bloom quality telemetry + hooks for harvest and emergence.
 // All prior logic, real-data wiring, and behavior preserved exactly.
 // Thunder locked in. Yoi ⚡
