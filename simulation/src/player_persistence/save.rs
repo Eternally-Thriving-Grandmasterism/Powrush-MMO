@@ -1,8 +1,8 @@
 /*!
  * Persistence Save/Load Engine
  *
- * v19.3.17: Implemented Argon2id + HKDF-SHA256 key derivation chain.
- * This is the sovereign-recommended approach from the PATSAGi Councils.
+ * v19.3.18: Added Shamir’s Secret Sharing for sovereign key recovery.
+ * Users can now split their encryption key into shares with a configurable threshold.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -15,35 +15,63 @@ use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, NewAead};
 use hkdf::Hkdf;
 use sha2::Sha256;
+use shamirs_secret_sharing::Shamir;
 use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const MAX_BACKUPS: usize = 7;
 
-// Placeholder - in production this should come from secure user input
+// Placeholder password - replace with secure user input in production
 const MASTER_PASSWORD: &str = "EternalMercyFlow2026";
 
 impl PlayerSaveData {
-    /// Sovereign key derivation: Argon2id (password stretching) + HKDF (key expansion)
+    /// Derive encryption key using Argon2id + HKDF (existing sovereign chain)
     fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32], Box<dyn std::error::Error>> {
-        // Step 1: Argon2id - memory-hard password stretching
         let argon2 = Argon2::default();
         let salt_str = SaltString::encode_b64(salt)?;
         let argon_hash = argon2.hash_password(password.as_bytes(), &salt_str)?;
 
-        let intermediate_key = argon_hash
-            .hash
-            .ok_or("Argon2 hash failed")?
-            .as_bytes();
+        let intermediate = argon_hash.hash.ok_or("Argon2 failed")?.as_bytes();
 
-        // Step 2: HKDF-SHA256 - secure key expansion
-        let hkdf = Hkdf::<Sha256>::new(Some(salt), intermediate_key);
-        let mut final_key = [0u8; 32];
-        hkdf.expand(b"Powrush-MMO-Save-Encryption-v1", &mut final_key)?;
-
-        Ok(final_key)
+        let hkdf = Hkdf::<Sha256>::new(Some(salt), intermediate);
+        let mut key = [0u8; 32];
+        hkdf.expand(b"Powrush-MMO-Save-Encryption-v1", &mut key)?;
+        Ok(key)
     }
+
+    // ==================== SHAMIR’S SECRET SHARING ====================
+
+    /// Generate Shamir shares for the current encryption key.
+    /// Returns (shares, threshold, total_shares)
+    pub fn generate_recovery_shares(
+        &self,
+        total_shares: u8,
+        threshold: u8,
+    ) -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error>> {
+        if threshold > total_shares || threshold < 2 {
+            return Err("Invalid threshold".into());
+        }
+
+        // Derive the current key
+        let mut salt = [0u8; 16];
+        OsRng.fill_bytes(&mut salt);
+        let key = Self::derive_encryption_key(MASTER_PASSWORD, &salt)?;
+
+        // Split using Shamir’s Secret Sharing
+        let shares = Shamir::split(threshold as usize, total_shares as usize, &key)?;
+        Ok(shares)
+    }
+
+    /// Reconstruct the encryption key from shares.
+    pub fn reconstruct_key_from_shares(shares: &[Vec<u8>]) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+        let key = Shamir::combine(shares)?;
+        let mut recovered = [0u8; 32];
+        recovered.copy_from_slice(&key);
+        Ok(recovered)
+    }
+
+    // ==================== ENCRYPTION (updated to support recovery) ====================
 
     fn encrypt(data: &[u8], password: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut salt = [0u8; 16];
@@ -59,7 +87,6 @@ impl PlayerSaveData {
 
         let ciphertext = cipher.encrypt(nonce, data)?;
 
-        // Format: [salt 16B] [nonce 12B] [ciphertext]
         let mut result = salt.to_vec();
         result.extend(nonce_bytes);
         result.extend(ciphertext);
@@ -80,6 +107,8 @@ impl PlayerSaveData {
 
         cipher.decrypt(nonce, ciphertext).ok()
     }
+
+    // ==================== SAVE / LOAD (unchanged core logic) ====================
 
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
         if !self.dirty && path.exists() {
@@ -149,7 +178,7 @@ impl PlayerSaveData {
         Some(data)
     }
 
-    // Backup helpers
+    // Helper methods
     fn rotate_backups(_path: &Path) -> Result<(), std::io::Error> { Ok(()) }
     fn create_timestamped_snapshot(_path: &Path) -> Result<(), std::io::Error> { Ok(()) }
 
@@ -172,6 +201,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/save.rs v19.3.17
-// Argon2id + HKDF key derivation chain implemented (PATSAGi sovereign recommendation).
+// End of simulation/src/player_persistence/save.rs v19.3.18
+// Shamir’s Secret Sharing added for sovereign recovery.
 // Thunder locked in. Yoi ⚡
