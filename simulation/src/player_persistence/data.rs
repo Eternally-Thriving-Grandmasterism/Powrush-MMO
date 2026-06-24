@@ -89,9 +89,9 @@ impl PlayerSaveData {
                 existing.last_tick = tick;
                 existing.chain_progress = chain_progress.clone();
                 existing.last_synergy_stage = last_stage;
-                existing.last_volatility_delta: volatility_delta,
-                existing.last_strength_delta = strength_delta,
-                existing.last_cooperation_delta = cooperation_delta,
+                existing.last_volatility_delta = volatility_delta;
+                existing.last_strength_delta = strength_delta;
+                existing.last_cooperation_delta = cooperation_delta;
             })
             .or_insert(state);
 
