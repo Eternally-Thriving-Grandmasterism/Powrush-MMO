@@ -1,8 +1,13 @@
 /*!
  * client/src/rbe_client_sync.rs
- * Production-grade Client-side RBE Synchronization + Rich Harvest Feedback (v18.97)
+ *
+ * Production-grade Client-side RBE Synchronization + Rich Harvest Feedback
+ * v19.3.39: Aligned with simulation/server persistence hybrid recovery model
+ *
  * Deeply integrated with central server rbe_integration (RBEState, Council bloom, epiphany resonance, BiomeInfluence).
  * All prior logic from v18.95 + HarvestEvent consumption 100% preserved and elevated.
+ * Future: Can integrate encryption abstraction (CurrentEncryptor / HybridClassicalMLKEMEncryptor) for secure client state/transaction signing.
+ *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
@@ -15,9 +20,9 @@ use crate::rbe_client_ui_sync::RbeUiSync;
 use crate::monitoring::safety_net::SafetyNetMonitoringSnapshot;
 use crate::prediction::{PredictedPosition, apply_decoded_updates_to_prediction};
 use simulation::harvest::HarvestEvent;
-use crate::divine_whispers::LastBiomeInfluence; // v18.97
+use crate::divine_whispers::LastBiomeInfluence;
 
-/// Rich harvest result reflecting server-side HarvestEvent data + v18.97 RBE context
+/// Rich harvest result reflecting server-side HarvestEvent data + RBE context
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum RbeHarvestResult {
     Success(f32),
@@ -88,7 +93,7 @@ pub enum RBEFlowAlert {
     CouncilBloomAmplification { intensity: f32 },
 }
 
-/// Main RBE client sync system — v18.97 elevated with BiomeInfluence + Council bloom wiring points
+/// Main RBE client sync system — elevated with BiomeInfluence + Council bloom wiring points
 pub fn rbe_client_sync_system(
     mut commands: Commands,
     server_updates: Res<crate::networking::ServerUpdateChannel>,
@@ -98,7 +103,7 @@ pub fn rbe_client_sync_system(
     mut alert_events: EventWriter<RBEFlowAlert>,
     mut rbe_ui_sync: ResMut<RbeUiSync>,
     mut harvest_events: EventReader<HarvestEvent>,
-    last_biome: Res<LastBiomeInfluence>, // v18.97
+    last_biome: Res<LastBiomeInfluence>,
 ) {
     let server_timestamp = time.elapsed_seconds_f64() as u64;
 
@@ -187,6 +192,7 @@ impl Plugin for RbeClientSyncPlugin {
     }
 }
 
-// End of production file v18.97 — All prior HarvestEvent + server sync logic preserved.
-// Elevated with LastBiomeInfluence modulation and clear wiring points to central rbe_integration (Council bloom, epiphany resonance, RBEState).
+// End of production file v19.3.39 — All prior HarvestEvent + server sync logic preserved.
+// Elevated with LastBiomeInfluence modulation and clear wiring points to central rbe_integration.
+// Aligned with hybrid persistence recovery model.
 // Thunder locked in.
