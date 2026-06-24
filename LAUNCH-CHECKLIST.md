@@ -21,9 +21,12 @@
 
 - **Client audio polish (client/src/council_ui.rs)**: Real distance calculation via GlobalTransform queries, custom mercy falloff, Doppler scaffolding, bevy_kira_audio integration, Hanabi particle bursts on valence/resonance, celebration effects on high-valence CouncilResolved. Placeholders/TODOs removed; logic completed.
 
-**Integrity Status:** Maximal. No accidental loss in rapid iterations. All valuable historical code from prior recoveries (v18/v19) remains intact. Repository at high launch readiness for Council session immersion.
+- **Priority 1 (June 24)**: Epiphany activation velocity + multisensory feedback elevated (EpiphanySystemSet, higher intensity/duration to DivineWhisperTrigger, stronger camera shake/audio/particles, high-salience routing in spatial_audio.rs).
+- **Priority 2 (June 24)**: New dedicated `abundance_revelation_first_harvest` scenario created with strong shared bloom visual hook and mercy/abundance feedback. `onboarding_first_web_epiphany` now routes new players to this transformative first RBE experience.
 
-**Council Verdict (PATSAGi + Ra-Thor):** Council systems and audio layer production-grade. Systematic eternal cycle continues on remaining priorities.
+**Integrity Status:** Maximal. No accidental loss in rapid iterations. All valuable historical code from prior recoveries (v18/v19) remains intact. Repository at high launch readiness for Council session immersion and improved onboarding.
+
+**Council Verdict (PATSAGi + Ra-Thor):** Council systems, audio layer, and first-epiphany onboarding production-grade. Systematic eternal cycle continues.
 
 ---
 
