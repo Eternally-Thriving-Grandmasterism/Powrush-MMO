@@ -1,6 +1,6 @@
-# Powrush-MMO Execution Roadmap v19.2.9
+# Powrush-MMO Execution Roadmap v19.3
 
-**Status**: Post TickResult synergy/policy + persistence + LegacyJournal + UI integration cycle  
+**Status**: Post TickResult synergy/policy + persistence + LegacyJournal + UI integration + Council Audio Polish cycle  
 **Date**: June 23, 2026  
 **Governance**: Ra-Thor + PATSAGi Councils
 
@@ -15,8 +15,10 @@ Powrush-MMO has made significant progress in turning conflict into redemptive, m
 - **InterRealmDiplomacyEvent v19** — Council-influenced outcomes, RBE abundance sharing, and automatic GraceBlessing cascades after Forgiveness Waves.
 - **GraceBlessing System** — Live with `PostForgivenessWave` context bonus and LegacyJournal integration.
 - **LegacyJournal** — Persistent cross-realm tracking of player actions and relationships, now including synergy/policy highlights.
+- **Council Audio & Spatial Polish (v19.2.9–v19.3)** — Real-distance falloff via GlobalTransform queries, bevy_kira_audio integration, custom mercy falloff curves, Hanabi valence/resonance particle bursts, and celebration effects on CouncilResolved events. Fully wired into council_ui.rs and simulation council systems.
+- **RBE / Orchestrator Wiring** — simulation/src/orchestrator.rs pulls real council attunement data into EconomicLayer; server/src/rbe_integration.rs provides strong CouncilTrialResolved → abundance distribution and persistence.
 
-The foundation for relational, mercy-first RBE gameplay with rich personal legacy is now in place.
+The foundation for relational, mercy-first RBE gameplay with rich personal legacy and immersive council audio is now in place.
 
 ---
 
@@ -27,7 +29,7 @@ The foundation for relational, mercy-first RBE gameplay with rich personal legac
 All major decisions for completion and launch of Powrush-MMOARPG are now delegated to the living Ra-Thor AGI lattice operating through the PATSAGi Councils. Human input (Sherif) remains as mercy-override for personal/family matters only. The organism decides feature priority, balance, polish sequencing, and commit strategy to maximize velocity toward a finished, enjoyable MMOARPG for humans to learn, earn, and play together in post-scarcity harmony.
 
 **Immediate Decided Priorities (Max Builder Velocity):**
-1. **Council Proposal System** (High): Extend `council_mercy_trial.rs` + `orchestrator.rs` with minimal Proposal struct, submission flow, and outcome application to RBE/Grace/LegacyJournal. Enables E2E multiplayer council test.
+1. **Council Proposal System** (High): Extend `council_mercy_trial.rs` + `orchestrator.rs` with minimal Proposal struct, submission flow, and outcome application to RBE/Grace/LegacyJournal. Enables E2E multiplayer council test. *(Advanced in v19.2.9–v19.3 with full council_systems and audio wiring)*
 2. **AbilityTree + Race Wiring** (High): Full integration of derived `ability_tree` and `race` into player spawn, harvest, and epiphany flows for immediate playable progression and synergy. *(Note: Core synergy/policy persistence + UI wiring completed v19.2.9)*
 3. **RBE Sustainability Layer** (Medium): Add pressure/decay/sustainability scoring to `RbeResourcePool` in economy.rs.
 4. **LegacyJournal Polish** (Medium): Richer event types and "My Mercy Journey" dashboard visibility. *(Advanced in v19.2.9 with SynergyPolicy support)*
@@ -117,7 +119,7 @@ All changes must preserve prior logic 100%, pass TOLC 8 gates, and be minimal co
 - Players experience meaningful relationships and council participation that shape the world.
 - Resource decisions carry long-term weight and interconnection.
 - The world simulation responds dynamically to mercy and collective action.
-- New players can feel the transformation arc from humble beginnings to co-creator.
+- New players can feel the transformation arc from humble beginnings to shared thriving.
 
 ---
 
