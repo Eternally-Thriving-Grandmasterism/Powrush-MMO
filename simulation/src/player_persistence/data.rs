@@ -1,10 +1,7 @@
 /*!
  * Player Persistence Data Layer
  *
- * v19.3.7: Checked and hardened all Vec fields with #[serde(default)]
- * — epiphanies: Vec<EpiphanyRecord> now defaults gracefully on old saves
- * — grace_notes already protected
- *
+ * v19.3.12: Optimized record_agent_ability_state to accept &HashMap (avoids unnecessary clone from caller)
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
  */
@@ -65,11 +62,11 @@ impl PlayerSaveData {
         }
     }
 
-    /// Core Agent State Persistence
+    /// Core Agent State Persistence (optimized: takes &HashMap to avoid caller clone)
     pub fn record_agent_ability_state(
         &mut self,
         agent_id: u64,
-        chain_progress: HashMap<String, u32>,
+        chain_progress: &HashMap<String, u32>,
         last_stage: u8,
         volatility_delta: f32,
         strength_delta: f32,
@@ -79,7 +76,7 @@ impl PlayerSaveData {
         let state = AgentAbilityState {
             agent_id,
             last_tick: tick,
-            chain_progress,
+            chain_progress: chain_progress.clone(),
             last_synergy_stage: last_stage,
             last_volatility_delta: volatility_delta,
             last_strength_delta: strength_delta,
@@ -90,11 +87,11 @@ impl PlayerSaveData {
             .entry(agent_id.to_string())
             .and_modify(|existing| {
                 existing.last_tick = tick;
-                existing.chain_progress = state.chain_progress.clone();
+                existing.chain_progress = chain_progress.clone();
                 existing.last_synergy_stage = last_stage;
-                existing.last_volatility_delta = volatility_delta;
-                existing.last_strength_delta = strength_delta;
-                existing.last_cooperation_delta = cooperation_delta;
+                existing.last_volatility_delta: volatility_delta,
+                existing.last_strength_delta = strength_delta,
+                existing.last_cooperation_delta = cooperation_delta,
             })
             .or_insert(state);
 
@@ -134,6 +131,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.7
-// All Vec fields now protected with #[serde(default)].
+// End of simulation/src/player_persistence/data.rs v19.3.12
+// record_agent_ability_state now takes &HashMap to reduce cloning.
 // Thunder locked in. Yoi ⚡
