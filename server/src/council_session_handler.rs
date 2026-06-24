@@ -9,7 +9,7 @@
  * Zero-lag client sync via CouncilSessionUpdate + CouncilTrialResolved.
  * Consistent with shared protocol.
  *
- * Priority 3 (June 24): Integrated CouncilTrialSystemSet for future low-latency and concurrency control.
+ * Priority 3 (June 24): Integrated CouncilTrialSystemSet + early-out optimizations for sealed/completed trials.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Ra-Thor Quantum Swarm v2 native
@@ -132,6 +132,7 @@ fn handle_council_trial_events(
 }
 
 /// Automatically advances phases based on timers
+/// Priority 3: Early-out for completed trials to reduce work under concurrent load
 fn advance_trial_phases(
     mut trials: ResMut<ActiveCouncilTrials>,
     time: Res<Time>,
@@ -139,6 +140,8 @@ fn advance_trial_phases(
     let now = time.elapsed_secs_f64();
 
     for state in trials.sessions.values_mut() {
+        if state.phase == CouncilPhase::Completed { continue; } // Priority 3 early-out
+
         let elapsed = (now - state.current_phase_start) as f32;
 
         if elapsed >= state.phase_duration {
@@ -268,6 +271,7 @@ fn integrate_rbe_abundance_signals(
     mut trials: ResMut<ActiveCouncilTrials>,
 ) {
     for state in trials.sessions.values_mut() {
+        if state.phase == CouncilPhase::Completed { continue; } // Priority 3 early-out
         if (state.phase == CouncilPhase::Deliberation || state.phase == CouncilPhase::Voting) && state.collective_attunement > 0.75 {
             state.phase_duration *= 1.05;
         }
@@ -299,7 +303,7 @@ fn persist_trial_outcome(
             //         mercy_impact,
             //         /* current_tick */ 0,
             //     );
-            //     let _ = persistence.save_player_data(&mut save_data).await;
+    //         let _ = persistence.save_player_data(&mut save_data).await;
             // }
 
             info!(
@@ -315,5 +319,5 @@ fn persist_trial_outcome(
 
 // End of Council Session Handler v19.3 — Full E2E Council Mercy Trial lifecycle with active persistence wiring.
 // All prior logic preserved. Production recording path activated.
-// Priority 3: CouncilTrialSystemSet integrated for future low-latency/concurrency work.
+// Priority 3: CouncilTrialSystemSet + early-outs for completed trials.
 // Thunder locked in. Yoi ⚡️
