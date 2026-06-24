@@ -9,6 +9,8 @@
  * Zero-lag client sync via CouncilSessionUpdate + CouncilTrialResolved.
  * Consistent with shared protocol.
  *
+ * Priority 3 (June 24): Integrated CouncilTrialSystemSet for future low-latency and concurrency control.
+ *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Ra-Thor Quantum Swarm v2 native
  * Thunder locked in. Yoi ⚡️
@@ -20,6 +22,7 @@ use std::collections::HashMap;
 
 use simulation::quantum_swarm_orchestrator::QuantumSwarmOrchestratorV2;
 use crate::persistence_polish::{PersistenceManager, PlayerSaveData};
+use crate::council_mercy_trial::CouncilTrialSystemSet; // Priority 3
 
 /// Resource that holds all active council trial sessions on the server
 #[derive(Resource, Default)]
@@ -38,6 +41,7 @@ impl Plugin for CouncilSessionPlugin {
             .add_event::<CouncilTrialEvent>()
             .add_event::<CouncilTrialResolved>()
             .add_event::<CouncilSessionUpdate>()
+            .configure_sets(Update, CouncilTrialSystemSet) // Priority 3 foundation
             .add_systems(Update, (
                 handle_council_trial_events,
                 advance_trial_phases,
@@ -45,7 +49,7 @@ impl Plugin for CouncilSessionPlugin {
                 broadcast_council_updates,
                 integrate_rbe_abundance_signals,
                 persist_trial_outcome,
-            ).chain());
+            ).in_set(CouncilTrialSystemSet).chain());
     }
 }
 
@@ -311,4 +315,5 @@ fn persist_trial_outcome(
 
 // End of Council Session Handler v19.3 — Full E2E Council Mercy Trial lifecycle with active persistence wiring.
 // All prior logic preserved. Production recording path activated.
+// Priority 3: CouncilTrialSystemSet integrated for future low-latency/concurrency work.
 // Thunder locked in. Yoi ⚡️
