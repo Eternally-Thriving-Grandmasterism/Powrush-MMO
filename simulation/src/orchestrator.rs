@@ -1,8 +1,8 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.3.11: Persistence performance optimized
- * Persistence calls are now rate-limited (every 5 ticks) to reduce overhead.
+ * v19.3.12: Updated call site for optimized record_agent_ability_state (&HashMap)
+ * Eliminates one HashMap clone per persistence operation.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -91,12 +91,12 @@ impl SimulationOrchestrator {
             }
         }
 
-        // === Optimized: Real agent iteration + synergy + rate-limited persistence ===
+        // === Optimized: Real agent iteration + synergy + persistence ===
         result.synergy_events = self.collect_synergy_events_direct(world, player_save);
         result
     }
 
-    /// Iterates agents, generates synergy events, and persists ability state (rate-limited).
+    /// Iterates agents, generates synergy events, and persists ability state (optimized).
     fn collect_synergy_events_direct(
         &self,
         world: &SovereignWorldState,
@@ -125,7 +125,7 @@ impl SimulationOrchestrator {
                 &synergies,
             );
 
-            // === Optimized persistence: only every 5 ticks for active agents ===
+            // === Persistence (optimized - passes reference, no clone here) ===
             if let Some(save) = &mut player_save {
                 if self.current_tick % 5 == 0 {
                     let last_event = new_events.last();
@@ -137,7 +137,7 @@ impl SimulationOrchestrator {
 
                     save.record_agent_ability_state(
                         agent.id,
-                        agent.ability_tree.chain_progress.clone(),
+                        &agent.ability_tree.chain_progress,   // pass reference
                         stage,
                         vol_delta,
                         str_delta,
@@ -155,6 +155,6 @@ impl SimulationOrchestrator {
 }
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
-// Persistence performance optimized (rate-limited to every 5 ticks).
+// Persistence optimization complete: one less HashMap clone per persist operation.
 // All prior logic preserved exactly.
 // Thunder locked in. Yoi ⚡
