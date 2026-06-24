@@ -1,8 +1,8 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.3.9: Wired real agent iteration loop in collect_synergy_events_direct
- * Synergy events now actively generated from Agent AbilityTree + mutations every tick.
+ * v19.3.10: Persistence integration wired
+ * Synergy events now also update PlayerSaveData via record_agent_ability_state.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -15,6 +15,7 @@ use crate::harvest::{HarvestEvent, HarvestingSystem};
 use crate::emergence::{DynamicEmergenceEvent, EmergenceOrchestrator};
 use crate::ability_tree::SynergyEffectEvent;
 use crate::council_mercy_trial::CouncilSessionManager;
+use crate::player_persistence::PlayerSaveData;
 use tracing::{info, warn};
 
 /// Production TickResult — rich telemetry for observability, Council governance, RBE, synergy, and errors
@@ -53,6 +54,7 @@ impl SimulationOrchestrator {
         world: &mut SovereignWorldState,
         interest_manager: Option<&crate::spatial_interest::InterestManager>,
         council_manager: Option<&mut CouncilSessionManager>,
+        player_save: Option<&mut PlayerSaveData>,
     ) -> TickResult {
         self.current_tick += 1;
         let mut result = TickResult {
@@ -89,23 +91,24 @@ impl SimulationOrchestrator {
             }
         }
 
-        // === WIRED: Real agent iteration + synergy event generation ===
-        result.synergy_events = self.collect_synergy_events_direct(world);
+        // === WIRED: Real agent iteration + synergy + persistence ===
+        result.synergy_events = self.collect_synergy_events_direct(world, player_save);
         result
     }
 
-    /// Iterates all agents in SovereignWorldState, processes AbilityTree synergy chains
-    /// (mutation + cross-race), applies bonuses to epigenetic profile, and emits SynergyEffectEvent.
-    fn collect_synergy_events_direct(&self, world: &SovereignWorldState) -> Vec<SynergyEffectEvent> {
+    /// Iterates agents, generates synergy events, and persists agent ability state.
+    fn collect_synergy_events_direct(
+        &self,
+        world: &SovereignWorldState,
+        mut player_save: Option<&mut PlayerSaveData>,
+    ) -> Vec<SynergyEffectEvent> {
         let mut events = Vec::new();
 
-        // === Real wired iteration loop ===
         for agent in world.agents.values_mut() {
             let ability_tree = &agent.ability_tree;
             let active_mutations = agent.get_active_mutations();
             let unlocked_races = agent.get_unlocked_races();
 
-            // Calculate active synergy bonuses
             let mut synergies = ability_tree.calculate_mutation_synergy_chains(active_mutations);
             synergies.extend(
                 ability_tree.calculate_cross_race_synergy_chains(active_mutations, unlocked_races)
@@ -115,13 +118,33 @@ impl SimulationOrchestrator {
                 continue;
             }
 
-            // Apply bonuses to the agent's epigenetic profile and collect events
             let new_events = ability_tree.apply_synergy_bonuses_to_profile(
                 self.current_tick,
                 agent.id,
                 &mut agent.epigenetic_profile,
                 &synergies,
             );
+
+            // === Persistence integration ===
+            if let Some(save) = &mut player_save {
+                // Snapshot current chain progress + latest deltas from last event
+                let last_event = new_events.last();
+                let (vol_delta, str_delta, coop_delta, stage) = if let Some(ev) = last_event {
+                    (ev.volatility_delta, ev.strength_delta, ev.cooperation_delta, ev.stage)
+                } else {
+                    (0.0, 0.0, 0.0, 0)
+                };
+
+                save.record_agent_ability_state(
+                    agent.id,
+                    agent.ability_tree.chain_progress.clone(),
+                    stage,
+                    vol_delta,
+                    str_delta,
+                    coop_delta,
+                    self.current_tick,
+                );
+            }
 
             events.extend(new_events);
         }
@@ -131,6 +154,6 @@ impl SimulationOrchestrator {
 }
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
-// Agent iteration loop fully wired. Synergy events are now generated every tick.
-// All prior logic, council bloom wiring, and behavior preserved exactly.
+// Persistence integration complete: synergy activity is now recorded to PlayerSaveData.
+// All prior logic preserved exactly.
 // Thunder locked in. Yoi ⚡
