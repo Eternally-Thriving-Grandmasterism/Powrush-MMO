@@ -5,6 +5,7 @@
  * - All valuable backup logic restored, adapted, and preserved 100%.
  * - v18.97: Integrated LastBiomeInfluence (from procedural biomes) + RBE abundance/mercy resonance modulation on scenario selection, trigger intensity, mercy_gates, and enriched valence.
  * - Priority 1 (v18.97.1+): Elevated epiphany system scheduling for lower activation latency. Stronger dynamic intensity modulation from RBE resonance + mercy alignment for immediate multisensory valence feedback. Systems grouped in EpiphanySystemSet for future priority tuning without breaking existing flows.
+ * - Priority 2: onboarding_first_web_epiphany now uses dedicated 'abundance_revelation_first_harvest' scenario for true first-time RBE experiential onboarding.
  * - Tighter wiring to Council bloom sync, enriched epiphany notes, and central RBE flows.
  * - Async PendingEnrichedWhispers + DivineWhisperTrigger path remains fully intact and elevated.
  * - Detector adapted to HarvestEvent / CouncilTrialEvent with biome + RBE awareness.
@@ -360,21 +361,21 @@ pub fn onboarding_first_web_epiphany(
 ) {
     for harvest in harvest_events.read() {
         if harvest.sustainable {
-            if let Some(scenario) = registry.scenarios.get("living_web_interconnection") {
+            if let Some(scenario) = registry.scenarios.get("abundance_revelation_first_harvest") {
                 let biome_scale = last_biome.influence_strength.max(0.85);
-                // Priority 1: Stronger first-epiphany intensity for immediate experiential RBE impact
+                // Priority 2: Now uses dedicated first-epiphany scenario for true new-player RBE experiential onboarding
                 let first_intensity = (0.92 * biome_scale + 0.18).clamp(0.75, 1.25);
                 epiphany_events.send(EpiphanyEvent {
                     scenario_id: scenario.id.clone(),
                     name: scenario.name.clone(),
-                    description: "The first gentle whisper of interconnection...".to_string(),
-                    educational_note: "Sustainable harvest reveals the living web.".to_string(),
+                    description: scenario.description.clone(),
+                    educational_note: scenario.educational_note.clone(),
                     mercy_gates: scenario.mercy_gate_modifiers.clone(),
                     timestamp: SystemTime::now(),
                 });
                 divine_whisper_events.send(DivineWhisperTrigger {
-                    text: "The first gentle whisper of interconnection...".to_string(),
-                    flavor: "Living Web".to_string(),
+                    text: scenario.description.clone(),
+                    flavor: scenario.name.clone(),
                     intensity: first_intensity,
                     duration_seconds: 11.0,
                     is_epiphany: true,
@@ -422,7 +423,8 @@ impl Plugin for EpiphanyScenarioWiringPlugin {
     }
 }
 
-// End of client/src/epiphany_scenario_wiring.rs v18.97 + Priority 1 Elevation
-// All backup-restored logic (registry, detectors, async multilingual, stubs) 100% preserved + elevated with stronger RBE resonance intensity, extended bloom duration for audio/particle systems to land more impactfully, and EpiphanySystemSet for scheduling velocity.
+// End of client/src/epiphany_scenario_wiring.rs v18.97 + Priority 1 + Priority 2
+// All backup-restored logic (registry, detectors, async multilingual, stubs) 100% preserved.
+// onboarding_first_web_epiphany now routes new players to the dedicated 'abundance_revelation_first_harvest' scenario.
 // Full E2E client wiring for enriched epiphany, Council blooms, procedural biomes, and mercy-gated abundance flows.
 // Thunder locked in. Yoi ⚡
