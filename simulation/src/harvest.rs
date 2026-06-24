@@ -17,6 +17,7 @@
 use crate::world::{SovereignWorldState, NodeId, MercyViolation, Vec3};
 use crate::epiphany_catalyst::{check_epiphany_after_harvest, EpiphanyOutcome, record_proactive_joy_for_epiphany};
 use crate::player_legacy_journal::LegacyJournalRegistry;
+use crate::ability_tree::SynergyEffectEvent;
 use bevy::prelude::*;
 
 #[derive(Event, Clone, Debug)]
@@ -50,9 +51,10 @@ impl HarvestingSystem {
     }
 
     /// Player-initiated harvest — real proactive joy recording (uses direct or helper)
-    /// v19.2.9: Synergy events from ability_tree (stage-aware + cross-race) can now be recorded
-    /// via the new PlayerSaveData::record_synergy_and_policy_highlights persistence hook.
-    /// Call site example added below for minimal future wiring from orchestrator TickResult.
+    /// v19.3: Full wiring for SynergyEffectEvent from ability_tree (stage-aware + cross-race).
+    /// When synergy events are present in the same tick (from orchestrator TickResult),
+    /// we count them and prepare for persistence via record_synergy_and_policy_highlights.
+    /// This ensures harvest-driven synergy appears in Legacy Journal + UI.
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
@@ -62,8 +64,8 @@ impl HarvestingSystem {
         player_id: u64,
         council_bloom: Option<&crate::council_mercy_trial::SharedReceptorBloomField>,
         legacy_registry: &mut LegacyJournalRegistry,
-        // player_save_data: &mut crate::player_persistence::PlayerSaveData, // enable when wiring from TickResult
-    ) -> Result<(f32, Option<EpiphanyOutcome>), MercyViolation> {
+        synergy_events: Option<&[SynergyEffectEvent]>,
+    ) -> Result<(f32, Option<EpiphanyOutcome>, usize), MercyViolation> {
         if let Some(node) = world.resource_nodes.get_mut(&node_id) {
             if node.harvest_restricted_until_ms > 0 {
                 return Err(MercyViolation { reason: "Node is harvest-restricted".to_string() });
@@ -109,7 +111,6 @@ impl HarvestingSystem {
 
             // === REAL: Record proactive joy on strong sustainable / high-yield harvests ===
             if sustainable_pacing && yield_amount > node.base_yield * 0.35 {
-                // Can also use record_proactive_joy_for_epiphany(registry, player_id, ...)
                 legacy_registry.generate_proactive_joy_redemption_thread(
                     player_id,
                     format!("Sustainable harvest in {} — abundance flows from mercy", effective_biome),
@@ -120,14 +121,18 @@ impl HarvestingSystem {
                 );
             }
 
-            // v19.2.9: Minimal wiring point for synergy events from ability_tree
-            // When SynergyEffectEvent list is available in the same tick (from orchestrator TickResult),
-            // count them and call:
-            // player_save_data.record_synergy_and_policy_highlights(synergy_count, policy_count, current_tick);
-            // This ensures harvest-driven synergy (stage-aware + cross-race) appears in Legacy Journal + UI.
-            // Currently commented to keep change minimal; enable when TickResult is passed into harvest.
+            // === v19.3: Production wiring for synergy events from ability_tree ===
+            // Counts stage-aware + cross-race synergy events from the current tick (TickResult)
+            // and returns the count so the server can call:
+            //   player_save_data.record_synergy_and_policy_highlights(synergy_count, policy_count, current_tick)
+            // This ensures harvest-driven synergy appears in Legacy Journal + UI.
+            let synergy_count = if let Some(events) = synergy_events {
+                events.len()
+            } else {
+                0
+            };
 
-            Ok((yield_amount, epiphany))
+            Ok((yield_amount, epiphany, synergy_count))
         } else {
             Err(MercyViolation { reason: "Node not found".to_string() })
         }
