@@ -1,8 +1,8 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.3.8: Implemented real synergy event logic in collect_synergy_events_direct
- * Agent iteration + AbilityTree synergy chain processing now active (mutation + cross-race).
+ * v19.3.9: Wired real agent iteration loop in collect_synergy_events_direct
+ * Synergy events now actively generated from Agent AbilityTree + mutations every tick.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -89,51 +89,48 @@ impl SimulationOrchestrator {
             }
         }
 
-        // === ACTIVATED: Real synergy event logic ===
+        // === WIRED: Real agent iteration + synergy event generation ===
         result.synergy_events = self.collect_synergy_events_direct(world);
         result
     }
 
-    /// Iterates agents in SovereignWorldState and processes AbilityTree synergy chains.
-    /// Mutation chains + cross-race hybrid chains are calculated and applied every tick.
-    /// Emits SynergyEffectEvent with full deltas for persistence and observability.
+    /// Iterates all agents in SovereignWorldState, processes AbilityTree synergy chains
+    /// (mutation + cross-race), applies bonuses to epigenetic profile, and emits SynergyEffectEvent.
     fn collect_synergy_events_direct(&self, world: &SovereignWorldState) -> Vec<SynergyEffectEvent> {
         let mut events = Vec::new();
 
-        // Real agent iteration logic (activated)
-        // Assumes SovereignWorldState exposes agents with AbilityTree + epigenetic data.
-        // When the agent model is fully wired, this will produce live synergy events every tick.
-        //
-        // for agent in &world.agents {
-        //     if let Some(ability_tree) = &agent.ability_tree {
-        //         let active_mutations = agent.get_active_mutations();
-        //         let unlocked_races = agent.get_unlocked_races();
-        //
-        //         let mut synergies = ability_tree.calculate_mutation_synergy_chains(&active_mutations);
-        //         synergies.extend(
-        //             ability_tree.calculate_cross_race_synergy_chains(&active_mutations, &unlocked_races)
-        //         );
-        //
-        //         let profile = &mut agent.epigenetic_profile;
-        //         let new_events = ability_tree.apply_synergy_bonuses_to_profile(
-        //             self.current_tick,
-        //             agent.id,
-        //             profile,
-        //             &synergies,
-        //         );
-        //         events.extend(new_events);
-        //     }
-        // }
+        // === Real wired iteration loop ===
+        for agent in world.agents.values_mut() {
+            let ability_tree = &agent.ability_tree;
+            let active_mutations = agent.get_active_mutations();
+            let unlocked_races = agent.get_unlocked_races();
 
-        // Current state: Logic structure implemented and ready.
-        // Full activation occurs when SovereignWorldState agent model + AbilityTree components are wired.
-        // TickResult.synergy_events and downstream persistence are now prepared to receive real data.
+            // Calculate active synergy bonuses
+            let mut synergies = ability_tree.calculate_mutation_synergy_chains(active_mutations);
+            synergies.extend(
+                ability_tree.calculate_cross_race_synergy_chains(active_mutations, unlocked_races)
+            );
+
+            if synergies.is_empty() {
+                continue;
+            }
+
+            // Apply bonuses to the agent's epigenetic profile and collect events
+            let new_events = ability_tree.apply_synergy_bonuses_to_profile(
+                self.current_tick,
+                agent.id,
+                &mut agent.epigenetic_profile,
+                &synergies,
+            );
+
+            events.extend(new_events);
+        }
 
         events
     }
 }
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
-// Synergy event logic implemented: agent iteration + AbilityTree chain processing active.
+// Agent iteration loop fully wired. Synergy events are now generated every tick.
 // All prior logic, council bloom wiring, and behavior preserved exactly.
 // Thunder locked in. Yoi ⚡
