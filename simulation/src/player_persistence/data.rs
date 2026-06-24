@@ -1,8 +1,7 @@
 /*!
  * Player Persistence Data Layer
  *
- * v19.3.19: Added RecoveryConfig for Shamir’s Secret Sharing.
- * Completes the sovereign recovery architecture.
+ * v19.3.20: Added ShareInfo for metadata on Shamir recovery shares.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -40,35 +39,43 @@ pub struct AgentAbilityState {
     pub last_cooperation_delta: f64,
 }
 
+/// Metadata for one Shamir recovery share
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ShareInfo {
+    pub index: u8,
+    pub label: Option<String>,
+    pub created_at: u64,
+}
+
 /// Configuration for Shamir’s Secret Sharing recovery
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RecoveryConfig {
     pub enabled: bool,
     pub total_shares: u8,
     pub threshold: u8,
+    /// List of shares the user has generated (for reference)
+    pub shares: Vec<ShareInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlayerSaveData {
-    /// List of all recorded epiphanies and proactive joy events
     #[serde(default)]
     pub epiphanies: Vec<EpiphanyRecord>,
 
-    /// Per-agent ability/synergy state
     #[serde(default)]
     pub agent_ability_states: HashMap<String, AgentAbilityState>,
 
     pub dirty: bool,
     pub pending_persistence_updates: usize,
 
-    // === Crash Recovery Fields ===
+    // Crash Recovery
     pub last_shutdown_was_clean: bool,
     pub last_save_timestamp: u64,
     pub save_version: u32,
     pub checksum: String,
     pub total_playtime_seconds: u64,
 
-    // === Sovereign Recovery (Shamir’s Secret Sharing) ===
+    // Sovereign Recovery
     pub recovery: RecoveryConfig,
 }
 
@@ -79,42 +86,51 @@ impl PlayerSaveData {
             agent_ability_states: HashMap::new(),
             dirty: false,
             pending_persistence_updates: 0,
-
             last_shutdown_was_clean: false,
             last_save_timestamp: 0,
             save_version: 1,
             checksum: String::new(),
             total_playtime_seconds: 0,
-
             recovery: RecoveryConfig::default(),
         }
     }
 
-    /// Enable Shamir recovery with given total shares and threshold
     pub fn enable_shamir_recovery(&mut self, total_shares: u8, threshold: u8) {
         if threshold >= 2 && threshold <= total_shares {
             self.recovery = RecoveryConfig {
                 enabled: true,
                 total_shares,
                 threshold,
+                shares: Vec::new(),
             };
             self.dirty = true;
         }
     }
 
-    /// Disable Shamir recovery
     pub fn disable_shamir_recovery(&mut self) {
         self.recovery = RecoveryConfig::default();
         self.dirty = true;
     }
 
-    /// Mark that we are starting a session
+    /// Record metadata for a newly generated share
+    pub fn record_share(&mut self, index: u8, label: Option<String>) {
+        let info = ShareInfo {
+            index,
+            label,
+            created_at: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        };
+        self.recovery.shares.push(info);
+        self.dirty = true;
+    }
+
     pub fn mark_session_started(&mut self) {
         self.last_shutdown_was_clean = false;
         self.dirty = true;
     }
 
-    /// Called on clean exit
     pub fn mark_clean_shutdown(&mut self) {
         self.last_shutdown_was_clean = true;
     }
@@ -197,6 +213,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.19
-// RecoveryConfig added. Sovereign architecture now complete at data model level.
+// End of simulation/src/player_persistence/data.rs v19.3.20
+// ShareInfo + recovery metadata storage implemented.
 // Thunder locked in. Yoi ⚡
