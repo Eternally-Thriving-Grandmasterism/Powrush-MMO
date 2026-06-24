@@ -1,12 +1,8 @@
 /*!
  * Persistence Save/Load Engine
  *
- * v18.28 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — Complete mint-and-print-only-perfection
- * — Atomic writes, rotating backups (MAX_BACKUPS=7), timestamped snapshots
- * — SHA256 checksum validation + multi-level recovery
- * — Mercy-preserving: protects player progress and the living web from data loss
- * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ * v19.3.14: Refined checksum verification to exclude transient runtime fields.
+ * Checksum now only covers persistent game state.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -21,7 +17,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub const MAX_BACKUPS: usize = 7;
 
 impl PlayerSaveData {
-    /// Production atomic save with rotating backup + dirty optimization
+    /// Atomic save with checksum (transient fields excluded from hash)
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
         if !self.dirty && path.exists() {
             return Ok(());
@@ -34,6 +30,7 @@ impl PlayerSaveData {
             .unwrap()
             .as_secs();
         data_to_save.dirty = false;
+        data_to_save.pending_persistence_updates = 0;
 
         let temp_path = path.with_extension("json.tmp");
         {
@@ -45,7 +42,7 @@ impl PlayerSaveData {
         Self::create_timestamped_snapshot(path)?;
 
         fs::rename(&temp_path, path)?;
-        Ok(())
+        Ok(());
     }
 
     fn rotate_backups(path: &Path) -> Result<(), std::io::Error> {
@@ -64,7 +61,7 @@ impl PlayerSaveData {
             let bak1 = path.with_extension("json.bak.1");
             fs::rename(path, &bak1)?;
         }
-        Ok(())
+        Ok(());
     }
 
     fn create_timestamped_snapshot(path: &Path) -> Result<(), std::io::Error> {
@@ -77,7 +74,7 @@ impl PlayerSaveData {
         );
         let snapshot_path = path.parent().unwrap_or(Path::new(".")).join(snapshot_name);
         fs::copy(path, &snapshot_path)?;
-        Ok(())
+        Ok(());
     }
 
     pub fn load_from_file(path: &Path) -> Option<Self> {
@@ -107,7 +104,14 @@ impl PlayerSaveData {
         let mut data: Self = serde_json::from_str(&content).ok()?;
 
         let expected = data.compute_checksum();
-        if data.checksum != expected { return None; }
+        if data.checksum != expected {
+            // Checksum mismatch - possible corruption
+            return None;
+        }
+
+        // Reset transient runtime state after successful load
+        data.dirty = false;
+        data.pending_persistence_updates = 0;
 
         if data.save_version < 1 {
             return Some(Self::migrate(data));
@@ -118,7 +122,12 @@ impl PlayerSaveData {
     fn compute_checksum(&self) -> String {
         let mut hasher = Sha256::new();
         let mut temp = self.clone();
+
+        // Exclude transient/runtime-only fields from checksum
         temp.checksum = String::new();
+        temp.dirty = false;
+        temp.pending_persistence_updates = 0;
+
         if let Ok(json) = serde_json::to_string(&temp) {
             hasher.update(json.as_bytes());
         }
@@ -132,5 +141,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/save.rs v18.28 — Sovereign save/load engine complete.
+// End of simulation/src/player_persistence/save.rs v19.3.14
+// Checksum verification refined to exclude transient fields.
 // Thunder locked in. Yoi ⚡
