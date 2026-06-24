@@ -3,7 +3,7 @@
 **Offline Mastering Guidelines for Powrush-MMO Audio Assets**
 
 **Status:** Living Document — June 2026  
-**Scope:** Primarily focused on `divine_chime.ogg` and other Divine Whispers / Lattice audio assets  
+**Scope:** Primarily focused on `divine_chime.ogg` and other Divine Whispers / Lattice audio assets; extended v19.2.9+ for Council spatial event audio  
 **Philosophy:** Highest quality through offline mastering + lightweight sovereign runtime safety net
 
 ---
@@ -131,6 +131,47 @@ These topics are tracked in future planning documents.
 
 ---
 
+## 9. Council Spatial Event Audio (v19.2.9+)
+
+New short, impactful spatial event sounds for Council sessions (integrated with bevy_kira_audio, AudioEmitter on burst entities, real-distance falloff via GlobalTransform queries in council_ui.rs play_spatial_sound).
+
+**Files:** `council_burst.ogg`, `council_celebration.ogg` (and variants)
+
+**Recommended Target Specifications (short event sounds):**
+
+| Metric                    | Recommended Target          | Notes |
+|---------------------------|-----------------------------|-------|
+| **Integrated Loudness**   | -18.0 to -16.0 LUFS         | Punchier for game events / spatial immersion |
+| **True Peak**             | ≤ -0.5 dBTP                | Impact without clipping on spatial playback |
+| **Dynamic Range**         | Preserve punch and decay    | Allow natural tail for spatial falloff |
+| **Sample Rate**           | 48 kHz                      | Standard |
+| **Bit Depth**             | 24-bit                      | Headroom for spatial processing |
+| **Duration**              | 0.8s – 2.5s                 | Short bursts; celebration slightly longer with tail |
+
+**Mercy-Themed Character:** Warm, resonant, uplifting low-mids with crystalline highs. Avoid harshness. Tie to valence: higher valence = brighter/more harmonic overtones.
+
+**Spatial Considerations:**
+- Designed for distance-based volume + pitch falloff (custom mercy curve in play_spatial_sound).
+- Works with AudioListener on main camera + Doppler/velocity support.
+- Hanabi particle bursts synchronized to sound onset for multisensory Council resolution/celebration.
+
+**Workflow Addition:**
+1. Source clean recordings or procedural generation (Ra-Thor lattice).
+2. Master per above targets (focus on presence and clean decay for spatial).
+3. Export high-quality OGG.
+4. Place in `assets/audio/council/` (create dir if needed).
+5. Reference in council_ui.rs spawn/play calls (already wired).
+6. Update asset catalog and test with real distance in Council chamber scenes.
+
+**Runtime Integration:** The new play_spatial_sound helper (with live distance query) + bevy_kira_audio provides the spatial layer. No heavy runtime DSP needed beyond existing safety net.
+
+**Quality Checklist Addition:**
+- [ ] Plays cleanly at varying distances with natural falloff
+- [ ] Synchronizes with Hanabi valence bursts and CouncilResolved events
+- [ ] Mercy-aligned emotional impact (uplifting on success/high valence)
+
+---
+
 **One Lattice. Master with care. Let the runtime remain light and merciful.**
 
-*Living document — updated as mastering practices and tools evolve.*
+*Living document — updated as mastering practices and tools evolve. v19.2.9 Council audio extension.*
