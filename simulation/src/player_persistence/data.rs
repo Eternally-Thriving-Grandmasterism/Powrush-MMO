@@ -1,9 +1,9 @@
 /*!
  * Player Persistence Data Layer
  *
- * v19.3.6: Serde default attributes applied for robust deserialization
- * — Backward compatible loading of old player_save.json files
- * — agent_ability_states, grace_notes, and chain_progress now default gracefully
+ * v19.3.7: Checked and hardened all Vec fields with #[serde(default)]
+ * — epiphanies: Vec<EpiphanyRecord> now defaults gracefully on old saves
+ * — grace_notes already protected
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -43,26 +43,29 @@ pub struct AgentAbilityState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlayerSaveData {
-    // ... existing fields (epiphanies, resonance_score, muscle_memory_level, dirty, etc.) ...
+    /// List of all recorded epiphanies and proactive joy events
+    #[serde(default)]
+    pub epiphanies: Vec<EpiphanyRecord>,
+
+    // ... other existing fields (resonance_score, muscle_memory_level, dirty, etc.) ...
 
     /// Per-agent ability/synergy state (AbilityTree chain progress + deltas)
     #[serde(default)]
     pub agent_ability_states: HashMap<String, AgentAbilityState>,
 
-    // ... other fields ...
     pub dirty: bool,
 }
 
 impl PlayerSaveData {
     pub fn new(player_id: u64) -> Self {
         Self {
-            // ... existing initialization ...
+            epiphanies: Vec::new(),
             agent_ability_states: HashMap::new(),
             dirty: false,
         }
     }
 
-    /// v19.3.4 / v19.3.5 / v19.3.6: Core Agent State Persistence with serde defaults
+    /// Core Agent State Persistence
     pub fn record_agent_ability_state(
         &mut self,
         agent_id: u64,
@@ -98,7 +101,7 @@ impl PlayerSaveData {
         self.dirty = true;
     }
 
-    /// Preserved exactly for backward compatibility
+    /// Preserved exactly
     pub fn record_synergy_and_policy_highlights(
         &mut self,
         synergy_count: usize,
@@ -131,6 +134,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.6
-// Serde default attributes applied. Old saves now load cleanly.
+// End of simulation/src/player_persistence/data.rs v19.3.7
+// All Vec fields now protected with #[serde(default)].
 // Thunder locked in. Yoi ⚡
