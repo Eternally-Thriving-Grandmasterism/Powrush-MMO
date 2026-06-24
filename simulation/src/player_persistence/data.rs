@@ -1,9 +1,8 @@
 /*!
  * Player Persistence Data Layer
  *
- * v19.3.13: Implemented persistence write batching
- * Multiple agent state updates are now coalesced before marking dirty.
- * Reduces unnecessary auto-save triggers.
+ * v19.3.14: Added crash recovery fields and integration with advanced save engine.
+ * Includes last_shutdown_was_clean flag for crash detection.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -15,8 +14,6 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub use crate::epiphany_catalyst::EpiphanyOutcome;
-
-const PERSISTENCE_BATCH_SIZE: usize = 8;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EpiphanyRecord {
@@ -49,14 +46,19 @@ pub struct PlayerSaveData {
     #[serde(default)]
     pub epiphanies: Vec<EpiphanyRecord>,
 
-    /// Per-agent ability/synergy state (AbilityTree chain progress + deltas)
+    /// Per-agent ability/synergy state
     #[serde(default)]
     pub agent_ability_states: HashMap<String, AgentAbilityState>,
 
     pub dirty: bool,
+    pub pending_persistence_updates: usize,
 
-    /// Internal counter for batched persistence updates
-    pending_persistence_updates: usize,
+    // === Crash Recovery Fields ===
+    pub last_shutdown_was_clean: bool,
+    pub last_save_timestamp: u64,
+    pub save_version: u32,
+    pub checksum: String,
+    pub total_playtime_seconds: u64,
 }
 
 impl PlayerSaveData {
@@ -66,10 +68,29 @@ impl PlayerSaveData {
             agent_ability_states: HashMap::new(),
             dirty: false,
             pending_persistence_updates: 0,
+
+            // On new game / fresh start, we consider it "not cleanly shut down" until first successful save
+            last_shutdown_was_clean: false,
+            last_save_timestamp: 0,
+            save_version: 1,
+            checksum: String::new(),
+            total_playtime_seconds: 0,
         }
     }
 
-    /// Core Agent State Persistence with write batching
+    /// Mark that we are starting a session (not yet cleanly shut down)
+    pub fn mark_session_started(&mut self) {
+        self.last_shutdown_was_clean = false;
+        self.dirty = true;
+    }
+
+    /// Called on clean exit to mark successful shutdown
+    pub fn mark_clean_shutdown(&mut self) {
+        self.last_shutdown_was_clean = true;
+    }
+
+    // ... rest of methods (record_agent_ability_state, force_dirty, etc.) remain ...
+
     pub fn record_agent_ability_state(
         &mut self,
         agent_id: u64,
@@ -102,15 +123,13 @@ impl PlayerSaveData {
             })
             .or_insert(state);
 
-        // Batching: only mark dirty after enough updates
         self.pending_persistence_updates += 1;
-        if self.pending_persistence_updates >= PERSISTENCE_BATCH_SIZE {
+        if self.pending_persistence_updates >= 8 {
             self.dirty = true;
             self.pending_persistence_updates = 0;
         }
     }
 
-    /// Force immediate dirty state (e.g. on exit or critical save)
     pub fn force_dirty(&mut self) {
         if self.pending_persistence_updates > 0 {
             self.dirty = true;
@@ -118,7 +137,6 @@ impl PlayerSaveData {
         }
     }
 
-    /// Preserved exactly
     pub fn record_synergy_and_policy_highlights(
         &mut self,
         synergy_count: usize,
@@ -151,6 +169,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.13
-// Persistence write batching implemented (batch size = 8).
+// End of simulation/src/player_persistence/data.rs v19.3.14
+// Crash recovery fields added (last_shutdown_was_clean, checksum, etc.).
 // Thunder locked in. Yoi ⚡
