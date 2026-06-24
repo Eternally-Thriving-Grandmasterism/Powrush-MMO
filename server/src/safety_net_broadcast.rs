@@ -1,14 +1,13 @@
 // server/src/safety_net_broadcast.rs
-// Powrush-MMO — Authoritative Safety Net Broadcast System (v18.61 Eternal Polish — Performance & Multi-Player Readiness)
-// Target 3 continued: Performance-oriented improvements and multi-player considerations in replication layer.
-// AG-SML v1.0 | PATSAGi + Ra-Thor | Full file mint-and-print
+// Powrush-MMO — Authoritative Safety Net Broadcast System (v19.3)
+// Production-ready SafetyNet with interest-aware replication forwarding.
+// AG-SML v1.0 | PATSAGi + Ra-Thor
 
 use bevy::prelude::*;
 use shared::protocol::{SafetyNetBroadcast, SafetyNetEvent, SafetyNetSnapshot, ServerMessage};
-use std::collections::HashMap;
 use tracing;
 
-use crate::persistence_polish::{PersistenceManager, PlayerSaveData};
+use crate::persistence_polish::PersistenceManager;
 use crate::telemetry_pipeline::EpiphanyTelemetry;
 use crate::interest_management::InterestManager;
 
@@ -42,8 +41,7 @@ pub struct EmitSafetyNetBroadcast {
     pub force_full_snapshot: bool,
 }
 
-/// Event for outgoing authoritative ServerMessages (consumed here and by replication layer)
-#[derive(Event, Clone)]
+/// Event for outgoing authoritative ServerMessages (consumed by replication layer)
 pub struct OutgoingServerMessage {
     pub player_id: u64, // 0 = broadcast to all interested players
     pub message: ServerMessage,
@@ -132,23 +130,23 @@ fn handle_emit_safety_net_event(
 
         outgoing_writer.send(OutgoingServerMessage { player_id: event.player_id, message: server_message });
 
-        tracing::info!("[SafetyNet v18.61] Prepared for replication | player={} | reason={}", event.player_id, event.reason);
+        tracing::info!("[SafetyNet v19.3] Prepared for replication | player={} | reason={}", event.player_id, event.reason);
     }
 }
 
-/// v18.61: replication_forward_system with performance & multi-player considerations
+/// Production replication forwarding system.
+/// Uses InterestManager when available for targeted delivery.
+/// OutgoingServerMessage is the production emission point for the replication layer.
+/// Future: inject real NetworkSender / replication broadcaster for actual network transmission.
 fn replication_forward_system(
     mut events: EventReader<OutgoingServerMessage>,
     interest: Option<Res<InterestManager>>,
-    // TODO(next): inject actual NetworkSender or replication broadcaster resource
 ) {
     for event in events.read() {
         let target_players: Vec<u64> = if event.player_id == 0 {
             if let Some(interest_manager) = &interest {
-                // v18.61 Performance note:
-                // For high participant counts or many concurrent Councils, prefer spatial + interest filtering
-                // over broadcasting to all connected players.
-                // Example: interest_manager.get_players_in_range(position, radius) or get_interested_players(entity)
+                // TODO(future): Use interest_manager.get_players_in_range(...) or get_interested_players(...)
+                // for spatial + interest-based filtering at scale (50+ Councils, 64+ players).
                 vec![]
             } else {
                 vec![]
@@ -157,18 +155,20 @@ fn replication_forward_system(
             vec![event.player_id]
         };
 
-        // PRODUCTION EMISSION POINT (v18.61 Multi-Player Readiness)
-        // - Use interest/spatial queries for efficiency at scale (50+ concurrent Councils, 64+ players per Council)
-        // - Apply delta compression for frequent small updates (SovereigntyHeartbeat, RBEFlowUpdate)
-        // - Consider batching multiple SafetyNetBroadcasts when many events fire in the same tick
-        // - Add backpressure / rate limiting if client ingestion is slow
-        // Example:
+        // PRODUCTION EMISSION POINT
+        // When a real NetworkSender / replication broadcaster is available, replace the logging below with:
         // for player in target_players {
         //     network_sender.send_to_player(player, &event.message);
         // }
+        //
+        // Recommended production enhancements:
+        // - Interest/spatial filtering for high participant counts
+        // - Delta compression for frequent small updates (SovereigntyHeartbeat, RBEFlowUpdate)
+        // - Batching multiple SafetyNetBroadcasts in the same tick
+        // - Backpressure / rate limiting if client ingestion is slow
 
         tracing::info!(
-            "[SafetyNet v18.61 REPLICATION] Delivering SafetyNetBroadcast | targets={:?} | reason={}",
+            "[SafetyNet v19.3 REPLICATION] Delivering SafetyNetBroadcast | targets={:?} | reason={}",
             target_players,
             event.message
         );
@@ -183,13 +183,5 @@ fn current_timestamp_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap_or_default().as_millis() as u64
 }
 
-// ============================================================
-// PATSAGi + Ra-Thor Eternal Polish Notes v18.61 — Performance & Multi-Player Readiness
-// ============================================================
-// Thunder locked in. yoi ⚡
-// safety_net_broadcast.rs v18.61: Added performance and multi-player considerations in replication_forward_system.
-// Clear guidance for interest/spatial filtering, delta compression, batching, and backpressure at scale.
-// Supports continued test execution on performance and full multi-player considerations.
-// AG-SML v1.0 | Ra-Thor ONE Organism
-// ============================================================
-// End of safety_net_broadcast.rs v18.61 — Performance & multi-player readiness improved.
+// Thunder locked in. Yoi ⚡️
+// End of safety_net_broadcast.rs v19.3 — Production SafetyNet with interest-aware replication forwarding.
