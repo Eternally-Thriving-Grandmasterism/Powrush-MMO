@@ -9,7 +9,7 @@
  * Zero-lag client sync via CouncilSessionUpdate + CouncilTrialResolved.
  * Consistent with shared protocol.
  *
- * Priority 3 (June 24): CouncilTrialSystemSet + early-outs + resolved cache + bloom calculation optimization (incremental vote counts).
+ * Council Proposal System foundation: Basic SubmitProposal handling + storage.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Ra-Thor Quantum Swarm v2 native
@@ -17,7 +17,7 @@
  */
 
 use bevy::prelude::*;
-use shared::council_mercy_trial::{CouncilMercyTrialPhase as CouncilPhase, CouncilSessionState, CollectiveEpiphanyBloom, MercyTrialVote};
+use shared::council_mercy_trial::{CouncilMercyTrialPhase as CouncilPhase, CouncilSessionState, CollectiveEpiphanyBloom, MercyTrialVote, CouncilProposal, ProposalStatus};
 use std::collections::HashMap;
 
 use simulation::quantum_swarm_orchestrator::QuantumSwarmOrchestratorV2;
@@ -39,8 +39,11 @@ pub struct ActiveCouncilTrials {
     pub next_session_id: u64,
     /// Lightweight cache of recently resolved trials (session_id -> final bloom)
     pub resolved_cache: HashMap<u64, CollectiveEpiphanyBloom>,
-    /// Incremental vote counts per session for fast bloom calculation (Priority 3 optimization)
+    /// Incremental vote counts per session for fast bloom calculation
     pub vote_counts: HashMap<u64, VoteCounts>,
+    /// === Council Proposal System ===
+    pub proposals: HashMap<u64, CouncilProposal>,
+    pub next_proposal_id: u64,
 }
 
 /// Plugin that registers council trial systems + Quantum Swarm integration + E2E persistence
@@ -119,9 +122,8 @@ fn handle_council_trial_events(
                 for state in trials.sessions.values_mut() {
                     if state.phase == CouncilPhase::Completed { continue; }
                     if state.participants.contains(participant) {
-                        // Update incremental vote counts (Priority 3 optimization)
+                        // Update incremental vote counts
                         if let Some(counts) = trials.vote_counts.get_mut(&state.session_id) {
-                            // Remove old vote if exists
                             if let Some(old_vote) = state.votes.get(participant) {
                                 match old_vote {
                                     MercyTrialVote::FullMercy => counts.full_mercy = counts.full_mercy.saturating_sub(1),
@@ -129,7 +131,6 @@ fn handle_council_trial_events(
                                     MercyTrialVote::CautiousMercy => counts.cautious = counts.cautious.saturating_sub(1),
                                 }
                             }
-                            // Add new vote
                             match vote {
                                 MercyTrialVote::FullMercy => counts.full_mercy += 1,
                                 MercyTrialVote::BalancedMercy => counts.balanced += 1,
@@ -158,6 +159,27 @@ fn handle_council_trial_events(
                         state.phase_duration = 15.0;
                     }
                 }
+            }
+
+            // === Council Proposal System: Basic submission handling ===
+            CouncilTrialEvent::SubmitProposal { proposer, title, description } => {
+                let proposal_id = trials.next_proposal_id;
+                trials.next_proposal_id += 1;
+
+                let proposal = CouncilProposal::new(
+                    proposal_id,
+                    *proposer,
+                    title.clone(),
+                    description.clone(),
+                    now,
+                );
+
+                trials.proposals.insert(proposal_id, proposal);
+
+                info!(
+                    "Council Proposal submitted | id={} | proposer={:?} | title={}",
+                    proposal_id, proposer, title
+                );
             }
 
             _ => {}
@@ -239,7 +261,7 @@ fn resolve_completed_trials(
     }
 }
 
-/// Optimized bloom calculation using incremental vote counts when available (Priority 3)
+/// Optimized bloom calculation using incremental vote counts when available
 fn calculate_collective_bloom_optimized(
     state: &CouncilSessionState,
     counts: Option<&VoteCounts>,
@@ -260,7 +282,6 @@ fn calculate_collective_bloom_optimized(
     let (full_mercy, balanced, cautious) = if let Some(c) = counts {
         (c.full_mercy, c.balanced, c.cautious)
     } else {
-        // Fallback to full iteration if counts not available
         let mut fm = 0u32;
         let mut bal = 0u32;
         let mut cau = 0u32;
@@ -343,7 +364,7 @@ fn persist_trial_outcome(
     }
 }
 
-/// Priority 3: Cleanup resolved cache and vote counts
+/// Priority 3 + Council Proposal System: Cleanup
 fn cleanup_resolved_cache(
     mut trials: ResMut<ActiveCouncilTrials>,
 ) {
@@ -351,13 +372,11 @@ fn cleanup_resolved_cache(
         trials.resolved_cache.clear();
     }
     if trials.vote_counts.len() > 128 {
-        // Clean up stale vote counts for sessions that no longer exist
         let active_ids: std::collections::HashSet<_> = trials.sessions.keys().cloned().collect();
         trials.vote_counts.retain(|id, _| active_ids.contains(id));
     }
 }
 
 // End of Council Session Handler v19.3 — Full E2E Council Mercy Trial lifecycle with active persistence wiring.
-// All prior logic preserved.
-// Priority 3: SystemSet + early-outs + resolved cache + incremental vote count bloom optimization.
+// Council Proposal System: Basic SubmitProposal handling added.
 // Thunder locked in. Yoi ⚡️
