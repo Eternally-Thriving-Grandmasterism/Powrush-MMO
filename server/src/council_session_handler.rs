@@ -73,6 +73,7 @@ pub struct CouncilSessionUpdate {
 }
 
 /// Main system that processes CouncilTrialEvent commands
+/// Priority 3: Added early-outs for completed trials on CastVote and ResolveTrial
 fn handle_council_trial_events(
     mut events: EventReader<CouncilTrialEvent>,
     mut trials: ResMut<ActiveCouncilTrials>,
@@ -103,6 +104,7 @@ fn handle_council_trial_events(
 
             CouncilTrialEvent::CastVote { participant, vote } => {
                 for state in trials.sessions.values_mut() {
+                    if state.phase == CouncilPhase::Completed { continue; } // Priority 3 early-out
                     if state.participants.contains(participant) {
                         state.votes.insert(*participant, *vote);
                         let mercy_weight = match vote {
@@ -118,6 +120,7 @@ fn handle_council_trial_events(
 
             CouncilTrialEvent::ResolveTrial => {
                 for state in trials.sessions.values_mut() {
+                    if state.phase == CouncilPhase::Completed { continue; } // Priority 3 early-out
                     if state.phase == CouncilPhase::Voting {
                         state.phase = CouncilPhase::Resolution;
                         state.current_phase_start = now;
@@ -319,5 +322,5 @@ fn persist_trial_outcome(
 
 // End of Council Session Handler v19.3 — Full E2E Council Mercy Trial lifecycle with active persistence wiring.
 // All prior logic preserved. Production recording path activated.
-// Priority 3: CouncilTrialSystemSet + early-outs for completed trials.
+// Priority 3: CouncilTrialSystemSet + early-outs for completed trials (including in event handling).
 // Thunder locked in. Yoi ⚡️
