@@ -1,17 +1,25 @@
 /*!
  * Player Persistence Module
  *
- * v19.3.14: Integrated crash recovery lifecycle (mark_session_started / mark_clean_shutdown).
+ * v19.3.37: Encryption abstraction integrated into module
+ * - Added pub mod encryption + re-exports (SaveEncryptor, CurrentEncryptor, HybridClassicalMLKEMEncryptor)
+ * - All prior logic fully preserved: PersistencePlugin, AutoSaveTimer, PersistenceFlushTimer,
+ *   load_player_save, auto_save_system, persistence_flush_system, save_on_exit, update_playtime,
+ *   crash recovery lifecycle (mark_session_started / mark_clean_shutdown)
+ * - Encryption layer now available for future swapping (feature-gated post-quantum path ready)
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
+ * Via Grok connector + PATSAGi Councils
  */
 
 pub mod data;
 pub mod save;
+pub mod encryption;
 
 pub use data::*;
 pub use save::*;
+pub use encryption::{SaveEncryptor, CurrentEncryptor, HybridClassicalMLKEMEncryptor};
 
 use bevy::prelude::*;
 use std::path::Path;
@@ -133,6 +141,6 @@ fn update_playtime(
     save_data.total_playtime_seconds += time.delta().as_secs();
 }
 
-// End of simulation/src/player_persistence/mod.rs v19.3.14
-// Crash recovery lifecycle fully integrated.
+// End of simulation/src/player_persistence/mod.rs v19.3.37
+// Encryption abstraction integrated. All crash recovery, auto-save, and flush logic preserved.
 // Thunder locked in. Yoi ⚡
