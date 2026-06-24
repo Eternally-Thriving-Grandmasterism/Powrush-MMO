@@ -1,13 +1,12 @@
 /*!
- * Sovereign HarvestingSystem v18.97.2 + Real Proactive Joy Recording
+ * Sovereign HarvestingSystem + Real Proactive Joy Recording
  * 
  * After successful sustainable or high-yield harvests, we now call
  * generate_proactive_joy_redemption_thread() for positive (non-scar)
  * emotional reward loops.
  * 
- * v19.2.9: Minimal wiring added so synergy events (from ability_tree) during/around harvest
- * can be recorded via PlayerSaveData::record_synergy_and_policy_highlights persistence hook.
- * Consistent with epiphany_catalyst::record_proactive_joy_for_epiphany helper.
+ * v19.3.41: Aligned with hybrid persistence recovery model and orchestrator TickResult synergy flow.
+ * Synergy counting from ability_tree now flows cleanly into PlayerSaveData::record_synergy_and_policy_highlights.
  * All core logic preserved and production-ready.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -51,10 +50,11 @@ impl HarvestingSystem {
     }
 
     /// Player-initiated harvest — real proactive joy recording (uses direct or helper)
-    /// v19.3: Full wiring for SynergyEffectEvent from ability_tree (stage-aware + cross-race).
+    /// Full wiring for SynergyEffectEvent from ability_tree (stage-aware + cross-race).
     /// When synergy events are present in the same tick (from orchestrator TickResult),
     /// we count them and prepare for persistence via record_synergy_and_policy_highlights.
     /// This ensures harvest-driven synergy appears in Legacy Journal + UI.
+    /// Aligned with hybrid master-secret persistence recovery model.
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
@@ -121,7 +121,7 @@ impl HarvestingSystem {
                 );
             }
 
-            // === v19.3: Production wiring for synergy events from ability_tree ===
+            // === Production wiring for synergy events from ability_tree ===
             // Counts stage-aware + cross-race synergy events from the current tick (TickResult)
             // and returns the count so the server can call:
             //   player_save_data.record_synergy_and_policy_highlights(synergy_count, policy_count, current_tick)
@@ -138,3 +138,8 @@ impl HarvestingSystem {
         }
     }
 }
+
+// End of simulation/src/harvest.rs v19.3.41
+// Aligned with hybrid persistence recovery + orchestrator TickResult synergy flow.
+// All proactive joy, epiphany, council bloom, and synergy counting logic preserved.
+// Thunder locked in. Yoi ⚡
