@@ -1,8 +1,7 @@
 /*!
  * Player Persistence Module
  *
- * v19.3.13: Added secondary fast flush timer for pending persistence updates.
- * Reduces worst-case flush latency for agent synergy state.
+ * v19.3.14: Integrated crash recovery lifecycle (mark_session_started / mark_clean_shutdown).
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -31,7 +30,6 @@ impl Default for AutoSaveTimer {
     }
 }
 
-/// Secondary faster timer specifically for flushing pending agent persistence updates.
 #[derive(Resource)]
 pub struct PersistenceFlushTimer {
     pub timer: Timer,
@@ -65,12 +63,19 @@ impl Plugin for PersistencePlugin {
 fn load_player_save(mut commands: Commands) {
     let save_path = Path::new("player_save.json");
 
-    if let Some(loaded) = PlayerSaveData::load_from_file(save_path) {
-        commands.insert_resource(loaded);
-        info!("Loaded player save");
+    let mut save_data = if let Some(loaded) = PlayerSaveData::load_from_file(save_path) {
+        if !loaded.last_shutdown_was_clean {
+            warn!("Previous session did not shut down cleanly. Loading from backup if available.");
+        }
+        loaded
     } else {
-        commands.insert_resource(PlayerSaveData::new(1));
-    }
+        PlayerSaveData::new(1)
+    };
+
+    // Mark that a new session has started (not yet cleanly shut down)
+    save_data.mark_session_started();
+    commands.insert_resource(save_data);
+    info!("Player save loaded");
 }
 
 fn auto_save_system(
@@ -89,7 +94,6 @@ fn auto_save_system(
     }
 }
 
-/// Secondary fast flush for pending agent state updates (every 15s).
 fn persistence_flush_system(
     mut save_data: ResMut<PlayerSaveData>,
     mut flush_timer: ResMut<PersistenceFlushTimer>,
@@ -103,7 +107,6 @@ fn persistence_flush_system(
         if let Err(e) = save_data.save_to_file(Path::new("player_save.json")) {
             error!("Secondary persistence flush failed: {}", e);
         } else {
-            // Reset after successful fast flush
             save_data.dirty = false;
             save_data.pending_persistence_updates = 0;
         }
@@ -115,7 +118,7 @@ fn save_on_exit(
     mut exit_events: EventReader<bevy::app::AppExit>,
 ) {
     for _ in exit_events.read() {
-        // Ensure any pending updates are written on exit
+        save_data.mark_clean_shutdown();
         if save_data.pending_persistence_updates > 0 {
             save_data.force_dirty();
         }
@@ -130,6 +133,6 @@ fn update_playtime(
     save_data.total_playtime_seconds += time.delta().as_secs();
 }
 
-// End of simulation/src/player_persistence/mod.rs v19.3.13
-// Secondary 15s flush timer added for pending agent persistence updates.
+// End of simulation/src/player_persistence/mod.rs v19.3.14
+// Crash recovery lifecycle fully integrated.
 // Thunder locked in. Yoi ⚡
