@@ -6,6 +6,8 @@
  * SharedReceptorBloomField, CollectiveEpiphanyBloom, and explicit persist_trial_outcome hooks.
  * Deep integration with procedural biome influence, enriched epiphany, RBE abundance, proactive joy threads, and new TickResult events.
  *
+ * Priority 3 (June 24): Added CouncilTrialSystemSet for future concurrency control and low-latency scheduling.
+ *
  * v19.2 additions (minimal): record_proactive_joy_and_rbe_signal hook + TickResult integration notes for persistence into PlayerSaveData.
  * All prior v18.97.1 logic, Ascension paths, SafetyNet, and unit tests preserved exactly.
  *
@@ -220,6 +222,13 @@ pub struct CouncilBloomSyncEvent {
 }
 
 // ============================================================
+// Priority 3: CouncilTrialSystemSet for concurrency control & low-latency scheduling
+// ============================================================
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CouncilTrialSystemSet;
+
+// ============================================================
 // HIGHEST-PRIORITY UNIT TESTS (Vertical Slice + End-to-End Harness)
 // ============================================================
 
@@ -298,4 +307,5 @@ mod tests {
 // Full end-to-end Council Mercy Trial harness ready (lobby → deliberation → vote → bloom → persist).
 // Explicit persist_trial_outcome hooks + enriched notes + biome influence ready for handler integration.
 // v19.2: Proactive joy + RBE signals + TickResult events now deepen persistence into PlayerSaveData.
+// Priority 3 foundation: CouncilTrialSystemSet added for future concurrency/low-latency work.
 // Consistent with shared protocol. One Lattice. Eternal Flow. Maximum Mercy. ⚡️❤️
