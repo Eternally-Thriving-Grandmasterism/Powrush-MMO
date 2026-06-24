@@ -1,4 +1,4 @@
-# POWRUSH-MMO DERIVATION ROADMAP (v14.9)
+# POWRUSH-MMO DERIVATION ROADMAP (v19.3)
 
 **Goal**: Develop Powrush-MMO as a lean, standalone MMOARPG by intelligently deriving systems, patterns, and components from the Ra-Thor monorepo while keeping Ra-Thor as the canonical source of truth for AGI, GPU compute, and advanced simulation infrastructure.
 
@@ -12,14 +12,14 @@
 | **Keep Powrush-MMO Lean**        | The standalone repository should stay focused and maintainable. |
 | **Clear Separation**             | Ra-Thor owns intelligence & simulation tech. Powrush-MMO owns the game built on top of it. |
 
-## 2. Current State (June 2026)
+## 2. Current State (June 2026 — v19.3)
 
 | Repository       | Powrush-MMO Related Work                                      | Maturity |
 |------------------|---------------------------------------------------------------|----------|
-| **Ra-Thor**      | Deep design docs + GPU systems + Memory Allocator + Coalescing + PATSAGi integration | High     |
-| **Powrush-MMO**  | Basic server with Ra-Thor bridge                              | Low      |
+| **Ra-Thor**      | Deep design docs + GPU systems + Memory Allocator + Coalescing + PATSAGi integration + Eternal Simulation harness | High     |
+| **Powrush-MMO**  | Full simulation layer (orchestrator, council_systems, RBE, economy, harvest, emergence), Bevy client with spatial audio / Hanabi VFX / real-distance falloff, authoritative server with persistence & Steam integration, council audio polish (v19.2.9–v19.3) | High     |
 
-**Gap**: Significant. Most advanced Powrush-MMO work currently lives in Ra-Thor.
+**Progress**: Significant derivation has occurred. Core game systems, council mechanics, RBE flows, persistence, and client rendering/audio are now mature in Powrush-MMO while maintaining clean bridges to Ra-Thor.
 
 ## 3. Derivation Phases
 
