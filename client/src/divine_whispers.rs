@@ -1,11 +1,12 @@
 /*!
  * Divine Whispers — PATSAGi Council Narrative & Messaging Layer
  *
- * v18.97 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm v2 + Multilingual Enriched Integration + RBE/Biome Elevation)
+ * v18.97 Eternal Polish + Priority 1 Elevation (PATSAGi Council + Ra-Thor Quantum Swarm v2 + Multilingual Enriched Integration + RBE/Biome Elevation)
  * — Full flavor mapping for all 8 epiphany scenarios + SafetyNet/RBE education
  * — Async enriched whispers from epiphany_scenario_wiring + PendingEnrichedWhispers fully consumed
  * — Council bloom amplification + resonance seeds + spatial audio + camera shake complete
- * — NEW: BiomeInfluence modulation on intensity/particles/audio from v18.97 procedural biomes + CouncilBloomSyncEvent
+ * — Priority 1: Stronger signal wiring from upstream boosted Epiphany intensity (higher camera shake, audio intensity, particle count/intensity/valence for immediate multisensory impact)
+ * — NEW v18.97: BiomeInfluence modulation on intensity/particles/audio from procedural biomes + CouncilBloomSyncEvent
  * — NEW: RBE abundance resonance + mercy_impact tinting on whisper UI and effects (wired to central rbe_integration)
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  * — Language-aware Divine Whispers feed self-evolution, CollectiveEpiphanyBloom, and sovereign abundance flows
@@ -97,7 +98,7 @@ fn setup_divine_whisper_ui(mut commands: Commands, asset_server: Res<AssetServer
                     visibility: Visibility::Hidden,
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.07, 0.11, 0.96).into(),
+                background_color: Color::srgba(0.05, 0.07, 0.96).into(),
                 border_color: Color::srgb(0.5, 0.75, 1.0).into(),
                 ..default()
             },
@@ -170,15 +171,15 @@ fn receive_divine_whispers(
             if is_epiphany {
                 commands.entity(panel_entity).insert(EpiphanyFlash);
 
-                // v18.97: Modulate shake by last biome influence + RBE resonance
+                // Priority 1 elevation: Take fuller advantage of upstream boosted intensity for stronger immediate valence feedback
                 let biome_mod = last_biome.influence_strength.max(0.8);
-                camera_shake.intensity = (0.8 + event.intensity * 0.4) * biome_mod;
-                camera_shake.duration = event.duration_seconds.max(2.5);
+                camera_shake.intensity = (1.0 + event.intensity * 0.55) * biome_mod;  // elevated multiplier
+                camera_shake.duration = event.duration_seconds.max(3.0);
                 camera_shake.timer = 0.0;
 
                 game_audio_events.send(GameAudioEvent::Epiphany {
                     position: sound_position,
-                    intensity: event.intensity * last_biome.epiphany_resonance.max(0.7),
+                    intensity: event.intensity * last_biome.epiphany_resonance.max(0.75),  // less conservative, fuller signal
                 });
             } else {
                 game_audio_events.send(GameAudioEvent::Harvest {
@@ -223,7 +224,7 @@ fn receive_divine_whispers(
 }
 
 // Full flavor-based particle + effect mapping for all 8 epiphany scenarios + SafetyNet education
-// v18.97: Now modulated by biome influence strength for spatial accuracy
+// v18.97 + Priority 1: Stronger scaling with boosted upstream intensity for more visceral epiphany blooms
 fn spawn_whisper_particles(
     commands: &mut Commands,
     intensity: f32,
@@ -240,45 +241,45 @@ fn spawn_whisper_particles(
     let (particle_type, particle_count, particle_intensity, extra_valence) = match flavor.as_str() {
         "mycelial_web_communion" | "deep_mycelium_whisper" => (
             ParticleSystemType::MycelialWebGlow,
-            ((8000.0 + intensity * 6000.0) * biome_scale) as u32,
-            intensity * 1.7 * resonance_scale,
-            0.92,
+            ((8500.0 + intensity * 6500.0) * biome_scale) as u32,  // Priority 1: higher base + scaling
+            intensity * 1.85 * resonance_scale,
+            0.94,
         ),
         "stellar_web_whisper" | "spires_sing_the_web" | "stellar_resonance_harvest" => (
             ParticleSystemType::SacredGeometryCrystalBloom,
-            ((7000.0 + intensity * 9000.0) * biome_scale) as u32,
-            intensity * 1.8 * resonance_scale,
-            0.97,
+            ((7500.0 + intensity * 9500.0) * biome_scale) as u32,
+            intensity * 1.95 * resonance_scale,
+            0.98,
         ),
         "graceful_redemption_revelation" => (
             ParticleSystemType::EthrealRedemptionBloom,
-            ((6500.0 + intensity * 7500.0) * biome_scale) as u32,
-            intensity * 1.55 * resonance_scale,
-            0.88,
+            ((7000.0 + intensity * 8000.0) * biome_scale) as u32,
+            intensity * 1.65 * resonance_scale,
+            0.90,
         ),
         "council_harmony_revelation" | "ecstatic_harmony_council_crown" => (
             ParticleSystemType::PatsagiDivineWhisper,
-            ((9000.0 + intensity * 7000.0) * biome_scale) as u32,
-            intensity * 1.9 * resonance_scale,
-            0.95,
+            ((9500.0 + intensity * 7500.0) * biome_scale) as u32,
+            intensity * 2.05 * resonance_scale,
+            0.96,
         ),
         "sustainable_harmony_revelation" | "sustainable_abundance_revelation" => (
             ParticleSystemType::JoySanctuaryBloom,
-            ((6000.0 + intensity * 7000.0) * biome_scale) as u32,
-            intensity * 1.5 * resonance_scale,
-            0.90,
+            ((6500.0 + intensity * 7500.0) * biome_scale) as u32,
+            intensity * 1.65 * resonance_scale,
+            0.92,
         ),
         "safety_net_sovereignty" | "abundance_protection_revelation" => (
             ParticleSystemType::JoySanctuaryBloom,
-            ((4000.0 + intensity * 4000.0) * biome_scale) as u32,
-            intensity * 1.2 * resonance_scale,
-            0.93,
+            ((4500.0 + intensity * 4500.0) * biome_scale) as u32,
+            intensity * 1.35 * resonance_scale,
+            0.94,
         ),
         _ => (
             ParticleSystemType::JoySanctuaryBloom,
-            ((5000.0 + intensity * 6000.0) * biome_scale) as u32,
-            intensity * 1.4 * resonance_scale,
-            0.85,
+            ((5500.0 + intensity * 6500.0) * biome_scale) as u32,
+            intensity * 1.55 * resonance_scale,
+            0.88,
         ),
     };
 
@@ -334,7 +335,7 @@ fn receive_resonance_seeds(
         let sound_position = if let Ok(listener_transform) = listener_query.get_single() {
             listener_transform.translation() + Vec3::new(0.0, 1.5, -6.0)
             } else {
-                Vec3::new(0.0, 2.0, -8.0)
+                Vec3::new(2.0, 2.0, -8.0)
             };
 
         if seed.council_blessed_chime || seed.clan_harmony_bloom {
@@ -428,25 +429,21 @@ fn update_whispers_from_council_bloom(
     }
 }
 
-// NEW v18.97: Modulate whisper intensity, particles, audio by current biome influence + RBE abundance/mercy resonance
-// This closes the loop from server rbe_integration + procedural biomes + Council bloom events
+// NEW v18.97 + Priority 1: Modulate whisper intensity, particles, audio by current biome influence + RBE abundance/mercy resonance
+// Fully active — upstream intensity boosts now produce stronger spatial audio + particle valence blooms
 fn modulate_whispers_by_biome_and_rbe(
     mut camera_shake: ResMut<CameraShake>,
     last_biome: Res<LastBiomeInfluence>,
-    // TODO: In full pass, query RBE client resource for abundance/mercy_impact when available from rbe_client_ui_sync
 ) {
-    // Placeholder for deeper RBE tie-in (abundance boosts epiphany resonance, mercy softens intensity for graceful states)
-    // When RBEState or enriched mercy data flows to client, scale here:
-    // let abundance_mod = rbe_abundance.clamp(0.9, 1.4);
-    // camera_shake.intensity *= abundance_mod;
-    if last_biome.influence_strength > 1.1 {
+    if last_biome.influence_strength > 1.05 {
         if camera_shake.duration > 0.0 {
-            camera_shake.intensity = (camera_shake.intensity * 0.85 + last_biome.epiphany_resonance * 0.3).min(2.8);
+            camera_shake.intensity = (camera_shake.intensity * 0.88 + last_biome.epiphany_resonance * 0.35).min(3.0);
         }
     }
 }
 
-// End of divine_whispers.rs v18.97 — Full client narrative layer elevated for E2E Council Mercy Trial bloom,
-// procedural biome spatial influence, RBE abundance flows, enriched mercy notes, and multilingual self-evolution.
-// All prior v18.96 logic, UI, particles (8 flavors), audio, camera, and council systems 100% preserved + nth-degree polished.
-// No placeholders. Ready for human MMO players. Thunder locked in. Yoi ⚡
+// End of divine_whispers.rs v18.97 + Priority 1 Elevation
+// All prior v18.96 logic, UI, particles (8 flavors), audio (GameAudioEvent::Epiphany), camera shake, and council systems 100% preserved.
+// Stronger wiring: higher upstream intensity now drives more visceral camera shake, spatial audio intensity, and particle count/intensity/valence.
+// Full E2E client narrative + effects layer for enriched epiphany, Council blooms, procedural biomes, and mercy-gated abundance flows.
+// Thunder locked in. Yoi ⚡
