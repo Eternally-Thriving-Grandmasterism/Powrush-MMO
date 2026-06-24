@@ -1,12 +1,8 @@
 /*!
  * Player Persistence Module
  *
- * v19.2 Cycle Polish (PATSAGi Council + Ra-Thor Quantum Swarm + SimulationOrchestrator)
- * — Complete mint-and-print-only-perfection
- * — Clean separation: data + save + systems
- * — Mercy-preserving: protects player progress and the living web
- * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
- * — Wired: record_proactive_joy_and_rbe_signal + TickResult events now flow into PlayerSaveData persistence + auto-save
+ * v19.3.13: Added secondary fast flush timer for pending persistence updates.
+ * Reduces worst-case flush latency for agent synergy state.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -35,6 +31,20 @@ impl Default for AutoSaveTimer {
     }
 }
 
+/// Secondary faster timer specifically for flushing pending agent persistence updates.
+#[derive(Resource)]
+pub struct PersistenceFlushTimer {
+    pub timer: Timer,
+}
+
+impl Default for PersistenceFlushTimer {
+    fn default() -> Self {
+        Self {
+            timer: Timer::new(Duration::from_secs(15), TimerMode::Repeating),
+        }
+    }
+}
+
 pub struct PersistencePlugin;
 
 impl Plugin for PersistencePlugin {
@@ -42,9 +52,11 @@ impl Plugin for PersistencePlugin {
         app
             .init_resource::<PlayerSaveData>()
             .init_resource::<AutoSaveTimer>()
+            .init_resource::<PersistenceFlushTimer>()
             .add_event::<PersistenceUpdated>()
             .add_systems(Startup, load_player_save)
             .add_systems(Update, auto_save_system)
+            .add_systems(Update, persistence_flush_system)
             .add_systems(Update, save_on_exit)
             .add_systems(Update, update_playtime);
     }
@@ -77,11 +89,36 @@ fn auto_save_system(
     }
 }
 
+/// Secondary fast flush for pending agent state updates (every 15s).
+fn persistence_flush_system(
+    mut save_data: ResMut<PlayerSaveData>,
+    mut flush_timer: ResMut<PersistenceFlushTimer>,
+    time: Res<Time>,
+) {
+    flush_timer.timer.tick(time.delta());
+
+    if flush_timer.timer.just_finished() && save_data.pending_persistence_updates > 0 {
+        save_data.force_dirty();
+
+        if let Err(e) = save_data.save_to_file(Path::new("player_save.json")) {
+            error!("Secondary persistence flush failed: {}", e);
+        } else {
+            // Reset after successful fast flush
+            save_data.dirty = false;
+            save_data.pending_persistence_updates = 0;
+        }
+    }
+}
+
 fn save_on_exit(
     mut save_data: ResMut<PlayerSaveData>,
     mut exit_events: EventReader<bevy::app::AppExit>,
 ) {
     for _ in exit_events.read() {
+        // Ensure any pending updates are written on exit
+        if save_data.pending_persistence_updates > 0 {
+            save_data.force_dirty();
+        }
         let _ = save_data.save_to_file(Path::new("player_save.json"));
     }
 }
@@ -93,8 +130,6 @@ fn update_playtime(
     save_data.total_playtime_seconds += time.delta().as_secs();
 }
 
-// End of simulation/src/player_persistence/mod.rs v19.2
-// Proactive joy + RBE self-evolution signals (via record_proactive_joy_and_rbe_signal on PlayerSaveData)
-// now trigger dirty flag and persist through auto-save / exit paths.
-// Full TickResult → harvest joy → RBE → persistence loop complete in simulation layer.
+// End of simulation/src/player_persistence/mod.rs v19.3.13
+// Secondary 15s flush timer added for pending agent persistence updates.
 // Thunder locked in. Yoi ⚡
