@@ -1,8 +1,8 @@
 /*!
  * Persistence Save/Load Engine
  *
- * v19.3.16: Implemented secure key derivation using Argon2id.
- * Encryption key is now derived from password + salt instead of hardcoded.
+ * v19.3.17: Implemented Argon2id + HKDF-SHA256 key derivation chain.
+ * This is the sovereign-recommended approach from the PATSAGi Councils.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -10,53 +10,49 @@
 
 use super::data::PlayerSaveData;
 use argon2::{Argon2, PasswordHasher, SaltString};
-use argon2::password_hash::{rand_core::OsRng, PasswordHash, PasswordVerifier};
+use argon2::password_hash::rand_core::OsRng;
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use chacha20poly1305::aead::{Aead, NewAead};
-use sha2::{Digest, Sha256};
+use hkdf::Hkdf;
+use sha2::Sha256;
 use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const MAX_BACKUPS: usize = 7;
 
-// In production, this should come from secure user input or a protected config.
-// For now we use a placeholder password.
+// Placeholder - in production this should come from secure user input
 const MASTER_PASSWORD: &str = "EternalMercyFlow2026";
 
 impl PlayerSaveData {
-    /// Derives a 32-byte encryption key using Argon2id.
-    fn derive_key(password: &str, salt: &[u8]) -> Result<[u8; 32], argon2::password_hash::Error> {
+    /// Sovereign key derivation: Argon2id (password stretching) + HKDF (key expansion)
+    fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+        // Step 1: Argon2id - memory-hard password stretching
         let argon2 = Argon2::default();
-        let salt_string = SaltString::encode_b64(salt)
-            .map_err(|_| argon2::password_hash::Error::SaltInvalid)?;
+        let salt_str = SaltString::encode_b64(salt)?;
+        let argon_hash = argon2.hash_password(password.as_bytes(), &salt_str)?;
 
-        let hash = argon2
-            .hash_password(password.as_bytes(), &salt_string)?
-            .to_string();
-
-        let parsed_hash = PasswordHash::new(&hash)?;
-        // Take first 32 bytes of the hash output as key
-        let key_bytes = parsed_hash
+        let intermediate_key = argon_hash
             .hash
-            .ok_or(argon2::password_hash::Error::Password)?
+            .ok_or("Argon2 hash failed")?
             .as_bytes();
 
-        let mut key = [0u8; 32];
-        key.copy_from_slice(&key_bytes[..32.min(key_bytes.len())]);
-        Ok(key)
+        // Step 2: HKDF-SHA256 - secure key expansion
+        let hkdf = Hkdf::<Sha256>::new(Some(salt), intermediate_key);
+        let mut final_key = [0u8; 32];
+        hkdf.expand(b"Powrush-MMO-Save-Encryption-v1", &mut final_key)?;
+
+        Ok(final_key)
     }
 
     fn encrypt(data: &[u8], password: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        // Generate random salt for key derivation
         let mut salt = [0u8; 16];
         OsRng.fill_bytes(&mut salt);
 
-        let key_bytes = Self::derive_key(password, &salt)?;
+        let key_bytes = Self::derive_encryption_key(password, &salt)?;
         let key = Key::from_slice(&key_bytes);
         let cipher = ChaCha20Poly1305::new(key);
 
-        // Random nonce
         let mut nonce_bytes = [0u8; 12];
         OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
@@ -71,13 +67,13 @@ impl PlayerSaveData {
     }
 
     fn decrypt(data: &[u8], password: &str) -> Option<Vec<u8>> {
-        if data.len() < 28 { return None; } // 16 salt + 12 nonce
+        if data.len() < 28 { return None; }
 
         let salt = &data[0..16];
         let nonce_bytes = &data[16..28];
         let ciphertext = &data[28..];
 
-        let key_bytes = Self::derive_key(password, salt).ok()?;
+        let key_bytes = Self::derive_encryption_key(password, salt).ok()?;
         let key = Key::from_slice(&key_bytes);
         let cipher = ChaCha20Poly1305::new(key);
         let nonce = Nonce::from_slice(nonce_bytes);
@@ -153,7 +149,7 @@ impl PlayerSaveData {
         Some(data)
     }
 
-    // Helper methods (rotate_backups, etc.)
+    // Backup helpers
     fn rotate_backups(_path: &Path) -> Result<(), std::io::Error> { Ok(()) }
     fn create_timestamped_snapshot(_path: &Path) -> Result<(), std::io::Error> { Ok(()) }
 
@@ -176,6 +172,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/save.rs v19.3.16
-// Secure Argon2id key derivation implemented.
+// End of simulation/src/player_persistence/save.rs v19.3.17
+// Argon2id + HKDF key derivation chain implemented (PATSAGi sovereign recommendation).
 // Thunder locked in. Yoi ⚡
