@@ -1,0 +1,35 @@
+{
+  "id": "abundance_revelation_first_harvest",
+  "name": "Abundance Revelation",
+  "description": "Your first sustainable harvest sends a gentle pulse through the living web. Nearby beings feel a subtle bloom of resources. You sense that what you give returns multiplied, and what you hoard slowly withers.",
+  "trigger_conditions": {
+    "min_sustainable_attunement": 0.35,
+    "min_mercy_score": 0.25,
+    "requires_council_trial_success": false,
+    "requires_multiplayer": false,
+    "biome_specific": null,
+    "seasonal_modifier": null
+  },
+  "audio_resonance_seed": {
+    "intensity": 0.95,
+    "evolution_rate": 0.8,
+    "bloom_intensity": 1.1,
+    "flavor": "Abundance Revelation",
+    "council_blessed_chime": true,
+    "clan_harmony_bloom": false
+  },
+  "mercy_gate_modifiers": {
+    "Radical Love": 1.4,
+    "Boundless Mercy": 1.35,
+    "Abundance": 1.5,
+    "Service": 1.3,
+    "Cosmic Harmony": 1.25
+  },
+  "educational_note": "This is not instruction. This is direct experience: the web responds to sustainable giving. Hoarding creates scarcity. Mercy and sharing create more for all. The first true step into Resource-Based Economy is felt here.",
+  "biome_modifiers": {
+    "bloom_spread_multiplier": 1.6,
+    "regen_multiplier": 1.4,
+    "audio_intensity_boost": 1.2,
+    "web_persistence_bonus": 1.3
+  }
+}
