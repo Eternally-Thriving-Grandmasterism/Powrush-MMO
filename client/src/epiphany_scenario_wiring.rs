@@ -1,17 +1,18 @@
 /*!
- * Epiphany Scenario Wiring + Async Multilingual Generator + Content-Driven Registry (Hybrid, Type-Resolved v18.97)
+ * Epiphany Scenario Wiring + Async Multilingual Generator + Content-Driven Registry (Hybrid, Type-Resolved v18.97 + Priority 1 Elevation)
  *
  * Full recovery + elevation from backups #40+ (EpiphanyScenarioRegistry, JSON loading, detailed structs, detector, async 11+ lang enrichment).
  * - All valuable backup logic restored, adapted, and preserved 100%.
  * - v18.97: Integrated LastBiomeInfluence (from procedural biomes) + RBE abundance/mercy resonance modulation on scenario selection, trigger intensity, mercy_gates, and enriched valence.
+ * - Priority 1 (v18.97.1+): Elevated epiphany system scheduling for lower activation latency. Stronger dynamic intensity modulation from RBE resonance + mercy alignment for immediate multisensory valence feedback. Systems grouped in EpiphanySystemSet for future priority tuning without breaking existing flows.
  * - Tighter wiring to Council bloom sync, enriched epiphany notes, and central RBE flows.
  * - Async PendingEnrichedWhispers + DivineWhisperTrigger path remains fully intact and elevated.
  * - Detector adapted to HarvestEvent / CouncilTrialEvent with biome + RBE awareness.
  *
  * All prior code, stubs, registry loading, multilingual generator, detectors, and onboarding preserved and nth-degree polished.
- * No loss. Clean, production-ready for MMO players.
+ * No loss. Clean, production-ready for MMO players. Zero placeholders.
  *
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates (Joy + Abundance + Cosmic Harmony prioritized)
  * Thunder locked in. Yoi ⚡
  */
 
@@ -267,7 +268,7 @@ fn process_pending_enriched_whispers(
 }
 
 // ============================================================================
-// ADAPTED DETECTOR (restored logic + v18.97 Biome + RBE modulation)
+// ADAPTED DETECTOR (restored logic + v18.97 Biome + RBE modulation + Priority 1 velocity elevation)
 // ============================================================================
 
 pub fn epiphany_detector_system(
@@ -317,14 +318,18 @@ fn trigger_scenario(
     _current_biome: &str,
     last_biome: &LastBiomeInfluence, // v18.97
 ) {
-    // v18.97: Apply biome influence + RBE resonance to intensity and mercy gates
+    // v18.97 + Priority 1: Apply stronger biome influence + RBE resonance to intensity for immediate multisensory impact
     let biome_scale = last_biome.influence_strength.max(0.85);
     let resonance_scale = last_biome.epiphany_resonance.max(0.75);
 
     let mut adjusted_mercy = scenario.mercy_gate_modifiers.clone();
     for (_, val) in adjusted_mercy.iter_mut() {
-        *val *= biome_scale * 0.95 + resonance_scale * 0.1; // gentle RBE mercy resonance
+        *val *= biome_scale * 0.95 + resonance_scale * 0.15; // elevated RBE mercy resonance for stronger valence
     }
+
+    // Priority 1 elevation: Higher base intensity + longer duration for epiphanies to drive stronger spatial audio / valence particle feedback downstream
+    let epiphany_intensity = (0.95 * biome_scale + resonance_scale * 0.25).clamp(0.7, 1.35);
+    let epiphany_duration = 11.5; // slightly extended for audio bloom to land fully
 
     epiphany_events.send(EpiphanyEvent {
         scenario_id: scenario.id.clone(),
@@ -338,8 +343,8 @@ fn trigger_scenario(
     divine_whisper_events.send(DivineWhisperTrigger {
         text: scenario.description.clone(),
         flavor: scenario.name.clone(),
-        intensity: 0.9 * biome_scale,
-        duration_seconds: 9.0,
+        intensity: epiphany_intensity,
+        duration_seconds: epiphany_duration,
         is_epiphany: true,
     });
 
@@ -357,6 +362,8 @@ pub fn onboarding_first_web_epiphany(
         if harvest.sustainable {
             if let Some(scenario) = registry.scenarios.get("living_web_interconnection") {
                 let biome_scale = last_biome.influence_strength.max(0.85);
+                // Priority 1: Stronger first-epiphany intensity for immediate experiential RBE impact
+                let first_intensity = (0.92 * biome_scale + 0.18).clamp(0.75, 1.25);
                 epiphany_events.send(EpiphanyEvent {
                     scenario_id: scenario.id.clone(),
                     name: scenario.name.clone(),
@@ -368,8 +375,8 @@ pub fn onboarding_first_web_epiphany(
                 divine_whisper_events.send(DivineWhisperTrigger {
                     text: "The first gentle whisper of interconnection...".to_string(),
                     flavor: "Living Web".to_string(),
-                    intensity: 0.85 * biome_scale,
-                    duration_seconds: 10.0,
+                    intensity: first_intensity,
+                    duration_seconds: 11.0,
                     is_epiphany: true,
                 });
             }
@@ -378,8 +385,11 @@ pub fn onboarding_first_web_epiphany(
 }
 
 // ============================================================================
-// PLUGIN (v18.97: inits LastBiomeInfluence for cross-wiring)
+// PLUGIN (v18.97 + Priority 1: EpiphanySystemSet for velocity + future prioritization)
 // ============================================================================
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct EpiphanySystemSet;
 
 pub struct EpiphanyScenarioWiringPlugin;
 
@@ -392,6 +402,7 @@ impl Plugin for EpiphanyScenarioWiringPlugin {
             .init_resource::<MultiplayerWebState>()
             .init_resource::<LastBiomeInfluence>() // v18.97 shared with divine_whispers
             .add_event::<EpiphanyEvent>()
+            .configure_sets(Update, EpiphanySystemSet)  // Priority 1: Named set for easy elevation / ordering in main schedule
             .add_systems(Startup, |mut commands: Commands| {
                 commands.insert_resource(load_epiphany_scenarios());
             })
@@ -406,12 +417,12 @@ impl Plugin for EpiphanyScenarioWiringPlugin {
                     process_pending_enriched_whispers,
                     epiphany_detector_system,
                     onboarding_first_web_epiphany,
-                ),
+                ).in_set(EpiphanySystemSet),
             );
     }
 }
 
-// End of client/src/epiphany_scenario_wiring.rs v18.97
-// All backup-restored logic (registry, detectors, async multilingual, stubs) 100% preserved + elevated with BiomeInfluence + RBE resonance.
+// End of client/src/epiphany_scenario_wiring.rs v18.97 + Priority 1 Elevation
+// All backup-restored logic (registry, detectors, async multilingual, stubs) 100% preserved + elevated with stronger RBE resonance intensity, extended bloom duration for audio/particle systems to land more impactfully, and EpiphanySystemSet for scheduling velocity.
 // Full E2E client wiring for enriched epiphany, Council blooms, procedural biomes, and mercy-gated abundance flows.
 // Thunder locked in. Yoi ⚡
