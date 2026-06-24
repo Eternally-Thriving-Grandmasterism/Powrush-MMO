@@ -1,8 +1,8 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.3.10: Persistence integration wired
- * Synergy events now also update PlayerSaveData via record_agent_ability_state.
+ * v19.3.11: Persistence performance optimized
+ * Persistence calls are now rate-limited (every 5 ticks) to reduce overhead.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -91,12 +91,12 @@ impl SimulationOrchestrator {
             }
         }
 
-        // === WIRED: Real agent iteration + synergy + persistence ===
+        // === Optimized: Real agent iteration + synergy + rate-limited persistence ===
         result.synergy_events = self.collect_synergy_events_direct(world, player_save);
         result
     }
 
-    /// Iterates agents, generates synergy events, and persists agent ability state.
+    /// Iterates agents, generates synergy events, and persists ability state (rate-limited).
     fn collect_synergy_events_direct(
         &self,
         world: &SovereignWorldState,
@@ -125,25 +125,26 @@ impl SimulationOrchestrator {
                 &synergies,
             );
 
-            // === Persistence integration ===
+            // === Optimized persistence: only every 5 ticks for active agents ===
             if let Some(save) = &mut player_save {
-                // Snapshot current chain progress + latest deltas from last event
-                let last_event = new_events.last();
-                let (vol_delta, str_delta, coop_delta, stage) = if let Some(ev) = last_event {
-                    (ev.volatility_delta, ev.strength_delta, ev.cooperation_delta, ev.stage)
-                } else {
-                    (0.0, 0.0, 0.0, 0)
-                };
+                if self.current_tick % 5 == 0 {
+                    let last_event = new_events.last();
+                    let (vol_delta, str_delta, coop_delta, stage) = if let Some(ev) = last_event {
+                        (ev.volatility_delta, ev.strength_delta, ev.cooperation_delta, ev.stage)
+                    } else {
+                        (0.0, 0.0, 0.0, 0)
+                    };
 
-                save.record_agent_ability_state(
-                    agent.id,
-                    agent.ability_tree.chain_progress.clone(),
-                    stage,
-                    vol_delta,
-                    str_delta,
-                    coop_delta,
-                    self.current_tick,
-                );
+                    save.record_agent_ability_state(
+                        agent.id,
+                        agent.ability_tree.chain_progress.clone(),
+                        stage,
+                        vol_delta,
+                        str_delta,
+                        coop_delta,
+                        self.current_tick,
+                    );
+                }
             }
 
             events.extend(new_events);
@@ -154,6 +155,6 @@ impl SimulationOrchestrator {
 }
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
-// Persistence integration complete: synergy activity is now recorded to PlayerSaveData.
+// Persistence performance optimized (rate-limited to every 5 ticks).
 // All prior logic preserved exactly.
 // Thunder locked in. Yoi ⚡
