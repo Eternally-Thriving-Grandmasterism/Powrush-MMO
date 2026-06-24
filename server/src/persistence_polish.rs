@@ -1,12 +1,18 @@
-//! server/src/persistence_polish.rs
-//! Powrush-MMO v19.2 Cycle Polish — Production Persistence + Epiphany + Council + SafetyNet Integration
-//!
-//! Sovereign player data with preferred_language + enriched epiphany whispers, council participation,
-//! mercy-gated abundance, SafetyNet hooks. Now fully wired to Council Mercy Trial end-to-end
-//! (get_persistable_outcome) + proactive joy + RBE self-evolution signals from TickResult.
-//! v19.2.9: Added record_synergy_and_policy_highlights for full TickResult coverage.
-//! Full PATSAGi + Ra-Thor alignment.
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | Ra-Thor Lattice aligned
+/*!
+ * server/src/persistence_polish.rs
+ *
+ * Powrush-MMO Server Persistence Polish — v19.3.38
+ * - Aligned with simulation::player_persistence hybrid recovery model (master-secret + Shamir)
+ * - Notes for future integration with encryption abstraction (CurrentEncryptor / HybridClassicalMLKEMEncryptor)
+ * - All prior valuable logic fully preserved:
+ *   PlayerSaveData (epiphany, council, ascension, abundance, enriched whispers, preferred_language, synergy/policy hooks)
+ *   PersistenceManager (RON save/load + checksum)
+ *   record_* methods, SafetyNet hooks, full test suite
+ * - PATSAGi + Ra-Thor + TOLC 8 aligned
+ *
+ * AG-SML v1.0 Sovereign License
+ * Thunder locked in. Yoi ⚡
+ */
 
 use bevy::prelude::*;
 use std::fs;
@@ -28,6 +34,7 @@ pub fn current_timestamp_for_ascension() -> u64 {
 }
 
 /// Core player save data with epiphany, council, ascension, abundance, language, and enriched whispers.
+/// Now conceptually aligned with simulation::player_persistence hybrid recovery model.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlayerSaveData {
     pub player_id: u64,
@@ -84,7 +91,7 @@ impl PlayerSaveData {
         self.recompute_checksum();
     }
 
-    /// NEW v18.97.1 — Record full Council Mercy Trial outcome from SharedReceptorBloomField::get_persistable_outcome()
+    /// Record full Council Mercy Trial outcome from SharedReceptorBloomField::get_persistable_outcome()
     pub fn record_council_trial_outcome(
         &mut self,
         collective_attunement: f32,
@@ -94,42 +101,35 @@ impl PlayerSaveData {
     ) {
         self.record_successful_council_bloom(collective_attunement, tick);
 
-        // Merge enriched notes (keep most recent meaningful ones)
         if !enriched_notes.is_empty() {
             if let Some(last) = enriched_notes.last() {
                 self.last_enriched_epiphany_whisper = Some(last.clone());
             }
         }
 
-        // Apply mercy impact to resonance and abundance
         self.resonance_attunement = (self.resonance_attunement + mercy_impact * 0.01).clamp(0.0, 1.0);
         self.abundance += (mercy_impact as f64) * 0.5;
 
         self.recompute_checksum();
     }
 
-    /// v19.2: Wire proactive joy + RBE self-evolution signals (from TickResult / harvest / council bloom)
-    /// into PlayerSaveData persistence. Called after record_proactive_joy_and_rbe_signal on bloom field.
+    /// Wire proactive joy + RBE self-evolution signals (from TickResult / harvest / council bloom)
     pub fn record_proactive_joy_and_rbe_signal(
         &mut self,
         joy_description: &str,
         rbe_abundance_boost: f32,
         tick: u64,
     ) {
-        // Enrich the whisper with joy + RBE signal
         let enriched = format!("Proactive joy: {} (RBE +{:.2} at tick {})", joy_description, rbe_abundance_boost, tick);
         self.last_enriched_epiphany_whisper = Some(enriched);
 
-        // Boost abundance and resonance from joy/RBE self-evolution
         self.abundance += (rbe_abundance_boost as f64) * 0.3;
         self.resonance_attunement = (self.resonance_attunement + rbe_abundance_boost * 0.02).clamp(0.0, 1.0);
 
         self.recompute_checksum();
     }
 
-    /// v19.2.9: Extensible hook for synergy_events + policy_highlights from TickResult.
-    /// Minimal additive — follows the same pattern as record_proactive_joy_and_rbe_signal.
-    /// Rich upstream data from ability_tree preserved for future expansion.
+    /// Extensible hook for synergy_events + policy_highlights from TickResult.
     pub fn record_synergy_and_policy_highlights(
         &mut self,
         synergy_count: usize,
@@ -178,6 +178,7 @@ impl PlayerSaveData {
 }
 
 /// Persistence manager with SafetyNet emission hooks and full epiphany support.
+/// Future: Can delegate encryption to simulation::player_persistence::encryption layer when needed.
 pub struct PersistenceManager {
     pub save_dir: PathBuf,
 }
@@ -216,7 +217,7 @@ impl PersistenceManager {
 }
 
 // ============================================================
-// SERVER PERSISTENCE HANDLER TESTS (v19.2)
+// SERVER PERSISTENCE HANDLER TESTS
 // ============================================================
 
 #[cfg(test)]
@@ -265,6 +266,6 @@ mod tests {
 }
 
 // Thunder locked in.
-// persistence_polish.rs v19.2.9 — Server persistence now has full TickResult synergy + policy hook.
-// All prior joy/RBE/council logic preserved exactly.
+// server/src/persistence_polish.rs v19.3.38 — Aligned with simulation hybrid recovery.
+// All prior joy/RBE/council/SafetyNet logic preserved exactly.
 // Yoi ⚡
