@@ -1,8 +1,8 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.3.13: Added lightweight persistence profiling instrumentation
- * Allows observation of actual overhead from record_agent_ability_state.
+ * v19.3.40: Aligned with hybrid persistence recovery model (master-secret + Shamir)
+ * Lightweight persistence profiling preserved and noted for sovereign data flow.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -126,7 +126,7 @@ impl SimulationOrchestrator {
                 &synergies,
             );
 
-            // === Persistence with lightweight profiling ===
+            // === Persistence with lightweight profiling (aligned with hybrid recovery model) ===
             if let Some(save) = &mut player_save {
                 if self.current_tick % 5 == 0 {
                     let last_event = new_events.last();
@@ -166,6 +166,7 @@ impl SimulationOrchestrator {
 }
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
-// Lightweight persistence profiling added (Instant timing + occasional debug logs).
+// Lightweight persistence profiling preserved.
+// Aligned with hybrid master-secret recovery model in player_persistence.
 // All prior logic preserved exactly.
 // Thunder locked in. Yoi ⚡
