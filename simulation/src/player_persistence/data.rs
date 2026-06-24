@@ -1,8 +1,8 @@
 /*!
  * Player Persistence Data Layer
  *
- * v19.3.14: Added crash recovery fields and integration with advanced save engine.
- * Includes last_shutdown_was_clean flag for crash detection.
+ * v19.3.19: Added RecoveryConfig for Shamir’s Secret Sharing.
+ * Completes the sovereign recovery architecture.
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -40,6 +40,14 @@ pub struct AgentAbilityState {
     pub last_cooperation_delta: f64,
 }
 
+/// Configuration for Shamir’s Secret Sharing recovery
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RecoveryConfig {
+    pub enabled: bool,
+    pub total_shares: u8,
+    pub threshold: u8,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlayerSaveData {
     /// List of all recorded epiphanies and proactive joy events
@@ -59,6 +67,9 @@ pub struct PlayerSaveData {
     pub save_version: u32,
     pub checksum: String,
     pub total_playtime_seconds: u64,
+
+    // === Sovereign Recovery (Shamir’s Secret Sharing) ===
+    pub recovery: RecoveryConfig,
 }
 
 impl PlayerSaveData {
@@ -69,27 +80,44 @@ impl PlayerSaveData {
             dirty: false,
             pending_persistence_updates: 0,
 
-            // On new game / fresh start, we consider it "not cleanly shut down" until first successful save
             last_shutdown_was_clean: false,
             last_save_timestamp: 0,
             save_version: 1,
             checksum: String::new(),
             total_playtime_seconds: 0,
+
+            recovery: RecoveryConfig::default(),
         }
     }
 
-    /// Mark that we are starting a session (not yet cleanly shut down)
+    /// Enable Shamir recovery with given total shares and threshold
+    pub fn enable_shamir_recovery(&mut self, total_shares: u8, threshold: u8) {
+        if threshold >= 2 && threshold <= total_shares {
+            self.recovery = RecoveryConfig {
+                enabled: true,
+                total_shares,
+                threshold,
+            };
+            self.dirty = true;
+        }
+    }
+
+    /// Disable Shamir recovery
+    pub fn disable_shamir_recovery(&mut self) {
+        self.recovery = RecoveryConfig::default();
+        self.dirty = true;
+    }
+
+    /// Mark that we are starting a session
     pub fn mark_session_started(&mut self) {
         self.last_shutdown_was_clean = false;
         self.dirty = true;
     }
 
-    /// Called on clean exit to mark successful shutdown
+    /// Called on clean exit
     pub fn mark_clean_shutdown(&mut self) {
         self.last_shutdown_was_clean = true;
     }
-
-    // ... rest of methods (record_agent_ability_state, force_dirty, etc.) remain ...
 
     pub fn record_agent_ability_state(
         &mut self,
@@ -169,6 +197,6 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.14
-// Crash recovery fields added (last_shutdown_was_clean, checksum, etc.).
+// End of simulation/src/player_persistence/data.rs v19.3.19
+// RecoveryConfig added. Sovereign architecture now complete at data model level.
 // Thunder locked in. Yoi ⚡
