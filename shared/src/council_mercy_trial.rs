@@ -4,6 +4,8 @@
  * Defines the shared types for the multiplayer Council Mercy Trial system.
  * These types are authoritative on the server and replicated to clients.
  *
+ * Priority: Council Proposal System foundation (minimal data model)
+ *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
@@ -92,6 +94,47 @@ impl Default for CouncilSessionState {
     }
 }
 
+/// === Council Proposal System (Minimal Foundation) ===
+
+/// Status of a Council Proposal
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ProposalStatus {
+    Submitted,
+    UnderDeliberation,
+    Voting,
+    Passed,
+    Rejected,
+    Withdrawn,
+}
+
+/// A player-submitted proposal for council deliberation
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CouncilProposal {
+    pub id: u64,
+    pub proposer: Entity,
+    pub title: String,
+    pub description: String,
+    pub status: ProposalStatus,
+    pub created_at: f64,
+    pub votes_for: u32,
+    pub votes_against: u32,
+}
+
+impl CouncilProposal {
+    pub fn new(id: u64, proposer: Entity, title: String, description: String, created_at: f64) -> Self {
+        Self {
+            id,
+            proposer,
+            title,
+            description,
+            status: ProposalStatus::Submitted,
+            created_at,
+            votes_for: 0,
+            votes_against: 0,
+        }
+    }
+}
+
 /// Events for driving the Council Mercy Trial state machine
 #[derive(Event, Clone, Debug)]
 pub enum CouncilTrialEvent {
@@ -105,6 +148,13 @@ pub enum CouncilTrialEvent {
     ResolveTrial,
     /// Force close / cancel the current trial
     CancelTrial,
+    /// === Council Proposal System ===
+    /// A player submits a new proposal for council consideration
+    SubmitProposal {
+        proposer: Entity,
+        title: String,
+        description: String,
+    },
 }
 
 /// Replicated update sent from server to clients
