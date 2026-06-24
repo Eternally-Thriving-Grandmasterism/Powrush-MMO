@@ -1,8 +1,8 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.3.12: Updated call site for optimized record_agent_ability_state (&HashMap)
- * Eliminates one HashMap clone per persistence operation.
+ * v19.3.13: Added lightweight persistence profiling instrumentation
+ * Allows observation of actual overhead from record_agent_ability_state.
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -16,7 +16,8 @@ use crate::emergence::{DynamicEmergenceEvent, EmergenceOrchestrator};
 use crate::ability_tree::SynergyEffectEvent;
 use crate::council_mercy_trial::CouncilSessionManager;
 use crate::player_persistence::PlayerSaveData;
-use tracing::{info, warn};
+use std::time::Instant;
+use tracing::{info, warn, debug};
 
 /// Production TickResult — rich telemetry for observability, Council governance, RBE, synergy, and errors
 #[derive(Debug, Default, Clone)]
@@ -91,12 +92,12 @@ impl SimulationOrchestrator {
             }
         }
 
-        // === Optimized: Real agent iteration + synergy + persistence ===
+        // === Profiled: Real agent iteration + synergy + persistence ===
         result.synergy_events = self.collect_synergy_events_direct(world, player_save);
         result
     }
 
-    /// Iterates agents, generates synergy events, and persists ability state (optimized).
+    /// Iterates agents, generates synergy events, and persists ability state (with profiling).
     fn collect_synergy_events_direct(
         &self,
         world: &SovereignWorldState,
@@ -125,7 +126,7 @@ impl SimulationOrchestrator {
                 &synergies,
             );
 
-            // === Persistence (optimized - passes reference, no clone here) ===
+            // === Persistence with lightweight profiling ===
             if let Some(save) = &mut player_save {
                 if self.current_tick % 5 == 0 {
                     let last_event = new_events.last();
@@ -135,15 +136,25 @@ impl SimulationOrchestrator {
                         (0.0, 0.0, 0.0, 0)
                     };
 
+                    let start = Instant::now();
                     save.record_agent_ability_state(
                         agent.id,
-                        &agent.ability_tree.chain_progress,   // pass reference
+                        &agent.ability_tree.chain_progress,
                         stage,
                         vol_delta,
                         str_delta,
                         coop_delta,
                         self.current_tick,
                     );
+                    let elapsed = start.elapsed();
+
+                    // Occasional profiling output (every 100 ticks when persisting)
+                    if self.current_tick % 100 == 0 {
+                        debug!(
+                            "Persistence overhead: agent {} took {:?} (tick {})",
+                            agent.id, elapsed, self.current_tick
+                        );
+                    }
                 }
             }
 
@@ -155,6 +166,6 @@ impl SimulationOrchestrator {
 }
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
-// Persistence optimization complete: one less HashMap clone per persist operation.
+// Lightweight persistence profiling added (Instant timing + occasional debug logs).
 // All prior logic preserved exactly.
 // Thunder locked in. Yoi ⚡
