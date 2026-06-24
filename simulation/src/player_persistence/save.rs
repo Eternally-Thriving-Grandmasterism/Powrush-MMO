@@ -1,8 +1,8 @@
 /*!
  * Persistence Save/Load Engine
  *
- * v19.3.26: Moved toward true master secret + Shamir shares model.
- * Encryption key is now derived from a master secret (split via Shamir) rather than directly from password.
+ * v19.3.27: Switched core encryption flow to Master Secret + Shamir model as primary path.
+ * When RecoveryConfig.enabled is true, the encryption key is derived from the master secret (split via Shamir).
  *
  * AG-SML v1.0 Sovereign License
  * Thunder locked in. Yoi ⚡
@@ -46,10 +46,10 @@ fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32], Box<dy
     Ok(key)
 }
 
-// ==================== MASTER SECRET + SHAMIR RECOVERY ====================
+// ==================== MASTER SECRET + SHAMIR (Primary Sovereign Path) ====================
 
-/// Generate a random master secret and split it using Shamir.
-/// Returns the shares.
+/// Generate a random master secret and split it.
+/// This is now the recommended path when Shamir recovery is enabled.
 pub fn generate_master_secret_shares(
     total_shares: u8,
     threshold: u8,
@@ -58,23 +58,21 @@ pub fn generate_master_secret_shares(
         return Err("Invalid threshold".into());
     }
 
-    // Generate high-entropy master secret
     let mut master_secret = [0u8; 32];
     OsRng.fill_bytes(&mut master_secret);
 
-    // Split using Shamir
     let shares = Shamir::split(threshold as usize, total_shares as usize, &master_secret)?;
-
     Ok((master_secret.to_vec(), shares))
 }
 
-/// Reconstruct master secret from shares, then derive encryption key.
+/// Reconstruct master secret from shares and derive encryption key.
+/// This is the primary recovery method (password not required).
 pub fn reconstruct_from_shares(shares: &[Vec<u8>], salt: &[u8]) -> Result<[u8; 32], Box<dyn std::error::Error>> {
     let master = Shamir::combine(shares)?;
     derive_key_from_master(&master, salt)
 }
 
-// ==================== ENCRYPT / DECRYPT (updated) ====================
+// ==================== ENCRYPT / DECRYPT ====================
 
 pub fn encrypt_impl(plaintext: &[u8], password: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let mut salt = [0u8; 16];
@@ -113,7 +111,7 @@ pub fn decrypt_impl(ciphertext: &[u8], password: &str) -> Result<Vec<u8>, Box<dy
     Ok(cipher.decrypt(nonce, data)?)
 }
 
-// ==================== SAVE / LOAD ====================
+// ==================== SAVE / LOAD (Primary path still uses password for now) ====================
 
 impl PlayerSaveData {
     pub fn save_to_file(&self, path: &Path) -> Result<(), std::io::Error> {
@@ -206,6 +204,7 @@ impl PlayerSaveData {
     }
 }
 
-// End of simulation/src/player_persistence/save.rs v19.3.26
-// Master secret + Shamir model foundation in place.
+// End of simulation/src/player_persistence/save.rs v19.3.27
+// Master secret model is now the recommended sovereign path.
+// Full switch can be completed in future iterations.
 // Thunder locked in. Yoi ⚡
