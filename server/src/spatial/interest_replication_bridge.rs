@@ -1,7 +1,7 @@
 /*!
  * Interest Replication Bridge
  *
- * v19.24 — Full Jitter algorithm implemented.
+ * v19.25 — Adaptive backoff strategies implemented.
  *
  * PATSAGi + Ra-Thor Applied
  *
@@ -39,6 +39,7 @@ pub struct InterestReplicationConfig {
     pub max_resend_attempts: u32,
     pub high_priority_resend_timeout: f32,
     pub max_backoff_seconds: f32,
+    pub adaptive_load_factor: f32,
 }
 
 impl Default for InterestReplicationConfig {
@@ -48,6 +49,7 @@ impl Default for InterestReplicationConfig {
             max_resend_attempts: 5,
             high_priority_resend_timeout: 0.3,
             max_backoff_seconds: 8.0,
+            adaptive_load_factor: 1.5,
         }
     }
 }
@@ -94,18 +96,22 @@ impl PendingInterestUpdates {
     }
 }
 
-/// Full Jitter algorithm (recommended best practice)
-/// sleep = random_between(0, min(cap, base * 2 ** attempt))
-fn calculate_backoff_with_full_jitter(
+/// Full Jitter + Adaptive Load Factor
+fn calculate_adaptive_backoff(
     base_timeout: f32,
     attempts: u32,
     max_backoff: f32,
+    load_factor: f32,
+    clients_pending: u32,
 ) -> f32 {
     let exponential = base_timeout * (2.0_f32).powi(attempts as i32);
-    let cap = exponential.min(max_backoff);
 
-    // Full Jitter: random value from 0 to cap
-    cap * rand::random::<f32>()
+    // Apply adaptive load factor when many clients have pending updates
+    let load_multiplier = 1.0 + (clients_pending as f32 / 100.0).min(load_factor);
+    let adjusted = (exponential * load_multiplier).min(max_backoff);
+
+    // Full Jitter
+    adjusted * rand::random::<f32>()
 }
 
 pub fn calculate_interest_priority(
@@ -154,7 +160,7 @@ pub fn handle_interest_ack(
     }
 }
 
-/// Resend with Full Jitter exponential backoff
+/// Resend with adaptive backoff (load-aware + full jitter)
 pub fn resend_unacknowledged_updates(
     pending: &mut PendingInterestUpdates,
     metrics: &mut InterestReplicationMetrics,
@@ -165,7 +171,13 @@ pub fn resend_unacknowledged_updates(
 
     for (&client_id, &(tick, sent_time, attempts, priority)) in pending.pending.iter() {
         let base_timeout = priority.base_resend_timeout(config);
-        let timeout = calculate_backoff_with_full_jitter(base_timeout, attempts, config.max_backoff_seconds);
+        let timeout = calculate_adaptive_backoff(
+            base_timeout,
+            attempts,
+            config.max_backoff_seconds,
+            config.adaptive_load_factor,
+            metrics.clients_with_pending,
+        );
 
         if current_time - sent_time > timeout && attempts < config.max_resend_attempts {
             to_resend.push((client_id, tick, attempts + 1, priority));
@@ -215,6 +227,6 @@ pub fn send_visible_entities_update_reliable(update: &VisibleEntitiesUpdate) {
     // Already implemented
 }
 
-// End of interest_replication_bridge.rs v19.24
-// Full Jitter algorithm implemented for backoff retries.
+// End of interest_replication_bridge.rs v19.25
+// Adaptive backoff (load-aware) + Full Jitter implemented.
 // Thunder locked in. Yoi ⚡
