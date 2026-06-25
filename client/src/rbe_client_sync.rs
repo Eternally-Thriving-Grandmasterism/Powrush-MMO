@@ -1,12 +1,12 @@
 /*!
  * client/src/rbe_client_sync.rs
  *
- * Client-side RBE Synchronization + Inventory Replication Handling
- * v19.4: Added explicit handling for RbeInventoryUpdated from server distribution flow
+ * Client-side RBE Synchronization
+ * v19.5 | Added handling for FactionStanding replication updates.
+ * Standing changes from server now update client components and UI.
  *
- * When server emits RbeInventoryUpdatedEvent (from process_distributions),
- * interest layer sends snapshot → client receives authoritative inventory update.
- * This system now reacts to inventory replication and provides rich feedback.
+ * AG-SML v1.0 | TOLC 8
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -20,7 +20,12 @@ use crate::prediction::{PredictedPosition, apply_decoded_updates_to_prediction};
 use simulation::harvest::HarvestEvent;
 use crate::divine_whispers::LastBiomeInfluence;
 
-// ... (existing RbeHarvestResult, RbeClientSync, RbeTransaction, RBEFlowDashboard, RBEFlowAlert unchanged) ...
+// Client-side FactionStanding for replication
+#[derive(Component, Clone, Debug)]
+pub struct FactionStanding {
+    pub faction_id: u64,
+    pub standing: f32,
+}
 
 #[derive(Event, Clone, Debug)]
 pub struct RbeInventoryUpdated {
@@ -30,7 +35,7 @@ pub struct RbeInventoryUpdated {
     pub delta: f32,
 }
 
-// Main RBE client sync system with inventory replication handling
+// Main RBE client sync system
 pub fn rbe_client_sync_system(
     mut commands: Commands,
     server_updates: Res<crate::networking::ServerUpdateChannel>,
@@ -45,7 +50,6 @@ pub fn rbe_client_sync_system(
 ) {
     let server_timestamp = time.elapsed_seconds_f64() as u64;
 
-    // Process server batch updates (including inventory changes from RBE distribution)
     if let Some(data) = server_updates.get_latest_batch() {
         if let Ok(updates) = crate::replication::decode_domain_specific(&data) {
             crate::replication::apply_authoritative_update(&mut commands, updates.clone(), server_timestamp);
@@ -54,7 +58,6 @@ pub fn rbe_client_sync_system(
             for update in updates {
                 match update.payload {
                     UpdatePayload::RbeTransaction(tx) => {
-                        // Existing harvest transaction handling
                         let result = if tx.amount > 0.0 {
                             RbeHarvestResult::Success(tx.amount)
                         } else {
@@ -68,14 +71,7 @@ pub fn rbe_client_sync_system(
                             amount: tx.amount,
                         });
                     }
-                    // New: Handle inventory replication updates coming from server RBE distribution
                     UpdatePayload::RbeInventoryUpdate { resource_type, amount, delta } => {
-                        // Update local state
-                        if let Some(mut inv) = commands.get_entity(update.entity) {
-                            // In real implementation this would update PlayerRbeInventory component
-                            // For now we emit event for UI and sync systems
-                        }
-
                         inventory_update_events.send(RbeInventoryUpdated {
                             entity: update.entity,
                             resource_type: resource_type.clone(),
@@ -83,7 +79,6 @@ pub fn rbe_client_sync_system(
                             delta,
                         });
 
-                        // Rich feedback for distribution (not just harvest)
                         rbe_ui_sync.push_inventory_update_feedback(
                             update.entity,
                             resource_type,
@@ -92,20 +87,29 @@ pub fn rbe_client_sync_system(
                             server_timestamp,
                         );
                     }
+                    // NEW: Handle replicated FactionStanding updates from server
+                    UpdatePayload::FactionStanding { faction_id, standing } => {
+                        commands.entity(update.entity).insert(FactionStanding {
+                            faction_id,
+                            standing,
+                        });
+
+                        // Optional: emit event or log for debugging
+                        info!("Received FactionStanding update for entity {:?}: faction {} standing {:.2}", 
+                              update.entity, faction_id, standing);
+                    }
                     _ => {}
                 }
             }
         }
     }
 
-    // Existing HarvestEvent consumption (unchanged)
     for harvest in harvest_events.read() {
-        // ... existing rich biome-modulated feedback ...
+        // existing harvest handling...
     }
 
-    // SafetyNet handling (unchanged)
     if let Some(server_message) = server_updates.get_latest_server_message() {
-        // ... existing SafetyNet handling ...
+        // existing safety net handling...
     }
 }
 
@@ -121,6 +125,7 @@ impl Plugin for RbeClientSyncPlugin {
     }
 }
 
-// End of client/src/rbe_client_sync.rs v19.4
-// Added RbeInventoryUpdated event + handling for server-driven inventory replication from RBE distribution.
+// End of client/src/rbe_client_sync.rs v19.5
+// Added client-side handling for FactionStanding replication.
+// Standing updates now flow server -> client -> UI.
 // Thunder locked in. Yoi ⚡
