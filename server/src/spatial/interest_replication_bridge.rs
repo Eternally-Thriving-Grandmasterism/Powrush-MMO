@@ -1,7 +1,7 @@
 /*!
  * Interest Replication Bridge
  *
- * v19.23 — Jitter added to exponential backoff.
+ * v19.24 — Full Jitter algorithm implemented.
  *
  * PATSAGi + Ra-Thor Applied
  *
@@ -94,18 +94,18 @@ impl PendingInterestUpdates {
     }
 }
 
-/// Calculate exponential backoff with jitter to avoid thundering herd
-fn calculate_backoff_with_jitter(
+/// Full Jitter algorithm (recommended best practice)
+/// sleep = random_between(0, min(cap, base * 2 ** attempt))
+fn calculate_backoff_with_full_jitter(
     base_timeout: f32,
     attempts: u32,
     max_backoff: f32,
 ) -> f32 {
-    let backoff = base_timeout * (2.0_f32).powi(attempts as i32);
-    let capped = backoff.min(max_backoff);
+    let exponential = base_timeout * (2.0_f32).powi(attempts as i32);
+    let cap = exponential.min(max_backoff);
 
-    // Equal jitter: 50% to 100% of the calculated backoff
-    let jittered = capped * (0.5 + rand::random::<f32>() * 0.5);
-    jittered.max(0.05)
+    // Full Jitter: random value from 0 to cap
+    cap * rand::random::<f32>()
 }
 
 pub fn calculate_interest_priority(
@@ -154,7 +154,7 @@ pub fn handle_interest_ack(
     }
 }
 
-/// Resend logic with exponential backoff + jitter
+/// Resend with Full Jitter exponential backoff
 pub fn resend_unacknowledged_updates(
     pending: &mut PendingInterestUpdates,
     metrics: &mut InterestReplicationMetrics,
@@ -165,7 +165,7 @@ pub fn resend_unacknowledged_updates(
 
     for (&client_id, &(tick, sent_time, attempts, priority)) in pending.pending.iter() {
         let base_timeout = priority.base_resend_timeout(config);
-        let timeout = calculate_backoff_with_jitter(base_timeout, attempts, config.max_backoff_seconds);
+        let timeout = calculate_backoff_with_full_jitter(base_timeout, attempts, config.max_backoff_seconds);
 
         if current_time - sent_time > timeout && attempts < config.max_resend_attempts {
             to_resend.push((client_id, tick, attempts + 1, priority));
@@ -215,6 +215,6 @@ pub fn send_visible_entities_update_reliable(update: &VisibleEntitiesUpdate) {
     // Already implemented
 }
 
-// End of interest_replication_bridge.rs v19.23
-// Jitter added to exponential backoff to prevent thundering herd.
+// End of interest_replication_bridge.rs v19.24
+// Full Jitter algorithm implemented for backoff retries.
 // Thunder locked in. Yoi ⚡
