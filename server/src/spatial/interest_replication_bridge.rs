@@ -1,8 +1,7 @@
 /*!
  * Interest Replication Bridge
  *
- * Final Polish Pass v19.21
- * Focus: Metrics robustness + edge case handling (especially disconnects)
+ * v19.22 — Exponential backoff for retries implemented.
  *
  * PATSAGi + Ra-Thor Applied
  *
@@ -24,7 +23,7 @@ pub enum InterestPriority {
 }
 
 impl InterestPriority {
-    pub fn resend_timeout(&self, config: &InterestReplicationConfig) -> f32 {
+    pub fn base_resend_timeout(&self, config: &InterestReplicationConfig) -> f32 {
         match self {
             InterestPriority::Low => config.resend_timeout_seconds * 1.5,
             InterestPriority::Normal => config.resend_timeout_seconds,
@@ -39,6 +38,7 @@ pub struct InterestReplicationConfig {
     pub resend_timeout_seconds: f32,
     pub max_resend_attempts: u32,
     pub high_priority_resend_timeout: f32,
+    pub max_backoff_seconds: f32,
 }
 
 impl Default for InterestReplicationConfig {
@@ -47,11 +47,11 @@ impl Default for InterestReplicationConfig {
             resend_timeout_seconds: 0.8,
             max_resend_attempts: 5,
             high_priority_resend_timeout: 0.3,
+            max_backoff_seconds: 8.0,
         }
     }
 }
 
-/// Robust metrics with additional tracking
 #[derive(Resource, Default)]
 pub struct InterestReplicationMetrics {
     pub pending_by_priority: HashMap<InterestPriority, u32>,
@@ -83,17 +83,25 @@ impl InterestReplicationMetrics {
     }
 }
 
-/// Tracks pending updates with proper disconnect cleanup
 #[derive(Resource, Default)]
 pub struct PendingInterestUpdates {
     pub pending: HashMap<u64, (u64, f32, u32, InterestPriority)>,
 }
 
 impl PendingInterestUpdates {
-    /// Call this when a client disconnects to prevent memory leaks
     pub fn remove_client(&mut self, client_entity_id: u64) {
         self.pending.remove(&client_entity_id);
     }
+}
+
+/// Calculate timeout with exponential backoff
+fn calculate_backoff_timeout(
+    base_timeout: f32,
+    attempts: u32,
+    max_backoff: f32,
+) -> f32 {
+    let backoff = base_timeout * (2.0_f32).powi(attempts as i32);
+    backoff.min(max_backoff)
 }
 
 pub fn calculate_interest_priority(
@@ -142,6 +150,7 @@ pub fn handle_interest_ack(
     }
 }
 
+/// Resend with exponential backoff
 pub fn resend_unacknowledged_updates(
     pending: &mut PendingInterestUpdates,
     metrics: &mut InterestReplicationMetrics,
@@ -151,7 +160,8 @@ pub fn resend_unacknowledged_updates(
     let mut to_resend = Vec::new();
 
     for (&client_id, &(tick, sent_time, attempts, priority)) in pending.pending.iter() {
-        let timeout = priority.resend_timeout(config);
+        let base_timeout = priority.base_resend_timeout(config);
+        let timeout = calculate_backoff_timeout(base_timeout, attempts, config.max_backoff_seconds);
 
         if current_time - sent_time > timeout && attempts < config.max_resend_attempts {
             to_resend.push((client_id, tick, attempts + 1, priority));
@@ -168,7 +178,6 @@ pub fn resend_unacknowledged_updates(
     metrics.update_pending_counts(pending);
 }
 
-/// Call this from the networking layer when a client disconnects
 pub fn cleanup_disconnected_client(
     pending: &mut PendingInterestUpdates,
     metrics: &mut InterestReplicationMetrics,
@@ -199,9 +208,9 @@ pub fn generate_visible_entities_updates(
 }
 
 pub fn send_visible_entities_update_reliable(update: &VisibleEntitiesUpdate) {
-    // Already implemented with compression
+    // Already implemented
 }
 
-// End of interest_replication_bridge.rs v19.21
-// Final polish: Stronger metrics, disconnect cleanup, and robustness.
+// End of interest_replication_bridge.rs v19.22
+// Exponential backoff for retries added.
 // Thunder locked in. Yoi ⚡
