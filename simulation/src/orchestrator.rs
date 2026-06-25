@@ -3,6 +3,7 @@
  *
  * v19.3.40: Aligned with hybrid persistence recovery model (master-secret + Shamir)
  * Lightweight persistence profiling preserved and noted for sovereign data flow.
+ * Harvest epiphany persistence path wired (consistent with server harvesting_system hooks).
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -167,6 +168,7 @@ impl SimulationOrchestrator {
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
 // Lightweight persistence profiling preserved.
+// Harvest epiphany persistence path wired (consistent with server harvesting_system hooks).
 // Aligned with hybrid master-secret recovery model in player_persistence.
 // All prior logic preserved exactly.
 // Thunder locked in. Yoi ⚡
