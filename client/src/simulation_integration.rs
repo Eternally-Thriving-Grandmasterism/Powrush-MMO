@@ -1,7 +1,7 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.6 — Added client-side InterestUpdateEvent receiver (Step 3 of replication bridge).
+ * v19.7 — Now uses shared VisibleEntitiesUpdate from simulation crate.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -10,9 +10,11 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use crate::spatial_audio::GameAudioEvent;
+use simulation::interest::VisibleEntitiesUpdate;
 
-// Interest types (owned here)
+// Re-export for convenience
+pub use simulation::interest::VisibleEntitiesUpdate as InterestNetworkMessage;
+
 #[derive(Event, Clone, Debug)]
 pub struct InterestUpdateEvent {
     pub visible_entities: Vec<u64>,
@@ -57,17 +59,12 @@ impl Default for HighSalienceAudio {
     }
 }
 
-// ... other imports and code ...
-
-/// Client-side receiver for interest updates coming from the server (Step 3).
-/// In a full implementation, this would be triggered by the replication layer
-/// when a `VisibleEntitiesUpdate` message arrives from the server.
+/// Client receiver (Step 3 of replication bridge)
 pub fn receive_interest_update(
-    mut visible_updates: EventReader<VisibleEntitiesUpdate>, // This will come from replication
+    mut visible_updates: EventReader<VisibleEntitiesUpdate>,
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
 ) {
     for update in visible_updates.read() {
-        // Convert server message into local InterestUpdateEvent
         interest_update_events.send(InterestUpdateEvent {
             visible_entities: update.visible_entity_ids.clone(),
             server_tick: update.server_tick,
@@ -75,10 +72,6 @@ pub fn receive_interest_update(
     }
 }
 
-// Note: VisibleEntitiesUpdate is defined on the server.
-// On the client we would either share the type or have a client-specific version.
-// For now we assume a shared protocol type or re-definition in networking layer.
-
-// End of simulation_integration.rs v19.6
-// Replication bridge Steps 1-3 complete (server generation + message format + client receiver).
+// End of simulation_integration.rs v19.7
+// Uses shared VisibleEntitiesUpdate from simulation::interest.
 // Thunder locked in. Yoi ⚡
