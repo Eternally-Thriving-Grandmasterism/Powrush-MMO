@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Authoritative Server Entry Point
  *
- * v19.0 — Interest replication tick system registered (Step A of replication bridge).
+ * v19.1 — Registered interest replication metrics logging.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -24,13 +24,16 @@ use server::council_session_handler::CouncilSessionPlugin;
 use server::opentelemetry_tracing::init_opentelemetry_tracing;
 
 // Interest replication bridge
-use server::spatial::interest_replication_bridge::interest_replication_tick_system;
+use server::spatial::interest_replication_bridge::{
+    interest_replication_tick_system,
+    log_interest_replication_metrics,
+};
 
 fn main() {
     apply_server_hardening();
     init_opentelemetry_tracing();
 
-    info!("⚡ Powrush-MMO Authoritative Server v19.0 — Interest Replication Bridge Active");
+    info!("⚡ Powrush-MMO Authoritative Server v19.1 — Interest Metrics Logging Active");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
 
@@ -63,8 +66,9 @@ fn main() {
         .add_systems(Update, council_deliberation_sync)
         .add_systems(Update, broadcast_world_state)
 
-        // === Interest Replication Bridge (Step A) ===
+        // === Interest Replication Bridge ===
         .add_systems(Update, interest_replication_tick_system)
+        .add_systems(Update, log_interest_replication_metrics)
 
         .run();
 }
