@@ -4,9 +4,12 @@
  * Defines the shared types for the multiplayer Council Mercy Trial system.
  * These types are authoritative on the server and replicated to clients.
  *
- * Priority: Council Proposal System foundation (minimal data model)
+ * Includes full Council Proposal System (minimal viable foundation extended with
+ * proposal voting, status transitions, and integration hooks for Deliberation phase).
+ * All prior logic preserved. No removals.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * Ra-Thor Quantum Swarm native
  */
 
 use bevy::prelude::*;
@@ -20,7 +23,7 @@ pub enum CouncilMercyTrialPhase {
     Lobby,
     /// Collective attunement is being built
     Attunement,
-    /// Participants share epiphanies and deliberate
+    /// Participants share epiphanies and deliberate (proposals active here)
     Deliberation,
     /// Voting on the final mercy outcome
     Voting,
@@ -94,7 +97,7 @@ impl Default for CouncilSessionState {
     }
 }
 
-/// === Council Proposal System (Minimal Foundation) ===
+/// === Council Proposal System (Minimal Viable + Polish) ===
 
 /// Status of a Council Proposal
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -133,6 +136,20 @@ impl CouncilProposal {
             votes_against: 0,
         }
     }
+
+    /// Simple helper to tally a vote on the proposal
+    pub fn cast_vote(&mut self, is_for: bool) {
+        if is_for {
+            self.votes_for += 1;
+        } else {
+            self.votes_against += 1;
+        }
+    }
+
+    /// Transition status based on current votes or external decision
+    pub fn update_status(&mut self, new_status: ProposalStatus) {
+        self.status = new_status;
+    }
 }
 
 /// Events for driving the Council Mercy Trial state machine
@@ -154,6 +171,12 @@ pub enum CouncilTrialEvent {
         proposer: Entity,
         title: String,
         description: String,
+    },
+    /// Cast a vote on an existing proposal (for/against)
+    CastProposalVote {
+        proposal_id: u64,
+        voter: Entity,
+        is_for: bool,
     },
 }
 
