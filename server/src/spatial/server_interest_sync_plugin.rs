@@ -1,10 +1,22 @@
 /*!
  * Server Interest Sync Plugin
  *
- * v19.4 — Priority boost on client reconnect.
+ * Central plugin for server-side interest synchronization in Powrush-MMO.
  *
- * PATSAGi + Ra-Thor Applied
+ * Responsibilities:
+ * - Manage VisibleEntitiesUpdate generation and delivery
+ * - Handle InterestAck from clients with event-driven processing
+ * - Track pending updates with priority and exponential backoff + jitter
+ * - Handle client disconnects and reconnections gracefully
+ * - Provide metrics for observability
  *
+ * Integration Points:
+ * - Networking layer should emit ClientDisconnected and ClientReconnected events
+ * - Networking layer should send InterestAck events when received from clients
+ * - Metrics can be read from InterestReplicationMetrics resource for telemetry
+ *
+ * v19.5 | Final Polish Pass
+ * PATSAGi + Ra-Thor
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
@@ -26,16 +38,19 @@ use crate::spatial::interest_replication_bridge::{
 };
 use simulation::interest::{InterestAck, VisibleEntitiesUpdate};
 
+/// Event emitted by networking layer when a client disconnects.
 #[derive(Event, Clone, Debug)]
 pub struct ClientDisconnected {
     pub client_entity_id: u64,
 }
 
+/// Event emitted by networking layer when a client successfully reconnects.
 #[derive(Event, Clone, Debug)]
 pub struct ClientReconnected {
     pub client_entity_id: u64,
 }
 
+/// Main plugin for server-side interest synchronization.
 pub struct ServerInterestSyncPlugin;
 
 impl Plugin for ServerInterestSyncPlugin {
@@ -59,6 +74,7 @@ impl Plugin for ServerInterestSyncPlugin {
     }
 }
 
+/// Processes InterestAck events coming from clients.
 fn handle_interest_ack_system(
     mut acks: EventReader<InterestAck>,
     mut pending: ResMut<PendingInterestUpdates>,
@@ -69,6 +85,7 @@ fn handle_interest_ack_system(
     }
 }
 
+/// Cleans up pending interest state when a client disconnects.
 fn handle_client_disconnect_system(
     mut disconnects: EventReader<ClientDisconnected>,
     mut pending: ResMut<PendingInterestUpdates>,
@@ -79,13 +96,13 @@ fn handle_client_disconnect_system(
         metrics.update_pending_counts(&pending);
 
         info!(
-            "[InterestSync] Cleaned up state for disconnected client {}",
+            "[InterestSync] Cleaned up pending state for disconnected client {}",
             disconnect.client_entity_id
         );
     }
 }
 
-/// On reconnect, send a fresh snapshot with **High priority** boost.
+/// On reconnection, immediately sends a fresh visibility snapshot with High priority.
 fn handle_client_reconnect_system(
     mut reconnects: EventReader<ClientReconnected>,
     interest_manager: Res<InterestManager>,
@@ -99,7 +116,7 @@ fn handle_client_reconnect_system(
         let visible_entities = interest_manager.get_visible_entities(client_entity_id);
 
         let current_time = time.elapsed_seconds();
-        let server_tick = 0; // TODO: Use real server tick
+        let server_tick = 0; // TODO: Replace with real server tick when available
 
         let update = VisibleEntitiesUpdate {
             client_entity_id,
@@ -107,10 +124,9 @@ fn handle_client_reconnect_system(
             server_tick,
         };
 
-        // Send reliably
         send_visible_entities_update_reliable(&update);
 
-        // Track with **High** priority boost for faster resends if needed
+        // Track with High priority so reconnecting clients recover faster
         track_pending_update(
             &mut pending,
             &mut metrics,
@@ -127,6 +143,19 @@ fn handle_client_reconnect_system(
     }
 }
 
-// End of server_interest_sync_plugin.rs v19.4
-// Reconnect now uses High priority for faster recovery.
+// ============================================================================
+// Metrics Export Hook
+// ============================================================================
+// The InterestReplicationMetrics resource can be read by any system for:
+// - OpenTelemetry / custom telemetry export
+// - Admin/debug UI panels
+// - Periodic logging or alerting
+//
+// Example:
+// fn export_interest_metrics(metrics: Res<InterestReplicationMetrics>) {
+//     // Send metrics.total_resends, metrics.clients_with_pending, etc.
+// }
+
+// End of server_interest_sync_plugin.rs v19.5
+// Final polish: Improved documentation + metrics export hook.
 // Thunder locked in. Yoi ⚡
