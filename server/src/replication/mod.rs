@@ -2,10 +2,9 @@
  * server/src/replication/mod.rs
  *
  * Powrush-MMO Replication Core
- * v20.9 | Added FACTION_STANDING to ReplicatedFields + UpdatePayload
- * Enables replication of FactionStanding for client UI and gameplay.
+ * v20.10 | Added FACTION_MEMBERSHIP support alongside FACTION_STANDING.
  *
- * AG-SML v1.0 | TOLC 8 + PATSAGi Council
+ * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
  */
 
@@ -16,24 +15,24 @@ use serde::{Deserialize, Serialize};
 
 use crate::interest_management::{InterestManager, PlayerInterestState};
 
-// Replicated component bitmask
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
     pub struct ReplicatedFields: u32 {
-        const NONE              = 0;
-        const POSITION          = 1 << 0;
-        const ROTATION          = 1 << 1;
-        const VELOCITY          = 1 << 2;
-        const HEALTH            = 1 << 3;
-        const ABILITY_COOLDOWN  = 1 << 4;
-        const STATUS_EFFECT     = 1 << 5;
-        const RBE_RESOURCE      = 1 << 6;
-        const VALENCE           = 1 << 7;
-        const COUNCIL_STATE     = 1 << 8;
-        const EPIPHANY_BLOOM    = 1 << 9;
-        const SPATIAL_AUDIO     = 1 << 10;
-        const FACTION_STANDING  = 1 << 11;   // NEW: Faction reputation/standing
-        const ALL               = u32::MAX;
+        const NONE                 = 0;
+        const POSITION             = 1 << 0;
+        const ROTATION             = 1 << 1;
+        const VELOCITY             = 1 << 2;
+        const HEALTH               = 1 << 3;
+        const ABILITY_COOLDOWN     = 1 << 4;
+        const STATUS_EFFECT        = 1 << 5;
+        const RBE_RESOURCE         = 1 << 6;
+        const VALENCE              = 1 << 7;
+        const COUNCIL_STATE        = 1 << 8;
+        const EPIPHANY_BLOOM       = 1 << 9;
+        const SPATIAL_AUDIO        = 1 << 10;
+        const FACTION_STANDING     = 1 << 11;
+        const FACTION_MEMBERSHIP   = 1 << 12;   // NEW
+        const ALL                  = u32::MAX;
     }
 }
 
@@ -45,14 +44,13 @@ pub struct DirtyReplicationState {
     pub last_health: Option<f32>,
 }
 
-// Targeted update payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UpdatePayload {
     Position { x: f32, y: f32, z: f32 },
     Health(f32),
     RbeTransaction { resource_type: u8, amount: f32 },
-    FactionStanding { faction_id: u64, standing: f32 },  // NEW
-    // ... other variants
+    FactionStanding { faction_id: u64, standing: f32 },
+    FactionMembership { faction_id: u64 },           // NEW
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,7 +76,7 @@ impl Default for TargetedUpdate {
     }
 }
 
-// ... (rest of file unchanged: quantization, encoding, prioritization, etc.)
+// ... rest of file (quantization, encoding, prioritization, etc.) remains unchanged ...
 
 pub fn quantize_position(value: f32, scale: f32) -> i32 { (value * scale).round() as i32 }
 pub fn dequantize_position(q: i32, scale: f32) -> f32 { q as f32 / scale }
@@ -103,9 +101,6 @@ pub fn encode_domain_specific(updates: &[TargetedUpdate], current_send_rate_hz: 
     EncodedBatch { data: buffer, encoded_size: buffer.len(), entities_updated }
 }
 
-// Adaptive prioritization and other functions remain unchanged below...
-// (truncated for edit brevity — full file logic preserved)
-
 pub fn prioritize_targeted_updates_for_player(
     interest_manager: &InterestManager,
     updates: &mut [TargetedUpdate],
@@ -114,22 +109,14 @@ pub fn prioritize_targeted_updates_for_player(
 ) {
     updates.sort_by(|a, b| {
         let prio_a = interest_manager.calculate_adaptive_packet_priority(
-            crate::hierarchical_grid::InterestPriority::High,
-            0.7,
-            a.estimated_spectator_impact > 50,
-            a.estimated_spectator_impact,
-            true,
-            a.is_council_or_mercy_event,
-            server_load,
+            crate::hierarchical_grid::InterestPriority::High, 0.7,
+            a.estimated_spectator_impact > 50, a.estimated_spectator_impact, true,
+            a.is_council_or_mercy_event, server_load,
         );
         let prio_b = interest_manager.calculate_adaptive_packet_priority(
-            crate::hierarchical_grid::InterestPriority::High,
-            0.7,
-            b.estimated_spectator_impact > 50,
-            b.estimated_spectator_impact,
-            true,
-            b.is_council_or_mercy_event,
-            server_load,
+            crate::hierarchical_grid::InterestPriority::High, 0.7,
+            b.estimated_spectator_impact > 50, b.estimated_spectator_impact, true,
+            b.is_council_or_mercy_event, server_load,
         );
         prio_b.partial_cmp(&prio_a).unwrap_or(std::cmp::Ordering::Equal)
     });
@@ -150,10 +137,7 @@ pub fn calculate_adaptive_send_rate(snapshot: &SafetyNetMonitoringSnapshot) -> f
     20.0;
 }
 
-pub fn decode_masked_batch(data: &[u8]) -> Vec<DecodedUpdate> {
-    let mut updates = Vec::new();
-    updates
-}
+pub fn decode_masked_batch(data: &[u8]) -> Vec<DecodedUpdate> { vec![] }
 
 #[derive(Debug, Clone)]
 pub struct DecodedUpdate {
