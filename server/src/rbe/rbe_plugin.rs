@@ -1,9 +1,8 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * v2.2 | Implemented basic Faction Standing System
- * Added FactionStanding component + proportional scaling in ProportionalToStanding.
- * Foundation for standing-weighted rewards and future ToFaction enhancements.
+ * v2.3 | Refactored for modularity - components moved to components.rs
+ * FactionMembership + FactionStanding now live in the proper module.
  *
  * Thunder locked in. Yoi ⚡
  */
@@ -11,21 +10,9 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::rbe::components::{NodeOwnership, PlayerRbeInventory, ResourceNode};
-
-// FactionMembership component
-#[derive(Component, Clone, Debug)]
-pub struct FactionMembership {
-    pub faction_id: u64,
-}
-
-// FactionStanding component - core of the standing system
-// standing: 0.0 (hostile) to 2.0+ (highly respected). Default 1.0 = neutral/good standing.
-#[derive(Component, Clone, Debug)]
-pub struct FactionStanding {
-    pub faction_id: u64,
-    pub standing: f32,
-}
+use crate::rbe::components::{
+    FactionMembership, FactionStanding, NodeOwnership, PlayerRbeInventory, ResourceNode,
+};
 
 // ============================================================================
 // Resources
@@ -118,7 +105,7 @@ fn process_resource_transfers(/* ... */) { /* unchanged */ }
 fn process_node_claiming(/* ... */) { /* unchanged */ }
 
 /// Distribution logic with Faction Standing System support.
-/// ProportionalToStanding now scales reward by the source's standing with the relevant faction.
+/// ProportionalToStanding scales reward by the source's standing.
 fn process_distributions(
     mut dist_events: EventReader<DistributeResourcesEvent>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
@@ -173,7 +160,6 @@ fn process_distributions(
             }
             DistributionType::ProportionalToStanding => {
                 if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(event.source_entity)) {
-                    // Look up standing with the relevant faction (default 1.0 = neutral/good standing)
                     let standing_multiplier = standing_query
                         .iter()
                         .find(|(e, standing)| e.index() == event.source_entity)
@@ -198,7 +184,6 @@ fn process_distributions(
     }
 }
 
-// End of rbe_plugin.rs v2.2
-// Basic Faction Standing System implemented. ProportionalToStanding now respects standing.
-// Foundation ready for deeper integration (e.g. standing-weighted ToFaction).
+// End of rbe_plugin.rs v2.3
+// Components refactored into components.rs for modularity.
 // Thunder locked in. Yoi ⚡
