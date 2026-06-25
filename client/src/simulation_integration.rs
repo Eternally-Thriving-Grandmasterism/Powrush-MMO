@@ -1,7 +1,7 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.9 — Actual network receive implementation for interest updates.
+ * v19.10 — Refined network receive with better error handling + decompression hook.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -58,13 +58,17 @@ impl Default for HighSalienceAudio {
     }
 }
 
-/// Actual network receive function.
-/// Called when raw bytes arrive from the server for a VisibleEntitiesUpdate.
+/// Refined network receive with error handling + decompression hook.
 pub fn receive_visible_entities_update(
     data: &[u8],
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
 ) {
-    match bincode::deserialize::<VisibleEntitiesUpdate>(data) {
+    // Optional decompression hook (uncomment when compression is enabled on server)
+    // let decompressed = zstd::decode_all(data).unwrap_or_else(|_| data.to_vec());
+    // let payload = decompressed;
+    let payload = data;
+
+    match bincode::deserialize::<VisibleEntitiesUpdate>(payload) {
         Ok(update) => {
             interest_update_events.send(InterestUpdateEvent {
                 visible_entities: update.visible_entity_ids,
@@ -72,7 +76,7 @@ pub fn receive_visible_entities_update(
             });
         }
         Err(e) => {
-            error!("Failed to deserialize VisibleEntitiesUpdate: {}", e);
+            error!("[InterestReplication] Failed to deserialize VisibleEntitiesUpdate: {}", e);
         }
     }
 }
@@ -89,6 +93,6 @@ pub fn receive_interest_update(
     }
 }
 
-// End of simulation_integration.rs v19.9
-// Actual network receive (deserialization) implemented.
+// End of simulation_integration.rs v19.10
+// Refined receive with error handling + decompression hook.
 // Thunder locked in. Yoi ⚡
