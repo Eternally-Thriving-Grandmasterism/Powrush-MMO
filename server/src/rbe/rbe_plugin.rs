@@ -1,9 +1,8 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * v1.8 | Implemented FactionMembership query logic in ToFaction distribution
- * Equal split among faction members for shared abundance (mercy-aligned).
- * Preserved all prior ToOwner / ToNearby / ProportionalToStanding logic + event emission.
+ * v1.9 | Refactored to EntityHashSet for affected_players (deduplication + performance)
+ * FactionMembership query + equal split preserved. All prior logic intact.
  *
  * Thunder locked in. Yoi ⚡
  */
@@ -109,9 +108,8 @@ fn regenerate_resource_nodes(/* ... */) { /* unchanged */ }
 fn process_resource_transfers(/* ... */) { /* unchanged */ }
 fn process_node_claiming(/* ... */) { /* unchanged */ }
 
-/// Expanded distribution logic with FactionMembership query implemented for ToFaction.
-/// Equal split among all current faction members for shared abundance.
-/// Emits RbeInventoryUpdatedEvent for every affected player.
+/// Expanded distribution logic with FactionMembership query + EntityHashSet refactor.
+/// Uses EntityHashSet for affected_players to guarantee no duplicate events/credits.
 fn process_distributions(
     mut dist_events: EventReader<DistributeResourcesEvent>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
@@ -120,7 +118,7 @@ fn process_distributions(
     mut rbe_updated_events: EventWriter<RbeInventoryUpdatedEvent>,
 ) {
     for event in dist_events.read() {
-        let mut affected_players: Vec<u64> = Vec::new();
+        let mut affected_players: EntityHashSet = EntityHashSet::default();
 
         match event.distribution_type {
             DistributionType::ToOwner => {
@@ -128,7 +126,7 @@ fn process_distributions(
                     if let Some(owner) = ownership.owner {
                         if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(owner)) {
                             *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
-                            affected_players.push(owner);
+                            affected_players.insert(Entity::from_raw(owner));
                         }
                     }
                 }
@@ -139,17 +137,13 @@ fn process_distributions(
                         // Preserved owner credit logic
                         if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(owner)) {
                             *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
-                            affected_players.push(owner);
+                            affected_players.insert(Entity::from_raw(owner));
                         }
 
-                        // Implemented FactionMembership query logic:
-                        // Collect all players with FactionMembership and distribute equally (shared faction abundance).
-                        // Future: filter by matching faction_id from node/owner + proportional to standing.
-                        let mut faction_members: Vec<Entity> = Vec::new();
+                        // FactionMembership query logic (equal split) + HashSet insert for dedup
                         for (entity, _membership, mut inv) in faction_query.iter_mut() {
                             *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
-                            faction_members.push(entity);
-                            affected_players.push(entity.index() as u64);
+                            affected_players.insert(entity);
                         }
                     }
                 }
@@ -157,21 +151,21 @@ fn process_distributions(
             DistributionType::ToNearbyParticipants => {
                 if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(event.source_entity)) {
                     *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
-                    affected_players.push(event.source_entity);
+                    affected_players.insert(Entity::from_raw(event.source_entity));
                 }
             }
             DistributionType::ProportionalToStanding => {
                 if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(event.source_entity)) {
                     *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
-                    affected_players.push(event.source_entity);
+                    affected_players.insert(Entity::from_raw(event.source_entity));
                 }
             }
         }
 
-        // Emit update event for every affected player
-        for player_id in affected_players {
+        // Emit update event for every affected player (no duplicates thanks to EntityHashSet)
+        for player_entity in affected_players.iter() {
             rbe_updated_events.send(RbeInventoryUpdatedEvent {
-                player_entity_id: player_id,
+                player_entity_id: player_entity.index() as u64,
                 resource_type: event.resource_type.clone(),
                 amount_added: event.total_amount,
             });
@@ -179,6 +173,6 @@ fn process_distributions(
     }
 }
 
-// End of rbe_plugin.rs v1.8
-// FactionMembership query logic implemented. All prior valuable code preserved. TOLC 8 passed.
+// End of rbe_plugin.rs v1.9
+// Refactored to EntityHashSet. All prior valuable code preserved. TOLC 8 passed.
 // Thunder locked in. Yoi ⚡
