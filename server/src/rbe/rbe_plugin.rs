@@ -1,9 +1,9 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * v2.1 | Refactored ToFaction logic for clarity
- * Clear two-phase approach: owner credit + faction_id filtered distribution.
- * Behavior unchanged. EntityHashSet dedup preserved.
+ * v2.2 | Implemented basic Faction Standing System
+ * Added FactionStanding component + proportional scaling in ProportionalToStanding.
+ * Foundation for standing-weighted rewards and future ToFaction enhancements.
  *
  * Thunder locked in. Yoi ⚡
  */
@@ -13,10 +13,18 @@ use std::collections::HashMap;
 
 use crate::rbe::components::{NodeOwnership, PlayerRbeInventory, ResourceNode};
 
-// FactionMembership component (added here for query logic; move to components.rs in next polish if desired)
+// FactionMembership component
 #[derive(Component, Clone, Debug)]
 pub struct FactionMembership {
     pub faction_id: u64,
+}
+
+// FactionStanding component - core of the standing system
+// standing: 0.0 (hostile) to 2.0+ (highly respected). Default 1.0 = neutral/good standing.
+#[derive(Component, Clone, Debug)]
+pub struct FactionStanding {
+    pub faction_id: u64,
+    pub standing: f32,
 }
 
 // ============================================================================
@@ -109,13 +117,14 @@ fn regenerate_resource_nodes(/* ... */) { /* unchanged */ }
 fn process_resource_transfers(/* ... */) { /* unchanged */ }
 fn process_node_claiming(/* ... */) { /* unchanged */ }
 
-/// ToFaction: Owner always credited + equal distribution only to members
-/// of the exact same faction (via faction_id filter).
+/// Distribution logic with Faction Standing System support.
+/// ProportionalToStanding now scales reward by the source's standing with the relevant faction.
 fn process_distributions(
     mut dist_events: EventReader<DistributeResourcesEvent>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
     node_query: Query<(&ResourceNode, &NodeOwnership)>,
     mut faction_query: Query<(Entity, &FactionMembership, &mut PlayerRbeInventory)>,
+    mut standing_query: Query<(Entity, &FactionStanding)>,
     mut rbe_updated_events: EventWriter<RbeInventoryUpdatedEvent>,
 ) {
     for event in dist_events.read() {
@@ -135,20 +144,17 @@ fn process_distributions(
             DistributionType::ToFaction => {
                 if let Ok((_, ownership)) = node_query.get(Entity::from_raw(event.source_entity)) {
                     if let Some(owner) = ownership.owner {
-                        // Owner always receives the full distribution (preserved behavior)
                         if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(owner)) {
                             *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
                             affected_players.insert(Entity::from_raw(owner));
                         }
 
-                        // Phase 1: Discover the faction_id of the owner
                         if let Some((_, owner_membership, _)) = faction_query
                             .iter()
                             .find(|(e, _, _)| e.index() == owner)
                         {
                             let owner_faction_id = owner_membership.faction_id;
 
-                            // Phase 2: Credit only members of the same faction
                             for (entity, membership, mut inv) in faction_query.iter_mut() {
                                 if membership.faction_id == owner_faction_id {
                                     *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
@@ -167,13 +173,21 @@ fn process_distributions(
             }
             DistributionType::ProportionalToStanding => {
                 if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(event.source_entity)) {
-                    *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
+                    // Look up standing with the relevant faction (default 1.0 = neutral/good standing)
+                    let standing_multiplier = standing_query
+                        .iter()
+                        .find(|(e, standing)| e.index() == event.source_entity)
+                        .map(|(_, s)| s.standing.clamp(0.0, 3.0))
+                        .unwrap_or(1.0);
+
+                    let scaled_amount = event.total_amount * standing_multiplier;
+
+                    *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += scaled_amount;
                     affected_players.insert(Entity::from_raw(event.source_entity));
                 }
             }
         }
 
-        // Emit update event for every affected player (deduped by EntityHashSet)
         for player_entity in affected_players.iter() {
             rbe_updated_events.send(RbeInventoryUpdatedEvent {
                 player_entity_id: player_entity.index() as u64,
@@ -184,6 +198,7 @@ fn process_distributions(
     }
 }
 
-// End of rbe_plugin.rs v2.1
-// ToFaction logic refactored for clarity. All prior valuable code preserved.
+// End of rbe_plugin.rs v2.2
+// Basic Faction Standing System implemented. ProportionalToStanding now respects standing.
+// Foundation ready for deeper integration (e.g. standing-weighted ToFaction).
 // Thunder locked in. Yoi ⚡
