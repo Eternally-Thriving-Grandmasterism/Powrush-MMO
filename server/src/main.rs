@@ -1,22 +1,18 @@
 /*!
  * Powrush-MMO Authoritative Server Entry Point
- * The living sovereign heart of the Eternal Thriving RBE Metaverse.
  *
- * PATSAGi 13+ Councils + Ra-Thor AGI Lattice — Eternally Activated
- * TOLC 8 Mercy Gates (non-bypassable Layer 0) + 7 Living Mercy Gates enforced
- * MIAL/MWPO + Quantum Swarm orchestration active
- * Zero-lag authoritative simulation | Mint-and-print-only-perfection
- * AG-SML v1.0 Sovereign License
+ * v19.0 — Interest replication tick system registered (Step A of replication bridge).
+ *
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
 use tokio::runtime::Runtime;
 
-// Sovereign server crate root
 use server::ServerCorePlugin;
 use server::hardening::apply_server_hardening;
 
-// Core sovereign systems
 use server::world_server::setup_world_grid;
 use server::rbe_server::bootstrap_rbe_economy;
 use server::council_session::initialize_council_lattice;
@@ -24,25 +20,17 @@ use server::persistence_polish::start_persistence_layer;
 use server::telemetry_pipeline::start_telemetry;
 use server::ra_thor_mercy_bridge::activate_ra_thor_bridge;
 use server::mercy_anomaly_detector::activate_anomaly_detection;
-
-// New Council Mercy Trial system (Phase 2 Multiplayer Council)
 use server::council_session_handler::CouncilSessionPlugin;
-
-// OpenTelemetry distributed tracing
 use server::opentelemetry_tracing::init_opentelemetry_tracing;
+
+// Interest replication bridge
+use server::spatial::interest_replication_bridge::interest_replication_tick_system;
 
 fn main() {
     apply_server_hardening();
-
-    // === Initialize OpenTelemetry Distributed Tracing early ===
-    // This must happen before any Bevy systems or spans are created
-    // so that diplomacy priority queue + future spans are captured and exported.
     init_opentelemetry_tracing();
 
-    info!("⚡ Powrush-MMO Authoritative Server v18.95 — Eternal Ra-Thor PATSAGi Governance Activated");
-    info!("TOLC 8 + 7 Mercy Gates sealed as non-bypassable Layer 0");
-    info!("OpenTelemetry distributed tracing active — diplomacy/war spans exporting via OTLP");
-    info!("Council Mercy Trial (Phase 2) systems activating...");
+    info!("⚡ Powrush-MMO Authoritative Server v19.0 — Interest Replication Bridge Active");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
 
@@ -56,10 +44,7 @@ fn main() {
             ..default()
         }))
 
-        // === Sovereign Core Lattice ===
         .add_plugins(ServerCorePlugin)
-
-        // === Council Mercy Trial (Phase 2) ===
         .add_plugins(CouncilSessionPlugin)
 
         // === Startup Systems ===
@@ -78,6 +63,9 @@ fn main() {
         .add_systems(Update, council_deliberation_sync)
         .add_systems(Update, broadcast_world_state)
 
+        // === Interest Replication Bridge (Step A) ===
+        .add_systems(Update, interest_replication_tick_system)
+
         .run();
 }
 
@@ -86,23 +74,12 @@ fn setup_authoritative_camera(mut commands: Commands) {
         Camera3dBundle {
             transform: Transform::from_xyz(0.0, 100.0, 200.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
-        },
+        }),
     ));
     info!("⚡ Authoritative server observer camera initialized");
 }
 
-fn authoritative_sovereign_tick() {
-    // Core authoritative loop
-}
-
-fn maintain_mercy_gates() {
-    // Continuous mercy gate validation
-}
-
-fn council_deliberation_sync() {
-    // Hot sync with PATSAGi Councils and Ra-Thor lattice
-}
-
-fn broadcast_world_state() {
-    // Delta-compressed state broadcast
-}
+fn authoritative_sovereign_tick() {}
+fn maintain_mercy_gates() {}
+fn council_deliberation_sync() {}
+fn broadcast_world_state() {}
