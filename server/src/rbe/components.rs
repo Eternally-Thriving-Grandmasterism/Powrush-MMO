@@ -3,7 +3,7 @@
  *
  * Core per-entity data for the Resource-Based Economy layer.
  *
- * v1.1 | Added NodeOwnership
+ * v1.2 | Added FactionMembership + FactionStanding for modularity
  * Thunder locked in. Yoi ⚡
  */
 
@@ -40,4 +40,18 @@ pub struct BeingHarvested {
 #[derive(Component, Debug, Clone)]
 pub struct NodeOwnership {
     pub owner: Option<u64>, // None = public / unowned
+}
+
+/// Marks a player as belonging to a faction.
+#[derive(Component, Clone, Debug)]
+pub struct FactionMembership {
+    pub faction_id: u64,
+}
+
+/// Tracks a player's standing/reputation with a specific faction.
+/// standing: 0.0 (hostile) to 2.0+ (highly respected). 1.0 = neutral/good standing.
+#[derive(Component, Clone, Debug)]
+pub struct FactionStanding {
+    pub faction_id: u64,
+    pub standing: f32,
 }
