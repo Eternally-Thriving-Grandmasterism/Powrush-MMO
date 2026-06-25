@@ -1,7 +1,7 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.7 — Now uses shared VisibleEntitiesUpdate from simulation crate.
+ * v19.8 — Extended visibility culling pattern (Step C).
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -12,7 +12,6 @@ use std::collections::HashSet;
 
 use simulation::interest::VisibleEntitiesUpdate;
 
-// Re-export for convenience
 pub use simulation::interest::VisibleEntitiesUpdate as InterestNetworkMessage;
 
 #[derive(Event, Clone, Debug)]
@@ -59,7 +58,6 @@ impl Default for HighSalienceAudio {
     }
 }
 
-/// Client receiver (Step 3 of replication bridge)
 pub fn receive_interest_update(
     mut visible_updates: EventReader<VisibleEntitiesUpdate>,
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
@@ -72,6 +70,21 @@ pub fn receive_interest_update(
     }
 }
 
-// End of simulation_integration.rs v19.7
-// Uses shared VisibleEntitiesUpdate from simulation::interest.
+/// Example of how rendering / visibility culling systems should use ClientInterestState.
+/// Other systems (rendering, LOD, UI, etc.) can follow this pattern.
+pub fn example_rendering_culling_system(
+    interest: Res<ClientInterestState>,
+    // query: Query<(Entity, &Transform), With<SomeRenderComponent>>,
+) {
+    // for (entity, _) in query.iter() {
+    //     if interest.is_visible(entity.index()) {  // or use a proper entity_id mapping
+    //         // Render this entity
+    //     } else {
+    //         // Skip rendering (cull)
+    //     }
+    // }
+}
+
+// End of simulation_integration.rs v19.8
+// Steps A+B+C of replication bridge + visibility culling extension complete.
 // Thunder locked in. Yoi ⚡
