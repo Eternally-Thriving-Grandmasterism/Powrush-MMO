@@ -1,8 +1,8 @@
 /*!
  * server/src/persistence/faction_persistence.rs
  *
- * Phase 1: Faction Persistence - Observer Error Handling Exploration
- * v1.7 | Added defensive error handling to Observers.
+ * Phase 1: Faction Persistence - Central Error Event Bus Exploration
+ * v1.8 | Added PersistenceError event bus for centralized error handling.
  *
  * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
@@ -17,7 +17,27 @@ use std::time::Duration;
 use crate::rbe::components::{FactionMembership, FactionStanding};
 use crate::rbe::rbe_plugin::FactionStandingChangedEvent;
 
-// ... (previous code remains) ...
+// ============================================================================
+// Central Error Event Bus
+// ============================================================================
+
+#[derive(Event, Clone, Debug)]
+pub struct PersistenceError {
+    pub context: String,
+    pub message: String,
+    pub severity: ErrorSeverity,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ErrorSeverity {
+    Warning,
+    Error,
+    Critical,
+}
+
+// ============================================================================
+// Data Structures & Events (abbreviated for clarity)
+// ============================================================================
 
 #[derive(Event, Clone, Debug)]
 pub struct PlayerJoined {
@@ -31,30 +51,31 @@ pub struct PlayerLeft {
     pub player_id: u64,
 }
 
+// ... (other events like SavePlayerFactionData, LoadPlayerFactionData remain) ...
+
 // ============================================================================
-// Observers with Error Handling
+// Observers using Central Error Bus
 // ============================================================================
 
-/// Observer for player join with defensive checks.
 fn on_player_joined(
     trigger: Trigger<PlayerJoined>,
     mut commands: Commands,
     world: &World,
+    mut error_writer: EventWriter<PersistenceError>,
 ) {
     let event = trigger.event();
 
-    // Defensive check: Does the entity still exist?
     if world.get_entity(event.entity).is_none() {
-        warn!(
-            "PlayerJoined observer received event for non-existent entity {:?} (player_id: {}). Ignoring.",
-            event.entity, event.player_id
-        );
+        error_writer.send(PersistenceError {
+            context: "on_player_joined".to_string(),
+            message: format!("Entity {:?} no longer exists for player {}", event.entity, event.player_id),
+            severity: ErrorSeverity::Warning,
+        });
         return;
     }
 
-    // Optional: Check if player already has faction data loaded (avoid duplicate loads)
     if world.get::<FactionMembership>(event.entity).is_some() {
-        debug!("Player {} already has faction data loaded. Skipping reload.", event.player_id);
+        // Not really an error, but we can log it via the bus if desired
         return;
     }
 
@@ -62,23 +83,22 @@ fn on_player_joined(
         player_entity: event.entity,
         player_id: event.player_id,
     });
-
-    info!("Observer: Queued faction data load for player {}", event.player_id);
 }
 
-/// Observer for player leave with defensive checks.
 fn on_player_left(
     trigger: Trigger<PlayerLeft>,
     mut commands: Commands,
     world: &World,
+    mut error_writer: EventWriter<PersistenceError>,
 ) {
     let event = trigger.event();
 
     if world.get_entity(event.entity).is_none() {
-        warn!(
-            "PlayerLeft observer received event for non-existent entity {:?} (player_id: {}). Ignoring.",
-            event.entity, event.player_id
-        );
+        error_writer.send(PersistenceError {
+            context: "on_player_left".to_string(),
+            message: format!("Entity {:?} no longer exists for player {}", event.entity, event.player_id),
+            severity: ErrorSeverity::Warning,
+        });
         return;
     }
 
@@ -86,23 +106,45 @@ fn on_player_left(
         player_entity: event.entity,
         player_id: event.player_id,
     });
-
-    info!("Observer: Queued faction data save for player {} on leave", event.player_id);
 }
 
-// ... (rest of the file unchanged) ...
+// ============================================================================
+// Central Error Handler System
+// ============================================================================
+
+/// Centralized system that processes all PersistenceError events.
+pub fn persistence_error_handler_system(
+    mut errors: EventReader<PersistenceError>,
+) {
+    for error in errors.read() {
+        match error.severity {
+            ErrorSeverity::Warning => {
+                warn!("[Persistence] {}: {}", error.context, error.message);
+            }
+            ErrorSeverity::Error => {
+                error!("[Persistence] {}: {}", error.context, error.message);
+            }
+            ErrorSeverity::Critical => {
+                error!("[Persistence][CRITICAL] {}: {}", error.context, error.message);
+                // Future: could trigger emergency save, alerts, etc.
+            }
+        }
+    }
+}
 
 // ============================================================================
-// Plugin (unchanged registration)
+// Plugin
 // ============================================================================
 
 pub struct FactionPersistencePlugin;
 
 impl Plugin for FactionPersistencePlugin {
     fn build(&self, app: &mut App) {
-        // ... same as before ...
-        .add_observer(on_player_joined)
-        .add_observer(on_player_left)
-        // ...
+        app
+            .add_event::<PersistenceError>()
+            .add_observer(on_player_joined)
+            .add_observer(on_player_left)
+            .add_systems(Update, persistence_error_handler_system)
+            // ... other systems ...
     }
 }
