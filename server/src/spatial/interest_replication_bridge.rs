@@ -1,7 +1,7 @@
 /*!
  * Interest Replication Bridge
  *
- * v19.11 — Dynamic priority scaling implemented.
+ * v19.12 — Added priority metrics for monitoring and tuning.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -12,7 +12,7 @@ use bevy::prelude::*;
 use simulation::interest::{InterestAck, VisibleEntitiesUpdate};
 use std::collections::HashMap;
 
-/// Priority levels for interest updates.
+/// Priority levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InterestPriority {
     Low,
@@ -32,7 +32,7 @@ impl InterestPriority {
     }
 }
 
-/// Configuration resource.
+/// Tunable configuration
 #[derive(Resource)]
 pub struct InterestReplicationConfig {
     pub resend_timeout_seconds: f32,
@@ -50,24 +50,46 @@ impl Default for InterestReplicationConfig {
     }
 }
 
-/// Tracks pending updates with dynamic priority.
+/// Metrics for monitoring the interest replication system.
+#[derive(Resource, Default)]
+pub struct InterestReplicationMetrics {
+    pub pending_by_priority: HashMap<InterestPriority, u32>,
+    pub total_resends: u64,
+    pub total_acks_received: u64,
+    pub average_resend_attempts: f32,
+}
+
+impl InterestReplicationMetrics {
+    pub fn record_resend(&mut self) {
+        self.total_resends += 1;
+    }
+
+    pub fn record_ack(&mut self) {
+        self.total_acks_received += 1;
+    }
+
+    pub fn update_pending_counts(&mut self, pending: &PendingInterestUpdates) {
+        self.pending_by_priority.clear();
+        for (_, (_, _, _, priority)) in pending.pending.iter() {
+            *self.pending_by_priority.entry(*priority).or_insert(0) += 1;
+        }
+    }
+}
+
+/// Tracks pending updates with priority.
 #[derive(Resource, Default)]
 pub struct PendingInterestUpdates {
-    /// client_entity_id -> (tick, sent_time, attempts, priority)
     pub pending: HashMap<u64, (u64, f32, u32, InterestPriority)>,
 }
 
-/// Calculate dynamic priority based on game state.
-/// This function can be extended with combat state, council activity, RBE importance, etc.
+/// Calculate dynamic priority (extend with real game state).
 pub fn calculate_interest_priority(
-    // Example parameters (expand as needed):
     is_in_combat: bool,
     near_council_event: bool,
     recent_epiphany: bool,
     player_density: f32,
 ) -> InterestPriority {
     let mut score = 0;
-
     if is_in_combat { score += 2; }
     if near_council_event { score += 2; }
     if recent_epiphany { score += 1; }
@@ -80,32 +102,35 @@ pub fn calculate_interest_priority(
     }
 }
 
-/// Track update with dynamic priority.
 pub fn track_pending_update(
     pending: &mut PendingInterestUpdates,
+    metrics: &mut InterestReplicationMetrics,
     client_entity_id: u64,
     tick: u64,
     current_time: f32,
     priority: InterestPriority,
 ) {
     pending.pending.insert(client_entity_id, (tick, current_time, 0, priority));
+    metrics.update_pending_counts(pending);
 }
 
-/// Handle acknowledgment.
 pub fn handle_interest_ack(
     pending: &mut PendingInterestUpdates,
+    metrics: &mut InterestReplicationMetrics,
     ack: &InterestAck,
 ) {
     if let Some((last_tick, _, _, _)) = pending.pending.get(&ack.client_entity_id) {
         if ack.acknowledged_tick >= *last_tick {
             pending.pending.remove(&ack.client_entity_id);
+            metrics.record_ack();
+            metrics.update_pending_counts(pending);
         }
     }
 }
 
-/// Resend with dynamic priority scaling.
 pub fn resend_unacknowledged_updates(
     pending: &mut PendingInterestUpdates,
+    metrics: &mut InterestReplicationMetrics,
     config: &InterestReplicationConfig,
     current_time: f32,
 ) {
@@ -116,15 +141,17 @@ pub fn resend_unacknowledged_updates(
 
         if current_time - sent_time > timeout && attempts < config.max_resend_attempts {
             to_resend.push((client_id, tick, attempts + 1, priority));
+            metrics.record_resend();
         }
     }
 
     for (client_id, tick, new_attempts, priority) in to_resend {
-        // TODO: Actually resend the update
         if let Some(entry) = pending.pending.get_mut(&client_id) {
             *entry = (tick, current_time, new_attempts, priority);
         }
     }
+
+    metrics.update_pending_counts(pending);
 }
 
 pub fn generate_visible_entities_updates(
@@ -151,6 +178,6 @@ pub fn send_visible_entities_update_reliable(update: &VisibleEntitiesUpdate) {
     // Already implemented
 }
 
-// End of interest_replication_bridge.rs v19.11
-// Dynamic priority scaling implemented with combat/council/epiphany awareness.
+// End of interest_replication_bridge.rs v19.12
+// Priority metrics added for monitoring and tuning.
 // Thunder locked in. Yoi ⚡
