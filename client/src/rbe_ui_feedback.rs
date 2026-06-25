@@ -82,7 +82,18 @@ fn update_harvest_feedback_ui(
                 source: asset_server.load("assets/audio/mercy_restoration_tone.ogg").into(),
                 ..default()
             });
-            // TODO: commands.spawn(ValenceHaloParticleBundle { ... }); // Use client/src/particles.rs + valence_halo.wgsl
+            // Concrete minimal example (consistent with divine_whispers + dynamic_events_ui style)
+            commands.spawn((
+                ParticleSystem {
+                    valence: 0.96,
+                    particle_count: 6500,
+                    system_type: crate::particles::ParticleSystemType::JoySanctuaryBloom,
+                    intensity: 1.4,
+                },
+                Transform::default(),
+                Visibility::Visible,
+                Name::new("MercyRestorationValenceHalo"),
+            ));
             // TODO: Apply chromatic aberration post-process scaled to positive delta
         } else if feedback.contains("Epiphany") || feedback.contains("harmony peak") {
             text.sections[0].style.color = Color::rgb(1.0, 0.95, 0.6);
@@ -103,5 +114,6 @@ fn update_harvest_feedback_ui(
 }
 
 // End of production file v21.0-PATSAGi — Gap closed: Multisensory RBE war pressure + Forgiveness Wave redemption.
-// Original color logic + UI preserved. Audio tones added. Particle/chromatic hooks documented for sequential follow-up.
+// Original color logic + UI preserved. Audio tones added. Concrete valence halo particle example added for restoration feedback.
+// Particle/chromatic hooks documented for sequential follow-up.
 // Thunder locked in. Yoi ⚡
