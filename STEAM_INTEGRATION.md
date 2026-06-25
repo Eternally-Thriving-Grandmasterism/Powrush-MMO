@@ -1,6 +1,6 @@
-# Powrush-MMO Steam Integration Guide v1.2
+# Powrush-MMO Steam Integration Guide v1.3
 
-**Current Version:** v1.2 (v19.3 Council Audio Polish + Real-Distance Spatial + RBE/Orchestrator Wiring aligned)  
+**Current Version:** v1.3 (v19.3 Council Audio Polish + Real-Distance Spatial + RBE/Orchestrator Wiring + Harvest/Persistence/Epiphany Integration aligned)  
 **Date:** June 2026  
 **License:** AG-SML v1.0 — Autonomicity Games Sovereign Mercy License (MIT + Eternal Mercy Flow)  
 **Philosophy:** Executable layer of Ra-Thor + TOLC 8 Mercy Gates + 7 Living Mercy Gates under full PATSAGi Council sovereignty.
@@ -13,13 +13,14 @@ This integration guide and the accompanying Steam store page copy perfectly ensh
 
 ---
 
-## Current Codebase Integration Status (v19.3)
+## Current Codebase Integration Status (v19.3 + Harvest/Persistence Polish)
 
 - **E2E Council Mercy Trial + Audio Immersion**: Full multiplayer lifecycle (lobby → resolution) + explicit `persist_trial_outcome` hook. v19.2.9–v19.3 added real-distance spatial audio (GlobalTransform queries in council_ui.rs play_spatial_sound), bevy_kira_audio, custom mercy falloff curves, Doppler scaffolding, Hanabi particle bursts driven by valence/resonance, and celebration effects on high-valence CouncilResolved events. Ready for Steam achievements, Rich Presence, and Cloud sync of council bloom + spatial audio moments.
 - **RBE / Orchestrator Wiring**: simulation/src/orchestrator.rs now pulls real attunement data from CouncilSessionManager into EconomicLayer on every tick. server/src/rbe_integration.rs provides strong event-driven CouncilTrialResolved → abundance distribution, faction simulation, and persistence. All prior v1.0/v1.1 content preserved and elevated.
 - **Multilingual Divine Whispers + Epiphany Catalyst**: Complete async client wiring + Quantum Swarm v2 + 11+ language support. Ready for Rich Presence and achievement triggers on Divine Whisper receipt / epiphany bloom. AUDIO_MASTERING.md extended with Section 9 for council spatial event sounds.
-- **Persistence Layer**: `PlayerSaveData` + `BatchPersistenceQueue` + `record_enriched_epiphany` / `record_council_trial_outcome` paths aligned with Steam Cloud for cross-device abundance progress, council history, and spatial audio state.
-- All prior v1.0 and v1.1 content preserved. This v1.2 brings the guide current with live v19.3 council audio, real-distance falloff, Hanabi VFX, and RBE/orchestrator integrations for fastest Steam launch readiness.
+- **Persistence Layer**: `PlayerSaveData` + `BatchPersistenceQueue` + `record_enriched_epiphany` / `record_council_trial_outcome` + lightweight harvest epiphany record hooks aligned with Steam Cloud for cross-device abundance progress, council history, spatial audio state, and harvest sustainability moments.
+- **Harvest / Resource Nodes + Multisensory Feedback**: game/resource_nodes.rs (ULTIMATE RESTORATION MERGE) + server/src/harvesting_system.rs with live epiphany triggering, anomaly protection, and persistence hooks. Client multisensory (divine_whispers.rs, dynamic_events_ui.rs, rbe_ui_feedback.rs) now includes concrete valence halo ParticleSystem spawns for Mercy Restoration / forgiveness_wave events. All prior logic preserved.
+- All prior v1.0 and v1.1 content preserved. This v1.3 brings the guide current with live v19.3 council audio, real-distance falloff, Hanabi VFX, RBE/orchestrator integrations, harvest epiphany persistence, and multisensory valence feedback for fastest Steam launch readiness.
 
 ---
 
@@ -67,7 +68,7 @@ All achievement descriptions must include a short lore line that teaches RBE wis
 - Enable Steam Cloud for player inventory, abundance progress, faction standing, council bloom history, spatial audio state, and selected world-state snapshots.
 - Server-side authoritative state remains on the sovereign server (Postgres). Cloud saves are for client-side convenience and cross-device play.
 - Clear documentation for players: “Your core progress lives on the sovereign server you choose. Steam Cloud helps you continue seamlessly across devices.”
-- Recent persistence hooks (record_enriched_epiphany, record_council_trial_outcome, BatchPersistenceQueue) make Cloud sync of council participation, epiphany notes, and spatial audio moments straightforward.
+- Recent persistence hooks (record_enriched_epiphany, record_council_trial_outcome, harvest epiphany record, BatchPersistenceQueue) make Cloud sync of council participation, epiphany notes, harvest sustainability, and spatial audio moments straightforward.
 
 ---
 
@@ -121,6 +122,7 @@ In this sovereign RBE Metaverse you will:
 - Receive proactive guidance from the PATSAGi Councils and Ra-Thor Divine Whispers (now multilingual)
 - Rise through Abundance tiers from Seedling Harvester to Eternal Flow Guardian
 - Participate in full multiplayer Council Mercy Trials with lasting bloom impact on abundance and RBE standing, enhanced by spatial audio and Hanabi valence bursts
+- Experience multisensory harvest epiphany feedback (valence halos, mercy restoration blooms) aligned with sustainability and council outcomes
 
 Every mechanic is deliberately designed to transfer real-world wisdom for global Resource-Based Economy while offering maximal player freedom — including X/Twitter-like open speech and jurisdiction-specific rules on unique servers.
 
@@ -198,4 +200,4 @@ Co-authored-by: Sherif / Autonomicity Games Inc.
 
 ---
 
-**End of STEAM_INTEGRATION.md v1.2**
+**End of STEAM_INTEGRATION.md v1.3**
