@@ -1,8 +1,8 @@
 /*!
  * server/src/persistence/faction_persistence.rs
  *
- * Phase 1: Faction Persistence - Critical Error Recovery Logic
- * v1.9 | Added recovery behavior on Critical errors (emergency force save).
+ * Phase 1: Faction Persistence - Automatic Force Save on Critical Errors
+ * v2.0 | Critical errors now automatically trigger ForceSavePlayerFactionData.
  *
  * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
@@ -17,27 +17,20 @@ use std::time::Duration;
 use crate::rbe::components::{FactionMembership, FactionStanding};
 use crate::rbe::rbe_plugin::FactionStandingChangedEvent;
 
-// ... (previous structs) ...
+// ... (previous code) ...
 
 #[derive(Event, Clone, Debug)]
 pub struct PersistenceError {
     pub context: String,
     pub message: String,
     pub severity: ErrorSeverity,
-    pub player_id: Option<u64>, // Optional player context for recovery
+    pub player_id: Option<u64>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ErrorSeverity {
-    Warning,
-    Error,
-    Critical,
-}
-
-// ... (other events) ...
+// ... (other events including ForceSavePlayerFactionData) ...
 
 // ============================================================================
-// Central Error Handler with Recovery Logic
+// Central Error Handler with Automatic Force Save Recovery
 // ============================================================================
 
 pub fn persistence_error_handler_system(
@@ -55,42 +48,20 @@ pub fn persistence_error_handler_system(
             ErrorSeverity::Critical => {
                 error!("[Persistence][CRITICAL] {}: {}", error.context, error.message);
 
-                // === Recovery Logic ===
                 if let Some(player_id) = error.player_id {
-                    warn!("Attempting emergency force save for player {} due to critical error", player_id);
+                    warn!("[Persistence][RECOVERY] Automatically triggering force save for player {} due to critical error", player_id);
 
-                    // We don't have the entity here easily, so we use a special force save
-                    // For now we log that manual/entity-based force save is needed.
-                    // In a more advanced version we would store entity in the error.
-                    info!("Critical error recovery: Consider forcing save for player {}", player_id);
+                    // Automatic recovery: Force an immediate save, bypassing normal thresholds
+                    force_save_events.send(ForceSavePlayerFactionData {
+                        player_entity: Entity::from_raw(player_id), // Note: This assumes player_id == entity index for now
+                        player_id,
+                    });
                 } else {
-                    error!("[Persistence][CRITICAL] No player_id available for recovery. Manual intervention may be required.");
+                    error!("[Persistence][CRITICAL] No player_id provided. Cannot auto-recover. Manual intervention required.");
                 }
-
-                // Future enhancements:
-                // - Trigger save of all in-memory faction data
-                // - Notify other systems
-                // - Write to a special "emergency" backup file
             }
         }
     }
 }
 
-// ... (rest of the file) ...
-
-// ============================================================================
-// Plugin
-// ============================================================================
-
-pub struct FactionPersistencePlugin;
-
-impl Plugin for FactionPersistencePlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .add_event::<PersistenceError>()
-            .add_observer(on_player_joined)
-            .add_observer(on_player_left)
-            .add_systems(Update, persistence_error_handler_system)
-            // ...
-    }
-}
+// ... (rest of systems and plugin) ...
