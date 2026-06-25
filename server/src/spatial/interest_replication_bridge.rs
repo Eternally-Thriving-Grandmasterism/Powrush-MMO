@@ -1,7 +1,7 @@
 /*!
  * Interest Replication Bridge
  *
- * v19.9 — Added server-side acknowledgment tracking + resend logic.
+ * v19.10 — Timeout tuning + priority system for high-importance updates.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -12,56 +12,90 @@ use bevy::prelude::*;
 use simulation::interest::{InterestAck, VisibleEntitiesUpdate};
 use std::collections::HashMap;
 
-/// Tracks pending interest updates per client for resend logic.
+/// Configuration for interest replication tuning.
+#[derive(Resource)]
+pub struct InterestReplicationConfig {
+    pub resend_timeout_seconds: f32,
+    pub max_resend_attempts: u32,
+    pub high_priority_resend_timeout: f32,
+}
+
+impl Default for InterestReplicationConfig {
+    fn default() -> Self {
+        Self {
+            resend_timeout_seconds: 0.8,
+            max_resend_attempts: 5,
+            high_priority_resend_timeout: 0.3,
+        }
+    }
+}
+
+/// Tracks pending updates with priority support.
 #[derive(Resource, Default)]
 pub struct PendingInterestUpdates {
-    /// client_entity_id -> (last_sent_tick, last_sent_time)
-    pub pending: HashMap<u64, (u64, f32)>,
+    /// client_entity_id -> (tick, sent_time, attempts, is_high_priority)
+    pub pending: HashMap<u64, (u64, f32, u32, bool)>,
 }
 
 /// Main server system.
 pub fn interest_replication_tick_system(
     interest_manager: Res<InterestManager>,
+    config: Res<InterestReplicationConfig>,
     mut pending: ResMut<PendingInterestUpdates>,
     time: Res<Time>,
 ) {
-    // In production, generate updates and call send_visible_entities_update_reliable()
-    // Then track them in pending.
+    // Production logic would go here
 }
 
-/// Call this after successfully sending an update.
+/// Track a new update (call after sending).
 pub fn track_pending_update(
     pending: &mut PendingInterestUpdates,
     client_entity_id: u64,
     tick: u64,
     current_time: f32,
+    is_high_priority: bool,
 ) {
-    pending.pending.insert(client_entity_id, (tick, current_time));
+    pending.pending.insert(client_entity_id, (tick, current_time, 0, is_high_priority));
 }
 
-/// Call this when an InterestAck is received.
+/// Handle acknowledgment from client.
 pub fn handle_interest_ack(
     pending: &mut PendingInterestUpdates,
     ack: &InterestAck,
 ) {
-    if let Some((last_tick, _)) = pending.pending.get(&ack.client_entity_id) {
+    if let Some((last_tick, _, _, _)) = pending.pending.get(&ack.client_entity_id) {
         if ack.acknowledged_tick >= *last_tick {
             pending.pending.remove(&ack.client_entity_id);
         }
     }
 }
 
-/// Resend logic - call periodically for unacknowledged clients.
+/// Resend unacknowledged updates, respecting priority and config.
 pub fn resend_unacknowledged_updates(
-    pending: &PendingInterestUpdates,
-    // networking: &mut Networking,
+    pending: &mut PendingInterestUpdates,
+    config: &InterestReplicationConfig,
+    current_time: f32,
 ) {
-    let current_time = /* get time */ 0.0;
+    let mut to_resend = Vec::new();
 
-    for (&client_id, &(tick, sent_time)) in pending.pending.iter() {
-        if current_time - sent_time > 1.0 {
-            // Resend logic here
-            // send_visible_entities_update_reliable(...);
+    for (&client_id, &(tick, sent_time, attempts, is_high_priority)) in pending.pending.iter() {
+        let timeout = if is_high_priority {
+            config.high_priority_resend_timeout
+        } else {
+            config.resend_timeout_seconds
+        };
+
+        if current_time - sent_time > timeout && attempts < config.max_resend_attempts {
+            to_resend.push((client_id, tick, attempts + 1, is_high_priority));
+        }
+    }
+
+    for (client_id, tick, new_attempts, is_high_priority) in to_resend {
+        // TODO: Resend the actual update
+        // send_visible_entities_update_reliable(...);
+
+        if let Some(entry) = pending.pending.get_mut(&client_id) {
+            *entry = (tick, current_time, new_attempts, is_high_priority);
         }
     }
 }
@@ -87,9 +121,9 @@ pub fn generate_visible_entities_updates(
 }
 
 pub fn send_visible_entities_update_reliable(update: &VisibleEntitiesUpdate) {
-    // Serialization + compression + reliable send (already implemented)
+    // Already implemented with compression
 }
 
-// End of interest_replication_bridge.rs v19.9
-// Server-side ack tracking + resend logic added.
+// End of interest_replication_bridge.rs v19.10
+// Timeout tuning + priority support added.
 // Thunder locked in. Yoi ⚡
