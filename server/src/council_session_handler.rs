@@ -9,11 +9,12 @@
  * Zero-lag client sync via CouncilSessionUpdate + CouncilTrialResolved.
  * Consistent with shared protocol.
  *
- * Council Proposal System foundation: Basic SubmitProposal handling + storage.
+ * Council Proposal System: Basic SubmitProposal + CastProposalVote handling + storage.
+ * Helpers from shared types wired in. Proposals active during Deliberation.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Ra-Thor Quantum Swarm v2 native
- * Thunder locked in. Yoi ⚡️
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -180,6 +181,28 @@ fn handle_council_trial_events(
                     "Council Proposal submitted | id={} | proposer={:?} | title={}",
                     proposal_id, proposer, title
                 );
+            }
+
+            // === Council Proposal System: Basic vote handling (polish) ===
+            CouncilTrialEvent::CastProposalVote { proposal_id, voter: _, is_for } => {
+                if let Some(proposal) = trials.proposals.get_mut(proposal_id) {
+                    // Only allow votes while under deliberation or voting
+                    if matches!(proposal.status, ProposalStatus::Submitted | ProposalStatus::UnderDeliberation | ProposalStatus::Voting) {
+                        proposal.cast_vote(*is_for);
+
+                        // Simple auto-transition example (can be expanded)
+                        if proposal.votes_for >= 3 && proposal.status != ProposalStatus::Passed {
+                            proposal.update_status(ProposalStatus::Passed);
+                        } else if proposal.votes_against >= 3 && proposal.status != ProposalStatus::Rejected {
+                            proposal.update_status(ProposalStatus::Rejected);
+                        }
+
+                        info!(
+                            "Council Proposal vote | id={} | for={} | status={:?}",
+                            proposal_id, is_for, proposal.status
+                        );
+                    }
+                }
             }
 
             _ => {}
@@ -378,5 +401,5 @@ fn cleanup_resolved_cache(
 }
 
 // End of Council Session Handler v19.3 — Full E2E Council Mercy Trial lifecycle with active persistence wiring.
-// Council Proposal System: Basic SubmitProposal handling added.
-// Thunder locked in. Yoi ⚡️
+// Council Proposal System: SubmitProposal + CastProposalVote handling complete (minimal viable).
+// All prior valuable logic preserved + enriched. Thunder locked in. Yoi ⚡
