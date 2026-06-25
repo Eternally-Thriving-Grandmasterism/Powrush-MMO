@@ -1,7 +1,7 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.10 — Refined network receive with better error handling + decompression hook.
+ * v19.11 — Real decompression + networking integration notes.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -58,17 +58,18 @@ impl Default for HighSalienceAudio {
     }
 }
 
-/// Refined network receive with error handling + decompression hook.
+/// Production receive function with real decompression.
 pub fn receive_visible_entities_update(
     data: &[u8],
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
 ) {
-    // Optional decompression hook (uncomment when compression is enabled on server)
-    // let decompressed = zstd::decode_all(data).unwrap_or_else(|_| data.to_vec());
-    // let payload = decompressed;
-    let payload = data;
+    // Decompress (zstd)
+    let decompressed = match zstd::decode_all(data) {
+        Ok(data) => data,
+        Err(_) => data.to_vec(), // fallback if not compressed
+    };
 
-    match bincode::deserialize::<VisibleEntitiesUpdate>(payload) {
+    match bincode::deserialize::<VisibleEntitiesUpdate>(&decompressed) {
         Ok(update) => {
             interest_update_events.send(InterestUpdateEvent {
                 visible_entities: update.visible_entity_ids,
@@ -76,7 +77,7 @@ pub fn receive_visible_entities_update(
             });
         }
         Err(e) => {
-            error!("[InterestReplication] Failed to deserialize VisibleEntitiesUpdate: {}", e);
+            error!("[InterestReplication] Deserialize failed: {}", e);
         }
     }
 }
@@ -93,6 +94,6 @@ pub fn receive_interest_update(
     }
 }
 
-// End of simulation_integration.rs v19.10
-// Refined receive with error handling + decompression hook.
+// End of simulation_integration.rs v19.11
+// Real decompression enabled.
 // Thunder locked in. Yoi ⚡
