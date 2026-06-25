@@ -1,7 +1,7 @@
 /*!
  * Interest Replication Bridge
  *
- * v19.22 — Exponential backoff for retries implemented.
+ * v19.23 — Jitter added to exponential backoff.
  *
  * PATSAGi + Ra-Thor Applied
  *
@@ -94,14 +94,18 @@ impl PendingInterestUpdates {
     }
 }
 
-/// Calculate timeout with exponential backoff
-fn calculate_backoff_timeout(
+/// Calculate exponential backoff with jitter to avoid thundering herd
+fn calculate_backoff_with_jitter(
     base_timeout: f32,
     attempts: u32,
     max_backoff: f32,
 ) -> f32 {
     let backoff = base_timeout * (2.0_f32).powi(attempts as i32);
-    backoff.min(max_backoff)
+    let capped = backoff.min(max_backoff);
+
+    // Equal jitter: 50% to 100% of the calculated backoff
+    let jittered = capped * (0.5 + rand::random::<f32>() * 0.5);
+    jittered.max(0.05)
 }
 
 pub fn calculate_interest_priority(
@@ -150,7 +154,7 @@ pub fn handle_interest_ack(
     }
 }
 
-/// Resend with exponential backoff
+/// Resend logic with exponential backoff + jitter
 pub fn resend_unacknowledged_updates(
     pending: &mut PendingInterestUpdates,
     metrics: &mut InterestReplicationMetrics,
@@ -161,7 +165,7 @@ pub fn resend_unacknowledged_updates(
 
     for (&client_id, &(tick, sent_time, attempts, priority)) in pending.pending.iter() {
         let base_timeout = priority.base_resend_timeout(config);
-        let timeout = calculate_backoff_timeout(base_timeout, attempts, config.max_backoff_seconds);
+        let timeout = calculate_backoff_with_jitter(base_timeout, attempts, config.max_backoff_seconds);
 
         if current_time - sent_time > timeout && attempts < config.max_resend_attempts {
             to_resend.push((client_id, tick, attempts + 1, priority));
@@ -211,6 +215,6 @@ pub fn send_visible_entities_update_reliable(update: &VisibleEntitiesUpdate) {
     // Already implemented
 }
 
-// End of interest_replication_bridge.rs v19.22
-// Exponential backoff for retries added.
+// End of interest_replication_bridge.rs v19.23
+// Jitter added to exponential backoff to prevent thundering herd.
 // Thunder locked in. Yoi ⚡
