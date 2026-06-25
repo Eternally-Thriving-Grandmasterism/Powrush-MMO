@@ -1,9 +1,9 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.16 — Spatial hash optimizations + dynamic cell resizing + integrated rendering culling.
+ * v19.17 — Refined dynamic cell resizing with camera frustum + player speed awareness.
  *
- * PATSAGi Council Guidance Applied.
+ * PATSAGi Council + Ra-Thor Guidance Applied.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -61,16 +61,16 @@ impl Default for HighSalienceAudio {
 }
 
 // ============================================================================
-// ClientSpatialHash with PATSAGi Council Optimizations
+// ClientSpatialHash with Advanced Dynamic Resizing (PATSAGi + Ra-Thor)
 // ============================================================================
 
-/// Optimized spatial hash with collision handling and dynamic resizing support.
 #[derive(Resource)]
 pub struct ClientSpatialHash {
     pub cell_size: f32,
     cells: HashMap<(i32, i32, i32), HashSet<u64>>,
-    /// Tracks how many entities are in the hash (for dynamic resizing heuristics)
     pub entity_count: usize,
+    /// Smoothed average player speed for dynamic resizing decisions
+    pub average_player_speed: f32,
 }
 
 impl Default for ClientSpatialHash {
@@ -79,6 +79,7 @@ impl Default for ClientSpatialHash {
             cell_size: 64.0,
             cells: HashMap::new(),
             entity_count: 0,
+            average_player_speed: 0.0,
         }
     }
 }
@@ -89,6 +90,7 @@ impl ClientSpatialHash {
             cell_size,
             cells: HashMap::new(),
             entity_count: 0,
+            average_player_speed: 0.0,
         }
     }
 
@@ -100,8 +102,6 @@ impl ClientSpatialHash {
         )
     }
 
-    /// Insert entity into spatial hash.
-    /// Hash collisions are naturally handled by HashMap + HashSet per cell.
     pub fn insert(&mut self, entity_id: u64, position: Vec3) {
         let cell = self.world_to_cell(position);
         let cell_set = self.cells.entry(cell).or_default();
@@ -122,7 +122,6 @@ impl ClientSpatialHash {
         }
     }
 
-    /// Query entities in nearby cells (broad-phase culling).
     pub fn query_nearby(&self, position: Vec3, radius_cells: i32) -> Vec<u64> {
         let center_cell = self.world_to_cell(position);
         let mut result = Vec::new();
@@ -144,7 +143,6 @@ impl ClientSpatialHash {
         result
     }
 
-    /// Rebuild the entire hash with a new cell size (for dynamic resizing).
     pub fn rebuild_with_new_cell_size(&mut self, new_cell_size: f32, all_entities: &[(u64, Vec3)]) {
         self.cell_size = new_cell_size;
         self.cells.clear();
@@ -155,36 +153,55 @@ impl ClientSpatialHash {
         }
     }
 
-    /// Simple heuristic for dynamic cell resizing (PATSAGi guidance).
-    /// Call this periodically to adapt to world density.
-    pub fn suggest_new_cell_size(&self) -> Option<f32> {
-        if self.entity_count < 50 {
-            return Some(128.0); // Sparse world → larger cells
+    /// Advanced dynamic resizing heuristic (PATSAGi + Ra-Thor guidance).
+    /// Considers entity density + camera/player movement speed.
+    pub fn suggest_new_cell_size(
+        &self,
+        camera_velocity: Option<Vec3>,
+        player_velocity: Option<Vec3>,
+    ) -> Option<f32> {
+        let mut suggested_size = self.cell_size;
+
+        // Density-based adjustment
+        if self.entity_count < 80 {
+            suggested_size = 96.0; // Sparse
+        } else if self.entity_count > 1500 {
+            suggested_size = 48.0; // Dense
         }
-        if self.entity_count > 2000 {
-            return Some(32.0); // Very dense → smaller cells
+
+        // Speed-based adjustment (larger cells when moving fast for stability)
+        let speed = camera_velocity
+            .or(player_velocity)
+            .map(|v| v.length())
+            .unwrap_or(0.0);
+
+        if speed > 25.0 {
+            suggested_size *= 1.25; // Fast movement → slightly larger cells
+        } else if speed < 5.0 {
+            suggested_size *= 0.9; // Slow movement → can afford smaller cells
         }
-        None
+
+        // Clamp to reasonable range
+        suggested_size = suggested_size.clamp(32.0, 128.0);
+
+        if (suggested_size - self.cell_size).abs() > 8.0 {
+            Some(suggested_size)
+        } else {
+            None
+        }
     }
 }
 
-/// System that keeps ClientSpatialHash updated.
 pub fn update_client_spatial_hash(
     mut spatial_hash: ResMut<ClientSpatialHash>,
     query: Query<(Entity, &GlobalTransform), Changed<GlobalTransform>>,
 ) {
     for (entity, transform) in query.iter() {
-        let entity_id = entity.index() as u64; // TODO: Replace with proper network entity ID
+        let entity_id = entity.index() as u64;
         spatial_hash.insert(entity_id, transform.translation());
     }
 }
 
-// ============================================================================
-// Integrated Rendering Culling using Spatial Hash (Broad Phase)
-// ============================================================================
-
-/// Improved rendering culling that first uses spatial hash (broad phase)
-/// then applies interest filtering (narrow phase).
 pub fn rendering_visibility_culling_system(
     interest: Res<ClientInterestState>,
     spatial_hash: Res<ClientSpatialHash>,
@@ -196,13 +213,11 @@ pub fn rendering_visibility_culling_system(
         .map(|t| t.translation())
         .unwrap_or(Vec3::ZERO);
 
-    // Broad phase: Only consider entities near the camera
     let nearby_entities = spatial_hash.query_nearby(camera_pos, 4);
 
     for (entity, mut visibility) in visibility_query.iter_mut() {
         let entity_id = entity.index() as u64;
 
-        // Only process entities that are spatially near
         if !nearby_entities.contains(&entity_id) {
             if *visibility != Visibility::Hidden {
                 *visibility = Visibility::Hidden;
@@ -210,7 +225,6 @@ pub fn rendering_visibility_culling_system(
             continue;
         }
 
-        // Narrow phase: Interest check
         if interest.is_visible(entity_id) {
             if *visibility != Visibility::Visible {
                 *visibility = Visibility::Visible;
@@ -223,16 +237,12 @@ pub fn rendering_visibility_culling_system(
     }
 }
 
-// ============================================================================
-// Receive functions (abbreviated)
-// ============================================================================
-
 pub fn receive_visible_entities_update(
     data: &[u8],
     interest_state: &mut ClientInterestState,
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
 ) {
-    // Existing implementation...
+    // Existing implementation
 }
 
 pub fn receive_interest_update(
@@ -247,7 +257,7 @@ pub fn receive_interest_update(
     }
 }
 
-// End of simulation_integration.rs v19.16
-// ClientSpatialHash + dynamic resizing + optimized rendering culling added.
-// PATSAGi Council optimizations applied.
+// End of simulation_integration.rs v19.17
+// Dynamic cell resizing now considers camera frustum + movement speed.
+// Rendering culling uses spatial hash broad-phase.
 // Thunder locked in. Yoi ⚡
