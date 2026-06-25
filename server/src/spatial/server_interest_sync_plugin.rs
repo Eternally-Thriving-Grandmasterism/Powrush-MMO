@@ -3,10 +3,7 @@
  *
  * Central plugin for server-side interest synchronization in Powrush-MMO.
  *
- * v19.7 | Wired RbeInventoryUpdatedEvent into replication snapshot generation
- *
- * - RBE distribution now triggers immediate High-priority VisibleEntitiesUpdate + pending tracking
- * - Ensures inventory changes are part of the next replication snapshot for affected players
+ * v19.8 | Removed server tick placeholder - now uses proper ServerTick resource
  *
  * PATSAGi + Ra-Thor
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -31,6 +28,9 @@ use crate::spatial::interest_replication_bridge::{
 };
 use simulation::interest::{InterestAck, VisibleEntitiesUpdate};
 
+#[derive(Resource, Default)]
+pub struct ServerTick(pub u64);
+
 #[derive(Event, Clone, Debug)]
 pub struct ClientDisconnected {
     pub client_entity_id: u64,
@@ -49,12 +49,14 @@ impl Plugin for ServerInterestSyncPlugin {
             .init_resource::<InterestReplicationConfig>()
             .init_resource::<PendingInterestUpdates>()
             .init_resource::<InterestReplicationMetrics>()
+            .init_resource::<ServerTick>()
 
             .add_event::<InterestAck>()
             .add_event::<ClientDisconnected>()
             .add_event::<ClientReconnected>()
             .add_event::<RbeInventoryUpdatedEvent>()
 
+            .add_systems(Update, increment_server_tick)
             .add_systems(Update, interest_replication_tick_system)
             .add_systems(Update, resend_unacknowledged_updates)
             .add_systems(Update, log_interest_replication_metrics)
@@ -64,6 +66,10 @@ impl Plugin for ServerInterestSyncPlugin {
             .add_systems(Update, handle_client_reconnect_system)
             .add_systems(Update, handle_rbe_inventory_update_system)
     }
+}
+
+fn increment_server_tick(mut tick: ResMut<ServerTick>) {
+    tick.0 = tick.0.wrapping_add(1);
 }
 
 fn handle_interest_ack_system(
@@ -97,6 +103,7 @@ fn handle_client_reconnect_system(
     interest_manager: Res<InterestManager>,
     mut pending: ResMut<PendingInterestUpdates>,
     mut metrics: ResMut<InterestReplicationMetrics>,
+    server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) {
     for reconnect in reconnects.read() {
@@ -105,12 +112,12 @@ fn handle_client_reconnect_system(
         let visible_entities = interest_manager.get_visible_entities(client_entity_id);
 
         let current_time = time.elapsed_seconds();
-        let server_tick = 0; // TODO: real server tick
+        let tick = server_tick.0;
 
         let update = VisibleEntitiesUpdate {
             client_entity_id,
             visible_entity_ids: visible_entities.clone(),
-            server_tick,
+            server_tick: tick,
         };
 
         send_visible_entities_update_reliable(&update);
@@ -119,7 +126,7 @@ fn handle_client_reconnect_system(
             &mut pending,
             &mut metrics,
             client_entity_id,
-            server_tick,
+            tick,
             current_time,
             InterestPriority::High,
         );
@@ -131,40 +138,35 @@ fn handle_client_reconnect_system(
     }
 }
 
-/// Wires RbeInventoryUpdatedEvent into snapshot generation:
-/// 1. Tracks pending with High priority
-/// 2. Immediately sends a VisibleEntitiesUpdate snapshot for the affected player
-/// This ensures RBE inventory changes are included in the next replication cycle.
+/// Wires RbeInventoryUpdatedEvent into snapshot generation.
 fn handle_rbe_inventory_update_system(
     mut rbe_updates: EventReader<RbeInventoryUpdatedEvent>,
     interest_manager: Res<InterestManager>,
     mut pending: ResMut<PendingInterestUpdates>,
     mut metrics: ResMut<InterestReplicationMetrics>,
+    server_tick: Res<ServerTick>,
     time: Res<Time>,
 ) {
     for update in rbe_updates.read() {
         let player_id = update.player_entity_id;
         let current_time = time.elapsed_seconds();
-        let server_tick = 0; // TODO: real server tick
+        let tick = server_tick.0;
 
-        // Get current visible set for this player (or self if none)
         let visible_entities = interest_manager.get_visible_entities(player_id);
 
         let snapshot = VisibleEntitiesUpdate {
             client_entity_id: player_id,
             visible_entity_ids: visible_entities,
-            server_tick,
+            server_tick: tick,
         };
 
-        // Send snapshot immediately (wires RBE change into replication snapshot path)
         send_visible_entities_update_reliable(&snapshot);
 
-        // Also mark pending High so resend/backoff logic covers it
         track_pending_update(
             &mut pending,
             &mut metrics,
             player_id,
-            server_tick,
+            tick,
             current_time,
             InterestPriority::High,
         );
@@ -178,6 +180,6 @@ fn handle_rbe_inventory_update_system(
     }
 }
 
-// End of server_interest_sync_plugin.rs v19.7
-// RbeInventoryUpdatedEvent now directly triggers VisibleEntitiesUpdate snapshot generation.
+// End of server_interest_sync_plugin.rs v19.8
+// ServerTick resource + increment system added. All TODO placeholders for server_tick removed.
 // Thunder locked in. Yoi ⚡
