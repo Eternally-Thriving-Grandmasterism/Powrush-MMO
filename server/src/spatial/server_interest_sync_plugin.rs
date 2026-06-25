@@ -1,7 +1,7 @@
 /*!
  * Server Interest Sync Plugin
  *
- * v19.3 — Client reconnection logic implemented.
+ * v19.4 — Priority boost on client reconnect.
  *
  * PATSAGi + Ra-Thor Applied
  *
@@ -18,26 +18,24 @@ use crate::spatial::interest_replication_bridge::{
     log_interest_replication_metrics,
     resend_unacknowledged_updates,
     send_visible_entities_update_reliable,
+    track_pending_update,
+    InterestPriority,
     InterestReplicationConfig,
     InterestReplicationMetrics,
     PendingInterestUpdates,
 };
 use simulation::interest::{InterestAck, VisibleEntitiesUpdate};
 
-/// Sent when a client disconnects.
 #[derive(Event, Clone, Debug)]
 pub struct ClientDisconnected {
     pub client_entity_id: u64,
 }
 
-/// Sent when a previously disconnected client reconnects.
-/// The networking layer should emit this event upon successful reconnection.
 #[derive(Event, Clone, Debug)]
 pub struct ClientReconnected {
     pub client_entity_id: u64,
 }
 
-/// Plugin that manages server-side interest synchronization.
 pub struct ServerInterestSyncPlugin;
 
 impl Plugin for ServerInterestSyncPlugin {
@@ -87,35 +85,48 @@ fn handle_client_disconnect_system(
     }
 }
 
-/// Handles client reconnection by sending a fresh visibility snapshot.
+/// On reconnect, send a fresh snapshot with **High priority** boost.
 fn handle_client_reconnect_system(
     mut reconnects: EventReader<ClientReconnected>,
     interest_manager: Res<InterestManager>,
+    mut pending: ResMut<PendingInterestUpdates>,
     mut metrics: ResMut<InterestReplicationMetrics>,
+    time: Res<Time>,
 ) {
     for reconnect in reconnects.read() {
         let client_entity_id = reconnect.client_entity_id;
 
-        // Get current visible entities for this client
         let visible_entities = interest_manager.get_visible_entities(client_entity_id);
+
+        let current_time = time.elapsed_seconds();
+        let server_tick = 0; // TODO: Use real server tick
 
         let update = VisibleEntitiesUpdate {
             client_entity_id,
-            visible_entity_ids: visible_entities,
-            server_tick: 0, // TODO: Use actual current server tick
+            visible_entity_ids: visible_entities.clone(),
+            server_tick,
         };
 
-        // Send immediately with high reliability (fresh snapshot on reconnect)
+        // Send reliably
         send_visible_entities_update_reliable(&update);
-        metrics.record_update_sent();
+
+        // Track with **High** priority boost for faster resends if needed
+        track_pending_update(
+            &mut pending,
+            &mut metrics,
+            client_entity_id,
+            server_tick,
+            current_time,
+            InterestPriority::High,
+        );
 
         info!(
-            "[InterestSync] Sent fresh visibility snapshot to reconnected client {}",
+            "[InterestSync] Sent high-priority fresh snapshot to reconnected client {}",
             client_entity_id
         );
     }
 }
 
-// End of server_interest_sync_plugin.rs v19.3
-// Client reconnection logic implemented (fresh snapshot on reconnect).
+// End of server_interest_sync_plugin.rs v19.4
+// Reconnect now uses High priority for faster recovery.
 // Thunder locked in. Yoi ⚡
