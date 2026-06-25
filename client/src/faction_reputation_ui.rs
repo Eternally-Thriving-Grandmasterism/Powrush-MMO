@@ -1,32 +1,19 @@
 /*!
  * Faction Reputation Visual UI
  *
- * v1.1 | Wired to read from replicated FactionStanding + FactionMembership components.
- * Falls back to local UIState for dev/testing.
+ * v1.2 | Refactored to use shared faction components from crate::faction.
+ * No more duplicate definitions.
  *
- * Once FactionStanding is replicated from server, this UI will automatically show real data.
- *
- * AG-SML v1.0 | TOLC 8 + PATSAGi Council approved
+ * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
-/// Lightweight client-side copies of the server components for querying replicated data.
-#[derive(Component, Clone, Debug)]
-pub struct FactionMembership {
-    pub faction_id: u64,
-}
-
-#[derive(Component, Clone, Debug)]
-pub struct FactionStanding {
-    pub faction_id: u64,
-    pub standing: f32,
-}
+use crate::faction::{FactionMembership, FactionStanding};
 
 /// Resource holding the local player's faction reputation data.
-/// Populated either from replicated components or manually for testing.
 #[derive(Resource, Default, Clone)]
 pub struct FactionReputationUIState {
     pub factions: Vec<FactionReputationEntry>,
@@ -53,8 +40,7 @@ impl Plugin for FactionReputationUIPlugin {
     }
 }
 
-/// Syncs replicated FactionStanding + FactionMembership components into the UI state.
-/// This is the wiring point between server replication and visual UI.
+/// Syncs replicated FactionStanding + FactionMembership into UI state.
 fn sync_replicated_faction_standing(
     mut ui_state: ResMut<FactionReputationUIState>,
     faction_query: Query<(&FactionMembership, &FactionStanding)>,
@@ -62,8 +48,6 @@ fn sync_replicated_faction_standing(
     let mut new_entries = Vec::new();
 
     for (membership, standing) in faction_query.iter() {
-        // In a full implementation we would have faction names from a registry.
-        // For now we use a simple mapping or placeholder.
         let name = match membership.faction_id {
             1 => "The Radiant Accord".to_string(),
             2 => "The Silent Veil".to_string(),
@@ -107,10 +91,6 @@ fn faction_reputation_window(
                 ui.label("You have not yet aligned with any factions.");
                 ui.label("Participate in ToFaction distributions to begin building reputation.");
                 ui.add_space(8.0);
-
-                if ui.button("Initialize Sample Factions (Dev)").clicked() {
-                    // This is only for dev/testing until real replication is wired
-                }
             } else {
                 for entry in &ui_state.factions {
                     ui.group(|ui| {
