@@ -3,6 +3,7 @@
  *
  * v19.21: Added minimal Agent + SovereignWorldState core (for synergy event activation)
  * Preserved full VFX recovery (ParticleVisualAssets, Hanabi, sacred geometry).
+ * Production ResourceNode struct added (replaces placeholder).
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
@@ -84,6 +85,23 @@ impl Agent {
     }
 }
 
+/// Resource node for harvest and RBE economy.
+/// Production struct (replaces previous placeholder).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ResourceNode {
+    pub id: u64,
+    pub position: (f32, f32, f32),
+    pub resource_type: String,
+    pub base_yield: f32,
+    pub current_yield: f32,
+    pub depletion: f32,
+    pub regeneration_rate: f32,
+    pub last_harvested_ms: u64,
+    pub sustainability_score: f32,
+    pub stress_level: f32,
+    pub harvest_restricted_until_ms: u64,
+}
+
 /// Central simulation world state.
 /// Now includes agents collection to activate synergy event logic.
 #[derive(Resource, Default)]
@@ -99,9 +117,7 @@ pub struct SovereignWorldState {
     // Additional fields can be expanded as needed
 }
 
-// Placeholder types referenced by other modules (to be expanded)
 pub type NodeId = u64;
-pub type ResourceNode = (); // TODO: replace with real ResourceNode struct
 pub type Vec3 = bevy::math::Vec3;
 pub type ArchetypeId = u64;
 
@@ -291,4 +307,5 @@ pub fn setup_policy_particle_effects(
 
 // End of simulation/src/world.rs v19.21
 // Agent model + SovereignWorldState added. Synergy event logic now unblocked.
+// ResourceNode struct production-ready (replaced placeholder).
 // Thunder locked in. Yoi ⚡
