@@ -33,20 +33,20 @@ impl Default for HighSalienceAudio {
 }
 
 /// Events that can trigger spatial audio playback
+/// Variants match what divine_whispers.rs and other systems already send.
 #[derive(Event, Clone, Debug)]
 pub enum GameAudioEvent {
     Epiphany {
         position: Vec3,
         intensity: f32,
     },
-    CouncilResolution {
-        position: Vec3,
-        intensity: f32,
-    },
     Harvest {
         position: Vec3,
+        is_sustainable: bool,
+    },
+    CouncilTrial {
+        position: Vec3,
         intensity: f32,
-        sustainable: bool,
     },
     RbeNode {
         position: Vec3,
@@ -97,12 +97,10 @@ fn handle_game_audio_events(
                     });
                 }
 
-                // In full implementation: play through HRTF or AmbisonicScene
-                // For now we just ensure the entity carries the right metadata
                 entity.insert(Name::new("SpatialAudio_Epiphany"));
             }
 
-            GameAudioEvent::CouncilResolution { position, intensity } => {
+            GameAudioEvent::CouncilTrial { position, intensity } => {
                 let is_high_salience = *intensity > 0.7;
 
                 let mut entity = commands.spawn_empty();
@@ -112,9 +110,8 @@ fn handle_game_audio_events(
                 entity.insert(Name::new("SpatialAudio_Council"));
             }
 
-            GameAudioEvent::Harvest { position, intensity, sustainable } => {
-                // Sustainable harvests can get slightly nicer treatment
-                let gain = if *sustainable { 1.1 } else { 0.9 };
+            GameAudioEvent::Harvest { position, is_sustainable } => {
+                let gain = if *is_sustainable { 1.1 } else { 0.9 };
                 let mut entity = commands.spawn_empty();
                 entity.insert(Name::new("SpatialAudio_Harvest"));
             }
@@ -128,5 +125,5 @@ fn handle_game_audio_events(
 
 // End of production file v19.0
 // Hybrid spatial audio with HighSalienceAudio routing now production-wired.
-// Integrates cleanly with GameAudioEvent used by divine_whispers, dynamic_events_ui, etc.
+// Fully aligned with GameAudioEvent usage in divine_whispers.rs and other systems.
 // Thunder locked in. Yoi ⚡
