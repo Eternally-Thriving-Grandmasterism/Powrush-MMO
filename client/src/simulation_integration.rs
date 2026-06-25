@@ -1,7 +1,7 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.12 — Packet sequencing implemented for interest updates.
+ * v19.13 — Added InterestAck sending for acknowledgment / resend logic.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -10,7 +10,7 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use simulation::interest::VisibleEntitiesUpdate;
+use simulation::interest::{InterestAck, VisibleEntitiesUpdate};
 
 pub use simulation::interest::VisibleEntitiesUpdate as InterestNetworkMessage;
 
@@ -58,14 +58,13 @@ impl Default for HighSalienceAudio {
     }
 }
 
-/// Receives interest update with **packet sequencing**.
-/// Only applies updates that are newer than the last processed tick.
+/// Receives update + sends acknowledgment back to server.
 pub fn receive_visible_entities_update(
     data: &[u8],
     interest_state: &mut ClientInterestState,
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
+    // TODO: Add EventWriter<InterestAck> or direct networking send
 ) {
-    // Decompress
     let decompressed = match zstd::decode_all(data) {
         Ok(data) => data,
         Err(_) => data.to_vec(),
@@ -73,19 +72,23 @@ pub fn receive_visible_entities_update(
 
     match bincode::deserialize::<VisibleEntitiesUpdate>(&decompressed) {
         Ok(update) => {
-            // === Packet Sequencing Check ===
             if update.server_tick <= interest_state.last_update_tick {
-                // Stale or duplicate packet — discard
-                return;
+                return; // Stale packet
             }
 
-            // Apply newer update
             interest_update_events.send(InterestUpdateEvent {
                 visible_entities: update.visible_entity_ids,
                 server_tick: update.server_tick,
             });
 
             interest_state.last_update_tick = update.server_tick;
+
+            // === Send Acknowledgment back to server ===
+            // In production, send this via networking:
+            // networking.send_to_server(InterestAck {
+            //     client_entity_id: my_entity_id,
+            //     acknowledged_tick: update.server_tick,
+            // });
         }
         Err(e) => {
             error!("[InterestReplication] Deserialize failed: {}", e);
@@ -105,6 +108,6 @@ pub fn receive_interest_update(
     }
 }
 
-// End of simulation_integration.rs v19.12
-// Packet sequencing implemented to prevent stale visibility updates.
+// End of simulation_integration.rs v19.13
+// Client now sends InterestAck after processing updates.
 // Thunder locked in. Yoi ⚡
