@@ -1,8 +1,10 @@
 /*!
  * Spatial Audio + Game Audio Event System + Client Interest State — Powrush-MMO
  *
- * v19.3 — Entity Visibility Queries implemented and integrated.
- * ClientInterestState now provides robust visibility queries for audio, particles, and future rendering culling.
+ * v19.4 — Step 1 Complete: General Entity Visibility Helper implemented.
+ *
+ * ClientInterestState now provides a clean, general-purpose visibility query API
+ * that other modules (particles, rendering, UI, etc.) can easily use.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -24,7 +26,7 @@ impl Default for HighSalienceAudio {
     }
 }
 
-/// Audio trigger events (sent by divine_whispers, harvest systems, etc.)
+/// Audio trigger events
 #[derive(Event, Clone, Debug)]
 pub enum GameAudioEvent {
     Epiphany { position: Vec3, intensity: f32, entity_id: Option<u64> },
@@ -33,14 +35,15 @@ pub enum GameAudioEvent {
     RbeNode { position: Vec3, resource_type: String, intensity: f32, entity_id: Option<u64> },
 }
 
-/// Sent by replication/interest layer when server updates visible entities for this client
+/// Sent by replication when the server updates the set of visible entities for this client
 #[derive(Event, Clone, Debug)]
 pub struct InterestUpdateEvent {
     pub visible_entities: Vec<u64>,
     pub server_tick: u64,
 }
 
-/// Single source of truth for which entities the server says are currently visible/interesting to this client
+/// Single source of truth for server-reported visible/interesting entities.
+/// This is the canonical place other systems should query for visibility.
 #[derive(Resource, Default)]
 pub struct ClientInterestState {
     pub visible_entities: HashSet<u64>,
@@ -48,19 +51,30 @@ pub struct ClientInterestState {
 }
 
 impl ClientInterestState {
-    /// Core visibility query used by audio, particles, rendering, and UI systems
+    /// Primary visibility query. Use this in particles, rendering, UI, and audio systems.
+    ///
+    /// Example:
+    /// ```ignore
+    /// if interest.is_visible(entity_id) {
+    ///     // spawn particles, play audio, update UI, etc.
+    /// }
+    /// ```
     pub fn is_visible(&self, entity_id: u64) -> bool {
         self.visible_entities.contains(&entity_id)
     }
 
-    /// Bulk update from replication/interest layer
+    /// Returns true if we have no visibility information yet (common on first connect)
+    pub fn has_no_data(&self) -> bool {
+        self.visible_entities.is_empty() && self.last_update_tick == 0
+    }
+
+    /// Bulk update from the replication/interest layer
     pub fn update_visible_entities(&mut self, entities: Vec<u64>, current_tick: u64) {
         self.visible_entities.clear();
         self.visible_entities.extend(entities);
         self.last_update_tick = current_tick;
     }
 
-    /// Returns how many entities are currently considered visible
     pub fn visible_count(&self) -> usize {
         self.visible_entities.len()
     }
@@ -87,7 +101,6 @@ impl Plugin for SpatialAudioPlugin {
     }
 }
 
-/// Populates ClientInterestState from server replication/interest updates
 fn handle_interest_updates(
     mut events: EventReader<InterestUpdateEvent>,
     mut interest_state: ResMut<ClientInterestState>,
@@ -97,14 +110,12 @@ fn handle_interest_updates(
     }
 }
 
-/// Routes audio events and applies interest-aware culling + high-salience logic
 fn handle_game_audio_events(
     mut events: EventReader<GameAudioEvent>,
     interest: Res<ClientInterestState>,
     mut commands: Commands,
 ) {
     for event in events.read() {
-        // === Entity Visibility Query ===
         let entity_id = match event {
             GameAudioEvent::Epiphany { entity_id, .. } => *entity_id,
             GameAudioEvent::Harvest { entity_id, .. } => *entity_id,
@@ -112,14 +123,12 @@ fn handle_game_audio_events(
             GameAudioEvent::RbeNode { entity_id, .. } => *entity_id,
         };
 
-        // Interest-aware culling: skip if we have an entity_id and it's not visible
         if let Some(id) = entity_id {
             if !interest.is_visible(id) {
-                continue; // Entity not in current server interest set
+                continue;
             }
         }
 
-        // High-salience routing + entity creation
         match event {
             GameAudioEvent::Epiphany { position, intensity, .. } => {
                 let is_high_salience = *intensity > 0.9;
@@ -137,7 +146,7 @@ fn handle_game_audio_events(
                 }
                 entity.insert(Name::new("SpatialAudio_Council"));
             }
-            GameAudioEvent::Harvest { position, is_sustainable, .. } => {
+            GameAudioEvent::Harvest { .. } => {
                 commands.spawn_empty().insert(Name::new("SpatialAudio_Harvest"));
             }
             GameAudioEvent::RbeNode { .. } => {}
@@ -145,8 +154,7 @@ fn handle_game_audio_events(
     }
 }
 
-// End of production file v19.3
-// Entity Visibility Queries fully implemented via ClientInterestState::is_visible()
-// Interest-aware culling active in audio handler
-// Ready for replication layer to feed InterestUpdateEvent
+// End of production file v19.4
+// Step 1 Complete: General Entity Visibility Queries via ClientInterestState::is_visible()
+// Clean, documented, and ready for use by particles, rendering, UI, and other systems.
 // Thunder locked in. Yoi ⚡
