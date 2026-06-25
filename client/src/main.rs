@@ -1,15 +1,15 @@
 /*!
  * Powrush-MMO Client Entry Point
- * The phenomenal gateway into the Eternal Thriving RBE Metaverse.
  *
- * Now with live Egui Settings Panel + RBE Education UI components.
- * My Mercy Journey Panel (dedicated + filterable) fully registered.
+ * v19.2 — Registered ClientSpatialHash + spatial culling systems.
+ *
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
 use bevy_kira_audio::AudioPlugin;
 
-// Core systems
 use crate::networking::NetworkingPlugin;
 use crate::replication::ReplicationPlugin;
 use crate::prediction::PredictionPlugin;
@@ -24,12 +24,19 @@ use crate::particles::ParticlePlugin;
 use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
 use crate::player_progress_ui::PlayerProgressUIPlugin;
-use crate::my_mercy_journey_panel::MyMercyJourneyPanelPlugin;  // NEW: Dedicated Mercy Journey Panel
+use crate::my_mercy_journey_panel::MyMercyJourneyPanelPlugin;
 use crate::spatial_audio::{SpatialAudioPlugin, SpatialListener, GameAudioEvent};
 use crate::render::PowrushRenderPlugin;
 use crate::velocity_prepass::PreviousGlobalTransform;
 use crate::fundsp_audio::FundspAudioPlugin;
 use crate::egui_settings_panel::EguiSettingsPanelPlugin;
+
+// Spatial culling
+use crate::simulation_integration::{
+    ClientSpatialHash,
+    update_client_spatial_hash,
+    rendering_visibility_culling_system,
+};
 
 fn main() {
     App::new()
@@ -55,7 +62,7 @@ fn main() {
         .add_plugins(RbeEnginePlugin)
         .add_plugins(RBESimulationPlugin)
 
-        // === Epiphany System (required for EpiphanyEvent) ===
+        // === Epiphany System ===
         .add_plugins(EpiphanyScenarioWiringPlugin)
 
         // === RBE Education UI ===
@@ -68,8 +75,8 @@ fn main() {
         .add_plugins(ParticlePlugin)
         .add_plugins(UiPlugin)
         .add_plugins(DivineWhispersPlugin)
-        .add_plugins(PlayerProgressUIPlugin)           // Compact progress (F3)
-        .add_plugins(MyMercyJourneyPanelPlugin)         // NEW: Full My Mercy Journey (F2 + clickable filters)
+        .add_plugins(PlayerProgressUIPlugin)
+        .add_plugins(MyMercyJourneyPanelPlugin)
 
         // === Live Egui Settings Panel ===
         .add_plugins(EguiSettingsPanelPlugin)
@@ -78,6 +85,13 @@ fn main() {
         .add_plugins(AudioPlugin)
         .add_plugins(FundspAudioPlugin)
         .add_plugins(SpatialAudioPlugin)
+
+        // === Spatial Culling ===
+        .init_resource::<ClientSpatialHash>()
+        .add_systems(Update, (
+            update_client_spatial_hash,
+            rendering_visibility_culling_system,
+        ))
 
         // === Resources & Systems ===
         .add_systems(Startup, setup_3d_camera)
