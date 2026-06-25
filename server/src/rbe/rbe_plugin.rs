@@ -1,8 +1,9 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * v2.3 | Refactored for modularity - components moved to components.rs
- * FactionMembership + FactionStanding now live in the proper module.
+ * v2.4 | Added Faction Standing modification system
+ * Players now gain standing when receiving ToFaction distributions.
+ * Foundation for harvest/claim standing gains.
  *
  * Thunder locked in. Yoi ⚡
  */
@@ -53,6 +54,13 @@ pub struct DistributeResourcesEvent {
     pub distribution_type: DistributionType,
 }
 
+#[derive(Event, Clone, Debug)]
+pub struct FactionStandingChangedEvent {
+    pub player_entity_id: u64,
+    pub faction_id: u64,
+    pub delta: f32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DistributionType {
     ToOwner,
@@ -85,6 +93,7 @@ impl Plugin for RbePlugin {
             .add_event::<ResourceTransferEvent>()
             .add_event::<ClaimNodeEvent>()
             .add_event::<DistributeResourcesEvent>()
+            .add_event::<FactionStandingChangedEvent>()
             .add_event::<RbeInventoryUpdatedEvent>()
 
             .add_systems(Update, (
@@ -93,6 +102,7 @@ impl Plugin for RbePlugin {
                 process_resource_transfers,
                 process_node_claiming,
                 process_distributions,
+                apply_faction_standing_changes,
             ))
     }
 }
@@ -104,8 +114,32 @@ fn regenerate_resource_nodes(/* ... */) { /* unchanged */ }
 fn process_resource_transfers(/* ... */) { /* unchanged */ }
 fn process_node_claiming(/* ... */) { /* unchanged */ }
 
+/// Applies standing changes from FactionStandingChangedEvent.
+/// Creates the FactionStanding component if the player doesn't have one yet.
+fn apply_faction_standing_changes(
+    mut events: EventReader<FactionStandingChangedEvent>,
+    mut commands: Commands,
+    mut standing_query: Query<&mut FactionStanding>,
+) {
+    for event in events.read() {
+        if let Some(mut standing) = standing_query
+            .iter_mut()
+            .find(|(e, _)| e.index() == event.player_entity_id)
+            .map(|(_, s)| s)
+        {
+            standing.standing = (standing.standing + event.delta).clamp(0.0, 5.0);
+        } else {
+            // Create new standing component for this faction
+            commands.entity(Entity::from_raw(event.player_entity_id)).insert(FactionStanding {
+                faction_id: event.faction_id,
+                standing: event.delta.clamp(0.0, 5.0),
+            });
+        }
+    }
+}
+
 /// Distribution logic with Faction Standing System support.
-/// ProportionalToStanding scales reward by the source's standing.
+/// When players receive ToFaction distributions, they gain a small amount of standing.
 fn process_distributions(
     mut dist_events: EventReader<DistributeResourcesEvent>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
@@ -113,6 +147,7 @@ fn process_distributions(
     mut faction_query: Query<(Entity, &FactionMembership, &mut PlayerRbeInventory)>,
     mut standing_query: Query<(Entity, &FactionStanding)>,
     mut rbe_updated_events: EventWriter<RbeInventoryUpdatedEvent>,
+    mut standing_changed_events: EventWriter<FactionStandingChangedEvent>,
 ) {
     for event in dist_events.read() {
         let mut affected_players: EntityHashSet = EntityHashSet::default();
@@ -146,6 +181,13 @@ fn process_distributions(
                                 if membership.faction_id == owner_faction_id {
                                     *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
                                     affected_players.insert(entity);
+
+                                    // Positive feedback: receiving faction resources increases standing
+                                    standing_changed_events.send(FactionStandingChangedEvent {
+                                        player_entity_id: entity.index() as u64,
+                                        faction_id: owner_faction_id,
+                                        delta: 0.05,
+                                    });
                                 }
                             }
                         }
@@ -184,6 +226,7 @@ fn process_distributions(
     }
 }
 
-// End of rbe_plugin.rs v2.3
-// Components refactored into components.rs for modularity.
+// End of rbe_plugin.rs v2.4
+// Faction standing now increases when players receive ToFaction distributions.
+// apply_faction_standing_changes system added.
 // Thunder locked in. Yoi ⚡
