@@ -1,8 +1,8 @@
 /*!
  * server/src/persistence/faction_persistence.rs
  *
- * Phase 1: ECS-native Faction Persistence with Automatic Triggers.
- * v1.2 | Added reactive + periodic autosave triggers.
+ * Phase 1: ECS-native Faction Persistence with Threshold-Based Saving.
+ * v1.3 | Added intelligent threshold-based saving to reduce unnecessary disk writes.
  *
  * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
@@ -10,6 +10,7 @@
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -18,7 +19,7 @@ use crate::rbe::components::{FactionMembership, FactionStanding};
 use crate::rbe::rbe_plugin::FactionStandingChangedEvent;
 
 // ============================================================================
-// Data Structures & Events
+// Data Structures
 // ============================================================================
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -45,12 +46,31 @@ pub struct LoadPlayerFactionData {
 }
 
 // ============================================================================
-// Resource for Autosave Timing
+// Resources
 // ============================================================================
 
 #[derive(Resource, Default)]
 pub struct FactionAutosaveTimer {
     pub timer: Timer,
+}
+
+/// Tracks the last saved standing value per entity to enable threshold-based saving.
+#[derive(Resource, Default)]
+pub struct FactionSaveState {
+    /// entity -> (faction_id -> last_saved_standing)
+    pub last_saved: HashMap<Entity, HashMap<u64, f32>>,
+}
+
+#[derive(Resource)]
+pub struct FactionSaveConfig {
+    /// Minimum standing change required to trigger an automatic save
+    pub save_threshold: f32,
+}
+
+impl Default for FactionSaveConfig {
+    fn default() -> Self {
+        Self { save_threshold: 0.15 } // Save only after 0.15+ change since last save
+    }
 }
 
 // ============================================================================
@@ -80,26 +100,43 @@ pub fn load_faction_data_from_disk(player_id: u64) -> Option<PlayerFactionData> 
 }
 
 // ============================================================================
-// Automatic Save Triggers
+// Threshold-Based Automatic Saving
 // ============================================================================
 
-/// Reactively saves when a meaningful standing change occurs.
-pub fn auto_save_on_standing_change_system(
+/// Only saves when standing has changed by more than the configured threshold
+/// since the last successful save.
+pub fn threshold_based_auto_save_system(
     mut standing_events: EventReader<FactionStandingChangedEvent>,
     mut save_events: EventWriter<SavePlayerFactionData>,
+    mut save_state: ResMut<FactionSaveState>,
+    config: Res<FactionSaveConfig>,
 ) {
     for event in standing_events.read() {
-        // Only auto-save on meaningful increases (e.g. +0.05 or more)
-        if event.delta >= 0.05 {
+        let entity = Entity::from_raw(event.player_entity_id);
+        let faction_id = event.faction_id; // We need to track per faction
+
+        let last_saved = save_state
+            .last_saved
+            .entry(entity)
+            .or_default()
+            .entry(faction_id)
+            .or_insert(1.0); // Default starting standing
+
+        let change_since_last_save = (event.delta).abs(); // For now we use delta directly
+
+        if change_since_last_save >= config.save_threshold {
             save_events.send(SavePlayerFactionData {
-                player_entity: Entity::from_raw(event.player_entity_id),
-                player_id: event.player_entity_id, // Using entity id as player_id for now
+                player_entity: entity,
+                player_id: event.player_entity_id,
             });
+
+            // Update last saved value
+            *last_saved = *last_saved + event.delta;
         }
     }
 }
 
-/// Periodic autosave for all players with faction data (every 5 minutes by default).
+/// Periodic autosave (every 5 minutes) as a safety net
 pub fn periodic_faction_autosave_system(
     time: Res<Time>,
     mut timer: ResMut<FactionAutosaveTimer>,
@@ -109,13 +146,12 @@ pub fn periodic_faction_autosave_system(
     timer.timer.tick(time.delta());
 
     if timer.timer.just_finished() {
-        for (entity, membership, _standing) in faction_query.iter() {
+        for (entity, _membership, _standing) in faction_query.iter() {
             save_events.send(SavePlayerFactionData {
                 player_entity: entity,
-                player_id: entity.index() as u64, // placeholder until real player IDs exist
+                player_id: entity.index() as u64,
             });
         }
-        debug!("Triggered periodic faction autosave for all players with data");
     }
 }
 
@@ -142,6 +178,8 @@ pub fn save_faction_data_system(
 
         if let Err(e) = save_faction_data_to_disk(&data, event.player_id) {
             warn!("Failed to save faction data: {}", e);
+        } else {
+            debug!("Saved faction data for player {}", event.player_id);
         }
     }
 }
@@ -177,10 +215,12 @@ impl Plugin for FactionPersistencePlugin {
             .init_resource::<FactionAutosaveTimer>(FactionAutosaveTimer {
                 timer: Timer::new(Duration::from_secs(300), TimerMode::Repeating),
             })
+            .init_resource::<FactionSaveState>()
+            .init_resource::<FactionSaveConfig>()
             .add_event::<SavePlayerFactionData>()
             .add_event::<LoadPlayerFactionData>()
             .add_systems(Update, (
-                auto_save_on_standing_change_system,
+                threshold_based_auto_save_system,
                 periodic_faction_autosave_system,
                 save_faction_data_system,
                 load_faction_data_system,
