@@ -1,7 +1,7 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.11 — Real decompression + networking integration notes.
+ * v19.12 — Packet sequencing implemented for interest updates.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -58,23 +58,34 @@ impl Default for HighSalienceAudio {
     }
 }
 
-/// Production receive function with real decompression.
+/// Receives interest update with **packet sequencing**.
+/// Only applies updates that are newer than the last processed tick.
 pub fn receive_visible_entities_update(
     data: &[u8],
+    interest_state: &mut ClientInterestState,
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
 ) {
-    // Decompress (zstd)
+    // Decompress
     let decompressed = match zstd::decode_all(data) {
         Ok(data) => data,
-        Err(_) => data.to_vec(), // fallback if not compressed
+        Err(_) => data.to_vec(),
     };
 
     match bincode::deserialize::<VisibleEntitiesUpdate>(&decompressed) {
         Ok(update) => {
+            // === Packet Sequencing Check ===
+            if update.server_tick <= interest_state.last_update_tick {
+                // Stale or duplicate packet — discard
+                return;
+            }
+
+            // Apply newer update
             interest_update_events.send(InterestUpdateEvent {
                 visible_entities: update.visible_entity_ids,
                 server_tick: update.server_tick,
             });
+
+            interest_state.last_update_tick = update.server_tick;
         }
         Err(e) => {
             error!("[InterestReplication] Deserialize failed: {}", e);
@@ -94,6 +105,6 @@ pub fn receive_interest_update(
     }
 }
 
-// End of simulation_integration.rs v19.11
-// Real decompression enabled.
+// End of simulation_integration.rs v19.12
+// Packet sequencing implemented to prevent stale visibility updates.
 // Thunder locked in. Yoi ⚡
