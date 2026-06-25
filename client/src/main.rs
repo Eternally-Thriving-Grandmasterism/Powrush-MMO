@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Client Entry Point
  *
- * v19.2 — Registered ClientSpatialHash + spatial culling systems.
+ * v19.3 — Added FactionReputationUIPlugin for visual standing/reputation display.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -25,6 +25,7 @@ use crate::ui::UiPlugin;
 use crate::divine_whispers::DivineWhispersPlugin;
 use crate::player_progress_ui::PlayerProgressUIPlugin;
 use crate::my_mercy_journey_panel::MyMercyJourneyPanelPlugin;
+use crate::faction_reputation_ui::FactionReputationUIPlugin;
 use crate::spatial_audio::{SpatialAudioPlugin, SpatialListener, GameAudioEvent};
 use crate::render::PowrushRenderPlugin;
 use crate::velocity_prepass::PreviousGlobalTransform;
@@ -77,6 +78,7 @@ fn main() {
         .add_plugins(DivineWhispersPlugin)
         .add_plugins(PlayerProgressUIPlugin)
         .add_plugins(MyMercyJourneyPanelPlugin)
+        .add_plugins(FactionReputationUIPlugin)
 
         // === Live Egui Settings Panel ===
         .add_plugins(EguiSettingsPanelPlugin)
