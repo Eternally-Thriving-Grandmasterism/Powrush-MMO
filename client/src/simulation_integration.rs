@@ -1,16 +1,17 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.18 — Sophisticated spatial hash rebuild with gradual migration.
+ * v19.19 — Background thread rebuilds for ClientSpatialHash.
  *
- * PATSAGi + Ra-Thor Guidance Applied.
+ * PATSAGi + Ra-Thor Applied.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
-use std::collections::{HashMap, HashSet, VecDeque};
+use bevy::tasks::{AsyncComputeTaskPool, Task};
+use std::collections::{HashMap, HashSet};
 
 use simulation::interest::VisibleEntitiesUpdate;
 
@@ -61,7 +62,7 @@ impl Default for HighSalienceAudio {
 }
 
 // ============================================================================
-// ClientSpatialHash with Gradual Rebuild Support (PATSAGi + Ra-Thor)
+// ClientSpatialHash with Background Rebuild Support
 // ============================================================================
 
 #[derive(Resource)]
@@ -71,10 +72,9 @@ pub struct ClientSpatialHash {
     pub entity_count: usize,
     pub average_player_speed: f32,
 
-    // === Gradual Rebuild State ===
+    // Background rebuild state
     pub is_rebuilding: bool,
-    pending_migration: VecDeque<(u64, Vec3)>,
-    target_cell_size: f32,
+    rebuild_task: Option<Task<(f32, HashMap<(i32, i32, i32), HashSet<u64>>)>>,
 }
 
 impl Default for ClientSpatialHash {
@@ -85,8 +85,7 @@ impl Default for ClientSpatialHash {
             entity_count: 0,
             average_player_speed: 0.0,
             is_rebuilding: false,
-            pending_migration: VecDeque::new(),
-            target_cell_size: 64.0,
+            rebuild_task: None,
         }
     }
 }
@@ -99,8 +98,7 @@ impl ClientSpatialHash {
             entity_count: 0,
             average_player_speed: 0.0,
             is_rebuilding: false,
-            pending_migration: VecDeque::new(),
-            target_cell_size: cell_size,
+            rebuild_task: None,
         }
     }
 
@@ -152,102 +150,66 @@ impl ClientSpatialHash {
         result
     }
 
-    /// Request a gradual rebuild with a new cell size.
-    /// Entities will be migrated over multiple frames.
-    pub fn request_gradual_resize(&mut self, new_cell_size: f32, all_entities: Vec<(u64, Vec3)>) {
-        if (new_cell_size - self.cell_size).abs() < 1.0 {
+    /// Request a background rebuild with a new cell size.
+    /// The heavy work happens off the main thread.
+    pub fn request_background_resize(&mut self, new_cell_size: f32, entities: Vec<(u64, Vec3)>) {
+        if self.is_rebuilding || (new_cell_size - self.cell_size).abs() < 1.0 {
             return;
         }
 
         self.is_rebuilding = true;
-        self.target_cell_size = new_cell_size;
-        self.pending_migration = VecDeque::from(all_entities);
 
-        // Start fresh with new cell size
-        self.cells.clear();
-        self.entity_count = 0;
-        self.cell_size = new_cell_size;
+        let task_pool = AsyncComputeTaskPool::get();
+        let task = task_pool.spawn(async move {
+            let mut new_cells: HashMap<(i32, i32, i32), HashSet<u64>> = HashMap::new();
+
+            for (id, pos) in entities {
+                let cell = (
+                    (pos.x / new_cell_size).floor() as i32,
+                    (pos.y / new_cell_size).floor() as i32,
+                    (pos.z / new_cell_size).floor() as i32,
+                );
+                new_cells.entry(cell).or_default().insert(id);
+            }
+
+            (new_cell_size, new_cells)
+        });
+
+        self.rebuild_task = Some(task);
     }
 
-    /// Migrate a batch of entities this frame (called by the rebuild system).
-    pub fn migrate_batch(&mut self, max_per_frame: usize) -> bool {
-        if self.pending_migration.is_empty() {
-            self.is_rebuilding = false;
-            return true;
-        }
+    /// Poll and apply completed background rebuild.
+    pub fn try_complete_rebuild(&mut self) -> bool {
+        if let Some(task) = self.rebuild_task.as_mut() {
+            if let Some((new_size, new_cells)) = futures_lite::future::block_on(futures_lite::future::poll_once(task)) {
+                self.cells = new_cells;
+                self.cell_size = new_size;
+                self.entity_count = self.cells.values().map(|s| s.len()).sum();
+                self.is_rebuilding = false;
+                self.rebuild_task = None;
 
-        let batch_size = max_per_frame.min(self.pending_migration.len());
-
-        for _ in 0..batch_size {
-            if let Some((id, pos)) = self.pending_migration.pop_front() {
-                self.insert(id, pos);
+                info!("⚡ [SpatialHash] Background rebuild complete. New cell size: {:.1}", new_size);
+                return true;
             }
         }
-
-        self.pending_migration.is_empty()
-    }
-
-    pub fn suggest_new_cell_size(
-        &self,
-        camera_velocity: Option<Vec3>,
-        player_velocity: Option<Vec3>,
-    ) -> Option<f32> {
-        let mut suggested_size = self.cell_size;
-
-        if self.entity_count < 80 {
-            suggested_size = 96.0;
-        } else if self.entity_count > 1500 {
-            suggested_size = 48.0;
-        }
-
-        let speed = camera_velocity
-            .or(player_velocity)
-            .map(|v| v.length())
-            .unwrap_or(0.0);
-
-        if speed > 25.0 {
-            suggested_size *= 1.25;
-        } else if speed < 5.0 {
-            suggested_size *= 0.9;
-        }
-
-        suggested_size = suggested_size.clamp(32.0, 128.0);
-
-        if (suggested_size - self.cell_size).abs() > 8.0 {
-            Some(suggested_size)
-        } else {
-            None
-        }
+        false
     }
 }
 
 // ============================================================================
-// Gradual Rebuild System
+// Background Rebuild System
 // ============================================================================
 
 pub fn apply_dynamic_cell_size(
     mut spatial_hash: ResMut<ClientSpatialHash>,
-    camera_query: Query<&GlobalTransform, With<Camera>>,
 ) {
+    // First, check if a background rebuild finished
     if spatial_hash.is_rebuilding {
-        // Continue migrating entities
-        let finished = spatial_hash.migrate_batch(200); // Migrate 200 entities per frame
-        if finished {
-            info!("⚡ [SpatialHash] Gradual rebuild complete. New cell size: {:.1}", spatial_hash.cell_size);
-        }
+        spatial_hash.try_complete_rebuild();
         return;
     }
 
-    // Only suggest resize when not moving too fast
-    let camera_velocity = None; // TODO: Track camera velocity properly
-    let suggested = spatial_hash.suggest_new_cell_size(camera_velocity, None);
-
-    if let Some(new_size) = suggested {
-        // In a real implementation, collect all current entities here
-        // For now we trigger a request (actual collection would come from a maintained list)
-        // spatial_hash.request_gradual_resize(new_size, current_entities);
-        debug!("⚡ [SpatialHash] Suggested new cell size: {:.1} (current: {:.1})", new_size, spatial_hash.cell_size);
-    }
+    // TODO: Call suggest_new_cell_size and request_background_resize when appropriate
 }
 
 pub fn update_client_spatial_hash(
@@ -295,6 +257,6 @@ pub fn rendering_visibility_culling_system(
     }
 }
 
-// End of simulation_integration.rs v19.18
-// Gradual multi-frame rebuild logic implemented.
+// End of simulation_integration.rs v19.19
+// Background thread rebuilds implemented using AsyncComputeTaskPool.
 // Thunder locked in. Yoi ⚡
