@@ -2,8 +2,8 @@
  * client/src/rbe_client_sync.rs
  *
  * Client-side RBE Synchronization
- * v19.5 | Added handling for FactionStanding replication updates.
- * Standing changes from server now update client components and UI.
+ * v19.6 | Refactored to use shared crate::faction module.
+ * Removed duplicate FactionStanding definition.
  *
  * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
@@ -19,13 +19,7 @@ use crate::monitoring::safety_net::SafetyNetMonitoringSnapshot;
 use crate::prediction::{PredictedPosition, apply_decoded_updates_to_prediction};
 use simulation::harvest::HarvestEvent;
 use crate::divine_whispers::LastBiomeInfluence;
-
-// Client-side FactionStanding for replication
-#[derive(Component, Clone, Debug)]
-pub struct FactionStanding {
-    pub faction_id: u64,
-    pub standing: f32,
-}
+use crate::faction::FactionStanding;
 
 #[derive(Event, Clone, Debug)]
 pub struct RbeInventoryUpdated {
@@ -35,7 +29,6 @@ pub struct RbeInventoryUpdated {
     pub delta: f32,
 }
 
-// Main RBE client sync system
 pub fn rbe_client_sync_system(
     mut commands: Commands,
     server_updates: Res<crate::networking::ServerUpdateChannel>,
@@ -87,14 +80,12 @@ pub fn rbe_client_sync_system(
                             server_timestamp,
                         );
                     }
-                    // NEW: Handle replicated FactionStanding updates from server
                     UpdatePayload::FactionStanding { faction_id, standing } => {
                         commands.entity(update.entity).insert(FactionStanding {
                             faction_id,
                             standing,
                         });
 
-                        // Optional: emit event or log for debugging
                         info!("Received FactionStanding update for entity {:?}: faction {} standing {:.2}", 
                               update.entity, faction_id, standing);
                     }
@@ -125,7 +116,6 @@ impl Plugin for RbeClientSyncPlugin {
     }
 }
 
-// End of client/src/rbe_client_sync.rs v19.5
-// Added client-side handling for FactionStanding replication.
-// Standing updates now flow server -> client -> UI.
+// End of client/src/rbe_client_sync.rs v19.6
+// Refactored to use shared crate::faction module. No more duplicate definitions.
 // Thunder locked in. Yoi ⚡
