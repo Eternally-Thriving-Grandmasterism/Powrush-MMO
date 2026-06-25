@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Authoritative Server Entry Point
  *
- * v19.1 — Registered interest replication metrics logging.
+ * v19.2 — Registered ServerInterestSyncPlugin.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -23,17 +23,14 @@ use server::mercy_anomaly_detector::activate_anomaly_detection;
 use server::council_session_handler::CouncilSessionPlugin;
 use server::opentelemetry_tracing::init_opentelemetry_tracing;
 
-// Interest replication bridge
-use server::spatial::interest_replication_bridge::{
-    interest_replication_tick_system,
-    log_interest_replication_metrics,
-};
+// Interest sync
+use server::spatial::server_interest_sync_plugin::ServerInterestSyncPlugin;
 
 fn main() {
     apply_server_hardening();
     init_opentelemetry_tracing();
 
-    info!("⚡ Powrush-MMO Authoritative Server v19.1 — Interest Metrics Logging Active");
+    info!("⚡ Powrush-MMO Authoritative Server v19.2 — ServerInterestSyncPlugin Active");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
 
@@ -50,6 +47,9 @@ fn main() {
         .add_plugins(ServerCorePlugin)
         .add_plugins(CouncilSessionPlugin)
 
+        // === Interest Synchronization ===
+        .add_plugins(ServerInterestSyncPlugin)
+
         // === Startup Systems ===
         .add_systems(Startup, setup_authoritative_camera)
         .add_systems(Startup, setup_world_grid)
@@ -65,10 +65,6 @@ fn main() {
         .add_systems(Update, maintain_mercy_gates)
         .add_systems(Update, council_deliberation_sync)
         .add_systems(Update, broadcast_world_state)
-
-        // === Interest Replication Bridge ===
-        .add_systems(Update, interest_replication_tick_system)
-        .add_systems(Update, log_interest_replication_metrics)
 
         .run();
 }
