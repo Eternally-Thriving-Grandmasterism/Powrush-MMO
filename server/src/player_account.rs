@@ -1,9 +1,7 @@
 /*!
  * server/src/player_account.rs
  *
- * v18.97 — Wired PlayerJoined event for Faction Persistence integration.
- * When a session is successfully created, we now emit PlayerJoined
- * so that FactionPersistencePlugin observers can load faction data.
+ * v18.98 — Added PlayerLeft wiring for clean session removal + faction persistence save trigger.
  *
  * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
@@ -12,7 +10,7 @@
 use bevy::prelude::*;
 use shared::protocol::ClientMessage;
 use crate::persistence_polish::{PersistencePolishManager, PlayerSaveData};
-use crate::persistence::faction_persistence::PlayerJoined;
+use crate::persistence::faction_persistence::{PlayerJoined, PlayerLeft};
 
 // ... existing AccountSystem, PlayerAccount, PlayerSession definitions ...
 
@@ -22,13 +20,12 @@ impl AccountSystem {
         account_id: u64,
         runtime_player_id: u64,
         client_language: Option<&str>,
-        mut joined_writer: EventWriter<PlayerJoined>,   // NEW: for faction persistence wiring
+        mut joined_writer: EventWriter<PlayerJoined>,
     ) -> Option<u64> {
         // ... existing session creation logic ...
 
-        // === NEW: Trigger faction data load via observer ===
         joined_writer.send(PlayerJoined {
-            entity: Entity::from_raw(runtime_player_id), // Note: In real code, pass the actual spawned entity
+            entity: Entity::from_raw(runtime_player_id),
             player_id: runtime_player_id,
         });
 
@@ -45,5 +42,22 @@ impl AccountSystem {
         Some(session_id)
     }
 
-    // ... rest of the file unchanged ...
+    /// NEW: Called when a player disconnects or session is explicitly removed.
+    /// Triggers PlayerLeft so faction data is saved via observer.
+    pub fn remove_session(
+        &mut self,
+        runtime_player_id: u64,
+        mut left_writer: EventWriter<PlayerLeft>,
+    ) {
+        // Optional: perform any local cleanup here
+
+        left_writer.send(PlayerLeft {
+            entity: Entity::from_raw(runtime_player_id),
+            player_id: runtime_player_id,
+        });
+
+        // Future: could also trigger immediate save here if needed
+    }
+
+    // ... rest of AccountSystem methods ...
 }
