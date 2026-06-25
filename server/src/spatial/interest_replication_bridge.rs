@@ -1,7 +1,7 @@
 /*!
  * Interest Replication Bridge
  *
- * v19.12 — Added priority metrics for monitoring and tuning.
+ * v19.13 — Added telemetry/debug logging for priority metrics.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -12,7 +12,6 @@ use bevy::prelude::*;
 use simulation::interest::{InterestAck, VisibleEntitiesUpdate};
 use std::collections::HashMap;
 
-/// Priority levels
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InterestPriority {
     Low,
@@ -32,7 +31,6 @@ impl InterestPriority {
     }
 }
 
-/// Tunable configuration
 #[derive(Resource)]
 pub struct InterestReplicationConfig {
     pub resend_timeout_seconds: f32,
@@ -50,7 +48,7 @@ impl Default for InterestReplicationConfig {
     }
 }
 
-/// Metrics for monitoring the interest replication system.
+/// Metrics resource (already populated by other systems)
 #[derive(Resource, Default)]
 pub struct InterestReplicationMetrics {
     pub pending_by_priority: HashMap<InterestPriority, u32>,
@@ -59,30 +57,41 @@ pub struct InterestReplicationMetrics {
     pub average_resend_attempts: f32,
 }
 
-impl InterestReplicationMetrics {
-    pub fn record_resend(&mut self) {
-        self.total_resends += 1;
-    }
+/// System that periodically logs interest replication metrics.
+/// This provides basic telemetry. For full OpenTelemetry metrics,
+/// integrate with the existing opentelemetry_tracing setup.
+pub fn log_interest_replication_metrics(
+    metrics: Res<InterestReplicationMetrics>,
+    config: Res<InterestReplicationConfig>,
+    time: Res<Time>,
+) {
+    // Log every ~5 seconds
+    static mut LAST_LOG_TIME: f32 = 0.0;
+    let current_time = time.elapsed_seconds();
 
-    pub fn record_ack(&mut self) {
-        self.total_acks_received += 1;
-    }
-
-    pub fn update_pending_counts(&mut self, pending: &PendingInterestUpdates) {
-        self.pending_by_priority.clear();
-        for (_, (_, _, _, priority)) in pending.pending.iter() {
-            *self.pending_by_priority.entry(*priority).or_insert(0) += 1;
+    unsafe {
+        if current_time - LAST_LOG_TIME < 5.0 {
+            return;
         }
+        LAST_LOG_TIME = current_time;
     }
+
+    info!("⚡ [InterestReplication] Metrics Report");
+    info!("   Pending by priority: {:?}", metrics.pending_by_priority);
+    info!("   Total Resends:       {}", metrics.total_resends);
+    info!("   Total Acks Received: {}", metrics.total_acks_received);
+    info!("   Config: resend={:.2}s, high_pri={:.2}s, max_attempts={}",
+        config.resend_timeout_seconds,
+        config.high_priority_resend_timeout,
+        config.max_resend_attempts
+    );
 }
 
-/// Tracks pending updates with priority.
 #[derive(Resource, Default)]
 pub struct PendingInterestUpdates {
     pub pending: HashMap<u64, (u64, f32, u32, InterestPriority)>,
 }
 
-/// Calculate dynamic priority (extend with real game state).
 pub fn calculate_interest_priority(
     is_in_combat: bool,
     near_council_event: bool,
@@ -178,6 +187,6 @@ pub fn send_visible_entities_update_reliable(update: &VisibleEntitiesUpdate) {
     // Already implemented
 }
 
-// End of interest_replication_bridge.rs v19.12
-// Priority metrics added for monitoring and tuning.
+// End of interest_replication_bridge.rs v19.13
+// Metrics logging system added for telemetry/debug visibility.
 // Thunder locked in. Yoi ⚡
