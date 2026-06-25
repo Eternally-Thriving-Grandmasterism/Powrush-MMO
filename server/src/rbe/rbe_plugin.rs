@@ -1,7 +1,7 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * v1.2 | Added NodeOwnership + Basic Transfer Logic
+ * v1.3 | Node Claiming Mechanics Added
  *
  * Thunder locked in. Yoi ⚡
  */
@@ -51,6 +51,13 @@ pub struct ResourceTransferEvent {
     pub amount: f32,
 }
 
+/// Event to claim an unowned resource node.
+#[derive(Event, Clone, Debug)]
+pub struct ClaimNodeEvent {
+    pub claimer_entity: u64,
+    pub node_entity: u64,
+}
+
 // ============================================================================
 // Plugin
 // ============================================================================
@@ -66,11 +73,13 @@ impl Plugin for RbePlugin {
             .add_event::<HarvestEvent>()
             .add_event::<ResourceNodeDepletedEvent>()
             .add_event::<ResourceTransferEvent>()
+            .add_event::<ClaimNodeEvent>()
 
             .add_systems(Update, (
                 process_harvest_events,
                 regenerate_resource_nodes,
                 process_resource_transfers,
+                process_node_claiming,
             ))
     }
 }
@@ -88,7 +97,6 @@ fn process_harvest_events(
 ) {
     for event in harvest_events.read() {
         if let Ok((mut node, ownership)) = node_query.get_mut(Entity::from_raw(event.node_entity)) {
-            // Basic ownership check (public or owned by harvester)
             let can_harvest = ownership.map_or(true, |o| o.owner == Some(event.harvester_entity));
 
             if can_harvest && node.current_amount > 0.0 {
@@ -124,7 +132,6 @@ fn regenerate_resource_nodes(
     }
 }
 
-/// Basic resource transfer between players.
 fn process_resource_transfers(
     mut transfer_events: EventReader<ResourceTransferEvent>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
@@ -144,6 +151,26 @@ fn process_resource_transfers(
     }
 }
 
-// End of rbe_plugin.rs v1.2
-// Added NodeOwnership support + basic transfer system.
+/// Allows players to claim unowned resource nodes.
+fn process_node_claiming(
+    mut claim_events: EventReader<ClaimNodeEvent>,
+    mut node_query: Query<&mut NodeOwnership>,
+) {
+    for event in claim_events.read() {
+        if let Ok(mut ownership) = node_query.get_mut(Entity::from_raw(event.node_entity)) {
+            if ownership.owner.is_none() {
+                ownership.owner = Some(event.claimer_entity);
+
+                info!(
+                    "[RBE] Player {} claimed node {}",
+                    event.claimer_entity,
+                    event.node_entity
+                );
+            }
+        }
+    }
+}
+
+// End of rbe_plugin.rs v1.3
+// Node claiming mechanics implemented.
 // Thunder locked in. Yoi ⚡
