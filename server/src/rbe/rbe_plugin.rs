@@ -1,8 +1,9 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * v1.9 | Refactored to EntityHashSet for affected_players (deduplication + performance)
- * FactionMembership query + equal split preserved. All prior logic intact.
+ * v2.0 | Added faction_id filter to ToFaction query
+ * Only distributes to members of the same faction as the owner. Equal split preserved.
+ * EntityHashSet dedup + all prior logic intact.
  *
  * Thunder locked in. Yoi ⚡
  */
@@ -108,8 +109,8 @@ fn regenerate_resource_nodes(/* ... */) { /* unchanged */ }
 fn process_resource_transfers(/* ... */) { /* unchanged */ }
 fn process_node_claiming(/* ... */) { /* unchanged */ }
 
-/// Expanded distribution logic with FactionMembership query + EntityHashSet refactor.
-/// Uses EntityHashSet for affected_players to guarantee no duplicate events/credits.
+/// Expanded distribution logic with faction_id filter.
+/// Only members sharing the owner's faction_id receive the distribution.
 fn process_distributions(
     mut dist_events: EventReader<DistributeResourcesEvent>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
@@ -140,10 +141,21 @@ fn process_distributions(
                             affected_players.insert(Entity::from_raw(owner));
                         }
 
-                        // FactionMembership query logic (equal split) + HashSet insert for dedup
-                        for (entity, _membership, mut inv) in faction_query.iter_mut() {
-                            *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
-                            affected_players.insert(entity);
+                        // Implemented faction_id filter:
+                        // 1. Discover owner's faction_id
+                        // 2. Only credit members with matching faction_id
+                        if let Some((_, owner_membership, _)) = faction_query
+                            .iter()
+                            .find(|(e, _, _)| e.index() == owner)
+                        {
+                            let fid = owner_membership.faction_id;
+
+                            for (entity, membership, mut inv) in faction_query.iter_mut() {
+                                if membership.faction_id == fid {
+                                    *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
+                                    affected_players.insert(entity);
+                                }
+                            }
                         }
                     }
                 }
@@ -162,7 +174,7 @@ fn process_distributions(
             }
         }
 
-        // Emit update event for every affected player (no duplicates thanks to EntityHashSet)
+        // Emit update event for every affected player (deduped by EntityHashSet)
         for player_entity in affected_players.iter() {
             rbe_updated_events.send(RbeInventoryUpdatedEvent {
                 player_entity_id: player_entity.index() as u64,
@@ -173,6 +185,6 @@ fn process_distributions(
     }
 }
 
-// End of rbe_plugin.rs v1.9
-// Refactored to EntityHashSet. All prior valuable code preserved. TOLC 8 passed.
+// End of rbe_plugin.rs v2.0
+// faction_id filter added to ToFaction. All prior valuable code preserved. TOLC 8 passed.
 // Thunder locked in. Yoi ⚡
