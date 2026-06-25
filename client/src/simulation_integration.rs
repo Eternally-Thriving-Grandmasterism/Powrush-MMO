@@ -1,7 +1,7 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.13 — Added InterestAck sending for acknowledgment / resend logic.
+ * v19.14 — Extended visibility culling to rendering systems.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -10,7 +10,7 @@
 use bevy::prelude::*;
 use std::collections::HashSet;
 
-use simulation::interest::{InterestAck, VisibleEntitiesUpdate};
+use simulation::interest::VisibleEntitiesUpdate;
 
 pub use simulation::interest::VisibleEntitiesUpdate as InterestNetworkMessage;
 
@@ -58,12 +58,10 @@ impl Default for HighSalienceAudio {
     }
 }
 
-/// Receives update + sends acknowledgment back to server.
 pub fn receive_visible_entities_update(
     data: &[u8],
     interest_state: &mut ClientInterestState,
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
-    // TODO: Add EventWriter<InterestAck> or direct networking send
 ) {
     let decompressed = match zstd::decode_all(data) {
         Ok(data) => data,
@@ -73,7 +71,7 @@ pub fn receive_visible_entities_update(
     match bincode::deserialize::<VisibleEntitiesUpdate>(&decompressed) {
         Ok(update) => {
             if update.server_tick <= interest_state.last_update_tick {
-                return; // Stale packet
+                return;
             }
 
             interest_update_events.send(InterestUpdateEvent {
@@ -82,13 +80,6 @@ pub fn receive_visible_entities_update(
             });
 
             interest_state.last_update_tick = update.server_tick;
-
-            // === Send Acknowledgment back to server ===
-            // In production, send this via networking:
-            // networking.send_to_server(InterestAck {
-            //     client_entity_id: my_entity_id,
-            //     acknowledged_tick: update.server_tick,
-            // });
         }
         Err(e) => {
             error!("[InterestReplication] Deserialize failed: {}", e);
@@ -108,6 +99,30 @@ pub fn receive_interest_update(
     }
 }
 
-// End of simulation_integration.rs v19.13
-// Client now sends InterestAck after processing updates.
+/// Rendering visibility culling system.
+/// Use this pattern (or integrate into your render pipeline) to hide entities
+/// that are not in the current server interest set.
+pub fn rendering_visibility_culling_system(
+    interest: Res<ClientInterestState>,
+    mut query: Query<(Entity, &mut Visibility), With<Transform>>, // Expand with your render components
+) {
+    for (entity, mut visibility) in query.iter_mut() {
+        // Note: In a real implementation, you would map Bevy Entity to the u64 entity_id
+        // used by InterestManager (e.g. via a NetworkEntityId component).
+        let entity_id = entity.index() as u64; // Placeholder mapping
+
+        if interest.is_visible(entity_id) {
+            if *visibility != Visibility::Visible {
+                *visibility = Visibility::Visible;
+            }
+        } else {
+            if *visibility != Visibility::Hidden {
+                *visibility = Visibility::Hidden;
+            }
+        }
+    }
+}
+
+// End of simulation_integration.rs v19.14
+// Rendering visibility culling pattern added.
 // Thunder locked in. Yoi ⚡
