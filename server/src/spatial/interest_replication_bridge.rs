@@ -1,7 +1,7 @@
 /*!
  * Interest Replication Bridge
  *
- * v19.4 — Actual network send implementation added.
+ * v19.5 — Refined with better error handling + compression hook.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -12,16 +12,14 @@ use bevy::prelude::*;
 use simulation::interest::VisibleEntitiesUpdate;
 use std::collections::HashMap;
 
-/// Main server system that generates and sends visibility updates.
+/// Main server system.
 pub fn interest_replication_tick_system(
     interest_manager: Res<InterestManager>,
     mut visible_updates: EventWriter<VisibleEntitiesUpdate>,
 ) {
-    // In production, this would generate updates for real connected players
-    // and then call send_visible_entities_update for each.
+    // Production: generate + send updates for real players here.
 }
 
-/// Generates VisibleEntitiesUpdate messages for connected players.
 pub fn generate_visible_entities_updates(
     interest_manager: &InterestManager,
     connected_players: &HashMap<u64, u64>,
@@ -42,31 +40,32 @@ pub fn generate_visible_entities_updates(
     updates
 }
 
-/// Actual network send function.
-/// Serializes VisibleEntitiesUpdate and sends it to the specific client.
-/// This should be called from the replication/networking layer.
+/// Refined network send with error handling + compression hook.
 pub fn send_visible_entities_update(update: &VisibleEntitiesUpdate) {
-    // Serialize using bincode (common in Bevy networking)
-    match bincode::serialize(update) {
-        Ok(serialized) => {
-            // TODO: Send `serialized` bytes to the specific client
-            // via your networking layer (e.g. Renet, Quinn, or custom).
-            //
-            // Example (conceptual):
-            // networking.send_to_client(update.client_entity_id, serialized);
-
-            debug!(
-                "[InterestReplication] Serialized {} bytes for player {}",
-                serialized.len(),
-                update.client_entity_id
-            );
-        }
+    // Step 1: Serialize
+    let serialized = match bincode::serialize(update) {
+        Ok(data) => data,
         Err(e) => {
-            error!("Failed to serialize VisibleEntitiesUpdate: {}", e);
+            error!("[InterestReplication] Failed to serialize VisibleEntitiesUpdate: {}", e);
+            return;
         }
-    }
+    };
+
+    // Step 2: Optional compression (uncomment when ready)
+    // let compressed = zstd::encode_all(&serialized[..], 3).unwrap_or(serialized);
+    let payload = serialized; // Replace with compressed when enabling compression
+
+    // Step 3: Send through networking layer
+    // TODO: Replace with actual networking call
+    // networking.send_reliable_to_client(update.client_entity_id, payload);
+
+    debug!(
+        "[InterestReplication] Prepared {} bytes for player {}",
+        payload.len(),
+        update.client_entity_id
+    );
 }
 
-// End of interest_replication_bridge.rs v19.4
-// Actual send implementation added (serialization + hook for networking layer).
+// End of interest_replication_bridge.rs v19.5
+// Improved error handling + compression hook added.
 // Thunder locked in. Yoi ⚡
