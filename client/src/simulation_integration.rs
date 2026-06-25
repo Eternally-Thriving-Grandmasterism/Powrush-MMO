@@ -1,7 +1,7 @@
 /*!
  * Simulation Integration for Powrush-MMO
  *
- * v19.8 — Extended visibility culling pattern (Step C).
+ * v19.9 — Actual network receive implementation for interest updates.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -58,6 +58,25 @@ impl Default for HighSalienceAudio {
     }
 }
 
+/// Actual network receive function.
+/// Called when raw bytes arrive from the server for a VisibleEntitiesUpdate.
+pub fn receive_visible_entities_update(
+    data: &[u8],
+    mut interest_update_events: EventWriter<InterestUpdateEvent>,
+) {
+    match bincode::deserialize::<VisibleEntitiesUpdate>(data) {
+        Ok(update) => {
+            interest_update_events.send(InterestUpdateEvent {
+                visible_entities: update.visible_entity_ids,
+                server_tick: update.server_tick,
+            });
+        }
+        Err(e) => {
+            error!("Failed to deserialize VisibleEntitiesUpdate: {}", e);
+        }
+    }
+}
+
 pub fn receive_interest_update(
     mut visible_updates: EventReader<VisibleEntitiesUpdate>,
     mut interest_update_events: EventWriter<InterestUpdateEvent>,
@@ -70,21 +89,6 @@ pub fn receive_interest_update(
     }
 }
 
-/// Example of how rendering / visibility culling systems should use ClientInterestState.
-/// Other systems (rendering, LOD, UI, etc.) can follow this pattern.
-pub fn example_rendering_culling_system(
-    interest: Res<ClientInterestState>,
-    // query: Query<(Entity, &Transform), With<SomeRenderComponent>>,
-) {
-    // for (entity, _) in query.iter() {
-    //     if interest.is_visible(entity.index()) {  // or use a proper entity_id mapping
-    //         // Render this entity
-    //     } else {
-    //         // Skip rendering (cull)
-    //     }
-    // }
-}
-
-// End of simulation_integration.rs v19.8
-// Steps A+B+C of replication bridge + visibility culling extension complete.
+// End of simulation_integration.rs v19.9
+// Actual network receive (deserialization) implemented.
 // Thunder locked in. Yoi ⚡
