@@ -1,9 +1,8 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * v2.4 | Added Faction Standing modification system
- * Players now gain standing when receiving ToFaction distributions.
- * Foundation for harvest/claim standing gains.
+ * v2.5 | ToFaction now distributes proportionally to FactionStanding
+ * Higher standing members receive larger shares. Core virtuous cycle complete.
  *
  * Thunder locked in. Yoi ⚡
  */
@@ -115,7 +114,6 @@ fn process_resource_transfers(/* ... */) { /* unchanged */ }
 fn process_node_claiming(/* ... */) { /* unchanged */ }
 
 /// Applies standing changes from FactionStandingChangedEvent.
-/// Creates the FactionStanding component if the player doesn't have one yet.
 fn apply_faction_standing_changes(
     mut events: EventReader<FactionStandingChangedEvent>,
     mut commands: Commands,
@@ -129,7 +127,6 @@ fn apply_faction_standing_changes(
         {
             standing.standing = (standing.standing + event.delta).clamp(0.0, 5.0);
         } else {
-            // Create new standing component for this faction
             commands.entity(Entity::from_raw(event.player_entity_id)).insert(FactionStanding {
                 faction_id: event.faction_id,
                 standing: event.delta.clamp(0.0, 5.0),
@@ -138,8 +135,8 @@ fn apply_faction_standing_changes(
     }
 }
 
-/// Distribution logic with Faction Standing System support.
-/// When players receive ToFaction distributions, they gain a small amount of standing.
+/// Distribution logic with standing-weighted ToFaction.
+/// ToFaction now distributes proportionally based on each member's FactionStanding.
 fn process_distributions(
     mut dist_events: EventReader<DistributeResourcesEvent>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
@@ -166,6 +163,7 @@ fn process_distributions(
             DistributionType::ToFaction => {
                 if let Ok((_, ownership)) = node_query.get(Entity::from_raw(event.source_entity)) {
                     if let Some(owner) = ownership.owner {
+                        // Owner still receives full amount (preserved behavior)
                         if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(owner)) {
                             *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
                             affected_players.insert(Entity::from_raw(owner));
@@ -177,12 +175,35 @@ fn process_distributions(
                         {
                             let owner_faction_id = owner_membership.faction_id;
 
-                            for (entity, membership, mut inv) in faction_query.iter_mut() {
-                                if membership.faction_id == owner_faction_id {
-                                    *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
+                            // === Standing-weighted distribution among faction members ===
+                            // Collect members + their standing (default 1.0 if no standing data)
+                            let mut faction_members: Vec<(Entity, f32)> = Vec::new();
+                            let mut total_standing: f32 = 0.0;
+
+                            for (entity, _membership, _inv) in faction_query.iter() {
+                                if _membership.faction_id == owner_faction_id {
+                                    let member_standing = standing_query
+                                        .iter()
+                                        .find(|(e, _)| e.index() == entity.index())
+                                        .map(|(_, s)| s.standing)
+                                        .unwrap_or(1.0);
+
+                                    faction_members.push((entity, member_standing));
+                                    total_standing += member_standing;
+                                }
+                            }
+
+                            if total_standing > 0.0 {
+                                for (entity, member_standing) in faction_members {
+                                    let share = event.total_amount * (member_standing / total_standing);
+
+                                    if let Ok(mut inv) = inventory_query.get_mut(entity) {
+                                        *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += share;
+                                    }
+
                                     affected_players.insert(entity);
 
-                                    // Positive feedback: receiving faction resources increases standing
+                                    // Participation still grants standing
                                     standing_changed_events.send(FactionStandingChangedEvent {
                                         player_entity_id: entity.index() as u64,
                                         faction_id: owner_faction_id,
@@ -226,7 +247,7 @@ fn process_distributions(
     }
 }
 
-// End of rbe_plugin.rs v2.4
-// Faction standing now increases when players receive ToFaction distributions.
-// apply_faction_standing_changes system added.
+// End of rbe_plugin.rs v2.5
+// ToFaction now distributes proportionally based on FactionStanding.
+// Higher standing = larger share. Virtuous cycle complete.
 // Thunder locked in. Yoi ⚡
