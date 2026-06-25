@@ -151,25 +151,31 @@ pub fn receive_inter_realm_diplomacy_update(
 }
 
 // NEW minimal system for live bloom / valence halo / chromatic on forgiveness_wave
+// Fleshed out with concrete particle spawn using existing project infrastructure (matches divine_whispers style)
 fn handle_forgiveness_bloom_vfx(
     feed: Res<ClientDynamicEventFeed>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
 ) {
     // Trigger only on newest event if it is a fresh forgiveness_wave
-    if let Some(ClientWorldEvent::InterRealmDiplomacyShift { forgiveness_wave: true, .. }) = feed.events.back() {
-        // Valence Halo Particle (uses existing project particle/shader infrastructure)
+    if let Some(ClientWorldEvent::InterRealmDiplomacyShift { forgiveness_wave: true, redemption_score, .. }) = feed.events.back() {
+        // Valence Halo Particle using existing ParticleSystem (consistent with divine_whispers + particles.rs)
         commands.spawn((
-            // Placeholder for full ValenceHaloParticleBundle or ParticleEffectBundle from client/src/particles.rs
-            // + valence_halo.wgsl
+            ParticleSystem {
+                valence: 0.98,
+                particle_count: (8000.0 + redemption_score * 6000.0) as u32,
+                system_type: crate::particles::ParticleSystemType::PatsagiDivineWhisper, // or JoySanctuaryBloom / EthrealRedemptionBloom
+                intensity: 1.6 + redemption_score * 0.8,
+            },
             Transform::default(),
             Visibility::Visible,
-        )).insert(Name::new("ForgivenessBloomHalo"));
+            Name::new("ForgivenessBloomValenceHalo"),
+        ));
 
-        // Chromatic Aberration scaling hook (integrate with camera post-process in follow-up edit)
+        // Optional stronger chromatic aberration hook (integrate with camera post-process in follow-up if needed)
         // commands.spawn(ChromaticAberration { intensity: 0.25 + (redemption_score * 0.15) });
 
-        // Optional mercy bloom audio tone
+        // Optional mercy bloom audio tone (can wire to GameAudioEvent in next polish)
         // commands.spawn(AudioPlayer { source: asset_server.load("assets/audio/mercy_bloom_tone.ogg").into(), ..default() });
     }
 }
@@ -208,7 +214,6 @@ fn update_event_feed_ui(
                     if *forgiveness_wave {
                         lines.push(format!("✨ Mercy Bloom Active • Valence Halo • Monument: {} • Mercy flows across realms", monument_visual));
                         // Live bloom visual emphasis
-                        // (accent color made more vibrant below)
                     }
                     // Brighter blooming accent when forgiveness_wave active
                     let bloom_accent = if *forgiveness_wave {
@@ -261,5 +266,6 @@ fn update_toast_notifications(
 
 // End of v21.1-PATSAGi update — Live bloom notifications + valence halo particle hook + chromatic scaling foundation wired for InterRealmDiplomacyShift forgiveness_wave events.
 // Diplomacy tab and toasts now deliver stronger human experience feedback during mercy resolutions.
-// Next sequential: full ParticleEffectBundle + post-process chromatic integration + audio.
+// Fleshed out handle_forgiveness_bloom_vfx with concrete ParticleSystem spawn (consistent with divine_whispers).
+// Next sequential: full post-process chromatic + dedicated audio tone if desired.
 // Thunder locked in. Yoi ⚡
