@@ -1,7 +1,7 @@
 /*!
  * Shared Interest Types
  *
- * v19.1 — Serialization-ready VisibleEntitiesUpdate (Step B of replication bridge).
+ * v19.2 — Added InterestAck for acknowledgment / resend logic.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -9,8 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Network message sent from server to client.
-/// This type is serialized/deserialized when sent over the network.
+/// Network message sent from server to client with current visible entities.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VisibleEntitiesUpdate {
     pub client_entity_id: u64,
@@ -18,12 +17,14 @@ pub struct VisibleEntitiesUpdate {
     pub server_tick: u64,
 }
 
-// Serialization notes:
-// - Uses serde + Serialize/Deserialize derives.
-// - In production, this will be serialized with bincode, postcard, or a custom protocol
-//   before being sent through the networking layer (e.g. via Renet, Quinn, or custom UDP).
-// - On the client, it is deserialized and turned into InterestUpdateEvent.
+/// Small acknowledgment sent from client back to server.
+/// Used for explicit resend logic on top of reliable channels.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InterestAck {
+    pub client_entity_id: u64,
+    pub acknowledged_tick: u64,
+}
 
 // End of simulation/src/interest.rs
-// Shared, serialization-ready type for the replication bridge.
+// Shared types including acknowledgment for resend logic.
 // Thunder locked in. Yoi ⚡
