@@ -1,30 +1,17 @@
 /*!
- * Spatial Audio + Game Audio Event System + Client Interest State — Powrush-MMO
+ * Spatial Audio + Game Audio Event System — Powrush-MMO
  *
- * v19.4 — Step 1 Complete: General Entity Visibility Helper implemented.
- *
- * ClientInterestState now provides a clean, general-purpose visibility query API
- * that other modules (particles, rendering, UI, etc.) can easily use.
+ * v19.5 — Cleaned up after Step 3 move. Now imports ClientInterestState,
+ * InterestUpdateEvent, and HighSalienceAudio from simulation_integration.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
-use std::collections::HashSet;
 
-/// Marks an audio source for premium HRTF treatment
-#[derive(Component, Clone, Debug)]
-pub struct HighSalienceAudio {
-    pub priority: u8,
-    pub gain_boost: f32,
-}
-
-impl Default for HighSalienceAudio {
-    fn default() -> Self {
-        Self { priority: 1, gain_boost: 0.2 }
-    }
-}
+use crate::simulation_integration::{ClientInterestState, InterestUpdateEvent, HighSalienceAudio};
+use crate::particles::ParticleSystem;
 
 /// Audio trigger events
 #[derive(Event, Clone, Debug)]
@@ -33,51 +20,6 @@ pub enum GameAudioEvent {
     Harvest { position: Vec3, is_sustainable: bool, entity_id: Option<u64> },
     CouncilTrial { position: Vec3, intensity: f32, entity_id: Option<u64> },
     RbeNode { position: Vec3, resource_type: String, intensity: f32, entity_id: Option<u64> },
-}
-
-/// Sent by replication when the server updates the set of visible entities for this client
-#[derive(Event, Clone, Debug)]
-pub struct InterestUpdateEvent {
-    pub visible_entities: Vec<u64>,
-    pub server_tick: u64,
-}
-
-/// Single source of truth for server-reported visible/interesting entities.
-/// This is the canonical place other systems should query for visibility.
-#[derive(Resource, Default)]
-pub struct ClientInterestState {
-    pub visible_entities: HashSet<u64>,
-    pub last_update_tick: u64,
-}
-
-impl ClientInterestState {
-    /// Primary visibility query. Use this in particles, rendering, UI, and audio systems.
-    ///
-    /// Example:
-    /// ```ignore
-    /// if interest.is_visible(entity_id) {
-    ///     // spawn particles, play audio, update UI, etc.
-    /// }
-    /// ```
-    pub fn is_visible(&self, entity_id: u64) -> bool {
-        self.visible_entities.contains(&entity_id)
-    }
-
-    /// Returns true if we have no visibility information yet (common on first connect)
-    pub fn has_no_data(&self) -> bool {
-        self.visible_entities.is_empty() && self.last_update_tick == 0
-    }
-
-    /// Bulk update from the replication/interest layer
-    pub fn update_visible_entities(&mut self, entities: Vec<u64>, current_tick: u64) {
-        self.visible_entities.clear();
-        self.visible_entities.extend(entities);
-        self.last_update_tick = current_tick;
-    }
-
-    pub fn visible_count(&self) -> usize {
-        self.visible_entities.len()
-    }
 }
 
 #[derive(Resource, Default)]
@@ -91,22 +33,8 @@ impl Plugin for SpatialAudioPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<SpatialAudioManager>()
-            .init_resource::<ClientInterestState>()
             .add_event::<GameAudioEvent>()
-            .add_event::<InterestUpdateEvent>()
-            .add_systems(Update, (
-                handle_interest_updates,
-                handle_game_audio_events,
-            ));
-    }
-}
-
-fn handle_interest_updates(
-    mut events: EventReader<InterestUpdateEvent>,
-    mut interest_state: ResMut<ClientInterestState>,
-) {
-    for event in events.read() {
-        interest_state.update_visible_entities(event.visible_entities.clone(), event.server_tick);
+            .add_systems(Update, handle_game_audio_events);
     }
 }
 
@@ -154,7 +82,7 @@ fn handle_game_audio_events(
     }
 }
 
-// End of production file v19.4
-// Step 1 Complete: General Entity Visibility Queries via ClientInterestState::is_visible()
-// Clean, documented, and ready for use by particles, rendering, UI, and other systems.
+// End of production file v19.5
+// Interest types moved to simulation_integration.rs (Step 3).
+// Spatial audio remains clean and focused on audio logic.
 // Thunder locked in. Yoi ⚡
