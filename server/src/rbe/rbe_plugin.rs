@@ -1,9 +1,9 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * v2.0 | Added faction_id filter to ToFaction query
- * Only distributes to members of the same faction as the owner. Equal split preserved.
- * EntityHashSet dedup + all prior logic intact.
+ * v2.1 | Refactored ToFaction logic for clarity
+ * Clear two-phase approach: owner credit + faction_id filtered distribution.
+ * Behavior unchanged. EntityHashSet dedup preserved.
  *
  * Thunder locked in. Yoi ⚡
  */
@@ -109,8 +109,8 @@ fn regenerate_resource_nodes(/* ... */) { /* unchanged */ }
 fn process_resource_transfers(/* ... */) { /* unchanged */ }
 fn process_node_claiming(/* ... */) { /* unchanged */ }
 
-/// Expanded distribution logic with faction_id filter.
-/// Only members sharing the owner's faction_id receive the distribution.
+/// ToFaction: Owner always credited + equal distribution only to members
+/// of the exact same faction (via faction_id filter).
 fn process_distributions(
     mut dist_events: EventReader<DistributeResourcesEvent>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
@@ -135,23 +135,22 @@ fn process_distributions(
             DistributionType::ToFaction => {
                 if let Ok((_, ownership)) = node_query.get(Entity::from_raw(event.source_entity)) {
                     if let Some(owner) = ownership.owner {
-                        // Preserved owner credit logic
+                        // Owner always receives the full distribution (preserved behavior)
                         if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(owner)) {
                             *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
                             affected_players.insert(Entity::from_raw(owner));
                         }
 
-                        // Implemented faction_id filter:
-                        // 1. Discover owner's faction_id
-                        // 2. Only credit members with matching faction_id
+                        // Phase 1: Discover the faction_id of the owner
                         if let Some((_, owner_membership, _)) = faction_query
                             .iter()
                             .find(|(e, _, _)| e.index() == owner)
                         {
-                            let fid = owner_membership.faction_id;
+                            let owner_faction_id = owner_membership.faction_id;
 
+                            // Phase 2: Credit only members of the same faction
                             for (entity, membership, mut inv) in faction_query.iter_mut() {
-                                if membership.faction_id == fid {
+                                if membership.faction_id == owner_faction_id {
                                     *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.total_amount;
                                     affected_players.insert(entity);
                                 }
@@ -185,6 +184,6 @@ fn process_distributions(
     }
 }
 
-// End of rbe_plugin.rs v2.0
-// faction_id filter added to ToFaction. All prior valuable code preserved. TOLC 8 passed.
+// End of rbe_plugin.rs v2.1
+// ToFaction logic refactored for clarity. All prior valuable code preserved.
 // Thunder locked in. Yoi ⚡
