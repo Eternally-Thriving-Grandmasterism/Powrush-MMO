@@ -1,6 +1,11 @@
-//! server/src/lib.rs
-//! Powrush-MMO Authoritative Server Crate Root — Sovereign Orchestration Layer
-//! AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO + 7 Living Mercy Gates enforced
+/*!
+ * server/src/lib.rs
+ *
+ * v19.3 — Added persistence module + FactionPersistencePlugin registration.
+ *
+ * AG-SML v1.0 | TOLC 8
+ * Thunder locked in. Yoi ⚡
+ */
 
 // === Core Infrastructure ===
 pub mod main;
@@ -41,6 +46,7 @@ pub mod technology_system;
 // === Player & Account Sovereignty ===
 pub mod player_account;
 pub mod persistence_polish;
+pub mod persistence;                    // NEW: Faction + general persistence
 
 // === Integration & Bridges ===
 pub mod ra_thor_mercy_bridge;
@@ -62,7 +68,7 @@ pub mod telemetry_pipeline;
 // === OpenTelemetry Distributed Tracing ===
 pub mod opentelemetry_tracing;
 
-// === Safety Net Sovereignty Layer (v18.37) ===
+// === Safety Net Sovereignty Layer ===
 pub mod safety_net_broadcast;
 
 use bevy::prelude::*;
@@ -83,6 +89,7 @@ use crate::server_war_system::ServerWarSystemPlugin;
 use crate::technology_system::TechnologySystemPlugin;
 use crate::anti_cheat::AntiCheatPlugin;
 use crate::persistence_polish::PersistencePolishPlugin;
+use crate::persistence::faction_persistence::FactionPersistencePlugin; // NEW
 use crate::ra_thor_mercy_bridge::RaThorMercyBridgePlugin;
 use crate::safety_net_broadcast::SafetyNetBroadcastPlugin;
 
@@ -118,9 +125,10 @@ impl Plugin for ServerCorePlugin {
             .add_plugins(TechnologySystemPlugin)
             .add_plugins(AntiCheatPlugin)
             .add_plugins(PersistencePolishPlugin)
+            .add_plugins(FactionPersistencePlugin)           // NEW: Faction standing persistence
             .add_plugins(RaThorMercyBridgePlugin)
 
-            // === Safety Net Broadcast Sovereignty Layer (v18.37) ===
+            // === Safety Net Broadcast Sovereignty Layer ===
             .add_plugins(SafetyNetBroadcastPlugin)
 
             // === Spatial Interest Layer (Authoritative) ===
