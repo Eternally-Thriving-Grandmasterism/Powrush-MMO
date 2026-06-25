@@ -1,8 +1,8 @@
 /*!
  * Spatial Audio + Game Audio Event System — Powrush-MMO
  *
- * v19.5 — Cleaned up after Step 3 move. Now imports ClientInterestState,
- * InterestUpdateEvent, and HighSalienceAudio from simulation_integration.
+ * v19.6 — Spatial Audio Culling implemented.
+ * Audio entity creation now respects ClientInterestState visibility + basic distance culling.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -10,7 +10,7 @@
 
 use bevy::prelude::*;
 
-use crate::simulation_integration::{ClientInterestState, InterestUpdateEvent, HighSalienceAudio};
+use crate::simulation_integration::{ClientInterestState, HighSalienceAudio};
 use crate::particles::ParticleSystem;
 
 /// Audio trigger events
@@ -38,36 +38,49 @@ impl Plugin for SpatialAudioPlugin {
     }
 }
 
+/// Spatial Audio Culling + High-Salience Routing
 fn handle_game_audio_events(
     mut events: EventReader<GameAudioEvent>,
     interest: Res<ClientInterestState>,
+    listener_query: Query<&GlobalTransform, With<crate::spatial_audio::SpatialListener>>,
     mut commands: Commands,
 ) {
+    let listener_pos = listener_query.get_single().map(|t| t.translation()).unwrap_or(Vec3::ZERO);
+
     for event in events.read() {
-        let entity_id = match event {
-            GameAudioEvent::Epiphany { entity_id, .. } => *entity_id,
-            GameAudioEvent::Harvest { entity_id, .. } => *entity_id,
-            GameAudioEvent::CouncilTrial { entity_id, .. } => *entity_id,
-            GameAudioEvent::RbeNode { entity_id, .. } => *entity_id,
+        let (position, intensity, entity_id) = match event {
+            GameAudioEvent::Epiphany { position, intensity, entity_id } => (position, intensity, entity_id),
+            GameAudioEvent::Harvest { position, is_sustainable: _, entity_id } => (position, &1.0, entity_id),
+            GameAudioEvent::CouncilTrial { position, intensity, entity_id } => (position, intensity, entity_id),
+            GameAudioEvent::RbeNode { position, intensity, entity_id, .. } => (position, intensity, entity_id),
         };
 
+        // === Entity Visibility Culling ===
         if let Some(id) = entity_id {
-            if !interest.is_visible(id) {
-                continue;
+            if !interest.is_visible(*id) {
+                continue; // Entity not visible according to server interest
             }
         }
 
+        // === Distance Culling (mercy on performance) ===
+        let distance = listener_pos.distance(*position);
+        let max_audio_distance = 250.0; // Configurable later
+        if distance > max_audio_distance {
+            continue; // Too far for meaningful spatial audio
+        }
+
+        // === High-Salience Routing ===
+        let is_high_salience = *intensity > 0.85;
+
         match event {
-            GameAudioEvent::Epiphany { position, intensity, .. } => {
-                let is_high_salience = *intensity > 0.9;
+            GameAudioEvent::Epiphany { .. } => {
                 let mut entity = commands.spawn_empty();
                 if is_high_salience {
-                    entity.insert(HighSalienceAudio { priority: 2, gain_boost: 0.25 });
+                    entity.insert(HighSalienceAudio { priority: 2, gain_boost: 0.3 });
                 }
                 entity.insert(Name::new("SpatialAudio_Epiphany"));
             }
-            GameAudioEvent::CouncilTrial { position, intensity, .. } => {
-                let is_high_salience = *intensity > 0.7;
+            GameAudioEvent::CouncilTrial { .. } => {
                 let mut entity = commands.spawn_empty();
                 if is_high_salience {
                     entity.insert(HighSalienceAudio::default());
@@ -77,12 +90,16 @@ fn handle_game_audio_events(
             GameAudioEvent::Harvest { .. } => {
                 commands.spawn_empty().insert(Name::new("SpatialAudio_Harvest"));
             }
-            GameAudioEvent::RbeNode { .. } => {}
+            GameAudioEvent::RbeNode { .. } => {
+                commands.spawn_empty().insert(Name::new("SpatialAudio_RbeNode"));
+            }
         }
     }
 }
 
-// End of production file v19.5
-// Interest types moved to simulation_integration.rs (Step 3).
-// Spatial audio remains clean and focused on audio logic.
+// End of production file v19.6
+// Spatial Audio Culling implemented:
+// - Entity visibility via ClientInterestState
+// - Distance-based culling from listener
+// - High-salience events still prioritized
 // Thunder locked in. Yoi ⚡
