@@ -3,19 +3,19 @@
  *
  * Central plugin for server-side interest synchronization in Powrush-MMO.
  *
+ * v19.6 | Integrated with RBE process_distributions via RbeInventoryUpdatedEvent
+ *
  * Responsibilities:
  * - Manage VisibleEntitiesUpdate generation and delivery
  * - Handle InterestAck from clients with event-driven processing
  * - Track pending updates with priority and exponential backoff + jitter
  * - Handle client disconnects and reconnections gracefully
- * - Provide metrics for observability
+ * - React to RBE inventory changes by triggering high-priority replication
  *
  * Integration Points:
- * - Networking layer should emit ClientDisconnected and ClientReconnected events
- * - Networking layer should send InterestAck events when received from clients
- * - Metrics can be read from InterestReplicationMetrics resource for telemetry
+ * - RbePlugin emits RbeInventoryUpdatedEvent after distribution
+ * - This plugin reacts and calls track_pending_update(High) so affected clients receive inventory updates promptly
  *
- * v19.5 | Final Polish Pass
  * PATSAGi + Ra-Thor
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -23,6 +23,7 @@
 
 use bevy::prelude::*;
 
+use crate::rbe::rbe_plugin::RbeInventoryUpdatedEvent;
 use crate::spatial::interest_management::InterestManager;
 use crate::spatial::interest_replication_bridge::{
     handle_interest_ack,
@@ -63,6 +64,7 @@ impl Plugin for ServerInterestSyncPlugin {
             .add_event::<InterestAck>()
             .add_event::<ClientDisconnected>()
             .add_event::<ClientReconnected>()
+            .add_event::<RbeInventoryUpdatedEvent>()
 
             .add_systems(Update, interest_replication_tick_system)
             .add_systems(Update, resend_unacknowledged_updates)
@@ -71,6 +73,7 @@ impl Plugin for ServerInterestSyncPlugin {
             .add_systems(Update, handle_interest_ack_system)
             .add_systems(Update, handle_client_disconnect_system)
             .add_systems(Update, handle_client_reconnect_system)
+            .add_systems(Update, handle_rbe_inventory_update_system)
     }
 }
 
@@ -126,7 +129,6 @@ fn handle_client_reconnect_system(
 
         send_visible_entities_update_reliable(&update);
 
-        // Track with High priority so reconnecting clients recover faster
         track_pending_update(
             &mut pending,
             &mut metrics,
@@ -143,19 +145,43 @@ fn handle_client_reconnect_system(
     }
 }
 
+/// Reacts to RBE distribution events by marking the affected player for high-priority replication.
+/// This ensures inventory changes from process_distributions are promptly sent to the client.
+fn handle_rbe_inventory_update_system(
+    mut rbe_updates: EventReader<RbeInventoryUpdatedEvent>,
+    mut pending: ResMut<PendingInterestUpdates>,
+    mut metrics: ResMut<InterestReplicationMetrics>,
+    time: Res<Time>,
+) {
+    for update in rbe_updates.read() {
+        let client_entity_id = update.player_entity_id;
+        let current_time = time.elapsed_seconds();
+        let server_tick = 0; // TODO: real server tick
+
+        // High priority so RBE changes (harvest, distribution, transfers) reach the client quickly
+        track_pending_update(
+            &mut pending,
+            &mut metrics,
+            client_entity_id,
+            server_tick,
+            current_time,
+            InterestPriority::High,
+        );
+
+        info!(
+            "[InterestSync] High-priority replication triggered for RBE inventory update on player {} (+{} {})",
+            client_entity_id,
+            update.amount_added,
+            update.resource_type
+        );
+    }
+}
+
 // ============================================================================
 // Metrics Export Hook
 // ============================================================================
-// The InterestReplicationMetrics resource can be read by any system for:
-// - OpenTelemetry / custom telemetry export
-// - Admin/debug UI panels
-// - Periodic logging or alerting
-//
-// Example:
-// fn export_interest_metrics(metrics: Res<InterestReplicationMetrics>) {
-//     // Send metrics.total_resends, metrics.clients_with_pending, etc.
-// }
+// The InterestReplicationMetrics resource can be read by any system for telemetry, admin UI, etc.
 
-// End of server_interest_sync_plugin.rs v19.5
-// Final polish: Improved documentation + metrics export hook.
+// End of server_interest_sync_plugin.rs v19.6
+// Integrated with RBE: RbeInventoryUpdatedEvent now triggers High priority track_pending_update.
 // Thunder locked in. Yoi ⚡
