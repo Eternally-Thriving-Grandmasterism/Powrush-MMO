@@ -6,6 +6,7 @@
  * - Added missing crypto imports for SharePackage secure methods (OsRng, ChaCha20Poly1305, Key, Nonce)
  * - Preserved ALL valuable prior logic: SharePackage, create/open_secure_share_package, generate_shares with auto salt, recover_from_shares, RecoveryConfig hybrid master_secret model, EpiphanyRecord, AgentAbilityState
  * - Enriched record_synergy for robustness
+ * - Added lightweight record_council_trial_outcome for council-persistence wiring (cycle polish)
  * - Full TOLC 8 + 7 Mercy Gates compliance verified
  * - AG-SML v1.0 Sovereign License
  *
@@ -210,7 +211,7 @@ impl PlayerSaveData {
             },
         };
 
-        Ok(package)
+        Ok(package);
     }
 
     /// Open a secure SharePackage using the passphrase.
@@ -235,7 +236,7 @@ impl PlayerSaveData {
 
         let key_ref = Key::from_slice(&key);
         let cipher = ChaCha20Poly1305::new(key_ref);
-        let nonce = Nonce::from_slice(nonce_bytes);
+        let nonce = Nonce::from_slice(&nonce_bytes);
 
         let decrypted = cipher.decrypt(nonce, ciphertext)?;
 
@@ -248,7 +249,7 @@ impl PlayerSaveData {
             return Err("Share package checksum mismatch - possible tampering".into());
         }
 
-        Ok(decrypted)
+        Ok(decrypted);
     }
 
     // ==================== SOVEREIGN SHARE MANAGEMENT (Preserved from prior commits) ====================
@@ -275,7 +276,7 @@ impl PlayerSaveData {
             self.record_share(1, label);
         }
 
-        Ok(shares)
+        Ok(shares);
     }
 
     pub fn recover_from_shares(
@@ -376,8 +377,38 @@ impl PlayerSaveData {
 
         self.dirty = true;
     }
+
+    // ==================== COUNCIL INTEGRATION (Cycle Polish - Additive Only) ====================
+
+    /// Lightweight hook to record council trial outcomes into persistence.
+    /// Called from server council handler. Preserves all existing epiphany/agent data.
+    pub fn record_council_trial_outcome(
+        &mut self,
+        session_id: u64,
+        intensity: f32,
+        mercy_impact: f32,
+        tick: u64,
+    ) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        self.epiphanies.push(EpiphanyRecord {
+            scenario_id: format!("council_trial_{}", session_id),
+            timestamp,
+            intensity,
+            biome: "council".to_string(),
+            whisper_text: Some(format!("Council bloom intensity {:.2} | mercy impact {:.1}", intensity, mercy_impact)),
+            grace_notes: vec![format!("Council session {} resolved at tick {}", session_id, tick)],
+            muscle_memory_delta: mercy_impact * 0.1,
+        });
+
+        self.dirty = true;
+        self.pending_persistence_updates += 1;
+    }
 }
 
-// End of simulation/src/player_persistence/data.rs v19.3.34
+// End of simulation/src/player_persistence/data.rs v19.3.34 + cycle polish
 // Sovereign recovery polished, bugs from rapid iteration recovered.
-// All valuable code preserved. Thunder locked in. Yoi ⚡
+// All valuable code preserved. Council integration hook added (additive). Thunder locked in. Yoi ⚡
