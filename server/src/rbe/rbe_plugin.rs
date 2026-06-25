@@ -1,19 +1,17 @@
 /*!
  * RBE Plugin (Resource-Based Economy)
  *
- * Core plugin for the Resource-Based Economy simulation layer.
+ * v1.2 | Added NodeOwnership + Basic Transfer Logic
  *
- * v1.1 | Core Systems Added (Harvesting + Regeneration)
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
 
-use crate::rbe::components::{PlayerRbeInventory, ResourceNode};
+use crate::rbe::components::{NodeOwnership, PlayerRbeInventory, ResourceNode};
 
 // ============================================================================
-// Core RBE Resources
+// Resources
 // ============================================================================
 
 #[derive(Resource, Default)]
@@ -24,11 +22,11 @@ pub struct RbeEconomyState {
 
 #[derive(Resource, Default)]
 pub struct ResourceRegistry {
-    // TODO: Define resource types and properties
+    // TODO
 }
 
 // ============================================================================
-// RBE Events
+// Events
 // ============================================================================
 
 #[derive(Event, Clone, Debug)]
@@ -45,8 +43,16 @@ pub struct ResourceNodeDepletedEvent {
     pub resource_type: String,
 }
 
+#[derive(Event, Clone, Debug)]
+pub struct ResourceTransferEvent {
+    pub from_entity: u64,
+    pub to_entity: u64,
+    pub resource_type: String,
+    pub amount: f32,
+}
+
 // ============================================================================
-// RBE Plugin
+// Plugin
 // ============================================================================
 
 pub struct RbePlugin;
@@ -59,37 +65,38 @@ impl Plugin for RbePlugin {
 
             .add_event::<HarvestEvent>()
             .add_event::<ResourceNodeDepletedEvent>()
+            .add_event::<ResourceTransferEvent>()
 
             .add_systems(Update, (
                 process_harvest_events,
                 regenerate_resource_nodes,
+                process_resource_transfers,
             ))
     }
 }
 
 // ============================================================================
-// Core RBE Systems
+// Systems
 // ============================================================================
 
-/// Processes harvest requests and updates inventories + nodes.
 fn process_harvest_events(
     mut harvest_events: EventReader<HarvestEvent>,
-    mut node_query: Query<&mut ResourceNode>,
+    mut node_query: Query<(&mut ResourceNode, Option<&NodeOwnership>)>,
     mut inventory_query: Query<&mut PlayerRbeInventory>,
     mut economy: ResMut<RbeEconomyState>,
     mut depleted_events: EventWriter<ResourceNodeDepletedEvent>,
 ) {
     for event in harvest_events.read() {
-        // Try to get the resource node
-        if let Ok(mut node) = node_query.get_mut(Entity::from_raw(event.node_entity)) {
-            let harvested = event.amount.min(node.current_amount);
+        if let Ok((mut node, ownership)) = node_query.get_mut(Entity::from_raw(event.node_entity)) {
+            // Basic ownership check (public or owned by harvester)
+            let can_harvest = ownership.map_or(true, |o| o.owner == Some(event.harvester_entity));
 
-            if harvested > 0.0 {
+            if can_harvest && node.current_amount > 0.0 {
+                let harvested = event.amount.min(node.current_amount);
                 node.current_amount -= harvested;
 
-                // Update player inventory
-                if let Ok(mut inventory) = inventory_query.get_mut(Entity::from_raw(event.harvester_entity)) {
-                    *inventory.resources.entry(event.resource_type.clone()).or_insert(0.0) += harvested;
+                if let Ok(mut inv) = inventory_query.get_mut(Entity::from_raw(event.harvester_entity)) {
+                    *inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += harvested;
                 }
 
                 economy.total_resources_distributed += harvested as u64;
@@ -105,7 +112,6 @@ fn process_harvest_events(
     }
 }
 
-/// Regenerates resource nodes over time.
 fn regenerate_resource_nodes(
     mut node_query: Query<&mut ResourceNode>,
     time: Res<Time>,
@@ -118,6 +124,26 @@ fn regenerate_resource_nodes(
     }
 }
 
-// End of rbe_plugin.rs v1.1
-// Core harvesting and regeneration systems added.
+/// Basic resource transfer between players.
+fn process_resource_transfers(
+    mut transfer_events: EventReader<ResourceTransferEvent>,
+    mut inventory_query: Query<&mut PlayerRbeInventory>,
+) {
+    for event in transfer_events.read() {
+        if let Ok(mut from_inv) = inventory_query.get_mut(Entity::from_raw(event.from_entity)) {
+            if let Some(amount) = from_inv.resources.get_mut(&event.resource_type) {
+                if *amount >= event.amount {
+                    *amount -= event.amount;
+
+                    if let Ok(mut to_inv) = inventory_query.get_mut(Entity::from_raw(event.to_entity)) {
+                        *to_inv.resources.entry(event.resource_type.clone()).or_insert(0.0) += event.amount;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// End of rbe_plugin.rs v1.2
+// Added NodeOwnership support + basic transfer system.
 // Thunder locked in. Yoi ⚡
