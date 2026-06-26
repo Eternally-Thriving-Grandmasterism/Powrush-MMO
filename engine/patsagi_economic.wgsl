@@ -1,7 +1,35 @@
 // patsagi_economic.wgsl
-// Powrush-MMO v16.8 — Real GPU PATSAGi Economic Simulation Kernel
-// Explicit array<f32, 3> padding for maximum cross-driver robustness
-// AG-SML v1.0 | TOLC 8
+// Powrush-MMO v16.9 — Real GPU PATSAGi Economic Simulation Kernel
+//
+// === GPU MEMORY LAYOUT CONTRACT (Rust ↔ WGSL) ===
+// This file defines the exact memory layout used for GPU compute.
+// It is deliberately kept in sync with the Rust side (engine/gpu_patsagi_bridge.rs).
+//
+// Rust side uses:
+//   - #[repr(C)] + bytemuck::Pod + bytemuck::Zeroable
+//   - GpuNode        (32 bytes) ↔ matches WGSL Node
+//   - GpuNodeOutput  (16 bytes) ↔ matches WGSL OutputNode
+//
+// WGSL Alignment Rules Applied:
+//   - f32                 : alignment 4, size 4
+//   - array<f32, N>       : alignment 4, size 4*N
+//   - vec3<f32>           : alignment 16 (avoided here for portability)
+//   - Explicit padding    : used to guarantee 32-byte struct size for storage buffers
+//
+// Why array<f32, 3> instead of vec3<f32>?
+//   - vec3<f32> has implementation-defined alignment (often 16 bytes)
+//   - array<f32, 3> has predictable alignment of 4
+//   - This maximizes cross-driver and cross-vendor robustness
+//
+// Node        total size = 32 bytes (5 f32 + 12-byte padding)
+// OutputNode  total size = 16 bytes (4 f32)
+//
+// Storage buffer usage:
+//   @group(0) @binding(0) var<storage, read_write> nodes: array<Node>;
+//   @group(0) @binding(1) var<storage, read_write> output: array<OutputNode>;
+//
+// AG-SML v1.0 | TOLC 8 | PATSAGi + Ra-Thor aligned
+// Thunder locked in. Yoi ⚡
 
 struct Node {
     depletion: f32,
