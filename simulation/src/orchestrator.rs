@@ -1,13 +1,9 @@
 /*!
  * Central Simulation Orchestrator
  *
+ * v19.8: Fixed unused variable + elapsed timing bug in persistence logging
+ *
  * v19.7: EconomicLayer integration for GPU foresight
- * - Delegated GPU regen adjustments to EconomicLayer
- * - Clean separation of concerns
- *
- * v19.6: Concrete resource regen logic
- * v19.5: Full GPU foresight request + apply loop
- *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -116,7 +112,6 @@ impl SimulationOrchestrator {
                 if let Some(response) = self.request_gpu_foresight(world) {
                     result.gpu_foresight_used = true;
 
-                    // Delegate to EconomicLayer (clean architecture) — now passes world
                     if self.economic_layer.apply_gpu_regen_adjustments(&response, world) {
                         result.gpu_foresight_applied = true;
                         info!("GPU PATSAGi foresight applied via EconomicLayer at tick {}", self.current_tick);
@@ -201,6 +196,7 @@ impl SimulationOrchestrator {
                     );
 
                     if self.current_tick % 100 == 0 {
+                        let elapsed = start.elapsed();
                         debug!("Persistence overhead: agent {} took {:?} (tick {})", agent.id, elapsed, self.current_tick);
                     }
                 }
