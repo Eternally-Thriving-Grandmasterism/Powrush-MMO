@@ -1,7 +1,7 @@
 /*!
  * Spatial Grid UI Navigation System
  *
- * v5 - Added proper visual focus indicators
+ * v6 - Added pulsing animation to focused elements
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -14,7 +14,6 @@ pub struct Focusable {
     pub order: i32,
 }
 
-/// Marker component indicating the element currently has gamepad focus
 #[derive(Component)]
 pub struct Focused;
 
@@ -42,7 +41,6 @@ impl NavDirection {
     }
 }
 
-/// Main spatial navigation system
 pub fn gamepad_ui_navigation(
     gamepads: Res<Gamepads>,
     axes: Res<bevy::input::gamepad::GamepadAxis>,
@@ -82,11 +80,9 @@ pub fn gamepad_ui_navigation(
         if let Some(dir) = direction {
             if let Some(current) = focus.current {
                 if let Some(best) = find_best_focusable_in_direction(current, dir, &focusables) {
-                    // Remove Focused from old element
                     if let Some(old) = focus.current {
                         commands.entity(old).remove::<Focused>();
                     }
-                    // Add Focused to new element
                     commands.entity(best).insert(Focused);
                     focus.current = Some(best);
                     unsafe { LAST_NAV_TIME = current_time; }
@@ -99,7 +95,6 @@ pub fn gamepad_ui_navigation(
     }
 }
 
-/// Finds the best candidate in a given direction using spatial scoring
 fn find_best_focusable_in_direction(
     current: Entity,
     direction: NavDirection,
@@ -136,32 +131,43 @@ fn find_best_focusable_in_direction(
     best_entity
 }
 
-/// Applies strong visual feedback to the focused element
+/// Applies base focus visuals + pulsing border animation
 pub fn apply_focus_visuals(
     mut commands: Commands,
     focus: Res<UiFocus>,
     added_focused: Query<Entity, Added<Focused>>,
     mut removed_focused: RemovedComponents<Focused>,
-    mut query: Query<(&Focusable, &mut BackgroundColor, &mut BorderColor)>,
+    time: Res<Time>,
+    mut query: Query<(&Focused, &mut BackgroundColor, &mut BorderColor)>,
 ) {
-    // Apply visuals to newly focused elements
+    // Apply initial visuals when focus is gained
     for entity in added_focused.iter() {
         if let Ok((_, mut bg, mut border)) = query.get_mut(entity) {
-            *bg = Color::srgb(0.15, 0.35, 0.65).into();           // Strong blue background
-            *border = BorderColor(Color::srgb(0.4, 0.7, 1.0));     // Bright cyan border
+            *bg = Color::srgb(0.15, 0.35, 0.65).into();
+            *border = BorderColor(Color::srgb(0.4, 0.7, 1.0));
         }
     }
 
-    // Reset visuals when Focused is removed
+    // Reset visuals when focus is lost
     for entity in removed_focused.read() {
         if let Ok((_, mut bg, mut border)) = query.get_mut(entity) {
-            *bg = Color::srgb(0.2, 0.2, 0.25).into();              // Default dark
+            *bg = Color::srgb(0.2, 0.2, 0.25).into();
             *border = BorderColor(Color::NONE);
+        }
+    }
+
+    // Pulsing animation on the border
+    let pulse = (time.elapsed_seconds() * 3.0).sin() * 0.3 + 0.7; // 0.7 → 1.0 range
+    let pulse_color = Color::srgb(0.4 * pulse, 0.7 * pulse, 1.0 * pulse);
+
+    for (_, mut _bg, mut border) in query.iter_mut() {
+        // Only pulse if border is visible (has color)
+        if border.0 != Color::NONE {
+            border.0 = pulse_color;
         }
     }
 }
 
-/// Button activation logic
 pub fn activate_focused_button(
     buttons: Res<bevy::input::gamepad::GamepadButton>,
     focus: Res<UiFocus>,
