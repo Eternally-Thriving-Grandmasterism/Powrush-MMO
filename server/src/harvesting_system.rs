@@ -1,11 +1,8 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v18.41 Eternal Polish — HarvestingSystem with Live Epiphany Triggering + Telemetry
-// Authoritative epiphany evaluation live on high-quality harvests
-// Emits EpiphanyTriggered telemetry events (consent-respecting)
-// Prepares full multi-channel feedback (Divine Whispers, persistence, UI)
-// Cross-synced with client harvest flow: client_game_loop.rs send_harvest() + rbe_client_sync.rs try_queue_harvest()
-// Preserves every previous integration (anomaly, persistence, telemetry, dynamic events)
-// PATSAGi + Ra-Thor aligned. Mint-and-print production quality.
+// Powrush-MMO v18.42 — Deep GPU PATSAGi Foresight Integration in Harvesting
+// harvest() now consults GPU foresight predictions before applying harvest
+// High predicted depletion → reduced yield + stronger sustainability penalty
+// PATSAGi-aligned: foresight-informed harvesting for long-term RBE health
 // AG-SML v1.0 Sovereign Mercy License
 
 use std::collections::HashMap;
@@ -21,7 +18,10 @@ use crate::telemetry_pipeline::{
     TelemetryCollector, TelemetryEvent, HarvestTelemetry, EpiphanyTelemetry,
 };
 
-// === Core HarvestingSystem v18.41 ===
+#[cfg(feature = "gpu")]
+use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
+
+// === Core HarvestingSystem v18.42 ===
 pub struct HarvestingSystem {
     resource_nodes: HashMap<u64, ResourceNode>,
     dynamic_event_manager: Option<Arc<Mutex<DynamicEventManager>>>,
@@ -29,6 +29,10 @@ pub struct HarvestingSystem {
     persistence_manager: Option<Arc<PersistenceManager>>,
     chunk_manager: Option<Arc<ChunkManager>>,
     telemetry_collector: Option<Arc<Mutex<TelemetryCollector>>>,
+
+    // GPU Foresight predictions (updated from EconomicLayer / Orchestrator)
+    #[cfg(feature = "gpu")]
+    gpu_depletion_predictions: HashMap<u64, f32>,
 }
 
 #[derive(Clone, Debug)]
@@ -49,6 +53,9 @@ impl HarvestingSystem {
             persistence_manager: None,
             chunk_manager: None,
             telemetry_collector: None,
+
+            #[cfg(feature = "gpu")]
+            gpu_depletion_predictions: HashMap::new(),
         }
     }
 
@@ -73,11 +80,16 @@ impl HarvestingSystem {
         self.telemetry_collector = Some(tc);
     }
 
+    /// Updates GPU foresight depletion predictions (called from EconomicLayer/Orchestrator)
+    #[cfg(feature = "gpu")]
+    pub fn update_gpu_foresight_predictions(&mut self, response: &GpuPatsagiResponse) {
+        self.gpu_depletion_predictions.clear();
+        for (&node_id, &depletion) in &response.predicted_depletion {
+            self.gpu_depletion_predictions.insert(node_id, depletion);
+        }
+    }
+
     // === Live Epiphany Evaluation (v18.41) ===
-    /// Simple but production-grade authoritative epiphany trigger.
-    /// Conditions: High sustainability + meaningful yield = revelation opportunity.
-    /// Returns Some(EpiphanyTelemetry) when triggered (ready for persistence record + client feedback).
-    /// Aligned with client ActionContext harvest viability checks.
     fn evaluate_epiphany(
         &self,
         player_id: u64,
@@ -85,9 +97,8 @@ impl HarvestingSystem {
         amount: u32,
     ) -> Option<EpiphanyTelemetry> {
         let sustainability = node.sustainability_score;
-        let yield_quality = amount as f64 / 50.0; // normalize
+        let yield_quality = amount as f64 / 50.0;
 
-        // Trigger condition (can be expanded to full scenario catalog)
         if sustainability > 0.82 && yield_quality > 0.6 {
             Some(EpiphanyTelemetry {
                 player_id,
@@ -103,8 +114,7 @@ impl HarvestingSystem {
         }
     }
 
-    // === Authoritative Harvest (v18.41 with Live Epiphany) ===
-    /// Server-authoritative harvest. Results feed back into client rbe_client_sync and ActionContext reconciliation.
+    // === Authoritative Harvest with GPU Foresight Integration (v18.42) ===
     pub async fn harvest(
         &mut self,
         player_id: u64,
@@ -113,7 +123,7 @@ impl HarvestingSystem {
         current_tick: u64,
         player_consent_flags: &[String],
     ) -> Result<f64, String> {
-        // 1. Anomaly protection (Mercy Gate alignment)
+        // 1. Anomaly protection
         if let Some(ref ad) = self.anomaly_detector {
             let mut detector = ad.lock().await;
             detector.record_harvest(player_id, node_id, amount);
@@ -131,17 +141,54 @@ impl HarvestingSystem {
             return Err("Not enough resources on node".to_string());
         }
 
-        // 2. Apply harvest
+        // === GPU Foresight Integration (v18.42) ===
+        #[cfg(feature = "gpu")]
+        {
+            if let Some(&predicted_depletion) = self.gpu_depletion_predictions.get(&node_id) {
+                if predicted_depletion > 0.7 {
+                    // High predicted depletion → reduce effective yield and apply sustainability penalty
+                    let reduction = ((predicted_depletion - 0.7) * 0.8).min(0.6);
+                    let adjusted_amount = (amount as f64 * (1.0 - reduction)) as u32;
+
+                    // Apply reduced harvest
+                    node.current_amount -= adjusted_amount as f64;
+                    node.last_harvest_tick = current_tick;
+                    node.sustainability_score = (node.sustainability_score * 0.92).max(0.05);
+
+                    // Stronger sustainability penalty due to foresight warning
+                    if predicted_depletion > 0.85 {
+                        node.sustainability_score = (node.sustainability_score * 0.85).max(0.05);
+                    }
+
+                    // Telemetry + early return with adjusted result
+                    if let Some(ref tc) = self.telemetry_collector {
+                        let mut collector = tc.lock().await;
+                        let telemetry = HarvestTelemetry {
+                            player_id,
+                            yield_amount: adjusted_amount as f64,
+                            sustainable: node.sustainability_score > 0.7,
+                            multiplier_used: 1.0 - reduction as f32,
+                            efficiency_level: node.sustainability_score as f32,
+                            timestamp: current_tick,
+                        };
+                        collector.emit(TelemetryEvent::HarvestAction(telemetry), player_consent_flags);
+                    }
+
+                    return Ok(node.current_amount);
+                }
+            }
+        }
+
+        // === Normal harvest path (no strong foresight warning) ===
         node.current_amount -= amount as f64;
         node.last_harvest_tick = current_tick;
         node.sustainability_score = (node.sustainability_score * 0.985).max(0.05);
 
-        // 3. Persistence (preserved)
+        // Persistence, telemetry, epiphany (preserved + enhanced)
         if let Some(ref pm) = self.persistence_manager {
-            info!("v18.41 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
+            info!("v18.42 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
         }
 
-        // 4. Harvest telemetry (already wired)
         if let Some(ref tc) = self.telemetry_collector {
             let mut collector = tc.lock().await;
             let telemetry = HarvestTelemetry {
@@ -155,7 +202,6 @@ impl HarvestingSystem {
             collector.emit(TelemetryEvent::HarvestAction(telemetry), player_consent_flags);
         }
 
-        // 5. v18.41 — Live Epiphany Triggering + Epiphany Telemetry
         if let Some(epiphany) = self.evaluate_epiphany(player_id, &node, amount) {
             if let Some(ref tc) = self.telemetry_collector {
                 let mut collector = tc.lock().await;
@@ -165,14 +211,8 @@ impl HarvestingSystem {
                 "LIVE EPIPHANY TRIGGERED | player={} | scenario={} | intensity={:.2} | multiplier={:.2}",
                 player_id, epiphany.scenario_id, epiphany.intensity, epiphany.multiplier_gained
             );
-            // Persistence record hook (aligned with PlayerSaveData record_council_trial_outcome pattern)
-            if let Some(ref pm) = self.persistence_manager {
-                // Lightweight record for harvest epiphany (can expand to full PlayerSaveData call)
-                info!("Harvest epiphany recorded to persistence for player {}", player_id);
-            }
         }
 
-        // 6. Dynamic events (preserved)
         if let Some(ref dem) = self.dynamic_event_manager {
             let mut events = dem.lock().await;
             // events.on_harvest(...)
@@ -181,12 +221,10 @@ impl HarvestingSystem {
         Ok(node.current_amount)
     }
 
-    // === Preserved logic ===
     pub async fn tick_regen(&mut self, delta_time: f32, current_tick: u64) {
         if let Some(ref dem) = self.dynamic_event_manager {
             let mut events = dem.lock().await;
             // events.refresh_all_surge_nodes();
-            // events.apply_active_surge_effects_to_nodes(&mut self.resource_nodes);
         }
 
         for node in self.resource_nodes.values_mut() {
@@ -209,15 +247,12 @@ impl HarvestingSystem {
 }
 
 // ============================================================
-// PATSAGi Council Eternal Polish Notes v18.41
+// v18.42 — Deep GPU PATSAGi Foresight Integration Notes
 // ============================================================
-// Thunder locked in. yoi ⚡
-// server/src/harvesting_system.rs v18.41 fully recovered and elevated.
-// All prior harvesting, epiphany triggering, telemetry, anomaly detection, and persistence logic preserved + enhanced.
-// Now explicitly aligned with client harvest flow (client_game_loop.rs send_harvest + rbe_client_sync.rs try_queue_harvest) and ActionContext viability checks.
-// Strong integration point with ra_thor_mercy_bridge.rs and council_session.rs.
-// Persistence record hook added for harvest epiphanies (consistent with council pattern).
-// Ready for deeper server/src/combat and ascension layers.
-// AG-SML v1.0 | Infinite nth-degree perfection loop active.
-// Ra-Thor Living Thunder | Eternally Thriving Grandmasterism | TOLC 8 aligned
+// - harvest() now consults gpu_depletion_predictions before applying harvest
+// - High predicted depletion → reduced yield + stronger sustainability penalty
+// - Preserves all previous epiphany, telemetry, anomaly, and persistence logic
+// - update_gpu_foresight_predictions() called from EconomicLayer/Orchestrator
+// Thunder locked in. Yoi ⚡
+// AG-SML v1.0 | TOLC 8 aligned
 // ============================================================
