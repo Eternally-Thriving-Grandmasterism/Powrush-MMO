@@ -1,7 +1,6 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v18.46 — Differential Update Logic for GPU Foresight Predictions
-// Only updates nodes whose values actually changed (instead of full clear + rebuild)
-// Improves performance and stability of foresight influence
+// Powrush-MMO v18.47 — Instrumentation Counters for GPU Foresight Updates
+// Tracks effectiveness of differential updates and caching
 // AG-SML v1.0 Sovereign Mercy License
 
 use std::collections::HashMap;
@@ -20,7 +19,7 @@ use crate::telemetry_pipeline::{
 #[cfg(feature = "gpu")]
 use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
 
-// === Core HarvestingSystem v18.46 ===
+// === Core HarvestingSystem v18.47 ===
 pub struct HarvestingSystem {
     resource_nodes: HashMap<u64, ResourceNode>,
     dynamic_event_manager: Option<Arc<Mutex<DynamicEventManager>>>,
@@ -35,6 +34,14 @@ pub struct HarvestingSystem {
     gpu_recommended_regen: HashMap<u64, f32>,
     #[cfg(feature = "gpu")]
     last_foresight_update_tick: u64,
+
+    // === Instrumentation Counters (v18.47) ===
+    #[cfg(feature = "gpu")]
+    pub foresight_updates_total: u64,
+    #[cfg(feature = "gpu")]
+    pub foresight_nodes_updated: u64,
+    #[cfg(feature = "gpu")]
+    pub foresight_skipped_unchanged: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +69,13 @@ impl HarvestingSystem {
             gpu_recommended_regen: HashMap::new(),
             #[cfg(feature = "gpu")]
             last_foresight_update_tick: 0,
+
+            #[cfg(feature = "gpu")]
+            foresight_updates_total: 0,
+            #[cfg(feature = "gpu")]
+            foresight_nodes_updated: 0,
+            #[cfg(feature = "gpu")]
+            foresight_skipped_unchanged: 0,
         }
     }
 
@@ -85,23 +99,27 @@ impl HarvestingSystem {
         self.telemetry_collector = Some(tc);
     }
 
-    /// Differential update with cooldown + change detection
+    /// Differential update with cooldown + change detection + instrumentation
     #[cfg(feature = "gpu")]
     pub fn update_gpu_foresight_predictions(&mut self, response: &GpuPatsagiResponse, current_tick: u64) {
         const FORESIGHT_UPDATE_COOLDOWN: u64 = 25;
 
         if current_tick.saturating_sub(self.last_foresight_update_tick) < FORESIGHT_UPDATE_COOLDOWN {
-            return; // Cooldown active (cache hit)
+            return; // Cooldown active
         }
+
+        let mut updated_count = 0u64;
+        let mut skipped_count = 0u64;
 
         // Differential update for depletion predictions
         for (&node_id, &new_depletion) in &response.predicted_depletion {
             match self.gpu_depletion_predictions.get(&node_id) {
                 Some(&old) if (old - new_depletion).abs() < 0.01 => {
-                    // Value hasn't changed meaningfully → skip
+                    skipped_count += 1;
                 }
                 _ => {
                     self.gpu_depletion_predictions.insert(node_id, new_depletion);
+                    updated_count += 1;
                 }
             }
         }
@@ -110,15 +128,31 @@ impl HarvestingSystem {
         for (&node_id, &new_regen) in &response.recommended_regen_rates {
             match self.gpu_recommended_regen.get(&node_id) {
                 Some(&old) if (old - new_regen).abs() < 0.005 => {
-                    // No meaningful change
+                    skipped_count += 1;
                 }
                 _ => {
                     self.gpu_recommended_regen.insert(node_id, new_regen);
+                    updated_count += 1;
                 }
             }
         }
 
+        self.foresight_updates_total += 1;
+        self.foresight_nodes_updated += updated_count;
+        self.foresight_skipped_unchanged += skipped_count;
+
         self.last_foresight_update_tick = current_tick;
+
+        // Periodic summary log (every 10 updates)
+        if self.foresight_updates_total % 10 == 0 {
+            info!(
+                "[Foresight Stats] updates={} | nodes_updated_total={} | skipped_unchanged_total={} | last_tick={}",
+                self.foresight_updates_total,
+                self.foresight_nodes_updated,
+                self.foresight_skipped_unchanged,
+                self.last_foresight_update_tick
+            );
+        }
     }
 
     fn evaluate_epiphany(
@@ -214,7 +248,7 @@ impl HarvestingSystem {
         node.sustainability_score = (node.sustainability_score * 0.985).max(0.05);
 
         if let Some(ref pm) = self.persistence_manager {
-            info!("v18.46 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
+            info!("v18.47 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
         }
 
         if let Some(ref tc) = self.telemetry_collector {
@@ -296,11 +330,12 @@ impl HarvestingSystem {
 }
 
 // ============================================================
-// v18.46 — Differential Update Logic for GPU Foresight
+// v18.47 — Instrumentation Counters for GPU Foresight
 // ============================================================
-// - Only updates nodes whose predicted values actually changed
-// - Skips near-identical values (within small epsilon)
-// - Combined with cooldown for excellent performance + stability
+// - foresight_updates_total: How many times we accepted an update (after cooldown)
+// - foresight_nodes_updated: Total individual node predictions changed
+// - foresight_skipped_unchanged: Nodes skipped due to insignificant change
+// - Periodic summary log every 10 updates
 // Thunder locked in. Yoi ⚡
 // AG-SML v1.0 | TOLC 8 aligned
 // ============================================================
