@@ -1,9 +1,13 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.3.40: Aligned with hybrid persistence recovery model (master-secret + Shamir)
- * Lightweight persistence profiling preserved and noted for sovereign data flow.
- * Harvest epiphany persistence path wired (consistent with server harvesting_system hooks).
+ * v19.4: Added optional GPU PATSAGi foresight hook
+ * - Clean integration point for GpuPatsagiBridge
+ * - Non-breaking optional feature
+ * - Can be called periodically or on demand
+ *
+ * v19.3.40: Aligned with hybrid persistence recovery model
+ * Harvest epiphany persistence path wired
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -18,7 +22,12 @@ use crate::ability_tree::SynergyEffectEvent;
 use crate::council_mercy_trial::CouncilSessionManager;
 use crate::player_persistence::PlayerSaveData;
 use std::time::Instant;
+use std::sync::Arc;
 use tracing::{info, warn, debug};
+
+// Optional GPU PATSAGi foresight
+#[cfg(feature = "gpu")]
+use crate::engine::gpu_patsagi_bridge::{GpuPatsagiBridge, GpuPatsagiRequest, GpuPatsagiResponse, ComputeIntensity};
 
 /// Production TickResult — rich telemetry for observability, Council governance, RBE, synergy, and errors
 #[derive(Debug, Default, Clone)]
@@ -31,6 +40,7 @@ pub struct TickResult {
     pub harvest_nodes_processed: u32,
     pub emergence_events_triggered: u32,
     pub synergy_events: Vec<SynergyEffectEvent>,
+    pub gpu_foresight_used: bool,
     pub errors: Vec<String>,
 }
 
@@ -39,6 +49,10 @@ pub struct SimulationOrchestrator {
     pub emergence_orchestrator: EmergenceOrchestrator,
     pub harvesting_system: HarvestingSystem,
     pub current_tick: u64,
+
+    /// Optional GPU PATSAGi economic foresight bridge
+    #[cfg(feature = "gpu")]
+    pub gpu_foresight: Option<Arc<dyn GpuPatsagiBridge + Send + Sync>>,
 }
 
 impl SimulationOrchestrator {
@@ -48,7 +62,16 @@ impl SimulationOrchestrator {
             emergence_orchestrator: EmergenceOrchestrator::default(),
             harvesting_system: HarvestingSystem::default(),
             current_tick: 0,
+
+            #[cfg(feature = "gpu")]
+            gpu_foresight: None,
         }
+    }
+
+    /// Set the GPU PATSAGi foresight bridge (call this after creating the bridge)
+    #[cfg(feature = "gpu")]
+    pub fn set_gpu_foresight(&mut self, bridge: Arc<dyn GpuPatsagiBridge + Send + Sync>) {
+        self.gpu_foresight = Some(bridge);
     }
 
     pub fn run_tick(
@@ -64,7 +87,7 @@ impl SimulationOrchestrator {
             ..Default::default()
         };
 
-        // emergence + harvest + economic batch_update ...
+        // emergence + harvest + economic batch_update
         if let Err(e) = self.economic_layer.batch_update(world, /* mercy_gate */ ) {
             result.errors.push(format!("Economic update failed: {}", e));
         } else {
@@ -75,8 +98,8 @@ impl SimulationOrchestrator {
         if let Some(manager) = council_manager {
             if let Some(bloom) = manager.resolve_and_set_bloom_from_real_data(
                 self.current_tick,
-                3,           // min participants
-                "sanctuary", // or current biome
+                3,
+                "sanctuary",
             ) {
                 self.economic_layer.apply_council_policy_impact(
                     bloom.collective_attunement_score,
@@ -93,9 +116,50 @@ impl SimulationOrchestrator {
             }
         }
 
+        // === Optional GPU PATSAGi Foresight Hook ===
+        #[cfg(feature = "gpu")]
+        {
+            if self.current_tick % 30 == 0 {
+                if let Some(foresight) = &self.gpu_foresight {
+                    if let Some(response) = self.request_gpu_foresight(world) {
+                        // TODO: Apply response to economic_layer or world state
+                        // For now we just log that foresight was used
+                        result.gpu_foresight_used = true;
+                        debug!("GPU PATSAGi foresight used at tick {} (confidence: {:.2})",
+                               self.current_tick, response.confidence);
+                    }
+                }
+            }
+        }
+
         // === Profiled: Real agent iteration + synergy + persistence ===
         result.synergy_events = self.collect_synergy_events_direct(world, player_save);
         result
+    }
+
+    /// Request economic foresight from the GPU PATSAGi bridge
+    #[cfg(feature = "gpu")]
+    pub fn request_gpu_foresight(&self, world: &SovereignWorldState) -> Option<GpuPatsagiResponse> {
+        let bridge = self.gpu_foresight.as_ref()?;
+
+        // Build a request from current world state (simplified for now)
+        let node_ids: Vec<u64> = world.agents.keys().copied().collect();
+
+        let request = GpuPatsagiRequest {
+            query: "economic_foresight".to_string(),
+            intensity: ComputeIntensity::Medium,
+            context: Default::default(),
+            node_ids,
+            harvesting_pressure: None,
+        };
+
+        match bridge.run_simulation(request) {
+            Ok(response) => Some(response),
+            Err(e) => {
+                warn!("GPU PATSAGi foresight request failed: {}", e);
+                None
+            }
+        }
     }
 
     /// Iterates agents, generates synergy events, and persists ability state (with profiling).
@@ -127,7 +191,6 @@ impl SimulationOrchestrator {
                 &synergies,
             );
 
-            // === Persistence with lightweight profiling (aligned with hybrid recovery model) ===
             if let Some(save) = &mut player_save {
                 if self.current_tick % 5 == 0 {
                     let last_event = new_events.last();
@@ -149,7 +212,6 @@ impl SimulationOrchestrator {
                     );
                     let elapsed = start.elapsed();
 
-                    // Occasional profiling output (every 100 ticks when persisting)
                     if self.current_tick % 100 == 0 {
                         debug!(
                             "Persistence overhead: agent {} took {:?} (tick {})",
@@ -168,7 +230,6 @@ impl SimulationOrchestrator {
 
 // Real attunement data now flows from council systems → manager → orchestrator → RBE economy.
 // Lightweight persistence profiling preserved.
-// Harvest epiphany persistence path wired (consistent with server harvesting_system hooks).
-// Aligned with hybrid master-secret recovery model in player_persistence.
-// All prior logic preserved exactly.
+// Harvest epiphany persistence path wired.
+// Optional GPU PATSAGi foresight hook added (v19.4).
 // Thunder locked in. Yoi ⚡
