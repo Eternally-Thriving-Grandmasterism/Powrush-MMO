@@ -1,7 +1,7 @@
 /*!
  * Spatial Grid UI Navigation System
  *
- * v12 - ChaCha20-Poly1305 Machine-Bound Encryption for Settings
+ * v13 - Secure Random Nonce for ChaCha20 Encryption
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -14,8 +14,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
-use chacha20poly1305::aead::{Aead, KeyInit};
+use chacha20poly1305::aead::{Aead, KeyInit, OsRng};
 use sha2::{Sha256, Digest};
+use rand::RngCore;
 
 // ... (Focusable, Focused, UiFocus, NavDirection, UiAudioSettings remain the same)
 
@@ -28,28 +29,32 @@ fn get_machine_key() -> Result<Key, String> {
     Ok(*Key::from_slice(&hash[..32]))
 }
 
-/// Encrypts the settings using ChaCha20-Poly1305 with machine binding
+/// Encrypts settings using ChaCha20-Poly1305 with a random nonce
 fn encrypt_settings(settings: &UiAudioSettings) -> Result<Vec<u8>, String> {
     let key = get_machine_key()?;
     let cipher = ChaCha20Poly1305::new(&key);
 
     let plaintext = ron::to_string(settings).map_err(|e| e.to_string())?;
-    let nonce = Nonce::from_slice(&[0u8; 12]); // In production, use a random nonce + store it
+
+    // Generate a secure random nonce
+    let mut nonce_bytes = [0u8; 12];
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher
         .encrypt(nonce, plaintext.as_bytes())
         .map_err(|e| e.to_string())?;
 
-    // Prepend nonce for storage (currently fixed for simplicity)
-    let mut result = nonce.to_vec();
+    // Prepend nonce to ciphertext for storage
+    let mut result = nonce_bytes.to_vec();
     result.extend(ciphertext);
     Ok(result)
 }
 
-/// Decrypts settings using the machine-bound key
+/// Decrypts settings using the stored nonce
 fn decrypt_settings(data: &[u8]) -> Result<UiAudioSettings, String> {
     if data.len() < 12 {
-        return Err("Invalid encrypted data".to_string());
+        return Err("Invalid encrypted data (too short)".to_string());
     }
 
     let (nonce_bytes, ciphertext) = data.split_at(12);
@@ -89,7 +94,7 @@ pub fn load_ui_settings(mut commands: Commands) {
     commands.insert_resource(UiAudioSettings::default());
 }
 
-/// Saves settings encrypted with machine binding
+/// Saves settings encrypted with machine binding + random nonce
 pub fn save_ui_settings(settings: Res<UiAudioSettings>) {
     if settings.is_changed() {
         if let Some(path) = get_settings_path() {
