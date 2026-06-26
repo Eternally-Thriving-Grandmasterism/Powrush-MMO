@@ -1,7 +1,7 @@
 /*!
  * Spatial Grid UI Navigation System
  *
- * v7 - Added volume control for UI sounds
+ * v8 - Refactored pitch variation into helper function
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -23,7 +23,6 @@ pub struct UiFocus {
     pub current: Option<Entity>,
 }
 
-/// Configuration resource for UI navigation audio
 #[derive(Resource)]
 pub struct UiAudioSettings {
     pub navigation_volume: f32,
@@ -196,7 +195,11 @@ pub fn activate_focused_button(
     }
 }
 
-/// Plays navigation sound when focus changes
+/// Returns a slightly randomized playback speed for natural pitch variation
+fn randomized_pitch(base: f32, variation: f32) -> f32 {
+    base * (1.0 + (rand::random::<f32>() * 2.0 - 1.0) * variation)
+}
+
 pub fn play_focus_change_sound(
     focus: Res<UiFocus>,
     mut last_focus: Local<Option<Entity>>,
@@ -207,16 +210,18 @@ pub fn play_focus_change_sound(
     if focus.current != *last_focus {
         if focus.current.is_some() {
             let sound = asset_server.load("audio/ui_nav.ogg");
+            let pitch = randomized_pitch(1.0, 0.03); // ±3% variation
             audio.play_with_settings(
                 sound,
-                PlaybackSettings::ONCE.with_volume(settings.navigation_volume),
+                PlaybackSettings::ONCE
+                    .with_volume(settings.navigation_volume)
+                    .with_speed(pitch),
             );
         }
         *last_focus = focus.current;
     }
 }
 
-/// Plays confirmation sound when activating a button
 pub fn play_button_activate_sound(
     buttons: Res<bevy::input::gamepad::GamepadButton>,
     asset_server: Res<AssetServer>,
@@ -225,9 +230,12 @@ pub fn play_button_activate_sound(
 ) {
     if buttons.just_pressed(GamepadButton::South) {
         let sound = asset_server.load("audio/ui_confirm.ogg");
+        let pitch = randomized_pitch(1.0, 0.03);
         audio.play_with_settings(
             sound,
-            PlaybackSettings::ONCE.with_volume(settings.activation_volume),
+            PlaybackSettings::ONCE
+                .with_volume(settings.activation_volume)
+                .with_speed(pitch),
         );
     }
 }
