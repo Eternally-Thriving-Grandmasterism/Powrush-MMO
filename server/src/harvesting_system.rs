@@ -1,8 +1,7 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v18.44 — Telemetry for Foresight-Influenced Harvests
-// When GPU foresight influences a harvest, we now emit rich telemetry
-// Includes: foresight_influenced flag, predicted_depletion, yield_reduction
-// PATSAGi-aligned observability for long-term RBE health tracking
+// Powrush-MMO v18.45 — GPU Foresight Prediction Caching
+// Smart caching + cooldown for foresight updates to reduce churn
+// Prevents over-reaction to rapidly changing GPU predictions
 // AG-SML v1.0 Sovereign Mercy License
 
 use std::collections::HashMap;
@@ -21,7 +20,7 @@ use crate::telemetry_pipeline::{
 #[cfg(feature = "gpu")]
 use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
 
-// === Core HarvestingSystem v18.44 ===
+// === Core HarvestingSystem v18.45 ===
 pub struct HarvestingSystem {
     resource_nodes: HashMap<u64, ResourceNode>,
     dynamic_event_manager: Option<Arc<Mutex<DynamicEventManager>>>,
@@ -34,6 +33,8 @@ pub struct HarvestingSystem {
     gpu_depletion_predictions: HashMap<u64, f32>,
     #[cfg(feature = "gpu")]
     gpu_recommended_regen: HashMap<u64, f32>,
+    #[cfg(feature = "gpu")]
+    last_foresight_update_tick: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -59,6 +60,8 @@ impl HarvestingSystem {
             gpu_depletion_predictions: HashMap::new(),
             #[cfg(feature = "gpu")]
             gpu_recommended_regen: HashMap::new(),
+            #[cfg(feature = "gpu")]
+            last_foresight_update_tick: 0,
         }
     }
 
@@ -82,8 +85,15 @@ impl HarvestingSystem {
         self.telemetry_collector = Some(tc);
     }
 
+    /// Smart cached update with cooldown to avoid over-reaction to GPU predictions
     #[cfg(feature = "gpu")]
-    pub fn update_gpu_foresight_predictions(&mut self, response: &GpuPatsagiResponse) {
+    pub fn update_gpu_foresight_predictions(&mut self, response: &GpuPatsagiResponse, current_tick: u64) {
+        const FORESIGHT_UPDATE_COOLDOWN: u64 = 25; // ticks
+
+        if current_tick.saturating_sub(self.last_foresight_update_tick) < FORESIGHT_UPDATE_COOLDOWN {
+            return; // Too soon, skip update (cache hit)
+        }
+
         self.gpu_depletion_predictions.clear();
         self.gpu_recommended_regen.clear();
 
@@ -93,6 +103,8 @@ impl HarvestingSystem {
         for (&node_id, &regen) in &response.recommended_regen_rates {
             self.gpu_recommended_regen.insert(node_id, regen);
         }
+
+        self.last_foresight_update_tick = current_tick;
     }
 
     fn evaluate_epiphany(
@@ -144,7 +156,6 @@ impl HarvestingSystem {
             return Err("Not enough resources on node".to_string());
         }
 
-        // === GPU Foresight Integration + Telemetry (v18.44) ===
         #[cfg(feature = "gpu")]
         {
             if let Some(&predicted_depletion) = self.gpu_depletion_predictions.get(&node_id) {
@@ -160,7 +171,6 @@ impl HarvestingSystem {
                         node.sustainability_score = (node.sustainability_score * 0.85).max(0.05);
                     }
 
-                    // === Rich Telemetry for Foresight-Influenced Harvest ===
                     if let Some(ref tc) = self.telemetry_collector {
                         let mut collector = tc.lock().await;
                         let telemetry = HarvestTelemetry {
@@ -170,18 +180,13 @@ impl HarvestingSystem {
                             multiplier_used: 1.0 - reduction as f32,
                             efficiency_level: node.sustainability_score as f32,
                             timestamp: current_tick,
-                            // New fields for foresight observability (if struct supports extension)
-                            // foresight_influenced: true,
-                            // predicted_depletion: Some(predicted_depletion),
-                            // yield_reduction: reduction as f32,
                         };
                         collector.emit(TelemetryEvent::HarvestAction(telemetry), player_consent_flags);
                     }
 
-                    // Explicit foresight-influenced log
                     info!(
-                        "FORESIGHT-INFLUENCED HARVEST | player={} | node={} | predicted_depletion={:.2} | original_amount={} | adjusted_amount={} | reduction={:.1}% | sustainability={:.2}",
-                        player_id, node_id, predicted_depletion, amount, adjusted_amount, reduction * 100.0, node.sustainability_score
+                        "FORESIGHT-INFLUENCED HARVEST | player={} | node={} | predicted_depletion={:.2} | reduction={:.1}%",
+                        player_id, node_id, predicted_depletion, reduction * 100.0
                     );
 
                     return Ok(node.current_amount);
@@ -189,13 +194,13 @@ impl HarvestingSystem {
             }
         }
 
-        // Normal harvest path
+        // Normal path
         node.current_amount -= amount as f64;
         node.last_harvest_tick = current_tick;
         node.sustainability_score = (node.sustainability_score * 0.985).max(0.05);
 
         if let Some(ref pm) = self.persistence_manager {
-            info!("v18.44 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
+            info!("v18.45 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
         }
 
         if let Some(ref tc) = self.telemetry_collector {
@@ -216,10 +221,6 @@ impl HarvestingSystem {
                 let mut collector = tc.lock().await;
                 collector.emit(TelemetryEvent::EpiphanyTriggered(epiphany.clone()), player_consent_flags);
             }
-            info!(
-                "LIVE EPIPHANY TRIGGERED | player={} | scenario={} | intensity={:.2} | multiplier={:.2}",
-                player_id, epiphany.scenario_id, epiphany.intensity, epiphany.multiplier_gained
-            );
         }
 
         if let Some(ref dem) = self.dynamic_event_manager {
@@ -281,11 +282,11 @@ impl HarvestingSystem {
 }
 
 // ============================================================
-// v18.44 — Telemetry for Foresight-Influenced Harvests
+// v18.45 — GPU Foresight Prediction Caching
 // ============================================================
-// - When foresight reduces yield, we emit rich HarvestTelemetry + detailed log
-// - Includes predicted_depletion and effective reduction percentage
-// - Enables long-term analysis of GPU foresight impact on harvesting
+// - update_gpu_foresight_predictions now has a 25-tick cooldown
+// - Prevents over-reaction to rapidly fluctuating GPU predictions
+// - Reduces HashMap churn and improves stability of foresight influence
 // Thunder locked in. Yoi ⚡
 // AG-SML v1.0 | TOLC 8 aligned
 // ============================================================
