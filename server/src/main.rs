@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Authoritative Server Entry Point
  *
- * v19.9 — Improved Steam initialization error handling + graceful fallback
+ * v19.10 — Refactored Steam initialization into helper function
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -31,7 +31,7 @@ fn main() {
     apply_server_hardening();
     init_opentelemetry_tracing();
 
-    info!("⚡ Powrush-MMO Authoritative Server v19.9 — Steam with graceful error handling");
+    info!("⚡ Powrush-MMO Authoritative Server v19.10 — Steam initialization refactored");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
 
@@ -55,35 +55,11 @@ fn main() {
     .add_systems(Startup, activate_ra_thor_bridge)
     .add_systems(Startup, activate_anomaly_detection);
 
-    // === Steam Integration with proper error handling ===
+    // Steam initialization (refactored into helper)
     #[cfg(feature = "steam")]
     {
-        let mut steam = SteamIntegration::new();
-
-        match steam.initialize() {
-            Ok(()) => {
-                info!("[Steam] Successfully initialized");
-
-                app.insert_resource(steam.clone());
-
-                // Wire into HarvestingSystem for direct progress tracking
-                app.add_systems(Startup, move |mut harvesting: ResMut<HarvestingSystem>| {
-                    harvesting.set_steam_integration(steam);
-                });
-
-                // Register all Steam systems
-                app.add_systems(Update, run_steam_callbacks);
-                app.add_systems(Update, unlock_and_track_steam_achievements);
-                app.add_systems(Update, track_sustainable_harvests);
-                app.add_systems(Update, track_epiphanies);
-
-                info!("[Steam] Full integration active with progress tracking");
-            }
-            Err(e) => {
-                warn!("[Steam] Initialization failed: {}. Running in standalone mode without Steam.", e);
-                // Server continues normally without Steam features
-            }
-        }
+        let steam = SteamIntegration::new();
+        try_initialize_steam(&mut app, steam);
     }
 
     app.add_systems(Update, authoritative_sovereign_tick)
@@ -91,6 +67,38 @@ fn main() {
        .add_systems(Update, council_deliberation_sync)
        .add_systems(Update, broadcast_world_state)
        .run();
+}
+
+/// Helper function for Steam initialization with proper error handling and graceful fallback
+#[cfg(feature = "steam")]
+fn try_initialize_steam(app: &mut App, mut steam: SteamIntegration) {
+    match steam.initialize() {
+        Ok(()) => {
+            info!("[Steam] Successfully initialized");
+
+            app.insert_resource(steam.clone());
+
+            // Wire SteamIntegration into HarvestingSystem
+            app.add_systems(Startup, move |mut harvesting: ResMut<HarvestingSystem>| {
+                harvesting.set_steam_integration(steam);
+            });
+
+            // Register all Steam progress tracking systems
+            app.add_systems(Update, run_steam_callbacks);
+            app.add_systems(Update, unlock_and_track_steam_achievements);
+            app.add_systems(Update, track_sustainable_harvests);
+            app.add_systems(Update, track_epiphanies);
+
+            info!("[Steam] Full integration active with progress tracking");
+        }
+        Err(e) => {
+            warn!(
+                "[Steam] Initialization failed: {}. Continuing without Steam features.",
+                e
+            );
+            // Graceful fallback — server runs normally
+        }
+    }
 }
 
 #[cfg(feature = "steam")]
