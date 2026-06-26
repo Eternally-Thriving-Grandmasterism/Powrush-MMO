@@ -1,7 +1,7 @@
 /*!
- * Steam Integration Module (v6 - Proper Result Types)
+ * Steam Integration Module (v7 - Using thiserror)
  *
- * Uses idiomatic Rust Result types for error handling.
+ * Clean error definitions using the thiserror crate.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -9,22 +9,18 @@
 #[cfg(feature = "steam")]
 use steamworks::{Client, SingleClient};
 
-#[derive(Debug)]
+#[cfg(feature = "steam")]
+use thiserror::Error;
+
+#[cfg(feature = "steam")]
+#[derive(Error, Debug)]
 pub enum SteamError {
+    #[error("Steam initialization failed: {0}")]
     InitializationFailed(String),
+
+    #[error("SteamIntegration is not initialized")]
     NotInitialized,
 }
-
-impl std::fmt::Display for SteamError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SteamError::InitializationFailed(msg) => write!(f, "Steam initialization failed: {}", msg),
-            SteamError::NotInitialized => write!(f, "SteamIntegration is not initialized"),
-        }
-    }
-}
-
-impl std::error::Error for SteamError {}
 
 pub struct SteamIntegration {
     #[cfg(feature = "steam")]
@@ -45,7 +41,6 @@ impl SteamIntegration {
         }
     }
 
-    /// Initialize Steamworks. Returns Result for proper error handling.
     pub fn initialize(&mut self) -> Result<(), SteamError> {
         #[cfg(feature = "steam")]
         {
@@ -118,7 +113,6 @@ impl SteamIntegration {
         Ok(())
     }
 
-    // Convenience progress methods
     pub fn record_council_bloom_participation(&self) -> Result<(), SteamError> {
         self.increment_stat("CouncilBloomsParticipated", 1)
     }
