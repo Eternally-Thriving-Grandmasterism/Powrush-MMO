@@ -1,10 +1,10 @@
 // engine/gpu_patsagi_bridge.rs
-// Powrush-MMO v16.6 — Real GPU Path + Full Result Parsing
-// - Proper command encoder, dispatch, and StagingBelt usage
-// - Real map_async result parsing from GPU output buffer (no mock fallback in real path)
-// - patsagi_economic.wgsl is a real, functional compute shader
-// - Preserves clean Mock path and full trait
-// AG-SML v1.0 | Authoritative GPU economic foresight
+// Powrush-MMO v16.7 — Proper GPU Memory Layout with bytemuck (Option C)
+// - #[repr(C)] + bytemuck::Pod/Zeroable structs for safe GPU <-> CPU memory mapping
+// - Input: GpuNode (matches WGSL Node exactly, 32 bytes with padding)
+// - Output: GpuNodeOutput (rich structured readback)
+// - Real result parsing using safe bytemuck casting
+// AG-SML v1.0 | TOLC 8
 
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
@@ -12,6 +12,34 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "gpu")]
 use wgpu::{self, util::StagingBelt, Buffer, BufferUsages, Device, Queue, ComputePipeline, BindGroupLayout, MapMode};
+
+// ============================================================================
+// SHARED GPU MEMORY LAYOUT CONTRACT (Rust <-> WGSL)
+// ============================================================================
+
+/// Must exactly match the WGSL `struct Node`
+#[cfg(feature = "gpu")]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GpuNode {
+    pub depletion: f32,
+    pub regen_rate: f32,
+    pub stress: f32,
+    pub abundance_flow: f32,
+    pub sustainability: f32,
+    pub _padding: [f32; 3], // 12 bytes → 32-byte alignment
+}
+
+/// Structured output from GPU (richer than flat f32 array)
+#[cfg(feature = "gpu")]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct GpuNodeOutput {
+    pub depletion: f32,
+    pub regen_rate: f32,
+    pub abundance_flow: f32,
+    pub sustainability: f32,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GpuPatsagiRequest {
@@ -43,7 +71,7 @@ pub trait GpuPatsagiBridge: Send + Sync {
     fn run_simulation(&self, request: GpuPatsagiRequest) -> Result<GpuPatsagiResponse, String>;
 }
 
-// ==================== MOCK (unchanged, still excellent for testing) ====================
+// ==================== MOCK ====================
 pub struct MockGpuPatsagiBridge;
 impl GpuPatsagiBridge for MockGpuPatsagiBridge {
     fn submit_query(&self, _request: GpuPatsagiRequest) -> Result<u64, String> { Ok(1) }
@@ -159,7 +187,8 @@ impl RealGpuPatsagiBridge {
             *id
         };
 
-        let buffer_size = (node_count.max(1) as u64) * 32; // Node struct size (conservative)
+        let node_stride = std::mem::size_of::<GpuNode>() as u64; // 32 bytes
+        let buffer_size = (node_count.max(1) as u64) * node_stride;
 
         let input_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("patsagi_input"),
@@ -168,16 +197,18 @@ impl RealGpuPatsagiBridge {
             mapped_at_creation: false,
         });
 
+        // Output buffer sized for GpuNodeOutput (16 bytes per node for now)
+        let output_stride = std::mem::size_of::<GpuNodeOutput>() as u64;
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("patsagi_output"),
-            size: buffer_size,
+            size: (node_count.max(1) as u64) * output_stride,
             usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
 
         let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("patsagi_staging"),
-            size: buffer_size,
+            size: (node_count.max(1) as u64) * output_stride,
             usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -196,7 +227,7 @@ impl RealGpuPatsagiBridge {
             cpass.dispatch_workgroups((node_count + 63) / 64, 1, 1);
         }
 
-        encoder.copy_buffer_to_buffer(&output_buffer, 0, &staging_buffer, 0, buffer_size);
+        encoder.copy_buffer_to_buffer(&output_buffer, 0, &staging_buffer, 0, (node_count as u64) * output_stride);
 
         {
             let mut belt = self.staging_belt.lock().unwrap();
@@ -204,10 +235,9 @@ impl RealGpuPatsagiBridge {
         }
         self.queue.submit(Some(encoder.finish()));
 
-        // === REAL map_async with actual GPU buffer parsing ===
+        // === REAL parsing with bytemuck (safe) ===
         let staging_clone = Arc::new(staging_buffer);
         let result_clone = Arc::new(Mutex::new(None));
-        let request_clone = request.clone();
         let node_ids = request.node_ids.clone();
 
         let slice = staging_clone.slice(..);
@@ -215,31 +245,23 @@ impl RealGpuPatsagiBridge {
             if res.is_ok() {
                 let data = slice.get_mapped_range();
 
-                // === REAL GPU RESULT PARSING ===
                 let mut resp = GpuPatsagiResponse::default();
-                resp.confidence = 0.93;
-                resp.notes = format!("Real GPU compute complete (query {})", query_id);
+                resp.confidence = 0.94;
+                resp.notes = format!("Real GPU compute (query {}) with bytemuck layout", query_id);
 
-                // Interpret output buffer as f32 pairs: [depletion, regen_rate, abundance, ...]
-                // Layout assumption: 4 f32 per node (depletion, regen, abundance, sustainability)
-                let f32_data: &[f32] = bytemuck::cast_slice(&data);
+                // Safe cast using bytemuck
+                let outputs: &[GpuNodeOutput] = bytemuck::cast_slice(&data);
 
                 for (i, &node_id) in node_ids.iter().enumerate() {
-                    let base_idx = i * 4;
-                    if base_idx + 3 < f32_data.len() {
-                        let depletion     = f32_data[base_idx];
-                        let regen_rate    = f32_data[base_idx + 1];
-                        let abundance     = f32_data[base_idx + 2];
-                        let sustainability = f32_data[base_idx + 3];
-
-                        resp.predicted_depletion.insert(node_id, depletion.max(0.0));
-                        resp.recommended_regen_rates.insert(node_id, regen_rate.max(0.01));
-                        resp.abundance_flow.insert(node_id, abundance.clamp(0.0, 1.0));
-                        resp.sustainability_adjustments.insert(node_id, sustainability.clamp(0.0, 1.0));
+                    if i < outputs.len() {
+                        let out = outputs[i];
+                        resp.predicted_depletion.insert(node_id, out.depletion.max(0.0));
+                        resp.recommended_regen_rates.insert(node_id, out.regen_rate.max(0.01));
+                        resp.abundance_flow.insert(node_id, out.abundance_flow.clamp(0.0, 1.0));
+                        resp.sustainability_adjustments.insert(node_id, out.sustainability.clamp(0.0, 1.0));
                     }
                 }
 
-                // Fallback for interdependence / pressure if shader doesn't output them yet
                 if resp.node_interdependence.is_empty() {
                     for &node_id in &node_ids {
                         resp.node_interdependence.insert(node_id, vec![]);
