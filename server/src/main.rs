@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Authoritative Server Entry Point
  *
- * v19.11 — Steam error handling fully centralized in SteamIntegration
+ * v19.12 — Using Result-based SteamIntegration
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -24,14 +24,14 @@ use server::opentelemetry_tracing::init_opentelemetry_tracing;
 use server::spatial::server_interest_sync_plugin::ServerInterestSyncPlugin;
 
 #[cfg(feature = "steam")]
-use game::steam_integration::SteamIntegration;
+use game::steam_integration::{SteamIntegration, SteamError};
 use server::harvesting_system::HarvestingSystem;
 
 fn main() {
     apply_server_hardening();
     init_opentelemetry_tracing();
 
-    info!("⚡ Powrush-MMO Authoritative Server v19.11 — Steam error handling centralized");
+    info!("⚡ Powrush-MMO Authoritative Server v19.12 — Result-based Steam integration");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
 
@@ -55,13 +55,14 @@ fn main() {
     .add_systems(Startup, activate_ra_thor_bridge)
     .add_systems(Startup, activate_anomaly_detection);
 
-    // Steam initialization (error handling is now fully inside SteamIntegration)
+    // Steam with proper Result handling
     #[cfg(feature = "steam")]
     {
         let mut steam = SteamIntegration::new();
 
-        if steam.initialize() {
-            // Success path - all logging already done inside initialize()
+        if let Err(e) = steam.initialize() {
+            warn!("[Steam] Initialization failed: {}. Running without Steam.", e);
+        } else {
             app.insert_resource(steam.clone());
 
             app.add_systems(Startup, move |mut harvesting: ResMut<HarvestingSystem>| {
@@ -72,8 +73,9 @@ fn main() {
             app.add_systems(Update, unlock_and_track_steam_achievements);
             app.add_systems(Update, track_sustainable_harvests);
             app.add_systems(Update, track_epiphanies);
+
+            info!("[Steam] Successfully initialized with Result-based API");
         }
-        // On failure, initialize() already logged the warning. We simply skip Steam setup.
     }
 
     app.add_systems(Update, authoritative_sovereign_tick)
@@ -85,7 +87,9 @@ fn main() {
 
 #[cfg(feature = "steam")]
 fn run_steam_callbacks(steam: Res<SteamIntegration>) {
-    steam.run_callbacks();
+    if let Err(e) = steam.run_callbacks() {
+        warn!("[Steam] run_callbacks failed: {}", e);
+    }
 }
 
 #[cfg(feature = "steam")]
@@ -94,8 +98,12 @@ fn unlock_and_track_steam_achievements(
     steam: Res<SteamIntegration>,
 ) {
     for _event in resolved_events.read() {
-        steam.unlock_first_council_bloom();
-        steam.record_council_bloom_participation();
+        if let Err(e) = steam.unlock_first_council_bloom() {
+            warn!("[Steam] Failed to unlock achievement: {}", e);
+        }
+        if let Err(e) = steam.record_council_bloom_participation() {
+            warn!("[Steam] Failed to record progress: {}", e);
+        }
     }
 }
 
