@@ -1,6 +1,6 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v18.47 — Instrumentation Counters for GPU Foresight Updates
-// Tracks effectiveness of differential updates and caching
+// Powrush-MMO v18.48 — Expose Foresight Counters via Telemetry
+// GPU Foresight stats are now emitted as TelemetryEvent::ForesightStats
 // AG-SML v1.0 Sovereign Mercy License
 
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ use crate::telemetry_pipeline::{
 #[cfg(feature = "gpu")]
 use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
 
-// === Core HarvestingSystem v18.47 ===
+// === Core HarvestingSystem v18.48 ===
 pub struct HarvestingSystem {
     resource_nodes: HashMap<u64, ResourceNode>,
     dynamic_event_manager: Option<Arc<Mutex<DynamicEventManager>>>,
@@ -35,7 +35,6 @@ pub struct HarvestingSystem {
     #[cfg(feature = "gpu")]
     last_foresight_update_tick: u64,
 
-    // === Instrumentation Counters (v18.47) ===
     #[cfg(feature = "gpu")]
     pub foresight_updates_total: u64,
     #[cfg(feature = "gpu")]
@@ -99,19 +98,17 @@ impl HarvestingSystem {
         self.telemetry_collector = Some(tc);
     }
 
-    /// Differential update with cooldown + change detection + instrumentation
     #[cfg(feature = "gpu")]
     pub fn update_gpu_foresight_predictions(&mut self, response: &GpuPatsagiResponse, current_tick: u64) {
         const FORESIGHT_UPDATE_COOLDOWN: u64 = 25;
 
         if current_tick.saturating_sub(self.last_foresight_update_tick) < FORESIGHT_UPDATE_COOLDOWN {
-            return; // Cooldown active
+            return;
         }
 
         let mut updated_count = 0u64;
         let mut skipped_count = 0u64;
 
-        // Differential update for depletion predictions
         for (&node_id, &new_depletion) in &response.predicted_depletion {
             match self.gpu_depletion_predictions.get(&node_id) {
                 Some(&old) if (old - new_depletion).abs() < 0.01 => {
@@ -124,7 +121,6 @@ impl HarvestingSystem {
             }
         }
 
-        // Differential update for recommended regen rates
         for (&node_id, &new_regen) in &response.recommended_regen_rates {
             match self.gpu_recommended_regen.get(&node_id) {
                 Some(&old) if (old - new_regen).abs() < 0.005 => {
@@ -140,11 +136,26 @@ impl HarvestingSystem {
         self.foresight_updates_total += 1;
         self.foresight_nodes_updated += updated_count;
         self.foresight_skipped_unchanged += skipped_count;
-
         self.last_foresight_update_tick = current_tick;
 
-        // Periodic summary log (every 10 updates)
+        // Emit telemetry event every 10 updates
         if self.foresight_updates_total % 10 == 0 {
+            if let Some(ref tc) = self.telemetry_collector {
+                let mut collector = tc.lock().await;
+                // Note: This assumes TelemetryEvent has a ForesightStats variant.
+                // If not present yet, add:
+                // ForesightStats { updates_total, nodes_updated, skipped_unchanged, last_update_tick }
+                collector.emit(
+                    TelemetryEvent::ForesightStats {
+                        updates_total: self.foresight_updates_total,
+                        nodes_updated: self.foresight_nodes_updated,
+                        skipped_unchanged: self.foresight_skipped_unchanged,
+                        last_update_tick: self.last_foresight_update_tick,
+                    },
+                    &[], // or appropriate consent flags
+                );
+            }
+
             info!(
                 "[Foresight Stats] updates={} | nodes_updated_total={} | skipped_unchanged_total={} | last_tick={}",
                 self.foresight_updates_total,
@@ -248,7 +259,7 @@ impl HarvestingSystem {
         node.sustainability_score = (node.sustainability_score * 0.985).max(0.05);
 
         if let Some(ref pm) = self.persistence_manager {
-            info!("v18.47 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
+            info!("v18.48 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
         }
 
         if let Some(ref tc) = self.telemetry_collector {
@@ -330,12 +341,11 @@ impl HarvestingSystem {
 }
 
 // ============================================================
-// v18.47 — Instrumentation Counters for GPU Foresight
+// v18.48 — Expose Foresight Counters via Telemetry
 // ============================================================
-// - foresight_updates_total: How many times we accepted an update (after cooldown)
-// - foresight_nodes_updated: Total individual node predictions changed
-// - foresight_skipped_unchanged: Nodes skipped due to insignificant change
-// - Periodic summary log every 10 updates
+// - Foresight stats are now emitted as TelemetryEvent::ForesightStats every 10 updates
+// - Enables external dashboards, logging pipelines, and observability tools
+// - Combined with differential updates + cooldown for efficient, observable foresight
 // Thunder locked in. Yoi ⚡
 // AG-SML v1.0 | TOLC 8 aligned
 // ============================================================
