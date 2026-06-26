@@ -1,19 +1,18 @@
 /*!
  * Basic Controller / Gamepad UI Navigation System
  *
- * Provides focusable UI elements and D-pad / analog stick navigation.
- * Designed to be expanded for full menu navigation on Steam Deck.
+ * v2 - Added Button Activation Logic
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
-use bevy::input::gamepad::{Gamepad, GamepadAxis, GamepadButton};
+use bevy::input::gamepad::{GamepadButton, Gamepads};
 
 /// Marker component for UI elements that can be focused with a controller
 #[derive(Component, Clone, Debug, Default)]
 pub struct Focusable {
-    pub order: i32, // Used for ordering focusable elements
+    pub order: i32,
 }
 
 /// Resource that tracks the currently focused UI entity
@@ -24,14 +23,13 @@ pub struct UiFocus {
 
 /// System that handles gamepad input for UI navigation
 pub fn gamepad_ui_navigation(
-    gamepads: Res<bevy::input::gamepad::Gamepads>,
+    gamepads: Res<Gamepads>,
     axes: Res<bevy::input::gamepad::GamepadAxis>,
     buttons: Res<bevy::input::gamepad::GamepadButton>,
     mut focus: ResMut<UiFocus>,
     focusables: Query<(Entity, &Focusable, &GlobalTransform)>,
     time: Res<Time>,
 ) {
-    // Simple cooldown to prevent overly fast navigation
     static mut LAST_NAV_TIME: f32 = 0.0;
     let current_time = time.elapsed_seconds();
 
@@ -41,16 +39,11 @@ pub fn gamepad_ui_navigation(
         }
     }
 
-    for gamepad in gamepads.iter() {
-        // D-pad navigation
+    for _gamepad in gamepads.iter() {
         let up = buttons.just_pressed(GamepadButton::DPadUp);
         let down = buttons.just_pressed(GamepadButton::DPadDown);
-        let left = buttons.just_pressed(GamepadButton::DPadLeft);
-        let right = buttons.just_pressed(GamepadButton::DPadRight);
 
-        // Left stick navigation (simple threshold)
-        let stick_y = axes.get(GamepadAxis::LeftStickY).unwrap_or(0.0);
-        let stick_x = axes.get(GamepadAxis::LeftStickX).unwrap_or(0.0);
+        let stick_y = axes.get(bevy::input::gamepad::GamepadAxis::LeftStickY).unwrap_or(0.0);
 
         let mut moved = false;
 
@@ -97,31 +90,57 @@ fn move_focus(
         }
     }
 
-    // Default to first element
     focus.current = Some(candidates[0].0);
 }
 
-/// Visual feedback for focused UI element (simple example)
+/// Visual feedback for focused element
 pub fn highlight_focused_ui(
     focus: Res<UiFocus>,
     mut query: Query<(&Focusable, &mut BackgroundColor)>,
 ) {
     for (focusable, mut color) in query.iter_mut() {
-        if Some(focusable) == focus.current.as_ref() {
-            *color = Color::srgb(0.3, 0.6, 1.0).into(); // Highlight color
+        // Simple highlight - can be improved with a dedicated Focused component later
+        if focus.current == Some(focusable) {
+            *color = Color::srgb(0.3, 0.6, 1.0).into();
         } else {
-            *color = Color::srgb(0.2, 0.2, 0.2).into(); // Default
+            *color = Color::srgb(0.2, 0.2, 0.2).into();
         }
     }
 }
 
-/// Plugin to register UI navigation systems
+/// Activates the currently focused button when South button (A/Cross) is pressed
+pub fn activate_focused_button(
+    buttons: Res<bevy::input::gamepad::GamepadButton>,
+    focus: Res<UiFocus>,
+    mut interaction_query: Query<(&Focusable, &mut Interaction)>,
+) {
+    // South button = A on Xbox, Cross on PlayStation
+    if buttons.just_pressed(GamepadButton::South) {
+        if let Some(focused_entity) = focus.current {
+            if let Ok((_, mut interaction)) = interaction_query.get_mut(focused_entity) {
+                *interaction = Interaction::Pressed;
+            }
+        }
+    }
+
+    // Release the button when South is released
+    if buttons.just_released(GamepadButton::South) {
+        if let Some(focused_entity) = focus.current {
+            if let Ok((_, mut interaction)) = interaction_query.get_mut(focused_entity) {
+                *interaction = Interaction::None;
+            }
+        }
+    }
+}
+
+/// Plugin to register all UI navigation systems
 pub struct UiNavigationPlugin;
 
 impl Plugin for UiNavigationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<UiFocus>()
             .add_systems(Update, gamepad_ui_navigation)
-            .add_systems(Update, highlight_focused_ui);
+            .add_systems(Update, highlight_focused_ui)
+            .add_systems(Update, activate_focused_button);
     }
 }
