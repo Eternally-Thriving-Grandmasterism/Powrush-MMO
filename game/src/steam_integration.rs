@@ -1,7 +1,7 @@
 /*!
- * Steam Integration Module (v4 - Progress-Based Achievements)
+ * Steam Integration Module (v5 - Centralized Error Handling)
  *
- * Supports automatic unlocking when progress thresholds are reached.
+ * All Steam-related error handling and logging is centralized here.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -14,6 +14,7 @@ pub struct SteamIntegration {
     client: Option<Client>,
     #[cfg(feature = "steam")]
     single: Option<SingleClient>,
+    initialized: bool,
 }
 
 impl SteamIntegration {
@@ -23,54 +24,67 @@ impl SteamIntegration {
             client: None,
             #[cfg(feature = "steam")]
             single: None,
+            initialized: false,
         }
     }
 
-    pub fn initialize(&mut self) -> Result<(), String> {
+    /// Centralized initialization with internal error handling and logging
+    pub fn initialize(&mut self) -> bool {
         #[cfg(feature = "steam")]
         {
             match steamworks::Client::init() {
                 Ok((client, single)) => {
                     self.client = Some(client);
                     self.single = Some(single);
-                    println!("[Steam] Initialized successfully");
-                    Ok(())
+                    self.initialized = true;
+                    println!("[Steam] Successfully initialized");
+                    true
                 }
-                Err(e) => Err(format!("Steam init failed: {:?}", e)),
+                Err(e) => {
+                    eprintln!("[Steam] Initialization failed: {:?}. Running without Steam.", e);
+                    self.initialized = false;
+                    false
+                }
             }
         }
+
         #[cfg(not(feature = "steam"))]
         {
-            Ok(())
+            true
         }
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        self.initialized
     }
 
     pub fn run_callbacks(&self) {
         #[cfg(feature = "steam")]
         {
-            if let Some(single) = &self.single {
-                single.run_callbacks();
-            }
-        }
-    }
-
-    // ============================================================
-    // Core Helpers
-    // ============================================================
-
-    pub fn unlock_achievement(&self, achievement_id: &str) {
-        #[cfg(feature = "steam")]
-        {
-            if let Some(client) = &self.client {
-                if let Ok(ach) = client.achievement(achievement_id) {
-                    let _ = ach.set();
-                    println!("[Steam] Unlocked achievement: {}", achievement_id);
+            if self.initialized {
+                if let Some(single) = &self.single {
+                    single.run_callbacks();
                 }
             }
         }
     }
 
-    /// Increment a stat and optionally check for achievement unlock
+    // ... rest of achievement and progress methods remain the same ...
+
+    pub fn unlock_achievement(&self, achievement_id: &str) {
+        #[cfg(feature = "steam")]
+        {
+            if self.initialized {
+                if let Some(client) = &self.client {
+                    if let Ok(ach) = client.achievement(achievement_id) {
+                        let _ = ach.set();
+                        println!("[Steam] Unlocked: {}", achievement_id);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn increment_stat_and_check(
         &self,
         stat_name: &str,
@@ -80,27 +94,22 @@ impl SteamIntegration {
     ) {
         #[cfg(feature = "steam")]
         {
-            if let Some(client) = &self.client {
-                if let Ok(stats) = client.stats() {
-                    let new_value = current_value + 1;
-                    let _ = stats.set_stat(stat_name, new_value);
+            if self.initialized {
+                if let Some(client) = &self.client {
+                    if let Ok(stats) = client.stats() {
+                        let new_value = current_value + 1;
+                        let _ = stats.set_stat(stat_name, new_value);
 
-                    if new_value >= threshold {
-                        self.unlock_achievement(achievement_id);
+                        if new_value >= threshold {
+                            self.unlock_achievement(achievement_id);
+                        }
                     }
                 }
             }
         }
     }
 
-    // ============================================================
-    // Specific Progress-Based Achievements
-    // ============================================================
-
     pub fn record_council_bloom_participation(&self) {
-        // Example: Unlock "CouncilVeteran" after 10 blooms
-        // Note: In real implementation, we would read the current stat value first.
-        // For scaffold, we call a simplified version.
         self.increment_stat_and_check("CouncilBloomsParticipated", "CouncilVeteran", 10, 0);
     }
 
