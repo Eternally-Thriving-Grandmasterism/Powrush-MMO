@@ -116,8 +116,8 @@ impl SimulationOrchestrator {
                 if let Some(response) = self.request_gpu_foresight(world) {
                     result.gpu_foresight_used = true;
 
-                    // Delegate to EconomicLayer (clean architecture)
-                    if self.economic_layer.apply_gpu_regen_adjustments(&response) {
+                    // Delegate to EconomicLayer (clean architecture) — now passes world
+                    if self.economic_layer.apply_gpu_regen_adjustments(&response, world) {
                         result.gpu_foresight_applied = true;
                         info!("GPU PATSAGi foresight applied via EconomicLayer at tick {}", self.current_tick);
                     }
