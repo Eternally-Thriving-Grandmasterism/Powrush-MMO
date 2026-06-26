@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Authoritative Server Entry Point
  *
- * v19.8 — Full SteamIntegration wiring to HarvestingSystem
+ * v19.9 — Improved Steam initialization error handling + graceful fallback
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -31,7 +31,7 @@ fn main() {
     apply_server_hardening();
     init_opentelemetry_tracing();
 
-    info!("⚡ Powrush-MMO Authoritative Server v19.8 — Complete Steam wiring (HarvestingSystem + progress tracking)");
+    info!("⚡ Powrush-MMO Authoritative Server v19.9 — Steam with graceful error handling");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
 
@@ -55,22 +55,34 @@ fn main() {
     .add_systems(Startup, activate_ra_thor_bridge)
     .add_systems(Startup, activate_anomaly_detection);
 
+    // === Steam Integration with proper error handling ===
     #[cfg(feature = "steam")]
     {
         let mut steam = SteamIntegration::new();
-        if steam.initialize().is_ok() {
-            app.insert_resource(steam.clone());
-            app.add_systems(Update, run_steam_callbacks);
-            app.add_systems(Update, unlock_and_track_steam_achievements);
-            app.add_systems(Update, track_sustainable_harvests);
-            app.add_systems(Update, track_epiphanies);
 
-            // Wire SteamIntegration into HarvestingSystem for direct progress tracking
-            app.add_systems(Startup, move |mut harvesting: ResMut<HarvestingSystem>| {
-                harvesting.set_steam_integration(steam);
-            });
+        match steam.initialize() {
+            Ok(()) => {
+                info!("[Steam] Successfully initialized");
 
-            info!("[Steam] Fully wired to HarvestingSystem + all progress systems");
+                app.insert_resource(steam.clone());
+
+                // Wire into HarvestingSystem for direct progress tracking
+                app.add_systems(Startup, move |mut harvesting: ResMut<HarvestingSystem>| {
+                    harvesting.set_steam_integration(steam);
+                });
+
+                // Register all Steam systems
+                app.add_systems(Update, run_steam_callbacks);
+                app.add_systems(Update, unlock_and_track_steam_achievements);
+                app.add_systems(Update, track_sustainable_harvests);
+                app.add_systems(Update, track_epiphanies);
+
+                info!("[Steam] Full integration active with progress tracking");
+            }
+            Err(e) => {
+                warn!("[Steam] Initialization failed: {}. Running in standalone mode without Steam.", e);
+                // Server continues normally without Steam features
+            }
         }
     }
 
@@ -98,14 +110,10 @@ fn unlock_and_track_steam_achievements(
 }
 
 #[cfg(feature = "steam")]
-fn track_sustainable_harvests(steam: Res<SteamIntegration>) {
-    // This system can be expanded or replaced by direct calls in harvesting_system.rs
-}
+fn track_sustainable_harvests(steam: Res<SteamIntegration>) {}
 
 #[cfg(feature = "steam")]
-fn track_epiphanies(steam: Res<SteamIntegration>) {
-    // This system can be expanded or replaced by direct calls in harvesting_system.rs
-}
+fn track_epiphanies(steam: Res<SteamIntegration>) {}
 
 fn setup_authoritative_camera(mut commands: Commands) {
     commands.spawn((
