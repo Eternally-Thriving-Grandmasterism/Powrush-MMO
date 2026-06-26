@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = []
-steam = ["dep:steamworks"]
+steam = ["dep:steamworks", "dep:thiserror"]
 
 [dependencies]
 bevy = { version = "0.14", default-features = false }
@@ -20,3 +20,4 @@ landlock = "0.4"
 
 # Steam (optional)
 steamworks = { version = "0.10", optional = true }
+thiserror = { version = "1", optional = true }
