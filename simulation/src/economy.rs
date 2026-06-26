@@ -19,6 +19,9 @@ use tracing::{info_span, instrument, warn};
 #[cfg(feature = "gpu")]
 use crate::gpu_economic::{dispatch_gpu_economic_update, dispatch_gpu_economic_compute_async, GpuEconomicReadback};
 
+#[cfg(feature = "gpu")]
+use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
+
 pub struct EconomicLayer {
     pub cpu_precision_mode: bool,
 }
@@ -261,5 +264,43 @@ impl EconomicLayer {
 
         mercy_gate.post_economic_tick_validate(world)?;
         Ok(());
+    }
+
+    /// Applies GPU PATSAGi foresight recommendations into the economic system.
+    /// Updates resource node regeneration rates and sustainability based on GPU predictions.
+    /// Called from SimulationOrchestrator when GPU foresight is enabled.
+    #[cfg(feature = "gpu")]
+    pub fn apply_gpu_regen_adjustments(&self, response: &GpuPatsagiResponse) -> bool {
+        let mut applied = false;
+
+        // Apply recommended regeneration rates to resource nodes
+        for (&node_id, &recommended_regen) in &response.recommended_regen_rates {
+            if let Some(node) = world.resource_nodes.get_mut(&node_id) {
+                // Apply GPU-recommended regeneration rate (clamped for stability)
+                let old_regen = node.regen_rate;
+                node.regen_rate = recommended_regen.clamp(0.001, 2.0);
+
+                // Gentle adjustment toward GPU recommendation
+                node.regen_rate = (old_regen * 0.7 + node.regen_rate * 0.3).clamp(0.001, 2.0);
+
+                applied = true;
+            }
+        }
+
+        // Apply sustainability adjustments
+        for (&node_id, &sustainability) in &response.sustainability_adjustments {
+            if let Some(node) = world.resource_nodes.get_mut(&node_id) {
+                node.sustainability_score = (node.sustainability_score * 0.6 + sustainability * 0.4)
+                    .clamp(0.1, 1.0);
+                applied = true;
+            }
+        }
+
+        if !response.predicted_depletion.is_empty() {
+            // Future: Could use predicted_depletion for proactive pressure/stress adjustments
+            applied = true;
+        }
+
+        applied
     }
 }
