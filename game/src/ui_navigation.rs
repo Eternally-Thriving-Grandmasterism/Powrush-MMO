@@ -1,8 +1,7 @@
 /*!
- * Spatial Grid UI Navigation System (Advanced)
+ * Spatial Grid UI Navigation System
  *
- * Supports true spatial navigation based on element positions.
- * Much better for grid-style UIs (inventory, skills, button grids).
+ * v5 - Added proper visual focus indicators
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -15,12 +14,15 @@ pub struct Focusable {
     pub order: i32,
 }
 
+/// Marker component indicating the element currently has gamepad focus
+#[derive(Component)]
+pub struct Focused;
+
 #[derive(Resource, Default)]
 pub struct UiFocus {
     pub current: Option<Entity>,
 }
 
-/// Direction for spatial navigation
 #[derive(Clone, Copy)]
 pub enum NavDirection {
     Up,
@@ -40,13 +42,14 @@ impl NavDirection {
     }
 }
 
-/// Main navigation system with spatial awareness
+/// Main spatial navigation system
 pub fn gamepad_ui_navigation(
     gamepads: Res<Gamepads>,
     axes: Res<bevy::input::gamepad::GamepadAxis>,
     buttons: Res<bevy::input::gamepad::GamepadButton>,
     mut focus: ResMut<UiFocus>,
     focusables: Query<(Entity, &Focusable, &GlobalTransform)>,
+    mut commands: Commands,
     time: Res<Time>,
 ) {
     static mut LAST_NAV_TIME: f32 = 0.0;
@@ -61,13 +64,11 @@ pub fn gamepad_ui_navigation(
     for _gamepad in gamepads.iter() {
         let mut direction: Option<NavDirection> = None;
 
-        // D-pad
         if buttons.just_pressed(GamepadButton::DPadUp) { direction = Some(NavDirection::Up); }
         else if buttons.just_pressed(GamepadButton::DPadDown) { direction = Some(NavDirection::Down); }
         else if buttons.just_pressed(GamepadButton::DPadLeft) { direction = Some(NavDirection::Left); }
         else if buttons.just_pressed(GamepadButton::DPadRight) { direction = Some(NavDirection::Right); }
 
-        // Left stick (with threshold)
         let stick_x = axes.get(bevy::input::gamepad::GamepadAxis::LeftStickX).unwrap_or(0.0);
         let stick_y = axes.get(bevy::input::gamepad::GamepadAxis::LeftStickY).unwrap_or(0.0);
 
@@ -81,20 +82,24 @@ pub fn gamepad_ui_navigation(
         if let Some(dir) = direction {
             if let Some(current) = focus.current {
                 if let Some(best) = find_best_focusable_in_direction(current, dir, &focusables) {
+                    // Remove Focused from old element
+                    if let Some(old) = focus.current {
+                        commands.entity(old).remove::<Focused>();
+                    }
+                    // Add Focused to new element
+                    commands.entity(best).insert(Focused);
                     focus.current = Some(best);
                     unsafe { LAST_NAV_TIME = current_time; }
                 }
-            } else {
-                // No current focus - pick first element
-                if let Some((first, _, _)) = focusables.iter().next() {
-                    focus.current = Some(first);
-                }
+            } else if let Some((first, _, _)) = focusables.iter().next() {
+                commands.entity(first).insert(Focused);
+                focus.current = Some(first);
             }
         }
     }
 }
 
-/// Finds the best focusable element in a given direction from the current one
+/// Finds the best candidate in a given direction using spatial scoring
 fn find_best_focusable_in_direction(
     current: Entity,
     direction: NavDirection,
@@ -102,33 +107,24 @@ fn find_best_focusable_in_direction(
 ) -> Option<Entity> {
     let current_pos = focusables
         .get(current)
-        .map(|(_, _, transform)| transform.translation().truncate())
+        .map(|(_, _, t)| t.translation().truncate())
         .ok()?;
 
     let dir_vec = direction.as_vec2();
-
     let mut best_entity = None;
     let mut best_score = f32::NEG_INFINITY;
 
     for (entity, _, transform) in focusables.iter() {
-        if entity == current {
-            continue;
-        }
+        if entity == current { continue; }
 
         let pos = transform.translation().truncate();
         let to_target = pos - current_pos;
-
-        // Only consider elements in the general direction we're moving
         let dot = to_target.dot(dir_vec);
-        if dot <= 0.0 {
-            continue;
-        }
 
-        // Score based on alignment + distance
+        if dot <= 0.0 { continue; }
+
         let distance = to_target.length();
-        let alignment = dot / distance.max(1.0); // How well aligned with direction
-
-        // Prefer elements that are well aligned and not too far
+        let alignment = dot / distance.max(1.0);
         let score = alignment * 100.0 - distance * 0.5;
 
         if score > best_score {
@@ -140,21 +136,32 @@ fn find_best_focusable_in_direction(
     best_entity
 }
 
-/// Visual feedback
-pub fn highlight_focused_ui(
+/// Applies strong visual feedback to the focused element
+pub fn apply_focus_visuals(
+    mut commands: Commands,
     focus: Res<UiFocus>,
-    mut query: Query<(&Focusable, &mut BackgroundColor)>,
+    added_focused: Query<Entity, Added<Focused>>,
+    mut removed_focused: RemovedComponents<Focused>,
+    mut query: Query<(&Focusable, &mut BackgroundColor, &mut BorderColor)>,
 ) {
-    for (focusable, mut color) in query.iter_mut() {
-        if focus.current == Some(focusable) {
-            *color = Color::srgb(0.3, 0.6, 1.0).into();
-        } else {
-            *color = Color::srgb(0.2, 0.2, 0.2).into();
+    // Apply visuals to newly focused elements
+    for entity in added_focused.iter() {
+        if let Ok((_, mut bg, mut border)) = query.get_mut(entity) {
+            *bg = Color::srgb(0.15, 0.35, 0.65).into();           // Strong blue background
+            *border = BorderColor(Color::srgb(0.4, 0.7, 1.0));     // Bright cyan border
+        }
+    }
+
+    // Reset visuals when Focused is removed
+    for entity in removed_focused.read() {
+        if let Ok((_, mut bg, mut border)) = query.get_mut(entity) {
+            *bg = Color::srgb(0.2, 0.2, 0.25).into();              // Default dark
+            *border = BorderColor(Color::NONE);
         }
     }
 }
 
-/// Button activation (South button)
+/// Button activation logic
 pub fn activate_focused_button(
     buttons: Res<bevy::input::gamepad::GamepadButton>,
     focus: Res<UiFocus>,
@@ -177,7 +184,7 @@ impl Plugin for UiNavigationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<UiFocus>()
             .add_systems(Update, gamepad_ui_navigation)
-            .add_systems(Update, highlight_focused_ui)
+            .add_systems(Update, apply_focus_visuals)
             .add_systems(Update, activate_focused_button);
     }
 }
