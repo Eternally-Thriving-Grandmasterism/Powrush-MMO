@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Authoritative Server Entry Point
  *
- * v19.5 — Steam achievement unlock on CouncilTrialResolved
+ * v19.6 — Steam progress tracking for Council Blooms + simple unlock
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -30,12 +30,11 @@ fn main() {
     apply_server_hardening();
     init_opentelemetry_tracing();
 
-    info!("⚡ Powrush-MMO Authoritative Server v19.5 — Steam achievements on Council Bloom");
+    info!("⚡ Powrush-MMO Authoritative Server v19.6 — Steam progress tracking active");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
 
-    rt.block_on(async {
-    });
+    rt.block_on(async {});
 
     let mut app = App::new();
 
@@ -55,15 +54,14 @@ fn main() {
     .add_systems(Startup, activate_ra_thor_bridge)
     .add_systems(Startup, activate_anomaly_detection);
 
-    // Steam Integration
     #[cfg(feature = "steam")]
     {
         let mut steam = SteamIntegration::new();
         if steam.initialize().is_ok() {
             app.insert_resource(steam);
             app.add_systems(Update, run_steam_callbacks);
-            app.add_systems(Update, unlock_steam_achievements_on_council_bloom);
-            info!("[Steam] Active with achievement hooks");
+            app.add_systems(Update, unlock_and_track_steam_achievements);
+            info!("[Steam] Full achievement + progress tracking active");
         }
     }
 
@@ -79,15 +77,18 @@ fn run_steam_callbacks(steam: Res<SteamIntegration>) {
     steam.run_callbacks();
 }
 
-/// Unlocks "FirstCouncilBloom" achievement when a CouncilTrialResolved event is emitted
+/// Combined system: Simple unlock + progress tracking for Council Blooms
 #[cfg(feature = "steam")]
-fn unlock_steam_achievements_on_council_bloom(
+fn unlock_and_track_steam_achievements(
     mut resolved_events: EventReader<CouncilTrialResolved>,
     steam: Res<SteamIntegration>,
 ) {
     for _event in resolved_events.read() {
+        // Simple unlock for first-time achievement
         steam.unlock_first_council_bloom();
-        // Future: Could also check participant count or intensity for better achievements
+
+        // Progress tracking (for future multi-step achievements like Council Veteran)
+        steam.record_council_bloom_participation();
     }
 }
 
