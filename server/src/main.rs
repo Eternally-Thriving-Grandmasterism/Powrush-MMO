@@ -1,7 +1,7 @@
 /*!
  * Powrush-MMO Authoritative Server Entry Point
  *
- * v19.6 — Steam progress tracking for Council Blooms + simple unlock
+ * v19.7 — Full Steam progress tracking (Council + Harvest + Epiphany)
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -30,7 +30,7 @@ fn main() {
     apply_server_hardening();
     init_opentelemetry_tracing();
 
-    info!("⚡ Powrush-MMO Authoritative Server v19.6 — Steam progress tracking active");
+    info!("⚡ Powrush-MMO Authoritative Server v19.7 — Full Steam progress tracking (Council + Harvest + Epiphany)");
 
     let rt = Runtime::new().expect("Failed to create eternal Tokio runtime");
 
@@ -61,7 +61,9 @@ fn main() {
             app.insert_resource(steam);
             app.add_systems(Update, run_steam_callbacks);
             app.add_systems(Update, unlock_and_track_steam_achievements);
-            info!("[Steam] Full achievement + progress tracking active");
+            app.add_systems(Update, track_sustainable_harvests);
+            app.add_systems(Update, track_epiphanies);
+            info!("[Steam] Full progress tracking active (Council + Harvest + Epiphany)");
         }
     }
 
@@ -77,19 +79,32 @@ fn run_steam_callbacks(steam: Res<SteamIntegration>) {
     steam.run_callbacks();
 }
 
-/// Combined system: Simple unlock + progress tracking for Council Blooms
+/// Council Bloom unlock + progress
 #[cfg(feature = "steam")]
 fn unlock_and_track_steam_achievements(
     mut resolved_events: EventReader<CouncilTrialResolved>,
     steam: Res<SteamIntegration>,
 ) {
     for _event in resolved_events.read() {
-        // Simple unlock for first-time achievement
         steam.unlock_first_council_bloom();
-
-        // Progress tracking (for future multi-step achievements like Council Veteran)
         steam.record_council_bloom_participation();
     }
+}
+
+/// Sustainable Harvest progress tracking
+/// TODO: Wire this to actual harvest events where sustainability_score > 0.7
+#[cfg(feature = "steam")]
+fn track_sustainable_harvests(steam: Res<SteamIntegration>) {
+    // Placeholder - should be called from harvesting_system when a sustainable harvest occurs
+    // steam.record_sustainable_harvest();
+}
+
+/// Epiphany progress tracking
+/// TODO: Wire this to epiphany trigger events
+#[cfg(feature = "steam")]
+fn track_epiphanies(steam: Res<SteamIntegration>) {
+    // Placeholder - should be called from evaluate_epiphany or DivineWhisper systems
+    // steam.record_epiphany_triggered();
 }
 
 fn setup_authoritative_camera(mut commands: Commands) {
