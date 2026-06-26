@@ -330,7 +330,7 @@ impl HarvestingSystem {
         }
     }
 
-    pub async fn refresh_mercy_wave_tracking(&mut self, player_positions: &HashMap<u64, (f32, f32, f3)>) {
+    pub async fn refresh_mercy_wave_tracking(&mut self, player_positions: &HashMap<u64, (f32, f32, f32)>) {
         if let Some(ref dem) = self.dynamic_event_manager {
             let mut events = dem.lock().await;
             // TODO: Implement mercy wave reactive events (preserved placeholder)
