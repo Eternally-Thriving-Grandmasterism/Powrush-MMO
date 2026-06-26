@@ -3,6 +3,10 @@ name = "powrush-mmo-server"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+steam = ["dep:steamworks"]
+
 [dependencies]
 bevy = { version = "0.14", default-features = false }
 tokio = { version = "1", features = ["full"] }
@@ -13,3 +17,6 @@ caps = "0.5"
 sha2 = "0.10"
 seccompiler = "0.4"
 landlock = "0.4"
+
+# Steam (optional)
+steamworks = { version = "0.10", optional = true }
