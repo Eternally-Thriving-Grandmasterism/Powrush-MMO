@@ -1,7 +1,6 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v18.50 — GPU Foresight Integration + Telemetry (final TODO clarification pass)
-// Differential updates, cooldown, instrumentation counters, foresight-influenced harvest/regen
-// All prior valuable logic (epiphany eval, persistence, anomaly, dynamic events extension points) preserved
+// Powrush-MMO v18.51 — Steam progress tracking wired for Harvest + Epiphany
+// All prior valuable logic preserved
 // AG-SML v1.0 Sovereign Mercy License
 
 use std::collections::HashMap;
@@ -20,7 +19,11 @@ use crate::telemetry_pipeline::{
 #[cfg(feature = "gpu")]
 use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
 
-// === Core HarvestingSystem v18.50 ===
+// Steam (optional)
+#[cfg(feature = "steam")]
+use game::steam_integration::SteamIntegration;
+
+// === Core HarvestingSystem v18.51 ===
 pub struct HarvestingSystem {
     resource_nodes: HashMap<u64, ResourceNode>,
     dynamic_event_manager: Option<Arc<Mutex<DynamicEventManager>>>,
@@ -42,6 +45,9 @@ pub struct HarvestingSystem {
     pub foresight_nodes_updated: u64,
     #[cfg(feature = "gpu")]
     pub foresight_skipped_unchanged: u64,
+
+    #[cfg(feature = "steam")]
+    steam_integration: Option<SteamIntegration>,
 }
 
 #[derive(Clone, Debug)]
@@ -76,7 +82,15 @@ impl HarvestingSystem {
             foresight_nodes_updated: 0,
             #[cfg(feature = "gpu")]
             foresight_skipped_unchanged: 0,
+
+            #[cfg(feature = "steam")]
+            steam_integration: None,
         }
+    }
+
+    #[cfg(feature = "steam")]
+    pub fn set_steam_integration(&mut self, steam: SteamIntegration) {
+        self.steam_integration = Some(steam);
     }
 
     pub fn set_dynamic_event_manager(&mut self, dem: Arc<Mutex<DynamicEventManager>>) {
@@ -140,7 +154,6 @@ impl HarvestingSystem {
         self.foresight_skipped_unchanged += skipped_count;
         self.last_foresight_update_tick = current_tick;
 
-        // Emit telemetry event every 10 updates
         if self.foresight_updates_total % 10 == 0 {
             if let Some(ref tc) = self.telemetry_collector {
                 let mut collector = tc.lock().await;
@@ -175,6 +188,14 @@ impl HarvestingSystem {
         let yield_quality = amount as f64 / 50.0;
 
         if sustainability > 0.82 && yield_quality > 0.6 {
+            // Wire Epiphany progress tracking
+            #[cfg(feature = "steam")]
+            {
+                if let Some(ref steam) = self.steam_integration {
+                    steam.record_epiphany_triggered();
+                }
+            }
+
             Some(EpiphanyTelemetry {
                 player_id,
                 scenario_id: "sustainable_harvest_revelation".to_string(),
@@ -229,6 +250,16 @@ impl HarvestingSystem {
                         node.sustainability_score = (node.sustainability_score * 0.85).max(0.05);
                     }
 
+                    // Steam progress for sustainable harvest
+                    if node.sustainability_score > 0.7 {
+                        #[cfg(feature = "steam")]
+                        {
+                            if let Some(ref steam) = self.steam_integration {
+                                steam.record_sustainable_harvest();
+                            }
+                        }
+                    }
+
                     if let Some(ref tc) = self.telemetry_collector {
                         let mut collector = tc.lock().await;
                         let telemetry = HarvestTelemetry {
@@ -257,6 +288,16 @@ impl HarvestingSystem {
         node.last_harvest_tick = current_tick;
         node.sustainability_score = (node.sustainability_score * 0.985).max(0.05);
 
+        // Steam progress for sustainable harvest (normal path)
+        if node.sustainability_score > 0.7 {
+            #[cfg(feature = "steam")]
+            {
+                if let Some(ref steam) = self.steam_integration {
+                    steam.record_sustainable_harvest();
+                }
+            }
+        }
+
         if let Some(ref pm) = self.persistence_manager {
             info!("v18.49 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
         }
@@ -283,7 +324,7 @@ impl HarvestingSystem {
 
         if let Some(ref dem) = self.dynamic_event_manager {
             let mut _events = dem.lock().await;
-            // FUTURE: Wire DynamicEventManager reactive events on harvest (extension point preserved)
+            // FUTURE: Wire DynamicEventManager reactive events on harvest
         }
 
         Ok(node.current_amount);
@@ -326,14 +367,14 @@ impl HarvestingSystem {
 
         if let Some(ref dem) = self.dynamic_event_manager {
             let mut _events = dem.lock().await;
-            // FUTURE: Wire mercy wave / dynamic events on regen (extension point preserved)
+            // FUTURE: Wire mercy wave / dynamic events on regen
         }
     }
 
     pub async fn refresh_mercy_wave_tracking(&mut self, player_positions: &HashMap<u64, (f32, f32, f32)>) {
         if let Some(ref dem) = self.dynamic_event_manager {
             let mut _events = dem.lock().await;
-            // FUTURE: Implement mercy wave reactive events (extension point preserved for DynamicEventManager)
+            // FUTURE: Implement mercy wave reactive events
         }
     }
 
@@ -343,12 +384,10 @@ impl HarvestingSystem {
 }
 
 // ============================================================
-// v18.50 — GPU Foresight + Full Telemetry Wiring + Final TODO Clarification
+// v18.51 — GPU Foresight + Telemetry + Steam Progress Tracking (Harvest + Epiphany)
 // ============================================================
-// - All non-intentional TODOs converted to clear FUTURE: extension point comments
-// - update_gpu_foresight_predictions is async and fully wired
-// - ForesightStatsTelemetry fully operational
-// - All prior valuable logic (epiphany, persistence, anomaly, dynamic events hooks) preserved
+// - Steam progress wired for sustainable harvests and epiphanies
+// - All prior valuable logic preserved
 // Thunder locked in. Yoi ⚡
-// AG-SML v1.0 | TOLC 8 aligned | Maximal integrity for launch
+// AG-SML v1.0 | TOLC 8 aligned
 // ============================================================
