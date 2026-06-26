@@ -1,7 +1,7 @@
 /*!
  * Basic Controller / Gamepad UI Navigation System
  *
- * v2 - Added Button Activation Logic
+ * v3 - Refactored activation logic for clarity
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -9,19 +9,19 @@
 use bevy::prelude::*;
 use bevy::input::gamepad::{GamepadButton, Gamepads};
 
-/// Marker component for UI elements that can be focused with a controller
+/// Marker component for UI elements that can receive gamepad focus
 #[derive(Component, Clone, Debug, Default)]
 pub struct Focusable {
     pub order: i32,
 }
 
-/// Resource that tracks the currently focused UI entity
+/// Resource tracking the currently focused UI entity
 #[derive(Resource, Default)]
 pub struct UiFocus {
     pub current: Option<Entity>,
 }
 
-/// System that handles gamepad input for UI navigation
+/// Handles D-pad and left stick navigation between focusable UI elements
 pub fn gamepad_ui_navigation(
     gamepads: Res<Gamepads>,
     axes: Res<bevy::input::gamepad::GamepadAxis>,
@@ -40,17 +40,16 @@ pub fn gamepad_ui_navigation(
     }
 
     for _gamepad in gamepads.iter() {
-        let up = buttons.just_pressed(GamepadButton::DPadUp);
-        let down = buttons.just_pressed(GamepadButton::DPadDown);
-
+        let up_pressed = buttons.just_pressed(GamepadButton::DPadUp);
+        let down_pressed = buttons.just_pressed(GamepadButton::DPadDown);
         let stick_y = axes.get(bevy::input::gamepad::GamepadAxis::LeftStickY).unwrap_or(0.0);
 
         let mut moved = false;
 
-        if up || stick_y > 0.6 {
+        if up_pressed || stick_y > 0.6 {
             move_focus(&mut focus, &focusables, true);
             moved = true;
-        } else if down || stick_y < -0.6 {
+        } else if down_pressed || stick_y < -0.6 {
             move_focus(&mut focus, &focusables, false);
             moved = true;
         }
@@ -62,10 +61,11 @@ pub fn gamepad_ui_navigation(
     }
 }
 
+/// Moves focus to the next or previous focusable element
 fn move_focus(
     focus: &mut UiFocus,
     focusables: &Query<(Entity, &Focusable, &GlobalTransform)>,
-    up: bool,
+    move_up: bool,
 ) {
     let mut candidates: Vec<(Entity, i32)> = focusables
         .iter()
@@ -79,61 +79,63 @@ fn move_focus(
     candidates.sort_by_key(|(_, order)| *order);
 
     if let Some(current) = focus.current {
-        if let Some(pos) = candidates.iter().position(|(e, _)| *e == current) {
-            let new_pos = if up {
-                if pos == 0 { candidates.len() - 1 } else { pos - 1 }
+        if let Some(current_index) = candidates.iter().position(|(e, _)| *e == current) {
+            let new_index = if move_up {
+                if current_index == 0 { candidates.len() - 1 } else { current_index - 1 }
             } else {
-                if pos + 1 >= candidates.len() { 0 } else { pos + 1 }
+                if current_index + 1 >= candidates.len() { 0 } else { current_index + 1 }
             };
-            focus.current = Some(candidates[new_pos].0);
+            focus.current = Some(candidates[new_index].0);
             return;
         }
     }
 
+    // Default to the first focusable element
     focus.current = Some(candidates[0].0);
 }
 
-/// Visual feedback for focused element
+/// Provides basic visual feedback for the currently focused element
 pub fn highlight_focused_ui(
     focus: Res<UiFocus>,
     mut query: Query<(&Focusable, &mut BackgroundColor)>,
 ) {
     for (focusable, mut color) in query.iter_mut() {
-        // Simple highlight - can be improved with a dedicated Focused component later
         if focus.current == Some(focusable) {
-            *color = Color::srgb(0.3, 0.6, 1.0).into();
+            *color = Color::srgb(0.3, 0.6, 1.0).into(); // Highlighted
         } else {
-            *color = Color::srgb(0.2, 0.2, 0.2).into();
+            *color = Color::srgb(0.2, 0.2, 0.2).into(); // Default
         }
     }
 }
 
-/// Activates the currently focused button when South button (A/Cross) is pressed
+/// Activates the currently focused button when the South gamepad button is pressed.
+/// This simulates a mouse click by setting Interaction::Pressed.
 pub fn activate_focused_button(
     buttons: Res<bevy::input::gamepad::GamepadButton>,
     focus: Res<UiFocus>,
     mut interaction_query: Query<(&Focusable, &mut Interaction)>,
 ) {
-    // South button = A on Xbox, Cross on PlayStation
+    // Only act if we have a currently focused entity
+    let Some(focused_entity) = focus.current else {
+        return;
+    };
+
+    // Check if the focused entity has an Interaction component (i.e., it's a button)
+    let Ok((_, mut interaction)) = interaction_query.get_mut(focused_entity) else {
+        return;
+    };
+
+    // South button = A (Xbox) / Cross (PlayStation)
     if buttons.just_pressed(GamepadButton::South) {
-        if let Some(focused_entity) = focus.current {
-            if let Ok((_, mut interaction)) = interaction_query.get_mut(focused_entity) {
-                *interaction = Interaction::Pressed;
-            }
-        }
+        *interaction = Interaction::Pressed;
     }
 
-    // Release the button when South is released
     if buttons.just_released(GamepadButton::South) {
-        if let Some(focused_entity) = focus.current {
-            if let Ok((_, mut interaction)) = interaction_query.get_mut(focused_entity) {
-                *interaction = Interaction::None;
-            }
-        }
+        *interaction = Interaction::None;
     }
 }
 
-/// Plugin to register all UI navigation systems
+/// Plugin that registers all UI navigation systems
 pub struct UiNavigationPlugin;
 
 impl Plugin for UiNavigationPlugin {
