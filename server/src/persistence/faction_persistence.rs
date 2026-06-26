@@ -1,7 +1,8 @@
 /*!
  * server/src/persistence/faction_persistence.rs
  *
- * v2.4 — Refactored maintain_mapping_on_join for robustness and clarity.
+ * v2.5 — Started integration with unified PlayerSaveData.
+ * Faction data can now be loaded/saved via the main PersistenceManager.
  *
  * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
@@ -10,54 +11,38 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-// ... (rest of file) ...
+use crate::persistence_polish::{PersistenceManager, PlayerSaveData};
 
 // ============================================================================
-// Improved Mapping Maintenance
+// Unified Save/Load via PlayerSaveData
 // ============================================================================
 
-/// Maintains the PlayerIdMapping when a player joins.
-/// - Idempotent: does nothing if player_id is already mapped.
-/// - Defensive: skips if the entity no longer exists.
-/// - Observable: logs important state changes.
-fn maintain_mapping_on_join(
-    mut events: EventReader<PlayerJoined>,
-    mut mapping: ResMut<PlayerIdMapping>,
-    world: &World,
-) {
-    for event in events.read() {
-        // Skip if already registered (idempotent)
-        if mapping.contains(event.player_id) {
-            debug!(
-                "PlayerIdMapping: player {} already mapped to {:?}. Skipping duplicate join.",
-                event.player_id, mapping.get_entity(event.player_id)
-            );
-            continue;
-        }
-
-        // Defensive check: entity must still exist
-        if world.get_entity(event.entity).is_none() {
-            warn!(
-                "PlayerIdMapping: received PlayerJoined for player {} but entity {:?} no longer exists. Skipping.",
-                event.player_id, event.entity
-            );
-            continue;
-        }
-
-        mapping.insert(event.player_id, event.entity);
-        debug!("PlayerIdMapping: registered {} → {:?}", event.player_id, event.entity);
+/// Loads faction standings from the main PlayerSaveData.
+pub async fn load_faction_standings(
+    persistence: &PersistenceManager,
+    player_id: u64,
+) -> HashMap<u64, f32> {
+    match persistence.load_player_data(player_id).await {
+        Ok(data) => data.faction_standings,
+        Err(_) => HashMap::new(),
     }
 }
 
-fn maintain_mapping_on_leave(
-    mut events: EventReader<PlayerLeft>,
-    mut mapping: ResMut<PlayerIdMapping>,
-) {
-    for event in events.read() {
-        if mapping.remove_by_id(event.player_id).is_some() {
-            debug!("PlayerIdMapping: removed player {}", event.player_id);
-        }
-    }
+/// Saves faction standings into the main PlayerSaveData.
+pub async fn save_faction_standings(
+    persistence: &PersistenceManager,
+    player_id: u64,
+    standings: &HashMap<u64, f32>,
+) -> Result<(), String> {
+    let mut data = persistence.load_player_data(player_id).await
+        .unwrap_or_else(|_| PlayerSaveData::new(player_id));
+
+    data.faction_standings = standings.clone();
+    persistence.save_player_data(&mut data).await
 }
 
-// ... (rest of the file unchanged) ...
+// Note: The existing file-based functions (save_faction_data_to_disk_with_retry, etc.)
+// remain available as fallback / migration path.
+
+// Future work: Replace internal save/load calls in save_faction_data_system
+// to use the above functions when PersistenceManager is available as a resource.
