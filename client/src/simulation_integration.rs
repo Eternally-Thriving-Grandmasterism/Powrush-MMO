@@ -276,8 +276,6 @@ pub fn apply_dynamic_cell_size(
 pub fn update_client_spatial_hash(
     mut spatial_hash: ResMut<ClientSpatialHash>,
     query: Query<(Entity, &GlobalTransform), Changed<GlobalTransform>>,
-    mut spatial_hash: ResMut<ClientSpatialHash>,
-    query: Query<(Entity, &GlobalTransform), Changed<GlobalTransform>>,
 ) {
     for (entity, transform) in query.iter() {
         let entity_id = entity.index() as u64;
