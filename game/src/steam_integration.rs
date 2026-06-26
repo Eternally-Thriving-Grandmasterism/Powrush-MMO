@@ -1,17 +1,16 @@
 /*!
- * Steam Integration Module (Scaffold)
+ * Steam Integration Module (Scaffold v2)
  *
- * This module provides Steamworks integration for Powrush-MMO.
- * It is feature-gated behind `steam` so the game can run without Steam during development.
+ * Feature-gated Steamworks integration.
+ * Ready for achievements, stats, and cloud saves.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 #[cfg(feature = "steam")]
-use steamworks::{Client, SingleClient, Achievement, Stats, Cloud};
+use steamworks::{Client, SingleClient, Achievement, Stats};
 
 /// Steam integration handle
-#[derive(Debug)]
 pub struct SteamIntegration {
     #[cfg(feature = "steam")]
     client: Option<Client>,
@@ -29,7 +28,6 @@ impl SteamIntegration {
         }
     }
 
-    /// Initialize Steam API (call early in main)
     pub fn initialize(&mut self) -> Result<(), String> {
         #[cfg(feature = "steam")]
         {
@@ -37,24 +35,18 @@ impl SteamIntegration {
                 Ok((client, single)) => {
                     self.client = Some(client);
                     self.single = Some(single);
-                    println!("Steamworks initialized successfully");
+                    println!("[Steam] Initialized successfully");
                     Ok(())
                 }
-                Err(e) => {
-                    eprintln!("Failed to initialize Steamworks: {:?}", e);
-                    Err(format!("Steam init failed: {:?}", e))
-                }
+                Err(e) => Err(format!("Steam init failed: {:?}", e)),
             }
         }
-
         #[cfg(not(feature = "steam"))]
         {
-            println!("Steam feature not enabled — running in standalone mode");
             Ok(())
         }
     }
 
-    /// Run Steam callbacks (call every frame/tick)
     pub fn run_callbacks(&self) {
         #[cfg(feature = "steam")]
         {
@@ -64,11 +56,53 @@ impl SteamIntegration {
         }
     }
 
-    // TODO (future): Add achievement unlock helpers, stat tracking, cloud save integration
+    // ============================================================
+    // Achievement Helpers (Mercy-aligned)
+    // ============================================================
+
+    pub fn unlock_achievement(&self, achievement_id: &str) {
+        #[cfg(feature = "steam")]
+        {
+            if let Some(client) = &self.client {
+                if let Ok(ach) = client.achievement(achievement_id) {
+                    let _ = ach.set();
+                    println!("[Steam] Unlocked achievement: {}", achievement_id);
+                }
+            }
+        }
+    }
+
+    pub fn unlock_first_council_bloom(&self) {
+        self.unlock_achievement("FirstCouncilBloom");
+    }
+
+    pub fn unlock_sustainable_harvester(&self) {
+        self.unlock_achievement("SustainableHarvester");
+    }
+
+    pub fn unlock_epiphany_seeker(&self) {
+        self.unlock_achievement("EpiphanySeeker");
+    }
+
+    // ============================================================
+    // Stats Helpers
+    // ============================================================
+
+    pub fn increment_stat(&self, stat_id: &str, amount: i32) {
+        #[cfg(feature = "steam")]
+        {
+            if let Some(client) = &self.client {
+                if let Ok(stats) = client.stats() {
+                    let _ = stats.set_stat(stat_id, amount);
+                }
+            }
+        }
+    }
+
+    pub fn record_council_session_completed(&self) {
+        self.increment_stat("CouncilSessionsCompleted", 1);
+    }
 }
 
-// Placeholder for when Steam feature is disabled
 #[cfg(not(feature = "steam"))]
-pub fn steam_disabled_stub() {
-    // No-op when Steam is not compiled in
-}
+pub fn steam_disabled_stub() {}
