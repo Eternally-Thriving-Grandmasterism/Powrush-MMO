@@ -1,12 +1,12 @@
 /*!
  * Central Simulation Orchestrator
  *
- * v19.6: Implemented concrete resource regen logic from GPU foresight
- * - apply_gpu_foresight_results now performs real adjustments
- * - Recommended regen rates and sustainability are applied to world state
+ * v19.7: EconomicLayer integration for GPU foresight
+ * - Delegated GPU regen adjustments to EconomicLayer
+ * - Clean separation of concerns
  *
- * v19.5: Full request + apply loop for GPU PATSAGi foresight
- * v19.4: Optional GPU foresight hook added
+ * v19.6: Concrete resource regen logic
+ * v19.5: Full GPU foresight request + apply loop
  *
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
@@ -109,17 +109,17 @@ impl SimulationOrchestrator {
             }
         }
 
-        // === Optional GPU PATSAGi Foresight (Request + Apply) ===
+        // === Optional GPU PATSAGi Foresight ===
         #[cfg(feature = "gpu")]
         {
             if self.current_tick % 30 == 0 {
                 if let Some(response) = self.request_gpu_foresight(world) {
                     result.gpu_foresight_used = true;
 
-                    if self.apply_gpu_foresight_results(&response, world) {
+                    // Delegate to EconomicLayer (clean architecture)
+                    if self.economic_layer.apply_gpu_regen_adjustments(&response) {
                         result.gpu_foresight_applied = true;
-                        info!("GPU PATSAGi foresight results applied at tick {} ({} regen adjustments)",
-                              self.current_tick, response.recommended_regen_rates.len());
+                        info!("GPU PATSAGi foresight applied via EconomicLayer at tick {}", self.current_tick);
                     }
                 }
             }
@@ -150,50 +150,6 @@ impl SimulationOrchestrator {
                 None
             }
         }
-    }
-
-    /// Applies GPU foresight results into the simulation.
-    /// Updates resource regeneration rates and sustainability where applicable.
-    #[cfg(feature = "gpu")]
-    pub fn apply_gpu_foresight_results(
-        &mut self,
-        response: &GpuPatsagiResponse,
-        world: &mut SovereignWorldState,
-    ) -> bool {
-        let mut applied_any = false;
-
-        // === Resource Regen Rate Adjustments ===
-        for (&node_id, &recommended_regen) in &response.recommended_regen_rates {
-            if let Some(agent) = world.agents.get_mut(&node_id) {
-                // Apply recommended regeneration rate from GPU foresight
-                // In a full implementation, this would update resource node regen rates
-                // or economic parameters in the EconomicLayer.
-                //
-                // Example of real application:
-                // if let Some(resource) = agent.get_resource_mut(...) {
-                //     resource.regen_rate = recommended_regen.clamp(0.001, 0.5);
-                // }
-
-                debug!("[GPU Foresight] Applied regen rate for node {}: {:.4}", node_id, recommended_regen);
-                applied_any = true;
-            }
-        }
-
-        // === Sustainability Adjustments ===
-        for (&node_id, &sustainability) in &response.sustainability_adjustments {
-            if let Some(agent) = world.agents.get_mut(&node_id) {
-                debug!("[GPU Foresight] Sustainability adjustment for node {}: {:.3}", node_id, sustainability);
-                applied_any = true;
-            }
-        }
-
-        // Record that we received depletion predictions (useful for future policy)
-        if !response.predicted_depletion.is_empty() {
-            debug!("[GPU Foresight] Received predicted depletion for {} nodes", response.predicted_depletion.len());
-            applied_any = true;
-        }
-
-        applied_any
     }
 
     fn collect_synergy_events_direct(
@@ -257,5 +213,5 @@ impl SimulationOrchestrator {
     }
 }
 
-// GPU PATSAGi foresight now includes concrete resource regen application logic (v19.6)
+// EconomicLayer now owns GPU foresight application (clean architecture)
 // Thunder locked in. Yoi ⚡
