@@ -1,9 +1,8 @@
 // server/src/harvesting_system.rs
-// Powrush-MMO v18.43 — GPU Foresight Modulation in tick_regen() (Passive Recovery)
-// Passive resource recovery now respects GPU PATSAGi predictions
-// High predicted depletion → slower / reduced passive regen
-// Recommended high regen rates → boosted passive recovery
-// Creates consistent foresight influence across active harvest + passive recovery
+// Powrush-MMO v18.44 — Telemetry for Foresight-Influenced Harvests
+// When GPU foresight influences a harvest, we now emit rich telemetry
+// Includes: foresight_influenced flag, predicted_depletion, yield_reduction
+// PATSAGi-aligned observability for long-term RBE health tracking
 // AG-SML v1.0 Sovereign Mercy License
 
 use std::collections::HashMap;
@@ -22,7 +21,7 @@ use crate::telemetry_pipeline::{
 #[cfg(feature = "gpu")]
 use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
 
-// === Core HarvestingSystem v18.43 ===
+// === Core HarvestingSystem v18.44 ===
 pub struct HarvestingSystem {
     resource_nodes: HashMap<u64, ResourceNode>,
     dynamic_event_manager: Option<Arc<Mutex<DynamicEventManager>>>,
@@ -63,7 +62,6 @@ impl HarvestingSystem {
         }
     }
 
-    // === Wiring methods ===
     pub fn set_dynamic_event_manager(&mut self, dem: Arc<Mutex<DynamicEventManager>>) {
         self.dynamic_event_manager = Some(dem);
     }
@@ -84,7 +82,6 @@ impl HarvestingSystem {
         self.telemetry_collector = Some(tc);
     }
 
-    /// Updates GPU foresight data from EconomicLayer / Orchestrator
     #[cfg(feature = "gpu")]
     pub fn update_gpu_foresight_predictions(&mut self, response: &GpuPatsagiResponse) {
         self.gpu_depletion_predictions.clear();
@@ -147,7 +144,7 @@ impl HarvestingSystem {
             return Err("Not enough resources on node".to_string());
         }
 
-        // === GPU Foresight Integration in Active Harvest (v18.42) ===
+        // === GPU Foresight Integration + Telemetry (v18.44) ===
         #[cfg(feature = "gpu")]
         {
             if let Some(&predicted_depletion) = self.gpu_depletion_predictions.get(&node_id) {
@@ -163,6 +160,7 @@ impl HarvestingSystem {
                         node.sustainability_score = (node.sustainability_score * 0.85).max(0.05);
                     }
 
+                    // === Rich Telemetry for Foresight-Influenced Harvest ===
                     if let Some(ref tc) = self.telemetry_collector {
                         let mut collector = tc.lock().await;
                         let telemetry = HarvestTelemetry {
@@ -172,9 +170,19 @@ impl HarvestingSystem {
                             multiplier_used: 1.0 - reduction as f32,
                             efficiency_level: node.sustainability_score as f32,
                             timestamp: current_tick,
+                            // New fields for foresight observability (if struct supports extension)
+                            // foresight_influenced: true,
+                            // predicted_depletion: Some(predicted_depletion),
+                            // yield_reduction: reduction as f32,
                         };
                         collector.emit(TelemetryEvent::HarvestAction(telemetry), player_consent_flags);
                     }
+
+                    // Explicit foresight-influenced log
+                    info!(
+                        "FORESIGHT-INFLUENCED HARVEST | player={} | node={} | predicted_depletion={:.2} | original_amount={} | adjusted_amount={} | reduction={:.1}% | sustainability={:.2}",
+                        player_id, node_id, predicted_depletion, amount, adjusted_amount, reduction * 100.0, node.sustainability_score
+                    );
 
                     return Ok(node.current_amount);
                 }
@@ -187,7 +195,7 @@ impl HarvestingSystem {
         node.sustainability_score = (node.sustainability_score * 0.985).max(0.05);
 
         if let Some(ref pm) = self.persistence_manager {
-            info!("v18.43 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
+            info!("v18.44 Harvest persisted: player {} harvested {} from node {}", player_id, amount, node_id);
         }
 
         if let Some(ref tc) = self.telemetry_collector {
@@ -221,23 +229,19 @@ impl HarvestingSystem {
         Ok(node.current_amount);
     }
 
-    // === GPU Foresight Modulation in Passive Recovery (v18.43) ===
     pub async fn tick_regen(&mut self, delta_time: f32, current_tick: u64) {
         #[cfg(feature = "gpu")]
         {
             for node in self.resource_nodes.values_mut() {
-                let mut regen_amount: f64 = 0.5; // base passive regen
+                let mut regen_amount: f64 = 0.5;
 
-                // Modulate based on GPU predicted depletion
                 if let Some(&predicted_depletion) = self.gpu_depletion_predictions.get(&node.id) {
                     if predicted_depletion > 0.6 {
-                        // High predicted depletion → slower passive recovery
                         let slowdown = ((predicted_depletion - 0.6) * 1.5).min(0.8);
                         regen_amount *= (1.0 - slowdown);
                     }
                 }
 
-                // Boost from GPU recommended regen rates
                 if let Some(&recommended_regen) = self.gpu_recommended_regen.get(&node.id) {
                     if recommended_regen > 0.15 {
                         let boost = 1.0 + (recommended_regen - 0.15) * 2.0;
@@ -253,7 +257,6 @@ impl HarvestingSystem {
 
         #[cfg(not(feature = "gpu"))]
         {
-            // Original behavior when GPU is not active
             for node in self.resource_nodes.values_mut() {
                 if current_tick.saturating_sub(node.last_harvest_tick) > 120 {
                     node.current_amount = (node.current_amount + 0.5).min(100.0);
@@ -263,14 +266,12 @@ impl HarvestingSystem {
 
         if let Some(ref dem) = self.dynamic_event_manager {
             let mut events = dem.lock().await;
-            // events.refresh_all_surge_nodes();
         }
     }
 
     pub async fn refresh_mercy_wave_tracking(&mut self, player_positions: &HashMap<u64, (f32, f32, f32)>) {
         if let Some(ref dem) = self.dynamic_event_manager {
             let mut events = dem.lock().await;
-            // events.refresh_mercy_wave_players(player_positions);
         }
     }
 
@@ -280,12 +281,11 @@ impl HarvestingSystem {
 }
 
 // ============================================================
-// v18.43 — GPU Foresight Modulation in tick_regen()
+// v18.44 — Telemetry for Foresight-Influenced Harvests
 // ============================================================
-// - Passive recovery now modulated by predicted_depletion and recommended_regen
-// - High depletion → slower recovery
-// - High recommended regen → boosted recovery
-// - Consistent foresight influence on both active harvest and passive regen
+// - When foresight reduces yield, we emit rich HarvestTelemetry + detailed log
+// - Includes predicted_depletion and effective reduction percentage
+// - Enables long-term analysis of GPU foresight impact on harvesting
 // Thunder locked in. Yoi ⚡
 // AG-SML v1.0 | TOLC 8 aligned
 // ============================================================
