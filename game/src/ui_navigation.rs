@@ -1,7 +1,7 @@
 /*!
  * Spatial Grid UI Navigation System
  *
- * v8 - Refactored pitch variation into helper function
+ * v9 - Settings Persistence + Volume Control
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -9,6 +9,8 @@
 use bevy::prelude::*;
 use bevy::input::gamepad::{GamepadButton, Gamepads};
 use bevy::audio::PlaybackSettings;
+use serde::{Deserialize, Serialize};
+use std::fs;
 
 #[derive(Component, Clone, Debug, Default)]
 pub struct Focusable {
@@ -18,15 +20,17 @@ pub struct Focusable {
 #[derive(Component)]
 pub struct Focused;
 
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Clone, Serialize, Deserialize)]
 pub struct UiFocus {
     pub current: Option<Entity>,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Clone, Serialize, Deserialize)]
 pub struct UiAudioSettings {
     pub navigation_volume: f32,
     pub activation_volume: f32,
+    pub navigation_pitch_variation: f32,
+    pub activation_pitch_variation: f32,
 }
 
 impl Default for UiAudioSettings {
@@ -34,6 +38,8 @@ impl Default for UiAudioSettings {
         Self {
             navigation_volume: 0.6,
             activation_volume: 0.8,
+            navigation_pitch_variation: 0.03,
+            activation_pitch_variation: 0.03,
         }
     }
 }
@@ -195,7 +201,6 @@ pub fn activate_focused_button(
     }
 }
 
-/// Returns a slightly randomized playback speed for natural pitch variation
 fn randomized_pitch(base: f32, variation: f32) -> f32 {
     base * (1.0 + (rand::random::<f32>() * 2.0 - 1.0) * variation)
 }
@@ -210,7 +215,7 @@ pub fn play_focus_change_sound(
     if focus.current != *last_focus {
         if focus.current.is_some() {
             let sound = asset_server.load("audio/ui_nav.ogg");
-            let pitch = randomized_pitch(1.0, 0.03); // ±3% variation
+            let pitch = randomized_pitch(1.0, settings.navigation_pitch_variation);
             audio.play_with_settings(
                 sound,
                 PlaybackSettings::ONCE
@@ -230,7 +235,7 @@ pub fn play_button_activate_sound(
 ) {
     if buttons.just_pressed(GamepadButton::South) {
         let sound = asset_server.load("audio/ui_confirm.ogg");
-        let pitch = randomized_pitch(1.0, 0.03);
+        let pitch = randomized_pitch(1.0, settings.activation_pitch_variation);
         audio.play_with_settings(
             sound,
             PlaybackSettings::ONCE
@@ -240,16 +245,47 @@ pub fn play_button_activate_sound(
     }
 }
 
+/// Loads UI audio settings from disk
+pub fn load_ui_settings(mut commands: Commands) {
+    let path = "settings.ron";
+
+    if let Ok(content) = fs::read_to_string(path) {
+        if let Ok(loaded) = ron::from_str::<UiAudioSettings>(&content) {
+            commands.insert_resource(loaded);
+            info!("Loaded UI audio settings from {}", path);
+            return;
+        }
+    }
+
+    info!("Using default UI audio settings");
+    commands.insert_resource(UiAudioSettings::default());
+}
+
+/// Saves settings when they change
+pub fn save_ui_settings(
+    settings: Res<UiAudioSettings>,
+) {
+    if settings.is_changed() {
+        let path = "settings.ron";
+        if let Ok(serialized) = ron::to_string(&*settings) {
+            if let Err(e) = fs::write(path, serialized) {
+                warn!("Failed to save settings: {}", e);
+            }
+        }
+    }
+}
+
 pub struct UiNavigationPlugin;
 
 impl Plugin for UiNavigationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<UiFocus>()
-            .init_resource::<UiAudioSettings>()
+            .add_systems(Startup, load_ui_settings)
             .add_systems(Update, gamepad_ui_navigation)
             .add_systems(Update, apply_focus_visuals)
             .add_systems(Update, activate_focused_button)
             .add_systems(Update, play_focus_change_sound)
-            .add_systems(Update, play_button_activate_sound);
+            .add_systems(Update, play_button_activate_sound)
+            .add_systems(Update, save_ui_settings);
     }
 }
