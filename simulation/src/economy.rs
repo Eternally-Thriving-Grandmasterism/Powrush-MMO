@@ -7,6 +7,7 @@
  * - Low attunement or failed council = economic friction (pressure increase, reduced abundance/regeneration).
  * - Designed to be called from orchestrator TickResult or council resolution systems.
  *
+ * v19.7+ GPU Foresight wiring recovered: apply_gpu_regen_adjustments now correctly takes &mut SovereignWorldState
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
@@ -269,8 +270,10 @@ impl EconomicLayer {
     /// Applies GPU PATSAGi foresight recommendations into the economic system.
     /// Updates resource node regeneration rates and sustainability based on GPU predictions.
     /// Called from SimulationOrchestrator when GPU foresight is enabled.
+    ///
+    /// v19.7 recovery: Now correctly accepts &mut SovereignWorldState (was missing, causing undefined `world`).
     #[cfg(feature = "gpu")]
-    pub fn apply_gpu_regen_adjustments(&self, response: &GpuPatsagiResponse) -> bool {
+    pub fn apply_gpu_regen_adjustments(&self, response: &GpuPatsagiResponse, world: &mut SovereignWorldState) -> bool {
         let mut applied = false;
 
         // Apply recommended regeneration rates to resource nodes
