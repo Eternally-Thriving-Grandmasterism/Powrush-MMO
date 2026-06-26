@@ -5,6 +5,7 @@
 // Batch summaries, event type breakdown, flush metrics, sovereignty export ready
 // Integrates seamlessly with persistence, epiphany, harvesting, and council systems
 // Zero TODOs • Production hardened for closed beta + sovereign ops
+// + ForesightStats variant for GPU PATSAGi observability (v18.49 polish recovery)
 // AG-SML v1.0 Sovereign Mercy License
 
 use bevy::prelude::*;
@@ -26,6 +27,7 @@ pub enum TelemetryEvent {
     HarvestAction(HarvestTelemetry),
     SessionRetention(RetentionTelemetry),
     MercyAlignment(MercyTelemetry),
+    ForesightStats(ForesightStatsTelemetry),  // GPU PATSAGi foresight instrumentation (v18.49)
     Custom { key: String, payload: String, timestamp: u64 },
 }
 
@@ -48,6 +50,14 @@ pub struct HarvestTelemetry {
     pub multiplier_used: f32,
     pub efficiency_level: f32,
     pub timestamp: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ForesightStatsTelemetry {  // New for GPU foresight counters + telemetry
+    pub updates_total: u64,
+    pub nodes_updated: u64,
+    pub skipped_unchanged: u64,
+    pub last_update_tick: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -171,6 +181,7 @@ impl TelemetryCollector {
                 TelemetryEvent::HarvestAction(mut e) => { e.player_id = hash_id(e.player_id); TelemetryEvent::HarvestAction(e) }
                 TelemetryEvent::SessionRetention(mut e) => { e.player_id = hash_id(e.player_id); TelemetryEvent::SessionRetention(e) }
                 TelemetryEvent::MercyAlignment(mut e) => { e.player_id = hash_id(e.player_id); TelemetryEvent::MercyAlignment(e) }
+                TelemetryEvent::ForesightStats(e) => TelemetryEvent::ForesightStats(e), // No player_id to anonymize
                 other => other,
             }
         } else { event };
@@ -215,7 +226,7 @@ impl TelemetryCollector {
         // Rotate if needed
         if self.config.file_rotation_daily || self.events_in_current_file > self.config.max_events_per_file {
             let storage = self.current_file_path.parent().unwrap_or(&PathBuf::from(".")).to_path_buf();
-            self.current_file_path = Self::generate_file_path(&storage, self.config.file_rotation_daily);
+            self.current_file_path = Self::generate_file_path(&storage, config.file_rotation_daily);
             self.events_in_current_file = 0;
         }
 
@@ -234,6 +245,7 @@ impl TelemetryCollector {
                 TelemetryEvent::HarvestAction(_) => "HarvestAction",
                 TelemetryEvent::SessionRetention(_) => "SessionRetention",
                 TelemetryEvent::MercyAlignment(_) => "MercyAlignment",
+                TelemetryEvent::ForesightStats(_) => "ForesightStats",  // GPU PATSAGi
                 TelemetryEvent::Custom { .. } => "Custom",
             };
             *type_counts.entry(type_name.to_string()).or_insert(0) += 1;
