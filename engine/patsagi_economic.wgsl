@@ -1,7 +1,6 @@
 // patsagi_economic.wgsl
-// Powrush-MMO v16.7 — Real GPU PATSAGi Economic Simulation Kernel
-// Proper structured output matching Rust GpuNodeOutput (bytemuck layout)
-// Multi-step future prediction for resource nodes
+// Powrush-MMO v16.8 — Real GPU PATSAGi Economic Simulation Kernel
+// Explicit array<f32, 3> padding for maximum cross-driver robustness
 // AG-SML v1.0 | TOLC 8
 
 struct Node {
@@ -10,7 +9,7 @@ struct Node {
     stress: f32,
     abundance_flow: f32,
     sustainability: f32,
-    _padding: vec3<f32>, // 32-byte alignment
+    _padding: array<f32, 3>, // Explicit 12-byte padding → 32-byte alignment
 };
 
 // Matches Rust GpuNodeOutput exactly (16 bytes)
@@ -33,7 +32,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var node = nodes[index];
 
-    // === Core economic simulation step ===
     let future_depletion = node.depletion + (node.stress * 0.02) - (node.regen_rate * 0.8);
     node.depletion = clamp(future_depletion, 0.0, 1.0);
 
@@ -47,7 +45,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     nodes[index] = node;
 
-    // Write structured output (matches GpuNodeOutput in Rust)
     output[index] = OutputNode(
         node.depletion,
         node.regen_rate,
