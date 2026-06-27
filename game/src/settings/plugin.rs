@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Includes Biome Transition Logic
+ * Settings Plugin - Includes Reverb Zone Blending
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -27,6 +27,7 @@ impl Plugin for SettingsPlugin {
                 environmental_audio::apply_thunder_reverb_boost,
                 environmental_audio::update_procedural_reverb,
                 environmental_audio::blend_acoustic_probes,
+                environmental_audio::blend_reverb_zones,
                 environmental_audio::apply_biome_transition,
             ));
     }
