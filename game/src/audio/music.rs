@@ -1,5 +1,5 @@
 /*!
- * Dynamic Music System - Stinger Ducking
+ * Dynamic Music System - Filter Automation Simulation
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -38,7 +38,7 @@ pub struct MusicController {
     pub intensity: f32,
     pub transition_timer: f32,
     pub transition_duration: f32,
-    pub ducking: f32,           // 0.0 = no duck, 1.0 = full duck
+    pub ducking: f32,
     pub duck_timer: f32,
 }
 
@@ -71,29 +71,33 @@ pub struct MusicLayers {
     pub layers: Vec<(MusicLayer, Option<Entity>, f32, f32)>,
 }
 
-/// Play a stinger and trigger music ducking
-pub fn play_music_stinger(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mixer: Res<AudioMixer>,
-    mut controller: ResMut<MusicController>,
-    stinger_path: &str,
+/// Dynamic filter automation simulation via pitch + layer emphasis
+pub fn apply_dynamic_filter_automation(
+    controller: Res<MusicController>,
+    mut music_layers: ResMut<MusicLayers>,
 ) {
-    let stinger = asset_server.load(stinger_path);
-    commands.spawn((
-        AudioBundle {
-            source: stinger,
-            settings: PlaybackSettings::ONCE.with_volume(mixer.music * 1.15),
-        },
-        DynamicAudio {
-            category: AudioCategory::Music,
-            priority: Priority::Critical,
-        },
-    ));
+    let intensity = controller.intensity;
 
-    // Trigger ducking for background music layers
-    controller.ducking = 0.65; // Duck to ~35% volume
-    controller.duck_timer = 2.8; // Duck duration in seconds
+    for (layer, _, current_vol, target_vol) in music_layers.layers.iter_mut() {
+        // Simulate filter opening with intensity
+        // Higher intensity = brighter / more present layers
+        match layer {
+            MusicLayer::Base => {
+                // Base layer stays relatively stable
+                *target_vol = 0.75 + intensity * 0.2;
+            }
+            MusicLayer::Tension | MusicLayer::Percussion => {
+                // These layers get emphasized as intensity rises (simulating filter opening)
+                *target_vol = (0.4 + intensity * 0.7).clamp(0.3, 1.1);
+            }
+            MusicLayer::Melody => {
+                *target_vol = (0.5 + intensity * 0.6).clamp(0.4, 1.0);
+            }
+            MusicLayer::Intense => {
+                *target_vol = intensity.clamp(0.5, 1.2);
+            }
+        }
+    }
 }
 
 pub fn update_music_layers(
@@ -104,15 +108,13 @@ pub fn update_music_layers(
     mixer: Res<AudioMixer>,
     time: Res<Time>,
 ) {
-    // Handle ducking timer
     if controller.duck_timer > 0.0 {
         controller.duck_timer -= time.delta_seconds();
         if controller.duck_timer <= 0.0 {
-            controller.ducking = 0.0; // Release duck
+            controller.ducking = 0.0;
         }
     }
 
-    // Smooth duck release
     let duck_multiplier = if controller.ducking > 0.0 {
         1.0 - controller.ducking
     } else {
@@ -127,11 +129,14 @@ pub fn update_music_layers(
         }
     }
 
+    // Apply dynamic filter automation first
+    apply_dynamic_filter_automation(controller, music_layers);
+
     let target_layers = get_active_layers(controller.current_state, controller.intensity);
 
     for (layer, target_vol) in target_layers {
         if let Some((_, entity, _, target)) = music_layers.layers.iter_mut().find(|(l, _, _, _)| *l == layer) {
-            *target = target_vol;
+            *target = *target * duck_multiplier;
         } else {
             let path = get_layer_path(layer, controller.current_state);
             let music = asset_server.load(path);
@@ -145,7 +150,7 @@ pub fn update_music_layers(
                     priority: Priority::High,
                 },
             )).id();
-            music_layers.layers.push((layer, Some(entity), 0.0, target_vol));
+            music_layers.layers.push((layer, Some(entity), 0.0, target_vol * duck_multiplier));
         }
     }
 
@@ -153,13 +158,12 @@ pub fn update_music_layers(
     let mut to_remove = vec![];
 
     for (i, (layer, entity, current_vol, target_vol)) in music_layers.layers.iter_mut().enumerate() {
-        let effective_target = *target_vol * duck_multiplier;
-        let new_vol = *current_vol + (effective_target - *current_vol) * lerp_speed * time.delta_seconds();
+        let new_vol = *current_vol + (*target_vol - *current_vol) * lerp_speed * time.delta_seconds();
         *current_vol = new_vol;
 
         if let Some(ent) = *entity {
             if let Ok(mut sink) = commands.get_entity(ent) {
-                // TODO: sink.set_volume(new_vol * mixer.music);
+                // TODO: Get AudioSink and apply new_vol * mixer.music
             }
         }
 
@@ -178,7 +182,7 @@ pub fn update_music_layers(
 
 fn get_active_layers(state: MusicStateType, intensity: f32) -> Vec<(MusicLayer, f32)> {
     let mut layers = vec![];
-    layers.push((MusicLayer::Base, 0., intensity * 0.25));
+    layers.push((MusicLayer::Base, 0.75 + intensity * 0.25));
 
     match state {
         MusicStateType::Exploration | MusicStateType::Harvesting | MusicStateType::Council => {
@@ -265,4 +269,28 @@ pub fn update_music(
         )).id();
         *current_music = Some(entity);
     }
+}
+
+/// Play a typed stinger with ducking
+pub fn play_music_stinger(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mixer: Res<AudioMixer>,
+    mut controller: ResMut<MusicController>,
+    stinger_path: &str,
+) {
+    let stinger = asset_server.load(stinger_path);
+    commands.spawn((
+        AudioBundle {
+            source: stinger,
+            settings: PlaybackSettings::ONCE.with_volume(mixer.music * 1.15),
+        },
+        DynamicAudio {
+            category: AudioCategory::Music,
+            priority: Priority::Critical,
+        },
+    ));
+
+    controller.ducking = 0.6;
+    controller.duck_timer = 2.5;
 }
