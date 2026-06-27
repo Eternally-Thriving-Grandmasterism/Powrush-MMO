@@ -1,5 +1,5 @@
 /*!
- * Kira Music Plugin
+ * Kira Music Plugin - Full Real Filter Support
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
