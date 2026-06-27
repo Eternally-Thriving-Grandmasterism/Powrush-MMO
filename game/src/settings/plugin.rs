@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Distance-Based Reverb
+ * Settings Plugin - Unified Spatial Audio
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -19,13 +19,7 @@ impl Plugin for SettingsPlugin {
                 persistence::save_settings,
                 audio_mixing::apply_audio_settings,
                 audio_mixing::update_dynamic_audio_volumes,
-                environmental_audio::apply_occlusion_with_rapier,
-                environmental_audio::apply_dynamic_occlusion_zones,
-                environmental_audio::apply_portal_audio,
-                environmental_audio::apply_acoustic_occlusion,
-                environmental_audio::update_reverb_state,
-                environmental_audio::apply_reverb_to_sounds,
-                environmental_audio::apply_distance_based_reverb,
+                environmental_audio::apply_unified_spatial_audio,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
