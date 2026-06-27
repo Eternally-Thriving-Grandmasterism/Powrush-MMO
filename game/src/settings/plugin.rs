@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Full environmental audio with Rapier occlusion
+ * Settings Plugin - Dynamic Occlusion Zones
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -19,6 +19,7 @@ impl Plugin for SettingsPlugin {
                 audio_mixing::apply_audio_settings,
                 audio_mixing::update_dynamic_audio_volumes,
                 environmental_audio::apply_occlusion_with_rapier,
+                environmental_audio::apply_dynamic_occlusion_zones,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
