@@ -7,7 +7,6 @@
 use bevy::prelude::*;
 use crate::settings::editor::SettingsEditor;
 
-/// Marker component for audio entities that should respond to live mixer changes
 #[derive(Component)]
 pub struct DynamicAudio {
     pub category: AudioCategory,
@@ -32,7 +31,24 @@ pub struct AudioMixer {
     pub ambient: f32,
 }
 
-/// Applies current mixer volumes to all DynamicAudio entities in real time
+/// Syncs SettingsEditor volumes into AudioMixer in real time
+pub fn apply_audio_settings(
+    editor: Option<Res<SettingsEditor>>,
+    mut mixer: ResMut<AudioMixer>,
+) {
+    if let Some(editor) = editor {
+        if editor.is_changed() || editor.dirty {
+            mixer.master  = editor.audio.master_volume;
+            mixer.music   = editor.audio.music_volume   * mixer.master;
+            mixer.sfx     = editor.audio.sfx_volume     * mixer.master;
+            mixer.ui      = editor.audio.navigation_volume.max(editor.audio.activation_volume) * mixer.master;
+            mixer.voice   = mixer.master; // Can be expanded later
+            mixer.ambient = mixer.master * 0.8; // Slight ducking for ambient
+        }
+    }
+}
+
+/// Updates volumes on all active DynamicAudio sinks
 pub fn update_dynamic_audio_volumes(
     mixer: Res<AudioMixer>,
     mut query: Query<(&DynamicAudio, &mut AudioSink)>,
@@ -49,7 +65,7 @@ pub fn update_dynamic_audio_volumes(
     }
 }
 
-/// Helper to play a sound that respects the dynamic mixer
+/// Recommended helper for spawning mixer-aware sounds
 pub fn play_dynamic_sound(
     commands: &mut Commands,
     asset_server: &AssetServer,
@@ -59,19 +75,17 @@ pub fn play_dynamic_sound(
     settings: PlaybackSettings,
 ) {
     let source = asset_server.load(path);
-
-    let effective_volume = match category {
+    let vol = match category {
         AudioCategory::Music   => mixer.music,
         AudioCategory::Sfx     => mixer.sfx,
         AudioCategory::Ui      => mixer.ui,
         AudioCategory::Voice   => mixer.voice,
         AudioCategory::Ambient => mixer.ambient,
     };
-
     commands.spawn((
         AudioBundle {
             source,
-            settings: settings.with_volume(effective_volume),
+            settings: settings.with_volume(vol),
         },
         DynamicAudio { category },
     ));
