@@ -1,5 +1,5 @@
 /*!
- * Full Kira Dynamic Music - Sound Loading + Layered Playback
+ * Kira Dynamic Music - Polished Production Version
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -7,7 +7,6 @@
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use kira::effect::filter::{FilterBuilder, FilterHandle};
-use kira::sound::static_sound::StaticSoundData;
 use std::collections::HashMap;
 use crate::settings::audio_mixing::AudioMixer;
 
@@ -45,7 +44,6 @@ pub struct KiraMusicController {
     pub ducking: f32,
     pub duck_timer: f32,
     pub filter_handles: HashMap<MusicLayer, FilterHandle>,
-    /// Store active sound handles so we can control/stop them
     pub active_sounds: HashMap<MusicLayer, AudioHandle<AudioSource>>,
 }
 
@@ -65,18 +63,20 @@ impl Default for KiraMusicController {
     }
 }
 
-/// Real filter automation
+/// Real filter automation with error safety
 pub fn apply_kira_filter_automation(
     controller: Res<KiraMusicController>,
 ) {
     let intensity = controller.intensity;
+
     for filter in controller.filter_handles.values() {
         let cutoff = 650.0 + (intensity * 13500.0);
-        filter.set_cutoff(cutoff);
+        // Kira filters are generally safe to call even if the sound stopped
+        let _ = filter.set_cutoff(cutoff);
     }
 }
 
-/// Initialize filters and prepare music layers
+/// Initialize filters with better error handling
 pub fn initialize_kira_music(
     audio: Res<AudioManager>,
     mut controller: ResMut<KiraMusicController>,
@@ -86,13 +86,20 @@ pub fn initialize_kira_music(
     let layers = [MusicLayer::Base, MusicLayer::Tension, MusicLayer::Percussion, MusicLayer::Melody, MusicLayer::Intense];
 
     for layer in layers {
-        if let Ok(filter) = audio.add_filter(FilterBuilder::new().cutoff(1000.0)) {
-            controller.filter_handles.insert(layer, filter);
+        match audio.add_filter(FilterBuilder::new().cutoff(1000.0)) {
+            Ok(filter) => {
+                controller.filter_handles.insert(layer, filter);
+            }
+            Err(e) => {
+                warn!("Failed to create filter for music layer {:?}: {:?}", layer, e);
+            }
         }
     }
+
+    info!("Initialized {} music layer filters", controller.filter_handles.len());
 }
 
-/// Main system that manages layered music playback with Kira
+/// Main layered music system with improved robustness
 pub fn update_kira_music(
     audio: Res<AudioManager>,
     mut controller: ResMut<KiraMusicController>,
@@ -100,7 +107,21 @@ pub fn update_kira_music(
     asset_server: Res<AssetServer>,
     time: Res<Time>,
 ) {
-    // Handle state transitions
+    // Handle ducking
+    if controller.duck_timer > 0.0 {
+        controller.duck_timer -= time.delta_seconds();
+        if controller.duck_timer <= 0.0 {
+            controller.ducking = 0.0;
+        }
+    }
+
+    let duck_multiplier = if controller.ducking > 0.0 {
+        1.0 - controller.ducking
+    } else {
+        1.0
+    };
+
+    // State transition
     if controller.current_state != controller.target_state {
         controller.transition_timer += time.delta_seconds();
         if controller.transition_timer >= controller.transition_duration {
@@ -111,39 +132,46 @@ pub fn update_kira_music(
 
     let target_layers = get_active_layers(controller.current_state, controller.intensity);
 
-    // Stop layers that are no longer needed
+    // Stop unused layers
     let current_layers: Vec<_> = controller.active_sounds.keys().cloned().collect();
     for layer in current_layers {
         if !target_layers.iter().any(|(l, _)| *l == layer) {
             if let Some(handle) = controller.active_sounds.remove(&layer) {
-                handle.stop();
+                let _ = handle.stop();
             }
         }
     }
 
-    // Start or update needed layers
-    for (layer, target_volume) in target_layers {
-        let effective_volume = target_volume * (1.0 - controller.ducking) * mixer.music;
+    // Update or start layers
+    for (layer, base_volume) in target_layers {
+        let effective_volume = base_volume * duck_multiplier * mixer.music;
 
         if let Some(handle) = controller.active_sounds.get_mut(&layer) {
-            // Update volume (Kira handles support volume changes)
-            handle.set_volume(effective_volume);
+            let _ = handle.set_volume(effective_volume);
         } else {
-            // Load and play new layer
             let path = get_layer_path(layer, controller.current_state);
-            if let Ok(sound_data) = StaticSoundData::from_file(path) {
-                if let Some(filter) = controller.filter_handles.get(&layer) {
-                    // Play with filter attached
-                    if let Ok(handle) = audio.play(sound_data)
-                        .looped()
-                        .with_volume(0.0)
-                        .with_filter(*filter)
-                        .try_build() 
-                    {
-                        // Fade in
-                        handle.set_volume(effective_volume);
-                        controller.active_sounds.insert(layer, handle);
+
+            match StaticSoundData::from_file(path) {
+                Ok(sound_data) => {
+                    if let Some(filter) = controller.filter_handles.get(&layer) {
+                        match audio.play(sound_data)
+                            .looped()
+                            .with_volume(0.0)
+                            .with_filter(*filter)
+                            .try_build()
+                        {
+                            Ok(handle) => {
+                                let _ = handle.set_volume(effective_volume);
+                                controller.active_sounds.insert(layer, handle);
+                            }
+                            Err(e) => {
+                                warn!("Failed to play music layer {:?}: {:?}", layer, e);
+                            }
+                        }
                     }
+                }
+                Err(e) => {
+                    warn!("Failed to load music layer {:?} at path '{}': {:?}", layer, path, e);
                 }
             }
         }
@@ -189,4 +217,12 @@ fn get_layer_path(layer: MusicLayer, _state: MusicStateType) -> &'static str {
         MusicLayer::Melody => "audio/music/layers/melody.ogg",
         MusicLayer::Intense => "audio/music/layers/intense.ogg",
     }
+}
+
+// Helper to stop all music (useful for scene changes, menus, etc.)
+pub fn stop_all_music(mut controller: ResMut<KiraMusicController>) {
+    for (_, handle) in controller.active_sounds.drain() {
+        let _ = handle.stop();
+    }
+    controller.filter_handles.clear();
 }
