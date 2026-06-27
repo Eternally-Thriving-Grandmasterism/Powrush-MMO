@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Wires GameSettings, Editor, and Live UI Updates
+ * Settings Plugin - Full integration with live updates and reset
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -17,6 +17,7 @@ impl Plugin for SettingsPlugin {
                 persistence::save_settings,
                 editor::update_setting_value_texts,
                 editor::mark_editor_dirty,
+                editor::handle_reset_to_defaults,
             ));
     }
 }
