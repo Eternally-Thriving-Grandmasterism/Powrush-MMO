@@ -26,7 +26,7 @@ pub enum MusicStateType {
 pub struct MusicController {
     pub current_state: MusicStateType,
     pub target_state: MusicStateType,
-    pub intensity: f32,           // 0.0 - 1.0
+    pub intensity: f32,
     pub transition_timer: f32,
     pub transition_duration: f32,
 }
@@ -43,16 +43,25 @@ impl Default for MusicController {
     }
 }
 
-/// Evaluates current music state based on gameplay (basic version)
-pub fn evaluate_music_state(
+/// Request a music state change (call this from combat, harvesting, etc.)
+pub fn request_music_state(
     mut controller: ResMut<MusicController>,
-    // TODO: Add queries for combat state, player health, harvesting, etc.
+    new_state: MusicStateType,
 ) {
-    // Placeholder logic - will be expanded with real gameplay data
-    // For now we keep the state stable unless externally changed
+    if controller.target_state != new_state {
+        controller.target_state = new_state;
+        controller.transition_timer = 0.0;
+    }
 }
 
-/// Manages music playback and smooth state transitions
+/// Evaluates current music state (placeholder - expand with real gameplay data)
+pub fn evaluate_music_state(
+    mut controller: ResMut<MusicController>,
+) {
+    // TODO: Integrate with combat system, player health, harvesting, council, etc.
+}
+
+/// Updates music playback and handles transitions
 pub fn update_music(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -61,7 +70,7 @@ pub fn update_music(
     time: Res<Time>,
     mut current_music: Local<Option<Entity>>,
 ) {
-    // Handle state transition
+    // Handle smooth state transition
     if controller.current_state != controller.target_state {
         controller.transition_timer += time.delta_seconds();
 
@@ -71,28 +80,27 @@ pub fn update_music(
         }
     }
 
-    // Simple music playback based on state (will be replaced with layered stems later)
     let music_path = match controller.current_state {
-        MusicStateType::Exploration => "audio/music/exploration.ogg",
-        MusicStateType::Tension     => "audio/music/tension.ogg",
-        MusicStateType::Combat      => "audio/music/combat.ogg",
+        MusicStateType::Exploration   => "audio/music/exploration.ogg",
+        MusicStateType::Tension       => "audio/music/tension.ogg",
+        MusicStateType::Combat        => "audio/music/combat.ogg",
         MusicStateType::IntenseCombat => "audio/music/intense_combat.ogg",
-        MusicStateType::Boss        => "audio/music/boss.ogg",
-        MusicStateType::Harvesting  => "audio/music/harvesting.ogg",
-        MusicStateType::Council     => "audio/music/council.ogg",
-        MusicStateType::Victory     => "audio/music/victory.ogg",
-        MusicStateType::Death       => "audio/music/death.ogg",
-        MusicStateType::Menu        => "audio/music/menu.ogg",
+        MusicStateType::Boss          => "audio/music/boss.ogg",
+        MusicStateType::Harvesting    => "audio/music/harvesting.ogg",
+        MusicStateType::Council       => "audio/music/council.ogg",
+        MusicStateType::Victory       => "audio/music/victory.ogg",
+        MusicStateType::Death         => "audio/music/death.ogg",
+        MusicStateType::Menu          => "audio/music/menu.ogg",
     };
 
-    // Spawn or replace music entity
+    // Spawn or replace current music track
     if current_music.is_none() {
         let music = asset_server.load(music_path);
         let entity = commands.spawn((
             AudioBundle {
                 source: music,
                 settings: PlaybackSettings::LOOP
-                    .with_volume(mixer.music * (0.7 + controller.intensity * 0.3)),
+                    .with_volume(mixer.music * (0.6 + controller.intensity * 0.4)),
             },
             DynamicAudio {
                 category: AudioCategory::Music,
