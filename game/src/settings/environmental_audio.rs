@@ -1,88 +1,95 @@
 /*!
- * Environmental Audio - Biome Acoustic Profile Serialization
+ * Environmental Audio - Biome Transition Logic
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::fs;
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
-pub struct AcousticParameters {
-    pub wetness: f32,
-    pub decay_time: f32,
-    pub damping: f32,
-    pub early_reflections: f32,
-    pub influence_radius: f32,
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum BiomeType {
+    Forest,
+    Desert,
+    StoneDungeon,
+    Cave,
+    Snow,
+    Swamp,
+    OpenField,
 }
 
-impl Default for AcousticParameters {
+#[derive(Resource)]
+pub struct BiomeTransition {
+    pub current_biome: BiomeType,
+    pub previous_biome: BiomeType,
+    pub transition_timer: f32,
+    pub transition_duration: f32,
+}
+
+impl Default for BiomeTransition {
     fn default() -> Self {
         Self {
-            wetness: 0.4,
-            decay_time: 2.0,
-            damping: 0.4,
-            early_reflections: 0.5,
-            influence_radius: 35.0,
+            current_biome: BiomeType::OpenField,
+            previous_biome: BiomeType::OpenField,
+            transition_timer: 0.0,
+            transition_duration: 3.5, // seconds to cross biome boundary
         }
     }
 }
 
-#[derive(Resource, Serialize, Deserialize, Default, Clone)]
-pub struct BiomeAcousticProfile {
-    pub forest: AcousticParameters,
-    pub desert: AcousticParameters,
-    pub stone_dungeon: AcousticParameters,
-    pub cave: AcousticParameters,
-    pub snow: AcousticParameters,
-    pub swamp: AcousticParameters,
-    pub open_field: AcousticParameters,
+/// Smoothly blends acoustic parameters during biome transitions
+pub fn apply_biome_transition(
+    mut reverb_state: ResMut<crate::settings::audio_mixing::ReverbState>,
+    biome_profile: Res<BiomeAcousticProfile>,
+    mut transition: ResMut<BiomeTransition>,
+    time: Res<Time>,
+) {
+    if transition.current_biome == transition.previous_biome {
+        // No transition happening - apply current biome directly
+        let params = get_acoustic_params(&biome_profile, transition.current_biome);
+        reverb_state.wetness = params.wetness;
+        reverb_state.decay_time = params.decay_time;
+        reverb_state.damping = params.damping;
+        return;
+    }
+
+    transition.transition_timer += time.delta_seconds();
+    let t = (transition.transition_timer / transition.transition_duration).clamp(0.0, 1.0);
+
+    let from = get_acoustic_params(&biome_profile, transition.previous_biome);
+    let to = get_acoustic_params(&biome_profile, transition.current_biome);
+
+    // Smooth lerp between previous and current biome acoustics
+    reverb_state.wetness = from.wetness.lerp(to.wetness, t);
+    reverb_state.decay_time = from.decay_time.lerp(to.decay_time, t);
+    reverb_state.damping = from.damping.lerp(to.damping, t);
+
+    if t >= 1.0 {
+        transition.previous_biome = transition.current_biome;
+        transition.transition_timer = 0.0;
+    }
 }
 
-/// Loads BiomeAcousticProfile from RON file (with sensible defaults on failure)
-pub fn load_biome_acoustic_profile(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let path = "assets/audio/biome_acoustics.ron";
-
-    let profile = match fs::read_to_string(path) {
-        Ok(content) => {
-            match ron::from_str::<BiomeAcousticProfile>(&content) {
-                Ok(p) => {
-                    info!("Loaded biome acoustic profile from {}", path);
-                    p
-                }
-                Err(e) => {
-                    warn!("Failed to parse biome_acoustics.ron: {}. Using defaults.", e);
-                    BiomeAcousticProfile::default()
-                }
-            }
-        }
-        Err(_) => {
-            info!("No biome_acoustics.ron found. Using default acoustic profiles.");
-            BiomeAcousticProfile::default()
-        }
-    };
-
-    commands.insert_resource(profile);
+fn get_acoustic_params(profile: &BiomeAcousticProfile, biome: BiomeType) -> AcousticParameters {
+    match biome {
+        BiomeType::Forest => profile.forest,
+        BiomeType::Desert => profile.desert,
+        BiomeType::StoneDungeon => profile.stone_dungeon,
+        BiomeType::Cave => profile.cave,
+        BiomeType::Snow => profile.snow,
+        BiomeType::Swamp => profile.swamp,
+        BiomeType::OpenField => profile.open_field,
+    }
 }
 
-// Example RON file content (assets/audio/biome_acoustics.ron):
-/*
-(
-    forest: (
-        wetness: 0.55,
-        decay_time: 2.8,
-        damping: 0.65,
-        early_reflections: 0.6,
-        influence_radius: 40.0,
-    ),
-    stone_dungeon: (
-        wetness: 0.75,
-        decay_time: 4.2,
-        damping: 0.25,
-        early_reflections: 0.85,
-        influence_radius: 50.0,
-    ),
-    // ... other biomes
-)
-*/
+/// Call this when your biome detection system detects a change
+pub fn trigger_biome_change(
+    mut transition: ResMut<BiomeTransition>,
+    new_biome: BiomeType,
+) {
+    if transition.current_biome != new_biome {
+        transition.previous_biome = transition.current_biome;
+        transition.current_biome = new_biome;
+        transition.transition_timer = 0.0;
+    }
+}
