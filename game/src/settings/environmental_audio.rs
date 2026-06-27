@@ -1,77 +1,102 @@
 /*!
- * Environmental Audio - Unified Spatial Audio System
+ * Environmental Audio - Weather-Driven + Layered Ambients
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
 use crate::settings::audio_mixing::{AudioMixer, AudioCategory, DynamicAudio, Priority};
-use crate::settings::environmental_audio::ReverbState;
 
-/// Unified system that combines occlusion, distance, and reverb into one coherent pass
-pub fn apply_unified_spatial_audio(
-    mut dynamic_audio: Query<(&DynamicAudio, &GlobalTransform, &mut AudioSink)>,
-    listener: Query<&GlobalTransform, With<Camera3d>>,
-    rapier_context: Res<RapierContext>,
-    mixer: Res<AudioMixer>,
-    reverb_state: Res<ReverbState>,
-) {
-    let Ok(listener_transform) = listener.get_single() else { return; };
-    let listener_pos = listener_transform.translation();
+/// Simple weather state that can drive audio
+#[derive(Resource)]
+pub struct WeatherState {
+    pub rain_intensity: f32,   // 0.0 - 1.0
+    pub wind_intensity: f32,   // 0.0 - 1.0
+    pub thunder_probability: f32,
+}
 
-    for (audio, transform, mut sink) in dynamic_audio.iter_mut() {
-        let source_pos = transform.translation();
-        let distance = source_pos.distance(listener_pos);
-
-        if distance < 1.5 {
-            // Very close - minimal processing
-            let base = mixer.get_volume_for_category(audio.category);
-            sink.set_volume(base);
-            continue;
+impl Default for WeatherState {
+    fn default() -> Self {
+        Self {
+            rain_intensity: 0.0,
+            wind_intensity: 0.4,
+            thunder_probability: 0.0,
         }
+    }
+}
 
-        // 1. Base volume from mixer
-        let base_volume = mixer.get_volume_for_category(audio.category);
+/// Layered ambient audio system that reacts to weather
+pub fn update_weather_ambients(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    weather: Res<WeatherState>,
+    mixer: Res<AudioMixer>,
+    mut rain_entity: Local<Option<Entity>>,
+    mut wind_entity: Local<Option<Entity>>,
+) {
+    // Rain layer
+    let rain_volume = mixer.ambient * weather.rain_intensity * 0.9;
 
-        // 2. Distance attenuation (exponential)
-        let distance_attenuation = if distance > 80.0 {
-            0.0
-        } else {
-            let normalized = distance / 80.0;
-            (-2.5 * normalized).exp()
-        };
+    if weather.rain_intensity > 0.05 {
+        if rain_entity.is_none() {
+            let rain = asset_server.load("audio/ambient/rain.ogg");
+            let entity = commands.spawn((
+                AudioBundle {
+                    source: rain,
+                    settings: PlaybackSettings::LOOP.with_volume(rain_volume),
+                },
+                DynamicAudio {
+                    category: AudioCategory::Ambient,
+                    priority: Priority::Low,
+                },
+            )).id();
+            *rain_entity = Some(entity);
+        }
+    } else if let Some(entity) = *rain_entity {
+        commands.entity(entity).despawn();
+        *rain_entity = None;
+    }
 
-        // 3. Occlusion check
-        let direction = (listener_pos - source_pos).normalize();
-        let occlusion_hit = rapier_context.cast_ray(
-            source_pos,
-            direction,
-            distance,
-            true,
-            QueryFilter::exclude_sensors(),
-        );
+    // Wind layer (intensity driven by weather + existing BiomeWind)
+    let wind_volume = mixer.ambient * weather.wind_intensity * 0.7;
 
-        let occlusion_factor = if occlusion_hit.is_some() {
-            match audio.priority {
-                Priority::Critical => 0.7,
-                Priority::High     => 0.5,
-                _ => 0.25,
-            }
-        } else {
-            1.0
-        };
+    if wind_entity.is_none() && weather.wind_intensity > 0.1 {
+        let wind = asset_server.load("audio/ambient/wind.ogg");
+        let entity = commands.spawn((
+            AudioBundle {
+                source: wind,
+                settings: PlaybackSettings::LOOP.with_volume(wind_volume),
+            },
+            DynamicAudio {
+                category: AudioCategory::Ambient,
+                priority: Priority::Low,
+            },
+        )).id();
+        *wind_entity = Some(entity);
+    }
+}
 
-        // 4. Distance-based reverb contribution
-        let distance_reverb = reverb_state.wetness * (0.2 + (distance / 60.0).clamp(0.0, 0.8));
-        let reverb_volume = base_volume * (1.0 + distance_reverb * 0.4);
-
-        // 5. Combine everything
-        let final_volume = reverb_volume
-            * distance_attenuation
-            * occlusion_factor
-            * (1.0 - reverb_state.damping * 0.25);
-
-        sink.set_volume(final_volume.clamp(0.0, base_volume * 1.6));
+/// Example: Thunder system (can be expanded with distance-based panning/volume)
+pub fn trigger_thunder(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    weather: Res<WeatherState>,
+    mixer: Res<AudioMixer>,
+) {
+    if weather.thunder_probability > 0.8 {
+        // Simple random thunder chance
+        if rand::random::<f32>() < 0.02 {
+            let thunder = asset_server.load("audio/ambient/thunder.ogg");
+            commands.spawn((
+                AudioBundle {
+                    source: thunder,
+                    settings: PlaybackSettings::ONCE.with_volume(mixer.ambient * 0.85),
+                },
+                DynamicAudio {
+                    category: AudioCategory::Ambient,
+                    priority: Priority::Normal,
+                },
+            ));
+        }
     }
 }
