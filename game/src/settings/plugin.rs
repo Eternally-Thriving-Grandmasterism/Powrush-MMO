@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Weather-Driven Audio
+ * Settings Plugin - Deeper Weather Interactions
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -22,7 +22,8 @@ impl Plugin for SettingsPlugin {
                 audio_mixing::update_dynamic_audio_volumes,
                 environmental_audio::apply_unified_spatial_audio,
                 environmental_audio::update_weather_ambients,
-                environmental_audio::trigger_thunder,
+                environmental_audio::apply_deep_weather_effects,
+                environmental_audio::apply_thunder_reverb_boost,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
