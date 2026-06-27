@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Reverb Simulation
+ * Settings Plugin - Distance-Based Reverb
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -25,6 +25,7 @@ impl Plugin for SettingsPlugin {
                 environmental_audio::apply_acoustic_occlusion,
                 environmental_audio::update_reverb_state,
                 environmental_audio::apply_reverb_to_sounds,
+                environmental_audio::apply_distance_based_reverb,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
