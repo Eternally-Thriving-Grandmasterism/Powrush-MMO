@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Acoustic Materials
+ * Settings Plugin - Reverb Simulation
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -13,6 +13,7 @@ impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameSettings>()
             .init_resource::<audio_mixing::AudioMixer>()
+            .init_resource::<environmental_audio::ReverbState>()
             .add_systems(Startup, persistence::load_settings)
             .add_systems(Update, (
                 persistence::save_settings,
@@ -22,6 +23,8 @@ impl Plugin for SettingsPlugin {
                 environmental_audio::apply_dynamic_occlusion_zones,
                 environmental_audio::apply_portal_audio,
                 environmental_audio::apply_acoustic_occlusion,
+                environmental_audio::update_reverb_state,
+                environmental_audio::apply_reverb_to_sounds,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
