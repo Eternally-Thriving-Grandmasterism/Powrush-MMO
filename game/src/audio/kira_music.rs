@@ -1,5 +1,5 @@
 /*!
- * Full Kira-based Dynamic Music with Real Filters
+ * Full Kira Dynamic Music - Sound Loading + Layered Playback
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -8,7 +8,6 @@ use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
 use kira::effect::filter::{FilterBuilder, FilterHandle};
 use kira::sound::static_sound::StaticSoundData;
-use kira::track::TrackBuilder;
 use std::collections::HashMap;
 use crate::settings::audio_mixing::AudioMixer;
 
@@ -45,8 +44,9 @@ pub struct KiraMusicController {
     pub transition_duration: f32,
     pub ducking: f32,
     pub duck_timer: f32,
-    /// Real Kira FilterHandles for dynamic automation
     pub filter_handles: HashMap<MusicLayer, FilterHandle>,
+    /// Store active sound handles so we can control/stop them
+    pub active_sounds: HashMap<MusicLayer, AudioHandle<AudioSource>>,
 }
 
 impl Default for KiraMusicController {
@@ -60,60 +60,44 @@ impl Default for KiraMusicController {
             ducking: 0.0,
             duck_timer: 0.0,
             filter_handles: HashMap::new(),
+            active_sounds: HashMap::new(),
         }
     }
 }
 
-/// Apply real low-pass filter automation based on intensity
+/// Real filter automation
 pub fn apply_kira_filter_automation(
     controller: Res<KiraMusicController>,
 ) {
     let intensity = controller.intensity;
-
     for filter in controller.filter_handles.values() {
-        // Real dynamic low-pass filter
         let cutoff = 650.0 + (intensity * 13500.0);
         filter.set_cutoff(cutoff);
     }
 }
 
-/// Initialize Kira music tracks with filters (call once or on state change)
-pub fn initialize_kira_music_tracks(
+/// Initialize filters and prepare music layers
+pub fn initialize_kira_music(
     audio: Res<AudioManager>,
     mut controller: ResMut<KiraMusicController>,
-    asset_server: Res<AssetServer>,
 ) {
-    // Clear existing filters
     controller.filter_handles.clear();
 
-    // Create filters and tracks for each layer
-    let layers = [
-        MusicLayer::Base,
-        MusicLayer::Tension,
-        MusicLayer::Percussion,
-        MusicLayer::Melody,
-        MusicLayer::Intense,
-    ];
+    let layers = [MusicLayer::Base, MusicLayer::Tension, MusicLayer::Percussion, MusicLayer::Melody, MusicLayer::Intense];
 
     for layer in layers {
-        // Create a filter for this layer
-        let filter = audio
-            .add_filter(FilterBuilder::new().cutoff(1000.0))
-            .expect("Failed to create filter");
-
-        controller.filter_handles.insert(layer, filter);
-
-        // TODO: Create actual sound data and play on a track with the filter
-        // Example:
-        // let sound_data = StaticSoundData::from_file("...").unwrap();
-        // audio.play(sound_data).track(...).with_filter(filter).looped();
+        if let Ok(filter) = audio.add_filter(FilterBuilder::new().cutoff(1000.0)) {
+            controller.filter_handles.insert(layer, filter);
+        }
     }
 }
 
+/// Main system that manages layered music playback with Kira
 pub fn update_kira_music(
     audio: Res<AudioManager>,
     mut controller: ResMut<KiraMusicController>,
     mixer: Res<AudioMixer>,
+    asset_server: Res<AssetServer>,
     time: Res<Time>,
 ) {
     // Handle state transitions
@@ -125,6 +109,84 @@ pub fn update_kira_music(
         }
     }
 
-    // In a full implementation, we would manage Kira sound handles here
-    // and apply ducking via track volumes when controller.ducking > 0
+    let target_layers = get_active_layers(controller.current_state, controller.intensity);
+
+    // Stop layers that are no longer needed
+    let current_layers: Vec<_> = controller.active_sounds.keys().cloned().collect();
+    for layer in current_layers {
+        if !target_layers.iter().any(|(l, _)| *l == layer) {
+            if let Some(handle) = controller.active_sounds.remove(&layer) {
+                handle.stop();
+            }
+        }
+    }
+
+    // Start or update needed layers
+    for (layer, target_volume) in target_layers {
+        let effective_volume = target_volume * (1.0 - controller.ducking) * mixer.music;
+
+        if let Some(handle) = controller.active_sounds.get_mut(&layer) {
+            // Update volume (Kira handles support volume changes)
+            handle.set_volume(effective_volume);
+        } else {
+            // Load and play new layer
+            let path = get_layer_path(layer, controller.current_state);
+            if let Ok(sound_data) = StaticSoundData::from_file(path) {
+                if let Some(filter) = controller.filter_handles.get(&layer) {
+                    // Play with filter attached
+                    if let Ok(handle) = audio.play(sound_data)
+                        .looped()
+                        .with_volume(0.0)
+                        .with_filter(*filter)
+                        .try_build() 
+                    {
+                        // Fade in
+                        handle.set_volume(effective_volume);
+                        controller.active_sounds.insert(layer, handle);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn get_active_layers(state: MusicStateType, intensity: f32) -> Vec<(MusicLayer, f32)> {
+    let mut layers = vec![];
+    layers.push((MusicLayer::Base, 0.8 + intensity * 0.2));
+
+    match state {
+        MusicStateType::Exploration | MusicStateType::Harvesting | MusicStateType::Council => {
+            if intensity > 0.3 {
+                layers.push((MusicLayer::Melody, intensity * 0.85));
+            }
+        }
+        MusicStateType::Tension => {
+            layers.push((MusicLayer::Tension, 0.5 + intensity * 0.5));
+        }
+        MusicStateType::Combat => {
+            layers.push((MusicLayer::Tension, 0.65));
+            layers.push((MusicLayer::Percussion, intensity * 0.9));
+        }
+        MusicStateType::IntenseCombat | MusicStateType::Boss => {
+            layers.push((MusicLayer::Tension, 0.85));
+            layers.push((MusicLayer::Percussion, 0.8));
+            layers.push((MusicLayer::Intense, intensity));
+        }
+        MusicStateType::Victory => {
+            layers.push((MusicLayer::Melody, 1.0));
+        }
+        _ => {}
+    }
+
+    layers
+}
+
+fn get_layer_path(layer: MusicLayer, _state: MusicStateType) -> &'static str {
+    match layer {
+        MusicLayer::Base => "audio/music/layers/base.ogg",
+        MusicLayer::Tension => "audio/music/layers/tension.ogg",
+        MusicLayer::Percussion => "audio/music/layers/percussion.ogg",
+        MusicLayer::Melody => "audio/music/layers/melody.ogg",
+        MusicLayer::Intense => "audio/music/layers/intense.ogg",
+    }
 }
