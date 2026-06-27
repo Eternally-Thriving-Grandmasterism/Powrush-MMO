@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Full integration with live updates and reset
+ * Settings Plugin - Supports Audio, Graphics, and Controls with live updates
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -15,7 +15,9 @@ impl Plugin for SettingsPlugin {
             .add_systems(Startup, persistence::load_settings)
             .add_systems(Update, (
                 persistence::save_settings,
-                editor::update_setting_value_texts,
+                editor::update_audio_value_texts,
+                editor::update_graphics_value_texts,
+                editor::update_controls_value_texts,
                 editor::mark_editor_dirty,
                 editor::handle_reset_to_defaults,
             ));
