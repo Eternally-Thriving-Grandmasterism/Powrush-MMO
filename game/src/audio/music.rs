@@ -1,5 +1,5 @@
 /*!
- * Dynamic Music System - Smooth Layer Volume Lerping
+ * Dynamic Music System - Stingers / One-Shots
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -62,14 +62,11 @@ pub fn request_music_state(
     }
 }
 
-/// Tracks active music layers with current and target volumes for smooth lerping
 #[derive(Resource, Default)]
 pub struct MusicLayers {
-    /// (layer_type, entity, current_volume, target_volume)
     pub layers: Vec<(MusicLayer, Option<Entity>, f32, f32)>,
 }
 
-/// Smoothly updates music layer volumes with lerping
 pub fn update_music_layers(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -78,7 +75,6 @@ pub fn update_music_layers(
     mixer: Res<AudioMixer>,
     time: Res<Time>,
 ) {
-    // Handle state transitions
     if controller.current_state != controller.target_state {
         controller.transition_timer += time.delta_seconds();
         if controller.transition_timer >= controller.transition_duration {
@@ -89,7 +85,6 @@ pub fn update_music_layers(
 
     let target_layers = get_active_layers(controller.current_state, controller.intensity);
 
-    // Spawn new layers or update targets
     for (layer, target_vol) in target_layers {
         if let Some((_, entity, _, target)) = music_layers.layers.iter_mut().find(|(l, _, _, _)| *l == layer) {
             *target = target_vol;
@@ -99,35 +94,30 @@ pub fn update_music_layers(
             let entity = commands.spawn((
                 AudioBundle {
                     source: music,
-                    settings: PlaybackSettings::LOOP.with_volume(0.0), // start silent for smooth fade-in
+                    settings: PlaybackSettings::LOOP.with_volume(0.0),
                 },
                 DynamicAudio {
                     category: AudioCategory::Music,
                     priority: Priority::High,
                 },
             )).id();
-
             music_layers.layers.push((layer, Some(entity), 0.0, target_vol));
         }
     }
 
-    // Lerp volumes and clean up unused layers
-    let lerp_speed = 2.5; // Higher = faster transitions
+    let lerp_speed = 2.5;
     let mut to_remove = vec![];
 
     for (i, (layer, entity, current_vol, target_vol)) in music_layers.layers.iter_mut().enumerate() {
-        // Smooth lerp toward target
         let new_vol = *current_vol + (*target_vol - *current_vol) * lerp_speed * time.delta_seconds();
         *current_vol = new_vol;
 
         if let Some(ent) = *entity {
             if let Ok(mut sink) = commands.get_entity(ent) {
-                // In a full implementation we would get the AudioSink and call set_volume
-                // For now we rely on the fact that the entity exists
+                // TODO: Get AudioSink and call set_volume(new_vol * mixer.music)
             }
         }
 
-        // Remove layers no longer needed
         if !target_layers.iter().any(|(l, _)| *l == *layer) {
             if let Some(ent) = *entity {
                 commands.entity(ent).despawn();
@@ -182,7 +172,33 @@ fn get_layer_path(layer: MusicLayer, _state: MusicStateType) -> &'static str {
     }
 }
 
-// Fallback single-track system (kept for compatibility during development)
+// ==================== STINGERS / ONE-SHOTS ====================
+
+/// Play a music stinger (victory fanfare, combat start, etc.)
+pub fn play_music_stinger(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mixer: Res<AudioMixer>,
+    stinger_path: &str,
+) {
+    let stinger = asset_server.load(stinger_path);
+    commands.spawn((
+        AudioBundle {
+            source: stinger,
+            settings: PlaybackSettings::ONCE
+                .with_volume(mixer.music * 1.1), // slightly louder than music
+        },
+        DynamicAudio {
+            category: AudioCategory::Music,
+            priority: Priority::Critical, // Stingers should cut through
+        },
+    ));
+}
+
+// Example usage from gameplay:
+// play_music_stinger(commands, asset_server, mixer, "audio/music/stingers/victory_fanfare.ogg");
+
+// Fallback single-track system
 pub fn evaluate_music_state(
     mut controller: ResMut<MusicController>,
 ) {}
