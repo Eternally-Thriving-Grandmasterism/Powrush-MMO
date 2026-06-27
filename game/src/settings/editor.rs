@@ -1,5 +1,5 @@
 /*!
- * Settings Editor + Live UI Updates
+ * Settings Editor + Live UI Updates + Reset to Defaults
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -24,6 +24,12 @@ impl SettingsEditor {
     pub fn apply_to(&self, settings: &mut GameSettings) {
         settings.audio = self.audio.clone();
         settings.validate();
+    }
+
+    /// Resets all audio settings to defaults
+    pub fn reset_to_defaults(&mut self) {
+        self.audio = AudioSettings::default();
+        self.dirty = true;
     }
 }
 
@@ -67,13 +73,26 @@ pub fn update_setting_value_texts(
     }
 }
 
-/// System to mark editor as dirty when values change (optional but useful)
+/// System to mark editor as dirty when values change
 pub fn mark_editor_dirty(
     mut editor: Option<ResMut<SettingsEditor>>,
 ) {
     if let Some(editor) = editor.as_mut() {
         if editor.is_changed() {
             editor.dirty = true;
+        }
+    }
+}
+
+/// Handles reset to defaults (R key while menu is open)
+pub fn handle_reset_to_defaults(
+    mut editor: Option<ResMut<SettingsEditor>>,
+    keyboard: Res<Input<KeyCode>>,
+) {
+    if let Some(editor) = editor.as_mut() {
+        if keyboard.just_pressed(KeyCode::KeyR) {
+            editor.reset_to_defaults();
+            info!("Audio settings reset to defaults");
         }
     }
 }
