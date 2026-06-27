@@ -1,102 +1,95 @@
 /*!
- * Environmental Audio - Weather-Driven + Layered Ambients
+ * Environmental Audio - Weather-Aware Footsteps
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
 use crate::settings::audio_mixing::{AudioMixer, AudioCategory, DynamicAudio, Priority};
+use crate::settings::environmental_audio::{SurfaceType, MaterialModifier, ArmorType, WeatherState};
 
-/// Simple weather state that can drive audio
-#[derive(Resource)]
-pub struct WeatherState {
-    pub rain_intensity: f32,   // 0.0 - 1.0
-    pub wind_intensity: f32,   // 0.0 - 1.0
-    pub thunder_probability: f32,
-}
-
-impl Default for WeatherState {
-    fn default() -> Self {
-        Self {
-            rain_intensity: 0.0,
-            wind_intensity: 0.4,
-            thunder_probability: 0.0,
-        }
-    }
-}
-
-/// Layered ambient audio system that reacts to weather
-pub fn update_weather_ambients(
+/// Weather-aware layered footsteps (rain affects surface sounds)
+pub fn play_weather_aware_footstep(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    weather: Res<WeatherState>,
     mixer: Res<AudioMixer>,
-    mut rain_entity: Local<Option<Entity>>,
-    mut wind_entity: Local<Option<Entity>>,
+    weather: Res<WeatherState>,
+    surface: SurfaceType,
+    armor: ArmorType,
+    velocity: f32,
 ) {
-    // Rain layer
-    let rain_volume = mixer.ambient * weather.rain_intensity * 0.9;
+    let base_volume = (velocity / 8.0).clamp(0.4, 1.0) * mixer.sfx;
+    let rain_factor = weather.rain_intensity;
 
-    if weather.rain_intensity > 0.05 {
-        if rain_entity.is_none() {
-            let rain = asset_server.load("audio/ambient/rain.ogg");
-            let entity = commands.spawn((
-                AudioBundle {
-                    source: rain,
-                    settings: PlaybackSettings::LOOP.with_volume(rain_volume),
-                },
-                DynamicAudio {
-                    category: AudioCategory::Ambient,
-                    priority: Priority::Low,
-                },
-            )).id();
-            *rain_entity = Some(entity);
+    // Determine effective material based on weather
+    let effective_material = if rain_factor > 0.4 {
+        match surface {
+            SurfaceType::Stone | SurfaceType::Dirt | SurfaceType::Wood => MaterialModifier::Wet,
+            SurfaceType::Grass => MaterialModifier::Muddy,
+            _ => MaterialModifier::Wet,
         }
-    } else if let Some(entity) = *rain_entity {
-        commands.entity(entity).despawn();
-        *rain_entity = None;
-    }
+    } else {
+        MaterialModifier::Dry
+    };
 
-    // Wind layer (intensity driven by weather + existing BiomeWind)
-    let wind_volume = mixer.ambient * weather.wind_intensity * 0.7;
+    // Play surface sound (weather-modified)
+    let surface_path = match (surface, effective_material) {
+        (SurfaceType::Stone, MaterialModifier::Wet) => "audio/footsteps/stone_wet.ogg",
+        (SurfaceType::Dirt, MaterialModifier::Muddy) => "audio/footsteps/dirt_muddy.ogg",
+        (SurfaceType::Grass, MaterialModifier::Muddy) => "audio/footsteps/grass_wet.ogg",
+        _ => match surface {
+            SurfaceType::Grass => "audio/footsteps/grass.ogg",
+            SurfaceType::Stone => "audio/footsteps/stone.ogg",
+            SurfaceType::Water => "audio/footsteps/water.ogg",
+            SurfaceType::Snow  => "audio/footsteps/snow.ogg",
+            _ => "audio/footsteps/default.ogg",
+        },
+    };
 
-    if wind_entity.is_none() && weather.wind_intensity > 0.1 {
-        let wind = asset_server.load("audio/ambient/wind.ogg");
-        let entity = commands.spawn((
+    commands.spawn((
+        AudioBundle {
+            source: asset_server.load(surface_path),
+            settings: PlaybackSettings::ONCE.with_volume(base_volume),
+        },
+        DynamicAudio {
+            category: AudioCategory::Sfx,
+            priority: Priority::Low,
+        },
+    ));
+
+    // Armor layer (unchanged by weather for now)
+    if armor != ArmorType::None {
+        let armor_path = match armor {
+            ArmorType::Light  => "audio/footsteps/armor_light.ogg",
+            ArmorType::Medium => "audio/footsteps/armor_medium.ogg",
+            ArmorType::Heavy  => "audio/footsteps/armor_heavy.ogg",
+            _ => return,
+        };
+
+        commands.spawn((
             AudioBundle {
-                source: wind,
-                settings: PlaybackSettings::LOOP.with_volume(wind_volume),
+                source: asset_server.load(armor_path),
+                settings: PlaybackSettings::ONCE.with_volume(base_volume * 0.75),
             },
             DynamicAudio {
-                category: AudioCategory::Ambient,
+                category: AudioCategory::Sfx,
                 priority: Priority::Low,
             },
-        )).id();
-        *wind_entity = Some(entity);
+        ));
     }
-}
 
-/// Example: Thunder system (can be expanded with distance-based panning/volume)
-pub fn trigger_thunder(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    weather: Res<WeatherState>,
-    mixer: Res<AudioMixer>,
-) {
-    if weather.thunder_probability > 0.8 {
-        // Simple random thunder chance
-        if rand::random::<f32>() < 0.02 {
-            let thunder = asset_server.load("audio/ambient/thunder.ogg");
-            commands.spawn((
-                AudioBundle {
-                    source: thunder,
-                    settings: PlaybackSettings::ONCE.with_volume(mixer.ambient * 0.85),
-                },
-                DynamicAudio {
-                    category: AudioCategory::Ambient,
-                    priority: Priority::Normal,
-                },
-            ));
-        }
+    // Extra splash layer when raining heavily
+    if rain_factor > 0.6 && (surface == SurfaceType::Stone || surface == SurfaceType::Dirt || surface == SurfaceType::Wood) {
+        let splash = asset_server.load("audio/footsteps/splash.ogg");
+        commands.spawn((
+            AudioBundle {
+                source: splash,
+                settings: PlaybackSettings::ONCE.with_volume(base_volume * rain_factor * 0.6),
+            },
+            DynamicAudio {
+                category: AudioCategory::Sfx,
+                priority: Priority::Low,
+            },
+        ));
     }
 }
