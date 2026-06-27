@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Includes Biome Acoustic Profile Loading
+ * Settings Plugin - Includes Biome Transition Logic
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -13,6 +13,7 @@ impl Plugin for SettingsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameSettings>()
             .init_resource::<audio_mixing::AudioMixer>()
+            .init_resource::<environmental_audio::BiomeTransition>()
             .add_systems(Startup, (
                 persistence::load_settings,
                 environmental_audio::load_biome_acoustic_profile,
@@ -26,6 +27,7 @@ impl Plugin for SettingsPlugin {
                 environmental_audio::apply_thunder_reverb_boost,
                 environmental_audio::update_procedural_reverb,
                 environmental_audio::blend_acoustic_probes,
+                environmental_audio::apply_biome_transition,
             ));
     }
 }
