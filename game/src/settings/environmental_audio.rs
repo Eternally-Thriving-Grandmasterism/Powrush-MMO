@@ -1,95 +1,65 @@
 /*!
- * Environmental Audio - Weather-Aware Footsteps
+ * Environmental Audio - Deeper Weather Interactions
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
 use crate::settings::audio_mixing::{AudioMixer, AudioCategory, DynamicAudio, Priority};
-use crate::settings::environmental_audio::{SurfaceType, MaterialModifier, ArmorType, WeatherState};
+use crate::settings::environmental_audio::{WeatherState, ReverbState};
 
-/// Weather-aware layered footsteps (rain affects surface sounds)
-pub fn play_weather_aware_footstep(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mixer: Res<AudioMixer>,
+/// Deep weather interaction: Rain affects ambient layers and distant sounds
+pub fn apply_deep_weather_effects(
     weather: Res<WeatherState>,
-    surface: SurfaceType,
-    armor: ArmorType,
-    velocity: f32,
+    mut dynamic_audio: Query<(&DynamicAudio, &mut AudioSink)>,
+    mixer: Res<AudioMixer>,
 ) {
-    let base_volume = (velocity / 8.0).clamp(0.4, 1.0) * mixer.sfx;
-    let rain_factor = weather.rain_intensity;
+    let rain = weather.rain_intensity;
 
-    // Determine effective material based on weather
-    let effective_material = if rain_factor > 0.4 {
-        match surface {
-            SurfaceType::Stone | SurfaceType::Dirt | SurfaceType::Wood => MaterialModifier::Wet,
-            SurfaceType::Grass => MaterialModifier::Muddy,
-            _ => MaterialModifier::Wet,
+    for (audio, mut sink) in dynamic_audio.iter_mut() {
+        let base = mixer.get_volume_for_category(audio.category);
+
+        match audio.category {
+            AudioCategory::Ambient => {
+                // Rain boosts ambient layers
+                let boosted = base * (1.0 + rain * 0.5);
+                sink.set_volume(boosted.clamp(0.0, base * 1.8));
+            }
+            AudioCategory::Sfx => {
+                // Heavy rain slightly muffles distant SFX
+                if rain > 0.6 {
+                    let muffled = base * 0.85;
+                    sink.set_volume(muffled);
+                }
+            }
+            _ => {}
         }
-    } else {
-        MaterialModifier::Dry
-    };
+    }
+}
 
-    // Play surface sound (weather-modified)
-    let surface_path = match (surface, effective_material) {
-        (SurfaceType::Stone, MaterialModifier::Wet) => "audio/footsteps/stone_wet.ogg",
-        (SurfaceType::Dirt, MaterialModifier::Muddy) => "audio/footsteps/dirt_muddy.ogg",
-        (SurfaceType::Grass, MaterialModifier::Muddy) => "audio/footsteps/grass_wet.ogg",
-        _ => match surface {
-            SurfaceType::Grass => "audio/footsteps/grass.ogg",
-            SurfaceType::Stone => "audio/footsteps/stone.ogg",
-            SurfaceType::Water => "audio/footsteps/water.ogg",
-            SurfaceType::Snow  => "audio/footsteps/snow.ogg",
-            _ => "audio/footsteps/default.ogg",
-        },
-    };
-
-    commands.spawn((
-        AudioBundle {
-            source: asset_server.load(surface_path),
-            settings: PlaybackSettings::ONCE.with_volume(base_volume),
-        },
-        DynamicAudio {
-            category: AudioCategory::Sfx,
-            priority: Priority::Low,
-        },
-    ));
-
-    // Armor layer (unchanged by weather for now)
-    if armor != ArmorType::None {
-        let armor_path = match armor {
-            ArmorType::Light  => "audio/footsteps/armor_light.ogg",
-            ArmorType::Medium => "audio/footsteps/armor_medium.ogg",
-            ArmorType::Heavy  => "audio/footsteps/armor_heavy.ogg",
-            _ => return,
-        };
-
-        commands.spawn((
-            AudioBundle {
-                source: asset_server.load(armor_path),
-                settings: PlaybackSettings::ONCE.with_volume(base_volume * 0.75),
-            },
-            DynamicAudio {
-                category: AudioCategory::Sfx,
-                priority: Priority::Low,
-            },
-        ));
+/// Thunder temporarily boosts reverb (dramatic effect)
+pub fn apply_thunder_reverb_boost(
+    mut reverb_state: ResMut<ReverbState>,
+    weather: Res<WeatherState>,
+    time: Res<Time>,
+    mut thunder_timer: Local<f32>,
+) {
+    if weather.thunder_probability > 0.7 {
+        if rand::random::<f32>() < 0.015 {
+            // Trigger a thunder reverb boost
+            *thunder_timer = 3.5; // seconds
+            reverb_state.wetness = (reverb_state.wetness + 0.6).clamp(0.2, 1.0);
+            reverb_state.decay_time = (reverb_state.decay_time + 1.5).min(6.0);
+        }
     }
 
-    // Extra splash layer when raining heavily
-    if rain_factor > 0.6 && (surface == SurfaceType::Stone || surface == SurfaceType::Dirt || surface == SurfaceType::Wood) {
-        let splash = asset_server.load("audio/footsteps/splash.ogg");
-        commands.spawn((
-            AudioBundle {
-                source: splash,
-                settings: PlaybackSettings::ONCE.with_volume(base_volume * rain_factor * 0.6),
-            },
-            DynamicAudio {
-                category: AudioCategory::Sfx,
-                priority: Priority::Low,
-            },
-        ));
+    if *thunder_timer > 0.0 {
+        *thunder_timer -= time.delta_seconds();
+
+        // Slowly return reverb to normal
+        if *thunder_timer <= 0.0 {
+            reverb_state.wetness = (reverb_state.wetness * 0.7).max(0.15);
+            reverb_state.decay_time = (reverb_state.decay_time * 0.8).max(1.2);
+        }
     }
 }
