@@ -1,7 +1,7 @@
 /*!
  * Spatial Grid UI Navigation System
  *
- * v13 - Secure Random Nonce for ChaCha20 Encryption
+ * v14 - Settings Validation Logic
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -13,106 +13,128 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
-use chacha20poly1305::aead::{Aead, KeyInit, OsRng};
-use sha2::{Sha256, Digest};
-use rand::RngCore;
+// ... (Focusable, Focused, UiFocus, NavDirection remain the same)
 
-// ... (Focusable, Focused, UiFocus, NavDirection, UiAudioSettings remain the same)
-
-/// Derives a 32-byte encryption key from the machine's unique ID
-fn get_machine_key() -> Result<Key, String> {
-    let uid = machine_uid::get().map_err(|e| e.to_string())?;
-    let mut hasher = Sha256::new();
-    hasher.update(uid.as_bytes());
-    let hash = hasher.finalize();
-    Ok(*Key::from_slice(&hash[..32]))
+#[derive(Resource, Clone, Serialize, Deserialize, Debug)]
+pub struct UiAudioSettings {
+    pub navigation_volume: f32,
+    pub activation_volume: f32,
+    pub navigation_pitch_variation: f32,
+    pub activation_pitch_variation: f32,
 }
 
-/// Encrypts settings using ChaCha20-Poly1305 with a random nonce
-fn encrypt_settings(settings: &UiAudioSettings) -> Result<Vec<u8>, String> {
-    let key = get_machine_key()?;
-    let cipher = ChaCha20Poly1305::new(&key);
-
-    let plaintext = ron::to_string(settings).map_err(|e| e.to_string())?;
-
-    // Generate a secure random nonce
-    let mut nonce_bytes = [0u8; 12];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
-
-    let ciphertext = cipher
-        .encrypt(nonce, plaintext.as_bytes())
-        .map_err(|e| e.to_string())?;
-
-    // Prepend nonce to ciphertext for storage
-    let mut result = nonce_bytes.to_vec();
-    result.extend(ciphertext);
-    Ok(result)
+impl Default for UiAudioSettings {
+    fn default() -> Self {
+        Self {
+            navigation_volume: 0.6,
+            activation_volume: 0.8,
+            navigation_pitch_variation: 0.03,
+            activation_pitch_variation: 0.03,
+        }
+    }
 }
 
-/// Decrypts settings using the stored nonce
-fn decrypt_settings(data: &[u8]) -> Result<UiAudioSettings, String> {
-    if data.len() < 12 {
-        return Err("Invalid encrypted data (too short)".to_string());
+impl UiAudioSettings {
+    /// Validates and clamps all values to safe ranges.
+    /// Logs warnings if any values were out of expected bounds.
+    pub fn validate(&mut self) {
+        let original = self.clone();
+
+        // Volume must be between 0.0 and 1.0
+        self.navigation_volume = self.navigation_volume.clamp(0.0, 1.0);
+        self.activation_volume = self.activation_volume.clamp(0.0, 1.0);
+
+        // Pitch variation should be reasonable (max 20% variation)
+        self.navigation_pitch_variation = self.navigation_pitch_variation.clamp(0.0, 0.2);
+        self.activation_pitch_variation = self.activation_pitch_variation.clamp(0.0, 0.2);
+
+        // Log if any values were corrected
+        if original.navigation_volume != self.navigation_volume ||
+           original.activation_volume != self.activation_volume ||
+           original.navigation_pitch_variation != self.navigation_pitch_variation ||
+           original.activation_pitch_variation != self.activation_pitch_variation
+        {
+            warn!(
+                "Settings values were out of valid range and have been clamped. Original: {:?}",
+                original
+            );
+        }
+    }
+}
+
+/// Versioned settings file wrapper
+#[derive(Serialize, Deserialize)]
+struct SettingsFile {
+    version: u32,
+    settings: UiAudioSettings,
+}
+
+const CURRENT_SETTINGS_VERSION: u32 = 1;
+
+fn get_settings_path() -> Option<PathBuf> {
+    let proj_dirs = directories::ProjectDirs::from("com", "Autonomicity Games", "Powrush-MMO")?;
+    let config_dir = proj_dirs.config_dir();
+
+    if !config_dir.exists() {
+        if let Err(e) = fs::create_dir_all(config_dir) {
+            warn!("Failed to create config directory: {}", e);
+            return None;
+        }
     }
 
-    let (nonce_bytes, ciphertext) = data.split_at(12);
-    let nonce = Nonce::from_slice(nonce_bytes);
-
-    let key = get_machine_key()?;
-    let cipher = ChaCha20Poly1305::new(&key);
-
-    let plaintext = cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|e| e.to_string())?;
-
-    let settings: UiAudioSettings =
-        ron::from_str(&String::from_utf8_lossy(&plaintext)).map_err(|e| e.to_string())?;
-
-    Ok(settings)
+    Some(config_dir.join("settings.ron"))
 }
 
-/// Loads encrypted settings from disk
+/// Loads settings with validation and strong fallback
 pub fn load_ui_settings(mut commands: Commands) {
     if let Some(path) = get_settings_path() {
-        if let Ok(encrypted_data) = fs::read(&path) {
-            match decrypt_settings(&encrypted_data) {
-                Ok(settings) => {
-                    commands.insert_resource(settings);
-                    info!("Loaded encrypted settings from {:?}", path);
+        if let Ok(content) = fs::read_to_string(&path) {
+            // Try versioned format
+            if let Ok(mut file) = ron::from_str::<SettingsFile>(&content) {
+                if file.version == CURRENT_SETTINGS_VERSION {
+                    file.settings.validate();
+                    commands.insert_resource(file.settings);
+                    info!("Loaded and validated settings v{} from {:?}", file.version, path);
                     return;
                 }
-                Err(e) => {
-                    warn!("Failed to decrypt settings: {}. Using defaults.", e);
-                }
+            }
+
+            // Fallback: try loading old unversioned format
+            if let Ok(mut old_settings) = ron::from_str::<UiAudioSettings>(&content) {
+                warn!("Loaded legacy unversioned settings file");
+                old_settings.validate();
+                commands.insert_resource(old_settings);
+                return;
             }
         }
     }
 
-    info!("Using default UI audio settings");
-    commands.insert_resource(UiAudioSettings::default());
+    // Final fallback to defaults
+    let mut defaults = UiAudioSettings::default();
+    defaults.validate();
+    commands.insert_resource(defaults);
+    info!("Using default validated UI audio settings");
 }
 
-/// Saves settings encrypted with machine binding + random nonce
+/// Saves settings when changed
 pub fn save_ui_settings(settings: Res<UiAudioSettings>) {
     if settings.is_changed() {
         if let Some(path) = get_settings_path() {
-            match encrypt_settings(&*settings) {
-                Ok(encrypted) => {
-                    if let Err(e) = fs::write(&path, encrypted) {
-                        warn!("Failed to write encrypted settings: {}", e);
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to encrypt settings: {}", e);
+            let file = SettingsFile {
+                version: CURRENT_SETTINGS_VERSION,
+                settings: settings.clone(),
+            };
+
+            if let Ok(serialized) = ron::to_string(&file) {
+                if let Err(e) = fs::write(&path, serialized) {
+                    warn!("Failed to save settings to {:?}: {}", path, e);
                 }
             }
         }
     }
 }
 
-// ... (rest of the file remains the same)
+// ... (rest of the systems remain the same)
 
 pub struct UiNavigationPlugin;
 
