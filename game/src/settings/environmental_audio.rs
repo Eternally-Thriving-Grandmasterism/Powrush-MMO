@@ -1,95 +1,72 @@
 /*!
- * Environmental Audio - Biome Transition Logic
+ * Environmental Audio - Reverb Zone Blending
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
-use serde::{Deserialize, Serialize};
+use bevy_rapier3d::prelude::*;
+use crate::settings::audio_mixing::ReverbState;
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub enum BiomeType {
-    Forest,
-    Desert,
-    StoneDungeon,
-    Cave,
-    Snow,
-    Swamp,
-    OpenField,
+#[derive(Component)]
+pub struct ReverbZone {
+    pub wetness: f32,
+    pub decay_time: f32,
+    pub damping: f32,
+    pub early_reflections: f32,
+    pub influence_radius: f32, // for blending near edges
 }
 
-#[derive(Resource)]
-pub struct BiomeTransition {
-    pub current_biome: BiomeType,
-    pub previous_biome: BiomeType,
-    pub transition_timer: f32,
-    pub transition_duration: f32,
-}
+/// Blends multiple overlapping ReverbZones with distance weighting
+pub fn blend_reverb_zones(
+    mut reverb_state: ResMut<ReverbState>,
+    listener: Query<&GlobalTransform, With<Camera3d>>,
+    zones: Query<(&ReverbZone, &GlobalTransform, Option<&Collider>)>,
+    rapier_context: Res<RapierContext>,
+) {
+    let Ok(listener_transform) = listener.get_single() else { return; };
+    let listener_pos = listener_transform.translation();
 
-impl Default for BiomeTransition {
-    fn default() -> Self {
-        Self {
-            current_biome: BiomeType::OpenField,
-            previous_biome: BiomeType::OpenField,
-            transition_timer: 0.0,
-            transition_duration: 3.5, // seconds to cross biome boundary
+    let mut total_weight = 0.0;
+    let mut blended_wetness = 0.0;
+    let mut blended_decay = 0.0;
+    let mut blended_damping = 0.0;
+    let mut blended_early = 0.0;
+
+    for (zone, zone_transform, collider) in zones.iter() {
+        let zone_pos = zone_transform.translation();
+        let mut is_inside = false;
+        let mut distance = listener_pos.distance(zone_pos);
+
+        if let Some(collider) = collider {
+            // Use Rapier to check if listener is inside the collider
+            if rapier_context
+                .project_point(zone_pos, listener_pos, true, QueryFilter::default())
+                .is_some()
+            {
+                is_inside = true;
+                distance = 0.0;
+            }
+        }
+
+        if is_inside || distance < zone.influence_radius {
+            let weight = if is_inside {
+                1.0
+            } else {
+                (zone.influence_radius - distance) / zone.influence_radius
+            };
+
+            blended_wetness += zone.wetness * weight;
+            blended_decay += zone.decay_time * weight;
+            blended_damping += zone.damping * weight;
+            blended_early += zone.early_reflections * weight;
+            total_weight += weight;
         }
     }
-}
 
-/// Smoothly blends acoustic parameters during biome transitions
-pub fn apply_biome_transition(
-    mut reverb_state: ResMut<crate::settings::audio_mixing::ReverbState>,
-    biome_profile: Res<BiomeAcousticProfile>,
-    mut transition: ResMut<BiomeTransition>,
-    time: Res<Time>,
-) {
-    if transition.current_biome == transition.previous_biome {
-        // No transition happening - apply current biome directly
-        let params = get_acoustic_params(&biome_profile, transition.current_biome);
-        reverb_state.wetness = params.wetness;
-        reverb_state.decay_time = params.decay_time;
-        reverb_state.damping = params.damping;
-        return;
-    }
-
-    transition.transition_timer += time.delta_seconds();
-    let t = (transition.transition_timer / transition.transition_duration).clamp(0.0, 1.0);
-
-    let from = get_acoustic_params(&biome_profile, transition.previous_biome);
-    let to = get_acoustic_params(&biome_profile, transition.current_biome);
-
-    // Smooth lerp between previous and current biome acoustics
-    reverb_state.wetness = from.wetness.lerp(to.wetness, t);
-    reverb_state.decay_time = from.decay_time.lerp(to.decay_time, t);
-    reverb_state.damping = from.damping.lerp(to.damping, t);
-
-    if t >= 1.0 {
-        transition.previous_biome = transition.current_biome;
-        transition.transition_timer = 0.0;
-    }
-}
-
-fn get_acoustic_params(profile: &BiomeAcousticProfile, biome: BiomeType) -> AcousticParameters {
-    match biome {
-        BiomeType::Forest => profile.forest,
-        BiomeType::Desert => profile.desert,
-        BiomeType::StoneDungeon => profile.stone_dungeon,
-        BiomeType::Cave => profile.cave,
-        BiomeType::Snow => profile.snow,
-        BiomeType::Swamp => profile.swamp,
-        BiomeType::OpenField => profile.open_field,
-    }
-}
-
-/// Call this when your biome detection system detects a change
-pub fn trigger_biome_change(
-    mut transition: ResMut<BiomeTransition>,
-    new_biome: BiomeType,
-) {
-    if transition.current_biome != new_biome {
-        transition.previous_biome = transition.current_biome;
-        transition.current_biome = new_biome;
-        transition.transition_timer = 0.0;
+    if total_weight > 0.0 {
+        reverb_state.wetness = blended_wetness / total_weight;
+        reverb_state.decay_time = blended_decay / total_weight;
+        reverb_state.damping = blended_damping / total_weight;
     }
 }
