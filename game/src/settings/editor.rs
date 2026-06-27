@@ -1,81 +1,95 @@
 /*!
- * Settings Editor - Complete Input Handling
+ * Settings Editor - Polish: Sound + Visual Pop + Haptic
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
-use crate::settings::editor::{SettingsEditor, AudioValueText, GraphicsValueText, ControlsValueText};
-use crate::ui_navigation::UiFocus;
+use crate::settings::editor::SettingsEditor;
+use crate::settings::ui::SliderBar;
 
-/// Handles Left/Right input to adjust the focused setting's value
-pub fn handle_settings_input(
-    mut editor: Option<ResMut<SettingsEditor>>,
-    focus: Res<UiFocus>,
-    buttons: Res<bevy::input::gamepad::GamepadButton>,
-    axes: Res<bevy::input::gamepad::GamepadAxis>,
-    keyboard: Res<Input<KeyCode>>,
-    audio_query: Query<&AudioValueText>,
-    graphics_query: Query<&GraphicsValueText>,
-    controls_query: Query<&ControlsValueText>,
+/// Plays a small UI sound when a setting value changes
+pub fn play_value_change_sound(
+    editor: Option<Res<SettingsEditor>>,
+    mut last_dirty: Local<bool>,
+    asset_server: Res<AssetServer>,
+    audio: Res<Audio>,
 ) {
-    let Some(editor) = editor.as_mut() else { return; };
-    let Some(focused) = focus.current else { return; };
-
-    let left = buttons.just_pressed(bevy::input::gamepad::GamepadButton::DPadLeft)
-        || axes.get(bevy::input::gamepad::GamepadAxis::LeftStickX).unwrap_or(0.0) < -0.6
-        || keyboard.just_pressed(KeyCode::ArrowLeft);
-
-    let right = buttons.just_pressed(bevy::input::gamepad::GamepadButton::DPadRight)
-        || axes.get(bevy::input::gamepad::GamepadAxis::LeftStickX).unwrap_or(0.0) > 0.6
-        || keyboard.just_pressed(KeyCode::ArrowRight);
-
-    if !left && !right { return; }
-
-    let step = if right { 0.05 } else { -0.05 };
-
-    // Audio
-    if let Ok(value_text) = audio_query.get(focused) {
-        match value_text.field {
-            crate::settings::editor::AudioSettingField::MasterVolume => editor.audio.master_volume = (editor.audio.master_volume + step).clamp(0.0, 1.0),
-            crate::settings::editor::AudioSettingField::MusicVolume => editor.audio.music_volume = (editor.audio.music_volume + step).clamp(0.0, 1.0),
-            crate::settings::editor::AudioSettingField::SfxVolume => editor.audio.sfx_volume = (editor.audio.sfx_volume + step).clamp(0.0, 1.0),
-            crate::settings::editor::AudioSettingField::NavigationVolume => editor.audio.navigation_volume = (editor.audio.navigation_volume + step).clamp(0.0, 1.0),
-            crate::settings::editor::AudioSettingField::ActivationVolume => editor.audio.activation_volume = (editor.audio.activation_volume + step).clamp(0.0, 1.0),
-            crate::settings::editor::AudioSettingField::NavigationPitch => editor.audio.navigation_pitch_variation = (editor.audio.navigation_pitch_variation + step * 0.5).clamp(0.0, 0.2),
-            crate::settings::editor::AudioSettingField::ActivationPitch => editor.audio.activation_pitch_variation = (editor.audio.activation_pitch_variation + step * 0.5).clamp(0.0, 0.2),
+    if let Some(editor) = editor {
+        if editor.dirty && !*last_dirty {
+            // Play a short UI click sound
+            let sound = asset_server.load("audio/ui_click.ogg");
+            audio.play(sound);
         }
-        editor.dirty = true;
-        return;
+        *last_dirty = editor.dirty;
+    } else {
+        *last_dirty = false;
     }
+}
 
-    // Graphics
-    if let Ok(value_text) = graphics_query.get(focused) {
-        match value_text.field {
-            crate::settings::editor::GraphicsSettingField::Fullscreen => editor.graphics.fullscreen = !editor.graphics.fullscreen,
-            crate::settings::editor::GraphicsSettingField::ResolutionWidth => editor.graphics.resolution_width = (editor.graphics.resolution_width as i32 + (step * 100.0) as i32).clamp(640, 3840) as u32,
-            crate::settings::editor::GraphicsSettingField::ResolutionHeight => editor.graphics.resolution_height = (editor.graphics.resolution_height as i32 + (step * 100.0) as i32).clamp(480, 2160) as u32,
-            crate::settings::editor::GraphicsSettingField::Vsync => editor.graphics.vsync = !editor.graphics.vsync,
-            crate::settings::editor::GraphicsSettingField::Quality => {
-                let new_q = (editor.graphics.graphics_quality as i32 + if right { 1 } else { -1 }).clamp(0, 3) as u8;
-                editor.graphics.graphics_quality = unsafe { std::mem::transmute(new_q) };
+/// Quick visual "pop" animation on slider bars when value changes
+#[derive(Component)]
+pub struct SliderPopAnimation {
+    pub timer: f32,
+}
+
+pub fn animate_slider_bars(
+    mut commands: Commands,
+    mut query: Query<(Entity, &SliderBar, &mut Transform, Option<&mut SliderPopAnimation>)>,
+    time: Res<Time>,
+) {
+    for (entity, _bar, mut transform, pop) in query.iter_mut() {
+        if let Some(mut animation) = pop {
+            animation.timer -= time.delta_seconds();
+            let scale = 1.0 + (animation.timer * 4.0).sin() * 0.15;
+            transform.scale = Vec3::splat(scale.max(1.0));
+
+            if animation.timer <= 0.0 {
+                transform.scale = Vec3::ONE;
+                commands.entity(entity).remove::<SliderPopAnimation>();
             }
-            crate::settings::editor::GraphicsSettingField::FieldOfView => editor.graphics.field_of_view = (editor.graphics.field_of_view + step * 10.0).clamp(60.0, 120.0),
-            crate::settings::editor::GraphicsSettingField::ShadowQuality => editor.graphics.shadow_quality = ((editor.graphics.shadow_quality as i32 + if right { 1 } else { -1 }).clamp(0, 3)) as u8,
         }
-        editor.dirty = true;
-        return;
     }
+}
 
-    // Controls
-    if let Ok(value_text) = controls_query.get(focused) {
-        match value_text.field {
-            crate::settings::editor::ControlsSettingField::MouseSensitivity => editor.controls.mouse_sensitivity = (editor.controls.mouse_sensitivity + step).clamp(0.1, 4.0),
-            crate::settings::editor::ControlsSettingField::InvertY => editor.controls.invert_y_axis = !editor.controls.invert_y_axis,
-            crate::settings::editor::ControlsSettingField::Vibration => editor.controls.controller_vibration = !editor.controls.controller_vibration,
-            crate::settings::editor::ControlsSettingField::AutoRun => editor.controls.auto_run = !editor.controls.auto_run,
-            crate::settings::editor::ControlsSettingField::CameraSmoothing => editor.controls.camera_smoothing = (editor.controls.camera_smoothing + step).clamp(0.0, 1.0),
+/// Trigger a quick pop animation on slider bars when value changes
+pub fn trigger_slider_pop(
+    mut commands: Commands,
+    editor: Option<Res<SettingsEditor>>,
+    mut last_dirty: Local<bool>,
+    query: Query<(Entity, &SliderBar)>,
+) {
+    if let Some(editor) = editor {
+        if editor.dirty && !*last_dirty {
+            for (entity, _bar) in query.iter() {
+                commands.entity(entity).insert(SliderPopAnimation { timer: 0.25 });
+            }
         }
-        editor.dirty = true;
+        *last_dirty = editor.dirty;
+    } else {
+        *last_dirty = false;
+    }
+}
+
+/// Basic haptic feedback (vibration) on value change
+pub fn trigger_haptic_feedback(
+    mut commands: Commands,
+    editor: Option<Res<SettingsEditor>>,
+    mut last_dirty: Local<bool>,
+    gamepads: Res<bevy::input::gamepad::Gamepads>,
+) {
+    if let Some(editor) = editor {
+        if editor.dirty && !*last_dirty {
+            for gamepad in gamepads.iter() {
+                // Light short vibration
+                commands.entity(gamepad).insert(bevy::input::gamepad::GamepadRumbleRequest {
+                    duration: std::time::Duration::from_millis(80),
+                    intensity: 0.4,
+                });
+            }
+        }
+        *last_dirty = editor.dirty;
+    } else {
+        *last_dirty = false;
     }
 }
