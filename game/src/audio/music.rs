@@ -1,5 +1,5 @@
 /*!
- * Dynamic Music System - Stingers / One-Shots
+ * Dynamic Music System - Stinger Ducking
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -38,6 +38,8 @@ pub struct MusicController {
     pub intensity: f32,
     pub transition_timer: f32,
     pub transition_duration: f32,
+    pub ducking: f32,           // 0.0 = no duck, 1.0 = full duck
+    pub duck_timer: f32,
 }
 
 impl Default for MusicController {
@@ -48,6 +50,8 @@ impl Default for MusicController {
             intensity: 0.5,
             transition_timer: 0.0,
             transition_duration: 4.0,
+            ducking: 0.0,
+            duck_timer: 0.0,
         }
     }
 }
@@ -67,6 +71,31 @@ pub struct MusicLayers {
     pub layers: Vec<(MusicLayer, Option<Entity>, f32, f32)>,
 }
 
+/// Play a stinger and trigger music ducking
+pub fn play_music_stinger(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mixer: Res<AudioMixer>,
+    mut controller: ResMut<MusicController>,
+    stinger_path: &str,
+) {
+    let stinger = asset_server.load(stinger_path);
+    commands.spawn((
+        AudioBundle {
+            source: stinger,
+            settings: PlaybackSettings::ONCE.with_volume(mixer.music * 1.15),
+        },
+        DynamicAudio {
+            category: AudioCategory::Music,
+            priority: Priority::Critical,
+        },
+    ));
+
+    // Trigger ducking for background music layers
+    controller.ducking = 0.65; // Duck to ~35% volume
+    controller.duck_timer = 2.8; // Duck duration in seconds
+}
+
 pub fn update_music_layers(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -75,6 +104,21 @@ pub fn update_music_layers(
     mixer: Res<AudioMixer>,
     time: Res<Time>,
 ) {
+    // Handle ducking timer
+    if controller.duck_timer > 0.0 {
+        controller.duck_timer -= time.delta_seconds();
+        if controller.duck_timer <= 0.0 {
+            controller.ducking = 0.0; // Release duck
+        }
+    }
+
+    // Smooth duck release
+    let duck_multiplier = if controller.ducking > 0.0 {
+        1.0 - controller.ducking
+    } else {
+        1.0
+    };
+
     if controller.current_state != controller.target_state {
         controller.transition_timer += time.delta_seconds();
         if controller.transition_timer >= controller.transition_duration {
@@ -105,16 +149,17 @@ pub fn update_music_layers(
         }
     }
 
-    let lerp_speed = 2.5;
+    let lerp_speed = 3.0;
     let mut to_remove = vec![];
 
     for (i, (layer, entity, current_vol, target_vol)) in music_layers.layers.iter_mut().enumerate() {
-        let new_vol = *current_vol + (*target_vol - *current_vol) * lerp_speed * time.delta_seconds();
+        let effective_target = *target_vol * duck_multiplier;
+        let new_vol = *current_vol + (effective_target - *current_vol) * lerp_speed * time.delta_seconds();
         *current_vol = new_vol;
 
         if let Some(ent) = *entity {
             if let Ok(mut sink) = commands.get_entity(ent) {
-                // TODO: Get AudioSink and call set_volume(new_vol * mixer.music)
+                // TODO: sink.set_volume(new_vol * mixer.music);
             }
         }
 
@@ -133,7 +178,7 @@ pub fn update_music_layers(
 
 fn get_active_layers(state: MusicStateType, intensity: f32) -> Vec<(MusicLayer, f32)> {
     let mut layers = vec![];
-    layers.push((MusicLayer::Base, 0.75 + intensity * 0.25));
+    layers.push((MusicLayer::Base, 0., intensity * 0.25));
 
     match state {
         MusicStateType::Exploration | MusicStateType::Harvesting | MusicStateType::Council => {
@@ -172,33 +217,6 @@ fn get_layer_path(layer: MusicLayer, _state: MusicStateType) -> &'static str {
     }
 }
 
-// ==================== STINGERS / ONE-SHOTS ====================
-
-/// Play a music stinger (victory fanfare, combat start, etc.)
-pub fn play_music_stinger(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mixer: Res<AudioMixer>,
-    stinger_path: &str,
-) {
-    let stinger = asset_server.load(stinger_path);
-    commands.spawn((
-        AudioBundle {
-            source: stinger,
-            settings: PlaybackSettings::ONCE
-                .with_volume(mixer.music * 1.1), // slightly louder than music
-        },
-        DynamicAudio {
-            category: AudioCategory::Music,
-            priority: Priority::Critical, // Stingers should cut through
-        },
-    ));
-}
-
-// Example usage from gameplay:
-// play_music_stinger(commands, asset_server, mixer, "audio/music/stingers/victory_fanfare.ogg");
-
-// Fallback single-track system
 pub fn evaluate_music_state(
     mut controller: ResMut<MusicController>,
 ) {}
