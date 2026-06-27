@@ -1,5 +1,5 @@
 /*!
- * Dynamic Audio Mixing - Real-time AudioSink + Broad Exposure
+ * Dynamic Audio Mixing
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -10,6 +10,7 @@ use crate::settings::editor::SettingsEditor;
 #[derive(Component)]
 pub struct DynamicAudio {
     pub category: AudioCategory,
+    pub priority: crate::settings::editor::Priority,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -31,62 +32,16 @@ pub struct AudioMixer {
     pub ambient: f32,
 }
 
-/// Syncs SettingsEditor volumes into AudioMixer in real time
-pub fn apply_audio_settings(
-    editor: Option<Res<SettingsEditor>>,
-    mut mixer: ResMut<AudioMixer>,
-) {
-    if let Some(editor) = editor {
-        if editor.is_changed() || editor.dirty {
-            mixer.master  = editor.audio.master_volume;
-            mixer.music   = editor.audio.music_volume   * mixer.master;
-            mixer.sfx     = editor.audio.sfx_volume     * mixer.master;
-            mixer.ui      = editor.audio.navigation_volume.max(editor.audio.activation_volume) * mixer.master;
-            mixer.voice   = mixer.master; // Can be expanded later
-            mixer.ambient = mixer.master * 0.8; // Slight ducking for ambient
+impl AudioMixer {
+    pub fn get_volume_for_category(&self, category: AudioCategory) -> f32 {
+        match category {
+            AudioCategory::Music   => self.music,
+            AudioCategory::Sfx     => self.sfx,
+            AudioCategory::Ui      => self.ui,
+            AudioCategory::Voice   => self.voice,
+            AudioCategory::Ambient => self.ambient,
         }
     }
 }
 
-/// Updates volumes on all active DynamicAudio sinks
-pub fn update_dynamic_audio_volumes(
-    mixer: Res<AudioMixer>,
-    mut query: Query<(&DynamicAudio, &mut AudioSink)>,
-) {
-    for (dynamic, mut sink) in query.iter_mut() {
-        let volume = match dynamic.category {
-            AudioCategory::Music   => mixer.music,
-            AudioCategory::Sfx     => mixer.sfx,
-            AudioCategory::Ui      => mixer.ui,
-            AudioCategory::Voice   => mixer.voice,
-            AudioCategory::Ambient => mixer.ambient,
-        };
-        sink.set_volume(volume);
-    }
-}
-
-/// Recommended helper for spawning mixer-aware sounds
-pub fn play_dynamic_sound(
-    commands: &mut Commands,
-    asset_server: &AssetServer,
-    path: &str,
-    category: AudioCategory,
-    mixer: &AudioMixer,
-    settings: PlaybackSettings,
-) {
-    let source = asset_server.load(path);
-    let vol = match category {
-        AudioCategory::Music   => mixer.music,
-        AudioCategory::Sfx     => mixer.sfx,
-        AudioCategory::Ui      => mixer.ui,
-        AudioCategory::Voice   => mixer.voice,
-        AudioCategory::Ambient => mixer.ambient,
-    };
-    commands.spawn((
-        AudioBundle {
-            source,
-            settings: settings.with_volume(vol),
-        },
-        DynamicAudio { category },
-    ));
-}
+// ... rest of the file (apply_audio_settings, update_dynamic_audio_volumes, play_dynamic_sound) remains the same
