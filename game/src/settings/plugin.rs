@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Unified Spatial Audio
+ * Settings Plugin - Weather-Driven Audio
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -14,12 +14,15 @@ impl Plugin for SettingsPlugin {
         app.init_resource::<GameSettings>()
             .init_resource::<audio_mixing::AudioMixer>()
             .init_resource::<environmental_audio::ReverbState>()
+            .init_resource::<environmental_audio::WeatherState>()
             .add_systems(Startup, persistence::load_settings)
             .add_systems(Update, (
                 persistence::save_settings,
                 audio_mixing::apply_audio_settings,
                 audio_mixing::update_dynamic_audio_volumes,
                 environmental_audio::apply_unified_spatial_audio,
+                environmental_audio::update_weather_ambients,
+                environmental_audio::trigger_thunder,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
