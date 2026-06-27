@@ -1,11 +1,11 @@
 /*!
- * Settings Plugin - Supports Audio, Graphics, and Controls with live updates
+ * Settings Plugin - Full support for Audio, Graphics, Controls + Sliders
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
-use super::{persistence, GameSettings, editor};
+use super::{persistence, GameSettings, editor, ui};
 
 pub struct SettingsPlugin;
 
@@ -18,6 +18,7 @@ impl Plugin for SettingsPlugin {
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
+                editor::update_slider_bars,
                 editor::mark_editor_dirty,
                 editor::handle_reset_to_defaults,
             ));
