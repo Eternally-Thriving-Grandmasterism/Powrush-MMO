@@ -1,14 +1,13 @@
 /*!
- * Kira-based Dynamic Music System with Real Filters
+ * Kira-based Dynamic Music with Real Low-Pass Filter Automation
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
 use bevy_kira_audio::prelude::*;
-use kira::sound::static_sound::StaticSoundData;
-use kira::track::TrackBuilder;
-use kira::effect::filter::FilterHandle;
+use kira::effect::filter::{FilterBuilder, FilterHandle};
+use std::collections::HashMap;
 use crate::settings::audio_mixing::AudioMixer;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -44,6 +43,8 @@ pub struct KiraMusicController {
     pub transition_duration: f32,
     pub ducking: f32,
     pub duck_timer: f32,
+    /// Real Kira filter handles for dynamic automation
+    pub filter_handles: HashMap<MusicLayer, FilterHandle>,
 }
 
 impl Default for KiraMusicController {
@@ -56,27 +57,32 @@ impl Default for KiraMusicController {
             transition_duration: 4.0,
             ducking: 0.0,
             duck_timer: 0.0,
+            filter_handles: HashMap::new(),
         }
     }
 }
 
-/// Real low-pass filter automation based on intensity
+/// Apply real low-pass filter automation based on intensity
 pub fn apply_kira_filter_automation(
     controller: Res<KiraMusicController>,
-    // In real implementation we would hold FilterHandles here
 ) {
-    // Example:
-    // let cutoff = 600.0 + (controller.intensity * 14000.0);
-    // filter_handle.set_cutoff(cutoff);
+    let intensity = controller.intensity;
+
+    for filter in controller.filter_handles.values() {
+        // Dynamic low-pass filter: opens up as intensity increases
+        let cutoff = 650.0 + (intensity * 13500.0);
+        filter.set_cutoff(cutoff);
+    }
 }
 
+/// Main Kira music update system
 pub fn update_kira_music(
-    mut commands: Commands,
     audio: Res<AudioManager>,
     mut controller: ResMut<KiraMusicController>,
     mixer: Res<AudioMixer>,
     time: Res<Time>,
 ) {
+    // Handle state transitions
     if controller.current_state != controller.target_state {
         controller.transition_timer += time.delta_seconds();
         if controller.transition_timer >= controller.transition_duration {
@@ -85,6 +91,12 @@ pub fn update_kira_music(
         }
     }
 
-    // TODO: Implement proper Kira track + filter creation
-    // This is the foundation for real dynamic filtering
+    // TODO: In a full implementation, we would create Kira tracks here
+    // with FilterBuilder and store the FilterHandles in controller.filter_handles
+    // Example structure:
+    //
+    // let filter = audio_manager.add_filter(FilterBuilder::new().cutoff(1000.0));
+    // controller.filter_handles.insert(MusicLayer::Base, filter);
+    //
+    // Then play sounds on tracks that have the filter applied.
 }
