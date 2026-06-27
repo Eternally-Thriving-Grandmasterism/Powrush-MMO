@@ -1,172 +1,63 @@
 /*!
- * Settings Editor + Live UI Updates (All Categories)
+ * Settings Editor - Slider Bar Updates (All Categories)
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
-use crate::settings::{AudioSettings, GameSettings, GraphicsSettings, ControlsSettings};
+use crate::settings::ui::{SliderBar, SliderField};
+use crate::settings::editor::SettingsEditor;
 
-#[derive(Resource, Clone)]
-pub struct SettingsEditor {
-    pub audio: AudioSettings,
-    pub graphics: GraphicsSettings,
-    pub controls: ControlsSettings,
-    pub dirty: bool,
-}
-
-impl SettingsEditor {
-    pub fn from_game_settings(settings: &GameSettings) -> Self {
-        Self {
-            audio: settings.audio.clone(),
-            graphics: settings.graphics.clone(),
-            controls: settings.controls.clone(),
-            dirty: false,
-        }
-    }
-
-    pub fn apply_to(&self, settings: &mut GameSettings) {
-        settings.audio = self.audio.clone();
-        settings.graphics = self.graphics.clone();
-        settings.controls = self.controls.clone();
-        settings.validate();
-    }
-
-    pub fn reset_to_defaults(&mut self) {
-        self.audio = AudioSettings::default();
-        self.graphics = GraphicsSettings::default();
-        self.controls = ControlsSettings::default();
-        self.dirty = true;
-    }
-}
-
-// ==================== AUDIO ====================
-
-#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum AudioSettingField {
-    MasterVolume,
-    MusicVolume,
-    SfxVolume,
-    NavigationVolume,
-    ActivationVolume,
-    NavigationPitch,
-    ActivationPitch,
-}
-
-#[derive(Component)]
-pub struct AudioValueText {
-    pub field: AudioSettingField,
-}
-
-// ==================== GRAPHICS ====================
-
-#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum GraphicsSettingField {
-    Fullscreen,
-    ResolutionWidth,
-    ResolutionHeight,
-    Vsync,
-    Quality,
-    FieldOfView,
-    ShadowQuality,
-}
-
-#[derive(Component)]
-pub struct GraphicsValueText {
-    pub field: GraphicsSettingField,
-}
-
-// ==================== CONTROLS ====================
-
-#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ControlsSettingField {
-    MouseSensitivity,
-    InvertY,
-    Vibration,
-    AutoRun,
-    CameraSmoothing,
-}
-
-#[derive(Component)]
-pub struct ControlsValueText {
-    pub field: ControlsSettingField,
-}
-
-// ==================== LIVE UPDATE SYSTEMS ====================
-
-pub fn update_audio_value_texts(
+pub fn update_slider_bars(
     editor: Option<Res<SettingsEditor>>,
-    mut query: Query<(&AudioValueText, &mut Text)>,
+    mut query: Query<(&SliderBar, &mut Style, &mut BackgroundColor)>,
 ) {
     let Some(editor) = editor else { return; };
-    for (value_text, mut text) in query.iter_mut() {
-        let value = match value_text.field {
-            AudioSettingField::MasterVolume => editor.audio.master_volume,
-            AudioSettingField::MusicVolume => editor.audio.music_volume,
-            AudioSettingField::SfxVolume => editor.audio.sfx_volume,
-            AudioSettingField::NavigationVolume => editor.audio.navigation_volume,
-            AudioSettingField::ActivationVolume => editor.audio.activation_volume,
-            AudioSettingField::NavigationPitch => editor.audio.navigation_pitch_variation,
-            AudioSettingField::ActivationPitch => editor.audio.activation_pitch_variation,
+
+    for (bar, mut style, mut color) in query.iter_mut() {
+        let value = match bar.field {
+            SliderField::Audio(field) => get_audio_value(&editor.audio, field),
+            SliderField::Graphics(field) => get_graphics_value(&editor.graphics, field),
+            SliderField::Controls(field) => get_controls_value(&editor.controls, field),
         };
-        text.sections[0].value = format!("{:.2}", value);
+
+        style.width = Val::Px(120.0 * value.clamp(0.0, 1.0));
+
+        let intensity = 0.4 + (value.clamp(0.0, 1.0) * 0.6);
+        *color = Color::srgb(0.2 * intensity, 0.6 * intensity, 1.0).into();
     }
 }
 
-pub fn update_graphics_value_texts(
-    editor: Option<Res<SettingsEditor>>,
-    mut query: Query<(&GraphicsValueText, &mut Text)>,
-) {
-    let Some(editor) = editor else { return; };
-    for (value_text, mut text) in query.iter_mut() {
-        let value = match value_text.field {
-            GraphicsSettingField::Fullscreen => if editor.graphics.fullscreen { 1.0 } else { 0.0 },
-            GraphicsSettingField::ResolutionWidth => editor.graphics.resolution_width as f32,
-            GraphicsSettingField::ResolutionHeight => editor.graphics.resolution_height as f32,
-            GraphicsSettingField::Vsync => if editor.graphics.vsync { 1.0 } else { 0.0 },
-            GraphicsSettingField::Quality => editor.graphics.graphics_quality as u8 as f32,
-            GraphicsSettingField::FieldOfView => editor.graphics.field_of_view,
-            GraphicsSettingField::ShadowQuality => editor.graphics.shadow_quality as f32,
-        };
-        text.sections[0].value = format!("{:.0}", value);
+fn get_audio_value(audio: &crate::settings::AudioSettings, field: crate::settings::editor::AudioSettingField) -> f32 {
+    match field {
+        crate::settings::editor::AudioSettingField::MasterVolume => audio.master_volume,
+        crate::settings::editor::AudioSettingField::MusicVolume => audio.music_volume,
+        crate::settings::editor::AudioSettingField::SfxVolume => audio.sfx_volume,
+        crate::settings::editor::AudioSettingField::NavigationVolume => audio.navigation_volume,
+        crate::settings::editor::AudioSettingField::ActivationVolume => audio.activation_volume,
+        crate::settings::editor::AudioSettingField::NavigationPitch => audio.navigation_pitch_variation,
+        crate::settings::editor::AudioSettingField::ActivationPitch => audio.activation_pitch_variation,
     }
 }
 
-pub fn update_controls_value_texts(
-    editor: Option<Res<SettingsEditor>>,
-    mut query: Query<(&ControlsValueText, &mut Text)>,
-) {
-    let Some(editor) = editor else { return; };
-    for (value_text, mut text) in query.iter_mut() {
-        let value = match value_text.field {
-            ControlsSettingField::MouseSensitivity => editor.controls.mouse_sensitivity,
-            ControlsSettingField::InvertY => if editor.controls.invert_y_axis { 1.0 } else { 0.0 },
-            ControlsSettingField::Vibration => if editor.controls.controller_vibration { 1.0 } else { 0.0 },
-            ControlsSettingField::AutoRun => if editor.controls.auto_run { 1.0 } else { 0.0 },
-            ControlsSettingField::CameraSmoothing => editor.controls.camera_smoothing,
-        };
-        text.sections[0].value = format!("{:.2}", value);
+fn get_graphics_value(graphics: &crate::settings::GraphicsSettings, field: crate::settings::editor::GraphicsSettingField) -> f32 {
+    match field {
+        crate::settings::editor::GraphicsSettingField::Fullscreen => if graphics.fullscreen { 1.0 } else { 0.0 },
+        crate::settings::editor::GraphicsSettingField::ResolutionWidth => (graphics.resolution_width as f32 / 3840.0).clamp(0.0, 1.0),
+        crate::settings::editor::GraphicsSettingField::ResolutionHeight => (graphics.resolution_height as f32 / 2160.0).clamp(0.0, 1.0),
+        crate::settings::editor::GraphicsSettingField::Vsync => if graphics.vsync { 1.0 } else { 0.0 },
+        crate::settings::editor::GraphicsSettingField::Quality => (graphics.graphics_quality as u8 as f32) / 3.0,
+        crate::settings::editor::GraphicsSettingField::FieldOfView => (graphics.field_of_view - 60.0) / 60.0,
+        crate::settings::editor::GraphicsSettingField::ShadowQuality => (graphics.shadow_quality as f32) / 3.0,
     }
 }
 
-pub fn mark_editor_dirty(
-    mut editor: Option<ResMut<SettingsEditor>>,
-) {
-    if let Some(editor) = editor.as_mut() {
-        if editor.is_changed() {
-            editor.dirty = true;
-        }
-    }
-}
-
-pub fn handle_reset_to_defaults(
-    mut editor: Option<ResMut<SettingsEditor>>,
-    keyboard: Res<Input<KeyCode>>,
-) {
-    if let Some(editor) = editor.as_mut() {
-        if keyboard.just_pressed(KeyCode::KeyR) {
-            editor.reset_to_defaults();
-            info!("All settings reset to defaults");
-        }
+fn get_controls_value(controls: &crate::settings::ControlsSettings, field: crate::settings::editor::ControlsSettingField) -> f32 {
+    match field {
+        crate::settings::editor::ControlsSettingField::MouseSensitivity => (controls.mouse_sensitivity - 0.1) / 3.9,
+        crate::settings::editor::ControlsSettingField::InvertY => if controls.invert_y_axis { 1.0 } else { 0.0 },
+        crate::settings::editor::ControlsSettingField::Vibration => if controls.controller_vibration { 1.0 } else { 0.0 },
+        crate::settings::editor::ControlsSettingField::AutoRun => if controls.auto_run { 1.0 } else { 0.0 },
+        crate::settings::editor::ControlsSettingField::CameraSmoothing => controls.camera_smoothing,
     }
 }
