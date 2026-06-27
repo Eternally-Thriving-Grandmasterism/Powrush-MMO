@@ -1,11 +1,11 @@
 /*!
- * Settings Plugin - Dynamic Audio Mixing + Real-time Sink Updates
+ * Settings Plugin - Full environmental audio with Rapier occlusion
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
-use super::{persistence, GameSettings, editor, audio_mixing};
+use super::{persistence, GameSettings, editor, audio_mixing, environmental_audio};
 
 pub struct SettingsPlugin;
 
@@ -18,6 +18,7 @@ impl Plugin for SettingsPlugin {
                 persistence::save_settings,
                 audio_mixing::apply_audio_settings,
                 audio_mixing::update_dynamic_audio_volumes,
+                environmental_audio::apply_occlusion_with_rapier,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
