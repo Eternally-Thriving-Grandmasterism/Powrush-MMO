@@ -107,6 +107,52 @@ impl HierarchicalGrid {
         result.dedup();
         result
     }
+
+    /// Simple DDA-style raycast that returns the distance to the first occupied cell along the ray.
+    /// Useful for procedural reverb estimation, occlusion, and visibility queries.
+    /// Returns None if no hit within max_distance.
+    pub fn raycast_distance(&self, origin: Vec3, direction: Vec3, max_distance: f32) -> Option<f32> {
+        if max_distance <= 0.0 {
+            return None;
+        }
+
+        let dir_len = (direction.x * direction.x + direction.y * direction.y + direction.z * direction.z).sqrt();
+        if dir_len < 1e-6 {
+            return None;
+        }
+        let dir = Vec3 {
+            x: direction.x / dir_len,
+            y: direction.y / dir_len,
+            z: direction.z / dir_len,
+        };
+
+        let mut current_pos = origin;
+        let step_size = self.cell_size * 0.5; // conservative step
+        let mut traveled = 0.0;
+
+        while traveled < max_distance {
+            let cell = self.world_to_cell(current_pos);
+            let key = self.cell_to_zorder(cell);
+
+            // Check all levels for any entities in this cell
+            for level in 0..self.levels as usize {
+                if let Some(cell_entry) = self.grids[level].get(&(key >> (level * 8))) {
+                    if !cell_entry.entities.is_empty() {
+                        return Some(traveled.max(0.1));
+                    }
+                }
+            }
+
+            // Step forward
+            current_pos.x += dir.x * step_size;
+            current_pos.y += dir.y * step_size;
+            current_pos.z += dir.z * step_size;
+            traveled += step_size;
+        }
+
+        None
+    }
 }
 
-// End of production file — clean Z-order hierarchical grid ready for InterestManager + replication culling. Thunder locked in.
+// End of production file — clean Z-order hierarchical grid ready for InterestManager + replication culling.
+// Raycast added for procedural reverb, occlusion, and spatial audio. Thunder locked in.
