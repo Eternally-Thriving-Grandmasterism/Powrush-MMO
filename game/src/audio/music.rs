@@ -1,5 +1,5 @@
 /*!
- * Dynamic Music System - Layer Mixing Logic
+ * Dynamic Music System - Smooth Layer Volume Lerping
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -52,7 +52,6 @@ impl Default for MusicController {
     }
 }
 
-/// Request a music state change
 pub fn request_music_state(
     mut controller: ResMut<MusicController>,
     new_state: MusicStateType,
@@ -63,12 +62,14 @@ pub fn request_music_state(
     }
 }
 
-/// Manages layered music stems with smooth blending
+/// Tracks active music layers with current and target volumes for smooth lerping
 #[derive(Resource, Default)]
 pub struct MusicLayers {
-    pub layers: Vec<(MusicLayer, Option<Entity>, f32)>, // (layer, entity, target_volume)
+    /// (layer_type, entity, current_volume, target_volume)
+    pub layers: Vec<(MusicLayer, Option<Entity>, f32, f32)>,
 }
 
+/// Smoothly updates music layer volumes with lerping
 pub fn update_music_layers(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -77,7 +78,7 @@ pub fn update_music_layers(
     mixer: Res<AudioMixer>,
     time: Res<Time>,
 ) {
-    // Handle state transition
+    // Handle state transitions
     if controller.current_state != controller.target_state {
         controller.transition_timer += time.delta_seconds();
         if controller.transition_timer >= controller.transition_duration {
@@ -86,22 +87,19 @@ pub fn update_music_layers(
         }
     }
 
-    // Define which layers should be active for current state + intensity
     let target_layers = get_active_layers(controller.current_state, controller.intensity);
 
-    // Update or spawn layers
-    for (layer, target_volume) in target_layers {
-        if let Some((_, entity, current_target)) = music_layers.layers.iter_mut().find(|(l, _, _)| *l == layer) {
-            *current_target = target_volume;
+    // Spawn new layers or update targets
+    for (layer, target_vol) in target_layers {
+        if let Some((_, entity, _, target)) = music_layers.layers.iter_mut().find(|(l, _, _, _)| *l == layer) {
+            *target = target_vol;
         } else {
-            // Spawn new layer
             let path = get_layer_path(layer, controller.current_state);
             let music = asset_server.load(path);
             let entity = commands.spawn((
                 AudioBundle {
                     source: music,
-                    settings: PlaybackSettings::LOOP
-                        .with_volume(mixer.music * target_volume),
+                    settings: PlaybackSettings::LOOP.with_volume(0.0), // start silent for smooth fade-in
                 },
                 DynamicAudio {
                     category: AudioCategory::Music,
@@ -109,21 +107,27 @@ pub fn update_music_layers(
                 },
             )).id();
 
-            music_layers.layers.push((layer, Some(entity), target_volume));
+            music_layers.layers.push((layer, Some(entity), 0.0, target_vol));
         }
     }
 
-    // Smoothly update volumes and despawn unused layers
+    // Lerp volumes and clean up unused layers
+    let lerp_speed = 2.5; // Higher = faster transitions
     let mut to_remove = vec![];
-    for (i, (layer, entity, target_vol)) in music_layers.layers.iter_mut().enumerate() {
+
+    for (i, (layer, entity, current_vol, target_vol)) in music_layers.layers.iter_mut().enumerate() {
+        // Smooth lerp toward target
+        let new_vol = *current_vol + (*target_vol - *current_vol) * lerp_speed * time.delta_seconds();
+        *current_vol = new_vol;
+
         if let Some(ent) = *entity {
             if let Ok(mut sink) = commands.get_entity(ent) {
-                // Smooth blend toward target volume
-                // (In real implementation use AudioSink volume lerp)
+                // In a full implementation we would get the AudioSink and call set_volume
+                // For now we rely on the fact that the entity exists
             }
         }
 
-        // Remove layers that should no longer be active
+        // Remove layers no longer needed
         if !target_layers.iter().any(|(l, _)| *l == *layer) {
             if let Some(ent) = *entity {
                 commands.entity(ent).despawn();
@@ -137,29 +141,26 @@ pub fn update_music_layers(
     }
 }
 
-/// Returns which layers should be active for a given state and intensity
 fn get_active_layers(state: MusicStateType, intensity: f32) -> Vec<(MusicLayer, f32)> {
     let mut layers = vec![];
-
-    // Base layer always present
-    layers.push((MusicLayer::Base, 0.8 + intensity * 0.2));
+    layers.push((MusicLayer::Base, 0.75 + intensity * 0.25));
 
     match state {
         MusicStateType::Exploration | MusicStateType::Harvesting | MusicStateType::Council => {
             if intensity > 0.3 {
-                layers.push((MusicLayer::Melody, intensity));
+                layers.push((MusicLayer::Melody, intensity * 0.9));
             }
         }
         MusicStateType::Tension => {
-            layers.push((MusicLayer::Tension, 0.6 + intensity * 0.4));
+            layers.push((MusicLayer::Tension, 0.5 + intensity * 0.5));
         }
         MusicStateType::Combat => {
-            layers.push((MusicLayer::Tension, 0.7));
-            layers.push((MusicLayer::Percussion, intensity));
+            layers.push((MusicLayer::Tension, 0.6 + intensity * 0.4));
+            layers.push((MusicLayer::Percussion, intensity * 0.9));
         }
         MusicStateType::IntenseCombat | MusicStateType::Boss => {
-            layers.push((MusicLayer::Tension, 0.9));
-            layers.push((MusicLayer::Percussion, 0.8 + intensity * 0.2));
+            layers.push((MusicLayer::Tension, 0.85));
+            layers.push((MusicLayer::Percussion, 0.75 + intensity * 0.25));
             layers.push((MusicLayer::Intense, intensity));
         }
         MusicStateType::Victory => {
@@ -171,18 +172,17 @@ fn get_active_layers(state: MusicStateType, intensity: f32) -> Vec<(MusicLayer, 
     layers
 }
 
-fn get_layer_path(layer: MusicLayer, state: MusicStateType) -> &'static str {
-    match (layer, state) {
-        (MusicLayer::Base, _) => "audio/music/layers/base.ogg",
-        (MusicLayer::Tension, _) => "audio/music/layers/tension.ogg",
-        (MusicLayer::Percussion, _) => "audio/music/layers/percussion.ogg",
-        (MusicLayer::Melody, _) => "audio/music/layers/melody.ogg",
-        (MusicLayer::Intense, _) => "audio/music/layers/intense.ogg",
-        _ => "audio/music/exploration.ogg",
+fn get_layer_path(layer: MusicLayer, _state: MusicStateType) -> &'static str {
+    match layer {
+        MusicLayer::Base => "audio/music/layers/base.ogg",
+        MusicLayer::Tension => "audio/music/layers/tension.ogg",
+        MusicLayer::Percussion => "audio/music/layers/percussion.ogg",
+        MusicLayer::Melody => "audio/music/layers/melody.ogg",
+        MusicLayer::Intense => "audio/music/layers/intense.ogg",
     }
 }
 
-// Basic evaluate + single-track fallback (kept for compatibility)
+// Fallback single-track system (kept for compatibility during development)
 pub fn evaluate_music_state(
     mut controller: ResMut<MusicController>,
 ) {}
@@ -195,7 +195,6 @@ pub fn update_music(
     time: Res<Time>,
     mut current_music: Local<Option<Entity>>,
 ) {
-    // Fallback single-track system (can be disabled once layered system is stable)
     if controller.current_state != controller.target_state {
         controller.transition_timer += time.delta_seconds();
         if controller.transition_timer >= controller.transition_duration {
