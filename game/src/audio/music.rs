@@ -1,5 +1,5 @@
 /*!
- * Dynamic Music System - Core
+ * Dynamic Music System - Gameplay Integration Examples
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -43,7 +43,7 @@ impl Default for MusicController {
     }
 }
 
-/// Request a music state change (call this from combat, harvesting, etc.)
+/// Public API to request music state changes from gameplay systems
 pub fn request_music_state(
     mut controller: ResMut<MusicController>,
     new_state: MusicStateType,
@@ -54,14 +54,69 @@ pub fn request_music_state(
     }
 }
 
-/// Evaluates current music state (placeholder - expand with real gameplay data)
-pub fn evaluate_music_state(
+// ==================== GAMEPLAY INTEGRATION EXAMPLES ====================
+
+/// Call this when combat starts
+pub fn on_combat_started(
     mut controller: ResMut<MusicController>,
+    // combat_query: Query<...>,
 ) {
-    // TODO: Integrate with combat system, player health, harvesting, council, etc.
+    // TODO: Check number of enemies / boss status to choose Combat vs IntenseCombat vs Boss
+    request_music_state(&mut controller, MusicStateType::Combat);
 }
 
-/// Updates music playback and handles transitions
+/// Call this when combat ends (victory or retreat)
+pub fn on_combat_ended(
+    mut controller: ResMut<MusicController>,
+    // victory: bool,
+) {
+    // For now we go to Victory briefly, then back to Exploration
+    request_music_state(&mut controller, MusicStateType::Victory);
+
+    // After a short delay, return to Exploration (can be improved with a timer)
+    // For simplicity, we can have another system reset after Victory
+}
+
+/// Call this when player starts harvesting
+pub fn on_harvesting_started(mut controller: ResMut<MusicController>) {
+    request_music_state(&mut controller, MusicStateType::Harvesting);
+}
+
+/// Call this when harvesting ends
+pub fn on_harvesting_ended(mut controller: ResMut<MusicController>) {
+    request_music_state(&mut controller, MusicStateType::Exploration);
+}
+
+/// Call this when entering a council area or narrative moment
+pub fn on_council_entered(mut controller: ResMut<MusicController>) {
+    request_music_state(&mut controller, MusicStateType::Council);
+}
+
+/// Call this when leaving council / narrative
+pub fn on_council_exited(mut controller: ResMut<MusicController>) {
+    request_music_state(&mut controller, MusicStateType::Exploration);
+}
+
+/// Example: Auto-return from Victory state after a few seconds
+pub fn handle_victory_timeout(
+    mut controller: ResMut<MusicController>,
+    time: Res<Time>,
+    mut victory_timer: Local<f32>,
+) {
+    if controller.current_state == MusicStateType::Victory {
+        *victory_timer += time.delta_seconds();
+
+        if *victory_timer > 4.0 {
+            request_music_state(&mut controller, MusicStateType::Exploration);
+            *victory_timer = 0.0;
+        }
+    } else {
+        *victory_timer = 0.0;
+    }
+}
+
+// ==================== MUSIC PLAYBACK ====================
+
 pub fn update_music(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -70,7 +125,6 @@ pub fn update_music(
     time: Res<Time>,
     mut current_music: Local<Option<Entity>>,
 ) {
-    // Handle smooth state transition
     if controller.current_state != controller.target_state {
         controller.transition_timer += time.delta_seconds();
 
@@ -93,7 +147,6 @@ pub fn update_music(
         MusicStateType::Menu          => "audio/music/menu.ogg",
     };
 
-    // Spawn or replace current music track
     if current_music.is_none() {
         let music = asset_server.load(music_path);
         let entity = commands.spawn((
@@ -109,4 +162,10 @@ pub fn update_music(
         )).id();
         *current_music = Some(entity);
     }
+}
+
+pub fn evaluate_music_state(
+    mut controller: ResMut<MusicController>,
+) {
+    // TODO: Integrate real gameplay data here (combat, health, harvesting, council, etc.)
 }
