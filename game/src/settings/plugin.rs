@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Portal-Based Audio
+ * Settings Plugin - Acoustic Materials
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -21,6 +21,7 @@ impl Plugin for SettingsPlugin {
                 environmental_audio::apply_occlusion_with_rapier,
                 environmental_audio::apply_dynamic_occlusion_zones,
                 environmental_audio::apply_portal_audio,
+                environmental_audio::apply_acoustic_occlusion,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
