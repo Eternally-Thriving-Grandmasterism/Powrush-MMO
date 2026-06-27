@@ -1,5 +1,5 @@
 /*!
- * Settings Plugin - Complete with input handling
+ * Settings Plugin - Full polish with sound, animation, and haptics
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -22,6 +22,10 @@ impl Plugin for SettingsPlugin {
                 editor::handle_settings_input,
                 editor::mark_editor_dirty,
                 editor::handle_reset_to_defaults,
+                editor::play_value_change_sound,
+                editor::trigger_slider_pop,
+                editor::animate_slider_bars,
+                editor::trigger_haptic_feedback,
             ));
     }
 }
