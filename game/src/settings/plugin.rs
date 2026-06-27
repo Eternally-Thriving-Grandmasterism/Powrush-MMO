@@ -16,6 +16,8 @@ impl Plugin for SettingsPlugin {
             .add_systems(Startup, persistence::load_settings)
             .add_systems(Update, (
                 persistence::save_settings,
+                audio_mixing::apply_audio_settings,
+                audio_mixing::update_dynamic_audio_volumes,
                 editor::update_audio_value_texts,
                 editor::update_graphics_value_texts,
                 editor::update_controls_value_texts,
@@ -27,7 +29,6 @@ impl Plugin for SettingsPlugin {
                 editor::trigger_slider_pop,
                 editor::animate_slider_bars,
                 editor::trigger_haptic_feedback,
-                audio_mixing::update_dynamic_audio_volumes,
             ));
     }
 }
