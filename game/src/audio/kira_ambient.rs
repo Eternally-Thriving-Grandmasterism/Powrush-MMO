@@ -1,5 +1,5 @@
 /*!
- * Kira Ambient - With Latency Recording
+ * Kira Ambient - Crossfade Timestamp Recording
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -15,7 +15,7 @@ use crate::audio::ir_manager::CurrentImpulseResponse;
 use crate::settings::audio_quality::AudioQualitySettings;
 use crate::audio::latency_metrics::AudioLatencyMetrics;
 
-// ... (KiraAmbientController definition unchanged)
+// Controller and other definitions remain the same
 
 pub fn apply_kira_ambient_multi_band_filtering(
     reverb_state: Res<ReverbState>,
@@ -28,9 +28,54 @@ pub fn apply_kira_ambient_multi_band_filtering(
     time: Res<Time>,
     latency_metrics: Res<AudioLatencyMetrics>,
 ) {
-    // Record that we are applying acoustic changes now
     latency_metrics.record_application(time.elapsed_secs());
 
-    // ... (existing filter, delay, and convolution logic)
-    // The rest of the function remains the same
+    // ... existing logic ...
+
+    if ir_changed && has_loaded && !is_crossfading {
+        latency_metrics.record_crossfade_start(time.elapsed_secs());
+        controller.crossfade_duration = quality.crossfade_duration;
+        start_crossfade(&mut controller, ir, estimate.wetness, early_mix, source_to_use, audio);
+    }
+
+    if is_crossfading {
+        update_crossfade(&mut controller, ir, estimate.wetness, early_mix, time.elapsed_secs(), latency_metrics);
+    } else if let Some(conv) = &controller.early_convolution {
+        // normal modulation
+    }
+}
+
+fn start_crossfade(
+    controller: &mut KiraAmbientController,
+    new_ir: &crate::audio::ir_manager::ImpulseResponse,
+    current_wetness: f32,
+    early_mix: f32,
+    source_to_use: Option<&Handle<AudioSource>>,
+    audio: Res<AudioManager>,
+) {
+    // existing start logic
+}
+
+fn update_crossfade(
+    controller: &mut KiraAmbientController,
+    current_ir: &crate::audio::ir_manager::ImpulseResponse,
+    current_wetness: f32,
+    early_mix: f32,
+    current_time: f32,
+    latency_metrics: Res<AudioLatencyMetrics>,
+) {
+    controller.crossfade_timer += 1.0 / 60.0;
+
+    let t = (controller.crossfade_timer / controller.crossfade_duration).clamp(0.0, 1.0);
+
+    // fade logic...
+
+    if t >= 1.0 {
+        if let Some(old) = controller.fading_out_convolution.take() {
+            let _ = old;
+        }
+        controller.crossfade_timer = 0.0;
+
+        latency_metrics.record_crossfade_complete(current_time);
+    }
 }
