@@ -1,5 +1,5 @@
 /*!
- * Dynamic Audio Mixing with Priority-Based Ducking
+ * Dynamic Audio Mixing with Smooth Priority-Based Ducking
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -30,7 +30,7 @@ pub enum AudioCategory {
     Ambient,
 }
 
-#[derive(Resource, Default, Clone)]
+#[derive(Resource, Clone)]
 pub struct AudioMixer {
     pub master: f32,
     pub music: f32,
@@ -40,9 +40,9 @@ pub struct AudioMixer {
     pub ambient: f32,
 
     // Ducking configuration
-    pub ducking_factor: f32,           // How much to duck (0.3 = 70% reduction)
-    pub ducking_attack: f32,           // How fast ducking engages
-    pub ducking_release: f32,          // How fast ducking releases
+    pub ducking_factor: f32,      // Target ducking multiplier (e.g. 0.35 = duck to 35%)
+    pub ducking_attack: f32,      // Speed when ducking engages (higher = faster)
+    pub ducking_release: f32,     // Speed when ducking releases
 }
 
 impl Default for AudioMixer {
@@ -54,9 +54,9 @@ impl Default for AudioMixer {
             ui: 1.0,
             voice: 1.0,
             ambient: 0.7,
-            ducking_factor: 0.4,     // Duck to 40% volume
-            ducking_attack: 0.2,
-            ducking_release: 0.3,
+            ducking_factor: 0.35,
+            ducking_attack: 8.0,   // Fast attack
+            ducking_release: 3.0,  // Slower release
         }
     }
 }
@@ -74,29 +74,53 @@ impl AudioMixer {
     }
 }
 
-/// System that applies volume + priority-based ducking
+/// Resource to track current ducking state for smooth transitions
+#[derive(Resource, Default)]
+pub struct DuckingState {
+    pub current_level: f32, // 1.0 = no ducking, lower = more ducked
+}
+
+/// System with smooth attack/release ducking based on priority
 pub fn update_dynamic_audio_volumes(
     mixer: Res<AudioMixer>,
+    mut ducking: ResMut<DuckingState>,
+    time: Res<Time>,
     mut query: Query<(&DynamicAudio, &mut AudioSink)>,
 ) {
-    // Find the highest priority currently playing
+    // Find highest active priority
     let mut highest_priority = Priority::Low;
 
     for (dynamic, sink) in query.iter() {
-        if sink.volume() > 0.01 { // Consider it "playing"
+        if sink.volume() > 0.01 {
             if dynamic.priority > highest_priority {
                 highest_priority = dynamic.priority;
             }
         }
     }
 
-    // Apply volumes with ducking
+    // Calculate target ducking level
+    let target_level = if highest_priority > Priority::Normal {
+        mixer.ducking_factor
+    } else {
+        1.0
+    };
+
+    // Smooth interpolation (attack vs release)
+    let lerp_speed = if target_level < ducking.current_level {
+        mixer.ducking_attack
+    } else {
+        mixer.ducking_release
+    };
+
+    ducking.current_level = ducking.current_level
+        + (target_level - ducking.current_level) * lerp_speed * time.delta_secs();
+
+    // Apply volumes with current ducking level
     for (dynamic, mut sink) in query.iter_mut() {
         let base_volume = mixer.get_volume_for_category(dynamic.category);
 
         let final_volume = if dynamic.priority < highest_priority {
-            // Duck lower priority sounds
-            base_volume * mixer.ducking_factor
+            base_volume * ducking.current_level
         } else {
             base_volume
         };
