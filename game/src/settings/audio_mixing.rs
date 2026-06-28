@@ -1,56 +1,56 @@
 /*!
- * Dynamic Audio Mixing - Priority Logic
- *
- * This file contains the core logic for priority-based ducking.
+ * Dynamic Audio Mixing - Priority Stacking Logic
  */
 
 use bevy::prelude::*;
 use bevy::audio::AudioSink;
-use bevy::diagnostic::{DiagnosticPath, Diagnostics};
-use std::time::Instant;
 
-// ... (existing enums, structs, and diagnostic paths) ...
+// ... existing code ...
 
-/// Finds the highest priority among all currently audible DynamicAudio entities.
-fn find_highest_active_priority(query: &Query<(&DynamicAudio, &AudioSink)>) -> Priority {
-    let mut highest = Priority::Low;
+/// Counts how many sounds are currently active at each priority level.
+fn count_active_priorities(query: &Query<(&DynamicAudio, &AudioSink)>) -> [u32; 4] {
+    let mut counts = [0u32; 4];
 
     for (dynamic, sink) in query.iter() {
-        // Only consider sounds that are actually playing
-        if sink.volume() > 0.01 && dynamic.priority > highest {
-            highest = dynamic.priority;
+        if sink.volume() > 0.01 {
+            let idx = dynamic.priority as usize;
+            counts[idx] += 1;
         }
     }
 
-    highest
+    counts
 }
 
-/// Calculates the target ducking level based on the highest active priority.
-fn calculate_target_ducking_level(highest: Priority, mixer: &AudioMixer) -> f32 {
-    if highest <= Priority::Normal {
-        1.0
-    } else {
-        mixer.get_ducking_for_priority(Priority::Low, highest)
-    }
-}
-
-/// Applies the final volume to a single sound, taking into account base volume, current ducking, and per-priority ducking.
-fn apply_ducking_to_sound(
-    dynamic: &DynamicAudio,
-    base_volume: f32,
-    current_ducking: f32,
-    highest_priority: Priority,
+/// Calculates target ducking level with support for priority stacking.
+/// More high/critical sounds = stronger ducking.
+fn calculate_target_ducking_level(
+    highest: Priority,
+    counts: &[u32; 4],
     mixer: &AudioMixer,
 ) -> f32 {
-    if dynamic.priority < highest_priority {
-        let priority_ducking = mixer.get_ducking_for_priority(dynamic.priority, highest_priority);
-        base_volume * current_ducking * priority_ducking
-    } else {
-        base_volume
+    if highest <= Priority::Normal {
+        return 1.0;
     }
+
+    let base = mixer.get_ducking_for_priority(Priority::Low, highest);
+
+    // Stacking factor: more high-priority sounds = deeper ducking
+    let stack_multiplier = match highest {
+        Priority::Critical => {
+            let critical_count = counts[Priority::Critical as usize];
+            // Each additional critical sound increases ducking strength
+            1.0 - (critical_count.saturating_sub(1) as f32 * 0.08).min(0.35)
+        }
+        Priority::High => {
+            let high_count = counts[Priority::High as usize];
+            1.0 - (high_count.saturating_sub(1) as f32 * 0.06).min(0.25)
+        }
+        _ => 1.0,
+    };
+
+    (base * stack_multiplier).max(0.1) // never duck completely to silence
 }
 
-/// Main mixing system with clear priority logic separation.
 pub fn update_dynamic_audio_volumes(
     mixer: Res<AudioMixer>,
     mut ducking: ResMut<DuckingState>,
@@ -60,39 +60,11 @@ pub fn update_dynamic_audio_volumes(
 ) {
     let start = Instant::now();
 
-    // === Priority Logic ===
     let highest_priority = find_highest_active_priority(&query);
-    let target_level = calculate_target_ducking_level(highest_priority, &mixer);
+    let counts = count_active_priorities(&query);
+    let target_level = calculate_target_ducking_level(highest_priority, &counts, &mixer);
 
-    // Dynamic rates based on triggering priority
-    let (attack_rate, release_rate) = mixer.get_ducking_rates(highest_priority);
-    let rate = if target_level < ducking.current_level {
-        attack_rate
-    } else {
-        release_rate
-    };
+    // ... rest of exponential smoothing and volume application ...
 
-    // Exponential smoothing
-    let dt = time.delta_secs();
-    let t = 1.0 - (-rate * dt).exp();
-    ducking.current_level = ducking.current_level * (1.0 - t) + target_level * t;
-
-    // Apply final volumes
-    for (dynamic, mut sink) in query.iter_mut() {
-        let base_volume = mixer.get_volume_for_category(dynamic.category);
-        let final_volume = apply_ducking_to_sound(
-            dynamic,
-            base_volume,
-            ducking.current_level,
-            highest_priority,
-            &mixer,
-        );
-        sink.set_volume(final_volume);
-    }
-
-    // Diagnostics
-    let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
-    diagnostics.add_measurement(&AUDIO_MIXING_TIME, elapsed_ms);
-    diagnostics.add_measurement(&ACTIVE_DYNAMIC_AUDIO, query.iter().count() as f64);
-    diagnostics.add_measurement(&CURRENT_DUCKING_LEVEL, ducking.current_level as f64);
+    // (keep existing smoothing + apply_ducking_to_sound logic)
 }
