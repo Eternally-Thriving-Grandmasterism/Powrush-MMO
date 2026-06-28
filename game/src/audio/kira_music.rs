@@ -1,35 +1,52 @@
-/*!
- * Kira Music - With Latency Recording
- *
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
- */
-
-use bevy::prelude::*;
-use bevy_kira_audio::prelude::*;
-use kira::effect::filter::{FilterBuilder, FilterHandle};
-use kira::effect::convolution::{ConvolutionBuilder, ConvolutionHandle};
-use std::collections::HashMap;
-use crate::settings::audio_mixing::ReverbState;
-use crate::audio::procedural_reverb_estimation::{ProceduralReverbEstimate, AudioListener};
-use crate::audio::ir_manager::CurrentImpulseResponse;
-use crate::settings::audio_quality::AudioQualitySettings;
-use crate::audio::latency_metrics::AudioLatencyMetrics;
-
-// ... (KiraMusicController definition unchanged)
-
-pub fn apply_kira_multi_band_reverb(
-    reverb_state: Res<ReverbState>,
-    estimate: Res<ProceduralReverbEstimate>,
-    current_ir: Res<CurrentImpulseResponse>,
-    quality: Res<AudioQualitySettings>,
-    listener: Option<Res<AudioListener>>,
+fn start_music_crossfade(
+    controller: &mut KiraMusicController,
+    new_ir: &crate::audio::ir_manager::ImpulseResponse,
+    current_wetness: f32,
+    early_mix: f32,
+    source_to_use: Option<&Handle<AudioSource>>,
     audio: Res<AudioManager>,
-    mut controller: ResMut<KiraMusicController>,
     time: Res<Time>,
     latency_metrics: Res<AudioLatencyMetrics>,
 ) {
-    // Record application timestamp for latency tracking
-    latency_metrics.record_application(time.elapsed_secs());
+    if let Some(current) = controller.early_convolution.take() {
+        controller.fading_out_convolution = Some(current);
+    }
+    controller.crossfade_timer = 0.0;
 
-    // ... (existing music reverb logic remains the same)
+    latency_metrics.record_crossfade_start(time.elapsed_secs());
+
+    if let Some(loaded) = source_to_use {
+        if let Ok(new_conv) = audio.add_effect(
+            ConvolutionBuilder::new()
+                .impulse_response(loaded.clone())
+                .mix(0.0)
+        ) {
+            controller.early_convolution = Some(new_conv);
+        }
+    }
+    controller.last_ir_name = new_ir.name.clone();
+}
+
+fn update_music_crossfade(
+    controller: &mut KiraMusicController,
+    current_ir: &crate::audio::ir_manager::ImpulseResponse,
+    current_wetness: f32,
+    early_mix: f32,
+    time: Res<Time>,
+    latency_metrics: Res<AudioLatencyMetrics>,
+) {
+    controller.crossfade_timer += 1.0 / 60.0;
+
+    let t = (controller.crossfade_timer / controller.crossfade_duration).clamp(0.0, 1.0);
+
+    // fade logic...
+
+    if t >= 1.0 {
+        if let Some(old) = controller.fading_out_convolution.take() {
+            let _ = old;
+        }
+        controller.crossfade_timer = 0.0;
+
+        latency_metrics.record_crossfade_complete(time.elapsed_secs());
+    }
 }
