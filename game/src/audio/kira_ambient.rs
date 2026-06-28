@@ -1,5 +1,5 @@
 /*!
- * Kira Ambient - Hybrid Early + Late Reverb (Unified Pass)
+ * Kira Ambient - Hybrid with IR Truncation Support
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -16,18 +16,14 @@ use crate::settings::audio_quality::AudioQualitySettings;
 
 #[derive(Resource, Default)]
 pub struct KiraAmbientController {
-    // Filter + Delay (Late Tail foundation)
     pub low_pass_filter: Option<FilterHandle>,
     pub high_pass_filter: Option<FilterHandle>,
     pub delay: Option<DelayHandle>,
-
-    // Early Reflections (Convolution)
     pub early_convolution: Option<ConvolutionHandle>,
     pub fading_out_convolution: Option<ConvolutionHandle>,
     pub crossfade_timer: f32,
     pub crossfade_duration: f32,
     pub last_ir_name: String,
-
     pub ducking: f32,
     pub duck_timer: f32,
 }
@@ -84,7 +80,7 @@ pub fn apply_kira_ambient_multi_band_filtering(
 
     let early_mod = (early_delay / 80.0).clamp(0.0, 1.0);
 
-    // === Late Tail (Filters + Delay) ===
+    // Late Tail
     if let Some(lp) = &controller.low_pass_filter {
         let base = 2100.0 + (1.0 - high_damping) * 8500.0;
         let cutoff = (base * (1.0 - early_mod * 0.15)).max(550.0);
@@ -104,19 +100,26 @@ pub fn apply_kira_ambient_multi_band_filtering(
         let _ = delay.set_mix(mix);
     }
 
-    // === Early Reflections (Convolution) ===
+    // Early Reflections with truncation preference
     let listener_pos = listener.as_ref().map(|l| l.position).unwrap_or(Vec3::ZERO);
     let distance = listener_pos.length();
     let quality_multiplier = quality.get_convolution_mix_multiplier(distance);
     let early_mix = quality.get_early_mix() * quality_multiplier;
 
+    // Choose source: prefer early-only truncated version when enabled
+    let source_to_use = if quality.use_early_only_ir && ir.early_only_source.is_some() {
+        ir.early_only_source.as_ref()
+    } else {
+        ir.loaded_source.as_ref()
+    };
+
     let ir_changed = controller.last_ir_name != ir.name;
-    let has_loaded = ir.loaded_source.is_some();
+    let has_loaded = source_to_use.is_some();
     let is_crossfading = controller.fading_out_convolution.is_some() || controller.crossfade_timer > 0.0;
 
     if ir_changed && has_loaded && !is_crossfading {
         controller.crossfade_duration = quality.crossfade_duration;
-        start_crossfade(&mut controller, ir, estimate.wetness, early_mix, audio);
+        start_crossfade(&mut controller, ir, estimate.wetness, early_mix, source_to_use, audio);
     }
 
     if is_crossfading {
@@ -132,6 +135,7 @@ fn start_crossfade(
     new_ir: &crate::audio::ir_manager::ImpulseResponse,
     current_wetness: f32,
     early_mix: f32,
+    source_to_use: Option<&Handle<AudioSource>>,
     audio: Res<AudioManager>,
 ) {
     if let Some(current) = controller.early_convolution.take() {
@@ -139,7 +143,7 @@ fn start_crossfade(
     }
     controller.crossfade_timer = 0.0;
 
-    if let Some(loaded) = &new_ir.loaded_source {
+    if let Some(loaded) = source_to_use {
         if let Ok(new_conv) = audio.add_effect(
             ConvolutionBuilder::new()
                 .impulse_response(loaded.clone())
