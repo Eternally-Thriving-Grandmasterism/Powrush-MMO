@@ -1,5 +1,5 @@
 /*!
- * IR Asset Pipeline - Truncation inside IrAssetLoader (Advanced)
+ * IR Asset Pipeline - Robust Async Fallback in Loader
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -53,16 +53,21 @@ impl AssetLoader for IrAssetLoader {
         let definition: IrFileDefinition = ron::de::from_bytes(&bytes)
             .map_err(|e| anyhow::anyhow!("Failed to parse IR definition: {}", e))?;
 
-        // Load the audio as a dependency
+        // Load the audio file as a dependency (this returns immediately with a handle)
         let audio_handle: Handle<AudioSource> = load_context.load(&definition.audio_path);
 
-        // Attempt to get the loaded audio data for immediate truncation
-        // This is the advanced part - we try to access the decoded data inside the loader
-        let early_only = if let Some(target_dur) = definition.early_reflection_target_duration {
+        // === Async Fallback Pattern ===
+        // Try to get the decoded audio data synchronously inside the loader.
+        // If available, create the truncated early-only version immediately (best path).
+        // If not available yet, fall back gracefully: return IrAsset with early_only_source = None.
+        // The asset post-processor will create the truncated version later when the audio finishes loading.
+        let early_only_source = if let Some(target_dur) = definition.early_reflection_target_duration {
             if let Some(loaded_audio) = load_context.get_dependency(&audio_handle) {
+                // Success: data is available → create truncated version now
                 create_truncated_early_ir(loaded_audio, target_dur)
                     .map(|truncated| load_context.add_asset(truncated))
             } else {
+                // Fallback: data not ready yet → let post-processor handle it
                 None
             }
         } else {
@@ -83,7 +88,7 @@ impl AssetLoader for IrAssetLoader {
             name: definition.name,
             category,
             full_source: audio_handle,
-            early_only_source: early_only,
+            early_only_source,
             duration_seconds: 0.0,
             wetness_bias: definition.wetness_bias,
             early_reflection_strength: definition.early_reflection_strength,
@@ -124,7 +129,6 @@ pub fn create_truncated_early_ir(
     })
 }
 
-// Post-processor kept as fallback
 pub fn process_loaded_ir_assets(
     mut ev_asset: EventReader<AssetEvent<IrAsset>>,
     ir_assets: Res<Assets<IrAsset>>,
