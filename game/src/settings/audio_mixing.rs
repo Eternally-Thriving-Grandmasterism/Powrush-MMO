@@ -1,5 +1,5 @@
 /*!
- * Dynamic Audio Mixing with Exponential Priority-Based Ducking
+ * Dynamic Audio Mixing with Per-Priority Ducking Amounts
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -39,9 +39,14 @@ pub struct AudioMixer {
     pub voice: f32,
     pub ambient: f32,
 
-    pub ducking_factor: f32,
-    pub ducking_attack: f32,     // Higher = faster exponential attack
-    pub ducking_release: f32,    // Higher = faster exponential release
+    // Global ducking settings
+    pub ducking_attack: f32,
+    pub ducking_release: f32,
+
+    // Per-priority ducking amounts (when a higher priority sound is active)
+    pub ducking_critical: f32,      // Applied to all lower priorities when Critical plays
+    pub ducking_high: f32,          // Applied to Normal/Low when High plays
+    pub ducking_normal: f32,        // Applied to Low when Normal plays
 }
 
 impl Default for AudioMixer {
@@ -53,9 +58,13 @@ impl Default for AudioMixer {
             ui: 1.0,
             voice: 1.0,
             ambient: 0.7,
-            ducking_factor: 0.35,
+
             ducking_attack: 10.0,
             ducking_release: 4.0,
+
+            ducking_critical: 0.25,   // Quite aggressive when Critical plays
+            ducking_high: 0.4,        // Moderate when High plays
+            ducking_normal: 0.6,      // Gentle when Normal plays
         }
     }
 }
@@ -71,14 +80,27 @@ impl AudioMixer {
         };
         self.master * cat_vol
     }
+
+    /// Returns the appropriate ducking factor based on priority difference
+    pub fn get_ducking_for_priority(&self, current: Priority, highest: Priority) -> f32 {
+        if current >= highest {
+            return 1.0;
+        }
+
+        match highest {
+            Priority::Critical => self.ducking_critical,
+            Priority::High     => self.ducking_high,
+            Priority::Normal   => self.ducking_normal,
+            Priority::Low      => 1.0,
+        }
+    }
 }
 
 #[derive(Resource, Default)]
 pub struct DuckingState {
-    pub current_level: f32, // 1.0 = no ducking
+    pub current_level: f32,
 }
 
-/// System with exponential attack/release ducking
 pub fn update_dynamic_audio_volumes(
     mixer: Res<AudioMixer>,
     mut ducking: ResMut<DuckingState>,
@@ -96,14 +118,14 @@ pub fn update_dynamic_audio_volumes(
         }
     }
 
-    // Target ducking level
-    let target_level = if highest_priority > Priority::Normal {
-        mixer.ducking_factor
+    // Target ducking level based on highest priority
+    let target_level = if highest_priority > Priority::Low {
+        mixer.get_ducking_for_priority(Priority::Low, highest_priority)
     } else {
         1.0
     };
 
-    // Exponential interpolation (much more natural than linear)
+    // Exponential smoothing
     let rate = if target_level < ducking.current_level {
         mixer.ducking_attack
     } else {
@@ -111,16 +133,17 @@ pub fn update_dynamic_audio_volumes(
     };
 
     let dt = time.delta_secs();
-    let t = 1.0 - (-rate * dt).exp(); // exponential ease
+    let t = 1.0 - (-rate * dt).exp();
 
     ducking.current_level = ducking.current_level * (1.0 - t) + target_level * t;
 
-    // Apply final volume with ducking
+    // Apply per-sound
     for (dynamic, mut sink) in query.iter_mut() {
         let base_volume = mixer.get_volume_for_category(dynamic.category);
+        let ducking_amount = mixer.get_ducking_for_priority(dynamic.priority, highest_priority);
 
         let final_volume = if dynamic.priority < highest_priority {
-            base_volume * ducking.current_level
+            base_volume * ducking.current_level * ducking_amount
         } else {
             base_volume
         };
