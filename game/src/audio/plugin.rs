@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - Central wiring for music, ambient, and procedural reverb estimation
+ * Audio Plugin - Central wiring for music, ambient, procedural reverb, and spatial audio
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -12,6 +12,7 @@ use super::procedural_reverb_estimation::{
     ProceduralReverbEstimate,
 };
 use crate::settings::audio_mixing::ReverbState;
+use shared::spatial::HierarchicalGrid;
 
 pub struct AudioPlugin;
 
@@ -22,19 +23,14 @@ impl Plugin for AudioPlugin {
             .init_resource::<ReverbEstimationConfig>()
             .init_resource::<ProceduralReverbEstimate>()
             .init_resource::<ReverbState>()
+            // Initialize HierarchicalGrid for procedural reverb ray queries
+            // In production this can be populated from server replication or client spatial system
+            .init_resource::<HierarchicalGrid>()
             .add_systems(Update, (
                 evaluate_music_state,
                 update_music,
                 update_music_layers,
                 update_procedural_reverb_estimation,
             ));
-    }
-}
-
-pub struct MusicPlugin; // Legacy alias if needed
-
-impl Plugin for MusicPlugin {
-    fn build(&self, app: &mut App) {
-        // Delegates to AudioPlugin or kept for compatibility
     }
 }
