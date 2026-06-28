@@ -10,9 +10,9 @@
  */
 
 use bevy::prelude::*;
-use crate::audio::events::{PaletteTransitionEvent, PaletteType, TransitionPriority};
-use crate::audio::latency_metrics::AudioLatencyMetrics;
-use crate::audio::music::MusicController; // For future palette -> music state mapping
+use super::events::{PaletteTransitionEvent, PaletteType, TransitionPriority};
+use super::super::latency_metrics::AudioLatencyMetrics;
+use super::super::music::MusicController; // audio::music via plugin parent
 
 /// Audio contexts that influence ramp behavior (maps to MusicStateType + region)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -125,7 +125,7 @@ pub fn adaptive_layering_system(
         if let Some(ref mut mc) = music_controller {
             match event.target_palette {
                 PaletteType::IndustrialPulse => {
-                    // mc.target_state = ... map if needed
+                    // TODO: mc.target_state = MusicStateType::Combat; or intensity ramp
                 }
                 _ => {}
             }
@@ -142,35 +142,26 @@ pub fn adaptive_layering_system(
         if (state.current_intensity - state.target_intensity).abs() < 0.01 {
             state.current_intensity = state.target_intensity;
             state.is_transitioning = false;
-            // latency_metrics.record_crossfade_complete(...) can be called from kira update
         }
     }
 }
 
 fn trigger_palette_crossfade(event: &PaletteTransitionEvent, state: &mut AdaptiveLayeringState) {
-    // Update internal state
     state.current_palette = event.target_palette;
 
-    // TODO: Call into existing kira_ambient / kira_music crossfade logic
-    // using event.ramp_time as the crossfade_duration / transition_duration.
-    // Example hooks:
-    // - kira_music::start_music_crossfade(..., ramp_time: event.ramp_time)
-    // - Update MusicController.transition_duration = event.ramp_time;
-    // - For IR/reverb: pass same ramp_time to start_crossfade in kira_ambient
-    // This ensures unified ramp across music layers + spatial/IR.
-    //
-    // Combat priority can force faster or ducking.
+    // Hook point: pass event.ramp_time to kira crossfade systems
+    // e.g. update kira_music / kira_ambient crossfade_duration = event.ramp_time
+    // Combat priority forces tighter timing or ducking via MusicController
     if event.priority == TransitionPriority::Combat {
-        // e.g. immediate duck or shorter effective ramp
+        // Future: immediate layer emphasis
     }
 
-    // Placeholder: log or debug event for now (remove in prod or gate behind feature)
     #[cfg(debug_assertions)]
-    info!("[AdaptiveLayering] Palette transition to {:?} intensity {:.2} ramp {:.1}s priority {:?}", 
+    info!("[AdaptiveLayering] Palette {:?} -> intensity {:.2} | ramp {:.1}s | prio {:?}", 
           event.target_palette, event.target_intensity, event.ramp_time, event.priority);
 }
 
-/// Example helper for combat systems to request palette shift (call from your combat plugin)
+/// Example: Combat systems call this (or send event directly) to trigger adaptive IndustrialPulse ramp
 pub fn request_combat_palette(
     mut event_writer: EventWriter<PaletteTransitionEvent>,
     layering_state: Res<AdaptiveLayeringState>,
