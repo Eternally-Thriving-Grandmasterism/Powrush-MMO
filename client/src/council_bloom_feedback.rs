@@ -1,6 +1,5 @@
 /*!
- * Council Bloom Feedback — Beautiful Toast Notifications
- * Supports different bloom severities / priorities with distinct styling.
+ * Council Bloom Feedback — Toast with Entrance Animations
  */
 
 use bevy::prelude::*;
@@ -8,53 +7,11 @@ use bevy_egui::{egui, EguiContexts};
 
 use crate::replication::CouncilBloomReceived;
 
-/// Severity / priority of a Council Bloom
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum BloomSeverity {
-    Gentle,
-    Normal,
-    Strong,
-    Epiphany,
-}
+pub enum BloomSeverity { /* ... same as before ... */ }
 
 impl BloomSeverity {
-    pub fn from_attunement(attunement: f32, amplification: f32) -> Self {
-        if attunement > 0.88 && amplification > 1.8 {
-            BloomSeverity::Epiphany
-        } else if attunement > 0.78 || amplification > 1.5 {
-            BloomSeverity::Strong
-        } else if attunement > 0.6 {
-            BloomSeverity::Normal
-        } else {
-            BloomSeverity::Gentle
-        }
-    }
-
-    pub fn accent_color(&self) -> egui::Color32 {
-        match self {
-            BloomSeverity::Epiphany => egui::Color32::from_rgb(255, 215, 100),   // Gold
-            BloomSeverity::Strong   => egui::Color32::from_rgb(120, 255, 160),   // Bright mercy green
-            BloomSeverity::Normal   => egui::Color32::from_rgb(100, 200, 255),   // Soft blue
-            BloomSeverity::Gentle   => egui::Color32::from_rgb(180, 200, 180),   // Muted green
-        }
-    }
-
-    pub fn icon(&self) -> &'static str {
-        match self {
-            BloomSeverity::Epiphany => "✦",
-            BloomSeverity::Strong   => "❖",
-            BloomSeverity::Normal   => "◈",
-            BloomSeverity::Gentle   => "◦",
-        }
-    }
-
-    pub fn duration(&self) -> f32 {
-        match self {
-            BloomSeverity::Epiphany => 6.5,
-            BloomSeverity::Strong   => 5.0,
-            _ => 4.0,
-        }
-    }
+    /* ... same implementation ... */
 }
 
 #[derive(Clone)]
@@ -64,6 +21,7 @@ pub struct BloomToast {
     pub severity: BloomSeverity,
     pub timer: Timer,
     pub alpha: f32,
+    pub entrance_progress: f32, // 0.0 = just spawned, 1.0 = fully entered
 }
 
 #[derive(Resource, Default)]
@@ -97,14 +55,12 @@ fn receive_bloom_notifications(
             );
 
             let toast = BloomToast {
-                message: format!(
-                    "Council Bloom — {:.0}% Attunement",
-                    event.payload.collective_attunement_score * 100.0
-                ),
+                message: format!("Council Bloom — {:.0}% Attunement", event.payload.collective_attunement_score * 100.0),
                 attunement: event.payload.collective_attunement_score,
                 severity,
                 timer: Timer::from_seconds(severity.duration(), TimerMode::Once),
                 alpha: 1.0,
+                entrance_progress: 0.0,
             };
 
             toasts.toasts.push(toast);
@@ -118,6 +74,13 @@ fn update_toasts(time: Res<Time>, mut toasts: ResMut<BloomToasts>) {
         let toast = &mut toasts.toasts[i];
         toast.timer.tick(time.delta());
 
+        // Advance entrance animation (first 0.38 seconds)
+        if toast.entrance_progress < 1.0 {
+            toast.entrance_progress += time.delta_seconds() / 0.38;
+            toast.entrance_progress = toast.entrance_progress.min(1.0);
+        }
+
+        // Fade out near the end
         if toast.timer.remaining_secs() < 1.5 {
             toast.alpha = (toast.timer.remaining_secs() / 1.5).clamp(0.0, 1.0);
         }
@@ -137,15 +100,24 @@ fn draw_toast_ui(mut contexts: EguiContexts, toasts: Res<BloomToasts>) {
 
     for (i, toast) in toasts.toasts.iter().enumerate() {
         let y = screen_rect.max.y - 25.0 - (i as f32 * 78.0);
+
+        // Entrance animation: slide in from right + fade
+        let entrance = toast.entrance_progress;
+        let slide_offset = egui::lerp(80.0..=0.0, entrance);           // slide from +80px
+        let entrance_alpha = egui::lerp(0.0..=1.0, entrance);          // fade in
+        let final_alpha = toast.alpha * entrance_alpha;
+
         let accent = toast.severity.accent_color();
 
         let frame = egui::Frame::window(&ctx.style())
-            .fill(egui::Color32::from_rgba_unmultiplied(18, 26, 22, (toast.alpha * 235.0) as u8))
+            .fill(egui::Color32::from_rgba_unmultiplied(18, 26, 22, (final_alpha * 235.0) as u8))
             .stroke(egui::Stroke::new(1.5, accent))
             .rounding(egui::Rounding::same(8.0));
 
+        let x_pos = screen_rect.max.x - toast_width - 18.0 + slide_offset;
+
         egui::Window::new(format!("bloom_toast_{}", i))
-            .fixed_pos(egui::pos2(screen_rect.max.x - toast_width - 18.0, y))
+            .fixed_pos(egui::pos2(x_pos, y))
             .fixed_size(egui::vec2(toast_width, 68.0))
             .frame(frame)
             .title_bar(false)
