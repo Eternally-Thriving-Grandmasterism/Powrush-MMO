@@ -1,4 +1,16 @@
-fn start_music_crossfade(
+/*!
+ * Kira Music Crossfade - Ramp time integrated with AdaptiveLayeringSystem
+ *
+ * Accepts ramp_time from PaletteTransitionEvent so music palette transitions and IR/reverb
+ * use the same dynamic duration calculated by context (combat, travel, emotion, tension).
+ *
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
+ */
+
+use bevy::prelude::*;
+// TODO: bring in full KiraMusicController, ConvolutionBuilder, AudioManager, Handle, AudioSource, AudioLatencyMetrics when backend complete
+
+pub fn start_music_crossfade(
     controller: &mut KiraMusicController,
     new_ir: &crate::audio::ir_manager::ImpulseResponse,
     current_wetness: f32,
@@ -7,11 +19,13 @@ fn start_music_crossfade(
     audio: Res<AudioManager>,
     time: Res<Time>,
     latency_metrics: Res<AudioLatencyMetrics>,
+    ramp_time: f32, // from PaletteTransitionEvent / calculate_dynamic_ramp_time
 ) {
     if let Some(current) = controller.early_convolution.take() {
         controller.fading_out_convolution = Some(current);
     }
     controller.crossfade_timer = 0.0;
+    controller.crossfade_duration = ramp_time.max(0.1); // adaptive ramp applied here
 
     latency_metrics.record_crossfade_start(time.elapsed_secs());
 
@@ -27,7 +41,7 @@ fn start_music_crossfade(
     controller.last_ir_name = new_ir.name.clone();
 }
 
-fn update_music_crossfade(
+pub fn update_music_crossfade(
     controller: &mut KiraMusicController,
     current_ir: &crate::audio::ir_manager::ImpulseResponse,
     current_wetness: f32,
@@ -39,7 +53,7 @@ fn update_music_crossfade(
 
     let t = (controller.crossfade_timer / controller.crossfade_duration).clamp(0.0, 1.0);
 
-    // fade logic...
+    // fade logic... (unchanged)
 
     if t >= 1.0 {
         if let Some(old) = controller.fading_out_convolution.take() {
