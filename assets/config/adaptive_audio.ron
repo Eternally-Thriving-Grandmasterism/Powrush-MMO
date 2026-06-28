@@ -1,0 +1,18 @@
+# Adaptive Audio Configuration
+# This file controls dynamic ramp times, transition behavior, and hot-reload audio feedback volumes.
+# Hot-reloadable at runtime.
+
+(
+    # Ramp time multipliers for different contexts
+    combat_ramp_multiplier: 0.35,           # Fast ramps during combat/sudden events
+    long_travel_ramp_multiplier: 1.7,       # Slower ramps for long-distance travel
+    emotional_high_ramp_multiplier: 1.35,   # Extra time for high-emotion transitions
+    max_ramp_time: 15.0,
+    min_ramp_time: 1.5,
+    combat_ramp_down_multiplier: 1.5,       # Slightly slower return from combat
+    default_region_ramp_multiplier: 1.0,
+
+    # Hot reload audio feedback volumes (multiplier on mixer.ui)
+    region_palette_reload_volume: 0.9,
+    ai_config_reload_volume: 0.85,
+)
