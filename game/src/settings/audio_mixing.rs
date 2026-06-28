@@ -1,62 +1,56 @@
 /*!
- * Dynamic Audio Mixing - Dynamic Bias Scaling
+ * Dynamic Audio Mixing - Smoothing Filters
  */
 
 use bevy::prelude::*;
 use bevy::audio::AudioSink;
 
-// ... existing code ...
+// Add a simple per-sound smoothing filter
 
-impl AudioMixer {
-    // ... existing methods ...
+/// Applies a simple exponential smoothing filter to a target volume.
+/// This prevents abrupt volume jumps when ducking changes rapidly.
+pub fn smooth_volume(current: f32, target: f32, smoothing: f32, dt: f32) -> f32 {
+    current + (target - current) * (1.0 - (-smoothing * dt).exp())
+}
 
-    /// Returns a dynamic bias for a category that scales with stacking intensity.
-    /// Higher stacking (more high-priority sounds) increases bias on sensitive categories like Music.
-    pub fn get_dynamic_category_bias(
-        &self,
-        category: AudioCategory,
-        highest: Priority,
-        stacking_multiplier: f32,
-    ) -> f32 {
-        let base_bias = match category {
-            AudioCategory::Music   => self.music_ducking_bias,
-            AudioCategory::Ambient => self.ambient_ducking_bias,
-            AudioCategory::Sfx     => self.sfx_ducking_bias,
-            AudioCategory::Ui      => self.ui_ducking_bias,
-            AudioCategory::Voice   => 1.0,
-        };
-
-        // Only scale bias when we have significant stacking (multiple high-priority sounds)
-        if highest >= Priority::High && stacking_multiplier < 0.85 {
-            let scale = (1.0 - stacking_multiplier) * 0.8 + 1.0; // stronger bias when stacking is high
-            base_bias * scale
-        } else {
-            base_bias
+// Extend AudioMixer with a global smoothing factor for final volumes
+impl Default for AudioMixer {
+    fn default() -> Self {
+        Self {
+            // ... existing fields ...
+            volume_smoothing: 8.0, // Higher = faster smoothing
         }
     }
 }
 
-fn apply_ducking_to_sound(
-    dynamic: &DynamicAudio,
-    base_volume: f32,
-    current_ducking: f32,
-    highest_priority: Priority,
-    stacking_multiplier: f32,
-    mixer: &AudioMixer,
-) -> f32 {
-    if dynamic.priority < highest_priority {
-        let priority_duck = mixer.get_ducking_for_priority(dynamic.priority, highest_priority);
-        let dynamic_bias = mixer.get_dynamic_category_bias(
-            dynamic.category,
+pub fn update_dynamic_audio_volumes(
+    mixer: Res<AudioMixer>,
+    mut ducking: ResMut<DuckingState>,
+    time: Res<Time>,
+    mut diagnostics: Diagnostics,
+    mut query: Query<(&DynamicAudio, &mut AudioSink)>,
+) {
+    // ... existing logic to calculate highest_priority, target_level, etc. ...
+
+    let dt = time.delta_secs();
+
+    for (dynamic, mut sink) in query.iter_mut() {
+        let base_volume = mixer.get_volume_for_category(dynamic.category);
+        let target_volume = apply_ducking_to_sound(
+            dynamic,
+            base_volume,
+            ducking.current_level,
             highest_priority,
             stacking_multiplier,
+            &mixer,
         );
 
-        base_volume * current_ducking * priority_duck * dynamic_bias
-    } else {
-        base_volume
-    }
-}
+        // Apply smoothing filter to final volume
+        let current_volume = sink.volume();
+        let smoothed = smooth_volume(current_volume, target_volume, mixer.volume_smoothing, dt);
 
-// Update calculate_target_ducking_level and update_dynamic_audio_volumes
-// to pass stacking_multiplier into apply_ducking_to_sound
+        sink.set_volume(smoothed);
+    }
+
+    // ... diagnostics ...
+}
