@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - Hot reload for RegionPaletteConfig
+ * Audio Plugin - Hot Reload for Region Scripts with live re-application
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -29,7 +29,7 @@ pub use adaptive_layering::{
     region_audio_transition_system, palette_to_music_mapping_system,
     feed_combat_intensity, combat_intensity_system,
     RegionPaletteConfig, RegionPaletteConfigHandle, load_region_palette_config,
-    RegionPaletteLoader, hot_reload_region_palette_system,
+    RegionPaletteLoader, hot_reload_region_palette_system, CurrentRegion,
 };
 pub use events::{PaletteTransitionEvent, PaletteType, TransitionPriority, RegionTransitionEvent, RegionType, CombatStateChangedEvent};
 
@@ -53,6 +53,7 @@ impl Plugin for AudioPlugin {
             .init_resource::<AudioLatencyMetrics>()
             .init_resource::<AdaptiveLayeringState>()
             .init_resource::<AdaptiveAudioConfig>()
+            .init_resource::<CurrentRegion>()
             .init_asset::<adaptive_layering::RegionPaletteConfig>()
             .init_resource::<adaptive_layering::RegionPaletteConfigHandle>()
             .register_asset_loader(adaptive_layering::RegionPaletteLoader)
@@ -73,7 +74,7 @@ impl Plugin for AudioPlugin {
                 region_audio_transition_system,
                 palette_to_music_mapping_system,
                 combat_intensity_system,
-                adaptive_layering::hot_reload_region_palette_system, // Hot reload feedback + future re-apply
+                adaptive_layering::hot_reload_region_palette_system,
             ));
     }
 }
