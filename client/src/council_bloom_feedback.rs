@@ -1,5 +1,5 @@
 /*!
- * Council Bloom Feedback — Toast with Entrance Animations
+ * Council Bloom Feedback — Severity-aware Dramatic Entrance Animations
  */
 
 use bevy::prelude::*;
@@ -8,10 +8,66 @@ use bevy_egui::{egui, EguiContexts};
 use crate::replication::CouncilBloomReceived;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum BloomSeverity { /* ... same as before ... */ }
+pub enum BloomSeverity {
+    Gentle,
+    Normal,
+    Strong,
+    Epiphany,
+}
 
 impl BloomSeverity {
-    /* ... same implementation ... */
+    pub fn from_attunement(attunement: f32, amplification: f32) -> Self {
+        if attunement > 0.88 && amplification > 1.8 { BloomSeverity::Epiphany }
+        else if attunement > 0.78 || amplification > 1.5 { BloomSeverity::Strong }
+        else if attunement > 0.6 { BloomSeverity::Normal }
+        else { BloomSeverity::Gentle }
+    }
+
+    pub fn accent_color(&self) -> egui::Color32 {
+        match self {
+            BloomSeverity::Epiphany => egui::Color32::from_rgb(255, 215, 100),
+            BloomSeverity::Strong   => egui::Color32::from_rgb(120, 255, 160),
+            BloomSeverity::Normal   => egui::Color32::from_rgb(100, 200, 255),
+            BloomSeverity::Gentle   => egui::Color32::from_rgb(180, 200, 180),
+        }
+    }
+
+    pub fn icon(&self) -> &'static str {
+        match self {
+            BloomSeverity::Epiphany => "✦",
+            BloomSeverity::Strong   => "❖",
+            BloomSeverity::Normal   => "◈",
+            BloomSeverity::Gentle   => "◦",
+        }
+    }
+
+    pub fn duration(&self) -> f32 {
+        match self {
+            BloomSeverity::Epiphany => 6.5,
+            BloomSeverity::Strong   => 5.0,
+            _ => 4.0,
+        }
+    }
+
+    /// How far the toast slides in from the right
+    pub fn slide_distance(&self) -> f32 {
+        match self {
+            BloomSeverity::Epiphany => 160.0,
+            BloomSeverity::Strong   => 110.0,
+            BloomSeverity::Normal   => 80.0,
+            BloomSeverity::Gentle   => 55.0,
+        }
+    }
+
+    /// How long the entrance animation takes
+    pub fn entrance_duration(&self) -> f32 {
+        match self {
+            BloomSeverity::Epiphany => 0.58,
+            BloomSeverity::Strong   => 0.45,
+            BloomSeverity::Normal   => 0.35,
+            BloomSeverity::Gentle   => 0.28,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -21,7 +77,7 @@ pub struct BloomToast {
     pub severity: BloomSeverity,
     pub timer: Timer,
     pub alpha: f32,
-    pub entrance_progress: f32, // 0.0 = just spawned, 1.0 = fully entered
+    pub entrance_progress: f32,
 }
 
 #[derive(Resource, Default)]
@@ -74,13 +130,14 @@ fn update_toasts(time: Res<Time>, mut toasts: ResMut<BloomToasts>) {
         let toast = &mut toasts.toasts[i];
         toast.timer.tick(time.delta());
 
-        // Advance entrance animation (first 0.38 seconds)
+        // Advance entrance animation using severity-specific duration
         if toast.entrance_progress < 1.0 {
-            toast.entrance_progress += time.delta_seconds() / 0.38;
+            let duration = toast.severity.entrance_duration();
+            toast.entrance_progress += time.delta_seconds() / duration;
             toast.entrance_progress = toast.entrance_progress.min(1.0);
         }
 
-        // Fade out near the end
+        // Fade out near end of life
         if toast.timer.remaining_secs() < 1.5 {
             toast.alpha = (toast.timer.remaining_secs() / 1.5).clamp(0.0, 1.0);
         }
@@ -101,10 +158,18 @@ fn draw_toast_ui(mut contexts: EguiContexts, toasts: Res<BloomToasts>) {
     for (i, toast) in toasts.toasts.iter().enumerate() {
         let y = screen_rect.max.y - 25.0 - (i as f32 * 78.0);
 
-        // Entrance animation: slide in from right + fade
         let entrance = toast.entrance_progress;
-        let slide_offset = egui::lerp(80.0..=0.0, entrance);           // slide from +80px
-        let entrance_alpha = egui::lerp(0.0..=1.0, entrance);          // fade in
+        let slide = toast.severity.slide_distance();
+        let slide_offset = egui::lerp(slide..=0.0, entrance);
+
+        // Extra dramatic scale for Epiphany
+        let scale = if toast.severity == BloomSeverity::Epiphany {
+            egui::lerp(0.82..=1.0, entrance)
+        } else {
+            1.0
+        };
+
+        let entrance_alpha = egui::lerp(0.0..=1.0, entrance);
         let final_alpha = toast.alpha * entrance_alpha;
 
         let accent = toast.severity.accent_color();
@@ -116,9 +181,12 @@ fn draw_toast_ui(mut contexts: EguiContexts, toasts: Res<BloomToasts>) {
 
         let x_pos = screen_rect.max.x - toast_width - 18.0 + slide_offset;
 
+        // For Epiphany we fake a subtle scale by adjusting width slightly
+        let effective_width = toast_width * scale;
+
         egui::Window::new(format!("bloom_toast_{}", i))
             .fixed_pos(egui::pos2(x_pos, y))
-            .fixed_size(egui::vec2(toast_width, 68.0))
+            .fixed_size(egui::vec2(effective_width, 68.0))
             .frame(frame)
             .title_bar(false)
             .resizable(false)
