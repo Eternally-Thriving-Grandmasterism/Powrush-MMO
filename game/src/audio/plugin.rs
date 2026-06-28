@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - AssetServer RON loading for RegionPaletteConfig
+ * Audio Plugin - Hot reload for RegionPaletteConfig
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -28,7 +28,8 @@ pub use adaptive_layering::{
     AudioContext, EmotionalWeight, adaptive_layering_system, request_combat_palette,
     region_audio_transition_system, palette_to_music_mapping_system,
     feed_combat_intensity, combat_intensity_system,
-    RegionPaletteConfig, RegionPaletteConfigHandle, load_region_palette_config, RegionPaletteLoader,
+    RegionPaletteConfig, RegionPaletteConfigHandle, load_region_palette_config,
+    RegionPaletteLoader, hot_reload_region_palette_system,
 };
 pub use events::{PaletteTransitionEvent, PaletteType, TransitionPriority, RegionTransitionEvent, RegionType, CombatStateChangedEvent};
 
@@ -72,6 +73,7 @@ impl Plugin for AudioPlugin {
                 region_audio_transition_system,
                 palette_to_music_mapping_system,
                 combat_intensity_system,
+                adaptive_layering::hot_reload_region_palette_system, // Hot reload feedback + future re-apply
             ));
     }
 }
