@@ -1,5 +1,5 @@
 /*!
- * IR Asset Pipeline - With Metrics & Logging
+ * IR Asset Pipeline - Full Metrics + Controllable Logging
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -12,6 +12,7 @@ use serde::Deserialize;
 use tracing::{debug, info};
 
 use crate::audio::ir_manager::{IrCategory, IrLibrary, CurrentImpulseResponse};
+use crate::audio::ir_metrics::IrTruncationMetrics;
 use crate::settings::audio_quality::AudioQualitySettings;
 
 #[derive(Debug, Clone, Deserialize)]
@@ -55,28 +56,24 @@ impl AssetLoader for IrAssetLoader {
             .map_err(|e| anyhow::anyhow!("Failed to parse IR definition: {}", e))?;
 
         let audio_handle: Handle<AudioSource> = load_context.load(&definition.audio_path);
-
         let target_dur = definition.early_reflection_target_duration.unwrap_or(0.12);
 
-        // Attempt immediate truncation inside loader (async best path)
         let early_only_source = if let Some(loaded_audio) = load_context.get_dependency(&audio_handle) {
             if let Some(truncated) = create_truncated_early_ir(loaded_audio, target_dur) {
-                let handle = load_context.add_asset(truncated);
-                info!(
-                    "[IR Loader] Created early-only IR inside loader for '{}' (target: {:.0}ms)",
-                    definition.name, target_dur * 1000.0
-                );
-                Some(handle)
+                if load_context.resource::<AudioQualitySettings>().should_log_ir_info() {
+                    info!("[IR Loader] Created early-only IR inside loader for '{}' (target: {:.0}ms)", definition.name, target_dur * 1000.0);
+                }
+                load_context.resource::<IrTruncationMetrics>().record_loader_success();
+                Some(load_context.add_asset(truncated))
             } else {
-                debug!("[IR Loader] Truncation failed for '{}' (target: {:.0}ms)", definition.name, target_dur * 1000.0);
+                load_context.resource::<IrTruncationMetrics>().record_skipped();
                 None
             }
         } else {
-            // Async fallback - post-processor will handle it
-            debug!(
-                "[IR Loader] Async fallback for '{}' - truncation deferred to post-processor (target: {:.0}ms)",
-                definition.name, target_dur * 1000.0
-            );
+            if load_context.resource::<AudioQualitySettings>().should_log_ir_debug() {
+                debug!("[IR Loader] Async fallback for '{}' (target: {:.0}ms)", definition.name, target_dur * 1000.0);
+            }
+            load_context.resource::<IrTruncationMetrics>().record_async_fallback();
             None
         };
 
@@ -110,38 +107,26 @@ pub fn create_truncated_early_ir(
     full_source: &AudioSource,
     target_duration: f32,
 ) -> Option<AudioSource> {
+    // ... (unchanged)
     let static_data = match full_source.sound.clone().try_into_static() {
         Ok(data) => data,
         Err(_) => return None,
     };
-
     let sample_rate = static_data.sample_rate as f32;
     let target_samples = (target_duration * sample_rate) as usize;
-
-    if target_samples == 0 || target_samples >= static_data.frames.len() {
-        return None;
-    }
-
+    if target_samples == 0 || target_samples >= static_data.frames.len() { return None; }
     let truncated_frames = static_data.frames[..target_samples].to_vec();
-
-    let truncated_data = StaticSoundData {
-        frames: truncated_frames,
-        sample_rate: static_data.sample_rate,
-        ..static_data
-    };
-
-    Some(AudioSource {
-        sound: kira::sound::SoundData::Static(truncated_data),
-    })
+    let truncated_data = StaticSoundData { frames: truncated_frames, sample_rate: static_data.sample_rate, ..static_data };
+    Some(AudioSource { sound: kira::sound::SoundData::Static(truncated_data) })
 }
 
-/// Post-processor with logging
 pub fn process_loaded_ir_assets(
     mut ev_asset: EventReader<AssetEvent<IrAsset>>,
     ir_assets: Res<Assets<IrAsset>>,
     audio_assets: Res<Assets<AudioSource>>,
     mut current_ir: ResMut<CurrentImpulseResponse>,
     quality: Res<AudioQualitySettings>,
+    metrics: Res<IrTruncationMetrics>,
 ) {
     for ev in ev_asset.read() {
         if let AssetEvent::LoadedWithDependencies { id } = ev {
@@ -150,20 +135,18 @@ pub fn process_loaded_ir_assets(
                     if quality.use_early_only_ir && current_ir.active.early_only_source.is_none() {
                         if let Some(ir_asset) = ir_assets.get(*id) {
                             if let Some(full_source) = audio_assets.get(&ir_asset.full_source) {
-                                if let Some(truncated) = create_truncated_early_ir(
-                                    full_source,
-                                    quality.early_reflection_target_duration,
-                                ) {
+                                if let Some(truncated) = create_truncated_early_ir(full_source, quality.early_reflection_target_duration) {
                                     let truncated_handle = audio_assets.add(truncated);
                                     current_ir.active.early_only_source = Some(truncated_handle);
-
-                                    info!(
-                                        "[IR Post-Processor] Created early-only IR for '{}' via post-processor (target: {:.0}ms)",
-                                        ir_asset.name,
-                                        quality.early_reflection_target_duration * 1000.0
-                                    );
+                                    metrics.record_post_processor_success();
+                                    if quality.should_log_ir_info() {
+                                        info!("[IR Post-Processor] Created early-only IR for '{}' (target: {:.0}ms)", ir_asset.name, quality.early_reflection_target_duration * 1000.0);
+                                    }
                                 } else {
-                                    debug!("[IR Post-Processor] Truncation skipped for '{}' (already sufficient length)", ir_asset.name);
+                                    metrics.record_skipped();
+                                    if quality.should_log_ir_debug() {
+                                        debug!("[IR Post-Processor] Truncation skipped for '{}'", ir_asset.name);
+                                    }
                                 }
                             }
                         }
