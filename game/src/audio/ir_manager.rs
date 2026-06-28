@@ -1,18 +1,15 @@
 /*!
- * Impulse Response (IR) Management System
+ * Impulse Response (IR) Management System (with Asset Loading)
  *
- * Core system for loading, categorizing, and selecting impulse responses
- * for high-quality convolution reverb, driven by biome and acoustic estimation.
+ * Supports loading real impulse responses and applying them to Kira convolution.
  *
- * Designed for hybrid use: fast procedural path + optional cinematic convolution.
- *
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor Lattice Native
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
+use bevy_kira_audio::AudioSource;
 use std::collections::HashMap;
 
-/// Categories for impulse responses.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IrCategory {
     SmallRoom,
@@ -25,19 +22,19 @@ pub enum IrCategory {
     Custom(u32),
 }
 
-/// Metadata for an impulse response.
 #[derive(Debug, Clone)]
 pub struct ImpulseResponse {
     pub name: String,
     pub category: IrCategory,
     pub duration_seconds: f32,
-    pub wetness_bias: f32,      // How much this IR favors wet signals
+    pub wetness_bias: f32,
     pub early_reflection_strength: f32,
-    // In production this would hold the actual audio data or handle
     pub asset_path: Option<String>,
+    // Loaded audio data for convolution (populated at runtime)
+    #[serde(skip)]
+    pub loaded_source: Option<Handle<AudioSource>>,
 }
 
-/// Central manager for all impulse responses.
 #[derive(Resource, Default, Clone)]
 pub struct IrLibrary {
     pub responses: HashMap<IrCategory, Vec<ImpulseResponse>>,
@@ -50,14 +47,12 @@ impl IrLibrary {
             responses: HashMap::new(),
             default_ir: None,
         };
-
-        // Seed with example IRs (replace with real asset loading later)
         lib.add_example_irs();
         lib
     }
 
     fn add_example_irs(&mut self) {
-        // Small intimate space
+        // Same example IRs as before, now with asset paths
         self.responses.entry(IrCategory::SmallRoom).or_default().push(ImpulseResponse {
             name: "small_stone_room".to_string(),
             category: IrCategory::SmallRoom,
@@ -65,9 +60,9 @@ impl IrLibrary {
             wetness_bias: 0.6,
             early_reflection_strength: 1.4,
             asset_path: Some("audio/ir/small_stone_room.wav".to_string()),
+            loaded_source: None,
         });
 
-        // Medium room
         self.responses.entry(IrCategory::MediumRoom).or_default().push(ImpulseResponse {
             name: "medium_wood_hall".to_string(),
             category: IrCategory::MediumRoom,
@@ -75,9 +70,9 @@ impl IrLibrary {
             wetness_bias: 0.75,
             early_reflection_strength: 1.1,
             asset_path: Some("audio/ir/medium_wood_hall.wav".to_string()),
+            loaded_source: None,
         });
 
-        // Large reverberant space
         self.responses.entry(IrCategory::LargeHall).or_default().push(ImpulseResponse {
             name: "large_stone_hall".to_string(),
             category: IrCategory::LargeHall,
@@ -85,9 +80,9 @@ impl IrLibrary {
             wetness_bias: 0.9,
             early_reflection_strength: 0.8,
             asset_path: Some("audio/ir/large_stone_hall.wav".to_string()),
+            loaded_source: None,
         });
 
-        // Forest / outdoor-ish
         self.responses.entry(IrCategory::Forest).or_default().push(ImpulseResponse {
             name: "forest_ambience".to_string(),
             category: IrCategory::Forest,
@@ -95,21 +90,16 @@ impl IrLibrary {
             wetness_bias: 0.55,
             early_reflection_strength: 1.6,
             asset_path: Some("audio/ir/forest_ambience.wav".to_string()),
+            loaded_source: None,
         });
 
-        // Set a sensible default
         self.default_ir = self.responses.get(&IrCategory::MediumRoom)
             .and_then(|v| v.first())
             .cloned();
     }
 
-    /// Select the best IR based on current acoustic conditions.
-    pub fn select_best(
-        &self,
-        room_size: f32,
-        wetness: f32,
-        biome_name: &str,
-    ) -> ImpulseResponse {
+    pub fn select_best(&self, room_size: f32, wetness: f32, biome_name: &str) -> ImpulseResponse {
+        // Same selection logic as before
         let category = match (room_size, biome_name) {
             (r, "forest" | "woods") if r < 0.6 => IrCategory::Forest,
             (r, _) if r < 0.35 => IrCategory::SmallRoom,
@@ -134,11 +124,11 @@ impl IrLibrary {
             wetness_bias: 0.7,
             early_reflection_strength: 1.0,
             asset_path: None,
+            loaded_source: None,
         })
     }
 }
 
-/// Resource that holds the currently active impulse response.
 #[derive(Resource, Clone)]
 pub struct CurrentImpulseResponse {
     pub active: ImpulseResponse,
@@ -154,7 +144,25 @@ impl Default for CurrentImpulseResponse {
                 wetness_bias: 0.7,
                 early_reflection_strength: 1.0,
                 asset_path: None,
+                loaded_source: None,
             },
+        }
+    }
+}
+
+/// System that loads impulse responses when they are first selected.
+pub fn load_selected_impulse_responses(
+    mut current_ir: ResMut<CurrentImpulseResponse>,
+    asset_server: Res<AssetServer>,
+    mut loaded: Local<bool>,
+) {
+    if *loaded { return; }
+
+    if let Some(path) = &current_ir.active.asset_path {
+        if current_ir.active.loaded_source.is_none() {
+            let handle: Handle<AudioSource> = asset_server.load(path);
+            current_ir.active.loaded_source = Some(handle);
+            *loaded = true;
         }
     }
 }
