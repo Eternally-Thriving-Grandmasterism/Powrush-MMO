@@ -1,71 +1,43 @@
 /// Generic update payload for replication wire format
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UpdatePayload {
-    Ability(AbilityUpdatePayload),
-    Health(HealthUpdatePayload),
-    StatusEffect(StatusEffectUpdatePayload),
-    BloomState(BloomStatePayload),
-    ResonanceSeed(ResonanceSeedPayload),
-    Harvest(HarvestPayload),
-    DynamicEmergence(EmergencePayload),
-    InterestZone(InterestZonePayload),
-    CouncilSession(CouncilSessionPayload),
+    // ... existing variants ...
     CouncilBloom(CouncilBloomPayload),
-    RbeInventoryUpdate(RbeInventoryUpdatePayload),
+    // ...
 }
 
-// ... (other payload structs unchanged) ...
-
-/// Client-side Council Bloom payload
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct CouncilBloomPayload {
-    pub session_id: u64,
-    pub collective_attunement_score: f32,
-    pub bloom_amplification_multiplier: f32,
-    pub shared_living_web_synchronization: bool,
-    pub participant_count: u8,
-    pub bloom_activated: bool,
-    pub trigger_reason: String,
-}
+pub struct CouncilBloomPayload { /* ... */ }
 
-/// Event emitted when a Council Bloom is received from server replication
 #[derive(Event, Clone, Debug)]
 pub struct CouncilBloomReceived {
     pub payload: CouncilBloomPayload,
 }
 
-/// Decodes a CouncilBloom payload and emits client-side effects.
-/// Recommended to call from your main replication apply system.
+/// Plugin that registers all Council-related replication events
+pub struct CouncilReplicationPlugin;
+
+impl Plugin for CouncilReplicationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<CouncilBloomReceived>();
+        // Future: add more council replication events here
+        info!("[Client] CouncilReplicationPlugin registered CouncilBloomReceived event");
+    }
+}
+
 pub fn decode_and_apply_council_bloom(
     payload: &CouncilBloomPayload,
     mut bloom_events: EventWriter<CouncilBloomReceived>,
 ) {
     if payload.bloom_activated {
         info!(
-            "[Client] Council Bloom received! Session {} | Attunement: {:.2} | Participants: {}",
+            "[Client] Council Bloom received! Session {} | Attunement: {:.2}",
             payload.session_id,
-            payload.collective_attunement_score,
-            payload.participant_count
+            payload.collective_attunement_score
         );
-
         bloom_events.send(CouncilBloomReceived { payload: payload.clone() });
     }
 }
 
-/// Example system to wire into your replication handler:
-///
-/// ```ignore
-/// fn apply_replication_updates(
-///     mut updates: EventReader<TargetedUpdate>,
-///     mut bloom_events: EventWriter<CouncilBloomReceived>,
-/// ) {
-///     for update in updates.read() {
-///         if let UpdatePayload::CouncilBloom(ref payload) = update.payload {
-///             decode_and_apply_council_bloom(payload, bloom_events);
-///         }
-///         // ... handle other variants ...
-///     }
-/// }
-/// ```
-
-// (rest of replication systems, network dispatch, etc. remain in their files)
+// Example usage in client main or a central client plugin:
+// app.add_plugins(CouncilReplicationPlugin);
