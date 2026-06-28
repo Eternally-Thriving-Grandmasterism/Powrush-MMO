@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - With Custom IrAssetLoader
+ * Audio Plugin - With Full IR Metrics
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -15,6 +15,7 @@ use super::procedural_reverb_estimation::{
 };
 use super::ir_manager::{IrLibrary, CurrentImpulseResponse};
 use super::ir_asset::{load_ir_library_from_ron, IrAssetLoader};
+use super::ir_metrics::IrTruncationMetrics;
 use crate::settings::audio_mixing::ReverbState;
 use crate::settings::biome_acoustic::{load_biome_acoustic_profile, update_biome_acoustic_transition, CurrentBiomeAcoustics};
 use crate::settings::audio_quality::AudioQualitySettings;
@@ -35,6 +36,7 @@ impl Plugin for AudioPlugin {
             .init_resource::<IrLibrary>()
             .init_resource::<CurrentImpulseResponse>()
             .init_resource::<AudioQualitySettings>()
+            .init_resource::<IrTruncationMetrics>()
             .register_asset_loader(IrAssetLoader)
             .add_systems(Startup, (load_biome_acoustic_profile, load_ir_library_from_ron))
             .add_systems(Update, (
@@ -43,6 +45,7 @@ impl Plugin for AudioPlugin {
                 update_music_layers,
                 update_procedural_reverb_estimation,
                 update_biome_acoustic_transition,
+                super::ir_asset::process_loaded_ir_assets,
             ));
     }
 }
