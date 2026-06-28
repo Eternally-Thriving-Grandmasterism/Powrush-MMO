@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - Central wiring for music, ambient, procedural reverb, and biome acoustics
+ * Audio Plugin - Central wiring including IR Management for convolution reverb
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -12,6 +12,7 @@ use super::procedural_reverb_estimation::{
     ProceduralReverbEstimate,
     AudioListener,
 };
+use super::ir_manager::{IrLibrary, CurrentImpulseResponse};
 use crate::settings::audio_mixing::ReverbState;
 use crate::settings::biome_acoustic::{load_biome_acoustic_profile, update_biome_acoustic_transition, CurrentBiomeAcoustics};
 use shared::spatial::HierarchicalGrid;
@@ -28,6 +29,8 @@ impl Plugin for AudioPlugin {
             .init_resource::<HierarchicalGrid>()
             .init_resource::<CurrentBiomeAcoustics>()
             .init_resource::<AudioListener>()
+            .init_resource::<IrLibrary>()
+            .init_resource::<CurrentImpulseResponse>()
             .add_systems(Startup, load_biome_acoustic_profile)
             .add_systems(Update, (
                 evaluate_music_state,
