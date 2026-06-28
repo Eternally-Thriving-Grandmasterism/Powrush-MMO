@@ -1,5 +1,5 @@
 /*!
- * Kira Music - Multi-Band + Convolution with Dynamic IR Swapping
+ * Kira Music - Multi-Band + Convolution with Quality + Distance LOD
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -10,8 +10,9 @@ use kira::effect::filter::{FilterBuilder, FilterHandle};
 use kira::effect::convolution::{ConvolutionBuilder, ConvolutionHandle};
 use std::collections::HashMap;
 use crate::settings::audio_mixing::ReverbState;
-use crate::audio::procedural_reverb_estimation::ProceduralReverbEstimate;
+use crate::audio::procedural_reverb_estimation::{ProceduralReverbEstimate, AudioListener};
 use crate::audio::ir_manager::CurrentImpulseResponse;
+use crate::settings::audio_quality::AudioQualitySettings;
 
 #[derive(Resource)]
 pub struct KiraMusicController {
@@ -48,11 +49,12 @@ impl Default for KiraMusicController {
     }
 }
 
-/// Apply multi-band filtering + dynamic convolution for music
 pub fn apply_kira_multi_band_reverb(
     reverb_state: Res<ReverbState>,
     estimate: Res<ProceduralReverbEstimate>,
     current_ir: Res<CurrentImpulseResponse>,
+    quality: Res<AudioQualitySettings>,
+    listener: Option<Res<AudioListener>>,
     audio: Res<AudioManager>,
     mut controller: ResMut<KiraMusicController>,
 ) {
@@ -64,7 +66,7 @@ pub fn apply_kira_multi_band_reverb(
 
     let early_mod = (early_delay / 75.0).clamp(0.0, 1.0);
 
-    // Existing multi-band filter modulation
+    // Multi-band filters
     for (layer, lp_filter) in &controller.low_pass_filters {
         let base = 900.0 + intensity * 10500.0;
         let cutoff = (base * (1.0 - high_damping * 0.75 * (1.0 + early_mod * 0.2))).max(450.0);
@@ -76,7 +78,11 @@ pub fn apply_kira_multi_band_reverb(
         let _ = hp_filter.set_cutoff(cutoff);
     }
 
-    // === Dynamic Convolution for Music ===
+    // === Quality + Distance LOD Convolution ===
+    let listener_pos = listener.as_ref().map(|l| l.position).unwrap_or(Vec3::ZERO);
+    let distance = listener_pos.length();
+    let quality_multiplier = quality.get_convolution_mix_multiplier(distance);
+
     let ir_changed = controller.last_ir_name != ir.name;
     let has_loaded = ir.loaded_source.is_some();
 
@@ -86,18 +92,22 @@ pub fn apply_kira_multi_band_reverb(
         }
 
         if let Some(loaded) = &ir.loaded_source {
+            let base_mix = (ir.wetness_bias * estimate.wetness * 0.65).clamp(0.0, 0.6);
+            let final_mix = base_mix * quality_multiplier;
+
             if let Ok(new_conv) = audio.add_effect(
                 ConvolutionBuilder::new()
                     .impulse_response(loaded.clone())
-                    .mix((ir.wetness_bias * estimate.wetness * 0.65).clamp(0.0, 0.6))
+                    .mix(final_mix)
             ) {
                 controller.convolution = Some(new_conv);
                 controller.last_ir_name = ir.name.clone();
             }
         }
     } else if let Some(conv) = &controller.convolution {
-        let target_wet = (ir.wetness_bias * estimate.wetness * 0.6).clamp(0.0, 0.55);
-        let _ = conv.set_mix(target_wet);
+        let base_mix = (ir.wetness_bias * estimate.wetness * 0.6).clamp(0.0, 0.55);
+        let final_mix = base_mix * quality_multiplier;
+        let _ = conv.set_mix(final_mix);
     }
 }
 
@@ -119,7 +129,6 @@ pub fn initialize_kira_multi_band_filters(
         }
     }
 
-    // Initialize convolution for music (will be swapped when real IR loads)
     if let Ok(conv) = audio.add_effect(ConvolutionBuilder::new().mix(0.0)) {
         controller.convolution = Some(conv);
     }
