@@ -1,5 +1,5 @@
 /*!
- * Kira Ambient - Hybrid with Equal-Power Crossfading
+ * Kira Ambient - Hybrid Early + Late Reverb (Unified Pass)
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -16,15 +16,18 @@ use crate::settings::audio_quality::AudioQualitySettings;
 
 #[derive(Resource, Default)]
 pub struct KiraAmbientController {
+    // Filter + Delay (Late Tail foundation)
     pub low_pass_filter: Option<FilterHandle>,
     pub high_pass_filter: Option<FilterHandle>,
     pub delay: Option<DelayHandle>,
-    pub current_convolution: Option<ConvolutionHandle>,
+
+    // Early Reflections (Convolution)
+    pub early_convolution: Option<ConvolutionHandle>,
     pub fading_out_convolution: Option<ConvolutionHandle>,
     pub crossfade_timer: f32,
     pub crossfade_duration: f32,
-    pub target_ir_name: String,
     pub last_ir_name: String,
+
     pub ducking: f32,
     pub duck_timer: f32,
 }
@@ -35,11 +38,10 @@ impl Default for KiraAmbientController {
             low_pass_filter: None,
             high_pass_filter: None,
             delay: None,
-            current_convolution: None,
+            early_convolution: None,
             fading_out_convolution: None,
             crossfade_timer: 0.0,
-            crossfade_duration: 0.25,
-            target_ir_name: "none".to_string(),
+            crossfade_duration: 0.28,
             last_ir_name: "none".to_string(),
             ducking: 0.0,
             duck_timer: 0.0,
@@ -61,7 +63,7 @@ pub fn initialize_kira_ambient_filters(
         controller.delay = Some(delay);
     }
     if let Ok(conv) = audio.add_effect(ConvolutionBuilder::new().mix(0.0)) {
-        controller.current_convolution = Some(conv);
+        controller.early_convolution = Some(conv);
         controller.last_ir_name = "none".to_string();
     }
 }
@@ -75,7 +77,6 @@ pub fn apply_kira_ambient_multi_band_filtering(
     audio: Res<AudioManager>,
     mut controller: ResMut<KiraAmbientController>,
 ) {
-    // === 1. Basic modulation ===
     let low_damping = reverb_state.low_damping;
     let high_damping = reverb_state.high_damping;
     let early_delay = estimate.early_reflection_delay_ms;
@@ -83,6 +84,7 @@ pub fn apply_kira_ambient_multi_band_filtering(
 
     let early_mod = (early_delay / 80.0).clamp(0.0, 1.0);
 
+    // === Late Tail (Filters + Delay) ===
     if let Some(lp) = &controller.low_pass_filter {
         let base = 2100.0 + (1.0 - high_damping) * 8500.0;
         let cutoff = (base * (1.0 - early_mod * 0.15)).max(550.0);
@@ -98,29 +100,29 @@ pub fn apply_kira_ambient_multi_band_filtering(
     if let Some(delay) = &controller.delay {
         let target_delay = (early_delay / 1000.0).clamp(0.008, 0.12);
         let _ = delay.set_delay(target_delay);
-        let mix = (0.25 + early_mod * 0.35).clamp(0.2, 0.65);
+        let mix = (0.25 + early_mod * 0.35).clamp(0.2, 0.65) * quality.get_late_mix();
         let _ = delay.set_mix(mix);
     }
 
-    // === 2. Quality + Distance ===
+    // === Early Reflections (Convolution) ===
     let listener_pos = listener.as_ref().map(|l| l.position).unwrap_or(Vec3::ZERO);
     let distance = listener_pos.length();
     let quality_multiplier = quality.get_convolution_mix_multiplier(distance);
+    let early_mix = quality.get_early_mix() * quality_multiplier;
 
-    // === 3. Equal-Power Crossfade ===
-    let ir_name_changed = controller.last_ir_name != ir.name;
+    let ir_changed = controller.last_ir_name != ir.name;
     let has_loaded = ir.loaded_source.is_some();
     let is_crossfading = controller.fading_out_convolution.is_some() || controller.crossfade_timer > 0.0;
 
-    if ir_name_changed && has_loaded && !is_crossfading {
+    if ir_changed && has_loaded && !is_crossfading {
         controller.crossfade_duration = quality.crossfade_duration;
-        start_crossfade(&mut controller, ir, estimate.wetness, quality_multiplier, audio);
+        start_crossfade(&mut controller, ir, estimate.wetness, early_mix, audio);
     }
 
     if is_crossfading {
-        update_crossfade(&mut controller, ir, estimate.wetness, quality_multiplier);
-    } else if let Some(conv) = &controller.current_convolution {
-        let target = (ir.wetness_bias * estimate.wetness * 0.7 * quality_multiplier).clamp(0.0, 0.65);
+        update_crossfade(&mut controller, ir, estimate.wetness, early_mix);
+    } else if let Some(conv) = &controller.early_convolution {
+        let target = (ir.wetness_bias * estimate.wetness * 0.75 * early_mix).clamp(0.0, 0.7);
         let _ = conv.set_mix(target);
     }
 }
@@ -129,14 +131,13 @@ fn start_crossfade(
     controller: &mut KiraAmbientController,
     new_ir: &crate::audio::ir_manager::ImpulseResponse,
     current_wetness: f32,
-    quality_multiplier: f32,
+    early_mix: f32,
     audio: Res<AudioManager>,
 ) {
-    if let Some(current) = controller.current_convolution.take() {
+    if let Some(current) = controller.early_convolution.take() {
         controller.fading_out_convolution = Some(current);
     }
     controller.crossfade_timer = 0.0;
-    controller.target_ir_name = new_ir.name.clone();
 
     if let Some(loaded) = &new_ir.loaded_source {
         if let Ok(new_conv) = audio.add_effect(
@@ -144,7 +145,7 @@ fn start_crossfade(
                 .impulse_response(loaded.clone())
                 .mix(0.0)
         ) {
-            controller.current_convolution = Some(new_conv);
+            controller.early_convolution = Some(new_conv);
         }
     }
     controller.last_ir_name = new_ir.name.clone();
@@ -154,23 +155,21 @@ fn update_crossfade(
     controller: &mut KiraAmbientController,
     current_ir: &crate::audio::ir_manager::ImpulseResponse,
     current_wetness: f32,
-    quality_multiplier: f32,
+    early_mix: f32,
 ) {
     controller.crossfade_timer += 1.0 / 60.0;
 
     let t = (controller.crossfade_timer / controller.crossfade_duration).clamp(0.0, 1.0);
-
-    // Equal-power crossfade curves (perceptually smoother)
     let fade_out = (1.0 - t).sqrt();
     let fade_in = t.sqrt();
 
     if let Some(old_conv) = &controller.fading_out_convolution {
-        let target = (current_ir.wetness_bias * current_wetness * 0.7 * quality_multiplier * fade_out).clamp(0.0, 0.7);
+        let target = (current_ir.wetness_bias * current_wetness * 0.7 * early_mix * fade_out).clamp(0.0, 0.7);
         let _ = old_conv.set_mix(target);
     }
 
-    if let Some(new_conv) = &controller.current_convolution {
-        let target = (current_ir.wetness_bias * current_wetness * 0.8 * quality_multiplier * fade_in).clamp(0.0, 0.7);
+    if let Some(new_conv) = &controller.early_convolution {
+        let target = (current_ir.wetness_bias * current_wetness * 0.75 * early_mix * fade_in).clamp(0.0, 0.7);
         let _ = new_conv.set_mix(target);
     }
 
