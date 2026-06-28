@@ -1,1 +1,49 @@
-bevy_hanabi = { version = "0.13", features = ["3d"] }
+[workspace]
+members = [
+    "client",
+    "server",
+    "simulation",
+    "game",
+    "powrush-divine-module",
+    "crates/rsil-identity",
+]
+
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Sherif Samy Botros <sherif@alphapromega.com>"]
+license = "AG-SML-1.0"
+repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
+description = "Powrush-MMO: Universally Shared Naturally Thriving Heavens — RBE metaverse MMOARPG where abundance, mercy, and joy propagate for all sentience."
+
+[workspace.dependencies]
+# Shared Bevy + ecosystem (client + server + simulation)
+bevy = { version = "0.14", default-features = false }
+bevy_hanabi = { version = "0.11", features = ["2d", "3d"] }
+bevy_egui = "0.27"
+bevy_kira_audio = "0.20"
+kira = { version = "0.8", features = ["cpal"] }
+fundsp = "0.18"
+steamworks = "0.11"
+
+# Internal
+simulation = { path = "simulation" }
+game = { path = "game" }
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# Workspace features for consistent builds (gpu, audio, egui, steam, spectral)
+[workspace.features]
+gpu = []
+audio-advanced = ["bevy_kira_audio", "kira", "fundsp"]
+egui = ["bevy_egui"]
+steam = ["steamworks"]
+spectral_granular = []
