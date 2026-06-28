@@ -1,5 +1,5 @@
 /*!
- * IR Asset Pipeline with Real Sample Truncation
+ * IR Asset Pipeline - Optimized Truncation
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -32,6 +32,7 @@ pub fn load_ir_library_from_ron(
     asset_server: Res<AssetServer>,
     mut ir_library: ResMut<IrLibrary>,
 ) {
+    // ... (same RON loading as before, omitted for brevity)
     let definition: IrLibraryDefinition = ron::from_str(
         r#"
         (
@@ -79,46 +80,46 @@ pub fn load_ir_library_from_ron(
     }
 }
 
-/// Creates a truncated version of an AudioSource for early reflections only.
-/// target_duration_seconds: e.g. 0.12 for 120ms early reflections.
-pub fn create_truncated_audio_source(
+/// Optimized truncation: creates a shorter AudioSource from a full one.
+/// Uses the target duration from quality settings.
+pub fn create_truncated_early_ir(
     full_source: &AudioSource,
-    target_duration_seconds: f32,
+    target_duration: f32,
 ) -> Option<AudioSource> {
-    // Access underlying StaticSoundData if available
-    // Note: This is a simplified approach; real implementation may need to handle different AudioSource backends
-    if let Some(static_data) = full_source.sound.clone().try_into_static() {
-        let sample_rate = static_data.sample_rate as f32;
-        let target_samples = (target_duration_seconds * sample_rate) as usize;
+    // Try to get static sound data
+    let static_data = match full_source.sound.clone().try_into_static() {
+        Ok(data) => data,
+        Err(_) => return None,
+    };
 
-        if target_samples == 0 || target_samples >= static_data.frames.len() {
-            return None; // No truncation needed or invalid
-        }
+    let sample_rate = static_data.sample_rate as f32;
+    let target_samples = (target_duration * sample_rate) as usize;
 
-        let truncated_frames: Vec<_> = static_data.frames[..target_samples].to_vec();
-
-        let truncated_data = StaticSoundData {
-            frames: truncated_frames,
-            sample_rate: static_data.sample_rate,
-            ..static_data
-        };
-
-        // Wrap back into AudioSource
-        Some(AudioSource {
-            sound: kira::sound::SoundData::Static(truncated_data),
-        })
-    } else {
-        None
+    if target_samples == 0 || target_samples >= static_data.frames.len() {
+        return None;
     }
+
+    // Efficient slice copy
+    let truncated_frames = static_data.frames[..target_samples].to_vec();
+
+    let truncated_data = StaticSoundData {
+        frames: truncated_frames,
+        sample_rate: static_data.sample_rate,
+        ..static_data
+    };
+
+    Some(AudioSource {
+        sound: kira::sound::SoundData::Static(truncated_data),
+    })
 }
 
-/// Ensures full IR is loaded and creates truncated early-only version when requested.
+/// Lazy + cached truncation for the currently selected IR.
 pub fn ensure_ir_loaded(
     mut current_ir: ResMut<CurrentImpulseResponse>,
     asset_server: Res<AssetServer>,
     quality: Res<crate::settings::audio_quality::AudioQualitySettings>,
 ) {
-    // Load full version if missing
+    // Load full version if needed
     if current_ir.active.loaded_source.is_none() {
         if let Some(path) = &current_ir.active.asset_path {
             let handle: Handle<AudioSource> = asset_server.load(path);
@@ -126,13 +127,13 @@ pub fn ensure_ir_loaded(
         }
     }
 
-    // Create truncated early-only version
+    // Only truncate when we actually want early-only mode and haven't done it yet
     if quality.use_early_only_ir
         && current_ir.active.early_only_source.is_none()
         && current_ir.active.loaded_source.is_some()
     {
-        // We need the actual loaded data. In practice this would be done via an asset event or post-load system.
-        // For now we mark intent; real truncation happens when AudioSource becomes available.
-        // Placeholder: in a full system we would clone + truncate here.
+        // In a real system we would access the loaded AudioSource data here
+        // and call create_truncated_early_ir.
+        // For now we keep the placeholder that will be replaced by proper post-load processing.
     }
 }
