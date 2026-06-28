@@ -1,5 +1,5 @@
 /*!
- * Audio Quality & Performance Settings (Hybrid Reverb)
+ * Audio Quality & Performance Settings (with Truncation Tuning)
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -9,20 +9,17 @@ use bevy::prelude::*;
 #[derive(Resource, Clone, Copy)]
 pub struct AudioQualitySettings {
     pub master_quality: f32,
-
-    // Convolution / Early Reflections
     pub convolution_quality: f32,
-    pub use_early_only_ir: bool,        // Prefer short early-only IRs when available
-    pub early_reflection_mix: f32,      // 0.0 - 1.0
-
-    // Late Tail
+    pub use_early_only_ir: bool,
+    pub early_reflection_mix: f32,
     pub late_tail_quality: f32,
     pub late_tail_mix: f32,
-
-    // Global behavior
     pub convolution_max_distance: f32,
     pub enable_distance_lod: bool,
     pub crossfade_duration: f32,
+
+    /// Target length of early-only truncated IRs (in seconds)
+    pub early_reflection_target_duration: f32,
 }
 
 impl Default for AudioQualitySettings {
@@ -37,19 +34,16 @@ impl Default for AudioQualitySettings {
             convolution_max_distance: 180.0,
             enable_distance_lod: true,
             crossfade_duration: 0.28,
+            early_reflection_target_duration: 0.12, // 120ms early reflections
         }
     }
 }
 
 impl AudioQualitySettings {
     pub fn get_convolution_mix_multiplier(&self, distance_to_focus: f32) -> f32 {
-        if self.convolution_quality <= 0.01 {
-            return 0.0;
-        }
+        if self.convolution_quality <= 0.01 { return 0.0; }
         let quality = self.convolution_quality * self.master_quality;
-        if !self.enable_distance_lod {
-            return quality;
-        }
+        if !self.enable_distance_lod { return quality; }
         let distance_factor = (1.0 - (distance_to_focus / self.convolution_max_distance).clamp(0.0, 1.0)).powf(0.7);
         (quality * distance_factor).clamp(0.0, 1.0)
     }
