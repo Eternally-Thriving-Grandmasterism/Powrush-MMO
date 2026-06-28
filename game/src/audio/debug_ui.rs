@@ -1,5 +1,7 @@
 /*!
  * Audio Debug UI Overlay with F3 Toggle
+ *
+ * Provides a toggleable debug window showing real-time audio mixing diagnostics.
  */
 
 use bevy::prelude::*;
@@ -11,21 +13,33 @@ use crate::settings::audio_mixing::{
     CURRENT_DUCKING_LEVEL,
 };
 
-/// Resource to control visibility of the audio debug UI.
-#[derive(Resource, Default)]
+/// Resource controlling the visibility of the Audio Mixing Debug UI.
+///
+/// Default is `false` (hidden). Press F3 to toggle.
+#[derive(Resource, Default, Debug)]
 pub struct AudioDebugUiVisible(pub bool);
 
-/// System that toggles the debug UI visibility when F3 is pressed.
-pub fn toggle_audio_debug_ui(
-    mut visible: ResMut<AudioDebugUiVisible>,
-    input: Res<ButtonInput<KeyCode>>,
-) {
-    if input.just_pressed(KeyCode::F3) {
-        visible.0 = !visible.0;
+impl AudioDebugUiVisible {
+    /// Toggles the current visibility state.
+    pub fn toggle(&mut self) {
+        self.0 = !self.0;
     }
 }
 
-/// Main debug UI system. Only renders when `AudioDebugUiVisible` is true.
+/// System that toggles the audio debug UI when the F3 key is pressed.
+///
+/// This system is intentionally lightweight and only reacts to key presses.
+pub fn toggle_audio_debug_ui(
+    mut visible: ResMut<AudioDebugUiVisible>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
+    if keyboard.just_pressed(KeyCode::F3) {
+        visible.toggle();
+    }
+}
+
+/// Renders the Audio Mixing Debug window using egui.
+/// Only active when `AudioDebugUiVisible` is true.
 pub fn audio_debug_ui(
     mut contexts: EguiContexts,
     diagnostics: Res<Diagnostics>,
@@ -56,7 +70,7 @@ pub fn audio_debug_ui(
             }
 
             ui.separator();
-            ui.label("Press F3 to hide this window.");
-            ui.label("Edit config/adaptive_audio.ron to tune ducking curves live.");
+            ui.label("Press F3 to toggle this window.");
+            ui.label("Tune values in config/adaptive_audio.ron (hot-reloadable).");
         });
 }
