@@ -1,25 +1,25 @@
 /*!
- * Audio Events - Including AudioTrigger for gameplay-driven audio
+ * Audio Events
  */
 
 use bevy::prelude::*;
 use crate::settings::audio_mixing::{AudioCategory, Priority};
 
-// ... existing events (PaletteTransitionEvent, RegionTransitionEvent, etc.) ...
-
-/// Event emitted by gameplay systems to request audio with a specific priority.
-/// This is the primary interface for game logic to influence the Dynamic Audio Mixing system.
+/// Primary event for gameplay systems to trigger audio with specific mixing behavior.
 #[derive(Event, Debug, Clone)]
 pub struct AudioTrigger {
     /// Priority level. Higher priorities can duck lower priority audio.
     pub priority: Priority,
 
-    /// Optional category. If None, the audio system may decide based on context.
+    /// Optional category override.
     pub category: Option<AudioCategory>,
 
-    /// Optional intensity scalar (0.0 - 1.0).
+    /// Optional intensity (0.0–1.0).
     pub intensity: Option<f32>,
 
-    /// Optional label for debugging and diagnostics.
+    /// Optional sound path to play. If present, the handler will spawn this sound.
+    pub sound_path: Option<String>,
+
+    /// Optional label for debugging.
     pub label: Option<String>,
 }
