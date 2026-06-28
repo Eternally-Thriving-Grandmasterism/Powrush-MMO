@@ -1,7 +1,5 @@
 /*!
- * Audio Events - Palette Transitions, Combat & Region Events for Adaptive Layering
- *
- * Enums now Serialize/Deserialize ready for RON config (RegionPaletteConfig).
+ * Audio Events - Including Hot Reload Events for Region & AI configs
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -56,4 +54,20 @@ pub struct RegionTransitionEvent {
 pub struct CombatStateChangedEvent {
     pub entering_combat: bool,
     pub intensity: f32,
+}
+
+// === Hot Reload Events ===
+
+#[derive(Event, Debug, Clone)]
+pub struct RegionPaletteConfigReloaded {
+    pub mappings_count: usize,
+    pub default_palette: PaletteType,
+    pub timestamp: f32,
+}
+
+#[derive(Event, Debug, Clone)]
+pub struct AIConfigReloaded {
+    pub combat_intensity_scale: f32,
+    pub base_aggression: f32,
+    pub timestamp: f32,
 }
