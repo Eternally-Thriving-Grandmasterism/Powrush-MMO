@@ -1,11 +1,11 @@
 /*!
- * Adaptive Layering System - Robust audio feedback sounds implementation
+ * Adaptive Layering System - Asset loading checks for audio feedback
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
 
 use bevy::prelude::*;
-use bevy::asset::{Asset, AssetLoader, LoadContext, io::Reader, Handle, AssetEvent};
+use bevy::asset::{Asset, AssetLoader, LoadContext, io::Reader, Handle, AssetEvent, LoadState};
 use super::events::{
     PaletteTransitionEvent, PaletteType, TransitionPriority,
     RegionTransitionEvent, RegionType, CombatStateChangedEvent,
@@ -32,13 +32,13 @@ pub struct AudioEventMetrics { /* ... */ }
 pub struct AdaptiveLayeringState { /* ... */ }
 
 #[derive(Resource, Clone)]
-pub struct AdaptiveAudioConfig { /* ... with reload volumes */ }
+pub struct AdaptiveAudioConfig { /* ... */ }
 
 impl Default for AdaptiveAudioConfig { fn default() -> Self { /* ... */ } }
 
 pub fn calculate_dynamic_ramp_time(...) -> f32 { /* ... */ }
 
-// === Robust Audio Feedback Helper ===
+// === Robust Audio Feedback with Asset Loading Checks ===
 
 fn play_reload_feedback_sound(
     commands: &mut Commands,
@@ -48,24 +48,35 @@ fn play_reload_feedback_sound(
     volume_mult: f32,
     pitch: f32,
 ) {
-    let sound_handle = asset_server.load(path);
+    let sound_handle: Handle<AudioSource> = asset_server.load(path);
 
-    commands.spawn((
-        AudioBundle {
-            source: sound_handle,
-            settings: PlaybackSettings::ONCE
-                .with_volume(mixer.ui * volume_mult)
-                .with_pitch(pitch),
-        },
-        DynamicAudio {
-            category: AudioCategory::Music,
-            priority: Priority::High,
-        },
-    ));
+    // Asset loading check
+    match asset_server.get_load_state(&sound_handle) {
+        Some(LoadState::Loaded) | Some(LoadState::Loading) => {
+            commands.spawn((
+                AudioBundle {
+                    source: sound_handle,
+                    settings: PlaybackSettings::ONCE
+                        .with_volume(mixer.ui * volume_mult)
+                        .with_pitch(pitch),
+                },
+                DynamicAudio {
+                    category: AudioCategory::Music,
+                    priority: Priority::High,
+                },
+            ));
+        }
+        Some(LoadState::Failed(_)) => {
+            warn!("[Audio] Failed to load reload feedback sound: {}", path);
+        }
+        _ => {
+            // Still loading or not yet processed - try again next frame if needed
+            // For hot reload feedback, we can silently skip or queue it
+        }
+    }
 }
 
-// === Hot Reload Audio Feedback Listeners ===
-
+// Listeners using the safe helper
 pub fn on_region_palette_config_reloaded(
     mut events: EventReader<RegionPaletteConfigReloaded>,
     mut commands: Commands,
@@ -83,7 +94,6 @@ pub fn on_region_palette_config_reloaded(
             config.region_palette_reload_volume,
             pitch,
         );
-        info!("[Audio] RegionPaletteConfig hot reload feedback played");
     }
 }
 
@@ -104,10 +114,9 @@ pub fn on_ai_config_reloaded(
             config.ai_config_reload_volume,
             pitch,
         );
-        info!("[Audio] AIConfig hot reload feedback played");
     }
 }
 
-// All other systems and types remain as in previous version
+// All previous systems remain
 pub fn adaptive_layering_system(...) { /* ... */ }
-// ... (rest of the file unchanged from previous state)
+// ... rest of file
