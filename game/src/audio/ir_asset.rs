@@ -1,5 +1,5 @@
 /*!
- * IR Asset Pipeline - Complete with Asset Post-Processor
+ * IR Asset Pipeline - Improved Post-Processor with Asset ID Matching
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -80,7 +80,7 @@ impl bevy::asset::AssetLoader for IrAssetLoader {
     }
 }
 
-/// Asset post-processor: creates truncated early-only IR when an IrAsset finishes loading.
+/// Improved asset post-processor using AssetId for reliable matching
 pub fn process_loaded_ir_assets(
     mut ev_asset: EventReader<AssetEvent<IrAsset>>,
     ir_assets: Res<Assets<IrAsset>>,
@@ -90,18 +90,19 @@ pub fn process_loaded_ir_assets(
 ) {
     for ev in ev_asset.read() {
         if let AssetEvent::LoadedWithDependencies { id } = ev {
-            // Check if the loaded IrAsset is the one currently selected
-            if let Some(active_ir) = ir_assets.get(*id) {
-                // For simplicity we check against the name; in production use a better identifier
-                if active_ir.name == current_ir.active.name {
+            // Reliable matching using AssetId instead of string names
+            if let Some(active_handle) = &current_ir.active_ir_asset {
+                if active_handle.id() == *id {
                     if quality.use_early_only_ir && current_ir.active.early_only_source.is_none() {
-                        if let Some(full_source) = audio_assets.get(&active_ir.full_source) {
-                            if let Some(truncated) = create_truncated_early_ir(
-                                full_source,
-                                quality.early_reflection_target_duration,
-                            ) {
-                                let truncated_handle = audio_assets.add(truncated);
-                                current_ir.active.early_only_source = Some(truncated_handle);
+                        if let Some(ir_asset) = ir_assets.get(*id) {
+                            if let Some(full_source) = audio_assets.get(&ir_asset.full_source) {
+                                if let Some(truncated) = create_truncated_early_ir(
+                                    full_source,
+                                    quality.early_reflection_target_duration,
+                                ) {
+                                    let truncated_handle = audio_assets.add(truncated);
+                                    current_ir.active.early_only_source = Some(truncated_handle);
+                                }
                             }
                         }
                     }
@@ -140,7 +141,6 @@ pub fn create_truncated_early_ir(
     })
 }
 
-// Keep the old RON library loader for backward compatibility
 pub fn load_ir_library_from_ron(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
