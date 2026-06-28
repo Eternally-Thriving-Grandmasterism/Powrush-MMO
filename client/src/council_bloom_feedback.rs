@@ -2,11 +2,10 @@
  * Council Bloom Feedback — Rich Particle + Toast + History Panel
  * Restored + Wired to optimized spawn_council_bloom_particles_optimized (memory + perf)
  *
- * v19.3 — Recovery + Integration Pass
- * - Restored missing receive_bloom_notifications + particle spawn logic
- * - Fully wired to spawn_council_bloom_particles_optimized from particles.rs (with memory-aware scaling)
- * - Preserved 100% of History Panel, BloomHistory, toast UI, and all existing code
- * - All prior valuable logic elevated. No loss.
+ * v19.4 — Wiring Polish Pass
+ * - Updated receive_bloom_notifications to use ActiveCouncilBloomCount resource
+ * - Concurrent limit in spawn helper is now fully effective
+ * - All previous restoration and UI code preserved exactly
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -16,7 +15,12 @@ use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 use bevy_hanabi::prelude::*;
 
-use crate::particles::{spawn_council_bloom_particles_optimized, ParticleVisualPool, CouncilBloomParticleMarker};
+use crate::particles::{
+    spawn_council_bloom_particles_optimized,
+    ParticleVisualPool,
+    CouncilBloomParticleMarker,
+    ActiveCouncilBloomCount, // NEW: for accurate concurrent limiting
+};
 use crate::replication::CouncilBloomReceived;
 use crate::simulation_integration::{ClientCouncilBloomState, ClientInterestState};
 
@@ -107,7 +111,7 @@ impl BloomHistory {
 }
 
 // ============================================================================
-// Plugin (updated to include all systems)
+// Plugin (preserved)
 // ============================================================================
 
 pub struct CouncilBloomFeedbackPlugin;
@@ -128,7 +132,7 @@ impl Plugin for CouncilBloomFeedbackPlugin {
 }
 
 // ============================================================================
-// Core Receive + Optimized Particle Spawn (RESTORED + WIRED)
+// Core Receive + Optimized Particle Spawn (updated to use ActiveCouncilBloomCount)
 // ============================================================================
 
 fn receive_bloom_notifications(
@@ -138,33 +142,30 @@ fn receive_bloom_notifications(
     visual_assets: Option<Res<crate::world::ParticleVisualAssets>>,
     interest: Res<ClientInterestState>,
     camera_query: Query<&Transform, With<Camera>>,
+    active_bloom_count: Res<ActiveCouncilBloomCount>, // NEW: real-time count
 ) {
     let camera_pos = camera_query.get_single().map(|t| t.translation).unwrap_or(Vec3::ZERO);
-    let active_count = 0; // In real: count current CouncilBloomParticleMarker entities
 
     for event in bloom_events.read() {
         if event.payload.bloom_activated {
-            // Wire to the new memory-optimized spawn helper
+            // Now using real active count from the resource for effective concurrent limiting
             spawn_council_bloom_particles_optimized(
                 &mut commands,
                 &mut pool,
                 visual_assets.as_deref(),
-                Vec3::ZERO, // or derive from event if payload has position
+                Vec3::ZERO,
                 event.payload.bloom_amplification_multiplier.max(0.3),
                 event.payload.collective_attunement_score,
                 &interest,
                 camera_pos,
-                active_count,
+                active_bloom_count.count,
             );
-
-            // Also trigger toast (restored behavior)
-            // (implementation below in update_toasts / draw_toast_ui)
         }
     }
 }
 
 // ============================================================================
-// Toast + History Systems (preserved + lightly completed for functionality)
+// Toast + History Systems (preserved exactly)
 // ============================================================================
 
 fn record_bloom_to_history(
