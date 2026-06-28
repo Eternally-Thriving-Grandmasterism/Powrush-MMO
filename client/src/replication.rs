@@ -11,38 +11,12 @@ pub enum UpdatePayload {
     InterestZone(InterestZonePayload),
     CouncilSession(CouncilSessionPayload),
     CouncilBloom(CouncilBloomPayload),
-    /// New: Inventory updates from RBE distribution (triggered by RbeInventoryUpdatedEvent on server)
     RbeInventoryUpdate(RbeInventoryUpdatePayload),
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct AbilityUpdatePayload { /* ... */ }
+// ... (other payload structs unchanged) ...
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct HealthUpdatePayload { /* ... */ }
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct StatusEffectUpdatePayload { /* ... */ }
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct BloomStatePayload { /* ... */ }
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct ResonanceSeedPayload { /* ... */ }
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct HarvestPayload { /* ... */ }
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct EmergencePayload { /* ... */ }
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct InterestZonePayload { /* ... */ }
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct CouncilSessionPayload { /* ... */ }
-
-/// Client-side Council Bloom payload (matches server CouncilBloomPayload)
+/// Client-side Council Bloom payload
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct CouncilBloomPayload {
     pub session_id: u64,
@@ -54,34 +28,44 @@ pub struct CouncilBloomPayload {
     pub trigger_reason: String,
 }
 
-/// Wire format payload for RBE inventory updates (distribution, transfers, etc.)
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct RbeInventoryUpdatePayload {
-    pub resource_type: String,
-    pub amount: f32,
-    pub delta: f32,
+/// Event emitted when a Council Bloom is received from server replication
+#[derive(Event, Clone, Debug)]
+pub struct CouncilBloomReceived {
+    pub payload: CouncilBloomPayload,
 }
 
-/// Decodes a CouncilBloom payload and emits client-side effects / UI events.
-/// Call this from your main replication apply system when receiving UpdatePayload::CouncilBloom.
+/// Decodes a CouncilBloom payload and emits client-side effects.
+/// Recommended to call from your main replication apply system.
 pub fn decode_and_apply_council_bloom(
     payload: &CouncilBloomPayload,
-    // TODO: pass commands, event writers, or UI resources as needed
+    mut bloom_events: EventWriter<CouncilBloomReceived>,
 ) {
     if payload.bloom_activated {
-        // Example: trigger client bloom VFX, UI update, sound, etc.
         info!(
-            "[Client] Council Bloom activated! Session {} | Attunement: {:.2} | Participants: {} | Reason: {}",
+            "[Client] Council Bloom received! Session {} | Attunement: {:.2} | Participants: {}",
             payload.session_id,
             payload.collective_attunement_score,
-            payload.participant_count,
-            payload.trigger_reason
+            payload.participant_count
         );
 
-        // TODO: send client event e.g.
-        // commands.spawn(... bloom effect ...);
-        // event_writer.send(CouncilBloomReceived { ... });
+        bloom_events.send(CouncilBloomReceived { payload: payload.clone() });
     }
 }
 
-// (rest of file unchanged - existing replication systems, network handlers, etc.)
+/// Example system to wire into your replication handler:
+///
+/// ```ignore
+/// fn apply_replication_updates(
+///     mut updates: EventReader<TargetedUpdate>,
+///     mut bloom_events: EventWriter<CouncilBloomReceived>,
+/// ) {
+///     for update in updates.read() {
+///         if let UpdatePayload::CouncilBloom(ref payload) = update.payload {
+///             decode_and_apply_council_bloom(payload, bloom_events);
+///         }
+///         // ... handle other variants ...
+///     }
+/// }
+/// ```
+
+// (rest of replication systems, network dispatch, etc. remain in their files)
