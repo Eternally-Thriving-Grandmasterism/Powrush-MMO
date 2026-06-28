@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - Closed loop: RegionType + Palette↔Music + Combat intensity + Adaptive ramps
+ * Audio Plugin - Closed loop + RON RegionPaletteConfig
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -28,6 +28,7 @@ pub use adaptive_layering::{
     AudioContext, EmotionalWeight, adaptive_layering_system, request_combat_palette,
     region_audio_transition_system, palette_to_music_mapping_system,
     feed_combat_intensity, combat_intensity_system,
+    RegionPaletteConfig, load_region_palette_config,
 };
 pub use events::{PaletteTransitionEvent, PaletteType, TransitionPriority, RegionTransitionEvent, RegionType, CombatStateChangedEvent};
 
@@ -51,19 +52,24 @@ impl Plugin for AudioPlugin {
             .init_resource::<AudioLatencyMetrics>()
             .init_resource::<AdaptiveLayeringState>()
             .init_resource::<AdaptiveAudioConfig>()
+            .init_resource::<adaptive_layering::RegionPaletteConfig>()
             .add_event::<PaletteTransitionEvent>()
             .add_event::<CombatStateChangedEvent>()
             .add_event::<RegionTransitionEvent>()
             .register_asset_loader(IrAssetLoader)
-            .add_systems(Startup, (load_biome_acoustic_profile, load_ir_library_from_ron))
+            .add_systems(Startup, (
+                load_biome_acoustic_profile,
+                load_ir_library_from_ron,
+                adaptive_layering::load_region_palette_config,
+            ))
             .add_systems(Update, (
                 evaluate_music_state, update_music, update_music_layers,
                 update_procedural_reverb_estimation, update_biome_acoustic_transition,
                 super::ir_asset::process_loaded_ir_assets,
                 adaptive_layering_system,
                 region_audio_transition_system,
-                palette_to_music_mapping_system,   // Palette → MusicStateType + ramp
-                combat_intensity_system,           // Combat events → industrial_intensity
+                palette_to_music_mapping_system,
+                combat_intensity_system,
             ));
     }
 }
