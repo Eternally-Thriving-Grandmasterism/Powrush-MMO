@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - With Latency Monitoring + Adaptive Layering System
+ * Audio Plugin - With Latency Monitoring + Adaptive Layering System + Region Weighting
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -36,6 +36,7 @@ pub use adaptive_layering::{
     EmotionalWeight,
     adaptive_layering_system,
     request_combat_palette,
+    region_audio_transition_system,
 };
 pub use events::{ 
     PaletteTransitionEvent, 
@@ -78,6 +79,7 @@ impl Plugin for AudioPlugin {
                 update_biome_acoustic_transition,
                 super::ir_asset::process_loaded_ir_assets,
                 adaptive_layering_system,
+                region_audio_transition_system, // Region + biome + distance_factor -> PaletteTransitionEvent
             ));
     }
 }
