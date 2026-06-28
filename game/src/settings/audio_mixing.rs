@@ -1,5 +1,5 @@
 /*!
- * Dynamic Audio Mixing with Smooth Priority-Based Ducking
+ * Dynamic Audio Mixing with Exponential Priority-Based Ducking
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -39,10 +39,9 @@ pub struct AudioMixer {
     pub voice: f32,
     pub ambient: f32,
 
-    // Ducking configuration
-    pub ducking_factor: f32,      // Target ducking multiplier (e.g. 0.35 = duck to 35%)
-    pub ducking_attack: f32,      // Speed when ducking engages (higher = faster)
-    pub ducking_release: f32,     // Speed when ducking releases
+    pub ducking_factor: f32,
+    pub ducking_attack: f32,     // Higher = faster exponential attack
+    pub ducking_release: f32,    // Higher = faster exponential release
 }
 
 impl Default for AudioMixer {
@@ -55,8 +54,8 @@ impl Default for AudioMixer {
             voice: 1.0,
             ambient: 0.7,
             ducking_factor: 0.35,
-            ducking_attack: 8.0,   // Fast attack
-            ducking_release: 3.0,  // Slower release
+            ducking_attack: 10.0,
+            ducking_release: 4.0,
         }
     }
 }
@@ -74,13 +73,12 @@ impl AudioMixer {
     }
 }
 
-/// Resource to track current ducking state for smooth transitions
 #[derive(Resource, Default)]
 pub struct DuckingState {
-    pub current_level: f32, // 1.0 = no ducking, lower = more ducked
+    pub current_level: f32, // 1.0 = no ducking
 }
 
-/// System with smooth attack/release ducking based on priority
+/// System with exponential attack/release ducking
 pub fn update_dynamic_audio_volumes(
     mixer: Res<AudioMixer>,
     mut ducking: ResMut<DuckingState>,
@@ -98,24 +96,26 @@ pub fn update_dynamic_audio_volumes(
         }
     }
 
-    // Calculate target ducking level
+    // Target ducking level
     let target_level = if highest_priority > Priority::Normal {
         mixer.ducking_factor
     } else {
         1.0
     };
 
-    // Smooth interpolation (attack vs release)
-    let lerp_speed = if target_level < ducking.current_level {
+    // Exponential interpolation (much more natural than linear)
+    let rate = if target_level < ducking.current_level {
         mixer.ducking_attack
     } else {
         mixer.ducking_release
     };
 
-    ducking.current_level = ducking.current_level
-        + (target_level - ducking.current_level) * lerp_speed * time.delta_secs();
+    let dt = time.delta_secs();
+    let t = 1.0 - (-rate * dt).exp(); // exponential ease
 
-    // Apply volumes with current ducking level
+    ducking.current_level = ducking.current_level * (1.0 - t) + target_level * t;
+
+    // Apply final volume with ducking
     for (dynamic, mut sink) in query.iter_mut() {
         let base_volume = mixer.get_volume_for_category(dynamic.category);
 
