@@ -23,9 +23,27 @@ use crate::settings::biome_acoustic::{load_biome_acoustic_profile, update_biome_
 use crate::settings::audio_quality::AudioQualitySettings;
 use shared::spatial::HierarchicalGrid;
 
-// Adaptive Layering modules (declared here for sibling visibility; integrates with music + kira crossfades)
+// Adaptive Layering modules (declared here for sibling visibility)
 mod adaptive_layering;
 mod events;
+
+// Re-exports for convenient access from combat/region systems and external crates
+pub use adaptive_layering::{ 
+    AdaptiveLayeringState, 
+    AdaptiveAudioConfig, 
+    calculate_dynamic_ramp_time, 
+    AudioContext, 
+    EmotionalWeight,
+    adaptive_layering_system,
+    request_combat_palette,
+};
+pub use events::{ 
+    PaletteTransitionEvent, 
+    PaletteType, 
+    TransitionPriority, 
+    CombatStateChangedEvent, 
+    RegionTransitionEvent,
+};
 
 pub struct AudioPlugin;
 
@@ -45,12 +63,12 @@ impl Plugin for AudioPlugin {
             .init_resource::<IrTruncationMetrics>()
             .init_resource::<SpatialAudioMetrics>()
             .init_resource::<AudioLatencyMetrics>()
-            // === Adaptive Layering System resources & events ===
-            .init_resource::<adaptive_layering::AdaptiveLayeringState>()
-            .init_resource::<adaptive_layering::AdaptiveAudioConfig>()
-            .add_event::<events::PaletteTransitionEvent>()
-            .add_event::<events::CombatStateChangedEvent>()
-            .add_event::<events::RegionTransitionEvent>()
+            // Adaptive Layering
+            .init_resource::<AdaptiveLayeringState>()
+            .init_resource::<AdaptiveAudioConfig>()
+            .add_event::<PaletteTransitionEvent>()
+            .add_event::<CombatStateChangedEvent>()
+            .add_event::<RegionTransitionEvent>()
             .register_asset_loader(IrAssetLoader)
             .add_systems(Startup, (load_biome_acoustic_profile, load_ir_library_from_ron))
             .add_systems(Update, (
@@ -60,8 +78,7 @@ impl Plugin for AudioPlugin {
                 update_procedural_reverb_estimation,
                 update_biome_acoustic_transition,
                 super::ir_asset::process_loaded_ir_assets,
-                // Adaptive layering drives unified palette/intensity/ramp transitions
-                adaptive_layering::adaptive_layering_system,
+                adaptive_layering_system,
             ));
     }
 }
