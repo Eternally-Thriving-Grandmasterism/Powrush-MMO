@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - AudioEventMetrics integrated
+ * Audio Plugin - Hot Reload Events registered
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -32,7 +32,11 @@ pub use adaptive_layering::{
     AIConfig, hot_reload_ai_config_system,
     AudioEventMetrics,
 };
-pub use events::{PaletteTransitionEvent, PaletteType, TransitionPriority, RegionTransitionEvent, RegionType, CombatStateChangedEvent};
+pub use events::{
+    PaletteTransitionEvent, PaletteType, TransitionPriority,
+    RegionTransitionEvent, RegionType, CombatStateChangedEvent,
+    RegionPaletteConfigReloaded, AIConfigReloaded,
+};
 
 pub struct AudioPlugin;
 
@@ -65,6 +69,8 @@ impl Plugin for AudioPlugin {
             .add_event::<PaletteTransitionEvent>()
             .add_event::<CombatStateChangedEvent>()
             .add_event::<RegionTransitionEvent>()
+            .add_event::<RegionPaletteConfigReloaded>()
+            .add_event::<AIConfigReloaded>()
             .register_asset_loader(IrAssetLoader)
             .add_systems(Startup, (
                 load_biome_acoustic_profile,
