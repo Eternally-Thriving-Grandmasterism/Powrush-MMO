@@ -1,7 +1,5 @@
 /*!
- * Impulse Response (IR) Management System (with Asset Loading)
- *
- * Supports loading real impulse responses and applying them to Kira convolution.
+ * IR Management with Truncation Support
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -30,9 +28,9 @@ pub struct ImpulseResponse {
     pub wetness_bias: f32,
     pub early_reflection_strength: f32,
     pub asset_path: Option<String>,
-    // Loaded audio data for convolution (populated at runtime)
-    #[serde(skip)]
+
     pub loaded_source: Option<Handle<AudioSource>>,
+    pub early_only_source: Option<Handle<AudioSource>>, // Truncated early reflections only
 }
 
 #[derive(Resource, Default, Clone)]
@@ -52,7 +50,7 @@ impl IrLibrary {
     }
 
     fn add_example_irs(&mut self) {
-        // Same example IRs as before, now with asset paths
+        // Example entries (truncated support added)
         self.responses.entry(IrCategory::SmallRoom).or_default().push(ImpulseResponse {
             name: "small_stone_room".to_string(),
             category: IrCategory::SmallRoom,
@@ -61,6 +59,7 @@ impl IrLibrary {
             early_reflection_strength: 1.4,
             asset_path: Some("audio/ir/small_stone_room.wav".to_string()),
             loaded_source: None,
+            early_only_source: None,
         });
 
         self.responses.entry(IrCategory::MediumRoom).or_default().push(ImpulseResponse {
@@ -71,6 +70,7 @@ impl IrLibrary {
             early_reflection_strength: 1.1,
             asset_path: Some("audio/ir/medium_wood_hall.wav".to_string()),
             loaded_source: None,
+            early_only_source: None,
         });
 
         self.responses.entry(IrCategory::LargeHall).or_default().push(ImpulseResponse {
@@ -81,6 +81,7 @@ impl IrLibrary {
             early_reflection_strength: 0.8,
             asset_path: Some("audio/ir/large_stone_hall.wav".to_string()),
             loaded_source: None,
+            early_only_source: None,
         });
 
         self.responses.entry(IrCategory::Forest).or_default().push(ImpulseResponse {
@@ -91,6 +92,7 @@ impl IrLibrary {
             early_reflection_strength: 1.6,
             asset_path: Some("audio/ir/forest_ambience.wav".to_string()),
             loaded_source: None,
+            early_only_source: None,
         });
 
         self.default_ir = self.responses.get(&IrCategory::MediumRoom)
@@ -99,7 +101,6 @@ impl IrLibrary {
     }
 
     pub fn select_best(&self, room_size: f32, wetness: f32, biome_name: &str) -> ImpulseResponse {
-        // Same selection logic as before
         let category = match (room_size, biome_name) {
             (r, "forest" | "woods") if r < 0.6 => IrCategory::Forest,
             (r, _) if r < 0.35 => IrCategory::SmallRoom,
@@ -125,6 +126,7 @@ impl IrLibrary {
             early_reflection_strength: 1.0,
             asset_path: None,
             loaded_source: None,
+            early_only_source: None,
         })
     }
 }
@@ -145,24 +147,8 @@ impl Default for CurrentImpulseResponse {
                 early_reflection_strength: 1.0,
                 asset_path: None,
                 loaded_source: None,
+                early_only_source: None,
             },
-        }
-    }
-}
-
-/// System that loads impulse responses when they are first selected.
-pub fn load_selected_impulse_responses(
-    mut current_ir: ResMut<CurrentImpulseResponse>,
-    asset_server: Res<AssetServer>,
-    mut loaded: Local<bool>,
-) {
-    if *loaded { return; }
-
-    if let Some(path) = &current_ir.active.asset_path {
-        if current_ir.active.loaded_source.is_none() {
-            let handle: Handle<AudioSource> = asset_server.load(path);
-            current_ir.active.loaded_source = Some(handle);
-            *loaded = true;
         }
     }
 }
