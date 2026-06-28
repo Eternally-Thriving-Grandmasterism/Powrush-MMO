@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - With Spatial Audio Metrics
+ * Audio Plugin - With Latency Monitoring
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -17,6 +17,7 @@ use super::ir_manager::{IrLibrary, CurrentImpulseResponse};
 use super::ir_asset::{load_ir_library_from_ron, IrAssetLoader};
 use super::ir_metrics::IrTruncationMetrics;
 use super::spatial_metrics::SpatialAudioMetrics;
+use super::latency_metrics::AudioLatencyMetrics;
 use crate::settings::audio_mixing::ReverbState;
 use crate::settings::biome_acoustic::{load_biome_acoustic_profile, update_biome_acoustic_transition, CurrentBiomeAcoustics};
 use crate::settings::audio_quality::AudioQualitySettings;
@@ -39,6 +40,7 @@ impl Plugin for AudioPlugin {
             .init_resource::<AudioQualitySettings>()
             .init_resource::<IrTruncationMetrics>()
             .init_resource::<SpatialAudioMetrics>()
+            .init_resource::<AudioLatencyMetrics>()
             .register_asset_loader(IrAssetLoader)
             .add_systems(Startup, (load_biome_acoustic_profile, load_ir_library_from_ron))
             .add_systems(Update, (
