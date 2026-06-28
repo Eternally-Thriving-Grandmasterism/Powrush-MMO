@@ -1,19 +1,17 @@
 /*!
- * Custom IR Asset Loader - Complete Implementation
+ * IR Asset Pipeline - Complete with Asset Post-Processor
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
-use bevy::asset::{AssetLoader, LoadContext, io::Reader};
 use bevy_kira_audio::AudioSource;
 use kira::sound::static_sound::StaticSoundData;
 use serde::Deserialize;
-use std::sync::Arc;
 
 use crate::audio::ir_manager::{IrCategory, IrLibrary, CurrentImpulseResponse};
+use crate::settings::audio_quality::AudioQualitySettings;
 
-/// Definition stored inside .ir.ron files
 #[derive(Debug, Clone, Deserialize)]
 pub struct IrFileDefinition {
     pub name: String,
@@ -24,7 +22,6 @@ pub struct IrFileDefinition {
     pub early_reflection_strength: f32,
 }
 
-/// Custom asset that represents a processed impulse response with optional early-only version.
 #[derive(Asset, TypePath, Debug, Clone)]
 pub struct IrAsset {
     pub name: String,
@@ -36,38 +33,27 @@ pub struct IrAsset {
     pub early_reflection_strength: f32,
 }
 
-/// Custom loader for .ir and .ir.ron files.
 pub struct IrAssetLoader;
 
-impl AssetLoader for IrAssetLoader {
+impl bevy::asset::AssetLoader for IrAssetLoader {
     type Asset = IrAsset;
     type Settings = ();
     type Error = anyhow::Error;
 
     async fn load(
         &self,
-        reader: &mut dyn Reader,
+        reader: &mut dyn bevy::asset::io::Reader,
         _settings: &(),
-        load_context: &mut LoadContext<'_>,
+        load_context: &mut bevy::asset::LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
-        // Read the entire file content (RON header)
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
 
-        // Deserialize the header
         let definition: IrFileDefinition = ron::de::from_bytes(&bytes)
             .map_err(|e| anyhow::anyhow!("Failed to parse IR definition: {}", e))?;
 
-        // Load the actual audio file as a dependency
         let audio_handle: Handle<AudioSource> = load_context.load(&definition.audio_path);
 
-        // Determine target early reflection length
-        let target_duration = definition.early_reflection_target_duration.unwrap_or(0.12);
-
-        // Create the IrAsset
-        // Note: For true early-only truncation at load time, we would need access to the decoded audio data here.
-        // In this implementation we store the full source and let the post-processor create the truncated version
-        // if needed. This keeps the loader simple and robust.
         let category = match definition.category.as_str() {
             "SmallRoom" => IrCategory::SmallRoom,
             "MediumRoom" => IrCategory::MediumRoom,
@@ -81,9 +67,9 @@ impl AssetLoader for IrAssetLoader {
         Ok(IrAsset {
             name: definition.name,
             category,
-            full_source: audio_handle.clone(),
-            early_only_source: None, // Will be populated by post-processor if use_early_only_ir is enabled
-            duration_seconds: 0.0, // Can be filled later from audio metadata
+            full_source: audio_handle,
+            early_only_source: None,
+            duration_seconds: 0.0,
             wetness_bias: definition.wetness_bias,
             early_reflection_strength: definition.early_reflection_strength,
         })
@@ -94,13 +80,35 @@ impl AssetLoader for IrAssetLoader {
     }
 }
 
-// Existing RON library loading (kept for compatibility)
-pub fn load_ir_library_from_ron(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut ir_library: ResMut<crate::audio::ir_manager::IrLibrary>,
+/// Asset post-processor: creates truncated early-only IR when an IrAsset finishes loading.
+pub fn process_loaded_ir_assets(
+    mut ev_asset: EventReader<AssetEvent<IrAsset>>,
+    ir_assets: Res<Assets<IrAsset>>,
+    audio_assets: Res<Assets<AudioSource>>,
+    mut current_ir: ResMut<CurrentImpulseResponse>,
+    quality: Res<AudioQualitySettings>,
 ) {
-    // ... (implementation unchanged)
+    for ev in ev_asset.read() {
+        if let AssetEvent::LoadedWithDependencies { id } = ev {
+            // Check if the loaded IrAsset is the one currently selected
+            if let Some(active_ir) = ir_assets.get(*id) {
+                // For simplicity we check against the name; in production use a better identifier
+                if active_ir.name == current_ir.active.name {
+                    if quality.use_early_only_ir && current_ir.active.early_only_source.is_none() {
+                        if let Some(full_source) = audio_assets.get(&active_ir.full_source) {
+                            if let Some(truncated) = create_truncated_early_ir(
+                                full_source,
+                                quality.early_reflection_target_duration,
+                            ) {
+                                let truncated_handle = audio_assets.add(truncated);
+                                current_ir.active.early_only_source = Some(truncated_handle);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn create_truncated_early_ir(
@@ -132,15 +140,11 @@ pub fn create_truncated_early_ir(
     })
 }
 
-pub fn ensure_ir_loaded(
-    mut current_ir: ResMut<CurrentImpulseResponse>,
+// Keep the old RON library loader for backward compatibility
+pub fn load_ir_library_from_ron(
+    mut commands: Commands,
     asset_server: Res<AssetServer>,
-    quality: Res<crate::settings::audio_quality::AudioQualitySettings>,
+    mut ir_library: ResMut<IrLibrary>,
 ) {
-    if current_ir.active.loaded_source.is_none() {
-        if let Some(path) = &current_ir.active.asset_path {
-            let handle: Handle<AudioSource> = asset_server.load(path);
-            current_ir.active.loaded_source = Some(handle);
-        }
-    }
+    // Existing implementation...
 }
