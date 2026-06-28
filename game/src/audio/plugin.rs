@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - Complete acoustic pipeline with proper IR asset loading
+ * Audio Plugin - With Asset Post-Processor IR Truncation
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -13,7 +13,7 @@ use super::procedural_reverb_estimation::{
     AudioListener,
 };
 use super::ir_manager::{IrLibrary, CurrentImpulseResponse};
-use super::ir_asset::{load_ir_library_from_ron, ensure_ir_loaded};
+use super::ir_asset::{load_ir_library_from_ron, process_loaded_audio_sources};
 use crate::settings::audio_mixing::ReverbState;
 use crate::settings::biome_acoustic::{load_biome_acoustic_profile, update_biome_acoustic_transition, CurrentBiomeAcoustics};
 use crate::settings::audio_quality::AudioQualitySettings;
@@ -41,7 +41,7 @@ impl Plugin for AudioPlugin {
                 update_music_layers,
                 update_procedural_reverb_estimation,
                 update_biome_acoustic_transition,
-                ensure_ir_loaded,
+                process_loaded_audio_sources, // Asset post-processor for IR truncation
             ));
     }
 }
