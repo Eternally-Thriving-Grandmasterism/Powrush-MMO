@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - With Latency Monitoring
+ * Audio Plugin - With Latency Monitoring + Adaptive Layering System
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -23,6 +23,10 @@ use crate::settings::biome_acoustic::{load_biome_acoustic_profile, update_biome_
 use crate::settings::audio_quality::AudioQualitySettings;
 use shared::spatial::HierarchicalGrid;
 
+// Adaptive Layering modules (declared here for sibling visibility; integrates with music + kira crossfades)
+mod adaptive_layering;
+mod events;
+
 pub struct AudioPlugin;
 
 impl Plugin for AudioPlugin {
@@ -41,6 +45,12 @@ impl Plugin for AudioPlugin {
             .init_resource::<IrTruncationMetrics>()
             .init_resource::<SpatialAudioMetrics>()
             .init_resource::<AudioLatencyMetrics>()
+            // === Adaptive Layering System resources & events ===
+            .init_resource::<adaptive_layering::AdaptiveLayeringState>()
+            .init_resource::<adaptive_layering::AdaptiveAudioConfig>()
+            .add_event::<events::PaletteTransitionEvent>()
+            .add_event::<events::CombatStateChangedEvent>()
+            .add_event::<events::RegionTransitionEvent>()
             .register_asset_loader(IrAssetLoader)
             .add_systems(Startup, (load_biome_acoustic_profile, load_ir_library_from_ron))
             .add_systems(Update, (
@@ -50,6 +60,8 @@ impl Plugin for AudioPlugin {
                 update_procedural_reverb_estimation,
                 update_biome_acoustic_transition,
                 super::ir_asset::process_loaded_ir_assets,
+                // Adaptive layering drives unified palette/intensity/ramp transitions
+                adaptive_layering::adaptive_layering_system,
             ));
     }
 }
