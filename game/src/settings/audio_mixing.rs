@@ -1,16 +1,24 @@
 /*!
- * Dynamic Audio Mixing
+ * Dynamic Audio Mixing System
  *
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
 
 use bevy::prelude::*;
-use crate::settings::editor::SettingsEditor;
+use bevy::audio::AudioSink;
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct DynamicAudio {
     pub category: AudioCategory,
-    pub priority: crate::settings::editor::Priority,
+    pub priority: Priority,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, PartialOrd, Ord)]
+pub enum Priority {
+    Low = 0,
+    Normal = 1,
+    High = 2,
+    Critical = 3,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -34,14 +42,33 @@ pub struct AudioMixer {
 
 impl AudioMixer {
     pub fn get_volume_for_category(&self, category: AudioCategory) -> f32 {
-        match category {
+        let cat_vol = match category {
             AudioCategory::Music   => self.music,
             AudioCategory::Sfx     => self.sfx,
             AudioCategory::Ui      => self.ui,
             AudioCategory::Voice   => self.voice,
             AudioCategory::Ambient => self.ambient,
-        }
+        };
+        self.master * cat_vol
     }
 }
 
-// ... rest of the file (apply_audio_settings, update_dynamic_audio_volumes, play_dynamic_sound) remains the same
+/// System that applies AudioMixer volumes to entities with DynamicAudio + AudioSink
+pub fn update_dynamic_audio_volumes(
+    mixer: Res<AudioMixer>,
+    mut query: Query<(&DynamicAudio, &mut AudioSink)>,
+) {
+    for (dynamic_audio, mut sink) in query.iter_mut() {
+        let final_volume = mixer.get_volume_for_category(dynamic_audio.category);
+        sink.set_volume(final_volume);
+    }
+}
+
+/// Optional: Basic priority-based ducking (simple version)
+pub fn apply_priority_ducking(
+    mixer: Res<AudioMixer>,
+    query: Query<&DynamicAudio>,
+) {
+    // This can be expanded later for more sophisticated ducking
+    // For now, higher priority sounds naturally stand out via volume settings
+}
