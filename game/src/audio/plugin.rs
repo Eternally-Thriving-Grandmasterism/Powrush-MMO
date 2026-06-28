@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - Hot Reload Event Listeners
+ * Audio Plugin - RON loading for AdaptiveAudioConfig
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -33,6 +33,9 @@ pub use adaptive_layering::{
     AudioEventMetrics,
     on_region_palette_config_reloaded,
     on_ai_config_reloaded,
+    AdaptiveAudioConfigAsset, AdaptiveAudioConfigHandle,
+    AdaptiveAudioConfigLoader, load_adaptive_audio_config,
+    apply_adaptive_audio_config_on_load, hot_reload_adaptive_audio_config_system,
 };
 pub use events::{
     PaletteTransitionEvent, PaletteType, TransitionPriority,
@@ -61,7 +64,9 @@ impl Plugin for AudioPlugin {
             .init_resource::<AudioEventMetrics>()
             .init_resource::<AdaptiveLayeringState>()
             .init_resource::<AdaptiveAudioConfig>()
-            .init_resource::<AIConfig>()
+            .init_asset::<adaptive_layering::AdaptiveAudioConfigAsset>()
+            .init_resource::<adaptive_layering::AdaptiveAudioConfigHandle>()
+            .register_asset_loader(adaptive_layering::AdaptiveAudioConfigLoader)
             .init_asset::<adaptive_layering::RegionPaletteConfig>()
             .init_resource::<adaptive_layering::RegionPaletteConfigHandle>()
             .register_asset_loader(adaptive_layering::RegionPaletteLoader)
@@ -79,6 +84,7 @@ impl Plugin for AudioPlugin {
                 load_ir_library_from_ron,
                 adaptive_layering::load_region_palette_config,
                 adaptive_layering::load_ai_config,
+                adaptive_layering::load_adaptive_audio_config,
             ))
             .add_systems(Update, (
                 evaluate_music_state, update_music, update_music_layers,
@@ -92,6 +98,8 @@ impl Plugin for AudioPlugin {
                 adaptive_layering::hot_reload_ai_config_system,
                 on_region_palette_config_reloaded,
                 on_ai_config_reloaded,
+                adaptive_layering::apply_adaptive_audio_config_on_load,
+                adaptive_layering::hot_reload_adaptive_audio_config_system,
             ));
     }
 }
