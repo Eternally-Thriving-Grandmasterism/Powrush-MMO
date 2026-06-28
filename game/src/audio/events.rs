@@ -1,12 +1,13 @@
 /*!
  * Audio Events - Palette Transitions, Combat & Region Events for Adaptive Layering
  *
- * Real RegionType enum + Combat intensity feeding for full closed-loop palette/region/combat audio.
+ * Enums now Serialize/Deserialize ready for RON config (RegionPaletteConfig).
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
 
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Event, Debug)]
 pub struct PaletteTransitionEvent {
@@ -16,7 +17,7 @@ pub struct PaletteTransitionEvent {
     pub priority: TransitionPriority,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum PaletteType {
     #[default]
     ResonantVeil,
@@ -24,15 +25,14 @@ pub enum PaletteType {
     EchoingWisp,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransitionPriority {
     Normal,
     Combat,
     Event,
 }
 
-/// Real typed regions for data-driven palette mapping (RON config ready)
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum RegionType {
     #[default]
     Wilderness,
@@ -55,5 +55,5 @@ pub struct RegionTransitionEvent {
 #[derive(Event, Debug)]
 pub struct CombatStateChangedEvent {
     pub entering_combat: bool,
-    pub intensity: f32, // 0.0-1.0 threat level -> feeds industrial_intensity
+    pub intensity: f32,
 }
