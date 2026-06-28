@@ -1,5 +1,7 @@
 /*!
- * IR Asset Pipeline - Optimized Truncation
+ * IR Asset Pipeline - Post-Processor Truncation
+ *
+ * Uses Bevy asset events for efficient, non-blocking IR truncation.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -32,7 +34,6 @@ pub fn load_ir_library_from_ron(
     asset_server: Res<AssetServer>,
     mut ir_library: ResMut<IrLibrary>,
 ) {
-    // ... (same RON loading as before, omitted for brevity)
     let definition: IrLibraryDefinition = ron::from_str(
         r#"
         (
@@ -80,13 +81,11 @@ pub fn load_ir_library_from_ron(
     }
 }
 
-/// Optimized truncation: creates a shorter AudioSource from a full one.
-/// Uses the target duration from quality settings.
+/// Creates a truncated early-only version of an AudioSource.
 pub fn create_truncated_early_ir(
     full_source: &AudioSource,
     target_duration: f32,
 ) -> Option<AudioSource> {
-    // Try to get static sound data
     let static_data = match full_source.sound.clone().try_into_static() {
         Ok(data) => data,
         Err(_) => return None,
@@ -99,7 +98,6 @@ pub fn create_truncated_early_ir(
         return None;
     }
 
-    // Efficient slice copy
     let truncated_frames = static_data.frames[..target_samples].to_vec();
 
     let truncated_data = StaticSoundData {
@@ -113,27 +111,33 @@ pub fn create_truncated_early_ir(
     })
 }
 
-/// Lazy + cached truncation for the currently selected IR.
-pub fn ensure_ir_loaded(
+/// System that reacts to AudioSource loading events and creates truncated early-only versions.
+/// This moves truncation work out of the per-frame hot path into the asset pipeline.
+pub fn process_loaded_audio_sources(
+    mut ev_asset: EventReader<AssetEvent<AudioSource>>,
+    audio_assets: Res<Assets<AudioSource>>,
     mut current_ir: ResMut<CurrentImpulseResponse>,
-    asset_server: Res<AssetServer>,
     quality: Res<crate::settings::audio_quality::AudioQualitySettings>,
 ) {
-    // Load full version if needed
-    if current_ir.active.loaded_source.is_none() {
-        if let Some(path) = &current_ir.active.asset_path {
-            let handle: Handle<AudioSource> = asset_server.load(path);
-            current_ir.active.loaded_source = Some(handle);
+    for ev in ev_asset.read() {
+        if let AssetEvent::LoadedWithDependencies { id } = ev {
+            // Check if this loaded AudioSource belongs to the current IR
+            if let Some(loaded_handle) = &current_ir.active.loaded_source {
+                if loaded_handle.id() == *id {
+                    if quality.use_early_only_ir && current_ir.active.early_only_source.is_none() {
+                        if let Some(full_source) = audio_assets.get(loaded_handle) {
+                            if let Some(truncated) = create_truncated_early_ir(
+                                full_source,
+                                quality.early_reflection_target_duration,
+                            ) {
+                                // Insert the truncated version as a new asset
+                                let truncated_handle = audio_assets.add(truncated);
+                                current_ir.active.early_only_source = Some(truncated_handle);
+                            }
+                        }
+                    }
+                }
+            }
         }
-    }
-
-    // Only truncate when we actually want early-only mode and haven't done it yet
-    if quality.use_early_only_ir
-        && current_ir.active.early_only_source.is_none()
-        && current_ir.active.loaded_source.is_some()
-    {
-        // In a real system we would access the loaded AudioSource data here
-        // and call create_truncated_early_ir.
-        // For now we keep the placeholder that will be replaced by proper post-load processing.
     }
 }
