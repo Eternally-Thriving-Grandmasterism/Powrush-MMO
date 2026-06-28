@@ -1,5 +1,5 @@
 /*!
- * Audio Quality & Performance Settings
+ * Audio Quality & Performance Settings (Hybrid Reverb)
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -9,10 +9,19 @@ use bevy::prelude::*;
 #[derive(Resource, Clone, Copy)]
 pub struct AudioQualitySettings {
     pub master_quality: f32,
+
+    // Convolution / Early Reflections
     pub convolution_quality: f32,
+    pub use_early_only_ir: bool,        // Prefer short early-only IRs when available
+    pub early_reflection_mix: f32,      // 0.0 - 1.0
+
+    // Late Tail
+    pub late_tail_quality: f32,
+    pub late_tail_mix: f32,
+
+    // Global behavior
     pub convolution_max_distance: f32,
     pub enable_distance_lod: bool,
-    /// Crossfade duration in seconds when switching impulse responses
     pub crossfade_duration: f32,
 }
 
@@ -20,7 +29,11 @@ impl Default for AudioQualitySettings {
     fn default() -> Self {
         Self {
             master_quality: 0.85,
-            convolution_quality: 0.7,
+            convolution_quality: 0.65,
+            use_early_only_ir: true,
+            early_reflection_mix: 0.85,
+            late_tail_quality: 0.75,
+            late_tail_mix: 0.9,
             convolution_max_distance: 180.0,
             enable_distance_lod: true,
             crossfade_duration: 0.28,
@@ -39,5 +52,13 @@ impl AudioQualitySettings {
         }
         let distance_factor = (1.0 - (distance_to_focus / self.convolution_max_distance).clamp(0.0, 1.0)).powf(0.7);
         (quality * distance_factor).clamp(0.0, 1.0)
+    }
+
+    pub fn get_early_mix(&self) -> f32 {
+        (self.early_reflection_mix * self.master_quality).clamp(0.0, 1.0)
+    }
+
+    pub fn get_late_mix(&self) -> f32 {
+        (self.late_tail_mix * self.master_quality * self.late_tail_quality).clamp(0.0, 1.0)
     }
 }
