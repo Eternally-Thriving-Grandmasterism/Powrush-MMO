@@ -1,5 +1,5 @@
 /*!
- * IR Management - Improved with Asset ID tracking
+ * IR Management with Global Truncation Cache
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -36,6 +36,8 @@ pub struct ImpulseResponse {
 pub struct IrLibrary {
     pub responses: HashMap<IrCategory, Vec<ImpulseResponse>>,
     pub default_ir: Option<ImpulseResponse>,
+    /// Global cache of truncated early-only IRs, keyed by IrAsset ID
+    pub early_only_cache: HashMap<AssetId<crate::audio::ir_asset::IrAsset>, Handle<AudioSource>>,
 }
 
 impl IrLibrary {
@@ -43,21 +45,38 @@ impl IrLibrary {
         let mut lib = Self {
             responses: HashMap::new(),
             default_ir: None,
+            early_only_cache: HashMap::new(),
         };
         lib.add_example_irs();
         lib
     }
 
     fn add_example_irs(&mut self) {
-        // ... (example data unchanged)
+        // ... (example data)
     }
 
     pub fn select_best(&self, room_size: f32, wetness: f32, biome_name: &str) -> ImpulseResponse {
-        // ... (selection logic unchanged)
+        // ... (selection logic)
+    }
+
+    /// Store a truncated version in the global cache
+    pub fn cache_early_only(
+        &mut self,
+        ir_asset_id: AssetId<crate::audio::ir_asset::IrAsset>,
+        truncated_handle: Handle<AudioSource>,
+    ) {
+        self.early_only_cache.insert(ir_asset_id, truncated_handle);
+    }
+
+    /// Retrieve a cached truncated version if available
+    pub fn get_cached_early_only(
+        &self,
+        ir_asset_id: AssetId<crate::audio::ir_asset::IrAsset>,
+    ) -> Option<Handle<AudioSource>> {
+        self.early_only_cache.get(&ir_asset_id).cloned()
     }
 }
 
-/// Now tracks the active IrAsset handle for reliable matching in post-processors
 #[derive(Resource, Clone)]
 pub struct CurrentImpulseResponse {
     pub active: ImpulseResponse,
