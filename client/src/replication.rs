@@ -1,64 +1,92 @@
-/// Event emitted when a Council Bloom is received from server replication
-#[derive(Event, Clone, Debug)]
-pub struct CouncilBloomReceived {
-    pub payload: CouncilBloomPayload,
+use bevy_hanabi::prelude::*;
+
+/// Marker component for Council Bloom particle effects
+#[derive(Component)]
+pub struct CouncilBloomEffect {
+    pub intensity: f32,
+    pub timer: Timer,
 }
 
-/// System that processes CouncilBloomReceived events.
-/// Add this system to your app (e.g. in CouncilReplicationPlugin or a UI/Feedback plugin).
+/// Spawns beautiful particle effects for an activated Council Bloom
+pub fn spawn_council_bloom_particles(
+    commands: &mut Commands,
+    effects: &mut ResMut<Assets<EffectAsset>>,
+    position: Vec3,
+    payload: &CouncilBloomPayload,
+) {
+    let intensity = payload.bloom_amplification_multiplier.max(1.0);
+    let color = if payload.collective_attunement_score > 0.8 {
+        Color::srgb(0.4, 0.9, 0.6) // Strong mercy green-gold
+    } else {
+        Color::srgb(0.6, 0.7, 1.0) // Softer blue-white
+    };
+
+    // Create a high-quality bloom particle effect
+    let effect = effects.add(
+        EffectAsset::new(
+            4096,
+            false,
+            Module::default(),
+        )
+        .with_name("council_bloom")
+        .init(InitPositionSphereModifier {
+            center: Vec3::ZERO,
+            radius: 2.0 * intensity,
+            dimension: ShapeDimension::Volume,
+        })
+        .init(InitVelocitySphereModifier {
+            center: Vec3::ZERO,
+            speed: 8.0 * intensity,
+        })
+        .init(InitLifetimeModifier {
+            lifetime: 3.5,
+        })
+        .update(AccelModifier::constant(Vec3::new(0.0, 2.5, 0.0)))
+        .render(ColorOverLifetimeModifier::gradient(Gradient::new(vec![
+            (0.0, color.with_alpha(0.0)),
+            (0.2, color.with_alpha(0.9)),
+            (0.8, color.with_alpha(0.6)),
+            (1.0, color.with_alpha(0.0)),
+        ])))
+        .render(SizeOverLifetimeModifier::new(Gradient::new(vec![
+            (0.0, 0.8),
+            (0.3, 2.2 * intensity),
+            (1.0, 0.0),
+        ]))),
+    );
+
+    commands.spawn((
+        Name::new(format!("CouncilBloomParticles_{}", payload.session_id)),
+        ParticleEffect::new(effect),
+        Transform::from_translation(position),
+        CouncilBloomEffect {
+            intensity,
+            timer: Timer::from_seconds(5.0, TimerMode::Once),
+        },
+        // Optional: Add a point light for extra glow
+        PointLight {
+            color: color,
+            intensity: 1200.0 * intensity,
+            range: 25.0,
+            ..default()
+        },
+    ));
+}
+
 pub fn process_council_bloom_received(
     mut events: EventReader<CouncilBloomReceived>,
     mut commands: Commands,
-    // TODO: Add your resources here:
-    // mut ui_state: ResMut<CouncilUiState>,
-    // asset_server: Res<AssetServer>,
-    // audio: Res<Audio>,
+    mut effects: ResMut<Assets<EffectAsset>>,
 ) {
     for event in events.read() {
         let p = &event.payload;
 
-        info!(
-            "[Client] Processing Council Bloom | Session: {} | Attunement: {:.2} | Participants: {} | Reason: {}",
-            p.session_id,
-            p.collective_attunement_score,
-            p.participant_count,
-            p.trigger_reason
-        );
-
         if p.bloom_activated {
-            // === Example feedback actions ===
+            info!("[Client] Council Bloom activated — spawning particles");
 
-            // 1. Spawn a temporary bloom effect entity (extend with VFX, particles, etc.)
-            commands.spawn((
-                Name::new(format!("CouncilBloom_{}", p.session_id)),
-                Transform::default(),
-                // TODO: Add VisualEffect, ParticleEffect, or custom BloomEffect component
-                // Example:
-                // BloomEffect {
-                //     intensity: p.bloom_amplification_multiplier,
-                //     duration: 4.0,
-                // },
-            ));
-
-            // 2. Trigger UI update (example)
-            // if let Some(mut ui) = ui_state { ui.show_bloom_notification(p); }
-
-            // 3. Play sound / haptic feedback
-            // audio.play(AssetServer::get_handle("sounds/council_bloom.ogg"));
-
-            // 4. Future: Update local player state, trigger epiphany UI, etc.
+            // Spawn beautiful particle burst at world origin or player location
+            // TODO: Use actual player/camera position or bloom location
+            spawn_council_bloom_particles(&mut commands, &mut effects, Vec3::ZERO, p);
         }
-    }
-}
-
-/// Plugin that registers Council replication events and systems
-pub struct CouncilReplicationPlugin;
-
-impl Plugin for CouncilReplicationPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_event::<CouncilBloomReceived>()
-           .add_systems(Update, process_council_bloom_received);
-
-        info!("[Client] CouncilReplicationPlugin initialized with bloom processing");
     }
 }
