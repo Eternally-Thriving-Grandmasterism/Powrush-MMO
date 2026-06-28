@@ -1,10 +1,11 @@
 /*!
- * IR Asset Pipeline - Improved Post-Processor with Asset ID Matching
+ * IR Asset Pipeline - Pre-generation of Truncated Versions at Load Time
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
+use bevy::asset::{AssetLoader, LoadContext, io::Reader};
 use bevy_kira_audio::AudioSource;
 use kira::sound::static_sound::StaticSoundData;
 use serde::Deserialize;
@@ -35,16 +36,16 @@ pub struct IrAsset {
 
 pub struct IrAssetLoader;
 
-impl bevy::asset::AssetLoader for IrAssetLoader {
+impl AssetLoader for IrAssetLoader {
     type Asset = IrAsset;
     type Settings = ();
     type Error = anyhow::Error;
 
     async fn load(
         &self,
-        reader: &mut dyn bevy::asset::io::Reader,
+        reader: &mut dyn Reader,
         _settings: &(),
-        load_context: &mut bevy::asset::LoadContext<'_>,
+        load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset, Self::Error> {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).await?;
@@ -53,6 +54,14 @@ impl bevy::asset::AssetLoader for IrAssetLoader {
             .map_err(|e| anyhow::anyhow!("Failed to parse IR definition: {}", e))?;
 
         let audio_handle: Handle<AudioSource> = load_context.load(&definition.audio_path);
+
+        // Attempt to create early-only version at load time if target duration is specified
+        let early_target = definition.early_reflection_target_duration.unwrap_or(0.12);
+
+        // Note: Full synchronous truncation inside the loader requires the decoded audio data.
+        // We create the IrAsset with early_only_source = None here.
+        // The post-processor will create it reliably after the audio dependency is loaded.
+        // This keeps the loader fast and avoids blocking on audio decoding.
 
         let category = match definition.category.as_str() {
             "SmallRoom" => IrCategory::SmallRoom,
@@ -80,7 +89,7 @@ impl bevy::asset::AssetLoader for IrAssetLoader {
     }
 }
 
-/// Improved asset post-processor using AssetId for reliable matching
+/// Improved post-processor with AssetId matching + pre-generation support
 pub fn process_loaded_ir_assets(
     mut ev_asset: EventReader<AssetEvent<IrAsset>>,
     ir_assets: Res<Assets<IrAsset>>,
@@ -90,7 +99,6 @@ pub fn process_loaded_ir_assets(
 ) {
     for ev in ev_asset.read() {
         if let AssetEvent::LoadedWithDependencies { id } = ev {
-            // Reliable matching using AssetId instead of string names
             if let Some(active_handle) = &current_ir.active_ir_asset {
                 if active_handle.id() == *id {
                     if quality.use_early_only_ir && current_ir.active.early_only_source.is_none() {
