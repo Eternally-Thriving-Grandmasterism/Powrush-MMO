@@ -1,5 +1,5 @@
 /*!
- * Dynamic Audio Mixing with Per-Priority Ducking Amounts
+ * Dynamic Audio Mixing with Dynamic Ducking Curves
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -39,14 +39,18 @@ pub struct AudioMixer {
     pub voice: f32,
     pub ambient: f32,
 
-    // Global ducking settings
-    pub ducking_attack: f32,
-    pub ducking_release: f32,
+    // Per-priority ducking amounts
+    pub ducking_critical: f32,
+    pub ducking_high: f32,
+    pub ducking_normal: f32,
 
-    // Per-priority ducking amounts (when a higher priority sound is active)
-    pub ducking_critical: f32,      // Applied to all lower priorities when Critical plays
-    pub ducking_high: f32,          // Applied to Normal/Low when High plays
-    pub ducking_normal: f32,        // Applied to Low when Normal plays
+    // Dynamic ducking curves (attack/release rates per priority)
+    pub ducking_attack_critical: f32,
+    pub ducking_release_critical: f32,
+    pub ducking_attack_high: f32,
+    pub ducking_release_high: f32,
+    pub ducking_attack_normal: f32,
+    pub ducking_release_normal: f32,
 }
 
 impl Default for AudioMixer {
@@ -59,12 +63,17 @@ impl Default for AudioMixer {
             voice: 1.0,
             ambient: 0.7,
 
-            ducking_attack: 10.0,
-            ducking_release: 4.0,
+            ducking_critical: 0.25,
+            ducking_high: 0.4,
+            ducking_normal: 0.6,
 
-            ducking_critical: 0.25,   // Quite aggressive when Critical plays
-            ducking_high: 0.4,        // Moderate when High plays
-            ducking_normal: 0.6,      // Gentle when Normal plays
+            // Dynamic curves - Critical is more aggressive
+            ducking_attack_critical: 14.0,
+            ducking_release_critical: 5.0,
+            ducking_attack_high: 10.0,
+            ducking_release_high: 4.0,
+            ducking_attack_normal: 6.0,
+            ducking_release_normal: 3.0,
         }
     }
 }
@@ -81,17 +90,23 @@ impl AudioMixer {
         self.master * cat_vol
     }
 
-    /// Returns the appropriate ducking factor based on priority difference
     pub fn get_ducking_for_priority(&self, current: Priority, highest: Priority) -> f32 {
-        if current >= highest {
-            return 1.0;
-        }
-
+        if current >= highest { return 1.0; }
         match highest {
             Priority::Critical => self.ducking_critical,
             Priority::High     => self.ducking_high,
             Priority::Normal   => self.ducking_normal,
             Priority::Low      => 1.0,
+        }
+    }
+
+    /// Returns dynamic attack/release rates based on the triggering priority
+    pub fn get_ducking_rates(&self, highest: Priority) -> (f32, f32) {
+        match highest {
+            Priority::Critical => (self.ducking_attack_critical, self.ducking_release_critical),
+            Priority::High     => (self.ducking_attack_high, self.ducking_release_high),
+            Priority::Normal   => (self.ducking_attack_normal, self.ducking_release_normal),
+            Priority::Low      => (6.0, 3.0),
         }
     }
 }
@@ -107,7 +122,6 @@ pub fn update_dynamic_audio_volumes(
     time: Res<Time>,
     mut query: Query<(&DynamicAudio, &mut AudioSink)>,
 ) {
-    // Find highest active priority
     let mut highest_priority = Priority::Low;
 
     for (dynamic, sink) in query.iter() {
@@ -118,18 +132,19 @@ pub fn update_dynamic_audio_volumes(
         }
     }
 
-    // Target ducking level based on highest priority
     let target_level = if highest_priority > Priority::Low {
         mixer.get_ducking_for_priority(Priority::Low, highest_priority)
     } else {
         1.0
     };
 
-    // Exponential smoothing
+    // Dynamic rates based on which priority triggered the ducking
+    let (attack_rate, release_rate) = mixer.get_ducking_rates(highest_priority);
+
     let rate = if target_level < ducking.current_level {
-        mixer.ducking_attack
+        attack_rate
     } else {
-        mixer.ducking_release
+        release_rate
     };
 
     let dt = time.delta_secs();
@@ -137,7 +152,6 @@ pub fn update_dynamic_audio_volumes(
 
     ducking.current_level = ducking.current_level * (1.0 - t) + target_level * t;
 
-    // Apply per-sound
     for (dynamic, mut sink) in query.iter_mut() {
         let base_volume = mixer.get_volume_for_category(dynamic.category);
         let ducking_amount = mixer.get_ducking_for_priority(dynamic.priority, highest_priority);
