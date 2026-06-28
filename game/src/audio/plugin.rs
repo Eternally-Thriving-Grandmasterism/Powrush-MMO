@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - With Latency Monitoring + Adaptive Layering System + Region Weighting
+ * Audio Plugin - Closed loop: RegionType + Palette↔Music + Combat intensity + Adaptive ramps
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -7,12 +7,7 @@
 use bevy::prelude::*;
 use bevy::asset::AssetApp;
 use super::music::{evaluate_music_state, update_music, update_music_layers, MusicLayers};
-use super::procedural_reverb_estimation::{
-    update_procedural_reverb_estimation,
-    ReverbEstimationConfig,
-    ProceduralReverbEstimate,
-    AudioListener,
-};
+use super::procedural_reverb_estimation::{update_procedural_reverb_estimation, ReverbEstimationConfig, ProceduralReverbEstimate, AudioListener};
 use super::ir_manager::{IrLibrary, CurrentImpulseResponse};
 use super::ir_asset::{load_ir_library_from_ron, IrAssetLoader};
 use super::ir_metrics::IrTruncationMetrics;
@@ -28,23 +23,13 @@ mod events;
 mod kira_ambient;
 mod kira_music;
 
-pub use adaptive_layering::{ 
-    AdaptiveLayeringState, 
-    AdaptiveAudioConfig, 
-    calculate_dynamic_ramp_time, 
-    AudioContext, 
-    EmotionalWeight,
-    adaptive_layering_system,
-    request_combat_palette,
-    region_audio_transition_system,
+pub use adaptive_layering::{
+    AdaptiveLayeringState, AdaptiveAudioConfig, calculate_dynamic_ramp_time,
+    AudioContext, EmotionalWeight, adaptive_layering_system, request_combat_palette,
+    region_audio_transition_system, palette_to_music_mapping_system,
+    feed_combat_intensity, combat_intensity_system,
 };
-pub use events::{ 
-    PaletteTransitionEvent, 
-    PaletteType, 
-    TransitionPriority, 
-    CombatStateChangedEvent, 
-    RegionTransitionEvent,
-};
+pub use events::{PaletteTransitionEvent, PaletteType, TransitionPriority, RegionTransitionEvent, RegionType, CombatStateChangedEvent};
 
 pub struct AudioPlugin;
 
@@ -72,14 +57,13 @@ impl Plugin for AudioPlugin {
             .register_asset_loader(IrAssetLoader)
             .add_systems(Startup, (load_biome_acoustic_profile, load_ir_library_from_ron))
             .add_systems(Update, (
-                evaluate_music_state,
-                update_music,
-                update_music_layers,
-                update_procedural_reverb_estimation,
-                update_biome_acoustic_transition,
+                evaluate_music_state, update_music, update_music_layers,
+                update_procedural_reverb_estimation, update_biome_acoustic_transition,
                 super::ir_asset::process_loaded_ir_assets,
                 adaptive_layering_system,
-                region_audio_transition_system, // Region + biome + distance_factor -> PaletteTransitionEvent
+                region_audio_transition_system,
+                palette_to_music_mapping_system,   // Palette → MusicStateType + ramp
+                combat_intensity_system,           // Combat events → industrial_intensity
             ));
     }
 }
