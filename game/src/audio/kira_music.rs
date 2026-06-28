@@ -1,5 +1,5 @@
 /*!
- * Kira Music - Balanced Multi-Band Reverb (Max Quality / Min Cost)
+ * Kira Music - Balanced Multi-Band Reverb with Early Reflection Awareness
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -9,6 +9,7 @@ use bevy_kira_audio::prelude::*;
 use kira::effect::filter::{FilterBuilder, FilterHandle};
 use std::collections::HashMap;
 use crate::settings::audio_mixing::ReverbState;
+use crate::audio::procedural_reverb_estimation::ProceduralReverbEstimate;
 
 #[derive(Resource)]
 pub struct KiraMusicController {
@@ -41,30 +42,31 @@ impl Default for KiraMusicController {
     }
 }
 
-/// Balanced multi-band reverb automation (max quality, minimal cost)
+/// Balanced multi-band reverb automation with early reflection modulation
 pub fn apply_kira_multi_band_reverb(
     reverb_state: Res<ReverbState>,
+    estimate: Res<ProceduralReverbEstimate>,
     controller: Res<KiraMusicController>,
 ) {
     let low_damping = reverb_state.low_damping;
     let high_damping = reverb_state.high_damping;
     let intensity = controller.intensity;
+    let early_delay = estimate.early_reflection_delay_ms;
+
+    let early_mod = (early_delay / 75.0).clamp(0.0, 1.0);
 
     // High band gets stronger high-frequency damping + faster effective decay
     for (layer, lp_filter) in &controller.low_pass_filters {
         let base = 900.0 + intensity * 10500.0;
-        let cutoff = (base * (1.0 - high_damping * 0.75)).max(450.0);
+        let cutoff = (base * (1.0 - high_damping * 0.75 * (1.0 + early_mod * 0.2))).max(450.0);
         let _ = lp_filter.set_cutoff(cutoff);
     }
 
-    // Low band gets high-pass filtering influenced by low_damping
+    // Low band gets high-pass filtering influenced by low_damping + early reflections
     for (layer, hp_filter) in &controller.high_pass_filters {
-        let cutoff = 35.0 + low_damping * 140.0;
+        let cutoff = 35.0 + low_damping * 140.0 * (1.0 + early_mod * 0.15);
         let _ = hp_filter.set_cutoff(cutoff);
     }
-
-    // Note: True per-band decay would require separate reverb instances.
-    // We achieve most of the benefit here through intelligent filtering + parameter modulation.
 }
 
 pub fn initialize_kira_multi_band_filters(
