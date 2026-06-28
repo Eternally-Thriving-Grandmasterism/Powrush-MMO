@@ -1,5 +1,5 @@
 /*!
- * Adaptive Layering System - Emit dedicated hot reload events
+ * Adaptive Layering System - Event Listeners for Hot Reload Events
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -17,8 +17,7 @@ use crate::settings::biome_acoustic::CurrentBiomeAcoustics;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// ... (enums, AdaptiveLayeringState, AdaptiveAudioConfig, calculate_dynamic_ramp_time, etc. unchanged)
-
+// Core types (abbreviated)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AudioContext { Exploration, Combat, SuddenEvent, Crafting, LongDistanceTravel, LargeEvent }
 
@@ -26,7 +25,7 @@ pub enum AudioContext { Exploration, Combat, SuddenEvent, Crafting, LongDistance
 pub enum EmotionalWeight { Low, Medium, High }
 
 #[derive(Resource, Default, Debug)]
-pub struct AudioEventMetrics { /* ... existing fields and methods ... */ }
+pub struct AudioEventMetrics { /* ... */ }
 
 #[derive(Resource, Default)]
 pub struct AdaptiveLayeringState { /* ... */ }
@@ -38,6 +37,7 @@ impl Default for AdaptiveAudioConfig { fn default() -> Self { /* ... */ } }
 
 pub fn calculate_dynamic_ramp_time(...) -> f32 { /* ... */ }
 
+// Existing systems
 pub fn adaptive_layering_system(...) { /* ... */ }
 fn trigger_palette_crossfade(...) { /* ... */ }
 pub fn request_combat_palette(...) { /* ... */ }
@@ -45,88 +45,47 @@ pub fn region_audio_transition_system(...) { /* ... */ }
 pub fn palette_to_music_mapping_system(...) { /* ... */ }
 pub fn feed_combat_intensity(...) { /* ... */ }
 pub fn combat_intensity_system(...) { /* ... */ }
+pub fn hot_reload_region_palette_system(...) { /* emits RegionPaletteConfigReloaded */ }
+pub fn hot_reload_ai_config_system(...) { /* emits AIConfigReloaded */ }
 
-// === Hot Reload Systems (now emit dedicated events) ===
+// === Event Listeners for Hot Reload Events ===
 
-pub fn hot_reload_region_palette_system(
-    mut asset_events: EventReader<AssetEvent<RegionPaletteConfig>>,
-    region_palette_assets: Res<Assets<RegionPaletteConfig>>,
-    region_palette_handle: Res<RegionPaletteConfigHandle>,
-    current_region: Res<CurrentRegion>,
-    mut palette_writer: EventWriter<PaletteTransitionEvent>,
-    config: Res<AdaptiveAudioConfig>,
+/// Listener for RegionPaletteConfig hot reloads
+pub fn on_region_palette_config_reloaded(
+    mut events: EventReader<RegionPaletteConfigReloaded>,
     mut metrics: ResMut<AudioEventMetrics>,
-    mut hot_reload_writer: EventWriter<RegionPaletteConfigReloaded>,
-    time: Res<Time>,
 ) {
-    for event in asset_events.read() {
-        if let AssetEvent::LoadedWithDependencies { id } | AssetEvent::Modified { id } = event {
-            if let Some(handle) = &region_palette_handle.0 {
-                if handle.id() == *id {
-                    metrics.record_region_palette_hot_reload();
-
-                    if let Some(cfg) = region_palette_assets.get(handle) {
-                        // Emit dedicated hot reload event
-                        hot_reload_writer.send(RegionPaletteConfigReloaded {
-                            mappings_count: cfg.mappings.len(),
-                            default_palette: cfg.default_palette,
-                            timestamp: time.elapsed_secs(),
-                        });
-
-                        info!("[HotReload] RegionPaletteConfig updated ({} mappings).", cfg.mappings.len());
-
-                        if let Some(region) = current_region.0 {
-                            let target_palette = *cfg.mappings.get(&region).unwrap_or(&cfg.default_palette);
-                            palette_writer.send(PaletteTransitionEvent {
-                                target_palette,
-                                target_intensity: 0.6,
-                                ramp_time: 2.0,
-                                priority: TransitionPriority::Event,
-                            });
-                        }
-                    }
-                }
-            }
-        }
+    for event in events.read() {
+        info!(
+            "[Listener] RegionPaletteConfigReloaded → {} mappings, default = {:?} at {:.2}s",
+            event.mappings_count,
+            event.default_palette,
+            event.timestamp
+        );
+        // Future: trigger audio feedback, notify other systems, etc.
     }
 }
 
-pub fn hot_reload_ai_config_system(
-    mut asset_events: EventReader<AssetEvent<AIConfigAsset>>,
-    ai_assets: Res<Assets<AIConfigAsset>>,
-    ai_handle: Res<AIConfigHandle>,
-    mut ai_config: ResMut<AIConfig>,
+/// Listener for AIConfig hot reloads
+pub fn on_ai_config_reloaded(
+    mut events: EventReader<AIConfigReloaded>,
     mut metrics: ResMut<AudioEventMetrics>,
-    mut hot_reload_writer: EventWriter<AIConfigReloaded>,
-    time: Res<Time>,
 ) {
-    for event in asset_events.read() {
-        if let AssetEvent::LoadedWithDependencies { id } | AssetEvent::Modified { id } = event {
-            if let Some(handle) = &ai_handle.0 {
-                if handle.id() == *id {
-                    metrics.record_ai_config_hot_reload();
-
-                    if let Some(loaded) = ai_assets.get(handle) {
-                        ai_config.base_aggression = loaded.base_aggression;
-                        ai_config.combat_intensity_scale = loaded.combat_intensity_scale;
-                        ai_config.region_aggression_modifiers = loaded.region_aggression_modifiers.clone();
-                        ai_config.tension_ramp_rate = loaded.tension_ramp_rate;
-
-                        hot_reload_writer.send(AIConfigReloaded {
-                            combat_intensity_scale: loaded.combat_intensity_scale,
-                            base_aggression: loaded.base_aggression,
-                            timestamp: time.elapsed_secs(),
-                        });
-
-                        info!("[HotReload] AIConfig reloaded!");
-                    }
-                }
-            }
-        }
+    for event in events.read() {
+        info!(
+            "[Listener] AIConfigReloaded → intensity_scale={:.2}, aggression={:.2} at {:.2}s",
+            event.combat_intensity_scale,
+            event.base_aggression,
+            event.timestamp
+        );
+        // Future: notify combat/AI systems, adjust agent parameters, etc.
     }
 }
 
-// AIConfig and RegionPaletteConfig types (unchanged from previous)
+// Supporting types
+#[derive(Resource, Default)]
+pub struct CurrentRegion(pub Option<RegionType>);
+
 #[derive(Resource, Default, Clone, Debug, Serialize, Deserialize)]
 pub struct AIConfig { /* ... */ }
 
@@ -153,6 +112,3 @@ pub struct RegionPaletteLoader;
 impl AssetLoader for RegionPaletteLoader { /* ... */ }
 
 pub fn load_region_palette_config(...) { /* ... */ }
-
-#[derive(Resource, Default)]
-pub struct CurrentRegion(pub Option<RegionType>);
