@@ -1,5 +1,5 @@
 /*!
- * IR Asset Pipeline - Pre-generation of Truncated Versions at Load Time
+ * IR Asset Pipeline - Truncation inside IrAssetLoader (Advanced)
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -53,15 +53,21 @@ impl AssetLoader for IrAssetLoader {
         let definition: IrFileDefinition = ron::de::from_bytes(&bytes)
             .map_err(|e| anyhow::anyhow!("Failed to parse IR definition: {}", e))?;
 
+        // Load the audio as a dependency
         let audio_handle: Handle<AudioSource> = load_context.load(&definition.audio_path);
 
-        // Attempt to create early-only version at load time if target duration is specified
-        let early_target = definition.early_reflection_target_duration.unwrap_or(0.12);
-
-        // Note: Full synchronous truncation inside the loader requires the decoded audio data.
-        // We create the IrAsset with early_only_source = None here.
-        // The post-processor will create it reliably after the audio dependency is loaded.
-        // This keeps the loader fast and avoids blocking on audio decoding.
+        // Attempt to get the loaded audio data for immediate truncation
+        // This is the advanced part - we try to access the decoded data inside the loader
+        let early_only = if let Some(target_dur) = definition.early_reflection_target_duration {
+            if let Some(loaded_audio) = load_context.get_dependency(&audio_handle) {
+                create_truncated_early_ir(loaded_audio, target_dur)
+                    .map(|truncated| load_context.add_asset(truncated))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         let category = match definition.category.as_str() {
             "SmallRoom" => IrCategory::SmallRoom,
@@ -77,7 +83,7 @@ impl AssetLoader for IrAssetLoader {
             name: definition.name,
             category,
             full_source: audio_handle,
-            early_only_source: None,
+            early_only_source: early_only,
             duration_seconds: 0.0,
             wetness_bias: definition.wetness_bias,
             early_reflection_strength: definition.early_reflection_strength,
@@ -86,37 +92,6 @@ impl AssetLoader for IrAssetLoader {
 
     fn extensions(&self) -> &[&str] {
         &["ir", "ir.ron"]
-    }
-}
-
-/// Improved post-processor with AssetId matching + pre-generation support
-pub fn process_loaded_ir_assets(
-    mut ev_asset: EventReader<AssetEvent<IrAsset>>,
-    ir_assets: Res<Assets<IrAsset>>,
-    audio_assets: Res<Assets<AudioSource>>,
-    mut current_ir: ResMut<CurrentImpulseResponse>,
-    quality: Res<AudioQualitySettings>,
-) {
-    for ev in ev_asset.read() {
-        if let AssetEvent::LoadedWithDependencies { id } = ev {
-            if let Some(active_handle) = &current_ir.active_ir_asset {
-                if active_handle.id() == *id {
-                    if quality.use_early_only_ir && current_ir.active.early_only_source.is_none() {
-                        if let Some(ir_asset) = ir_assets.get(*id) {
-                            if let Some(full_source) = audio_assets.get(&ir_asset.full_source) {
-                                if let Some(truncated) = create_truncated_early_ir(
-                                    full_source,
-                                    quality.early_reflection_target_duration,
-                                ) {
-                                    let truncated_handle = audio_assets.add(truncated);
-                                    current_ir.active.early_only_source = Some(truncated_handle);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -147,6 +122,37 @@ pub fn create_truncated_early_ir(
     Some(AudioSource {
         sound: kira::sound::SoundData::Static(truncated_data),
     })
+}
+
+// Post-processor kept as fallback
+pub fn process_loaded_ir_assets(
+    mut ev_asset: EventReader<AssetEvent<IrAsset>>,
+    ir_assets: Res<Assets<IrAsset>>,
+    audio_assets: Res<Assets<AudioSource>>,
+    mut current_ir: ResMut<CurrentImpulseResponse>,
+    quality: Res<AudioQualitySettings>,
+) {
+    for ev in ev_asset.read() {
+        if let AssetEvent::LoadedWithDependencies { id } = ev {
+            if let Some(active_handle) = &current_ir.active_ir_asset {
+                if active_handle.id() == *id {
+                    if quality.use_early_only_ir && current_ir.active.early_only_source.is_none() {
+                        if let Some(ir_asset) = ir_assets.get(*id) {
+                            if let Some(full_source) = audio_assets.get(&ir_asset.full_source) {
+                                if let Some(truncated) = create_truncated_early_ir(
+                                    full_source,
+                                    quality.early_reflection_target_duration,
+                                ) {
+                                    let truncated_handle = audio_assets.add(truncated);
+                                    current_ir.active.early_only_source = Some(truncated_handle);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub fn load_ir_library_from_ron(
