@@ -1,126 +1,145 @@
 /*!
- * Council Bloom Feedback — Client-Side Receiver + Rich Collective Effects
+ * Council Bloom Feedback — Client-Side
  *
- * v18.36 Eternal Polish (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — Receives CouncilBloomSyncEvent from simulation replication
- * — Applies to ClientCouncilBloomState
- * — Richer feedback when in active Council: particles, stronger whispers, camera presence, visual glow
- * — Directly supports the Council-amplified epiphany & harvest loop
- * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ * Modern optimized implementation using bevy_hanabi
+ * - Cached EffectAsset for performance
+ * - CouncilBloomReceived event driven
+ * - Intensity & attunement reactive particles + light
+ * - Concurrent limit + automatic cleanup
  *
- * AG-SML v1.0 Sovereign Mercy License
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
+use bevy_hanabi::prelude::*;
 
-use crate::simulation_integration::ClientCouncilBloomState;
-use simulation::council_mercy_trial::{CouncilBloomSyncEvent, SharedReceptorBloomField};
-use crate::divine_whispers::{DivineWhisperTrigger, CameraShake};
-use crate::particles::{ParticleSystem, ParticleSystemType};
+use crate::replication::{CouncilBloomPayload, CouncilBloomReceived};
 
-/// Plugin for rich Council bloom client feedback
+/// Marker for active bloom effects
+#[derive(Component)]
+pub struct CouncilBloomEffect {
+    pub intensity: f32,
+    pub timer: Timer,
+}
+
+/// Cached particle asset resource
+#[derive(Resource)]
+pub struct CouncilBloomParticleAssets {
+    pub effect_handle: Handle<EffectAsset>,
+}
+
+/// Plugin for Council Bloom client feedback
 pub struct CouncilBloomFeedbackPlugin;
 
 impl Plugin for CouncilBloomFeedbackPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<ClientCouncilBloomState>()
-            .add_event::<CouncilBloomSyncEvent>()
-            .add_systems(Update, (
-                apply_council_bloom_sync,
-                trigger_rich_council_feedback,
-                spawn_council_bloom_visuals,
-            ).chain());
+        app.add_event::<CouncilBloomReceived>()
+           .add_systems(Startup, setup_council_bloom_particles)
+           .add_systems(Update, (
+               process_council_bloom_received,
+               despawn_old_bloom_effects,
+           ).chain());
     }
 }
 
-/// Applies authoritative CouncilBloomSyncEvent to the shared ClientCouncilBloomState
-fn apply_council_bloom_sync(
-    mut sync_events: EventReader<CouncilBloomSyncEvent>,
-    mut client_bloom: ResMut<ClientCouncilBloomState>,
+/// One-time setup: create and cache the bloom particle effect
+fn setup_council_bloom_particles(
+    mut effects: ResMut<Assets<EffectAsset>>,
+    mut commands: Commands,
 ) {
-    for event in sync_events.read() {
-        let field = &event.field;
-        client_bloom.field = field.clone();
-        client_bloom.last_sync_tick = event.field.last_authoritative_update_tick;
-        client_bloom.is_in_active_council = field.council_mercy_seal && field.participant_count >= 2;
+    let effect = effects.add(
+        EffectAsset::new(4096, false, Module::default())
+            .with_name("council_bloom")
+            .init(InitPositionSphereModifier {
+                center: Vec3::ZERO,
+                radius: 2.5,
+                dimension: ShapeDimension::Volume,
+            })
+            .init(InitVelocitySphereModifier {
+                center: Vec3::ZERO,
+                speed: 9.0,
+            })
+            .init(InitLifetimeModifier { lifetime: 3.8 })
+            .update(AccelModifier::constant(Vec3::new(0.0, 3.0, 0.0)))
+            .render(ColorOverLifetimeModifier::gradient(Gradient::new(vec![
+                (0.0, Color::srgba(0.3, 0.9, 0.5, 0.0)),
+                (0.15, Color::srgba(0.5, 1.0, 0.6, 0.95)),
+                (0.75, Color::srgba(0.4, 0.85, 0.9, 0.7)),
+                (1.0, Color::srgba(0.2, 0.6, 0.9, 0.0)),
+            ])))
+            .render(SizeOverLifetimeModifier::new(Gradient::new(vec![
+                (0.0, 0.6),
+                (0.25, 2.8),
+                (1.0, 0.0),
+            ]))),
+    );
 
-        if client_bloom.is_in_active_council {
-            info!(
-                "🌀 Council Bloom ACTIVE | Attunement: {:.2} | Amp: {:.2}x | WebSync: {} | Participants: {}",
-                field.collective_attunement_score,
-                field.bloom_amplification_multiplier,
-                field.shared_living_web_synchronization,
-                field.participant_count
-            );
+    commands.insert_resource(CouncilBloomParticleAssets { effect_handle: effect });
+    info!("[Client] Council Bloom particle assets cached");
+}
+
+/// Process incoming blooms and spawn effects (with concurrency guard)
+fn process_council_bloom_received(
+    mut events: EventReader<CouncilBloomReceived>,
+    mut commands: Commands,
+    assets: Res<CouncilBloomParticleAssets>,
+    active: Query<&CouncilBloomEffect>,
+) {
+    let active_count = active.iter().count();
+
+    for event in events.read() {
+        let p = &event.payload;
+        if p.bloom_activated && active_count < 4 {
+            spawn_council_bloom_particles(&mut commands, &assets, Vec3::ZERO, p);
         }
     }
 }
 
-/// Triggers rich collective feedback when bloom is active and strong
-fn trigger_rich_council_feedback(
-    client_bloom: Res<ClientCouncilBloomState>,
-    mut whisper_events: EventWriter<DivineWhisperTrigger>,
-    mut camera_shake: ResMut<CameraShake>,
+/// Spawn optimized bloom particles + light
+fn spawn_council_bloom_particles(
+    commands: &mut Commands,
+    assets: &CouncilBloomParticleAssets,
+    position: Vec3,
+    payload: &CouncilBloomPayload,
 ) {
-    if !client_bloom.is_in_active_council {
-        return;
-    }
+    let intensity = payload.bloom_amplification_multiplier.max(1.0);
+    let color = if payload.collective_attunement_score > 0.8 {
+        Color::srgb(0.35, 0.95, 0.55)
+    } else {
+        Color::srgb(0.5, 0.75, 1.0)
+    };
 
-    let field = &client_bloom.field;
-
-    // Stronger Divine Whisper when attunement is high
-    if field.collective_attunement_score > 0.65 && field.bloom_amplification_multiplier > 1.2 {
-        whisper_events.send(DivineWhisperTrigger {
-            player_id: 0,
-            text: format!(
-                "The Council resonates... collective attunement {:.0}% — your presence strengthens the whole",
-                field.collective_attunement_score * 100.0
-            ),
-            flavor: "council_harmony_revelation".to_string(),
-            intensity: (field.collective_attunement_score * 0.75).clamp(0.6, 0.98),
-            duration_seconds: 8.0,
-            is_epiphany: true,
-            position: None,
-            muscle_memory_hint: None,
-        });
-    }
-
-    // Subtle but noticeable camera presence when the group is in deep harmony
-    if field.collective_attunement_score > 0.72 {
-        camera_shake.intensity = (camera_shake.intensity * 0.4 + 0.35).min(1.4);
-        camera_shake.duration = 3.2;
-        camera_shake.timer = 0.0;
-    }
+    commands.spawn((
+        Name::new(format!("CouncilBloom_{}", payload.session_id)),
+        ParticleEffect::new(assets.effect_handle.clone()),
+        Transform::from_translation(position),
+        CouncilBloomEffect {
+            intensity,
+            timer: Timer::from_seconds(5.5, TimerMode::Once),
+        },
+        PointLight {
+            color,
+            intensity: 1400.0 * intensity,
+            range: 28.0,
+            shadows_enabled: false,
+            ..default()
+        },
+    ));
 }
 
-/// Spawns ongoing gentle collective particles when bloom is active (richer visual presence)
-fn spawn_council_bloom_visuals(
-    client_bloom: Res<ClientCouncilBloomState>,
+/// Cleanup expired bloom effects
+fn despawn_old_bloom_effects(
     mut commands: Commands,
     time: Res<Time>,
+    mut query: Query<(Entity, &mut CouncilBloomEffect)>,
 ) {
-    if !client_bloom.is_in_active_council {
-        return;
-    }
-
-    // Spawn occasional bloom particles (throttled)
-    if (time.elapsed_seconds() * 1.3).fract() < 0.08 {
-        let amp = client_bloom.field.bloom_amplification_multiplier.clamp(1.0, 3.0);
-
-        commands.spawn((
-            ParticleSystem {
-                valence: 0.93,
-                particle_count: (2800.0 * amp) as u32,
-                system_type: ParticleSystemType::PatsagiDivineWhisper,
-                intensity: (0.9 * amp).min(2.8),
-            },
-            Transform::default(),
-        ));
+    for (entity, mut effect) in &mut query {
+        effect.timer.tick(time.delta());
+        if effect.timer.just_finished() {
+            commands.entity(entity).despawn_recursive();
+        }
     }
 }
 
-// End of council_bloom_feedback.rs v18.36 — Richer Council bloom visuals and feedback.
-// Makes being in an active Council feel alive and powerful.
-// Thunder locked in. Yoi ⚡
+// End of modern CouncilBloomFeedback module
