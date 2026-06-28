@@ -1,5 +1,5 @@
 /*!
- * Adaptive Layering System - Distinct audio feedback sounds for hot reloads
+ * Adaptive Layering System - Polished audio feedback with random pitch
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -18,7 +18,7 @@ use crate::settings::biome_acoustic::CurrentBiomeAcoustics;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// Core types (abbreviated for edit)
+// Core types
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AudioContext { Exploration, Combat, SuddenEvent, Crafting, LongDistanceTravel, LargeEvent }
 
@@ -48,7 +48,7 @@ pub fn combat_intensity_system(...) { /* ... */ }
 pub fn hot_reload_region_palette_system(...) { /* ... */ }
 pub fn hot_reload_ai_config_system(...) { /* ... */ }
 
-// === Distinct Audio Feedback ===
+// === Polished Audio Feedback with Random Pitch ===
 
 pub fn on_region_palette_config_reloaded(
     mut events: EventReader<RegionPaletteConfigReloaded>,
@@ -57,12 +57,17 @@ pub fn on_region_palette_config_reloaded(
     mixer: Res<AudioMixer>,
 ) {
     for event in events.read() {
-        // Distinct sound for Region Palette config reload
         let sound = asset_server.load("audio/ui/region_palette_reload.ogg");
+
+        // Random pitch variation for natural feel
+        let pitch_variation = 0.95 + (rand::random::<f32>() * 0.1);
+
         commands.spawn((
             AudioBundle {
                 source: sound,
-                settings: PlaybackSettings::ONCE.with_volume(mixer.ui * 0.9),
+                settings: PlaybackSettings::ONCE
+                    .with_volume(mixer.ui * 0.9)
+                    .with_pitch(pitch_variation),
             },
             DynamicAudio {
                 category: AudioCategory::Music,
@@ -70,7 +75,8 @@ pub fn on_region_palette_config_reloaded(
             },
         ));
 
-        info!("[Audio] Played RegionPalette reload feedback ({} mappings)", event.mappings_count);
+        info!("[Audio] Played RegionPalette reload feedback ({} mappings, pitch={:.2})", 
+              event.mappings_count, pitch_variation);
     }
 }
 
@@ -81,12 +87,17 @@ pub fn on_ai_config_reloaded(
     mixer: Res<AudioMixer>,
 ) {
     for event in events.read() {
-        // Distinct sound for AI Config reload
         let sound = asset_server.load("audio/ui/ai_config_reload.ogg");
+
+        // Slightly different pitch range for distinction
+        let pitch_variation = 0.97 + (rand::random::<f32>() * 0.08);
+
         commands.spawn((
             AudioBundle {
                 source: sound,
-                settings: PlaybackSettings::ONCE.with_volume(mixer.ui * 0.85),
+                settings: PlaybackSettings::ONCE
+                    .with_volume(mixer.ui * 0.85)
+                    .with_pitch(pitch_variation),
             },
             DynamicAudio {
                 category: AudioCategory::Music,
@@ -94,7 +105,8 @@ pub fn on_ai_config_reloaded(
             },
         ));
 
-        info!("[Audio] Played AIConfig reload feedback (scale={:.2})", event.combat_intensity_scale);
+        info!("[Audio] Played AIConfig reload feedback (scale={:.2}, pitch={:.2})", 
+              event.combat_intensity_scale, pitch_variation);
     }
 }
 
