@@ -1,5 +1,7 @@
 /*!
- * Adaptive Layering System - Hot reload support for RegionPaletteConfig
+ * Adaptive Layering System - Enhanced Hot Reload for Region Scripts (RON)
+ *
+ * Supports live editing of region_palettes.ron with immediate effect on current region.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -100,8 +102,6 @@ pub fn adaptive_layering_system(
 
 fn trigger_palette_crossfade(event: &PaletteTransitionEvent, state: &mut AdaptiveLayeringState) {
     state.current_palette = event.target_palette;
-    #[cfg(debug_assertions)]
-    info!("[Adaptive] Palette {:?} intensity {:.2} ramp {:.1}s", event.target_palette, event.target_intensity, event.ramp_time);
 }
 
 pub fn request_combat_palette(
@@ -113,6 +113,10 @@ pub fn request_combat_palette(
     event_writer.send(PaletteTransitionEvent { target_palette: PaletteType::IndustrialPulse, target_intensity: 0.75, ramp_time: ramp, priority: TransitionPriority::Combat });
 }
 
+// Track current region for hot reload re-application
+#[derive(Resource, Default)]
+pub struct CurrentRegion(pub Option<RegionType>);
+
 pub fn region_audio_transition_system(
     mut region_events: EventReader<RegionTransitionEvent>,
     mut palette_writer: EventWriter<PaletteTransitionEvent>,
@@ -121,9 +125,12 @@ pub fn region_audio_transition_system(
     config: Res<AdaptiveAudioConfig>,
     region_palette_assets: Res<Assets<RegionPaletteConfig>>,
     region_palette_handle: Res<RegionPaletteConfigHandle>,
+    mut current_region: ResMut<CurrentRegion>,
 ) {
-    if let Some(cfg) = region_palette_handle.0.as_ref().and_then(|h| region_palette_assets.get(h)) {
-        for event in region_events.read() {
+    for event in region_events.read() {
+        current_region.0 = Some(event.to_region);
+
+        if let Some(cfg) = region_palette_handle.0.as_ref().and_then(|h| region_palette_assets.get(h)) {
             let distance_factor = (event.distance / 1000.0).clamp(0.0, 2.0);
             let biome_mult = current_biome.active_profile.ramp_time_multiplier;
             let ramp = calculate_dynamic_ramp_time(AudioContext::Exploration, layering_state.current_industrial_intensity, EmotionalWeight::Medium, distance_factor, layering_state.current_world_tension) * (config.default_region_ramp_multiplier * biome_mult);
@@ -175,34 +182,41 @@ pub fn combat_intensity_system(
     }
 }
 
-// === Hot Reload Support ===
+// === Hot Reload with Re-apply ===
 
 pub fn hot_reload_region_palette_system(
     mut asset_events: EventReader<AssetEvent<RegionPaletteConfig>>,
     region_palette_assets: Res<Assets<RegionPaletteConfig>>,
     region_palette_handle: Res<RegionPaletteConfigHandle>,
+    current_region: Res<CurrentRegion>,
+    mut palette_writer: EventWriter<PaletteTransitionEvent>,
+    config: Res<AdaptiveAudioConfig>,
 ) {
     for event in asset_events.read() {
-        match event {
-            AssetEvent::LoadedWithDependencies { id } | AssetEvent::Modified { id } => {
-                if let Some(handle) = &region_palette_handle.0 {
-                    if handle.id() == *id {
-                        if let Some(config) = region_palette_assets.get(handle) {
-                            info!(
-                                "[HotReload] RegionPaletteConfig reloaded! {} region mappings active (default: {:?})",
-                                config.mappings.len(),
-                                config.default_palette
-                            );
+        if let AssetEvent::LoadedWithDependencies { id } | AssetEvent::Modified { id } = event {
+            if let Some(handle) = &region_palette_handle.0 {
+                if handle.id() == *id {
+                    if let Some(cfg) = region_palette_assets.get(handle) {
+                        info!("[HotReload] RegionPaletteConfig updated ({} mappings). Re-applying current region if active.", cfg.mappings.len());
+
+                        if let Some(region) = current_region.0 {
+                            // Re-apply the palette for the current region with new mapping
+                            let target_palette = *cfg.mappings.get(&region).unwrap_or(&cfg.default_palette);
+                            palette_writer.send(PaletteTransitionEvent {
+                                target_palette,
+                                target_intensity: 0.6,
+                                ramp_time: 2.0, // short ramp for hot reload feedback
+                                priority: TransitionPriority::Event,
+                            });
                         }
                     }
                 }
             }
-            _ => {}
         }
     }
 }
 
-// Asset + Loader (from previous)
+// Asset definitions
 #[derive(Asset, TypePath, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RegionPaletteConfig {
     pub mappings: HashMap<RegionType, PaletteType>,
