@@ -1,5 +1,5 @@
 /*!
- * Adaptive Layering System - Polished audio feedback with random pitch
+ * Adaptive Layering System - Per-config reload volume options
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -31,10 +31,39 @@ pub struct AudioEventMetrics { /* ... */ }
 #[derive(Resource, Default)]
 pub struct AdaptiveLayeringState { /* ... */ }
 
+// Extended with per-config reload volumes
 #[derive(Resource, Clone)]
-pub struct AdaptiveAudioConfig { /* ... */ }
+pub struct AdaptiveAudioConfig {
+    pub combat_ramp_multiplier: f32,
+    pub long_travel_ramp_multiplier: f32,
+    pub emotional_high_ramp_multiplier: f32,
+    pub max_ramp_time: f32,
+    pub min_ramp_time: f32,
+    pub combat_ramp_down_multiplier: f32,
+    pub default_region_ramp_multiplier: f32,
 
-impl Default for AdaptiveAudioConfig { fn default() -> Self { /* ... */ } }
+    // Hot reload audio feedback volumes (multiplier on mixer.ui)
+    pub region_palette_reload_volume: f32,
+    pub ai_config_reload_volume: f32,
+}
+
+impl Default for AdaptiveAudioConfig {
+    fn default() -> Self {
+        Self {
+            combat_ramp_multiplier: 0.35,
+            long_travel_ramp_multiplier: 1.7,
+            emotional_high_ramp_multiplier: 1.35,
+            max_ramp_time: 15.0,
+            min_ramp_time: 1.5,
+            combat_ramp_down_multiplier: 1.5,
+            default_region_ramp_multiplier: 1.0,
+
+            // Sensible defaults for reload feedback
+            region_palette_reload_volume: 0.9,
+            ai_config_reload_volume: 0.85,
+        }
+    }
+}
 
 pub fn calculate_dynamic_ramp_time(...) -> f32 { /* ... */ }
 
@@ -48,25 +77,26 @@ pub fn combat_intensity_system(...) { /* ... */ }
 pub fn hot_reload_region_palette_system(...) { /* ... */ }
 pub fn hot_reload_ai_config_system(...) { /* ... */ }
 
-// === Polished Audio Feedback with Random Pitch ===
+// === Audio Feedback with Configurable Volume ===
 
 pub fn on_region_palette_config_reloaded(
     mut events: EventReader<RegionPaletteConfigReloaded>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mixer: Res<AudioMixer>,
+    config: Res<AdaptiveAudioConfig>,
 ) {
     for event in events.read() {
         let sound = asset_server.load("audio/ui/region_palette_reload.ogg");
 
-        // Random pitch variation for natural feel
         let pitch_variation = 0.95 + (rand::random::<f32>() * 0.1);
+        let volume = mixer.ui * config.region_palette_reload_volume;
 
         commands.spawn((
             AudioBundle {
                 source: sound,
                 settings: PlaybackSettings::ONCE
-                    .with_volume(mixer.ui * 0.9)
+                    .with_volume(volume)
                     .with_pitch(pitch_variation),
             },
             DynamicAudio {
@@ -75,8 +105,7 @@ pub fn on_region_palette_config_reloaded(
             },
         ));
 
-        info!("[Audio] Played RegionPalette reload feedback ({} mappings, pitch={:.2})", 
-              event.mappings_count, pitch_variation);
+        info!("[Audio] RegionPalette reload ({} mappings, vol={:.2})", event.mappings_count, volume);
     }
 }
 
@@ -85,18 +114,19 @@ pub fn on_ai_config_reloaded(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mixer: Res<AudioMixer>,
+    config: Res<AdaptiveAudioConfig>,
 ) {
     for event in events.read() {
         let sound = asset_server.load("audio/ui/ai_config_reload.ogg");
 
-        // Slightly different pitch range for distinction
         let pitch_variation = 0.97 + (rand::random::<f32>() * 0.08);
+        let volume = mixer.ui * config.ai_config_reload_volume;
 
         commands.spawn((
             AudioBundle {
                 source: sound,
                 settings: PlaybackSettings::ONCE
-                    .with_volume(mixer.ui * 0.85)
+                    .with_volume(volume)
                     .with_pitch(pitch_variation),
             },
             DynamicAudio {
@@ -105,8 +135,7 @@ pub fn on_ai_config_reloaded(
             },
         ));
 
-        info!("[Audio] Played AIConfig reload feedback (scale={:.2}, pitch={:.2})", 
-              event.combat_intensity_scale, pitch_variation);
+        info!("[Audio] AIConfig reload (scale={:.2}, vol={:.2})", event.combat_intensity_scale, volume);
     }
 }
 
