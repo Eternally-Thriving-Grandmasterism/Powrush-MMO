@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - Hot Reload Events registered
+ * Audio Plugin - Hot Reload Event Listeners
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -31,6 +31,8 @@ pub use adaptive_layering::{
     RegionPaletteConfig, hot_reload_region_palette_system,
     AIConfig, hot_reload_ai_config_system,
     AudioEventMetrics,
+    on_region_palette_config_reloaded,
+    on_ai_config_reloaded,
 };
 pub use events::{
     PaletteTransitionEvent, PaletteType, TransitionPriority,
@@ -88,6 +90,8 @@ impl Plugin for AudioPlugin {
                 combat_intensity_system,
                 adaptive_layering::hot_reload_region_palette_system,
                 adaptive_layering::hot_reload_ai_config_system,
+                on_region_palette_config_reloaded,
+                on_ai_config_reloaded,
             ));
     }
 }
