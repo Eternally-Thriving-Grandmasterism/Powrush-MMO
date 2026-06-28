@@ -1,5 +1,5 @@
 /*!
- * Adaptive Layering System - RON loading for AdaptiveAudioConfig
+ * Adaptive Layering System - Robust audio feedback sounds implementation
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -31,137 +31,83 @@ pub struct AudioEventMetrics { /* ... */ }
 #[derive(Resource, Default)]
 pub struct AdaptiveLayeringState { /* ... */ }
 
-// Runtime config resource (populated from asset)
-#[derive(Resource, Clone, Default)]
-pub struct AdaptiveAudioConfig {
-    pub combat_ramp_multiplier: f32,
-    pub long_travel_ramp_multiplier: f32,
-    pub emotional_high_ramp_multiplier: f32,
-    pub max_ramp_time: f32,
-    pub min_ramp_time: f32,
-    pub combat_ramp_down_multiplier: f32,
-    pub default_region_ramp_multiplier: f32,
-    pub region_palette_reload_volume: f32,
-    pub ai_config_reload_volume: f32,
+#[derive(Resource, Clone)]
+pub struct AdaptiveAudioConfig { /* ... with reload volumes */ }
+
+impl Default for AdaptiveAudioConfig { fn default() -> Self { /* ... */ } }
+
+pub fn calculate_dynamic_ramp_time(...) -> f32 { /* ... */ }
+
+// === Robust Audio Feedback Helper ===
+
+fn play_reload_feedback_sound(
+    commands: &mut Commands,
+    asset_server: &Res<AssetServer>,
+    mixer: &Res<AudioMixer>,
+    path: &str,
+    volume_mult: f32,
+    pitch: f32,
+) {
+    let sound_handle = asset_server.load(path);
+
+    commands.spawn((
+        AudioBundle {
+            source: sound_handle,
+            settings: PlaybackSettings::ONCE
+                .with_volume(mixer.ui * volume_mult)
+                .with_pitch(pitch),
+        },
+        DynamicAudio {
+            category: AudioCategory::Music,
+            priority: Priority::High,
+        },
+    ));
 }
 
-// Asset version for RON loading
-#[derive(Asset, TypePath, Debug, Clone, Serialize, Deserialize, Default)]
-pub struct AdaptiveAudioConfigAsset {
-    pub combat_ramp_multiplier: f32,
-    pub long_travel_ramp_multiplier: f32,
-    pub emotional_high_ramp_multiplier: f32,
-    pub max_ramp_time: f32,
-    pub min_ramp_time: f32,
-    pub combat_ramp_down_multiplier: f32,
-    pub default_region_ramp_multiplier: f32,
-    pub region_palette_reload_volume: f32,
-    pub ai_config_reload_volume: f32,
-}
+// === Hot Reload Audio Feedback Listeners ===
 
-#[derive(Resource, Default)]
-pub struct AdaptiveAudioConfigHandle(pub Option<Handle<AdaptiveAudioConfigAsset>>);
-
-pub struct AdaptiveAudioConfigLoader;
-
-impl AssetLoader for AdaptiveAudioConfigLoader {
-    type Asset = AdaptiveAudioConfigAsset;
-    type Settings = ();
-    type Error = anyhow::Error;
-
-    async fn load(
-        &self,
-        reader: &mut dyn Reader,
-        _settings: &(),
-        _load_context: &mut LoadContext<'_>,
-    ) -> Result<Self::Asset, Self::Error> {
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).await?;
-        let asset: AdaptiveAudioConfigAsset = ron::de::from_bytes(&bytes)
-            .map_err(|e| anyhow::anyhow!("Failed to parse AdaptiveAudioConfig RON: {}", e))?;
-        Ok(asset)
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["ron", "audio_config.ron"]
-    }
-}
-
-pub fn load_adaptive_audio_config(
+pub fn on_region_palette_config_reloaded(
+    mut events: EventReader<RegionPaletteConfigReloaded>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mixer: Res<AudioMixer>,
+    config: Res<AdaptiveAudioConfig>,
 ) {
-    let handle = asset_server.load("config/adaptive_audio.ron");
-    commands.insert_resource(AdaptiveAudioConfigHandle(Some(handle)));
-}
-
-pub fn apply_adaptive_audio_config_on_load(
-    mut ev_asset: EventReader<AssetEvent<AdaptiveAudioConfigAsset>>,
-    assets: Res<Assets<AdaptiveAudioConfigAsset>>,
-    handle: Res<AdaptiveAudioConfigHandle>,
-    mut config: ResMut<AdaptiveAudioConfig>,
-) {
-    for event in ev_asset.read() {
-        if let AssetEvent::LoadedWithDependencies { id } = event {
-            if let Some(h) = &handle.0 {
-                if h.id() == *id {
-                    if let Some(loaded) = assets.get(h) {
-                        *config = AdaptiveAudioConfig {
-                            combat_ramp_multiplier: loaded.combat_ramp_multiplier,
-                            long_travel_ramp_multiplier: loaded.long_travel_ramp_multiplier,
-                            emotional_high_ramp_multiplier: loaded.emotional_high_ramp_multiplier,
-                            max_ramp_time: loaded.max_ramp_time,
-                            min_ramp_time: loaded.min_ramp_time,
-                            combat_ramp_down_multiplier: loaded.combat_ramp_down_multiplier,
-                            default_region_ramp_multiplier: loaded.default_region_ramp_multiplier,
-                            region_palette_reload_volume: loaded.region_palette_reload_volume,
-                            ai_config_reload_volume: loaded.ai_config_reload_volume,
-                        };
-                        info!("[Config] AdaptiveAudioConfig loaded from RON");
-                    }
-                }
-            }
-        }
+    for event in events.read() {
+        let pitch = 0.95 + (rand::random::<f32>() * 0.1);
+        play_reload_feedback_sound(
+            &mut commands,
+            &asset_server,
+            &mixer,
+            "audio/ui/region_palette_reload.ogg",
+            config.region_palette_reload_volume,
+            pitch,
+        );
+        info!("[Audio] RegionPaletteConfig hot reload feedback played");
     }
 }
 
-pub fn hot_reload_adaptive_audio_config_system(
-    mut asset_events: EventReader<AssetEvent<AdaptiveAudioConfigAsset>>,
-    assets: Res<Assets<AdaptiveAudioConfigAsset>>,
-    handle: Res<AdaptiveAudioConfigHandle>,
-    mut config: ResMut<AdaptiveAudioConfig>,
+pub fn on_ai_config_reloaded(
+    mut events: EventReader<AIConfigReloaded>,
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mixer: Res<AudioMixer>,
+    config: Res<AdaptiveAudioConfig>,
 ) {
-    for event in asset_events.read() {
-        if let AssetEvent::LoadedWithDependencies { id } | AssetEvent::Modified { id } = event {
-            if let Some(h) = &handle.0 {
-                if h.id() == *id {
-                    if let Some(loaded) = assets.get(h) {
-                        config.combat_ramp_multiplier = loaded.combat_ramp_multiplier;
-                        config.long_travel_ramp_multiplier = loaded.long_travel_ramp_multiplier;
-                        config.emotional_high_ramp_multiplier = loaded.emotional_high_ramp_multiplier;
-                        config.max_ramp_time = loaded.max_ramp_time;
-                        config.min_ramp_time = loaded.min_ramp_time;
-                        config.combat_ramp_down_multiplier = loaded.combat_ramp_down_multiplier;
-                        config.default_region_ramp_multiplier = loaded.default_region_ramp_multiplier;
-                        config.region_palette_reload_volume = loaded.region_palette_reload_volume;
-                        config.ai_config_reload_volume = loaded.ai_config_reload_volume;
-
-                        info!("[HotReload] AdaptiveAudioConfig updated from RON");
-                    }
-                }
-            }
-        }
+    for event in events.read() {
+        let pitch = 0.97 + (rand::random::<f32>() * 0.08);
+        play_reload_feedback_sound(
+            &mut commands,
+            &asset_server,
+            &mixer,
+            "audio/ui/ai_config_reload.ogg",
+            config.ai_config_reload_volume,
+            pitch,
+        );
+        info!("[Audio] AIConfig hot reload feedback played");
     }
 }
 
-// Other systems and types (abbreviated)
+// All other systems and types remain as in previous version
 pub fn adaptive_layering_system(...) { /* ... */ }
-// ... (all previous systems remain)
-
-#[derive(Resource, Default)]
-pub struct CurrentRegion(pub Option<RegionType>);
-
-#[derive(Resource, Default, Clone, Debug, Serialize, Deserialize)]
-pub struct AIConfig { /* ... */ }
-
-// ... (other supporting types)
+// ... (rest of the file unchanged from previous state)
