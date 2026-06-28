@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - With AudioTrigger systems
+ * Audio Plugin - With audio_trigger_handler
  */
 
 use bevy::prelude::*;
@@ -8,10 +8,10 @@ use bevy_egui::EguiPlugin;
 use crate::settings::audio_mixing::{register_audio_diagnostics, update_dynamic_audio_volumes};
 use crate::audio::debug_ui::{
     AudioDebugUiVisible, toggle_audio_debug_ui, audio_debug_ui,
-    combat_audio_trigger_system, region_audio_trigger_system,
+    combat_audio_trigger_system, region_audio_trigger_system, audio_trigger_handler,
 };
 
-// ... other imports ...
+// ...
 
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
@@ -28,6 +28,7 @@ impl Plugin for AudioPlugin {
                 audio_debug_ui,
                 combat_audio_trigger_system,
                 region_audio_trigger_system,
+                audio_trigger_handler,
             ));
     }
 }
