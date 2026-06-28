@@ -1,76 +1,65 @@
 /*!
- * Audio Debug UI Overlay with F3 Toggle
- *
- * Provides a toggleable debug window showing real-time audio mixing diagnostics.
+ * Audio Debug UI + Trigger Systems
  */
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 use bevy::diagnostic::Diagnostics;
+use crate::settings::audio_mixing::{AudioCategory, Priority};
+use crate::audio::events::AudioTrigger;
 use crate::settings::audio_mixing::{
     AUDIO_MIXING_TIME,
     ACTIVE_DYNAMIC_AUDIO,
     CURRENT_DUCKING_LEVEL,
 };
 
-/// Resource controlling the visibility of the Audio Mixing Debug UI.
-///
-/// Default is `false` (hidden). Press F3 to toggle.
-#[derive(Resource, Default, Debug)]
-pub struct AudioDebugUiVisible(pub bool);
+// ... existing debug UI code (AudioDebugUiVisible, toggle_audio_debug_ui, audio_debug_ui) ...
 
-impl AudioDebugUiVisible {
-    /// Toggles the current visibility state.
-    pub fn toggle(&mut self) {
-        self.0 = !self.0;
+// === Example Gameplay Integration Systems ===
+
+/// Emits AudioTrigger events based on combat state changes.
+pub fn combat_audio_trigger_system(
+    mut combat_events: EventReader<crate::audio::events::CombatStateChangedEvent>,
+    mut audio_triggers: EventWriter<AudioTrigger>,
+) {
+    for event in combat_events.read() {
+        if event.entering_combat {
+            audio_triggers.send(AudioTrigger {
+                priority: Priority::High,
+                category: Some(AudioCategory::Sfx),
+                intensity: Some(event.intensity),
+                label: Some("combat_start".to_string()),
+            });
+        } else {
+            audio_triggers.send(AudioTrigger {
+                priority: Priority::Normal,
+                category: Some(AudioCategory::Music),
+                intensity: Some(0.6),
+                label: Some("combat_end".to_string()),
+            });
+        }
     }
 }
 
-/// System that toggles the audio debug UI when the F3 key is pressed.
-///
-/// This system is intentionally lightweight and only reacts to key presses.
-pub fn toggle_audio_debug_ui(
-    mut visible: ResMut<AudioDebugUiVisible>,
-    keyboard: Res<ButtonInput<KeyCode>>,
+/// Emits AudioTrigger events when the player changes regions.
+pub fn region_audio_trigger_system(
+    mut region_events: EventReader<crate::audio::events::RegionTransitionEvent>,
+    mut audio_triggers: EventWriter<AudioTrigger>,
 ) {
-    if keyboard.just_pressed(KeyCode::F3) {
-        visible.toggle();
-    }
-}
+    for event in region_events.read() {
+        let priority = match event.to_region {
+            crate::audio::events::RegionType::Industrial
+            | crate::audio::events::RegionType::Council => Priority::High,
+            crate::audio::events::RegionType::Forest
+            | crate::audio::events::RegionType::Wilderness => Priority::Normal,
+            _ => Priority::Normal,
+        };
 
-/// Renders the Audio Mixing Debug window using egui.
-/// Only active when `AudioDebugUiVisible` is true.
-pub fn audio_debug_ui(
-    mut contexts: EguiContexts,
-    diagnostics: Res<Diagnostics>,
-    visible: Res<AudioDebugUiVisible>,
-) {
-    if !visible.0 {
-        return;
-    }
-
-    egui::Window::new("Audio Mixing Debug")
-        .default_pos([10.0, 100.0])
-        .show(contexts.ctx_mut(), |ui| {
-            ui.heading("Dynamic Audio Mixing");
-
-            if let Some(mixing_time) = diagnostics.get_measurement(&AUDIO_MIXING_TIME) {
-                ui.label(format!("Mixing Time: {:.3} ms", mixing_time.value));
-            }
-
-            if let Some(active_count) = diagnostics.get_measurement(&ACTIVE_DYNAMIC_AUDIO) {
-                ui.label(format!("Active DynamicAudio: {:.0}", active_count.value));
-            }
-
-            if let Some(ducking_level) = diagnostics.get_measurement(&CURRENT_DUCKING_LEVEL) {
-                ui.label(format!("Current Ducking Level: {:.2}", ducking_level.value));
-
-                let progress = (1.0 - ducking_level.value).clamp(0.0, 1.0) as f32;
-                ui.add(egui::ProgressBar::new(progress).text("Ducking Intensity"));
-            }
-
-            ui.separator();
-            ui.label("Press F3 to toggle this window.");
-            ui.label("Tune values in config/adaptive_audio.ron (hot-reloadable).");
+        audio_triggers.send(AudioTrigger {
+            priority,
+            category: Some(AudioCategory::Ambient),
+            intensity: Some(0.8),
+            label: Some(format!("region_{:?}", event.to_region)),
         });
+    }
 }
