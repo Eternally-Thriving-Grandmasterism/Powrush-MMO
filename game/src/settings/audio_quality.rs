@@ -1,12 +1,12 @@
 /*!
- * Audio Quality & Performance Settings (with Truncation Tuning)
+ * Audio Quality & Performance Settings (with IR Metrics)
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
 
-#[derive(Resource, Clone, Copy)]
+#[derive(Resource, Clone, Copy, Default)]
 pub struct AudioQualitySettings {
     pub master_quality: f32,
     pub convolution_quality: f32,
@@ -17,9 +17,10 @@ pub struct AudioQualitySettings {
     pub convolution_max_distance: f32,
     pub enable_distance_lod: bool,
     pub crossfade_duration: f32,
-
-    /// Target length of early-only truncated IRs (in seconds)
     pub early_reflection_target_duration: f32,
+
+    /// IR truncation logging level: 0 = off, 1 = info only, 2 = debug
+    pub ir_metrics_level: u8,
 }
 
 impl Default for AudioQualitySettings {
@@ -34,7 +35,8 @@ impl Default for AudioQualitySettings {
             convolution_max_distance: 180.0,
             enable_distance_lod: true,
             crossfade_duration: 0.28,
-            early_reflection_target_duration: 0.12, // 120ms early reflections
+            early_reflection_target_duration: 0.12,
+            ir_metrics_level: 1, // info level by default
         }
     }
 }
@@ -55,4 +57,7 @@ impl AudioQualitySettings {
     pub fn get_late_mix(&self) -> f32 {
         (self.late_tail_mix * self.master_quality * self.late_tail_quality).clamp(0.0, 1.0)
     }
+
+    pub fn should_log_ir_info(&self) -> bool { self.ir_metrics_level >= 1 }
+    pub fn should_log_ir_debug(&self) -> bool { self.ir_metrics_level >= 2 }
 }
