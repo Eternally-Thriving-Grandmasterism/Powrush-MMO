@@ -23,11 +23,11 @@ use crate::settings::biome_acoustic::{load_biome_acoustic_profile, update_biome_
 use crate::settings::audio_quality::AudioQualitySettings;
 use shared::spatial::HierarchicalGrid;
 
-// Adaptive Layering modules (declared here for sibling visibility)
 mod adaptive_layering;
 mod events;
+mod kira_ambient;
+mod kira_music;
 
-// Re-exports for convenient access from combat/region systems and external crates
 pub use adaptive_layering::{ 
     AdaptiveLayeringState, 
     AdaptiveAudioConfig, 
@@ -63,7 +63,6 @@ impl Plugin for AudioPlugin {
             .init_resource::<IrTruncationMetrics>()
             .init_resource::<SpatialAudioMetrics>()
             .init_resource::<AudioLatencyMetrics>()
-            // Adaptive Layering
             .init_resource::<AdaptiveLayeringState>()
             .init_resource::<AdaptiveAudioConfig>()
             .add_event::<PaletteTransitionEvent>()
