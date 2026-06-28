@@ -1,5 +1,5 @@
 /*!
- * Audio Plugin - Closed loop + RON RegionPaletteConfig
+ * Audio Plugin - AssetServer RON loading for RegionPaletteConfig
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -28,7 +28,7 @@ pub use adaptive_layering::{
     AudioContext, EmotionalWeight, adaptive_layering_system, request_combat_palette,
     region_audio_transition_system, palette_to_music_mapping_system,
     feed_combat_intensity, combat_intensity_system,
-    RegionPaletteConfig, load_region_palette_config,
+    RegionPaletteConfig, RegionPaletteConfigHandle, load_region_palette_config, RegionPaletteLoader,
 };
 pub use events::{PaletteTransitionEvent, PaletteType, TransitionPriority, RegionTransitionEvent, RegionType, CombatStateChangedEvent};
 
@@ -52,7 +52,9 @@ impl Plugin for AudioPlugin {
             .init_resource::<AudioLatencyMetrics>()
             .init_resource::<AdaptiveLayeringState>()
             .init_resource::<AdaptiveAudioConfig>()
-            .init_resource::<adaptive_layering::RegionPaletteConfig>()
+            .init_asset::<adaptive_layering::RegionPaletteConfig>()
+            .init_resource::<adaptive_layering::RegionPaletteConfigHandle>()
+            .register_asset_loader(adaptive_layering::RegionPaletteLoader)
             .add_event::<PaletteTransitionEvent>()
             .add_event::<CombatStateChangedEvent>()
             .add_event::<RegionTransitionEvent>()
