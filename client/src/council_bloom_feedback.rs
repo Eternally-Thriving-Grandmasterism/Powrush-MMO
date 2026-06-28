@@ -1,31 +1,26 @@
 /*!
- * Council Bloom Feedback — Rich Client Experience
- * Fully connected to camera, whispers, audio, and UI notification.
+ * Council Bloom Feedback — Toast-style notifications
  */
 
 use bevy::prelude::*;
-use bevy_hanabi::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
-use crate::replication::{CouncilBloomPayload, CouncilBloomReceived};
+use crate::replication::CouncilBloomReceived;
 
-// Rich feedback systems from the project
-use crate::divine_whispers::DivineWhisperTrigger;
-use crate::spatial_audio::GameAudioEvent;
-
-// Camera shake resource (adjust path if needed)
-#[derive(Resource, Default)]
-pub struct CameraShake {
-    pub intensity: f32,
-    pub duration: f32,
-    pub timer: f32,
+/// A single toast notification
+#[derive(Clone)]
+pub struct BloomToast {
+    pub message: String,
+    pub attunement: f32,
+    pub timer: Timer,
+    pub alpha: f32,
 }
 
-#[derive(Component)]
-pub struct CouncilBloomEffect { /* ... */ }
-
-#[derive(Resource)]
-pub struct CouncilBloomParticleAssets { /* ... */ }
+/// Resource holding active bloom toasts
+#[derive(Resource, Default)]
+pub struct BloomToasts {
+    pub toasts: Vec<BloomToast>,
+}
 
 #[derive(Event, Clone, Debug)]
 pub struct CouncilBloomNotification {
@@ -39,70 +34,95 @@ impl Plugin for CouncilBloomFeedbackPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<CouncilBloomReceived>()
            .add_event::<CouncilBloomNotification>()
-           .init_resource::<CameraShake>()
-           .add_systems(Startup, setup_council_bloom_particles)
+           .init_resource::<BloomToasts>()
            .add_systems(Update, (
-               process_council_bloom_received,
-               despawn_old_bloom_effects,
-               trigger_rich_bloom_feedback,
-               show_bloom_notification_ui,
+               receive_bloom_notifications,
+               update_toasts,
+               draw_toast_ui,
            ).chain());
     }
 }
 
-// ... (keep existing setup, spawn, process, despawn functions) ...
-
-/// Rich multi-sensory feedback for strong Council Blooms
-fn trigger_rich_bloom_feedback(
-    mut events: EventReader<CouncilBloomReceived>,
-    mut camera_shake: ResMut<CameraShake>,
-    mut whisper_writer: EventWriter<DivineWhisperTrigger>,
-    mut audio_writer: EventWriter<GameAudioEvent>,
+/// Convert CouncilBloomReceived into a notification toast
+fn receive_bloom_notifications(
+    mut bloom_events: EventReader<CouncilBloomReceived>,
+    mut notification_writer: EventWriter<CouncilBloomNotification>,
+    mut toasts: ResMut<BloomToasts>,
 ) {
-    for event in events.read() {
-        let p = &event.payload;
-
-        if p.bloom_activated && p.collective_attunement_score > 0.72 {
-            // Camera shake / presence
-            camera_shake.intensity = (camera_shake.intensity * 0.4 + 0.65).min(2.2);
-            camera_shake.duration = 3.0;
-            camera_shake.timer = 0.0;
-
-            // Divine Whisper
-            whisper_writer.send(DivineWhisperTrigger {
-                text: format!(
-                    "The Council resonates... collective attunement {:.0}%",
-                    p.collective_attunement_score * 100.0
+    for event in bloom_events.read() {
+        if event.payload.bloom_activated {
+            let toast = BloomToast {
+                message: format!(
+                    "Council Bloom Activated — {:.0}% Attunement",
+                    event.payload.collective_attunement_score * 100.0
                 ),
-                intensity: 0.85,
-                duration_seconds: 7.0,
-                is_epiphany: true,
-                ..default()
-            });
+                attunement: event.payload.collective_attunement_score,
+                timer: Timer::from_seconds(4.5, TimerMode::Once),
+                alpha: 1.0,
+            };
 
-            // Audio cue
-            audio_writer.send(GameAudioEvent::CouncilBloom {
-                intensity: p.bloom_amplification_multiplier,
-            });
+            toasts.toasts.push(toast);
 
-            info!("[Client] Rich Council Bloom feedback triggered");
+            // Also emit the general notification event
+            notification_writer.send(CouncilBloomNotification {
+                message: "Council Bloom".to_string(),
+                attunement: event.payload.collective_attunement_score,
+            });
         }
     }
 }
 
-/// Simple egui notification popup for blooms
-fn show_bloom_notification_ui(
-    mut contexts: EguiContexts,
-    mut events: EventReader<CouncilBloomNotification>,
+/// Update toast lifetimes and fade
+fn update_toasts(
+    time: Res<Time>,
+    mut toasts: ResMut<BloomToasts>,
 ) {
-    for event in events.read() {
-        // This will show in the next frame - for a real toast you would use a state + timer
-        egui::Window::new("Council Bloom")
-            .collapsible(false)
+    let mut i = 0;
+    while i < toasts.toasts.len() {
+        let toast = &mut toasts.toasts[i];
+        toast.timer.tick(time.delta());
+
+        // Fade out in the last 1.2 seconds
+        if toast.timer.remaining_secs() < 1.2 {
+            toast.alpha = (toast.timer.remaining_secs() / 1.2).clamp(0.0, 1.0);
+        }
+
+        if toast.timer.just_finished() {
+            toasts.toasts.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+}
+
+/// Draw toast-style popups in bottom-right corner
+fn draw_toast_ui(
+    mut contexts: EguiContexts,
+    mut toasts: ResMut<BloomToasts>,
+) {
+    let ctx = contexts.ctx_mut();
+
+    let screen_rect = ctx.screen_rect();
+    let toast_width = 280.0;
+    let start_y = screen_rect.max.y - 20.0;
+
+    for (i, toast) in toasts.toasts.iter().enumerate() {
+        let y_offset = start_y - (i as f32 * 70.0);
+
+        egui::Window::new(format!("bloom_toast_{}", i))
+            .fixed_pos(egui::pos2(screen_rect.max.x - toast_width - 20.0, y_offset))
+            .fixed_size(egui::vec2(toast_width, 60.0))
+            .frame(egui::Frame::window(&ctx.style()).fill(egui::Color32::from_rgba_unmultiplied(20, 30, 25, (toast.alpha * 220.0) as u8)))
+            .title_bar(false)
             .resizable(false)
-            .show(contexts.ctx_mut(), |ui| {
-                ui.label(&event.message);
-                ui.label(format!("Attunement: {:.1}%", event.attunement * 100.0));
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(120, 255, 160),
+                        &toast.message,
+                    );
+                    ui.label(format!("Attunement: {:.1}%", toast.attunement * 100.0));
+                });
             });
     }
 }
