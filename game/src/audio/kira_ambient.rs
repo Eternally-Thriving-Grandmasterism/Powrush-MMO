@@ -1,4 +1,16 @@
-fn start_crossfade(
+/*!
+ * Kira Ambient / Reverb Crossfade - Ramp time integrated with AdaptiveLayeringSystem
+ *
+ * Accepts ramp_time from PaletteTransitionEvent so music + IR transitions share the same
+ * context-aware duration (combat fast, exploration slow, distance-stretched).
+ *
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
+ */
+
+use bevy::prelude::*;
+// TODO: bring in full KiraAmbientController, ConvolutionBuilder, AudioManager, Handle, AudioSource, AudioLatencyMetrics when backend is complete
+
+pub fn start_crossfade(
     controller: &mut KiraAmbientController,
     new_ir: &crate::audio::ir_manager::ImpulseResponse,
     current_wetness: f32,
@@ -7,11 +19,13 @@ fn start_crossfade(
     audio: Res<AudioManager>,
     time: Res<Time>,
     latency_metrics: Res<AudioLatencyMetrics>,
+    ramp_time: f32, // from PaletteTransitionEvent / calculate_dynamic_ramp_time
 ) {
     if let Some(current) = controller.early_convolution.take() {
         controller.fading_out_convolution = Some(current);
     }
     controller.crossfade_timer = 0.0;
+    controller.crossfade_duration = ramp_time.max(0.1); // use adaptive ramp
 
     latency_metrics.record_crossfade_start(time.elapsed_secs());
 
@@ -27,7 +41,7 @@ fn start_crossfade(
     controller.last_ir_name = new_ir.name.clone();
 }
 
-fn update_crossfade(
+pub fn update_crossfade(
     controller: &mut KiraAmbientController,
     current_ir: &crate::audio::ir_manager::ImpulseResponse,
     current_wetness: f32,
@@ -39,7 +53,7 @@ fn update_crossfade(
 
     let t = (controller.crossfade_timer / controller.crossfade_duration).clamp(0.0, 1.0);
 
-    // fade out / fade in logic...
+    // fade out / fade in logic... (unchanged)
 
     if t >= 1.0 {
         if let Some(old) = controller.fading_out_convolution.take() {
