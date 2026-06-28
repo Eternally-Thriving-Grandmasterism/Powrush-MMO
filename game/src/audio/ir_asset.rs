@@ -1,5 +1,5 @@
 /*!
- * IR Asset Pipeline - Robust Async Fallback in Loader
+ * IR Asset Pipeline - With Metrics & Logging
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -9,6 +9,7 @@ use bevy::asset::{AssetLoader, LoadContext, io::Reader};
 use bevy_kira_audio::AudioSource;
 use kira::sound::static_sound::StaticSoundData;
 use serde::Deserialize;
+use tracing::{debug, info};
 
 use crate::audio::ir_manager::{IrCategory, IrLibrary, CurrentImpulseResponse};
 use crate::settings::audio_quality::AudioQualitySettings;
@@ -53,24 +54,29 @@ impl AssetLoader for IrAssetLoader {
         let definition: IrFileDefinition = ron::de::from_bytes(&bytes)
             .map_err(|e| anyhow::anyhow!("Failed to parse IR definition: {}", e))?;
 
-        // Load the audio file as a dependency (this returns immediately with a handle)
         let audio_handle: Handle<AudioSource> = load_context.load(&definition.audio_path);
 
-        // === Async Fallback Pattern ===
-        // Try to get the decoded audio data synchronously inside the loader.
-        // If available, create the truncated early-only version immediately (best path).
-        // If not available yet, fall back gracefully: return IrAsset with early_only_source = None.
-        // The asset post-processor will create the truncated version later when the audio finishes loading.
-        let early_only_source = if let Some(target_dur) = definition.early_reflection_target_duration {
-            if let Some(loaded_audio) = load_context.get_dependency(&audio_handle) {
-                // Success: data is available → create truncated version now
-                create_truncated_early_ir(loaded_audio, target_dur)
-                    .map(|truncated| load_context.add_asset(truncated))
+        let target_dur = definition.early_reflection_target_duration.unwrap_or(0.12);
+
+        // Attempt immediate truncation inside loader (async best path)
+        let early_only_source = if let Some(loaded_audio) = load_context.get_dependency(&audio_handle) {
+            if let Some(truncated) = create_truncated_early_ir(loaded_audio, target_dur) {
+                let handle = load_context.add_asset(truncated);
+                info!(
+                    "[IR Loader] Created early-only IR inside loader for '{}' (target: {:.0}ms)",
+                    definition.name, target_dur * 1000.0
+                );
+                Some(handle)
             } else {
-                // Fallback: data not ready yet → let post-processor handle it
+                debug!("[IR Loader] Truncation failed for '{}' (target: {:.0}ms)", definition.name, target_dur * 1000.0);
                 None
             }
         } else {
+            // Async fallback - post-processor will handle it
+            debug!(
+                "[IR Loader] Async fallback for '{}' - truncation deferred to post-processor (target: {:.0}ms)",
+                definition.name, target_dur * 1000.0
+            );
             None
         };
 
@@ -129,6 +135,7 @@ pub fn create_truncated_early_ir(
     })
 }
 
+/// Post-processor with logging
 pub fn process_loaded_ir_assets(
     mut ev_asset: EventReader<AssetEvent<IrAsset>>,
     ir_assets: Res<Assets<IrAsset>>,
@@ -149,6 +156,14 @@ pub fn process_loaded_ir_assets(
                                 ) {
                                     let truncated_handle = audio_assets.add(truncated);
                                     current_ir.active.early_only_source = Some(truncated_handle);
+
+                                    info!(
+                                        "[IR Post-Processor] Created early-only IR for '{}' via post-processor (target: {:.0}ms)",
+                                        ir_asset.name,
+                                        quality.early_reflection_target_duration * 1000.0
+                                    );
+                                } else {
+                                    debug!("[IR Post-Processor] Truncation skipped for '{}' (already sufficient length)", ir_asset.name);
                                 }
                             }
                         }
