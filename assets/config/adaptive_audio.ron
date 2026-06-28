@@ -1,18 +1,29 @@
 # Adaptive Audio Configuration
-# This file controls dynamic ramp times, transition behavior, and hot-reload audio feedback volumes.
-# Hot-reloadable at runtime.
+# Full support for Dynamic Ducking Curves + Priority-based mixing
 
 (
-    # Ramp time multipliers for different contexts
-    combat_ramp_multiplier: 0.35,           # Fast ramps during combat/sudden events
-    long_travel_ramp_multiplier: 1.7,       # Slower ramps for long-distance travel
-    emotional_high_ramp_multiplier: 1.35,   # Extra time for high-emotion transitions
+    # Ramp behavior
+    combat_ramp_multiplier: 0.35,
+    long_travel_ramp_multiplier: 1.7,
+    emotional_high_ramp_multiplier: 1.35,
     max_ramp_time: 15.0,
     min_ramp_time: 1.5,
-    combat_ramp_down_multiplier: 1.5,       # Slightly slower return from combat
+    combat_ramp_down_multiplier: 1.5,
     default_region_ramp_multiplier: 1.0,
 
-    # Hot reload audio feedback volumes (multiplier on mixer.ui)
+    # Hot reload feedback volumes
     region_palette_reload_volume: 0.9,
     ai_config_reload_volume: 0.85,
+
+    # === Dynamic Ducking Curves (per-priority) ===
+    ducking_critical: 0.25,
+    ducking_high: 0.4,
+    ducking_normal: 0.6,
+
+    ducking_attack_critical: 14.0,
+    ducking_release_critical: 5.0,
+    ducking_attack_high: 10.0,
+    ducking_release_high: 4.0,
+    ducking_attack_normal: 6.0,
+    ducking_release_normal: 3.0,
 )
