@@ -1,65 +1,52 @@
 /*!
- * Audio Debug UI + Trigger Systems
+ * AudioTrigger handler + Debug UI
  */
 
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 use bevy::diagnostic::Diagnostics;
-use crate::settings::audio_mixing::{AudioCategory, Priority};
+use crate::settings::audio_mixing::{AudioCategory, Priority, DynamicAudio};
 use crate::audio::events::AudioTrigger;
 use crate::settings::audio_mixing::{
-    AUDIO_MIXING_TIME,
-    ACTIVE_DYNAMIC_AUDIO,
-    CURRENT_DUCKING_LEVEL,
+    AUDIO_MIXING_TIME, ACTIVE_DYNAMIC_AUDIO, CURRENT_DUCKING_LEVEL,
 };
 
-// ... existing debug UI code (AudioDebugUiVisible, toggle_audio_debug_ui, audio_debug_ui) ...
+// ... existing debug UI code ...
 
-// === Example Gameplay Integration Systems ===
-
-/// Emits AudioTrigger events based on combat state changes.
-pub fn combat_audio_trigger_system(
-    mut combat_events: EventReader<crate::audio::events::CombatStateChangedEvent>,
-    mut audio_triggers: EventWriter<AudioTrigger>,
+/// Handles AudioTrigger events by spawning audio with the correct DynamicAudio component.
+pub fn audio_trigger_handler(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut audio_triggers: EventReader<AudioTrigger>,
 ) {
-    for event in combat_events.read() {
-        if event.entering_combat {
-            audio_triggers.send(AudioTrigger {
-                priority: Priority::High,
-                category: Some(AudioCategory::Sfx),
-                intensity: Some(event.intensity),
-                label: Some("combat_start".to_string()),
-            });
+    for trigger in audio_triggers.read() {
+        let category = trigger.category.unwrap_or(AudioCategory::Sfx);
+        let volume = trigger.intensity.unwrap_or(1.0);
+
+        if let Some(path) = &trigger.sound_path {
+            let sound = asset_server.load(path);
+
+            commands.spawn((
+                AudioBundle {
+                    source: sound,
+                    settings: PlaybackSettings::ONCE.with_volume(volume),
+                },
+                DynamicAudio {
+                    category,
+                    priority: trigger.priority,
+                },
+            ));
+
+            #[cfg(debug_assertions)]
+            if let Some(label) = &trigger.label {
+                info!("[Audio] Triggered '{}' with priority {:?}", label, trigger.priority);
+            }
         } else {
-            audio_triggers.send(AudioTrigger {
-                priority: Priority::Normal,
-                category: Some(AudioCategory::Music),
-                intensity: Some(0.6),
-                label: Some("combat_end".to_string()),
-            });
+            // No sound path provided — could be used for priority-only signals in the future
+            #[cfg(debug_assertions)]
+            if let Some(label) = &trigger.label {
+                debug!("[Audio] Received AudioTrigger '{}' (no sound) with priority {:?}", label, trigger.priority);
+            }
         }
-    }
-}
-
-/// Emits AudioTrigger events when the player changes regions.
-pub fn region_audio_trigger_system(
-    mut region_events: EventReader<crate::audio::events::RegionTransitionEvent>,
-    mut audio_triggers: EventWriter<AudioTrigger>,
-) {
-    for event in region_events.read() {
-        let priority = match event.to_region {
-            crate::audio::events::RegionType::Industrial
-            | crate::audio::events::RegionType::Council => Priority::High,
-            crate::audio::events::RegionType::Forest
-            | crate::audio::events::RegionType::Wilderness => Priority::Normal,
-            _ => Priority::Normal,
-        };
-
-        audio_triggers.send(AudioTrigger {
-            priority,
-            category: Some(AudioCategory::Ambient),
-            intensity: Some(0.8),
-            label: Some(format!("region_{:?}", event.to_region)),
-        });
     }
 }
