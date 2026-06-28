@@ -1,21 +1,18 @@
 /*!
  * Audio Events - Palette Transitions, Combat & Region Events for Adaptive Layering
  *
- * Part of the AdaptiveLayeringSystem for dynamic music/IR/reverb ramps.
- * Integrates with MusicStateType, Kira crossfades, and biome acoustics.
+ * Real RegionType enum + Combat intensity feeding for full closed-loop palette/region/combat audio.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
- * Eternal forward/backward compatible. Mercy-gated.
  */
 
 use bevy::prelude::*;
 
-/// Request to transition the music palette / intensity with adaptive ramp
 #[derive(Event, Debug)]
 pub struct PaletteTransitionEvent {
     pub target_palette: PaletteType,
-    pub target_intensity: f32,      // 0.0 - 1.0
-    pub ramp_time: f32,             // seconds, calculated dynamically
+    pub target_intensity: f32,
+    pub ramp_time: f32,
     pub priority: TransitionPriority,
 }
 
@@ -34,17 +31,29 @@ pub enum TransitionPriority {
     Event,
 }
 
-/// Combat state change for overriding palette weighting
+/// Real typed regions for data-driven palette mapping (RON config ready)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum RegionType {
+    #[default]
+    Wilderness,
+    Forest,
+    Industrial,
+    Urban,
+    Desert,
+    Ocean,
+    Mountain,
+    Council,
+}
+
+#[derive(Event, Debug)]
+pub struct RegionTransitionEvent {
+    pub from_region: RegionType,
+    pub to_region: RegionType,
+    pub distance: f32,
+}
+
 #[derive(Event, Debug)]
 pub struct CombatStateChangedEvent {
     pub entering_combat: bool,
-    pub intensity: f32, // 0.0-1.0 threat level
-}
-
-/// Region transition for distance-aware ramp calculation
-#[derive(Event, Debug)]
-pub struct RegionTransitionEvent {
-    pub from_region: String,
-    pub to_region: String,
-    pub distance: f32, // meters or normalized
+    pub intensity: f32, // 0.0-1.0 threat level -> feeds industrial_intensity
 }
