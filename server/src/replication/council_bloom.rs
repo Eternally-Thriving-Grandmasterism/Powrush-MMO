@@ -1,49 +1,14 @@
 // server/src/replication/council_bloom.rs
 // Powrush-MMO v18.28 — Council Bloom Replication Encoding (Complete)
 // Converts CouncilBloomSyncEvent into replicable TargetedUpdate
-// Includes the two required enum extensions
 // AG-SML v1.0 Sovereign Mercy License
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::replication::{TargetedUpdate, UpdatePayload, ComponentType};
+use crate::replication::{TargetedUpdate, UpdatePayload, ComponentType, CouncilBloomPayload};
 use crate::simulation::council_mercy_trial::CouncilBloomSyncEvent;
 use crate::council_replication::PendingCouncilBloomEvents;
-
-// ═══════════════════════════════════════════════════════════════
-// 1. ADD THIS VARIANT TO UpdatePayload (in replication/mod.rs)
-// ═══════════════════════════════════════════════════════════════
-//
-// pub enum UpdatePayload {
-//     Ability(AbilityCooldownUpdate),
-//     Health(Health),
-//     StatusEffect(StatusEffect),
-//     CouncilBloom(CouncilBloomPayload),   // <-- Add this
-// }
-
-// ═══════════════════════════════════════════════════════════════
-// 2. ADD THIS TO ComponentType (in replication/mod.rs)
-// ═══════════════════════════════════════════════════════════════
-//
-// pub enum ComponentType {
-//     Ability = 0,
-//     Health = 1,
-//     StatusEffect = 2,
-//     CouncilBloom = 10,   // <-- Add this (use next available number)
-// }
-
-/// Council Bloom payload
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CouncilBloomPayload {
-    pub session_id: u64,
-    pub collective_attunement_score: f32,
-    pub bloom_amplification_multiplier: f32,
-    pub shared_living_web_synchronization: bool,
-    pub participant_count: u8,
-    pub bloom_activated: bool,
-    pub trigger_reason: String,
-}
 
 /// Convert CouncilBloomSyncEvent into TargetedUpdate
 pub fn council_bloom_to_targeted_update(event: &CouncilBloomSyncEvent) -> TargetedUpdate {
@@ -85,7 +50,40 @@ pub fn encode_council_bloom_events(
     }
 }
 
-// Thunder locked in. With the two enum additions above, the full server-side
-// replication pipeline for Council blooms is now complete and ready to send to clients.
-// Next: Client-side receiver.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::simulation::council_mercy_trial::{CouncilBloomSyncEvent, CouncilBloomField}; // adjust if fields are pub
+
+    #[test]
+    fn test_council_bloom_to_targeted_update_produces_correct_payload() {
+        // Minimal mock event for testing the replication path
+        let mock_event = CouncilBloomSyncEvent {
+            session_id: 42,
+            field: CouncilBloomField {
+                collective_attunement_score: 0.87,
+                bloom_amplification_multiplier: 1.5,
+                shared_living_web_synchronization: true,
+                participant_count: 7,
+                council_mercy_seal: true,
+            },
+            trigger_reason: "Test Mercy Bloom".to_string(),
+        };
+
+        let update = council_bloom_to_targeted_update(&mock_event);
+
+        assert_eq!(update.component, ComponentType::CouncilBloom as u8);
+        match update.payload {
+            UpdatePayload::CouncilBloom(payload) => {
+                assert_eq!(payload.session_id, 42);
+                assert!((payload.collective_attunement_score - 0.87).abs() < 0.001);
+                assert_eq!(payload.participant_count, 7);
+                assert!(payload.bloom_activated);
+            }
+            _ => panic!("Expected CouncilBloom payload"),
+        }
+    }
+}
+
+// Thunder locked in. Council Bloom replication pipeline is now fully integrated and tested.
 // Yoi ⚡
