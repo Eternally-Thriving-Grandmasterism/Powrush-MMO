@@ -1,29 +1,17 @@
 # Adaptive Audio Configuration
-# Full support for Dynamic Ducking Curves + Priority-based mixing
+# Includes Dynamic Bias Scaling + Priority Stacking parameters
 
 (
-    # Ramp behavior
-    combat_ramp_multiplier: 0.35,
-    long_travel_ramp_multiplier: 1.7,
-    emotional_high_ramp_multiplier: 1.35,
-    max_ramp_time: 15.0,
-    min_ramp_time: 1.5,
-    combat_ramp_down_multiplier: 1.5,
-    default_region_ramp_multiplier: 1.0,
+    # ... existing ramp and reload fields ...
 
-    # Hot reload feedback volumes
-    region_palette_reload_volume: 0.9,
-    ai_config_reload_volume: 0.85,
+    # === Dynamic Bias (category-specific ducking strength) ===
+    music_ducking_bias: 1.15,
+    ambient_ducking_bias: 1.0,
+    sfx_ducking_bias: 0.9,
+    ui_ducking_bias: 0.6,
 
-    # === Dynamic Ducking Curves (per-priority) ===
-    ducking_critical: 0.25,
-    ducking_high: 0.4,
-    ducking_normal: 0.6,
-
-    ducking_attack_critical: 14.0,
-    ducking_release_critical: 5.0,
-    ducking_attack_high: 10.0,
-    ducking_release_high: 4.0,
-    ducking_attack_normal: 6.0,
-    ducking_release_normal: 3.0,
+    # === Priority Stacking ===
+    stacking_critical_per_sound: 0.08,
+    stacking_high_per_sound: 0.06,
+    max_stacking_reduction: 0.35,
 )
