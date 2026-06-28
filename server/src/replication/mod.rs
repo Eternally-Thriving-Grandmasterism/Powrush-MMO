@@ -3,6 +3,7 @@
  *
  * Powrush-MMO Replication Core
  * v20.10 | Added FACTION_MEMBERSHIP support alongside FACTION_STANDING.
+ * v20.11 | Added CouncilBloom support to complete Council Bloom replication pipeline.
  *
  * AG-SML v1.0 | TOLC 8
  * Thunder locked in. Yoi ⚡
@@ -44,13 +45,38 @@ pub struct DirtyReplicationState {
     pub last_health: Option<f32>,
 }
 
+/// Council Bloom payload (used by Council Bloom replication)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CouncilBloomPayload {
+    pub session_id: u64,
+    pub collective_attunement_score: f32,
+    pub bloom_amplification_multiplier: f32,
+    pub shared_living_web_synchronization: bool,
+    pub participant_count: u8,
+    pub bloom_activated: bool,
+    pub trigger_reason: String,
+}
+
+/// Component type identifiers for TargetedUpdate
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum ComponentType {
+    Position          = 0,
+    Health            = 1,
+    RbeTransaction    = 2,
+    FactionStanding   = 3,
+    FactionMembership = 4,
+    CouncilBloom      = 10,   // Council Bloom replication
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UpdatePayload {
     Position { x: f32, y: f32, z: f32 },
     Health(f32),
     RbeTransaction { resource_type: u8, amount: f32 },
     FactionStanding { faction_id: u64, standing: f32 },
-    FactionMembership { faction_id: u64 },           // NEW
+    FactionMembership { faction_id: u64 },
+    CouncilBloom(CouncilBloomPayload),           // NEW - completes Council Bloom replication
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
