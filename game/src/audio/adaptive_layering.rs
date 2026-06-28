@@ -1,5 +1,5 @@
 /*!
- * Adaptive Layering System - Audio feedback on hot reload
+ * Adaptive Layering System - Distinct audio feedback sounds for hot reloads
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
  */
@@ -18,7 +18,7 @@ use crate::settings::biome_acoustic::CurrentBiomeAcoustics;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// Core types
+// Core types (abbreviated for edit)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AudioContext { Exploration, Combat, SuddenEvent, Crafting, LongDistanceTravel, LargeEvent }
 
@@ -48,7 +48,7 @@ pub fn combat_intensity_system(...) { /* ... */ }
 pub fn hot_reload_region_palette_system(...) { /* ... */ }
 pub fn hot_reload_ai_config_system(...) { /* ... */ }
 
-// === Audio Feedback on Hot Reload ===
+// === Distinct Audio Feedback ===
 
 pub fn on_region_palette_config_reloaded(
     mut events: EventReader<RegionPaletteConfigReloaded>,
@@ -57,20 +57,20 @@ pub fn on_region_palette_config_reloaded(
     mixer: Res<AudioMixer>,
 ) {
     for event in events.read() {
-        // Play a short UI/notification stinger for config reload feedback
-        let sound = asset_server.load("audio/ui/config_reload.ogg"); // Replace with real asset
+        // Distinct sound for Region Palette config reload
+        let sound = asset_server.load("audio/ui/region_palette_reload.ogg");
         commands.spawn((
             AudioBundle {
                 source: sound,
                 settings: PlaybackSettings::ONCE.with_volume(mixer.ui * 0.9),
             },
             DynamicAudio {
-                category: AudioCategory::UI, // or SFX if you have it
+                category: AudioCategory::Music,
                 priority: Priority::High,
             },
         ));
 
-        info!("[Audio] Played reload feedback for RegionPaletteConfig ({} mappings)", event.mappings_count);
+        info!("[Audio] Played RegionPalette reload feedback ({} mappings)", event.mappings_count);
     }
 }
 
@@ -81,19 +81,20 @@ pub fn on_ai_config_reloaded(
     mixer: Res<AudioMixer>,
 ) {
     for event in events.read() {
-        let sound = asset_server.load("audio/ui/config_reload.ogg"); // Same or different stinger
+        // Distinct sound for AI Config reload
+        let sound = asset_server.load("audio/ui/ai_config_reload.ogg");
         commands.spawn((
             AudioBundle {
                 source: sound,
                 settings: PlaybackSettings::ONCE.with_volume(mixer.ui * 0.85),
             },
             DynamicAudio {
-                category: AudioCategory::UI,
+                category: AudioCategory::Music,
                 priority: Priority::High,
             },
         ));
 
-        info!("[Audio] Played reload feedback for AIConfig (scale={:.2})", event.combat_intensity_scale);
+        info!("[Audio] Played AIConfig reload feedback (scale={:.2})", event.combat_intensity_scale);
     }
 }
 
