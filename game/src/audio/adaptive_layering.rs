@@ -12,7 +12,7 @@
 use bevy::prelude::*;
 use super::events::{PaletteTransitionEvent, PaletteType, TransitionPriority};
 use super::super::latency_metrics::AudioLatencyMetrics;
-use super::super::music::MusicController; // audio::music via plugin parent
+use super::super::music::MusicController;
 
 /// Audio contexts that influence ramp behavior (maps to MusicStateType + region)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -99,7 +99,6 @@ pub fn calculate_dynamic_ramp_time(
                 ramp *= 0.9;
             }
 
-            // Distance factor stretches for long travel/exploration
             ramp *= (1.0 + distance_factor * 0.3).clamp(1.0, 2.0);
 
             ramp.clamp(3.0, 12.0)
@@ -113,7 +112,7 @@ pub fn adaptive_layering_system(
     mut events: EventReader<PaletteTransitionEvent>,
     time: Res<Time>,
     mut latency_metrics: ResMut<AudioLatencyMetrics>,
-    mut music_controller: Option<ResMut<MusicController>>, // Optional integration
+    mut music_controller: Option<ResMut<MusicController>>,
 ) {
     for event in events.read() {
         latency_metrics.record_crossfade_start(time.elapsed_secs());
@@ -121,20 +120,13 @@ pub fn adaptive_layering_system(
         state.target_intensity = event.target_intensity;
         state.is_transitioning = true;
 
-        // Map palette to music state where sensible (expand later)
         if let Some(ref mut mc) = music_controller {
-            match event.target_palette {
-                PaletteType::IndustrialPulse => {
-                    // TODO: mc.target_state = MusicStateType::Combat; or intensity ramp
-                }
-                _ => {}
-            }
+            // Future: map PaletteType to MusicStateType + set mc.transition_duration = event.ramp_time
         }
 
         trigger_palette_crossfade(event, &mut state);
     }
 
-    // Optional smooth intensity lerp when transitioning (if not fully event-driven crossfade)
     if state.is_transitioning {
         let lerp_speed = 2.0;
         state.current_intensity = state.current_intensity
@@ -149,19 +141,27 @@ pub fn adaptive_layering_system(
 fn trigger_palette_crossfade(event: &PaletteTransitionEvent, state: &mut AdaptiveLayeringState) {
     state.current_palette = event.target_palette;
 
-    // Hook point: pass event.ramp_time to kira crossfade systems
-    // e.g. update kira_music / kira_ambient crossfade_duration = event.ramp_time
-    // Combat priority forces tighter timing or ducking via MusicController
+    // Integration point with kira crossfades (now accept ramp_time)
+    // Example call site (uncomment when Kira*Controller types are defined):
+    // if event.target_palette == PaletteType::IndustrialPulse {
+    //     // let mut controller = ... get or res
+    //     crate::audio::kira_music::start_music_crossfade(
+    //         &mut controller, &new_ir, wetness, mix, source, audio, time, latency, event.ramp_time
+    //     );
+    // } else {
+    //     crate::audio::kira_ambient::start_crossfade(... event.ramp_time);
+    // }
+    // Same ramp_time guarantees music layers + spatial reverb transition together.
+
     if event.priority == TransitionPriority::Combat {
-        // Future: immediate layer emphasis
+        // e.g. force ducking or shorter perceived ramp
     }
 
     #[cfg(debug_assertions)]
-    info!("[AdaptiveLayering] Palette {:?} -> intensity {:.2} | ramp {:.1}s | prio {:?}", 
+    info!("[AdaptiveLayering] {:?} intensity {:.2} ramp {:.1}s prio {:?}", 
           event.target_palette, event.target_intensity, event.ramp_time, event.priority);
 }
 
-/// Example: Combat systems call this (or send event directly) to trigger adaptive IndustrialPulse ramp
 pub fn request_combat_palette(
     mut event_writer: EventWriter<PaletteTransitionEvent>,
     layering_state: Res<AdaptiveLayeringState>,
