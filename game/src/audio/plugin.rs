@@ -1,10 +1,11 @@
 /*!
- * Audio Plugin - With Asset Post-Processor IR Truncation
+ * Audio Plugin - With Custom IrAssetLoader
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
 use bevy::prelude::*;
+use bevy::asset::AssetApp;
 use super::music::{evaluate_music_state, update_music, update_music_layers, MusicLayers};
 use super::procedural_reverb_estimation::{
     update_procedural_reverb_estimation,
@@ -13,7 +14,7 @@ use super::procedural_reverb_estimation::{
     AudioListener,
 };
 use super::ir_manager::{IrLibrary, CurrentImpulseResponse};
-use super::ir_asset::{load_ir_library_from_ron, process_loaded_audio_sources};
+use super::ir_asset::{load_ir_library_from_ron, IrAssetLoader};
 use crate::settings::audio_mixing::ReverbState;
 use crate::settings::biome_acoustic::{load_biome_acoustic_profile, update_biome_acoustic_transition, CurrentBiomeAcoustics};
 use crate::settings::audio_quality::AudioQualitySettings;
@@ -34,6 +35,7 @@ impl Plugin for AudioPlugin {
             .init_resource::<IrLibrary>()
             .init_resource::<CurrentImpulseResponse>()
             .init_resource::<AudioQualitySettings>()
+            .register_asset_loader(IrAssetLoader)
             .add_systems(Startup, (load_biome_acoustic_profile, load_ir_library_from_ron))
             .add_systems(Update, (
                 evaluate_music_state,
@@ -41,7 +43,6 @@ impl Plugin for AudioPlugin {
                 update_music_layers,
                 update_procedural_reverb_estimation,
                 update_biome_acoustic_transition,
-                process_loaded_audio_sources, // Asset post-processor for IR truncation
             ));
     }
 }
