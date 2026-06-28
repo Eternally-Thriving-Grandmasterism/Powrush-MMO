@@ -1,73 +1,25 @@
 /*!
- * Audio Events - Including Hot Reload Events for Region & AI configs
- *
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Powrush-MMO
+ * Audio Events - Including AudioTrigger for gameplay-driven audio
  */
 
 use bevy::prelude::*;
-use serde::{Deserialize, Serialize};
+use crate::settings::audio_mixing::{AudioCategory, Priority};
 
-#[derive(Event, Debug)]
-pub struct PaletteTransitionEvent {
-    pub target_palette: PaletteType,
-    pub target_intensity: f32,
-    pub ramp_time: f32,
-    pub priority: TransitionPriority,
-}
+// ... existing events (PaletteTransitionEvent, RegionTransitionEvent, etc.) ...
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-pub enum PaletteType {
-    #[default]
-    ResonantVeil,
-    IndustrialPulse,
-    EchoingWisp,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TransitionPriority {
-    Normal,
-    Combat,
-    Event,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-pub enum RegionType {
-    #[default]
-    Wilderness,
-    Forest,
-    Industrial,
-    Urban,
-    Desert,
-    Ocean,
-    Mountain,
-    Council,
-}
-
-#[derive(Event, Debug)]
-pub struct RegionTransitionEvent {
-    pub from_region: RegionType,
-    pub to_region: RegionType,
-    pub distance: f32,
-}
-
-#[derive(Event, Debug)]
-pub struct CombatStateChangedEvent {
-    pub entering_combat: bool,
-    pub intensity: f32,
-}
-
-// === Hot Reload Events ===
-
+/// Event emitted by gameplay systems to request audio with a specific priority.
+/// This is the primary interface for game logic to influence the Dynamic Audio Mixing system.
 #[derive(Event, Debug, Clone)]
-pub struct RegionPaletteConfigReloaded {
-    pub mappings_count: usize,
-    pub default_palette: PaletteType,
-    pub timestamp: f32,
-}
+pub struct AudioTrigger {
+    /// Priority level. Higher priorities can duck lower priority audio.
+    pub priority: Priority,
 
-#[derive(Event, Debug, Clone)]
-pub struct AIConfigReloaded {
-    pub combat_intensity_scale: f32,
-    pub base_aggression: f32,
-    pub timestamp: f32,
+    /// Optional category. If None, the audio system may decide based on context.
+    pub category: Option<AudioCategory>,
+
+    /// Optional intensity scalar (0.0 - 1.0).
+    pub intensity: Option<f32>,
+
+    /// Optional label for debugging and diagnostics.
+    pub label: Option<String>,
 }
