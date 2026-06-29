@@ -12,6 +12,11 @@
 // 
 // engine/src/ui.rs
 // High-performance procedural UI rendering engine with concurrent TextAtlasCache (Moka-backed).
+// 
+// Eviction Policy: TinyLFU (default) + LRU segments (excellent hit rate + protection against one-time/rare text).
+// Recommended weigher for UI text: pixel_count_weigher (actual memory cost of atlases).
+// Supports custom weighers, TTL, TTI, stats, and get_or_render for blazing fast repeated draws.
+// 
 // Features: PixelFont trait, dynamic SimpleBitmapFont, pre-rendered text atlases,
 // weighted eviction, TTL/TTI, get_or_render, blazing-fast single-blit draws.
 // 
@@ -213,6 +218,7 @@ pub fn text_length_weigher(key: &(String, [u8; 3]), _atlas: &RgbImage) -> u32 {
 }
 
 /// Weigher based on actual pixel count of the rendered atlas.
+/// Recommended for UI text caching (directly measures memory/GPU cost).
 pub fn pixel_count_weigher(_key: &(String, [u8; 3]), atlas: &RgbImage) -> u32 {
     atlas.width() * atlas.height()
 }
@@ -226,6 +232,9 @@ pub fn constant_weigher(_key: &(String, [u8; 3]), _atlas: &RgbImage) -> u32 {
 
 /// High-performance concurrent cache for pre-rendered text atlases.
 /// Backed by Moka with optional time-based expiration (TTL and/or TTI) and weighted eviction.
+/// 
+/// Policy: TinyLFU admission + LRU eviction (default, best for mixed frequent/rare UI text).
+/// Use pixel_count_weigher for accurate memory-bounded eviction of variable-size text atlases.
 pub struct TextAtlasCache {
     cache: Cache<(String, [u8; 3]), RgbImage>,
 }
@@ -264,6 +273,17 @@ impl TextAtlasCache {
             cache: Cache::builder()
                 .max_capacity(max_capacity)
                 .weigher(text_length_weigher)
+                .build(),
+        }
+    }
+
+    /// Create a cache using weighted eviction based on actual pixel count of the atlas.
+    /// Recommended default for UI text (player names, labels, HUD, council UI).
+    pub fn with_pixel_weigher(max_capacity: u64) -> Self {
+        Self {
+            cache: Cache::builder()
+                .max_capacity(max_capacity)
+                .weigher(pixel_count_weigher)
                 .build(),
         }
     }
@@ -322,7 +342,7 @@ impl TextAtlasCache {
     }
 }
 
-// Example usage:
-// let cache = TextAtlasCache::with_weigher(2048, text_length_weigher);
-// // or
-// let cache = TextAtlasCache::with_text_length_weigher(2048);
+// Example usage (recommended for UI text):
+// let cache = TextAtlasCache::with_pixel_weigher(2048);
+// // or with custom policy
+// let cache = TextAtlasCache::with_weigher(2048, pixel_count_weigher);
