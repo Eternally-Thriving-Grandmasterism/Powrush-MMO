@@ -1,11 +1,12 @@
 /*!
- * Production sync_gpu_simulation_state with real resource wiring
+ * sync_gpu_simulation_state with recommended real resource wiring
+ * (based on codebase patterns - adjust paths as needed)
  */
 
 use simulation::council_systems::RecentMercyResonance;
-// use simulation::game_state::GlobalConfidence; // adjust if needed
+// use simulation::game_state::GlobalConfidence;
 // use simulation::rbe::RbeGlobalState;
-// use simulation::player::Player;
+// use simulation::player::{Player, MercyAttunement};
 
 pub fn sync_gpu_simulation_state(
     mut gpu_state: ResMut<GpuSimulationState>,
@@ -18,12 +19,11 @@ pub fn sync_gpu_simulation_state(
     gpu_state.time = time.elapsed_seconds();
     gpu_state.delta_time = time.delta_seconds();
 
-    // Mercy Resonance
     if let Some(mercy) = mercy_resonance {
         gpu_state.global_mercy_resonance = mercy.value;
     }
 
-    // Global Confidence (uncomment when resource is available)
+    // Global Confidence
     // if let Some(conf) = global_confidence {
     //     gpu_state.global_confidence = conf.value;
     // }
@@ -31,7 +31,7 @@ pub fn sync_gpu_simulation_state(
     // RBE State
     // if let Some(rbe) = rbe_state {
     //     gpu_state.rbe_flow_rate = rbe.flow_rate;
-    //     gpu_state.total_rbe_circulating = rbe.total;
+    //     gpu_state.total_rbe_circulating = rbe.total_circulating;
     //     gpu_state.player_rbe_balance = rbe.player_balance;
     // }
 
@@ -40,8 +40,5 @@ pub fn sync_gpu_simulation_state(
     //     gpu_state.player_position = transform.translation.to_array();
     //     gpu_state.player_velocity = velocity.0.to_array();
     //     gpu_state.player_mercy_attunement = attunement.value;
-    //     gpu_state.player_thrivability = attunement.thrivability;
     // }
-
-    // Council state can be added similarly once the resources exist.
 }
