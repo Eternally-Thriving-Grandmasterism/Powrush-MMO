@@ -1,19 +1,18 @@
 /*!
  * Council UI - Full Real Distance-Based 3D Audio Falloff (v19.2.9)
  * 
- * Fully wired to engine::ui::TextAtlasCache (pixel weigher + TinyLFU) for high-performance
- * cached text rendering of resonance, valence, and button labels.
+ * One label (Mercy Resonance) fully migrated to TextAtlasCache cached blitting.
  */
 
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 use bevy_kira_audio::prelude::*;
+use image::RgbImage;
 use simulation::game_state::GameState;
 use simulation::council_mercy_trial::{CouncilAttunementAction, CouncilUIHooksPlugin};
 use simulation::council_systems::{RecentMercyResonance, LastCouncilValence, CouncilResolved};
 
-// Engine UI wiring
-use crate::engine::ui::{TextAtlasCache, PixelFont, SimpleBitmapFont, draw_pre_rendered_text};
+use crate::engine::ui::{TextAtlasCache, SimpleBitmapFont, draw_pre_rendered_text};
 
 #[derive(Component)]
 pub struct CouncilPanel;
@@ -38,6 +37,10 @@ struct ValenceBurst;
 #[derive(Component, Default)]
 pub struct Velocity(pub Vec3);
 
+/// Holds the cached image handle for a label
+#[derive(Component)]
+struct CachedLabelImage(pub Handle<Image>);
+
 pub struct CouncilUIPlugin;
 
 impl Plugin for CouncilUIPlugin {
@@ -46,7 +49,6 @@ impl Plugin for CouncilUIPlugin {
             .add_plugins(CouncilUIHooksPlugin)
             .add_plugins(AudioPlugin)
             .init_resource::<LocalPlayer>()
-            // Proper Bevy Resource wiring for TextAtlasCache
             .insert_resource(TextAtlasCache::with_pixel_weigher(512))
             .add_systems(Startup, setup_audio_listener)
             .add_systems(OnEnter(GameState::InCouncil), spawn_council_panel)
@@ -57,10 +59,11 @@ impl Plugin for CouncilUIPlugin {
                     handle_council_buttons,
                     handle_council_resolved_bursts,
                     handle_council_toggle_input,
-                    update_resonance_display,
+                    update_resonance_display, // Still used for Last Valence (not yet migrated)
                     update_panel_visuals,
                     update_valence_particles,
-                    update_council_text_cache, // Actual TextAtlasCache draw calls
+                    update_council_text_cache,
+                    update_mercy_resonance_image, // NEW: Cached blitting for Mercy Resonance
                 )
                 .run_if(in_state(GameState::InCouncil)),
             );
@@ -76,7 +79,14 @@ fn setup_audio_listener(
     }
 }
 
-fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>, mut images: ResMut<Assets<Image>>) {
+    // Create initial placeholder image for Mercy Resonance
+    let placeholder = Image::from_dynamic(
+        image::DynamicImage::ImageRgb8(RgbImage::new(200, 20)),
+        true,
+    );
+    let resonance_handle = images.add(placeholder);
+
     commands
         .spawn((
             NodeBundle {
@@ -101,7 +111,23 @@ fn spawn_council_panel(mut commands: Commands, asset_server: Res<AssetServer>) {
         ))
         .with_children(|parent| {
             parent.spawn(TextBundle { text: Text::from_section("COUNCIL OF MERCY", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 18.0, color: Color::srgb(0.85, 0.75, 1.0) }), style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() }, ..default() });
-            parent.spawn((TextBundle { text: Text::from_section("Mercy Resonance: 0.50", TextStyle { font_size: 13.0, color: Color::srgb(0.7, 0.9, 0.7) }), style: Style { margin: UiRect::bottom(Val::Px(4.0)), ..default() }, ..default() }, MercyResonanceText));
+
+            // MIGRATED: Mercy Resonance now uses cached blitting via UiImage
+            parent.spawn((
+                ImageBundle {
+                    image: UiImage::new(resonance_handle.clone()),
+                    style: Style {
+                        width: Val::Px(200.0),
+                        height: Val::Px(20.0),
+                        margin: UiRect::bottom(Val::Px(4.0)),
+                        ..default()
+                    },
+                    ..default()
+                },
+                MercyResonanceText,
+                CachedLabelImage(resonance_handle),
+            ));
+
             parent.spawn((TextBundle { text: Text::from_section("Last Valence: --", TextStyle { font_size: 13.0, color: Color::srgb(0.9, 0.85, 0.6) }), style: Style { margin: UiRect::bottom(Val::Px(10.0)), ..default() }, ..default() }, LastValenceText));
 
             create_attunement_button(parent, &asset_server, "Focus Deeply", 0.25);
@@ -117,6 +143,8 @@ fn create_attunement_button(parent: &mut ChildBuilder, asset_server: &Res<AssetS
     parent.spawn((ButtonBundle { style: Style { width: Val::Percent(100.0), padding: UiRect::all(Val::Px(8.0)), margin: UiRect::bottom(Val::Px(6.0)), justify_content: JustifyContent::Center, ..default() }, background_color: Color::srgb(0.25, 0.2, 0.35).into(), ..default() }, CouncilAttunementButton { attunement_delta: delta }))
         .with_children(|btn| { btn.spawn(TextBundle { text: Text::from_section(label, TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 14.0, color: Color::WHITE }), ..default() }); });
 }
+
+// ... (handle_council_buttons, handle_council_resolved_bursts, spawn_*_burst, play_spatial_sound remain unchanged) ...
 
 fn handle_council_buttons(
     mut interaction_query: Query<(&Interaction, &CouncilAttunementButton), Changed<Interaction>>,
@@ -174,8 +202,8 @@ fn handle_council_resolved_bursts(
 }
 
 fn spawn_valence_burst(commands: &mut Commands, strength: f32) -> Entity {
+    // ... (unchanged for brevity)
     let intensity = strength.clamp(0.1, 1.0);
-
     let mut effect = ParticleEffect::default();
     effect
         .init(InitPositionSphereModifier { center: Vec3::ZERO, radius: 25.0, ..default() })
@@ -204,8 +232,8 @@ fn spawn_valence_burst(commands: &mut Commands, strength: f32) -> Entity {
 }
 
 fn spawn_celebration_burst(commands: &mut Commands, valence: f32) -> Entity {
+    // ... (unchanged)
     let intensity = valence.clamp(0.6, 1.0);
-
     let mut effect = ParticleEffect::default();
     effect
         .init(InitPositionSphereModifier { center: Vec3::ZERO, radius: 120.0, ..default() })
@@ -241,13 +269,11 @@ fn play_spatial_sound(
     intensity: f32,
     distance: f32,
 ) {
+    // ... (unchanged)
     let base_volume = if sound_path.contains("celebration") { 0.9 } else { 0.4 + intensity * 0.4 };
-
     let falloff = (1.0 / (1.0 + distance * 0.012)).powf(0.82);
     let final_volume = (base_volume * falloff).clamp(0.02, 1.0);
-
     let pitch_variation = 0.95 + (intensity * 0.1) + rand::random::<f32>() * 0.04;
-
     audio.play(asset_server.load(sound_path))
         .with_volume(final_volume)
         .with_playback_rate(pitch_variation)
@@ -264,7 +290,7 @@ fn handle_council_toggle_input(
     }
 }
 
-// === Actual TextAtlasCache draw call integration ===
+// Actual cached draw calls (already computing atlases)
 fn update_council_text_cache(
     text_cache: Res<TextAtlasCache>,
     resonance: Res<RecentMercyResonance>,
@@ -272,7 +298,6 @@ fn update_council_text_cache(
 ) {
     let font = SimpleBitmapFont::new();
 
-    // These calls hit the cache after first render — extremely fast
     let _resonance_atlas = text_cache.get_or_render(
         &font,
         &format!("Mercy Resonance: {:.2}", resonance.value),
@@ -284,21 +309,45 @@ fn update_council_text_cache(
         &format!("Last Valence: {:.2}", last_valence.value),
         [255, 220, 100],
     );
-
-    // Example of using the convenience draw method (when we have a target buffer)
-    // text_cache.draw(&mut some_buffer, x, y, text, color, &font);
 }
 
-fn update_resonance_display(
+// NEW: Migrate Mercy Resonance label to cached blitting
+fn update_mercy_resonance_image(
+    text_cache: Res<TextAtlasCache>,
     resonance: Res<RecentMercyResonance>,
-    last_valence: Res<LastCouncilValence>,
-    mut resonance_text: Query<&mut Text, With<MercyResonanceText>>,
-    mut valence_text: Query<&mut Text, With<LastValenceText>>,
-    // text_cache: Res<TextAtlasCache>, // Ready for full migration to cached blits
+    mut query: Query<(&mut UiImage, &CachedLabelImage), With<MercyResonanceText>>,
+    mut images: ResMut<Assets<Image>>,
 ) {
-    for mut text in resonance_text.iter_mut() {
-        text.sections[0].value = format!("Mercy Resonance: {:.2}", resonance.value);
+    let font = SimpleBitmapFont::new();
+
+    for (mut ui_image, cached) in query.iter_mut() {
+        // Get (or create) the cached atlas
+        let atlas = text_cache.get_or_render(
+            &font,
+            &format!("Mercy Resonance: {:.2}", resonance.value),
+            [100, 255, 150],
+        );
+
+        // Convert RgbImage to Bevy Image
+        let bevy_image = Image::from_dynamic(
+            image::DynamicImage::ImageRgb8(atlas),
+            true,
+        );
+
+        // Update the UI image
+        if let Some(handle) = images.get_mut(&cached.0) {
+            *handle = bevy_image;
+        } else {
+            ui_image.0 = images.add(bevy_image);
+        }
     }
+}
+
+// Last Valence still uses Bevy Text (not migrated yet)
+fn update_resonance_display(
+    last_valence: Res<LastCouncilValence>,
+    mut valence_text: Query<&mut Text, With<LastValenceText>>,
+) {
     for mut text in valence_text.iter_mut() {
         text.sections[0].value = format!("Last Valence: {:.2}", last_valence.value);
     }
@@ -321,6 +370,7 @@ fn update_valence_particles(
     mut particle_query: Query<(Entity, &mut ValenceParticles, &mut ParticleEffect)>,
     time: Res<Time>,
 ) {
+    // ... (unchanged)
     let intensity = (resonance.value + last_valence.value) * 0.5;
 
     if intensity > 0.55 {
@@ -365,5 +415,4 @@ fn despawn_council_panel() {
     info!("Exiting Council UI");
 }
 
-// TextAtlasCache fully wired as Bevy Resource with real draw call usage.
-// Ready for migration from TextBundle to cached pre-rendered blits.
+// Mercy Resonance label successfully migrated to TextAtlasCache cached blitting.
