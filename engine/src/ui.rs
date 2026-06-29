@@ -3,6 +3,7 @@
 // Outputs to pixel buffer for Vulkan/WebGPU immediate draw
 
 use image::{ImageBuffer, Rgb, RgbImage};
+use std::collections::HashMap;
 use std::f32::consts::PI;
 
 pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage {
@@ -11,7 +12,6 @@ pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage
     let cy = height as f32 / 2.0;
     let r = (width.min(height) as f32 / 2.0) * 0.45;
 
-    // Button base glow (mercy cyan) + lattice lines
     for (x, y, pixel) in img.enumerate_pixels_mut() {
         let dx = (x as f32 - cx) / r;
         let dy = (y as f32 - cy) / r;
@@ -35,17 +35,44 @@ pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage
     img
 }
 
-/// Trait for pixel-based fonts (allows swapping implementations later)
+/// Trait for pixel-based fonts
 pub trait PixelFont {
     fn draw_char(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], ch: char);
 }
 
-/// Simple 8x8 bitmap font implementation (demo quality)
-pub struct SimpleBitmapFont;
+/// Dynamic 8x8 bitmap font that supports runtime glyph loading
+pub struct SimpleBitmapFont {
+    glyphs: HashMap<char, [[bool; 8]; 8]>,
+}
+
+impl SimpleBitmapFont {
+    pub fn new() -> Self {
+        let mut font = Self {
+            glyphs: HashMap::new(),
+        };
+        // Preload demo 'M' glyph
+        font.load_glyph('M', [
+            [true, false, false, false, false, false, false, true],
+            [true, true, false, false, false, false, true, true],
+            [true, false, true, false, false, true, false, true],
+            [true, false, false, true, true, false, false, true],
+            [true, false, false, true, true, false, false, true],
+            [true, false, false, false, false, false, false, true],
+            [true, false, false, false, false, false, false, true],
+            [true, false, false, false, false, false, false, true],
+        ]);
+        font
+    }
+
+    /// Dynamically load or override a glyph at runtime
+    pub fn load_glyph(&mut self, ch: char, glyph: [[bool; 8]; 8]) {
+        self.glyphs.insert(ch, glyph);
+    }
+}
 
 impl PixelFont for SimpleBitmapFont {
     fn draw_char(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], ch: char) {
-        if let Some(glyph) = get_glyph(ch) {
+        if let Some(glyph) = self.glyphs.get(&ch) {
             for dy in 0..8 {
                 for dx in 0..8 {
                     if glyph[dy][dx] {
@@ -61,7 +88,7 @@ impl PixelFont for SimpleBitmapFont {
 
 /// Draw centered text using any PixelFont
 pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], text: &str) {
-    let font = SimpleBitmapFont;
+    let font = SimpleBitmapFont::new();
     let mut x = cx.saturating_sub((text.len() as u32 * 8) / 2);
     for ch in text.chars() {
         font.draw_char(img, x, cy.saturating_sub(4), color, ch);
@@ -69,23 +96,7 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
     }
 }
 
-/// Glyph data for SimpleBitmapFont (demo)
-fn get_glyph(ch: char) -> Option<[[bool; 8]; 8]> {
-    match ch {
-        'M' => Some([
-            [true, false, false, false, false, false, false, true],
-            [true, true, false, false, false, false, true, true],
-            [true, false, true, false, false, true, false, true],
-            [true, false, false, true, true, false, false, true],
-            [true, false, false, true, true, false, false, true],
-            [true, false, false, false, false, false, false, true],
-            [true, false, false, false, false, false, false, true],
-            [true, false, false, false, false, false, false, true],
-        ]),
-        _ => None,
-    }
-}
-
-// Usage example:
+// Usage:
+// let mut font = SimpleBitmapFont::new();
+// font.load_glyph('A', [...glyph data...]);  // dynamic loading
 // let button = generate_lattice_button(256, 64, "Mercy");
-// Then upload to texture and draw.
