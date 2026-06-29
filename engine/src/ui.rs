@@ -3,7 +3,7 @@
 // Outputs to pixel buffer for Vulkan/WebGPU immediate draw
 
 use image::{ImageBuffer, Rgb, RgbImage};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::f32::consts::PI;
 
 pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage {
@@ -175,32 +175,65 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
     draw_pre_rendered_text(img, start_x, start_y, &atlas);
 }
 
-/// Simple cache for pre-rendered text atlases.
-/// Useful for UI labels that don't change often.
+/// LRU cache for pre-rendered text atlases with color support.
+/// Prevents unbounded memory growth while keeping frequent text fast.
 pub struct TextAtlasCache {
-    cache: HashMap<String, RgbImage>,
+    cache: HashMap<(String, [u8; 3]), RgbImage>,
+    access_order: VecDeque<(String, [u8; 3])>,
+    max_entries: usize,
 }
 
 impl TextAtlasCache {
-    pub fn new() -> Self {
+    /// Create a new cache with a maximum number of entries.
+    pub fn new(max_entries: usize) -> Self {
         Self {
             cache: HashMap::new(),
+            access_order: VecDeque::new(),
+            max_entries: max_entries.max(8),
         }
     }
 
-    /// Get a cached atlas or render and cache it.
+    /// Default cache with reasonable size limit.
+    pub fn with_default_limit() -> Self {
+        Self::new(128)
+    }
+
+    fn touch(&mut self, key: &(String, [u8; 3])) {
+        if let Some(pos) = self.access_order.iter().position(|k| k == key) {
+            self.access_order.remove(pos);
+        }
+        self.access_order.push_back(key.clone());
+    }
+
+    /// Get or render a text atlas, with LRU eviction.
     pub fn get_or_render(
         &mut self,
         font: &dyn PixelFont,
         text: &str,
         color: [u8; 3],
     ) -> &RgbImage {
-        self.cache.entry(text.to_string()).or_insert_with(|| {
-            font.pre_render_text(text, color)
-        })
+        let key = (text.to_string(), color);
+
+        if self.cache.contains_key(&key) {
+            self.touch(&key);
+            return self.cache.get(&key).unwrap();
+        }
+
+        // Evict oldest if over limit
+        while self.cache.len() >= self.max_entries {
+            if let Some(oldest) = self.access_order.pop_front() {
+                self.cache.remove(&oldest);
+            }
+        }
+
+        let atlas = font.pre_render_text(text, color);
+        self.cache.insert(key.clone(), atlas);
+        self.access_order.push_back(key.clone());
+
+        self.cache.get(&key).unwrap()
     }
 
-    /// Draw using a cached atlas (creates it if missing).
+    /// Draw text using the cache (creates + caches if missing).
     pub fn draw(
         &mut self,
         img: &mut RgbImage,
@@ -216,10 +249,11 @@ impl TextAtlasCache {
 
     pub fn clear(&mut self) {
         self.cache.clear();
+        self.access_order.clear();
     }
 }
 
-// Recommended high-performance pattern:
-// let mut cache = TextAtlasCache::new();
+// Recommended usage:
+// let mut cache = TextAtlasCache::with_default_limit();
 // let font = SimpleBitmapFont::new();
 // cache.draw(&mut target, x, y, "Mercy", [255, 255, 255], &font);
