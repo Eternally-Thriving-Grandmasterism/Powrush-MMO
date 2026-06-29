@@ -36,32 +36,48 @@ pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage
     img
 }
 
-/// Trait for pixel-based fonts with batching support
+/// Trait for pixel-based fonts with batching and pre-rendering support
 pub trait PixelFont {
     fn draw_char(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], ch: char);
 
-    /// Batched text rendering (glyph atlas style) - more efficient for longer strings
+    /// Batched text rendering using a temporary glyph atlas
     fn draw_text(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], text: &str) {
-        if text.is_empty() {
-            return;
-        }
+        if text.is_empty() { return; }
 
         let char_width = 8u32;
         let text_width = text.len() as u32 * char_width;
         let text_height = 8u32;
 
-        // Create small temporary atlas for this text block
         let mut text_atlas: RgbImage = ImageBuffer::new(text_width, text_height);
 
-        // Render all glyphs into the small atlas (batching)
         let mut atlas_x = 0u32;
         for ch in text.chars() {
             self.draw_char(&mut text_atlas, atlas_x, 0, color, ch);
             atlas_x += char_width;
         }
 
-        // Single efficient block copy into target image
         let _ = img.copy_from(&text_atlas, x, y);
+    }
+
+    /// Pre-render text into a reusable glyph atlas (for caching / frequent draws)
+    fn pre_render_text(&self, text: &str, color: [u8; 3]) -> RgbImage {
+        if text.is_empty() {
+            return ImageBuffer::new(0, 0);
+        }
+
+        let char_width = 8u32;
+        let text_width = text.len() as u32 * char_width;
+        let text_height = 8u32;
+
+        let mut atlas: RgbImage = ImageBuffer::new(text_width, text_height);
+
+        let mut atlas_x = 0u32;
+        for ch in text.chars() {
+            self.draw_char(&mut atlas, atlas_x, 0, color, ch);
+            atlas_x += char_width;
+        }
+
+        atlas
     }
 }
 
@@ -121,11 +137,8 @@ impl PixelFont for SimpleBitmapFont {
         }
     }
 
-    // Override with optimized batched version
     fn draw_text(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], text: &str) {
-        if text.is_empty() {
-            return;
-        }
+        if text.is_empty() { return; }
 
         let char_width = 8u32;
         let text_width = text.len() as u32 * char_width;
@@ -135,29 +148,52 @@ impl PixelFont for SimpleBitmapFont {
 
         let mut atlas_x = 0u32;
         for ch in text.chars() {
-            // Use the fast draw_char path on the small atlas
             <Self as PixelFont>::draw_char(self, &mut text_atlas, atlas_x, 0, color, ch);
             atlas_x += char_width;
         }
 
         let _ = img.copy_from(&text_atlas, x, y);
     }
+
+    fn pre_render_text(&self, text: &str, color: [u8; 3]) -> RgbImage {
+        if text.is_empty() {
+            return ImageBuffer::new(0, 0);
+        }
+
+        let char_width = 8u32;
+        let text_width = text.len() as u32 * char_width;
+        let text_height = 8u32;
+
+        let mut atlas: RgbImage = ImageBuffer::new(text_width, text_height);
+
+        let mut atlas_x = 0u32;
+        for ch in text.chars() {
+            <Self as PixelFont>::draw_char(self, &mut atlas, atlas_x, 0, color, ch);
+            atlas_x += char_width;
+        }
+
+        atlas
+    }
 }
 
-/// Draw centered text (uses batched rendering internally)
-pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], text: &str, font: &dyn PixelFont) {
-    if text.is_empty() {
-        return;
-    }
+/// Draw a pre-rendered text atlas (very fast - single blit)
+pub fn draw_pre_rendered_text(img: &mut RgbImage, x: u32, y: u32, atlas: &RgbImage) {
+    let _ = img.copy_from(atlas, x, y);
+}
 
-    let char_width = 8u32;
-    let text_width = text.len() as u32 * char_width;
-    let start_x = cx.saturating_sub(text_width / 2);
+/// Draw centered text using a pre-rendered atlas when possible
+pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], text: &str, font: &dyn PixelFont) {
+    if text.is_empty() { return; }
+
+    let atlas = font.pre_render_text(text, color);
+    let start_x = cx.saturating_sub(atlas.width() / 2);
     let start_y = cy.saturating_sub(4);
 
-    font.draw_text(img, start_x, start_y, color, text);
+    draw_pre_rendered_text(img, start_x, start_y, &atlas);
 }
 
-// Usage (batched path is automatic via draw_text_centered):
+// Recommended usage for performance:
 // let font = SimpleBitmapFont::new();
-// draw_text_centered(&mut img, cx, cy, color, "Mercy", &font);
+// let mercy_atlas = font.pre_render_text("Mercy", [255, 255, 255]);
+// // Later, in hot path:
+// draw_pre_rendered_text(&mut target, x, y, &mercy_atlas);
