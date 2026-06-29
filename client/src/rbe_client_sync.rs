@@ -1,38 +1,34 @@
 /*!
- * GpuSimulationStatePlugin
- * 
- * Clean, reusable plugin that manages:
- * - GpuSimulationState resource
- * - GPU Uniform + Storage buffers
- * - Dirty-checked upload systems
- * 
- * Usage:
- *   app.add_plugins(GpuSimulationStatePlugin);
+ * Expanded GpuSimulationState with high-value game data
  */
 
-pub struct GpuSimulationStatePlugin;
+#[repr(C)]
+#[derive(Resource, Clone, Debug)]
+pub struct GpuSimulationState {
+    pub hotbar: [HotbarSlot; 8],
+    pub node_confidences: [f32; 8],
 
-impl Plugin for GpuSimulationStatePlugin {
-    fn build(&self, app: &mut App) {
-        app
-            // CPU-side state
-            .init_resource::<GpuSimulationState>()
+    // === New useful fields ===
+    pub global_mercy_resonance: f32,
+    pub global_confidence: f32,
+    pub player_position: [f32; 3],
+    pub time: f32,
+    pub delta_time: f32,
 
-            // GPU resources
-            .add_systems(Startup, (
-                setup_gpu_simulation_buffer,
-                setup_gpu_simulation_storage_buffer,
-            ))
-
-            // Dirty-checked uploads (only when data changes)
-            .add_systems(Update, (
-                upload_gpu_simulation_state,
-                upload_gpu_simulation_state_storage,
-            ));
-    }
+    pub _padding: [u32; 3], // keep alignment clean
 }
 
-// After adding the plugin, you can access:
-// - Res<GpuSimulationState>          (CPU side)
-// - Res<GpuSimulationStateBuffer>     (Uniform)
-// - Res<GpuSimulationStateStorageBuffer> (Storage)
+impl Default for GpuSimulationState {
+    fn default() -> Self {
+        Self {
+            hotbar: [HotbarSlot::default(); 8],
+            node_confidences: [0.0; 8],
+            global_mercy_resonance: 0.0,
+            global_confidence: 0.0,
+            player_position: [0.0; 3],
+            time: 0.0,
+            delta_time: 0.0,
+            _padding: [0; 3],
+        }
+    }
+}
