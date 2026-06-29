@@ -1,9 +1,10 @@
 /*!
  * gpu_simulation::sync
  *
- * Deeper real data integration for RBE and Resource Nodes.
+ * Deeper real RBE and Resource data integration.
  *
- * This version adds wiring for node_confidences from real resource node systems.
+ * This version improves node_confidences population and provides clear
+ * integration points for real harvest and economy systems.
  *
  * AG-SML v1.0
  */
@@ -13,7 +14,6 @@ use crate::gpu_simulation::state::GpuSimulationState;
 use crate::gpu_simulation::resources::{GlobalConfidence, RbeGlobalState, CouncilValence, MercyAttunement};
 use simulation::council_systems::RecentMercyResonance;
 use crate::local_player::IsLocalPlayer;
-
 use simulation::council::session as council_session;
 
 #[derive(Resource, Default)]
@@ -32,7 +32,6 @@ pub fn sync_gpu_simulation_state(
     local_player_query: Query<&Transform, With<IsLocalPlayer>>,
     mut prev_pos: ResMut<PreviousLocalPlayerPosition>,
     council_session_state: Option<Res<council_session::CouncilSessionState>>,
-    // Real resource node data for node_confidences
     resource_nodes: Query<&crate::game::resource_nodes::ResourceNode>,
 ) {
     gpu_state.time = time.elapsed_seconds();
@@ -45,7 +44,7 @@ pub fn sync_gpu_simulation_state(
         gpu_state.global_confidence = conf.value;
     }
 
-    // === RBE ===
+    // === RBE via Bridge (preferred path for real systems) ===
     if let Some(rbe) = rbe_state {
         gpu_state.rbe_flow_rate = rbe.flow_rate;
         gpu_state.total_rbe_circulating = rbe.total_circulating;
@@ -63,14 +62,20 @@ pub fn sync_gpu_simulation_state(
         gpu_state.council_participants = valence.participants;
     }
 
-    // === Real Resource Node Confidences ===
-    // Pull from actual ResourceNode entities if available
+    // === Resource Node Confidences (Improved) ===
+    // Collect real node confidences. In a full implementation this could be
+    // averaged, filtered by distance to player, or use a fixed set of important nodes.
     let mut i = 0;
     for node in &resource_nodes {
         if i < 8 {
             gpu_state.node_confidences[i] = node.confidence;
             i += 1;
         }
+    }
+    // Fill remaining slots with last known value or 0.0 if not enough nodes
+    while i < 8 {
+        gpu_state.node_confidences[i] = if i > 0 { gpu_state.node_confidences[i-1] } else { 0.0 };
+        i += 1;
     }
 
     for attunement in &player_mercy_query {
