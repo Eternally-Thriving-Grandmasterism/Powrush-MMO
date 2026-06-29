@@ -1,24 +1,37 @@
 /*!
- * Council UI - Spawn time initialization of LastRendered* components.
+ * Council UI - spawn_cached_label helper with perfect first-frame initialization.
  */
 
-// In spawn_council_panel (or wherever MercyResonanceText is created):
+use bevy::prelude::*;
 
-fn spawn_council_panel(...) {
-    // ... existing code ...
-
-    commands.spawn((
-        // ... existing UI bundles ...
-        MercyResonanceText,
-        CachedLabelImage(cached_handle),
-        LastRenderedText {
-            text: String::new(),   // Will be updated on first system run
-        },
-        LastRenderedColor([0, 0, 0]),
-    ));
-
-    // Same pattern for other cached labels
+/// Spawns a cached text label with LastRenderedText + LastRenderedColor
+/// already initialized to the correct first-frame values.
+/// This eliminates any wasted work on frame 1.
+fn spawn_cached_label(
+    commands: &mut Commands,
+    initial_text: &str,
+    initial_color: [u8; 3],
+    marker: impl Component,
+    cached_image: CachedLabelImage,
+) -> Entity {
+    commands
+        .spawn((
+            marker,
+            cached_image,
+            LastRenderedText {
+                text: initial_text.to_string(),
+            },
+            LastRenderedColor(initial_color),
+        ))
+        .id()
 }
 
-// This ensures the components always exist after spawn,
-// making dirty checking logic simpler and more predictable.
+// Example usage in spawn_council_panel:
+// let handle = images.add(...);
+// spawn_cached_label(
+//     &mut commands,
+//     "Mercy Resonance: 0.87",
+//     [100, 255, 150],
+//     MercyResonanceText,
+//     CachedLabelImage(handle),
+// );
