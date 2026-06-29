@@ -278,7 +278,7 @@ impl TextAtlasCache {
     }
 
     /// Create a cache using weighted eviction based on actual pixel count of the atlas.
-    /// Recommended default for UI text (player names, labels, HUD, council UI).
+    /// Recommended default for UI text (player names, labels, council UI).
     pub fn with_pixel_weigher(max_capacity: u64) -> Self {
         Self {
             cache: Cache::builder()
@@ -340,6 +340,60 @@ impl TextAtlasCache {
     pub fn clear(&self) {
         self.cache.invalidate_all();
     }
+}
+
+// ==================== TEXTATLAS CACHE DRAW CALL USAGE ====================
+
+/// Example: Full draw call usage with TextAtlasCache
+/// This demonstrates the high-performance path for rendering multiple UI labels
+/// (e.g. council panel, HUD, inventory) using cached pre-rendered atlases.
+/// 
+/// Usage pattern:
+/// 1. Create cache once (as Bevy Resource or static)
+/// 2. Use .draw() or get_or_render() + draw_pre_rendered_text() for each label
+/// 3. Call every frame or when text changes
+pub fn example_text_atlas_draw_calls() {
+    let font = SimpleBitmapFont::new();
+    
+    // Recommended initialization (pixel weigher for accurate memory control)
+    let text_cache = TextAtlasCache::with_pixel_weigher(1024);
+
+    // Create a target buffer (in real use this would be your frame buffer or Bevy image)
+    let mut target_buffer: RgbImage = ImageBuffer::new(800, 600);
+
+    // === Draw Call 1: Cached resonance label ===
+    text_cache.draw(
+        &mut target_buffer,
+        20, 20,
+        "Mercy Resonance: 0.87",
+        [100, 255, 150],
+        &font,
+    );
+
+    // === Draw Call 2: Cached valence label ===
+    text_cache.draw(
+        &mut target_buffer,
+        20, 50,
+        "Last Valence: 0.42",
+        [255, 220, 100],
+        &font,
+    );
+
+    // === Draw Call 3: Using get_or_render + manual blit (more control) ===
+    let council_title = text_cache.get_or_render(&font, "COUNCIL OF MERCY", [200, 180, 255]);
+    draw_pre_rendered_text(&mut target_buffer, 20, 80, &council_title);
+
+    // === Draw Call 4: Button label (frequent, benefits heavily from cache) ===
+    text_cache.draw(
+        &mut target_buffer,
+        50, 120,
+        "Focus Deeply",
+        [255, 255, 255],
+        &font,
+    );
+
+    // The cache automatically reuses atlases for identical (text, color) pairs
+    // Extremely fast after first render — single blit per label
 }
 
 // Example usage (recommended for UI text):
