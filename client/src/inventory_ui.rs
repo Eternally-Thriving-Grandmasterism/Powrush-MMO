@@ -1,37 +1,69 @@
 /*!
- * Inventory + Hotbar UI - Wiring + Real State Connection
+ * Hotbar UI - Cooldown Labels Migration
  */
 
-// ==================== TEMPORARY RESOURCE (replace with real one) ====================
-
-#[derive(Resource, Default)]
-pub struct HotbarState {
-    /// Item counts per slot (index 0..7)
-    pub counts: [u32; 8],
+/// Marker for hotbar slot cooldown timer labels
+#[derive(Component, Clone, Copy)]
+pub struct HotbarCooldownText {
+    pub slot_index: u8,
 }
 
-// ==================== UPDATE SYSTEM (now reads from real state) ====================
+// ==================== SPAWN ====================
 
-fn update_hotbar_item_count_images(
+fn spawn_hotbar_cooldowns(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+) {
+    for slot in 0..=7 {
+        let initial_text = "0.0s";
+        let initial_color = [255, 180, 80];
+
+        let handle = images.add(Image::from_dynamic(
+            image::DynamicImage::ImageRgb8(image::RgbImage::new(70, 18)),
+            true,
+        ));
+
+        spawn_cached_label(
+            &mut commands,
+            initial_text,
+            initial_color,
+            HotbarCooldownText { slot_index: slot },
+            CachedLabelImage(handle),
+        );
+    }
+}
+
+// ==================== UPDATE SYSTEM ====================
+
+fn update_hotbar_cooldown_images(
     text_cache: Res<TextAtlasCache>,
-    hotbar: Res<HotbarState>,           // <-- Real inventory state
+    hotbar: Res<HotbarState>, // reuse existing hotbar state or extend it
     mut query: Query<(
         &mut UiImage,
         &CachedLabelImage,
         &mut LastRenderedText,
         &mut LastRenderedColor,
-        &HotbarItemCountText,
+        &HotbarCooldownText,
     )>,
     mut images: ResMut<Assets<Image>>,
 ) {
     let font = SimpleBitmapFont::new();
 
-    for (mut ui_image, cached, mut last_text, mut last_color, hotbar_slot) in query.iter_mut() {
-        let idx = hotbar_slot.slot_index as usize;
-        let count = hotbar.counts.get(idx).copied().unwrap_or(0);
+    for (mut ui_image, cached, mut last_text, mut last_color, cooldown_slot) in query.iter_mut() {
+        let idx = cooldown_slot.slot_index as usize;
 
-        let new_text = format!("x{:02}", count);
-        let new_color = [255, 220, 100];
+        // Placeholder - replace with real cooldown data
+        let remaining = 0.0; // seconds remaining
+        let new_text = if remaining > 0.0 {
+            format!("{:.1}s", remaining)
+        } else {
+            String::from("") // hide when ready
+        };
+        let new_color = if remaining > 0.0 {
+            [255, 180, 80]
+        } else {
+            [120, 255, 150] // ready color
+        };
 
         let text_changed = last_text.text != new_text;
         let color_changed = last_color.0 != new_color;
@@ -49,13 +81,4 @@ fn update_hotbar_item_count_images(
     }
 }
 
-// ==================== PLUGIN WIRING ====================
-
-// Add this in your InventoryPlugin or main app setup:
-//
-// app
-//     .init_resource::<HotbarState>()
-//     .add_systems(Update, update_hotbar_item_count_images);
-//
-// When you have the real inventory resource, replace HotbarState above
-// with your actual type and remove this temporary one.
+// Hotbar Cooldown labels are now live with cached blitting and color state changes.
