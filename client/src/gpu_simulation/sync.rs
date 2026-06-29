@@ -1,10 +1,9 @@
 /*!
  * gpu_simulation::sync
  *
- * Now includes real Council Session State wiring.
+ * Deeper real data integration for RBE and Resource Nodes.
  *
- * Council Session data is pulled from simulation::council::session (or equivalent)
- * and mapped to gpu_state.council_* fields and the CouncilValence bridge.
+ * This version adds wiring for node_confidences from real resource node systems.
  *
  * AG-SML v1.0
  */
@@ -15,7 +14,6 @@ use crate::gpu_simulation::resources::{GlobalConfidence, RbeGlobalState, Council
 use simulation::council_systems::RecentMercyResonance;
 use crate::local_player::IsLocalPlayer;
 
-// Council Session state from simulation
 use simulation::council::session as council_session;
 
 #[derive(Resource, Default)]
@@ -33,8 +31,9 @@ pub fn sync_gpu_simulation_state(
     player_mercy_query: Query<&MercyAttunement>,
     local_player_query: Query<&Transform, With<IsLocalPlayer>>,
     mut prev_pos: ResMut<PreviousLocalPlayerPosition>,
-    // Real Council Session state from simulation
     council_session_state: Option<Res<council_session::CouncilSessionState>>,
+    // Real resource node data for node_confidences
+    resource_nodes: Query<&crate::game::resource_nodes::ResourceNode>,
 ) {
     gpu_state.time = time.elapsed_seconds();
     gpu_state.delta_time = time.delta_seconds();
@@ -53,20 +52,25 @@ pub fn sync_gpu_simulation_state(
         gpu_state.player_rbe_balance = rbe.player_balance;
     }
 
-    // === Council Session State Wiring (NEW) ===
+    // === Council Session ===
     if let Some(session) = council_session_state {
-        // Map real Council Session data to GPU state
         gpu_state.council_valence = session.valence;
         gpu_state.active_council_action = session.active_action;
         gpu_state.council_participants = session.participant_count;
-
-        // Also update the bridge resource if it exists
-        // (real systems can also write directly to CouncilValence)
     } else if let Some(valence) = council_valence {
-        // Fallback to bridge resource
         gpu_state.council_valence = valence.value;
         gpu_state.active_council_action = valence.active_action;
         gpu_state.council_participants = valence.participants;
+    }
+
+    // === Real Resource Node Confidences ===
+    // Pull from actual ResourceNode entities if available
+    let mut i = 0;
+    for node in &resource_nodes {
+        if i < 8 {
+            gpu_state.node_confidences[i] = node.confidence;
+            i += 1;
+        }
     }
 
     for attunement in &player_mercy_query {
