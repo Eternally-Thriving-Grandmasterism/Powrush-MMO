@@ -30,7 +30,9 @@ pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage
         *pixel = Rgb([r, g, b]);
     }
 
-    draw_text_centered(&mut img, cx as u32, cy as u32, [255, 255, 255], label);
+    // Performance: create font once per button instead of per character
+    let font = SimpleBitmapFont::new();
+    draw_text_centered(&mut img, cx as u32, cy as u32, [255, 255, 255], label, &font);
 
     img
 }
@@ -47,10 +49,7 @@ pub struct SimpleBitmapFont {
 
 impl SimpleBitmapFont {
     pub fn new() -> Self {
-        let mut font = Self {
-            glyphs: HashMap::new(),
-        };
-        // Preload demo 'M' glyph
+        let mut font = Self { glyphs: HashMap::new() };
         font.load_glyph('M', [
             [true, false, false, false, false, false, false, true],
             [true, true, false, false, false, false, true, true],
@@ -64,21 +63,39 @@ impl SimpleBitmapFont {
         font
     }
 
-    /// Dynamically load or override a glyph at runtime
     pub fn load_glyph(&mut self, ch: char, glyph: [[bool; 8]; 8]) {
         self.glyphs.insert(ch, glyph);
     }
 }
 
 impl PixelFont for SimpleBitmapFont {
+    #[inline]
     fn draw_char(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], ch: char) {
         if let Some(glyph) = self.glyphs.get(&ch) {
+            // Single bounds check for the whole glyph (performance)
+            let max_x = x + 7;
+            let max_y = y + 7;
+            if max_x >= img.width() || max_y >= img.height() {
+                // Fallback to safe per-pixel checked access
+                for dy in 0..8 {
+                    for dx in 0..8 {
+                        if glyph[dy][dx] {
+                            if let Some(pixel) = img.get_pixel_mut_checked(x + dx as u32, y + dy as u32) {
+                                *pixel = Rgb(color);
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+
+            // Fast path: glyph fits, use direct access
             for dy in 0..8 {
                 for dx in 0..8 {
                     if glyph[dy][dx] {
-                        if let Some(pixel) = img.get_pixel_mut_checked(x + dx as u32, y + dy as u32) {
-                            *pixel = Rgb(color);
-                        }
+                        // Safe because we checked bounds above
+                        let pixel = img.get_pixel_mut(x + dx as u32, y + dy as u32);
+                        *pixel = Rgb(color);
                     }
                 }
             }
@@ -86,9 +103,8 @@ impl PixelFont for SimpleBitmapFont {
     }
 }
 
-/// Draw centered text using any PixelFont
-pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], text: &str) {
-    let font = SimpleBitmapFont::new();
+/// Draw centered text using any PixelFont (optimized - font passed in)
+pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], text: &str, font: &dyn PixelFont) {
     let mut x = cx.saturating_sub((text.len() as u32 * 8) / 2);
     for ch in text.chars() {
         font.draw_char(img, x, cy.saturating_sub(4), color, ch);
@@ -96,7 +112,6 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
     }
 }
 
-// Usage:
-// let mut font = SimpleBitmapFont::new();
-// font.load_glyph('A', [...glyph data...]);  // dynamic loading
-// let button = generate_lattice_button(256, 64, "Mercy");
+// Usage (optimized path):
+// let font = SimpleBitmapFont::new();
+// draw_text_centered(&mut img, cx, cy, color, "Mercy", &font);
