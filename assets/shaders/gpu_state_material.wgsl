@@ -1,17 +1,8 @@
 /*!
  * gpu_state_material.wgsl
  *
- * Advanced visual material that reacts to live GpuSimulationState.
- * Now with rich PATSAGi / Council / RBE / Mercy effects.
- *
- * This shader (and the include) can be reused or imported by:
- *   - valence_halo.wgsl
- *   - mycelial_web_glow.wgsl
- *   - particle systems
- *   - custom post-FX
- *
- * Fields available via sim:
- *   mercy, council_valence, rbe_flow, time, confidence, player_*, etc.
+ * Advanced visual material driven by live GpuSimulationState.
+ * Now with richer effects including player velocity response.
  *
  * AG-SML v1.0
  */
@@ -54,38 +45,46 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let t = sim.time;
     let dt = sim.delta_time;
 
+    // Player velocity influence (motion energy)
+    let vel = vec3<f32>(sim.player_velocity[0], sim.player_velocity[1], sim.player_velocity[2]);
+    let speed = length(vel);
+
     let base = material.base_color.rgb;
     let alpha = material.base_color.a;
 
-    // === Mercy Resonance: warm core glow + soft outer bloom ===
-    let mercy_core = 0.55 + resonance * 0.6;
+    // === Mercy Resonance Core ===
+    let mercy_core = 0.5 + resonance * 0.7;
     var color = base * mercy_core;
 
-    // === Council Valence: pulsing aura rings (PATSAGi signature) ===
-    let ring_phase = t * 1.8 + valence * 4.0;
+    // === Council Valence Aura Rings ===
+    let ring_phase = t * 1.6 + valence * 5.0;
     let ring = abs(sin(ring_phase) * 0.5 + 0.5);
-    let valence_aura = valence * ring * 0.45;
-    color += vec3<f32>(valence_aura * 0.2, valence_aura * 0.55, valence_aura * 0.95);
+    let valence_aura = valence * ring * 0.55;
+    color += vec3<f32>(valence_aura * 0.15, valence_aura * 0.6, valence_aura * 1.0);
 
-    // === RBE Flow: flowing energy veins / tendrils ===
-    let flow_wave = sin(input.uv.x * 12.0 + t * 2.5 + rbe * 3.0) * 0.5 + 0.5;
-    let rbe_energy = rbe * flow_wave * 0.35;
-    color = mix(color, color * vec3<f32>(1.1, 0.95, 0.85), rbe_energy);
+    // === RBE Flow Tendrils (enhanced) ===
+    let flow_wave = sin(input.uv.x * 14.0 + t * 3.0 + rbe * 4.0) * 0.5 + 0.5;
+    let rbe_energy = rbe * flow_wave * 0.42;
+    color = mix(color, color * vec3<f32>(1.15, 0.92, 0.8), rbe_energy);
 
-    // === Time + Delta: organic breathing / life pulse ===
-    let breathe = sin(t * 1.2) * 0.04 * (1.0 + dt * 8.0);
+    // === Player Velocity Response ===
+    let vel_influence = speed * 0.08;
+    color += vec3<f32>(vel_influence * 0.3, vel_influence * 0.2, vel_influence * 0.5);
+
+    // === Time Breathing ===
+    let breathe = sin(t * 1.1) * 0.035 * (1.0 + dt * 10.0);
     color *= (1.0 + breathe);
 
-    // === Global Confidence: vibrancy + subtle chromatic shift ===
-    let vib = 0.88 + confidence * 0.22;
+    // === Confidence Vibrancy ===
+    let vib = 0.85 + confidence * 0.25;
     let lum = dot(color, vec3<f32>(0.299, 0.587, 0.114));
     color = mix(vec3<f32>(lum), color, vib);
 
-    // Soft highlight on high resonance + valence ("mercy crown" feel)
-    let crown = pow(max(resonance, valence * 0.6), 1.8) * 0.25;
-    color += vec3<f32>(crown * 0.6, crown * 0.9, crown);
+    // Mercy + Council combined crown highlight
+    let crown = pow(max(resonance, valence * 0.65), 2.0) * 0.28;
+    color += vec3<f32>(crown * 0.5, crown * 0.95, crown * 1.1);
 
-    color = clamp(color, vec3<f32>(0.0), vec3<f32>(2.2));
+    color = clamp(color, vec3<f32>(0.0), vec3<f32>(2.5));
 
     return vec4<f32>(color, alpha);
 }
