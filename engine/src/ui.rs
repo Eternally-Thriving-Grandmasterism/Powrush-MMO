@@ -196,7 +196,7 @@ impl TextAtlasCache {
         }
     }
 
-    /// Create a cache with size limit + time-to-live (expires after fixed duration from insertion).
+    /// Create a cache with size limit + time-to-live.
     pub fn with_ttl(max_entries: u64, ttl: Duration) -> Self {
         Self {
             cache: Cache::builder()
@@ -206,11 +206,23 @@ impl TextAtlasCache {
         }
     }
 
-    /// Create a cache with size limit + time-to-idle (expires after period of inactivity).
+    /// Create a cache with size limit + time-to-idle.
     pub fn with_time_to_idle(max_entries: u64, idle: Duration) -> Self {
         Self {
             cache: Cache::builder()
                 .max_capacity(max_entries)
+                .time_to_idle(idle)
+                .build(),
+        }
+    }
+
+    /// Create a cache with size limit + both time-to-live and time-to-idle.
+    /// The entry expires when *either* condition is met.
+    pub fn with_ttl_and_idle(max_entries: u64, ttl: Duration, idle: Duration) -> Self {
+        Self {
+            cache: Cache::builder()
+                .max_capacity(max_entries)
+                .time_to_live(ttl)
                 .time_to_idle(idle)
                 .build(),
         }
@@ -252,7 +264,11 @@ impl TextAtlasCache {
     }
 }
 
-// Recommended usage:
-// let cache = TextAtlasCache::with_time_to_idle(256, Duration::from_secs(120)); // 2 min idle
+// Recommended usage with both TTL and TTI:
+// let cache = TextAtlasCache::with_ttl_and_idle(
+//     256,
+//     Duration::from_secs(600),   // max 10 min lifetime
+//     Duration::from_secs(120),   // or 2 min inactivity
+// );
 // let font = SimpleBitmapFont::new();
 // cache.draw(&mut target, x, y, "Mercy", [255, 255, 255], &font);
