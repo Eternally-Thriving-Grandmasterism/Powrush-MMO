@@ -1,58 +1,85 @@
 /*!
- * Optimized GPU Memory Layout for GpuSimulationState
- * 
- * - #[repr(C)] for predictable layout
- * - bytemuck::Pod + Zeroable for safe wgpu buffer casting
- * - Fixed-size arrays for GPU friendliness
- * - Helper to create uploadable GPU buffer
+ * GpuSimulationState GPU Upload + BindGroup Integration
  */
 
-use bytemuck::{Pod, Zeroable};
-use wgpu::util::DeviceExt;
+use bevy::prelude::*;
+use bevy::render::render_resource::*;
+use bevy::render::renderer::RenderDevice;
 
-// ==================== GPU-OPTIMIZED STRUCTS ====================
+// ==================== GPU BUFFER RESOURCE ====================
 
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub struct HotbarSlot {
-    pub count: u32,
-    pub cooldown_remaining: f32,
-    pub _padding: [u32; 2], // 16-byte alignment
+#[derive(Resource)]
+pub struct GpuSimulationStateBuffer {
+    pub buffer: Buffer,
+    pub bind_group: BindGroup,
+    pub bind_group_layout: BindGroupLayout,
 }
 
-#[repr(C)]
-#[derive(Resource, Clone, Debug)]
-pub struct GpuSimulationState {
-    pub hotbar: [HotbarSlot; 8],
-    pub node_confidences: [f32; 8],
+// ==================== UPLOAD SYSTEM ====================
+
+/// System that uploads Cpu GpuSimulationState to GPU every frame.
+pub fn upload_gpu_simulation_state(
+    cpu_state: Res<GpuSimulationState>,
+    mut gpu_buffer: ResMut<GpuSimulationStateBuffer>,
+    render_device: Res<RenderDevice>,
+) {
+    // Only upload if changed (simple version — can be improved with change detection)
+    render_device.queue.write_buffer(
+        &gpu_buffer.buffer,
+        0,
+        bytemuck::cast_slice(std::slice::from_ref(&*cpu_state)),
+    );
 }
 
-impl Default for GpuSimulationState {
-    fn default() -> Self {
-        Self {
-            hotbar: [HotbarSlot {
-                count: 0,
-                cooldown_remaining: 0.0,
-                _padding: [0; 2],
-            }; 8],
-            node_confidences: [0.0; 8],
-        }
-    }
-}
+// ==================== INITIALIZATION ====================
 
-// ==================== GPU BUFFER HELPER ====================
-
-/// Creates a wgpu buffer from GpuSimulationState ready for upload.
-/// Usage: UNIFORM or STORAGE buffer.
-pub fn create_gpu_simulation_buffer(
-    device: &wgpu::Device,
-    state: &GpuSimulationState,
-) -> wgpu::Buffer {
-    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+pub fn setup_gpu_simulation_buffer(
+    mut commands: Commands,
+    render_device: Res<RenderDevice>,
+) {
+    let buffer = render_device.create_buffer(&BufferDescriptor {
         label: Some("GpuSimulationState Buffer"),
-        contents: bytemuck::cast_slice(std::slice::from_ref(state)),
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    })
+        size: std::mem::size_of::<GpuSimulationState>() as u64,
+        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+
+    let bind_group_layout = render_device.create_bind_group_layout(
+        &BindGroupLayoutDescriptor {
+            label: Some("GpuSimulationState BindGroupLayout"),
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::VERTEX | ShaderStages::FRAGMENT | ShaderStages::COMPUTE,
+                ty: BindingType::Buffer {
+                    ty: BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        },
+    );
+
+    let bind_group = render_device.create_bind_group(&BindGroupDescriptor {
+        label: Some("GpuSimulationState BindGroup"),
+        layout: &bind_group_layout,
+        entries: &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::Buffer(BufferBinding {
+                buffer: &buffer,
+                offset: 0,
+                size: None,
+            }),
+        }],
+    });
+
+    commands.insert_resource(GpuSimulationStateBuffer {
+        buffer,
+        bind_group,
+        bind_group_layout,
+    });
 }
 
-// Note: You can also create a STORAGE buffer variant if using it in compute shaders.
+// Usage in App:
+// app.add_systems(Startup, setup_gpu_simulation_buffer)
+//     .add_systems(Update, upload_gpu_simulation_state);
