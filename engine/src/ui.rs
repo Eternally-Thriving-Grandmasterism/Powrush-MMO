@@ -181,7 +181,7 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
 }
 
 /// High-performance concurrent cache for pre-rendered text atlases.
-/// Backed by Moka with optional time-based expiration (TTL and/or TTI).
+/// Backed by Moka with optional time-based expiration (TTL and/or TTI) and custom weigher.
 pub struct TextAtlasCache {
     cache: Cache<(String, [u8; 3]), RgbImage>,
 }
@@ -231,6 +231,21 @@ impl TextAtlasCache {
         Self { cache: builder.build() }
     }
 
+    /// Create a cache with a custom weigher (weighted eviction).
+    /// `weigher` returns the cost/weight of each entry.
+    /// `max_capacity` represents the total allowed weight (not entry count).
+    pub fn with_weigher<F>(max_capacity: u64, weigher: F) -> Self
+    where
+        F: Fn(&(String, [u8; 3]), &RgbImage) -> u32 + Send + Sync + 'static,
+    {
+        Self {
+            cache: Cache::builder()
+                .max_capacity(max_capacity)
+                .weigher(weigher)
+                .build(),
+        }
+    }
+
     /// Default cache with reasonable size limit and no expiration.
     pub fn with_default_limit() -> Self {
         Self::new(256, None)
@@ -272,9 +287,7 @@ impl TextAtlasCache {
     }
 }
 
-// Recommended usage with statistics:
-// let cache = TextAtlasCache::with_default_limit();
-// let font = SimpleBitmapFont::new();
-// cache.draw(&mut target, x, y, "Mercy", [255, 255, 255], &font);
-// let stats = cache.stats();
-// println!("Hits: {}, Misses: {}", stats.hit_count(), stats.miss_count());
+// Example custom weigher (longer text = higher cost):
+// let cache = TextAtlasCache::with_weigher(1024, | (text, _), _ | {
+//     (text.len() as u32) * 8   // approximate pixel cost
+// });
