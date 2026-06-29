@@ -1,34 +1,45 @@
 /*!
- * Expanded GpuSimulationState with Council, RBE, and Player data
+ * Expanded sync system with Council, RBE, and Player integration
  */
 
-#[repr(C)]
-#[derive(Resource, Clone, Debug)]
-pub struct GpuSimulationState {
-    pub hotbar: [HotbarSlot; 8],
-    pub node_confidences: [f32; 8],
+pub fn sync_gpu_simulation_state(
+    mut gpu_state: ResMut<GpuSimulationState>,
+    time: Res<Time>,
+    mercy_resonance: Option<Res<RecentMercyResonance>>,
+    global_confidence: Option<Res<GlobalConfidence>>,
+    // TODO: Add these resources when available in your game
+    // council_valence: Option<Res<CouncilValence>>,
+    // rbe_state: Option<Res<RbeGlobalState>>,
+    // player_query: Query<(&Transform, &Velocity, &PlayerMercyAttunement), With<Player>>,
+) {
+    gpu_state.time = time.elapsed_seconds();
+    gpu_state.delta_time = time.delta_seconds();
 
-    // Existing
-    pub global_mercy_resonance: f32,
-    pub global_confidence: f32,
-    pub player_position: [f32; 3],
-    pub time: f32,
-    pub delta_time: f32,
+    if let Some(mercy) = mercy_resonance {
+        gpu_state.global_mercy_resonance = mercy.value;
+    }
 
-    // === Council State ===
-    pub council_valence: f32,
-    pub active_council_action: u32,        // enum index
-    pub council_participants: u32,
+    if let Some(conf) = global_confidence {
+        gpu_state.global_confidence = conf.value;
+    }
 
-    // === RBE / Economy ===
-    pub rbe_flow_rate: f32,
-    pub total_rbe_circulating: f32,
-    pub player_rbe_balance: f32,
-
-    // === Player State ===
-    pub player_velocity: [f32; 3],
-    pub player_mercy_attunement: f32,
-    pub player_thrivability: f32,
-
-    pub _padding: [u32; 1], // maintain alignment
+    // Example extensions (uncomment and adapt when resources exist):
+    //
+    // if let Some(valence) = council_valence {
+    //     gpu_state.council_valence = valence.value;
+    //     gpu_state.active_council_action = valence.active_action as u32;
+    //     gpu_state.council_participants = valence.participants;
+    // }
+    //
+    // if let Some(rbe) = rbe_state {
+    //     gpu_state.rbe_flow_rate = rbe.flow_rate;
+    //     gpu_state.total_rbe_circulating = rbe.total_circulating;
+    //     gpu_state.player_rbe_balance = rbe.player_balance;
+    // }
+    //
+    // if let Ok((transform, velocity, attunement)) = player_query.get_single() {
+    //     gpu_state.player_position = transform.translation.to_array();
+    //     gpu_state.player_velocity = velocity.0.to_array();
+    //     gpu_state.player_mercy_attunement = attunement.value;
+    // }
 }
