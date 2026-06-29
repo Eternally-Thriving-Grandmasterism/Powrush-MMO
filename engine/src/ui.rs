@@ -181,7 +181,7 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
 }
 
 /// High-performance concurrent cache for pre-rendered text atlases.
-/// Backed by Moka with optional time-based expiration (TTL and/or TTI) and custom weigher.
+/// Backed by Moka with optional time-based expiration (TTL and/or TTI) and weighted eviction.
 pub struct TextAtlasCache {
     cache: Cache<(String, [u8; 3]), RgbImage>,
 }
@@ -231,9 +231,22 @@ impl TextAtlasCache {
         Self { cache: builder.build() }
     }
 
-    /// Create a cache with a custom weigher (weighted eviction).
-    /// `weigher` returns the cost/weight of each entry.
-    /// `max_capacity` represents the total allowed weight (not entry count).
+    /// Create a cache using weighted eviction based on text length.
+    /// Longer text produces wider atlases and therefore has higher weight/cost.
+    /// `max_capacity` represents the total allowed weight across all entries.
+    pub fn with_text_length_weigher(max_capacity: u64) -> Self {
+        Self {
+            cache: Cache::builder()
+                .max_capacity(max_capacity)
+                .weigher(|(text, _color), _atlas| {
+                    // Weight proportional to text length (longer text = wider atlas)
+                    text.len() as u32 * 8
+                })
+                .build(),
+        }
+    }
+
+    /// Create a cache with a fully custom weigher.
     pub fn with_weigher<F>(max_capacity: u64, weigher: F) -> Self
     where
         F: Fn(&(String, [u8; 3]), &RgbImage) -> u32 + Send + Sync + 'static,
@@ -287,7 +300,6 @@ impl TextAtlasCache {
     }
 }
 
-// Example custom weigher (longer text = higher cost):
-// let cache = TextAtlasCache::with_weigher(1024, | (text, _), _ | {
-//     (text.len() as u32) * 8   // approximate pixel cost
-// });
+// Example usage of weighted eviction:
+// let cache = TextAtlasCache::with_text_length_weigher(2048);
+// // Longer strings now cost more and are more likely to be evicted under pressure.
