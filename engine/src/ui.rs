@@ -188,49 +188,57 @@ pub struct TextAtlasCache {
 
 impl TextAtlasCache {
     /// Create a cache with a maximum number of entries (no expiration).
-    pub fn new(max_entries: u64) -> Self {
-        Self {
-            cache: Cache::builder()
-                .max_capacity(max_entries)
-                .build(),
+    pub fn new(max_entries: u64, initial_capacity: Option<u64>) -> Self {
+        let mut builder = Cache::builder().max_capacity(max_entries);
+        if let Some(cap) = initial_capacity {
+            builder = builder.initial_capacity(cap);
         }
+        Self { cache: builder.build() }
     }
 
     /// Create a cache with size limit + time-to-live.
-    pub fn with_ttl(max_entries: u64, ttl: Duration) -> Self {
-        Self {
-            cache: Cache::builder()
-                .max_capacity(max_entries)
-                .time_to_live(ttl)
-                .build(),
+    pub fn with_ttl(max_entries: u64, ttl: Duration, initial_capacity: Option<u64>) -> Self {
+        let mut builder = Cache::builder().max_capacity(max_entries).time_to_live(ttl);
+        if let Some(cap) = initial_capacity {
+            builder = builder.initial_capacity(cap);
         }
+        Self { cache: builder.build() }
     }
 
     /// Create a cache with size limit + time-to-idle.
-    pub fn with_time_to_idle(max_entries: u64, idle: Duration) -> Self {
-        Self {
-            cache: Cache::builder()
-                .max_capacity(max_entries)
-                .time_to_idle(idle)
-                .build(),
+    pub fn with_time_to_idle(max_entries: u64, idle: Duration, initial_capacity: Option<u64>) -> Self {
+        let mut builder = Cache::builder().max_capacity(max_entries).time_to_idle(idle);
+        if let Some(cap) = initial_capacity {
+            builder = builder.initial_capacity(cap);
         }
+        Self { cache: builder.build() }
     }
 
     /// Create a cache with size limit + both time-to-live and time-to-idle.
-    /// The entry expires when *either* condition is met.
-    pub fn with_ttl_and_idle(max_entries: u64, ttl: Duration, idle: Duration) -> Self {
-        Self {
-            cache: Cache::builder()
-                .max_capacity(max_entries)
-                .time_to_live(ttl)
-                .time_to_idle(idle)
-                .build(),
+    pub fn with_ttl_and_idle(
+        max_entries: u64,
+        ttl: Duration,
+        idle: Duration,
+        initial_capacity: Option<u64>,
+    ) -> Self {
+        let mut builder = Cache::builder()
+            .max_capacity(max_entries)
+            .time_to_live(ttl)
+            .time_to_idle(idle);
+        if let Some(cap) = initial_capacity {
+            builder = builder.initial_capacity(cap);
         }
+        Self { cache: builder.build() }
     }
 
     /// Default cache with reasonable size limit and no expiration.
     pub fn with_default_limit() -> Self {
-        Self::new(256)
+        Self::new(256, None)
+    }
+
+    /// Returns current cache statistics (hits, misses, evictions, etc.)
+    pub fn stats(&self) -> moka::stats::CacheStats {
+        self.cache.stats()
     }
 
     pub fn get_or_render(
@@ -264,11 +272,9 @@ impl TextAtlasCache {
     }
 }
 
-// Recommended usage with both TTL and TTI:
-// let cache = TextAtlasCache::with_ttl_and_idle(
-//     256,
-//     Duration::from_secs(600),   // max 10 min lifetime
-//     Duration::from_secs(120),   // or 2 min inactivity
-// );
+// Recommended usage with statistics:
+// let cache = TextAtlasCache::with_default_limit();
 // let font = SimpleBitmapFont::new();
 // cache.draw(&mut target, x, y, "Mercy", [255, 255, 255], &font);
+// let stats = cache.stats();
+// println!("Hits: {}, Misses: {}", stats.hit_count(), stats.miss_count());
