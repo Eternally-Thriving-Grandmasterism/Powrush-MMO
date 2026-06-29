@@ -1,34 +1,28 @@
 /*!
- * Expanded GpuSimulationState with high-value game data
+ * Higher-level sync system for GpuSimulationState
  */
 
-#[repr(C)]
-#[derive(Resource, Clone, Debug)]
-pub struct GpuSimulationState {
-    pub hotbar: [HotbarSlot; 8],
-    pub node_confidences: [f32; 8],
+/// Automatically syncs important game data into GpuSimulationState every frame.
+/// This is the recommended way to keep GPU state up to date.
+pub fn sync_gpu_simulation_state(
+    mut gpu_state: ResMut<GpuSimulationState>,
+    time: Res<Time>,
+    // TODO: Add your actual resources here, for example:
+    // mercy: Res<RecentMercyResonance>,
+    // confidence: Res<GlobalConfidence>,
+    // player_query: Query<&Transform, With<Player>>,
+) {
+    gpu_state.time = time.elapsed_seconds();
+    gpu_state.delta_time = time.delta_seconds();
 
-    // === New useful fields ===
-    pub global_mercy_resonance: f32,
-    pub global_confidence: f32,
-    pub player_position: [f32; 3],
-    pub time: f32,
-    pub delta_time: f32,
+    // Example of pulling from other resources (uncomment when ready):
+    // gpu_state.global_mercy_resonance = mercy.value;
+    // gpu_state.global_confidence = confidence.value;
 
-    pub _padding: [u32; 3], // keep alignment clean
+    // if let Ok(transform) = player_query.get_single() {
+    //     gpu_state.player_position = transform.translation.to_array();
+    // }
 }
 
-impl Default for GpuSimulationState {
-    fn default() -> Self {
-        Self {
-            hotbar: [HotbarSlot::default(); 8],
-            node_confidences: [0.0; 8],
-            global_mercy_resonance: 0.0,
-            global_confidence: 0.0,
-            player_position: [0.0; 3],
-            time: 0.0,
-            delta_time: 0.0,
-            _padding: [0; 3],
-        }
-    }
-}
+// Add this system to your app after GpuSimulationStatePlugin:
+// .add_systems(Update, sync_gpu_simulation_state)
