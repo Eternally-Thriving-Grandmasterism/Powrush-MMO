@@ -1,45 +1,55 @@
 /*!
- * Example GpuSimulationStateMaterial
+ * Full Custom Pipeline Example for GpuSimulationState
  * 
- * Demonstrates how to create a Bevy material that reads from GpuSimulationState.
- * This is a starting point you can extend.
+ * This shows a more complete way to use GpuSimulationStateBuffer
+ * with a custom render command.
  */
 
 use bevy::prelude::*;
+use bevy::render::render_phase::*;
 use bevy::render::render_resource::*;
-use bevy::pbr::{MaterialPipeline, MaterialPipelineKey};
+use bevy::render::renderer::RenderDevice;
 use crate::rbe_client_sync::GpuSimulationStateBuffer;
 
-/// Example material that has access to GpuSimulationState
-#[derive(Asset, TypePath, AsBindGroup, Clone, Debug, Default)]
-#[uniform(0, GpuSimulationStateUniform)]
-pub struct GpuSimulationStateMaterial {
-    // You can add your own material properties here
-    pub base_color: Color,
-}
+/// Marker component for entities that should receive GpuSimulationState
+#[derive(Component, Default)]
+pub struct UsesGpuSimulationState;
 
-#[derive(Clone, Default, ShaderType)]
-pub struct GpuSimulationStateUniform {
-    pub base_color: [f32; 4],
-}
+/// Custom render command that sets our GpuSimulationState bind group
+pub struct SetGpuSimulationStateBindGroup;
 
-impl Material for GpuSimulationStateMaterial {
-    fn fragment_shader() -> ShaderRef {
-        "shaders/example_gpu_state.wgsl".into()
+impl<P: PhaseItem> RenderCommand<P> for SetGpuSimulationStateBindGroup {
+    type Param = SRes<GpuSimulationStateBuffer>;
+    type ViewQuery = ();
+    type ItemQuery = ();
+
+    fn render(
+        _item: &P,
+        _view: (),
+        _entity: (),
+        gpu_buffer: SystemParamItem<Self::Param>,
+        pass: &mut TrackedRenderPass,
+    ) -> RenderCommandResult {
+        pass.set_bind_group(0, &gpu_buffer.bind_group, &[]);
+        RenderCommandResult::Success
     }
+}
 
-    fn alpha_mode(&self) -> AlphaMode {
-        AlphaMode::Opaque
+/// Plugin that registers the custom render command
+pub struct GpuSimulationStateRenderPlugin;
+
+impl Plugin for GpuSimulationStateRenderPlugin {
+    fn build(&self, app: &mut App) {
+        // You would register the render command in the RenderApp here
+        // and add it to the appropriate render phase (Opaque, AlphaMask, etc.)
+        //
+        // Example (simplified):
+        // app.sub_app_mut(RenderApp)
+        //     .init_resource::<DrawFunctions<Opaque3d>>()
+        //     .add_render_command::<Opaque3d, SetGpuSimulationStateBindGroup>();
     }
 }
 
-// Note:
-// To properly inject our custom GpuSimulationStateBuffer bind group,
-// you will usually need to use a custom render pipeline or
-// ExtendedMaterial + a custom MaterialPlugin.
-//
-// For a quick start, you can manually set the bind group in a
-// custom render pass or use bevy's render graph extensions.
-//
-// This file gives you the foundation. Let me know if you want
-// the full custom pipeline version.
+// Note: Full integration with Bevy's render phases requires more setup.
+// This file gives you the core pieces. Let me know if you want the
+// complete version with proper phase registration and a custom pipeline.
