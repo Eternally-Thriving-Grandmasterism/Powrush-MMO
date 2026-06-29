@@ -17,10 +17,8 @@ pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage
         let dy = (y as f32 - cy) / r;
         let d = (dx*dx + dy*dy).sqrt();
 
-        // Outer glow fade
         let glow = if d < 1.2 { (1.0 - d) * 255.0 } else { 0.0 };
 
-        // Lattice lines (vibrational truth pattern)
         let angle = dy.atan2(dx);
         let line = (angle / (PI / 8.0)).fract();
         let lattice_glow = if line < 0.12 || line > 0.88 { glow * 1.8 } else { 0.0 };
@@ -32,23 +30,47 @@ pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage
         *pixel = Rgb([r, g, b]);
     }
 
-    // "Mercy" label using procedural pixel font
     draw_text_centered(&mut img, cx as u32, cy as u32, [255, 255, 255], label);
 
     img
 }
 
-/// Draw centered text using simple 8x8 pixel font
-fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], text: &str) {
+/// Trait for pixel-based fonts (allows swapping implementations later)
+pub trait PixelFont {
+    fn draw_char(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], ch: char);
+}
+
+/// Simple 8x8 bitmap font implementation (demo quality)
+pub struct SimpleBitmapFont;
+
+impl PixelFont for SimpleBitmapFont {
+    fn draw_char(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], ch: char) {
+        if let Some(glyph) = get_glyph(ch) {
+            for dy in 0..8 {
+                for dx in 0..8 {
+                    if glyph[dy][dx] {
+                        if let Some(pixel) = img.get_pixel_mut_checked(x + dx as u32, y + dy as u32) {
+                            *pixel = Rgb(color);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Draw centered text using any PixelFont
+pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], text: &str) {
+    let font = SimpleBitmapFont;
     let mut x = cx.saturating_sub((text.len() as u32 * 8) / 2);
     for ch in text.chars() {
-        draw_char(img, x, cy.saturating_sub(4), color, ch);
+        font.draw_char(img, x, cy.saturating_sub(4), color, ch);
         x += 8;
     }
 }
 
-/// Simple 8x8 bitmap font data (demo quality)
-fn simple_font(ch: char) -> Option<[[bool; 8]; 8]> {
+/// Glyph data for SimpleBitmapFont (demo)
+fn get_glyph(ch: char) -> Option<[[bool; 8]; 8]> {
     match ch {
         'M' => Some([
             [true, false, false, false, false, false, false, true],
@@ -64,21 +86,6 @@ fn simple_font(ch: char) -> Option<[[bool; 8]; 8]> {
     }
 }
 
-/// Draw a single character at position
-fn draw_char(img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], ch: char) {
-    if let Some(glyph) = simple_font(ch) {
-        for dy in 0..8 {
-            for dx in 0..8 {
-                if glyph[dy][dx] {
-                    if let Some(pixel) = img.get_pixel_mut_checked(x + dx as u32, y + dy as u32) {
-                        *pixel = Rgb(color);
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Usage example (in renderer or UI layer):
+// Usage example:
 // let button = generate_lattice_button(256, 64, "Mercy");
-// Then upload to texture and draw quad.
+// Then upload to texture and draw.
