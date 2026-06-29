@@ -1,33 +1,44 @@
 /*!
- * Placeholder resources for GpuSimulationState sync
- * TODO: Move these to the simulation crate when ready
+ * Fully wired sync_gpu_simulation_state using the new resources
  */
 
-#[derive(Resource, Default, Clone, Debug)]
-pub struct GlobalConfidence {
-    pub value: f32,
-}
+pub fn sync_gpu_simulation_state(
+    mut gpu_state: ResMut<GpuSimulationState>,
+    time: Res<Time>,
+    mercy_resonance: Option<Res<RecentMercyResonance>>,
+    global_confidence: Option<Res<GlobalConfidence>>,
+    rbe_state: Option<Res<RbeGlobalState>>,
+    council_valence: Option<Res<CouncilValence>>,
+    // player_q: Query<(&Transform, &Velocity, &MercyAttunement), With<Player>>,
+) {
+    gpu_state.time = time.elapsed_seconds();
+    gpu_state.delta_time = time.delta_seconds();
 
-#[derive(Resource, Default, Clone, Debug)]
-pub struct RbeGlobalState {
-    pub flow_rate: f32,
-    pub total_circulating: f32,
-    pub player_balance: f32,
-}
+    if let Some(mercy) = mercy_resonance {
+        gpu_state.global_mercy_resonance = mercy.value;
+    }
 
-#[derive(Component, Default, Clone, Debug)]
-pub struct MercyAttunement {
-    pub value: f32,
-    pub thrivability: f32,
-}
+    if let Some(conf) = global_confidence {
+        gpu_state.global_confidence = conf.value;
+    }
 
-#[derive(Resource, Default, Clone, Debug)]
-pub struct CouncilValence {
-    pub value: f32,
-    pub active_action: u32,
-    pub participants: u32,
-}
+    if let Some(rbe) = rbe_state {
+        gpu_state.rbe_flow_rate = rbe.flow_rate;
+        gpu_state.total_rbe_circulating = rbe.total_circulating;
+        gpu_state.player_rbe_balance = rbe.player_balance;
+    }
 
-// Note: These are minimal placeholders so sync_gpu_simulation_state
-// can compile and run. Replace them with the real authoritative versions
-// from the simulation crate when available.
+    if let Some(valence) = council_valence {
+        gpu_state.council_valence = valence.value;
+        gpu_state.active_council_action = valence.active_action;
+        gpu_state.council_participants = valence.participants;
+    }
+
+    // Player query example (uncomment when Player + Velocity components exist)
+    // if let Ok((transform, velocity, attunement)) = player_q.get_single() {
+    //     gpu_state.player_position = transform.translation.to_array();
+    //     gpu_state.player_velocity = velocity.0.to_array();
+    //     gpu_state.player_mercy_attunement = attunement.value;
+    //     gpu_state.player_thrivability = attunement.thrivability;
+    // }
+}
