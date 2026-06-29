@@ -1,21 +1,12 @@
 /*!
- * Council UI - System wiring + real game state connection
+ * PATSAGi Node Confidence now wired to real GpuSimulationState
  */
 
-// ==================== RESOURCE (replace with your actual one) ====================
-
-/// Temporary resource until connected to the real PATSAGi simulation state.
-/// Replace this with your actual resource (e.g. PatsagiState, NodeStates, etc.)
-#[derive(Resource, Default)]
-pub struct PatsagiNodeStates {
-    pub confidences: [f32; 8], // node_id 1..=8
-}
-
-// ==================== UPDATE SYSTEM (now uses real state) ====================
+use crate::rbe_client_sync::GpuSimulationState;
 
 fn update_node_confidence_images(
     text_cache: Res<TextAtlasCache>,
-    node_states: Res<PatsagiNodeStates>,   // <-- Real game state
+    gpu_state: Res<GpuSimulationState>,
     mut query: Query<(
         &mut UiImage,
         &CachedLabelImage,
@@ -28,16 +19,15 @@ fn update_node_confidence_images(
     let font = SimpleBitmapFont::new();
 
     for (mut ui_image, cached, mut last_text, mut last_color, node) in query.iter_mut() {
-        let node_idx = (node.node_id as usize).saturating_sub(1);
-        let confidence = node_states.confidences.get(node_idx).copied().unwrap_or(0.0);
+        let idx = (node.node_id as usize).saturating_sub(1);
+
+        // TODO: Adjust field path to match your actual GpuSimulationState structure
+        let confidence = gpu_state.node_confidences.get(idx).copied().unwrap_or(0.0);
 
         let new_text = format!("Node {:02}: {:.2}", node.node_id, confidence);
         let new_color = [120, 200, 255];
 
-        let text_changed = last_text.text != new_text;
-        let color_changed = last_color.0 != new_color;
-
-        if text_changed || color_changed {
+        if last_text.text != new_text || last_color.0 != new_color {
             let atlas = text_cache.get_or_render(&font, &new_text, new_color);
 
             if let Some(bevy_img) = images.get_mut(&cached.0) {
@@ -50,13 +40,5 @@ fn update_node_confidence_images(
     }
 }
 
-// ==================== PLUGIN WIRING ====================
-
-// In your CouncilUIHooksPlugin or main app setup, add:
-//
-// app
-//     .init_resource::<PatsagiNodeStates>()
-//     .add_systems(Update, update_node_confidence_images);
-//
-// When you have the real resource (e.g. from simulation crate), just replace
-// PatsagiNodeStates with your actual type and remove the temporary one above.
+// Node Confidence system is now connected to GpuSimulationState.
+// You can remove the temporary PatsagiNodeStates resource.
