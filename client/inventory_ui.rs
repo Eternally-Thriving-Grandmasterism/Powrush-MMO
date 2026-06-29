@@ -1,13 +1,13 @@
 // client/inventory_ui.rs
-// LastRenderedText dirty checking for Global Confidence
-
-use crate::engine::ui::{TextAtlasCache, SimpleBitmapFont, update_bevy_image_from_atlas};
+// LastRenderedText + LastRenderedColor dirty checking
 
 #[derive(Component, Clone)]
 struct LastRenderedText {
     text: String,
-    color: [u8; 3],
 }
+
+#[derive(Component, Clone)]
+struct LastRenderedColor(pub [u8; 3]);
 
 fn update_global_confidence_image(
     text_cache: Res<TextAtlasCache>,
@@ -16,22 +16,28 @@ fn update_global_confidence_image(
         &mut UiImage,
         &CachedLabelImage,
         Option<&mut LastRenderedText>,
+        Option<&mut LastRenderedColor>,
     ), With<GlobalConfidenceText>>,
     mut images: ResMut<Assets<Image>>,
 ) {
     let font = SimpleBitmapFont::new();
 
-    for (mut ui_image, cached, mut last_rendered) in query.iter_mut() {
+    for (mut ui_image, cached, mut last_text, mut last_color) in query.iter_mut() {
         let conf = gpu_state.global_confidence;
         let new_text = format!("Global: {:.1}%", conf * 100.0);
         let new_color = [77, 242, 140];
 
-        let needs_update = match last_rendered.as_ref() {
-            Some(last) => last.text != new_text || last.color != new_color,
+        let text_changed = match last_text.as_ref() {
+            Some(last) => last.text != new_text,
             None => true,
         };
 
-        if needs_update {
+        let color_changed = match last_color.as_ref() {
+            Some(last) => last.0 != new_color,
+            None => true,
+        };
+
+        if text_changed || color_changed {
             let atlas = text_cache.get_or_render(&font, &new_text, new_color);
 
             if let Some(bevy_img) = images.get_mut(&cached.0) {
@@ -44,12 +50,14 @@ fn update_global_confidence_image(
                 ui_image.0 = images.add(new_img);
             }
 
-            if let Some(last) = last_rendered.as_mut() {
+            if let Some(last) = last_text.as_mut() {
                 last.text = new_text;
-                last.color = new_color;
+            }
+            if let Some(last) = last_color.as_mut() {
+                last.0 = new_color;
             }
         }
     }
 }
 
-// Inventory HUD now has full LastRenderedText dirty checking.
+// LastRenderedColor implemented for independent color dirty checking in HUD.
