@@ -1,49 +1,21 @@
 /*!
- * Council UI - PATSAGi Node Confidence Labels Migration
+ * Council UI - System wiring + real game state connection
  */
 
-use bevy::prelude::*;
+// ==================== RESOURCE (replace with your actual one) ====================
 
-/// Marker component for per-node confidence labels
-#[derive(Component, Clone, Copy)]
-pub struct NodeConfidenceText {
-    pub node_id: u8,
+/// Temporary resource until connected to the real PATSAGi simulation state.
+/// Replace this with your actual resource (e.g. PatsagiState, NodeStates, etc.)
+#[derive(Resource, Default)]
+pub struct PatsagiNodeStates {
+    pub confidences: [f32; 8], // node_id 1..=8
 }
 
-// ==================== SPAWN ====================
+// ==================== UPDATE SYSTEM (now uses real state) ====================
 
-/// Example: Spawning multiple PATSAGi node confidence labels
-fn spawn_patsagi_node_labels(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-) {
-    for node_id in 1..=4 {
-        let initial_text = format!("Node {:02}: 0.00", node_id);
-        let initial_color = [120, 200, 255];
-
-        // In real code you would generate a proper initial image here
-        let handle = images.add(Image::from_dynamic(
-            image::DynamicImage::ImageRgb8(image::RgbImage::new(120, 20)),
-            true,
-        ));
-
-        spawn_cached_label(
-            &mut commands,
-            &initial_text,
-            initial_color,
-            NodeConfidenceText { node_id },
-            CachedLabelImage(handle),
-        );
-    }
-}
-
-// ==================== UPDATE SYSTEM ====================
-
-/// Updates all PATSAGi node confidence labels using cached blitting
 fn update_node_confidence_images(
     text_cache: Res<TextAtlasCache>,
-    // TODO: Replace with actual game state resource that holds per-node confidence
-    // For now we use a placeholder
+    node_states: Res<PatsagiNodeStates>,   // <-- Real game state
     mut query: Query<(
         &mut UiImage,
         &CachedLabelImage,
@@ -56,8 +28,9 @@ fn update_node_confidence_images(
     let font = SimpleBitmapFont::new();
 
     for (mut ui_image, cached, mut last_text, mut last_color, node) in query.iter_mut() {
-        // In real implementation, fetch confidence from game state using node.node_id
-        let confidence = 0.87; // placeholder
+        let node_idx = (node.node_id as usize).saturating_sub(1);
+        let confidence = node_states.confidences.get(node_idx).copied().unwrap_or(0.0);
+
         let new_text = format!("Node {:02}: {:.2}", node.node_id, confidence);
         let new_color = [120, 200, 255];
 
@@ -77,4 +50,13 @@ fn update_node_confidence_images(
     }
 }
 
-// The PATSAGi Node Confidence labels are now fully wired with cached blitting.
+// ==================== PLUGIN WIRING ====================
+
+// In your CouncilUIHooksPlugin or main app setup, add:
+//
+// app
+//     .init_resource::<PatsagiNodeStates>()
+//     .add_systems(Update, update_node_confidence_images);
+//
+// When you have the real resource (e.g. from simulation crate), just replace
+// PatsagiNodeStates with your actual type and remove the temporary one above.
