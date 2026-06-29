@@ -1,71 +1,7 @@
 # client/Cargo.toml
-# Powrush-MMO Client — The Most Phenomenal Blockchain RBE MMORPG Experience
-# AG-SML v1.0 Sovereign License | TOLC 8 Mercy Gates + MIAL/MWPO + 7 Living Mercy Gates enforced
-# PATSAGi Council 13+ Parallel Deliberation + Ra-Thor Quantum Swarm + Eternal Simulation approved
-# v2.1 — Added optional `spectral_granular` feature for infinitedsp-core integration
-
-[package]
-name = "powrush-mmo-client"
-version = "0.1.0"
-edition = "2021"
-authors = ["Sherif Samy Botros <sherif@alphapromega.com>"]
-description = "Powrush-MMO: Universally Shared Naturally Thriving Heavens — RBE metaverse where abundance, mercy, and joy propagate for all sentience. The most phenomenal gaming experience ever created."
-license = "AG-SML-1.0"
-repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 
 [dependencies]
-bevy = { version = "0.14", default-features = false, features = [
-    "bevy_asset",
-    "bevy_core_pipeline",
-    "bevy_pbr",
-    "bevy_render",
-    "bevy_sprite",
-    "bevy_text",
-    "bevy_ui",
-    "bevy_winit",
-    "bevy_gltf",
-    "bevy_scene",
-    "jpeg",
-    "png",
-    "ktx2",
-    "zstd",
-    "file_watcher",
-    "dynamic_linking",
-    "x11",
-    "webgl2",
-] }
+# ... existing dependencies ...
 
-# bevy_hanabi — Divine particle systems for RBE resource flows, JoySanctuaryBloom, CosmicPropagation, InterSpeciesHarmony
-bevy_hanabi = { version = "0.11", features = ["2d", "3d"] }
-
-# bevy_egui + egui — Professional, accessible council UIs
-bevy_egui = "0.27"
-egui = "0.27"
-
-# Audio foundation — fundsp procedural + kira spatial for cinematic, emotionally resonant soundscapes
-bevy_kira_audio = "0.20"
-kira = { version = "0.8", features = ["cpal"] }
-fundsp = "0.18"
-
-# Optional high-fidelity spectral granular pitch shift (infinitedsp-core + Ola)
-# Enable with: cargo build --features spectral_granular
-# Provides pristine, formant-preserving pitch manipulation for council voices, treaty chants, rare harvest essence.
-infinitedsp-core = { version = "0.4", optional = true }
-
-# Steamworks
-steamworks = "0.11"
-
-# Internal sovereign crates
-simulation = { path = "../simulation" }
-
-[features]
-default = []
-spectral_granular = ["dep:infinitedsp-core"]
-
-[profile.dev]
-opt-level = 1
-
-[profile.release]
-lto = "thin"
-codegen-units = 1
-strip = true
+# GPU memory layout + safe buffer casting
+bytemuck = { version = "1.16", features = ["derive"] }
