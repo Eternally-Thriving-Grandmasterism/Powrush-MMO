@@ -1,12 +1,10 @@
 /*!
- * PATSAGi Node Confidence now wired to real GpuSimulationState
+ * PATSAGi Node Confidence - Clean access to GpuSimulationState
  */
-
-use crate::rbe_client_sync::GpuSimulationState;
 
 fn update_node_confidence_images(
     text_cache: Res<TextAtlasCache>,
-    gpu_state: Res<GpuSimulationState>,
+    gpu_state: Res<crate::rbe_client_sync::GpuSimulationState>,
     mut query: Query<(
         &mut UiImage,
         &CachedLabelImage,
@@ -21,8 +19,9 @@ fn update_node_confidence_images(
     for (mut ui_image, cached, mut last_text, mut last_color, node) in query.iter_mut() {
         let idx = (node.node_id as usize).saturating_sub(1);
 
-        // TODO: Adjust field path to match your actual GpuSimulationState structure
-        let confidence = gpu_state.node_confidences.get(idx).copied().unwrap_or(0.0);
+        let confidence = gpu_state.node_confidences.get(idx)
+            .copied()
+            .unwrap_or(0.0);
 
         let new_text = format!("Node {:02}: {:.2}", node.node_id, confidence);
         let new_color = [120, 200, 255];
@@ -40,5 +39,4 @@ fn update_node_confidence_images(
     }
 }
 
-// Node Confidence system is now connected to GpuSimulationState.
-// You can remove the temporary PatsagiNodeStates resource.
+// Node Confidence system now uses the clean GpuSimulationState structure.
