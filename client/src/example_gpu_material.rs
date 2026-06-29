@@ -1,15 +1,13 @@
 /*!
- * Complete Custom Render Pipeline for GpuSimulationState
+ * Refined GpuSimulationState Custom Pipeline
  * 
- * This version includes proper phase registration so the bind group
- * actually gets set during rendering.
+ * Now supports Opaque3d and AlphaMask phases.
+ * More robust registration and usage.
  */
 
 use bevy::prelude::*;
 use bevy::render::render_phase::*;
 use bevy::render::render_resource::*;
-use bevy::render::renderer::RenderDevice;
-use bevy::render::Extract;
 use crate::rbe_client_sync::GpuSimulationStateBuffer;
 
 #[derive(Component, Default, Clone, Copy)]
@@ -46,7 +44,9 @@ impl Plugin for GpuSimulationStateRenderPlugin {
             .add_systems(ExtractSchedule, extract_uses_gpu_state)
             .sub_app_mut(RenderApp)
             .init_resource::<DrawFunctions<Opaque3d>>()
-            .add_render_command::<Opaque3d, SetGpuSimulationStateBindGroup>();
+            .init_resource::<DrawFunctions<AlphaMask3d>>()
+            .add_render_command::<Opaque3d, SetGpuSimulationStateBindGroup>()
+            .add_render_command::<AlphaMask3d, SetGpuSimulationStateBindGroup>();
     }
 }
 
@@ -59,7 +59,19 @@ fn extract_uses_gpu_state(
     }
 }
 
-// ==================== USAGE ====================
-// 1. Add GpuSimulationStateRenderPlugin to your app
-// 2. Spawn entities with UsesGpuSimulationState + a mesh + material
-// 3. The bind group will be automatically set during Opaque3d phase
+// ==================== CONVENIENCE ====================
+
+/// Helper to spawn an entity that uses GpuSimulationState
+pub fn spawn_with_gpu_state(
+    commands: &mut Commands,
+    mesh: Handle<Mesh>,
+    material: Handle<StandardMaterial>, // or your custom material
+) -> Entity {
+    commands
+        .spawn((
+            Mesh3d(mesh),
+            MeshMaterial3d(material),
+            UsesGpuSimulationState,
+        ))
+        .id()
+}
