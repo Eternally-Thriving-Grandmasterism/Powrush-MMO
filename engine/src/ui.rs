@@ -40,43 +40,35 @@ pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage
 pub trait PixelFont {
     fn draw_char(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], ch: char);
 
-    /// Batched text rendering using a temporary glyph atlas
     fn draw_text(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], text: &str) {
         if text.is_empty() { return; }
-
         let char_width = 8u32;
         let text_width = text.len() as u32 * char_width;
         let text_height = 8u32;
 
         let mut text_atlas: RgbImage = ImageBuffer::new(text_width, text_height);
-
         let mut atlas_x = 0u32;
         for ch in text.chars() {
             self.draw_char(&mut text_atlas, atlas_x, 0, color, ch);
             atlas_x += char_width;
         }
-
         let _ = img.copy_from(&text_atlas, x, y);
     }
 
-    /// Pre-render text into a reusable glyph atlas (for caching / frequent draws)
     fn pre_render_text(&self, text: &str, color: [u8; 3]) -> RgbImage {
         if text.is_empty() {
             return ImageBuffer::new(0, 0);
         }
-
         let char_width = 8u32;
         let text_width = text.len() as u32 * char_width;
         let text_height = 8u32;
 
         let mut atlas: RgbImage = ImageBuffer::new(text_width, text_height);
-
         let mut atlas_x = 0u32;
         for ch in text.chars() {
             self.draw_char(&mut atlas, atlas_x, 0, color, ch);
             atlas_x += char_width;
         }
-
         atlas
     }
 }
@@ -125,7 +117,6 @@ impl PixelFont for SimpleBitmapFont {
                 }
                 return;
             }
-
             for dy in 0..8 {
                 for dx in 0..8 {
                     if glyph[dy][dx] {
@@ -139,19 +130,16 @@ impl PixelFont for SimpleBitmapFont {
 
     fn draw_text(&self, img: &mut RgbImage, x: u32, y: u32, color: [u8; 3], text: &str) {
         if text.is_empty() { return; }
-
         let char_width = 8u32;
         let text_width = text.len() as u32 * char_width;
         let text_height = 8u32;
 
         let mut text_atlas: RgbImage = ImageBuffer::new(text_width, text_height);
-
         let mut atlas_x = 0u32;
         for ch in text.chars() {
             <Self as PixelFont>::draw_char(self, &mut text_atlas, atlas_x, 0, color, ch);
             atlas_x += char_width;
         }
-
         let _ = img.copy_from(&text_atlas, x, y);
     }
 
@@ -159,19 +147,16 @@ impl PixelFont for SimpleBitmapFont {
         if text.is_empty() {
             return ImageBuffer::new(0, 0);
         }
-
         let char_width = 8u32;
         let text_width = text.len() as u32 * char_width;
         let text_height = 8u32;
 
         let mut atlas: RgbImage = ImageBuffer::new(text_width, text_height);
-
         let mut atlas_x = 0u32;
         for ch in text.chars() {
             <Self as PixelFont>::draw_char(self, &mut atlas, atlas_x, 0, color, ch);
             atlas_x += char_width;
         }
-
         atlas
     }
 }
@@ -184,16 +169,57 @@ pub fn draw_pre_rendered_text(img: &mut RgbImage, x: u32, y: u32, atlas: &RgbIma
 /// Draw centered text using a pre-rendered atlas when possible
 pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], text: &str, font: &dyn PixelFont) {
     if text.is_empty() { return; }
-
     let atlas = font.pre_render_text(text, color);
     let start_x = cx.saturating_sub(atlas.width() / 2);
     let start_y = cy.saturating_sub(4);
-
     draw_pre_rendered_text(img, start_x, start_y, &atlas);
 }
 
-// Recommended usage for performance:
+/// Simple cache for pre-rendered text atlases.
+/// Useful for UI labels that don't change often.
+pub struct TextAtlasCache {
+    cache: HashMap<String, RgbImage>,
+}
+
+impl TextAtlasCache {
+    pub fn new() -> Self {
+        Self {
+            cache: HashMap::new(),
+        }
+    }
+
+    /// Get a cached atlas or render and cache it.
+    pub fn get_or_render(
+        &mut self,
+        font: &dyn PixelFont,
+        text: &str,
+        color: [u8; 3],
+    ) -> &RgbImage {
+        self.cache.entry(text.to_string()).or_insert_with(|| {
+            font.pre_render_text(text, color)
+        })
+    }
+
+    /// Draw using a cached atlas (creates it if missing).
+    pub fn draw(
+        &mut self,
+        img: &mut RgbImage,
+        x: u32,
+        y: u32,
+        text: &str,
+        color: [u8; 3],
+        font: &dyn PixelFont,
+    ) {
+        let atlas = self.get_or_render(font, text, color);
+        draw_pre_rendered_text(img, x, y, atlas);
+    }
+
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+}
+
+// Recommended high-performance pattern:
+// let mut cache = TextAtlasCache::new();
 // let font = SimpleBitmapFont::new();
-// let mercy_atlas = font.pre_render_text("Mercy", [255, 255, 255]);
-// // Later, in hot path:
-// draw_pre_rendered_text(&mut target, x, y, &mercy_atlas);
+// cache.draw(&mut target, x, y, "Mercy", [255, 255, 255], &font);
