@@ -1,7 +1,5 @@
 /*!
- * gpu_simulation_state.wgsl
- * 
- * Matching WGSL definition for Rust GpuSimulationState.
+ * gpu_simulation_state.wgsl - Updated with Council, RBE, and Player fields
  */
 
 struct HotbarSlot {
@@ -18,16 +16,19 @@ struct GpuSimulationState {
     player_position: vec3<f32>,
     time: f32,
     delta_time: f32,
+
+    // Council
+    council_valence: f32,
+    active_council_action: u32,
+    council_participants: u32,
+
+    // RBE
+    rbe_flow_rate: f32,
+    total_rbe_circulating: f32,
+    player_rbe_balance: f32,
+
+    // Player
+    player_velocity: vec3<f32>,
+    player_mercy_attunement: f32,
+    player_thrivability: f32,
 };
-
-// ==================== USAGE EXAMPLE ====================
-
-// In your shader:
-//
-// @group(0) @binding(0)
-// var<uniform> sim: GpuSimulationState;
-//
-// Then access:
-// let resonance = sim.global_mercy_resonance;
-// let node3_conf = sim.node_confidences[2];
-// let player_x = sim.player_position.x;
