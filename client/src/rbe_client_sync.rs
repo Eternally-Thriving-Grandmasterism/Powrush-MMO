@@ -1,34 +1,34 @@
 /*!
- * Real game system integration into GpuSimulationState
+ * Expanded GpuSimulationState with Council, RBE, and Player data
  */
 
-use simulation::council_systems::RecentMercyResonance;
-use simulation::game_state::GlobalConfidence; // adjust path if needed
+#[repr(C)]
+#[derive(Resource, Clone, Debug)]
+pub struct GpuSimulationState {
+    pub hotbar: [HotbarSlot; 8],
+    pub node_confidences: [f32; 8],
 
-/// Production-ready sync system that pulls from actual game resources.
-pub fn sync_gpu_simulation_state(
-    mut gpu_state: ResMut<GpuSimulationState>,
-    time: Res<Time>,
-    mercy_resonance: Option<Res<RecentMercyResonance>>,
-    global_confidence: Option<Res<GlobalConfidence>>,
-    // TODO: Add player query when you have a Player component
-    // player_q: Query<&Transform, With<Player>>,
-) {
-    gpu_state.time = time.elapsed_seconds();
-    gpu_state.delta_time = time.delta_seconds();
+    // Existing
+    pub global_mercy_resonance: f32,
+    pub global_confidence: f32,
+    pub player_position: [f32; 3],
+    pub time: f32,
+    pub delta_time: f32,
 
-    if let Some(mercy) = mercy_resonance {
-        gpu_state.global_mercy_resonance = mercy.value;
-    }
+    // === Council State ===
+    pub council_valence: f32,
+    pub active_council_action: u32,        // enum index
+    pub council_participants: u32,
 
-    if let Some(conf) = global_confidence {
-        gpu_state.global_confidence = conf.value;
-    }
+    // === RBE / Economy ===
+    pub rbe_flow_rate: f32,
+    pub total_rbe_circulating: f32,
+    pub player_rbe_balance: f32,
 
-    // Example player position sync (uncomment when ready):
-    // if let Ok(transform) = player_q.get_single() {
-    //     gpu_state.player_position = transform.translation.to_array();
-    // }
+    // === Player State ===
+    pub player_velocity: [f32; 3],
+    pub player_mercy_attunement: f32,
+    pub player_thrivability: f32,
 
-    // Future: Add council state, RBE flow values, etc.
+    pub _padding: [u32; 1], // maintain alignment
 }
