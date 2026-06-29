@@ -1,43 +1,48 @@
 /*!
- * Hotbar UI - Cooldown Labels Migration
+ * Hotbar systems now wired to real GpuSimulationState
  */
 
-/// Marker for hotbar slot cooldown timer labels
-#[derive(Component, Clone, Copy)]
-pub struct HotbarCooldownText {
-    pub slot_index: u8,
-}
+use crate::rbe_client_sync::GpuSimulationState;
 
-// ==================== SPAWN ====================
-
-fn spawn_hotbar_cooldowns(
-    mut commands: Commands,
+fn update_hotbar_item_count_images(
+    text_cache: Res<TextAtlasCache>,
+    gpu_state: Res<GpuSimulationState>,
+    mut query: Query<(
+        &mut UiImage,
+        &CachedLabelImage,
+        &mut LastRenderedText,
+        &mut LastRenderedColor,
+        &HotbarItemCountText,
+    )>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    for slot in 0..=7 {
-        let initial_text = "0.0s";
-        let initial_color = [255, 180, 80];
+    let font = SimpleBitmapFont::new();
 
-        let handle = images.add(Image::from_dynamic(
-            image::DynamicImage::ImageRgb8(image::RgbImage::new(70, 18)),
-            true,
-        ));
+    for (mut ui_image, cached, mut last_text, mut last_color, hotbar_slot) in query.iter_mut() {
+        let idx = hotbar_slot.slot_index as usize;
 
-        spawn_cached_label(
-            &mut commands,
-            initial_text,
-            initial_color,
-            HotbarCooldownText { slot_index: slot },
-            CachedLabelImage(handle),
-        );
+        // TODO: Adjust field path to match your actual GpuSimulationState
+        let count = gpu_state.hotbar_counts.get(idx).copied().unwrap_or(0);
+
+        let new_text = format!("x{:02}", count);
+        let new_color = [255, 220, 100];
+
+        if last_text.text != new_text || last_color.0 != new_color {
+            let atlas = text_cache.get_or_render(&font, &new_text, new_color);
+
+            if let Some(bevy_img) = images.get_mut(&cached.0) {
+                update_bevy_image_from_atlas(bevy_img, &atlas);
+            }
+
+            last_text.text = new_text;
+            last_color.0 = new_color;
+        }
     }
 }
 
-// ==================== UPDATE SYSTEM ====================
-
 fn update_hotbar_cooldown_images(
     text_cache: Res<TextAtlasCache>,
-    hotbar: Res<HotbarState>, // reuse existing hotbar state or extend it
+    gpu_state: Res<GpuSimulationState>,
     mut query: Query<(
         &mut UiImage,
         &CachedLabelImage,
@@ -52,23 +57,21 @@ fn update_hotbar_cooldown_images(
     for (mut ui_image, cached, mut last_text, mut last_color, cooldown_slot) in query.iter_mut() {
         let idx = cooldown_slot.slot_index as usize;
 
-        // Placeholder - replace with real cooldown data
-        let remaining = 0.0; // seconds remaining
+        // TODO: Adjust field path to match your actual GpuSimulationState
+        let remaining = gpu_state.hotbar_cooldowns.get(idx).copied().unwrap_or(0.0);
+
         let new_text = if remaining > 0.0 {
             format!("{:.1}s", remaining)
         } else {
-            String::from("") // hide when ready
+            String::from("")
         };
         let new_color = if remaining > 0.0 {
             [255, 180, 80]
         } else {
-            [120, 255, 150] // ready color
+            [120, 255, 150]
         };
 
-        let text_changed = last_text.text != new_text;
-        let color_changed = last_color.0 != new_color;
-
-        if text_changed || color_changed {
+        if last_text.text != new_text || last_color.0 != new_color {
             let atlas = text_cache.get_or_render(&font, &new_text, new_color);
 
             if let Some(bevy_img) = images.get_mut(&cached.0) {
@@ -81,4 +84,5 @@ fn update_hotbar_cooldown_images(
     }
 }
 
-// Hotbar Cooldown labels are now live with cached blitting and color state changes.
+// Hotbar systems are now connected to GpuSimulationState.
+// Remove the temporary HotbarState resource if no longer used.
