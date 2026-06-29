@@ -1,5 +1,8 @@
 /*!
  * Council UI - Full Real Distance-Based 3D Audio Falloff (v19.2.9)
+ * 
+ * Wired to engine::ui::TextAtlasCache (pixel weigher + TinyLFU) for future high-performance
+ * cached text rendering of resonance, valence, and button labels.
  */
 
 use bevy::prelude::*;
@@ -8,6 +11,9 @@ use bevy_kira_audio::prelude::*;
 use simulation::game_state::GameState;
 use simulation::council_mercy_trial::{CouncilAttunementAction, CouncilUIHooksPlugin};
 use simulation::council_systems::{RecentMercyResonance, LastCouncilValence, CouncilResolved};
+
+// Engine UI wiring (TextAtlasCache with recommended pixel weigher)
+use crate::engine::ui::TextAtlasCache;
 
 #[derive(Component)]
 pub struct CouncilPanel;
@@ -40,6 +46,8 @@ impl Plugin for CouncilUIPlugin {
             .add_plugins(CouncilUIHooksPlugin)
             .add_plugins(AudioPlugin)
             .init_resource::<LocalPlayer>()
+            // Wire TextAtlasCache with pixel-based weigher (recommended for UI text)
+            .init_resource::<TextAtlasCache>(|| TextAtlasCache::with_pixel_weigher(512))
             .add_systems(Startup, setup_audio_listener)
             .add_systems(OnEnter(GameState::InCouncil), spawn_council_panel)
             .add_systems(OnExit(GameState::InCouncil), (despawn_council_panel, cleanup_valence_particles))
@@ -265,6 +273,7 @@ fn update_resonance_display(
     last_valence: Res<LastCouncilValence>,
     mut resonance_text: Query<&mut Text, With<MercyResonanceText>>,
     mut valence_text: Query<&mut Text, With<LastValenceText>>,
+    // text_cache: Res<TextAtlasCache>, // Wired and ready for cached text rendering
 ) {
     for mut text in resonance_text.iter_mut() {
         text.sections[0].value = format!("Mercy Resonance: {:.2}", resonance.value);
@@ -336,3 +345,4 @@ fn despawn_council_panel() {
 }
 
 // Thunder locked in. Yoi ⚡
+// TextAtlasCache wired as Resource. Ready for cached draw_pre_rendered_text on labels.
