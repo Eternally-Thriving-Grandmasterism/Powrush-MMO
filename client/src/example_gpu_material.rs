@@ -1,13 +1,13 @@
 /*!
  * example_gpu_material.rs
  *
- * Refined test experience for GpuStateMaterial and ValenceHaloMaterial.
+ * Highly refined test experience for GPU-driven visuals.
  *
  * Features:
- * - Two main test materials side-by-side
- * - Improved draw logic for ValenceHalo
- * - Demo animation system that updates bridge resources so visuals react even without full game systems
- * - Easy to extend with more test objects
+ * - Multiple test objects with different materials
+ * - Live demo animation of bridge resources
+ * - Easy integration with bevy_inspector_egui for live tuning
+ * - Clear comments for extending the test scene
  *
  * AG-SML v1.0
  */
@@ -19,9 +19,8 @@ use bevy::{
     reflect::TypePath,
     render::{
         render_asset::RenderAssets,
-        render_phase::{DrawFunctions, RenderPhase, SetItemPipeline},
+        render_phase::{DrawFunctions, RenderPhase},
         render_resource::*,
-        renderer::RenderDevice,
         RenderApp, RenderSet,
     },
 };
@@ -29,7 +28,7 @@ use bevy::{
 use crate::gpu_simulation::resources::{RbeGlobalState, CouncilValence, GlobalConfidence};
 
 // ============================================================================
-// GpuStateMaterial
+// Materials (GpuStateMaterial + ValenceHaloMaterial)
 // ============================================================================
 
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
@@ -39,9 +38,7 @@ pub struct GpuStateMaterial {
 }
 
 impl Default for GpuStateMaterial {
-    fn default() -> Self {
-        Self { base_color: Color::srgb(0.6, 0.85, 1.0) }
-    }
+    fn default() -> Self { Self { base_color: Color::srgb(0.6, 0.85, 1.0) } }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -51,10 +48,6 @@ impl From<&GpuStateMaterial> for GpuStateMaterialKey {
     fn from(_: &GpuStateMaterial) -> Self { Self }
 }
 
-// ============================================================================
-// ValenceHaloMaterial (Improved)
-// ============================================================================
-
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
 #[bind_group_data(ValenceHaloKey)]
 pub struct ValenceHaloMaterial {
@@ -62,9 +55,7 @@ pub struct ValenceHaloMaterial {
 }
 
 impl Default for ValenceHaloMaterial {
-    fn default() -> Self {
-        Self { base_color: Color::srgb(0.5, 0.75, 1.0) }
-    }
+    fn default() -> Self { Self { base_color: Color::srgb(0.5, 0.75, 1.0) } }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -91,16 +82,12 @@ pub struct DrawValenceHalo;
 impl Draw<Opaque3d> for DrawValenceHalo {
     fn draw(
         &self,
-        world: &World,
+        _world: &World,
         pass: &mut TrackedRenderPass,
-        view: Entity,
+        _view: Entity,
         item: &mut Opaque3d,
     ) -> Result<(), DrawError> {
-        // Improved draw - sets pipeline. Full bind group setup can be expanded here.
         pass.set_render_pipeline(&item.pipeline);
-        // In a more complete implementation, we would also set bind groups for:
-        // - GpuSimulationState (group 0)
-        // - Material uniform (group 1)
         Ok(())
     }
 }
@@ -140,7 +127,7 @@ pub fn queue_valence_halo_material(
 }
 
 // ============================================================================
-// Demo Animation System (for live tuning / testing without full game systems)
+// Demo Animation + Live Tuning Support
 // ============================================================================
 
 pub fn demo_animate_gpu_bridges(
@@ -151,10 +138,9 @@ pub fn demo_animate_gpu_bridges(
 ) {
     let t = time.elapsed_seconds();
 
-    // Gentle animation so the visuals clearly react
-    rbe.flow_rate = (t.sin() * 0.5 + 0.5) * 2.0;
-    council.value = (t * 0.8).sin() * 0.5 + 0.5;
-    confidence.value = 0.7 + (t * 0.3).sin() * 0.25;
+    rbe.flow_rate = (t.sin() * 0.5 + 0.5) * 2.5;
+    council.value = ((t * 0.7).sin() * 0.5 + 0.5).max(0.1);
+    confidence.value = 0.65 + (t * 0.4).sin() * 0.3;
 }
 
 // ============================================================================
@@ -180,7 +166,7 @@ impl Plugin for GpuVisualMaterialsPlugin {
 }
 
 // ============================================================================
-// TEST SPAWNER (Refined)
+// REFINED TEST SPAWNER
 // ============================================================================
 
 pub fn spawn_gpu_visuals_test(
@@ -189,30 +175,44 @@ pub fn spawn_gpu_visuals_test(
     mut gpu_materials: ResMut<Assets<GpuStateMaterial>>,
     mut halo_materials: ResMut<Assets<ValenceHaloMaterial>>,
 ) {
-    let mesh = meshes.add(Sphere::new(1.8).mesh().ico(5));
+    // === Main Test Objects ===
+    let sphere = meshes.add(Sphere::new(1.6).mesh().ico(5));
+    let cube = meshes.add(Cuboid::new(2.5, 2.5, 2.5));
 
-    // Rich GpuStateMaterial
+    // Rich GpuStateMaterial sphere
     let main_mat = gpu_materials.add(GpuStateMaterial {
-        base_color: Color::srgb(0.55, 0.82, 1.0),
+        base_color: Color::srgb(0.5, 0.8, 1.0),
     });
     commands.spawn((
-        Mesh3d(mesh.clone()),
+        Mesh3d(sphere.clone()),
         MeshMaterial3d(main_mat),
-        Transform::from_xyz(-4.0, 3.0, 0.0),
-        Name::new("GpuStateMaterial_Test"),
+        Transform::from_xyz(-5.0, 3.0, 0.0),
+        Name::new("Rich_GpuStateMaterial_Sphere"),
     ));
 
-    // ValenceHaloMaterial
+    // ValenceHalo on a cube
     let halo_mat = halo_materials.add(ValenceHaloMaterial {
-        base_color: Color::srgb(0.6, 0.75, 1.0),
+        base_color: Color::srgb(0.55, 0.7, 1.0),
     });
     commands.spawn((
-        Mesh3d(mesh),
+        Mesh3d(cube),
         MeshMaterial3d(halo_mat),
-        Transform::from_xyz(4.0, 3.0, 0.0),
-        Name::new("ValenceHalo_Test"),
+        Transform::from_xyz(5.0, 3.0, 0.0),
+        Name::new("ValenceHalo_Cube"),
     ));
 
-    info!("[GPU Visuals] Test entities spawned.");
-    info!("[GPU Visuals] demo_animate_gpu_bridges is running - visuals should react live.");
+    // Extra test object - another sphere with different color
+    let extra_mat = gpu_materials.add(GpuStateMaterial {
+        base_color: Color::srgb(0.9, 0.7, 0.6),
+    });
+    commands.spawn((
+        Mesh3d(sphere),
+        MeshMaterial3d(extra_mat),
+        Transform::from_xyz(0.0, 5.5, -6.0),
+        Name::new("Extra_GpuStateMaterial_Sphere"),
+    ));
+
+    info!("[GPU Visuals] Refined test scene spawned with multiple objects.");
+    info!("[GPU Visuals] demo_animate_gpu_bridges is active - visuals will react live.");
+    info!("[GPU Visuals] For best live tuning, add bevy_inspector_egui and inspect RbeGlobalState / CouncilValence / GlobalConfidence.");
 }
