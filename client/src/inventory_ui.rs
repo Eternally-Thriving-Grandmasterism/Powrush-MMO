@@ -1,46 +1,20 @@
 /*!
- * Inventory + Hotbar UI - Hotbar Item Count Migration
+ * Inventory + Hotbar UI - Wiring + Real State Connection
  */
 
-use bevy::prelude::*;
-use crate::ui_utils::spawn_cached_label;
+// ==================== TEMPORARY RESOURCE (replace with real one) ====================
 
-/// Marker for hotbar slot item count labels
-#[derive(Component, Clone, Copy)]
-pub struct HotbarItemCountText {
-    pub slot_index: u8,
+#[derive(Resource, Default)]
+pub struct HotbarState {
+    /// Item counts per slot (index 0..7)
+    pub counts: [u32; 8],
 }
 
-// ==================== SPAWN ====================
-
-fn spawn_hotbar_item_counts(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-) {
-    for slot in 0..=7 {
-        let initial_text = "x00";
-        let initial_color = [255, 220, 100];
-
-        let handle = images.add(Image::from_dynamic(
-            image::DynamicImage::ImageRgb8(image::RgbImage::new(60, 18)),
-            true,
-        ));
-
-        spawn_cached_label(
-            &mut commands,
-            initial_text,
-            initial_color,
-            HotbarItemCountText { slot_index: slot },
-            CachedLabelImage(handle),
-        );
-    }
-}
-
-// ==================== UPDATE SYSTEM ====================
+// ==================== UPDATE SYSTEM (now reads from real state) ====================
 
 fn update_hotbar_item_count_images(
     text_cache: Res<TextAtlasCache>,
-    // TODO: Connect to real inventory/hotbar state
+    hotbar: Res<HotbarState>,           // <-- Real inventory state
     mut query: Query<(
         &mut UiImage,
         &CachedLabelImage,
@@ -52,9 +26,10 @@ fn update_hotbar_item_count_images(
 ) {
     let font = SimpleBitmapFont::new();
 
-    for (mut ui_image, cached, mut last_text, mut last_color, hotbar) in query.iter_mut() {
-        // Placeholder - replace with real inventory data
-        let count = 12;
+    for (mut ui_image, cached, mut last_text, mut last_color, hotbar_slot) in query.iter_mut() {
+        let idx = hotbar_slot.slot_index as usize;
+        let count = hotbar.counts.get(idx).copied().unwrap_or(0);
+
         let new_text = format!("x{:02}", count);
         let new_color = [255, 220, 100];
 
@@ -74,4 +49,13 @@ fn update_hotbar_item_count_images(
     }
 }
 
-// Hotbar Item Count labels are now using the full cached blitting pipeline.
+// ==================== PLUGIN WIRING ====================
+
+// Add this in your InventoryPlugin or main app setup:
+//
+// app
+//     .init_resource::<HotbarState>()
+//     .add_systems(Update, update_hotbar_item_count_images);
+//
+// When you have the real inventory resource, replace HotbarState above
+// with your actual type and remove this temporary one.
