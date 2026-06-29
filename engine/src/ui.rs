@@ -5,7 +5,7 @@
 use image::{ImageBuffer, Rgb, RgbImage};
 use std::collections::{HashMap, VecDeque};
 use std::f32::consts::PI;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage {
     let mut img = ImageBuffer::new(width, height);
@@ -177,9 +177,9 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
 }
 
 /// Thread-safe LRU cache for pre-rendered text atlases.
-/// Safe to share across threads (e.g. in Bevy systems).
+/// Uses RwLock for better read concurrency (common cache hit path).
 pub struct TextAtlasCache {
-    inner: Mutex<CacheInner>,
+    inner: RwLock<CacheInner>,
 }
 
 struct CacheInner {
@@ -191,7 +191,7 @@ struct CacheInner {
 impl TextAtlasCache {
     pub fn new(max_entries: usize) -> Self {
         Self {
-            inner: Mutex::new(CacheInner {
+            inner: RwLock::new(CacheInner {
                 cache: HashMap::new(),
                 access_order: VecDeque::new(),
                 max_entries: max_entries.max(8),
@@ -209,19 +209,43 @@ impl TextAtlasCache {
         text: &str,
         color: [u8; 3],
     ) -> RgbImage {
-        let mut inner = self.inner.lock().unwrap();
         let key = (text.to_string(), color);
 
+        // Fast path: try read lock first (most common case)
+        {
+            let inner = self.inner.read().unwrap();
+            if let Some(atlas) = inner.cache.get(&key) {
+                // We have a hit — clone the image while still under read lock
+                let cloned = atlas.clone();
+
+                // Release read lock, then do a short write to update LRU
+                drop(inner);
+
+                if let Ok(mut inner) = self.inner.write() {
+                    if let Some(pos) = inner.access_order.iter().position(|k| k == &key) {
+                        inner.access_order.remove(pos);
+                    }
+                    inner.access_order.push_back(key.clone());
+                }
+
+                return cloned;
+            }
+        }
+
+        // Miss path: need write lock for insertion + possible eviction
+        let mut inner = self.inner.write().unwrap();
+
+        // Double-check in case another thread inserted it
         if let Some(atlas) = inner.cache.get(&key) {
-            // Update LRU order
+            let cloned = atlas.clone();
             if let Some(pos) = inner.access_order.iter().position(|k| k == &key) {
                 inner.access_order.remove(pos);
             }
-            inner.access_order.push_back(key.clone());
-            return atlas.clone();
+            inner.access_order.push_back(key);
+            return cloned;
         }
 
-        // Evict if necessary
+        // Evict oldest entries if over limit
         while inner.cache.len() >= inner.max_entries {
             if let Some(oldest) = inner.access_order.pop_front() {
                 inner.cache.remove(&oldest);
@@ -249,13 +273,13 @@ impl TextAtlasCache {
     }
 
     pub fn clear(&self) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.write().unwrap();
         inner.cache.clear();
         inner.access_order.clear();
     }
 }
 
-// Recommended usage (now thread-safe):
+// Recommended usage (thread-safe + efficient reads):
 // let cache = TextAtlasCache::with_default_limit();
 // let font = SimpleBitmapFont::new();
 // cache.draw(&mut target, x, y, "Mercy", [255, 255, 255], &font);
