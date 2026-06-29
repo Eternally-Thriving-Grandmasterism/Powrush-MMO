@@ -2,13 +2,14 @@
 // Renders glowing button with mercy lattice at runtime (no sprites/PNG)
 // Outputs to pixel buffer for Vulkan/WebGPU immediate draw
 //
-// NOTE: This module now uses `moka` for high-performance concurrent caching.
+// NOTE: This module uses `moka` for high-performance concurrent caching.
 // Add to your Cargo.toml:
 // moka = { version = "0.12", features = ["sync"] }
 
 use image::{ImageBuffer, Rgb, RgbImage};
 use moka::sync::Cache;
 use std::f32::consts::PI;
+use std::time::Duration;
 
 pub fn generate_lattice_button(width: u32, height: u32, label: &str) -> RgbImage {
     let mut img = ImageBuffer::new(width, height);
@@ -180,12 +181,13 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
 }
 
 /// High-performance concurrent cache for pre-rendered text atlases.
-/// Backed by Moka (excellent LRU + concurrency).
+/// Backed by Moka with optional time-based expiration.
 pub struct TextAtlasCache {
     cache: Cache<(String, [u8; 3]), RgbImage>,
 }
 
 impl TextAtlasCache {
+    /// Create a cache with a maximum number of entries (no TTL).
     pub fn new(max_entries: u64) -> Self {
         Self {
             cache: Cache::builder()
@@ -194,6 +196,17 @@ impl TextAtlasCache {
         }
     }
 
+    /// Create a cache with both size limit and time-to-live.
+    pub fn with_ttl(max_entries: u64, ttl: Duration) -> Self {
+        Self {
+            cache: Cache::builder()
+                .max_capacity(max_entries)
+                .time_to_live(ttl)
+                .build(),
+        }
+    }
+
+    /// Default cache with reasonable size limit and no TTL.
     pub fn with_default_limit() -> Self {
         Self::new(256)
     }
@@ -229,7 +242,7 @@ impl TextAtlasCache {
     }
 }
 
-// Recommended usage (now powered by Moka):
-// let cache = TextAtlasCache::with_default_limit();
+// Recommended usage with TTL (e.g. 5 minutes):
+// let cache = TextAtlasCache::with_ttl(256, Duration::from_secs(300));
 // let font = SimpleBitmapFont::new();
 // cache.draw(&mut target, x, y, "Mercy", [255, 255, 255], &font);
