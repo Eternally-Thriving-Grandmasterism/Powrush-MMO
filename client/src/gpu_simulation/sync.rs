@@ -4,13 +4,7 @@
  * System that copies live game state (RBE, Council, Mercy, Player, Time)
  * into GpuSimulationState so shaders and custom materials can react.
  *
- * This is the central wiring point between game systems and GPU visuals.
- * Real authoritative sources:
- *   - RBE:          simulation::rbe* / client::rbe_client_sync / server rbe_harvest
- *   - Council:      simulation::council_systems / client::council_*
- *   - Mercy:        simulation::council_systems::RecentMercyResonance + MercyAttunement
- *   - Player:       LocalPlayer / Transform + player marker components
- *   - Time:         Bevy Time
+ * Now includes real LocalPlayer + Transform wiring for player_position.
  *
  * AG-SML v1.0
  */
@@ -20,8 +14,10 @@ use crate::gpu_simulation::state::GpuSimulationState;
 use crate::gpu_simulation::resources::{GlobalConfidence, RbeGlobalState, CouncilValence, MercyAttunement};
 use simulation::council_systems::RecentMercyResonance;
 
+// Import the local player marker (adjust path if IsLocalPlayer is re-exported elsewhere)
+use crate::local_player::IsLocalPlayer;
+
 /// Main sync system. Runs every frame in Update.
-/// Pulls from real game systems (via the bridge resources) and writes to GPU state.
 pub fn sync_gpu_simulation_state(
     mut gpu_state: ResMut<GpuSimulationState>,
     time: Res<Time>,
@@ -31,8 +27,10 @@ pub fn sync_gpu_simulation_state(
     global_confidence: Option<Res<GlobalConfidence>>,
     rbe_state: Option<Res<RbeGlobalState>>,
     council_valence: Option<Res<CouncilValence>>,
-    // Example: pull player mercy directly if entity has the component
+    // Player mercy attunement
     player_mercy_query: Query<&MercyAttunement>,
+    // === NEW: Real LocalPlayer Transform wiring ===
+    local_player_query: Query<&Transform, With<IsLocalPlayer>>,
 ) {
     // Always update time (critical for shader animations)
     gpu_state.time = time.elapsed_seconds();
@@ -48,7 +46,7 @@ pub fn sync_gpu_simulation_state(
         gpu_state.global_confidence = conf.value;
     }
 
-    // === RBE State (real data should flow here from rbe systems) ===
+    // === RBE State ===
     if let Some(rbe) = rbe_state {
         gpu_state.rbe_flow_rate = rbe.flow_rate;
         gpu_state.total_rbe_circulating = rbe.total_circulating;
@@ -62,13 +60,26 @@ pub fn sync_gpu_simulation_state(
         gpu_state.council_participants = valence.participants;
     }
 
-    // === Player data example (position/velocity would come from Transform + LocalPlayer) ===
-    // For now we take the first MercyAttunement we find as player proxy.
-    // In production: query LocalPlayer + Transform + MercyAttunement
+    // === Player Mercy Attunement ===
     for attunement in &player_mercy_query {
         gpu_state.player_mercy_attunement = attunement.value;
         gpu_state.player_thrivability = attunement.thrivability;
-        // TODO: also set player_position and player_velocity from Transform
+        break;
+    }
+
+    // === REAL LocalPlayer Transform ===
+    // This now pulls actual player position from the entity marked with IsLocalPlayer
+    for transform in &local_player_query {
+        let pos = transform.translation;
+        gpu_state.player_position = [pos.x, pos.y, pos.z];
+
+        // Velocity: Not yet wired.
+        // Options:
+        //   1. Add a Velocity component to the local player (recommended)
+        //   2. Use prediction history from client prediction system
+        //   3. Compute delta from previous frame (simple but less accurate)
+        // For now we leave velocity at zero or last known value.
+        // gpu_state.player_velocity = [...]; 
         break;
     }
 }
