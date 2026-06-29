@@ -1,31 +1,24 @@
 /*!
  * gpu_simulation::resources
  *
- * Client-side bridge resources for GpuSimulationState.
+ * Bridge resources for feeding real game state into GpuSimulationState.
  *
- * Real authoritative sources should update these every frame or on change:
+ * === RBE Integration Guidance ===
+ * Real systems that should write to RbeGlobalState:
+ *   - rbe_simulation / rbe_client_sync
+ *   - server::rbe_harvest_handler and economy systems
+ *   - Any system that computes flow_rate, total_circulating, or player_balance
  *
- * RBE:
- *   - simulation::rbe* or client rbe_client_sync / rbe_simulation
- *   - server::rbe_harvest_handler, rbe_integration
- *
- * Council:
- *   - simulation::council_systems, server::council_session
- *
- * Mercy:
- *   - simulation::council_systems::RecentMercyResonance + MercyAttunement
+ * Recommended update pattern:
+ *   rbe_state.flow_rate = current_economic_flow;
+ *   rbe_state.total_circulating = total_resources_in_economy;
+ *   rbe_state.player_balance = local_player_rbe_balance;
  *
  * AG-SML v1.0
  */
 
 use bevy::prelude::*;
 
-/// RBE state visible to GPU shaders/materials.
-/// 
-/// Real systems should write here:
-///   flow_rate         <- current economic flow / throughput
-///   total_circulating <- total resources in the economy
-///   player_balance    <- local player's current balance
 #[derive(Resource, Default, Clone, Debug)]
 pub struct RbeGlobalState {
     pub flow_rate: f32,
@@ -33,8 +26,6 @@ pub struct RbeGlobalState {
     pub player_balance: f32,
 }
 
-/// Council valence/activity for visual resonance.
-/// Real systems (council_session, PATSAGi) should update this.
 #[derive(Resource, Default, Clone, Debug)]
 pub struct CouncilValence {
     pub value: f32,
@@ -42,14 +33,12 @@ pub struct CouncilValence {
     pub participants: u32,
 }
 
-/// Per-entity mercy/thrivability.
 #[derive(Component, Default, Clone, Debug)]
 pub struct MercyAttunement {
     pub value: f32,
     pub thrivability: f32,
 }
 
-/// Global world confidence (safety, harmony, prediction certainty).
 #[derive(Resource, Default, Clone, Debug)]
 pub struct GlobalConfidence {
     pub value: f32,

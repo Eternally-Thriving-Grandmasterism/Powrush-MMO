@@ -1,10 +1,9 @@
 /*!
  * gpu_simulation::sync
  *
- * Deeper real RBE and Resource data integration.
+ * Central system for wiring real game data into GpuSimulationState.
  *
- * This version improves node_confidences population and provides clear
- * integration points for real harvest and economy systems.
+ * RBE data is expected to come from real harvest/economy systems via the bridge.
  *
  * AG-SML v1.0
  */
@@ -44,14 +43,14 @@ pub fn sync_gpu_simulation_state(
         gpu_state.global_confidence = conf.value;
     }
 
-    // === RBE via Bridge (preferred path for real systems) ===
+    // RBE - Real harvest/economy systems should update RbeGlobalState
     if let Some(rbe) = rbe_state {
         gpu_state.rbe_flow_rate = rbe.flow_rate;
         gpu_state.total_rbe_circulating = rbe.total_circulating;
         gpu_state.player_rbe_balance = rbe.player_balance;
     }
 
-    // === Council Session ===
+    // Council Session
     if let Some(session) = council_session_state {
         gpu_state.council_valence = session.valence;
         gpu_state.active_council_action = session.active_action;
@@ -62,9 +61,7 @@ pub fn sync_gpu_simulation_state(
         gpu_state.council_participants = valence.participants;
     }
 
-    // === Resource Node Confidences (Improved) ===
-    // Collect real node confidences. In a full implementation this could be
-    // averaged, filtered by distance to player, or use a fixed set of important nodes.
+    // Resource Node Confidences
     let mut i = 0;
     for node in &resource_nodes {
         if i < 8 {
@@ -72,7 +69,6 @@ pub fn sync_gpu_simulation_state(
             i += 1;
         }
     }
-    // Fill remaining slots with last known value or 0.0 if not enough nodes
     while i < 8 {
         gpu_state.node_confidences[i] = if i > 0 { gpu_state.node_confidences[i-1] } else { 0.0 };
         i += 1;
