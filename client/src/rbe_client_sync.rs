@@ -1,13 +1,17 @@
 /*!
- * RBE Client Sync (refactored for modularity)
+ * RBE Client Sync (refactored)
  * 
- * Most GPU simulation logic has been moved to client/src/gpu_simulation/
- * This file now serves as a thin entry point and re-exports.
+ * This module now primarily re-exports the gpu_simulation module.
+ * All GPU state, buffers, plugin, sync logic, and placeholder resources
+ * have been moved to client/src/gpu_simulation/ for better modularity.
+ * 
+ * Usage remains the same:
+ *   use crate::rbe_client_sync::GpuSimulationStatePlugin;
+ *   use crate::rbe_client_sync::sync_gpu_simulation_state;
  */
 
 pub mod gpu_simulation;
 
-// Re-export main public API
 pub use gpu_simulation::*;
 
-// Keep any remaining RBE-specific sync logic here if needed in the future.
+// Any remaining non-GPU RBE client sync logic can live here in the future.
