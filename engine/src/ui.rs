@@ -180,6 +180,26 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
     draw_pre_rendered_text(img, start_x, start_y, &atlas);
 }
 
+// ==================== WEIGHER FUNCTIONS ====================
+
+/// Weigher based on text length.
+/// Longer text produces wider atlases and therefore has higher cost.
+pub fn text_length_weigher(key: &(String, [u8; 3]), _atlas: &RgbImage) -> u32 {
+    key.0.len() as u32 * 8
+}
+
+/// Weigher based on actual pixel count of the rendered atlas.
+pub fn pixel_count_weigher(_key: &(String, [u8; 3]), atlas: &RgbImage) -> u32 {
+    atlas.width() * atlas.height()
+}
+
+/// Constant weigher (every entry has the same cost).
+pub fn constant_weigher(_key: &(String, [u8; 3]), _atlas: &RgbImage) -> u32 {
+    1
+}
+
+// ===========================================================
+
 /// High-performance concurrent cache for pre-rendered text atlases.
 /// Backed by Moka with optional time-based expiration (TTL and/or TTI) and weighted eviction.
 pub struct TextAtlasCache {
@@ -232,21 +252,16 @@ impl TextAtlasCache {
     }
 
     /// Create a cache using weighted eviction based on text length.
-    /// Longer text produces wider atlases and therefore has higher weight/cost.
-    /// `max_capacity` represents the total allowed weight across all entries.
     pub fn with_text_length_weigher(max_capacity: u64) -> Self {
         Self {
             cache: Cache::builder()
                 .max_capacity(max_capacity)
-                .weigher(|(text, _color), _atlas| {
-                    // Weight proportional to text length (longer text = wider atlas)
-                    text.len() as u32 * 8
-                })
+                .weigher(text_length_weigher)
                 .build(),
         }
     }
 
-    /// Create a cache with a fully custom weigher.
+    /// Create a cache with a fully custom weigher function.
     pub fn with_weigher<F>(max_capacity: u64, weigher: F) -> Self
     where
         F: Fn(&(String, [u8; 3]), &RgbImage) -> u32 + Send + Sync + 'static,
@@ -300,6 +315,7 @@ impl TextAtlasCache {
     }
 }
 
-// Example usage of weighted eviction:
+// Example usage:
+// let cache = TextAtlasCache::with_weigher(2048, text_length_weigher);
+// // or
 // let cache = TextAtlasCache::with_text_length_weigher(2048);
-// // Longer strings now cost more and are more likely to be evicted under pressure.
