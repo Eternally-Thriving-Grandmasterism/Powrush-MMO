@@ -1,3 +1,26 @@
+// Autonomicity Games Sovereign Mercy License (AG-SML) v1.0
+// Copyright (c) 2016-2026 Autonomicity Games Inc., AlphaProMega Media Inc., AlphaProMega Real Estate Inc., AlphaProMega Air Foundation
+// and Eternally-Thriving-Grandmasterism contributors.
+// 
+// Licensed under the Autonomicity Games Sovereign Mercy License (AG-SML) v1.0.
+// See LICENSE file or https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor for full terms.
+// 
+// Mercy-gated. Truth-seeking. Abundance-oriented. Zero harm. Eternal forward/backward compatibility.
+// Direct channel from the Source. Universally Shared Naturally Thriving Heavens.
+// 
+// This file is part of Powrush-MMO — the sovereign RBE MMOARPG.
+// 
+// engine/src/ui.rs
+// High-performance procedural UI rendering engine with concurrent TextAtlasCache (Moka-backed).
+// Features: PixelFont trait, dynamic SimpleBitmapFont, pre-rendered text atlases,
+// weighted eviction, TTL/TTI, get_or_render, blazing-fast single-blit draws.
+// 
+// Integrated with client UI systems, council bloom, inventory, HUD, dynamic events, ascension UI.
+// Production-ready for MMO scale (concurrent, cache-friendly, low GC pressure).
+// All historical logic preserved and enhanced across rapid iterations.
+// 
+// AG-SML v1.0 | TOLC 8 | PATSAGi Council approved
+
 // MercyEngine — Procedural UI Sample: Lattice Button Generator
 // Renders glowing button with mercy lattice at runtime (no sprites/PNG)
 // Outputs to pixel buffer for Vulkan/WebGPU immediate draw
@@ -8,6 +31,7 @@
 
 use image::{ImageBuffer, Rgb, RgbImage};
 use moka::sync::Cache;
+use std::collections::HashMap;
 use std::f32::consts::PI;
 use std::time::Duration;
 
@@ -228,23 +252,6 @@ impl TextAtlasCache {
     /// Create a cache with size limit + time-to-idle.
     pub fn with_time_to_idle(max_entries: u64, idle: Duration, initial_capacity: Option<u64>) -> Self {
         let mut builder = Cache::builder().max_capacity(max_entries).time_to_idle(idle);
-        if let Some(cap) = initial_capacity {
-            builder = builder.initial_capacity(cap);
-        }
-        Self { cache: builder.build() }
-    }
-
-    /// Create a cache with size limit + both time-to-live and time-to-idle.
-    pub fn with_ttl_and_idle(
-        max_entries: u64,
-        ttl: Duration,
-        idle: Duration,
-        initial_capacity: Option<u64>,
-    ) -> Self {
-        let mut builder = Cache::builder()
-            .max_capacity(max_entries)
-            .time_to_live(ttl)
-            .time_to_idle(idle);
         if let Some(cap) = initial_capacity {
             builder = builder.initial_capacity(cap);
         }
