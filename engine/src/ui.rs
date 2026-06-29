@@ -181,13 +181,13 @@ pub fn draw_text_centered(img: &mut RgbImage, cx: u32, cy: u32, color: [u8; 3], 
 }
 
 /// High-performance concurrent cache for pre-rendered text atlases.
-/// Backed by Moka with optional time-based expiration.
+/// Backed by Moka with optional time-based expiration (TTL and/or TTI).
 pub struct TextAtlasCache {
     cache: Cache<(String, [u8; 3]), RgbImage>,
 }
 
 impl TextAtlasCache {
-    /// Create a cache with a maximum number of entries (no TTL).
+    /// Create a cache with a maximum number of entries (no expiration).
     pub fn new(max_entries: u64) -> Self {
         Self {
             cache: Cache::builder()
@@ -196,7 +196,7 @@ impl TextAtlasCache {
         }
     }
 
-    /// Create a cache with both size limit and time-to-live.
+    /// Create a cache with size limit + time-to-live (expires after fixed duration from insertion).
     pub fn with_ttl(max_entries: u64, ttl: Duration) -> Self {
         Self {
             cache: Cache::builder()
@@ -206,7 +206,17 @@ impl TextAtlasCache {
         }
     }
 
-    /// Default cache with reasonable size limit and no TTL.
+    /// Create a cache with size limit + time-to-idle (expires after period of inactivity).
+    pub fn with_time_to_idle(max_entries: u64, idle: Duration) -> Self {
+        Self {
+            cache: Cache::builder()
+                .max_capacity(max_entries)
+                .time_to_idle(idle)
+                .build(),
+        }
+    }
+
+    /// Default cache with reasonable size limit and no expiration.
     pub fn with_default_limit() -> Self {
         Self::new(256)
     }
@@ -242,7 +252,7 @@ impl TextAtlasCache {
     }
 }
 
-// Recommended usage with TTL (e.g. 5 minutes):
-// let cache = TextAtlasCache::with_ttl(256, Duration::from_secs(300));
+// Recommended usage:
+// let cache = TextAtlasCache::with_time_to_idle(256, Duration::from_secs(120)); // 2 min idle
 // let font = SimpleBitmapFont::new();
 // cache.draw(&mut target, x, y, "Mercy", [255, 255, 255], &font);
