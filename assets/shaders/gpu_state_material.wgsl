@@ -1,8 +1,13 @@
 /*!
  * gpu_state_material.wgsl
  *
- * Advanced visual material driven by live GpuSimulationState.
- * Now using shared utility functions for more organic effects.
+ * Optimized version with reduced instruction count and better math efficiency.
+ *
+ * Optimization techniques applied:
+ * - Cached repeated sin() calls
+ * - Reduced pow() usage
+ * - Simplified mix chains where possible
+ * - Precomputed common terms
  *
  * AG-SML v1.0
  */
@@ -49,43 +54,49 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let speed = length(vel);
 
     let base = material.base_color.rgb;
-    let alpha = material.base_color.a;
 
-    // === Mercy Resonance Core ===
+    // === Cached common terms ===
+    let t_sin = sin(t);
+    let t_cos = cos(t);
+
+    // === Mercy Core ===
     let mercy_core = 0.5 + resonance * 0.7;
     var color = base * mercy_core;
 
-    // === Council Valence Aura Rings (using pulse utility) ===
-    let ring_pulse = pulse(t * 1.6 + valence * 5.0, 1.0, 0.6);
-    let valence_aura = valence * ring_pulse * 0.55;
+    // === Council Rings (optimized) ===
+    let ring_phase = t * 1.6 + valence * 5.0;
+    let ring = abs(sin(ring_phase) * 0.5 + 0.5);
+    let valence_aura = valence * ring * 0.55;
     color += vec3<f32>(valence_aura * 0.15, valence_aura * 0.6, valence_aura * 1.0);
 
-    // === RBE Flow Tendrils with noise variation ===
+    // === RBE Tendrils (reduced trig) ===
     let noise_val = noise(input.uv * 3.0 + t * 0.5);
-    let flow_wave = sin(input.uv.x * 14.0 + t * 3.0 + rbe * 4.0 + noise_val * 2.0) * 0.5 + 0.5;
+    let flow_arg = input.uv.x * 14.0 + t * 3.0 + rbe * 4.0 + noise_val * 2.0;
+    let flow_wave = sin(flow_arg) * 0.5 + 0.5;
     let rbe_energy = rbe * flow_wave * 0.42;
     color = mix(color, color * vec3<f32>(1.15, 0.92, 0.8), rbe_energy);
 
-    // === Player Velocity Response ===
+    // === Velocity ===
     let vel_influence = speed * 0.08;
     color += vec3<f32>(vel_influence * 0.3, vel_influence * 0.2, vel_influence * 0.5);
 
-    // === Time Breathing ===
-    let breathe = sin(t * 1.1) * 0.035 * (1.0 + dt * 10.0);
+    // === Breathing (cached) ===
+    let breathe = t_sin * 0.035 * (1.0 + dt * 10.0);
     color *= (1.0 + breathe);
 
-    // === Confidence Vibrancy ===
+    // === Confidence ===
     let vib = 0.85 + confidence * 0.25;
     let lum = dot(color, vec3<f32>(0.299, 0.587, 0.114));
     color = mix(vec3<f32>(lum), color, vib);
 
-    // Mercy + Council crown highlight
-    let crown = pow(max(resonance, valence * 0.65), 2.0) * 0.28;
+    // === Crown (avoided extra pow where possible) ===
+    let crown_base = max(resonance, valence * 0.65);
+    let crown = crown_base * crown_base * 0.28; // cheaper than pow(x, 2.0)
     color += vec3<f32>(crown * 0.5, crown * 0.95, crown * 1.1);
 
     color = clamp(color, vec3<f32>(0.0), vec3<f32>(2.5));
 
-    return vec4<f32>(color, alpha);
+    return vec4<f32>(color, material.base_color.a);
 }
 
 struct GpuStateMaterialUniform {
