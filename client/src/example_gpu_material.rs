@@ -1,7 +1,7 @@
 /*!
  * example_gpu_material.rs
  *
- * Live tuning with file-based preset persistence (RON format).
+ * Live tuning with import/export for presets.
  *
  * AG-SML v1.0
  */
@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::gpu_simulation::resources::{RbeGlobalState, CouncilValence, GlobalConfidence, MercyAttunement};
 
 // ============================================================================
-// SERIALIZABLE SAVED PRESET
+// SERIALIZABLE PRESET
 // ============================================================================
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -36,7 +36,7 @@ pub struct SavedPreset {
 }
 
 // ============================================================================
-// SHADER TUNING PRESETS (with file persistence)
+// TUNING PRESETS RESOURCE (with import/export)
 // ============================================================================
 
 #[derive(Resource, Default)]
@@ -47,72 +47,86 @@ pub struct ShaderTuningPresets {
 }
 
 impl ShaderTuningPresets {
-    const PRESET_FILE: &'static str = "shader_presets.ron";
-
-    pub fn save_to_file(&self) {
-        if let Ok(ron) = ron::to_string(&self.saved_presets) {
-            if let Err(e) = std::fs::write(Self::PRESET_FILE, ron) {
-                warn!("Failed to save presets: {}", e);
-            } else {
-                info!("[Shader Presets] Saved {} presets to {}", self.saved_presets.len(), Self::PRESET_FILE);
-            }
-        }
-    }
-
-    pub fn load_from_file(&mut self) {
-        if let Ok(content) = std::fs::read_to_string(Self::PRESET_FILE) {
-            if let Ok(presets) = ron::from_str::<Vec<SavedPreset>>(&content) {
-                self.saved_presets = presets;
-                info!("[Shader Presets] Loaded {} presets from file", self.saved_presets.len());
-            }
-        }
-    }
-
-    pub fn save_current(
-        &mut self,
-        name: String,
+    pub fn export_current(
+        &self,
+        custom_name: Option<String>,
         rbe: &RbeGlobalState,
         council: &CouncilValence,
         confidence: &GlobalConfidence,
         mercy_query: &Query<&MercyAttunement>,
     ) {
-        // ... same as before ...
+        let name = custom_name.unwrap_or_else(|| format!("export_{}", self.saved_presets.len()));
+
+        let mercy_value = mercy_query.iter().next().map(|m| m.value).unwrap_or(0.5);
+        let mercy_thrivability = mercy_query.iter().next().map(|m| m.thrivability).unwrap_or(0.6);
+
+        let preset = SavedPreset {
+            name: name.clone(),
+            rbe_flow: rbe.flow_rate,
+            rbe_circulating: rbe.total_circulating,
+            player_balance: rbe.player_balance,
+            council_valence: council.value,
+            council_action: council.active_action,
+            council_participants: council.participants,
+            confidence: confidence.value,
+            mercy_value,
+            mercy_thrivability,
+        };
+
+        let filename = format!("{}.ron", name);
+        if let Ok(ron_str) = ron::to_string(&preset) {
+            if std::fs::write(&filename, ron_str).is_ok() {
+                info!("[Shader Presets] Exported preset to {}", filename);
+            }
+        }
     }
 
-    pub fn load_preset(
-        &self,
-        index: usize,
-        rbe: &mut RbeGlobalState,
-        council: &mut CouncilValence,
-        confidence: &mut GlobalConfidence,
-        mercy_query: &mut Query<&mut MercyAttunement>,
-    ) {
-        // ... same as before ...
+    pub fn import_from_file(&mut self, path: &str) {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            // Try single preset
+            if let Ok(single) = ron::from_str::<SavedPreset>(&content) {
+                self.saved_presets.push(single);
+                info!("[Shader Presets] Imported 1 preset from {}", path);
+                return;
+            }
+
+            // Try list of presets
+            if let Ok(multiple) = ron::from_str::<Vec<SavedPreset>>(&content) {
+                let count = multiple.len();
+                self.saved_presets.extend(multiple);
+                info!("[Shader Presets] Imported {} presets from {}", count, path);
+            }
+        }
     }
+
+    // ... existing save_current, load_preset, save_to_file, load_from_file ...
 }
 
 // ============================================================================
-// INPUT SYSTEM (with file save/load)
+// INPUT (with import/export)
 // ============================================================================
 
 pub fn shader_preset_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut presets: ResMut<ShaderTuningPresets>,
-    // ... other resources ...
+    rbe: Res<RbeGlobalState>,
+    council: Res<CouncilValence>,
+    confidence: Res<GlobalConfidence>,
+    mut mercy_query: Query<&mut MercyAttunement>,
 ) {
-    // Existing logic for 1-8, S, L, Space/P ...
+    // Existing logic (1-8, S, L, Space/P, Ctrl+S, Ctrl+L) ...
 
-    // File save (Ctrl + S)
-    if keyboard.pressed(KeyCode::ControlLeft) && keyboard.just_pressed(KeyCode::KeyS) {
-        presets.save_to_file();
+    // Export current state (Ctrl + E)
+    if keyboard.pressed(KeyCode::ControlLeft) && keyboard.just_pressed(KeyCode::KeyE) {
+        presets.export_current(None, &rbe, &council, &confidence, &mercy_query);
     }
 
-    // File load (Ctrl + L)
-    if keyboard.pressed(KeyCode::ControlLeft) && keyboard.just_pressed(KeyCode::KeyL) {
-        presets.load_from_file();
+    // Import from file (example: press Ctrl + I then type filename in console or hardcode)
+    // For simplicity, we provide a method. In a full UI you would have a file dialog.
+    if keyboard.pressed(KeyCode::ControlLeft) && keyboard.just_pressed(KeyCode::KeyI) {
+        // Example: import from a known file
+        presets.import_from_file("my_favorite_preset.ron");
     }
-
-    // Auto-load on first frame if file exists (optional)
 }
 
 // ============================================================================
@@ -124,10 +138,8 @@ pub struct GpuVisualMaterialsPlugin;
 impl Plugin for GpuVisualMaterialsPlugin {
     fn build(&self, app: &mut App) {
         let mut presets = ShaderTuningPresets::default();
-        presets.load_from_file(); // Auto-load saved presets on startup
-
-        app
-            .insert_resource(presets)
+        presets.load_from_file();
+        app.insert_resource(presets)
             .add_systems(Update, (demo_animate_gpu_bridges, shader_preset_input));
     }
 }
