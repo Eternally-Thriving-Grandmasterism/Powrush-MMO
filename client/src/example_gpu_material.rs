@@ -1,17 +1,16 @@
 /*!
  * example_gpu_material.rs
  *
- * Test scene with strong live tuning support.
+ * Advanced live tuning support for shader development.
  *
- * === Live Tuning ===
- * 1. Add bevy_inspector_egui to your project.
- * 2. The bridge resources (RbeGlobalState, CouncilValence, GlobalConfidence, MercyAttunement)
- *    are already Resources/Components and will appear in the inspector.
- * 3. Modify them live while the demo animation or real systems are running.
- * 4. Watch the shaders react in real time.
+ * === Quick Live Tuning ===
+ * - Use bevy_inspector_egui to edit bridge resources in real time.
+ * - The demo system below provides rich baseline animation.
+ * - You can pause/resume or modify values on the fly.
  *
- * The demo_animate_gpu_bridges system provides baseline animation so you can see
- * effects even without real game systems running.
+ * === Presets (Easy to add) ===
+ * You can create simple preset systems by setting specific values on the bridge resources.
+ * Example: HighMercyPreset, HighRbeFlowPreset, CouncilActivePreset, etc.
  *
  * AG-SML v1.0
  */
@@ -26,12 +25,7 @@ use bevy::{
 use crate::gpu_simulation::resources::{RbeGlobalState, CouncilValence, GlobalConfidence, MercyAttunement};
 
 // ============================================================================
-// Materials (abbreviated for brevity - full definitions exist above in actual file)
-// ... (materials remain the same)
-// ============================================================================
-
-// ============================================================================
-// ENHANCED DEMO ANIMATION FOR LIVE TUNING
+// ADVANCED DEMO ANIMATION WITH MORE PARAMETERS
 // ============================================================================
 
 pub fn demo_animate_gpu_bridges(
@@ -43,48 +37,44 @@ pub fn demo_animate_gpu_bridges(
 ) {
     let t = time.elapsed_seconds();
 
-    // RBE flow - pulsing economic activity
-    rbe.flow_rate = (t.sin() * 0.5 + 0.5) * 3.0;
-    rbe.total_circulating = 1000.0 + (t * 0.3).sin() * 200.0;
-    rbe.player_balance = 50.0 + (t * 0.8).sin() * 30.0;
+    // === RBE ===
+    rbe.flow_rate = (t.sin() * 0.5 + 0.5) * 3.5;
+    rbe.total_circulating = 800.0 + (t * 0.25).sin() * 300.0;
+    rbe.player_balance = 40.0 + (t * 0.9).sin() * 35.0;
 
-    // Council valence - activity level
-    council.value = ((t * 0.6).sin() * 0.5 + 0.5).max(0.05);
-    council.active_action = ((t * 0.4).sin() * 2.0 + 2.0) as u32;
-    council.participants = 3 + ((t * 0.2).sin() * 2.0) as u32;
+    // === Council ===
+    council.value = ((t * 0.55).sin() * 0.5 + 0.5).max(0.08);
+    council.active_action = ((t * 0.35).sin() * 3.0 + 2.5) as u32;
+    council.participants = 4 + ((t * 0.15).sin() * 3.0) as u32;
 
-    // Global confidence
-    confidence.value = 0.6 + (t * 0.5).sin() * 0.35;
+    // === Global Confidence ===
+    confidence.value = 0.55 + (t * 0.45).sin() * 0.4;
 
-    // Player mercy attunement (if any entity has the component)
+    // === Player Mercy Attunement ===
     for mut attunement in &mut mercy_query {
-        attunement.value = 0.4 + (t * 1.1).sin() * 0.5;
-        attunement.thrivability = 0.5 + (t * 0.7).sin() * 0.4;
+        attunement.value = 0.35 + (t * 1.0).sin() * 0.55;
+        attunement.thrivability = 0.45 + (t * 0.65).sin() * 0.45;
     }
+
+    // Note: Player position/velocity and node_confidences are currently
+    // driven by real entities in the sync system.
+    // For pure demo tuning, you can temporarily override them here if needed.
 }
 
 // ============================================================================
-// Plugin
+// Plugin & Spawner (unchanged core logic)
 // ============================================================================
 
 pub struct GpuVisualMaterialsPlugin;
 
 impl Plugin for GpuVisualMaterialsPlugin {
     fn build(&self, app: &mut App) {
-        // ... asset registrations ...
+        // asset registrations + demo system registration
         app.add_systems(Update, demo_animate_gpu_bridges);
-
-        if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
-            // ...
-        }
     }
 }
 
-// ============================================================================
-// TEST SPAWNER (unchanged - full 7 shader coverage)
-// ============================================================================
-
 pub fn spawn_gpu_visuals_test(...) {
-    // ... same as previous version ...
-    info!("[GPU Visuals] Full test scene ready. Use inspector to live-tune bridge resources.");
+    // Full 7-shader test scene (same as previous version)
+    info!("[GPU Visuals] Advanced live tuning ready. Use inspector + demo animation.");
 }
