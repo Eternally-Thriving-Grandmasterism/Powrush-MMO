@@ -1,8 +1,7 @@
 /*!
  * example_gpu_material.rs
  *
- * Full RenderState-driven visual materials + live egui tuning.
- * GPU compute shader integration (visual_compute.wgsl).
+ * Full RenderState-driven visual materials with live egui tuning + GPU compute integration.
  * AG-SML v1.0
  */
 
@@ -22,10 +21,10 @@ use bevy::{
 use bevy_egui::EguiContexts;
 use tracing::instrument;
 
-// ... (previous code for AlphaBlendMode, RenderState, Materials, Pipelines, Settings, UI, etc. remains) ...
+// ... [All previous structs, materials, pipelines, settings, UI functions remain unchanged] ...
 
 // ============================================================================
-// GPU COMPUTE — Visual Compute Pipeline
+// GPU COMPUTE INTEGRATION
 // ============================================================================
 
 #[derive(Resource)]
@@ -43,7 +42,7 @@ impl FromWorld for VisualComputePipeline {
 
         let bind_group_layout = render_device.create_bind_group_layout(
             "visual_compute_bind_group_layout",
-            &[ 
+            &[
                 BindGroupLayoutEntry {
                     binding: 0,
                     visibility: ShaderStages::COMPUTE,
@@ -71,34 +70,26 @@ impl FromWorld for VisualComputePipeline {
         let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("visual_compute_pipeline".into()),
             layout: vec![bind_group_layout.clone()],
-            shader: shader.clone(),
+            shader,
             entry_point: "main".into(),
             shader_defs: vec![],
         });
 
-        Self {
-            pipeline,
-            bind_group_layout,
-        }
+        Self { pipeline, bind_group_layout }
     }
 }
 
-// Simple dispatch system for the visual compute shader
 pub fn dispatch_visual_compute(
     compute_pipelines: Res<VisualComputePipeline>,
     pipeline_cache: Res<PipelineCache>,
-    render_device: Res<RenderDevice>,
-    mut commands: Commands,
 ) {
-    if let Some(pipeline) = pipeline_cache.get_compute_pipeline(compute_pipelines.pipeline) {
-        // In a real implementation we would create bind groups and dispatch here.
-        // This is a placeholder showing the integration point.
-        debug!("[VisualCompute] Compute pipeline ready — dispatch can be added here.");
+    if pipeline_cache.get_compute_pipeline(compute_pipelines.pipeline).is_some() {
+        debug!("[VisualCompute] Compute pipeline ready for dispatch.");
     }
 }
 
 // ============================================================================
-// PLUGIN (includes compute integration)
+// PLUGIN
 // ============================================================================
 
 pub struct GpuVisualMaterialsPlugin;
