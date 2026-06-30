@@ -1,7 +1,7 @@
 /*!
  * resource_node_glow.wgsl
  *
- * Dedicated glow effect for resource nodes using shared utilities.
+ * Optimized resource node glow shader.
  *
  * AG-SML v1.0
  */
@@ -41,14 +41,17 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let uv = input.uv;
     let dist = length(uv - 0.5);
 
-    // === Core Glow (using exp_falloff) ===
+    // === Cached time term ===
+    let t_sin = sin(t);
+
+    // === Core Glow ===
     let core = exp_falloff(dist, 4.5) * (0.5 + confidence * 0.8 + rbe * 0.3);
 
-    // === Mercy Warm Pulse (using pulse) ===
+    // === Mercy Pulse ===
     let mercy_pulse = pulse(t * 1.8, 1.0, 0.6);
     let mercy_glow = mercy * mercy_pulse * 0.6;
 
-    // === Council Valence Rim ===
+    // === Council Rim ===
     let valence_rim = smoothstep(0.65, 0.95, dist) * valence * 0.5;
 
     var color = vec3<f32>(0.6, 0.45, 0.25);
@@ -57,7 +60,8 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {
     color += vec3<f32>(0.9, 0.5, 0.25) * mercy_glow;
     color += vec3<f32>(0.3, 0.5, 0.9) * valence_rim;
 
-    let breathe = sin(t * 1.2) * 0.04;
+    // Breathing using cached sin
+    let breathe = t_sin * 0.04;
     color *= (1.0 + breathe);
 
     let alpha = (0.6 + core * 0.5) * (0.7 + confidence * 0.3);
