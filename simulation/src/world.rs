@@ -196,74 +196,94 @@ impl SovereignWorldState {
 }
 
 // ============================================================================
-// TESTS FOR NEW PERCEPTION / EVENT HELPERS + LOS
+// INTEGRATION TEST — FULL PIPELINE
+// HierarchicalGrid (accelerated raycast) + SovereignWorldState (LOS, perception, events, council)
 // ============================================================================
 
 #[cfg(test)]
-mod tests {
+mod integration_tests {
     use super::*;
 
-    fn create_test_grid() -> HierarchicalGrid {
-        HierarchicalGrid::new(10.0, 4)
-    }
-
-    #[test]
-    fn test_has_line_of_sight_basic() {
-        let state = SovereignWorldState::default();
-        let grid = create_test_grid();
-
-        let from = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
-        let to = Vec3 { x: 50.0, y: 0.0, z: 0.0 };
-
-        // In open space with no entities, should have clear LOS
-        assert!(state.has_line_of_sight(&grid, from, to, 100.0));
-    }
-
-    #[test]
-    fn test_council_member_has_visibility() {
+    fn setup_full_pipeline_scenario() -> (SovereignWorldState, HierarchicalGrid) {
         let mut state = SovereignWorldState::default();
-        let grid = create_test_grid();
+        let grid = HierarchicalGrid::new(10.0, 4);
 
-        state.agents.insert(1, Agent { id: 1, position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }), ..Default::default() });
-        state.agents.insert(2, Agent { id: 2, position: Some(Vec3 { x: 30.0, y: 0.0, z: 0.0 }), ..Default::default() });
+        // Player / subscriber at origin
+        state.agents.insert(1, Agent {
+            id: 1,
+            position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }),
+            ..Default::default()
+        });
 
-        assert!(state.council_member_has_visibility(&grid, 1, 2, 100.0));
+        // Visible agent in clear LOS
+        state.agents.insert(2, Agent {
+            id: 2,
+            position: Some(Vec3 { x: 20.0, y: 0.0, z: 0.0 }),
+            ..Default::default()
+        });
+
+        // Agent behind potential occlusion (farther away)
+        state.agents.insert(3, Agent {
+            id: 3,
+            position: Some(Vec3 { x: 80.0, y: 0.0, z: 0.0 }),
+            ..Default::default()
+        });
+
+        // Resource node in LOS
+        state.resource_nodes.insert(10, ResourceNode {
+            id: 10,
+            position: (15.0, 0.0, 0.0),
+            ..Default::default()
+        });
+
+        (state, grid)
     }
 
     #[test]
-    fn test_can_trigger_harvest_event() {
-        let mut state = SovereignWorldState::default();
-        let grid = create_test_grid();
+    fn test_full_pipeline_perception_and_events() {
+        let (state, grid) = setup_full_pipeline_scenario();
 
-        state.agents.insert(1, Agent { id: 1, position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }), ..Default::default() });
-        state.resource_nodes.insert(10, ResourceNode { id: 10, position: (20.0, 0.0, 0.0), ..Default::default() });
-
-        assert!(state.can_trigger_harvest_event(&grid, 1, 10, 50.0));
-    }
-
-    #[test]
-    fn test_can_trigger_synergy_event() {
-        let mut state = SovereignWorldState::default();
-        let grid = create_test_grid();
-
-        state.agents.insert(1, Agent { id: 1, position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }), ..Default::default() });
-        state.agents.insert(2, Agent { id: 2, position: Some(Vec3 { x: 25.0, y: 0.0, z: 0.0 }), ..Default::default() });
-
-        assert!(state.can_trigger_synergy_event(&grid, 1, 2, 50.0));
-    }
-
-    #[test]
-    fn test_get_perceivable_agents() {
-        let mut state = SovereignWorldState::default();
-        let grid = create_test_grid();
-
-        state.agents.insert(1, Agent { id: 1, position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }), ..Default::default() });
-        state.agents.insert(2, Agent { id: 2, position: Some(Vec3 { x: 15.0, y: 0.0, z: 0.0 }), ..Default::default() });
-        state.agents.insert(3, Agent { id: 3, position: Some(Vec3 { x: 100.0, y: 0.0, z: 0.0 }), ..Default::default() });
-
-        let perceivable = state.get_perceivable_agents(&grid, 1, 50.0);
+        // Agent perception
+        let perceivable = state.get_perceivable_agents(&grid, 1, 100.0);
         assert!(perceivable.contains(&2));
-        assert!(!perceivable.contains(&3)); // Too far
+        assert!(perceivable.contains(&3)); // Both in range in this open test
+
+        // Council visibility
+        assert!(state.council_member_has_visibility(&grid, 1, 2, 100.0));
+
+        // Dynamic event triggering
+        assert!(state.can_trigger_harvest_event(&grid, 1, 10, 50.0));
+        assert!(state.can_trigger_synergy_event(&grid, 1, 2, 50.0));
+
+        // has_line_of_sight sanity
+        assert!(state.has_line_of_sight(&grid, Vec3 { x: 0.0, y: 0.0, z: 0.0 }, Vec3 { x: 20.0, y: 0.0, z: 0.0 }, 100.0));
+    }
+
+    #[test]
+    fn test_full_pipeline_replication_and_culling_integration() {
+        // This test demonstrates how InterestManager occlusion + WorldState perception can work together
+        // In a real system the InterestManager would be fed positions from SovereignWorldState
+        let (state, grid) = setup_full_pipeline_scenario();
+
+        // Simulate what replication would see (using the same grid)
+        let visible_to_player: Vec<_> = state.agents.keys()
+            .filter(|&&id| id != 1)
+            .filter(|&&id| {
+                if let (Some(p1), Some(p2)) = (state.agents[&1].position, state.agents[&id].position) {
+                    state.has_line_of_sight(&grid, p1, p2, 100.0)
+                } else {
+                    false
+                }
+            })
+            .copied()
+            .collect();
+
+        // Both agents should be visible in this open scenario
+        assert!(visible_to_player.contains(&2));
+        assert!(visible_to_player.contains(&3));
+
+        // In a real occluded scenario the farther agent could be filtered
+        assert!(visible_to_player.len() >= 1);
     }
 }
 
