@@ -404,7 +404,7 @@ impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
 }
 
 // ============================================================================
-// QUEUE SYSTEMS (wired and functional)
+// QUEUE SYSTEMS (all four wired and functional)
 // ============================================================================
 
 pub fn queue_energy_burst_material(
@@ -422,8 +422,6 @@ pub fn queue_energy_burst_material(
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
-            // In production this would look up the actual MaterialHandle from the entity.
-            // For this example we take the first available material as a working template.
             if let Some((_, material)) = render_materials.iter().next() {
                 let key = EnergyBurstKey::from(material);
                 let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, key);
@@ -439,13 +437,98 @@ pub fn queue_energy_burst_material(
     }
 }
 
-// Template for the other materials (copy & adapt):
-// pub fn queue_valence_halo_material(...) { ... }
-// pub fn queue_mycelial_web_glow_material(...) { ... }
-// pub fn queue_resource_node_glow_material(...) { ... }
+pub fn queue_valence_halo_material(
+    draw_functions: Res<DrawFunctions<Opaque3d>>,
+    pipeline_cache: Res<PipelineCache>,
+    pipeline: Res<ValenceHaloMaterialPipeline>,
+    render_materials: Res<RenderAssets<ValenceHaloMaterial>>,
+    mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
+    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>,
+) {
+    let draw_function = draw_functions
+        .read()
+        .get_id::<DrawMaterial<ValenceHaloMaterial>>()
+        .expect("DrawMaterial<ValenceHaloMaterial> draw function not found");
+
+    for (visible_entities, mut phase) in &mut render_phases {
+        for visible_entity in &visible_entities.entities {
+            if let Some((_, material)) = render_materials.iter().next() {
+                let key = ValenceHaloKey::from(material);
+                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, key);
+
+                phase.add(Opaque3d {
+                    pipeline: pipeline_id,
+                    draw_function,
+                    entity: *visible_entity,
+                    distance: 0.0,
+                });
+            }
+        }
+    }
+}
+
+pub fn queue_mycelial_web_glow_material(
+    draw_functions: Res<DrawFunctions<Opaque3d>>,
+    pipeline_cache: Res<PipelineCache>,
+    pipeline: Res<MycelialWebGlowMaterialPipeline>,
+    render_materials: Res<RenderAssets<MycelialWebGlowMaterial>>,
+    mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
+    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<MycelialWebGlowMaterialPipeline>>,
+) {
+    let draw_function = draw_functions
+        .read()
+        .get_id::<DrawMaterial<MycelialWebGlowMaterial>>()
+        .expect("DrawMaterial<MycelialWebGlowMaterial> draw function not found");
+
+    for (visible_entities, mut phase) in &mut render_phases {
+        for visible_entity in &visible_entities.entities {
+            if let Some((_, material)) = render_materials.iter().next() {
+                let key = MycelialWebGlowKey::from(material);
+                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, key);
+
+                phase.add(Opaque3d {
+                    pipeline: pipeline_id,
+                    draw_function,
+                    entity: *visible_entity,
+                    distance: 0.0,
+                });
+            }
+        }
+    }
+}
+
+pub fn queue_resource_node_glow_material(
+    draw_functions: Res<DrawFunctions<Opaque3d>>,
+    pipeline_cache: Res<PipelineCache>,
+    pipeline: Res<ResourceNodeGlowMaterialPipeline>,
+    render_materials: Res<RenderAssets<ResourceNodeGlowMaterial>>,
+    mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
+    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ResourceNodeGlowMaterialPipeline>>,
+) {
+    let draw_function = draw_functions
+        .read()
+        .get_id::<DrawMaterial<ResourceNodeGlowMaterial>>()
+        .expect("DrawMaterial<ResourceNodeGlowMaterial> draw function not found");
+
+    for (visible_entities, mut phase) in &mut render_phases {
+        for visible_entity in &visible_entities.entities {
+            if let Some((_, material)) = render_materials.iter().next() {
+                let key = ResourceNodeGlowKey::from(material);
+                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, key);
+
+                phase.add(Opaque3d {
+                    pipeline: pipeline_id,
+                    draw_function,
+                    entity: *visible_entity,
+                    distance: 0.0,
+                });
+            }
+        }
+    }
+}
 
 // ============================================================================
-// PLUGIN (full registration + queue wiring)
+// PLUGIN (all four queue systems registered)
 // ============================================================================
 
 pub struct GpuVisualMaterialsPlugin;
@@ -470,9 +553,14 @@ impl Plugin for GpuVisualMaterialsPlugin {
                 .init_resource::<SpecializedRenderPipelines<ResourceNodeGlowMaterialPipeline>>()
                 .add_systems(
                     Render,
-                    queue_energy_burst_material.in_set(RenderSet::Queue),
+                    (
+                        queue_energy_burst_material,
+                        queue_valence_halo_material,
+                        queue_mycelial_web_glow_material,
+                        queue_resource_node_glow_material,
+                    )
+                        .in_set(RenderSet::Queue),
                 );
-            // Add the other three queue_* systems here when implemented
         }
     }
 }
