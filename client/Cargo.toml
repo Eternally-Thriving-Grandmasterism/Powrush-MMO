@@ -3,5 +3,8 @@
 [dependencies]
 # ... existing dependencies ...
 
+# Tracing for structured logging, spans, and instrumentation
+tracing = "0.1"
+
 # GPU memory layout + safe buffer casting
 bytemuck = { version = "1.16", features = ["derive"] }
