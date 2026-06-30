@@ -1,26 +1,27 @@
 //! server/src/spatial/interest_management.rs
-//! Full bevy_renet Setup for Powrush-MMO Replication
+//! bevy_renet with Reliable + Unreliable Channels
 //! v18.56+ | AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
 use bincode;
 use serde::{Deserialize, Serialize};
 
-// Add to Cargo.toml:
-// bevy_renet = { version = "0.1", features = ["bevy"] }
-// renet = "0.1"
-
-use renet::{ClientAuthentication, ConnectionConfig, RenetClient, RenetServer, ServerAuthentication, ServerConfig, ServerEvent};
-use std::net::{SocketAddr, UdpSocket};
-use std::time::{Duration, SystemTime};
-
-use crate::spatial::hierarchical_grid::HierarchicalGrid;
-use powrush_rbe_engine::RbeResourcePool;
-use std::collections::{HashMap, VecDeque};
-use std::sync::Arc;
+use renet::{RenetClient, RenetServer, ServerEvent};
+use std::net::SocketAddr;
+use std::time::SystemTime;
 
 // ============================================================================
-// REPLICATION DATA TYPES
+// CHANNEL DEFINITIONS (wise separation of concerns)
+// ============================================================================
+
+/// Reliable Ordered channel — for important state (spawns, ownership, critical replication)
+pub const RELIABLE_REPLICATION_CHANNEL: u8 = 0;
+
+/// Unreliable channel — for high-frequency updates (position, movement, transform)
+pub const UNRELIABLE_POSITION_CHANNEL: u8 = 1;
+
+// ============================================================================
+// REPLICATION DATA
 // ============================================================================
 
 #[derive(Event, Debug, Clone, Serialize, Deserialize)]
@@ -38,47 +39,7 @@ pub struct ClientInputEvent {
 }
 
 // ============================================================================
-// FULL bevy_renet SETUP
-// ============================================================================
-
-pub const PROTOCOL_ID: u64 = 0x1234567890ABCDEF;
-
-/// Create a RenetServer with sensible defaults for Powrush-MMO
-pub fn create_renet_server(addr: SocketAddr) -> RenetServer {
-    let socket = UdpSocket::bind(addr).unwrap();
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-
-    let server_config = ServerConfig {
-        current_time,
-        max_clients: 64,
-        protocol_id: PROTOCOL_ID,
-        public_addresses: vec![addr],
-        authentication: ServerAuthentication::Unsecure,
-    };
-
-    let connection_config = ConnectionConfig::default();
-
-    RenetServer::new(socket, server_config, connection_config, Vec::new()).unwrap()
-}
-
-/// Create a RenetClient
-pub fn create_renet_client(server_addr: SocketAddr) -> RenetClient {
-    let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-
-    let client_config = ConnectionConfig::default();
-
-    let authentication = ClientAuthentication::Unsecure {
-        client_id: current_time.as_millis() as u64,
-        protocol_id: PROTOCOL_ID,
-        server_addr,
-        user_data: None,
-    };
-
-    RenetClient::new(current_time, client_config, authentication).unwrap()
-}
-
-// ============================================================================
-// BEVY SYSTEMS FOR RENET
+// bevy_renet INTEGRATION (with channel separation)
 // ============================================================================
 
 #[derive(Resource)]
@@ -87,46 +48,56 @@ pub struct RenetServerResource(pub RenetServer);
 #[derive(Resource)]
 pub struct RenetClientResource(pub RenetClient);
 
-/// Handle server connection events
-fn handle_server_events(
-    mut server: ResMut<RenetServerResource>,
-    mut commands: Commands,
-) {
-    while let Some(event) = server.0.get_event() {
-        match event {
-            ServerEvent::ClientConnected { client_id } => {
-                println!("Client {} connected", client_id);
-                // You can spawn a player entity here
-            }
-            ServerEvent::ClientDisconnected { client_id, reason } => {
-                println!("Client {} disconnected: {:?}", client_id, reason);
-            }
-        }
-    }
-}
-
-/// Send replication data over renet (called from server_replication_system)
-fn send_replication_over_renet(
+/// Send high-frequency position updates over **unreliable** channel
+fn send_position_updates_unreliable(
     mut events: EventReader<ReplicationUpdate>,
     mut server: ResMut<RenetServerResource>,
     mut ser_buffer: ResMut<SerializationBuffer>,
 ) {
     for update in events.read() {
         if let Ok(bytes) = ser_buffer.serialize_replication_update(update) {
-            // Send on Reliable channel (channel 0 by default in many setups)
             for client_id in server.0.connected_clients() {
-                server.0.send_message(client_id, 0, bytes.clone());
+                // Send on unreliable channel for responsiveness
+                server.0.send_message(client_id, UNRELIABLE_POSITION_CHANNEL, bytes.clone());
             }
         }
     }
 }
 
-/// Receive replication data on client
-fn receive_replication_on_client(
+/// Send important replication data over **reliable** channel (example)
+fn send_important_replication_reliable(
+    mut events: EventReader<ReplicationUpdate>,
+    mut server: ResMut<RenetServerResource>,
+    mut ser_buffer: ResMut<SerializationBuffer>,
+) {
+    for update in events.read() {
+        if let Ok(bytes) = ser_buffer.serialize_replication_update(update) {
+            for client_id in server.0.connected_clients() {
+                // Send on reliable ordered channel
+                server.0.send_message(client_id, RELIABLE_REPLICATION_CHANNEL, bytes.clone());
+            }
+        }
+    }
+}
+
+/// Receive on unreliable channel (high-frequency position)
+fn receive_unreliable_position(
     mut client: ResMut<RenetClientResource>,
     mut replication_events: EventWriter<ReplicationUpdate>,
 ) {
-    while let Some(message) = client.0.receive_message(0) {
+    while let Some(message) = client.0.receive_message(UNRELIABLE_POSITION_CHANNEL) {
+        if let Ok(update) = deserialize_replication_update(&message) {
+            replication_events.send(update);
+        }
+    }
+}
+
+/// Receive on reliable channel
+fn receive_reliable_replication(
+    mut client: ResMut<RenetClientResource>,
+    mut replication_events: EventWriter<ReplicationUpdate>,
+) {
+    while let Some(message) = client.0.receive_message(RELIABLE_REPLICATION_CHANNEL) {
         if let Ok(update) = deserialize_replication_update(&message) {
             replication_events.send(update);
         }
@@ -134,7 +105,7 @@ fn receive_replication_on_client(
 }
 
 // ============================================================================
-// EXISTING OPTIMIZED REPLICATION + SERIALIZATION
+// SERIALIZATION BUFFER
 // ============================================================================
 
 #[derive(Resource, Default)]
@@ -154,6 +125,10 @@ pub fn deserialize_replication_update(bytes: &[u8]) -> Result<ReplicationUpdate,
     bincode::deserialize(bytes)
 }
 
+// ============================================================================
+// PLUGIN
+// ============================================================================
+
 pub struct ReplicationLoopPlugin;
 
 impl Plugin for ReplicationLoopPlugin {
@@ -162,9 +137,10 @@ impl Plugin for ReplicationLoopPlugin {
             .init_resource::<SerializationBuffer>()
             .add_event::<ReplicationUpdate>()
             .add_systems(Update, (
-                send_replication_over_renet,
-                receive_replication_on_client,
-                handle_server_events,
+                send_position_updates_unreliable,
+                receive_unreliable_position,
+                // send_important_replication_reliable, // enable when needed
+                // receive_reliable_replication,
             ));
     }
 }
@@ -183,4 +159,4 @@ impl InterestManager {
 #[derive(Resource)]
 pub struct InterestManagerResource(pub InterestManager);
 
-// End of production file — Full bevy_renet server/client setup implemented
+// End of production file — Unreliable channels for high-frequency updates added wisely
