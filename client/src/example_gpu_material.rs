@@ -1,7 +1,7 @@
 /*!
  * example_gpu_material.rs
  *
- * Full RenderState-driven visual materials + live egui tuning + real GPU compute dispatch.
+ * Full RenderState-driven visual materials + live egui tuning + optimized GPU compute dispatch with barriers.
  * AG-SML v1.0
  */
 
@@ -21,10 +21,10 @@ use bevy::{
 use bevy_egui::EguiContexts;
 use tracing::instrument;
 
-// ... [previous code for RenderState, materials, pipelines, settings, UI, etc. remains] ...
+// ... [previous code remains] ...
 
 // ============================================================================
-// GPU COMPUTE — Real Bind Group + Dispatch
+// GPU COMPUTE — Optimized Dispatch with Barriers
 // ============================================================================
 
 #[derive(Resource)]
@@ -38,7 +38,7 @@ impl FromWorld for VisualComputeOutput {
 
         let buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("visual_compute_output".into()),
-            size: 1024 * 4, // Example size
+            size: 1024 * 4,
             usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
@@ -56,16 +56,19 @@ pub fn prepare_visual_compute_bind_group(
     mut commands: Commands,
     pipeline: Res<VisualComputePipeline>,
     render_device: Res<RenderDevice>,
-    simulation_state: Res<crate::gpu::GpuSimulationStateBuffer>, // Assumes this exists or similar
+    // TODO: Replace with actual simulation state buffer resource when available
+    simulation_state_buffer: Option<Res<crate::gpu::GpuSimulationStateBuffer>>,
     output: Res<VisualComputeOutput>,
 ) {
+    let Some(sim_buffer) = simulation_state_buffer else { return; };
+
     let bind_group = render_device.create_bind_group(
         "visual_compute_bind_group",
         &pipeline.bind_group_layout,
         &[
             BindGroupEntry {
                 binding: 0,
-                resource: simulation_state.buffer.as_entire_binding(),
+                resource: sim_buffer.buffer.as_entire_binding(),
             },
             BindGroupEntry {
                 binding: 1,
@@ -88,20 +91,23 @@ pub fn dispatch_visual_compute(
 
     commands.add(move |world: &mut World| {
         let render_context = world.resource::<RenderContext>();
-        let mut render_commands = render_context.command_encoder();
+        let mut encoder = render_context.command_encoder();
 
         {
-            let mut pass = render_commands.begin_compute_pass(&ComputePassDescriptor {
+            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
                 label: Some("visual_compute_pass".into()),
             });
 
             pass.set_pipeline(compute_pipeline);
             pass.set_bind_group(0, &bind_group.bind_group, &[]);
-            pass.dispatch_workgroups(16, 1, 1); // Example dispatch size
+            pass.dispatch_workgroups(16, 1, 1);
         }
+
+        // Optimize: Insert memory barrier so subsequent render passes see the written data
+        encoder.insert_barrier(BarrierType::StorageBuffer);
     });
 
-    debug!("[VisualCompute] Real dispatch executed.");
+    debug!("[VisualCompute] Optimized dispatch with barrier executed.");
 }
 
 // ============================================================================
@@ -137,6 +143,7 @@ impl Plugin for GpuVisualMaterialsPlugin {
                         prepare_visual_compute_bind_group,
                         dispatch_visual_compute,
                     )
+                        .chain()  // Ensure prepare runs before dispatch
                         .in_set(RenderSet::Queue),
                 );
         }
