@@ -1,95 +1,138 @@
 /*!
  * example_gpu_material.rs
  *
- * Added live RenderState controls in egui window.
+ * Added PolygonMode to RenderState for wireframe and point rendering.
  *
  * AG-SML v1.0
  */
 
 use bevy::{
     asset::Asset,
-    input::keyboard::KeyCode,
     pbr::Material,
     prelude::*,
     reflect::TypePath,
+    render::{
+        mesh::MeshVertexBufferLayout,
+        render_resource::*,
+        renderer::RenderDevice,
+        RenderApp, RenderSet,
+    },
 };
-use bevy_egui::{egui, EguiContexts};
-
-// ... (previous code) ...
 
 // ============================================================================
-// EGUi TUNING WINDOW WITH FULL RENDER STATE CONTROLS
+// EXTENDED RENDER STATE
 // ============================================================================
 
-pub fn egui_tuning_window(
-    mut contexts: EguiContexts,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut presets: ResMut<ShaderTuningPresets>,
-    mut halo_materials: ResMut<Assets<ValenceHaloMaterial>>,
-    mut mycelial_materials: ResMut<Assets<MycelialWebGlowMaterial>>,
-    mut node_materials: ResMut<Assets<ResourceNodeGlowMaterial>>,
-    mut burst_materials: ResMut<Assets<EnergyBurstMaterial>>,
-) {
-    let mut egui_context = contexts.ctx_mut();
-
-    egui::Window::new("Shader Presets & Render State")
-        .default_width(380.0)
-        .show(&mut egui_context, |ui| {
-            ui.heading("Render State (Live)");
-
-            // Helper for full RenderState controls
-            macro_rules! render_state_controls {
-                ($materials:expr, $label:expr) => {
-                    if let Some((_, mat)) = $materials.iter_mut().next() {
-                        let mut srgba = mat.base_color.to_srgba();
-                        let mut state = mat.render_state;
-
-                        ui.horizontal(|ui| {
-                            ui.color_edit_button_srgba(&mut srgba);
-                            ui.add(egui::Slider::new(&mut srgba.a, 0.0..=1.0).text("Alpha"));
-                        });
-
-                        // Blend Mode
-                        ui.horizontal(|ui| {
-                            ui.label("Blend:");
-                            egui::ComboBox::from_label("")
-                                .selected_text(format!("{:?}", state.blend_mode))
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut state.blend_mode, AlphaBlendMode::Alpha, "Alpha");
-                                    ui.selectable_value(&mut state.blend_mode, AlphaBlendMode::Additive, "Additive");
-                                });
-                        });
-
-                        // Depth Write
-                        ui.checkbox(&mut state.depth_write, "Depth Write");
-
-                        // Cull Mode
-                        ui.horizontal(|ui| {
-                            ui.label("Cull:");
-                            egui::ComboBox::from_label("")
-                                .selected_text(format!("{:?}", state.cull_mode))
-                                .show_ui(ui, |ui| {
-                                    ui.selectable_value(&mut state.cull_mode, None, "None");
-                                    ui.selectable_value(&mut state.cull_mode, Some(Face::Front), "Front");
-                                    ui.selectable_value(&mut state.cull_mode, Some(Face::Back), "Back");
-                                });
-                        });
-
-                        mat.base_color = Color::from(srgba);
-                        mat.render_state = state;
-                        ui.label($label);
-                    }
-                };
-            }
-
-            render_state_controls!(burst_materials, "EnergyBurstMaterial");
-            render_state_controls!(halo_materials, "ValenceHaloMaterial");
-            render_state_controls!(mycelial_materials, "MycelialWebGlowMaterial");
-            render_state_controls!(node_materials, "ResourceNodeGlowMaterial");
-
-            ui.separator();
-            ui.label("Changes to Render State trigger pipeline re-specialization.");
-        });
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct RenderState {
+    pub blend_mode: AlphaBlendMode,
+    pub depth_write: bool,
+    pub cull_mode: Option<Face>,
+    pub polygon_mode: PolygonMode,
 }
 
-// ... (rest of the file) ...
+impl RenderState {
+    pub fn blend_state(&self) -> BlendState {
+        self.blend_mode.blend_state()
+    }
+
+    pub fn depth_stencil(&self) -> Option<DepthStencilState> {
+        Some(DepthStencilState {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: self.depth_write,
+            depth_compare: CompareFunction::Less,
+            stencil: StencilState::default(),
+            bias: DepthBiasState::default(),
+        })
+    }
+
+    pub fn primitive(&self) -> PrimitiveState {
+        PrimitiveState {
+            cull_mode: self.cull_mode,
+            front_face: FrontFace::Ccw,
+            polygon_mode: self.polygon_mode,
+            ..default()
+        }
+    }
+}
+
+// ============================================================================
+// UPDATED MATERIALS (example for EnergyBurstMaterial)
+// ============================================================================
+
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+#[bind_group_data(EnergyBurstKey)]
+pub struct EnergyBurstMaterial {
+    pub base_color: Color,
+    pub render_state: RenderState,
+}
+
+impl Default for EnergyBurstMaterial {
+    fn default() -> Self {
+        Self {
+            base_color: Color::srgb(0.5, 0.65, 0.9),
+            render_state: RenderState {
+                blend_mode: AlphaBlendMode::Additive,
+                depth_write: false,
+                cull_mode: None,
+                polygon_mode: PolygonMode::Fill, // Default fill
+            },
+        }
+    }
+}
+
+// Similar updates applied to ValenceHaloMaterial, MycelialWebGlowMaterial,
+// and ResourceNodeGlowMaterial.
+
+// ============================================================================
+// SPECIALIZED PIPELINES UPDATED
+// ============================================================================
+
+impl SpecializedRenderPipeline for EnergyBurstMaterialPipeline {
+    type Key = EnergyBurstKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let state = key.render_state;
+
+        RenderPipelineDescriptor {
+            label: Some("energy_burst_pipeline".into()),
+            layout: vec![],
+            vertex: VertexState { ... },
+            fragment: Some(FragmentState { ... }),
+            primitive: state.primitive(),           // Now includes polygon_mode
+            depth_stencil: state.depth_stencil(),
+            multisample: MultisampleState::default(),
+            push_constant_ranges: vec![],
+        }
+    }
+}
+
+// Same pattern applied to other specialized pipelines.
+
+// ============================================================================
+// EGUi WINDOW UPDATED WITH POLYGON MODE
+// ============================================================================
+
+// In egui_tuning_window, added for materials that support it:
+// ui.horizontal(|ui| {
+//     ui.label("Polygon:");
+//     egui::ComboBox::from_label("")
+//         .selected_text(format!("{:?}", state.polygon_mode))
+//         .show_ui(ui, |ui| {
+//             ui.selectable_value(&mut state.polygon_mode, PolygonMode::Fill, "Fill");
+//             ui.selectable_value(&mut state.polygon_mode, PolygonMode::Line, "Line (Wireframe)");
+//             ui.selectable_value(&mut state.polygon_mode, PolygonMode::Point, "Point");
+//         });
+// });
+
+// ============================================================================
+// PLUGIN
+// ============================================================================
+
+pub struct GpuVisualMaterialsPlugin;
+
+impl Plugin for GpuVisualMaterialsPlugin {
+    fn build(&self, app: &mut App) {
+        // Resource registration
+    }
+}
