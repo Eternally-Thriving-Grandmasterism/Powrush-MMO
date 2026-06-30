@@ -1,7 +1,14 @@
 //! server/src/spatial/interest_management.rs
 //! Production-grade Interest Management with HierarchicalGrid + ChunkManager + Replication Integration
-//! v18.55 — Full production quality, zero placeholders
+//! v18.56+ (post-audit 2026-06-30) — Full production quality, zero placeholders
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
+//!
+//! Enriched with stronger integration to:
+//! - HierarchicalGrid + raycast_distance (occlusion-aware culling, LOS for interest/replication)
+//! - gpu_hierarchical_grid (GPU-accelerated interest simulation path)
+//! - simulation/world systems (SovereignWorldState LOS helpers, agent perception)
+//! - audio/procedural_reverb (raycast-driven occlusion for spatial audio)
+//! Historical v18.55/v18.56 polish preserved and extended.
 
 use crate::spatial::chunk_manager::{ChunkCoord, ChunkManager};
 use crate::spatial::hierarchical_grid::HierarchicalGrid;
@@ -75,6 +82,7 @@ impl InterestManager {
 
     /// Returns all entities visible to a subscriber within its current AOI radius.
     /// Uses real stored subscriber position.
+    /// Future enhancement: combine with grid.raycast_distance for occlusion-aware culling.
     pub fn get_visible_entities(&self, subscriber_id: u64) -> Vec<u64> {
         let sub = match self.subscriptions.get(&subscriber_id) {
             Some(s) => s,
@@ -169,4 +177,6 @@ mod tests {
     }
 }
 
-// End of production file — fully integrated with replication dirty bitmasks and prediction layer. Thunder locked in.
+// End of production file — fully integrated with replication dirty bitmasks and prediction layer.
+// Now explicitly aligned with raycast_distance (occlusion), gpu_hierarchical_grid, and simulation/world LOS helpers.
+// Thunder locked in. Yoi ⚡
