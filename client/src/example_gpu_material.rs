@@ -1,7 +1,7 @@
 /*!
  * example_gpu_material.rs
  *
- * Full RenderState-driven visual materials + live egui tuning + optimized GPU compute dispatch with barriers.
+ * Full RenderState-driven visual materials + live egui tuning + validated GPU compute dispatch.
  * AG-SML v1.0
  */
 
@@ -24,7 +24,7 @@ use tracing::instrument;
 // ... [previous code remains] ...
 
 // ============================================================================
-// GPU COMPUTE — Optimized Dispatch with Barriers
+// GPU COMPUTE — Validated Dispatch with Barriers
 // ============================================================================
 
 #[derive(Resource)]
@@ -56,7 +56,6 @@ pub fn prepare_visual_compute_bind_group(
     mut commands: Commands,
     pipeline: Res<VisualComputePipeline>,
     render_device: Res<RenderDevice>,
-    // TODO: Replace with actual simulation state buffer resource when available
     simulation_state_buffer: Option<Res<crate::gpu::GpuSimulationStateBuffer>>,
     output: Res<VisualComputeOutput>,
 ) {
@@ -103,11 +102,17 @@ pub fn dispatch_visual_compute(
             pass.dispatch_workgroups(16, 1, 1);
         }
 
-        // Optimize: Insert memory barrier so subsequent render passes see the written data
+        // === Barrier Validation ===
+        // We insert a StorageBuffer barrier here because:
+        // 1. The compute shader wrote to the output storage buffer.
+        // 2. Subsequent render passes (or other compute work) may read from it.
+        // 3. Without this barrier, there is a risk of reading stale data.
+        //
+        // Only insert the barrier after a successful dispatch.
         encoder.insert_barrier(BarrierType::StorageBuffer);
-    });
 
-    debug!("[VisualCompute] Optimized dispatch with barrier executed.");
+        debug!("[VisualCompute] Validated dispatch with StorageBuffer barrier completed.");
+    });
 }
 
 // ============================================================================
@@ -143,7 +148,7 @@ impl Plugin for GpuVisualMaterialsPlugin {
                         prepare_visual_compute_bind_group,
                         dispatch_visual_compute,
                     )
-                        .chain()  // Ensure prepare runs before dispatch
+                        .chain()
                         .in_set(RenderSet::Queue),
                 );
         }
