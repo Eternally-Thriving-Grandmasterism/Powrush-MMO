@@ -3,8 +3,9 @@
  *
  * Full RenderState + AlphaBlendMode + per-material pipeline specialization
  * for EnergyBurst, ValenceHalo, MycelialWebGlow, ResourceNodeGlow.
+ * Pipelines are specialized directly by RenderState (blend + depth + cull + polygon).
  * Integrated with DepthCompare, PolygonMode, depth_write, cull.
- * Recovered + merged from intermediate commit diffs (81a0cb2, 47598a3, 1a61102 + latest DepthCompare).
+ * Recovered + merged from intermediate commit diffs.
  * All prior valuable logic preserved and elevated.
  * AG-SML v1.0 — Autonomicity Games Sovereign Mercy License
  */
@@ -55,7 +56,7 @@ impl AlphaBlendMode {
 }
 
 // ============================================================================
-// EXTENDED RENDER STATE (from latest DepthCompare commit + prior)
+// RENDER STATE — single source of truth for pipeline specialization
 // ============================================================================
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -97,7 +98,7 @@ impl RenderState {
         Self {
             blend_mode: AlphaBlendMode::Additive,
             depth_write: false,
-            depth_compare: CompareFunction::Always, // Useful for glows / valence effects
+            depth_compare: CompareFunction::Always,
             cull_mode: None,
             polygon_mode: PolygonMode::Fill,
         }
@@ -115,11 +116,11 @@ impl RenderState {
 }
 
 // ============================================================================
-// MATERIALS WITH RENDER STATE (recovered + unified from diffs)
+// MATERIALS — use RenderState directly for bind group data & specialization
 // ============================================================================
 
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(EnergyBurstKey)]
+#[bind_group_data(RenderState)]
 pub struct EnergyBurstMaterial {
     pub base_color: Color,
     pub render_state: RenderState,
@@ -134,20 +135,8 @@ impl Default for EnergyBurstMaterial {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct EnergyBurstKey {
-    render_state: RenderState,
-}
-
-impl From<&EnergyBurstMaterial> for EnergyBurstKey {
-    fn from(material: &EnergyBurstMaterial) -> Self {
-        Self { render_state: material.render_state }
-    }
-}
-
-// Similar for ValenceHalo (mercy/valence halo visuals)
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(ValenceHaloKey)]
+#[bind_group_data(RenderState)]
 pub struct ValenceHaloMaterial {
     pub base_color: Color,
     pub render_state: RenderState,
@@ -162,20 +151,8 @@ impl Default for ValenceHaloMaterial {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ValenceHaloKey {
-    render_state: RenderState,
-}
-
-impl From<&ValenceHaloMaterial> for ValenceHaloKey {
-    fn from(material: &ValenceHaloMaterial) -> Self {
-        Self { render_state: material.render_state }
-    }
-}
-
-// Mycelial Web Glow (recovered extension)
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(MycelialWebGlowKey)]
+#[bind_group_data(RenderState)]
 pub struct MycelialWebGlowMaterial {
     pub base_color: Color,
     pub render_state: RenderState,
@@ -190,20 +167,8 @@ impl Default for MycelialWebGlowMaterial {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct MycelialWebGlowKey {
-    render_state: RenderState,
-}
-
-impl From<&MycelialWebGlowMaterial> for MycelialWebGlowKey {
-    fn from(material: &MycelialWebGlowMaterial) -> Self {
-        Self { render_state: material.render_state }
-    }
-}
-
-// Resource Node Glow
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(ResourceNodeGlowKey)]
+#[bind_group_data(RenderState)]
 pub struct ResourceNodeGlowMaterial {
     pub base_color: Color,
     pub render_state: RenderState,
@@ -218,19 +183,8 @@ impl Default for ResourceNodeGlowMaterial {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ResourceNodeGlowKey {
-    render_state: RenderState,
-}
-
-impl From<&ResourceNodeGlowMaterial> for ResourceNodeGlowKey {
-    fn from(material: &ResourceNodeGlowMaterial) -> Self {
-        Self { render_state: material.render_state }
-    }
-}
-
 // ============================================================================
-// PIPELINE SPECIALIZERS (full recovered + enhanced with RenderState)
+// PIPELINE SPECIALIZERS — specialized directly by RenderState
 // ============================================================================
 
 #[derive(Resource)]
@@ -241,17 +195,14 @@ pub struct EnergyBurstMaterialPipeline {
 impl FromWorld for EnergyBurstMaterialPipeline {
     fn from_world(world: &mut World) -> Self {
         let asset_server = world.resource::<AssetServer>();
-        Self {
-            shader: asset_server.load("shaders/energy_burst.wgsl"),
-        }
+        Self { shader: asset_server.load("shaders/energy_burst.wgsl") }
     }
 }
 
 impl SpecializedRenderPipeline for EnergyBurstMaterialPipeline {
-    type Key = EnergyBurstKey;
+    type Key = RenderState;
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        let rs = key.render_state;
         RenderPipelineDescriptor {
             label: Some("energy_burst_pipeline".into()),
             layout: vec![],
@@ -267,12 +218,12 @@ impl SpecializedRenderPipeline for EnergyBurstMaterialPipeline {
                 shader_defs: vec![],
                 targets: vec![Some(ColorTargetState {
                     format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(rs.blend_state()),
+                    blend: Some(key.blend_state()),
                     write_mask: ColorWrites::ALL,
                 })],
             }),
-            primitive: rs.primitive(),
-            depth_stencil: rs.depth_stencil(),
+            primitive: key.primitive(),
+            depth_stencil: key.depth_stencil(),
             multisample: MultisampleState::default(),
             push_constant_ranges: vec![],
         }
@@ -292,25 +243,30 @@ impl FromWorld for ValenceHaloMaterialPipeline {
 }
 
 impl SpecializedRenderPipeline for ValenceHaloMaterialPipeline {
-    type Key = ValenceHaloKey;
+    type Key = RenderState;
+
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        let rs = key.render_state;
         RenderPipelineDescriptor {
             label: Some("valence_halo_pipeline".into()),
             layout: vec![],
-            vertex: VertexState { shader: self.shader.clone(), entry_point: "vertex_main".into(), shader_defs: vec![], buffers: vec![] },
+            vertex: VertexState {
+                shader: self.shader.clone(),
+                entry_point: "vertex_main".into(),
+                shader_defs: vec![],
+                buffers: vec![],
+            },
             fragment: Some(FragmentState {
                 shader: self.shader.clone(),
                 entry_point: "fragment_main".into(),
                 shader_defs: vec![],
                 targets: vec![Some(ColorTargetState {
                     format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(rs.blend_state()),
+                    blend: Some(key.blend_state()),
                     write_mask: ColorWrites::ALL,
                 })],
             }),
-            primitive: rs.primitive(),
-            depth_stencil: rs.depth_stencil(),
+            primitive: key.primitive(),
+            depth_stencil: key.depth_stencil(),
             multisample: MultisampleState::default(),
             push_constant_ranges: vec![],
         }
@@ -330,9 +286,9 @@ impl FromWorld for MycelialWebGlowMaterialPipeline {
 }
 
 impl SpecializedRenderPipeline for MycelialWebGlowMaterialPipeline {
-    type Key = MycelialWebGlowKey;
+    type Key = RenderState;
+
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        let rs = key.render_state;
         RenderPipelineDescriptor {
             label: Some("mycelial_web_glow_pipeline".into()),
             layout: vec![],
@@ -348,12 +304,12 @@ impl SpecializedRenderPipeline for MycelialWebGlowMaterialPipeline {
                 shader_defs: vec![],
                 targets: vec![Some(ColorTargetState {
                     format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(rs.blend_state()),
+                    blend: Some(key.blend_state()),
                     write_mask: ColorWrites::ALL,
                 })],
             }),
-            primitive: rs.primitive(),
-            depth_stencil: rs.depth_stencil(),
+            primitive: key.primitive(),
+            depth_stencil: key.depth_stencil(),
             multisample: MultisampleState::default(),
             push_constant_ranges: vec![],
         }
@@ -373,9 +329,9 @@ impl FromWorld for ResourceNodeGlowMaterialPipeline {
 }
 
 impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
-    type Key = ResourceNodeGlowKey;
+    type Key = RenderState;
+
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        let rs = key.render_state;
         RenderPipelineDescriptor {
             label: Some("resource_node_glow_pipeline".into()),
             layout: vec![],
@@ -391,12 +347,12 @@ impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
                 shader_defs: vec![],
                 targets: vec![Some(ColorTargetState {
                     format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(rs.blend_state()),
+                    blend: Some(key.blend_state()),
                     write_mask: ColorWrites::ALL,
                 })],
             }),
-            primitive: rs.primitive(),
-            depth_stencil: rs.depth_stencil(),
+            primitive: key.primitive(),
+            depth_stencil: key.depth_stencil(),
             multisample: MultisampleState::default(),
             push_constant_ranges: vec![],
         }
@@ -404,7 +360,7 @@ impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
 }
 
 // ============================================================================
-// QUEUE SYSTEMS (all four wired and functional)
+// QUEUE SYSTEMS — specialize directly by material.render_state
 // ============================================================================
 
 pub fn queue_energy_burst_material(
@@ -423,8 +379,7 @@ pub fn queue_energy_burst_material(
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
             if let Some((_, material)) = render_materials.iter().next() {
-                let key = EnergyBurstKey::from(material);
-                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, key);
+                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
 
                 phase.add(Opaque3d {
                     pipeline: pipeline_id,
@@ -453,8 +408,7 @@ pub fn queue_valence_halo_material(
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
             if let Some((_, material)) = render_materials.iter().next() {
-                let key = ValenceHaloKey::from(material);
-                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, key);
+                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
 
                 phase.add(Opaque3d {
                     pipeline: pipeline_id,
@@ -483,8 +437,7 @@ pub fn queue_mycelial_web_glow_material(
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
             if let Some((_, material)) = render_materials.iter().next() {
-                let key = MycelialWebGlowKey::from(material);
-                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, key);
+                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
 
                 phase.add(Opaque3d {
                     pipeline: pipeline_id,
@@ -513,8 +466,7 @@ pub fn queue_resource_node_glow_material(
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
             if let Some((_, material)) = render_materials.iter().next() {
-                let key = ResourceNodeGlowKey::from(material);
-                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, key);
+                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
 
                 phase.add(Opaque3d {
                     pipeline: pipeline_id,
@@ -528,7 +480,7 @@ pub fn queue_resource_node_glow_material(
 }
 
 // ============================================================================
-// PLUGIN (all four queue systems registered)
+// PLUGIN
 // ============================================================================
 
 pub struct GpuVisualMaterialsPlugin;
