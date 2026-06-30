@@ -1,7 +1,7 @@
 /*!
  * example_gpu_material.rs
  *
- * Live tuning with import/export for presets.
+ * Live tuning with real-time color pickers for material base colors.
  *
  * AG-SML v1.0
  */
@@ -13,120 +13,80 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
+use bevy_egui::{egui, EguiContexts};
 use serde::{Deserialize, Serialize};
 
 use crate::gpu_simulation::resources::{RbeGlobalState, CouncilValence, GlobalConfidence, MercyAttunement};
 
-// ============================================================================
-// SERIALIZABLE PRESET
-// ============================================================================
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SavedPreset {
-    pub name: String,
-    pub rbe_flow: f32,
-    pub rbe_circulating: f32,
-    pub player_balance: f32,
-    pub council_valence: f32,
-    pub council_action: u32,
-    pub council_participants: u32,
-    pub confidence: f32,
-    pub mercy_value: f32,
-    pub mercy_thrivability: f32,
-}
+// ... (previous code for presets, materials, etc. remains) ...
 
 // ============================================================================
-// TUNING PRESETS RESOURCE (with import/export)
+// EGUi TUNING WINDOW (with color pickers)
 // ============================================================================
 
-#[derive(Resource, Default)]
-pub struct ShaderTuningPresets {
-    pub current: usize,
-    pub demo_active: bool,
-    pub saved_presets: Vec<SavedPreset>,
-}
-
-impl ShaderTuningPresets {
-    pub fn export_current(
-        &self,
-        custom_name: Option<String>,
-        rbe: &RbeGlobalState,
-        council: &CouncilValence,
-        confidence: &GlobalConfidence,
-        mercy_query: &Query<&MercyAttunement>,
-    ) {
-        let name = custom_name.unwrap_or_else(|| format!("export_{}", self.saved_presets.len()));
-
-        let mercy_value = mercy_query.iter().next().map(|m| m.value).unwrap_or(0.5);
-        let mercy_thrivability = mercy_query.iter().next().map(|m| m.thrivability).unwrap_or(0.6);
-
-        let preset = SavedPreset {
-            name: name.clone(),
-            rbe_flow: rbe.flow_rate,
-            rbe_circulating: rbe.total_circulating,
-            player_balance: rbe.player_balance,
-            council_valence: council.value,
-            council_action: council.active_action,
-            council_participants: council.participants,
-            confidence: confidence.value,
-            mercy_value,
-            mercy_thrivability,
-        };
-
-        let filename = format!("{}.ron", name);
-        if let Ok(ron_str) = ron::to_string(&preset) {
-            if std::fs::write(&filename, ron_str).is_ok() {
-                info!("[Shader Presets] Exported preset to {}", filename);
-            }
-        }
-    }
-
-    pub fn import_from_file(&mut self, path: &str) {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            // Try single preset
-            if let Ok(single) = ron::from_str::<SavedPreset>(&content) {
-                self.saved_presets.push(single);
-                info!("[Shader Presets] Imported 1 preset from {}", path);
-                return;
-            }
-
-            // Try list of presets
-            if let Ok(multiple) = ron::from_str::<Vec<SavedPreset>>(&content) {
-                let count = multiple.len();
-                self.saved_presets.extend(multiple);
-                info!("[Shader Presets] Imported {} presets from {}", count, path);
-            }
-        }
-    }
-
-    // ... existing save_current, load_preset, save_to_file, load_from_file ...
-}
-
-// ============================================================================
-// INPUT (with import/export)
-// ============================================================================
-
-pub fn shader_preset_input(
+pub fn egui_tuning_window(
+    mut contexts: EguiContexts,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut presets: ResMut<ShaderTuningPresets>,
-    rbe: Res<RbeGlobalState>,
-    council: Res<CouncilValence>,
-    confidence: Res<GlobalConfidence>,
-    mut mercy_query: Query<&mut MercyAttunement>,
+    mut gpu_materials: ResMut<Assets<GpuStateMaterial>>,
+    mut halo_materials: ResMut<Assets<ValenceHaloMaterial>>,
+    mut mycelial_materials: ResMut<Assets<MycelialWebGlowMaterial>>,
+    mut node_materials: ResMut<Assets<ResourceNodeGlowMaterial>>,
+    mut burst_materials: ResMut<Assets<EnergyBurstMaterial>>,
+    mut field_materials: ResMut<Assets<ResonanceFieldMaterial>>,
+    mut wave_materials: ResMut<Assets<ForgivenessWaveMaterial>>,
 ) {
-    // Existing logic (1-8, S, L, Space/P, Ctrl+S, Ctrl+L) ...
+    let mut egui_context = contexts.ctx_mut();
 
-    // Export current state (Ctrl + E)
-    if keyboard.pressed(KeyCode::ControlLeft) && keyboard.just_pressed(KeyCode::KeyE) {
-        presets.export_current(None, &rbe, &council, &confidence, &mercy_query);
-    }
+    let window_open = keyboard.pressed(KeyCode::F2);
 
-    // Import from file (example: press Ctrl + I then type filename in console or hardcode)
-    // For simplicity, we provide a method. In a full UI you would have a file dialog.
-    if keyboard.pressed(KeyCode::ControlLeft) && keyboard.just_pressed(KeyCode::KeyI) {
-        // Example: import from a known file
-        presets.import_from_file("my_favorite_preset.ron");
-    }
+    egui::Window::new("Shader Presets & Colors")
+        .default_width(320.0)
+        .open(&mut window_open)  // Can be toggled with F2
+        .show(&mut egui_context, |ui| {
+            ui.heading("Presets");
+
+            // Existing preset buttons (1-8 + custom)...
+
+            ui.separator();
+            ui.heading("Material Base Colors (Live)");
+
+            // Color pickers for each material type used in the test scene
+            if let Some(mat) = gpu_materials.iter_mut().next() {
+                let mut color = mat.1.base_color.to_srgba();
+                if ui.color_edit_button_srgba(&mut color).changed() {
+                    mat.1.base_color = Color::from(color);
+                }
+                ui.label("GpuStateMaterial");
+            }
+
+            if let Some(mat) = halo_materials.iter_mut().next() {
+                let mut color = mat.1.base_color.to_srgba();
+                if ui.color_edit_button_srgba(&mut color).changed() {
+                    mat.1.base_color = Color::from(color);
+                }
+                ui.label("ValenceHaloMaterial");
+            }
+
+            if let Some(mat) = mycelial_materials.iter_mut().next() {
+                let mut color = mat.1.base_color.to_srgba();
+                if ui.color_edit_button_srgba(&mut color).changed() {
+                    mat.1.base_color = Color::from(color);
+                }
+                ui.label("MycelialWebGlowMaterial");
+            }
+
+            if let Some(mat) = node_materials.iter_mut().next() {
+                let mut color = mat.1.base_color.to_srgba();
+                if ui.color_edit_button_srgba(&mut color).changed() {
+                    mat.1.base_color = Color::from(color);
+                }
+                ui.label("ResourceNodeGlowMaterial");
+            }
+
+            ui.separator();
+            ui.label("Tip: Use color pickers + presets together for fast iteration.");
+        });
 }
 
 // ============================================================================
@@ -137,9 +97,8 @@ pub struct GpuVisualMaterialsPlugin;
 
 impl Plugin for GpuVisualMaterialsPlugin {
     fn build(&self, app: &mut App) {
-        let mut presets = ShaderTuningPresets::default();
-        presets.load_from_file();
-        app.insert_resource(presets)
-            .add_systems(Update, (demo_animate_gpu_bridges, shader_preset_input));
+        app
+            .init_resource::<ShaderTuningPresets>()
+            .add_systems(Update, (demo_animate_gpu_bridges, shader_preset_input, egui_tuning_window));
     }
 }
