@@ -1,4 +1,5 @@
 use crate::council_bloom_feedback::CouncilBloomFeedbackPlugin;
+use crate::GpuVisualMaterialsPlugin;
 
 // ... other imports ...
 
@@ -15,7 +16,10 @@ fn main() {
         .add_plugins(ParticlePlugin)
         .add_plugins(UiPlugin)
         .add_plugins(DivineWhispersPlugin)
-        // ...
+
+        // GPU Visual Materials — RenderState-driven pipeline specialization
+        // for EnergyBurst, ValenceHalo, MycelialWebGlow, ResourceNodeGlow effects
+        .add_plugins(GpuVisualMaterialsPlugin)
 
         // === Council Bloom Rich Feedback (new) ===
         .add_plugins(CouncilBloomFeedbackPlugin)
