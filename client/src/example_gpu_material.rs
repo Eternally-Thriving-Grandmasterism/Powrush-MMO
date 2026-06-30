@@ -3,10 +3,8 @@
  *
  * Full RenderState + AlphaBlendMode + per-material pipeline specialization
  * for EnergyBurst, ValenceHalo, MycelialWebGlow, ResourceNodeGlow.
+ * Live egui tuning panel for all RenderState parameters.
  * Pipelines are specialized directly by RenderState (blend + depth + cull + polygon).
- * Integrated with DepthCompare, PolygonMode, depth_write, cull.
- * Recovered + merged from intermediate commit diffs.
- * All prior valuable logic preserved and elevated.
  * AG-SML v1.0 — Autonomicity Games Sovereign Mercy License
  */
 
@@ -23,6 +21,7 @@ use bevy::{
         RenderApp, RenderSet,
     },
 };
+use bevy_egui::EguiContexts;
 use tracing::instrument;
 
 // ============================================================================
@@ -362,30 +361,44 @@ impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
 }
 
 // ============================================================================
-// QUEUE SYSTEMS — now properly entity-aware (real per-entity material lookup)
-// Robust error handling + tracing instrumentation
+// LIVE TUNING RESOURCE
 // ============================================================================
 
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, render_phases, specialized_pipelines), level = "debug")]
+#[derive(Resource, Default)]
+pub struct GpuVisualMaterialSettings {
+    pub energy_burst: RenderState,
+    pub valence_halo: RenderState,
+    pub mycelial_web_glow: RenderState,
+    pub resource_node_glow: RenderState,
+}
+
+// ============================================================================
+// QUEUE SYSTEMS — entity-aware + reads from live tuning settings
+// ============================================================================
+
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, settings, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_energy_burst_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<EnergyBurstMaterialPipeline>,
     render_materials: Res<RenderAssets<EnergyBurstMaterial>>,
     material_handles: Query<&MeshMaterial3d<EnergyBurstMaterial>>,
+    settings: Res<GpuVisualMaterialSettings>,
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>,
 ) {
     let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<EnergyBurstMaterial>>() else {
-        debug!("[GpuVisualMaterials] DrawMaterial<EnergyBurstMaterial> not registered yet (expected during startup); skipping queue.");
+        debug!("[GpuVisualMaterials] DrawMaterial<EnergyBurstMaterial> not registered yet; skipping queue.");
         return;
     };
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
             if let Ok(material_handle) = material_handles.get(*visible_entity) {
-                if let Some(material) = render_materials.get(&material_handle.0) {
-                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
+                if let Some(_) = render_materials.get(&material_handle.0) {
+                    // Use live tuned RenderState from egui panel
+                    let rs = settings.energy_burst;
+                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, rs);
 
                     phase.add(Opaque3d {
                         pipeline: pipeline_id,
@@ -399,26 +412,28 @@ pub fn queue_energy_burst_material(
     }
 }
 
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, render_phases, specialized_pipelines), level = "debug")]
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, settings, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_valence_halo_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<ValenceHaloMaterialPipeline>,
     render_materials: Res<RenderAssets<ValenceHaloMaterial>>,
     material_handles: Query<&MeshMaterial3d<ValenceHaloMaterial>>,
+    settings: Res<GpuVisualMaterialSettings>,
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>,
 ) {
     let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<ValenceHaloMaterial>>() else {
-        debug!("[GpuVisualMaterials] DrawMaterial<ValenceHaloMaterial> not registered yet (expected during startup); skipping queue.");
+        debug!("[GpuVisualMaterials] DrawMaterial<ValenceHaloMaterial> not registered yet; skipping queue.");
         return;
     };
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
             if let Ok(material_handle) = material_handles.get(*visible_entity) {
-                if let Some(material) = render_materials.get(&material_handle.0) {
-                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
+                if let Some(_) = render_materials.get(&material_handle.0) {
+                    let rs = settings.valence_halo;
+                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, rs);
 
                     phase.add(Opaque3d {
                         pipeline: pipeline_id,
@@ -432,26 +447,28 @@ pub fn queue_valence_halo_material(
     }
 }
 
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, render_phases, specialized_pipelines), level = "debug")]
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, settings, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_mycelial_web_glow_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<MycelialWebGlowMaterialPipeline>,
     render_materials: Res<RenderAssets<MycelialWebGlowMaterial>>,
     material_handles: Query<&MeshMaterial3d<MycelialWebGlowMaterial>>,
+    settings: Res<GpuVisualMaterialSettings>,
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<MycelialWebGlowMaterialPipeline>>,
 ) {
     let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<MycelialWebGlowMaterial>>() else {
-        debug!("[GpuVisualMaterials] DrawMaterial<MycelialWebGlowMaterial> not registered yet (expected during startup); skipping queue.");
+        debug!("[GpuVisualMaterials] DrawMaterial<MycelialWebGlowMaterial> not registered yet; skipping queue.");
         return;
     };
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
             if let Ok(material_handle) = material_handles.get(*visible_entity) {
-                if let Some(material) = render_materials.get(&material_handle.0) {
-                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
+                if let Some(_) = render_materials.get(&material_handle.0) {
+                    let rs = settings.mycelial_web_glow;
+                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, rs);
 
                     phase.add(Opaque3d {
                         pipeline: pipeline_id,
@@ -465,26 +482,28 @@ pub fn queue_mycelial_web_glow_material(
     }
 }
 
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, render_phases, specialized_pipelines), level = "debug")]
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, settings, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_resource_node_glow_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<ResourceNodeGlowMaterialPipeline>,
     render_materials: Res<RenderAssets<ResourceNodeGlowMaterial>>,
     material_handles: Query<&MeshMaterial3d<ResourceNodeGlowMaterial>>,
+    settings: Res<GpuVisualMaterialSettings>,
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ResourceNodeGlowMaterialPipeline>>,
 ) {
     let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<ResourceNodeGlowMaterial>>() else {
-        debug!("[GpuVisualMaterials] DrawMaterial<ResourceNodeGlowMaterial> not registered yet (expected during startup); skipping queue.");
+        debug!("[GpuVisualMaterials] DrawMaterial<ResourceNodeGlowMaterial> not registered yet; skipping queue.");
         return;
     };
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
             if let Ok(material_handle) = material_handles.get(*visible_entity) {
-                if let Some(material) = render_materials.get(&material_handle.0) {
-                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
+                if let Some(_) = render_materials.get(&material_handle.0) {
+                    let rs = settings.resource_node_glow;
+                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, rs);
 
                     phase.add(Opaque3d {
                         pipeline: pipeline_id,
@@ -496,6 +515,88 @@ pub fn queue_resource_node_glow_material(
             }
         }
     }
+}
+
+// ============================================================================
+// LIVE EGUi TUNING PANEL
+// ============================================================================
+
+pub fn tune_gpu_visual_materials(
+    mut contexts: EguiContexts,
+    mut settings: ResMut<GpuVisualMaterialSettings>,
+) {
+    egui::Window::new("GPU Visual Materials — RenderState Tuning")
+        .default_width(320.0)
+        .show(contexts.ctx_mut(), |ui| {
+            ui.heading("Energy Burst");
+            ui_tune_render_state(ui, &mut settings.energy_burst);
+
+            ui.separator();
+            ui.heading("Valence Halo");
+            ui_tune_render_state(ui, &mut settings.valence_halo);
+
+            ui.separator();
+            ui.heading("Mycelial Web Glow");
+            ui_tune_render_state(ui, &mut settings.mycelial_web_glow);
+
+            ui.separator();
+            ui.heading("Resource Node Glow");
+            ui_tune_render_state(ui, &mut settings.resource_node_glow);
+        });
+}
+
+fn ui_tune_render_state(ui: &mut egui::Ui, state: &mut RenderState) {
+    ui.horizontal(|ui| {
+        ui.label("Blend:");
+        egui::ComboBox::from_id_salt("blend")
+            .selected_text(format!("{:?}", state.blend_mode))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut state.blend_mode, AlphaBlendMode::Alpha, "Alpha");
+                ui.selectable_value(&mut state.blend_mode, AlphaBlendMode::Additive, "Additive");
+            });
+    });
+
+    ui.checkbox(&mut state.depth_write, "Depth Write");
+
+    ui.horizontal(|ui| {
+        ui.label("Depth Compare:");
+        egui::ComboBox::from_id_salt("depth")
+            .selected_text(format!("{:?}", state.depth_compare))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut state.depth_compare, CompareFunction::Always, "Always");
+                ui.selectable_value(&mut state.depth_compare, CompareFunction::Less, "Less");
+                ui.selectable_value(&mut state.depth_compare, CompareFunction::LessEqual, "LessEqual");
+                ui.selectable_value(&mut state.depth_compare, CompareFunction::Equal, "Equal");
+                ui.selectable_value(&mut state.depth_compare, CompareFunction::Greater, "Greater");
+            });
+    });
+
+    ui.horizontal(|ui| {
+        ui.label("Cull:");
+        let cull_label = match state.cull_mode {
+            Some(Face::Front) => "Front",
+            Some(Face::Back) => "Back",
+            None => "None",
+        };
+        egui::ComboBox::from_id_salt("cull")
+            .selected_text(cull_label)
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut state.cull_mode, None, "None");
+                ui.selectable_value(&mut state.cull_mode, Some(Face::Back), "Back");
+                ui.selectable_value(&mut state.cull_mode, Some(Face::Front), "Front");
+            });
+    });
+
+    ui.horizontal(|ui| {
+        ui.label("Polygon:");
+        egui::ComboBox::from_id_salt("polygon")
+            .selected_text(format!("{:?}", state.polygon_mode))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut state.polygon_mode, PolygonMode::Fill, "Fill");
+                ui.selectable_value(&mut state.polygon_mode, PolygonMode::Line, "Line");
+                ui.selectable_value(&mut state.polygon_mode, PolygonMode::Point, "Point");
+            });
+    });
 }
 
 // ============================================================================
@@ -510,7 +611,8 @@ impl Plugin for GpuVisualMaterialsPlugin {
             .init_asset::<EnergyBurstMaterial>()
             .init_asset::<ValenceHaloMaterial>()
             .init_asset::<MycelialWebGlowMaterial>()
-            .init_asset::<ResourceNodeGlowMaterial>();
+            .init_asset::<ResourceNodeGlowMaterial>()
+            .init_resource::<GpuVisualMaterialSettings>();
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
@@ -533,5 +635,8 @@ impl Plugin for GpuVisualMaterialsPlugin {
                         .in_set(RenderSet::Queue),
                 );
         }
+
+        // Live egui tuning panel (runs in Update)
+        app.add_systems(Update, tune_gpu_visual_materials);
     }
 }
