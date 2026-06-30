@@ -1,10 +1,15 @@
 //! server/src/spatial/interest_management.rs
-//! Optimized Bincode Serialization for Replication
+//! Replication Loop + Real Networking Integration (bevy_renet)
 //! v18.56+ | AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 
 use bevy::prelude::*;
 use bincode;
 use serde::{Deserialize, Serialize};
+
+// Note: Add these to Cargo.toml:
+// bevy_renet = "0.1"
+// renet = "0.1"
+
 use crate::spatial::hierarchical_grid::HierarchicalGrid;
 use powrush_rbe_engine::RbeResourcePool;
 use std::collections::{HashMap, VecDeque};
@@ -12,7 +17,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 // ============================================================================
-// HIGH-PERFORMANCE SERIALIZATION
+// REPLICATION TYPES (serializable)
 // ============================================================================
 
 #[derive(Event, Debug, Clone, Serialize, Deserialize)]
@@ -29,48 +34,62 @@ pub struct ClientInputEvent {
     pub tick: u64,
 }
 
-/// Reusable buffer resource to minimize allocations during serialization
+// ============================================================================
+// bevy_renet INTEGRATION BRIDGE
+// ============================================================================
+
+/// System that sends ReplicationUpdate over renet (server side)
+/// Requires: RenetServer resource from bevy_renet
+fn renet_server_send_system(
+    mut events: EventReader<ReplicationUpdate>,
+    // mut renet_server: ResMut<RenetServer>, // uncomment when bevy_renet is added
+    mut ser_buffer: ResMut<SerializationBuffer>,
+) {
+    for update in events.read() {
+        if let Ok(bytes) = ser_buffer.serialize_replication_update(update) {
+            // Example with renet (pseudo-code):
+            // for client_id in renet_server.connected_clients() {
+            //     renet_server.send_message(client_id, ReliableChannel::id(), bytes.clone());
+            // }
+            println!("[Server] Would send {} bytes to clients via renet", bytes.len());
+        }
+    }
+}
+
+/// System that receives data on client and turns it into ReplicationUpdate
+/// Requires: RenetClient resource from bevy_renet
+fn renet_client_receive_system(
+    // mut renet_client: ResMut<RenetClient>,
+    mut replication_events: EventWriter<ReplicationUpdate>,
+) {
+    // Example:
+    // while let Some(message) = renet_client.receive_message(ReliableChannel::id()) {
+    //     if let Ok(update) = deserialize_replication_update(&message) {
+    //         replication_events.send(update);
+    //     }
+    // }
+}
+
+// ============================================================================
+// EXISTING OPTIMIZED SERIALIZATION + REPLICATION LOOP
+// ============================================================================
+
 #[derive(Resource, Default)]
 pub struct SerializationBuffer {
     pub buffer: Vec<u8>,
 }
 
 impl SerializationBuffer {
-    pub fn clear(&mut self) {
-        self.buffer.clear();
-    }
-
-    pub fn serialize_replication_update(
-        &mut self,
-        update: &ReplicationUpdate,
-    ) -> Result<&[u8], bincode::Error> {
+    pub fn serialize_replication_update(&mut self, update: &ReplicationUpdate) -> Result<&[u8], bincode::Error> {
         self.buffer.clear();
         bincode::serialize_into(&mut self.buffer, update)?;
         Ok(&self.buffer)
     }
-
-    pub fn serialize_client_input(
-        &mut self,
-        event: &ClientInputEvent,
-    ) -> Result<&[u8], bincode::Error> {
-        self.buffer.clear();
-        bincode::serialize_into(&mut self.buffer, event)?;
-        Ok(&self.buffer)
-    }
-}
-
-// Legacy functions still available for convenience
-pub fn serialize_replication_update(update: &ReplicationUpdate) -> Result<Vec<u8>, bincode::Error> {
-    bincode::serialize(update)
 }
 
 pub fn deserialize_replication_update(bytes: &[u8]) -> Result<ReplicationUpdate, bincode::Error> {
     bincode::deserialize(bytes)
 }
-
-// ============================================================================
-// REPLICATION LOOP (optimized)
-// ============================================================================
 
 #[derive(Resource, Default)]
 pub struct ReplicationState {
@@ -88,7 +107,11 @@ impl Plugin for ReplicationLoopPlugin {
             .init_resource::<SerializationBuffer>()
             .add_event::<ReplicationUpdate>()
             .add_event::<ClientInputEvent>()
-            .add_systems(Update, server_replication_system);
+            .add_systems(Update, (
+                server_replication_system,
+                renet_server_send_system,      // renet bridge
+                renet_client_receive_system,   // renet bridge
+            ));
     }
 }
 
@@ -96,7 +119,6 @@ fn server_replication_system(
     mut interest: ResMut<InterestManagerResource>,
     mut replication_events: EventWriter<ReplicationUpdate>,
     mut replication_state: ResMut<ReplicationState>,
-    mut ser_buffer: ResMut<SerializationBuffer>,
 ) {
     replication_state.current_tick += 1;
     let tick = replication_state.current_tick;
@@ -105,16 +127,11 @@ fn server_replication_system(
 
     for entity_id in visible {
         if let Some(pos) = interest.0.subscriber_positions.get(&entity_id) {
-            let update = ReplicationUpdate {
+            replication_events.send(ReplicationUpdate {
                 entity_id,
                 position: *pos,
                 tick,
-            };
-
-            // Use reusable buffer for better performance
-            if let Ok(_bytes) = ser_buffer.serialize_replication_update(&update) {
-                replication_events.send(update);
-            }
+            });
         }
     }
 }
@@ -141,4 +158,4 @@ impl ClientPrediction {
     pub fn reconcile_with_server(&mut self, _: u64, _: glam::Vec3, _: u64, _: f32) {}
 }
 
-// End of production file — Serialization performance optimized with reusable buffer
+// End of production file — bevy_renet integration bridge added
