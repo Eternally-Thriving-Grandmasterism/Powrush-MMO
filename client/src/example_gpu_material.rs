@@ -13,7 +13,7 @@
 use bevy::{
     asset::Asset,
     log::debug,
-    pbr::Material,
+    pbr::{Material, MeshMaterial3d},
     prelude::*,
     reflect::TypePath,
     render::{
@@ -362,16 +362,17 @@ impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
 }
 
 // ============================================================================
-// QUEUE SYSTEMS — specialize directly by material.render_state
+// QUEUE SYSTEMS — now properly entity-aware (real per-entity material lookup)
 // Robust error handling + tracing instrumentation
 // ============================================================================
 
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, render_phases, specialized_pipelines), level = "debug")]
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_energy_burst_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<EnergyBurstMaterialPipeline>,
     render_materials: Res<RenderAssets<EnergyBurstMaterial>>,
+    material_handles: Query<&MeshMaterial3d<EnergyBurstMaterial>>,
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>,
 ) {
@@ -382,26 +383,29 @@ pub fn queue_energy_burst_material(
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
-            if let Some((_, material)) = render_materials.iter().next() {
-                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
+            if let Ok(material_handle) = material_handles.get(*visible_entity) {
+                if let Some(material) = render_materials.get(&material_handle.0) {
+                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
 
-                phase.add(Opaque3d {
-                    pipeline: pipeline_id,
-                    draw_function,
-                    entity: *visible_entity,
-                    distance: 0.0,
-                });
+                    phase.add(Opaque3d {
+                        pipeline: pipeline_id,
+                        draw_function,
+                        entity: *visible_entity,
+                        distance: 0.0,
+                    });
+                }
             }
         }
     }
 }
 
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, render_phases, specialized_pipelines), level = "debug")]
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_valence_halo_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<ValenceHaloMaterialPipeline>,
     render_materials: Res<RenderAssets<ValenceHaloMaterial>>,
+    material_handles: Query<&MeshMaterial3d<ValenceHaloMaterial>>,
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>,
 ) {
@@ -412,26 +416,29 @@ pub fn queue_valence_halo_material(
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
-            if let Some((_, material)) = render_materials.iter().next() {
-                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
+            if let Ok(material_handle) = material_handles.get(*visible_entity) {
+                if let Some(material) = render_materials.get(&material_handle.0) {
+                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
 
-                phase.add(Opaque3d {
-                    pipeline: pipeline_id,
-                    draw_function,
-                    entity: *visible_entity,
-                    distance: 0.0,
-                });
+                    phase.add(Opaque3d {
+                        pipeline: pipeline_id,
+                        draw_function,
+                        entity: *visible_entity,
+                        distance: 0.0,
+                    });
+                }
             }
         }
     }
 }
 
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, render_phases, specialized_pipelines), level = "debug")]
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_mycelial_web_glow_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<MycelialWebGlowMaterialPipeline>,
     render_materials: Res<RenderAssets<MycelialWebGlowMaterial>>,
+    material_handles: Query<&MeshMaterial3d<MycelialWebGlowMaterial>>,
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<MycelialWebGlowMaterialPipeline>>,
 ) {
@@ -442,26 +449,29 @@ pub fn queue_mycelial_web_glow_material(
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
-            if let Some((_, material)) = render_materials.iter().next() {
-                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
+            if let Ok(material_handle) = material_handles.get(*visible_entity) {
+                if let Some(material) = render_materials.get(&material_handle.0) {
+                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
 
-                phase.add(Opaque3d {
-                    pipeline: pipeline_id,
-                    draw_function,
-                    entity: *visible_entity,
-                    distance: 0.0,
-                });
+                    phase.add(Opaque3d {
+                        pipeline: pipeline_id,
+                        draw_function,
+                        entity: *visible_entity,
+                        distance: 0.0,
+                    });
+                }
             }
         }
     }
 }
 
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, render_phases, specialized_pipelines), level = "debug")]
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_resource_node_glow_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
     pipeline: Res<ResourceNodeGlowMaterialPipeline>,
     render_materials: Res<RenderAssets<ResourceNodeGlowMaterial>>,
+    material_handles: Query<&MeshMaterial3d<ResourceNodeGlowMaterial>>,
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ResourceNodeGlowMaterialPipeline>>,
 ) {
@@ -472,15 +482,17 @@ pub fn queue_resource_node_glow_material(
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
-            if let Some((_, material)) = render_materials.iter().next() {
-                let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
+            if let Ok(material_handle) = material_handles.get(*visible_entity) {
+                if let Some(material) = render_materials.get(&material_handle.0) {
+                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, material.render_state);
 
-                phase.add(Opaque3d {
-                    pipeline: pipeline_id,
-                    draw_function,
-                    entity: *visible_entity,
-                    distance: 0.0,
-                });
+                    phase.add(Opaque3d {
+                        pipeline: pipeline_id,
+                        draw_function,
+                        entity: *visible_entity,
+                        distance: 0.0,
+                    });
+                }
             }
         }
     }
