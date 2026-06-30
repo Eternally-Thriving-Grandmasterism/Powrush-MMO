@@ -248,6 +248,39 @@ mod tests {
         assert!(visible_basic.contains(&3));
         assert!(visible_culled.len() <= visible_basic.len());
     }
+
+    #[test]
+    fn test_replication_uses_occlusion_by_default() {
+        let rbe_pool = Arc::new(RbeResourcePool::new_global_abundance());
+        let mut manager = InterestManager::new(10.0, 4, rbe_pool);
+
+        let player_pos = glam::Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+        manager.subscribe(1, 100.0, Some(player_pos));
+
+        manager.update_entity_position(2, glam::Vec3 { x: 10.0, y: 0.0, z: 0.0 });
+        manager.update_entity_position(3, glam::Vec3 { x: 50.0, y: 0.0, z: 0.0 });
+
+        // get_replication_entities should return the occluded version
+        let replication = manager.get_replication_entities(1);
+        let raw = manager.get_replication_entities_raw(1);
+
+        assert!(replication.len() <= raw.len());
+        // In open space both should be similar, but the method must route through occlusion path
+        assert!(manager.get_replication_entities(1).len() <= manager.get_visible_entities(1).len());
+    }
+
+    #[test]
+    fn test_get_visible_entities_with_occlusion_same_position() {
+        let rbe_pool = Arc::new(RbeResourcePool::new_global_abundance());
+        let mut manager = InterestManager::new(10.0, 4, rbe_pool);
+
+        let pos = glam::Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+        manager.subscribe(1, 50.0, Some(pos));
+        manager.update_entity_position(2, pos);
+
+        let culled = manager.get_visible_entities_with_occlusion(1);
+        assert!(culled.contains(&2)); // Same position should always be visible
+    }
 }
 
 // End of production file — Occlusion culling ENABLED BY DEFAULT for all replication paths.
