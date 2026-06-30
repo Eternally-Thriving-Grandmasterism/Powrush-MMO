@@ -12,7 +12,7 @@
 
 use bevy::{
     asset::Asset,
-    log::warn,
+    log::debug,
     pbr::Material,
     prelude::*,
     reflect::TypePath,
@@ -362,7 +362,7 @@ impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
 
 // ============================================================================
 // QUEUE SYSTEMS — specialize directly by material.render_state
-// Robust error handling: gracefully skip if draw function not yet registered
+// Robust error handling: gracefully skip if draw function not yet registered (debug level for expected startup state)
 // ============================================================================
 
 pub fn queue_energy_burst_material(
@@ -374,7 +374,7 @@ pub fn queue_energy_burst_material(
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>,
 ) {
     let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<EnergyBurstMaterial>>() else {
-        warn!("[GpuVisualMaterials] DrawMaterial<EnergyBurstMaterial> not registered yet; skipping queue.");
+        debug!("[GpuVisualMaterials] DrawMaterial<EnergyBurstMaterial> not registered yet (expected during startup); skipping queue.");
         return;
     };
 
@@ -403,7 +403,7 @@ pub fn queue_valence_halo_material(
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>,
 ) {
     let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<ValenceHaloMaterial>>() else {
-        warn!("[GpuVisualMaterials] DrawMaterial<ValenceHaloMaterial> not registered yet; skipping queue.");
+        debug!("[GpuVisualMaterials] DrawMaterial<ValenceHaloMaterial> not registered yet (expected during startup); skipping queue.");
         return;
     };
 
@@ -432,7 +432,7 @@ pub fn queue_mycelial_web_glow_material(
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<MycelialWebGlowMaterialPipeline>>,
 ) {
     let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<MycelialWebGlowMaterial>>() else {
-        warn!("[GpuVisualMaterials] DrawMaterial<MycelialWebGlowMaterial> not registered yet; skipping queue.");
+        debug!("[GpuVisualMaterials] DrawMaterial<MycelialWebGlowMaterial> not registered yet (expected during startup); skipping queue.");
         return;
     };
 
@@ -461,7 +461,7 @@ pub fn queue_resource_node_glow_material(
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ResourceNodeGlowMaterialPipeline>>,
 ) {
     let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<ResourceNodeGlowMaterial>>() else {
-        warn!("[GpuVisualMaterials] DrawMaterial<ResourceNodeGlowMaterial> not registered yet; skipping queue.");
+        debug!("[GpuVisualMaterials] DrawMaterial<ResourceNodeGlowMaterial> not registered yet (expected during startup); skipping queue.");
         return;
     };
 
