@@ -26,6 +26,9 @@ pub mod rbe_client_ui_sync;
 pub mod rbe_ui_feedback;
 pub mod webxr_bootstrap;
 
+// GPU Visual Materials (RenderState-driven pipeline specialization)
+pub mod example_gpu_material;
+
 // Re-exports
 pub use networking::NetworkingPlugin;
 pub use replication::ReplicationPlugin;
@@ -49,6 +52,9 @@ pub use rbe_client_ui_sync::{RbeUiSyncPlugin, RbeUiSync, RbeClientLoopExt};
 pub use rbe_ui_feedback::{RbeUiFeedbackPlugin, HarvestFeedbackText};
 pub use webxr_bootstrap::PowrushWebXrClient;
 
+// GPU Visual Materials Plugin
+pub use example_gpu_material::GpuVisualMaterialsPlugin;
+
 pub struct PowrushClientBundle;
 
 impl PowrushClientBundle {
@@ -64,6 +70,9 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(HigherOrderAmbisonicsDecoderPlugin);
         app.add_plugins(RbeUiSyncPlugin);
         app.add_plugins(RbeUiFeedbackPlugin);
+
+        // GPU Visual Materials (RenderState specialization for effects)
+        app.add_plugins(GpuVisualMaterialsPlugin);
     }
 }
 
