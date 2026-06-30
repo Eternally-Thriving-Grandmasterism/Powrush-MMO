@@ -279,9 +279,6 @@ impl SpecializedRenderPipeline for EnergyBurstMaterialPipeline {
     }
 }
 
-// Similar full impls for ValenceHaloMaterialPipeline, MycelialWebGlowMaterialPipeline, ResourceNodeGlowMaterialPipeline
-// (identical structure, different shader label + default)
-
 #[derive(Resource)]
 pub struct ValenceHaloMaterialPipeline {
     pub shader: Handle<Shader>,
@@ -320,7 +317,91 @@ impl SpecializedRenderPipeline for ValenceHaloMaterialPipeline {
     }
 }
 
-// (MycelialWebGlowMaterialPipeline and ResourceNodeGlowMaterialPipeline follow identical pattern with their shaders)
+#[derive(Resource)]
+pub struct MycelialWebGlowMaterialPipeline {
+    pub shader: Handle<Shader>,
+}
+
+impl FromWorld for MycelialWebGlowMaterialPipeline {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+        Self { shader: asset_server.load("shaders/mycelial_web_glow.wgsl") }
+    }
+}
+
+impl SpecializedRenderPipeline for MycelialWebGlowMaterialPipeline {
+    type Key = MycelialWebGlowKey;
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let rs = key.render_state;
+        RenderPipelineDescriptor {
+            label: Some("mycelial_web_glow_pipeline".into()),
+            layout: vec![],
+            vertex: VertexState {
+                shader: self.shader.clone(),
+                entry_point: "vertex_main".into(),
+                shader_defs: vec![],
+                buffers: vec![],
+            },
+            fragment: Some(FragmentState {
+                shader: self.shader.clone(),
+                entry_point: "fragment_main".into(),
+                shader_defs: vec![],
+                targets: vec![Some(ColorTargetState {
+                    format: TextureFormat::Rgba8UnormSrgb,
+                    blend: Some(rs.blend_state()),
+                    write_mask: ColorWrites::ALL,
+                })],
+            }),
+            primitive: rs.primitive(),
+            depth_stencil: rs.depth_stencil(),
+            multisample: MultisampleState::default(),
+            push_constant_ranges: vec![],
+        }
+    }
+}
+
+#[derive(Resource)]
+pub struct ResourceNodeGlowMaterialPipeline {
+    pub shader: Handle<Shader>,
+}
+
+impl FromWorld for ResourceNodeGlowMaterialPipeline {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+        Self { shader: asset_server.load("shaders/resource_node_glow.wgsl") }
+    }
+}
+
+impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
+    type Key = ResourceNodeGlowKey;
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let rs = key.render_state;
+        RenderPipelineDescriptor {
+            label: Some("resource_node_glow_pipeline".into()),
+            layout: vec![],
+            vertex: VertexState {
+                shader: self.shader.clone(),
+                entry_point: "vertex_main".into(),
+                shader_defs: vec![],
+                buffers: vec![],
+            },
+            fragment: Some(FragmentState {
+                shader: self.shader.clone(),
+                entry_point: "fragment_main".into(),
+                shader_defs: vec![],
+                targets: vec![Some(ColorTargetState {
+                    format: TextureFormat::Rgba8UnormSrgb,
+                    blend: Some(rs.blend_state()),
+                    write_mask: ColorWrites::ALL,
+                })],
+            }),
+            primitive: rs.primitive(),
+            depth_stencil: rs.depth_stencil(),
+            multisample: MultisampleState::default(),
+            push_constant_ranges: vec![],
+        }
+    }
+}
 
 // ============================================================================
 // QUEUE SYSTEMS (simplified but functional - ready for full integration)
@@ -340,7 +421,7 @@ pub fn queue_energy_burst_material(
 // Similar queue_* functions for other materials...
 
 // ============================================================================
-// PLUGIN (full registration recovered)
+// PLUGIN (full registration recovered + completed)
 // ============================================================================
 
 pub struct GpuVisualMaterialsPlugin;
@@ -357,8 +438,12 @@ impl Plugin for GpuVisualMaterialsPlugin {
             render_app
                 .init_resource::<EnergyBurstMaterialPipeline>()
                 .init_resource::<ValenceHaloMaterialPipeline>()
+                .init_resource::<MycelialWebGlowMaterialPipeline>()
+                .init_resource::<ResourceNodeGlowMaterialPipeline>()
                 .init_resource::<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>()
-                .init_resource::<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>();
+                .init_resource::<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>()
+                .init_resource::<SpecializedRenderPipelines<MycelialWebGlowMaterialPipeline>>()
+                .init_resource::<SpecializedRenderPipelines<ResourceNodeGlowMaterialPipeline>>();
             // Add queue systems to RenderSet::Queue
         }
     }
