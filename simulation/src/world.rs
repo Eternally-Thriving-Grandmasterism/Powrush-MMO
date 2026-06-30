@@ -196,6 +196,78 @@ impl SovereignWorldState {
 }
 
 // ============================================================================
+// TESTS FOR NEW PERCEPTION / EVENT HELPERS + LOS
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_grid() -> HierarchicalGrid {
+        HierarchicalGrid::new(10.0, 4)
+    }
+
+    #[test]
+    fn test_has_line_of_sight_basic() {
+        let state = SovereignWorldState::default();
+        let grid = create_test_grid();
+
+        let from = Vec3 { x: 0.0, y: 0.0, z: 0.0 };
+        let to = Vec3 { x: 50.0, y: 0.0, z: 0.0 };
+
+        // In open space with no entities, should have clear LOS
+        assert!(state.has_line_of_sight(&grid, from, to, 100.0));
+    }
+
+    #[test]
+    fn test_council_member_has_visibility() {
+        let mut state = SovereignWorldState::default();
+        let grid = create_test_grid();
+
+        state.agents.insert(1, Agent { id: 1, position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }), ..Default::default() });
+        state.agents.insert(2, Agent { id: 2, position: Some(Vec3 { x: 30.0, y: 0.0, z: 0.0 }), ..Default::default() });
+
+        assert!(state.council_member_has_visibility(&grid, 1, 2, 100.0));
+    }
+
+    #[test]
+    fn test_can_trigger_harvest_event() {
+        let mut state = SovereignWorldState::default();
+        let grid = create_test_grid();
+
+        state.agents.insert(1, Agent { id: 1, position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }), ..Default::default() });
+        state.resource_nodes.insert(10, ResourceNode { id: 10, position: (20.0, 0.0, 0.0), ..Default::default() });
+
+        assert!(state.can_trigger_harvest_event(&grid, 1, 10, 50.0));
+    }
+
+    #[test]
+    fn test_can_trigger_synergy_event() {
+        let mut state = SovereignWorldState::default();
+        let grid = create_test_grid();
+
+        state.agents.insert(1, Agent { id: 1, position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }), ..Default::default() });
+        state.agents.insert(2, Agent { id: 2, position: Some(Vec3 { x: 25.0, y: 0.0, z: 0.0 }), ..Default::default() });
+
+        assert!(state.can_trigger_synergy_event(&grid, 1, 2, 50.0));
+    }
+
+    #[test]
+    fn test_get_perceivable_agents() {
+        let mut state = SovereignWorldState::default();
+        let grid = create_test_grid();
+
+        state.agents.insert(1, Agent { id: 1, position: Some(Vec3 { x: 0.0, y: 0.0, z: 0.0 }), ..Default::default() });
+        state.agents.insert(2, Agent { id: 2, position: Some(Vec3 { x: 15.0, y: 0.0, z: 0.0 }), ..Default::default() });
+        state.agents.insert(3, Agent { id: 3, position: Some(Vec3 { x: 100.0, y: 0.0, z: 0.0 }), ..Default::default() });
+
+        let perceivable = state.get_perceivable_agents(&grid, 1, 50.0);
+        assert!(perceivable.contains(&2));
+        assert!(!perceivable.contains(&3)); // Too far
+    }
+}
+
+// ============================================================================
 // EXISTING VFX CODE BELOW (preserved exactly)
 // ============================================================================
 
