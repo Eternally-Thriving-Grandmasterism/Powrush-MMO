@@ -23,6 +23,7 @@ use bevy::{
         RenderApp, RenderSet,
     },
 };
+use tracing::instrument;
 
 // ============================================================================
 // ALPHA BLEND MODE (core, preserved from earlier diffs)
@@ -362,9 +363,10 @@ impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
 
 // ============================================================================
 // QUEUE SYSTEMS — specialize directly by material.render_state
-// Robust error handling: gracefully skip if draw function not yet registered (debug level for expected startup state)
+// Robust error handling + tracing instrumentation
 // ============================================================================
 
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_energy_burst_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
@@ -394,6 +396,7 @@ pub fn queue_energy_burst_material(
     }
 }
 
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_valence_halo_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
@@ -423,6 +426,7 @@ pub fn queue_valence_halo_material(
     }
 }
 
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_mycelial_web_glow_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
@@ -452,6 +456,7 @@ pub fn queue_mycelial_web_glow_material(
     }
 }
 
+#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, render_phases, specialized_pipelines), level = "debug")]
 pub fn queue_resource_node_glow_material(
     draw_functions: Res<DrawFunctions<Opaque3d>>,
     pipeline_cache: Res<PipelineCache>,
