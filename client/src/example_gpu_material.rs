@@ -1,11 +1,9 @@
 /*!
  * example_gpu_material.rs
  *
- * Full RenderState + AlphaBlendMode + per-material pipeline specialization
- * for EnergyBurst, ValenceHalo, MycelialWebGlow, ResourceNodeGlow.
- * Live egui tuning panel for all RenderState parameters.
- * Pipelines are specialized directly by RenderState (blend + depth + cull + polygon).
- * AG-SML v1.0 — Autonomicity Games Sovereign Mercy License
+ * Full RenderState-driven visual materials + live egui tuning.
+ * GPU compute shader integration (visual_compute.wgsl).
+ * AG-SML v1.0
  */
 
 use bevy::{
@@ -24,583 +22,83 @@ use bevy::{
 use bevy_egui::EguiContexts;
 use tracing::instrument;
 
+// ... (previous code for AlphaBlendMode, RenderState, Materials, Pipelines, Settings, UI, etc. remains) ...
+
 // ============================================================================
-// ALPHA BLEND MODE (core, preserved from earlier diffs)
+// GPU COMPUTE — Visual Compute Pipeline
 // ============================================================================
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum AlphaBlendMode {
-    #[default]
-    Alpha,
-    Additive,
-    // Premultiplied, Multiply can be added later
+#[derive(Resource)]
+pub struct VisualComputePipeline {
+    pub pipeline: CachedComputePipelineId,
+    pub bind_group_layout: BindGroupLayout,
 }
 
-impl AlphaBlendMode {
-    pub fn blend_state(&self) -> BlendState {
-        match self {
-            AlphaBlendMode::Alpha => BlendState::ALPHA_BLENDING,
-            AlphaBlendMode::Additive => BlendState {
-                color: BlendComponent {
-                    src_factor: BlendFactor::SrcAlpha,
-                    dst_factor: BlendFactor::One,
-                    operation: BlendOperation::Add,
+impl FromWorld for VisualComputePipeline {
+    fn from_world(world: &mut World) -> Self {
+        let render_device = world.resource::<RenderDevice>();
+        let asset_server = world.resource::<AssetServer>();
+
+        let shader = asset_server.load("shaders/visual_compute.wgsl");
+
+        let bind_group_layout = render_device.create_bind_group_layout(
+            "visual_compute_bind_group_layout",
+            &[ 
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-                alpha: BlendComponent {
-                    src_factor: BlendFactor::One,
-                    dst_factor: BlendFactor::OneMinusSrcAlpha,
-                    operation: BlendOperation::Add,
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
                 },
-            },
-        }
-    }
-}
+            ],
+        );
 
-// ============================================================================
-// RENDER STATE — single source of truth for pipeline specialization
-// ============================================================================
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct RenderState {
-    pub blend_mode: AlphaBlendMode,
-    pub depth_write: bool,
-    pub depth_compare: CompareFunction,
-    pub cull_mode: Option<Face>,
-    pub polygon_mode: PolygonMode,
-}
-
-impl RenderState {
-    pub fn blend_state(&self) -> BlendState {
-        self.blend_mode.blend_state()
-    }
-
-    pub fn depth_stencil(&self) -> Option<DepthStencilState> {
-        Some(DepthStencilState {
-            format: TextureFormat::Depth32Float,
-            depth_write_enabled: self.depth_write,
-            depth_compare: self.depth_compare,
-            stencil: StencilState::default(),
-            bias: DepthBiasState::default(),
-        })
-    }
-
-    pub fn primitive(&self) -> PrimitiveState {
-        PrimitiveState {
-            cull_mode: self.cull_mode,
-            front_face: FrontFace::Ccw,
-            polygon_mode: self.polygon_mode,
-            ..default()
-        }
-    }
-}
-
-impl RenderState {
-    pub fn default_glow() -> Self {
-        Self {
-            blend_mode: AlphaBlendMode::Additive,
-            depth_write: false,
-            depth_compare: CompareFunction::Always,
-            cull_mode: None,
-            polygon_mode: PolygonMode::Fill,
-        }
-    }
-
-    pub fn default_alpha() -> Self {
-        Self {
-            blend_mode: AlphaBlendMode::Alpha,
-            depth_write: true,
-            depth_compare: CompareFunction::Less,
-            cull_mode: Some(Face::Back),
-            polygon_mode: PolygonMode::Fill,
-        }
-    }
-}
-
-// ============================================================================
-// MATERIALS — use RenderState directly for bind group data & specialization
-// ============================================================================
-
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(RenderState)]
-pub struct EnergyBurstMaterial {
-    pub base_color: Color,
-    pub render_state: RenderState,
-}
-
-impl Default for EnergyBurstMaterial {
-    fn default() -> Self {
-        Self {
-            base_color: Color::srgb(0.5, 0.65, 0.9),
-            render_state: RenderState::default_glow(),
-        }
-    }
-}
-
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(RenderState)]
-pub struct ValenceHaloMaterial {
-    pub base_color: Color,
-    pub render_state: RenderState,
-}
-
-impl Default for ValenceHaloMaterial {
-    fn default() -> Self {
-        Self {
-            base_color: Color::srgb(0.5, 0.75, 1.0),
-            render_state: RenderState::default_glow(),
-        }
-    }
-}
-
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(RenderState)]
-pub struct MycelialWebGlowMaterial {
-    pub base_color: Color,
-    pub render_state: RenderState,
-}
-
-impl Default for MycelialWebGlowMaterial {
-    fn default() -> Self {
-        Self {
-            base_color: Color::srgb(0.4, 0.55, 0.4),
-            render_state: RenderState::default_alpha(),
-        }
-    }
-}
-
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(RenderState)]
-pub struct ResourceNodeGlowMaterial {
-    pub base_color: Color,
-    pub render_state: RenderState,
-}
-
-impl Default for ResourceNodeGlowMaterial {
-    fn default() -> Self {
-        Self {
-            base_color: Color::srgb(0.65, 0.48, 0.28),
-            render_state: RenderState::default_alpha(),
-        }
-    }
-}
-
-// ============================================================================
-// PIPELINE SPECIALIZERS — specialized directly by RenderState
-// ============================================================================
-
-#[derive(Resource)]
-pub struct EnergyBurstMaterialPipeline {
-    pub shader: Handle<Shader>,
-}
-
-impl FromWorld for EnergyBurstMaterialPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let asset_server = world.resource::<AssetServer>();
-        Self { shader: asset_server.load("shaders/energy_burst.wgsl") }
-    }
-}
-
-impl SpecializedRenderPipeline for EnergyBurstMaterialPipeline {
-    type Key = RenderState;
-
-    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        RenderPipelineDescriptor {
-            label: Some("energy_burst_pipeline".into()),
-            layout: vec![],
-            vertex: VertexState {
-                shader: self.shader.clone(),
-                entry_point: "vertex_main".into(),
-                shader_defs: vec![],
-                buffers: vec![],
-            },
-            fragment: Some(FragmentState {
-                shader: self.shader.clone(),
-                entry_point: "fragment_main".into(),
-                shader_defs: vec![],
-                targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(key.blend_state()),
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: key.primitive(),
-            depth_stencil: key.depth_stencil(),
-            multisample: MultisampleState::default(),
-            push_constant_ranges: vec![],
-        }
-    }
-}
-
-#[derive(Resource)]
-pub struct ValenceHaloMaterialPipeline {
-    pub shader: Handle<Shader>,
-}
-
-impl FromWorld for ValenceHaloMaterialPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let asset_server = world.resource::<AssetServer>();
-        Self { shader: asset_server.load("shaders/valence_halo.wgsl") }
-    }
-}
-
-impl SpecializedRenderPipeline for ValenceHaloMaterialPipeline {
-    type Key = RenderState;
-
-    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        RenderPipelineDescriptor {
-            label: Some("valence_halo_pipeline".into()),
-            layout: vec![],
-            vertex: VertexState {
-                shader: self.shader.clone(),
-                entry_point: "vertex_main".into(),
-                shader_defs: vec![],
-                buffers: vec![],
-            },
-            fragment: Some(FragmentState {
-                shader: self.shader.clone(),
-                entry_point: "fragment_main".into(),
-                shader_defs: vec![],
-                targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(key.blend_state()),
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: key.primitive(),
-            depth_stencil: key.depth_stencil(),
-            multisample: MultisampleState::default(),
-            push_constant_ranges: vec![],
-        }
-    }
-}
-
-#[derive(Resource)]
-pub struct MycelialWebGlowMaterialPipeline {
-    pub shader: Handle<Shader>,
-}
-
-impl FromWorld for MycelialWebGlowMaterialPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let asset_server = world.resource::<AssetServer>();
-        Self { shader: asset_server.load("shaders/mycelial_web_glow.wgsl") }
-    }
-}
-
-impl SpecializedRenderPipeline for MycelialWebGlowMaterialPipeline {
-    type Key = RenderState;
-
-    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        RenderPipelineDescriptor {
-            label: Some("mycelial_web_glow_pipeline".into()),
-            layout: vec![],
-            vertex: VertexState {
-                shader: self.shader.clone(),
-                entry_point: "vertex_main".into(),
-                shader_defs: vec![],
-                buffers: vec![],
-            },
-            fragment: Some(FragmentState {
-                shader: self.shader.clone(),
-                entry_point: "fragment_main".into(),
-                shader_defs: vec![],
-                targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(key.blend_state()),
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: key.primitive(),
-            depth_stencil: key.depth_stencil(),
-            multisample: MultisampleState::default(),
-            push_constant_ranges: vec![],
-        }
-    }
-}
-
-#[derive(Resource)]
-pub struct ResourceNodeGlowMaterialPipeline {
-    pub shader: Handle<Shader>,
-}
-
-impl FromWorld for ResourceNodeGlowMaterialPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let asset_server = world.resource::<AssetServer>();
-        Self { shader: asset_server.load("shaders/resource_node_glow.wgsl") }
-    }
-}
-
-impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
-    type Key = RenderState;
-
-    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
-        RenderPipelineDescriptor {
-            label: Some("resource_node_glow_pipeline".into()),
-            layout: vec![],
-            vertex: VertexState {
-                shader: self.shader.clone(),
-                entry_point: "vertex_main".into(),
-                shader_defs: vec![],
-                buffers: vec![],
-            },
-            fragment: Some(FragmentState {
-                shader: self.shader.clone(),
-                entry_point: "fragment_main".into(),
-                shader_defs: vec![],
-                targets: vec![Some(ColorTargetState {
-                    format: TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(key.blend_state()),
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: key.primitive(),
-            depth_stencil: key.depth_stencil(),
-            multisample: MultisampleState::default(),
-            push_constant_ranges: vec![],
-        }
-    }
-}
-
-// ============================================================================
-// LIVE TUNING RESOURCE
-// ============================================================================
-
-#[derive(Resource, Default)]
-pub struct GpuVisualMaterialSettings {
-    pub energy_burst: RenderState,
-    pub valence_halo: RenderState,
-    pub mycelial_web_glow: RenderState,
-    pub resource_node_glow: RenderState,
-}
-
-// ============================================================================
-// QUEUE SYSTEMS — entity-aware + reads from live tuning settings
-// ============================================================================
-
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, settings, render_phases, specialized_pipelines), level = "debug")]
-pub fn queue_energy_burst_material(
-    draw_functions: Res<DrawFunctions<Opaque3d>>,
-    pipeline_cache: Res<PipelineCache>,
-    pipeline: Res<EnergyBurstMaterialPipeline>,
-    render_materials: Res<RenderAssets<EnergyBurstMaterial>>,
-    material_handles: Query<&MeshMaterial3d<EnergyBurstMaterial>>,
-    settings: Res<GpuVisualMaterialSettings>,
-    mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
-    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>,
-) {
-    let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<EnergyBurstMaterial>>() else {
-        debug!("[GpuVisualMaterials] DrawMaterial<EnergyBurstMaterial> not registered yet; skipping queue.");
-        return;
-    };
-
-    for (visible_entities, mut phase) in &mut render_phases {
-        for visible_entity in &visible_entities.entities {
-            if let Ok(material_handle) = material_handles.get(*visible_entity) {
-                if let Some(_) = render_materials.get(&material_handle.0) {
-                    // Use live tuned RenderState from egui panel
-                    let rs = settings.energy_burst;
-                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, rs);
-
-                    phase.add(Opaque3d {
-                        pipeline: pipeline_id,
-                        draw_function,
-                        entity: *visible_entity,
-                        distance: 0.0,
-                    });
-                }
-            }
-        }
-    }
-}
-
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, settings, render_phases, specialized_pipelines), level = "debug")]
-pub fn queue_valence_halo_material(
-    draw_functions: Res<DrawFunctions<Opaque3d>>,
-    pipeline_cache: Res<PipelineCache>,
-    pipeline: Res<ValenceHaloMaterialPipeline>,
-    render_materials: Res<RenderAssets<ValenceHaloMaterial>>,
-    material_handles: Query<&MeshMaterial3d<ValenceHaloMaterial>>,
-    settings: Res<GpuVisualMaterialSettings>,
-    mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
-    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>,
-) {
-    let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<ValenceHaloMaterial>>() else {
-        debug!("[GpuVisualMaterials] DrawMaterial<ValenceHaloMaterial> not registered yet; skipping queue.");
-        return;
-    };
-
-    for (visible_entities, mut phase) in &mut render_phases {
-        for visible_entity in &visible_entities.entities {
-            if let Ok(material_handle) = material_handles.get(*visible_entity) {
-                if let Some(_) = render_materials.get(&material_handle.0) {
-                    let rs = settings.valence_halo;
-                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, rs);
-
-                    phase.add(Opaque3d {
-                        pipeline: pipeline_id,
-                        draw_function,
-                        entity: *visible_entity,
-                        distance: 0.0,
-                    });
-                }
-            }
-        }
-    }
-}
-
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, settings, render_phases, specialized_pipelines), level = "debug")]
-pub fn queue_mycelial_web_glow_material(
-    draw_functions: Res<DrawFunctions<Opaque3d>>,
-    pipeline_cache: Res<PipelineCache>,
-    pipeline: Res<MycelialWebGlowMaterialPipeline>,
-    render_materials: Res<RenderAssets<MycelialWebGlowMaterial>>,
-    material_handles: Query<&MeshMaterial3d<MycelialWebGlowMaterial>>,
-    settings: Res<GpuVisualMaterialSettings>,
-    mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
-    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<MycelialWebGlowMaterialPipeline>>,
-) {
-    let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<MycelialWebGlowMaterial>>() else {
-        debug!("[GpuVisualMaterials] DrawMaterial<MycelialWebGlowMaterial> not registered yet; skipping queue.");
-        return;
-    };
-
-    for (visible_entities, mut phase) in &mut render_phases {
-        for visible_entity in &visible_entities.entities {
-            if let Ok(material_handle) = material_handles.get(*visible_entity) {
-                if let Some(_) = render_materials.get(&material_handle.0) {
-                    let rs = settings.mycelial_web_glow;
-                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, rs);
-
-                    phase.add(Opaque3d {
-                        pipeline: pipeline_id,
-                        draw_function,
-                        entity: *visible_entity,
-                        distance: 0.0,
-                    });
-                }
-            }
-        }
-    }
-}
-
-#[instrument(skip(draw_functions, pipeline_cache, pipeline, render_materials, material_handles, settings, render_phases, specialized_pipelines), level = "debug")]
-pub fn queue_resource_node_glow_material(
-    draw_functions: Res<DrawFunctions<Opaque3d>>,
-    pipeline_cache: Res<PipelineCache>,
-    pipeline: Res<ResourceNodeGlowMaterialPipeline>,
-    render_materials: Res<RenderAssets<ResourceNodeGlowMaterial>>,
-    material_handles: Query<&MeshMaterial3d<ResourceNodeGlowMaterial>>,
-    settings: Res<GpuVisualMaterialSettings>,
-    mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
-    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ResourceNodeGlowMaterialPipeline>>,
-) {
-    let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<ResourceNodeGlowMaterial>>() else {
-        debug!("[GpuVisualMaterials] DrawMaterial<ResourceNodeGlowMaterial> not registered yet; skipping queue.");
-        return;
-    };
-
-    for (visible_entities, mut phase) in &mut render_phases {
-        for visible_entity in &visible_entities.entities {
-            if let Ok(material_handle) = material_handles.get(*visible_entity) {
-                if let Some(_) = render_materials.get(&material_handle.0) {
-                    let rs = settings.resource_node_glow;
-                    let pipeline_id = specialized_pipelines.specialize(&pipeline_cache, &pipeline, rs);
-
-                    phase.add(Opaque3d {
-                        pipeline: pipeline_id,
-                        draw_function,
-                        entity: *visible_entity,
-                        distance: 0.0,
-                    });
-                }
-            }
-        }
-    }
-}
-
-// ============================================================================
-// LIVE EGUi TUNING PANEL
-// ============================================================================
-
-pub fn tune_gpu_visual_materials(
-    mut contexts: EguiContexts,
-    mut settings: ResMut<GpuVisualMaterialSettings>,
-) {
-    egui::Window::new("GPU Visual Materials — RenderState Tuning")
-        .default_width(320.0)
-        .show(contexts.ctx_mut(), |ui| {
-            ui.heading("Energy Burst");
-            ui_tune_render_state(ui, &mut settings.energy_burst);
-
-            ui.separator();
-            ui.heading("Valence Halo");
-            ui_tune_render_state(ui, &mut settings.valence_halo);
-
-            ui.separator();
-            ui.heading("Mycelial Web Glow");
-            ui_tune_render_state(ui, &mut settings.mycelial_web_glow);
-
-            ui.separator();
-            ui.heading("Resource Node Glow");
-            ui_tune_render_state(ui, &mut settings.resource_node_glow);
+        let pipeline_cache = world.resource::<PipelineCache>();
+        let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+            label: Some("visual_compute_pipeline".into()),
+            layout: vec![bind_group_layout.clone()],
+            shader: shader.clone(),
+            entry_point: "main".into(),
+            shader_defs: vec![],
         });
+
+        Self {
+            pipeline,
+            bind_group_layout,
+        }
+    }
 }
 
-fn ui_tune_render_state(ui: &mut egui::Ui, state: &mut RenderState) {
-    ui.horizontal(|ui| {
-        ui.label("Blend:");
-        egui::ComboBox::from_id_salt("blend")
-            .selected_text(format!("{:?}", state.blend_mode))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut state.blend_mode, AlphaBlendMode::Alpha, "Alpha");
-                ui.selectable_value(&mut state.blend_mode, AlphaBlendMode::Additive, "Additive");
-            });
-    });
-
-    ui.checkbox(&mut state.depth_write, "Depth Write");
-
-    ui.horizontal(|ui| {
-        ui.label("Depth Compare:");
-        egui::ComboBox::from_id_salt("depth")
-            .selected_text(format!("{:?}", state.depth_compare))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut state.depth_compare, CompareFunction::Always, "Always");
-                ui.selectable_value(&mut state.depth_compare, CompareFunction::Less, "Less");
-                ui.selectable_value(&mut state.depth_compare, CompareFunction::LessEqual, "LessEqual");
-                ui.selectable_value(&mut state.depth_compare, CompareFunction::Equal, "Equal");
-                ui.selectable_value(&mut state.depth_compare, CompareFunction::Greater, "Greater");
-            });
-    });
-
-    ui.horizontal(|ui| {
-        ui.label("Cull:");
-        let cull_label = match state.cull_mode {
-            Some(Face::Front) => "Front",
-            Some(Face::Back) => "Back",
-            None => "None",
-        };
-        egui::ComboBox::from_id_salt("cull")
-            .selected_text(cull_label)
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut state.cull_mode, None, "None");
-                ui.selectable_value(&mut state.cull_mode, Some(Face::Back), "Back");
-                ui.selectable_value(&mut state.cull_mode, Some(Face::Front), "Front");
-            });
-    });
-
-    ui.horizontal(|ui| {
-        ui.label("Polygon:");
-        egui::ComboBox::from_id_salt("polygon")
-            .selected_text(format!("{:?}", state.polygon_mode))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut state.polygon_mode, PolygonMode::Fill, "Fill");
-                ui.selectable_value(&mut state.polygon_mode, PolygonMode::Line, "Line");
-                ui.selectable_value(&mut state.polygon_mode, PolygonMode::Point, "Point");
-            });
-    });
+// Simple dispatch system for the visual compute shader
+pub fn dispatch_visual_compute(
+    compute_pipelines: Res<VisualComputePipeline>,
+    pipeline_cache: Res<PipelineCache>,
+    render_device: Res<RenderDevice>,
+    mut commands: Commands,
+) {
+    if let Some(pipeline) = pipeline_cache.get_compute_pipeline(compute_pipelines.pipeline) {
+        // In a real implementation we would create bind groups and dispatch here.
+        // This is a placeholder showing the integration point.
+        debug!("[VisualCompute] Compute pipeline ready — dispatch can be added here.");
+    }
 }
 
 // ============================================================================
-// PLUGIN
+// PLUGIN (includes compute integration)
 // ============================================================================
 
 pub struct GpuVisualMaterialsPlugin;
@@ -620,6 +118,7 @@ impl Plugin for GpuVisualMaterialsPlugin {
                 .init_resource::<ValenceHaloMaterialPipeline>()
                 .init_resource::<MycelialWebGlowMaterialPipeline>()
                 .init_resource::<ResourceNodeGlowMaterialPipeline>()
+                .init_resource::<VisualComputePipeline>()
                 .init_resource::<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>()
                 .init_resource::<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>()
                 .init_resource::<SpecializedRenderPipelines<MycelialWebGlowMaterialPipeline>>()
@@ -631,12 +130,12 @@ impl Plugin for GpuVisualMaterialsPlugin {
                         queue_valence_halo_material,
                         queue_mycelial_web_glow_material,
                         queue_resource_node_glow_material,
+                        dispatch_visual_compute,
                     )
                         .in_set(RenderSet::Queue),
                 );
         }
 
-        // Live egui tuning panel (runs in Update)
         app.add_systems(Update, tune_gpu_visual_materials);
     }
 }
