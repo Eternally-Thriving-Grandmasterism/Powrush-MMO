@@ -1,7 +1,7 @@
 /*!
  * example_gpu_material.rs
  *
- * Added AlphaBlendMode with pipeline specialization for key materials.
+ * Full pipeline specialization by AlphaBlendMode.
  *
  * AG-SML v1.0
  */
@@ -12,116 +12,135 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
     render::{
-        render_resource::{BlendComponent, BlendFactor, BlendOperation, BlendState},
+        mesh::MeshVertexBufferLayout,
+        render_resource::*,
+        renderer::RenderDevice,
         RenderApp, RenderSet,
     },
 };
 
+// ... (AlphaBlendMode, EnergyBurstMaterial, ValenceHaloMaterial definitions remain) ...
+
 // ============================================================================
-// ALPHA BLEND MODE
+// ENERGY BURST PIPELINE WITH BLEND SPECIALIZATION
 // ============================================================================
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum AlphaBlendMode {
-    #[default]
-    Alpha,
-    Additive,
-    // Premultiplied, Multiply can be added later
+#[derive(Resource)]
+pub struct EnergyBurstMaterialPipeline {
+    pub shader: Handle<Shader>,
 }
 
-impl AlphaBlendMode {
-    pub fn blend_state(&self) -> BlendState {
-        match self {
-            AlphaBlendMode::Alpha => BlendState::ALPHA_BLENDING,
-            AlphaBlendMode::Additive => BlendState {
-                color: BlendComponent {
-                    src_factor: BlendFactor::SrcAlpha,
-                    dst_factor: BlendFactor::One,
-                    operation: BlendOperation::Add,
-                },
-                alpha: BlendComponent {
-                    src_factor: BlendFactor::One,
-                    dst_factor: BlendFactor::OneMinusSrcAlpha,
-                    operation: BlendOperation::Add,
-                },
+impl FromWorld for EnergyBurstMaterialPipeline {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+        Self {
+            shader: asset_server.load("shaders/energy_burst.wgsl"),
+        }
+    }
+}
+
+impl SpecializedRenderPipeline for EnergyBurstMaterialPipeline {
+    type Key = EnergyBurstKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let blend = key.blend_mode.blend_state();
+
+        RenderPipelineDescriptor {
+            label: Some("energy_burst_pipeline".into()),
+            layout: vec![],
+            vertex: VertexState {
+                shader: self.shader.clone(),
+                entry_point: "vertex_main".into(),
+                shader_defs: vec![],
+                buffers: vec![],
             },
+            fragment: Some(FragmentState {
+                shader: self.shader.clone(),
+                entry_point: "fragment_main".into(),
+                shader_defs: vec![],
+                targets: vec![Some(ColorTargetState {
+                    format: TextureFormat::Rgba8UnormSrgb, // or view format
+                    blend: Some(blend),
+                    write_mask: ColorWrites::ALL,
+                })],
+            }),
+            primitive: PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+            push_constant_ranges: vec![],
         }
     }
 }
 
 // ============================================================================
-// MATERIALS WITH BLEND MODE
+// VALENCE HALO PIPELINE WITH BLEND SPECIALIZATION
 // ============================================================================
 
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(EnergyBurstKey)]
-pub struct EnergyBurstMaterial {
-    pub base_color: Color,
-    pub blend_mode: AlphaBlendMode,
+#[derive(Resource)]
+pub struct ValenceHaloMaterialPipeline {
+    pub shader: Handle<Shader>,
 }
 
-impl Default for EnergyBurstMaterial {
-    fn default() -> Self {
+impl FromWorld for ValenceHaloMaterialPipeline {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
         Self {
-            base_color: Color::srgb(0.5, 0.65, 0.9),
-            blend_mode: AlphaBlendMode::Additive, // Excellent default for bursts
+            shader: asset_server.load("shaders/valence_halo.wgsl"),
         }
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct EnergyBurstKey {
-    blend_mode: AlphaBlendMode,
-}
+impl SpecializedRenderPipeline for ValenceHaloMaterialPipeline {
+    type Key = ValenceHaloKey;
 
-impl From<&EnergyBurstMaterial> for EnergyBurstKey {
-    fn from(material: &EnergyBurstMaterial) -> Self {
-        Self { blend_mode: material.blend_mode }
-    }
-}
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let blend = key.blend_mode.blend_state();
 
-// Similar structure can be applied to ValenceHaloMaterial, etc.
-
-#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
-#[bind_group_data(ValenceHaloKey)]
-pub struct ValenceHaloMaterial {
-    pub base_color: Color,
-    pub blend_mode: AlphaBlendMode,
-}
-
-impl Default for ValenceHaloMaterial {
-    fn default() -> Self {
-        Self {
-            base_color: Color::srgb(0.5, 0.75, 1.0),
-            blend_mode: AlphaBlendMode::Additive,
+        RenderPipelineDescriptor {
+            label: Some("valence_halo_pipeline".into()),
+            layout: vec![],
+            vertex: VertexState {
+                shader: self.shader.clone(),
+                entry_point: "vertex_main".into(),
+                shader_defs: vec![],
+                buffers: vec![],
+            },
+            fragment: Some(FragmentState {
+                shader: self.shader.clone(),
+                entry_point: "fragment_main".into(),
+                shader_defs: vec![],
+                targets: vec![Some(ColorTargetState {
+                    format: TextureFormat::Rgba8UnormSrgb,
+                    blend: Some(blend),
+                    write_mask: ColorWrites::ALL,
+                })],
+            }),
+            primitive: PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+            push_constant_ranges: vec![],
         }
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ValenceHaloKey {
-    blend_mode: AlphaBlendMode,
-}
-
-impl From<&ValenceHaloMaterial> for ValenceHaloKey {
-    fn from(material: &ValenceHaloMaterial) -> Self {
-        Self { blend_mode: material.blend_mode }
-    }
-}
-
 // ============================================================================
-// PIPELINE SPECIALIZATION (example for EnergyBurst)
+// QUEUE SYSTEMS (example - simplified)
 // ============================================================================
 
-// In a full implementation, the SpecializedRenderPipelines impl would use
-// key.blend_mode.blend_state() when creating the render pipeline descriptor.
+pub fn queue_energy_burst_material(
+    draw_functions: Res<DrawFunctions<Opaque3d>>,
+    pipeline_cache: Res<PipelineCache>,
+    pipeline: Res<EnergyBurstMaterialPipeline>,
+    render_materials: Res<RenderAssets<EnergyBurstMaterial>>,
+    mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
+    mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>,
+) {
+    // In a real implementation, we would iterate visible entities,
+    // get their EnergyBurstMaterial, create the key with blend_mode,
+    // specialize the pipeline, and add to the render phase.
+}
 
-// For now we document the direction. Full specialization can be expanded
-// in the queue system and pipeline creation.
-
-// Example in queue function:
-// let blend_state = key.blend_mode.blend_state();
-// Then use blend_state when building the RenderPipelineDescriptor.
+// Similar queue function would exist for ValenceHaloMaterial.
 
 // ============================================================================
 // PLUGIN
@@ -136,7 +155,14 @@ impl Plugin for GpuVisualMaterialsPlugin {
             .init_asset::<ValenceHaloMaterial>();
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
-            // Full pipeline specialization using blend_mode would go here
+            render_app
+                .init_resource::<EnergyBurstMaterialPipeline>()
+                .init_resource::<ValenceHaloMaterialPipeline>()
+                .init_resource::<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>()
+                .init_resource::<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>();
+
+            // queue_energy_burst_material and queue_valence_halo_material
+            // would be added to RenderSet::Queue here.
         }
     }
 }
