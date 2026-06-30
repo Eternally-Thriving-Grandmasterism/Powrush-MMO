@@ -1,7 +1,8 @@
 /*!
  * Procedural Reverb Estimation with Latency Monitoring
  *
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * Now wired to HierarchicalGrid::raycast_distance for spatial occupancy / occlusion-aware reverb.
+ * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
  */
 
 use bevy::prelude::*;
@@ -53,7 +54,26 @@ pub fn update_procedural_reverb_estimation(
     estimate.last_update = now;
     spatial_metrics.record_estimation_run();
 
-    // ... (ray casting + estimation logic)
+    // === Wired raycast_distance integration (enriched 2026-06-30) ===
+    // Uses the production HierarchicalGrid::raycast_distance (DDA-style, multi-level Z-order)
+    // to estimate occlusion / first-hit distance for more accurate procedural reverb.
+    // This replaces/augments previous placeholder ray casting logic.
+    // Direction can be derived from listener orientation or a default "forward" for room estimation.
+    if let Some(grid_res) = grid {
+        let grid = grid_res.as_ref();
+        // Example: cast forward from listener for primary occlusion distance
+        let forward = Vec3 { x: 0.0, y: 0.0, z: 1.0 }; // TODO: use actual listener orientation
+        if let Some(first_hit_dist) = grid.raycast_distance(listener_pos, forward, config.max_ray_distance) {
+            // Use first_hit_dist to modulate reverb decay / early reflections
+            // Example influence (non-destructive):
+            estimate.occlusion_factor = (first_hit_dist / config.max_ray_distance).clamp(0.0, 1.0);
+            spatial_metrics.record_raycast_hit();
+        } else {
+            estimate.occlusion_factor = 0.0;
+        }
+    }
+
+    // ... (remaining estimation + IR selection logic)
 
     // After computing new values, record application will happen in Kira systems
     // For now we can record a basic application here as approximation
