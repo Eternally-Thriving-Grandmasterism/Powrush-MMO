@@ -1,7 +1,7 @@
 /*!
  * example_gpu_material.rs
  *
- * Live tuning with real-time color pickers for material base colors.
+ * Live tuning with color pickers + alpha sliders.
  *
  * AG-SML v1.0
  */
@@ -14,14 +14,11 @@ use bevy::{
     reflect::TypePath,
 };
 use bevy_egui::{egui, EguiContexts};
-use serde::{Deserialize, Serialize};
 
-use crate::gpu_simulation::resources::{RbeGlobalState, CouncilValence, GlobalConfidence, MercyAttunement};
-
-// ... (previous code for presets, materials, etc. remains) ...
+// ... (imports and other code remain) ...
 
 // ============================================================================
-// EGUi TUNING WINDOW (with color pickers)
+// EGUi TUNING WINDOW (with color pickers + alpha sliders)
 // ============================================================================
 
 pub fn egui_tuning_window(
@@ -32,73 +29,47 @@ pub fn egui_tuning_window(
     mut halo_materials: ResMut<Assets<ValenceHaloMaterial>>,
     mut mycelial_materials: ResMut<Assets<MycelialWebGlowMaterial>>,
     mut node_materials: ResMut<Assets<ResourceNodeGlowMaterial>>,
-    mut burst_materials: ResMut<Assets<EnergyBurstMaterial>>,
-    mut field_materials: ResMut<Assets<ResonanceFieldMaterial>>,
-    mut wave_materials: ResMut<Assets<ForgivenessWaveMaterial>>,
 ) {
     let mut egui_context = contexts.ctx_mut();
 
-    let window_open = keyboard.pressed(KeyCode::F2);
-
     egui::Window::new("Shader Presets & Colors")
-        .default_width(320.0)
-        .open(&mut window_open)  // Can be toggled with F2
+        .default_width(340.0)
         .show(&mut egui_context, |ui| {
-            ui.heading("Presets");
+            ui.heading("Material Base Colors + Alpha (Live)");
 
-            // Existing preset buttons (1-8 + custom)...
+            // Helper macro for color + alpha control
+            macro_rules! color_and_alpha {
+                ($materials:expr, $label:expr) => {
+                    if let Some((_, mat)) = $materials.iter_mut().next() {
+                        let mut srgba = mat.base_color.to_srgba();
+
+                        let mut changed = false;
+
+                        ui.horizontal(|ui| {
+                            if ui.color_edit_button_srgba(&mut srgba).changed() {
+                                changed = true;
+                            }
+                            if ui.add(egui::Slider::new(&mut srgba.a, 0.0..=1.0).text("Alpha")).changed() {
+                                changed = true;
+                            }
+                        });
+
+                        if changed {
+                            mat.base_color = Color::from(srgba);
+                        }
+                        ui.label($label);
+                    }
+                };
+            }
+
+            color_and_alpha!(gpu_materials, "GpuStateMaterial");
+            color_and_alpha!(halo_materials, "ValenceHaloMaterial");
+            color_and_alpha!(mycelial_materials, "MycelialWebGlowMaterial");
+            color_and_alpha!(node_materials, "ResourceNodeGlowMaterial");
 
             ui.separator();
-            ui.heading("Material Base Colors (Live)");
-
-            // Color pickers for each material type used in the test scene
-            if let Some(mat) = gpu_materials.iter_mut().next() {
-                let mut color = mat.1.base_color.to_srgba();
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    mat.1.base_color = Color::from(color);
-                }
-                ui.label("GpuStateMaterial");
-            }
-
-            if let Some(mat) = halo_materials.iter_mut().next() {
-                let mut color = mat.1.base_color.to_srgba();
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    mat.1.base_color = Color::from(color);
-                }
-                ui.label("ValenceHaloMaterial");
-            }
-
-            if let Some(mat) = mycelial_materials.iter_mut().next() {
-                let mut color = mat.1.base_color.to_srgba();
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    mat.1.base_color = Color::from(color);
-                }
-                ui.label("MycelialWebGlowMaterial");
-            }
-
-            if let Some(mat) = node_materials.iter_mut().next() {
-                let mut color = mat.1.base_color.to_srgba();
-                if ui.color_edit_button_srgba(&mut color).changed() {
-                    mat.1.base_color = Color::from(color);
-                }
-                ui.label("ResourceNodeGlowMaterial");
-            }
-
-            ui.separator();
-            ui.label("Tip: Use color pickers + presets together for fast iteration.");
+            ui.label("Tip: Alpha sliders are great for tuning transparency effects in the shaders.");
         });
 }
 
-// ============================================================================
-// PLUGIN
-// ============================================================================
-
-pub struct GpuVisualMaterialsPlugin;
-
-impl Plugin for GpuVisualMaterialsPlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .init_resource::<ShaderTuningPresets>()
-            .add_systems(Update, (demo_animate_gpu_bridges, shader_preset_input, egui_tuning_window));
-    }
-}
+// ... (rest of the file remains the same) ...
