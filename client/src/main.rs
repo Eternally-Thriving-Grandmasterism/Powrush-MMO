@@ -17,8 +17,9 @@ fn main() {
         .add_plugins(UiPlugin)
         .add_plugins(DivineWhispersPlugin)
 
-        // GPU Visual Materials — RenderState-driven pipeline specialization
-        // for EnergyBurst, ValenceHalo, MycelialWebGlow, ResourceNodeGlow effects
+        // RenderState-driven GPU visual materials
+        // EnergyBurst, ValenceHalo, MycelialWebGlow, ResourceNodeGlow
+        // Dynamic per-material pipeline specialization (blend / depth / polygon / cull)
         .add_plugins(GpuVisualMaterialsPlugin)
 
         // === Council Bloom Rich Feedback (new) ===
