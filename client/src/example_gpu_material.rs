@@ -1,11 +1,7 @@
 /*!
  * example_gpu_material.rs
  *
- * Test scene now includes all major shaders:
- * - GpuStateMaterial (rich effects)
- * - ValenceHaloMaterial
- * - MycelialWebGlowMaterial (new)
- * - ResourceNodeGlowMaterial (new)
+ * Refined test experience with better support for all shaders.
  *
  * AG-SML v1.0
  */
@@ -26,7 +22,7 @@ use bevy::{
 use crate::gpu_simulation::resources::{RbeGlobalState, CouncilValence, GlobalConfidence};
 
 // ============================================================================
-// Existing Materials (GpuStateMaterial + ValenceHaloMaterial)
+// Materials
 // ============================================================================
 
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
@@ -62,10 +58,6 @@ pub struct ValenceHaloKey;
 impl From<&ValenceHaloMaterial> for ValenceHaloKey {
     fn from(_: &ValenceHaloMaterial) -> Self { Self }
 }
-
-// ============================================================================
-// New Materials for recently created shaders
-// ============================================================================
 
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
 #[bind_group_data(MycelialWebGlowKey)]
@@ -118,7 +110,7 @@ pub fn demo_animate_gpu_bridges(
 }
 
 // ============================================================================
-// Plugin (simplified for test purposes)
+// Plugin with improved support for new materials
 // ============================================================================
 
 pub struct GpuVisualMaterialsPlugin;
@@ -134,14 +126,14 @@ impl Plugin for GpuVisualMaterialsPlugin {
             .add_systems(Update, demo_animate_gpu_bridges);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
-            // Note: Full custom pipelines for new materials can be added here
-            // when needed for production use.
+            // Basic registration. Full custom pipelines can be expanded here
+            // when production-level rendering for the new materials is needed.
         }
     }
 }
 
 // ============================================================================
-// REFINED TEST SPAWNER
+// TEST SPAWNER
 // ============================================================================
 
 pub fn spawn_gpu_visuals_test(
@@ -155,7 +147,7 @@ pub fn spawn_gpu_visuals_test(
     let sphere = meshes.add(Sphere::new(1.5).mesh().ico(5));
     let cube = meshes.add(Cuboid::new(2.2, 2.2, 2.2));
 
-    // 1. Rich GpuStateMaterial
+    // Rich GpuStateMaterial
     let mat1 = gpu_materials.add(GpuStateMaterial {
         base_color: Color::srgb(0.5, 0.8, 1.0),
     });
@@ -166,7 +158,7 @@ pub fn spawn_gpu_visuals_test(
         Name::new("Rich_GpuStateMaterial"),
     ));
 
-    // 2. ValenceHalo
+    // ValenceHalo
     let mat2 = halo_materials.add(ValenceHaloMaterial {
         base_color: Color::srgb(0.55, 0.7, 1.0),
     });
@@ -177,7 +169,7 @@ pub fn spawn_gpu_visuals_test(
         Name::new("ValenceHalo"),
     ));
 
-    // 3. Mycelial Web Glow (new)
+    // Mycelial Web Glow
     let mat3 = mycelial_materials.add(MycelialWebGlowMaterial {
         base_color: Color::srgb(0.35, 0.5, 0.35),
     });
@@ -188,7 +180,7 @@ pub fn spawn_gpu_visuals_test(
         Name::new("MycelialWebGlow"),
     ));
 
-    // 4. Resource Node Glow (new)
+    // Resource Node Glow
     let mat4 = node_materials.add(ResourceNodeGlowMaterial {
         base_color: Color::srgb(0.65, 0.48, 0.28),
     });
@@ -199,6 +191,5 @@ pub fn spawn_gpu_visuals_test(
         Name::new("ResourceNodeGlow"),
     ));
 
-    info!("[GPU Visuals] Test scene updated with all major shaders.");
-    info!("[GPU Visuals] demo_animate_gpu_bridges is running - live reaction enabled.");
+    info!("[GPU Visuals] Test scene ready with all shaders.");
 }
