@@ -1,7 +1,14 @@
 /*!
  * example_gpu_material.rs
  *
- * Refined test experience with better support for all shaders.
+ * Refined test experience for all GPU simulation shaders.
+ *
+ * === Live Tuning Recommendation ===
+ * Add bevy_inspector_egui to your Cargo.toml and app:
+ *   .add_plugins(bevy_inspector_egui::quick::WorldInspectorPlugin::new())
+ *
+ * Then you can live-edit RbeGlobalState, CouncilValence, GlobalConfidence, etc.
+ * while the demo animation or real systems are running.
  *
  * AG-SML v1.0
  */
@@ -50,13 +57,6 @@ pub struct ValenceHaloMaterial {
 
 impl Default for ValenceHaloMaterial {
     fn default() -> Self { Self { base_color: Color::srgb(0.5, 0.75, 1.0) } }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub struct ValenceHaloKey;
-
-impl From<&ValenceHaloMaterial> for ValenceHaloKey {
-    fn from(_: &ValenceHaloMaterial) -> Self { Self }
 }
 
 #[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
@@ -110,7 +110,7 @@ pub fn demo_animate_gpu_bridges(
 }
 
 // ============================================================================
-// Plugin with improved support for new materials
+// Plugin
 // ============================================================================
 
 pub struct GpuVisualMaterialsPlugin;
@@ -126,8 +126,7 @@ impl Plugin for GpuVisualMaterialsPlugin {
             .add_systems(Update, demo_animate_gpu_bridges);
 
         if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
-            // Basic registration. Full custom pipelines can be expanded here
-            // when production-level rendering for the new materials is needed.
+            // Full custom pipelines for new materials can be added here when needed.
         }
     }
 }
@@ -147,7 +146,7 @@ pub fn spawn_gpu_visuals_test(
     let sphere = meshes.add(Sphere::new(1.5).mesh().ico(5));
     let cube = meshes.add(Cuboid::new(2.2, 2.2, 2.2));
 
-    // Rich GpuStateMaterial
+    // 1. Rich GpuStateMaterial
     let mat1 = gpu_materials.add(GpuStateMaterial {
         base_color: Color::srgb(0.5, 0.8, 1.0),
     });
@@ -158,7 +157,7 @@ pub fn spawn_gpu_visuals_test(
         Name::new("Rich_GpuStateMaterial"),
     ));
 
-    // ValenceHalo
+    // 2. ValenceHalo
     let mat2 = halo_materials.add(ValenceHaloMaterial {
         base_color: Color::srgb(0.55, 0.7, 1.0),
     });
@@ -169,7 +168,7 @@ pub fn spawn_gpu_visuals_test(
         Name::new("ValenceHalo"),
     ));
 
-    // Mycelial Web Glow
+    // 3. Mycelial Web Glow
     let mat3 = mycelial_materials.add(MycelialWebGlowMaterial {
         base_color: Color::srgb(0.35, 0.5, 0.35),
     });
@@ -180,7 +179,7 @@ pub fn spawn_gpu_visuals_test(
         Name::new("MycelialWebGlow"),
     ));
 
-    // Resource Node Glow
+    // 4. Resource Node Glow
     let mat4 = node_materials.add(ResourceNodeGlowMaterial {
         base_color: Color::srgb(0.65, 0.48, 0.28),
     });
@@ -191,5 +190,17 @@ pub fn spawn_gpu_visuals_test(
         Name::new("ResourceNodeGlow"),
     ));
 
-    info!("[GPU Visuals] Test scene ready with all shaders.");
+    // Extra variety object
+    let extra = gpu_materials.add(GpuStateMaterial {
+        base_color: Color::srgb(0.85, 0.65, 0.55),
+    });
+    commands.spawn((
+        Mesh3d(sphere),
+        MeshMaterial3d(extra),
+        Transform::from_xyz(0.0, 7.0, 4.0),
+        Name::new("Extra_GpuStateMaterial"),
+    ));
+
+    info!("[GPU Visuals] Test scene ready.");
+    info!("[GPU Visuals] Use bevy_inspector_egui to live-edit bridge resources for best tuning experience.");
 }
