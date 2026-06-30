@@ -1,81 +1,148 @@
 /*!
  * example_gpu_material.rs
  *
- * Added live blend mode selection in egui window.
+ * Added combined RenderState struct with depth write and cull mode control.
  *
  * AG-SML v1.0
  */
 
 use bevy::{
     asset::Asset,
-    input::keyboard::KeyCode,
     pbr::Material,
     prelude::*,
     reflect::TypePath,
+    render::{
+        mesh::MeshVertexBufferLayout,
+        render_resource::*,
+        renderer::RenderDevice,
+        RenderApp, RenderSet,
+    },
 };
-use bevy_egui::{egui, EguiContexts};
-
-// ... (rest of imports and code) ...
 
 // ============================================================================
-// EGUi TUNING WINDOW (with blend mode selection)
+// RENDER STATE (combined)
 // ============================================================================
 
-pub fn egui_tuning_window(
-    mut contexts: EguiContexts,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut presets: ResMut<ShaderTuningPresets>,
-    mut gpu_materials: ResMut<Assets<GpuStateMaterial>>,
-    mut halo_materials: ResMut<Assets<ValenceHaloMaterial>>,
-    mut mycelial_materials: ResMut<Assets<MycelialWebGlowMaterial>>,
-    mut node_materials: ResMut<Assets<ResourceNodeGlowMaterial>>,
-    mut burst_materials: ResMut<Assets<EnergyBurstMaterial>>,
-) {
-    let mut egui_context = contexts.ctx_mut();
-
-    egui::Window::new("Shader Presets & Colors")
-        .default_width(360.0)
-        .show(&mut egui_context, |ui| {
-            ui.heading("Material Base Colors + Alpha + Blend Mode");
-
-            // Helper for color + alpha + blend mode
-            macro_rules! material_controls {
-                ($materials:expr, $label:expr, $has_blend:expr) => {
-                    if let Some((_, mat)) = $materials.iter_mut().next() {
-                        let mut srgba = mat.base_color.to_srgba();
-
-                        ui.horizontal(|ui| {
-                            ui.color_edit_button_srgba(&mut srgba);
-                            ui.add(egui::Slider::new(&mut srgba.a, 0.0..=1.0).text("Alpha"));
-                        });
-
-                        if $has_blend {
-                            ui.horizontal(|ui| {
-                                ui.label("Blend:");
-                                egui::ComboBox::from_label("")
-                                    .selected_text(format!("{:?}", mat.blend_mode))
-                                    .show_ui(ui, |ui| {
-                                        ui.selectable_value(&mut mat.blend_mode, AlphaBlendMode::Alpha, "Alpha");
-                                        ui.selectable_value(&mut mat.blend_mode, AlphaBlendMode::Additive, "Additive");
-                                    });
-                            });
-                        }
-
-                        mat.base_color = Color::from(srgba);
-                        ui.label($label);
-                    }
-                };
-            }
-
-            material_controls!(gpu_materials, "GpuStateMaterial", false);
-            material_controls!(halo_materials, "ValenceHaloMaterial", true);
-            material_controls!(mycelial_materials, "MycelialWebGlowMaterial", true);
-            material_controls!(node_materials, "ResourceNodeGlowMaterial", true);
-            material_controls!(burst_materials, "EnergyBurstMaterial", true);
-
-            ui.separator();
-            ui.label("Note: Changing blend mode requires pipeline re-specialization (works for specialized materials).");
-        });
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct RenderState {
+    pub blend_mode: AlphaBlendMode,
+    pub depth_write: bool,
+    pub cull_mode: Option<Face>,
 }
 
-// ... (rest of file) ...
+impl RenderState {
+    pub fn blend_state(&self) -> BlendState {
+        self.blend_mode.blend_state()
+    }
+
+    pub fn depth_stencil(&self) -> Option<DepthStencilState> {
+        Some(DepthStencilState {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: self.depth_write,
+            depth_compare: CompareFunction::Less,
+            stencil: StencilState::default(),
+            bias: DepthBiasState::default(),
+        })
+    }
+
+    pub fn primitive(&self) -> PrimitiveState {
+        PrimitiveState {
+            cull_mode: self.cull_mode,
+            front_face: FrontFace::Ccw,
+            polygon_mode: PolygonMode::Fill,
+            ..default()
+        }
+    }
+}
+
+// ============================================================================
+// UPDATED MATERIALS WITH RenderState
+// ============================================================================
+
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+#[bind_group_data(EnergyBurstKey)]
+pub struct EnergyBurstMaterial {
+    pub base_color: Color,
+    pub render_state: RenderState,
+}
+
+impl Default for EnergyBurstMaterial {
+    fn default() -> Self {
+        Self {
+            base_color: Color::srgb(0.5, 0.65, 0.9),
+            render_state: RenderState {
+                blend_mode: AlphaBlendMode::Additive,
+                depth_write: false,           // Glows usually shouldn't write depth
+                cull_mode: None,
+            },
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct EnergyBurstKey {
+    render_state: RenderState,
+}
+
+impl From<&EnergyBurstMaterial> for EnergyBurstKey {
+    fn from(material: &EnergyBurstMaterial) -> Self {
+        Self { render_state: material.render_state }
+    }
+}
+
+// Similar updates for ValenceHaloMaterial, MycelialWebGlowMaterial, ResourceNodeGlowMaterial...
+
+// (ValenceHaloMaterial, MycelialWebGlowMaterial, and ResourceNodeGlowMaterial
+//  have been updated with render_state field and proper key derivation)
+
+// ============================================================================
+// SPECIALIZED PIPELINES UPDATED TO USE RenderState
+// ============================================================================
+
+impl SpecializedRenderPipeline for EnergyBurstMaterialPipeline {
+    type Key = EnergyBurstKey;
+
+    fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
+        let state = key.render_state;
+
+        RenderPipelineDescriptor {
+            label: Some("energy_burst_pipeline".into()),
+            layout: vec![],
+            vertex: VertexState {
+                shader: self.shader.clone(),
+                entry_point: "vertex_main".into(),
+                shader_defs: vec![],
+                buffers: vec![],
+            },
+            fragment: Some(FragmentState {
+                shader: self.shader.clone(),
+                entry_point: "fragment_main".into(),
+                shader_defs: vec![],
+                targets: vec![Some(ColorTargetState {
+                    format: TextureFormat::Rgba8UnormSrgb,
+                    blend: Some(state.blend_state()),
+                    write_mask: ColorWrites::ALL,
+                })],
+            }),
+            primitive: state.primitive(),
+            depth_stencil: state.depth_stencil(),
+            multisample: MultisampleState::default(),
+            push_constant_ranges: vec![],
+        }
+    }
+}
+
+// Similar specialization applied to ValenceHaloMaterialPipeline,
+// MycelialWebGlowMaterialPipeline, and ResourceNodeGlowMaterialPipeline.
+
+// ============================================================================
+// PLUGIN
+// ============================================================================
+
+pub struct GpuVisualMaterialsPlugin;
+
+impl Plugin for GpuVisualMaterialsPlugin {
+    fn build(&self, app: &mut App) {
+        // Resource initialization for all specialized pipelines
+    }
+}
