@@ -12,6 +12,7 @@
 
 use bevy::{
     asset::Asset,
+    log::warn,
     pbr::Material,
     prelude::*,
     reflect::TypePath,
@@ -361,6 +362,7 @@ impl SpecializedRenderPipeline for ResourceNodeGlowMaterialPipeline {
 
 // ============================================================================
 // QUEUE SYSTEMS — specialize directly by material.render_state
+// Robust error handling: gracefully skip if draw function not yet registered
 // ============================================================================
 
 pub fn queue_energy_burst_material(
@@ -371,10 +373,10 @@ pub fn queue_energy_burst_material(
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EnergyBurstMaterialPipeline>>,
 ) {
-    let draw_function = draw_functions
-        .read()
-        .get_id::<DrawMaterial<EnergyBurstMaterial>>()
-        .expect("DrawMaterial<EnergyBurstMaterial> draw function not found");
+    let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<EnergyBurstMaterial>>() else {
+        warn!("[GpuVisualMaterials] DrawMaterial<EnergyBurstMaterial> not registered yet; skipping queue.");
+        return;
+    };
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
@@ -400,10 +402,10 @@ pub fn queue_valence_halo_material(
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ValenceHaloMaterialPipeline>>,
 ) {
-    let draw_function = draw_functions
-        .read()
-        .get_id::<DrawMaterial<ValenceHaloMaterial>>()
-        .expect("DrawMaterial<ValenceHaloMaterial> draw function not found");
+    let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<ValenceHaloMaterial>>() else {
+        warn!("[GpuVisualMaterials] DrawMaterial<ValenceHaloMaterial> not registered yet; skipping queue.");
+        return;
+    };
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
@@ -429,10 +431,10 @@ pub fn queue_mycelial_web_glow_material(
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<MycelialWebGlowMaterialPipeline>>,
 ) {
-    let draw_function = draw_functions
-        .read()
-        .get_id::<DrawMaterial<MycelialWebGlowMaterial>>()
-        .expect("DrawMaterial<MycelialWebGlowMaterial> draw function not found");
+    let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<MycelialWebGlowMaterial>>() else {
+        warn!("[GpuVisualMaterials] DrawMaterial<MycelialWebGlowMaterial> not registered yet; skipping queue.");
+        return;
+    };
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
@@ -458,10 +460,10 @@ pub fn queue_resource_node_glow_material(
     mut render_phases: Query<(&VisibleEntities, &mut RenderPhase<Opaque3d>)>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<ResourceNodeGlowMaterialPipeline>>,
 ) {
-    let draw_function = draw_functions
-        .read()
-        .get_id::<DrawMaterial<ResourceNodeGlowMaterial>>()
-        .expect("DrawMaterial<ResourceNodeGlowMaterial> draw function not found");
+    let Some(draw_function) = draw_functions.read().get_id::<DrawMaterial<ResourceNodeGlowMaterial>>() else {
+        warn!("[GpuVisualMaterials] DrawMaterial<ResourceNodeGlowMaterial> not registered yet; skipping queue.");
+        return;
+    };
 
     for (visible_entities, mut phase) in &mut render_phases {
         for visible_entity in &visible_entities.entities {
