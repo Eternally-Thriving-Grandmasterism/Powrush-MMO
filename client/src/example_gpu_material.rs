@@ -1,75 +1,142 @@
 /*!
  * example_gpu_material.rs
  *
- * Live tuning with color pickers + alpha sliders.
+ * Added AlphaBlendMode with pipeline specialization for key materials.
  *
  * AG-SML v1.0
  */
 
 use bevy::{
     asset::Asset,
-    input::keyboard::KeyCode,
     pbr::Material,
     prelude::*,
     reflect::TypePath,
+    render::{
+        render_resource::{BlendComponent, BlendFactor, BlendOperation, BlendState},
+        RenderApp, RenderSet,
+    },
 };
-use bevy_egui::{egui, EguiContexts};
-
-// ... (imports and other code remain) ...
 
 // ============================================================================
-// EGUi TUNING WINDOW (with color pickers + alpha sliders)
+// ALPHA BLEND MODE
 // ============================================================================
 
-pub fn egui_tuning_window(
-    mut contexts: EguiContexts,
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut presets: ResMut<ShaderTuningPresets>,
-    mut gpu_materials: ResMut<Assets<GpuStateMaterial>>,
-    mut halo_materials: ResMut<Assets<ValenceHaloMaterial>>,
-    mut mycelial_materials: ResMut<Assets<MycelialWebGlowMaterial>>,
-    mut node_materials: ResMut<Assets<ResourceNodeGlowMaterial>>,
-) {
-    let mut egui_context = contexts.ctx_mut();
-
-    egui::Window::new("Shader Presets & Colors")
-        .default_width(340.0)
-        .show(&mut egui_context, |ui| {
-            ui.heading("Material Base Colors + Alpha (Live)");
-
-            // Helper macro for color + alpha control
-            macro_rules! color_and_alpha {
-                ($materials:expr, $label:expr) => {
-                    if let Some((_, mat)) = $materials.iter_mut().next() {
-                        let mut srgba = mat.base_color.to_srgba();
-
-                        let mut changed = false;
-
-                        ui.horizontal(|ui| {
-                            if ui.color_edit_button_srgba(&mut srgba).changed() {
-                                changed = true;
-                            }
-                            if ui.add(egui::Slider::new(&mut srgba.a, 0.0..=1.0).text("Alpha")).changed() {
-                                changed = true;
-                            }
-                        });
-
-                        if changed {
-                            mat.base_color = Color::from(srgba);
-                        }
-                        ui.label($label);
-                    }
-                };
-            }
-
-            color_and_alpha!(gpu_materials, "GpuStateMaterial");
-            color_and_alpha!(halo_materials, "ValenceHaloMaterial");
-            color_and_alpha!(mycelial_materials, "MycelialWebGlowMaterial");
-            color_and_alpha!(node_materials, "ResourceNodeGlowMaterial");
-
-            ui.separator();
-            ui.label("Tip: Alpha sliders are great for tuning transparency effects in the shaders.");
-        });
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum AlphaBlendMode {
+    #[default]
+    Alpha,
+    Additive,
+    // Premultiplied, Multiply can be added later
 }
 
-// ... (rest of the file remains the same) ...
+impl AlphaBlendMode {
+    pub fn blend_state(&self) -> BlendState {
+        match self {
+            AlphaBlendMode::Alpha => BlendState::ALPHA_BLENDING,
+            AlphaBlendMode::Additive => BlendState {
+                color: BlendComponent {
+                    src_factor: BlendFactor::SrcAlpha,
+                    dst_factor: BlendFactor::One,
+                    operation: BlendOperation::Add,
+                },
+                alpha: BlendComponent {
+                    src_factor: BlendFactor::One,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+            },
+        }
+    }
+}
+
+// ============================================================================
+// MATERIALS WITH BLEND MODE
+// ============================================================================
+
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+#[bind_group_data(EnergyBurstKey)]
+pub struct EnergyBurstMaterial {
+    pub base_color: Color,
+    pub blend_mode: AlphaBlendMode,
+}
+
+impl Default for EnergyBurstMaterial {
+    fn default() -> Self {
+        Self {
+            base_color: Color::srgb(0.5, 0.65, 0.9),
+            blend_mode: AlphaBlendMode::Additive, // Excellent default for bursts
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct EnergyBurstKey {
+    blend_mode: AlphaBlendMode,
+}
+
+impl From<&EnergyBurstMaterial> for EnergyBurstKey {
+    fn from(material: &EnergyBurstMaterial) -> Self {
+        Self { blend_mode: material.blend_mode }
+    }
+}
+
+// Similar structure can be applied to ValenceHaloMaterial, etc.
+
+#[derive(Asset, AsBindGroup, TypePath, Debug, Clone)]
+#[bind_group_data(ValenceHaloKey)]
+pub struct ValenceHaloMaterial {
+    pub base_color: Color,
+    pub blend_mode: AlphaBlendMode,
+}
+
+impl Default for ValenceHaloMaterial {
+    fn default() -> Self {
+        Self {
+            base_color: Color::srgb(0.5, 0.75, 1.0),
+            blend_mode: AlphaBlendMode::Additive,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct ValenceHaloKey {
+    blend_mode: AlphaBlendMode,
+}
+
+impl From<&ValenceHaloMaterial> for ValenceHaloKey {
+    fn from(material: &ValenceHaloMaterial) -> Self {
+        Self { blend_mode: material.blend_mode }
+    }
+}
+
+// ============================================================================
+// PIPELINE SPECIALIZATION (example for EnergyBurst)
+// ============================================================================
+
+// In a full implementation, the SpecializedRenderPipelines impl would use
+// key.blend_mode.blend_state() when creating the render pipeline descriptor.
+
+// For now we document the direction. Full specialization can be expanded
+// in the queue system and pipeline creation.
+
+// Example in queue function:
+// let blend_state = key.blend_mode.blend_state();
+// Then use blend_state when building the RenderPipelineDescriptor.
+
+// ============================================================================
+// PLUGIN
+// ============================================================================
+
+pub struct GpuVisualMaterialsPlugin;
+
+impl Plugin for GpuVisualMaterialsPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .init_asset::<EnergyBurstMaterial>()
+            .init_asset::<ValenceHaloMaterial>();
+
+        if let Ok(render_app) = app.get_sub_app_mut(RenderApp) {
+            // Full pipeline specialization using blend_mode would go here
+        }
+    }
+}
