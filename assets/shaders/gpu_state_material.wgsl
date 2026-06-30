@@ -2,7 +2,7 @@
  * gpu_state_material.wgsl
  *
  * Advanced visual material driven by live GpuSimulationState.
- * Now with richer effects including player velocity response.
+ * Now using shared utility functions for more organic effects.
  *
  * AG-SML v1.0
  */
@@ -45,7 +45,6 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let t = sim.time;
     let dt = sim.delta_time;
 
-    // Player velocity influence (motion energy)
     let vel = vec3<f32>(sim.player_velocity[0], sim.player_velocity[1], sim.player_velocity[2]);
     let speed = length(vel);
 
@@ -56,14 +55,14 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let mercy_core = 0.5 + resonance * 0.7;
     var color = base * mercy_core;
 
-    // === Council Valence Aura Rings ===
-    let ring_phase = t * 1.6 + valence * 5.0;
-    let ring = abs(sin(ring_phase) * 0.5 + 0.5);
-    let valence_aura = valence * ring * 0.55;
+    // === Council Valence Aura Rings (using pulse utility) ===
+    let ring_pulse = pulse(t * 1.6 + valence * 5.0, 1.0, 0.6);
+    let valence_aura = valence * ring_pulse * 0.55;
     color += vec3<f32>(valence_aura * 0.15, valence_aura * 0.6, valence_aura * 1.0);
 
-    // === RBE Flow Tendrils (enhanced) ===
-    let flow_wave = sin(input.uv.x * 14.0 + t * 3.0 + rbe * 4.0) * 0.5 + 0.5;
+    // === RBE Flow Tendrils with noise variation ===
+    let noise_val = noise(input.uv * 3.0 + t * 0.5);
+    let flow_wave = sin(input.uv.x * 14.0 + t * 3.0 + rbe * 4.0 + noise_val * 2.0) * 0.5 + 0.5;
     let rbe_energy = rbe * flow_wave * 0.42;
     color = mix(color, color * vec3<f32>(1.15, 0.92, 0.8), rbe_energy);
 
@@ -80,7 +79,7 @@ fn fragment_main(input: VertexOutput) -> @location(0) vec4<f32> {
     let lum = dot(color, vec3<f32>(0.299, 0.587, 0.114));
     color = mix(vec3<f32>(lum), color, vib);
 
-    // Mercy + Council combined crown highlight
+    // Mercy + Council crown highlight
     let crown = pow(max(resonance, valence * 0.65), 2.0) * 0.28;
     color += vec3<f32>(crown * 0.5, crown * 0.95, crown * 1.1);
 
