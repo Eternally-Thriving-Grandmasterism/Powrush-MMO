@@ -4,8 +4,10 @@
  * v19.21: Added minimal Agent + SovereignWorldState core (for synergy event activation)
  * Preserved full VFX recovery (ParticleVisualAssets, Hanabi, sacred geometry).
  * Production ResourceNode struct added (replaces placeholder).
- * Now includes example wiring of HierarchicalGrid::raycast_distance for simulation-level spatial queries
- * (agent perception, resource visibility, dynamic event triggering).
+ * Now includes accelerated raycast LOS wiring for:
+ *   1. Council visibility / PATSAGi council systems
+ *   2. Dynamic event triggering (synergy, epiphany, harvest)
+ *   3. Agent perception
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
@@ -15,47 +17,27 @@ use bevy::render::texture::{Image, ImageSampler};
 use bevy_hanabi::prelude::*;
 use std::collections::HashMap;
 
-// Effects module integration (v19.21 structural improvement)
 use crate::effects::{frame, modulation, types};
 
-// Core simulation types (added v19.21 for synergy + agent model)
 use crate::ability_tree::AbilityTree;
 use crate::epigenetic_modulation::{EpigeneticProfile, MutationType};
 use crate::race::Race;
 
-// Spatial integration (wired raycast_distance for simulation spatial awareness)
 use shared::spatial::HierarchicalGrid;
 
-/// Unique identifier for agents (players/NPCs)
 pub type AgentId = u64;
 
-/// Core simulation agent with AbilityTree + Epigenetic state.
-/// Enables mutation synergy chains and cross-race hybrid bonuses.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Agent {
     pub id: AgentId,
     pub name: String,
-
-    /// Ability progression and synergy chain state
     pub ability_tree: AbilityTree,
-
-    /// Epigenetic state (volatility, strength, cooperation)
     pub epigenetic_profile: EpigeneticProfile,
-
-    /// Currently active mutations for synergy calculation
     pub active_mutations: Vec<MutationType>,
-
-    /// Unlocked races (enables cross-race synergy chains)
     pub unlocked_races: Vec<Race>,
-
-    /// Optional world position
     pub position: Option<Vec3>,
-
-    /// Mercy and RBE contribution tracking
     pub mercy_contribution: f32,
     pub rbe_efficiency: f32,
-
-    /// Optional link to dynamic archetype
     pub archetype_id: Option<ArchetypeId>,
 }
 
@@ -90,8 +72,6 @@ impl Agent {
     }
 }
 
-/// Resource node for harvest and RBE economy.
-/// Production struct (replaces previous placeholder).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResourceNode {
     pub id: u64,
@@ -108,19 +88,12 @@ pub struct ResourceNode {
 }
 
 /// Central simulation world state.
-/// Now includes agents collection to activate synergy event logic.
-/// Enriched with example raycast_distance usage for simulation spatial awareness.
+/// Enriched with accelerated raycast LOS for council visibility, dynamic events, and agent perception.
 #[derive(Resource, Default)]
 pub struct SovereignWorldState {
-    /// Per-agent state (AbilityTree, mutations, epigenetic profile)
     pub agents: HashMap<AgentId, Agent>,
-
-    /// Resource nodes for harvest / RBE economy
     pub resource_nodes: HashMap<NodeId, ResourceNode>,
-
     pub sim_time: u64,
-
-    // Additional fields can be expanded as needed
 }
 
 pub type NodeId = u64;
@@ -128,30 +101,32 @@ pub type Vec3 = bevy::math::Vec3;
 pub type ArchetypeId = u64;
 
 // ============================================================================
-// RAYCAST_DISTANCE WIRING FOR SIMULATION (added 2026-06-30)
+// ACCELERATED RAYCAST LOS HELPERS (wired for Council, Events, Agent Perception)
+// Uses the spatially accelerated HierarchicalGrid::raycast_distance
 // ============================================================================
 
 impl SovereignWorldState {
-    /// Example simulation-level use of HierarchicalGrid::raycast_distance.
-    /// Useful for agent perception, line-of-sight checks, resource visibility,
-    /// or triggering dynamic events based on spatial occupancy.
-    /// Non-intrusive helper; real systems can call this pattern.
+    /// Returns true if there is a clear line of sight between two positions.
+    /// Now powered by accelerated hierarchical raycast (coarse-to-fine + early termination).
     pub fn has_line_of_sight(&self, grid: &HierarchicalGrid, from: Vec3, to: Vec3, max_dist: f32) -> bool {
         let direction = Vec3 {
             x: to.x - from.x,
             y: to.y - from.y,
             z: to.z - from.z,
         };
-        // Simple check: if first hit distance >= distance to target, clear LOS
-        if let Some(hit_dist) = grid.raycast_distance(from, direction, max_dist) {
+        if let Some(hit_dist) = grid.raycast_distance(
+            crate::spatial::hierarchical_grid::Vec3 { x: from.x, y: from.y, z: from.z },
+            crate::spatial::hierarchical_grid::Vec3 { x: direction.x, y: direction.y, z: direction.z },
+            max_dist
+        ) {
             let target_dist = direction.length();
-            hit_dist >= target_dist
+            hit_dist >= target_dist * 0.98
         } else {
-            true // no hit means clear
+            true
         }
     }
 
-    /// Example: Check if an agent can "see" a resource node (for harvest simulation, RBE awareness)
+    /// Example: Check if an agent can see a resource node (for harvest simulation, RBE awareness)
     pub fn agent_can_see_resource(&self, grid: &HierarchicalGrid, agent_id: AgentId, node_id: NodeId, max_dist: f32) -> bool {
         if let (Some(agent), Some(node)) = (self.agents.get(&agent_id), self.resource_nodes.get(&node_id)) {
             if let Some(agent_pos) = agent.position {
@@ -161,11 +136,67 @@ impl SovereignWorldState {
         }
         false
     }
+
+    // ========================================================================
+    // 1. COUNCIL VISIBILITY / PATSAGi COUNCIL SYSTEMS
+    // ========================================================================
+    /// Returns true if a council member/agent has clear line of sight to another entity.
+    /// Useful for PATSAGi Council visibility, mercy trial participation, diplomacy line-of-sight,
+    /// and council member perception in spatial council systems.
+    pub fn council_member_has_visibility(&self, grid: &HierarchicalGrid, member_id: AgentId, target_id: AgentId, max_dist: f32) -> bool {
+        if let (Some(member), Some(target)) = (self.agents.get(&member_id), self.agents.get(&target_id)) {
+            if let (Some(m_pos), Some(t_pos)) = (member.position, target.position) {
+                return self.has_line_of_sight(grid, m_pos, t_pos, max_dist);
+            }
+        }
+        false
+    }
+
+    // ========================================================================
+    // 2. DYNAMIC EVENT TRIGGERING (Synergy, Epiphany, Harvest)
+    // ========================================================================
+    /// Example: Only trigger a harvest event if the agent has clear LOS to the resource.
+    /// Prevents "ghost harvesting" through walls and adds spatial realism to RBE events.
+    pub fn can_trigger_harvest_event(&self, grid: &HierarchicalGrid, agent_id: AgentId, node_id: NodeId, max_dist: f32) -> bool {
+        self.agent_can_see_resource(grid, agent_id, node_id, max_dist)
+    }
+
+    /// Example: Gate synergy or epiphany events on clear line of sight between key agents.
+    /// Useful for council-mediated epiphany or cross-race synergy events.
+    pub fn can_trigger_synergy_event(&self, grid: &HierarchicalGrid, agent_a: AgentId, agent_b: AgentId, max_dist: f32) -> bool {
+        if let (Some(a), Some(b)) = (self.agents.get(&agent_a), self.agents.get(&agent_b)) {
+            if let (Some(a_pos), Some(b_pos)) = (a.position, b.position) {
+                return self.has_line_of_sight(grid, a_pos, b_pos, max_dist);
+            }
+        }
+        false
+    }
+
+    // ========================================================================
+    // 3. AGENT PERCEPTION
+    // ========================================================================
+    /// Returns entities an agent can currently perceive (within range and clear LOS).
+    /// This is the core agent perception primitive, powered by accelerated raycast.
+    pub fn get_perceivable_agents(&self, grid: &HierarchicalGrid, agent_id: AgentId, max_dist: f32) -> Vec<AgentId> {
+        let mut result = Vec::new();
+        if let Some(agent) = self.agents.get(&agent_id) {
+            if let Some(agent_pos) = agent.position {
+                for (&other_id, other) in &self.agents {
+                    if other_id == agent_id { continue; }
+                    if let Some(other_pos) = other.position {
+                        if self.has_line_of_sight(grid, agent_pos, other_pos, max_dist) {
+                            result.push(other_id);
+                        }
+                    }
+                }
+            }
+        }
+        result
+    }
 }
 
 // ============================================================================
 // EXISTING VFX CODE BELOW (preserved exactly)
 // ============================================================================
 
-/// Central resource for all policy-aligned particle visual effects and assets.
-// ... (rest of the file unchanged - full VFX, Hanabi, sacred geometry, policy effects preserved)
+// ... (rest of file with ParticleVisualAssets, Hanabi setup, sacred geometry, policy effects preserved)
