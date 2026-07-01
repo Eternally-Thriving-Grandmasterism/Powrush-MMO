@@ -3,7 +3,8 @@
 // 1. Better abstraction for accept_trade_atomic (decoupled from HashMap)
 // 2. Added validation that target has requested resources
 // 3. Added expire_trades() method
-// + Minimal clean SurrealDB transaction wrapper for true DB atomicity on trade records
+// + Minimal clean SurrealDB transaction wrapper
+// + Saga compensation for inventory mutations (reverse inventory on DB failure)
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -48,7 +49,6 @@ impl TradeSystem {
     async fn load_active_trades_from_db(&mut self) { /* preserved */ }
 
     /// Minimal clean SurrealDB transaction wrapper.
-    /// Use for any multi-statement DB work that must be atomic.
     async fn run_db_transaction<F, Fut, T>(&self, f: F) -> Result<T, String>
     where
         F: FnOnce(&mut surrealdb::Transaction) -> Fut,
@@ -81,7 +81,6 @@ impl TradeSystem {
             expires_at: Some(std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_secs() + 300),
         };
 
-        // Use transaction wrapper for atomic create
         self.run_db_transaction(|tx| async move {
             tx.create::<Option<Trade>>(("trade", trade_id)).content(trade.clone()).await
         }).await?;
@@ -90,9 +89,9 @@ impl TradeSystem {
         Ok(trade_id);
     }
 
-    /// Refactored: Now takes two inventory references instead of the full HashMap.
-    /// This greatly reduces coupling with the main loop.
-    /// Inventory mutations happen first (in-memory). DB operations are wrapped in a transaction for true atomicity on the trade record.
+    /// Saga compensation for inventory:
+    /// - Record reverse operations before mutating inventory.
+    /// - If DB transaction fails after inventory mutation, apply compensation to restore previous state.
     pub async fn accept_trade_atomic(
         &mut self,
         trade_id: u64,
@@ -105,11 +104,26 @@ impl TradeSystem {
             _ => return Err("Trade not found or invalid state".to_string()),
         };
 
-        // Validate target has requested resources (before any mutation)
+        // Validate target has requested resources
         for (res, amount) in &trade.requested {
             if target_inventory.get_amount(res) < *amount {
                 return Err(format!("Target does not have enough {} to complete the trade", res));
             }
+        }
+
+        // === Saga: Record compensation actions (reverse deltas) before mutation ===
+        // For each offered resource: we added to target and removed from offeror → compensation = reverse
+        // For each requested resource: we added to offeror and removed from target → compensation = reverse
+        let mut compensation: Vec<(bool, String, f32)> = Vec::new(); // (is_offeror, resource, amount)
+
+        // Record reverse for offered (what we will do to compensate)
+        for (res, amount) in &trade.offered {
+            compensation.push((true, res.clone(), *amount));   // reverse: remove from target, add back to offeror
+            compensation.push((false, res.clone(), *amount));
+        }
+        for (res, amount) in &trade.requested {
+            compensation.push((false, res.clone(), *amount)); // reverse: remove from offeror, add back to target
+            compensation.push((true, res.clone(), *amount));
         }
 
         // Perform resource transfer (in-memory)
@@ -122,16 +136,35 @@ impl TradeSystem {
             offeror_inventory.add_resource(res, *amount);
         }
 
-        // DB operations now inside transaction for atomicity
+        // DB transaction (with compensation on failure)
         if self.active_trades.remove(&trade_id).is_some() {
-            self.run_db_transaction(|tx| async move {
+            match self.run_db_transaction(|tx| async move {
                 tx.delete::<Option<Trade>>(("trade", trade_id)).await?;
-                // Optional: also update status inside same tx if desired
-                // tx.query(format!("UPDATE trade:{} SET status = 'accepted'", trade_id)).await?;
                 Ok::<(), surrealdb::Error>(())
-            }).await?;
+            }).await {
+                Ok(_) => {
+                    info!("Trade {} completed successfully by player {}", trade_id, accepting_player_id);
+                }
+                Err(e) => {
+                    // === Saga Compensation: Reverse inventory changes ===
+                    warn!("DB transaction failed for trade {}: {}. Applying inventory compensation.", trade_id, e);
 
-            info!("Trade {} completed successfully by player {}", trade_id, accepting_player_id);
+                    for (is_offeror, res, amount) in compensation {
+                        if is_offeror {
+                            offeror_inventory.add_resource(&res, amount);
+                            target_inventory.remove_resource(&res, amount);
+                        } else {
+                            target_inventory.add_resource(&res, amount);
+                            offeror_inventory.remove_resource(&res, amount);
+                        }
+                    }
+
+                    // Re-insert the trade so it can be retried or rejected
+                    self.active_trades.insert(trade_id, trade);
+
+                    return Err(format!("Trade failed due to DB error. Inventory has been compensated. Original error: {}", e));
+                }
+            }
         }
 
         Ok(())
@@ -139,7 +172,6 @@ impl TradeSystem {
 
     pub async fn reject_trade(&mut self, trade_id: u64, rejecting_player_id: u64) -> Result<(), String> {
         if let Some(_) = self.active_trades.remove(&trade_id) {
-            // Use transaction wrapper
             self.run_db_transaction(|tx| async move {
                 tx.delete::<Option<Trade>>(("trade", trade_id)).await
             }).await?;
@@ -147,7 +179,6 @@ impl TradeSystem {
         Ok(());
     }
 
-    /// New: Actively expire old pending trades (call from main loop)
     pub async fn expire_trades(&mut self) {
         let now = std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_secs();
         let mut expired = Vec::new();
