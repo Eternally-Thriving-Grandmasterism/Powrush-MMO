@@ -4,6 +4,7 @@
 // + Hybrid Cryptographic Trade Protocol
 // + Secure path + rate limiting
 // + Full SurrealDB persistence for player hybrid keys
+// + Testing & simulation hooks
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -67,9 +68,7 @@ impl TradeSystem {
 
     async fn load_active_trades_from_db(&mut self) { /* preserved */ }
 
-    /// Load all player hybrid keys from SurrealDB
     async fn load_player_keys_from_db(&mut self) {
-        // Query all player_keys records
         match self.db.select::<Vec<(u64, PlayerKeyPair)>>("player_keys").await {
             Ok(records) => {
                 for (player_id, keys) in records {
@@ -83,7 +82,6 @@ impl TradeSystem {
         }
     }
 
-    /// Save (or update) a player's hybrid keys to SurrealDB
     async fn save_player_keys_to_db(&self, player_id: u64, keys: &PlayerKeyPair) {
         let result = self.run_db_transaction(|tx| async move {
             tx.create::<Option<PlayerKeyPair>>(("player_keys", player_id))
@@ -95,7 +93,6 @@ impl TradeSystem {
         if result.is_ok() {
             info!("Saved hybrid keys for player {}", player_id);
         } else {
-            // Try update if create fails (already exists)
             let _ = self.run_db_transaction(|tx| async move {
                 tx.update::<Option<PlayerKeyPair>>(("player_keys", player_id))
                     .content(keys.clone())
@@ -131,7 +128,6 @@ impl TradeSystem {
         true
     }
 
-    /// Generate (if needed) and persist hybrid keys for a player
     pub async fn get_or_create_player_keys(&mut self, player_id: u64) -> &PlayerKeyPair {
         if !self.player_keys.contains_key(&player_id) {
             let protocol = HybridTradeProtocol;
@@ -144,10 +140,7 @@ impl TradeSystem {
                 };
 
                 self.player_keys.insert(player_id, keys.clone());
-
-                // Persist to SurrealDB
                 self.save_player_keys_to_db(player_id, &keys).await;
-
                 info!("Generated and persisted new hybrid keys for player {}", player_id);
             } else {
                 self.player_keys.insert(player_id, PlayerKeyPair {
@@ -158,13 +151,66 @@ impl TradeSystem {
                 });
             }
         }
-
         self.player_keys.get(&player_id).unwrap()
     }
 
     pub fn get_player_keys(&self, player_id: u64) -> Option<&PlayerKeyPair> {
         self.player_keys.get(&player_id)
     }
+
+    // ============================================================
+    // TESTING & SIMULATION HOOKS
+    // These methods are intended for tests, simulations, and debugging.
+    // ============================================================
+
+    /// Create a trade directly (useful for controlled testing)
+    pub async fn simulate_initiate_trade(
+        &mut self,
+        offeror_id: u64,
+        target_id: u64,
+        offered: HashMap<String, f32>,
+        requested: HashMap<String, f32>,
+    ) -> Result<u64, String> {
+        self.initiate_trade(offeror_id, target_id, offered, requested).await
+    }
+
+    /// Force expiration of all pending trades (useful for testing expiry logic)
+    pub async fn force_expire_all_trades(&mut self) {
+        let now = std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_secs();
+
+        let mut expired = Vec::new();
+        for (&trade_id, trade) in &self.active_trades {
+            if trade.status == "pending" {
+                expired.push(trade_id);
+            }
+        }
+
+        for trade_id in expired {
+            if let Some(_) = self.active_trades.remove(&trade_id) {
+                let _ = self.run_db_transaction(|tx| async move {
+                    tx.delete::<Option<Trade>>(("trade", trade_id)).await
+                }).await;
+            }
+        }
+
+        warn!("Forced expiration of all pending trades for testing");
+    }
+
+    /// Get current number of active trades (for testing/monitoring)
+    pub fn get_active_trade_count(&self) -> usize {
+        self.active_trades.len()
+    }
+
+    /// Clear all active trades (for clean test resets)
+    pub fn clear_all_active_trades_for_testing(&mut self) {
+        self.active_trades.clear();
+        self.next_trade_id = 1;
+        self.next_nonce = 1;
+        self.last_trade_attempt.clear();
+        warn!("Cleared all active trades for testing purposes");
+    }
+
+    // ============================================================
 
     pub async fn initiate_trade(
         &mut self,
