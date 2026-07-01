@@ -1,7 +1,7 @@
 // server/src/trade/cryptographic_trade_protocol.rs
-// Cryptographic Trade Protocol v2
+// Cryptographic Trade Protocol v2.1 (Refined)
 // Hybrid Signatures (Ed25519 + Dilithium) + Commitment + Reveal
-// Long-term quantum-resistant + classically audited security
+// Cleaned up public key handling
 // AG-SML v1.0 | PATSAGi + Ra-Thor aligned
 
 use crate::trade_system::Trade;
@@ -101,6 +101,7 @@ impl CryptographicTradeProtocol for HybridTradeProtocol {
         // Dilithium secret key
         let dil_sk = DilSecretKey::from_bytes(pq_secret)
             .map_err(|_| CryptoTradeError::SigningFailed)?;
+        let dil_pk = dilithium2::PublicKey::from_bytes(&dil_sk.as_bytes()).map_err(|_| CryptoTradeError::SigningFailed)?; // better reconstruction
 
         // Create commitment
         let commitment_data = format!("{:?}:{:?}:{}", trade.offered, trade.nonce, trade.trade_id);
@@ -129,7 +130,7 @@ impl CryptographicTradeProtocol for HybridTradeProtocol {
             trade: trade.clone(),
             commitment,
             classical_public_key: classical_pk.to_bytes().to_vec(),
-            pq_public_key: dilithium2::PublicKey::from_bytes(&pq_sig.as_bytes()).unwrap().as_bytes().to_vec(), // simplified
+            pq_public_key: dil_pk.as_bytes().to_vec(),
             signature: hybrid_sig,
         })
     }
