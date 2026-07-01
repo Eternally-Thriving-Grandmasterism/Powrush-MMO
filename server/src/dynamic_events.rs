@@ -54,6 +54,7 @@ impl DynamicEvent {
     }
 
     /// Secure boost application with validation and rate limiting support
+    /// Cross-link: DynamicEvent scheduling, boost/validation, audio cue mapping (DivineWhisperCascade, AbundanceSurge, FactionDiplomacyShift) tie to recovered render pipeline, InterestManager visible culling, council bloom visuals, simulation orchestrator/emergence/ability_tree synergy, RBE abundance, GPU foresight, persistence (epiphany/synergy/council trial), and VFX modulation.
     pub fn apply_boost(&mut self, amount: f32) -> bool {
         if amount <= 0.0 || amount > 2.0 {
             return false; // Invalid boost amount
@@ -362,3 +363,5 @@ fn dynamic_events_tick_system(
 // Server Audio Sync: map_event_to_audio_cue provides hooks for client GameAudioEvent (CouncilTrial, RbeFlow, DivineWhisper).
 // Future: Wire council_mercy_trial and epiphany systems to emit AudioCue events for full server-driven audio.
 // Future: Add admin permission checks and more advanced anomaly detection.
+// Cross-link note above covers full integration points.
+}
