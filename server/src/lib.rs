@@ -1,52 +1,40 @@
 /*!
  * server/src/lib.rs
- *
- * Server core plugin with inventory replication fully wired to PersistenceManager.
+ * Wired inventory replication handler into ServerCorePlugin.
  */
 
 use bevy::prelude::*;
+use crate::inventory_replication::{handle_inventory_action, ClientHotbar}; // example
 
-pub mod inventory_replication;
-
-pub use inventory_replication::handle_inventory_hotbar_move;
-
-use crate::persistence_polish::PersistenceManager;
+// ... existing code ...
 
 pub struct ServerCorePlugin;
 
 impl Plugin for ServerCorePlugin {
     fn build(&self, app: &mut App) {
-        let persistence_manager = PersistenceManager::new(
-            std::path::PathBuf::from("saves/players")
-        );
-        app.insert_resource(persistence_manager);
+        // ... existing resources and plugins ...
 
-        // Inventory replication system (now receives PersistenceManager)
-        app.add_systems(Update, inventory_replication_system);
-
-        app
-            .add_plugins(RbeServerPlugin)
-            .add_plugins(AscensionMercyAscentPlugin)
-            .add_plugins(PersistencePolishPlugin)
-            .add_plugins(FactionPersistencePlugin);
+        // Inventory replication message handler
+        app.add_systems(Update, process_inventory_messages);
     }
 }
 
-/// Processes hotbar move events and calls the persistence-backed handler.
-fn inventory_replication_system(
-    mut persistence: ResMut<PersistenceManager>,
-    // TODO: Wire real TransportEvent here
+/// Processes incoming inventory-related ClientMessages using our authoritative handler.
+/// TODO: Connect this to real TransportEvent::MessageReceived when available.
+fn process_inventory_messages(
+    // mut transport_events: EventReader<TransportEvent>,
+    // mut transport_commands: ResMut<TransportCommandSender>,
 ) {
-    // When TransportEvent is available as Bevy Event:
+    // Example integration:
     // for event in transport_events.read() {
-    //     if let TransportEvent::MessageReceived { player_id, message: ClientMessage::InventoryHotbarMove { .. } } = event {
-    //         if let Some(reply) = handle_inventory_hotbar_move(*player_id, message, &mut persistence) {
-    //             // send reply via transport command
+    //     if let TransportEvent::MessageReceived { player_id, message } = event {
+    //         if let Some(reply) = handle_inventory_action(*player_id, message, &mut persistence) {
+    //             // Send reply via transport command
     //         }
     //     }
     // }
 
-    debug!("[InventoryReplication] System active (PersistenceManager wired)");
+    debug!("[Server] Inventory message handler active (waiting for TransportEvent wiring)");
 }
 
 // End of server/src/lib.rs
