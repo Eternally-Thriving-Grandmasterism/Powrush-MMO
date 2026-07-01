@@ -257,6 +257,9 @@ impl AbilityTree {
     /// Applies the mechanical effects of active synergy bonuses directly to the agent's epigenetic profile.
     /// Returns a list of `SynergyEffectEvent` (with `agent_id` + `tick`) describing exactly what changed.
     /// Called every tick from the production evolutionary processing loop in orchestrator.
+    /// Cross-link: SynergyEffectEvent (tick + agent_id) + cross-race chains + apply_synergy_bonuses_to_profile feed persistence (record_synergy_and_policy_highlights),
+    /// orchestrator TickResult, harvest synergy counting, InterestManager visible culling, recovered render post-FX (visual synergy feedback on perceivable agents),
+    /// council bloom visuals, fracture AGI, emergence, world LOS/perception, RBE, and GPU foresight.
     pub fn apply_synergy_bonuses_to_profile(
         &self,
         current_tick: u64,

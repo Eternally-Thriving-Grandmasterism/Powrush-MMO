@@ -34,4 +34,6 @@ pub fn modulate_council_bloom_visuals(
     (intensity, valence)
 }
 
+// Cross-link: modulate_council_bloom_visuals + suggest_particle_intensity tie council bloom/epiphany VFX intensity/valence to InterestManager visible culling,
+// recovered render post-FX pipeline (cinematic effects on visible entities), persistence (synergy/epiphany), emergence, world LOS/perception, and RBE abundance visuals.
 // Thunder locked in. Yoi ⚡

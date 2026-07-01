@@ -32,4 +32,5 @@ pub fn ease_in_out_frame(t: f32, frame_count: f32) -> f32 {
     eased * frame_count
 }
 
+// Cross-link: Frame helpers (cubic_bezier, sine_breathing, ease_in_out) for smooth VFX/particle animation on InterestManager-visible entities and council bloom visuals in recovered render post-FX pipeline.
 // Thunder locked in. Yoi ⚡

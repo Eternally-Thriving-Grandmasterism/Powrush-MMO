@@ -16,4 +16,6 @@ pub mod modulation;
 // Re-exports for convenience during transition phase
 pub use crate::world::{ParticleVisualAssets, LissajousKnotEffects};
 
+// Cross-link: Central effects module (frame/modulation for council bloom visuals, particle intensity, valence) ties to recovered render pipeline,
+// InterestManager visible culling (modulate only on perceivable entities), council bloom, persistence (synergy/epiphany), fracture AGI, emergence, world LOS/perception, RBE, and GPU foresight.
 // Thunder locked in. Yoi ⚡
