@@ -16,6 +16,7 @@ use crate::emergence::{DynamicEmergenceEvent, EmergenceOrchestrator};
 use crate::ability_tree::SynergyEffectEvent;
 use crate::council_mercy_trial::CouncilSessionManager;
 use crate::player_persistence::PlayerSaveData;
+use crate::mercy::MercyGate;
 use std::time::Instant;
 use std::sync::Arc;
 use tracing::{info, warn, debug};
@@ -80,7 +81,8 @@ impl SimulationOrchestrator {
             ..Default::default()
         };
 
-        if let Err(e) = self.economic_layer.batch_update(world, /* mercy_gate */ ) {
+        let mercy_gate = MercyGate;
+        if let Err(e) = self.economic_layer.batch_update(world, &mercy_gate) {
             result.errors.push(format!("Economic update failed: {}", e));
         } else {
             result.economic_updates = 1;
