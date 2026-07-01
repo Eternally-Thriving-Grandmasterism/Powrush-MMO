@@ -23,6 +23,7 @@ use crate::ascension_mercy_ascent::{AscensionProgress, AscensionEligibility};
 // ... (existing code) ...
 
 /// Core player save data with epiphany, council, ascension, abundance, language, and **faction standings**.
+/// Cross-link: PlayerSaveData (faction_standings + council trial outcomes + epiphany/synergy) ties to telemetry pipeline, RBE abundance, council bloom visuals, render pipeline culling, and simulation persistence flows.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlayerSaveData {
     pub player_id: u64,

@@ -351,6 +351,7 @@ fn periodic_flush_system(mut collector: ResMut<TelemetryCollector>, time: Res<Ti
 // INTEGRATION (same as v18.17 — wire emit + start/end_session calls)
 // ═══════════════════════════════════════════════════════════════
 
+// Cross-link: TelemetryPipeline (ForesightStats for GPU PATSAGi, Harvest/Epiphany telemetry, structured BatchSummary logging) ties to GPU foresight, RBE abundance, council bloom visuals, render pipeline culling, persistence (epiphany/synergy/council trial), and simulation orchestrator/emergence flows.
 // Thunder locked in. Structured logging for every telemetry batch now production-sealed.
 // Every flush produces rich, queryable BatchSummary in logs + sovereign RONL files.
 // Ops visibility, debugging, and closed beta insights maximized while preserving mercy and sovereignty.

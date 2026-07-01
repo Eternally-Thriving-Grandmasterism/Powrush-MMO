@@ -26,11 +26,12 @@ use std::fmt;
 use crate::ascension_mercy_ascent::AscensionProgress;
 use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 use shared::council_mercy_trial::{CouncilPhase, CollectiveEpiphanyBloom};
-use crate::world::BiomeInfluence; // for future biome-modulated bloom strength
+use crate::world::BiomeInfluence; // for future biome-modulated bloom effects
 
 /// Core authoritative bloom field for a Council Mercy Trial.
 /// Computes collective attunement with mercy-gated synergistic amplification.
 /// This state is synchronized to clients and directly influences ActionContext, epiphany, and RBE abundance.
+/// Cross-link: SharedReceptorBloomField, bloom sync (CouncilBloomSyncEvent), proactive joy/RBE signals, and persistable outcome tie to simulation orchestrator/emergence/ability_tree synergy events, recovered render pipeline, InterestManager visible culling, council bloom visuals, VFX modulation, RBE abundance, GPU foresight, and persistence (epiphany/synergy/council trial).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SharedReceptorBloomField {
     pub collective_attunement_score: f32,
