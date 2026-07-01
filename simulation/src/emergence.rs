@@ -77,6 +77,9 @@ impl EmergenceOrchestrator {
     /// Called every tick by the SovereignSimulationOrchestrator.
     /// Generates DynamicEmergenceEvents based on current world state,
     /// council activity, and resonance.
+    /// Cross-link: DynamicEmergenceEvent (EpiphanyTrigger, ResourceDelta, DivineWhisperInjection, BiomeResonance)
+    /// + EmergenceOrchestrator feed InterestManager visible sets, recovered render post-FX culling (VelocityPrepass/TAA/MotionBlur/CA),
+    /// council bloom visuals, GPU foresight, persistence (epiphany/synergy), fracture AGI resolution, and RBE abundance visuals.
     pub fn process_emergence(
         &mut self,
         world: &mut SovereignWorldState,

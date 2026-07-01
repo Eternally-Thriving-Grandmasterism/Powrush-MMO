@@ -89,6 +89,9 @@ pub struct ResourceNode {
 
 /// Central simulation world state.
 /// Enriched with accelerated raycast LOS for council visibility, dynamic events, and agent perception.
+/// Cross-link: SovereignWorldState (LOS, get_perceivable_agents, council visibility, can_trigger_*_event) + HierarchicalGrid raycast
+/// feed InterestManager visible culling, recovered render post-FX pipeline (VelocityPrepass/TAA/MotionBlur/CA for cinematic effects on perceivable entities),
+/// council bloom visuals, GPU foresight, persistence (epiphany/synergy), fracture AGI resolution, and RBE abundance visuals.
 #[derive(Resource, Default)]
 pub struct SovereignWorldState {
     pub agents: HashMap<AgentId, Agent>,
