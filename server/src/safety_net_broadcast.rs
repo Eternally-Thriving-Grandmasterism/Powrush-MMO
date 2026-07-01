@@ -1,7 +1,8 @@
 // server/src/safety_net_broadcast.rs
-// Powrush-MMO — Authoritative Safety Net Broadcast System (v19.3)
+// Powrush-MMO — Authoritative Safety Net Broadcast System (v19.4)
 // Production-ready SafetyNet with interest-aware replication forwarding.
-// AG-SML v1.0 | PATSAGi + Ra-Thor
+// Integrated with inventory anomaly flow (InventoryActionProcessed reason) + PersistenceManager.
+// AG-SML v1.0 | PATSAGi + Ra-Thor | TOLC 8
 
 use bevy::prelude::*;
 use shared::protocol::{SafetyNetBroadcast, SafetyNetEvent, SafetyNetSnapshot, ServerMessage};
@@ -82,7 +83,7 @@ fn safety_net_periodic_system(
 }
 
 /// Handles emit requests and produces OutgoingServerMessage
-/// Cross-link: SafetyNet (interest-aware replication via InterestManager, AbundanceSafetyNet/CouncilBloom/EpiphanyConfirmed/RBEFlowUpdate events, persistence/telemetry integration) ties to recovered render pipeline, InterestManager visible culling, simulation orchestrator/emergence/ability_tree, council bloom visuals, VFX modulation, RBE abundance, GPU foresight, and persistence (epiphany/synergy/council trial/faction).
+/// Supports "InventoryActionProcessed" from lib.rs inventory flow + standard reasons.
 fn handle_emit_safety_net_event(
     mut events: EventReader<EmitSafetyNetBroadcast>,
     persistence: Option<Res<PersistenceManager>>,
@@ -123,6 +124,7 @@ fn handle_emit_safety_net_event(
             "RBEFlowUpdate" => Some(SafetyNetEvent::RbeAbundanceSignal { creation_rate: 12.4, restoration_rate: 8.7, safety_net_trigger_count: 2 }),
             "HarvestScarcity" => Some(SafetyNetEvent::AbundanceSafetyNetTriggered { restored_amount: 30.0, reason: "LowCreationRateDuringHarvest".to_string() }),
             "EpiphanyScarcity" => Some(SafetyNetEvent::AbundanceSafetyNetTriggered { restored_amount: 25.0, reason: "EpiphanyDuringLowAbundance".to_string() }),
+            "InventoryActionProcessed" => Some(SafetyNetEvent::RbeAbundanceSignal { creation_rate: 0.0, restoration_rate: 0.0, safety_net_trigger_count: 1 }),
             _ => None,
         };
 
@@ -131,14 +133,15 @@ fn handle_emit_safety_net_event(
 
         outgoing_writer.send(OutgoingServerMessage { player_id: event.player_id, message: server_message });
 
-        tracing::info!("[SafetyNet v19.3] Prepared for replication | player={} | reason={}", event.player_id, event.reason);
+        tracing::info!("[SafetyNet v19.4] Prepared for replication | player={} | reason={}", event.player_id, event.reason);
     }
 }
 
 /// Production replication forwarding system.
 /// Uses InterestManager when available for targeted delivery.
 /// OutgoingServerMessage is the production emission point for the replication layer.
-/// Future: inject real NetworkSender / replication broadcaster for actual network transmission.
+/// TODO(production): Replace vec![] with real interest_manager.get_interested_players(...) or spatial range query.
+/// Recommended: Interest/spatial filtering, delta compression, batching, backpressure.
 fn replication_forward_system(
     mut events: EventReader<OutgoingServerMessage>,
     interest: Option<Res<InterestManager>>,
@@ -146,7 +149,7 @@ fn replication_forward_system(
     for event in events.read() {
         let target_players: Vec<u64> = if event.player_id == 0 {
             if let Some(interest_manager) = &interest {
-                // TODO(future): Use interest_manager.get_players_in_range(...) or get_interested_players(...)
+                // Production path: interest_manager.get_players_in_range(...) or get_interested_players(...)
                 // for spatial + interest-based filtering at scale (50+ Councils, 64+ players).
                 vec![]
             } else {
@@ -157,19 +160,9 @@ fn replication_forward_system(
         };
 
         // PRODUCTION EMISSION POINT
-        // When a real NetworkSender / replication broadcaster is available, replace the logging below with:
-        // for player in target_players {
-        //     network_sender.send_to_player(player, &event.message);
-        // }
-        //
-        // Recommended production enhancements:
-        // - Interest/spatial filtering for high participant counts
-        // - Delta compression for frequent small updates (SovereigntyHeartbeat, RBEFlowUpdate)
-        // - Batching multiple SafetyNetBroadcasts in the same tick
-        // - Backpressure / rate limiting if client ingestion is slow
-
+        // When a real NetworkSender / replication broadcaster is available, replace logging with actual send.
         tracing::info!(
-            "[SafetyNet v19.3 REPLICATION] Delivering SafetyNetBroadcast | targets={:?} | reason={}",
+            "[SafetyNet v19.4 REPLICATION] Delivering SafetyNetBroadcast | targets={:?} | reason={}",
             target_players,
             event.message
         );
@@ -185,4 +178,4 @@ fn current_timestamp_ms() -> u64 {
 }
 
 // Thunder locked in. Yoi ⚡️
-// End of safety_net_broadcast.rs v19.3 — Production SafetyNet with interest-aware replication forwarding.
+// End of safety_net_broadcast.rs v19.4 — Production SafetyNet with interest-aware replication forwarding.
