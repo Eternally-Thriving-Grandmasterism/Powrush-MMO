@@ -6,6 +6,7 @@ use bevy::prelude::*;
 use simulation::bot_detection::{BotDetectionConfig, ServerRateLimiter, BotSuspicion, validate_harvest_action, validate_epiphany_trigger};
 use simulation::epiphany_catalyst::{EpiphanyContext, EpiphanyTelemetryEvent};
 
+/// Cross-link: ServerAntiCheatPlugin (rate limiting, harvest/epiphany validation via ServerRateLimiter/BotSuspicion) ties to RBE abundance integrity, simulation orchestrator/emergence/ability_tree, InterestManager visible culling, render pipeline, council bloom visuals, VFX modulation, GPU foresight, and persistence (epiphany/synergy/council trial).
 pub struct ServerAntiCheatPlugin;
 
 impl Plugin for ServerAntiCheatPlugin {

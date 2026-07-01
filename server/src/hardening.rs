@@ -13,6 +13,7 @@ use nix::unistd::{getuid, setuid, Uid};
 use seccompiler::{BpfProgram, SeccompAction, SeccompFilter, SeccompRule};
 use sha2::{Digest, Sha256};
 
+/// Cross-link: apply_server_hardening (seccomp/landlock/privilege drop, binary integrity, anti-debug, capability bounding) protects sovereign RBE/persistence/council systems, simulation integrity, render pipeline, InterestManager, GPU foresight, and mercy-aligned deployment.
 pub fn apply_server_hardening() {
     if env::var("POWRUSH_DISABLE_HARDENING").is_ok() {
         println!("[Hardening] All server hardening disabled");

@@ -82,6 +82,7 @@ fn safety_net_periodic_system(
 }
 
 /// Handles emit requests and produces OutgoingServerMessage
+/// Cross-link: SafetyNet (interest-aware replication via InterestManager, AbundanceSafetyNet/CouncilBloom/EpiphanyConfirmed/RBEFlowUpdate events, persistence/telemetry integration) ties to recovered render pipeline, InterestManager visible culling, simulation orchestrator/emergence/ability_tree, council bloom visuals, VFX modulation, RBE abundance, GPU foresight, and persistence (epiphany/synergy/council trial/faction).
 fn handle_emit_safety_net_event(
     mut events: EventReader<EmitSafetyNetBroadcast>,
     persistence: Option<Res<PersistenceManager>>,
