@@ -1,52 +1,81 @@
 /*!
  * client/src/inventory_ui.rs
- * Full 40-slot grid now renders real data from ClientInventory + ClientHotbar.
+ * Client now sends InventoryMove for general grid drags.
  */
 
 use bevy::prelude::*;
-use crate::inventory_replication::{ClientHotbar, ClientInventory};
+use crate::networking::OutgoingClientMessages;
+use shared::protocol::ClientMessage;
 
-pub fn update_inventory_grid(
-    client_hotbar: Res<ClientHotbar>,
-    client_inventory: Res<ClientInventory>,
-    mut query: Query<(&InventorySlot, &mut UiImage, Option<&mut Text>)>,
+// ... existing InventorySlot, InventoryDragState, etc. ...
+
+pub fn handle_drop(
+    mut commands: Commands,
+    mut drag: ResMut<InventoryDragState>,
+    mut demo_inv: ResMut<DemoInventory>,
+    mut gpu_state: ResMut<GpuSimulationState>,
+    target_query: Query<(&InventorySlot, &Interaction, Entity)>,
+    outgoing: Res<OutgoingClientMessages>,
 ) {
-    for (slot, mut ui_image, mut text_opt) in query.iter_mut() {
-        let idx = slot.index as usize;
+    if !drag.is_dragging || drag.source.is_none() { return; }
+    let src = drag.source.unwrap();
 
-        let (count, rarity) = if slot.is_hotbar && idx < 8 {
-            let s = &client_hotbar.slots[idx];
-            (s.count, s.rarity)
-        } else if idx < 40 {
-            // Non-hotbar general inventory slots
-            let s = &client_inventory.slots[idx];
-            (s.count, s.rarity)
-        } else {
-            (0, 0)
-        };
+    for (tgt, interaction, _e) in target_query.iter() {
+        if *interaction == Interaction::Pressed || *interaction == Interaction::Hovered {
+            if tgt.index == src.index && tgt.is_hotbar == src.is_hotbar {
+                cancel_drag(&mut commands, &mut drag);
+                return;
+            }
 
-        let color = if count > 0 {
-            get_rarity_color(rarity)
-        } else {
-            Color::rgb(0.15, 0.15, 0.2)
-        };
+            let validity = validate_move(&src, tgt);
 
-        ui_image.color = color;
+            if validity.allowed {
+                // Optimistic local update
+                if src.is_hotbar && tgt.is_hotbar {
+                    // Hotbar swap (local + will send message)
+                    let s = src.index as usize;
+                    let t = tgt.index as usize;
+                    if s < 8 && t < 8 {
+                        let tmp = gpu_state.hotbar[s].count;
+                        gpu_state.hotbar[s].count = gpu_state.hotbar[t].count;
+                        gpu_state.hotbar[t].count = tmp;
+                    }
 
-        if let Some(text) = text_opt.as_mut() {
-            text.sections[0].value = if count > 0 { format!("x{:02}", count) } else { String::new() };
+                    // Send hotbar-specific message
+                    let _ = outgoing.tx.send(ClientMessage::InventoryHotbarMove {
+                        from_slot: src.index as u8,
+                        to_slot: tgt.index as u8,
+                    });
+                } else {
+                    // General grid move (or grid <-> hotbar)
+                    demo_inv.swap(src.index as usize, tgt.index as usize);
+
+                    // Send general inventory move to server
+                    let _ = outgoing.tx.send(ClientMessage::InventoryMove {
+                        from: src.index,
+                        to: tgt.index,
+                    });
+                }
+
+                info!("[Inventory] Sent move to server: {:?} -> {:?}", src, tgt);
+            }
+
+            cancel_drag(&mut commands, &mut drag);
+            return;
         }
     }
+
+    cancel_drag(&mut commands, &mut drag);
 }
 
-// Plugin registration
+// ... rest of file ...
+
 pub struct InventoryUiPlugin;
 
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ClientHotbar>()
-           .init_resource::<ClientInventory>()
-           .add_systems(Update, update_inventory_grid);
+        // ...
+        // OutgoingClientMessages should already be inserted by NetworkingPlugin
     }
 }
 
