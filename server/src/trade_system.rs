@@ -3,6 +3,7 @@
 // + Hardened against duping (nonce + re-validation before mutation)
 // + Minimal clean SurrealDB transaction wrapper
 // + Saga compensation for inventory mutations
+// + Integration with Hybrid Cryptographic Trade Protocol
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -11,6 +12,9 @@ use surrealdb::Surreal;
 use tracing::{info, error, warn};
 use serde::{Serialize, Deserialize};
 use crate::harvesting_system::ServerInventoryComponent;
+use crate::trade::cryptographic_trade_protocol::{
+    CryptographicTradeOffer, HybridTradeProtocol, CryptographicTradeProtocol, CryptoTradeError,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Trade {
@@ -91,6 +95,25 @@ impl TradeSystem {
 
         self.active_trades.insert(trade_id, trade);
         Ok(trade_id);
+    }
+
+    /// Create a hybrid (Ed25519 + Dilithium) cryptographically signed trade offer
+    pub fn create_hybrid_signed_offer(
+        &self,
+        trade: &Trade,
+        classical_secret: &[u8],
+        classical_public: &[u8],
+        pq_secret: &[u8],
+        pq_public: &[u8],
+    ) -> Result<CryptographicTradeOffer, CryptoTradeError> {
+        let protocol = HybridTradeProtocol;
+        protocol.create_signed_offer(trade, classical_secret, classical_public, pq_secret, pq_public)
+    }
+
+    /// Verify a hybrid cryptographic trade offer
+    pub fn verify_hybrid_trade_offer(&self, offer: &CryptographicTradeOffer) -> bool {
+        let protocol = HybridTradeProtocol;
+        protocol.verify_offer(offer)
     }
 
     /// Hardened accept_trade_atomic with:
