@@ -198,7 +198,7 @@ impl PlayerSaveData {
         let package = SharePackage {
             version: 1,
             index: 0, // Will be set by caller if needed
-            label,
+n            label,
             created_at: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
@@ -382,6 +382,8 @@ impl PlayerSaveData {
 
     /// Lightweight hook to record council trial outcomes into persistence.
     /// Called from server council handler. Preserves all existing epiphany/agent data.
+    /// Cross-link: Council trial outcomes, epiphanies, synergy, and ability states feed InterestManager visible culling
+    /// and recovered render post-FX pipeline for council bloom visuals + RBE abundance resonance.
     pub fn record_council_trial_outcome(
         &mut self,
         session_id: u64,

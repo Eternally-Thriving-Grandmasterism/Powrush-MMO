@@ -143,4 +143,6 @@ fn update_playtime(
 
 // End of simulation/src/player_persistence/mod.rs v19.3.37
 // Encryption abstraction integrated. All crash recovery, auto-save, and flush logic preserved.
+// Cross-link: Persistence events (epiphany, council trial, synergy, crash recovery) feed InterestManager visible sets
+// and recovered render post-FX culling for performance + council bloom / abundance visuals.
 // Thunder locked in. Yoi ⚡
