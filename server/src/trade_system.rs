@@ -3,6 +3,7 @@
 // 1. Better abstraction for accept_trade_atomic (decoupled from HashMap)
 // 2. Added validation that target has requested resources
 // 3. Added expire_trades() method
+// + Minimal clean SurrealDB transaction wrapper for true DB atomicity on trade records
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -46,6 +47,19 @@ impl TradeSystem {
 
     async fn load_active_trades_from_db(&mut self) { /* preserved */ }
 
+    /// Minimal clean SurrealDB transaction wrapper.
+    /// Use for any multi-statement DB work that must be atomic.
+    async fn run_db_transaction<F, Fut, T>(&self, f: F) -> Result<T, String>
+    where
+        F: FnOnce(&mut surrealdb::Transaction) -> Fut,
+        Fut: std::future::Future<Output = Result<T, surrealdb::Error>>,
+    {
+        let mut tx = self.db.begin().await.map_err(|e| format!("Transaction begin failed: {}", e))?;
+        let result = f(&mut tx).await.map_err(|e| format!("Transaction operation failed: {}", e))?;
+        tx.commit().await.map_err(|e| format!("Transaction commit failed: {}", e))?;
+        Ok(result)
+    }
+
     pub async fn initiate_trade(
         &mut self,
         offeror_id: u64,
@@ -53,7 +67,6 @@ impl TradeSystem {
         offered: HashMap<String, f32>,
         requested: HashMap<String, f32>,
     ) -> Result<u64, String> {
-        // ... existing logic ...
         let trade_id = self.next_trade_id;
         self.next_trade_id += 1;
 
@@ -68,15 +81,18 @@ impl TradeSystem {
             expires_at: Some(std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_secs() + 300),
         };
 
-        let _ = self.db.create::<Option<Trade>>(("trade", trade_id)).content(trade.clone()).await;
+        // Use transaction wrapper for atomic create
+        self.run_db_transaction(|tx| async move {
+            tx.create::<Option<Trade>>(("trade", trade_id)).content(trade.clone()).await
+        }).await?;
+
         self.active_trades.insert(trade_id, trade);
         Ok(trade_id);
     }
 
     /// Refactored: Now takes two inventory references instead of the full HashMap.
     /// This greatly reduces coupling with the main loop.
-    /// Atomicity improved: Inventory mutations performed first; DB delete only on success.
-    /// Proper error paths and validation.
+    /// Inventory mutations happen first (in-memory). DB operations are wrapped in a transaction for true atomicity on the trade record.
     pub async fn accept_trade_atomic(
         &mut self,
         trade_id: u64,
@@ -96,7 +112,7 @@ impl TradeSystem {
             }
         }
 
-        // Perform resource transfer (in-memory first for atomicity feel)
+        // Perform resource transfer (in-memory)
         for (res, amount) in &trade.offered {
             offeror_inventory.remove_resource(res, *amount);
             target_inventory.add_resource(res, *amount);
@@ -106,11 +122,15 @@ impl TradeSystem {
             offeror_inventory.add_resource(res, *amount);
         }
 
-        // Now safe to remove from active and DB
+        // DB operations now inside transaction for atomicity
         if self.active_trades.remove(&trade_id).is_some() {
-            let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
-            // Update status in DB (best effort)
-            let _ = self.db.query(format!("UPDATE trade:{} SET status = 'accepted'", trade_id)).await;
+            self.run_db_transaction(|tx| async move {
+                tx.delete::<Option<Trade>>(("trade", trade_id)).await?;
+                // Optional: also update status inside same tx if desired
+                // tx.query(format!("UPDATE trade:{} SET status = 'accepted'", trade_id)).await?;
+                Ok::<(), surrealdb::Error>(())
+            }).await?;
+
             info!("Trade {} completed successfully by player {}", trade_id, accepting_player_id);
         }
 
@@ -118,9 +138,11 @@ impl TradeSystem {
     }
 
     pub async fn reject_trade(&mut self, trade_id: u64, rejecting_player_id: u64) -> Result<(), String> {
-        // ... existing logic ...
         if let Some(_) = self.active_trades.remove(&trade_id) {
-            let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
+            // Use transaction wrapper
+            self.run_db_transaction(|tx| async move {
+                tx.delete::<Option<Trade>>(("trade", trade_id)).await
+            }).await?;
         }
         Ok(());
     }
@@ -140,7 +162,9 @@ impl TradeSystem {
 
         for trade_id in expired {
             if let Some(_) = self.active_trades.remove(&trade_id) {
-                let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
+                let _ = self.run_db_transaction(|tx| async move {
+                    tx.delete::<Option<Trade>>(("trade", trade_id)).await
+                }).await;
                 warn!("Trade {} expired and was auto-cancelled", trade_id);
             }
         }
