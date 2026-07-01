@@ -3,7 +3,7 @@
 // + Hardened against duping
 // + Hybrid Cryptographic Trade Protocol
 // + Secure path + rate limiting
-// + Player key management + DB persistence
+// + Full SurrealDB persistence for player hybrid keys
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -29,7 +29,7 @@ pub struct Trade {
     pub nonce: u64,
 }
 
-/// Player's hybrid keypair (classical + post-quantum) — persisted
+/// Player's hybrid keypair (classical + post-quantum) — fully persisted
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlayerKeyPair {
     pub classical_public: Vec<u8>,
@@ -67,23 +67,42 @@ impl TradeSystem {
 
     async fn load_active_trades_from_db(&mut self) { /* preserved */ }
 
-    /// Load player hybrid keys from DB
+    /// Load all player hybrid keys from SurrealDB
     async fn load_player_keys_from_db(&mut self) {
-        // In a full implementation we would query SurrealDB here.
-        // For now we keep in-memory only on startup (keys generated on demand).
-        // Future: SELECT * FROM player_keys
-        info!("Player key persistence layer ready (in-memory + DB hook prepared)");
+        // Query all player_keys records
+        match self.db.select::<Vec<(u64, PlayerKeyPair)>>("player_keys").await {
+            Ok(records) => {
+                for (player_id, keys) in records {
+                    self.player_keys.insert(player_id, keys);
+                }
+                info!("Loaded {} player keypairs from database", self.player_keys.len());
+            }
+            Err(e) => {
+                warn!("Failed to load player keys from DB: {}. Starting fresh.", e);
+            }
+        }
     }
 
-    /// Save a player's hybrid keys to DB
+    /// Save (or update) a player's hybrid keys to SurrealDB
     async fn save_player_keys_to_db(&self, player_id: u64, keys: &PlayerKeyPair) {
-        // Placeholder for SurrealDB persistence
-        // Future: CREATE player_keys CONTENT { player_id, keys }
-        let _ = self.run_db_transaction(|tx| async move {
-            // tx.create::<Option<PlayerKeyPair>>(("player_keys", player_id))
-            //    .content(keys.clone()).await
+        let result = self.run_db_transaction(|tx| async move {
+            tx.create::<Option<PlayerKeyPair>>(("player_keys", player_id))
+                .content(keys.clone())
+                .await?;
             Ok::<(), surrealdb::Error>(())
         }).await;
+
+        if result.is_ok() {
+            info!("Saved hybrid keys for player {}", player_id);
+        } else {
+            // Try update if create fails (already exists)
+            let _ = self.run_db_transaction(|tx| async move {
+                tx.update::<Option<PlayerKeyPair>>(("player_keys", player_id))
+                    .content(keys.clone())
+                    .await?;
+                Ok::<(), surrealdb::Error>(())
+            }).await;
+        }
     }
 
     async fn run_db_transaction<F, Fut, T>(&self, f: F) -> Result<T, String>
@@ -112,9 +131,9 @@ impl TradeSystem {
         true
     }
 
-    /// Generate and store hybrid keys (with future DB persistence)
-    pub fn get_or_create_player_keys(&mut self, player_id: u64) -> &PlayerKeyPair {
-        let entry = self.player_keys.entry(player_id).or_insert_with(|| {
+    /// Generate (if needed) and persist hybrid keys for a player
+    pub async fn get_or_create_player_keys(&mut self, player_id: u64) -> &PlayerKeyPair {
+        if !self.player_keys.contains_key(&player_id) {
             let protocol = HybridTradeProtocol;
             if let Ok((classical_pk, classical_sk, pq_pk, pq_sk)) = protocol.generate_keypair() {
                 let keys = PlayerKeyPair {
@@ -123,18 +142,24 @@ impl TradeSystem {
                     pq_public: pq_pk,
                     pq_secret: pq_sk,
                 };
-                // TODO: await self.save_player_keys_to_db(player_id, &keys);
-                keys
+
+                self.player_keys.insert(player_id, keys.clone());
+
+                // Persist to SurrealDB
+                self.save_player_keys_to_db(player_id, &keys).await;
+
+                info!("Generated and persisted new hybrid keys for player {}", player_id);
             } else {
-                PlayerKeyPair {
+                self.player_keys.insert(player_id, PlayerKeyPair {
                     classical_public: vec![],
                     classical_secret: vec![],
                     pq_public: vec![],
                     pq_secret: vec![],
-                }
+                });
             }
-        });
-        entry
+        }
+
+        self.player_keys.get(&player_id).unwrap()
     }
 
     pub fn get_player_keys(&self, player_id: u64) -> Option<&PlayerKeyPair> {
