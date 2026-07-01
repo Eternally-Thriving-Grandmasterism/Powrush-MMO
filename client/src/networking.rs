@@ -1,23 +1,20 @@
 /*!
- * Core networking plugin: WebSocket + Snappy + outgoing ClientMessage support
- *
- * v18.96 Eternal Polish — Now supports sending ClientMessage::SyncLocalization etc.
+ * Core networking plugin with central ServerMessage dispatcher.
  */
 
 use bevy::prelude::*;
 use futures_util::{SinkExt, StreamExt};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tokio::sync::mpsc;
-use std::sync::Arc;
 use crate::settings::ClientSettings;
 use shared::protocol::ClientMessage;
+use crate::server_message_dispatcher::{server_message_dispatcher, ServerMessageEvent};
 
 #[derive(Resource)]
 pub struct ServerUpdateChannel {
     pub rx: mpsc::Receiver<Vec<u8>>,
 }
 
-// NEW v18.96: Outgoing channel for ClientMessage (e.g. SyncLocalization)
 #[derive(Resource)]
 pub struct OutgoingClientMessages {
     pub tx: mpsc::UnboundedSender<ClientMessage>,
@@ -32,7 +29,9 @@ impl Plugin for NetworkingPlugin {
 
         app.insert_resource(ServerUpdateChannel { rx: rx_in })
            .insert_resource(OutgoingClientMessages { tx: tx_out })
-           .add_systems(Startup, setup_websocket_connection(tx_in, rx_out));
+           .add_event::<ServerMessageEvent>()                    // NEW
+           .add_systems(Startup, setup_websocket_connection(tx_in, rx_out))
+           .add_systems(Update, server_message_dispatcher);     // NEW central dispatcher
     }
 }
 
@@ -44,13 +43,12 @@ fn setup_websocket_connection(
         let url = "ws://localhost:9001";
 
         let (ws_stream, _) = match connect_async(url).await {
-            Ok((stream, resp)) => (stream, resp),
+            Ok((stream, resp) ) => (stream, resp),
             Err(e) => { error!("Failed to connect: {}", e); return; }
         };
 
         let (mut write, mut read) = ws_stream.split();
 
-        // Writer task for outgoing ClientMessage
         tokio::spawn(async move {
             while let Some(client_msg) = rx_out.recv().await {
                 if let Ok(bytes) = bincode::serialize(&client_msg) {
@@ -59,12 +57,10 @@ fn setup_websocket_connection(
             }
         });
 
-        // Reader task (existing incoming logic...)
         while let Some(msg) = read.next().await {
-            // ... existing decompression + tx_in.send ...
+            // existing reader logic (push to tx_in)
         }
     });
 }
 
-// End of client/src/networking.rs v18.96
-// OutgoingClientMessages channel added. Thunder locked in. Yoi ⚡
+// End of networking.rs
