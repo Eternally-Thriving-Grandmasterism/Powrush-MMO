@@ -1,6 +1,6 @@
 /*!
  * client/src/inventory_replication.rs
- * Full wiring of ClientInventory from server InventoryUpdate.
+ * Server confirmation logic: Always treat incoming InventoryUpdate as authoritative truth.
  */
 
 use bevy::prelude::*;
@@ -16,6 +16,20 @@ pub struct ClientInventory {
     pub slots: [HotbarSlot; 40],
 }
 
+#[derive(Resource)]
+pub struct HotbarSyncFlash {
+    pub timer: Timer,
+}
+
+impl Default for HotbarSyncFlash {
+    fn default() -> Self {
+        Self { timer: Timer::from_seconds(0.6, TimerMode::Once) }
+    }
+}
+
+/// Server confirmation logic.
+/// Every InventoryUpdate from the server is treated as the single source of truth.
+/// Any optimistic local changes are overwritten by the authoritative server state.
 pub fn receive_inventory_update(
     mut events: EventReader<crate::server_message_dispatcher::ServerMessageEvent>,
     mut client_hotbar: ResMut<ClientHotbar>,
@@ -24,14 +38,17 @@ pub fn receive_inventory_update(
 ) {
     for crate::server_message_dispatcher::ServerMessageEvent(msg) in events.read() {
         if let ServerMessage::InventoryUpdate { hotbar, inventory, abundance_score, .. } = msg {
+            // === SERVER CONFIRMATION ===
+            // Always replace local state with server's authoritative version.
+            // This reconciles any optimistic predictions made during drag & drop.
             client_hotbar.slots = hotbar.clone();
             client_inventory.slots = inventory.clone();
 
-            // Trigger hotbar flash
+            // Trigger visual confirmation flash
             flash.timer.reset();
             flash.timer.unpause();
 
-            info!("[InventoryReplication] Full inventory + hotbar synced | abundance={:.1}", abundance_score);
+            debug!("[InventoryReplication] Server confirmation received | abundance={:.1}", abundance_score);
         }
     }
 }
