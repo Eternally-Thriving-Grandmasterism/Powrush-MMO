@@ -150,6 +150,8 @@ impl EconomicLayer {
     /// High collective attunement and successful blooms = RBE blessing.
     /// Low attunement or failed seals = economic friction and pressure.
     /// Call this from orchestrator TickResult or council resolution when a council session ends.
+    /// Cross-link: RBE abundance/pressure/sustainability changes + GPU foresight + council policy directly influence
+    /// InterestManager visible entity culling and recovered client render post-FX pipeline (cinematic effects gated by visible sets).
     pub fn apply_council_policy_impact(
         &mut self,
         collective_attunement: f32,
@@ -222,7 +224,7 @@ impl EconomicLayer {
         }
 
         mercy_gate.post_economic_tick_validate(world)?;
-        Ok(());
+        Ok(())
     }
 
     /// Applies a DynamicEmergenceEvent from TickResult into the economic simulation.
@@ -264,7 +266,7 @@ impl EconomicLayer {
         }
 
         mercy_gate.post_economic_tick_validate(world)?;
-        Ok(());
+        Ok(())
     }
 
     /// Applies GPU PATSAGi foresight recommendations into the economic system.

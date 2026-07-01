@@ -55,6 +55,8 @@ impl HarvestingSystem {
     /// we count them and prepare for persistence via record_synergy_and_policy_highlights.
     /// This ensures harvest-driven synergy appears in Legacy Journal + UI.
     /// Aligned with hybrid master-secret persistence recovery model.
+    /// Cross-link: Harvest outcomes, epiphany, and council bloom amplification feed InterestManager visible sets
+    /// and recovered client render post-FX culling (VelocityPrepass/TAA/MotionBlur/CA) for performance + abundance visuals.
     pub fn attempt_harvest(
         &mut self,
         world: &mut SovereignWorldState,
