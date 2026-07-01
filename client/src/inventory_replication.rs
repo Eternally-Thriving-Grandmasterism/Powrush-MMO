@@ -1,15 +1,15 @@
 /*!
  * client/src/inventory_replication.rs
- * Delta reconciliation logic for InventoryUpdate.
+ * Rollback logic for conflicting slots during server reconciliation.
  */
 
 use bevy::prelude::*;
-use shared::protocol::{ServerMessage, HotbarSlot};
+use shared::protocol::HotbarSlot;
 
-// ... existing resources ...
+// ... existing resources (ClientHotbar, ClientInventory, HotbarSyncFlash) ...
 
-/// Server confirmation with delta reconciliation.
-/// Compares incoming server state with local state and only applies differences.
+/// Server reconciliation with rollback for conflicting slots.
+/// When server state differs from local prediction, we rollback to authoritative value.
 pub fn receive_inventory_update(
     mut events: EventReader<crate::server_message_dispatcher::ServerMessageEvent>,
     mut client_hotbar: ResMut<ClientHotbar>,
@@ -17,31 +17,44 @@ pub fn receive_inventory_update(
     mut flash: ResMut<HotbarSyncFlash>,
 ) {
     for crate::server_message_dispatcher::ServerMessageEvent(msg) in events.read() {
-        if let ServerMessage::InventoryUpdate { hotbar, inventory, abundance_score, .. } = msg {
-            let mut changed = false;
+        if let crate::server_message_dispatcher::ServerMessage::InventoryUpdate { hotbar, inventory, abundance_score, .. } = msg {
+            let mut rolled_back = false;
 
-            // Delta reconcile hotbar
+            // Check hotbar for conflicts
             for (i, server_slot) in hotbar.iter().enumerate() {
-                if i < client_hotbar.slots.len() && client_hotbar.slots[i] != *server_slot {
-                    client_hotbar.slots[i] = server_slot.clone();
-                    changed = true;
+                if i < client_hotbar.slots.len() {
+                    let local = &client_hotbar.slots[i];
+                    if local != server_slot {
+                        // Conflict detected → rollback to server authority
+                        warn!(
+                            "[Rollback] Hotbar slot {} conflicted. Local: item_id={}, count={}. Server: item_id={}, count={}",
+                            i, local.item_id, local.count, server_slot.item_id, server_slot.count
+                        );
+                        client_hotbar.slots[i] = server_slot.clone();
+                        rolled_back = true;
+                    }
                 }
             }
 
-            // Delta reconcile general inventory
+            // Check general inventory for conflicts
             for (i, server_slot) in inventory.iter().enumerate() {
-                if i < client_inventory.slots.len() && client_inventory.slots[i] != *server_slot {
-                    client_inventory.slots[i] = server_slot.clone();
-                    changed = true;
+                if i < client_inventory.slots.len() {
+                    let local = &client_inventory.slots[i];
+                    if local != server_slot {
+                        warn!(
+                            "[Rollback] Inventory slot {} conflicted. Rolling back to server state.",
+                            i
+                        );
+                        client_inventory.slots[i] = server_slot.clone();
+                        rolled_back = true;
+                    }
                 }
             }
 
-            if changed {
+            if rolled_back {
                 flash.timer.reset();
                 flash.timer.unpause();
-                debug!("[InventoryReplication] Delta reconciliation applied changes | abundance={:.1}", abundance_score);
-            } else {
-                trace!("[InventoryReplication] InventoryUpdate received with no changes");
+                debug!("[InventoryReplication] Rollback applied | abundance={:.1}", abundance_score);
             }
         }
     }
