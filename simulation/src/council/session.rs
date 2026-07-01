@@ -51,6 +51,8 @@ impl CouncilArchetype {
     }
 
     /// Archetype-specific scoring with optional world state delta awareness.
+    /// Cross-link: World-delta (RBE sustainability/abundance) feeds render visuals, divine whispers,
+    /// and InterestManager visible culling for recovered client render post-FX pipeline.
     pub fn score_proposal(
         &self,
         decision: &CouncilDecision,
@@ -375,3 +377,4 @@ impl CouncilSession {
         resolved
     }
 }
+"

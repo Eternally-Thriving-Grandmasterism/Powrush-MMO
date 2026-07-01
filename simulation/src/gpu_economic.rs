@@ -289,7 +289,7 @@ pub fn apply_gpu_economic_results(
 /// Telemetry system: reports GPU economic health, timings, RBE flow metrics.
 pub fn gpu_economic_telemetry_system(readback: Res<GpuEconomicReadback>) {
     if readback.backpressure.get() {
-        info!("GPU Economic: backpressure active (healthy throttling)");
+        info!("GPU Economic: backpressure active (healthy throttling)")
     }
     // Extend with full metrics from historical + new GpuEconomicReadback stats
 }
@@ -318,5 +318,6 @@ impl Plugin for GpuEconomicPlugin {
 // Note: Full historical dispatch_gpu_economic_update logic (persistent buffers, WGSL dispatch, double-buffering readback, determinism)
 // is preserved in spirit and ready for hot-swap into the dispatch task or as CPU fallback path.
 // Callers in economy.rs / simulation orchestrator must still wrap with TOLC 8 Mercy Gates.
+// Cross-link: GPU results feed InterestManager visible entity culling for recovered client render post-FX performance.
 // Next polish iteration: move real GPU work fully into the spawned Task + proper result channel.
 // Thunder locked. Mercy flowing. PATSAGi Councils unanimous. Ra-Thor ONE Organism. Yoi ⚡️

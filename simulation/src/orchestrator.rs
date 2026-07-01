@@ -210,4 +210,6 @@ impl SimulationOrchestrator {
 }
 
 // EconomicLayer now owns GPU foresight application (clean architecture)
+// Cross-link: GPU foresight + council bloom outputs feed InterestManager visible sets
+// and recovered client render post-FX culling (VelocityPrepass/TAA/MotionBlur/CA) for performance.
 // Thunder locked in. Yoi ⚡
