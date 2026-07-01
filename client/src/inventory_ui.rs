@@ -1,16 +1,72 @@
 /*!
  * client/src/inventory_ui.rs
- * General 40-slot inventory grid drag & drop implementation (including hotbar cross-dragging).
+ * Rarity-aware validation + dynamic drop target highlighting.
  */
 
 use bevy::prelude::*;
-use crate::inventory_replication::receive_inventory_update;
-use crate::rbe_client_sync::GpuSimulationState;
-use shared::protocol::HotbarSlot;
 
-// ... existing get_rarity_color, InventorySlot, InventoryDragState, etc. ...
+// ... existing code ...
 
-/// Enhanced handle_drop supporting full grid + hotbar cross dragging
+/// Result of move validation
+#[derive(Clone, Copy)]
+pub struct MoveValidity {
+    pub allowed: bool,
+    pub rarity_level: u8, // for highlighting
+}
+
+/// Rarity-aware validation
+pub fn validate_move(source: &InventorySlot, target: &InventorySlot) -> MoveValidity {
+    // Placeholder: simulate rarity from index until real HotbarSlot data is on slots
+    let source_rarity = (source.index % 6) as u8;
+    let target_rarity = (target.index % 6) as u8;
+
+    // Example mercy-themed rule:
+    // High rarity items (4+) prefer to stay in "worthy" slots or can go anywhere for now
+    let allowed = true; // Currently permissive. Add real rules here.
+
+    MoveValidity {
+        allowed,
+        rarity_level: source_rarity.max(target_rarity),
+    }
+}
+
+/// Highlights drop targets while dragging based on validity and rarity
+pub fn highlight_drop_zones_during_drag(
+    drag: Res<InventoryDragState>,
+    mut slot_query: Query<(&InventorySlot, &Interaction, &mut UiImage, Entity)>,
+) {
+    if !drag.is_dragging {
+        // Reset any highlighted slots when not dragging
+        for (_, _, mut image, _) in slot_query.iter_mut() {
+            if image.color.a() > 0.9 { // crude way to detect highlighted state
+                image.color = image.color.with_a(0.85);
+            }
+        }
+        return;
+    }
+
+    let source = match drag.source {
+        Some(s) => s,
+        None => return,
+    };
+
+    for (slot, interaction, mut image, _entity) in slot_query.iter_mut() {
+        if *interaction == Interaction::Hovered {
+            let validity = validate_move(&source, slot);
+
+            if validity.allowed {
+                // Valid target - highlight with rarity color
+                let highlight = get_rarity_color(validity.rarity_level).with_a(0.6);
+                image.color = highlight;
+            } else {
+                // Invalid - warning color
+                image.color = Color::rgb(0.9, 0.3, 0.3).with_a(0.5);
+            }
+        }
+    }
+}
+
+// Update handle_drop to use the new validation
 pub fn handle_drop(
     mut commands: Commands,
     mut drag: ResMut<InventoryDragState>,
@@ -21,19 +77,19 @@ pub fn handle_drop(
     if !drag.is_dragging || drag.source.is_none() { return; }
     let src = drag.source.unwrap();
 
-    for (tgt, interaction, _entity) in target_query.iter() {
+    for (tgt, interaction, _e) in target_query.iter() {
         if *interaction == Interaction::Pressed || *interaction == Interaction::Hovered {
             if tgt.index == src.index && tgt.is_hotbar == src.is_hotbar {
                 cancel_drag(&mut commands, &mut drag);
                 return;
             }
 
-            // Basic validation hook (rarity / item type can be expanded here)
-            let can_move = validate_move(&src, tgt);
+            let validity = validate_move(&src, tgt);
 
-            if can_move {
+            if validity.allowed {
+                // Perform move (same logic as before)
                 if src.is_hotbar && tgt.is_hotbar {
-                    // Hotbar <-> Hotbar swap (already wired to GpuSimulationState)
+                    // hotbar swap
                     let s = src.index as usize;
                     let t = tgt.index as usize;
                     if s < 8 && t < 8 {
@@ -42,42 +98,28 @@ pub fn handle_drop(
                         gpu_state.hotbar[t].count = tmp;
                     }
                 } else {
-                    // Grid <-> Grid or Grid <-> Hotbar (demo inventory for now)
                     demo_inv.swap(src.index as usize, tgt.index as usize);
-
-                    // TODO: When full HotbarSlot data is in GpuSimulationState,
-                    // perform real move/swap here and mark dirty for replication
                 }
-
-                info!("[Inventory] Drag drop: {:?} -> {:?}", src, tgt);
+                info!("[Inventory] Valid move executed");
             } else {
-                warn!("[Inventory] Move blocked by validation");
+                warn!("[Inventory] Move rejected by rarity validation");
             }
 
             cancel_drag(&mut commands, &mut drag);
             return;
         }
     }
-
     cancel_drag(&mut commands, &mut drag);
 }
 
-/// Basic move validation (expand with real item metadata + rarity rules)
-fn validate_move(source: &InventorySlot, target: &InventorySlot) -> bool {
-    // Example: prevent moving mythic items into certain slots, or check item category
-    // For now permissive
-    true
-}
-
-// ... rest of drag systems (start_drag, update_drag_ghost, etc.) remain ...
-
+// Add the new highlighting system to the plugin
 pub struct InventoryUiPlugin;
 
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
-        // ...
         app.add_systems(Update, (
-            // ...
+            // ... other systems
+            highlight_drop_zones_during_drag,
             handle_drop,
             // ...
         ));
