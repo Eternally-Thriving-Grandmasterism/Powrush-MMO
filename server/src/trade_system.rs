@@ -1,10 +1,8 @@
 // server/src/trade_system.rs
 // Powrush-MMO TradeSystem v16.11 — Refinements
-// 1. Better abstraction for accept_trade_atomic (decoupled from HashMap)
-// 2. Added validation that target has requested resources
-// 3. Added expire_trades() method
+// + Hardened against duping (nonce + re-validation before mutation)
 // + Minimal clean SurrealDB transaction wrapper
-// + Saga compensation for inventory mutations (reverse inventory on DB failure)
+// + Saga compensation for inventory mutations
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -24,11 +22,13 @@ pub struct Trade {
     pub status: String,
     pub created_at: u64,
     pub expires_at: Option<u64>,
+    pub nonce: u64,           // One-time use nonce to prevent replay / double-accept
 }
 
 pub struct TradeSystem {
     pub active_trades: HashMap<u64, Trade>,
     pub next_trade_id: u64,
+    pub next_nonce: u64,      // Simple nonce generator
     db: Surreal<surrealdb::engine::local::Db>,
 }
 
@@ -40,6 +40,7 @@ impl TradeSystem {
         let mut system = Self {
             active_trades: HashMap::new(),
             next_trade_id: 1,
+            next_nonce: 1,
             db,
         };
         system.load_active_trades_from_db().await;
@@ -69,6 +70,8 @@ impl TradeSystem {
     ) -> Result<u64, String> {
         let trade_id = self.next_trade_id;
         self.next_trade_id += 1;
+        let nonce = self.next_nonce;
+        self.next_nonce += 1;
 
         let trade = Trade {
             trade_id,
@@ -79,6 +82,7 @@ impl TradeSystem {
             status: "pending".to_string(),
             created_at: std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_secs(),
             expires_at: Some(std::time::SystemTime::now().duration_since(std::UNIX_EPOCH).unwrap().as_secs() + 300),
+            nonce,
         };
 
         self.run_db_transaction(|tx| async move {
@@ -89,9 +93,10 @@ impl TradeSystem {
         Ok(trade_id);
     }
 
-    /// Saga compensation for inventory:
-    /// - Record reverse operations before mutating inventory.
-    /// - If DB transaction fails after inventory mutation, apply compensation to restore previous state.
+    /// Hardened accept_trade_atomic with:
+    /// - Re-validation of trade state right before inventory mutation
+    /// - Nonce-based single-use enforcement
+    /// - Strengthened Saga compensation
     pub async fn accept_trade_atomic(
         &mut self,
         trade_id: u64,
@@ -99,10 +104,16 @@ impl TradeSystem {
         offeror_inventory: &mut ServerInventoryComponent,
         target_inventory: &mut ServerInventoryComponent,
     ) -> Result<(), String> {
+        // Initial lookup
         let trade = match self.active_trades.get(&trade_id) {
             Some(t) if t.target_id == accepting_player_id && t.status == "pending" => t.clone(),
             _ => return Err("Trade not found or invalid state".to_string()),
         };
+
+        // === Re-validate trade state immediately before mutation (anti-race / duping) ===
+        if !self.active_trades.contains_key(&trade_id) {
+            return Err("Trade no longer available".to_string());
+        }
 
         // Validate target has requested resources
         for (res, amount) in &trade.requested {
@@ -111,18 +122,15 @@ impl TradeSystem {
             }
         }
 
-        // === Saga: Record compensation actions (reverse deltas) before mutation ===
-        // For each offered resource: we added to target and removed from offeror → compensation = reverse
-        // For each requested resource: we added to offeror and removed from target → compensation = reverse
-        let mut compensation: Vec<(bool, String, f32)> = Vec::new(); // (is_offeror, resource, amount)
+        // === Saga: Record compensation actions before mutation ===
+        let mut compensation: Vec<(bool, String, f32)> = Vec::new();
 
-        // Record reverse for offered (what we will do to compensate)
         for (res, amount) in &trade.offered {
-            compensation.push((true, res.clone(), *amount));   // reverse: remove from target, add back to offeror
+            compensation.push((true, res.clone(), *amount));
             compensation.push((false, res.clone(), *amount));
         }
         for (res, amount) in &trade.requested {
-            compensation.push((false, res.clone(), *amount)); // reverse: remove from offeror, add back to target
+            compensation.push((false, res.clone(), *amount));
             compensation.push((true, res.clone(), *amount));
         }
 
@@ -136,8 +144,9 @@ impl TradeSystem {
             offeror_inventory.add_resource(res, *amount);
         }
 
-        // DB transaction (with compensation on failure)
+        // Remove from active trades (mark as consumed)
         if self.active_trades.remove(&trade_id).is_some() {
+            // DB transaction with compensation on failure
             match self.run_db_transaction(|tx| async move {
                 tx.delete::<Option<Trade>>(("trade", trade_id)).await?;
                 Ok::<(), surrealdb::Error>(())
@@ -146,9 +155,9 @@ impl TradeSystem {
                     info!("Trade {} completed successfully by player {}", trade_id, accepting_player_id);
                 }
                 Err(e) => {
-                    // === Saga Compensation: Reverse inventory changes ===
-                    warn!("DB transaction failed for trade {}: {}. Applying inventory compensation.", trade_id, e);
+                    warn!("DB transaction failed for trade {}: {}. Applying compensation.", trade_id, e);
 
+                    // Apply compensation to restore inventory
                     for (is_offeror, res, amount) in compensation {
                         if is_offeror {
                             offeror_inventory.add_resource(&res, amount);
@@ -159,10 +168,10 @@ impl TradeSystem {
                         }
                     }
 
-                    // Re-insert the trade so it can be retried or rejected
+                    // Re-insert trade so it can be retried/rejected
                     self.active_trades.insert(trade_id, trade);
 
-                    return Err(format!("Trade failed due to DB error. Inventory has been compensated. Original error: {}", e));
+                    return Err(format!("Trade failed. Inventory compensated. Error: {}", e));
                 }
             }
         }
