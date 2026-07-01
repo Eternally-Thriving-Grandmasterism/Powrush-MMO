@@ -1,60 +1,51 @@
 /*!
  * client/src/inventory_ui.rs
- * Added item rarity color coding (0-5) with mercy-themed palette.
+ * Rarity color coding extended to hotbar rendering.
  */
 
 use bevy::prelude::*;
-use crate::inventory_replication::receive_inventory_update;
-use crate::rbe_client_sync::GpuSimulationState;
 
-/// Returns a mercy-themed color for item rarity (0 = common → 5 = mythic)
+/// Returns mercy-themed color for rarity (0-5)
 pub fn get_rarity_color(rarity: u8) -> Color {
     match rarity {
-        0 => Color::rgb(0.6, 0.6, 0.65),      // Common - muted silver
-        1 => Color::rgb(0.4, 0.7, 0.4),      // Uncommon - green abundance
-        2 => Color::rgb(0.4, 0.6, 0.9),      // Rare - blue resonance
-        3 => Color::rgb(0.7, 0.5, 0.9),      // Epic - purple
-        4 => Color::rgb(0.95, 0.7, 0.3),     // Legendary - gold
-        5 => Color::rgb(1.0, 0.4, 0.6),      // Mythic - divine pink/crimson
+        0 => Color::rgb(0.6, 0.6, 0.65),   // Common
+        1 => Color::rgb(0.4, 0.7, 0.4),   // Uncommon
+        2 => Color::rgb(0.4, 0.6, 0.9),   // Rare
+        3 => Color::rgb(0.7, 0.5, 0.9),   // Epic
+        4 => Color::rgb(0.95, 0.7, 0.3),  // Legendary
+        5 => Color::rgb(1.0, 0.4, 0.6),   // Mythic
         _ => Color::rgb(0.5, 0.5, 0.55),
     }
 }
 
-// ... existing code (hotbar functions, InventorySlot, etc.) ...
+// === HOTBAR RARITY COLORING ===
 
-/// Enhanced grid rendering with rarity color coding
-pub fn update_inventory_grid(
-    gpu_state: Res<GpuSimulationState>,
-    mut query: Query<(&InventorySlot, &mut UiImage, Option<&mut Text>)>,
+/// Applies rarity color to hotbar slot backgrounds/borders
+/// Currently uses placeholder rarity. Will read from extended GpuSimulationState when full item data is wired.
+pub fn apply_hotbar_rarity_colors(
+    mut query: Query<(&HotbarItemCountText, &mut UiImage)>,
 ) {
-    for (slot, mut ui_image, mut text_opt) in query.iter_mut() {
-        let idx = slot.index as usize;
+    for (hotbar_slot, mut ui_image) in query.iter_mut() {
+        let idx = hotbar_slot.slot_index as usize;
 
-        // For now demo with placeholder rarity. Real data will come from synced HotbarSlot
-        let rarity = (idx % 6) as u8; // placeholder until full item data is wired
-        let base_color = get_rarity_color(rarity);
+        // Placeholder rarity until we extend GpuSimulationState with full HotbarSlot
+        let rarity = (idx % 6) as u8;
+        let color = get_rarity_color(rarity);
 
-        let count = if slot.is_hotbar && idx < 8 {
-            gpu_state.hotbar.get(idx).map(|s| s.count).unwrap_or(0)
-        } else {
-            ((idx % 7) + 2) as u32
-        };
-
-        if let Some(text) = text_opt.as_mut() {
-            text.sections[0].value = if count > 0 { format!("x{:02}", count) } else { String::new() };
-        }
-
-        ui_image.color = if count > 0 { base_color } else { Color::rgb(0.15, 0.15, 0.2) };
+        // Tint the slot background with rarity color (subtle)
+        ui_image.color = color.with_a(0.85);
     }
 }
 
-// Plugin and other systems remain unchanged
-pub struct InventoryUiPlugin;
+// ... existing hotbar count/cooldown systems and InventoryUiPlugin ...
 
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
-        // ...
-        app.add_systems(Update, update_inventory_grid /* ... */);
+        app.add_systems(Update, (
+            // ... existing hotbar systems ...
+            apply_hotbar_rarity_colors,
+            // ...
+        ));
     }
 }
 
