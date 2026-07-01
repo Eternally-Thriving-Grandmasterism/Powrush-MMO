@@ -1,39 +1,51 @@
 /*!
  * client/src/inventory_ui.rs
- * Main hotbar now also uses real HotbarSlot data from ClientHotbar for rarity coloring.
+ * Visual sync flash effect on hotbar when updated from server.
  */
 
 use bevy::prelude::*;
-use crate::inventory_replication::ClientHotbar;
+use crate::inventory_replication::{ClientHotbar, HotbarSyncFlash};
 
-// ... existing get_rarity_color ...
-
-/// Main hotbar rarity coloring using real server data
+/// Applies rarity colors + sync flash overlay to main hotbar
 pub fn apply_hotbar_rarity_colors(
     client_hotbar: Res<ClientHotbar>,
+    mut flash: ResMut<HotbarSyncFlash>,
+    time: Res<Time>,
     mut query: Query<(&HotbarItemCountText, &mut UiImage)>,
 ) {
+    flash.timer.tick(time.delta());
+
+    let flash_active = !flash.timer.finished();
+    let flash_color = Color::rgba(0.4, 0.9, 1.0, 0.35); // Mercy cyan flash
+
     for (hotbar_slot, mut ui_image) in query.iter_mut() {
         let idx = hotbar_slot.slot_index as usize;
 
         if idx < client_hotbar.slots.len() {
             let slot = &client_hotbar.slots[idx];
-            let base_color = if slot.count > 0 {
+            let base = if slot.count > 0 {
                 get_rarity_color(slot.rarity)
             } else {
                 Color::rgb(0.15, 0.15, 0.2)
             };
-            ui_image.color = base_color.with_a(0.85);
+
+            if flash_active {
+                // Blend base rarity color with flash
+                ui_image.color = base.mix(&flash_color, 0.6);
+            } else {
+                ui_image.color = base.with_a(0.85);
+            }
         }
     }
 }
 
-// Make sure ClientHotbar is initialized
+// Make sure HotbarSyncFlash is initialized
 pub struct InventoryUiPlugin;
 
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ClientHotbar>()
+           .init_resource::<HotbarSyncFlash>()
            .add_systems(Update, apply_hotbar_rarity_colors);
     }
 }
