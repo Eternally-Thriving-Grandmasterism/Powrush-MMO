@@ -175,6 +175,8 @@ pub enum ClientMessage {
     SafetyNetAcknowledge { last_tick: u64 },
     SafetyNetRequestFullSync,
     SyncLocalization { language: String },
+    // NEW: Inventory replication events (hotbar drag & drop -> server authoritative update)
+    InventoryHotbarMove { from_slot: u8, to_slot: u8 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -238,13 +240,15 @@ impl TradeOffer {
         created_at_ms: u64,
     ) -> Self {
         Self {
-            trade_id,
-            from_player,
-            to_player,
-            offered,
-            requested,
-            created_at_ms,
-            expires_at_ms: created_at_ms + 300_000,
+            Self {
+                trade_id,
+                from_player,
+                to_player,
+                offered,
+                requested,
+                created_at_ms,
+                expires_at_ms: created_at_ms + 300_000,
+            }
         }
     }
 
