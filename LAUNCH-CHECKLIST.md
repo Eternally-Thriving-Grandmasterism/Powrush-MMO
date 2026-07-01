@@ -27,6 +27,15 @@
 
 ---
 
+## Render Pipeline Recovery + Cross-Layer Polish (Completed in Current Cycle)
+
+- `client/src/render.rs`: Full recovery of advanced render pipeline orchestration (RenderTexturesResized event, PowrushRenderPlugin, dynamic texture setup/resize handling, render graph wiring for VelocityPrepass → TAA Reprojection → Motion Blur → Chromatic Aberration). Stub code from prior audit replaced with complete, production implementation + v18.15 enrichment notes for InterestManager visible culling, ClientPrediction velocity accuracy, and visual compute layer hooks. All valuable prior logic restored without removal.
+- Precise cross-link polish on `server/src/spatial/interest_management.rs` and `server/src/harvesting_system.rs`: Minimal targeted comments added linking InterestManager occlusion/visible culling and RBE harvest/foresight/GPU predictions directly to the recovered render post-FX pipeline and visible-entity performance gating. No logic changes. Strengthens end-to-end consistency for MMO culling + cinematic effects + RBE abundance visuals.
+
+**Status:** Complete. These changes elevate render + spatial/RBE integration to nth-degree polish while preserving every useful line of prior code.
+
+---
+
 ## Previous Cycle Summary (v20.6 — Still Valid)
 (Original v20.6 content on GPU Economic Layer + Spatial Confirmation preserved. All prior recoveries remain fully intact.)
 
