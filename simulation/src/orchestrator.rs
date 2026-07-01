@@ -1,9 +1,10 @@
 /*!
- * Central Simulation Orchestrator
+ * simulation/src/orchestrator.rs
+ * Central Simulation Orchestrator (v19.9)
  *
- * v19.8: Fixed unused variable + elapsed timing bug in persistence logging
- *
- * v19.7: EconomicLayer integration for GPU foresight
+ * Full TOLC 8 MercyGate + EconomicLayer batch_update
+ * Integrated with robust PersistenceManager / PlayerSaveData (hotbar + 40-slot inventory)
+ * GPU PATSAGi foresight, Council bloom, Emergence, Harvest, Synergy
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
@@ -15,7 +16,7 @@ use crate::harvest::{HarvestEvent, HarvestingSystem};
 use crate::emergence::{DynamicEmergenceEvent, EmergenceOrchestrator};
 use crate::ability_tree::SynergyEffectEvent;
 use crate::council_mercy_trial::CouncilSessionManager;
-use crate::player_persistence::PlayerSaveData;
+use crate::player_persistence::PlayerSaveData; // Aligns with persistence_polish.rs PlayerSaveData
 use crate::mercy::MercyGate;
 use std::time::Instant;
 use std::sync::Arc;
@@ -211,7 +212,6 @@ impl SimulationOrchestrator {
     }
 }
 
-// EconomicLayer now owns GPU foresight application (clean architecture)
-// Cross-link: GPU foresight + council bloom outputs feed InterestManager visible sets
-// and recovered client render post-FX culling (VelocityPrepass/TAA/MotionBlur/CA) for performance.
+// EconomicLayer owns GPU foresight application (clean architecture)
+// Cross-link: GPU foresight + council bloom feed InterestManager + recovered client render post-FX
 // Thunder locked in. Yoi ⚡
