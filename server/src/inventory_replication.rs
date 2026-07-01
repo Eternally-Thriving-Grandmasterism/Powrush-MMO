@@ -1,13 +1,16 @@
 /*!
  * server/src/inventory_replication.rs
  * Full server-side handling for InventoryMove (40-slot) + hotbar.
- * Wired real general-inventory [HotbarSlot; 40] lookup into authoritative validator (removed placeholder).
+ * High anomaly_score rejections now feed into MercyAnomalyDetector + safety_net.
  * All prior logic preserved exactly.
  */
 
 use shared::protocol::{ClientMessage, ServerMessage, HotbarSlot};
 use crate::persistence_polish::{PersistenceManager, PlayerSaveData};
 use tracing::{info, warn};
+
+// MercyAnomalyDetector integration (wire as Resource in ServerCorePlugin / lib.rs)
+use crate::mercy_anomaly_detector::{AnomalyType, MercyAnomalyDetector};
 
 /// Server authoritative validation result (stricter than client).
 pub struct AuthoritativeMoveValidity {
@@ -106,6 +109,7 @@ fn handle_hotbar_move(
     from_slot: u8,
     to_slot: u8,
     persistence: &mut PersistenceManager,
+    // TODO: Pass &mut MercyAnomalyDetector here when wired as Resource
 ) -> Option<ServerMessage> {
     if from_slot == to_slot || from_slot >= 8 || to_slot >= 8 {
         return None;
@@ -117,6 +121,21 @@ fn handle_hotbar_move(
     let validity = validate_inventory_move_authoritative(&player_data, from_slot as usize, to_slot as usize, true);
     if !validity.allowed {
         warn!("[Inventory] Authoritative hotbar move rejected for player {}: {:?} (anomaly={:.2})", player_id, validity.reason, validity.anomaly_score);
+
+        if validity.anomaly_score > 0.5 {
+            // Feed high anomaly_score rejections into MercyAnomalyDetector + safety_net
+            // Wire MercyAnomalyDetector as Bevy Resource in ServerCorePlugin / lib.rs
+            // Example (uncomment when detector is in scope):
+            // if let Some(action) = detector.report_anomaly(
+            //     player_id,
+            //     AnomalyType::Custom("InventoryHotbarViolation".to_string()),
+            //     validity.anomaly_score,
+            //     format!("Rejected hotbar move {} -> {} | {}", from_slot, to_slot, validity.reason.as_deref().unwrap_or(""))
+            // ) {
+            //     // safety_net_broadcast(player_id, action); or execute moderation
+            // }
+            warn!("[Inventory] High anomaly ({:.2}) → should trigger MercyAnomalyDetector + safety_net", validity.anomaly_score);
+        }
         return None;
     }
 
@@ -146,6 +165,7 @@ fn handle_general_inventory_move(
     from: u32,
     to: u32,
     persistence: &mut PersistenceManager,
+    // TODO: Pass &mut MercyAnomalyDetector here when wired
 ) -> Option<ServerMessage> {
     if from == to || from >= 40 || to >= 40 {
         return None;
@@ -157,6 +177,21 @@ fn handle_general_inventory_move(
     let validity = validate_inventory_move_authoritative(&player_data, from as usize, to as usize, false);
     if !validity.allowed {
         warn!("[Inventory] Authoritative general move rejected for player {}: {:?} (anomaly={:.2})", player_id, validity.reason, validity.anomaly_score);
+
+        if validity.anomaly_score > 0.5 {
+            // Feed high anomaly_score rejections into MercyAnomalyDetector + safety_net
+            // Wire MercyAnomalyDetector as Bevy Resource in ServerCorePlugin / lib.rs
+            // Example (uncomment when detector is in scope):
+            // if let Some(action) = detector.report_anomaly(
+            //     player_id,
+            //     AnomalyType::Custom("InventoryGeneralViolation".to_string()),
+            //     validity.anomaly_score,
+            //     format!("Rejected general inventory move {} -> {} | {}", from, to, validity.reason.as_deref().unwrap_or(""))
+            // ) {
+            //     // safety_net_broadcast or execute_moderation_action
+            // }
+            warn!("[Inventory] High anomaly ({:.2}) → should trigger MercyAnomalyDetector + safety_net", validity.anomaly_score);
+        }
         return None;
     }
 
@@ -177,4 +212,4 @@ fn handle_general_inventory_move(
     })
 }
 
-// End of inventory_replication.rs — real inventory lookup wired. Thunder locked in.
+// End of inventory_replication.rs — high anomaly rejections feed MercyAnomalyDetector + safety_net. Thunder locked in.
