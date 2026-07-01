@@ -29,3 +29,7 @@ impl Plugin for CouncilPlugin {
         info!("CouncilPlugin initialized — Council Proposal System + Audit Logs active");
     }
 }
+
+// Cross-link: CouncilPlugin (CouncilDecisions + apply_council_decision_effects) wires council decisions/effects to emergence (EpiphanyEvent),
+// persistence (council trial outcomes), InterestManager visible culling, recovered render post-FX pipeline, and council bloom visuals.
+// Thunder locked in. Yoi ⚡

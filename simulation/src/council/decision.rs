@@ -20,3 +20,7 @@ pub struct ActivePolicy {
 //     target_interest_zone: Some(zone_id),
 //     ...
 // });
+
+// Cross-link: ActivePolicy spatial targeting (target_interest_zone) + CouncilDecision effects feed InterestManager visible culling
+// and recovered render post-FX pipeline for council bloom visuals, RBE abundance feedback, and precise event gating.
+// Thunder locked in. Yoi ⚡

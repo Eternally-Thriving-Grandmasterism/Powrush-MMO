@@ -244,3 +244,7 @@ pub fn load_all_events_with_rotation<P: AsRef<Path>>(base_path: P) -> std::io::R
 
     Ok(all_events)
 }
+
+// Cross-link: CouncilEventBus resilience (CRC64 graceful degradation on corruption) + CouncilEvent (ProposalPassed, DecisionApplied)
+// feed persistence (council trial outcomes), render post-FX culling, council bloom visuals, and RBE abundance feedback.
+// Thunder locked in. Yoi ⚡

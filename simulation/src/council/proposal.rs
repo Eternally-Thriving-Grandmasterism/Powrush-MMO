@@ -63,3 +63,7 @@ impl CouncilProposal {
         }
     }
 }
+
+// Cross-link: CouncilProposal (ProposalType: EpiphanyEvent, ResourcePolicy, HarmonyBoost) + voting ties to emergence (EpiphanyEvent/DivineWhisper),
+// RBE (ResourcePolicy), fracture AGI resolution, InterestManager visible culling, recovered render post-FX pipeline, and council bloom visuals.
+// Thunder locked in. Yoi ⚡
