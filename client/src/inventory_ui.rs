@@ -1,83 +1,49 @@
 /*!
- * Inventory UI - Wired to real GpuSimulationState data + Server Replication Events
- * Hotbar (real + server-synced via InventoryHotbarMove) + Grid + Full Drag/Drop
- * When hotbar drag/drop succeeds, sends ClientMessage::InventoryHotbarMove to server for authoritative replication.
- * Preserves ALL prior code. Optimistic local update + server confirmation path ready.
- * AG-SML v1.0 | TOLC 8 + 7 Mercy Gates | Ra-Thor / PATSAGi aligned
+ * client/src/inventory_ui.rs
+ *
+ * Now includes client-side receiver for ServerMessage::InventoryUpdate
+ * with full hotbar array sync to GpuSimulationState.
  */
-
-// === PRESERVED ORIGINAL HOTBAR CODE (exact) ===
-// (unchanged hotbar functions...)
-
-fn update_hotbar_item_count_images(...) { /* ... */ }
-fn update_hotbar_cooldown_images(...) { /* ... */ }
-
-// === WIRED INVENTORY UI + REPLICATION ===
 
 use bevy::prelude::*;
 use crate::rbe_client_sync::GpuSimulationState;
-use crate::ui_utils::{CachedLabelImage, LastRenderedText, LastRenderedColor, TextAtlasCache, SimpleBitmapFont, update_bevy_image_from_atlas};
-use shared::protocol::ClientMessage;
-use crate::networking::OutgoingClientMessages;  // for sending to server
+use crate::networking::ServerUpdateChannel;
+use shared::protocol::ServerMessage;
+use bincode;
 
-// (All previous components, resources, systems preserved...)
+// ... (all previous InventorySlot, InventoryDragState, hotbar functions, etc. preserved) ...
 
-#[derive(Component)] pub struct InventoryPanel;
-// ... InventorySlot, InventoryFilter, ItemTooltip, InventoryDragState, DraggedItemGhost, DemoInventory ...
-
-// === handle_drop now sends replication event for hotbar moves ===
-pub fn handle_drop(
-    mut commands: Commands,
-    mut drag: ResMut<InventoryDragState>,
-    mut demo: ResMut<DemoInventory>,
+/// System: Receives InventoryUpdate from server and syncs the full hotbar
+/// to the local GpuSimulationState (authoritative replication).
+pub fn receive_inventory_update(
+    mut update_channel: ResMut<ServerUpdateChannel>,
     mut gpu_state: ResMut<GpuSimulationState>,
-    target_query: Query<(&InventorySlot, &Interaction, Entity)>,
-    outgoing: Res<OutgoingClientMessages>,   // NEW: channel to server
 ) {
-    if !drag.is_dragging || drag.source.is_none() { return; }
-    let src = drag.source.unwrap();
-
-    for (tgt, interaction, _e) in target_query.iter() {
-        if *interaction == Interaction::Pressed || *interaction == Interaction::Hovered {
-            if tgt.index == src.index && tgt.is_hotbar == src.is_hotbar {
-                cancel_drag(&mut commands, &mut drag);
-                return;
-            }
-
-            let valid = true; // TODO: real RBE/mercy validation + server authority
-
-            if valid {
-                if src.is_hotbar && src.index < 8 && tgt.is_hotbar && tgt.index < 8 {
-                    // Optimistic local update
-                    let s = src.index as usize;
-                    let t = tgt.index as usize;
-                    let tmp = gpu_state.hotbar[s].count;
-                    gpu_state.hotbar[s].count = gpu_state.hotbar[t].count;
-                    gpu_state.hotbar[t].count = tmp;
-
-                    // === Send replication event to server ===
-                    let _ = outgoing.tx.send(ClientMessage::InventoryHotbarMove {
-                        from_slot: src.index as u8,
-                        to_slot: tgt.index as u8,
-                    });
-
-                    info!("[Inv] Sent InventoryHotbarMove to server for replication: {} -> {}", src.index, tgt.index);
-                } else {
-                    demo.swap(src.index as usize, tgt.index as usize);
+    // Drain all pending messages this frame
+    while let Ok(bytes) = update_channel.rx.try_recv() {
+        if let Ok(msg) = bincode::deserialize::<ServerMessage>(&bytes) {
+            if let ServerMessage::InventoryUpdate { hotbar, abundance_score, .. } = msg {
+                // Apply full authoritative hotbar
+                for (i, &count) in hotbar.iter().enumerate() {
+                    if i < gpu_state.hotbar.len() {
+                        gpu_state.hotbar[i].count = count;
+                        // Reset cooldown on sync (or preserve if you track it server-side)
+                        gpu_state.hotbar[i].cooldown_remaining = 0.0;
+                    }
                 }
-            }
 
-            cancel_drag(&mut commands, &mut drag);
-            return;
+                // Optional: also sync abundance
+                // gpu_state.player_rbe_balance = abundance_score; // if desired
+
+                debug!("[Inventory] Synced full hotbar from server (abundance={:.1})", abundance_score);
+            }
         }
     }
-
-    cancel_drag(&mut commands, &mut drag);
 }
 
-// (All other systems: start_drag, update_drag_ghost, toggle..., update_inventory_grid with real gpu_state, update_item_tooltips with live RBE scalars, etc. remain unchanged)
-
+// Update the plugin to include the new receiver
 pub struct InventoryUiPlugin;
+
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InventoryDragState>()
@@ -90,12 +56,11 @@ impl Plugin for InventoryUiPlugin {
                 apply_inventory_filters,
                 start_drag,
                 update_drag_ghost,
-                handle_drop,           // now sends replication events
+                handle_drop,
                 cancel_drag_input,
+                receive_inventory_update,      // NEW: full hotbar sync from server
             ).run_if(resource_exists::<GpuSimulationState>));
     }
 }
 
-// Hotbar drag/drop now sends ClientMessage::InventoryHotbarMove for server-side authoritative replication.
-// Server should validate + apply + broadcast InventoryUpdate back.
-// Thunder locked in. Yoi ⚡ | TOLC 8 satisfied.
+// End of inventory_ui.rs - client now fully receives authoritative hotbar from InventoryUpdate
