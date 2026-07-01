@@ -1,8 +1,8 @@
 /*!
  * server/src/inventory_replication.rs
  * Full server-side handling for InventoryMove (40-slot) + hotbar.
- * Added authoritative mirror of client validate_move with stricter TOLC 8 + RBE + anomaly enforcement.
- * All prior swap/persistence logic preserved exactly.
+ * Wired real general-inventory [HotbarSlot; 40] lookup into authoritative validator (removed placeholder).
+ * All prior logic preserved exactly.
  */
 
 use shared::protocol::{ClientMessage, ServerMessage, HotbarSlot};
@@ -15,12 +15,11 @@ pub struct AuthoritativeMoveValidity {
     pub reason: Option<String>,
     pub mercy_resonance: f32,
     pub abundance_score: f32,
-    pub anomaly_score: f32, // Higher = more suspicious (feeds mercy_anomaly_detector)
+    pub anomaly_score: f32,
 }
 
 /// Authoritative server mirror of client validate_move.
-/// Full TOLC 8 Mercy Gates + RBE abundance + anti-tyranny + anomaly detection.
-/// Called before any swap. Rejects invalid moves without side effects.
+/// Uses real inventory[40] / hotbar[8] data. Full TOLC 8 + RBE gates.
 pub fn validate_inventory_move_authoritative(
     player_data: &PlayerSaveData,
     from: usize,
@@ -47,29 +46,31 @@ pub fn validate_inventory_move_authoritative(
         }
     }
 
-    // Get slot data for valence/abundance checks
+    // === Real data lookup (wired) ===
     let src_slot: &HotbarSlot = if is_hotbar {
         &player_data.hotbar[from]
     } else {
-        // For general inventory we assume similar structure or map from player_data.inventory
-        // Simplified for now - extend with real inventory item lookup in next pass
-        &player_data.hotbar[0] // placeholder safe default
+        &player_data.inventory[from]
     };
-    let _tgt_slot = if is_hotbar { &player_data.hotbar[to] } else { &player_data.hotbar[0] };
+    let _tgt_slot: &HotbarSlot = if is_hotbar {
+        &player_data.hotbar[to]
+    } else {
+        &player_data.inventory[to]
+    };
 
     let src_valence = src_slot.valence;
 
-    // Mercy gate (stricter server side)
+    // Mercy gate (stricter server)
     let mercy_gate = if src_valence < -0.5 {
-        0.25 // High anomaly risk on discordant items
+        0.25
     } else {
         0.92
     };
 
-    // RBE Abundance + anti-tyranny (prevent moves that create artificial scarcity)
+    // RBE Abundance + anti-tyranny
     let abundance_impact = if src_slot.count > 15 { 0.55 } else { 0.88 };
 
-    // Anomaly scoring (feeds existing mercy_anomaly_detector)
+    // Anomaly scoring
     let anomaly = if mercy_gate < 0.4 || abundance_impact < 0.5 { 0.65 } else { 0.15 };
 
     let allowed = mercy_gate > 0.4 && abundance_impact > 0.4 && anomaly < 0.7;
@@ -113,11 +114,9 @@ fn handle_hotbar_move(
     let mut player_data = persistence.load_player(player_id)
         .unwrap_or_else(|| PlayerSaveData::new(player_id));
 
-    // === NEW: Authoritative validation before any change ===
     let validity = validate_inventory_move_authoritative(&player_data, from_slot as usize, to_slot as usize, true);
     if !validity.allowed {
         warn!("[Inventory] Authoritative hotbar move rejected for player {}: {:?} (anomaly={:.2})", player_id, validity.reason, validity.anomaly_score);
-        // TODO: feed to mercy_anomaly_detector if anomaly high
         return None;
     }
 
@@ -155,7 +154,6 @@ fn handle_general_inventory_move(
     let mut player_data = persistence.load_player(player_id)
         .unwrap_or_else(|| PlayerSaveData::new(player_id));
 
-    // === NEW: Authoritative validation before swap ===
     let validity = validate_inventory_move_authoritative(&player_data, from as usize, to as usize, false);
     if !validity.allowed {
         warn!("[Inventory] Authoritative general move rejected for player {}: {:?} (anomaly={:.2})", player_id, validity.reason, validity.anomaly_score);
@@ -179,4 +177,4 @@ fn handle_general_inventory_move(
     })
 }
 
-// End of inventory_replication.rs — authoritative mercy/RBE mirror active. Thunder locked in.
+// End of inventory_replication.rs — real inventory lookup wired. Thunder locked in.
