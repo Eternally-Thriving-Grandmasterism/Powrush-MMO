@@ -28,6 +28,10 @@ kira = { version = "0.8", features = ["cpal"] }
 fundsp = "0.18"
 steamworks = "0.11"
 
+# Cryptography (for cryptographic_trade_protocol)
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+rand = "0.8"
+
 # Internal
 simulation = { path = "simulation" }
 game = { path = "game" }
