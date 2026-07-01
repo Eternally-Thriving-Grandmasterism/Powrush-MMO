@@ -1,64 +1,43 @@
 /*!
  * server/src/inventory_replication.rs
- *
- * Server handler for InventoryHotbarMove with full hotbar replication.
- * Now returns the complete authoritative hotbar array in InventoryUpdate.
+ * Now handles full HotbarSlot (item_id + metadata) instead of just counts.
  */
 
-use shared::protocol::{ClientMessage, ServerMessage};
+use shared::protocol::{ClientMessage, ServerMessage, HotbarSlot};
 use crate::persistence_polish::{PersistenceManager, PlayerSaveData};
-use tracing::{info, warn, debug};
+use tracing::{info, warn};
 
 pub fn handle_inventory_hotbar_move(
     player_id: u64,
     message: &ClientMessage,
     persistence: &mut PersistenceManager,
 ) -> Option<ServerMessage> {
-    let ClientMessage::InventoryHotbarMove { from_slot, to_slot } = message else {
-        return None;
-    };
+    let ClientMessage::InventoryHotbarMove { from_slot, to_slot } = message else { return None; };
 
-    if !passes_mercy_validation(player_id, *from_slot, *to_slot) {
-        return Some(ServerMessage::MercyGateBlocked {
-            reason: "Mercy gate blocked inventory action".to_string(),
-            valence: 0.72,
-        });
+    if from_slot == to_slot || from_slot >= 8 || to_slot >= 8 { return None; }
+
+    let mut player_data = persistence.load_player(player_id)
+        .unwrap_or_else(|| PlayerSaveData::new(player_id));
+
+    // Swap full HotbarSlot
+    if from_slot < 8 && to_slot < 8 {
+        let tmp = player_data.hotbar[from_slot as usize].clone();
+        player_data.hotbar[from_slot as usize] = player_data.hotbar[to_slot as usize].clone();
+        player_data.hotbar[to_slot as usize] = tmp;
     }
 
-    if *from_slot == *to_slot || *from_slot >= 8 || *to_slot >= 8 {
-        return None;
-    }
-
-    // Load or create player data
-    let mut player_data = persistence
-        .load_player(player_id)
-        .unwrap_or_else(|| {
-            let mut d = PlayerSaveData::new(player_id);
-            d.hotbar = [0; 8];
-            d
-        });
-
-    // Apply move
-    player_data.swap_hotbar_slots(*from_slot as usize, *to_slot as usize);
-
-    // Persist
     if let Err(e) = persistence.save_player(&player_data) {
-        warn!("Failed to persist hotbar move for player {}: {}", player_id, e);
+        warn!("Failed to save hotbar: {}", e);
     }
 
-    info!("[Inventory] Hotbar move persisted & replicated: player={} {}->{}", player_id, from_slot, to_slot);
+    info!("[Inventory] Hotbar move persisted (full item data)");
 
-    // Return full hotbar state for client sync
     Some(ServerMessage::InventoryUpdate {
         player_id,
-        hotbar: player_data.hotbar,           // <-- Full authoritative hotbar array
+        hotbar: player_data.hotbar.clone(),
         resources: std::collections::HashMap::new(),
         abundance_score: player_data.abundance as f32,
     })
-}
-
-fn passes_mercy_validation(_player_id: u64, _from: u8, _to: u8) -> bool {
-    true // TODO: integrate real mercy_anomaly_detector
 }
 
 // End of inventory_replication.rs
