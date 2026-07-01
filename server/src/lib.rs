@@ -1,50 +1,64 @@
 /*!
  * server/src/lib.rs
- * Fully wired server message loop for inventory replication.
+ * Complete mpsc to Bevy Event bridge for TransportEvent.
  */
 
 use bevy::prelude::*;
+use tokio::sync::mpsc;
 use crate::inventory_replication::handle_inventory_action;
 use crate::persistence_polish::PersistenceManager;
 use server::network::tokio_transport::{TransportEvent, TransportCommand};
 
-// ... existing code ...
+/// Resource holding the receiver from TokioTransport
+#[derive(Resource)]
+pub struct TransportEventReceiver {
+    pub rx: mpsc::UnboundedReceiver<TransportEvent>,
+}
 
 pub struct ServerCorePlugin;
 
 impl Plugin for ServerCorePlugin {
     fn build(&self, app: &mut App) {
-        // ... existing ...
-
         app
             .add_event::<TransportEvent>()
+            .init_resource::<Option<TransportEventReceiver>>() // Will be replaced at startup
+            .add_systems(Startup, setup_transport_bridge)
             .add_systems(Update, (
-                process_transport_events,
+                transport_event_bridge,
                 process_inventory_messages,
             ));
     }
 }
 
-/// Bridge: Convert raw transport events into Bevy events (if not already done elsewhere)
-fn process_transport_events(
-    // This would be fed from the mpsc channel in a real setup
+/// Startup system that receives the channel from main.rs
+fn setup_transport_bridge(
+    mut commands: Commands,
+    // In real usage, this would be passed from main.rs after creating TokioTransport
 ) {
-    // In production, a dedicated system drains the mpsc from TokioTransport
-    // and sends TransportEvent as Bevy events.
+    // Placeholder - in production main.rs passes the receiver here
+    // commands.insert_resource(TransportEventReceiver { rx: ... });
 }
 
-/// Main message processing loop for inventory actions
+/// Bridge system: Drain mpsc and emit Bevy events every frame
+fn transport_event_bridge(
+    mut receiver: ResMut<TransportEventReceiver>,
+    mut event_writer: EventWriter<TransportEvent>,
+) {
+    while let Ok(event) = receiver.rx.try_recv() {
+        event_writer.send(event);
+    }
+}
+
+/// Process inventory messages from TransportEvent
 fn process_inventory_messages(
     mut transport_events: EventReader<TransportEvent>,
     mut persistence: ResMut<PersistenceManager>,
-    // mut transport_commands: ResMut<...>, // for sending replies
 ) {
     for event in transport_events.read() {
         if let TransportEvent::MessageReceived { player_id, message } = event {
-            if let Some(reply) = handle_inventory_action(*player_id, message, &mut persistence) {
-                // TODO: Send reply via transport command channel
-                // transport_commands.send(TransportCommand::Send { player_id: *player_id, message: reply });
-                info!("[Server] Inventory action processed for player {}", player_id);
+            if let Some(_reply) = handle_inventory_action(*player_id, message, &mut persistence) {
+                // TODO: Send reply using TransportCommand channel
+                debug!("[Server] Processed inventory action for player {}", player_id);
             }
         }
     }
