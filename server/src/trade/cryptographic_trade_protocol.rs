@@ -1,7 +1,7 @@
 // server/src/trade/cryptographic_trade_protocol.rs
-// Cryptographic Trade Protocol v2.1 (Refined)
+// Cryptographic Trade Protocol v2.2
 // Hybrid Signatures (Ed25519 + Dilithium) + Commitment + Reveal
-// Cleaned up public key handling
+// Corrected Dilithium public key handling for reliable verification
 // AG-SML v1.0 | PATSAGi + Ra-Thor aligned
 
 use crate::trade_system::Trade;
@@ -56,7 +56,9 @@ pub trait CryptographicTradeProtocol {
         &self,
         trade: &Trade,
         classical_secret: &[u8],
+        classical_public: &[u8],
         pq_secret: &[u8],
+        pq_public: &[u8],
     ) -> Result<CryptographicTradeOffer, CryptoTradeError>;
 
     fn verify_offer(&self, offer: &CryptographicTradeOffer) -> bool;
@@ -90,18 +92,22 @@ impl CryptographicTradeProtocol for HybridTradeProtocol {
         &self,
         trade: &Trade,
         classical_secret: &[u8],
+        classical_public: &[u8],
         pq_secret: &[u8],
+        pq_public: &[u8],
     ) -> Result<CryptographicTradeOffer, CryptoTradeError> {
         // Reconstruct Ed25519 keypair
         let classical_sk = ed25519_dalek::SecretKey::from_bytes(classical_secret)
             .map_err(|_| CryptoTradeError::SigningFailed)?;
-        let classical_pk = ed25519_dalek::PublicKey::from(&classical_sk);
+        let classical_pk = ed25519_dalek::PublicKey::from_bytes(classical_public)
+            .map_err(|_| CryptoTradeError::SigningFailed)?;
         let ed_keypair = EdKeypair { secret: classical_sk, public: classical_pk };
 
-        // Dilithium secret key
-        let dil_sk = DilSecretKey::from_bytes(pq_secret)
+        // Dilithium keys (public key passed in for correctness)
+        let _dil_sk = DilSecretKey::from_bytes(pq_secret)
             .map_err(|_| CryptoTradeError::SigningFailed)?;
-        let dil_pk = dilithium2::PublicKey::from_bytes(&dil_sk.as_bytes()).map_err(|_| CryptoTradeError::SigningFailed)?; // better reconstruction
+        let dil_pk = DilPublicKey::from_bytes(pq_public)
+            .map_err(|_| CryptoTradeError::SigningFailed)?;
 
         // Create commitment
         let commitment_data = format!("{:?}:{:?}:{}", trade.offered, trade.nonce, trade.trade_id);
@@ -117,9 +123,9 @@ impl CryptographicTradeProtocol for HybridTradeProtocol {
         let commitment_bytes = bincode::serialize(&commitment)
             .map_err(|_| CryptoTradeError::SigningFailed)?;
 
-        // Sign with both schemes
+        // Sign with both schemes (using reconstructed Ed25519 keypair and Dilithium secret)
         let classical_sig = ed_keypair.sign(&commitment_bytes);
-        let pq_sig = dilithium2::detached_sign(&commitment_bytes, &dil_sk);
+        let pq_sig = dilithium2::detached_sign(&commitment_bytes, &DilSecretKey::from_bytes(pq_secret).unwrap());
 
         let hybrid_sig = HybridSignature {
             classical_signature: classical_sig.to_bytes().to_vec(),
@@ -155,7 +161,7 @@ impl CryptographicTradeProtocol for HybridTradeProtocol {
             return false;
         }
 
-        // Verify Dilithium signature
+        // Verify Dilithium signature (core logic)
         let pq_pk = match DilPublicKey::from_bytes(&offer.pq_public_key) {
             Ok(pk) => pk,
             Err(_) => return false,
@@ -165,6 +171,7 @@ impl CryptographicTradeProtocol for HybridTradeProtocol {
             Err(_) => return false,
         };
 
+        // This is the key Dilithium verification step
         if dilithium2::verify_detached_signature(&pq_sig, &commitment_bytes, &pq_pk).is_err() {
             return false;
         }
