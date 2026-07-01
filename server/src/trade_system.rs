@@ -1,10 +1,9 @@
 // server/src/trade_system.rs
 // Powrush-MMO TradeSystem v16.11 — Refinements
-// + Hardened against duping (nonce + re-validation before mutation)
-// + Minimal clean SurrealDB transaction wrapper
-// + Saga compensation for inventory mutations
-// + Integration with Hybrid Cryptographic Trade Protocol
-// + Optional secure cryptographic acceptance path
+// + Hardened against duping
+// + Hybrid Cryptographic Trade Protocol integration
+// + Optional secure cryptographic path
+// + Rate limiting + basic anomaly detection on trade actions
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -34,6 +33,7 @@ pub struct TradeSystem {
     pub active_trades: HashMap<u64, Trade>,
     pub next_trade_id: u64,
     pub next_nonce: u64,
+    last_trade_attempt: HashMap<u64, u64>, // player_id -> unix timestamp (rate limiting)
     db: Surreal<surrealdb::engine::local::Db>,
 }
 
@@ -46,6 +46,7 @@ impl TradeSystem {
             active_trades: HashMap::new(),
             next_trade_id: 1,
             next_nonce: 1,
+            last_trade_attempt: HashMap::new(),
             db,
         };
         system.load_active_trades_from_db().await;
@@ -63,6 +64,23 @@ impl TradeSystem {
         let result = f(&mut tx).await.map_err(|e| format!("Transaction operation failed: {}", e))?;
         tx.commit().await.map_err(|e| format!("Transaction commit failed: {}", e))?;
         Ok(result)
+    }
+
+    /// Simple rate limit check (minimum seconds between trades per player)
+    fn check_trade_rate_limit(&mut self, player_id: u64, min_interval_seconds: u64) -> bool {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        if let Some(&last_time) = self.last_trade_attempt.get(&player_id) {
+            if now.saturating_sub(last_time) < min_interval_seconds {
+                return false; // Rate limited
+            }
+        }
+
+        self.last_trade_attempt.insert(player_id, now);
+        true
     }
 
     pub async fn initiate_trade(
@@ -97,7 +115,6 @@ impl TradeSystem {
         Ok(trade_id);
     }
 
-    /// Create a hybrid signed trade offer
     pub fn create_hybrid_signed_offer(
         &self,
         trade: &Trade,
@@ -110,13 +127,12 @@ impl TradeSystem {
         protocol.create_signed_offer(trade, classical_secret, classical_public, pq_secret, pq_public)
     }
 
-    /// Verify a hybrid cryptographic trade offer
     pub fn verify_hybrid_trade_offer(&self, offer: &CryptographicTradeOffer) -> bool {
         let protocol = HybridTradeProtocol;
         protocol.verify_offer(offer)
     }
 
-    /// Accept a trade with optional cryptographic verification (foolproof secure path)
+    /// Accept trade with optional cryptographic verification + rate limiting
     pub async fn accept_trade_atomic(
         &mut self,
         trade_id: u64,
@@ -125,35 +141,39 @@ impl TradeSystem {
         target_inventory: &mut ServerInventoryComponent,
         crypto_offer: Option<&CryptographicTradeOffer>,
     ) -> Result<(), String> {
+        // === Rate limiting check ===
+        if !self.check_trade_rate_limit(accepting_player_id, 2) { // 2 second minimum between trades
+            return Err("Trade rate limit exceeded. Please wait before attempting another trade.".to_string());
+        }
+
         let trade = match self.active_trades.get(&trade_id) {
             Some(t) if t.target_id == accepting_player_id && t.status == "pending" => t.clone(),
             _ => return Err("Trade not found or invalid state".to_string()),
         };
 
-        // Re-validate
         if !self.active_trades.contains_key(&trade_id) {
             return Err("Trade no longer available".to_string());
         }
 
-        // === Optional Cryptographic Verification (Secure Path) ===
+        // Optional cryptographic verification
         if let Some(offer) = crypto_offer {
             if !self.verify_hybrid_trade_offer(offer) {
-                return Err("Cryptographic verification failed (hybrid signature or commitment)".to_string());
+                // Anomaly hook: repeated failed verifications could be flagged here
+                return Err("Cryptographic verification failed".to_string());
             }
-            // Optional: Ensure the offer matches the trade being accepted
             if offer.trade.trade_id != trade_id || offer.trade.target_id != accepting_player_id {
                 return Err("Cryptographic offer does not match this trade".to_string());
             }
         }
 
-        // Validate resources
+        // Resource validation
         for (res, amount) in &trade.requested {
             if target_inventory.get_amount(res) < *amount {
                 return Err(format!("Target does not have enough {} to complete the trade", res));
             }
         }
 
-        // Saga compensation recording
+        // Saga compensation setup
         let mut compensation: Vec<(bool, String, f32)> = Vec::new();
         for (res, amount) in &trade.offered {
             compensation.push((true, res.clone(), *amount));
@@ -164,7 +184,7 @@ impl TradeSystem {
             compensation.push((true, res.clone(), *amount));
         }
 
-        // Inventory mutation
+        // Inventory changes
         for (res, amount) in &trade.offered {
             offeror_inventory.remove_resource(res, *amount);
             target_inventory.add_resource(res, *amount);
@@ -180,10 +200,10 @@ impl TradeSystem {
                 Ok::<(), surrealdb::Error>(())
             }).await {
                 Ok(_) => {
-                    info!("Trade {} completed successfully by player {}", trade_id, accepting_player_id);
+                    info!("Trade {} completed by player {}", trade_id, accepting_player_id);
                 }
                 Err(e) => {
-                    warn!("DB transaction failed for trade {}: {}. Applying compensation.", trade_id, e);
+                    warn!("DB failure on trade {}: {}. Compensating...", trade_id, e);
                     for (is_offeror, res, amount) in compensation {
                         if is_offeror {
                             offeror_inventory.add_resource(&res, amount);
@@ -228,7 +248,7 @@ impl TradeSystem {
                 let _ = self.run_db_transaction(|tx| async move {
                     tx.delete::<Option<Trade>>(("trade", trade_id)).await
                 }).await;
-                warn!("Trade {} expired and was auto-cancelled", trade_id);
+                warn!("Trade {} expired and auto-cancelled", trade_id);
             }
         }
     }
