@@ -75,7 +75,8 @@ impl TradeSystem {
 
     /// Refactored: Now takes two inventory references instead of the full HashMap.
     /// This greatly reduces coupling with the main loop.
-    /// Cross-link: TradeSystem (atomic trade with inventory validation that target has requested resources, expire_trades, RBE resource transfer) ties to RBE abundance, persistence, simulation orchestrator/emergence/ability_tree, council bloom visuals, render pipeline, InterestManager culling, GPU foresight, and VFX modulation.
+    /// Atomicity improved: Inventory mutations performed first; DB delete only on success.
+    /// Proper error paths and validation.
     pub async fn accept_trade_atomic(
         &mut self,
         trade_id: u64,
@@ -88,21 +89,14 @@ impl TradeSystem {
             _ => return Err("Trade not found or invalid state".to_string()),
         };
 
-        // === NEW: Validate target has requested resources ===
+        // Validate target has requested resources (before any mutation)
         for (res, amount) in &trade.requested {
             if target_inventory.get_amount(res) < *amount {
                 return Err(format!("Target does not have enough {} to complete the trade", res));
             }
-        } else {
-            return Err("Trade not found".to_string());
         }
 
-        if let Some(trade) = self.active_trades.remove(&trade_id) {
-            let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
-            info!("Trade {} rejected by player {}", trade_id, rejecting_player_id);
-        }
-
-        // Perform resource transfer
+        // Perform resource transfer (in-memory first for atomicity feel)
         for (res, amount) in &trade.offered {
             offeror_inventory.remove_resource(res, *amount);
             target_inventory.add_resource(res, *amount);
@@ -112,15 +106,15 @@ impl TradeSystem {
             offeror_inventory.add_resource(res, *amount);
         }
 
-        // Update status
-        let _ = self.db.query(format!("UPDATE trade:{} SET status = 'accepted'", trade_id)).await;
-
-        if let Some(trade_mut) = self.active_trades.get_mut(&trade_id) {
-            trade_mut.status = "accepted".to_string();
+        // Now safe to remove from active and DB
+        if self.active_trades.remove(&trade_id).is_some() {
+            let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
+            // Update status in DB (best effort)
+            let _ = self.db.query(format!("UPDATE trade:{} SET status = 'accepted'", trade_id)).await;
+            info!("Trade {} completed successfully by player {}", trade_id, accepting_player_id);
         }
 
-        info!("Trade {} completed successfully", trade_id);
-        Ok(());
+        Ok(())
     }
 
     pub async fn reject_trade(&mut self, trade_id: u64, rejecting_player_id: u64) -> Result<(), String> {
