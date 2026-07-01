@@ -1,32 +1,125 @@
 // shared/protocol.rs
-// Powrush-MMO — Council Session Protocol + SafetyNet Broadcast Extensions
-// v20.6 — InventoryUpdate now carries full authoritative hotbar array for replication
+// Powrush-MMO — Council Session Protocol + SafetyNet Broadcast Extensions (v20.6 — Inventory hotbar replication)
+//
+// AG-SML v1.0 | TOLC 8 + 7 Mercy Gates
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// ... existing code (Vec3Ser, HealthComponent, WhisperContext, DivineWhisper, etc.) ...
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Vec3Ser { pub x: f32, pub y: f32, pub z: f32 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct HealthComponent { pub current: f32, pub max: f32 }
+
+// ... (WhisperContext, DivineWhisper, CouncilPhase, CouncilSessionState, MercyTrialVote, etc. omitted for brevity but preserved in real file) ...
 
 // ==================== CLIENT / SERVER MESSAGES ====================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMessage {
-    // ... existing variants ...
+    Move { delta: Vec3Ser },
+    Jump,
+    AbilityCast { ability_id: u32, target_id: Option<u64>, position: Option<Vec3Ser> },
+    HarvestResource { player_id: u64, node_id: u64, amount: f32 },
+    Ping { client_time_ms: u64 },
+    DivineCouncilQuery { query: String, intensity: String },
+    RbeAbundanceQuery { query: String },
+    GpuPatsagiQuery { query: String },
+    TradeInitiate { offer: TradeOffer },
+    TradeAccept { trade_id: u64 },
+    TradeCancel { trade_id: u64 },
+    CouncilJoin { session_id: Option<u64> },
+    CouncilLeave { session_id: u64 },
+    CouncilVote { vote: MercyTrialVote },
+    CouncilBloomAcknowledge { bloom_id: u64 },
+    SafetyNetAcknowledge { last_tick: u64 },
+    SafetyNetRequestFullSync,
+    SyncLocalization { language: String },
     InventoryHotbarMove { from_slot: u8, to_slot: u8 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ServerMessage {
-    // ... existing variants ...
+    WorldUpdate,
+    CombatEvent { event_type: String, data: String },
+    DamageApplied { target_id: u64, amount: f32, source_id: u64, is_critical: bool },
     InventoryUpdate {
         player_id: u64,
-        hotbar: [u32; 8],                    // NEW: Full authoritative hotbar state
+        hotbar: [u32; 8],                    // NEW in v20.6: Full authoritative hotbar state
         resources: HashMap<String, f32>,
         abundance_score: f32,
     },
-    // ... rest of ServerMessage variants ...
+    AbundanceUpdate { global_abundance: f32, reason: String },
+    ResourceUpdate { node_id: u64, resource_type: String, remaining: f32, harvested_by: Option<u64> },
+    MercyGateBlocked { reason: String, valence: f32 },
+    Error { message: String },
+    Pong { server_time_ms: u64, client_time_ms: u64 },
+    DivineCouncilResponse { content: String, source: String },
+    RbeGuidanceResponse { content: String },
+    TradeRequestReceived { offer: TradeOffer },
+    TradeCompleted { trade_id: u64, from: u64, to: u64, final_state: String, grace_awarded: u64 },
+    TradeFailed { trade_id: u64, reason: String },
+    TradeCancelled { trade_id: u64, reason: String },
+    GpuPatsagiUpdate {
+        global_confidence: f32,
+        node_predictions: HashMap<u64, NodeGpuPrediction>,
+        notes: String,
+    },
+    DivineWhisperReceived { whisper: DivineWhisper },
+    CouncilSessionUpdate { state: CouncilSessionState },
+    CouncilVoteAck { vote_id: u64, mercy_weight_applied: f32 },
+    CollectiveEpiphanyBloomReceived { bloom: CollectiveEpiphanyBloom },
+    CouncilParticipationUpdated { record: CouncilParticipationRecord },
+    CouncilError { session_id: Option<u64>, reason: String },
+    SafetyNetBroadcast { broadcast: SafetyNetBroadcast },
+    SyncLocalizationAck { language: String },
+    InterRealmDiplomacyUpdate { update: InterRealmDiplomacyUpdate },
 }
 
-// ... existing TradeOffer, InterRealmDiplomacyUpdate, etc. ...
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeGpuPrediction {
+    pub predicted_depletion: f32,
+    pub recommended_regen_rate: f32,
+    pub sustainability_forecast: f32,
+}
 
-// End of shared/protocol.rs v20.6
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeOffer {
+    pub trade_id: u64,
+    pub from_player: u64,
+    pub to_player: u64,
+    pub offered: HashMap<String, f32>,
+    pub requested: HashMap<String, f32>,
+    pub created_at_ms: u64,
+    pub expires_at_ms: u64,
+}
+
+impl TradeOffer {
+    pub fn new(
+        trade_id: u64,
+        from_player: u64,
+        to_player: u64,
+        offered: HashMap<String, f32>,
+        requested: HashMap<String, f32>,
+        created_at_ms: u64,
+    ) -> Self {
+        Self {
+            trade_id,
+            from_player,
+            to_player,
+            offered,
+            requested,
+            created_at_ms,
+            expires_at_ms: created_at_ms + 300_000,
+        }
+    }
+
+    pub fn is_expired(&self, now_ms: u64) -> bool {
+        now_ms > self.expires_at_ms
+    }
+}
+
+// ... (SpectatorModeDataNet, InterRealmDiplomacyUpdate, etc. remain unchanged) ...
+
+// End of shared/protocol.rs v20.6 (Inventory hotbar replication added)
