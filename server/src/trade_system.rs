@@ -4,6 +4,7 @@
 // + Minimal clean SurrealDB transaction wrapper
 // + Saga compensation for inventory mutations
 // + Integration with Hybrid Cryptographic Trade Protocol
+// + Optional secure cryptographic acceptance path
 // AG-SML v1.0
 
 use std::collections::HashMap;
@@ -13,7 +14,7 @@ use tracing::{info, error, warn};
 use serde::{Serialize, Deserialize};
 use crate::harvesting_system::ServerInventoryComponent;
 use crate::trade::cryptographic_trade_protocol::{
-    CryptographicTradeOffer, HybridTradeProtocol, CryptographicTradeProtocol, CryptoTradeError,
+    CryptographicTradeOffer, HybridTradeProtocol, CryptographicTradeProtocol,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -26,13 +27,13 @@ pub struct Trade {
     pub status: String,
     pub created_at: u64,
     pub expires_at: Option<u64>,
-    pub nonce: u64,           // One-time use nonce to prevent replay / double-accept
+    pub nonce: u64,
 }
 
 pub struct TradeSystem {
     pub active_trades: HashMap<u64, Trade>,
     pub next_trade_id: u64,
-    pub next_nonce: u64,      // Simple nonce generator
+    pub next_nonce: u64,
     db: Surreal<surrealdb::engine::local::Db>,
 }
 
@@ -53,7 +54,6 @@ impl TradeSystem {
 
     async fn load_active_trades_from_db(&mut self) { /* preserved */ }
 
-    /// Minimal clean SurrealDB transaction wrapper.
     async fn run_db_transaction<F, Fut, T>(&self, f: F) -> Result<T, String>
     where
         F: FnOnce(&mut surrealdb::Transaction) -> Fut,
@@ -97,7 +97,7 @@ impl TradeSystem {
         Ok(trade_id);
     }
 
-    /// Create a hybrid (Ed25519 + Dilithium) cryptographically signed trade offer
+    /// Create a hybrid signed trade offer
     pub fn create_hybrid_signed_offer(
         &self,
         trade: &Trade,
@@ -105,7 +105,7 @@ impl TradeSystem {
         classical_public: &[u8],
         pq_secret: &[u8],
         pq_public: &[u8],
-    ) -> Result<CryptographicTradeOffer, CryptoTradeError> {
+    ) -> Result<CryptographicTradeOffer, crate::trade::cryptographic_trade_protocol::CryptoTradeError> {
         let protocol = HybridTradeProtocol;
         protocol.create_signed_offer(trade, classical_secret, classical_public, pq_secret, pq_public)
     }
@@ -116,38 +116,45 @@ impl TradeSystem {
         protocol.verify_offer(offer)
     }
 
-    /// Hardened accept_trade_atomic with:
-    /// - Re-validation of trade state right before inventory mutation
-    /// - Nonce-based single-use enforcement
-    /// - Strengthened Saga compensation
+    /// Accept a trade with optional cryptographic verification (foolproof secure path)
     pub async fn accept_trade_atomic(
         &mut self,
         trade_id: u64,
         accepting_player_id: u64,
         offeror_inventory: &mut ServerInventoryComponent,
         target_inventory: &mut ServerInventoryComponent,
+        crypto_offer: Option<&CryptographicTradeOffer>,
     ) -> Result<(), String> {
-        // Initial lookup
         let trade = match self.active_trades.get(&trade_id) {
             Some(t) if t.target_id == accepting_player_id && t.status == "pending" => t.clone(),
             _ => return Err("Trade not found or invalid state".to_string()),
         };
 
-        // === Re-validate trade state immediately before mutation (anti-race / duping) ===
+        // Re-validate
         if !self.active_trades.contains_key(&trade_id) {
             return Err("Trade no longer available".to_string());
         }
 
-        // Validate target has requested resources
+        // === Optional Cryptographic Verification (Secure Path) ===
+        if let Some(offer) = crypto_offer {
+            if !self.verify_hybrid_trade_offer(offer) {
+                return Err("Cryptographic verification failed (hybrid signature or commitment)".to_string());
+            }
+            // Optional: Ensure the offer matches the trade being accepted
+            if offer.trade.trade_id != trade_id || offer.trade.target_id != accepting_player_id {
+                return Err("Cryptographic offer does not match this trade".to_string());
+            }
+        }
+
+        // Validate resources
         for (res, amount) in &trade.requested {
             if target_inventory.get_amount(res) < *amount {
                 return Err(format!("Target does not have enough {} to complete the trade", res));
             }
         }
 
-        // === Saga: Record compensation actions before mutation ===
+        // Saga compensation recording
         let mut compensation: Vec<(bool, String, f32)> = Vec::new();
-
         for (res, amount) in &trade.offered {
             compensation.push((true, res.clone(), *amount));
             compensation.push((false, res.clone(), *amount));
@@ -157,7 +164,7 @@ impl TradeSystem {
             compensation.push((true, res.clone(), *amount));
         }
 
-        // Perform resource transfer (in-memory)
+        // Inventory mutation
         for (res, amount) in &trade.offered {
             offeror_inventory.remove_resource(res, *amount);
             target_inventory.add_resource(res, *amount);
@@ -167,9 +174,7 @@ impl TradeSystem {
             offeror_inventory.add_resource(res, *amount);
         }
 
-        // Remove from active trades (mark as consumed)
         if self.active_trades.remove(&trade_id).is_some() {
-            // DB transaction with compensation on failure
             match self.run_db_transaction(|tx| async move {
                 tx.delete::<Option<Trade>>(("trade", trade_id)).await?;
                 Ok::<(), surrealdb::Error>(())
@@ -179,8 +184,6 @@ impl TradeSystem {
                 }
                 Err(e) => {
                     warn!("DB transaction failed for trade {}: {}. Applying compensation.", trade_id, e);
-
-                    // Apply compensation to restore inventory
                     for (is_offeror, res, amount) in compensation {
                         if is_offeror {
                             offeror_inventory.add_resource(&res, amount);
@@ -190,10 +193,7 @@ impl TradeSystem {
                             offeror_inventory.remove_resource(&res, amount);
                         }
                     }
-
-                    // Re-insert trade so it can be retried/rejected
                     self.active_trades.insert(trade_id, trade);
-
                     return Err(format!("Trade failed. Inventory compensated. Error: {}", e));
                 }
             }
