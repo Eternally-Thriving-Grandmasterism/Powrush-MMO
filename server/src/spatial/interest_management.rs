@@ -91,8 +91,7 @@ pub fn create_renet_server(addr: SocketAddr) -> RenetServer {
 
 pub fn create_renet_client(server_addr: SocketAddr) -> RenetClient {
     let current_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
-    let client_config = renet::ConnectionConfig::default();
-    let authentication = renet::ClientAuthentication::Unsecure {
+    let client_config = renet::ClientAuthentication::Unsecure {
         client_id: current_time.as_millis() as u64,
         protocol_id: PROTOCOL_ID,
         server_addr,
@@ -287,6 +286,9 @@ impl InterestManager {
     }
 
     /// Core replication list (with optional occlusion culling via raycast)
+    /// Cross-link: Occlusion/visible results here directly enable performant client render post-FX
+    /// (Velocity Prepass → TAA Reprojection → Motion Blur → Chromatic Aberration in recovered client/src/render.rs).
+    /// InterestManager visible entity gating skips expensive cinematic effects on non-visible entities.
     pub fn get_replication_entities(&self, viewer_id: u64) -> Vec<u64> {
         self.get_replication_entities_with_occlusion(viewer_id, true)
     }

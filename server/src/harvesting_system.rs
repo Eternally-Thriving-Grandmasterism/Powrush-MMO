@@ -114,6 +114,9 @@ impl HarvestingSystem {
     }
 
     /// Async: GPU foresight differential update + instrumentation + periodic telemetry emit
+    /// Cross-link: GPU foresight + harvest sustainability feeds InterestManager visible sets and
+    /// client render post-FX culling (see recovered client/src/render.rs). RBE abundance directly
+    /// enhances visual compute and epiphany resonance for players in visible range.
     #[cfg(feature = "gpu")]
     pub async fn update_gpu_foresight_predictions(&mut self, response: &GpuPatsagiResponse, current_tick: u64) {
         const FORESIGHT_UPDATE_COOLDOWN: u64 = 25;
