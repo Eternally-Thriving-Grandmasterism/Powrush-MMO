@@ -22,6 +22,7 @@ pub struct NpcSummary {
 
 impl GrokPATSAGiBridge {
     /// Enhanced query that includes living NPC context
+    /// Cross-link: GrokPATSAGiBridge (NPC context summary with faction/valence/mercy/rbe/air_foundation, global mercy pressure, dominant faction influence) ties PATSAGi queries to simulation orchestrator/emergence/ability_tree, council bloom visuals, render pipeline, InterestManager culling, RBE abundance, GPU foresight, persistence (epiphany/synergy/council trial/faction), and VFX modulation.
     pub async fn query_patsagi_council_with_npc_context(
         &self,
         player_id: u64,

@@ -67,6 +67,7 @@ struct PlayerTracker {
 
 /// Main Mercy Anomaly Detector — server-authoritative guardian of RBE integrity
 /// Now with InterestManager hook for potential streaming of high-severity anomalies to interested admins/players
+/// Cross-link: MercyAnomalyDetector (RBE protection, chunk-aware harvest/position validation via ChunkManager/InterestManager, graduated mercy responses) ties to recovered render pipeline, InterestManager visible culling, simulation orchestrator/emergence/ability_tree, council bloom visuals, VFX modulation, RBE abundance, GPU foresight, and persistence (epiphany/synergy/council trial/faction).
 pub struct MercyAnomalyDetector {
     /// Per-player tracking (reset on disconnect or long inactivity)
     player_trackers: HashMap<u64, PlayerTracker>,

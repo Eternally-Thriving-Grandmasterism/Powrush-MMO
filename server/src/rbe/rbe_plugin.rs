@@ -54,6 +54,7 @@ impl Plugin for RbePlugin {
 }
 
 /// Applies standing changes and marks entity for replication.
+/// Cross-link: RBE Plugin (FactionStandingChangedEvent, apply_faction_standing_changes marking DirtyReplicationState for FACTION_STANDING) ties faction persistence/replication to InterestManager visible culling, render pipeline, council bloom visuals, simulation orchestrator/emergence/ability_tree, RBE abundance, GPU foresight, and persistence (epiphany/synergy/council trial/faction).
 fn apply_faction_standing_changes(
     mut events: EventReader<FactionStandingChangedEvent>,
     mut commands: Commands,
