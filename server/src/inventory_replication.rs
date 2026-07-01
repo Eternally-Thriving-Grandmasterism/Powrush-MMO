@@ -1,15 +1,13 @@
 /*!
  * server/src/inventory_replication.rs
  * Full server-side handling for InventoryMove (40-slot) + hotbar.
- * High anomaly_score rejections now feed into MercyAnomalyDetector + safety_net.
+ * MercyAnomalyDetector fully wired as Bevy Resource (called on high anomaly rejections).
  * All prior logic preserved exactly.
  */
 
 use shared::protocol::{ClientMessage, ServerMessage, HotbarSlot};
 use crate::persistence_polish::{PersistenceManager, PlayerSaveData};
 use tracing::{info, warn};
-
-// MercyAnomalyDetector integration (wire as Resource in ServerCorePlugin / lib.rs)
 use crate::mercy_anomaly_detector::{AnomalyType, MercyAnomalyDetector};
 
 /// Server authoritative validation result (stricter than client).
@@ -92,13 +90,14 @@ pub fn handle_inventory_action(
     player_id: u64,
     message: &ClientMessage,
     persistence: &mut PersistenceManager,
+    detector: &mut MercyAnomalyDetector,
 ) -> Option<ServerMessage> {
     match message {
         ClientMessage::InventoryHotbarMove { from_slot, to_slot } => {
-            handle_hotbar_move(player_id, *from_slot, *to_slot, persistence)
+            handle_hotbar_move(player_id, *from_slot, *to_slot, persistence, detector)
         }
         ClientMessage::InventoryMove { from, to } => {
-            handle_general_inventory_move(player_id, *from, *to, persistence)
+            handle_general_inventory_move(player_id, *from, *to, persistence, detector)
         }
         _ => None,
     }
@@ -109,7 +108,7 @@ fn handle_hotbar_move(
     from_slot: u8,
     to_slot: u8,
     persistence: &mut PersistenceManager,
-    // TODO: Pass &mut MercyAnomalyDetector here when wired as Resource
+    detector: &mut MercyAnomalyDetector,
 ) -> Option<ServerMessage> {
     if from_slot == to_slot || from_slot >= 8 || to_slot >= 8 {
         return None;
@@ -123,18 +122,15 @@ fn handle_hotbar_move(
         warn!("[Inventory] Authoritative hotbar move rejected for player {}: {:?} (anomaly={:.2})", player_id, validity.reason, validity.anomaly_score);
 
         if validity.anomaly_score > 0.5 {
-            // Feed high anomaly_score rejections into MercyAnomalyDetector + safety_net
-            // Wire MercyAnomalyDetector as Bevy Resource in ServerCorePlugin / lib.rs
-            // Example (uncomment when detector is in scope):
-            // if let Some(action) = detector.report_anomaly(
-            //     player_id,
-            //     AnomalyType::Custom("InventoryHotbarViolation".to_string()),
-            //     validity.anomaly_score,
-            //     format!("Rejected hotbar move {} -> {} | {}", from_slot, to_slot, validity.reason.as_deref().unwrap_or(""))
-            // ) {
-            //     // safety_net_broadcast(player_id, action); or execute moderation
-            // }
-            warn!("[Inventory] High anomaly ({:.2}) → should trigger MercyAnomalyDetector + safety_net", validity.anomaly_score);
+            // Feed to MercyAnomalyDetector (now wired as Bevy Resource)
+            let _action = detector.report_anomaly(
+                player_id,
+                AnomalyType::Custom("InventoryHotbarViolation".to_string()),
+                validity.anomaly_score,
+                format!("Rejected hotbar move {} -> {} | {}", from_slot, to_slot, validity.reason.as_deref().unwrap_or("")),
+            );
+            // TODO: safety_net_broadcast or execute_moderation_action(_action)
+            warn!("[Inventory] High anomaly ({:.2}) → MercyAnomalyDetector triggered", validity.anomaly_score);
         }
         return None;
     }
@@ -165,7 +161,7 @@ fn handle_general_inventory_move(
     from: u32,
     to: u32,
     persistence: &mut PersistenceManager,
-    // TODO: Pass &mut MercyAnomalyDetector here when wired
+    detector: &mut MercyAnomalyDetector,
 ) -> Option<ServerMessage> {
     if from == to || from >= 40 || to >= 40 {
         return None;
@@ -179,18 +175,15 @@ fn handle_general_inventory_move(
         warn!("[Inventory] Authoritative general move rejected for player {}: {:?} (anomaly={:.2})", player_id, validity.reason, validity.anomaly_score);
 
         if validity.anomaly_score > 0.5 {
-            // Feed high anomaly_score rejections into MercyAnomalyDetector + safety_net
-            // Wire MercyAnomalyDetector as Bevy Resource in ServerCorePlugin / lib.rs
-            // Example (uncomment when detector is in scope):
-            // if let Some(action) = detector.report_anomaly(
-            //     player_id,
-            //     AnomalyType::Custom("InventoryGeneralViolation".to_string()),
-            //     validity.anomaly_score,
-            //     format!("Rejected general inventory move {} -> {} | {}", from, to, validity.reason.as_deref().unwrap_or(""))
-            // ) {
-            //     // safety_net_broadcast or execute_moderation_action
-            // }
-            warn!("[Inventory] High anomaly ({:.2}) → should trigger MercyAnomalyDetector + safety_net", validity.anomaly_score);
+            // Feed to MercyAnomalyDetector (now wired as Bevy Resource)
+            let _action = detector.report_anomaly(
+                player_id,
+                AnomalyType::Custom("InventoryGeneralViolation".to_string()),
+                validity.anomaly_score,
+                format!("Rejected general inventory move {} -> {} | {}", from, to, validity.reason.as_deref().unwrap_or("")),
+            );
+            // TODO: safety_net_broadcast or execute_moderation_action(_action)
+            warn!("[Inventory] High anomaly ({:.2}) → MercyAnomalyDetector triggered", validity.anomaly_score);
         }
         return None;
     }
@@ -212,4 +205,4 @@ fn handle_general_inventory_move(
     })
 }
 
-// End of inventory_replication.rs — high anomaly rejections feed MercyAnomalyDetector + safety_net. Thunder locked in.
+// End of inventory_replication.rs — Bevy Resource wiring complete. Thunder locked in.
