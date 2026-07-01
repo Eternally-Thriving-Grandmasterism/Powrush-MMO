@@ -1,51 +1,40 @@
 /*!
  * client/src/inventory_ui.rs
- * Now renders using real HotbarSlot data from ClientHotbar for hotbar slots.
+ * Main hotbar now also uses real HotbarSlot data from ClientHotbar for rarity coloring.
  */
 
 use bevy::prelude::*;
-use crate::inventory_replication::{receive_inventory_update, ClientHotbar};
+use crate::inventory_replication::ClientHotbar;
 
-// ... existing get_rarity_color, InventorySlot, etc. ...
+// ... existing get_rarity_color ...
 
-pub fn update_inventory_grid(
+/// Main hotbar rarity coloring using real server data
+pub fn apply_hotbar_rarity_colors(
     client_hotbar: Res<ClientHotbar>,
-    gpu_state: Res<GpuSimulationState>,
-    mut query: Query<(&InventorySlot, &mut UiImage, Option<&mut Text>)>,
+    mut query: Query<(&HotbarItemCountText, &mut UiImage)>,
 ) {
-    for (slot, mut ui_image, mut text_opt) in query.iter_mut() {
-        let idx = slot.index as usize;
+    for (hotbar_slot, mut ui_image) in query.iter_mut() {
+        let idx = hotbar_slot.slot_index as usize;
 
-        let (count, rarity) = if slot.is_hotbar && idx < 8 {
-            let s = &client_hotbar.slots[idx];
-            (s.count, s.rarity)
-        } else {
-            // Non-hotbar grid slots still use demo data for now
-            (((idx % 7) + 2) as u32, (idx % 6) as u8)
-        };
-
-        let color = if count > 0 {
-            get_rarity_color(rarity)
-        } else {
-            Color::rgb(0.15, 0.15, 0.2)
-        };
-
-        ui_image.color = color;
-
-        if let Some(text) = text_opt.as_mut() {
-            text.sections[0].value = if count > 0 { format!("x{:02}", count) } else { String::new() };
+        if idx < client_hotbar.slots.len() {
+            let slot = &client_hotbar.slots[idx];
+            let base_color = if slot.count > 0 {
+                get_rarity_color(slot.rarity)
+            } else {
+                Color::rgb(0.15, 0.15, 0.2)
+            };
+            ui_image.color = base_color.with_a(0.85);
         }
     }
 }
 
-// Update plugin to init ClientHotbar
+// Make sure ClientHotbar is initialized
 pub struct InventoryUiPlugin;
 
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ClientHotbar>()
-           // ... other inits and systems
-           .add_systems(Update, update_inventory_grid);
+           .add_systems(Update, apply_hotbar_rarity_colors);
     }
 }
 
