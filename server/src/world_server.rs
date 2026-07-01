@@ -157,6 +157,7 @@ impl WorldServer {
 
     /// Professional implementation: Load fresh NPC snapshots with retry logic, artifact fetch, TOLC 8 valence gate, procedural fallback.
     /// Recovered + elevated from backup-47 patterns and prior diffs. No placeholder.
+    /// Cross-link: WorldServer (simulation harness integration, RBE abundance, mercy gate TOLC 8 filtering on NPCs, zone/snapshot production) ties to recovered render pipeline, InterestManager visible culling, simulation orchestrator/emergence/ability_tree, council bloom visuals, VFX modulation, RBE abundance, GPU foresight, and persistence (epiphany/synergy/council trial/faction).
     pub async fn load_fresh_npc_snapshots(&mut self) -> Result<(), String> {
         info!("Loading fresh NPC snapshots with TOLC 8 mercy gate validation...");
 
@@ -190,7 +191,7 @@ impl WorldServer {
         // Professional fallback: procedural generation of balanced starter NPCs (mercy-aligned)
         warn!("Artifact fetch failed after {} attempts. Generating procedural mercy-aligned NPCs as fallback.", max_retries);
         self.generate_procedural_starter_npcs();
-        Ok(())
+        Ok(());
     }
 
     async fn fetch_npc_artifact(&self) -> Result<Vec<EnrichedNpcState>, String> {
@@ -234,7 +235,7 @@ impl WorldServer {
                 mercy_alignment: 0.71,
             },
         ];
-        Ok(sample_npcs)
+        Ok(sample_npcs);
     }
 
     fn generate_procedural_starter_npcs(&mut self) {
@@ -285,7 +286,7 @@ impl WorldServer {
             } else {
                 None
             },
-        }
+        };
     }
 }
 

@@ -70,11 +70,12 @@ impl TradeSystem {
 
         let _ = self.db.create::<Option<Trade>>(("trade", trade_id)).content(trade.clone()).await;
         self.active_trades.insert(trade_id, trade);
-        Ok(trade_id)
+        Ok(trade_id);
     }
 
     /// Refactored: Now takes two inventory references instead of the full HashMap.
     /// This greatly reduces coupling with the main loop.
+    /// Cross-link: TradeSystem (atomic trade with inventory validation that target has requested resources, expire_trades, RBE resource transfer) ties to RBE abundance, persistence, simulation orchestrator/emergence/ability_tree, council bloom visuals, render pipeline, InterestManager culling, GPU foresight, and VFX modulation.
     pub async fn accept_trade_atomic(
         &mut self,
         trade_id: u64,
@@ -119,7 +120,7 @@ impl TradeSystem {
         }
 
         info!("Trade {} completed successfully", trade_id);
-        Ok(())
+        Ok(());
     }
 
     pub async fn reject_trade(&mut self, trade_id: u64, rejecting_player_id: u64) -> Result<(), String> {
@@ -127,7 +128,7 @@ impl TradeSystem {
         if let Some(_) = self.active_trades.remove(&trade_id) {
             let _ = self.db.delete::<Option<Trade>>(("trade", trade_id)).await;
         }
-        Ok(())
+        Ok(());
     }
 
     /// New: Actively expire old pending trades (call from main loop)
