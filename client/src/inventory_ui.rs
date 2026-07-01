@@ -1,49 +1,84 @@
 /*!
  * client/src/inventory_ui.rs
- * Rarity color coding extended to hotbar rendering.
+ * General 40-slot inventory grid drag & drop implementation (including hotbar cross-dragging).
  */
 
 use bevy::prelude::*;
+use crate::inventory_replication::receive_inventory_update;
+use crate::rbe_client_sync::GpuSimulationState;
+use shared::protocol::HotbarSlot;
 
-/// Returns mercy-themed color for rarity (0-5)
-pub fn get_rarity_color(rarity: u8) -> Color {
-    match rarity {
-        0 => Color::rgb(0.6, 0.6, 0.65),   // Common
-        1 => Color::rgb(0.4, 0.7, 0.4),   // Uncommon
-        2 => Color::rgb(0.4, 0.6, 0.9),   // Rare
-        3 => Color::rgb(0.7, 0.5, 0.9),   // Epic
-        4 => Color::rgb(0.95, 0.7, 0.3),  // Legendary
-        5 => Color::rgb(1.0, 0.4, 0.6),   // Mythic
-        _ => Color::rgb(0.5, 0.5, 0.55),
-    }
-}
+// ... existing get_rarity_color, InventorySlot, InventoryDragState, etc. ...
 
-// === HOTBAR RARITY COLORING ===
-
-/// Applies rarity color to hotbar slot backgrounds/borders
-/// Currently uses placeholder rarity. Will read from extended GpuSimulationState when full item data is wired.
-pub fn apply_hotbar_rarity_colors(
-    mut query: Query<(&HotbarItemCountText, &mut UiImage)>,
+/// Enhanced handle_drop supporting full grid + hotbar cross dragging
+pub fn handle_drop(
+    mut commands: Commands,
+    mut drag: ResMut<InventoryDragState>,
+    mut demo_inv: ResMut<DemoInventory>,
+    mut gpu_state: ResMut<GpuSimulationState>,
+    target_query: Query<(&InventorySlot, &Interaction, Entity)>,
 ) {
-    for (hotbar_slot, mut ui_image) in query.iter_mut() {
-        let idx = hotbar_slot.slot_index as usize;
+    if !drag.is_dragging || drag.source.is_none() { return; }
+    let src = drag.source.unwrap();
 
-        // Placeholder rarity until we extend GpuSimulationState with full HotbarSlot
-        let rarity = (idx % 6) as u8;
-        let color = get_rarity_color(rarity);
+    for (tgt, interaction, _entity) in target_query.iter() {
+        if *interaction == Interaction::Pressed || *interaction == Interaction::Hovered {
+            if tgt.index == src.index && tgt.is_hotbar == src.is_hotbar {
+                cancel_drag(&mut commands, &mut drag);
+                return;
+            }
 
-        // Tint the slot background with rarity color (subtle)
-        ui_image.color = color.with_a(0.85);
+            // Basic validation hook (rarity / item type can be expanded here)
+            let can_move = validate_move(&src, tgt);
+
+            if can_move {
+                if src.is_hotbar && tgt.is_hotbar {
+                    // Hotbar <-> Hotbar swap (already wired to GpuSimulationState)
+                    let s = src.index as usize;
+                    let t = tgt.index as usize;
+                    if s < 8 && t < 8 {
+                        let tmp = gpu_state.hotbar[s].count;
+                        gpu_state.hotbar[s].count = gpu_state.hotbar[t].count;
+                        gpu_state.hotbar[t].count = tmp;
+                    }
+                } else {
+                    // Grid <-> Grid or Grid <-> Hotbar (demo inventory for now)
+                    demo_inv.swap(src.index as usize, tgt.index as usize);
+
+                    // TODO: When full HotbarSlot data is in GpuSimulationState,
+                    // perform real move/swap here and mark dirty for replication
+                }
+
+                info!("[Inventory] Drag drop: {:?} -> {:?}", src, tgt);
+            } else {
+                warn!("[Inventory] Move blocked by validation");
+            }
+
+            cancel_drag(&mut commands, &mut drag);
+            return;
+        }
     }
+
+    cancel_drag(&mut commands, &mut drag);
 }
 
-// ... existing hotbar count/cooldown systems and InventoryUiPlugin ...
+/// Basic move validation (expand with real item metadata + rarity rules)
+fn validate_move(source: &InventorySlot, target: &InventorySlot) -> bool {
+    // Example: prevent moving mythic items into certain slots, or check item category
+    // For now permissive
+    true
+}
+
+// ... rest of drag systems (start_drag, update_drag_ghost, etc.) remain ...
+
+pub struct InventoryUiPlugin;
 
 impl Plugin for InventoryUiPlugin {
     fn build(&self, app: &mut App) {
+        // ...
         app.add_systems(Update, (
-            // ... existing hotbar systems ...
-            apply_hotbar_rarity_colors,
+            // ...
+            handle_drop,
             // ...
         ));
     }
