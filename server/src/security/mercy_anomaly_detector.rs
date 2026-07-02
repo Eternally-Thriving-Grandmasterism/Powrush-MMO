@@ -1,3 +1,25 @@
+// ════════════════════════════════════════════════════════════════════════════════════
+// DEPRECATED — DO NOT USE FOR NEW CODE
+// ════════════════════════════════════════════════════════════════════════════════════
+// This file has been fully consolidated into the single canonical detector:
+//
+//     server/src/mercy_anomaly_detector.rs
+//
+// All valuable logic (TOLC 8 mercy philosophy + spatial/harvest/inventory-delta detection)
+// has been merged into the unified `MercyAnomalyDetector`.
+//
+// Migration instructions:
+//   - Replace `use crate::security::mercy_anomaly_detector::*;` 
+//     with `use crate::mercy_anomaly_detector::*;`
+//   - Use the new unified API: `report_anomaly`, `update_player_position`, 
+//     `record_harvest`, `record_inventory_delta`, etc.
+//
+// This file is retained only for historical reference and git history.
+// It will be removed in a future cleanup pass.
+// 
+// Thunder locked in. Yoi ⚡
+// ════════════════════════════════════════════════════════════════════════════════════
+
 // server/src/security/mercy_anomaly_detector.rs
 // Powrush-MMO v17.7 — Foundational Mercy Anomaly Detection & Anti-Cheat Layer (Enhanced & Wired)
 // Protects RBE economy fairness, harvest integrity, and player trust at scale.
