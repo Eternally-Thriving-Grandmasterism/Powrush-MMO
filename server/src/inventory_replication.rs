@@ -1,17 +1,18 @@
 /*!
  * server/src/inventory_replication.rs
  * Full server-side handling for InventoryMove (40-slot general) + hotbar (8-slot).
- * MercyAnomalyDetector now properly consumes returned ModerationAction.
- * High-severity anomalies trigger SafetyNet emission note + logging.
+ * Now emits SafetyNetBroadcast via EventWriter for severe ModerationAction (Ban/Kick).
  * All prior logic preserved exactly. AG-SML v1.0 | TOLC 8 + RBE + PATSAGi
  */
 
+use bevy::prelude::*;
 use shared::protocol::{ClientMessage, ServerMessage, HotbarSlot};
 use crate::persistence_polish::{PersistenceManager, PlayerSaveData};
 use tracing::{info, warn};
 use crate::mercy_anomaly_detector::{AnomalyType, MercyAnomalyDetector, ModerationAction};
+use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
 
-/// Server authoritative validation result (stricter than client).
+/// Server authoritative validation result
 pub struct AuthoritativeMoveValidity {
     pub allowed: bool,
     pub reason: Option<String>,
@@ -20,8 +21,6 @@ pub struct AuthoritativeMoveValidity {
     pub anomaly_score: f32,
 }
 
-/// Authoritative server mirror of client validate_move.
-/// Uses real inventory[40] / hotbar[8] data from PlayerSaveData. Full TOLC 8 Mercy + RBE abundance/anti-tyranny + anomaly scoring.
 pub fn validate_inventory_move_authoritative(
     player_data: &PlayerSaveData,
     from: usize,
@@ -56,14 +55,8 @@ pub fn validate_inventory_move_authoritative(
 
     let src_valence = src_slot.valence;
 
-    let mercy_gate = if src_valence < -0.5 {
-        0.25
-    } else {
-        0.92
-    };
-
+    let mercy_gate = if src_valence < -0.5 { 0.25 } else { 0.92 };
     let abundance_impact = if src_slot.count > 15 { 0.55 } else { 0.88 };
-
     let anomaly = if mercy_gate < 0.4 || abundance_impact < 0.5 { 0.65 } else { 0.15 };
 
     let allowed = mercy_gate > 0.4 && abundance_impact > 0.4 && anomaly < 0.7;
@@ -83,13 +76,14 @@ pub fn handle_inventory_action(
     message: &ClientMessage,
     persistence: &mut PersistenceManager,
     detector: &mut MercyAnomalyDetector,
+    safety_net_writer: &mut EventWriter<EmitSafetyNetBroadcast>,
 ) -> Option<ServerMessage> {
     match message {
         ClientMessage::InventoryHotbarMove { from_slot, to_slot } => {
-            handle_hotbar_move(player_id, *from_slot, *to_slot, persistence, detector)
+            handle_hotbar_move(player_id, *from_slot, *to_slot, persistence, detector, safety_net_writer)
         }
         ClientMessage::InventoryMove { from, to } => {
-            handle_general_inventory_move(player_id, *from, *to, persistence, detector)
+            handle_general_inventory_move(player_id, *from, *to, persistence, detector, safety_net_writer)
         }
         _ => None,
     }
@@ -101,6 +95,7 @@ fn handle_hotbar_move(
     to_slot: u8,
     persistence: &mut PersistenceManager,
     detector: &mut MercyAnomalyDetector,
+    safety_net_writer: &mut EventWriter<EmitSafetyNetBroadcast>,
 ) -> Option<ServerMessage> {
     if from_slot == to_slot || from_slot >= 8 || to_slot >= 8 {
         return None;
@@ -110,6 +105,7 @@ fn handle_hotbar_move(
         .unwrap_or_else(|| PlayerSaveData::new(player_id));
 
     let validity = validate_inventory_move_authoritative(&player_data, from_slot as usize, to_slot as usize, true);
+
     if !validity.allowed {
         warn!("[Inventory] Authoritative hotbar move rejected for player {}: {:?} (anomaly={:.2})", player_id, validity.reason, validity.anomaly_score);
 
@@ -120,11 +116,15 @@ fn handle_hotbar_move(
                 validity.anomaly_score,
                 format!("Rejected hotbar move {} -> {} | {}", from_slot, to_slot, validity.reason.as_deref().unwrap_or("")),
             ) {
-                // Properly consume ModerationAction
                 match action {
                     ModerationAction::Ban { .. } | ModerationAction::Kick { .. } => {
                         warn!("[Inventory] Severe action triggered for player {}: {:?}", player_id, action);
-                        // TODO: Emit SafetyNetBroadcast for severe inventory violations (see safety_net_broadcast.rs)
+                        // Emit SafetyNetBroadcast for severe inventory violation
+                        safety_net_writer.send(EmitSafetyNetBroadcast {
+                            player_id,
+                            reason: "InventoryActionProcessed".to_string(),
+                            force_full_snapshot: false,
+                        });
                     }
                     ModerationAction::Throttle { .. } | ModerationAction::DivineWarning { .. } => {
                         info!("[Inventory] Mercy response for player {}: {:?}", player_id, action);
@@ -162,6 +162,7 @@ fn handle_general_inventory_move(
     to: u32,
     persistence: &mut PersistenceManager,
     detector: &mut MercyAnomalyDetector,
+    safety_net_writer: &mut EventWriter<EmitSafetyNetBroadcast>,
 ) -> Option<ServerMessage> {
     if from == to || from >= 40 || to >= 40 {
         return None;
@@ -171,6 +172,7 @@ fn handle_general_inventory_move(
         .unwrap_or_else(|| PlayerSaveData::new(player_id));
 
     let validity = validate_inventory_move_authoritative(&player_data, from as usize, to as usize, false);
+
     if !validity.allowed {
         warn!("[Inventory] Authoritative general move rejected for player {}: {:?} (anomaly={:.2})", player_id, validity.reason, validity.anomaly_score);
 
@@ -184,7 +186,11 @@ fn handle_general_inventory_move(
                 match action {
                     ModerationAction::Ban { .. } | ModerationAction::Kick { .. } => {
                         warn!("[Inventory] Severe action triggered for player {}: {:?}", player_id, action);
-                        // TODO: Emit SafetyNetBroadcast for severe inventory violations
+                        safety_net_writer.send(EmitSafetyNetBroadcast {
+                            player_id,
+                            reason: "InventoryActionProcessed".to_string(),
+                            force_full_snapshot: false,
+                        });
                     }
                     ModerationAction::Throttle { .. } | ModerationAction::DivineWarning { .. } => {
                         info!("[Inventory] Mercy response for player {}: {:?}", player_id, action);
@@ -212,4 +218,4 @@ fn handle_general_inventory_move(
     })
 }
 
-// End of inventory_replication.rs — ModerationAction now properly handled + SafetyNet hook noted
+// End of inventory_replication.rs — SafetyNetBroadcast now emitted for severe ModerationAction cases
