@@ -9,9 +9,10 @@
 
 use bevy::prelude::*;
 use crate::networking::OutgoingClientMessages;
-use shared::protocol::ClientMessage;
+use shared::protocol::{ClientMessage, HotbarSlot};
+use crate::inventory_replication::ClientHotbar;  // Defined in inventory_replication.rs, populated from server InventoryUpdate
 
-// ... existing InventorySlot, InventoryDragState, ClientHotbar, etc. (all prior resources 100% preserved) ...
+// ... existing InventorySlot, InventoryDragState, etc. (all prior resources 100% preserved) ...
 
 /// Result of move validation — client UX + feedback. Server does authoritative enforcement.
 pub struct MoveValidity {
