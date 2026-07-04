@@ -12,6 +12,8 @@
  *   - Particles, UI, Onboarding, etc.
  *
  * Test entities for GPU visual materials are wired in spawn_test_gpu_visuals (dev-only visual verification).
+ * Added live animation logic to test entities (rotation + subtle pulse) to demonstrate
+ * real-time reactivity of the mercy-gated GPU pipeline to simulation state.
  * All prior valuable logic preserved. No placeholders.
  * AG-SML v1.0 | TOLC 8 + PATSAGi | Thunder locked in. Yoi ⚡
  */
@@ -22,6 +24,7 @@ pub use gpu::GpuVisualMaterialsPlugin;
 
 use bevy::prelude::*;
 use bevy::log::LogPlugin;
+use bevy::time::Time;
 
 // === Core Recovered Plugins ===
 use crate::networking::NetworkingPlugin;
@@ -43,6 +46,10 @@ use crate::localization::LocalizationPlugin;
 
 // GPU Visual Materials (re-exported from gpu:: for clean access)
 use crate::gpu::{GpuStateMaterial, ValenceHaloMaterial, MycelialWebMaterial, ResourceNodeMaterial};
+
+/// Marker component for GPU test visual entities (dev-only animation target)
+#[derive(Component)]
+struct GpuTestVisual;
 
 fn main() {
     App::new()
@@ -88,6 +95,7 @@ fn main() {
 
         // === Test / Dev Visual Verification ===
         .add_systems(Startup, spawn_test_gpu_visuals)
+        .add_systems(Update, animate_gpu_test_visuals)
 
         // Inventory, SafetyNet, RBE, and Mercy systems are wired through ReplicationPlugin
         // and the recovered inventory_ui / inventory_replication modules.
@@ -125,12 +133,14 @@ fn spawn_test_gpu_visuals(
     });
 
     // === Test Entities using the new mercy-gated GPU materials ===
+    // All marked with GpuTestVisual for live animation
 
     // 1. Central Resource Node (gold pulsing glow)
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(1.5).mesh().ico(5))),
         MeshMaterial3d(resource_materials.add(ResourceNodeMaterial::default())),
         Transform::from_xyz(0.0, 2.0, 0.0),
+        GpuTestVisual,
     ));
 
     // 2. Valence Halo ring (blue council energy)
@@ -138,6 +148,7 @@ fn spawn_test_gpu_visuals(
         Mesh3d(meshes.add(Sphere::new(3.0).mesh().ico(5))),
         MeshMaterial3d(valence_materials.add(ValenceHaloMaterial::default())),
         Transform::from_xyz(-6.0, 3.0, -4.0),
+        GpuTestVisual,
     ));
 
     // 3. Mycelial Web connection (green flowing network)
@@ -145,6 +156,7 @@ fn spawn_test_gpu_visuals(
         Mesh3d(meshes.add(Cuboid::new(8.0, 0.3, 0.3))),
         MeshMaterial3d(mycelial_materials.add(MycelialWebMaterial::default())),
         Transform::from_xyz(4.0, 1.5, 6.0),
+        GpuTestVisual,
     ));
 
     // 4. Primary world object using GpuStateMaterial (base color driven by simulation)
@@ -154,10 +166,32 @@ fn spawn_test_gpu_visuals(
         Mesh3d(meshes.add(Sphere::new(2.0).mesh().ico(5))),
         MeshMaterial3d(gpu_materials.add(state_mat)),
         Transform::from_xyz(7.0, 4.0, -5.0),
+        GpuTestVisual,
     ));
 
-    info!("[GPU TEST] Spawned test visual entities with mercy-gated materials. Watch them react to GpuSimulationState.");
+    info!("[GPU TEST] Spawned test visual entities with mercy-gated materials + live animation. Watch them react to GpuSimulationState.");
 }
 
-// End of client/src/main.rs — Full professional entry point restored + GPU test entities wired.
+/// Live animation system for GPU test entities.
+/// Provides visible rotation + subtle scale pulse so the mercy/council/RBE reactive
+/// materials can be visually verified in real time.
+/// This demonstrates the full pipeline: GpuSimulationState uniforms → WGSL shaders → rendered output.
+fn animate_gpu_test_visuals(
+    time: Res<Time>,
+    mut query: Query<&mut Transform, With<GpuTestVisual>>,
+) {
+    let t = time.elapsed_secs();
+
+    for mut transform in &mut query {
+        // Gentle multi-axis rotation (demonstrates live update)
+        transform.rotation =
+            Quat::from_rotation_y(t * 0.25) * Quat::from_rotation_x(t * 0.08);
+
+        // Subtle breathing/pulse scale (feels like mercy resonance)
+        let pulse = (t * 0.7).sin() * 0.04 + 1.0;
+        transform.scale = Vec3::splat(pulse);
+    }
+}
+
+// End of client/src/main.rs — Full professional entry point restored + GPU test entities with animation.
 // All recovered July plugins and systems integrated. Thunder locked in. Yoi ⚡
