@@ -9,8 +9,8 @@
  * - staging_buffer
  * - gpu_simulation (state sync, resources)
  *
- * Re-exports GpuVisualMaterialsPlugin under the name expected by main.rs
- * for zero-friction integration with the existing entry point.
+ * Re-exports GpuVisualMaterialsPlugin and the core material types
+ * for zero-friction use in main.rs and test/dev entity spawning.
  *
  * AG-SML v1.0 | TOLC 8 + PATSAGi Councils
  * Thunder locked in. Yoi ⚡
@@ -21,9 +21,16 @@ pub mod staging_buffer;
 pub mod visual_materials;
 pub mod gpu_simulation;
 
-// Re-export so `use crate::GpuVisualMaterialsPlugin;` continues to work in main.rs
-// without changing any existing wiring.
+// Re-export plugin under the name expected by main.rs
 pub use visual_materials::VisualMaterialsPlugin as GpuVisualMaterialsPlugin;
+
+// Re-export the four core mercy-gated materials for easy test entity wiring
+pub use visual_materials::{
+    GpuStateMaterial,
+    ValenceHaloMaterial,
+    MycelialWebMaterial,
+    ResourceNodeMaterial,
+};
 
 /*
  * AG-SML v1.0
