@@ -15,6 +15,10 @@
  * AG-SML v1.0 | TOLC 8 + PATSAGi | Thunder locked in. Yoi ⚡
  */
 
+// GPU module wiring (new aggregator for visual materials + culling + simulation)
+mod gpu;
+pub use gpu::GpuVisualMaterialsPlugin;
+
 use bevy::prelude::*;
 use bevy::log::LogPlugin;
 
