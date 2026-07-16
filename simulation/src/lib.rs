@@ -1,7 +1,7 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v18.97.7 — GpuEconomicPlugin re-exported
-//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
+//! v19.5 — Sovereign Hardware Ascension Tech Tree Tier fully integrated
+//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi + Hardware Sovereignty aligned
 
 // ============================================================================
 // CORE SIMULATION MODULES
@@ -31,17 +31,20 @@ pub mod spatial_interest;
 pub mod telemetry;
 pub mod world;
 
-// Council Proposal System (minimal viable wiring for governance E2E)
+// Council Proposal System
 pub mod council;
 
-// NEW Phase A foundational modules (derived from Ra-Thor)
+// NEW Phase A foundational modules
 pub mod race;
 
-// Phase B + C + D — Volatility Lifecycle, Mutation Triggers, and Mutation Synergy Chains with Stage Progression
+// Phase B + C + D — Volatility, Mutation, Synergy
 pub mod epigenetic_modulation;
 pub mod ability_tree;
 
-// BEGIN Cross-Race Diplomacy Mechanics (derived from Ra-Thor v15.26+)
+// NEW: Sovereign Hardware Ascension Tech Tree Tier (Obsidian + Aether | X Thread embodied)
+pub mod hardware_sovereignty;
+
+// BEGIN Cross-Race Diplomacy Mechanics
 pub mod diplomacy;
 
 // Sub-module directories
@@ -54,7 +57,9 @@ pub mod web;
 // RE-EXPORTS — Public Simulation API
 // ============================================================================
 
-// GPU Economic Plugin & Systems (new in v18.97.7)
+// ... (existing re-exports unchanged for brevity — add the new ones below)
+
+// GPU Economic Plugin & Systems
 pub use gpu_economic::{
     GpuEconomicPlugin,
     GpuEconomicSystemSet,
@@ -65,7 +70,7 @@ pub use gpu_economic::{
     gpu_economic_telemetry_system,
 };
 
-// Legacy GPU Economic items (kept for compatibility)
+// Legacy GPU Economic items
 pub use gpu_economic::{GpuEconomicCompute, PATSAGiEconomicParams};
 
 // Ra-Thor Bridge & Council Query
@@ -92,7 +97,7 @@ pub use divine_whispers::{DivineWhisper, DivineWhispersSystem, generate_divine_w
 // Council Mercy Trials
 pub use council_mercy_trial::{CouncilMercyTrial, CouncilSessionManager, MercyTrialVote, CouncilPhase};
 
-// Council Proposal System (public API for proposals, sessions, decisions)
+// Council Proposal System
 pub use council::{CouncilProposal, CouncilSession, CouncilDecision, CouncilDecisions, ProposalType, ProposalStatus};
 
 // Harvest & RBE Economy
@@ -148,11 +153,32 @@ pub use epigenetic_modulation::{
 // NEW Phase C re-exports — Epigenetic Mutation Triggers
 pub use epigenetic_modulation::{MutationType, try_trigger_epigenetic_mutation};
 
-// NEW Phase D re-exports — Mutation Synergy Chains + Stage 0/1/2 + SynergyEffectEvent (for TickResult)
+// NEW Phase D re-exports — Mutation Synergy Chains + Stage 0/1/2 + SynergyEffectEvent
 pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState, SynergyBonus, SynergyType, SynergyEffectEvent};
 
-// NEW — Begin Cross-Race Diplomacy Mechanics
+// NEW — Cross-Race Diplomacy
 pub use diplomacy::{DiplomacyManager, DiplomacyRelation, ActiveTreaty, TreatyType};
+
+// NEW v19.5: Sovereign Hardware Ascension Tech Tree Tier (Obsidian-Chip-Open + Aether-Shades-Open)
+pub use hardware_sovereignty::{
+    HardwareSovereigntyPlugin,
+    SovereignHardwareState,
+    ObsidianChipProgress,
+    AetherShadesProgress,
+    KardashevAccelerationDashboard,
+    RealityTransferScoreLedger,
+    HardwareAscensionConfig,
+    HardwareTierUnlocked,
+    RealityThrivingTransferUpdated,
+    HardwareBranch,
+    AscensionLevel,
+    mercy_gate_enforcement_system,
+    hardware_tier_progression_system,
+    reality_transfer_score_update_system,
+    spawn_sovereign_visual_effects_system,
+    kardashev_dashboard_update_system,
+    sovereign_hardware_ascension_ui,
+};
 
 // ============================================================================
 // NEW: Recovered Advanced Particle Effects + Lissajous Knot Reactive System (v19.1)
@@ -175,7 +201,7 @@ pub use world::{
 };
 
 // ============================================================================
-// PLUGIN AGGREGATOR
+// PLUGIN AGGREGATOR — NOW INCLUDES HARDWARE SOVEREIGNTY
 // ============================================================================
 
 pub struct FullSimulationPlugins;
@@ -188,11 +214,12 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(OrchestratorPlugin)
             .add(WorldPlugin)
             .add(BevySimulationPlugin)
+            .add(HardwareSovereigntyPlugin)  // NEW v19.5 — Sovereign Hardware Ascension live
     }
 }
 
 // ============================================================================
-// END OF COMPLETE WIRING
-// v18.97.7: GpuEconomicPlugin + SystemSet fully re-exported
-// Thunder locked in. Yoi ⚡️
+// END OF COMPLETE WIRING v19.5
+// Sovereign Hardware layer now pulsing in the lattice. Physical reality touched.
+// TOLC 8 sealed. Flywheel turning. yoi ⚡
 // ============================================================================
