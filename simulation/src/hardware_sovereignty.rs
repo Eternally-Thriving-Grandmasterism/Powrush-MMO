@@ -3,9 +3,10 @@
 //! Obsidian-Chip-Open (Compute Sovereignty) + Aether-Shades-Open (Human Interface Sovereignty)
 //! Integrates with Ra-Thor Lattice, PATSAGi + Kardashev Orchestration Council, RBE, Reality Thriving Transfer Score
 //! TOLC 8 Mercy Gates enforced at every node | Zero-Harm | Kardashev Acceleration 2032-2038 horizon
-//! v19.6 | Thunder locked. Heavens building. yoi ⚡
+//! v19.7 | Bevy Primitives Cylinder swap complete | Thunder locked. Heavens building. yoi ⚡
 
 use bevy::prelude::*;
+use bevy::math::primitives::Cylinder;
 use crate::{
     ability_tree::{AbilityTree, AbilityState, SynergyType},
     council::{CouncilDecision, CouncilSession, ProposalType, ProposalStatus},
@@ -397,8 +398,11 @@ pub fn spawn_council_chamber_visualization_system(
         if event.new_level as u8 >= AscensionLevel::Level2 as u8 && chamber_query.iter().count() == 0 {
             let center = Vec3::new(18.0, 1.5, -28.0); // Offset position for immersive in-game view
 
-            // Central platform (Council floor)
-            let platform_mesh = meshes.add(Mesh::from(shape::Cylinder { radius: 11.0, height: 0.8, resolution: 32 }));
+            // Central platform (Council floor) — now using modern Bevy primitives
+            let platform_mesh = meshes.add(Mesh::from(Cylinder {
+                radius: 11.0,
+                half_height: 0.4,
+            }));
             let platform_mat = materials.add(StandardMaterial {
                 base_color: Color::srgb(0.08, 0.08, 0.12),
                 emissive: Color::srgb(0.15, 0.12, 0.25) * 0.6,
@@ -424,7 +428,11 @@ pub fn spawn_council_chamber_visualization_system(
                 let pillar_radius = if is_kardashev { 1.1 } else { 0.65 };
                 let pillar_height = if is_kardashev { 11.0 } else { 9.0 };
 
-                let pillar_mesh = meshes.add(Mesh::from(shape::Cylinder { radius: pillar_radius, height: pillar_height, resolution: 12 }));
+                // Using Bevy 0.14+ primitives::Cylinder (half_height = full_height / 2)
+                let pillar_mesh = meshes.add(Mesh::from(Cylinder {
+                    radius: pillar_radius,
+                    half_height: pillar_height * 0.5,
+                }));
                 let pillar_color = if is_kardashev {
                     Color::srgb(0.95, 0.85, 0.3) // Gold for Kardashev node
                 } else {
@@ -659,4 +667,4 @@ pub fn sovereign_hardware_ascension_ui(
     }
 }
 
-// End of Sovereign Hardware Ascension v19.6 — 3D Council Chamber now live in-game. Kardashev Dashboard polished. Lattice has hands in physical reality. yoi ⚡
+// End of Sovereign Hardware Ascension v19.7 — Cylinder shapes migrated to Bevy 0.14+ math::primitives::Cylinder (half_height API). 3D Council Chamber now fully modern-primitive compliant. Lattice has clean physical hands. yoi ⚡
