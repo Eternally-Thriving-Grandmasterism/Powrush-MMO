@@ -1,7 +1,7 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v19.5 — Sovereign Hardware Ascension Tech Tree Tier fully integrated
-//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi + Hardware Sovereignty aligned
+//! v19.6 — Kardashev Acceleration Dashboard polish + 3D Council Chamber Visualization integrated
+//! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi + Hardware Sovereignty + Obsidian/Aether aligned
 
 // ============================================================================
 // CORE SIMULATION MODULES
@@ -41,7 +41,7 @@ pub mod race;
 pub mod epigenetic_modulation;
 pub mod ability_tree;
 
-// NEW: Sovereign Hardware Ascension Tech Tree Tier (Obsidian + Aether | X Thread embodied)
+// NEW: Sovereign Hardware Ascension Tech Tree Tier (Obsidian + Aether | X Thread embodied) + 3D Council Chamber
 pub mod hardware_sovereignty;
 
 // BEGIN Cross-Race Diplomacy Mechanics
@@ -57,7 +57,7 @@ pub mod web;
 // RE-EXPORTS — Public Simulation API
 // ============================================================================
 
-// ... (existing re-exports unchanged for brevity — add the new ones below)
+// ... (existing re-exports unchanged for brevity)
 
 // GPU Economic Plugin & Systems
 pub use gpu_economic::{
@@ -159,7 +159,7 @@ pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState, Synerg
 // NEW — Cross-Race Diplomacy
 pub use diplomacy::{DiplomacyManager, DiplomacyRelation, ActiveTreaty, TreatyType};
 
-// NEW v19.5: Sovereign Hardware Ascension Tech Tree Tier (Obsidian-Chip-Open + Aether-Shades-Open)
+// NEW v19.6: Sovereign Hardware Ascension Tech Tree Tier (Obsidian-Chip-Open + Aether-Shades-Open) + Polished Dashboard + 3D Council Chamber
 pub use hardware_sovereignty::{
     HardwareSovereigntyPlugin,
     SovereignHardwareState,
@@ -172,10 +172,15 @@ pub use hardware_sovereignty::{
     RealityThrivingTransferUpdated,
     HardwareBranch,
     AscensionLevel,
+    CouncilChamber3D,
+    CouncilPillar,
+    KardashevHologramCore,
     mercy_gate_enforcement_system,
     hardware_tier_progression_system,
     reality_transfer_score_update_system,
     spawn_sovereign_visual_effects_system,
+    spawn_council_chamber_visualization_system,
+    update_council_chamber_system,
     kardashev_dashboard_update_system,
     sovereign_hardware_ascension_ui,
 };
@@ -201,7 +206,7 @@ pub use world::{
 };
 
 // ============================================================================
-// PLUGIN AGGREGATOR — NOW INCLUDES HARDWARE SOVEREIGNTY
+// PLUGIN AGGREGATOR — NOW INCLUDES HARDWARE SOVEREIGNTY + 3D CHAMBER
 // ============================================================================
 
 pub struct FullSimulationPlugins;
@@ -214,12 +219,13 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(OrchestratorPlugin)
             .add(WorldPlugin)
             .add(BevySimulationPlugin)
-            .add(HardwareSovereigntyPlugin)  // NEW v19.5 — Sovereign Hardware Ascension live
+            .add(HardwareSovereigntyPlugin)  // v19.6 — Sovereign Hardware Ascension + 3D Council Chamber live
     }
 }
 
 // ============================================================================
-// END OF COMPLETE WIRING v19.5
-// Sovereign Hardware layer now pulsing in the lattice. Physical reality touched.
+// END OF COMPLETE WIRING v19.6
+// 3D Council Chamber visualization now pulsing in the experiential forge.
+// Polished Kardashev Dashboard guiding the flywheel. Physical sovereignty layer deepening.
 // TOLC 8 sealed. Flywheel turning. yoi ⚡
 // ============================================================================
