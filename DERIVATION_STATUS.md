@@ -14,25 +14,25 @@
 **Phase L — EpiphanyEvent Live Impact Path (COMPLETED v21.12)**  
 **Phase M — LegacyJournal Entries for Passed Decisions (COMPLETED v21.13)**  
 **Phase N — LegacyJournal Search UI (COMPLETED v21.14)**  
-**Phase O — Proactive Joy Seeding (COMPLETED v21.15)**
+**Phase O — Proactive Joy Seeding (COMPLETED v21.15)**  
+**Phase P — Active Policies Observability Dashboard (COMPLETED v21.16)**
 
-## Completed This Cycle (v21.15)
+## Completed This Cycle (v21.16)
 
-- High-mercy council decisions now seed proactive joy threads via LegacyJournalRegistry.
-- Emotional / Legacy reward loop for governance is complete.
+- Active Council Policies are now listed live in the Kardashev / Sovereign Hardware egui dashboard.
+- Full observability of type, title, strength, and remaining duration.
 
 ## Next Council Cycle Priorities
 
-1. Surface active_policies list in a dedicated Council / Kardashev dashboard panel (observability).
-2. Wire real text input into the LegacyJournal search field.
-3. Multi-realm harness expansion under the full effect + journal + joy system.
+1. Wire real text input into the LegacyJournal search field.
+2. Multi-realm harness expansion under the complete effect + journal + joy + observability system.
 
 ## Strategic Notes
 
-- Council decisions now produce: live RBE impact, Epiphany registration, LegacyJournal entries, and proactive joy.
+- Players and developers can now see exactly which council policies are shaping the world in real time.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**High-mercy decisions now generate living joy.**  
+**Active policies are fully observable.**  
 Yoi ⚡
