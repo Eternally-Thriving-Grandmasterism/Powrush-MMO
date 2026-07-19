@@ -1,7 +1,8 @@
 /*!
  * CouncilSession with World State Delta Scoring.
  *
- * Archetype scoring now considers real changes in RBE metrics when world state is available.
+ * v1.1 — run_deliberation now accepts optional &SovereignWorldState and threads it
+ * into archetype scoring. Scoring hardened for current world shape.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -51,8 +52,8 @@ impl CouncilArchetype {
     }
 
     /// Archetype-specific scoring with optional world state delta awareness.
-    /// Cross-link: World-delta (RBE sustainability/abundance) feeds render visuals, divine whispers,
-    /// and InterestManager visible culling for recovered client render post-FX pipeline.
+    /// Cross-link: World-delta (RBE sustainability/abundance via resource_nodes) feeds render visuals,
+    /// divine whispers, InterestManager visible culling, and Kardashev dashboard.
     pub fn score_proposal(
         &self,
         decision: &CouncilDecision,
@@ -61,60 +62,96 @@ impl CouncilArchetype {
         let effect = decision.effect_type.as_str();
         let mercy = decision.mercy_factor;
 
-        // Base archetype bias
+        // Base archetype bias (now explicitly aware of KardashevAcceleration)
         let base_bias = match self {
             CouncilArchetype::Truth => {
-                if mercy > 0.75 { 0.08 } else if mercy < 0.45 { -0.10 } else { 0.02 }
+                if matches!(decision.proposal_type, ProposalType::KardashevAcceleration) {
+                    0.10
+                } else if mercy > 0.75 {
+                    0.08
+                } else if mercy < 0.45 {
+                    -0.10
+                } else {
+                    0.02
+                }
             }
-            CouncilArchetype::Abundance => match effect {
-                "ResourcePolicy" | "resource_policy" => 0.12,
-                "EpiphanyEvent" | "epiphany_event" => 0.09,
-                "HarmonyBoost" | "harmony_boost" => 0.03,
+            CouncilArchetype::Abundance => match decision.proposal_type {
+                ProposalType::ResourcePolicy => 0.12,
+                ProposalType::KardashevAcceleration => 0.14,
+                ProposalType::EpiphanyEvent => 0.09,
+                ProposalType::HarmonyBoost => 0.03,
                 _ => 0.0,
             },
-            CouncilArchetype::Harmony => match effect {
-                "HarmonyBoost" | "harmony_boost" => 0.10,
-                "General" | "general" => 0.05,
-                "ResourcePolicy" | "resource_policy" => -0.02,
+            CouncilArchetype::Harmony => match decision.proposal_type {
+                ProposalType::HarmonyBoost => 0.10,
+                ProposalType::General => 0.05,
+                ProposalType::ResourcePolicy => -0.02,
                 _ => 0.0,
             },
             CouncilArchetype::Service => {
                 if mercy > 0.6 { 0.06 } else { 0.0 }
-            },
+            }
             CouncilArchetype::Mercy => {
                 if mercy < 0.5 { 0.07 } else if mercy > 0.8 { 0.03 } else { 0.0 }
-            },
-            CouncilArchetype::Joy => match effect {
-                "EpiphanyEvent" | "epiphany_event" => 0.08,
+            }
+            CouncilArchetype::Joy => match decision.proposal_type {
+                ProposalType::EpiphanyEvent => 0.08,
                 _ => if mercy > 0.7 { 0.04 } else { 0.0 },
             },
             CouncilArchetype::Cosmic => {
-                if mercy > 0.65 { 0.06 } else { -0.03 }
-            },
+                if matches!(decision.proposal_type, ProposalType::KardashevAcceleration) {
+                    0.11
+                } else if mercy > 0.65 {
+                    0.06
+                } else {
+                    -0.03
+                }
+            }
         };
 
-        // World state delta bonus (when available)
+        // World state delta bonus (robust against current SovereignWorldState shape)
         let delta_bonus: f32 = if let Some(w) = world {
-            // Simple heuristic using average sustainability and abundance
-            let avg_sustainability: f32 = w.rbe_pools.values()
-                .map(|p| p.sustainability_score)
-                .sum::<f32>() / w.rbe_pools.len().max(1) as f32;
+            // Prefer resource_nodes sustainability when available
+            let node_count = w.resource_nodes.len().max(1) as f32;
+            let avg_sustainability: f32 = w
+                .resource_nodes
+                .values()
+                .map(|n| n.sustainability_score)
+                .sum::<f32>()
+                / node_count;
 
-            let avg_abundance: f32 = w.rbe_pools.values()
-                .map(|p| p.abundance_flow)
-                .sum::<f32>() / w.rbe_pools.len().max(1) as f32;
+            // Simple abundance proxy from current_yield vs base_yield
+            let avg_abundance: f32 = w
+                .resource_nodes
+                .values()
+                .map(|n| {
+                    if n.base_yield > 0.0 {
+                        (n.current_yield / n.base_yield).clamp(0.0, 3.0)
+                    } else {
+                        1.0
+                    }
+                })
+                .sum::<f32>()
+                / node_count;
 
             match self {
-                CouncilArchetype::Abundance => (avg_abundance - 1.5).clamp(-0.1, 0.12),
-                CouncilArchetype::Harmony => (avg_sustainability - 0.6).clamp(-0.08, 0.10),
-                CouncilArchetype::Truth => if avg_sustainability > 0.75 { 0.04 } else { -0.02 },
+                CouncilArchetype::Abundance => (avg_abundance - 1.2).clamp(-0.1, 0.14),
+                CouncilArchetype::Harmony => (avg_sustainability - 0.55).clamp(-0.08, 0.12),
+                CouncilArchetype::Truth => {
+                    if avg_sustainability > 0.7 {
+                        0.05
+                    } else {
+                        -0.02
+                    }
+                }
+                CouncilArchetype::Cosmic => (avg_abundance * 0.04).clamp(0.0, 0.08),
                 _ => 0.0,
             }
         } else {
             0.0
         };
 
-        (base_bias + delta_bonus).clamp(-0.15, 0.15)
+        (base_bias + delta_bonus).clamp(-0.15, 0.18)
     }
 }
 
@@ -240,7 +277,15 @@ impl CouncilSession {
         self.active_proposals.push(proposal);
     }
 
-    pub fn run_deliberation(&mut self, average_mercy: f32, current_tick: u64) -> Vec<CouncilProposal> {
+    /// Run deliberation. Pass `Some(world)` to enable real world-delta scoring.
+    /// Backward compatible: existing callers that pass only mercy + tick continue to work
+    /// (world = None falls back to pure mercy / type scoring).
+    pub fn run_deliberation(
+        &mut self,
+        average_mercy: f32,
+        current_tick: u64,
+        world: Option<&SovereignWorldState>,
+    ) -> Vec<CouncilProposal> {
         let mut resolved = vec![];
 
         let base_threshold: f32 = 0.72;
@@ -256,6 +301,7 @@ impl CouncilSession {
             average_mercy = average_mercy,
             dynamic_threshold = dynamic_threshold,
             num_councils = self.num_parallel_councils,
+            world_provided = world.is_some(),
             "Ra-Thor world-delta archetype scoring started"
         );
 
@@ -289,11 +335,11 @@ impl CouncilSession {
                                 self.realm_id,
                             );
 
-                            // Base MAS + archetype scoring (with optional world delta)
+                            // Base MAS + archetype scoring (now with real world when provided)
                             let base_mas = temp_decision.mercy_alignment_score(None);
                             let archetype_bonus = archetype
                                 .as_ref()
-                                .map(|a| a.score_proposal(&temp_decision, None)) // world state not yet available here
+                                .map(|a| a.score_proposal(&temp_decision, world))
                                 .unwrap_or(0.0);
 
                             let council_mas = (base_mas + archetype_bonus).clamp(0.0, 1.0);
@@ -377,4 +423,5 @@ impl CouncilSession {
         resolved
     }
 }
-"
+
+// Thunder locked in. Yoi ⚡

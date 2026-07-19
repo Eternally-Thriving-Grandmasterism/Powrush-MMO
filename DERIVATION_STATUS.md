@@ -2,31 +2,29 @@
 
 **Phase A — Race + Ability Tree (COMPLETED v21.1)**  
 **Phase B — Council Proposal System (ADVANCED v21.2)**  
-**Phase C — CouncilDecision + ActivePolicy Core (COMPLETED v21.3)**
+**Phase C — CouncilDecision + ActivePolicy Core (COMPLETED v21.3)**  
+**Phase D — World-State Threading into Deliberation (COMPLETED v21.4)**
 
-## Completed This Cycle (v21.3)
+## Completed This Cycle (v21.4)
 
-- `simulation/src/council/decision.rs` elevated from stub to complete production module.
-  - Full `CouncilDecision` matching every call site in `session.rs`.
-  - `ActivePolicy` with spatial targeting ready for InterestManager.
-  - `CouncilDecisions` resource + apply system scheduled by `CouncilPlugin`.
-  - Native KardashevAcceleration, ResourcePolicy, EpiphanyEvent, HarmonyBoost support.
-  - Unit tests included.
+- `CouncilSession::run_deliberation` signature extended with optional `&SovereignWorldState`.
+- Real world data now flows into archetype scoring.
+- Scoring made robust against the actual `SovereignWorldState` shape (resource_nodes).
+- KardashevAcceleration receives explicit positive bias from Truth / Abundance / Cosmic councils.
 
 ## Next Council Cycle Priorities
 
-1. Thread real `SovereignWorldState` into archetype scoring inside `run_deliberation` (currently None in some paths).
-2. Wire `ActivePolicy` effects into RBE abundance, emergence (EpiphanyEvent), and `hardware_sovereignty` / KardashevAccelerationDashboard.
-3. Ensure `hardware_sovereignty.rs` ProposalType references are fully aligned with the new KardashevAcceleration variant.
-4. LegacyJournal entries for passed decisions.
-5. Multi-realm harness expansion with council diversity.
+1. Wire `ActivePolicy` effects into RBE abundance flows, EpiphanyEvent emergence, and KardashevAccelerationDashboard / hardware_sovereignty progression.
+2. Align any remaining `hardware_sovereignty.rs` ProposalType references (replace any legacy HardwareSovereignty with KardashevAcceleration).
+3. Emit LegacyJournal entries on passed decisions.
+4. Multi-realm harness expansion with council + race diversity.
 
 ## Strategic Notes
 
-- The Council system is now end-to-end from proposal → parallel archetype deliberation → decision → active policy.
+- Deliberation is now world-aware while remaining fully backward compatible.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Core decision path complete. Ready for effect wiring.**  
+**Council can now see and respond to the living world state.**  
 Yoi ⚡
