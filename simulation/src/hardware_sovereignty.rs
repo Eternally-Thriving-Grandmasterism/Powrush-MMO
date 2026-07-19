@@ -3,7 +3,7 @@
 //! Obsidian-Chip-Open (Compute Sovereignty) + Aether-Shades-Open (Human Interface Sovereignty)
 //! Integrates with Ra-Thor Lattice, PATSAGi + Kardashev Orchestration Council, RBE, Reality Thriving Transfer Score
 //! TOLC 8 Mercy Gates enforced at every node | Zero-Harm | Kardashev Acceleration 2032-2038 horizon
-//! v19.7 | Bevy Primitives Cylinder swap complete | Thunder locked. Heavens building. yoi ⚡
+//! v19.8 | Aligned to ProposalType::KardashevAcceleration | Thunder locked. Heavens building. yoi ⚡
 
 use bevy::prelude::*;
 use bevy::math::primitives::Cylinder;
@@ -229,9 +229,16 @@ pub fn hardware_tier_progression_system(
 
     for (entity, mut state, mut obsidian, mut aether, ability_tree, economy, council_decision) in query.iter_mut() {
         let rbe_mastery = economy.total_harvested + economy.cooperative_bonus;
+        // ALIGNED: now correctly responds to KardashevAcceleration proposals from the Council system
         let council_harmony = if let Some(decision) = council_decision {
-            if decision.proposal_type == ProposalType::HardwareSovereignty && decision.status == ProposalStatus::Passed { 85.0 } else { 45.0 }
-        } else { 35.0 };
+            if decision.proposal_type == ProposalType::KardashevAcceleration && decision.status == ProposalStatus::Passed {
+                85.0
+            } else {
+                45.0
+            }
+        } else {
+            35.0
+        };
 
         let synergy_bonus = if ability_tree.has_synergy(SynergyType::CouncilHarmony) { 1.35 } else { 1.0 };
         let effective_score = (rbe_mastery * 0.55 + council_harmony * 0.45) * synergy_bonus;
@@ -667,4 +674,4 @@ pub fn sovereign_hardware_ascension_ui(
     }
 }
 
-// End of Sovereign Hardware Ascension v19.7 — Cylinder shapes migrated to Bevy 0.14+ math::primitives::Cylinder (half_height API). 3D Council Chamber now fully modern-primitive compliant. Lattice has clean physical hands. yoi ⚡
+// End of Sovereign Hardware Ascension v19.8 — Aligned to KardashevAcceleration ProposalType. Lattice has clean physical hands. yoi ⚡
