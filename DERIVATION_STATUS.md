@@ -23,26 +23,27 @@
 **Phase U — Cross-Realm Council Resonance (COMPLETED v21.21)**  
 **Phase V — LegacyJournal Realm Partitioning (COMPLETED v21.22)**  
 **Phase W — Per-Realm Scoped Effect Application (COMPLETED v21.23)**  
-**Phase X — Client-Side Realm Filter in Legacy Search UI (COMPLETED v21.24)**
+**Phase X — Client-Side Realm Filter in Legacy Search UI (COMPLETED v21.24)**  
+**Phase Y — Deeper Inter-Realm Policy Influence / Echo Policies (COMPLETED v21.25)**
 
-## Completed This Cycle (v21.24)
+## Completed This Cycle (v21.25)
 
-- Full Realm of Origin filter row added to My Mercy Journey Panel.
-- Players can filter Legacy by All Realms or any of the five seeded realms.
-- Combines cleanly with text search + category chips.
+- High-resonance policies now spawn gentle Echo ActivePolicies in other realms.
+- Echo policies are shorter, weaker, and clearly marked.
+- Inter-realm influence is now both soft (resonance) and concrete (echo policies).
 
 ## Next Council Cycle Priorities
 
-1. Deeper inter-realm policy influence (optional shared / resonant policy types).
-2. When resource_nodes / rbe_pools become realm-keyed, complete final filtering inside effect helpers.
-3. Optional multi-realm travel / presence hooks.
+1. Surface echo policy counts in the Multi-Realm Status dashboard section.
+2. Optional multi-realm presence / travel hooks.
+3. Final resource_node / rbe_pool realm-keying when the data model supports it.
 
 ## Strategic Notes
 
-- The living Legacy is now fully searchable and filterable by realm of origin.
+- The multi-realm organism now has meaningful policy-level influence across realms while remaining mercy-gated.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Legacy is filterable by realm.**  
+**Inter-realm policy influence via echo policies is live.**  
 Yoi ⚡
