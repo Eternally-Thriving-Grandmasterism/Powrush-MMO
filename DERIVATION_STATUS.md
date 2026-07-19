@@ -22,26 +22,27 @@
 **Phase T — Per-Realm Decision Tracking (COMPLETED v21.20)**  
 **Phase U — Cross-Realm Council Resonance (COMPLETED v21.21)**  
 **Phase V — LegacyJournal Realm Partitioning (COMPLETED v21.22)**  
-**Phase W — Per-Realm Scoped Effect Application (COMPLETED v21.23)**
+**Phase W — Per-Realm Scoped Effect Application (COMPLETED v21.23)**  
+**Phase X — Client-Side Realm Filter in Legacy Search UI (COMPLETED v21.24)**
 
-## Completed This Cycle (v21.23)
+## Completed This Cycle (v21.24)
 
-- ResourcePolicy and EpiphanyEvent effects now carry explicit realm attribution.
-- Logging, tracking, and helpers are fully realm-aware.
-- Clean separation: local realm effects + cross-realm resonance bleed.
+- Full Realm of Origin filter row added to My Mercy Journey Panel.
+- Players can filter Legacy by All Realms or any of the five seeded realms.
+- Combines cleanly with text search + category chips.
 
 ## Next Council Cycle Priorities
 
-1. Client-side realm filter in the My Mercy Journey search UI.
-2. Deeper inter-realm policy influence (optional shared / resonant policy types).
-3. When resource_nodes / rbe_pools become realm-keyed, complete the final filtering step inside the effect helpers.
+1. Deeper inter-realm policy influence (optional shared / resonant policy types).
+2. When resource_nodes / rbe_pools become realm-keyed, complete final filtering inside effect helpers.
+3. Optional multi-realm travel / presence hooks.
 
 ## Strategic Notes
 
-- The multi-realm organism now has differentiated effects by origin realm while remaining one coherent whole through resonance.
+- The living Legacy is now fully searchable and filterable by realm of origin.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Effects are now scoped by realm.**  
+**Legacy is filterable by realm.**  
 Yoi ⚡

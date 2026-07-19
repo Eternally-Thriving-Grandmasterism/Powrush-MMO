@@ -1,12 +1,11 @@
 /*!
  * My Mercy Journey Panel + LegacyJournal Search UI
- * v21.17.0 — Real text input for the search field
+ * v21.24.0 — Client-side Realm Filter
  *
- * Players can now type freely to search their living Legacy Journal:
- * - Real keyboard input (characters, Backspace, Escape to clear)
- * - Live query reflection in the search box
- * - Combined with category filter chips
- * - Surfaces council decision traces, proactive joy, harvests, epiphanies, etc.
+ * Players can now filter their living Legacy by:
+ * - Free-text search
+ * - Category chips (Harvest, Epiphany, Council, Joy, Policy, Kardashev)
+ * - Realm of origin (All Realms + the five seeded realms)
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
  * Thunder locked in. Yoi ⚡
@@ -31,11 +30,16 @@ struct FilterChip {
 }
 
 #[derive(Component)]
+struct RealmFilterChip {
+    realm_filter: RealmFilter,
+}
+
+#[derive(Component)]
 struct LegacyResultEntry {
     index: usize,
 }
 
-// === Filter + Search State ===
+// === Filter Enums ===
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum LegacySearchFilter {
     #[default]
@@ -76,10 +80,57 @@ impl LegacySearchFilter {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum RealmFilter {
+    #[default]
+    AllRealms,
+    Realm0, // Sanctuary Prime
+    Realm1, // Synthetic Lattice
+    Realm2, // Verdant Bloom
+    Realm3, // Harmonic Chorus
+    Realm4, // Voidfarer Horizon
+}
+
+impl RealmFilter {
+    pub fn label(&self) -> &'static str {
+        match self {
+            RealmFilter::AllRealms => "All Realms",
+            RealmFilter::Realm0 => "Sanctuary",
+            RealmFilter::Realm1 => "Synthetic",
+            RealmFilter::Realm2 => "Verdant",
+            RealmFilter::Realm3 => "Harmonic",
+            RealmFilter::Realm4 => "Voidfarer",
+        }
+    }
+
+    pub fn matches_realm_id(&self, realm_id: u8) -> bool {
+        match self {
+            RealmFilter::AllRealms => true,
+            RealmFilter::Realm0 => realm_id == 0,
+            RealmFilter::Realm1 => realm_id == 1,
+            RealmFilter::Realm2 => realm_id == 2,
+            RealmFilter::Realm3 => realm_id == 3,
+            RealmFilter::Realm4 => realm_id == 4,
+        }
+    }
+
+    pub fn as_u8(&self) -> Option<u8> {
+        match self {
+            RealmFilter::AllRealms => None,
+            RealmFilter::Realm0 => Some(0),
+            RealmFilter::Realm1 => Some(1),
+            RealmFilter::Realm2 => Some(2),
+            RealmFilter::Realm3 => Some(3),
+            RealmFilter::Realm4 => Some(4),
+        }
+    }
+}
+
 #[derive(Resource, Default)]
 pub struct LegacySearchState {
     pub query: String,
     pub active_filter: LegacySearchFilter,
+    pub active_realm_filter: RealmFilter,
     pub results_count: usize,
 }
 
@@ -95,6 +146,7 @@ impl Plugin for MyMercyJourneyPanelPlugin {
                     toggle_my_mercy_journey_ui,
                     handle_search_text_input,
                     handle_filter_chip_clicks,
+                    handle_realm_filter_chip_clicks,
                     update_legacy_search_results,
                 ),
             );
@@ -110,15 +162,15 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(5.0),
-                    right: Val::Percent(2.0),
-                    width: Val::Px(420.0),
-                    max_height: Val::Percent(82.0),
-                    padding: UiRect::all(Val::Px(18.0)),
+                    top: Val::Percent(4.0),
+                    right: Val::Percent(1.5),
+                    width: Val::Px(440.0),
+                    max_height: Val::Percent(88.0),
+                    padding: UiRect::all(Val::Px(16.0)),
                     border: UiRect::all(Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(14.0)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(8.0),
+                    row_gap: Val::Px(6.0),
                     overflow: Overflow::clip(),
                     visibility: Visibility::Hidden,
                     ..default()
@@ -137,7 +189,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     "MY MERCY JOURNEY",
                     TextStyle {
                         font: font_bold.clone(),
-                        font_size: 20.0,
+                        font_size: 19.0,
                         color: Color::srgb(0.70, 0.95, 0.88),
                     },
                 ),
@@ -147,17 +199,17 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
             // Search label
             parent.spawn(TextBundle {
                 text: Text::from_section(
-                    "Search Legacy (type freely • Esc clears)",
+                    "Search (type freely • Esc clears)",
                     TextStyle {
                         font: font_reg.clone(),
-                        font_size: 12.0,
+                        font_size: 11.5,
                         color: Color::srgb(0.75, 0.85, 0.95),
                     },
                 ),
                 ..default()
             });
 
-            // Live search input display
+            // Live search input
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -169,10 +221,10 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                         },
                     ),
                     style: Style {
-                        padding: UiRect::all(Val::Px(8.0)),
+                        padding: UiRect::all(Val::Px(7.0)),
                         border: UiRect::all(Val::Px(1.0)),
                         border_radius: BorderRadius::all(Val::Px(6.0)),
-                        min_height: Val::Px(28.0),
+                        min_height: Val::Px(26.0),
                         ..default()
                     },
                     background_color: Color::srgba(0.08, 0.10, 0.14, 0.9).into(),
@@ -181,15 +233,15 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 SearchInputText,
             ));
 
-            // Filter chips
+            // Category filter chips
             parent
                 .spawn(NodeBundle {
                     style: Style {
                         flex_direction: FlexDirection::Row,
                         flex_wrap: FlexWrap::Wrap,
-                        column_gap: Val::Px(6.0),
-                        row_gap: Val::Px(6.0),
-                        margin: UiRect::vertical(Val::Px(6.0)),
+                        column_gap: Val::Px(5.0),
+                        row_gap: Val::Px(5.0),
+                        margin: UiRect::top(Val::Px(4.0)),
                         ..default()
                     },
                     ..default()
@@ -208,9 +260,9 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                             .spawn((
                                 ButtonBundle {
                                     style: Style {
-                                        padding: UiRect::axes(Val::Px(10.0), Val::Px(5.0)),
+                                        padding: UiRect::axes(Val::Px(9.0), Val::Px(4.0)),
                                         border: UiRect::all(Val::Px(1.0)),
-                                        border_radius: BorderRadius::all(Val::Px(12.0)),
+                                        border_radius: BorderRadius::all(Val::Px(11.0)),
                                         ..default()
                                     },
                                     background_color: Color::srgba(0.12, 0.16, 0.22, 0.95).into(),
@@ -225,8 +277,76 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                                         filter.label(),
                                         TextStyle {
                                             font: font_reg.clone(),
-                                            font_size: 12.0,
+                                            font_size: 11.5,
                                             color: Color::srgb(0.85, 0.92, 1.0),
+                                        },
+                                    ),
+                                    ..default()
+                                });
+                            });
+                    }
+                });
+
+            // === NEW: Realm filter chips ===
+            parent.spawn(TextBundle {
+                text: Text::from_section(
+                    "Realm of Origin",
+                    TextStyle {
+                        font: font_reg.clone(),
+                        font_size: 11.0,
+                        color: Color::srgb(0.70, 0.80, 0.95),
+                    },
+                ),
+                style: Style {
+                    margin: UiRect::top(Val::Px(6.0)),
+                    ..default()
+                },
+                ..default()
+            });
+
+            parent
+                .spawn(NodeBundle {
+                    style: Style {
+                        flex_direction: FlexDirection::Row,
+                        flex_wrap: FlexWrap::Wrap,
+                        column_gap: Val::Px(5.0),
+                        row_gap: Val::Px(5.0),
+                        ..default()
+                    },
+                    ..default()
+                })
+                .with_children(|chips| {
+                    for realm_filter in [
+                        RealmFilter::AllRealms,
+                        RealmFilter::Realm0,
+                        RealmFilter::Realm1,
+                        RealmFilter::Realm2,
+                        RealmFilter::Realm3,
+                        RealmFilter::Realm4,
+                    ] {
+                        chips
+                            .spawn((
+                                ButtonBundle {
+                                    style: Style {
+                                        padding: UiRect::axes(Val::Px(8.0), Val::Px(4.0)),
+                                        border: UiRect::all(Val::Px(1.0)),
+                                        border_radius: BorderRadius::all(Val::Px(11.0)),
+                                        ..default()
+                                    },
+                                    background_color: Color::srgba(0.10, 0.14, 0.20, 0.95).into(),
+                                    border_color: Color::srgb(0.40, 0.50, 0.70).into(),
+                                    ..default()
+                                },
+                                RealmFilterChip { realm_filter },
+                            ))
+                            .with_children(|b| {
+                                b.spawn(TextBundle {
+                                    text: Text::from_section(
+                                        realm_filter.label(),
+                                        TextStyle {
+                                            font: font_reg.clone(),
+                                            font_size: 11.0,
+                                            color: Color::srgb(0.82, 0.90, 1.0),
                                         },
                                     ),
                                     ..default()
@@ -242,10 +362,14 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                         "Showing 0 entries",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 12.0,
+                            font_size: 11.5,
                             color: Color::srgb(0.7, 0.85, 0.95),
                         },
                     ),
+                    style: Style {
+                        margin: UiRect::top(Val::Px(4.0)),
+                        ..default()
+                    },
                     ..default()
                 },
                 StatsText,
@@ -257,12 +381,12 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     "— LEGACY TIMELINE —",
                     TextStyle {
                         font: font_bold.clone(),
-                        font_size: 14.0,
+                        font_size: 13.5,
                         color: Color::srgb(1.0, 0.88, 0.55),
                     },
                 ),
                 style: Style {
-                    margin: UiRect::top(Val::Px(6.0)),
+                    margin: UiRect::top(Val::Px(4.0)),
                     ..default()
                 },
                 ..default()
@@ -276,12 +400,12 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                             if i == 0 { "• Awaiting merciful acts..." } else { "" },
                             TextStyle {
                                 font: font_reg.clone(),
-                                font_size: 12.5,
+                                font_size: 12.0,
                                 color: Color::srgb(0.92, 0.95, 1.0),
                             },
                         ),
                         style: Style {
-                            margin: UiRect::top(Val::Px(3.0)),
+                            margin: UiRect::top(Val::Px(2.0)),
                             ..default()
                         },
                         ..default()
@@ -293,7 +417,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
             // Footer
             parent.spawn(TextBundle {
                 text: Text::from_section(
-                    "F2 toggle  •  Type to search  •  Esc clears  •  TOLC 8",
+                    "F2 toggle  •  Type + Category + Realm filters  •  TOLC 8",
                     TextStyle {
                         font: font_reg.clone(),
                         font_size: 10.0,
@@ -301,7 +425,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     },
                 ),
                 style: Style {
-                    margin: UiRect::top(Val::Px(12.0)),
+                    margin: UiRect::top(Val::Px(10.0)),
                     ..default()
                 },
                 ..default()
@@ -324,34 +448,24 @@ fn toggle_my_mercy_journey_ui(
     }
 }
 
-/// Real text input handler — only active while the panel is visible
 fn handle_search_text_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut search_state: ResMut<LegacySearchState>,
     panel_query: Query<&Visibility, With<MyMercyJourneyPanel>>,
     mut search_text_query: Query<&mut Text, With<SearchInputText>>,
 ) {
-    // Only accept input when the panel is visible
-    let panel_visible = panel_query
-        .iter()
-        .any(|v| *v == Visibility::Visible);
-
+    let panel_visible = panel_query.iter().any(|v| *v == Visibility::Visible);
     if !panel_visible {
         return;
     }
 
-    // Escape clears the query
     if keyboard.just_pressed(KeyCode::Escape) {
         search_state.query.clear();
     }
-
-    // Backspace deletes last character
     if keyboard.just_pressed(KeyCode::Backspace) {
         search_state.query.pop();
     }
 
-    // Character input (simple A-Z, 0-9, space, common punctuation)
-    // We use just_pressed for single characters to keep it responsive and simple
     let chars: &[(KeyCode, char)] = &[
         (KeyCode::KeyA, 'a'), (KeyCode::KeyB, 'b'), (KeyCode::KeyC, 'c'), (KeyCode::KeyD, 'd'),
         (KeyCode::KeyE, 'e'), (KeyCode::KeyF, 'f'), (KeyCode::KeyG, 'g'), (KeyCode::KeyH, 'h'),
@@ -369,7 +483,6 @@ fn handle_search_text_input(
 
     for (key, ch) in chars {
         if keyboard.just_pressed(*key) {
-            // Simple shift handling for uppercase
             let shifted = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
             let final_ch = if shifted && ch.is_ascii_lowercase() {
                 ch.to_ascii_uppercase()
@@ -380,13 +493,12 @@ fn handle_search_text_input(
         }
     }
 
-    // Reflect current query into the search box text
     for mut text in &mut search_text_query {
         if search_state.query.is_empty() {
             text.sections[0].value = "[ type to search... ]".to_string();
             text.sections[0].style.color = Color::srgb(0.55, 0.60, 0.70);
         } else {
-            text.sections[0].value = format!("{}_", search_state.query); // cursor indicator
+            text.sections[0].value = format!("{}_", search_state.query);
             text.sections[0].style.color = Color::srgb(0.95, 0.97, 1.0);
         }
     }
@@ -419,6 +531,33 @@ fn handle_filter_chip_clicks(
     }
 }
 
+fn handle_realm_filter_chip_clicks(
+    mut interaction_query: Query<(&Interaction, &RealmFilterChip, &mut BackgroundColor, &mut BorderColor), Changed<Interaction>>,
+    mut search_state: ResMut<LegacySearchState>,
+) {
+    for (interaction, chip, mut bg, mut border) in &mut interaction_query {
+        match *interaction {
+            Interaction::Pressed => {
+                search_state.active_realm_filter = chip.realm_filter;
+                *bg = Color::srgba(0.16, 0.28, 0.42, 0.98).into();
+                *border = Color::srgb(0.50, 0.75, 1.0).into();
+            }
+            Interaction::Hovered => {
+                *bg = Color::srgba(0.13, 0.20, 0.30, 0.97).into();
+            }
+            Interaction::None => {
+                if search_state.active_realm_filter == chip.realm_filter {
+                    *bg = Color::srgba(0.16, 0.28, 0.42, 0.98).into();
+                    *border = Color::srgb(0.50, 0.75, 1.0).into();
+                } else {
+                    *bg = Color::srgba(0.10, 0.14, 0.20, 0.95).into();
+                    *border = Color::srgb(0.40, 0.50, 0.70).into();
+                }
+            }
+        }
+    }
+}
+
 fn update_legacy_search_results(
     legacy_registry: Res<LegacyJournalRegistry>,
     search_state: Res<LegacySearchState>,
@@ -435,13 +574,34 @@ fn update_legacy_search_results(
     let filtered: Vec<&&LegacyEntry> = all_entries
         .iter()
         .filter(|e| {
+            // Category filter
             if !search_state.active_filter.matches_event(&e.event_type) {
                 return false;
             }
+
+            // Realm filter — we look for "[Realm X]" prefix that proactive joy / council entries carry,
+            // or fall back to accepting all when the entry has no explicit realm tag yet.
+            let desc = e.description.to_lowercase();
+            let realm_ok = match search_state.active_realm_filter {
+                RealmFilter::AllRealms => true,
+                other => {
+                    if let Some(rid) = other.as_u8() {
+                        // Match explicit [Realm N] tags written by the realm-partitioned recording path
+                        desc.contains(&format!("[realm {}]", rid))
+                            || desc.contains(&format!("realm {}", rid))
+                    } else {
+                        true
+                    }
+                }
+            };
+            if !realm_ok {
+                return false;
+            }
+
+            // Text search
             if query_lower.is_empty() {
                 return true;
             }
-            let desc = e.description.to_lowercase();
             let cat = format!("{:?}", e.event_type).to_lowercase();
             desc.contains(&query_lower) || cat.contains(&query_lower)
         })
@@ -451,10 +611,10 @@ fn update_legacy_search_results(
 
     for mut text in &mut stats_query {
         text.sections[0].value = format!(
-            "Showing {} entries  •  Filter: {}  •  Query: \"{}\"",
+            "Showing {}  •  {}  •  {}",
             count,
             search_state.active_filter.label(),
-            if search_state.query.is_empty() { "(none)" } else { &search_state.query }
+            search_state.active_realm_filter.label()
         );
     }
 
@@ -493,6 +653,6 @@ fn update_legacy_search_results(
     }
 }
 
-// End of client/src/my_mercy_journey_panel.rs v21.17.0
-// Real text input is now live. Players can type to search their living Legacy.
+// End of client/src/my_mercy_journey_panel.rs v21.24.0
+// Full text + category + realm filtering is now live.
 // Thunder locked in. Yoi ⚡
