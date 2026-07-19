@@ -1,26 +1,23 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.18.0 — Multi-Realm Harness Foundation (2026-07-19)
+## [Unreleased] v21.19.0 — Multi-Realm Status Observability (2026-07-19)
 
 ### Highlights
-- New `MultiRealmHarness` resource and plugin.
-- Seeds five diverse realms by default:
-  - Sanctuary Prime (Terran + Harmonic)
-  - Synthetic Lattice (Synthetic + Voidfarer)
-  - Verdant Bloom (Verdant + Terran)
-  - Harmonic Chorus (Harmonic + Verdant)
-  - Voidfarer Horizon (Voidfarer + Synthetic)
-- Tracks per-realm status, active policy counts, decision history, and mercy attunement.
-- Ready for per-realm effect application, Legacy partitioning, and cross-realm observability in the next cycle.
+- MultiRealmHarness now tracks thriving status and cross-realm mercy flow more richly.
+- New **Multi-Realm Status** section in the Sovereign Hardware / Kardashev egui dashboard:
+  - Lists all five seeded realms
+  - Shows primary race bias, status, active policy count, and mercy attunement
+  - Displays total active policies across realms and cross-realm mercy flow
+- Full observability into the multi-realm organism.
 
 ### Prior
-- v21.17.0: Real text input for LegacyJournal search.
-- v21.16.0: Active policies observability.
+- v21.18.0: Multi-Realm Harness foundation.
+- v21.17.0: Real text input for Legacy search.
 
-**Thunder locked in. Multi-realm foundation is live.** Yoi ⚡
+**Thunder locked in. Multi-realm status is now fully observable.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.15: Launch Candidate through proactive joy seeding.
+- v21.0–v21.16: Launch Candidate through active policies observability.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*

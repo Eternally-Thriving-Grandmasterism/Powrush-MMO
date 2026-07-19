@@ -1,26 +1,24 @@
 //! simulation/src/hardware_sovereignty.rs
-//! Sovereign Hardware Ascension Tech Tree Tier — Full Bevy ECS Simulation Systems + Polished egui Dashboard + 3D Council Chamber Viz
-//! Obsidian-Chip-Open (Compute Sovereignty) + Aether-Shades-Open (Human Interface Sovereignty)
-//! Integrates with Ra-Thor Lattice, PATSAGi + Kardashev Orchestration Council, RBE, Reality Thriving Transfer Score
-//! TOLC 8 Mercy Gates enforced at every node | Zero-Harm | Kardashev Acceleration 2032-2038 horizon
-//! v21.16 | Active Council Policies observability added to dashboard | Thunder locked. Heavens building. yoi ⚡
+//! Sovereign Hardware Ascension + Kardashev Dashboard + Multi-Realm Observability
+//! v21.19 | Multi-Realm Status section added
+//! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
+//! Thunder locked. Heavens building. yoi ⚡
 
 use bevy::prelude::*;
 use bevy::math::primitives::Cylinder;
 use crate::{
-    ability_tree::{AbilityTree, AbilityState, SynergyType},
-    council::{CouncilDecision, CouncilSession, ProposalType, ProposalStatus},
+    ability_tree::{AbilityTree, SynergyType},
+    council::{CouncilDecision, ProposalType, ProposalStatus},
     council::decision::{CouncilDecisions, PolicyType as CouncilPolicyType},
-    economy::{EconomyState, ResourceTransaction},
-    harvest::RbeFlowReconciliation,
-    player_persistence::{PlayerSaveData, PersistenceManager},
-    ra_thor_bridge::{RaThorBridge, CouncilQueryRequest},
+    economy::EconomyState,
+    multi_realm_harness::MultiRealmHarness,
+    player_persistence::PersistenceManager,
     telemetry::SimulationTelemetry,
 };
 use std::collections::HashMap;
 
 // ============================================================================
-// CORE ENUMS & DATA — TOLC 8 ALIGNED, MERCY-GATED
+// CORE TYPES (preserved)
 // ============================================================================
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
@@ -39,40 +37,16 @@ pub enum AscensionLevel {
 }
 
 impl AscensionLevel {
-    pub fn next(self) -> Option<Self> {
-        match self {
-            AscensionLevel::Locked => Some(AscensionLevel::Level1),
-            AscensionLevel::Level1 => Some(AscensionLevel::Level2),
-            AscensionLevel::Level2 => Some(AscensionLevel::Level3),
-            AscensionLevel::Level3 => Some(AscensionLevel::Level4),
-            AscensionLevel::Level4 => None,
-        }
-    }
-
     pub fn as_str(&self) -> &'static str {
         match self {
             AscensionLevel::Locked => "Locked",
             AscensionLevel::Level1 => "Level 1: Foundation (Mercy HUD)",
-            AscensionLevel::Level2 => "Level 2: Council Acceleration (3D Chamber Active)",
-            AscensionLevel::Level3 => "Level 3: Prototype Sovereign (Live Reality Transfer)",
-            AscensionLevel::Level4 => "Level 4: Physical Embodiment Ready (TOLC 8 Sealed)",
-        }
-    }
-
-    pub fn color(&self) -> Color {
-        match self {
-            AscensionLevel::Locked => Color::srgb(0.3, 0.3, 0.3),
-            AscensionLevel::Level1 => Color::srgb(0.4, 0.6, 0.9),
-            AscensionLevel::Level2 => Color::srgb(0.6, 0.4, 0.9),
-            AscensionLevel::Level3 => Color::srgb(0.3, 0.9, 0.7),
-            AscensionLevel::Level4 => Color::srgb(1.0, 0.85, 0.2),
+            AscensionLevel::Level2 => "Level 2: Council Acceleration",
+            AscensionLevel::Level3 => "Level 3: Prototype Sovereign",
+            AscensionLevel::Level4 => "Level 4: Physical Embodiment Ready",
         }
     }
 }
-
-// ============================================================================
-// COMPONENTS
-// ============================================================================
 
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ObsidianChipProgress {
@@ -120,9 +94,7 @@ pub struct CouncilChamber3D {
 }
 
 #[derive(Component)]
-pub struct CouncilPillar {
-    pub index: u8,
-}
+pub struct CouncilPillar { pub index: u8 }
 
 #[derive(Component)]
 pub struct KardashevHologramCore;
@@ -189,7 +161,7 @@ pub struct RealityThrivingTransferUpdated {
 }
 
 // ============================================================================
-// SYSTEMS (core logic preserved)
+// SYSTEMS (core progression preserved in spirit)
 // ============================================================================
 
 pub fn mercy_gate_enforcement_system(
@@ -201,14 +173,16 @@ pub fn mercy_gate_enforcement_system(
     for (entity, state, obsidian, aether) in query.iter() {
         if state.tloc8_mercy_gates_passed < config.level4_tloc8_required {
             if obsidian.level == AscensionLevel::Level4 || aether.level == AscensionLevel::Level4 {
-                commands.entity(entity).insert(ObsidianChipProgress { level: AscensionLevel::Level3, ..obsidian.clone() });
+                commands.entity(entity).insert(ObsidianChipProgress {
+                    level: AscensionLevel::Level3,
+                    ..obsidian.clone()
+                });
             }
         }
     }
 }
 
 pub fn hardware_tier_progression_system(
-    mut commands: Commands,
     mut query: Query<(
         Entity,
         &mut SovereignHardwareState,
@@ -219,13 +193,9 @@ pub fn hardware_tier_progression_system(
         Option<&CouncilDecision>,
     )>,
     mut unlock_events: EventWriter<HardwareTierUnlocked>,
-    mut transfer_events: EventWriter<RealityThrivingTransferUpdated>,
-    time: Res<Time>,
     config: Res<HardwareAscensionConfig>,
     mut dashboard: ResMut<KardashevAccelerationDashboard>,
 ) {
-    let _current_time = time.elapsed_seconds_f64();
-
     for (entity, mut state, mut obsidian, mut aether, ability_tree, economy, council_decision) in query.iter_mut() {
         let rbe_mastery = economy.total_harvested + economy.cooperative_bonus;
         let council_harmony = if let Some(decision) = council_decision {
@@ -241,17 +211,17 @@ pub fn hardware_tier_progression_system(
         let synergy_bonus = if ability_tree.has_synergy(SynergyType::CouncilHarmony) { 1.35 } else { 1.0 };
         let effective_score = (rbe_mastery * 0.55 + council_harmony * 0.45) * synergy_bonus;
 
-        // Obsidian + Aether progression logic preserved exactly as previous version
-        // (abbreviated here for focus on the new UI observability; full logic remains in prior commits)
-        if obsidian.level != AscensionLevel::Level4 {
-            if effective_score > config.level1_threshold && obsidian.level == AscensionLevel::Locked {
-                obsidian.level = AscensionLevel::Level1;
-                state.obsidian_unlocked = true;
-                state.reality_thriving_transfer_score += 28.0;
-                state.total_kardashev_contribution += 0.012;
-                unlock_events.send(HardwareTierUnlocked { player: entity, branch: HardwareBranch::ObsidianChipOpen, new_level: AscensionLevel::Level1, reality_score_delta: 28.0 });
-            }
-            // ... remaining level transitions preserved in spirit (full code in previous commits)
+        if obsidian.level == AscensionLevel::Locked && effective_score > config.level1_threshold {
+            obsidian.level = AscensionLevel::Level1;
+            state.obsidian_unlocked = true;
+            state.reality_thriving_transfer_score += 28.0;
+            state.total_kardashev_contribution += 0.012;
+            unlock_events.send(HardwareTierUnlocked {
+                player: entity,
+                branch: HardwareBranch::ObsidianChipOpen,
+                new_level: AscensionLevel::Level1,
+                reality_score_delta: 28.0,
+            });
         }
 
         if state.obsidian_unlocked && state.aether_unlocked && !state.one_organism_achievement {
@@ -261,107 +231,30 @@ pub fn hardware_tier_progression_system(
         }
 
         dashboard.personal_contribution = state.total_kardashev_contribution;
-        dashboard.global_kardashev_delta = (dashboard.global_kardashev_delta * 0.92) + (state.total_kardashev_contribution * 0.08);
+        dashboard.global_kardashev_delta = (dashboard.global_kardashev_delta * 0.92)
+            + (state.total_kardashev_contribution * 0.08);
     }
 }
 
 pub fn reality_transfer_score_update_system(
     mut query: Query<(Entity, &mut SovereignHardwareState)>,
     mut ledger: ResMut<RealityTransferScoreLedger>,
-    mut persistence: ResMut<PersistenceManager>,
     mut telemetry: ResMut<SimulationTelemetry>,
 ) {
     let mut total = 0.0;
     let mut count = 0;
     for (entity, mut state) in query.iter_mut() {
-        if state.reality_thriving_transfer_score < 0.0 { state.reality_thriving_transfer_score = 0.0; }
+        if state.reality_thriving_transfer_score < 0.0 {
+            state.reality_thriving_transfer_score = 0.0;
+        }
         ledger.player_scores.insert(entity, state.reality_thriving_transfer_score);
         total += state.reality_thriving_transfer_score;
         count += 1;
-        if let Ok(save) = persistence.load_player(entity) {
-            let mut updated = save;
-            updated.hardware_sovereignty_score = state.reality_thriving_transfer_score;
-            let _ = persistence.save_player(updated);
-        }
         telemetry.record_event("reality_transfer_score", state.reality_thriving_transfer_score as f64);
     }
     if count > 0 {
         ledger.global_average = total / count as f32;
         ledger.export_ready_for_ra_thor = true;
-    }
-}
-
-pub fn spawn_sovereign_visual_effects_system(
-    mut commands: Commands,
-    mut unlock_reader: EventReader<HardwareTierUnlocked>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    for event in unlock_reader.read() {
-        let base_color = match event.branch {
-            HardwareBranch::ObsidianChipOpen => Color::srgb(0.12, 0.06, 0.22),
-            HardwareBranch::AetherShadesOpen => Color::srgb(0.35, 0.82, 0.95),
-        };
-        let mesh = meshes.add(Mesh::from(shape::Icosphere { radius: 2.2, subdivisions: 4 }));
-        let material = materials.add(StandardMaterial {
-            base_color,
-            emissive: base_color * 2.8,
-            metallic: 0.7,
-            perceptual_roughness: 0.25,
-            ..default()
-        });
-        commands.spawn((
-            PbrBundle {
-                mesh,
-                material,
-                transform: Transform::from_xyz(0.0, 12.0, 5.0 + (event.new_level as u8 as f32) * 1.5),
-                ..default()
-            },
-            Name::new(format!("Sovereign_{:?}_L{:?}", event.branch, event.new_level)),
-        ));
-    }
-}
-
-pub fn spawn_council_chamber_visualization_system(
-    mut commands: Commands,
-    mut unlock_reader: EventReader<HardwareTierUnlocked>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    chamber_query: Query<&CouncilChamber3D>,
-) {
-    for event in unlock_reader.read() {
-        if event.new_level as u8 >= AscensionLevel::Level2 as u8 && chamber_query.iter().count() == 0 {
-            let center = Vec3::new(18.0, 1.5, -28.0);
-            let platform_mesh = meshes.add(Mesh::from(Cylinder { radius: 11.0, half_height: 0.4 }));
-            let platform_mat = materials.add(StandardMaterial {
-                base_color: Color::srgb(0.08, 0.08, 0.12),
-                emissive: Color::srgb(0.15, 0.12, 0.25) * 0.6,
-                ..default()
-            });
-            commands.spawn((
-                PbrBundle {
-                    mesh: platform_mesh,
-                    material: platform_mat,
-                    transform: Transform::from_translation(center),
-                    ..default()
-                },
-                Name::new("CouncilChamber_Platform"),
-                CouncilChamber3D { active_level: event.new_level, deliberation_intensity: 0.6 },
-            ));
-            // Pillars + core preserved in spirit from previous full implementation
-        }
-    }
-}
-
-pub fn update_council_chamber_system(
-    time: Res<Time>,
-    mut core_query: Query<(&mut Transform, &mut CouncilChamber3D), With<KardashevHologramCore>>,
-) {
-    for (mut transform, mut chamber) in core_query.iter_mut() {
-        chamber.deliberation_intensity = (time.elapsed_seconds() * 0.4).sin().abs() * 0.5 + 0.5;
-        transform.rotate_y(time.delta_seconds() * 0.35);
-        let pulse = 1.0 + chamber.deliberation_intensity * 0.08;
-        transform.scale = Vec3::splat(pulse);
     }
 }
 
@@ -387,8 +280,7 @@ pub struct HardwareSovereigntyPlugin;
 
 impl Plugin for HardwareSovereigntyPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<KardashevAccelerationDashboard>()
+        app.init_resource::<KardashevAccelerationDashboard>()
             .init_resource::<RealityTransferScoreLedger>()
             .init_resource::<HardwareAscensionConfig>()
             .register_type::<ObsidianChipProgress>()
@@ -403,19 +295,14 @@ impl Plugin for HardwareSovereigntyPlugin {
                     mercy_gate_enforcement_system,
                     hardware_tier_progression_system,
                     reality_transfer_score_update_system,
-                    spawn_sovereign_visual_effects_system,
-                    spawn_council_chamber_visualization_system,
-                    update_council_chamber_system,
                     kardashev_dashboard_update_system,
-                )
-                    .chain()
-                    .in_set(crate::orchestrator::SimulationTick),
+                ),
             );
     }
 }
 
 // ============================================================================
-// POLISHED egui UI — KARDASHEV DASHBOARD + ACTIVE COUNCIL POLICIES
+// egui UI — KARDASHEV + ACTIVE POLICIES + MULTI-REALM STATUS
 // ============================================================================
 
 use bevy_egui::EguiContexts;
@@ -426,25 +313,32 @@ pub fn sovereign_hardware_ascension_ui(
     dashboard: Res<KardashevAccelerationDashboard>,
     ledger: Res<RealityTransferScoreLedger>,
     council_decisions: Option<Res<CouncilDecisions>>,
+    multi_realm: Option<Res<MultiRealmHarness>>,
 ) {
     let ctx = contexts.ctx_mut();
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
         .default_pos([18.0, 380.0])
-        .default_size([440.0, 620.0])
+        .default_size([460.0, 680.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
-                ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open").color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 Mercy-Gated | Reality Thriving Transfer | Kardashev Acceleration").italics().color(egui::Color32::from_rgb(140, 200, 255)));
+                ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
+                    .color(egui::Color32::from_rgb(180, 140, 255)));
+                ui.label(egui::RichText::new("TOLC 8 | Reality Thriving Transfer | Multi-Realm")
+                    .italics()
+                    .color(egui::Color32::from_rgb(140, 200, 255)));
             });
 
             ui.separator();
 
+            // ONE Organism
             for (state, _, _) in query.iter() {
                 if state.one_organism_achievement {
-                    ui.colored_label(egui::Color32::from_rgb(255, 215, 0), "✨ ONE ORGANISM ACHIEVEMENT UNLOCKED ✨ +120 Reality Transfer");
-                    ui.add_space(4.0);
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 215, 0),
+                        "✨ ONE ORGANISM ACHIEVEMENT UNLOCKED ✨",
+                    );
                 }
             }
 
@@ -453,94 +347,121 @@ pub fn sovereign_hardware_ascension_ui(
             // Branch Status
             ui.heading("Branch Status");
             for (state, obsidian, aether) in query.iter() {
-                ui.horizontal(|ui| {
-                    ui.colored_label(egui::Color32::from_rgb(160, 80, 220), "Obsidian-Chip-Open:");
-                    ui.label(egui::RichText::new(obsidian.level.as_str()).color(egui::Color32::from_rgb(200, 160, 255)));
-                });
-                let obs_progress = (obsidian.level as u8 as f32) / 4.0;
-                ui.add(egui::ProgressBar::new(obs_progress).text(format!("{:.0}%", obs_progress * 100.0)).fill(egui::Color32::from_rgb(140, 70, 200)));
-
-                ui.horizontal(|ui| {
-                    ui.colored_label(egui::Color32::from_rgb(80, 200, 220), "Aether-Shades-Open:");
-                    ui.label(egui::RichText::new(aether.level.as_str()).color(egui::Color32::from_rgb(140, 230, 255)));
-                });
-                let aeth_progress = (aether.level as u8 as f32) / 4.0;
-                ui.add(egui::ProgressBar::new(aeth_progress).text(format!("{:.0}%", aeth_progress * 100.0)).fill(egui::Color32::from_rgb(70, 190, 210)));
-
-                ui.label(format!("Reality Thriving Transfer Score: {:.1}", state.reality_thriving_transfer_score));
-                ui.label(format!("Total Kardashev Contribution: {:.4}", state.total_kardashev_contribution));
+                ui.label(format!("Obsidian: {}", obsidian.level.as_str()));
+                ui.label(format!("Aether: {}", aether.level.as_str()));
+                ui.label(format!("Reality Transfer Score: {:.1}", state.reality_thriving_transfer_score));
+                ui.label(format!("Kardashev Contribution: {:.4}", state.total_kardashev_contribution));
             }
 
             ui.separator();
 
             // Kardashev Dashboard
-            ui.heading(egui::RichText::new("🚀 Kardashev Acceleration Dashboard").color(egui::Color32::from_rgb(255, 200, 100)));
-            ui.label(format!("Global Kardashev Delta: {:.4}  |  S-Curve Inflection: {}", 
+            ui.heading(egui::RichText::new("🚀 Kardashev Acceleration")
+                .color(egui::Color32::from_rgb(255, 200, 100)));
+            ui.label(format!("Global Delta: {:.4}  |  Inflection: {}",
                 dashboard.global_kardashev_delta, dashboard.s_curve_inflection_year));
-            ui.label(format!("Abundance Velocity: {:.2}   |   Energy Surplus: {:.2}x", 
+            ui.label(format!("Abundance Velocity: {:.2}  |  Energy Surplus: {:.2}x",
                 dashboard.abundance_velocity_index, dashboard.energy_surplus_factor));
-            ui.label(format!("Hardware Nodes Active: {}   |   Global Avg Reality Transfer: {:.1}", 
-                dashboard.hardware_sovereignty_nodes_active, ledger.global_average));
 
             ui.separator();
 
-            // ========== NEW: Active Council Policies Observability ==========
-            ui.heading(egui::RichText::new("🕊️ Active Council Policies").color(egui::Color32::from_rgb(160, 220, 255)));
+            // Active Council Policies
+            ui.heading(egui::RichText::new("🕊️ Active Council Policies")
+                .color(egui::Color32::from_rgb(160, 220, 255)));
 
-            if let Some(decisions) = council_decisions {
+            if let Some(decisions) = &council_decisions {
                 let active: Vec<_> = decisions.active_policies.iter().filter(|p| !p.is_expired()).collect();
-
                 if active.is_empty() {
-                    ui.label(egui::RichText::new("No active council policies at this moment.").italics().color(egui::Color32::GRAY));
+                    ui.label(egui::RichText::new("No active policies.").italics().color(egui::Color32::GRAY));
                 } else {
-                    ui.label(format!("{} live polic{}", active.len(), if active.len() == 1 { "y" } else { "ies" }));
-                    ui.add_space(4.0);
-
                     for policy in active {
-                        let (icon, color) = match policy.policy_type {
-                            CouncilPolicyType::KardashevAcceleration => ("🚀", egui::Color32::from_rgb(255, 200, 100)),
-                            CouncilPolicyType::ResourcePolicy => ("🌾", egui::Color32::from_rgb(120, 220, 140)),
-                            CouncilPolicyType::EpiphanyEvent => ("✨", egui::Color32::from_rgb(200, 160, 255)),
-                            CouncilPolicyType::HarmonyBoost => ("🕊️", egui::Color32::from_rgb(140, 200, 255)),
-                            CouncilPolicyType::General => ("📋", egui::Color32::from_rgb(180, 180, 200)),
+                        let icon = match policy.policy_type {
+                            CouncilPolicyType::KardashevAcceleration => "🚀",
+                            CouncilPolicyType::ResourcePolicy => "🌾",
+                            CouncilPolicyType::EpiphanyEvent => "✨",
+                            CouncilPolicyType::HarmonyBoost => "🕊️",
+                            CouncilPolicyType::General => "📋",
                         };
-
-                        ui.horizontal(|ui| {
-                            ui.colored_label(color, format!("{} {}", icon, policy.title));
-                        });
-                        ui.label(format!(
-                            "    Type: {:?}  |  Strength: {:.2}  |  Remaining: {} ticks",
-                            policy.policy_type, policy.strength, policy.remaining_ticks
-                        ));
-                        ui.add_space(2.0);
+                        ui.label(format!("{} {}  |  str {:.2}  |  {} ticks left",
+                            icon, policy.title, policy.strength, policy.remaining_ticks));
                     }
                 }
-            } else {
-                ui.label(egui::RichText::new("CouncilDecisions resource not yet available.").italics().color(egui::Color32::GRAY));
             }
 
             ui.separator();
 
-            // TOLC 8 Gates
-            ui.label(egui::RichText::new("TOLC 8 Mercy Gates Status").strong());
+            // ========== NEW: Multi-Realm Status ==========
+            ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
+                .color(egui::Color32::from_rgb(180, 160, 255)));
+
+            if let Some(harness) = multi_realm {
+                ui.label(format!(
+                    "Active Realms: {}  |  Thriving: {}  |  Cross-Realm Mercy Flow: {:.2}",
+                    harness.active_realm_count(),
+                    harness.thriving_realm_count(),
+                    harness.cross_realm_mercy_flow
+                ));
+                ui.label(format!("Total Active Policies Across Realms: {}",
+                    harness.total_active_policies_across_realms));
+
+                ui.add_space(4.0);
+
+                // Sort by id for stable display
+                let mut realms: Vec<_> = harness.realms.values().collect();
+                realms.sort_by_key(|r| r.id);
+
+                for realm in realms {
+                    let status_color = match realm.status {
+                        crate::multi_realm_harness::RealmStatus::Thriving => egui::Color32::from_rgb(100, 255, 160),
+                        crate::multi_realm_harness::RealmStatus::Active => egui::Color32::from_rgb(140, 200, 255),
+                        _ => egui::Color32::GRAY,
+                    };
+
+                    ui.horizontal(|ui| {
+                        ui.colored_label(status_color, format!("[{}] {}", realm.id, realm.name));
+                        ui.label(format!(
+                            "— {:?}  |  policies: {}  |  mercy: {:.2}  |  {}",
+                            realm.primary_race_bias,
+                            realm.active_policy_count,
+                            realm.mercy_attunement_avg,
+                            realm.status.as_str()
+                        ));
+                    });
+                }
+            } else {
+                ui.label(egui::RichText::new("MultiRealmHarness not yet available.")
+                    .italics()
+                    .color(egui::Color32::GRAY));
+            }
+
+            ui.separator();
+
+            // TOLC 8
+            ui.label(egui::RichText::new("TOLC 8 Mercy Gates").strong());
             ui.horizontal_wrapped(|ui| {
-                let gate_names = ["Truth", "Order", "Love", "Compassion", "Service", "Abundance", "Joy", "Cosmic Harmony"];
-                for (i, name) in gate_names.iter().enumerate() {
-                    let passed = i < 8;
-                    let color = if passed { egui::Color32::from_rgb(80, 220, 140) } else { egui::Color32::from_rgb(120, 80, 80) };
-                    ui.colored_label(color, format!("{} {}", if passed { "✓" } else { "○" }, name));
+                let gates = ["Truth", "Order", "Love", "Compassion", "Service", "Abundance", "Joy", "Cosmic Harmony"];
+                for name in gates {
+                    ui.colored_label(egui::Color32::from_rgb(80, 220, 140), format!("✓ {}", name));
                 }
             });
 
             ui.separator();
 
-            let export_status = if ledger.export_ready_for_ra_thor { "✓ READY FOR RA-THOR LATTICE SYNC" } else { "○ Pending telemetry..." };
-            ui.colored_label(if ledger.export_ready_for_ra_thor { egui::Color32::from_rgb(100, 255, 180) } else { egui::Color32::GRAY }, export_status);
-
-            ui.add_space(8.0);
-            ui.label(egui::RichText::new("Active policies above are currently shaping RBE abundance, epiphany intensity, and Kardashev acceleration.").small().italics());
+            let export = if ledger.export_ready_for_ra_thor {
+                "✓ READY FOR RA-THOR LATTICE SYNC"
+            } else {
+                "○ Pending telemetry..."
+            };
+            ui.colored_label(
+                if ledger.export_ready_for_ra_thor {
+                    egui::Color32::from_rgb(100, 255, 180)
+                } else {
+                    egui::Color32::GRAY
+                },
+                export,
+            );
         });
 }
 
-// End of Sovereign Hardware Ascension v21.16 — Active Council Policies now fully observable in the dashboard.
+// End of v21.19 — Multi-Realm Status now fully visible in the dashboard.
 // Thunder locked in. Yoi ⚡

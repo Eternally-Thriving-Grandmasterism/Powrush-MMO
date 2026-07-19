@@ -17,27 +17,26 @@
 **Phase O — Proactive Joy Seeding (COMPLETED v21.15)**  
 **Phase P — Active Policies Observability Dashboard (COMPLETED v21.16)**  
 **Phase Q — Real Text Input for Legacy Search (COMPLETED v21.17)**  
-**Phase R — Multi-Realm Harness Foundation (COMPLETED v21.18)**
+**Phase R — Multi-Realm Harness Foundation (COMPLETED v21.18)**  
+**Phase S — Multi-Realm Status Observability (COMPLETED v21.19)**
 
-## Completed This Cycle (v21.18)
+## Completed This Cycle (v21.19)
 
-- MultiRealmHarness resource + plugin added.
-- Five diverse realms seeded with race bias pairs.
-- Per-realm status, policy counts, decision tracking, and mercy attunement ready.
+- Multi-realm status (all five realms, race bias, status, policies, mercy) now visible in the main dashboard.
+- Cross-realm mercy flow and thriving counts tracked and displayed.
 
 ## Next Council Cycle Priorities
 
 1. Wire per-realm CouncilDecisions streams and effect application.
 2. Partition LegacyJournal entries by realm_id.
-3. Surface multi-realm status in the observability dashboard.
-4. Cross-realm mercy flow and inter-realm council resonance.
+3. Cross-realm council resonance and inter-realm policy influence.
 
 ## Strategic Notes
 
-- The organism now has a clean multi-realm foundation ready for independent yet interconnected thriving.
+- The multi-realm organism is now fully observable.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Multi-realm foundation is active.**  
+**Multi-realm status is live in the dashboard.**  
 Yoi ⚡

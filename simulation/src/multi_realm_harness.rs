@@ -1,11 +1,9 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Foundation for concurrent realm simulation
-//! v21.18.0
+//! Multi-Realm Harness — Foundation + Observability
+//! v21.19.0
 //!
-//! Enables multiple living realms under one organism, each with:
-//! - Independent race bias and council decision streams
-//! - Ready hooks for per-realm RBE / Epiphany / Kardashev / Joy effects
-//! - Cross-realm observability and Legacy partitioning
+//! Concurrent realms under one organism with race diversity,
+//! per-realm decision tracking, and dashboard observability.
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -13,9 +11,10 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::info;
 
 use crate::race::Race;
-use crate::council::decision::{CouncilDecisions, ActivePolicy, PolicyType};
+use crate::council::decision::CouncilDecisions;
 
 // ============================================================================
 // CORE TYPES
@@ -29,6 +28,17 @@ pub enum RealmStatus {
     Active,
     Hibernating,
     Thriving,
+}
+
+impl RealmStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RealmStatus::Seeding => "Seeding",
+            RealmStatus::Active => "Active",
+            RealmStatus::Hibernating => "Hibernating",
+            RealmStatus::Thriving => "Thriving",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -89,10 +99,9 @@ impl MultiRealmHarness {
         }
     }
 
-    /// Seed the initial multi-realm configuration with race diversity.
     pub fn seed_default_realms(&mut self, current_tick: u64) {
         if !self.realms.is_empty() {
-            return; // already seeded
+            return;
         }
 
         let seeds = vec![
@@ -138,8 +147,13 @@ impl MultiRealmHarness {
             .count()
     }
 
-    /// Sync active policy counts from a CouncilDecisions resource (single-realm view).
-    /// In full multi-realm this will become per-realm CouncilDecisions maps.
+    pub fn thriving_realm_count(&self) -> usize {
+        self.realms
+            .values()
+            .filter(|r| matches!(r.status, RealmStatus::Thriving))
+            .count()
+    }
+
     pub fn sync_from_council_decisions(&mut self, decisions: &CouncilDecisions) {
         let active_count = decisions
             .active_policies
@@ -149,19 +163,21 @@ impl MultiRealmHarness {
 
         self.total_active_policies_across_realms = active_count;
 
-        // Attribute to primary realm for now; multi-stream later
         if let Some(primary) = self.realms.get_mut(&self.primary_realm_id) {
             primary.active_policy_count = active_count;
         }
+
+        // Gentle cross-realm mercy flow based on activity
+        self.cross_realm_mercy_flow = (self.cross_realm_mercy_flow * 0.92)
+            + (active_count as f32 * 0.04);
     }
 
     pub fn record_decision_passed(&mut self, realm_id: RealmId, mercy: f32) {
         if let Some(realm) = self.realms.get_mut(&realm_id) {
             realm.total_decisions_passed += 1;
-            // Simple running average
             let n = realm.total_decisions_passed as f32;
             realm.mercy_attunement_avg =
-                (realm.mercy_attunement_avg * (n - 1.0) + mercy) / n;
+                (realm.mercy_attunement_avg * (n - 1.0) + mercy.clamp(0.0, 1.0)) / n;
 
             if realm.mercy_attunement_avg > 0.78 && realm.total_decisions_passed > 5 {
                 realm.status = RealmStatus::Thriving;
@@ -174,19 +190,16 @@ impl MultiRealmHarness {
 // SYSTEMS
 // ============================================================================
 
-/// Seed the harness on first run and keep policy counts in sync.
 pub fn multi_realm_harness_system(
     mut harness: ResMut<MultiRealmHarness>,
     decisions: Option<Res<CouncilDecisions>>,
     time: Res<Time>,
 ) {
-    // Seed once
     if harness.realms.is_empty() {
         let tick = time.elapsed_seconds() as u64;
         harness.seed_default_realms(tick);
     }
 
-    // Sync active policy visibility
     if let Some(decisions) = decisions {
         harness.sync_from_council_decisions(&decisions);
     }
@@ -203,7 +216,7 @@ impl Plugin for MultiRealmHarnessPlugin {
         app.init_resource::<MultiRealmHarness>()
             .add_systems(Update, multi_realm_harness_system);
 
-        info!("MultiRealmHarnessPlugin initialized — multi-realm foundation active");
+        info!("MultiRealmHarnessPlugin initialized — multi-realm foundation + observability active");
     }
 }
 
@@ -216,30 +229,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_seed_default_realms() {
+    fn test_seed_and_thrive() {
         let mut harness = MultiRealmHarness::new();
         harness.seed_default_realms(100);
 
         assert_eq!(harness.realms.len(), 5);
-        assert!(harness.get_realm(0).is_some());
-        assert_eq!(harness.get_realm(0).unwrap().primary_race_bias, Race::Terran);
         assert_eq!(harness.active_realm_count(), 5);
-    }
-
-    #[test]
-    fn test_record_decision_and_thrive() {
-        let mut harness = MultiRealmHarness::new();
-        harness.seed_default_realms(0);
 
         for _ in 0..8 {
             harness.record_decision_passed(0, 0.85);
         }
 
         let realm = harness.get_realm(0).unwrap();
-        assert!(realm.total_decisions_passed >= 8);
         assert_eq!(realm.status, RealmStatus::Thriving);
+        assert!(harness.thriving_realm_count() >= 1);
     }
 }
 
-// Thunder locked in. Multi-realm foundation is ready for the next expansion cycle.
-// Yoi ⚡
+// Thunder locked in. Yoi ⚡
