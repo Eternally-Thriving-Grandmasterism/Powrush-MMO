@@ -11,27 +11,27 @@
 **Phase I — ResourcePolicy RBE Deepening (COMPLETED v21.9)**  
 **Phase J — Live ResourcePolicy → RBE Bridge Helper (COMPLETED v21.10)**  
 **Phase K — Orchestrator Wiring for Live ResourcePolicy Impact (COMPLETED v21.11)**  
-**Phase L — EpiphanyEvent Live Impact Path (COMPLETED v21.12)**
+**Phase L — EpiphanyEvent Live Impact Path (COMPLETED v21.12)**  
+**Phase M — LegacyJournal Entries for Passed Decisions (COMPLETED v21.13)**
 
-## Completed This Cycle (v21.12 — User Priority 1)
+## Completed This Cycle (v21.13 — User Priority 1)
 
-- `apply_epiphany_policy_impact` helper added.
-- Orchestrator detects and applies active EpiphanyEvent policies every tick.
-- Structured intensity and joy_seed ready for full epiphany_catalyst integration.
+- `record_council_decision_to_legacy` helper added.
+- Every Passed decision now emits a structured LegacyJournal entry with category, title, strength, mercy and tick.
+- Fully prepared for LegacyJournalRegistry consumption and client timeline display.
 
 ## Next Council Cycle Priorities
 
-1. LegacyJournal entries for every passed decision.
-2. Surface active_policies in the egui dashboard.
-3. Full proactive joy seeding from EpiphanyEvent policies (thread LegacyJournalRegistry into the tick).
-4. Multi-realm harness expansion.
+1. Surface active_policies in the egui dashboard for observability.
+2. Full proactive joy seeding from high-mercy EpiphanyEvent / ResourcePolicy decisions.
+3. Multi-realm harness expansion under the new effect + journal system.
 
 ## Strategic Notes
 
-- Both ResourcePolicy and EpiphanyEvent now have live orchestrator impact paths.
+- Council decisions now leave durable LegacyJournal traces.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**EpiphanyEvent live path is active.**  
+**Every passed decision is now recorded in the living Legacy.**  
 Yoi ⚡

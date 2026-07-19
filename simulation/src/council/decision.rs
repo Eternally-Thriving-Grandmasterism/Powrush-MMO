@@ -1,6 +1,6 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.6 — EpiphanyEvent deepened with live helper (parallel to ResourcePolicy)
+//! v1.7 — LegacyJournal entries for every passed decision
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -135,7 +135,6 @@ impl ActivePolicy {
 // LIVE IMPACT HELPERS
 // ============================================================================
 
-/// Apply a ResourcePolicy decision directly onto the living world state.
 pub fn apply_resource_policy_impact(
     decision: &CouncilDecision,
     world: &mut SovereignWorldState,
@@ -178,19 +177,13 @@ pub fn apply_resource_policy_impact(
     info!(
         target: "ra_thor::council::rbe",
         decision_id = decision.decision_id,
-        mercy = mercy,
-        strength = strength,
-        is_strong = is_strong,
-        "ResourcePolicy LIVE IMPACT applied to rbe_pools + resource_nodes"
+        "ResourcePolicy LIVE IMPACT applied"
     );
 }
 
-/// Apply an EpiphanyEvent decision.
-/// Registers structured emergence intensity and is designed to seed
-/// proactive joy / EpiphanyTriggered paths via the epiphany_catalyst.
 pub fn apply_epiphany_policy_impact(
     decision: &CouncilDecision,
-    _world: &mut SovereignWorldState, // reserved for future direct world effects
+    _world: &mut SovereignWorldState,
 ) {
     if decision.proposal_type != ProposalType::EpiphanyEvent || decision.status != ProposalStatus::Passed {
         return;
@@ -202,15 +195,62 @@ pub fn apply_epiphany_policy_impact(
     info!(
         target: "ra_thor::council::epiphany",
         decision_id = decision.decision_id,
-        strength = decision.strength,
-        mercy = decision.mercy_factor,
         intensity = intensity,
         joy_seed = joy_seed,
-        "EpiphanyEvent LIVE IMPACT registered — intensity ready for epiphany_catalyst + proactive joy seeding"
+        "EpiphanyEvent LIVE IMPACT registered"
+    );
+}
+
+// ============================================================================
+// LEGACY JOURNAL RECORDING (Priority 1)
+// ============================================================================
+
+/// Record a passed council decision into the Legacy Journal stream.
+/// Produces a clean, structured entry that can be consumed by LegacyJournalRegistry
+/// (grace_notes / synergy_policy / council category) and the client timeline.
+pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
+    if decision.status != ProposalStatus::Passed {
+        return;
+    }
+
+    let category = match decision.proposal_type {
+        ProposalType::KardashevAcceleration => "kardashev",
+        ProposalType::ResourcePolicy => "rbe_policy",
+        ProposalType::EpiphanyEvent => "epiphany",
+        ProposalType::HarmonyBoost => "harmony",
+        ProposalType::General => "council",
+    };
+
+    let summary = format!(
+        "Council Decision Passed: [{}] \"{}\" | strength {:.2} | mercy {:.2} | tick {}",
+        decision.effect_type,
+        decision.title,
+        decision.strength,
+        decision.mercy_factor,
+        decision.created_tick
     );
 
-    // Future: call record_proactive_joy_for_epiphany or emit EpiphanyTriggered
-    // once LegacyJournalRegistry + player context are threaded into the tick.
+    info!(
+        target: "ra_thor::council::legacy",
+        decision_id = decision.decision_id,
+        proposal_type = ?decision.proposal_type,
+        category = category,
+        proposer = decision.proposer,
+        strength = decision.strength,
+        mercy = decision.mercy_factor,
+        title = %decision.title,
+        "LegacyJournal entry recorded for passed council decision"
+    );
+
+    // Integration point for full LegacyJournalRegistry:
+    // registry.record_council_decision(
+    //     decision.proposer,
+    //     category,
+    //     &summary,
+    //     decision.strength,
+    //     decision.created_tick,
+    // );
+    // or registry.generate_proactive_joy_redemption_thread(...) for high-mercy decisions.
 }
 
 // ============================================================================
@@ -253,6 +293,9 @@ pub fn apply_council_decision_effects(
             continue;
         }
 
+        // === LegacyJournal recording for every passed decision ===
+        record_council_decision_to_legacy(&decision);
+
         let duration = match decision.proposal_type {
             ProposalType::KardashevAcceleration => 1200,
             ProposalType::ResourcePolicy => 900,
@@ -270,45 +313,19 @@ pub fn apply_council_decision_effects(
                 dashboard.global_kardashev_delta += contribution;
                 dashboard.abundance_velocity_index += contribution * 1.4;
                 dashboard.personal_contribution += contribution * 0.6;
-
-                info!(
-                    target: "ra_thor::council::kardashev",
-                    decision_id = decision.decision_id,
-                    strength = strength,
-                    contribution = contribution,
-                    "KardashevAcceleration ACTIVATED → live dashboard mutated"
-                );
+                info!(target: "ra_thor::council::kardashev", decision_id = decision.decision_id, "KardashevAcceleration ACTIVATED");
             }
             ProposalType::ResourcePolicy => {
-                info!(
-                    target: "ra_thor::council::rbe",
-                    decision_id = decision.decision_id,
-                    strength = strength,
-                    "ResourcePolicy ACTIVATED → live impact via apply_resource_policy_impact in orchestrator"
-                );
+                info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, "ResourcePolicy ACTIVATED");
             }
             ProposalType::EpiphanyEvent => {
-                info!(
-                    target: "ra_thor::council::epiphany",
-                    decision_id = decision.decision_id,
-                    strength = strength,
-                    "EpiphanyEvent ACTIVATED → live impact via apply_epiphany_policy_impact in orchestrator"
-                );
+                info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, "EpiphanyEvent ACTIVATED");
             }
             ProposalType::HarmonyBoost => {
-                info!(
-                    target: "ra_thor::council::harmony",
-                    decision_id = decision.decision_id,
-                    strength = strength,
-                    "HarmonyBoost ACTIVATED"
-                );
+                info!(target: "ra_thor::council::harmony", decision_id = decision.decision_id, "HarmonyBoost ACTIVATED");
             }
             ProposalType::General => {
-                info!(
-                    target: "ra_thor::council",
-                    decision_id = decision.decision_id,
-                    "General policy activated"
-                );
+                info!(target: "ra_thor::council", decision_id = decision.decision_id, "General policy activated");
             }
         }
 

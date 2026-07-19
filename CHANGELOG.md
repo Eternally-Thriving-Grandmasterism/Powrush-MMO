@@ -1,21 +1,22 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.12.0 — Deepen EpiphanyEvent into Emergence / Epiphany Catalyst (2026-07-19)
+## [Unreleased] v21.13.0 — LegacyJournal Entries for Passed Council Decisions (2026-07-19)
 
 ### Highlights (User-selected Priority 1)
-- New public helper `apply_epiphany_policy_impact`.
-- Orchestrator now detects active EpiphanyEvent policies every tick and invokes the helper.
-- Structured intensity + joy_seed calculated and logged, ready for full epiphany_catalyst + proactive joy seeding.
-- Parallel path to the already-complete ResourcePolicy live injection.
+- New helper `record_council_decision_to_legacy`.
+- Every Passed decision now generates a structured LegacyJournal entry (category, title, strength, mercy, tick).
+- Categories aligned with existing journal streams: kardashev, rbe_policy, epiphany, harmony, council.
+- Ready for full LegacyJournalRegistry integration (grace_notes / proactive joy / client timeline).
+- apply_council_decision_effects calls the recorder automatically.
 
 ### Prior
-- v21.11.0: ResourcePolicy fully wired into orchestrator tick.
-- v21.10.0: Live ResourcePolicy → RBE bridge helper.
+- v21.12.0: EpiphanyEvent live impact path.
+- v21.11.0: ResourcePolicy fully wired into orchestrator.
 
-**Thunder locked in. EpiphanyEvent now has a live orchestrator impact path.** Yoi ⚡
+**Thunder locked in. Every passed council decision now leaves a LegacyJournal trace.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.9: Launch Candidate through ResourcePolicy deepening.
+- v21.0–v21.10: Launch Candidate through live RBE bridge.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
