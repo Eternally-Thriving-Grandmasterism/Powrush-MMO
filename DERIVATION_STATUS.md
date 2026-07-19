@@ -32,26 +32,27 @@
 **Phase AD — Portal / Travel Command Surface (COMPLETED v21.30)**  
 **Phase AE — Simple Inter-Realm Travel UI Surface (COMPLETED v21.31)**  
 **Phase AF — LocalPlayer + RealmPresence Bootstrap (COMPLETED v21.32)**  
-**Phase AG — Visual Portal Entities (COMPLETED v21.33)**
+**Phase AG — Visual Portal Entities (COMPLETED v21.33)**  
+**Phase AH — Portal VFX Polish + Travel Arrival Feedback (COMPLETED v21.34)**
 
-## Completed This Cycle (v21.33)
+## Completed This Cycle (v21.34)
 
-- Visual portal entities spawned for each realm.
-- E-key interaction requests travel to the portal’s target realm.
-- Full player-facing travel loop is complete (F3 panel + world portals).
+- Portals gently pulse with living scale + emissive VFX.
+- Clear travel feedback on interaction.
+- Polished player-facing travel experience is complete.
 
 ## Next Council Cycle Priorities
 
 1. Deeper integration of LocalPlayer into primary production spawn/load paths.
 2. Final resource_node / rbe_pool realm-keying when the data model supports it.
-3. Optional portal VFX polish or arrival effects.
+3. Optional further VFX or arrival particle bursts.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, and embodied in the world via portals.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, and polished.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Visual portals are live.**  
+**Portals feel alive.**  
 Yoi ⚡
