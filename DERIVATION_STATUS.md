@@ -4,26 +4,27 @@
 **Phase B — Council Proposal System (ADVANCED v21.2)**  
 **Phase C — CouncilDecision + ActivePolicy Core (COMPLETED v21.3)**  
 **Phase D — World-State Threading (COMPLETED v21.4)**  
-**Phase E — ActivePolicy Effect Hooks (COMPLETED v21.5)**
+**Phase E — ActivePolicy Effect Hooks (COMPLETED v21.5)**  
+**Phase F — Hardware Sovereignty Alignment (COMPLETED v21.6)**
 
-## Completed This Cycle (v21.5)
+## Completed This Cycle (v21.6)
 
-- Typed side-effect markers in `apply_council_decision_effects` for all major proposal types.
-- Ready for concrete injection into RBE, emergence, and Kardashev dashboard systems.
+- Surgical alignment of `hardware_sovereignty.rs` to the real `ProposalType::KardashevAcceleration`.
+- Passed council decisions of type KardashevAcceleration now correctly boost the hardware progression score and Reality Thriving Transfer path.
 
-## Immediate Next Priority
+## Next Council Cycle Priorities
 
-1. Surgical fix in `hardware_sovereignty.rs`: replace the legacy `ProposalType::HardwareSovereignty` check with `ProposalType::KardashevAcceleration` so council decisions correctly boost the hardware progression score.
-2. Begin concrete effect application (e.g. bump Reality Thriving Transfer Score or abundance metrics when the matching ActivePolicy is live).
-3. LegacyJournal entries for passed decisions.
-4. Multi-realm harness expansion.
+1. Concrete effect injection: when an ActivePolicy of type KardashevAcceleration / ResourcePolicy / EpiphanyEvent is live, actually mutate the relevant resources (dashboard scores, RBE pools, emergence events).
+2. LegacyJournal entries for passed decisions.
+3. Multi-realm harness expansion with council + race diversity.
+4. Optional: expose ActivePolicy list in the egui dashboard for observability.
 
 ## Strategic Notes
 
-- The full proposal → deliberation → decision → active policy → typed effect path is now complete and observable.
+- The full loop is now closed: Proposal → Parallel Archetype Deliberation (world-aware) → Decision → ActivePolicy → typed effect markers → hardware progression responds to KardashevAcceleration.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Ready for the hardware alignment + concrete effect injection.**  
+**Council decisions now correctly accelerate hardware sovereignty.**  
 Yoi ⚡
