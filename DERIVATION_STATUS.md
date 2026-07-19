@@ -5,26 +5,28 @@
 **Phase C — CouncilDecision + ActivePolicy Core (COMPLETED v21.3)**  
 **Phase D — World-State Threading (COMPLETED v21.4)**  
 **Phase E — ActivePolicy Effect Hooks (COMPLETED v21.5)**  
-**Phase F — Hardware Sovereignty Alignment (COMPLETED v21.6)**
+**Phase F — Hardware Sovereignty Alignment (COMPLETED v21.6)**  
+**Phase G — Concrete Kardashev Effect Injection (COMPLETED v21.7)**
 
-## Completed This Cycle (v21.6)
+## Completed This Cycle (v21.7)
 
-- Surgical alignment of `hardware_sovereignty.rs` to the real `ProposalType::KardashevAcceleration`.
-- Passed council decisions of type KardashevAcceleration now correctly boost the hardware progression score and Reality Thriving Transfer path.
+- Live mutation of `KardashevAccelerationDashboard` on KardashevAcceleration policy activation.
+- Real contribution to global_kardashev_delta + abundance_velocity_index.
+- The full loop is now closed and produces observable simulation state change.
 
-## Next Council Cycle Priorities
+## Next Council Cycle Priorities (Maximal Path)
 
-1. Concrete effect injection: when an ActivePolicy of type KardashevAcceleration / ResourcePolicy / EpiphanyEvent is live, actually mutate the relevant resources (dashboard scores, RBE pools, emergence events).
-2. LegacyJournal entries for passed decisions.
-3. Multi-realm harness expansion with council + race diversity.
-4. Optional: expose ActivePolicy list in the egui dashboard for observability.
+1. Extend concrete injection to ResourcePolicy (RBE abundance / sustainability scores) and EpiphanyEvent (emergence triggers).
+2. LegacyJournal entries for every passed decision.
+3. Expose active_policies list in the egui Kardashev / Council dashboard for full observability.
+4. Multi-realm harness with race + council diversity under the new effect system.
 
 ## Strategic Notes
 
-- The full loop is now closed: Proposal → Parallel Archetype Deliberation (world-aware) → Decision → ActivePolicy → typed effect markers → hardware progression responds to KardashevAcceleration.
+- Council decisions now have measurable impact on the living Kardashev Acceleration path.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Council decisions now correctly accelerate hardware sovereignty.**  
+**Council → Dashboard acceleration is live.**  
 Yoi ⚡

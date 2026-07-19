@@ -1,13 +1,7 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.1 — Effect hooks added for RBE / Epiphany / Kardashev / Harmony
+//! v1.2 — Concrete effect injection for KardashevAcceleration (live dashboard mutation)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
-//!
-//! Provides the core that session.rs and hardware_sovereignty.rs expect:
-//! - CouncilDecision::from_resolved_proposal
-//! - mercy_alignment_score
-//! - ActivePolicy with spatial targeting
-//! - apply_council_decision_effects system with typed side-effect hooks
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,6 +9,8 @@ use tracing::info;
 
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
 use crate::world::AgentId;
+// Concrete injection target
+use crate::hardware_sovereignty::KardashevAccelerationDashboard;
 
 // ============================================================================
 // CORE TYPES
@@ -157,10 +153,12 @@ impl CouncilDecisions {
     }
 }
 
-/// Apply pending decisions into active policies and emit typed side-effect markers.
-/// Ready for direct injection into economy (RBE), emergence (Epiphany), and
-/// hardware_sovereignty / KardashevAccelerationDashboard systems.
-pub fn apply_council_decision_effects(mut decisions: ResMut<CouncilDecisions>) {
+/// Apply pending decisions into active policies and perform concrete side-effects.
+/// KardashevAcceleration now mutates the live KardashevAccelerationDashboard.
+pub fn apply_council_decision_effects(
+    mut decisions: ResMut<CouncilDecisions>,
+    mut dashboard: ResMut<KardashevAccelerationDashboard>,
+) {
     if decisions.pending.is_empty() {
         for policy in decisions.active_policies.iter_mut() {
             policy.tick();
@@ -186,15 +184,22 @@ pub fn apply_council_decision_effects(mut decisions: ResMut<CouncilDecisions>) {
 
         let policy = ActivePolicy::from_decision(&decision, duration);
 
-        // Typed side-effect hooks (ready for real system injection)
         match decision.proposal_type {
             ProposalType::KardashevAcceleration => {
+                // CONCRETE EFFECT: immediately contribute to the living Kardashev dashboard
+                let contribution = 0.018 * decision.strength;
+                dashboard.global_kardashev_delta += contribution;
+                dashboard.abundance_velocity_index += contribution * 1.4;
+                dashboard.personal_contribution += contribution * 0.6;
+
                 info!(
                     target: "ra_thor::council::kardashev",
                     decision_id = decision.decision_id,
                     strength = decision.strength,
+                    contribution = contribution,
+                    new_global_delta = dashboard.global_kardashev_delta,
                     zone = ?decision.target_interest_zone,
-                    "KardashevAcceleration policy activated → dashboard / reality-transfer boost path"
+                    "KardashevAcceleration policy ACTIVATED → live dashboard mutated (Reality Thriving Transfer path)"
                 );
             }
             ProposalType::ResourcePolicy => {
@@ -203,7 +208,7 @@ pub fn apply_council_decision_effects(mut decisions: ResMut<CouncilDecisions>) {
                     decision_id = decision.decision_id,
                     strength = decision.strength,
                     zone = ?decision.target_interest_zone,
-                    "ResourcePolicy activated → RBE abundance / sustainability path"
+                    "ResourcePolicy activated → RBE abundance / sustainability path ready for injection"
                 );
             }
             ProposalType::EpiphanyEvent => {
@@ -211,7 +216,7 @@ pub fn apply_council_decision_effects(mut decisions: ResMut<CouncilDecisions>) {
                     target: "ra_thor::council::epiphany",
                     decision_id = decision.decision_id,
                     strength = decision.strength,
-                    "EpiphanyEvent policy activated → emergence / Divine Whisper path"
+                    "EpiphanyEvent policy activated → emergence / Divine Whisper path ready for injection"
                 );
             }
             ProposalType::HarmonyBoost => {
@@ -219,7 +224,7 @@ pub fn apply_council_decision_effects(mut decisions: ResMut<CouncilDecisions>) {
                     target: "ra_thor::council::harmony",
                     decision_id = decision.decision_id,
                     strength = decision.strength,
-                    "HarmonyBoost policy activated → valence / council bloom path"
+                    "HarmonyBoost policy activated → valence / council bloom path ready for injection"
                 );
             }
             ProposalType::General => {

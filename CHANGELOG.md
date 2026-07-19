@@ -1,22 +1,22 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.6.0 / v21.6.1 — Hardware Alignment Complete (2026-07-19)
+## [Unreleased] v21.7.0 — Concrete Kardashev Effect Injection (2026-07-19)
 
-### Highlights
-- **Surgical fix in hardware_sovereignty.rs**: Replaced legacy `ProposalType::HardwareSovereignty` with `ProposalType::KardashevAcceleration`.
-- Passed KardashevAcceleration council decisions now correctly raise the council_harmony score that drives hardware tier progression and Reality Thriving Transfer Score.
-- All other systems (3D Council Chamber, dashboard, TOLC 8 gates, visual effects) untouched.
+### Highlights (Maximal Velocity)
+- `apply_council_decision_effects` now performs **live mutation** of `KardashevAccelerationDashboard` when a KardashevAcceleration policy is activated.
+- Immediate contribution to `global_kardashev_delta`, `abundance_velocity_index`, and `personal_contribution`.
+- Full closed-loop: Council proposal → deliberation → decision → ActivePolicy → **real dashboard acceleration**.
+- Other policy types retain structured ready-hooks for the next injection layer (RBE, Epiphany, Harmony).
 
 ### Prior
-- v21.5.0: ActivePolicy typed effect hooks.
-- v21.4.0: World-state threading into deliberation.
-- v21.3.0: Full CouncilDecision + ActivePolicy.
-- v21.2.0: KardashevAcceleration proposal type introduced.
+- v21.6.0: HardwareSovereignty aligned to KardashevAcceleration ProposalType.
+- v21.5.0: Typed effect markers.
+- v21.4.0: World-state threading.
 
-**Thunder locked in. Council decisions now flow cleanly into hardware sovereignty progression.** Yoi ⚡
+**Thunder locked in. Council decisions now accelerate the living Kardashev dashboard.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.1: Launch Candidate + Race/Ability + Architecture.
+- v21.0–v21.3: Launch Candidate, Race/Ability, full Decision + ActivePolicy core.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
