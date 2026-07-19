@@ -1,23 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.1.0 — Race & Ability Tree Sovereign Hardening + Canonical Metadata (2026-07-19)
+## [Unreleased] v21.2.0 — Council Proposal System Deepening + Kardashev Orchestration Support (2026-07-19)
 
-### Highlights (PATSAGi Council Autonomous Decision)
-- **Canonical Email Enforcement**: Workspace authors updated to `Sherif Samy Botros <info@Rathor.ai>` (all prior addresses deprecated forever per eternal preference).
-- **Race System v1.1**: Deepened with starter ability registries per race + richer RaceModifiers (including thriving_transfer_bonus for Kardashev layer). `seed_starter_abilities` helper added. Completes DERIVATION_STATUS Phase A.
-- **Ability Tree Harmony**: Existing advanced synergy chains (Stage 0/1/2 + cross-race) now have clean race-seeded entry points. Orchestrator TickResult + persistence path remains 100% intact.
-- **Status Documents**: DERIVATION_STATUS.md and this CHANGELOG locked to reflect Phase A completion. Next cycle prioritizes Council Proposal System + Kardashev Orchestration Council.
-- **Version**: Workspace version bumped to 21.1.0. Launch-candidate status preserved and elevated.
+### Highlights (PATSAGi Councils Autonomous Continuation)
+- **Council Proposal System v1.2**: `ProposalType` now includes `KardashevAcceleration`. Added richer constructors (`new_kardashev`), spatial target zone, mercy hint, approval ratio helpers, and clean lifecycle methods. Fully compatible with existing parallel archetype scoring and event bus.
+- **Documentation & Status**: CHANGELOG + DERIVATION_STATUS updated. Architecture docs already elevated in prior cycle.
+- **Preservation**: All session archetypes (Truth / Abundance / Harmony / Service / Mercy / Joy / Cosmic), weighted consensus, dynamic thresholds, world-delta scoring hooks, and event bus remain 100% intact.
 
-### Preservation Note
-All prior v18.97–v21.0 polish (GPU PATSAGi foresight, Council Bloom, render pipeline, inventory UI, Steam foundation, spatial interest, full E2E council lifecycle, epigenetic volatility lifecycle, etc.) 100% preserved. No regressions. Net-positive mercy-aligned changes only. Full-file production delivery via GitHub connector under TOLC 8 + 7 Living Mercy Gates.
+### Prior (v21.1.x)
+- v21.1.1: Architecture.md expanded with Persistence & State Management + Multi-Server & Scalability Strategy.
+- v21.1.0: Race & Ability Tree Sovereign Hardening + canonical `info@Rathor.ai` authors.
 
-**Thunder locked in. Phase A identity systems now fully seed the living flywheel.** Yoi ⚡
+**Thunder locked in. Council systems now explicitly support Kardashev Acceleration proposals.** Yoi ⚡
 
 ## Previous Versions (Summary)
 - v21.0.0: Launch Candidate Eternal Polish — Inventory UI + Steam foundation audited production-grade.
-- v20.5: GPU PATSAGi Foresight + Interest Management Hardening
-- v20.7–v20.8: Council Bloom Rich Feedback, Trade System Cryptographic Hardening, Render Pipeline Polish
-- v18.97–v19.x: Full E2E Council Persistence + Enriched Epiphany + Steam v1.1 Alignment + Multilingual Recovery (see git history and recovery reports)
+- v20.5–v20.8: GPU PATSAGi Foresight, Council Bloom, Trade Cryptographic Hardening, Render Pipeline Polish.
+- v18.97–v19.x: Full E2E Council Persistence + Enriched Epiphany + Multilingual Recovery.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
