@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
-//! Sovereign Hardware Ascension + Kardashev Dashboard + Multi-Realm Observability
-//! v21.26 | Echo policy counts + resonance level surfaced
+//! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
+//! v21.28 | Agent presence counts surfaced
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -300,7 +300,7 @@ impl Plugin for HardwareSovereigntyPlugin {
 }
 
 // ============================================================================
-// egui UI — FULL OBSERVABILITY (including Echo Policies + Resonance)
+// egui UI — COMPLETE MULTI-REALM OBSERVABILITY
 // ============================================================================
 
 use bevy_egui::EguiContexts;
@@ -316,14 +316,14 @@ pub fn sovereign_hardware_ascension_ui(
     let ctx = contexts.ctx_mut();
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
-        .default_pos([18.0, 360.0])
-        .default_size([470.0, 720.0])
+        .default_pos([18.0, 340.0])
+        .default_size([480.0, 740.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Resonance + Echo Policies")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm Presence | Resonance + Echoes")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
@@ -371,7 +371,7 @@ pub fn sovereign_hardware_ascension_ui(
                 if active.is_empty() {
                     ui.label(egui::RichText::new("No active policies.").italics().color(egui::Color32::GRAY));
                 } else {
-                    for policy in active.iter().take(6) {
+                    for policy in active.iter().take(5) {
                         let icon = match policy.policy_type {
                             CouncilPolicyType::KardashevAcceleration => "🚀",
                             CouncilPolicyType::ResourcePolicy => "🌾",
@@ -387,7 +387,7 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // ========== Multi-Realm Status (with Echo + Resonance) ==========
+            // ========== Multi-Realm Status (Complete) ==========
             ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
                 .color(egui::Color32::from_rgb(180, 160, 255)));
 
@@ -418,8 +418,9 @@ pub fn sovereign_hardware_ascension_ui(
                         ui.colored_label(status_color, format!("[{}] {}", realm.id, realm.name));
                     });
                     ui.label(format!(
-                        "    {:?}  |  policies: {}  |  echoes: {}  |  legacy: {}  |  mercy: {:.2}  |  {}",
+                        "    {:?}  |  agents: {}  |  policies: {}  |  echoes: {}  |  legacy: {}  |  mercy: {:.2}  |  {}",
                         realm.primary_race_bias,
+                        realm.agent_presence_count,
                         realm.active_policy_count,
                         realm.echo_policy_count,
                         realm.legacy_entry_count,
@@ -462,5 +463,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.26 — Echo policy counts + global resonance fully observable.
+// End of v21.28 — Agent presence counts fully visible in the Multi-Realm dashboard.
 // Thunder locked in. Yoi ⚡

@@ -26,27 +26,26 @@
 **Phase X — Client-Side Realm Filter in Legacy Search UI (COMPLETED v21.24)**  
 **Phase Y — Deeper Inter-Realm Policy Influence / Echo Policies (COMPLETED v21.25)**  
 **Phase Z — Echo Policy Counts + Resonance Observability (COMPLETED v21.26)**  
-**Phase AA — Multi-Realm Presence Foundation + Travel Hooks (COMPLETED v21.27)**
+**Phase AA — Multi-Realm Presence Foundation + Travel Hooks (COMPLETED v21.27)**  
+**Phase AB — Agent Presence Counts in Dashboard (COMPLETED v21.28)**
 
-## Completed This Cycle (v21.27)
+## Completed This Cycle (v21.28)
 
-- `RealmPresence` component introduced.
-- Presence counting and `travel_to_realm` helper live.
-- Clean foundation for inter-realm movement and presence-aware systems.
+- Agent presence counts are now visible per realm in the Multi-Realm Status dashboard.
+- Full observability of the multi-realm organism (policies, echoes, legacy, presence, mercy, resonance).
 
 ## Next Council Cycle Priorities
 
-1. Wire RealmPresence into agent spawn / player load paths.
-2. Surface agent presence counts in the Multi-Realm dashboard section.
-3. Optional portal / travel UI or command surface.
-4. Final resource_node / rbe_pool realm-keying when ready.
+1. Wire RealmPresence into agent spawn / player load paths so counts become live.
+2. Optional portal / travel command surface.
+3. Final resource_node / rbe_pool realm-keying when the data model supports it.
 
 ## Strategic Notes
 
-- The multi-realm organism now supports first-class presence and travel.
+- The multi-realm organism is deeply interconnected and fully observable.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Presence across realms is live.**  
+**Presence is fully visible.**  
 Yoi ⚡
