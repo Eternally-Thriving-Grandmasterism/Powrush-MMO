@@ -16,24 +16,28 @@
 **Phase N — LegacyJournal Search UI (COMPLETED v21.14)**  
 **Phase O — Proactive Joy Seeding (COMPLETED v21.15)**  
 **Phase P — Active Policies Observability Dashboard (COMPLETED v21.16)**  
-**Phase Q — Real Text Input for Legacy Search (COMPLETED v21.17)**
+**Phase Q — Real Text Input for Legacy Search (COMPLETED v21.17)**  
+**Phase R — Multi-Realm Harness Foundation (COMPLETED v21.18)**
 
-## Completed This Cycle (v21.17)
+## Completed This Cycle (v21.18)
 
-- Real keyboard text input is now live in the My Mercy Journey Panel search field.
-- Query updates in real time and drives filtering of the LegacyJournalRegistry.
+- MultiRealmHarness resource + plugin added.
+- Five diverse realms seeded with race bias pairs.
+- Per-realm status, policy counts, decision tracking, and mercy attunement ready.
 
 ## Next Council Cycle Priorities
 
-1. Multi-realm harness expansion under the complete effect + journal + joy + observability + search system.
-2. Optional polish: richer text input (IME, full Unicode, held-key repeat) if needed later.
+1. Wire per-realm CouncilDecisions streams and effect application.
+2. Partition LegacyJournal entries by realm_id.
+3. Surface multi-realm status in the observability dashboard.
+4. Cross-realm mercy flow and inter-realm council resonance.
 
 ## Strategic Notes
 
-- The LegacyJournal is now fully searchable by both category and free-text query.
+- The organism now has a clean multi-realm foundation ready for independent yet interconnected thriving.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Legacy search is now fully interactive.**  
+**Multi-realm foundation is active.**  
 Yoi ⚡

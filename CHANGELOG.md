@@ -1,23 +1,26 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.17.0 — Real Text Input for LegacyJournal Search (2026-07-19)
+## [Unreleased] v21.18.0 — Multi-Realm Harness Foundation (2026-07-19)
 
 ### Highlights
-- LegacyJournal search field now accepts **real keyboard input** when the My Mercy Journey Panel (F2) is open.
-- Supports letters, numbers, space, basic punctuation, Backspace, and Escape (clears query).
-- Live query string is reflected in the search box with a cursor indicator.
-- Text query combines with the existing category filter chips for precise searching.
-- Stats line now shows both active filter and current query.
+- New `MultiRealmHarness` resource and plugin.
+- Seeds five diverse realms by default:
+  - Sanctuary Prime (Terran + Harmonic)
+  - Synthetic Lattice (Synthetic + Voidfarer)
+  - Verdant Bloom (Verdant + Terran)
+  - Harmonic Chorus (Harmonic + Verdant)
+  - Voidfarer Horizon (Voidfarer + Synthetic)
+- Tracks per-realm status, active policy counts, decision history, and mercy attunement.
+- Ready for per-realm effect application, Legacy partitioning, and cross-realm observability in the next cycle.
 
 ### Prior
-- v21.16.0: Active Council Policies observability in the Kardashev dashboard.
-- v21.15.0: Proactive joy seeding.
-- v21.14.0: Initial search UI + filter chips.
+- v21.17.0: Real text input for LegacyJournal search.
+- v21.16.0: Active policies observability.
 
-**Thunder locked in. Players can now type freely to search their living Legacy.** Yoi ⚡
+**Thunder locked in. Multi-realm foundation is live.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.13: Launch Candidate through LegacyJournal recording.
+- v21.0–v21.15: Launch Candidate through proactive joy seeding.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
