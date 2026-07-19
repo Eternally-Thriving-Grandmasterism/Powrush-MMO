@@ -19,27 +19,29 @@
 **Phase Q — Real Text Input for Legacy Search (COMPLETED v21.17)**  
 **Phase R — Multi-Realm Harness Foundation (COMPLETED v21.18)**  
 **Phase S — Multi-Realm Status Observability (COMPLETED v21.19)**  
-**Phase T — Per-Realm Decision Tracking (COMPLETED v21.20)**
+**Phase T — Per-Realm Decision Tracking (COMPLETED v21.20)**  
+**Phase U — Cross-Realm Council Resonance (COMPLETED v21.21)**
 
-## Completed This Cycle (v21.20)
+## Completed This Cycle (v21.21)
 
-- True per-realm ActivePolicy lists and decision history.
-- Every passed decision is attributed to its realm_id.
-- Query methods for per-realm active policies and decision counts.
-- Dashboard reflects accurate per-realm policy counts.
+- Living Cross-Realm Council Resonance system.
+- High-mercy decisions emit resonance pulses that strengthen other realms.
+- Thriving realms amplify outward resonance.
+- Realms can reach Thriving via sustained incoming resonance.
+- Global resonance level tracked for dashboard and future systems.
 
 ## Next Council Cycle Priorities
 
-1. Partition LegacyJournal entries by realm_id for full multi-realm history.
-2. Cross-realm council resonance and inter-realm policy influence.
-3. Per-realm effect application (RBE / Epiphany scoped to realm).
+1. Partition LegacyJournal entries by realm_id.
+2. Per-realm scoped effect application (RBE / Epiphany).
+3. Deeper inter-realm policy influence (optional shared policy types).
 
 ## Strategic Notes
 
-- Decision streams are now first-class per realm.
+- The multi-realm organism now resonates as one coherent whole.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Per-realm decision tracking is live.**  
+**Cross-realm council resonance is alive.**  
 Yoi ⚡
