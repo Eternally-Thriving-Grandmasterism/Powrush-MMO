@@ -36,25 +36,27 @@
 **Phase AH — Portal VFX Polish + Travel Arrival Feedback (COMPLETED v21.34)**  
 **Phase AI — Travel Arrival Burst Feedback (COMPLETED v21.35)**  
 **Phase AJ — Travel Panel Current-Realm Awareness (COMPLETED v21.36)**  
-**Phase AK — Local Player Current Realm in Dashboard (COMPLETED v21.37)**
+**Phase AK — Local Player Current Realm in Dashboard (COMPLETED v21.37)**  
+**Phase AL — Realm Attunement (COMPLETED v21.38)**
 
-## Completed This Cycle (v21.37)
+## Completed This Cycle (v21.38)
 
-- Dashboard Multi-Realm Status now shows the local player’s current realm and travel count.
-- Full alignment between F3 panel, portals, presence, and dashboard observability.
+- `RealmAttunement` component introduced.
+- Gentle presence-based accumulation per realm.
+- Presence now carries living mechanical meaning.
 
 ## Next Council Cycle Priorities
 
-1. Deeper integration of LocalPlayer into primary production spawn/load paths.
-2. Final resource_node / rbe_pool realm-keying when the data model supports it.
-3. Optional further systems as the Councils discern.
+1. Surface current + peak attunement in the dashboard / F3 panel.
+2. Optional small bonuses or titles tied to attunement thresholds.
+3. Final resource_node / rbe_pool realm-keying when ready.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, and state-aware across UI surfaces.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, and now attunement-bearing.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Player realm is visible in the dashboard.**  
+**Presence gains gentle mechanical meaning.**  
 Yoi ⚡

@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel Command Surface
-//! v21.30.0
+//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement
+//! v21.38.0
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -102,7 +102,36 @@ impl Default for RealmPresence {
     }
 }
 
-/// Event used by UI, portals, console commands, or other systems to request travel.
+/// Tracks how deeply the player has attuned to each realm through presence.
+#[derive(Component, Clone, Debug, Serialize, Deserialize, Reflect, Default)]
+#[reflect(Component)]
+pub struct RealmAttunement {
+    /// Attunement strength per realm (0.0 – 1.0+)
+    pub per_realm: HashMap<RealmId, f32>,
+    /// Total attunement accumulated across all realms
+    pub total: f32,
+    /// Highest single-realm attunement
+    pub peak_realm: Option<RealmId>,
+    pub peak_value: f32,
+}
+
+impl RealmAttunement {
+    pub fn get(&self, realm_id: RealmId) -> f32 {
+        *self.per_realm.get(&realm_id).unwrap_or(&0.0)
+    }
+
+    pub fn add(&mut self, realm_id: RealmId, amount: f32) {
+        let entry = self.per_realm.entry(realm_id).or_insert(0.0);
+        *entry = (*entry + amount).min(1.5);
+        self.total = (self.total + amount).min(8.0);
+
+        if *entry > self.peak_value {
+            self.peak_value = *entry;
+            self.peak_realm = Some(realm_id);
+        }
+    }
+}
+
 #[derive(Event, Clone, Debug)]
 pub struct RealmTravelRequest {
     pub agent_entity: Entity,
@@ -197,7 +226,7 @@ impl MultiRealmHarness {
         self.primary_realm_id = 0;
         self.next_realm_id = 5;
 
-        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — travel command surface ready");
+        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement ready");
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
@@ -285,7 +314,7 @@ impl MultiRealmHarness {
         }
     }
 
-    // Decision / resonance / echo methods (preserved)
+    // Decision / resonance / echo (preserved)
     pub fn record_decision_for_realm(&mut self, decision: &CouncilDecision, policy: ActivePolicy) {
         let realm_id = decision.realm_id;
         let target_realm = if self.realms.contains_key(&realm_id) {
@@ -505,7 +534,30 @@ pub fn realm_presence_bootstrap_system(
     }
 }
 
-/// Processes RealmTravelRequest events and performs the actual travel.
+/// Gently accumulate attunement while the player is present in a realm.
+pub fn realm_attunement_system(
+    time: Res<Time>,
+    mut query: Query<(&RealmPresence, &mut RealmAttunement)>,
+) {
+    let dt = time.delta_seconds();
+    // Slow, mercy-aligned accumulation (~0.012 per second → ~0.72 per minute)
+    let gain = 0.012 * dt;
+
+    for (presence, mut attunement) in query.iter_mut() {
+        attunement.add(presence.current_realm_id, gain);
+    }
+}
+
+/// Ensure RealmAttunement exists alongside RealmPresence.
+pub fn realm_attunement_bootstrap_system(
+    mut commands: Commands,
+    query: Query<Entity, (With<RealmPresence>, Without<RealmAttunement>)>,
+) {
+    for entity in query.iter() {
+        commands.entity(entity).insert(RealmAttunement::default());
+    }
+}
+
 pub fn realm_travel_system(
     mut harness: ResMut<MultiRealmHarness>,
     mut travel_events: EventReader<RealmTravelRequest>,
@@ -531,21 +583,7 @@ pub fn realm_travel_system(
                     reason = %request.reason,
                     "Travel request fulfilled"
                 );
-            } else {
-                info!(
-                    target: "ra_thor::multi_realm::travel",
-                    agent = request.agent_id,
-                    target = request.target_realm,
-                    reason = %request.reason,
-                    "Travel request failed (invalid realm or other)"
-                );
             }
-        } else {
-            info!(
-                target: "ra_thor::multi_realm::travel",
-                agent = request.agent_id,
-                "Travel request failed: entity has no RealmPresence"
-            );
         }
     }
 }
@@ -579,19 +617,22 @@ impl Plugin for MultiRealmHarnessPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MultiRealmHarness>()
             .register_type::<RealmPresence>()
+            .register_type::<RealmAttunement>()
             .add_event::<RealmTravelRequest>()
             .add_systems(
                 Update,
                 (
                     multi_realm_harness_system,
                     realm_presence_bootstrap_system,
+                    realm_attunement_bootstrap_system,
+                    realm_attunement_system,
                     realm_travel_system,
                 ),
             );
 
-        info!("MultiRealmHarnessPlugin — presence + travel command surface active");
+        info!("MultiRealmHarnessPlugin — presence + attunement + travel active");
     }
 }
 
-// Thunder locked in. Inter-realm travel is now commandable via RealmTravelRequest.
+// Thunder locked in. Presence now gently accumulates living attunement.
 // Yoi ⚡

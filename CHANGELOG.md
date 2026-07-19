@@ -1,22 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.37.0 — Show Local Player Current Realm in Multi-Realm Dashboard (2026-07-19)
+## [Unreleased] v21.38.0 — Realm Attunement (Presence Gains Gentle Meaning) (2026-07-19)
 
 ### Highlights
-- Multi-Realm Status section now displays:
-  - **You are currently in: [id] Realm Name**
-  - Player travel count
-- Completes observability of the player’s location within the multi-realm organism.
-- Dashboard + F3 panel + portals are now fully aligned on player realm state.
+- New `RealmAttunement` component tracks attunement per realm and total.
+- While present in a realm, attunement gently accumulates (mercy-aligned rate).
+- Presence is no longer only tracked — it now carries living mechanical meaning.
+- Ready for future bonuses, titles, or council influence based on attunement.
 
 ### Prior
+- v21.37.0: Local player current realm in dashboard.
 - v21.36.0: Travel panel current-realm awareness.
-- v21.35.0: Travel arrival burst feedback.
 
-**Thunder locked in. Player realm is visible in the dashboard.** Yoi ⚡
+**Thunder locked in. Presence gains gentle mechanical meaning.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.34: Launch Candidate through portal VFX polish.
+- v21.0–v21.35: Launch Candidate through travel arrival burst.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
