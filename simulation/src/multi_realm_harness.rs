@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Full Decision / Resonance / Echo / Presence + Bootstrap
-//! v21.29.0
+//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel Command Surface
+//! v21.30.0
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -82,26 +82,33 @@ impl RealmDescriptor {
     }
 }
 
-/// Component tracking which realm an agent currently inhabits.
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Reflect)]
 #[reflect(Component)]
 pub struct RealmPresence {
     pub current_realm_id: RealmId,
     pub last_travel_tick: u64,
     pub travel_count: u32,
-    /// Internal flag so we only register once with the harness
     pub registered: bool,
 }
 
 impl Default for RealmPresence {
     fn default() -> Self {
         Self {
-            current_realm_id: 0, // Sanctuary Prime
+            current_realm_id: 0,
             last_travel_tick: 0,
             travel_count: 0,
             registered: false,
         }
     }
+}
+
+/// Event used by UI, portals, console commands, or other systems to request travel.
+#[derive(Event, Clone, Debug)]
+pub struct RealmTravelRequest {
+    pub agent_entity: Entity,
+    pub agent_id: AgentId,
+    pub target_realm: RealmId,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -190,7 +197,7 @@ impl MultiRealmHarness {
         self.primary_realm_id = 0;
         self.next_realm_id = 5;
 
-        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded with presence bootstrap support");
+        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — travel command surface ready");
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
@@ -210,10 +217,6 @@ impl MultiRealmHarness {
             .filter(|r| matches!(r.status, RealmStatus::Thriving))
             .count()
     }
-
-    // -----------------------------------------------------------------------
-    // PRESENCE + TRAVEL
-    // -----------------------------------------------------------------------
 
     pub fn register_presence(&mut self, realm_id: RealmId) {
         let target = if self.realms.contains_key(&realm_id) {
@@ -260,12 +263,12 @@ impl MultiRealmHarness {
             agent = agent_id,
             from = from,
             to = target_realm,
+            travel_count = presence.travel_count,
             "Agent traveled between realms"
         );
         true
     }
 
-    /// Explicit helper for spawn / load paths.
     pub fn ensure_realm_presence(
         &mut self,
         presence: &mut RealmPresence,
@@ -282,10 +285,7 @@ impl MultiRealmHarness {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // DECISION + LEGACY + RESONANCE + ECHO
-    // -----------------------------------------------------------------------
-
+    // Decision / resonance / echo methods (preserved)
     pub fn record_decision_for_realm(&mut self, decision: &CouncilDecision, policy: ActivePolicy) {
         let realm_id = decision.realm_id;
         let target_realm = if self.realms.contains_key(&realm_id) {
@@ -493,7 +493,6 @@ impl MultiRealmHarness {
 // SYSTEMS
 // ============================================================================
 
-/// Auto-register any RealmPresence that has not yet been counted.
 pub fn realm_presence_bootstrap_system(
     mut harness: ResMut<MultiRealmHarness>,
     mut query: Query<&mut RealmPresence>,
@@ -502,6 +501,51 @@ pub fn realm_presence_bootstrap_system(
         if !presence.registered {
             harness.register_presence(presence.current_realm_id);
             presence.registered = true;
+        }
+    }
+}
+
+/// Processes RealmTravelRequest events and performs the actual travel.
+pub fn realm_travel_system(
+    mut harness: ResMut<MultiRealmHarness>,
+    mut travel_events: EventReader<RealmTravelRequest>,
+    mut presence_query: Query<&mut RealmPresence>,
+    time: Res<Time>,
+) {
+    let current_tick = time.elapsed_seconds() as u64;
+
+    for request in travel_events.read() {
+        if let Ok(mut presence) = presence_query.get_mut(request.agent_entity) {
+            let success = harness.travel_to_realm(
+                &mut presence,
+                request.target_realm,
+                current_tick,
+                request.agent_id,
+            );
+
+            if success {
+                info!(
+                    target: "ra_thor::multi_realm::travel",
+                    agent = request.agent_id,
+                    target = request.target_realm,
+                    reason = %request.reason,
+                    "Travel request fulfilled"
+                );
+            } else {
+                info!(
+                    target: "ra_thor::multi_realm::travel",
+                    agent = request.agent_id,
+                    target = request.target_realm,
+                    reason = %request.reason,
+                    "Travel request failed (invalid realm or other)"
+                );
+            }
+        } else {
+            info!(
+                target: "ra_thor::multi_realm::travel",
+                agent = request.agent_id,
+                "Travel request failed: entity has no RealmPresence"
+            );
         }
     }
 }
@@ -535,17 +579,19 @@ impl Plugin for MultiRealmHarnessPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MultiRealmHarness>()
             .register_type::<RealmPresence>()
+            .add_event::<RealmTravelRequest>()
             .add_systems(
                 Update,
                 (
                     multi_realm_harness_system,
                     realm_presence_bootstrap_system,
+                    realm_travel_system,
                 ),
             );
 
-        info!("MultiRealmHarnessPlugin — presence bootstrap + travel + resonance active");
+        info!("MultiRealmHarnessPlugin — presence + travel command surface active");
     }
 }
 
-// Thunder locked in. Presence is now self-healing and auto-registering.
+// Thunder locked in. Inter-realm travel is now commandable via RealmTravelRequest.
 // Yoi ⚡

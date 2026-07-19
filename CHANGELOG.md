@@ -1,21 +1,25 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.29.0 — RealmPresence Bootstrap + Auto-Registration (2026-07-19)
+## [Unreleased] v21.30.0 — Portal / Travel Command Surface (2026-07-19)
 
 ### Highlights
-- New `realm_presence_bootstrap_system` automatically registers any `RealmPresence` that has not yet been counted.
-- `ensure_realm_presence` helper available for explicit spawn / load paths.
-- Presence counts in the dashboard will now become live as soon as entities carry the `RealmPresence` component.
-- Self-healing foundation: missing registration is corrected automatically.
+- New `RealmTravelRequest` event for requesting inter-realm travel.
+- New `realm_travel_system` processes requests, calls `travel_to_realm`, and updates presence counts.
+- Clean command surface ready for:
+  - UI buttons / portal interactions
+  - Console commands
+  - Future scripted or council-triggered travel
+- Presence counts update automatically on successful travel.
+- Full logging of fulfilled and failed travel requests.
 
 ### Prior
-- v21.28.0: Agent presence counts surfaced in dashboard.
-- v21.27.0: Multi-Realm Presence Foundation + Travel Hooks.
+- v21.29.0: RealmPresence bootstrap + auto-registration.
+- v21.28.0: Agent presence counts in dashboard.
 
-**Thunder locked in. Presence is self-healing and ready for live counts.** Yoi ⚡
+**Thunder locked in. Inter-realm travel is now commandable.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.26: Launch Candidate through full multi-realm observability.
+- v21.0–v21.27: Launch Candidate through Multi-Realm Presence Foundation.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*

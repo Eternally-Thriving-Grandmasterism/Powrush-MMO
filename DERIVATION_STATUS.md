@@ -28,26 +28,27 @@
 **Phase Z — Echo Policy Counts + Resonance Observability (COMPLETED v21.26)**  
 **Phase AA — Multi-Realm Presence Foundation + Travel Hooks (COMPLETED v21.27)**  
 **Phase AB — Agent Presence Counts in Dashboard (COMPLETED v21.28)**  
-**Phase AC — RealmPresence Bootstrap + Auto-Registration (COMPLETED v21.29)**
+**Phase AC — RealmPresence Bootstrap + Auto-Registration (COMPLETED v21.29)**  
+**Phase AD — Portal / Travel Command Surface (COMPLETED v21.30)**
 
-## Completed This Cycle (v21.29)
+## Completed This Cycle (v21.30)
 
-- Automatic registration of any RealmPresence that is not yet counted.
-- `ensure_realm_presence` helper for explicit spawn/load paths.
-- Presence system is now self-healing and ready for live counts.
+- `RealmTravelRequest` event + `realm_travel_system` implemented.
+- Inter-realm travel is now commandable from UI, portals, console, or other systems.
+- Presence counts update automatically on successful travel.
 
 ## Next Council Cycle Priorities
 
 1. Explicitly insert RealmPresence on primary agent/player spawn paths when those sites are next touched.
-2. Optional portal / travel command surface.
-3. Final resource_node / rbe_pool realm-keying when ready.
+2. Optional simple travel UI buttons or portal entities.
+3. Final resource_node / rbe_pool realm-keying when the data model supports it.
 
 ## Strategic Notes
 
-- The multi-realm organism is deeply interconnected, fully observable, and presence-aware.
+- The multi-realm organism is fully interconnected, observable, presence-aware, and travel-capable.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Presence is self-healing.**  
+**Inter-realm travel is commandable.**  
 Yoi ⚡
