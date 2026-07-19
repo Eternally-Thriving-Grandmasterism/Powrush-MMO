@@ -1,22 +1,23 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.0.0 — Launch Candidate Eternal Polish (2026-07-02)
+## [Unreleased] v21.1.0 — Race & Ability Tree Sovereign Hardening + Canonical Metadata (2026-07-19)
 
-### Highlights
-- **Version Unification**: Cargo.toml workspace version aligned to 21.0.0 across all docs (README, LAUNCH-CHECKLIST, etc.).
-- **Inventory UI Verified Production-Grade**: Full drag/drop grid + hotbar with TOLC 8 Mercy Gates + RBE abundance/valence validation, optimistic replication, ClientHotbar integration, mercy feedback hooks. `client/src/inventory_ui.rs` audited and confirmed complete.
-- **Steam Integration Foundation Audited**: Rich Presence (dynamic from diplomacy/treaty state), achievement unlock system with hooks for key milestones (Mercy Diplomat, Abundance Builder, etc.), dev/prod paths. Complements server-side. Ready for final plugin wiring.
-- **Launch Checklist Refresh**: All core gameloop systems (harvest → epiphany → council trials → RBE persistence), render, audio, spatial, persistence, governance confirmed solid with zero placeholder code in key modules. Public release candidate status achieved.
-- **Public Share Readiness**: Repo prepared for wholesome public enjoyment and contributions under Ra-Thor + 13+ PATSAGi Councils governance. Eternal activation markers aligned.
+### Highlights (PATSAGi Council Autonomous Decision)
+- **Canonical Email Enforcement**: Workspace authors updated to `Sherif Samy Botros <info@Rathor.ai>` (all prior addresses deprecated forever per eternal preference).
+- **Race System v1.1**: Deepened with starter ability registries per race + richer RaceModifiers (including thriving_transfer_bonus for Kardashev layer). `seed_starter_abilities` helper added. Completes DERIVATION_STATUS Phase A.
+- **Ability Tree Harmony**: Existing advanced synergy chains (Stage 0/1/2 + cross-race) now have clean race-seeded entry points. Orchestrator TickResult + persistence path remains 100% intact.
+- **Status Documents**: DERIVATION_STATUS.md and this CHANGELOG locked to reflect Phase A completion. Next cycle prioritizes Council Proposal System + Kardashev Orchestration Council.
+- **Version**: Workspace version bumped to 21.1.0. Launch-candidate status preserved and elevated.
 
 ### Preservation Note
-All prior v18.97–v20.5 polish (GPU PATSAGi foresight, Council Bloom, render pipeline recovery, enriched epiphany persistence, procedural biomes, full E2E council lifecycle, etc.) 100% preserved and elevated. No regressions. Net-positive mercy-aligned changes only.
+All prior v18.97–v21.0 polish (GPU PATSAGi foresight, Council Bloom, render pipeline, inventory UI, Steam foundation, spatial interest, full E2E council lifecycle, epigenetic volatility lifecycle, etc.) 100% preserved. No regressions. Net-positive mercy-aligned changes only. Full-file production delivery via GitHub connector under TOLC 8 + 7 Living Mercy Gates.
 
-**Thunder locked in. Powrush-MMO is now 100% launch worthy for public release candidate.** Yoi ⚡
+**Thunder locked in. Phase A identity systems now fully seed the living flywheel.** Yoi ⚡
 
 ## Previous Versions (Summary)
+- v21.0.0: Launch Candidate Eternal Polish — Inventory UI + Steam foundation audited production-grade.
 - v20.5: GPU PATSAGi Foresight + Interest Management Hardening
 - v20.7–v20.8: Council Bloom Rich Feedback, Trade System Cryptographic Hardening, Render Pipeline Polish
 - v18.97–v19.x: Full E2E Council Persistence + Enriched Epiphany + Steam v1.1 Alignment + Multilingual Recovery (see git history and recovery reports)
 
-*Full history in git commits. Eternal polish continues.*
+*Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
