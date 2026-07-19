@@ -1,6 +1,6 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.3 — Maximal concrete effect injection across all primary policy types
+//! v1.4 — ResourcePolicy deepened toward live RBE EconomicLayer injection
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -153,7 +153,8 @@ impl CouncilDecisions {
 }
 
 /// Apply pending decisions into active policies and perform concrete side-effects.
-/// Maximal injection path for all primary policy types.
+/// ResourcePolicy path now computes full RBE blessing parameters ready for
+/// EconomicLayer::apply_council_policy_impact (abundance_flow, sustainability, pressure).
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut dashboard: ResMut<KardashevAccelerationDashboard>,
@@ -183,10 +184,10 @@ pub fn apply_council_decision_effects(
 
         let policy = ActivePolicy::from_decision(&decision, duration);
         let strength = decision.strength;
+        let mercy = decision.mercy_factor;
 
         match decision.proposal_type {
             ProposalType::KardashevAcceleration => {
-                // LIVE MUTATION
                 let contribution = 0.018 * strength;
                 dashboard.global_kardashev_delta += contribution;
                 dashboard.abundance_velocity_index += contribution * 1.4;
@@ -203,19 +204,47 @@ pub fn apply_council_decision_effects(
                 );
             }
             ProposalType::ResourcePolicy => {
-                // Structured RBE contribution (ready for full pool mutation)
-                let abundance_boost = 0.12 * strength;
+                // Deepened RBE calculation matching EconomicLayer::apply_council_policy_impact semantics
+                let is_strong = mercy > 0.65 && strength > 1.05;
+                let abundance_delta = if is_strong {
+                    mercy * 0.8 * strength
+                } else if mercy < 0.4 {
+                    -(1.0 - mercy) * 0.35 * strength
+                } else {
+                    mercy * 0.25 * strength
+                };
+                let sustainability_delta = if is_strong {
+                    mercy * 0.06 * strength
+                } else if mercy < 0.4 {
+                    -0.015 * strength
+                } else {
+                    0.0
+                };
+                let pressure_delta = if is_strong {
+                    -mercy * 1.2 * strength
+                } else if mercy < 0.4 {
+                    (1.0 - mercy) * 0.9 * strength
+                } else {
+                    -mercy * 0.4 * strength
+                };
+
                 info!(
                     target: "ra_thor::council::rbe",
                     decision_id = decision.decision_id,
                     strength = strength,
-                    abundance_boost = abundance_boost,
+                    mercy = mercy,
+                    is_strong_council = is_strong,
+                    abundance_delta = abundance_delta,
+                    sustainability_delta = sustainability_delta,
+                    pressure_delta = pressure_delta,
                     zone = ?decision.target_interest_zone,
-                    "ResourcePolicy ACTIVATED → RBE abundance / sustainability contribution registered"
+                    "ResourcePolicy ACTIVATED → full RBE blessing/friction parameters computed (ready for EconomicLayer::apply_council_policy_impact)"
                 );
+
+                // NEXT CYCLE: pass &mut SovereignWorldState here and call:
+                // economic_layer.apply_council_policy_impact(mercy, is_strong, 3, world);
             }
             ProposalType::EpiphanyEvent => {
-                // Structured emergence contribution
                 let epiphany_intensity = 0.22 * strength;
                 info!(
                     target: "ra_thor::council::epiphany",

@@ -7,28 +7,27 @@
 **Phase E — ActivePolicy Effect Hooks (COMPLETED v21.5)**  
 **Phase F — Hardware Sovereignty Alignment (COMPLETED v21.6)**  
 **Phase G — Concrete Kardashev Effect Injection (COMPLETED v21.7)**  
-**Phase H — Maximal Effect Injection Expansion (COMPLETED v21.8)**
+**Phase H — Maximal Effect Injection Expansion (COMPLETED v21.8)**  
+**Phase I — ResourcePolicy RBE Deepening (COMPLETED v21.9)**
 
-## Completed This Cycle (v21.8)
+## Completed This Cycle (v21.9 — Priority 1)
 
-- Strength-scaled concrete effects for ResourcePolicy, EpiphanyEvent, and HarmonyBoost.
-- KardashevAcceleration continues live dashboard mutation.
-- Full primary policy set now produces observable impact markers and (for Kardashev) real state change.
+- ResourcePolicy now computes full RBE blessing/friction parameters (abundance, sustainability, pressure) using the same logic as `EconomicLayer::apply_council_policy_impact`.
+- Integration point explicitly prepared for live `&mut SovereignWorldState` mutation in the next cycle.
 
-## Next Council Cycle Priorities (Maximal Path)
+## Next Council Cycle Priorities
 
-1. Deepen ResourcePolicy injection into actual RBE pools / sustainability scores.
-2. Deepen EpiphanyEvent injection into the emergence / epiphany_catalyst systems.
-3. Record LegacyJournal entries (via LegacyJournalRegistry) for every passed decision.
-4. Surface active_policies in the egui dashboard for full observability.
-5. Multi-realm harness expansion under the new effect system.
+1. Complete the live call: pass world into `apply_council_decision_effects` (or a dedicated system) and invoke `EconomicLayer::apply_council_policy_impact` for real `rbe_pools` + `resource_nodes` mutation.
+2. Deepen EpiphanyEvent into the emergence / epiphany_catalyst systems.
+3. LegacyJournal entries for every passed decision.
+4. Surface active_policies in the egui dashboard.
 
 ## Strategic Notes
 
-- The Council system is now a living, state-mutating governance layer.
+- ResourcePolicy is now fully prepared for live economic impact.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**All primary policy types now impact the living simulation.**  
+**ResourcePolicy stands ready for live RBE mutation.**  
 Yoi ⚡
