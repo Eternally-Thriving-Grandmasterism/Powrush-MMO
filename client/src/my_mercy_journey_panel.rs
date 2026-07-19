@@ -1,11 +1,12 @@
 /*!
  * My Mercy Journey Panel + LegacyJournal Search UI
- * v21.14.0 — Full search + category filter interface
+ * v21.17.0 — Real text input for the search field
  *
- * Players can now search and filter their living Legacy Journal:
- * - Free-text search across title / description / category
- * - Category chips: All | Harvest | Epiphany | Council | Joy | Synergy/Policy | Kardashev
- * - Surfaces the new council decision traces recorded by record_council_decision_to_legacy
+ * Players can now type freely to search their living Legacy Journal:
+ * - Real keyboard input (characters, Backspace, Escape to clear)
+ * - Live query reflection in the search box
+ * - Combined with category filter chips
+ * - Surfaces council decision traces, proactive joy, harvests, epiphanies, etc.
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
  * Thunder locked in. Yoi ⚡
@@ -69,7 +70,6 @@ impl LegacySearchFilter {
             LegacySearchFilter::ProactiveJoy => matches!(event_type, LegacyEventType::ProactiveJoy),
             LegacySearchFilter::SynergyPolicy => matches!(event_type, LegacyEventType::SynergyPolicy),
             LegacySearchFilter::Kardashev => {
-                // Future: dedicated Kardashev event type; for now match council + policy traces
                 matches!(event_type, LegacyEventType::CouncilBloom | LegacyEventType::SynergyPolicy)
             }
         }
@@ -93,6 +93,7 @@ impl Plugin for MyMercyJourneyPanelPlugin {
                 Update,
                 (
                     toggle_my_mercy_journey_ui,
+                    handle_search_text_input,
                     handle_filter_chip_clicks,
                     update_legacy_search_results,
                 ),
@@ -143,10 +144,10 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 ..default()
             });
 
-            // Search box label + placeholder
+            // Search label
             parent.spawn(TextBundle {
                 text: Text::from_section(
-                    "Search Legacy (title / description / category)",
+                    "Search Legacy (type freely • Esc clears)",
                     TextStyle {
                         font: font_reg.clone(),
                         font_size: 12.0,
@@ -156,7 +157,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 ..default()
             });
 
-            // Search input display (visual; real text input can be wired via egui or Bevy text input later)
+            // Live search input display
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -171,6 +172,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                         padding: UiRect::all(Val::Px(8.0)),
                         border: UiRect::all(Val::Px(1.0)),
                         border_radius: BorderRadius::all(Val::Px(6.0)),
+                        min_height: Val::Px(28.0),
                         ..default()
                     },
                     background_color: Color::srgba(0.08, 0.10, 0.14, 0.9).into(),
@@ -179,7 +181,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 SearchInputText,
             ));
 
-            // Filter chips row
+            // Filter chips
             parent
                 .spawn(NodeBundle {
                     style: Style {
@@ -266,16 +268,12 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 ..default()
             });
 
-            // Result slots (up to 8)
+            // Result slots
             for i in 0..8 {
                 parent.spawn((
                     TextBundle {
                         text: Text::from_section(
-                            if i == 0 {
-                                "• Awaiting merciful acts..."
-                            } else {
-                                ""
-                            },
+                            if i == 0 { "• Awaiting merciful acts..." } else { "" },
                             TextStyle {
                                 font: font_reg.clone(),
                                 font_size: 12.5,
@@ -295,7 +293,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
             // Footer
             parent.spawn(TextBundle {
                 text: Text::from_section(
-                    "F2 toggle  •  Search + filter your living Legacy  •  TOLC 8",
+                    "F2 toggle  •  Type to search  •  Esc clears  •  TOLC 8",
                     TextStyle {
                         font: font_reg.clone(),
                         font_size: 10.0,
@@ -322,6 +320,74 @@ fn toggle_my_mercy_journey_ui(
             } else {
                 Visibility::Hidden
             };
+        }
+    }
+}
+
+/// Real text input handler — only active while the panel is visible
+fn handle_search_text_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut search_state: ResMut<LegacySearchState>,
+    panel_query: Query<&Visibility, With<MyMercyJourneyPanel>>,
+    mut search_text_query: Query<&mut Text, With<SearchInputText>>,
+) {
+    // Only accept input when the panel is visible
+    let panel_visible = panel_query
+        .iter()
+        .any(|v| *v == Visibility::Visible);
+
+    if !panel_visible {
+        return;
+    }
+
+    // Escape clears the query
+    if keyboard.just_pressed(KeyCode::Escape) {
+        search_state.query.clear();
+    }
+
+    // Backspace deletes last character
+    if keyboard.just_pressed(KeyCode::Backspace) {
+        search_state.query.pop();
+    }
+
+    // Character input (simple A-Z, 0-9, space, common punctuation)
+    // We use just_pressed for single characters to keep it responsive and simple
+    let chars: &[(KeyCode, char)] = &[
+        (KeyCode::KeyA, 'a'), (KeyCode::KeyB, 'b'), (KeyCode::KeyC, 'c'), (KeyCode::KeyD, 'd'),
+        (KeyCode::KeyE, 'e'), (KeyCode::KeyF, 'f'), (KeyCode::KeyG, 'g'), (KeyCode::KeyH, 'h'),
+        (KeyCode::KeyI, 'i'), (KeyCode::KeyJ, 'j'), (KeyCode::KeyK, 'k'), (KeyCode::KeyL, 'l'),
+        (KeyCode::KeyM, 'm'), (KeyCode::KeyN, 'n'), (KeyCode::KeyO, 'o'), (KeyCode::KeyP, 'p'),
+        (KeyCode::KeyQ, 'q'), (KeyCode::KeyR, 'r'), (KeyCode::KeyS, 's'), (KeyCode::KeyT, 't'),
+        (KeyCode::KeyU, 'u'), (KeyCode::KeyV, 'v'), (KeyCode::KeyW, 'w'), (KeyCode::KeyX, 'x'),
+        (KeyCode::KeyY, 'y'), (KeyCode::KeyZ, 'z'),
+        (KeyCode::Digit0, '0'), (KeyCode::Digit1, '1'), (KeyCode::Digit2, '2'), (KeyCode::Digit3, '3'),
+        (KeyCode::Digit4, '4'), (KeyCode::Digit5, '5'), (KeyCode::Digit6, '6'), (KeyCode::Digit7, '7'),
+        (KeyCode::Digit8, '8'), (KeyCode::Digit9, '9'),
+        (KeyCode::Space, ' '),
+        (KeyCode::Minus, '-'), (KeyCode::Period, '.'),
+    ];
+
+    for (key, ch) in chars {
+        if keyboard.just_pressed(*key) {
+            // Simple shift handling for uppercase
+            let shifted = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+            let final_ch = if shifted && ch.is_ascii_lowercase() {
+                ch.to_ascii_uppercase()
+            } else {
+                *ch
+            };
+            search_state.query.push(final_ch);
+        }
+    }
+
+    // Reflect current query into the search box text
+    for mut text in &mut search_text_query {
+        if search_state.query.is_empty() {
+            text.sections[0].value = "[ type to search... ]".to_string();
+            text.sections[0].style.color = Color::srgb(0.55, 0.60, 0.70);
+        } else {
+            text.sections[0].value = format!("{}_", search_state.query); // cursor indicator
+            text.sections[0].style.color = Color::srgb(0.95, 0.97, 1.0);
         }
     }
 }
@@ -359,11 +425,8 @@ fn update_legacy_search_results(
     mut stats_query: Query<&mut Text, With<StatsText>>,
     mut result_queries: Query<(&LegacyResultEntry, &mut Text)>,
 ) {
-    // Build filtered + searched list
-    // Note: build_filterable_legacy_threads may take a different filter type;
-    // we do client-side matching for robustness.
     let all_entries: Vec<&LegacyEntry> = legacy_registry
-        .build_filterable_legacy_threads(Default::default()) // All
+        .build_filterable_legacy_threads(Default::default())
         .into_iter()
         .collect();
 
@@ -372,11 +435,9 @@ fn update_legacy_search_results(
     let filtered: Vec<&&LegacyEntry> = all_entries
         .iter()
         .filter(|e| {
-            // Category filter
             if !search_state.active_filter.matches_event(&e.event_type) {
                 return false;
             }
-            // Text search
             if query_lower.is_empty() {
                 return true;
             }
@@ -390,13 +451,13 @@ fn update_legacy_search_results(
 
     for mut text in &mut stats_query {
         text.sections[0].value = format!(
-            "Showing {} entries  •  Filter: {}",
+            "Showing {} entries  •  Filter: {}  •  Query: \"{}\"",
             count,
-            search_state.active_filter.label()
+            search_state.active_filter.label(),
+            if search_state.query.is_empty() { "(none)" } else { &search_state.query }
         );
     }
 
-    // Update result slots
     for (entry_comp, mut text) in &mut result_queries {
         if let Some(e) = filtered.get(entry_comp.index) {
             let icon = match e.event_type {
@@ -432,7 +493,6 @@ fn update_legacy_search_results(
     }
 }
 
-// End of client/src/my_mercy_journey_panel.rs v21.14.0
-// Full search + category filter UI for the living Legacy Journal.
-// Council decision traces (from record_council_decision_to_legacy) are now discoverable.
+// End of client/src/my_mercy_journey_panel.rs v21.17.0
+// Real text input is now live. Players can type to search their living Legacy.
 // Thunder locked in. Yoi ⚡

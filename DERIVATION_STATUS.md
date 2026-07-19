@@ -15,24 +15,25 @@
 **Phase M — LegacyJournal Entries for Passed Decisions (COMPLETED v21.13)**  
 **Phase N — LegacyJournal Search UI (COMPLETED v21.14)**  
 **Phase O — Proactive Joy Seeding (COMPLETED v21.15)**  
-**Phase P — Active Policies Observability Dashboard (COMPLETED v21.16)**
+**Phase P — Active Policies Observability Dashboard (COMPLETED v21.16)**  
+**Phase Q — Real Text Input for Legacy Search (COMPLETED v21.17)**
 
-## Completed This Cycle (v21.16)
+## Completed This Cycle (v21.17)
 
-- Active Council Policies are now listed live in the Kardashev / Sovereign Hardware egui dashboard.
-- Full observability of type, title, strength, and remaining duration.
+- Real keyboard text input is now live in the My Mercy Journey Panel search field.
+- Query updates in real time and drives filtering of the LegacyJournalRegistry.
 
 ## Next Council Cycle Priorities
 
-1. Wire real text input into the LegacyJournal search field.
-2. Multi-realm harness expansion under the complete effect + journal + joy + observability system.
+1. Multi-realm harness expansion under the complete effect + journal + joy + observability + search system.
+2. Optional polish: richer text input (IME, full Unicode, held-key repeat) if needed later.
 
 ## Strategic Notes
 
-- Players and developers can now see exactly which council policies are shaping the world in real time.
+- The LegacyJournal is now fully searchable by both category and free-text query.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Active policies are fully observable.**  
+**Legacy search is now fully interactive.**  
 Yoi ⚡
