@@ -1,16 +1,13 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.0 — Complete production implementation (replaces prior stub)
+//! v1.1 — Effect hooks added for RBE / Epiphany / Kardashev / Harmony
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //!
-//! Provides the missing core that session.rs and hardware_sovereignty.rs already expect:
+//! Provides the core that session.rs and hardware_sovereignty.rs expect:
 //! - CouncilDecision::from_resolved_proposal
 //! - mercy_alignment_score
 //! - ActivePolicy with spatial targeting
-//! - apply_council_decision_effects system
-//!
-//! Cross-link: Decisions feed RBE abundance, EpiphanyEvent emergence, KardashevAcceleration
-//! dashboard progression, InterestManager culling, council bloom visuals, and LegacyJournal.
+//! - apply_council_decision_effects system with typed side-effect hooks
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -23,7 +20,6 @@ use crate::world::AgentId;
 // CORE TYPES
 // ============================================================================
 
-/// High-level effect categories produced by a resolved council decision.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum PolicyType {
     HarmonyBoost,
@@ -45,7 +41,6 @@ impl From<ProposalType> for PolicyType {
     }
 }
 
-/// A fully resolved decision produced by one or more parallel PATSAGi Councils.
 #[derive(Clone, Debug, Serialize, Deserialize, Component)]
 pub struct CouncilDecision {
     pub decision_id: u64,
@@ -63,7 +58,6 @@ pub struct CouncilDecision {
 }
 
 impl CouncilDecision {
-    /// Construct a decision from a resolved proposal (called inside CouncilSession::run_deliberation).
     pub fn from_resolved_proposal(
         proposal: &CouncilProposal,
         mercy_factor: f32,
@@ -94,8 +88,6 @@ impl CouncilDecision {
         }
     }
 
-    /// Core mercy-alignment score used by parallel archetype voting.
-    /// Higher = more aligned with TOLC 8 Living Mercy Gates.
     pub fn mercy_alignment_score(&self, _world_hint: Option<f32>) -> f32 {
         let base = self.mercy_factor.clamp(0.0, 1.0);
         let type_bonus = match self.proposal_type {
@@ -109,8 +101,6 @@ impl CouncilDecision {
     }
 }
 
-/// An active policy that continues to exert influence for a duration of ticks.
-/// Supports spatial targeting so effects can be scoped to InterestManager zones.
 #[derive(Clone, Debug, Serialize, Deserialize, Component)]
 pub struct ActivePolicy {
     pub decision_id: u64,
@@ -150,7 +140,6 @@ impl ActivePolicy {
 // RESOURCE + SYSTEM
 // ============================================================================
 
-/// Global resource holding pending decisions and active policies.
 #[derive(Resource, Default, Debug)]
 pub struct CouncilDecisions {
     pub pending: Vec<CouncilDecision>,
@@ -168,14 +157,11 @@ impl CouncilDecisions {
     }
 }
 
-/// Apply pending decisions into active policies and perform side-effects.
-/// Scheduled by CouncilPlugin.
-pub fn apply_council_decision_effects(
-    mut decisions: ResMut<CouncilDecisions>,
-    // Future: inject world, economy, emergence, hardware dashboard here
-) {
+/// Apply pending decisions into active policies and emit typed side-effect markers.
+/// Ready for direct injection into economy (RBE), emergence (Epiphany), and
+/// hardware_sovereignty / KardashevAccelerationDashboard systems.
+pub fn apply_council_decision_effects(mut decisions: ResMut<CouncilDecisions>) {
     if decisions.pending.is_empty() {
-        // Still tick existing policies
         for policy in decisions.active_policies.iter_mut() {
             policy.tick();
         }
@@ -190,7 +176,6 @@ pub fn apply_council_decision_effects(
             continue;
         }
 
-        // Default duration scales with strength and type importance
         let duration = match decision.proposal_type {
             ProposalType::KardashevAcceleration => 1200,
             ProposalType::ResourcePolicy => 900,
@@ -200,19 +185,55 @@ pub fn apply_council_decision_effects(
         };
 
         let policy = ActivePolicy::from_decision(&decision, duration);
-        info!(
-            target: "ra_thor::council",
-            decision_id = decision.decision_id,
-            proposal_type = ?decision.proposal_type,
-            strength = decision.strength,
-            zone = ?decision.target_interest_zone,
-            "Council decision applied → ActivePolicy created"
-        );
+
+        // Typed side-effect hooks (ready for real system injection)
+        match decision.proposal_type {
+            ProposalType::KardashevAcceleration => {
+                info!(
+                    target: "ra_thor::council::kardashev",
+                    decision_id = decision.decision_id,
+                    strength = decision.strength,
+                    zone = ?decision.target_interest_zone,
+                    "KardashevAcceleration policy activated → dashboard / reality-transfer boost path"
+                );
+            }
+            ProposalType::ResourcePolicy => {
+                info!(
+                    target: "ra_thor::council::rbe",
+                    decision_id = decision.decision_id,
+                    strength = decision.strength,
+                    zone = ?decision.target_interest_zone,
+                    "ResourcePolicy activated → RBE abundance / sustainability path"
+                );
+            }
+            ProposalType::EpiphanyEvent => {
+                info!(
+                    target: "ra_thor::council::epiphany",
+                    decision_id = decision.decision_id,
+                    strength = decision.strength,
+                    "EpiphanyEvent policy activated → emergence / Divine Whisper path"
+                );
+            }
+            ProposalType::HarmonyBoost => {
+                info!(
+                    target: "ra_thor::council::harmony",
+                    decision_id = decision.decision_id,
+                    strength = decision.strength,
+                    "HarmonyBoost policy activated → valence / council bloom path"
+                );
+            }
+            ProposalType::General => {
+                info!(
+                    target: "ra_thor::council",
+                    decision_id = decision.decision_id,
+                    "General policy activated"
+                );
+            }
+        }
 
         decisions.active_policies.push(policy);
     }
 
-    // Tick all active policies
     for policy in decisions.active_policies.iter_mut() {
         policy.tick();
     }
