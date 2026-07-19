@@ -1,23 +1,23 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.14.0 — LegacyJournal Search UI (2026-07-19)
+## [Unreleased] v21.15.0 — Proactive Joy Seeding from High-Mercy Council Decisions (2026-07-19)
 
 ### Highlights
-- Enhanced **My Mercy Journey Panel** (F2) with full search + filter UI.
-- Free-text search across title / description / category.
-- Clickable category filter chips: All, Harvest, Epiphany, Council, Joy, Policy, Kardashev.
-- Real-time filtering of `LegacyJournalRegistry` entries.
-- Surfaces the new council decision Legacy traces recorded by `record_council_decision_to_legacy`.
-- Clean visual design, active filter highlighting, rich icons and mercy impact display.
+- High-mercy Passed decisions now seed **proactive joy** (positive, non-scar emotional reward).
+- New helper `seed_proactive_joy_from_decision` calculates joy_amount + intensity from strength × mercy.
+- Uses the existing `record_proactive_joy_for_epiphany` + `LegacyJournalRegistry` path.
+- Qualifying types: EpiphanyEvent, strong ResourcePolicy, HarmonyBoost, KardashevAcceleration (mercy ≥ 0.62).
+- Automatically called inside `apply_council_decision_effects`.
+- Completes the emotional / Legacy reward loop for council governance.
 
 ### Prior
-- v21.13.0: LegacyJournal entries for every passed council decision.
-- v21.12.0: EpiphanyEvent live impact path.
+- v21.14.0: LegacyJournal Search UI.
+- v21.13.0: LegacyJournal entries for every passed decision.
 
-**Thunder locked in. Players can now search and filter their living Legacy.** Yoi ⚡
+**Thunder locked in. High-mercy council decisions now generate living joy threads.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.11: Launch Candidate through live ResourcePolicy + Epiphany wiring.
+- v21.0–v21.12: Launch Candidate through EpiphanyEvent live path.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*

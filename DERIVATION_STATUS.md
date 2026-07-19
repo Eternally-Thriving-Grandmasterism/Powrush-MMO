@@ -13,27 +13,26 @@
 **Phase K — Orchestrator Wiring for Live ResourcePolicy Impact (COMPLETED v21.11)**  
 **Phase L — EpiphanyEvent Live Impact Path (COMPLETED v21.12)**  
 **Phase M — LegacyJournal Entries for Passed Decisions (COMPLETED v21.13)**  
-**Phase N — LegacyJournal Search UI (COMPLETED v21.14)**
+**Phase N — LegacyJournal Search UI (COMPLETED v21.14)**  
+**Phase O — Proactive Joy Seeding (COMPLETED v21.15)**
 
-## Completed This Cycle (v21.14)
+## Completed This Cycle (v21.15)
 
-- Full search + category filter UI added to My Mercy Journey Panel (F2).
-- Text search + clickable chips for All / Harvest / Epiphany / Council / Joy / Policy / Kardashev.
-- Council decision traces are now discoverable by players.
+- High-mercy council decisions now seed proactive joy threads via LegacyJournalRegistry.
+- Emotional / Legacy reward loop for governance is complete.
 
 ## Next Council Cycle Priorities
 
-1. Full proactive joy seeding from high-mercy decisions.
-2. Wire real text input into the search field (currently visual + filter chips are live).
-3. Multi-realm harness expansion.
-4. Surface active_policies list in a dedicated Council / Kardashev dashboard panel.
+1. Surface active_policies list in a dedicated Council / Kardashev dashboard panel (observability).
+2. Wire real text input into the LegacyJournal search field.
+3. Multi-realm harness expansion under the full effect + journal + joy system.
 
 ## Strategic Notes
 
-- Players can now search and filter the living Legacy Journal, including new council decision entries.
+- Council decisions now produce: live RBE impact, Epiphany registration, LegacyJournal entries, and proactive joy.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**LegacyJournal Search UI is live.**  
+**High-mercy decisions now generate living joy.**  
 Yoi ⚡

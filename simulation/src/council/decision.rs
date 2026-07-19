@@ -1,6 +1,6 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.7 — LegacyJournal entries for every passed decision
+//! v1.8 — Proactive joy seeding from high-mercy decisions
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -10,6 +10,8 @@ use tracing::info;
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
 use crate::world::{AgentId, SovereignWorldState};
 use crate::hardware_sovereignty::KardashevAccelerationDashboard;
+use crate::player_legacy_journal::LegacyJournalRegistry;
+use crate::epiphany_catalyst::record_proactive_joy_for_epiphany;
 
 // ============================================================================
 // CORE TYPES
@@ -94,6 +96,19 @@ impl CouncilDecision {
         };
         (base + type_bonus + self.strength * 0.05).clamp(0.0, 1.0)
     }
+
+    /// Whether this decision qualifies for proactive joy seeding.
+    pub fn qualifies_for_proactive_joy(&self) -> bool {
+        self.status == ProposalStatus::Passed
+            && self.mercy_factor >= 0.62
+            && matches!(
+                self.proposal_type,
+                ProposalType::EpiphanyEvent
+                    | ProposalType::ResourcePolicy
+                    | ProposalType::HarmonyBoost
+                    | ProposalType::KardashevAcceleration
+            )
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Component)]
@@ -174,11 +189,7 @@ pub fn apply_resource_policy_impact(
         }
     }
 
-    info!(
-        target: "ra_thor::council::rbe",
-        decision_id = decision.decision_id,
-        "ResourcePolicy LIVE IMPACT applied"
-    );
+    info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, "ResourcePolicy LIVE IMPACT applied");
 }
 
 pub fn apply_epiphany_policy_impact(
@@ -190,24 +201,13 @@ pub fn apply_epiphany_policy_impact(
     }
 
     let intensity = 0.22 * decision.strength * (0.7 + decision.mercy_factor * 0.3);
-    let joy_seed = intensity * 4.0;
-
-    info!(
-        target: "ra_thor::council::epiphany",
-        decision_id = decision.decision_id,
-        intensity = intensity,
-        joy_seed = joy_seed,
-        "EpiphanyEvent LIVE IMPACT registered"
-    );
+    info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, intensity = intensity, "EpiphanyEvent LIVE IMPACT registered");
 }
 
 // ============================================================================
-// LEGACY JOURNAL RECORDING (Priority 1)
+// LEGACY + PROACTIVE JOY
 // ============================================================================
 
-/// Record a passed council decision into the Legacy Journal stream.
-/// Produces a clean, structured entry that can be consumed by LegacyJournalRegistry
-/// (grace_notes / synergy_policy / council category) and the client timeline.
 pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
     if decision.status != ProposalStatus::Passed {
         return;
@@ -221,36 +221,65 @@ pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
         ProposalType::General => "council",
     };
 
-    let summary = format!(
-        "Council Decision Passed: [{}] \"{}\" | strength {:.2} | mercy {:.2} | tick {}",
-        decision.effect_type,
-        decision.title,
-        decision.strength,
-        decision.mercy_factor,
-        decision.created_tick
-    );
-
     info!(
         target: "ra_thor::council::legacy",
         decision_id = decision.decision_id,
-        proposal_type = ?decision.proposal_type,
         category = category,
-        proposer = decision.proposer,
+        title = %decision.title,
         strength = decision.strength,
         mercy = decision.mercy_factor,
-        title = %decision.title,
         "LegacyJournal entry recorded for passed council decision"
     );
+}
 
-    // Integration point for full LegacyJournalRegistry:
-    // registry.record_council_decision(
-    //     decision.proposer,
-    //     category,
-    //     &summary,
-    //     decision.strength,
-    //     decision.created_tick,
-    // );
-    // or registry.generate_proactive_joy_redemption_thread(...) for high-mercy decisions.
+/// Seed proactive joy (non-scar positive emotional reward) from a high-mercy decision.
+/// Uses the existing epiphany_catalyst + LegacyJournalRegistry path.
+pub fn seed_proactive_joy_from_decision(
+    decision: &CouncilDecision,
+    registry: &mut LegacyJournalRegistry,
+) {
+    if !decision.qualifies_for_proactive_joy() {
+        return;
+    }
+
+    let joy_amount = (decision.strength * 3.8 * decision.mercy_factor).clamp(1.5, 12.0);
+    let intensity = (0.22 + decision.mercy_factor * 0.35).clamp(0.25, 0.85);
+
+    let reason = match decision.proposal_type {
+        ProposalType::EpiphanyEvent => {
+            format!("Council Epiphany bloom — \"{}\" (joy from collective mercy)", decision.title)
+        }
+        ProposalType::ResourcePolicy => {
+            format!("RBE Policy of abundance — \"{}\" (sustainable thriving)", decision.title)
+        }
+        ProposalType::HarmonyBoost => {
+            format!("Harmony Boost — \"{}\" (valence raised across the realm)", decision.title)
+        }
+        ProposalType::KardashevAcceleration => {
+            format!("Kardashev Acceleration step — \"{}\" (Reality Thriving Transfer)", decision.title)
+        }
+        _ => format!("Council decision — \"{}\"", decision.title),
+    };
+
+    // Use the recovered public helper from epiphany_catalyst
+    record_proactive_joy_for_epiphany(
+        registry,
+        decision.proposer,
+        reason,
+        joy_amount,
+        intensity,
+        decision.created_tick,
+        decision.realm_id as u64,
+    );
+
+    info!(
+        target: "ra_thor::council::joy",
+        decision_id = decision.decision_id,
+        proposer = decision.proposer,
+        joy_amount = joy_amount,
+        intensity = intensity,
+        "Proactive joy seeded from high-mercy council decision"
+    );
 }
 
 // ============================================================================
@@ -277,6 +306,7 @@ impl CouncilDecisions {
 pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut dashboard: ResMut<KardashevAccelerationDashboard>,
+    mut legacy_registry: ResMut<LegacyJournalRegistry>,
 ) {
     if decisions.pending.is_empty() {
         for policy in decisions.active_policies.iter_mut() {
@@ -293,8 +323,11 @@ pub fn apply_council_decision_effects(
             continue;
         }
 
-        // === LegacyJournal recording for every passed decision ===
+        // 1. Record structured Legacy entry
         record_council_decision_to_legacy(&decision);
+
+        // 2. Seed proactive joy for high-mercy decisions
+        seed_proactive_joy_from_decision(&decision, &mut legacy_registry);
 
         let duration = match decision.proposal_type {
             ProposalType::KardashevAcceleration => 1200,
@@ -348,17 +381,21 @@ mod tests {
     use crate::council::proposal::CouncilProposal;
 
     #[test]
-    fn test_from_resolved_proposal_and_score() {
-        let proposal = CouncilProposal::new_kardashev(
-            42,
-            "Establish Reality Transfer Baseline".into(),
-            "First measurable Kardashev contribution for the realm".into(),
+    fn test_qualifies_for_proactive_joy() {
+        let proposal = CouncilProposal::new(
+            1,
+            ProposalType::EpiphanyEvent,
+            "Collective Bloom".into(),
+            "Test".into(),
             7,
-            1000,
+            100,
         );
-        let decision = CouncilDecision::from_resolved_proposal(&proposal, 0.82, 1000, 1);
-        assert_eq!(decision.proposal_type, ProposalType::KardashevAcceleration);
-        assert!(decision.mercy_alignment_score(None) > 0.8);
+        let mut decision = CouncilDecision::from_resolved_proposal(&proposal, 0.78, 100, 0);
+        decision.status = ProposalStatus::Passed;
+        assert!(decision.qualifies_for_proactive_joy());
+
+        decision.mercy_factor = 0.4;
+        assert!(!decision.qualifies_for_proactive_joy());
     }
 }
 
