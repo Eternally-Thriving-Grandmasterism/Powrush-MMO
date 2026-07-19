@@ -30,19 +30,20 @@
 **Phase AB — Agent Presence Counts in Dashboard (COMPLETED v21.28)**  
 **Phase AC — RealmPresence Bootstrap + Auto-Registration (COMPLETED v21.29)**  
 **Phase AD — Portal / Travel Command Surface (COMPLETED v21.30)**  
-**Phase AE — Simple Inter-Realm Travel UI Surface (COMPLETED v21.31)**
+**Phase AE — Simple Inter-Realm Travel UI Surface (COMPLETED v21.31)**  
+**Phase AF — LocalPlayer + RealmPresence Bootstrap (COMPLETED v21.32)**
 
-## Completed This Cycle (v21.31)
+## Completed This Cycle (v21.32)
 
-- F3 Realm Travel Panel with buttons for all five realms.
-- Emits RealmTravelRequest on click for the local player.
-- Full player-facing inter-realm travel interface is live.
+- LocalPlayer + RealmPresence are now reliably bootstrapped.
+- F3 travel panel has a guaranteed target.
+- Presence counts can become live in single-player / dev flows.
 
 ## Next Council Cycle Priorities
 
-1. Ensure LocalPlayer + RealmPresence are attached on primary spawn/load paths.
-2. Optional visual portal entities in the world.
-3. Final resource_node / rbe_pool realm-keying when ready.
+1. Optional visual portal entities in the world.
+2. Deeper integration of LocalPlayer into primary production spawn/load paths.
+3. Final resource_node / rbe_pool realm-keying when the data model supports it.
 
 ## Strategic Notes
 
@@ -51,5 +52,5 @@
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Players can travel between realms.**  
+**Travel panel is reliably functional.**  
 Yoi ⚡

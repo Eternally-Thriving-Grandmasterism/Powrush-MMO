@@ -1,16 +1,17 @@
 /*!
- * Realm Travel Panel
- * v21.31.0 — Simple Inter-Realm Travel UI Surface
+ * Realm Travel Panel + LocalPlayer / RealmPresence Bootstrap
+ * v21.32.0
  *
  * Toggle with F3. Lists the five seeded realms.
  * Clicking a realm emits a RealmTravelRequest for the local player.
+ * Bootstrap system ensures LocalPlayer + RealmPresence exist.
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
-use simulation::multi_realm_harness::{RealmTravelRequest, RealmId};
+use simulation::multi_realm_harness::{RealmTravelRequest, RealmId, RealmPresence};
 use simulation::world::AgentId;
 
 // === Components ===
@@ -25,8 +26,8 @@ struct TravelRealmButton {
 #[derive(Component)]
 struct TravelStatusText;
 
-// === Local player marker (assumed to exist or be added by other systems) ===
-#[derive(Component)]
+/// Marker + identity for the local player (used by travel panel and presence).
+#[derive(Component, Clone, Debug)]
 pub struct LocalPlayer {
     pub agent_id: AgentId,
 }
@@ -39,10 +40,49 @@ impl Plugin for RealmTravelPanelPlugin {
             .add_systems(
                 Update,
                 (
+                    local_player_presence_bootstrap_system,
                     toggle_realm_travel_panel,
                     handle_travel_button_clicks,
                 ),
             );
+    }
+}
+
+/// Ensures there is a LocalPlayer with RealmPresence.
+/// - If a LocalPlayer exists but lacks RealmPresence, adds it.
+/// - If no LocalPlayer exists, spawns a lightweight development LocalPlayer in realm 0.
+fn local_player_presence_bootstrap_system(
+    mut commands: Commands,
+    local_query: Query<(Entity, Option<&RealmPresence>), With<LocalPlayer>>,
+    mut harness: Option<ResMut<simulation::multi_realm_harness::MultiRealmHarness>>,
+) {
+    match local_query.get_single() {
+        Ok((entity, presence_opt)) => {
+            if presence_opt.is_none() {
+                // Attach default RealmPresence (Sanctuary Prime)
+                commands.entity(entity).insert(RealmPresence::default());
+
+                if let Some(ref mut h) = harness {
+                    h.register_presence(0);
+                }
+            }
+        }
+        Err(_) => {
+            // No LocalPlayer yet — spawn a lightweight one for single-player / dev flows
+            let agent_id: AgentId = 1; // stable dev id
+            let mut presence = RealmPresence::default();
+            presence.registered = true;
+
+            commands.spawn((
+                LocalPlayer { agent_id },
+                presence,
+                Name::new("LocalPlayer_DevBootstrap"),
+            ));
+
+            if let Some(ref mut h) = harness {
+                h.register_presence(0);
+            }
+        }
     }
 }
 
@@ -82,7 +122,6 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
             Name::new("RealmTravelPanel"),
         ))
         .with_children(|parent| {
-            // Title
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "REALM TRAVEL",
@@ -107,7 +146,6 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                 ..default()
             });
 
-            // Realm buttons
             for (id, name) in realms {
                 parent
                     .spawn((
@@ -141,7 +179,6 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     });
             }
 
-            // Status
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -193,7 +230,6 @@ fn handle_travel_button_clicks(
                 *bg = Color::srgba(0.18, 0.32, 0.50, 0.98).into();
                 *border = Color::srgb(0.50, 0.85, 1.0).into();
 
-                // Emit travel request for the local player if present
                 if let Ok((entity, local)) = local_player_query.get_single() {
                     travel_events.send(RealmTravelRequest {
                         agent_entity: entity,
@@ -209,7 +245,7 @@ fn handle_travel_button_clicks(
                 } else {
                     for mut text in &mut status_query {
                         text.sections[0].value =
-                            "No local player found (add LocalPlayer component)".to_string();
+                            "LocalPlayer not ready yet...".to_string();
                     }
                 }
             }
@@ -224,6 +260,6 @@ fn handle_travel_button_clicks(
     }
 }
 
-// End of client/src/realm_travel_panel.rs v21.31.0
-// Simple F3 travel panel for inter-realm movement.
+// End of client/src/realm_travel_panel.rs v21.32.0
+// LocalPlayer + RealmPresence bootstrap ensures the travel panel is always functional.
 // Thunder locked in. Yoi ⚡
