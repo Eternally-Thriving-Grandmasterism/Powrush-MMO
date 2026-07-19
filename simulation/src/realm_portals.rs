@@ -1,17 +1,14 @@
 //! simulation/src/realm_portals.rs
-//! Visual Portal Entities + VFX Polish + Arrival Feedback
-//! v21.34.0
+//! Visual Portals + Pulse VFX + Arrival Burst Feedback
+//! v21.35.0
 //!
-//! Glowing portal markers with gentle living pulse.
-//! Nearby players press E to request travel.
-//! Travel success produces clear arrival feedback.
+//! Living portals + clear arrival confirmation on successful travel.
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
 
 use bevy::prelude::*;
 use crate::multi_realm_harness::{RealmId, RealmTravelRequest, MultiRealmHarness, RealmPresence};
-use crate::world::AgentId;
 
 // ============================================================================
 // COMPONENTS
@@ -33,6 +30,13 @@ pub struct PortalInteractable {
 pub struct PortalPulse {
     pub phase: f32,
     pub speed: f32,
+}
+
+/// Short-lived visual confirmation that travel succeeded.
+#[derive(Component)]
+pub struct ArrivalBurst {
+    pub timer: f32,
+    pub max_life: f32,
 }
 
 // ============================================================================
@@ -132,23 +136,18 @@ pub fn spawn_realm_portals_system(
     info!(target: "ra_thor::portals", "Spawned living portals for {} realms", realms.len());
 }
 
-/// Gentle living pulse on all portals (scale + emissive).
 pub fn portal_pulse_system(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut PortalPulse, &Portal, &Handle<StandardMaterial>)>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let t = time.elapsed_seconds();
-
     for (mut transform, mut pulse, portal, mat_handle) in query.iter_mut() {
         pulse.phase += time.delta_seconds() * pulse.speed;
-        let wave = (pulse.phase.sin() * 0.5 + 0.5); // 0..1
+        let wave = pulse.phase.sin() * 0.5 + 0.5;
 
-        // Subtle scale pulse
         let scale = 1.0 + wave * 0.08;
         transform.scale = Vec3::splat(scale);
 
-        // Emissive pulse
         if let Some(mat) = materials.get_mut(mat_handle) {
             let intensity = portal.base_emissive * (0.75 + wave * 0.55);
             mat.emissive = mat.base_color.to_linear() * intensity;
@@ -201,6 +200,81 @@ pub fn portal_interaction_system(
     }
 }
 
+/// Spawn a short-lived arrival burst when a travel request is processed successfully.
+/// We observe RealmTravelRequest events and create a visual burst at the player.
+pub fn travel_arrival_burst_system(
+    mut commands: Commands,
+    mut travel_events: EventReader<RealmTravelRequest>,
+    player_query: Query<&Transform>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut feedback: ResMut<LastTravelFeedback>,
+    time: Res<Time>,
+) {
+    for request in travel_events.read() {
+        if let Ok(tf) = player_query.get(request.agent_entity) {
+            let mesh = meshes.add(Sphere::new(0.55).mesh().ico(2).unwrap());
+            let material = materials.add(StandardMaterial {
+                base_color: Color::srgb(0.85, 0.95, 1.0),
+                emissive: Color::srgb(0.7, 0.9, 1.0).to_linear() * 4.0,
+                alpha_mode: AlphaMode::Blend,
+                ..default()
+            });
+
+            commands.spawn((
+                PbrBundle {
+                    mesh,
+                    material,
+                    transform: Transform::from_translation(tf.translation + Vec3::Y * 1.4),
+                    ..default()
+                },
+                ArrivalBurst {
+                    timer: 0.0,
+                    max_life: 0.55,
+                },
+                Name::new("ArrivalBurst"),
+            ));
+
+            feedback.message = format!("Arrived via travel request → realm {}", request.target_realm);
+            feedback.tick = time.elapsed_seconds() as u64;
+
+            info!(
+                target: "ra_thor::portals::arrival",
+                agent = request.agent_id,
+                realm = request.target_realm,
+                "Arrival burst spawned"
+            );
+        }
+    }
+}
+
+/// Animate and despawn arrival bursts.
+pub fn arrival_burst_update_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut ArrivalBurst, &Handle<StandardMaterial>)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for (entity, mut transform, mut burst, mat_handle) in query.iter_mut() {
+        burst.timer += time.delta_seconds();
+        let t = (burst.timer / burst.max_life).clamp(0.0, 1.0);
+
+        // Expand and fade
+        let scale = 1.0 + t * 2.2;
+        transform.scale = Vec3::splat(scale);
+
+        if let Some(mat) = materials.get_mut(mat_handle) {
+            let alpha = 1.0 - t;
+            mat.base_color = Color::srgba(0.85, 0.95, 1.0, alpha);
+            mat.emissive = Color::srgb(0.7, 0.9, 1.0).to_linear() * (4.0 * alpha);
+        }
+
+        if burst.timer >= burst.max_life {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 // ============================================================================
 // PLUGIN
 // ============================================================================
@@ -217,12 +291,14 @@ impl Plugin for RealmPortalsPlugin {
                     spawn_realm_portals_system,
                     portal_pulse_system,
                     portal_interaction_system,
+                    travel_arrival_burst_system,
+                    arrival_burst_update_system,
                 ),
             );
 
-        info!("RealmPortalsPlugin — living portals + pulse VFX + arrival feedback active");
+        info!("RealmPortalsPlugin — living portals + arrival burst feedback active");
     }
 }
 
-// Thunder locked in. Portals pulse with life and travel feels responsive.
+// Thunder locked in. Travel now has satisfying arrival confirmation.
 // Yoi ⚡

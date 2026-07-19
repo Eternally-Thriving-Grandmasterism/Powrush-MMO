@@ -1,24 +1,23 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.34.0 — Portal VFX Polish + Travel Arrival Feedback (2026-07-19)
+## [Unreleased] v21.35.0 — Travel Arrival Burst Feedback (2026-07-19)
 
 ### Highlights
-- Portals now have a gentle living pulse (scale + emissive intensity).
-- Clear travel feedback message is recorded on portal interaction.
-- "Already in this realm" and "Traveling to …" states are handled cleanly.
-- Completes a polished player-facing travel experience:
-  - F3 panel
-  - World portals with living VFX
-  - Responsive feedback
+- On successful travel, a short-lived **ArrivalBurst** is spawned at the player.
+- Burst expands and fades quickly for clear visual confirmation.
+- Completes the polished travel feedback loop:
+  - Request (F3 or portal)
+  - Portal living pulse
+  - Arrival burst on success
 
 ### Prior
-- v21.33.0: Visual Portal Entities.
-- v21.32.0: LocalPlayer + RealmPresence bootstrap.
+- v21.34.0: Portal VFX polish + travel feedback messages.
+- v21.33.0: Visual portal entities.
 
-**Thunder locked in. Portals feel alive.** Yoi ⚡
+**Thunder locked in. Travel now has satisfying arrival feedback.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.31: Launch Candidate through F3 travel panel.
+- v21.0–v21.32: Launch Candidate through LocalPlayer bootstrap.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
