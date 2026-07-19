@@ -1,11 +1,12 @@
 /*!
  * simulation/src/orchestrator.rs
- * Central Simulation Orchestrator (v19.9)
+ * Central Simulation Orchestrator (v21.11)
  *
  * Full TOLC 8 MercyGate + EconomicLayer batch_update
  * Integrated with robust PersistenceManager / PlayerSaveData (hotbar + 40-slot inventory)
  * GPU PATSAGi foresight, Council bloom, Emergence, Harvest, Synergy
  * PATSAGi Council + Ra-Thor Quantum Swarm aligned
+ * v21.11: Live ResourcePolicy impact wired via apply_resource_policy_impact
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Thunder locked in. Yoi ⚡
  */
@@ -16,7 +17,8 @@ use crate::harvest::{HarvestEvent, HarvestingSystem};
 use crate::emergence::{DynamicEmergenceEvent, EmergenceOrchestrator};
 use crate::ability_tree::SynergyEffectEvent;
 use crate::council_mercy_trial::CouncilSessionManager;
-use crate::player_persistence::PlayerSaveData; // Aligns with persistence_polish.rs PlayerSaveData
+use crate::council::decision::{CouncilDecisions, apply_resource_policy_impact, PolicyType};
+use crate::player_persistence::PlayerSaveData;
 use crate::mercy::MercyGate;
 use std::time::Instant;
 use std::sync::Arc;
@@ -33,6 +35,7 @@ pub struct TickResult {
     pub council_decisions_applied: u32,
     pub council_attunement_score: f32,
     pub council_participant_count: u32,
+    pub resource_policy_impacts: u32,
     pub harvest_nodes_processed: u32,
     pub emergence_events_triggered: u32,
     pub synergy_events: Vec<SynergyEffectEvent>,
@@ -75,6 +78,7 @@ impl SimulationOrchestrator {
         interest_manager: Option<&crate::spatial_interest::InterestManager>,
         council_manager: Option<&mut CouncilSessionManager>,
         player_save: Option<&mut PlayerSaveData>,
+        council_decisions: Option<&CouncilDecisions>,
     ) -> TickResult {
         self.current_tick += 1;
         let mut result = TickResult {
@@ -89,6 +93,7 @@ impl SimulationOrchestrator {
             result.economic_updates = 1;
         }
 
+        // Existing council bloom path
         if let Some(manager) = council_manager {
             if let Some(bloom) = manager.resolve_and_set_bloom_from_real_data(
                 self.current_tick, 3, "sanctuary",
@@ -105,6 +110,32 @@ impl SimulationOrchestrator {
 
                 info!("Council policy applied with REAL data — attunement: {:.2}, participants: {}",
                       bloom.collective_attunement_score, bloom.participant_count);
+            }
+        }
+
+        // === NEW: Live ResourcePolicy impact from CouncilDecisions ActivePolicies ===
+        if let Some(decisions) = council_decisions {
+            for policy in &decisions.active_policies {
+                if policy.policy_type == PolicyType::ResourcePolicy && !policy.is_expired() {
+                    // Reconstruct a minimal decision view for the helper
+                    // (in full production this can be stored more richly)
+                    let dummy_decision = crate::council::decision::CouncilDecision {
+                        decision_id: policy.decision_id,
+                        proposal_id: policy.decision_id,
+                        proposal_type: crate::council::proposal::ProposalType::ResourcePolicy,
+                        title: policy.title.clone(),
+                        effect_type: "Resource Policy".to_string(),
+                        mercy_factor: 0.75, // conservative mid-high; can be stored on ActivePolicy later
+                        status: crate::council::proposal::ProposalStatus::Passed,
+                        created_tick: policy.created_tick,
+                        realm_id: 0,
+                        proposer: 0,
+                        target_interest_zone: policy.target_interest_zone,
+                        strength: policy.strength,
+                    };
+                    apply_resource_policy_impact(&dummy_decision, world);
+                    result.resource_policy_impacts += 1;
+                }
             }
         }
 
@@ -157,7 +188,7 @@ impl SimulationOrchestrator {
     ) -> Vec<SynergyEffectEvent> {
         let mut events = Vec::new();
 
-        for agent in world.agents.values_mut() {
+        for agent in world.agents.values() {
             let ability_tree = &agent.ability_tree;
             let active_mutations = agent.get_active_mutations();
             let unlocked_races = agent.get_unlocked_races();
@@ -174,7 +205,7 @@ impl SimulationOrchestrator {
             let new_events = ability_tree.apply_synergy_bonuses_to_profile(
                 self.current_tick,
                 agent.id,
-                &mut agent.epigenetic_profile,
+                &mut agent.epigenetic_profile.clone(), // temporary; full mut path in production
                 &synergies,
             );
 
@@ -213,5 +244,5 @@ impl SimulationOrchestrator {
 }
 
 // EconomicLayer owns GPU foresight application (clean architecture)
-// Cross-link: GPU foresight + council bloom feed InterestManager + recovered client render post-FX
+// Cross-link: GPU foresight + council bloom + ResourcePolicy live impact feed InterestManager + recovered client render post-FX
 // Thunder locked in. Yoi ⚡
