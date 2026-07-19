@@ -1,23 +1,23 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.26.0 — Surface Echo Policy Counts + Resonance in Dashboard (2026-07-19)
+## [Unreleased] v21.27.0 — Multi-Realm Presence Foundation + Travel Hooks (2026-07-19)
 
 ### Highlights
-- Multi-Realm Status section now shows:
-  - **Echo policy counts** per realm
-  - **Global resonance level**
-  - Legacy entry counts per realm
-  - Active policy counts, mercy attunement, and status
-- Full observability of the inter-realm influence system (resonance + echoes).
+- New `RealmPresence` component tracks an agent’s current realm, last travel tick, and travel count.
+- `MultiRealmHarness` now maintains `agent_presence_count` per realm.
+- Clean `travel_to_realm` helper for moving agents between realms with full logging.
+- `register_presence` / `unregister_presence` helpers for spawn/load/despawn paths.
+- Dashboard Multi-Realm Status can now display presence counts.
+- Solid foundation for future portals, inter-realm travel, and presence-aware systems.
 
 ### Prior
-- v21.25.0: Deeper inter-realm policy influence (Echo Policies).
-- v21.24.0: Client-side realm filter in Legacy search UI.
+- v21.26.0: Echo policy counts + resonance observability.
+- v21.25.0: Inter-realm echo policies.
 
-**Thunder locked in. Inter-realm influence is fully visible.** Yoi ⚡
+**Thunder locked in. Presence across realms is now first-class.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.23: Launch Candidate through per-realm scoped effects.
+- v21.0–v21.24: Launch Candidate through client-side realm filter.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
