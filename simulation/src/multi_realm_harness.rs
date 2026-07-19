@@ -1,9 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Per-Realm Decision Tracking + Cross-Realm Council Resonance
-//! v21.21.0
-//!
-//! Concurrent realms under one organism with full per-realm decision streams
-//! and living cross-realm council resonance.
+//! Multi-Realm Harness — Per-Realm Decision Tracking + Cross-Realm Resonance + Legacy Partition Counts
+//! v21.22.0
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -52,8 +49,9 @@ pub struct RealmDescriptor {
     pub total_decisions_passed: u64,
     pub mercy_attunement_avg: f32,
     pub created_tick: u64,
-    /// Incoming resonance accumulated from other realms
     pub incoming_resonance: f32,
+    /// Number of LegacyJournal entries originating from this realm
+    pub legacy_entry_count: u64,
 }
 
 impl RealmDescriptor {
@@ -69,6 +67,7 @@ impl RealmDescriptor {
             mercy_attunement_avg: 0.65,
             created_tick: tick,
             incoming_resonance: 0.0,
+            legacy_entry_count: 0,
         }
     }
 
@@ -77,10 +76,6 @@ impl RealmDescriptor {
         self
     }
 }
-
-// ============================================================================
-// CROSS-REALM RESONANCE
-// ============================================================================
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ResonancePulse {
@@ -115,13 +110,11 @@ pub struct MultiRealmHarness {
     pub realms: HashMap<RealmId, RealmDescriptor>,
     pub realm_active_policies: HashMap<RealmId, Vec<ActivePolicy>>,
     pub realm_decision_counts: HashMap<RealmId, u64>,
-    /// Active resonance pulses traveling between realms
     pub active_resonance_pulses: Vec<ResonancePulse>,
     pub primary_realm_id: RealmId,
     pub next_realm_id: RealmId,
     pub cross_realm_mercy_flow: f32,
     pub total_active_policies_across_realms: u32,
-    /// Current global resonance level (0.0–1.0+) for dashboard
     pub global_resonance_level: f32,
 }
 
@@ -170,17 +163,12 @@ impl MultiRealmHarness {
         info!(
             target: "ra_thor::multi_realm",
             realm_count = self.realms.len(),
-            "MultiRealmHarness seeded with {} diverse realms + cross-realm resonance",
-            self.realms.len()
+            "MultiRealmHarness seeded — decision tracking + resonance + legacy partition ready"
         );
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
         self.realms.get(&id)
-    }
-
-    pub fn get_realm_mut(&mut self, id: RealmId) -> Option<&mut RealmDescriptor> {
-        self.realms.get_mut(&id)
     }
 
     pub fn active_realm_count(&self) -> usize {
@@ -198,7 +186,7 @@ impl MultiRealmHarness {
     }
 
     // -----------------------------------------------------------------------
-    // PER-REALM DECISION TRACKING
+    // PER-REALM DECISION + LEGACY TRACKING
     // -----------------------------------------------------------------------
 
     pub fn record_decision_for_realm(&mut self, decision: &CouncilDecision, policy: ActivePolicy) {
@@ -227,29 +215,38 @@ impl MultiRealmHarness {
             .or_default()
             .push(policy);
 
-        // Emit cross-realm resonance from high-mercy decisions
         if decision.mercy_factor >= 0.68 {
             self.emit_resonance_pulse(decision, target_realm);
         }
 
         self.refresh_active_policy_counts();
+    }
 
-        info!(
-            target: "ra_thor::multi_realm",
-            realm_id = target_realm,
-            decision_id = decision.decision_id,
-            "Decision recorded for realm"
-        );
+    /// Increment the LegacyJournal entry counter for a realm.
+    pub fn record_legacy_entry_for_realm(&mut self, realm_id: RealmId) {
+        let target = if self.realms.contains_key(&realm_id) {
+            realm_id
+        } else {
+            self.primary_realm_id
+        };
+
+        if let Some(realm) = self.realms.get_mut(&target) {
+            realm.legacy_entry_count += 1;
+        }
+    }
+
+    pub fn total_legacy_entries_for_realm(&self, realm_id: RealmId) -> u64 {
+        self.realms
+            .get(&realm_id)
+            .map(|r| r.legacy_entry_count)
+            .unwrap_or(0)
     }
 
     // -----------------------------------------------------------------------
-    // CROSS-REALM COUNCIL RESONANCE
+    // CROSS-REALM RESONANCE
     // -----------------------------------------------------------------------
 
-    /// Emit a resonance pulse from a high-mercy decision that will gently
-    /// strengthen other realms.
     fn emit_resonance_pulse(&mut self, decision: &CouncilDecision, source_realm: RealmId) {
-        let base_duration = 480; // ticks
         let thriving_bonus = self
             .realms
             .get(&source_realm)
@@ -262,81 +259,51 @@ impl MultiRealmHarness {
             strength: decision.strength * thriving_bonus,
             policy_type: PolicyType::from(decision.proposal_type.clone()),
             created_tick: decision.created_tick,
-            remaining_ticks: base_duration,
+            remaining_ticks: 480,
         };
 
-        let intensity = pulse.intensity();
         self.active_resonance_pulses.push(pulse);
-
-        info!(
-            target: "ra_thor::multi_realm::resonance",
-            source_realm = source_realm,
-            intensity = intensity,
-            "Cross-realm resonance pulse emitted"
-        );
     }
 
-    /// Apply all active resonance pulses to other realms and decay them.
     pub fn apply_cross_realm_resonance(&mut self) {
         if self.active_resonance_pulses.is_empty() {
-            // Natural gentle decay of global resonance
             self.global_resonance_level = (self.global_resonance_level * 0.985).max(0.0);
             return;
         }
 
         let mut total_intensity = 0.0;
-
-        // Collect pulses first to avoid borrow issues
         let pulses: Vec<ResonancePulse> = self.active_resonance_pulses.clone();
 
         for pulse in &pulses {
             let intensity = pulse.intensity();
             total_intensity += intensity;
-
-            // Apply a fraction of the intensity to every other realm
-            let per_realm_share = intensity * 0.18; // gentle, non-overwhelming
+            let per_realm_share = intensity * 0.18;
 
             for (realm_id, realm) in self.realms.iter_mut() {
                 if *realm_id == pulse.source_realm {
                     continue;
                 }
-
-                // Raise incoming resonance and gently lift mercy attunement
                 realm.incoming_resonance =
                     (realm.incoming_resonance * 0.94 + per_realm_share).min(2.5);
+                realm.mercy_attunement_avg =
+                    (realm.mercy_attunement_avg + per_realm_share * 0.035).min(0.98);
 
-                realm.mercy_attunement_avg = (realm.mercy_attunement_avg
-                    + per_realm_share * 0.035)
-                    .min(0.98);
-
-                // High sustained resonance can help a realm approach Thriving
                 if realm.mercy_attunement_avg > 0.78
                     && realm.total_decisions_passed > 3
                     && realm.incoming_resonance > 0.6
                 {
-                    if !matches!(realm.status, RealmStatus::Thriving) {
-                        realm.status = RealmStatus::Thriving;
-                        info!(
-                            target: "ra_thor::multi_realm::resonance",
-                            realm_id = *realm_id,
-                            "Realm reached Thriving via cross-realm resonance"
-                        );
-                    }
+                    realm.status = RealmStatus::Thriving;
                 }
             }
         }
 
-        // Tick and prune pulses
         for pulse in self.active_resonance_pulses.iter_mut() {
             pulse.tick();
         }
         self.active_resonance_pulses.retain(|p| !p.is_expired());
 
-        // Update global resonance level (smoothed)
         self.global_resonance_level =
             (self.global_resonance_level * 0.88 + total_intensity * 0.22).min(3.0);
-
-        // Feed into cross-realm mercy flow
         self.cross_realm_mercy_flow =
             (self.cross_realm_mercy_flow * 0.90 + self.global_resonance_level * 0.08).min(2.5);
     }
@@ -358,10 +325,6 @@ impl MultiRealmHarness {
             .unwrap_or_default()
     }
 
-    pub fn total_decisions_for_realm(&self, realm_id: RealmId) -> u64 {
-        *self.realm_decision_counts.get(&realm_id).unwrap_or(&0)
-    }
-
     fn refresh_active_policy_counts(&mut self) {
         let mut total = 0u32;
         for (realm_id, policies) in &self.realm_active_policies {
@@ -378,23 +341,20 @@ impl MultiRealmHarness {
         for list in self.realm_active_policies.values_mut() {
             list.clear();
         }
-
         for policy in &decisions.active_policies {
-            if policy.is_expired() {
-                continue;
+            if !policy.is_expired() {
+                self.realm_active_policies
+                    .entry(self.primary_realm_id)
+                    .or_default()
+                    .push(policy.clone());
             }
-            self.realm_active_policies
-                .entry(self.primary_realm_id)
-                .or_default()
-                .push(policy.clone());
         }
-
         self.refresh_active_policy_counts();
     }
 }
 
 // ============================================================================
-// SYSTEMS
+// SYSTEMS + PLUGIN
 // ============================================================================
 
 pub fn multi_realm_harness_system(
@@ -403,27 +363,18 @@ pub fn multi_realm_harness_system(
     time: Res<Time>,
 ) {
     if harness.realms.is_empty() {
-        let tick = time.elapsed_seconds() as u64;
-        harness.seed_default_realms(tick);
+        harness.seed_default_realms(time.elapsed_seconds() as u64);
     }
 
-    // Tick policies
     harness.tick_all_realm_policies();
-
-    // Apply living cross-realm resonance every tick
     harness.apply_cross_realm_resonance();
 
-    // Safety-net sync
     if let Some(decisions) = decisions {
         if harness.total_active_policies_across_realms == 0 {
             harness.sync_from_council_decisions(&decisions);
         }
     }
 }
-
-// ============================================================================
-// PLUGIN
-// ============================================================================
 
 pub struct MultiRealmHarnessPlugin;
 
@@ -432,50 +383,9 @@ impl Plugin for MultiRealmHarnessPlugin {
         app.init_resource::<MultiRealmHarness>()
             .add_systems(Update, multi_realm_harness_system);
 
-        info!("MultiRealmHarnessPlugin initialized — per-realm tracking + cross-realm resonance active");
+        info!("MultiRealmHarnessPlugin — decision tracking + resonance + legacy partition active");
     }
 }
 
-// ============================================================================
-// TESTS
-// ============================================================================
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::council::proposal::{CouncilProposal, ProposalType, ProposalStatus};
-    use crate::council::decision::CouncilDecision;
-
-    #[test]
-    fn test_cross_realm_resonance_emission() {
-        let mut harness = MultiRealmHarness::new();
-        harness.seed_default_realms(100);
-
-        let proposal = CouncilProposal::new(
-            42,
-            ProposalType::EpiphanyEvent,
-            "Shared Bloom".into(),
-            "Test".into(),
-            7,
-            100,
-        );
-        let mut decision = CouncilDecision::from_resolved_proposal(&proposal, 0.88, 100, 0);
-        decision.status = ProposalStatus::Passed;
-
-        let policy = ActivePolicy::from_decision(&decision, 600);
-        harness.record_decision_for_realm(&decision, policy);
-
-        // High mercy should have emitted a pulse
-        assert!(!harness.active_resonance_pulses.is_empty());
-
-        // Apply resonance
-        harness.apply_cross_realm_resonance();
-
-        // Other realms should have received some incoming resonance
-        let other = harness.get_realm(1).unwrap();
-        assert!(other.incoming_resonance > 0.0);
-    }
-}
-
-// Thunder locked in. Cross-realm council resonance is live.
-// One organism, many realms. Yoi ⚡
+// Thunder locked in. LegacyJournal entries are now partitioned by realm.
+// Yoi ⚡

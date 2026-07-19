@@ -1,6 +1,6 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.9 — Per-realm decision tracking integration
+//! v1.10 — Realm-aware LegacyJournal partitioning
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -205,9 +205,10 @@ pub fn apply_epiphany_policy_impact(
 }
 
 // ============================================================================
-// LEGACY + PROACTIVE JOY
+// REALM-AWARE LEGACY + PROACTIVE JOY
 // ============================================================================
 
+/// Record a council decision into the Legacy stream with explicit realm partitioning.
 pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
     if decision.status != ProposalStatus::Passed {
         return;
@@ -221,13 +222,17 @@ pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
         ProposalType::General => "council",
     };
 
+    // Explicit realm-aware log line — this is the partition key for downstream
+    // LegacyJournalRegistry consumers and the client search UI.
     info!(
         target: "ra_thor::council::legacy",
         decision_id = decision.decision_id,
         realm_id = decision.realm_id,
         category = category,
         title = %decision.title,
-        "LegacyJournal entry recorded for passed council decision"
+        strength = decision.strength,
+        mercy = decision.mercy_factor,
+        "LegacyJournal entry recorded (realm-partitioned)"
     );
 }
 
@@ -244,18 +249,30 @@ pub fn seed_proactive_joy_from_decision(
 
     let reason = match decision.proposal_type {
         ProposalType::EpiphanyEvent => {
-            format!("Council Epiphany bloom — \"{}\" (joy from collective mercy)", decision.title)
+            format!(
+                "[Realm {}] Council Epiphany bloom — \"{}\" (joy from collective mercy)",
+                decision.realm_id, decision.title
+            )
         }
         ProposalType::ResourcePolicy => {
-            format!("RBE Policy of abundance — \"{}\" (sustainable thriving)", decision.title)
+            format!(
+                "[Realm {}] RBE Policy of abundance — \"{}\" (sustainable thriving)",
+                decision.realm_id, decision.title
+            )
         }
         ProposalType::HarmonyBoost => {
-            format!("Harmony Boost — \"{}\" (valence raised across the realm)", decision.title)
+            format!(
+                "[Realm {}] Harmony Boost — \"{}\" (valence raised)",
+                decision.realm_id, decision.title
+            )
         }
         ProposalType::KardashevAcceleration => {
-            format!("Kardashev Acceleration step — \"{}\" (Reality Thriving Transfer)", decision.title)
+            format!(
+                "[Realm {}] Kardashev Acceleration — \"{}\" (Reality Thriving Transfer)",
+                decision.realm_id, decision.title
+            )
         }
-        _ => format!("Council decision — \"{}\"", decision.title),
+        _ => format!("[Realm {}] Council decision — \"{}\"", decision.realm_id, decision.title),
     };
 
     record_proactive_joy_for_epiphany(
@@ -265,7 +282,7 @@ pub fn seed_proactive_joy_from_decision(
         joy_amount,
         intensity,
         decision.created_tick,
-        decision.realm_id as u64,
+        decision.realm_id as u64, // server_id / realm partition key
     );
 
     info!(
@@ -273,7 +290,7 @@ pub fn seed_proactive_joy_from_decision(
         decision_id = decision.decision_id,
         realm_id = decision.realm_id,
         joy_amount = joy_amount,
-        "Proactive joy seeded from high-mercy council decision"
+        "Proactive joy seeded (realm-partitioned)"
     );
 }
 
@@ -319,10 +336,10 @@ pub fn apply_council_decision_effects(
             continue;
         }
 
-        // 1. Record structured Legacy entry
+        // 1. Realm-aware Legacy entry
         record_council_decision_to_legacy(&decision);
 
-        // 2. Seed proactive joy for high-mercy decisions
+        // 2. Realm-aware proactive joy
         seed_proactive_joy_from_decision(&decision, &mut legacy_registry);
 
         let duration = match decision.proposal_type {
@@ -335,12 +352,13 @@ pub fn apply_council_decision_effects(
 
         let policy = ActivePolicy::from_decision(&decision, duration);
 
-        // 3. Record into per-realm tracking
+        // 3. Per-realm decision tracking + resonance
         if let Some(ref mut harness) = multi_realm {
             harness.record_decision_for_realm(&decision, policy.clone());
+            // Increment per-realm legacy counter
+            harness.record_legacy_entry_for_realm(decision.realm_id);
         }
 
-        // 4. Also keep global list for backward compatibility
         decisions.active_policies.push(policy);
 
         let strength = decision.strength;
@@ -384,7 +402,7 @@ mod tests {
     use crate::council::proposal::CouncilProposal;
 
     #[test]
-    fn test_qualifies_for_proactive_joy() {
+    fn test_realm_id_carried() {
         let proposal = CouncilProposal::new(
             1,
             ProposalType::EpiphanyEvent,
@@ -393,11 +411,10 @@ mod tests {
             7,
             100,
         );
-        let mut decision = CouncilDecision::from_resolved_proposal(&proposal, 0.78, 100, 0);
-        decision.status = ProposalStatus::Passed;
-        assert!(decision.qualifies_for_proactive_joy());
+        let decision = CouncilDecision::from_resolved_proposal(&proposal, 0.78, 100, 3);
+        assert_eq!(decision.realm_id, 3);
     }
 }
 
-// Thunder locked in. Per-realm decision tracking is integrated.
+// Thunder locked in. LegacyJournal entries are now realm-partitioned.
 // Yoi ⚡

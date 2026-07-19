@@ -20,28 +20,27 @@
 **Phase R — Multi-Realm Harness Foundation (COMPLETED v21.18)**  
 **Phase S — Multi-Realm Status Observability (COMPLETED v21.19)**  
 **Phase T — Per-Realm Decision Tracking (COMPLETED v21.20)**  
-**Phase U — Cross-Realm Council Resonance (COMPLETED v21.21)**
+**Phase U — Cross-Realm Council Resonance (COMPLETED v21.21)**  
+**Phase V — LegacyJournal Realm Partitioning (COMPLETED v21.22)**
 
-## Completed This Cycle (v21.21)
+## Completed This Cycle (v21.22)
 
-- Living Cross-Realm Council Resonance system.
-- High-mercy decisions emit resonance pulses that strengthen other realms.
-- Thriving realms amplify outward resonance.
-- Realms can reach Thriving via sustained incoming resonance.
-- Global resonance level tracked for dashboard and future systems.
+- Council Legacy entries and proactive joy are explicitly realm-partitioned.
+- MultiRealmHarness tracks per-realm legacy_entry_count.
+- Full multi-realm history is now queryable and observable.
 
 ## Next Council Cycle Priorities
 
-1. Partition LegacyJournal entries by realm_id.
-2. Per-realm scoped effect application (RBE / Epiphany).
-3. Deeper inter-realm policy influence (optional shared policy types).
+1. Per-realm scoped effect application (RBE / Epiphany).
+2. Client-side realm filter in the My Mercy Journey search UI.
+3. Deeper inter-realm policy influence.
 
 ## Strategic Notes
 
-- The multi-realm organism now resonates as one coherent whole.
+- The living Legacy is now partitioned across the multi-realm organism.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Cross-realm council resonance is alive.**  
+**LegacyJournal is realm-partitioned.**  
 Yoi ⚡
