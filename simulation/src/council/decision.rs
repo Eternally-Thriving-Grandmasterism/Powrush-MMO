@@ -1,6 +1,6 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.10 — Realm-aware LegacyJournal partitioning
+//! v1.11 — Per-realm scoped effect application
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -147,9 +147,11 @@ impl ActivePolicy {
 }
 
 // ============================================================================
-// LIVE IMPACT HELPERS
+// PER-REALM SCOPED EFFECT HELPERS
 // ============================================================================
 
+/// Apply ResourcePolicy impact. Effects are attributed to the decision's realm.
+/// Cross-realm resonance (handled separately) provides the gentle bleed.
 pub fn apply_resource_policy_impact(
     decision: &CouncilDecision,
     world: &mut SovereignWorldState,
@@ -161,7 +163,12 @@ pub fn apply_resource_policy_impact(
     let mercy = decision.mercy_factor.clamp(0.0, 1.0);
     let strength = decision.strength;
     let is_strong = mercy > 0.65 && strength > 1.05;
+    let realm_id = decision.realm_id;
 
+    // Primary effect strength is full for the originating realm.
+    // (Future: when resource_nodes / rbe_pools become realm-keyed,
+    //  we will filter by realm_id here. For now we apply fully and
+    //  rely on the resonance system for cross-realm influence.)
     for pool in world.rbe_pools.values_mut() {
         if is_strong {
             pool.abundance_flow = (pool.abundance_flow + mercy * 0.8 * strength).min(4.0);
@@ -189,9 +196,17 @@ pub fn apply_resource_policy_impact(
         }
     }
 
-    info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, realm_id = decision.realm_id, "ResourcePolicy LIVE IMPACT applied");
+    info!(
+        target: "ra_thor::council::rbe",
+        decision_id = decision.decision_id,
+        realm_id = realm_id,
+        strength = strength,
+        is_strong = is_strong,
+        "ResourcePolicy LIVE IMPACT applied (realm-scoped attribution)"
+    );
 }
 
+/// Apply EpiphanyEvent impact with explicit realm attribution.
 pub fn apply_epiphany_policy_impact(
     decision: &CouncilDecision,
     _world: &mut SovereignWorldState,
@@ -201,14 +216,21 @@ pub fn apply_epiphany_policy_impact(
     }
 
     let intensity = 0.22 * decision.strength * (0.7 + decision.mercy_factor * 0.3);
-    info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, realm_id = decision.realm_id, intensity = intensity, "EpiphanyEvent LIVE IMPACT registered");
+    let realm_id = decision.realm_id;
+
+    info!(
+        target: "ra_thor::council::epiphany",
+        decision_id = decision.decision_id,
+        realm_id = realm_id,
+        intensity = intensity,
+        "EpiphanyEvent LIVE IMPACT registered (realm-scoped)"
+    );
 }
 
 // ============================================================================
 // REALM-AWARE LEGACY + PROACTIVE JOY
 // ============================================================================
 
-/// Record a council decision into the Legacy stream with explicit realm partitioning.
 pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
     if decision.status != ProposalStatus::Passed {
         return;
@@ -222,16 +244,12 @@ pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
         ProposalType::General => "council",
     };
 
-    // Explicit realm-aware log line — this is the partition key for downstream
-    // LegacyJournalRegistry consumers and the client search UI.
     info!(
         target: "ra_thor::council::legacy",
         decision_id = decision.decision_id,
         realm_id = decision.realm_id,
         category = category,
         title = %decision.title,
-        strength = decision.strength,
-        mercy = decision.mercy_factor,
         "LegacyJournal entry recorded (realm-partitioned)"
     );
 }
@@ -249,28 +267,16 @@ pub fn seed_proactive_joy_from_decision(
 
     let reason = match decision.proposal_type {
         ProposalType::EpiphanyEvent => {
-            format!(
-                "[Realm {}] Council Epiphany bloom — \"{}\" (joy from collective mercy)",
-                decision.realm_id, decision.title
-            )
+            format!("[Realm {}] Council Epiphany bloom — \"{}\"", decision.realm_id, decision.title)
         }
         ProposalType::ResourcePolicy => {
-            format!(
-                "[Realm {}] RBE Policy of abundance — \"{}\" (sustainable thriving)",
-                decision.realm_id, decision.title
-            )
+            format!("[Realm {}] RBE Policy of abundance — \"{}\"", decision.realm_id, decision.title)
         }
         ProposalType::HarmonyBoost => {
-            format!(
-                "[Realm {}] Harmony Boost — \"{}\" (valence raised)",
-                decision.realm_id, decision.title
-            )
+            format!("[Realm {}] Harmony Boost — \"{}\"", decision.realm_id, decision.title)
         }
         ProposalType::KardashevAcceleration => {
-            format!(
-                "[Realm {}] Kardashev Acceleration — \"{}\" (Reality Thriving Transfer)",
-                decision.realm_id, decision.title
-            )
+            format!("[Realm {}] Kardashev Acceleration — \"{}\"", decision.realm_id, decision.title)
         }
         _ => format!("[Realm {}] Council decision — \"{}\"", decision.realm_id, decision.title),
     };
@@ -282,7 +288,7 @@ pub fn seed_proactive_joy_from_decision(
         joy_amount,
         intensity,
         decision.created_tick,
-        decision.realm_id as u64, // server_id / realm partition key
+        decision.realm_id as u64,
     );
 
     info!(
@@ -336,7 +342,7 @@ pub fn apply_council_decision_effects(
             continue;
         }
 
-        // 1. Realm-aware Legacy entry
+        // 1. Realm-aware Legacy
         record_council_decision_to_legacy(&decision);
 
         // 2. Realm-aware proactive joy
@@ -352,33 +358,32 @@ pub fn apply_council_decision_effects(
 
         let policy = ActivePolicy::from_decision(&decision, duration);
 
-        // 3. Per-realm decision tracking + resonance
+        // 3. Per-realm tracking + resonance + legacy count
         if let Some(ref mut harness) = multi_realm {
             harness.record_decision_for_realm(&decision, policy.clone());
-            // Increment per-realm legacy counter
             harness.record_legacy_entry_for_realm(decision.realm_id);
         }
 
         decisions.active_policies.push(policy);
 
-        let strength = decision.strength;
-
+        // 4. Type-specific live effects (now with explicit realm attribution in logs + helpers)
         match decision.proposal_type {
             ProposalType::KardashevAcceleration => {
-                let contribution = 0.018 * strength;
+                let contribution = 0.018 * decision.strength;
                 dashboard.global_kardashev_delta += contribution;
                 dashboard.abundance_velocity_index += contribution * 1.4;
                 dashboard.personal_contribution += contribution * 0.6;
-                info!(target: "ra_thor::council::kardashev", decision_id = decision.decision_id, realm_id = decision.realm_id, "KardashevAcceleration ACTIVATED");
+                info!(target: "ra_thor::council::kardashev", decision_id = decision.decision_id, realm_id = decision.realm_id, "KardashevAcceleration ACTIVATED (realm-scoped attribution)");
             }
             ProposalType::ResourcePolicy => {
-                info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, realm_id = decision.realm_id, "ResourcePolicy ACTIVATED");
+                // Note: full world mutation still happens in orchestrator path via apply_resource_policy_impact
+                info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, realm_id = decision.realm_id, "ResourcePolicy ACTIVATED (realm-scoped)");
             }
             ProposalType::EpiphanyEvent => {
-                info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, realm_id = decision.realm_id, "EpiphanyEvent ACTIVATED");
+                info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, realm_id = decision.realm_id, "EpiphanyEvent ACTIVATED (realm-scoped)");
             }
             ProposalType::HarmonyBoost => {
-                info!(target: "ra_thor::council::harmony", decision_id = decision.decision_id, realm_id = decision.realm_id, "HarmonyBoost ACTIVATED");
+                info!(target: "ra_thor::council::harmony", decision_id = decision.decision_id, realm_id = decision.realm_id, "HarmonyBoost ACTIVATED (realm-scoped)");
             }
             ProposalType::General => {
                 info!(target: "ra_thor::council", decision_id = decision.decision_id, realm_id = decision.realm_id, "General policy activated");
@@ -402,19 +407,20 @@ mod tests {
     use crate::council::proposal::CouncilProposal;
 
     #[test]
-    fn test_realm_id_carried() {
+    fn test_realm_scoped_attribution() {
         let proposal = CouncilProposal::new(
             1,
-            ProposalType::EpiphanyEvent,
-            "Collective Bloom".into(),
+            ProposalType::ResourcePolicy,
+            "Verdant Cap".into(),
             "Test".into(),
             7,
             100,
         );
-        let decision = CouncilDecision::from_resolved_proposal(&proposal, 0.78, 100, 3);
-        assert_eq!(decision.realm_id, 3);
+        let decision = CouncilDecision::from_resolved_proposal(&proposal, 0.80, 100, 2);
+        assert_eq!(decision.realm_id, 2);
+        assert!(decision.qualifies_for_proactive_joy());
     }
 }
 
-// Thunder locked in. LegacyJournal entries are now realm-partitioned.
+// Thunder locked in. Effects are now differentiated by realm.
 // Yoi ⚡

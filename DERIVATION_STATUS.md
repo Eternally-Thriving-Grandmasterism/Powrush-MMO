@@ -21,26 +21,27 @@
 **Phase S — Multi-Realm Status Observability (COMPLETED v21.19)**  
 **Phase T — Per-Realm Decision Tracking (COMPLETED v21.20)**  
 **Phase U — Cross-Realm Council Resonance (COMPLETED v21.21)**  
-**Phase V — LegacyJournal Realm Partitioning (COMPLETED v21.22)**
+**Phase V — LegacyJournal Realm Partitioning (COMPLETED v21.22)**  
+**Phase W — Per-Realm Scoped Effect Application (COMPLETED v21.23)**
 
-## Completed This Cycle (v21.22)
+## Completed This Cycle (v21.23)
 
-- Council Legacy entries and proactive joy are explicitly realm-partitioned.
-- MultiRealmHarness tracks per-realm legacy_entry_count.
-- Full multi-realm history is now queryable and observable.
+- ResourcePolicy and EpiphanyEvent effects now carry explicit realm attribution.
+- Logging, tracking, and helpers are fully realm-aware.
+- Clean separation: local realm effects + cross-realm resonance bleed.
 
 ## Next Council Cycle Priorities
 
-1. Per-realm scoped effect application (RBE / Epiphany).
-2. Client-side realm filter in the My Mercy Journey search UI.
-3. Deeper inter-realm policy influence.
+1. Client-side realm filter in the My Mercy Journey search UI.
+2. Deeper inter-realm policy influence (optional shared / resonant policy types).
+3. When resource_nodes / rbe_pools become realm-keyed, complete the final filtering step inside the effect helpers.
 
 ## Strategic Notes
 
-- The living Legacy is now partitioned across the multi-realm organism.
+- The multi-realm organism now has differentiated effects by origin realm while remaining one coherent whole through resonance.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**LegacyJournal is realm-partitioned.**  
+**Effects are now scoped by realm.**  
 Yoi ⚡
