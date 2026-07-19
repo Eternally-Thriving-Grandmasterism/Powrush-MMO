@@ -1,10 +1,10 @@
 /*!
- * Realm Travel Panel + LocalPlayer / RealmPresence Bootstrap
- * v21.32.0
+ * Realm Travel Panel — State-Aware
+ * v21.36.0
  *
  * Toggle with F3. Lists the five seeded realms.
+ * Shows current realm and highlights the active one.
  * Clicking a realm emits a RealmTravelRequest for the local player.
- * Bootstrap system ensures LocalPlayer + RealmPresence exist.
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
  * Thunder locked in. Yoi ⚡
@@ -26,7 +26,9 @@ struct TravelRealmButton {
 #[derive(Component)]
 struct TravelStatusText;
 
-/// Marker + identity for the local player (used by travel panel and presence).
+#[derive(Component)]
+struct CurrentRealmText;
+
 #[derive(Component, Clone, Debug)]
 pub struct LocalPlayer {
     pub agent_id: AgentId,
@@ -43,14 +45,12 @@ impl Plugin for RealmTravelPanelPlugin {
                     local_player_presence_bootstrap_system,
                     toggle_realm_travel_panel,
                     handle_travel_button_clicks,
+                    update_travel_panel_current_realm,
                 ),
             );
     }
 }
 
-/// Ensures there is a LocalPlayer with RealmPresence.
-/// - If a LocalPlayer exists but lacks RealmPresence, adds it.
-/// - If no LocalPlayer exists, spawns a lightweight development LocalPlayer in realm 0.
 fn local_player_presence_bootstrap_system(
     mut commands: Commands,
     local_query: Query<(Entity, Option<&RealmPresence>), With<LocalPlayer>>,
@@ -59,17 +59,14 @@ fn local_player_presence_bootstrap_system(
     match local_query.get_single() {
         Ok((entity, presence_opt)) => {
             if presence_opt.is_none() {
-                // Attach default RealmPresence (Sanctuary Prime)
                 commands.entity(entity).insert(RealmPresence::default());
-
                 if let Some(ref mut h) = harness {
                     h.register_presence(0);
                 }
             }
         }
         Err(_) => {
-            // No LocalPlayer yet — spawn a lightweight one for single-player / dev flows
-            let agent_id: AgentId = 1; // stable dev id
+            let agent_id: AgentId = 1;
             let mut presence = RealmPresence::default();
             presence.registered = true;
 
@@ -105,12 +102,12 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     position_type: PositionType::Absolute,
                     top: Val::Percent(18.0),
                     left: Val::Percent(2.0),
-                    width: Val::Px(260.0),
+                    width: Val::Px(270.0),
                     padding: UiRect::all(Val::Px(14.0)),
                     border: UiRect::all(Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(12.0)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(8.0),
+                    row_gap: Val::Px(7.0),
                     visibility: Visibility::Hidden,
                     ..default()
                 },
@@ -134,12 +131,28 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                 ..default()
             });
 
+            // Current realm display
+            parent.spawn((
+                TextBundle {
+                    text: Text::from_section(
+                        "Current: Sanctuary Prime",
+                        TextStyle {
+                            font: font_reg.clone(),
+                            font_size: 12.5,
+                            color: Color::srgb(0.70, 0.95, 0.80),
+                        },
+                    ),
+                    ..default()
+                },
+                CurrentRealmText,
+            ));
+
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "Choose a realm to travel to",
                     TextStyle {
                         font: font_reg.clone(),
-                        font_size: 12.0,
+                        font_size: 11.5,
                         color: Color::srgb(0.70, 0.82, 0.95),
                     },
                 ),
@@ -190,7 +203,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                         },
                     ),
                     style: Style {
-                        margin: UiRect::top(Val::Px(6.0)),
+                        margin: UiRect::top(Val::Px(4.0)),
                         ..default()
                     },
                     ..default()
@@ -244,8 +257,7 @@ fn handle_travel_button_clicks(
                     }
                 } else {
                     for mut text in &mut status_query {
-                        text.sections[0].value =
-                            "LocalPlayer not ready yet...".to_string();
+                        text.sections[0].value = "LocalPlayer not ready yet...".to_string();
                     }
                 }
             }
@@ -253,6 +265,7 @@ fn handle_travel_button_clicks(
                 *bg = Color::srgba(0.14, 0.22, 0.34, 0.97).into();
             }
             Interaction::None => {
+                // Base style; current-realm highlight is applied in update system
                 *bg = Color::srgba(0.12, 0.16, 0.24, 0.95).into();
                 *border = Color::srgb(0.35, 0.55, 0.80).into();
             }
@@ -260,6 +273,39 @@ fn handle_travel_button_clicks(
     }
 }
 
-// End of client/src/realm_travel_panel.rs v21.32.0
-// LocalPlayer + RealmPresence bootstrap ensures the travel panel is always functional.
+/// Keep the panel in sync with the player’s current realm.
+fn update_travel_panel_current_realm(
+    presence_query: Query<&RealmPresence, With<LocalPlayer>>,
+    mut current_text_query: Query<&mut Text, With<CurrentRealmText>>,
+    mut button_query: Query<(&TravelRealmButton, &mut BackgroundColor, &mut BorderColor)>,
+) {
+    let current_realm = presence_query
+        .get_single()
+        .map(|p| p.current_realm_id)
+        .unwrap_or(0);
+
+    let realm_name = match current_realm {
+        0 => "Sanctuary Prime",
+        1 => "Synthetic Lattice",
+        2 => "Verdant Bloom",
+        3 => "Harmonic Chorus",
+        4 => "Voidfarer Horizon",
+        _ => "Unknown",
+    };
+
+    for mut text in &mut current_text_query {
+        text.sections[0].value = format!("Current: {}", realm_name);
+    }
+
+    // Highlight the button that matches the current realm
+    for (button, mut bg, mut border) in &mut button_query {
+        if button.target_realm == current_realm {
+            *bg = Color::srgba(0.16, 0.30, 0.28, 0.98).into();
+            *border = Color::srgb(0.40, 0.90, 0.70).into();
+        }
+    }
+}
+
+// End of client/src/realm_travel_panel.rs v21.36.0
+// Travel panel is now fully state-aware of the player’s current realm.
 // Thunder locked in. Yoi ⚡

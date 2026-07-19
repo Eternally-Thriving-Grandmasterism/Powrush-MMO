@@ -34,12 +34,14 @@
 **Phase AF — LocalPlayer + RealmPresence Bootstrap (COMPLETED v21.32)**  
 **Phase AG — Visual Portal Entities (COMPLETED v21.33)**  
 **Phase AH — Portal VFX Polish + Travel Arrival Feedback (COMPLETED v21.34)**  
-**Phase AI — Travel Arrival Burst Feedback (COMPLETED v21.35)**
+**Phase AI — Travel Arrival Burst Feedback (COMPLETED v21.35)**  
+**Phase AJ — Travel Panel Current-Realm Awareness (COMPLETED v21.36)**
 
-## Completed This Cycle (v21.35)
+## Completed This Cycle (v21.36)
 
-- Short-lived ArrivalBurst visual spawned on successful travel.
-- Full polished travel feedback loop is complete.
+- F3 travel panel shows the player’s current realm.
+- Active realm button is highlighted.
+- Fully state-aware travel UI.
 
 ## Next Council Cycle Priorities
 
@@ -49,10 +51,10 @@
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, and polished with satisfying feedback.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, and state-aware in the UI.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Travel has satisfying arrival feedback.**  
+**Travel panel is fully state-aware.**  
 Yoi ⚡
