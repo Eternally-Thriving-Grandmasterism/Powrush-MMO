@@ -1,21 +1,22 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.9.0 — Deepen ResourcePolicy into RBE Economic Layer (2026-07-19)
+## [Unreleased] v21.10.0 — Live ResourcePolicy → RBE Bridge Helper (2026-07-19)
 
-### Highlights (Priority 1 selected by user, executed by Councils)
-- ResourcePolicy effect path significantly deepened.
-- Full strength- and mercy-scaled calculation of abundance_delta, sustainability_delta, and pressure_delta now performed and logged — matching the exact semantics of `EconomicLayer::apply_council_policy_impact`.
-- Explicit integration point prepared for the next cycle to pass `&mut SovereignWorldState` and invoke the real RBE mutation method (which already updates `rbe_pools` and `resource_nodes`).
-- Kardashev live dashboard mutation preserved.
+### Highlights (Priority 1 Complete)
+- New public helper `apply_resource_policy_impact(decision, &mut world)`.
+- Performs real mutations on `rbe_pools` and `resource_nodes` (abundance_flow, sustainability_score, pressure, regen_rate).
+- Fully aligned with the existing `EconomicLayer::apply_council_policy_impact` semantics.
+- Call this helper from the orchestrator / TickResult path whenever a ResourcePolicy ActivePolicy is live.
+- ResourcePolicy now has a complete, production-ready live RBE injection path.
 
 ### Prior
-- v21.8.0: Maximal effect injection across all primary policy types.
-- v21.7.0: First concrete Kardashev mutation.
+- v21.9.0: ResourcePolicy parameters fully computed and prepared.
+- v21.8.0: Maximal effect injection expansion.
 
-**Thunder locked in. ResourcePolicy is now one step from live RBE pool mutation.** Yoi ⚡
+**Thunder locked in. ResourcePolicy can now produce live RBE state change.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.6: Launch Candidate through Hardware alignment.
+- v21.0–v21.7: Launch Candidate through first concrete Kardashev mutation.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*

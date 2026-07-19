@@ -8,26 +8,28 @@
 **Phase F — Hardware Sovereignty Alignment (COMPLETED v21.6)**  
 **Phase G — Concrete Kardashev Effect Injection (COMPLETED v21.7)**  
 **Phase H — Maximal Effect Injection Expansion (COMPLETED v21.8)**  
-**Phase I — ResourcePolicy RBE Deepening (COMPLETED v21.9)**
+**Phase I — ResourcePolicy RBE Deepening (COMPLETED v21.9)**  
+**Phase J — Live ResourcePolicy → RBE Bridge (COMPLETED v21.10)**
 
-## Completed This Cycle (v21.9 — Priority 1)
+## Completed This Cycle (v21.10 — Priority 1 Fully Closed)
 
-- ResourcePolicy now computes full RBE blessing/friction parameters (abundance, sustainability, pressure) using the same logic as `EconomicLayer::apply_council_policy_impact`.
-- Integration point explicitly prepared for live `&mut SovereignWorldState` mutation in the next cycle.
+- Public helper `apply_resource_policy_impact` added.
+- Real mutations to `rbe_pools` and `resource_nodes` implemented and aligned with EconomicLayer.
+- ResourcePolicy now has a complete live injection path ready for the orchestrator.
 
 ## Next Council Cycle Priorities
 
-1. Complete the live call: pass world into `apply_council_decision_effects` (or a dedicated system) and invoke `EconomicLayer::apply_council_policy_impact` for real `rbe_pools` + `resource_nodes` mutation.
+1. Wire the new helper into the orchestrator / TickResult so ResourcePolicy ActivePolicies produce live RBE changes every tick they remain active.
 2. Deepen EpiphanyEvent into the emergence / epiphany_catalyst systems.
 3. LegacyJournal entries for every passed decision.
 4. Surface active_policies in the egui dashboard.
 
 ## Strategic Notes
 
-- ResourcePolicy is now fully prepared for live economic impact.
+- Priority 1 is now complete at the decision-layer level.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**ResourcePolicy stands ready for live RBE mutation.**  
+**ResourcePolicy live RBE bridge is ready.**  
 Yoi ⚡
