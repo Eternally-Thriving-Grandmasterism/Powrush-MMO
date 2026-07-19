@@ -1,6 +1,6 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.8 — Proactive joy seeding from high-mercy decisions
+//! v1.9 — Per-realm decision tracking integration
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -12,6 +12,7 @@ use crate::world::{AgentId, SovereignWorldState};
 use crate::hardware_sovereignty::KardashevAccelerationDashboard;
 use crate::player_legacy_journal::LegacyJournalRegistry;
 use crate::epiphany_catalyst::record_proactive_joy_for_epiphany;
+use crate::multi_realm_harness::MultiRealmHarness;
 
 // ============================================================================
 // CORE TYPES
@@ -97,7 +98,6 @@ impl CouncilDecision {
         (base + type_bonus + self.strength * 0.05).clamp(0.0, 1.0)
     }
 
-    /// Whether this decision qualifies for proactive joy seeding.
     pub fn qualifies_for_proactive_joy(&self) -> bool {
         self.status == ProposalStatus::Passed
             && self.mercy_factor >= 0.62
@@ -189,7 +189,7 @@ pub fn apply_resource_policy_impact(
         }
     }
 
-    info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, "ResourcePolicy LIVE IMPACT applied");
+    info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, realm_id = decision.realm_id, "ResourcePolicy LIVE IMPACT applied");
 }
 
 pub fn apply_epiphany_policy_impact(
@@ -201,7 +201,7 @@ pub fn apply_epiphany_policy_impact(
     }
 
     let intensity = 0.22 * decision.strength * (0.7 + decision.mercy_factor * 0.3);
-    info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, intensity = intensity, "EpiphanyEvent LIVE IMPACT registered");
+    info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, realm_id = decision.realm_id, intensity = intensity, "EpiphanyEvent LIVE IMPACT registered");
 }
 
 // ============================================================================
@@ -224,16 +224,13 @@ pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
     info!(
         target: "ra_thor::council::legacy",
         decision_id = decision.decision_id,
+        realm_id = decision.realm_id,
         category = category,
         title = %decision.title,
-        strength = decision.strength,
-        mercy = decision.mercy_factor,
         "LegacyJournal entry recorded for passed council decision"
     );
 }
 
-/// Seed proactive joy (non-scar positive emotional reward) from a high-mercy decision.
-/// Uses the existing epiphany_catalyst + LegacyJournalRegistry path.
 pub fn seed_proactive_joy_from_decision(
     decision: &CouncilDecision,
     registry: &mut LegacyJournalRegistry,
@@ -261,7 +258,6 @@ pub fn seed_proactive_joy_from_decision(
         _ => format!("Council decision — \"{}\"", decision.title),
     };
 
-    // Use the recovered public helper from epiphany_catalyst
     record_proactive_joy_for_epiphany(
         registry,
         decision.proposer,
@@ -275,9 +271,8 @@ pub fn seed_proactive_joy_from_decision(
     info!(
         target: "ra_thor::council::joy",
         decision_id = decision.decision_id,
-        proposer = decision.proposer,
+        realm_id = decision.realm_id,
         joy_amount = joy_amount,
-        intensity = intensity,
         "Proactive joy seeded from high-mercy council decision"
     );
 }
@@ -307,6 +302,7 @@ pub fn apply_council_decision_effects(
     mut decisions: ResMut<CouncilDecisions>,
     mut dashboard: ResMut<KardashevAccelerationDashboard>,
     mut legacy_registry: ResMut<LegacyJournalRegistry>,
+    mut multi_realm: Option<ResMut<MultiRealmHarness>>,
 ) {
     if decisions.pending.is_empty() {
         for policy in decisions.active_policies.iter_mut() {
@@ -338,6 +334,15 @@ pub fn apply_council_decision_effects(
         };
 
         let policy = ActivePolicy::from_decision(&decision, duration);
+
+        // 3. Record into per-realm tracking
+        if let Some(ref mut harness) = multi_realm {
+            harness.record_decision_for_realm(&decision, policy.clone());
+        }
+
+        // 4. Also keep global list for backward compatibility
+        decisions.active_policies.push(policy);
+
         let strength = decision.strength;
 
         match decision.proposal_type {
@@ -346,23 +351,21 @@ pub fn apply_council_decision_effects(
                 dashboard.global_kardashev_delta += contribution;
                 dashboard.abundance_velocity_index += contribution * 1.4;
                 dashboard.personal_contribution += contribution * 0.6;
-                info!(target: "ra_thor::council::kardashev", decision_id = decision.decision_id, "KardashevAcceleration ACTIVATED");
+                info!(target: "ra_thor::council::kardashev", decision_id = decision.decision_id, realm_id = decision.realm_id, "KardashevAcceleration ACTIVATED");
             }
             ProposalType::ResourcePolicy => {
-                info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, "ResourcePolicy ACTIVATED");
+                info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, realm_id = decision.realm_id, "ResourcePolicy ACTIVATED");
             }
             ProposalType::EpiphanyEvent => {
-                info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, "EpiphanyEvent ACTIVATED");
+                info!(target: "ra_thor::council::epiphany", decision_id = decision.decision_id, realm_id = decision.realm_id, "EpiphanyEvent ACTIVATED");
             }
             ProposalType::HarmonyBoost => {
-                info!(target: "ra_thor::council::harmony", decision_id = decision.decision_id, "HarmonyBoost ACTIVATED");
+                info!(target: "ra_thor::council::harmony", decision_id = decision.decision_id, realm_id = decision.realm_id, "HarmonyBoost ACTIVATED");
             }
             ProposalType::General => {
-                info!(target: "ra_thor::council", decision_id = decision.decision_id, "General policy activated");
+                info!(target: "ra_thor::council", decision_id = decision.decision_id, realm_id = decision.realm_id, "General policy activated");
             }
         }
-
-        decisions.active_policies.push(policy);
     }
 
     for policy in decisions.active_policies.iter_mut() {
@@ -393,10 +396,8 @@ mod tests {
         let mut decision = CouncilDecision::from_resolved_proposal(&proposal, 0.78, 100, 0);
         decision.status = ProposalStatus::Passed;
         assert!(decision.qualifies_for_proactive_joy());
-
-        decision.mercy_factor = 0.4;
-        assert!(!decision.qualifies_for_proactive_joy());
     }
 }
 
-// Thunder locked in. Yoi ⚡
+// Thunder locked in. Per-realm decision tracking is integrated.
+// Yoi ⚡

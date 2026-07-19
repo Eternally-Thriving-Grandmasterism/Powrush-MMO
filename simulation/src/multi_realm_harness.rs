@@ -1,9 +1,9 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Foundation + Observability
-//! v21.19.0
+//! Multi-Realm Harness — Per-Realm Decision Tracking
+//! v21.20.0
 //!
-//! Concurrent realms under one organism with race diversity,
-//! per-realm decision tracking, and dashboard observability.
+//! Concurrent realms under one organism with full per-realm
+//! decision streams, active policy tracking, and observability.
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use tracing::info;
 
 use crate::race::Race;
-use crate::council::decision::CouncilDecisions;
+use crate::council::decision::{ActivePolicy, CouncilDecision, CouncilDecisions, PolicyType};
 
 // ============================================================================
 // CORE TYPES
@@ -76,12 +76,16 @@ impl RealmDescriptor {
 }
 
 // ============================================================================
-// HARNESS RESOURCE
+// HARNESS RESOURCE — WITH PER-REALM DECISION TRACKING
 // ============================================================================
 
 #[derive(Resource, Debug, Default)]
 pub struct MultiRealmHarness {
     pub realms: HashMap<RealmId, RealmDescriptor>,
+    /// Per-realm active policies (the living decision stream for each realm)
+    pub realm_active_policies: HashMap<RealmId, Vec<ActivePolicy>>,
+    /// Per-realm decision history counts (for quick stats)
+    pub realm_decision_counts: HashMap<RealmId, u64>,
     pub primary_realm_id: RealmId,
     pub next_realm_id: RealmId,
     pub cross_realm_mercy_flow: f32,
@@ -92,6 +96,8 @@ impl MultiRealmHarness {
     pub fn new() -> Self {
         Self {
             realms: HashMap::new(),
+            realm_active_policies: HashMap::new(),
+            realm_decision_counts: HashMap::new(),
             primary_realm_id: 0,
             next_realm_id: 1,
             cross_realm_mercy_flow: 0.0,
@@ -119,6 +125,8 @@ impl MultiRealmHarness {
             }
             desc.status = RealmStatus::Active;
             self.realms.insert(id, desc);
+            self.realm_active_policies.insert(id, Vec::new());
+            self.realm_decision_counts.insert(id, 0);
         }
 
         self.primary_realm_id = 0;
@@ -127,7 +135,7 @@ impl MultiRealmHarness {
         info!(
             target: "ra_thor::multi_realm",
             realm_count = self.realms.len(),
-            "MultiRealmHarness seeded with {} diverse realms",
+            "MultiRealmHarness seeded with {} diverse realms + per-realm decision tracking",
             self.realms.len()
         );
     }
@@ -154,35 +162,112 @@ impl MultiRealmHarness {
             .count()
     }
 
-    pub fn sync_from_council_decisions(&mut self, decisions: &CouncilDecisions) {
-        let active_count = decisions
-            .active_policies
-            .iter()
-            .filter(|p| !p.is_expired())
-            .count() as u32;
+    // -----------------------------------------------------------------------
+    // PER-REALM DECISION TRACKING
+    // -----------------------------------------------------------------------
 
-        self.total_active_policies_across_realms = active_count;
+    /// Record a passed decision against its realm and add the resulting ActivePolicy.
+    pub fn record_decision_for_realm(&mut self, decision: &CouncilDecision, policy: ActivePolicy) {
+        let realm_id = decision.realm_id;
 
-        if let Some(primary) = self.realms.get_mut(&self.primary_realm_id) {
-            primary.active_policy_count = active_count;
-        }
+        // Ensure realm exists (fallback to primary)
+        let target_realm = if self.realms.contains_key(&realm_id) {
+            realm_id
+        } else {
+            self.primary_realm_id
+        };
 
-        // Gentle cross-realm mercy flow based on activity
-        self.cross_realm_mercy_flow = (self.cross_realm_mercy_flow * 0.92)
-            + (active_count as f32 * 0.04);
-    }
+        // Update decision count + mercy attunement
+        *self.realm_decision_counts.entry(target_realm).or_insert(0) += 1;
 
-    pub fn record_decision_passed(&mut self, realm_id: RealmId, mercy: f32) {
-        if let Some(realm) = self.realms.get_mut(&realm_id) {
+        if let Some(realm) = self.realms.get_mut(&target_realm) {
             realm.total_decisions_passed += 1;
             let n = realm.total_decisions_passed as f32;
             realm.mercy_attunement_avg =
-                (realm.mercy_attunement_avg * (n - 1.0) + mercy.clamp(0.0, 1.0)) / n;
+                (realm.mercy_attunement_avg * (n - 1.0) + decision.mercy_factor.clamp(0.0, 1.0)) / n;
 
             if realm.mercy_attunement_avg > 0.78 && realm.total_decisions_passed > 5 {
                 realm.status = RealmStatus::Thriving;
             }
         }
+
+        // Push the active policy into the per-realm list
+        self.realm_active_policies
+            .entry(target_realm)
+            .or_default()
+            .push(policy);
+
+        // Refresh counts
+        self.refresh_active_policy_counts();
+
+        info!(
+            target: "ra_thor::multi_realm",
+            realm_id = target_realm,
+            decision_id = decision.decision_id,
+            policy_type = ?decision.proposal_type,
+            "Decision recorded for realm"
+        );
+    }
+
+    /// Tick all per-realm active policies and remove expired ones.
+    pub fn tick_all_realm_policies(&mut self) {
+        for policies in self.realm_active_policies.values_mut() {
+            for policy in policies.iter_mut() {
+                policy.tick();
+            }
+            policies.retain(|p| !p.is_expired());
+        }
+        self.refresh_active_policy_counts();
+    }
+
+    /// Get a snapshot of active (non-expired) policies for a specific realm.
+    pub fn get_active_policies_for_realm(&self, realm_id: RealmId) -> Vec<&ActivePolicy> {
+        self.realm_active_policies
+            .get(&realm_id)
+            .map(|list| list.iter().filter(|p| !p.is_expired()).collect())
+            .unwrap_or_default()
+    }
+
+    pub fn total_decisions_for_realm(&self, realm_id: RealmId) -> u64 {
+        *self.realm_decision_counts.get(&realm_id).unwrap_or(&0)
+    }
+
+    fn refresh_active_policy_counts(&mut self) {
+        let mut total = 0u32;
+        for (realm_id, policies) in &self.realm_active_policies {
+            let count = policies.iter().filter(|p| !p.is_expired()).count() as u32;
+            total += count;
+            if let Some(realm) = self.realms.get_mut(realm_id) {
+                realm.active_policy_count = count;
+            }
+        }
+        self.total_active_policies_across_realms = total;
+        self.cross_realm_mercy_flow =
+            (self.cross_realm_mercy_flow * 0.92) + (total as f32 * 0.04);
+    }
+
+    /// Sync from the global CouncilDecisions (backward compatible).
+    /// Attributes policies that carry a realm_id; others go to primary.
+    pub fn sync_from_council_decisions(&mut self, decisions: &CouncilDecisions) {
+        // Clear and rebuild from the global list for consistency this cycle
+        for list in self.realm_active_policies.values_mut() {
+            list.clear();
+        }
+
+        for policy in &decisions.active_policies {
+            if policy.is_expired() {
+                continue;
+            }
+            // ActivePolicy currently does not store realm_id directly;
+            // we attribute to primary for global policies in this phase.
+            // Full per-decision realm attribution happens via record_decision_for_realm.
+            self.realm_active_policies
+                .entry(self.primary_realm_id)
+                .or_default()
+                .push(policy.clone());
+        }
+
+        self.refresh_active_policy_counts();
     }
 }
 
@@ -200,8 +285,15 @@ pub fn multi_realm_harness_system(
         harness.seed_default_realms(tick);
     }
 
+    // Tick per-realm policies
+    harness.tick_all_realm_policies();
+
+    // Keep global sync as a safety net
     if let Some(decisions) = decisions {
-        harness.sync_from_council_decisions(&decisions);
+        // Only sync if the harness has no richer per-realm data yet
+        if harness.total_active_policies_across_realms == 0 {
+            harness.sync_from_council_decisions(&decisions);
+        }
     }
 }
 
@@ -216,7 +308,7 @@ impl Plugin for MultiRealmHarnessPlugin {
         app.init_resource::<MultiRealmHarness>()
             .add_systems(Update, multi_realm_harness_system);
 
-        info!("MultiRealmHarnessPlugin initialized — multi-realm foundation + observability active");
+        info!("MultiRealmHarnessPlugin initialized — per-realm decision tracking active");
     }
 }
 
@@ -227,23 +319,37 @@ impl Plugin for MultiRealmHarnessPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::council::proposal::{CouncilProposal, ProposalType, ProposalStatus};
+    use crate::council::decision::CouncilDecision;
 
     #[test]
-    fn test_seed_and_thrive() {
+    fn test_per_realm_decision_tracking() {
         let mut harness = MultiRealmHarness::new();
         harness.seed_default_realms(100);
 
-        assert_eq!(harness.realms.len(), 5);
-        assert_eq!(harness.active_realm_count(), 5);
+        let proposal = CouncilProposal::new(
+            42,
+            ProposalType::ResourcePolicy,
+            "Verdant Abundance".into(),
+            "Test".into(),
+            7,
+            100,
+        );
+        let mut decision = CouncilDecision::from_resolved_proposal(&proposal, 0.82, 100, 2); // realm 2
+        decision.status = ProposalStatus::Passed;
 
-        for _ in 0..8 {
-            harness.record_decision_passed(0, 0.85);
-        }
+        let policy = ActivePolicy::from_decision(&decision, 900);
+        harness.record_decision_for_realm(&decision, policy);
 
-        let realm = harness.get_realm(0).unwrap();
-        assert_eq!(realm.status, RealmStatus::Thriving);
-        assert!(harness.thriving_realm_count() >= 1);
+        assert_eq!(harness.total_decisions_for_realm(2), 1);
+        assert_eq!(harness.get_active_policies_for_realm(2).len(), 1);
+        assert_eq!(harness.get_active_policies_for_realm(0).len(), 0);
+
+        let realm = harness.get_realm(2).unwrap();
+        assert_eq!(realm.active_policy_count, 1);
+        assert_eq!(realm.total_decisions_passed, 1);
     }
 }
 
-// Thunder locked in. Yoi ⚡
+// Thunder locked in. Per-realm decision tracking is live.
+// Yoi ⚡
