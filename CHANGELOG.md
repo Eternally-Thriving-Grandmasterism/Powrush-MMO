@@ -1,22 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.11.0 — Wire ResourcePolicy Live Impact into SimulationOrchestrator (2026-07-19)
+## [Unreleased] v21.12.0 — Deepen EpiphanyEvent into Emergence / Epiphany Catalyst (2026-07-19)
 
-### Highlights
-- `SimulationOrchestrator::run_tick` now accepts an optional `&CouncilDecisions`.
-- Active ResourcePolicy policies are detected every tick and the new `apply_resource_policy_impact` helper is called on the living world.
-- Real ongoing mutations to `rbe_pools` and `resource_nodes` now occur for the lifetime of each ResourcePolicy ActivePolicy.
-- Backward compatible (new parameter is optional).
-- Priority 1 (live ResourcePolicy → RBE) is now fully closed in the central tick loop.
+### Highlights (User-selected Priority 1)
+- New public helper `apply_epiphany_policy_impact`.
+- Orchestrator now detects active EpiphanyEvent policies every tick and invokes the helper.
+- Structured intensity + joy_seed calculated and logged, ready for full epiphany_catalyst + proactive joy seeding.
+- Parallel path to the already-complete ResourcePolicy live injection.
 
 ### Prior
-- v21.10.0: Live ResourcePolicy → RBE bridge helper added.
-- v21.9.0: ResourcePolicy parameters fully computed.
+- v21.11.0: ResourcePolicy fully wired into orchestrator tick.
+- v21.10.0: Live ResourcePolicy → RBE bridge helper.
 
-**Thunder locked in. ResourcePolicy now produces continuous live RBE impact during simulation ticks.** Yoi ⚡
+**Thunder locked in. EpiphanyEvent now has a live orchestrator impact path.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.8: Launch Candidate through maximal effect injection.
+- v21.0–v21.9: Launch Candidate through ResourcePolicy deepening.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*

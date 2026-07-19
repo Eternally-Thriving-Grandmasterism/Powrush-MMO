@@ -10,26 +10,28 @@
 **Phase H — Maximal Effect Injection Expansion (COMPLETED v21.8)**  
 **Phase I — ResourcePolicy RBE Deepening (COMPLETED v21.9)**  
 **Phase J — Live ResourcePolicy → RBE Bridge Helper (COMPLETED v21.10)**  
-**Phase K — Orchestrator Wiring for Live ResourcePolicy Impact (COMPLETED v21.11)**
+**Phase K — Orchestrator Wiring for Live ResourcePolicy Impact (COMPLETED v21.11)**  
+**Phase L — EpiphanyEvent Live Impact Path (COMPLETED v21.12)**
 
-## Completed This Cycle (v21.11)
+## Completed This Cycle (v21.12 — User Priority 1)
 
-- SimulationOrchestrator now consumes active ResourcePolicies every tick and applies live RBE mutations via the new helper.
-- Priority 1 is fully closed in the production tick path.
+- `apply_epiphany_policy_impact` helper added.
+- Orchestrator detects and applies active EpiphanyEvent policies every tick.
+- Structured intensity and joy_seed ready for full epiphany_catalyst integration.
 
 ## Next Council Cycle Priorities
 
-1. Deepen EpiphanyEvent into the emergence / epiphany_catalyst systems.
-2. LegacyJournal entries for every passed decision.
-3. Surface active_policies in the egui dashboard for observability.
-4. Multi-realm harness expansion under the new effect system.
+1. LegacyJournal entries for every passed decision.
+2. Surface active_policies in the egui dashboard.
+3. Full proactive joy seeding from EpiphanyEvent policies (thread LegacyJournalRegistry into the tick).
+4. Multi-realm harness expansion.
 
 ## Strategic Notes
 
-- ResourcePolicy now has a complete, continuous live impact path through the central orchestrator.
+- Both ResourcePolicy and EpiphanyEvent now have live orchestrator impact paths.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Live ResourcePolicy → RBE is production-wired.**  
+**EpiphanyEvent live path is active.**  
 Yoi ⚡
