@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Full Decision / Resonance / Echo / Presence Foundation
-//! v21.27.0
+//! Multi-Realm Harness — Full Decision / Resonance / Echo / Presence + Bootstrap
+//! v21.29.0
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -54,7 +54,6 @@ pub struct RealmDescriptor {
     pub incoming_resonance: f32,
     pub legacy_entry_count: u64,
     pub echo_policy_count: u32,
-    /// Approximate number of agents currently present in this realm
     pub agent_presence_count: u32,
 }
 
@@ -83,20 +82,24 @@ impl RealmDescriptor {
     }
 }
 
-/// Component attached to agents / players to track which realm they currently inhabit.
-#[derive(Component, Clone, Debug, Serialize, Deserialize)]
+/// Component tracking which realm an agent currently inhabits.
+#[derive(Component, Clone, Debug, Serialize, Deserialize, Reflect)]
+#[reflect(Component)]
 pub struct RealmPresence {
     pub current_realm_id: RealmId,
     pub last_travel_tick: u64,
     pub travel_count: u32,
+    /// Internal flag so we only register once with the harness
+    pub registered: bool,
 }
 
 impl Default for RealmPresence {
     fn default() -> Self {
         Self {
-            current_realm_id: 0, // Sanctuary Prime by default
+            current_realm_id: 0, // Sanctuary Prime
             last_travel_tick: 0,
             travel_count: 0,
+            registered: false,
         }
     }
 }
@@ -187,7 +190,7 @@ impl MultiRealmHarness {
         self.primary_realm_id = 0;
         self.next_realm_id = 5;
 
-        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded with presence support");
+        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded with presence bootstrap support");
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
@@ -209,10 +212,9 @@ impl MultiRealmHarness {
     }
 
     // -----------------------------------------------------------------------
-    // PRESENCE + TRAVEL HOOKS
+    // PRESENCE + TRAVEL
     // -----------------------------------------------------------------------
 
-    /// Register an agent as present in a realm (call on spawn or load).
     pub fn register_presence(&mut self, realm_id: RealmId) {
         let target = if self.realms.contains_key(&realm_id) {
             realm_id
@@ -224,14 +226,12 @@ impl MultiRealmHarness {
         }
     }
 
-    /// Unregister presence from a realm.
     pub fn unregister_presence(&mut self, realm_id: RealmId) {
         if let Some(realm) = self.realms.get_mut(&realm_id) {
             realm.agent_presence_count = realm.agent_presence_count.saturating_sub(1);
         }
     }
 
-    /// Travel an agent from one realm to another. Returns true if successful.
     pub fn travel_to_realm(
         &mut self,
         presence: &mut RealmPresence,
@@ -240,39 +240,50 @@ impl MultiRealmHarness {
         agent_id: AgentId,
     ) -> bool {
         if !self.realms.contains_key(&target_realm) {
-            info!(target: "ra_thor::multi_realm::travel", agent = agent_id, target = target_realm, "Travel failed: realm does not exist");
             return false;
         }
-
         if presence.current_realm_id == target_realm {
-            return true; // already there
+            return true;
         }
 
         let from = presence.current_realm_id;
-
-        // Update counts
         self.unregister_presence(from);
         self.register_presence(target_realm);
 
-        // Update presence component
         presence.current_realm_id = target_realm;
         presence.last_travel_tick = current_tick;
         presence.travel_count = presence.travel_count.saturating_add(1);
+        presence.registered = true;
 
         info!(
             target: "ra_thor::multi_realm::travel",
             agent = agent_id,
             from = from,
             to = target_realm,
-            travel_count = presence.travel_count,
             "Agent traveled between realms"
         );
-
         true
     }
 
+    /// Explicit helper for spawn / load paths.
+    pub fn ensure_realm_presence(
+        &mut self,
+        presence: &mut RealmPresence,
+        preferred_realm: Option<RealmId>,
+    ) {
+        if let Some(rid) = preferred_realm {
+            if self.realms.contains_key(&rid) {
+                presence.current_realm_id = rid;
+            }
+        }
+        if !presence.registered {
+            self.register_presence(presence.current_realm_id);
+            presence.registered = true;
+        }
+    }
+
     // -----------------------------------------------------------------------
-    // DECISION + LEGACY + RESONANCE + ECHO (preserved + extended)
+    // DECISION + LEGACY + RESONANCE + ECHO
     // -----------------------------------------------------------------------
 
     pub fn record_decision_for_realm(&mut self, decision: &CouncilDecision, policy: ActivePolicy) {
@@ -387,7 +398,6 @@ impl MultiRealmHarness {
             ProposalType::KardashevAcceleration => decision.mercy_factor >= 0.78,
             _ => false,
         };
-
         if !can_echo {
             return;
         }
@@ -413,7 +423,6 @@ impl MultiRealmHarness {
                 created_tick: decision.created_tick,
                 title: echo_title.clone(),
             };
-
             self.realm_echo_policies
                 .entry(target_id)
                 .or_default()
@@ -436,14 +445,12 @@ impl MultiRealmHarness {
             }
             policies.retain(|p| !p.is_expired());
         }
-
         for policies in self.realm_echo_policies.values_mut() {
             for policy in policies.iter_mut() {
                 policy.tick();
             }
             policies.retain(|p| !p.is_expired());
         }
-
         for (realm_id, realm) in self.realms.iter_mut() {
             realm.echo_policy_count = self
                 .realm_echo_policies
@@ -451,7 +458,6 @@ impl MultiRealmHarness {
                 .map(|v| v.iter().filter(|p| !p.is_expired()).count() as u32)
                 .unwrap_or(0);
         }
-
         self.refresh_active_policy_counts();
     }
 
@@ -484,8 +490,21 @@ impl MultiRealmHarness {
 }
 
 // ============================================================================
-// SYSTEMS + PLUGIN
+// SYSTEMS
 // ============================================================================
+
+/// Auto-register any RealmPresence that has not yet been counted.
+pub fn realm_presence_bootstrap_system(
+    mut harness: ResMut<MultiRealmHarness>,
+    mut query: Query<&mut RealmPresence>,
+) {
+    for mut presence in query.iter_mut() {
+        if !presence.registered {
+            harness.register_presence(presence.current_realm_id);
+            presence.registered = true;
+        }
+    }
+}
 
 pub fn multi_realm_harness_system(
     mut harness: ResMut<MultiRealmHarness>,
@@ -506,17 +525,27 @@ pub fn multi_realm_harness_system(
     }
 }
 
+// ============================================================================
+// PLUGIN
+// ============================================================================
+
 pub struct MultiRealmHarnessPlugin;
 
 impl Plugin for MultiRealmHarnessPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MultiRealmHarness>()
             .register_type::<RealmPresence>()
-            .add_systems(Update, multi_realm_harness_system);
+            .add_systems(
+                Update,
+                (
+                    multi_realm_harness_system,
+                    realm_presence_bootstrap_system,
+                ),
+            );
 
-        info!("MultiRealmHarnessPlugin — presence + travel hooks active");
+        info!("MultiRealmHarnessPlugin — presence bootstrap + travel + resonance active");
     }
 }
 
-// Thunder locked in. Multi-realm presence and travel foundation is live.
+// Thunder locked in. Presence is now self-healing and auto-registering.
 // Yoi ⚡

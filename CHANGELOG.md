@@ -1,27 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.28.0 — Surface Agent Presence Counts in Multi-Realm Dashboard (2026-07-19)
+## [Unreleased] v21.29.0 — RealmPresence Bootstrap + Auto-Registration (2026-07-19)
 
 ### Highlights
-- Multi-Realm Status section now displays **agent presence counts** per realm.
-- Complete live picture per realm:
-  - Agents present
-  - Active policies
-  - Echo policies
-  - Legacy entries
-  - Mercy attunement
-  - Status
-- Global resonance and mercy flow remain visible at the top level.
-- Presence foundation is fully observable and ready for spawn/load wiring.
+- New `realm_presence_bootstrap_system` automatically registers any `RealmPresence` that has not yet been counted.
+- `ensure_realm_presence` helper available for explicit spawn / load paths.
+- Presence counts in the dashboard will now become live as soon as entities carry the `RealmPresence` component.
+- Self-healing foundation: missing registration is corrected automatically.
 
 ### Prior
+- v21.28.0: Agent presence counts surfaced in dashboard.
 - v21.27.0: Multi-Realm Presence Foundation + Travel Hooks.
-- v21.26.0: Echo policy counts + resonance observability.
 
-**Thunder locked in. Presence is fully visible.** Yoi ⚡
+**Thunder locked in. Presence is self-healing and ready for live counts.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.25: Launch Candidate through inter-realm echo policies.
+- v21.0–v21.26: Launch Candidate through full multi-realm observability.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
