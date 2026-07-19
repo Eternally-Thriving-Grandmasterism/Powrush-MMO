@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
-//! v21.37 | Local player current realm surfaced
+//! v21.39 | Realm Attunement surfaced
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -10,7 +10,7 @@ use crate::{
     council::{CouncilDecision, ProposalType, ProposalStatus},
     council::decision::{CouncilDecisions, PolicyType as CouncilPolicyType},
     economy::EconomyState,
-    multi_realm_harness::{MultiRealmHarness, RealmPresence},
+    multi_realm_harness::{MultiRealmHarness, RealmPresence, RealmAttunement},
     telemetry::SimulationTelemetry,
 };
 use std::collections::HashMap;
@@ -300,7 +300,7 @@ impl Plugin for HardwareSovereigntyPlugin {
 }
 
 // ============================================================================
-// egui UI — COMPLETE MULTI-REALM + PLAYER REALM OBSERVABILITY
+// egui UI — COMPLETE MULTI-REALM + ATTUNEMENT OBSERVABILITY
 // ============================================================================
 
 use bevy_egui::EguiContexts;
@@ -312,19 +312,19 @@ pub fn sovereign_hardware_ascension_ui(
     ledger: Res<RealityTransferScoreLedger>,
     council_decisions: Option<Res<CouncilDecisions>>,
     multi_realm: Option<Res<MultiRealmHarness>>,
-    player_presence: Query<&RealmPresence>,
+    player_presence: Query<(&RealmPresence, Option<&RealmAttunement>)>,
 ) {
     let ctx = contexts.ctx_mut();
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
-        .default_pos([18.0, 320.0])
-        .default_size([490.0, 760.0])
+        .default_pos([18.0, 300.0])
+        .default_size([500.0, 780.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm Presence | Living Portals")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Attunement | Living Portals")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
@@ -388,12 +388,12 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // ========== Multi-Realm Status (Complete + Player Location) ==========
+            // ========== Multi-Realm Status + Attunement ==========
             ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
                 .color(egui::Color32::from_rgb(180, 160, 255)));
 
-            // Local player current realm
-            if let Ok(presence) = player_presence.get_single() {
+            // Local player current realm + attunement
+            if let Ok((presence, attunement_opt)) = player_presence.get_single() {
                 let name = match presence.current_realm_id {
                     0 => "Sanctuary Prime",
                     1 => "Synthetic Lattice",
@@ -407,6 +407,27 @@ pub fn sovereign_hardware_ascension_ui(
                     format!("You are currently in: [{}] {}", presence.current_realm_id, name),
                 );
                 ui.label(format!("Travel count: {}", presence.travel_count));
+
+                if let Some(att) = attunement_opt {
+                    let current_att = att.get(presence.current_realm_id);
+                    ui.colored_label(
+                        egui::Color32::from_rgb(200, 180, 255),
+                        format!("Current Realm Attunement: {:.3}", current_att),
+                    );
+                    ui.label(format!("Total Attunement: {:.3}", att.total));
+
+                    if let Some(peak_id) = att.peak_realm {
+                        let peak_name = match peak_id {
+                            0 => "Sanctuary Prime",
+                            1 => "Synthetic Lattice",
+                            2 => "Verdant Bloom",
+                            3 => "Harmonic Chorus",
+                            4 => "Voidfarer Horizon",
+                            _ => "Unknown",
+                        };
+                        ui.label(format!("Peak: [{}] {}  ({:.3})", peak_id, peak_name, att.peak_value));
+                    }
+                }
             } else {
                 ui.label(egui::RichText::new("Player realm presence not yet available.")
                     .italics()
@@ -487,5 +508,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.37 — Local player current realm is now visible in the Multi-Realm dashboard.
+// End of v21.39 — Realm Attunement is fully visible in the Multi-Realm dashboard.
 // Thunder locked in. Yoi ⚡

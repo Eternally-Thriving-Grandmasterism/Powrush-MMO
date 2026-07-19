@@ -37,26 +37,26 @@
 **Phase AI — Travel Arrival Burst Feedback (COMPLETED v21.35)**  
 **Phase AJ — Travel Panel Current-Realm Awareness (COMPLETED v21.36)**  
 **Phase AK — Local Player Current Realm in Dashboard (COMPLETED v21.37)**  
-**Phase AL — Realm Attunement (COMPLETED v21.38)**
+**Phase AL — Realm Attunement (COMPLETED v21.38)**  
+**Phase AM — Surface Realm Attunement in Dashboard (COMPLETED v21.39)**
 
-## Completed This Cycle (v21.38)
+## Completed This Cycle (v21.39)
 
-- `RealmAttunement` component introduced.
-- Gentle presence-based accumulation per realm.
-- Presence now carries living mechanical meaning.
+- Current, total, and peak Realm Attunement are now visible in the Multi-Realm dashboard.
+- Living presence meaning is fully observable.
 
 ## Next Council Cycle Priorities
 
-1. Surface current + peak attunement in the dashboard / F3 panel.
-2. Optional small bonuses or titles tied to attunement thresholds.
+1. Optional small bonuses or titles tied to attunement thresholds.
+2. Surface attunement in the F3 travel panel as well.
 3. Final resource_node / rbe_pool realm-keying when ready.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, and now attunement-bearing.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, and fully visible.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Presence gains gentle mechanical meaning.**  
+**Attunement is visible.**  
 Yoi ⚡
