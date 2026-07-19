@@ -16,7 +16,7 @@
 **Phase N — LegacyJournal Search UI (COMPLETED v21.14)**  
 **Phase O — Proactive Joy Seeding (COMPLETED v21.15)**  
 **Phase P — Active Policies Observability Dashboard (COMPLETED v21.16)**  
-**Phase Q — Real Text Input for Legacy Search (COMPLETED v21.17)**  
+**Phase Q — Real Search Input for Legacy Search (COMPLETED v21.17)**  
 **Phase R — Multi-Realm Harness Foundation (COMPLETED v21.18)**  
 **Phase S — Multi-Realm Status Observability (COMPLETED v21.19)**  
 **Phase T — Per-Realm Decision Tracking (COMPLETED v21.20)**  
@@ -35,13 +35,13 @@
 **Phase AG — Visual Portal Entities (COMPLETED v21.33)**  
 **Phase AH — Portal VFX Polish + Travel Arrival Feedback (COMPLETED v21.34)**  
 **Phase AI — Travel Arrival Burst Feedback (COMPLETED v21.35)**  
-**Phase AJ — Travel Panel Current-Realm Awareness (COMPLETED v21.36)**
+**Phase AJ — Travel Panel Current-Realm Awareness (COMPLETED v21.36)**  
+**Phase AK — Local Player Current Realm in Dashboard (COMPLETED v21.37)**
 
-## Completed This Cycle (v21.36)
+## Completed This Cycle (v21.37)
 
-- F3 travel panel shows the player’s current realm.
-- Active realm button is highlighted.
-- Fully state-aware travel UI.
+- Dashboard Multi-Realm Status now shows the local player’s current realm and travel count.
+- Full alignment between F3 panel, portals, presence, and dashboard observability.
 
 ## Next Council Cycle Priorities
 
@@ -51,10 +51,10 @@
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, and state-aware in the UI.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, and state-aware across UI surfaces.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Travel panel is fully state-aware.**  
+**Player realm is visible in the dashboard.**  
 Yoi ⚡
