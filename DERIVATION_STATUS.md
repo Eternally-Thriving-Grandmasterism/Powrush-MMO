@@ -31,26 +31,27 @@
 **Phase AC — RealmPresence Bootstrap + Auto-Registration (COMPLETED v21.29)**  
 **Phase AD — Portal / Travel Command Surface (COMPLETED v21.30)**  
 **Phase AE — Simple Inter-Realm Travel UI Surface (COMPLETED v21.31)**  
-**Phase AF — LocalPlayer + RealmPresence Bootstrap (COMPLETED v21.32)**
+**Phase AF — LocalPlayer + RealmPresence Bootstrap (COMPLETED v21.32)**  
+**Phase AG — Visual Portal Entities (COMPLETED v21.33)**
 
-## Completed This Cycle (v21.32)
+## Completed This Cycle (v21.33)
 
-- LocalPlayer + RealmPresence are now reliably bootstrapped.
-- F3 travel panel has a guaranteed target.
-- Presence counts can become live in single-player / dev flows.
+- Visual portal entities spawned for each realm.
+- E-key interaction requests travel to the portal’s target realm.
+- Full player-facing travel loop is complete (F3 panel + world portals).
 
 ## Next Council Cycle Priorities
 
-1. Optional visual portal entities in the world.
-2. Deeper integration of LocalPlayer into primary production spawn/load paths.
-3. Final resource_node / rbe_pool realm-keying when the data model supports it.
+1. Deeper integration of LocalPlayer into primary production spawn/load paths.
+2. Final resource_node / rbe_pool realm-keying when the data model supports it.
+3. Optional portal VFX polish or arrival effects.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, and player-accessible.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, and embodied in the world via portals.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Travel panel is reliably functional.**  
+**Visual portals are live.**  
 Yoi ⚡
