@@ -29,26 +29,27 @@
 **Phase AA — Multi-Realm Presence Foundation + Travel Hooks (COMPLETED v21.27)**  
 **Phase AB — Agent Presence Counts in Dashboard (COMPLETED v21.28)**  
 **Phase AC — RealmPresence Bootstrap + Auto-Registration (COMPLETED v21.29)**  
-**Phase AD — Portal / Travel Command Surface (COMPLETED v21.30)**
+**Phase AD — Portal / Travel Command Surface (COMPLETED v21.30)**  
+**Phase AE — Simple Inter-Realm Travel UI Surface (COMPLETED v21.31)**
 
-## Completed This Cycle (v21.30)
+## Completed This Cycle (v21.31)
 
-- `RealmTravelRequest` event + `realm_travel_system` implemented.
-- Inter-realm travel is now commandable from UI, portals, console, or other systems.
-- Presence counts update automatically on successful travel.
+- F3 Realm Travel Panel with buttons for all five realms.
+- Emits RealmTravelRequest on click for the local player.
+- Full player-facing inter-realm travel interface is live.
 
 ## Next Council Cycle Priorities
 
-1. Explicitly insert RealmPresence on primary agent/player spawn paths when those sites are next touched.
-2. Optional simple travel UI buttons or portal entities.
-3. Final resource_node / rbe_pool realm-keying when the data model supports it.
+1. Ensure LocalPlayer + RealmPresence are attached on primary spawn/load paths.
+2. Optional visual portal entities in the world.
+3. Final resource_node / rbe_pool realm-keying when ready.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, and travel-capable.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, and player-accessible.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Inter-realm travel is commandable.**  
+**Players can travel between realms.**  
 Yoi ⚡
