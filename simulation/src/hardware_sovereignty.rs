@@ -1,24 +1,22 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Multi-Realm Observability
-//! v21.19 | Multi-Realm Status section added
+//! v21.26 | Echo policy counts + resonance level surfaced
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
 use bevy::prelude::*;
-use bevy::math::primitives::Cylinder;
 use crate::{
     ability_tree::{AbilityTree, SynergyType},
     council::{CouncilDecision, ProposalType, ProposalStatus},
     council::decision::{CouncilDecisions, PolicyType as CouncilPolicyType},
     economy::EconomyState,
     multi_realm_harness::MultiRealmHarness,
-    player_persistence::PersistenceManager,
     telemetry::SimulationTelemetry,
 };
 use std::collections::HashMap;
 
 // ============================================================================
-// CORE TYPES (preserved)
+// CORE TYPES
 // ============================================================================
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
@@ -161,7 +159,7 @@ pub struct RealityThrivingTransferUpdated {
 }
 
 // ============================================================================
-// SYSTEMS (core progression preserved in spirit)
+// SYSTEMS (core preserved)
 // ============================================================================
 
 pub fn mercy_gate_enforcement_system(
@@ -302,7 +300,7 @@ impl Plugin for HardwareSovereigntyPlugin {
 }
 
 // ============================================================================
-// egui UI — KARDASHEV + ACTIVE POLICIES + MULTI-REALM STATUS
+// egui UI — FULL OBSERVABILITY (including Echo Policies + Resonance)
 // ============================================================================
 
 use bevy_egui::EguiContexts;
@@ -318,21 +316,20 @@ pub fn sovereign_hardware_ascension_ui(
     let ctx = contexts.ctx_mut();
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
-        .default_pos([18.0, 380.0])
-        .default_size([460.0, 680.0])
+        .default_pos([18.0, 360.0])
+        .default_size([470.0, 720.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Reality Thriving Transfer | Multi-Realm")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Resonance + Echo Policies")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
 
             ui.separator();
 
-            // ONE Organism
             for (state, _, _) in query.iter() {
                 if state.one_organism_achievement {
                     ui.colored_label(
@@ -355,7 +352,7 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // Kardashev Dashboard
+            // Kardashev
             ui.heading(egui::RichText::new("🚀 Kardashev Acceleration")
                 .color(egui::Color32::from_rgb(255, 200, 100)));
             ui.label(format!("Global Delta: {:.4}  |  Inflection: {}",
@@ -374,7 +371,7 @@ pub fn sovereign_hardware_ascension_ui(
                 if active.is_empty() {
                     ui.label(egui::RichText::new("No active policies.").italics().color(egui::Color32::GRAY));
                 } else {
-                    for policy in active {
+                    for policy in active.iter().take(6) {
                         let icon = match policy.policy_type {
                             CouncilPolicyType::KardashevAcceleration => "🚀",
                             CouncilPolicyType::ResourcePolicy => "🌾",
@@ -382,7 +379,7 @@ pub fn sovereign_hardware_ascension_ui(
                             CouncilPolicyType::HarmonyBoost => "🕊️",
                             CouncilPolicyType::General => "📋",
                         };
-                        ui.label(format!("{} {}  |  str {:.2}  |  {} ticks left",
+                        ui.label(format!("{} {}  |  str {:.2}  |  {} ticks",
                             icon, policy.title, policy.strength, policy.remaining_ticks));
                     }
                 }
@@ -390,23 +387,23 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // ========== NEW: Multi-Realm Status ==========
+            // ========== Multi-Realm Status (with Echo + Resonance) ==========
             ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
                 .color(egui::Color32::from_rgb(180, 160, 255)));
 
             if let Some(harness) = multi_realm {
                 ui.label(format!(
-                    "Active Realms: {}  |  Thriving: {}  |  Cross-Realm Mercy Flow: {:.2}",
+                    "Active: {}  |  Thriving: {}  |  Mercy Flow: {:.2}  |  Resonance: {:.2}",
                     harness.active_realm_count(),
                     harness.thriving_realm_count(),
-                    harness.cross_realm_mercy_flow
+                    harness.cross_realm_mercy_flow,
+                    harness.global_resonance_level
                 ));
-                ui.label(format!("Total Active Policies Across Realms: {}",
+                ui.label(format!("Total Active Policies: {}",
                     harness.total_active_policies_across_realms));
 
                 ui.add_space(4.0);
 
-                // Sort by id for stable display
                 let mut realms: Vec<_> = harness.realms.values().collect();
                 realms.sort_by_key(|r| r.id);
 
@@ -419,14 +416,16 @@ pub fn sovereign_hardware_ascension_ui(
 
                     ui.horizontal(|ui| {
                         ui.colored_label(status_color, format!("[{}] {}", realm.id, realm.name));
-                        ui.label(format!(
-                            "— {:?}  |  policies: {}  |  mercy: {:.2}  |  {}",
-                            realm.primary_race_bias,
-                            realm.active_policy_count,
-                            realm.mercy_attunement_avg,
-                            realm.status.as_str()
-                        ));
                     });
+                    ui.label(format!(
+                        "    {:?}  |  policies: {}  |  echoes: {}  |  legacy: {}  |  mercy: {:.2}  |  {}",
+                        realm.primary_race_bias,
+                        realm.active_policy_count,
+                        realm.echo_policy_count,
+                        realm.legacy_entry_count,
+                        realm.mercy_attunement_avg,
+                        realm.status.as_str()
+                    ));
                 }
             } else {
                 ui.label(egui::RichText::new("MultiRealmHarness not yet available.")
@@ -463,5 +462,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.19 — Multi-Realm Status now fully visible in the dashboard.
+// End of v21.26 — Echo policy counts + global resonance fully observable.
 // Thunder locked in. Yoi ⚡

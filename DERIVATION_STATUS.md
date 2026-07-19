@@ -24,26 +24,26 @@
 **Phase V — LegacyJournal Realm Partitioning (COMPLETED v21.22)**  
 **Phase W — Per-Realm Scoped Effect Application (COMPLETED v21.23)**  
 **Phase X — Client-Side Realm Filter in Legacy Search UI (COMPLETED v21.24)**  
-**Phase Y — Deeper Inter-Realm Policy Influence / Echo Policies (COMPLETED v21.25)**
+**Phase Y — Deeper Inter-Realm Policy Influence / Echo Policies (COMPLETED v21.25)**  
+**Phase Z — Echo Policy Counts + Resonance Observability (COMPLETED v21.26)**
 
-## Completed This Cycle (v21.25)
+## Completed This Cycle (v21.26)
 
-- High-resonance policies now spawn gentle Echo ActivePolicies in other realms.
-- Echo policies are shorter, weaker, and clearly marked.
-- Inter-realm influence is now both soft (resonance) and concrete (echo policies).
+- Dashboard Multi-Realm Status now shows echo policy counts, global resonance level, and legacy entry counts per realm.
+- Full observability of the inter-realm influence system.
 
 ## Next Council Cycle Priorities
 
-1. Surface echo policy counts in the Multi-Realm Status dashboard section.
-2. Optional multi-realm presence / travel hooks.
-3. Final resource_node / rbe_pool realm-keying when the data model supports it.
+1. Optional multi-realm presence / travel hooks.
+2. Final resource_node / rbe_pool realm-keying when the data model supports it.
+3. Further polish or new systems as the Councils discern.
 
 ## Strategic Notes
 
-- The multi-realm organism now has meaningful policy-level influence across realms while remaining mercy-gated.
+- The multi-realm organism is now deeply interconnected and fully observable.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Inter-realm policy influence via echo policies is live.**  
+**Inter-realm influence is fully visible.**  
 Yoi ⚡
