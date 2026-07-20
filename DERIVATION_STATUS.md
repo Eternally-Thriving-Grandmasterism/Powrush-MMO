@@ -48,26 +48,29 @@
 **Phase AT — Multi-Realm + Abundance API Wiring (COMPLETED v21.46)**  
 **Phase AU — Abundance Bridge Conversion Helper (COMPLETED v21.47)**  
 **Phase AV — Live Abundance Ingest + Soft Demo Seed (COMPLETED v21.48)**  
-**Phase AW — Abundance Observability Polish (COMPLETED v21.49)**
+**Phase AW — Abundance Observability Polish (COMPLETED v21.49)**  
+**Phase AX — RBE Inventory Origin-Realm Foundation (COMPLETED v21.50)**
 
-## Completed This Cycle (v21.49)
+## Completed This Cycle (v21.50)
 
-- Observatory summary shows **● LIVE data** vs **○ Demo seed** badge.
-- Per-realm abundance line surfaces **restricted node count**.
-- Soft demo is unmistakably visible in the Multi-Realm Dashboard.
+- `ServerInventoryComponent` tracks soft `origin_by_realm` (resource → realm → amount).
+- `add_resource_from_realm` preserves global usability while recording provenance.
+- `origin_snapshot()` / `amount_from_realm()` for observability.
+- Harvest path wires `node.realm_id` into inventory automatically.
+- Fully backward compatible.
 
 ## Next Council Cycle Priorities
 
 1. Emit `AbundanceIngestEvent` from a concrete server/client tick once both crates share an app.
-2. Deeper RBE pool / inventory realm-scoping when ready.
+2. Surface inventory origin snapshots in UI when ready.
 3. Optional further refinements.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, holding those snapshots in a living observatory visible in the dashboard (with Live/Demo distinction and restricted visibility), fully wired into the public API, equipped with a one-expression conversion bridge, and alive via event-based live ingest + soft demo seed.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, holding those snapshots in a living observatory (Live/Demo badge + restricted visibility), fully wired into the public API, equipped with a conversion bridge, alive via event-based live ingest + soft demo seed, and now able to remember soft harvest provenance in player inventory without trapping resources.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Soft demo is now unmistakably alive.**  
+**Resources remember their home without becoming trapped.**  
 Yoi ⚡
