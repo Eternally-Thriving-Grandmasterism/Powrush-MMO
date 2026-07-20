@@ -1,27 +1,29 @@
 /*!
  * simulation/src/orchestrator.rs
- * Central Simulation Orchestrator (v21.12)
+ * Central Simulation Orchestrator (v21.13)
  *
  * Full TOLC 8 MercyGate + EconomicLayer batch_update
  * Integrated with robust PersistenceManager / PlayerSaveData
  * GPU PATSAGi foresight, Council bloom, Emergence, Harvest, Synergy
  * v21.12: Live EpiphanyEvent impact wired via apply_epiphany_policy_impact
+ * v21.13: run_tick_with_telemetry → live Ra-Thor transfer counters
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
  */
 
 use crate::world::SovereignWorldState;
 use crate::economy::EconomicLayer;
-use crate::harvest::{HarvestEvent, HarvestingSystem};
-use crate::emergence::{DynamicEmergenceEvent, EmergenceOrchestrator};
+use crate::harvest::HarvestingSystem;
+use crate::emergence::EmergenceOrchestrator;
 use crate::ability_tree::SynergyEffectEvent;
 use crate::council_mercy_trial::CouncilSessionManager;
 use crate::council::decision::{CouncilDecisions, apply_resource_policy_impact, apply_epiphany_policy_impact, PolicyType};
 use crate::player_persistence::PlayerSaveData;
 use crate::mercy::MercyGate;
-use std::time::Instant;
+use crate::telemetry::TelemetryCollector;
 use std::sync::Arc;
-use tracing::{info, warn, debug};
+use tracing::{info, warn};
 
 #[cfg(feature = "gpu")]
 use crate::engine::gpu_patsagi_bridge::{GpuPatsagiBridge, GpuPatsagiRequest, GpuPatsagiResponse, ComputeIntensity};
@@ -41,6 +43,16 @@ pub struct TickResult {
     pub gpu_foresight_used: bool,
     pub gpu_foresight_applied: bool,
     pub errors: Vec<String>,
+}
+
+impl TickResult {
+    /// Mercy flow estimate for Ra-Thor transfer counters (TOLC-aligned, clamped).
+    pub fn estimated_mercy_flow(&self) -> f32 {
+        let base = 0.85_f32;
+        let council_boost = (self.council_attunement_score * 0.25).clamp(0.0, 0.4);
+        let error_penalty = if self.errors.is_empty() { 0.0 } else { 0.15 };
+        (base + council_boost - error_penalty).clamp(0.35, 1.85)
+    }
 }
 
 pub struct SimulationOrchestrator {
@@ -111,7 +123,6 @@ impl SimulationOrchestrator {
             }
         }
 
-        // Live ResourcePolicy + EpiphanyEvent impacts from CouncilDecisions
         if let Some(decisions) = council_decisions {
             for policy in &decisions.active_policies {
                 if policy.is_expired() {
@@ -167,6 +178,37 @@ impl SimulationOrchestrator {
         }
 
         result.synergy_events = self.collect_synergy_events_direct(world, player_save);
+        let _ = interest_manager; // reserved for spatial-interest telemetry later
+        result
+    }
+
+    /// Same as `run_tick`, then feeds live Ra-Thor transfer counters via `TelemetryCollector`.
+    pub fn run_tick_with_telemetry(
+        &mut self,
+        world: &mut SovereignWorldState,
+        interest_manager: Option<&crate::spatial_interest::InterestManager>,
+        council_manager: Option<&mut CouncilSessionManager>,
+        player_save: Option<&mut PlayerSaveData>,
+        council_decisions: Option<&CouncilDecisions>,
+        telemetry: &mut TelemetryCollector,
+    ) -> TickResult {
+        let result = self.run_tick(
+            world,
+            interest_manager,
+            council_manager,
+            player_save,
+            council_decisions,
+        );
+
+        telemetry.record_tick_result(
+            result.tick,
+            result.estimated_mercy_flow(),
+            result.council_participant_count,
+            result.epiphany_policy_impacts,
+            result.harvest_nodes_processed.max(result.resource_policy_impacts),
+            !result.errors.is_empty(),
+        );
+
         result
     }
 
