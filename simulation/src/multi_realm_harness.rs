@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement
-//! v21.38.0
+//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles
+//! v21.41.0
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -103,6 +103,7 @@ impl Default for RealmPresence {
 }
 
 /// Tracks how deeply the player has attuned to each realm through presence.
+/// Living titles emerge gently from thresholds — pure meaning, zero hard power.
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Reflect, Default)]
 #[reflect(Component)]
 pub struct RealmAttunement {
@@ -128,6 +129,50 @@ impl RealmAttunement {
         if *entry > self.peak_value {
             self.peak_value = *entry;
             self.peak_realm = Some(realm_id);
+        }
+    }
+
+    /// Derive a soft, living title from current-realm attunement + total presence.
+    /// Thresholds are mercy-aligned and purely recognitive.
+    pub fn living_title(&self, current_realm: RealmId) -> String {
+        let current = self.get(current_realm);
+        let realm_short = match current_realm {
+            0 => "Sanctuary",
+            1 => "Lattice",
+            2 => "Verdant",
+            3 => "Chorus",
+            4 => "Horizon",
+            _ => "Realm",
+        };
+
+        let realm_title = if current >= 1.0 {
+            format!("Heart of {}", realm_short)
+        } else if current >= 0.75 {
+            format!("Attuned of {}", realm_short)
+        } else if current >= 0.50 {
+            format!("Resident of {}", realm_short)
+        } else if current >= 0.25 {
+            format!("Seeker of {}", realm_short)
+        } else {
+            String::new()
+        };
+
+        let total_honor = if self.total >= 4.0 {
+            " • Living Lattice"
+        } else if self.total >= 2.5 {
+            " • Realm Weaver"
+        } else if self.total >= 1.0 {
+            " • Multi-Realm Traveler"
+        } else {
+            ""
+        };
+
+        if realm_title.is_empty() && total_honor.is_empty() {
+            "Presence accumulating...".to_string()
+        } else if realm_title.is_empty() {
+            total_honor.trim_start_matches(" • ").to_string()
+        } else {
+            format!("{}{}", realm_title, total_honor)
         }
     }
 }
@@ -226,7 +271,7 @@ impl MultiRealmHarness {
         self.primary_realm_id = 0;
         self.next_realm_id = 5;
 
-        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement ready");
+        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement + titles ready");
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
@@ -630,9 +675,9 @@ impl Plugin for MultiRealmHarnessPlugin {
                 ),
             );
 
-        info!("MultiRealmHarnessPlugin — presence + attunement + travel active");
+        info!("MultiRealmHarnessPlugin — presence + attunement + living titles active");
     }
 }
 
-// Thunder locked in. Presence now gently accumulates living attunement.
+// Thunder locked in. Presence now gently accumulates living attunement and named meaning.
 // Yoi ⚡
