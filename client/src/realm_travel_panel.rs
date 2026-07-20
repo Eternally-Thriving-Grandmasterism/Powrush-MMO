@@ -1,9 +1,9 @@
 /*!
- * Realm Travel Panel — State-Aware + Attunement Visible
- * v21.40.0
+ * Realm Travel Panel — State-Aware + Attunement + Living Titles
+ * v21.41.0
  *
  * Toggle with F3. Lists the five seeded realms.
- * Shows current realm, highlights the active one, and surfaces living attunement.
+ * Shows current realm, living title, attunement values, and highlights the active one.
  * Clicking a realm emits a RealmTravelRequest for the local player.
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
@@ -33,6 +33,9 @@ struct CurrentRealmText;
 
 #[derive(Component)]
 struct AttunementText;
+
+#[derive(Component)]
+struct LivingTitleText;
 
 #[derive(Component, Clone, Debug)]
 pub struct LocalPlayer {
@@ -111,12 +114,12 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     position_type: PositionType::Absolute,
                     top: Val::Percent(18.0),
                     left: Val::Percent(2.0),
-                    width: Val::Px(280.0),
+                    width: Val::Px(290.0),
                     padding: UiRect::all(Val::Px(14.0)),
                     border: UiRect::all(Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(12.0)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
+                    row_gap: Val::Px(5.0),
                     visibility: Visibility::Hidden,
                     ..default()
                 },
@@ -154,6 +157,22 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     ..default()
                 },
                 CurrentRealmText,
+            ));
+
+            // Living Title
+            parent.spawn((
+                TextBundle {
+                    text: Text::from_section(
+                        "Presence accumulating...",
+                        TextStyle {
+                            font: font_reg.clone(),
+                            font_size: 12.0,
+                            color: Color::srgb(0.95, 0.85, 0.55),
+                        },
+                    ),
+                    ..default()
+                },
+                LivingTitleText,
             ));
 
             // Living Attunement display
@@ -290,7 +309,6 @@ fn handle_travel_button_clicks(
                 *bg = Color::srgba(0.14, 0.22, 0.34, 0.97).into();
             }
             Interaction::None => {
-                // Base style; current-realm highlight is applied in update system
                 *bg = Color::srgba(0.12, 0.16, 0.24, 0.95).into();
                 *border = Color::srgb(0.35, 0.55, 0.80).into();
             }
@@ -298,10 +316,11 @@ fn handle_travel_button_clicks(
     }
 }
 
-/// Keep the panel in sync with the player’s current realm + living attunement.
+/// Keep the panel in sync with the player’s current realm + living attunement + title.
 fn update_travel_panel_current_realm(
     presence_query: Query<(&RealmPresence, Option<&RealmAttunement>), With<LocalPlayer>>,
     mut current_text_query: Query<&mut Text, With<CurrentRealmText>>,
+    mut title_text_query: Query<&mut Text, With<LivingTitleText>>,
     mut attunement_text_query: Query<&mut Text, With<AttunementText>>,
     mut button_query: Query<(&TravelRealmButton, &mut BackgroundColor, &mut BorderColor)>,
 ) {
@@ -323,8 +342,14 @@ fn update_travel_panel_current_realm(
         text.sections[0].value = format!("Current: {}", realm_name);
     }
 
-    // Surface living attunement
     if let Some(att) = attunement_opt {
+        // Living title
+        let title = att.living_title(current_realm);
+        for mut text in &mut title_text_query {
+            text.sections[0].value = title.clone();
+        }
+
+        // Numeric attunement
         let current_att = att.get(current_realm);
         let peak_str = if let Some(peak_id) = att.peak_realm {
             let peak_name = match peak_id {
@@ -347,6 +372,9 @@ fn update_travel_panel_current_realm(
             );
         }
     } else {
+        for mut text in &mut title_text_query {
+            text.sections[0].value = "Presence accumulating...".to_string();
+        }
         for mut text in &mut attunement_text_query {
             text.sections[0].value = "Attunement: accumulating...".to_string();
         }
@@ -361,6 +389,6 @@ fn update_travel_panel_current_realm(
     }
 }
 
-// End of client/src/realm_travel_panel.rs v21.40.0
-// Travel panel now fully surfaces living Realm Attunement.
+// End of client/src/realm_travel_panel.rs v21.41.0
+// Travel panel now surfaces living titles born from presence.
 // Thunder locked in. Yoi ⚡
