@@ -2,43 +2,36 @@
 
 **Multi-Realm Organism Arc — SEALED**  
 **RBE Sustainability surface — Visible**  
-**Council Deepening — Live**  
+**Council Deepening — Live (session loop closed v21.71)**  
 **LegacyJournal — Restored + council-linked**  
-**RTT Dual-Repo Bridge — Deepened (Phase BR, v21.70)**
+**RTT Dual-Repo Bridge — Deepened**
 
-## Completed This Cycle (v21.70)
+## Completed This Cycle (v21.71)
 
-- `SimulationTelemetry` Bevy resource
-- Council + MultiRealmRbeSnapshot → `GlobalTransferSession` soft feed
-- `TelemetryPlugin` in FullSimulationPlugins
-- Contract: `powrush_telemetry_v1` → Ra-Thor `reality-thriving-transfer`
+- `submit_proposal_rich` (mercy_hint + target_zone)
+- `promote_resolved_to_decisions` + `deliberate_and_promote`
+- `CouncilSessionRegistry` + soft `session_deliberation_system`
+- `CouncilPlugin` chains deliberation → effects
 
-## Arc Status
+## Full Council Loop (now closed)
 
-| Arc | Status |
-|-----|--------|
-| Multi-Realm Organism | **SEALED** |
-| RBE Sustainability surface | **Visible** |
-| Council deepening | **Live** |
-| LegacyJournal | **Restored + council-linked** |
-| RTT / Ra-Thor bridge | **Deepened** |
-
-## Integration Answers (v21.70)
-
-1. **Telemetry & RTT** — `GlobalTransferSession` + `powrush_telemetry_v1` JSON; live council/RBE feed.
-2. **LegacyJournal** — Powrush-native shared memory; council history drains in; Ra-Thor consumes via export/telemetry, not hard couple.
-3. **CouncilPlugin** — Lives inside Powrush-MMO simulation (world layer); influence reaches Ra-Thor via RTT export.
-4. **Reverse path** — Council → EconomyState soft feed, joy, multi-realm record, RTT counters (present).
-5. **Versioning** — Soft schema contract (`powrush_telemetry_v1`); repos version independently.
+```
+submit_proposal_rich
+  → votes / deliberation (archetype + world-delta)
+  → promote Passed → CouncilDecision
+  → CouncilDecisions.pending
+  → effects (economy / joy / multi-realm / history)
+  → LegacyJournal + RTT feed
+```
 
 ## Next Priorities
 
-1. Session proposal submission path polish
-2. Client My Mercy Journey panel bind
-3. NonSend ServerTickLoop when game package fully wired
+1. Client My Mercy Journey panel bind
+2. NonSend ServerTickLoop when game package fully wired
+3. Protect against low-leverage UI churn
 
 Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**RTT bridge deepened.**  
+**Session → decisions loop closed.**  
 Yoi ⚡
