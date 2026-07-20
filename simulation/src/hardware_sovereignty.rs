@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
-//! v21.39 | Realm Attunement surfaced
+//! v21.41 | Living Attunement Titles dual-surfaced
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -300,7 +300,7 @@ impl Plugin for HardwareSovereigntyPlugin {
 }
 
 // ============================================================================
-// egui UI — COMPLETE MULTI-REALM + ATTUNEMENT OBSERVABILITY
+// egui UI — COMPLETE MULTI-REALM + ATTUNEMENT + LIVING TITLES
 // ============================================================================
 
 use bevy_egui::EguiContexts;
@@ -318,13 +318,13 @@ pub fn sovereign_hardware_ascension_ui(
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
         .default_pos([18.0, 300.0])
-        .default_size([500.0, 780.0])
+        .default_size([500.0, 800.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Attunement | Living Portals")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Living Titles | Portals")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
@@ -388,11 +388,11 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // ========== Multi-Realm Status + Attunement ==========
+            // ========== Multi-Realm Status + Attunement + Living Titles ==========
             ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
                 .color(egui::Color32::from_rgb(180, 160, 255)));
 
-            // Local player current realm + attunement
+            // Local player current realm + living title + attunement
             if let Ok((presence, attunement_opt)) = player_presence.get_single() {
                 let name = match presence.current_realm_id {
                     0 => "Sanctuary Prime",
@@ -409,6 +409,13 @@ pub fn sovereign_hardware_ascension_ui(
                 ui.label(format!("Travel count: {}", presence.travel_count));
 
                 if let Some(att) = attunement_opt {
+                    // Living Title
+                    let title = att.living_title(presence.current_realm_id);
+                    ui.colored_label(
+                        egui::Color32::from_rgb(255, 215, 120),
+                        format!("Title: {}", title),
+                    );
+
                     let current_att = att.get(presence.current_realm_id);
                     ui.colored_label(
                         egui::Color32::from_rgb(200, 180, 255),
@@ -508,5 +515,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.39 — Realm Attunement is fully visible in the Multi-Realm dashboard.
+// End of v21.41 — Living Attunement Titles are dual-surfaced.
 // Thunder locked in. Yoi ⚡
