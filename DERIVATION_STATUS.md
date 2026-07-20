@@ -38,25 +38,25 @@
 **Phase AJ — Travel Panel Current-Realm Awareness (COMPLETED v21.36)**  
 **Phase AK — Local Player Current Realm in Dashboard (COMPLETED v21.37)**  
 **Phase AL — Realm Attunement (COMPLETED v21.38)**  
-**Phase AM — Surface Realm Attunement in Dashboard (COMPLETED v21.39)**
+**Phase AM — Surface Realm Attunement in Dashboard (COMPLETED v21.39)**  
+**Phase AN — Surface Realm Attunement in F3 Travel Panel (COMPLETED v21.40)**
 
-## Completed This Cycle (v21.39)
+## Completed This Cycle (v21.40)
 
-- Current, total, and peak Realm Attunement are now visible in the Multi-Realm dashboard.
-- Living presence meaning is fully observable.
+- F3 Realm Travel Panel now displays Current, Total, and Peak Realm Attunement.
+- Dual observability of living presence meaning is complete (Dashboard + Travel Panel).
 
 ## Next Council Cycle Priorities
 
 1. Optional small bonuses or titles tied to attunement thresholds.
-2. Surface attunement in the F3 travel panel as well.
-3. Final resource_node / rbe_pool realm-keying when ready.
+2. Final resource_node / rbe_pool realm-keying when ready.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, and fully visible.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, and dual-visible.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Attunement is visible.**  
+**Attunement is fully dual-surfaced.**  
 Yoi ⚡
