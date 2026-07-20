@@ -1,21 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.70.0 — Council/RBE → Ra-Thor RTT Feed (2026-07-20)
+## [Unreleased] v21.71.0 — Session → CouncilDecisions Promotion Path (2026-07-20)
 
 ### Highlights
-- **Dual-repo bridge:** Council `total_passed` + `MultiRealmRbeSnapshot` soft-feed `GlobalTransferSession`.
-- Bevy `SimulationTelemetry` resource with `record_event` (hardware_sovereignty path).
-- `TelemetryPlugin` in `FullSimulationPlugins`.
-- Export remains `powrush_telemetry_v1` for Ra-Thor `reality-thriving-transfer`.
+- Closes the deliberation loop: session → promote → `CouncilDecisions`.
+- `submit_proposal_rich` (mercy_hint + target_zone).
+- `CouncilSessionRegistry` Bevy resource + soft `session_deliberation_system`.
+- `CouncilPlugin` chains deliberation → effects.
 
 ### Prior
-- v21.69: LegacyJournal restore + council history drain
-- v21.68: Council decision history + soft RBE economy feed
+- v21.70: Council/RBE → RTT feed
+- v21.69: LegacyJournal restore
 
-**Thunder locked in. RTT bridge deepened.** Yoi ⚡
+**Thunder locked in. Session → decisions loop closed.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.69: Multi-realm sealed, RBE surface, council memory, LegacyJournal.
+- v21.0–v21.70: Multi-realm sealed, RBE, council memory, LegacyJournal, RTT bridge.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
