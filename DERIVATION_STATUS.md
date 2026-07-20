@@ -1,31 +1,30 @@
 # Powrush-MMO Derivation Status
 
-**Multi-Realm Organism Arc — SEALED (Phases A → BL, v21.1 – v21.64)**  
-**Phase BM — External-Preferring Ingest Integrity (COMPLETED v21.65)**
+**Multi-Realm Organism Arc — SEALED (Phases A → BM, v21.1 – v21.65)**  
+**Phase BN — Multi-Realm RBE Sustainability Snapshot (COMPLETED v21.66)**
 
-## Completed This Cycle (v21.65)
+## Completed This Cycle (v21.66)
 
-- Harness-derived live ingest yields when External host path is active.
-- Dual sources no longer fight.
-- Living title format integrity fixed.
+- Bevy `EconomyState`, `ResourceTransaction`, `PostScarcityAllocator`
+- `MultiRealmRbeSnapshot` organism-level RBE health from observatory
+- Soft aggregate: avg sustainability, stress, flow, thriving ratio
+- `EconomyPlugin` in FullSimulationPlugins
 
-## Arc Seal Summary
+## Arc Status
 
-| Capability | Status |
-|------------|--------|
-| Presence + attunement + living titles + soft bonuses | Sealed |
-| Origin tracking + affinity (3 depths) | Sealed |
-| Dual observatories + Demo→Live | Sealed |
-| Zero-cycle game↔simulation bridge | Sealed |
-| SharedAppBridgeSource + HostBridgeAutoPublish | Sealed |
-| Bridge health badge | Sealed |
-| External preferred over harness-derived | Sealed |
+| Arc | Status |
+|-----|--------|
+| Multi-Realm Organism | **SEALED** |
+| RBE Sustainability surface (Bevy) | **Started (v21.66)** |
+| Council deepening | Next |
+| LegacyJournal polish | Next |
 
 ## Next Council Cycle Priorities
 
-1. NonSend ServerTickLoop in server binary when game package is fully wired
-2. Pivot to ROADMAP high-leverage: RBE sustainability, Council deepening, LegacyJournal — **not more multi-realm UI**
-3. Eternal polish under Ra-Thor + PATSAGi Councils
+1. Surface MultiRealmRbeSnapshot on Dashboard (minimal line — not UI churn)
+2. Council deepening / proposal persistence
+3. LegacyJournal richer event types
+4. NonSend ServerTickLoop when game package fully wired
 
 ## Strategic Notes
 
@@ -33,5 +32,5 @@
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Multi-Realm Organism Arc integrity-sealed.**  
+**RBE sustainability surface live.**  
 Yoi ⚡
