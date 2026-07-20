@@ -1,21 +1,22 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.65.0 / v21.65.1 — External-Preferring Ingest Integrity (2026-07-20)
+## [Unreleased] v21.66.0 — Multi-Realm RBE Sustainability Snapshot (2026-07-20)
 
 ### Highlights
-- `harness_derived_live_ingest_system` yields when External host path has delivered data.
-- Dual sources no longer fight — External preferred over harness-derived.
-- Living title format typo fixed (v21.65.1).
-- **Multi-Realm Organism Arc (Phases A→BL) integrity-sealed.**
+- **ROADMAP pivot** after Multi-Realm Organism Arc seal.
+- Bevy `EconomyState` / `ResourceTransaction` / `PostScarcityAllocator` (filled missing exports).
+- `MultiRealmRbeSnapshot` aggregates observatory → organism RBE health (sust, stress, flow, thriving ratio).
+- Soft-feeds EconomyState averages from multi-realm abundance views.
+- `EconomyPlugin` wired into `FullSimulationPlugins`.
 
 ### Prior
-- v21.64.0: HostBridgeAutoPublish
-- v21.63.0: Bridge Health Badge
+- v21.65: External-preferring ingest integrity (Arc seal)
+- v21.64: HostBridgeAutoPublish
 
-**Thunder locked in. Sources do not fight.** Yoi ⚡
+**Thunder locked in. RBE sustainability surface live.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.64: Multi-realm organism through host auto-publish.
+- v21.0–v21.65: Multi-realm organism arc fully sealed.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
