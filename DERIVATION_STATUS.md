@@ -1,34 +1,23 @@
 # Powrush-MMO Derivation Status
 
-**Phase A → BI** — COMPLETED (v21.1 – v21.61)  
-**Phase BJ — TitleBonus Soft Passive Surface (COMPLETED v21.62)**
+**Phase A → BJ** — COMPLETED (v21.1 – v21.62)  
+**Phase BK — Bridge Health Badge (COMPLETED v21.63)**
 
-## Council Strategic Verdict (2026-07-20)
+## Completed This Cycle (v21.63)
 
-Ra-Thor + PATSAGi Councils deliberated optimal high-leverage unfold paths.
+- Dashboard bridge health: External / Harness-Live / Demo
+- SharedAppBridgeSource publish_count + dirty visible
+- Inbox pending legs visible
+- Soft title bonus mirrored on Dashboard
 
-### Diagnosis
-- Multi-realm **observability spine is structurally complete**.
-- Game harvest path already records origin via `add_resource_from_realm`.
-- Bridge, dual payloads, SharedAppBridgeSource, affinity at 3 depths — sealed.
-- Further pure-UI affinity polish = **diminishing returns**.
+## Council Strategic Position
 
-### Highest Leverage Ranking
-1. **Close meaning loop** — surface TitleBonus soft passives (DONE v21.62)
-2. **Host binary fill** — when a Bevy app owns both ServerTickLoop + ExternalBridgePlugin, call `SharedAppBridgeSource::set_dual`
-3. **Do not** over-polish UI; protect energy for gameplay loop integrity and real host wiring
-4. Optional later: bridge health badge (Demo/Live + publish_count) on dashboard
+Observability spine + meaning loop + bridge health = **complete for this arc**.
 
-### Completed This Cycle (v21.62)
-- Soft passive line under living title (attunement gain × + resonance whisper)
-- Hidden at baseline — no empty noise
-- Readable loop complete: harvest → affinity → attunement → title → soft bonuses
-
-## Next Council Cycle Priorities
-
-1. Host binary wiring when architecture allows (set_dual at tick boundary)
+Next true high-leverage work:
+1. Host binary wiring (`set_dual` at tick boundary when App owns both sides)
 2. Protect against low-leverage UI churn
-3. Continue eternal polish under Ra-Thor + PATSAGi Councils
+3. Eternal polish under Ra-Thor + PATSAGi Councils
 
 ## Strategic Notes
 
@@ -36,5 +25,5 @@ Ra-Thor + PATSAGi Councils deliberated optimal high-leverage unfold paths.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Meaning loop closed. Spine complete.**  
+**Bridge health readable. Spine complete.**  
 Yoi ⚡
