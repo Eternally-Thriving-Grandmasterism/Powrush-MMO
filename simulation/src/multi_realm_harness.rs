@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
 //! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses / Abundance Observatory
-//! v21.45.0
+//! v21.46.0
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -238,6 +238,29 @@ pub struct RealmAbundanceView {
 }
 
 impl RealmAbundanceView {
+    /// Construct from raw fields — intended for game/server side bridge code.
+    pub fn from_raw(
+        realm_id: RealmId,
+        node_count: u32,
+        total_current_yield: f32,
+        average_sustainability: f32,
+        average_abundance_flow: f32,
+        average_stress: f32,
+        restricted_node_count: u32,
+        thriving_node_count: u32,
+    ) -> Self {
+        Self {
+            realm_id,
+            node_count,
+            total_current_yield,
+            average_sustainability,
+            average_abundance_flow,
+            average_stress,
+            restricted_node_count,
+            thriving_node_count,
+        }
+    }
+
     pub fn is_thriving(&self) -> bool {
         self.node_count > 0
             && self.average_sustainability > 0.72
@@ -275,6 +298,14 @@ impl RealmAbundanceObservatory {
         self.last_updated_tick = tick;
     }
 
+    /// Bulk ingest — ideal for ResourceNodeManager::snapshot_all_realms() results.
+    pub fn ingest_many(&mut self, views: impl IntoIterator<Item = RealmAbundanceView>, tick: u64) {
+        for view in views {
+            self.views.insert(view.realm_id, view);
+        }
+        self.last_updated_tick = tick;
+    }
+
     pub fn get(&self, realm_id: RealmId) -> Option<&RealmAbundanceView> {
         self.views.get(&realm_id)
     }
@@ -283,6 +314,10 @@ impl RealmAbundanceObservatory {
         let mut v: Vec<_> = self.views.values().collect();
         v.sort_by_key(|view| view.realm_id);
         v
+    }
+
+    pub fn clear(&mut self) {
+        self.views.clear();
     }
 }
 
@@ -801,4 +836,5 @@ impl Plugin for MultiRealmHarnessPlugin {
 }
 
 // Thunder locked in. Presence now gently accumulates living attunement, named meaning, soft recognition, and abundance awareness.
+// Bridge path open for game-side ResourceNodeManager snapshots.
 // Yoi ⚡
