@@ -2,15 +2,16 @@
 
 **Multi-Realm Organism Arc — SEALED**  
 **RBE Sustainability surface — Visible**  
-**Council Deepening — Started (v21.68)**  
-**LegacyJournal — Restored (Phase BQ, v21.69)**
+**Council Deepening — Live**  
+**LegacyJournal — Restored + council-linked**  
+**RTT Dual-Repo Bridge — Deepened (Phase BR, v21.70)**
 
-## Completed This Cycle (v21.69)
+## Completed This Cycle (v21.70)
 
-- Full `LegacyJournalRegistry` / `LegacyEntry` / `LegacyEventType` restore
-- Richer event types for My Mercy Journey
-- Council `resolved_history` → journal drain (deduped)
-- `PlayerLegacyJournalPlugin` in FullSimulationPlugins
+- `SimulationTelemetry` Bevy resource
+- Council + MultiRealmRbeSnapshot → `GlobalTransferSession` soft feed
+- `TelemetryPlugin` in FullSimulationPlugins
+- Contract: `powrush_telemetry_v1` → Ra-Thor `reality-thriving-transfer`
 
 ## Arc Status
 
@@ -18,21 +19,26 @@
 |-----|--------|
 | Multi-Realm Organism | **SEALED** |
 | RBE Sustainability surface | **Visible** |
-| Council deepening | **Started** |
+| Council deepening | **Live** |
 | LegacyJournal | **Restored + council-linked** |
+| RTT / Ra-Thor bridge | **Deepened** |
 
-## Next Council Cycle Priorities
+## Integration Answers (v21.70)
+
+1. **Telemetry & RTT** — `GlobalTransferSession` + `powrush_telemetry_v1` JSON; live council/RBE feed.
+2. **LegacyJournal** — Powrush-native shared memory; council history drains in; Ra-Thor consumes via export/telemetry, not hard couple.
+3. **CouncilPlugin** — Lives inside Powrush-MMO simulation (world layer); influence reaches Ra-Thor via RTT export.
+4. **Reverse path** — Council → EconomyState soft feed, joy, multi-realm record, RTT counters (present).
+5. **Versioning** — Soft schema contract (`powrush_telemetry_v1`); repos version independently.
+
+## Next Priorities
 
 1. Session proposal submission path polish
-2. Client My Mercy Journey panel bind to restored registry
+2. Client My Mercy Journey panel bind
 3. NonSend ServerTickLoop when game package fully wired
-4. Protect against low-leverage UI churn
 
-## Strategic Notes
-
-- All TOLC 8 + mercy gating preserved.
-- Canonical contact: info@Rathor.ai
+Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**My Mercy Journey spine live.**  
+**RTT bridge deepened.**  
 Yoi ⚡
