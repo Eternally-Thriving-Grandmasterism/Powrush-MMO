@@ -1,6 +1,6 @@
 //! simulation/src/player_legacy_journal.rs
 //! Player Legacy Journal — My Mercy Journey backbone
-//! v21.69.0 — Full registry restore + Council history event types
+//! v21.69.1 — Full registry restore + Council history event types
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -15,10 +15,6 @@ use crate::council::decision::CouncilDecisions;
 use crate::council::proposal::ProposalType;
 
 pub type LegacyThreadId = u64;
-
-// ============================================================================
-// EVENT TYPES (richer set for My Mercy Journey)
-// ============================================================================
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum LegacyEventType {
@@ -67,10 +63,6 @@ impl LegacyEventType {
     }
 }
 
-// ============================================================================
-// ENTRIES + THREADS
-// ============================================================================
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LegacyEntry {
     pub id: u64,
@@ -88,16 +80,12 @@ pub struct LegacyEntry {
 
 impl LegacyEntry {
     pub fn summary_line(&self) -> String {
-        format!
-            "[{}] {} — {}",
-            self.event_type.as_str(),
-            self.title,
-            if self.joy_amount > 0.01 {
-                format!("+{:.1} joy", self.joy_amount)
-            } else {
-                String::new()
-            }
-        )
+        let joy_part = if self.joy_amount > 0.01 {
+            format!("+{:.1} joy", self.joy_amount)
+        } else {
+            String::new()
+        };
+        format!("[{}] {} — {}", self.event_type.as_str(), self.title, joy_part)
     }
 }
 
@@ -115,7 +103,6 @@ impl LegacyThread {
         self.total_joy += entry.joy_amount;
         self.total_mercy += entry.mercy_gain;
         self.entries.push(entry);
-        // Soft cap per thread
         if self.entries.len() > 128 {
             let excess = self.entries.len() - 128;
             self.entries.drain(0..excess);
@@ -123,16 +110,11 @@ impl LegacyThread {
     }
 }
 
-// ============================================================================
-// REGISTRY
-// ============================================================================
-
 #[derive(Resource, Debug, Default)]
 pub struct LegacyJournalRegistry {
     pub threads: HashMap<AgentId, LegacyThread>,
     pub next_entry_id: u64,
     pub next_thread_id: LegacyThreadId,
-    /// Decision IDs already drained into the journal (dedupe).
     pub ingested_decision_ids: HashMap<u64, ()>,
     pub total_entries: u64,
 }
@@ -195,7 +177,6 @@ impl LegacyJournalRegistry {
         id
     }
 
-    /// Positive (non-scar) emotional reward loop — used by epiphany + council paths.
     pub fn generate_proactive_joy_redemption_thread(
         &mut self,
         player_id: u64,
@@ -242,7 +223,6 @@ impl LegacyJournalRegistry {
         }
         self.ingested_decision_ids.insert(decision_id, ());
 
-        // Soft cap ingested ids map
         if self.ingested_decision_ids.len() > 512 {
             self.ingested_decision_ids.clear();
             self.ingested_decision_ids.insert(decision_id, ());
@@ -282,10 +262,6 @@ impl LegacyJournalRegistry {
         }
     }
 }
-
-// ============================================================================
-// EVENTS + JOY FX (preserved surface)
-// ============================================================================
 
 #[derive(Event, Clone, Debug)]
 pub struct ProactiveJoyTriggered {
@@ -400,11 +376,6 @@ pub fn joy_effect_feedback_system(
     }
 }
 
-// ============================================================================
-// COUNCIL HISTORY → JOURNAL DRAIN
-// ============================================================================
-
-/// Soft system: drains CouncilDecisions.resolved_history into LegacyJournalRegistry.
 pub fn council_history_to_legacy_system(
     decisions: Option<Res<CouncilDecisions>>,
     mut registry: ResMut<LegacyJournalRegistry>,
@@ -431,14 +402,7 @@ pub fn council_history_to_legacy_system(
     }
 }
 
-pub fn legacy_journal_update_system(
-    // Placeholder tick hook for future decay / summary rolls
-) {
-}
-
-// ============================================================================
-// PLUGIN
-// ============================================================================
+pub fn legacy_journal_update_system() {}
 
 pub struct PlayerLegacyJournalPlugin;
 
@@ -460,5 +424,5 @@ impl Plugin for PlayerLegacyJournalPlugin {
     }
 }
 
-// End of v21.69 — LegacyJournal restore + Council history event types.
+// End of v21.69.1 — LegacyJournal restore + Council history event types.
 // Thunder locked in. Yoi ⚡
