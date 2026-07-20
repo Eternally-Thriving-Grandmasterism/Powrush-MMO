@@ -1,9 +1,9 @@
 /*!
- * Realm Travel Panel — State-Aware
- * v21.36.0
+ * Realm Travel Panel — State-Aware + Attunement Visible
+ * v21.40.0
  *
  * Toggle with F3. Lists the five seeded realms.
- * Shows current realm and highlights the active one.
+ * Shows current realm, highlights the active one, and surfaces living attunement.
  * Clicking a realm emits a RealmTravelRequest for the local player.
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
@@ -11,7 +11,9 @@
  */
 
 use bevy::prelude::*;
-use simulation::multi_realm_harness::{RealmTravelRequest, RealmId, RealmPresence};
+use simulation::multi_realm_harness::{
+    RealmTravelRequest, RealmId, RealmPresence, RealmAttunement,
+};
 use simulation::world::AgentId;
 
 // === Components ===
@@ -28,6 +30,9 @@ struct TravelStatusText;
 
 #[derive(Component)]
 struct CurrentRealmText;
+
+#[derive(Component)]
+struct AttunementText;
 
 #[derive(Component, Clone, Debug)]
 pub struct LocalPlayer {
@@ -53,16 +58,19 @@ impl Plugin for RealmTravelPanelPlugin {
 
 fn local_player_presence_bootstrap_system(
     mut commands: Commands,
-    local_query: Query<(Entity, Option<&RealmPresence>), With<LocalPlayer>>,
+    local_query: Query<(Entity, Option<&RealmPresence>, Option<&RealmAttunement>), With<LocalPlayer>>,
     mut harness: Option<ResMut<simulation::multi_realm_harness::MultiRealmHarness>>,
 ) {
     match local_query.get_single() {
-        Ok((entity, presence_opt)) => {
+        Ok((entity, presence_opt, attunement_opt)) => {
             if presence_opt.is_none() {
                 commands.entity(entity).insert(RealmPresence::default());
                 if let Some(ref mut h) = harness {
                     h.register_presence(0);
                 }
+            }
+            if attunement_opt.is_none() {
+                commands.entity(entity).insert(RealmAttunement::default());
             }
         }
         Err(_) => {
@@ -73,6 +81,7 @@ fn local_player_presence_bootstrap_system(
             commands.spawn((
                 LocalPlayer { agent_id },
                 presence,
+                RealmAttunement::default(),
                 Name::new("LocalPlayer_DevBootstrap"),
             ));
 
@@ -102,12 +111,12 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     position_type: PositionType::Absolute,
                     top: Val::Percent(18.0),
                     left: Val::Percent(2.0),
-                    width: Val::Px(270.0),
+                    width: Val::Px(280.0),
                     padding: UiRect::all(Val::Px(14.0)),
                     border: UiRect::all(Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(12.0)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(7.0),
+                    row_gap: Val::Px(6.0),
                     visibility: Visibility::Hidden,
                     ..default()
                 },
@@ -145,6 +154,22 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     ..default()
                 },
                 CurrentRealmText,
+            ));
+
+            // Living Attunement display
+            parent.spawn((
+                TextBundle {
+                    text: Text::from_section(
+                        "Attunement: 0.000  |  Total: 0.000",
+                        TextStyle {
+                            font: font_reg.clone(),
+                            font_size: 11.5,
+                            color: Color::srgb(0.85, 0.75, 1.0),
+                        },
+                    ),
+                    ..default()
+                },
+                AttunementText,
             ));
 
             parent.spawn(TextBundle {
@@ -273,16 +298,17 @@ fn handle_travel_button_clicks(
     }
 }
 
-/// Keep the panel in sync with the player’s current realm.
+/// Keep the panel in sync with the player’s current realm + living attunement.
 fn update_travel_panel_current_realm(
-    presence_query: Query<&RealmPresence, With<LocalPlayer>>,
+    presence_query: Query<(&RealmPresence, Option<&RealmAttunement>), With<LocalPlayer>>,
     mut current_text_query: Query<&mut Text, With<CurrentRealmText>>,
+    mut attunement_text_query: Query<&mut Text, With<AttunementText>>,
     mut button_query: Query<(&TravelRealmButton, &mut BackgroundColor, &mut BorderColor)>,
 ) {
-    let current_realm = presence_query
+    let (current_realm, attunement_opt) = presence_query
         .get_single()
-        .map(|p| p.current_realm_id)
-        .unwrap_or(0);
+        .map(|(p, a)| (p.current_realm_id, a))
+        .unwrap_or((0, None));
 
     let realm_name = match current_realm {
         0 => "Sanctuary Prime",
@@ -297,6 +323,35 @@ fn update_travel_panel_current_realm(
         text.sections[0].value = format!("Current: {}", realm_name);
     }
 
+    // Surface living attunement
+    if let Some(att) = attunement_opt {
+        let current_att = att.get(current_realm);
+        let peak_str = if let Some(peak_id) = att.peak_realm {
+            let peak_name = match peak_id {
+                0 => "Sanctuary",
+                1 => "Synthetic",
+                2 => "Verdant",
+                3 => "Harmonic",
+                4 => "Voidfarer",
+                _ => "?",
+            };
+            format!("Peak: {} {:.2}", peak_name, att.peak_value)
+        } else {
+            "Peak: —".to_string()
+        };
+
+        for mut text in &mut attunement_text_query {
+            text.sections[0].value = format!(
+                "Attunement: {:.3}  |  Total: {:.3}  |  {}",
+                current_att, att.total, peak_str
+            );
+        }
+    } else {
+        for mut text in &mut attunement_text_query {
+            text.sections[0].value = "Attunement: accumulating...".to_string();
+        }
+    }
+
     // Highlight the button that matches the current realm
     for (button, mut bg, mut border) in &mut button_query {
         if button.target_realm == current_realm {
@@ -306,6 +361,6 @@ fn update_travel_panel_current_realm(
     }
 }
 
-// End of client/src/realm_travel_panel.rs v21.36.0
-// Travel panel is now fully state-aware of the player’s current realm.
+// End of client/src/realm_travel_panel.rs v21.40.0
+// Travel panel now fully surfaces living Realm Attunement.
 // Thunder locked in. Yoi ⚡
