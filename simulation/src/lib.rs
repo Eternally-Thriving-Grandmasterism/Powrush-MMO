@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.48.0 — Multi-Realm + Abundance Observatory + Live Ingest fully wired
+//! v21.51.0 — Multi-Realm + Abundance + Origin Provenance fully wired
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi + Hardware Sovereignty + Obsidian/Aether aligned
 
 // ============================================================================
@@ -47,7 +47,7 @@ pub mod hardware_sovereignty;
 // BEGIN Cross-Race Diplomacy Mechanics
 pub mod diplomacy;
 
-// Multi-Realm organism (presence, travel, attunement, titles, soft bonuses, abundance observatory, live ingest)
+// Multi-Realm organism (presence, travel, attunement, titles, soft bonuses, abundance, origin provenance)
 pub mod multi_realm_harness;
 
 // Sub-module directories
@@ -181,7 +181,7 @@ pub use hardware_sovereignty::{
 };
 
 // ============================================================================
-// Multi-Realm organism (v21.18 → v21.48)
+// Multi-Realm organism (v21.18 → v21.51)
 // ============================================================================
 pub use multi_realm_harness::{
     MultiRealmHarness,
@@ -195,6 +195,9 @@ pub use multi_realm_harness::{
     RealmAbundanceView,
     RealmAbundanceObservatory,
     AbundanceIngestEvent,
+    OriginProvenanceView,
+    OriginProvenanceObservatory,
+    OriginIngestEvent,
     RealmTravelRequest,
     ResonancePulse,
     realm_presence_bootstrap_system,
@@ -202,6 +205,7 @@ pub use multi_realm_harness::{
     realm_attunement_system,
     realm_travel_system,
     abundance_ingest_system,
+    origin_ingest_system,
     soft_demo_abundance_seed_system,
     multi_realm_harness_system,
 };
@@ -238,12 +242,12 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(SpatialInterestPlugin)
             .add(BevySimulationPlugin)
             .add(HardwareSovereigntyPlugin)
-            .add(MultiRealmHarnessPlugin)  // v21.48 — Multi-Realm + Abundance + Live Ingest live
+            .add(MultiRealmHarnessPlugin)  // v21.51 — Multi-Realm + Abundance + Origin Provenance live
     }
 }
 
 // ============================================================================
-// END OF COMPLETE WIRING v21.48
-// Multi-Realm organism + Abundance Observatory + Live Ingest now fully wired.
+// END OF COMPLETE WIRING v21.51
+// Multi-Realm organism + Abundance + Origin Provenance now fully wired.
 // TOLC 8 sealed. Flywheel turning. Yoi ⚡
 // ============================================================================
