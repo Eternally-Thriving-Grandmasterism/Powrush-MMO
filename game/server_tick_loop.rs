@@ -1,11 +1,15 @@
 // game/server_tick_loop.rs
-// Powrush-MMO v21.56.0 — multi-realm abundance bridge payload collection
-// Previous: v16.5.57 now_ms wiring + async/multi-frame polish
+// Powrush-MMO v21.58.0 — dual multi-realm bridge payloads (abundance + origin)
+// Previous: v21.56.0 abundance bridge collection
 // AG-SML v1.0 | Mercy-aligned authoritative GPU foresight
 // Thunder locked in. Yoi ⚡
 
 use crate::game::resource_nodes::ResourceNodeManager;
-use crate::game::multi_realm_bridge::{AbundanceBridgePayload, collect_abundance_payload};
+use crate::game::rbe::ServerInventoryComponent;
+use crate::game::multi_realm_bridge::{
+    AbundanceBridgePayload, OriginBridgePayload, DualBridgePayload,
+    collect_abundance_payload, collect_origin_from_inventories,
+};
 use crate::engine::gpu_patsagi_bridge::{
     GpuPatsagiBridge, MockGpuPatsagiBridge, GpuPatsagiRequest, GpuPatsagiResponse,
     ComputeIntensity, RealGpuPatsagiBridge,
@@ -36,9 +40,10 @@ pub struct ServerTickLoop {
 
     pub perf: GpuPerformanceMetrics,
 
-    /// Last collected multi-realm abundance payload (v21.56 bridge).
-    /// External Bevy/simulation consumers can read this and emit AbundanceIngestEvent.
+    /// Last collected multi-realm abundance payload.
     pub last_abundance_payload: AbundanceBridgePayload,
+    /// Last collected origin payload (from inventories when provided).
+    pub last_origin_payload: OriginBridgePayload,
     last_bridge_collect: Instant,
     bridge_collect_interval: Duration,
 }
@@ -61,8 +66,8 @@ impl ServerTickLoop {
             pending_gpu_response: None,
             perf: GpuPerformanceMetrics::default(),
             last_abundance_payload: AbundanceBridgePayload::default(),
+            last_origin_payload: OriginBridgePayload::default(),
             last_bridge_collect: Instant::now(),
-            // Soft cadence — keeps bridge fresh without per-tick cost
             bridge_collect_interval: Duration::from_secs(2),
         }
     }
@@ -72,11 +77,9 @@ impl ServerTickLoop {
         let _ = dt;
         let frame_start = Instant::now();
 
-        // Always run regeneration first (uses now_ms for restriction expiry)
         self.resource_nodes.tick_regen(now_ms);
 
-        // === Multi-Realm Abundance Bridge (v21.56) ===
-        // Soft collect for external simulation EventWriter consumers.
+        // Soft collect abundance for external simulation consumers.
         if self.last_bridge_collect.elapsed() >= self.bridge_collect_interval {
             self.last_abundance_payload =
                 collect_abundance_payload(&self.resource_nodes, now_ms);
@@ -108,7 +111,6 @@ impl ServerTickLoop {
             }
         }
 
-        // === Multi-frame GPU Result Handling + Policy Application ===
         if let Some(pending) = &self.in_flight_gpu_query {
             let read_start = Instant::now();
 
@@ -142,12 +144,13 @@ impl ServerTickLoop {
 
         if self.perf.samples % 60 == 0 {
             tracing::info!(
-                "[GPU Perf] avg={:.2}ms submit={} readback={} policy={} | bridge_realms={}",
+                "[GPU Perf] avg={:.2}ms submit={} readback={} policy={} | bridge_a={} bridge_o={}",
                 self.perf.avg_frame_gpu_ms,
                 self.perf.last_submit_ms,
                 self.perf.last_readback_ms,
                 self.perf.last_policy_ms,
-                self.last_abundance_payload.realm_count()
+                self.last_abundance_payload.realm_count(),
+                self.last_origin_payload.realm_count()
             );
         }
 
@@ -156,18 +159,41 @@ impl ServerTickLoop {
         }
     }
 
+    /// Soft-collect origin provenance from live inventories (call when player set is available).
+    pub fn refresh_origin_from_inventories<'a>(
+        &mut self,
+        inventories: impl IntoIterator<Item = &'a ServerInventoryComponent>,
+        now_ms: u64,
+    ) {
+        self.last_origin_payload = collect_origin_from_inventories(inventories, now_ms);
+    }
+
     pub fn get_pending_gpu_updates(&mut self) -> Vec<ServerMessage> {
         std::mem::take(&mut self.pending_gpu_updates)
     }
 
-    /// Take the latest abundance bridge payload (for Bevy EventWriter consumers).
     pub fn take_abundance_payload(&mut self) -> AbundanceBridgePayload {
         std::mem::take(&mut self.last_abundance_payload)
     }
 
-    /// Peek without clearing.
+    pub fn take_origin_payload(&mut self) -> OriginBridgePayload {
+        std::mem::take(&mut self.last_origin_payload)
+    }
+
     pub fn abundance_payload(&self) -> &AbundanceBridgePayload {
         &self.last_abundance_payload
+    }
+
+    pub fn origin_payload(&self) -> &OriginBridgePayload {
+        &self.last_origin_payload
+    }
+
+    /// Paired view for one-step shared-app publish into ExternalBridgeInbox.
+    pub fn dual_payload(&self) -> DualBridgePayload {
+        DualBridgePayload {
+            abundance: self.last_abundance_payload.clone(),
+            origin: self.last_origin_payload.clone(),
+        }
     }
 }
 
@@ -178,5 +204,5 @@ struct PendingReadback {
     node_ids: Vec<u64>,
 }
 
-// Thunder locked in. Bridge payload collected every ~2s.
+// Thunder locked in. Dual bridge payloads ready for ExternalBridgeInbox.
 // Yoi ⚡
