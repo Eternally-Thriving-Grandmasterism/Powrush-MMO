@@ -1,11 +1,10 @@
 /*!
- * Realm Travel Panel — Attunement + Titles + Origin Affinity + Button Hints
- * v21.60.0
+ * Realm Travel Panel — Titles + Soft Bonuses + Affinity + Button Hints
+ * v21.62.0
  *
  * Toggle with F3. Lists the five seeded realms.
- * Shows current realm, living title, attunement, origin affinity.
- * Each realm button carries a soft affinity hint from harvest provenance.
- * Clicking a realm emits a RealmTravelRequest for the local player.
+ * Shows current realm, living title, soft title bonuses, attunement,
+ * origin affinity. Each realm button carries a soft affinity hint.
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
  * Thunder locked in. Yoi ⚡
@@ -43,6 +42,9 @@ struct AttunementText;
 
 #[derive(Component)]
 struct LivingTitleText;
+
+#[derive(Component)]
+struct TitleBonusText;
 
 #[derive(Component)]
 struct OriginAffinityText;
@@ -124,7 +126,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     position_type: PositionType::Absolute,
                     top: Val::Percent(18.0),
                     left: Val::Percent(2.0),
-                    width: Val::Px(320.0),
+                    width: Val::Px(330.0),
                     padding: UiRect::all(Val::Px(14.0)),
                     border: UiRect::all(Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(12.0)),
@@ -181,6 +183,22 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     ..default()
                 },
                 LivingTitleText,
+            ));
+
+            // Soft title bonuses (v21.62 — Council decision)
+            parent.spawn((
+                TextBundle {
+                    text: Text::from_section(
+                        "",
+                        TextStyle {
+                            font: font_reg.clone(),
+                            font_size: 11.0,
+                            color: Color::srgb(0.70, 0.88, 0.75),
+                        },
+                    ),
+                    ..default()
+                },
+                TitleBonusText,
             ));
 
             parent.spawn((
@@ -344,12 +362,12 @@ fn handle_travel_button_clicks(
     }
 }
 
-/// Keep the panel in sync with current realm + living attunement + title + origin affinity + button hints.
 fn update_travel_panel_current_realm(
     presence_query: Query<(&RealmPresence, Option<&RealmAttunement>), With<LocalPlayer>>,
     origin_obs: Option<Res<OriginProvenanceObservatory>>,
     mut current_text_query: Query<&mut Text, With<CurrentRealmText>>,
     mut title_text_query: Query<&mut Text, With<LivingTitleText>>,
+    mut bonus_text_query: Query<&mut Text, With<TitleBonusText>>,
     mut attunement_text_query: Query<&mut Text, With<AttunementText>>,
     mut affinity_text_query: Query<&mut Text, With<OriginAffinityText>>,
     mut button_query: Query<(&TravelRealmButton, &mut BackgroundColor, &mut BorderColor)>,
@@ -379,6 +397,19 @@ fn update_travel_panel_current_realm(
             text.sections[0].value = title.clone();
         }
 
+        // Soft title bonuses — only surface when above baseline (no empty noise)
+        let bonus = att.title_bonus(current_realm);
+        for mut text in &mut bonus_text_query {
+            if bonus.attunement_gain_mult > 1.001 || bonus.resonance_whisper > 0.0001 {
+                text.sections[0].value = format!(
+                    "Soft bonus: attunement ×{:.2}  ·  resonance +{:.4}/s",
+                    bonus.attunement_gain_mult, bonus.resonance_whisper
+                );
+            } else {
+                text.sections[0].value = String::new();
+            }
+        }
+
         let current_att = att.get(current_realm);
         let peak_str = if let Some(peak_id) = att.peak_realm {
             let peak_name = match peak_id {
@@ -404,12 +435,14 @@ fn update_travel_panel_current_realm(
         for mut text in &mut title_text_query {
             text.sections[0].value = "Presence accumulating...".to_string();
         }
+        for mut text in &mut bonus_text_query {
+            text.sections[0].value = String::new();
+        }
         for mut text in &mut attunement_text_query {
             text.sections[0].value = "Attunement: accumulating...".to_string();
         }
     }
 
-    // Current-realm origin affinity summary
     let (aff_label, aff_mult, harvested, aff_color) = if let Some(ref obs) = origin_obs {
         let harvested = obs.amount_for(current_realm);
         let label = origin_affinity_label(harvested);
@@ -438,7 +471,6 @@ fn update_travel_panel_current_realm(
         text.sections[0].style.color = aff_color;
     }
 
-    // Current-realm button highlight
     for (button, mut bg, mut border) in &mut button_query {
         if button.target_realm == current_realm {
             *bg = Color::srgba(0.16, 0.30, 0.28, 0.98).into();
@@ -446,7 +478,6 @@ fn update_travel_panel_current_realm(
         }
     }
 
-    // Per-button soft affinity hints (v21.60)
     for (label, mut text) in &mut button_label_query {
         let suffix = if let Some(ref obs) = origin_obs {
             let amount = obs.amount_for(label.target_realm);
@@ -465,7 +496,6 @@ fn update_travel_panel_current_realm(
             label.target_realm, label.base_name, suffix
         );
 
-        // Soft text tint by affinity depth (never harsh)
         if let Some(ref obs) = origin_obs {
             let amount = obs.amount_for(label.target_realm);
             let aff = origin_affinity_label(amount);
@@ -480,6 +510,6 @@ fn update_travel_panel_current_realm(
     }
 }
 
-// End of client/src/realm_travel_panel.rs v21.60.0
-// Button-level soft affinity hints guide without trapping.
+// End of client/src/realm_travel_panel.rs v21.62.0
+// Title soft bonuses visible — meaning loop closed.
 // Thunder locked in. Yoi ⚡
