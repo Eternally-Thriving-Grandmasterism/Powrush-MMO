@@ -1,15 +1,17 @@
 // game/resource_nodes.rs
-// Powrush-MMO v16.5.54 — ULTIMATE RESTORATION MERGE: All historical iterations intelligently combined.
-// v16.5.35 harvest restrictions + detailed new/regenerate/harvest system preserved
-// v16.5.52 dynamic yields + abundance/pressure/interdependence/faction hooks
-// v16.5.53 placeholder-free + now_ms timestamps + faction debuffs + production policy
-// No logic, structure, or comments discarded. Clean, complete, ready for happy PC play.
+// Powrush-MMO v21.42.0 — ResourceNode Realm-Keying Foundation
+// Previous: v16.5.54 ultimate restoration merge + all historical harvest/regen/GPU policy depth
+// v21.42: Every node now belongs to a realm. Multi-realm organism can own its abundance flows.
 // AG-SML v1.0 | Mercy-aligned economic foresight | Eternally-Thriving-Grandmasterism
+// Thunder locked in. Yoi ⚡
 
 use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
 use shared::protocol::{GpuPatsagiUpdate, NodeGpuPrediction, ServerMessage};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+
+/// Realm identifier (aligned with MultiRealmHarness::RealmId).
+pub type RealmId = u8;
 
 // For broader compatibility, position kept as tuple (old iterations); Vec3 can be added via glam if needed in crate root.
 #[derive(Debug, Clone)]
@@ -19,6 +21,8 @@ pub struct ResourceNode {
     pub resource_type: String,
     pub node_type: String, // legacy
     pub position: (f32, f32, f32),
+    /// The realm this node lives in. Defaults to 0 (Sanctuary Prime).
+    pub realm_id: RealmId,
     pub base_yield_per_tick: f32,
     pub current_yield: f32,
     pub depletion: f32,
@@ -34,6 +38,11 @@ pub struct ResourceNode {
 
 impl ResourceNode {
     pub fn new(node_id: u64, node_type: &str, position: (f32, f32, f32)) -> Self {
+        Self::new_in_realm(node_id, node_type, position, 0)
+    }
+
+    /// Create a node that belongs to a specific realm.
+    pub fn new_in_realm(node_id: u64, node_type: &str, position: (f32, f32, f32), realm_id: RealmId) -> Self {
         let base_yield = match node_type {
             "food" => 2.5, "water" => 3.0, "energy" => 1.8,
             "minerals" => 1.2, "rare_alloy" => 0.4, _ => 1.0,
@@ -44,6 +53,7 @@ impl ResourceNode {
             resource_type: node_type.to_string(),
             node_type: node_type.to_string(),
             position,
+            realm_id,
             base_yield_per_tick: base_yield,
             current_yield: base_yield,
             depletion: 0.0,
@@ -95,9 +105,14 @@ impl ResourceNodeManager {
     }
 
     pub fn add_node(&mut self, node_type: &str, position: (f32, f32, f32)) -> u64 {
+        self.add_node_in_realm(node_type, position, 0)
+    }
+
+    /// Spawn a resource node that belongs to a specific realm.
+    pub fn add_node_in_realm(&mut self, node_type: &str, position: (f32, f32, f32), realm_id: RealmId) -> u64 {
         let id = self.next_node_id;
         self.next_node_id += 1;
-        let node = ResourceNode::new(id, node_type, position);
+        let node = ResourceNode::new_in_realm(id, node_type, position, realm_id);
         self.nodes.insert(id, node);
         id
     }
@@ -108,6 +123,21 @@ impl ResourceNodeManager {
 
     pub fn get_node_mut(&mut self, node_id: u64) -> Option<&mut ResourceNode> {
         self.nodes.get_mut(&node_id)
+    }
+
+    /// All nodes that live in the given realm.
+    pub fn nodes_in_realm(&self, realm_id: RealmId) -> impl Iterator<Item = &ResourceNode> {
+        self.nodes.values().filter(move |n| n.realm_id == realm_id)
+    }
+
+    /// Mutable access to all nodes in a realm.
+    pub fn nodes_in_realm_mut(&mut self, realm_id: RealmId) -> impl Iterator<Item = &mut ResourceNode> {
+        self.nodes.values_mut().filter(move |n| n.realm_id == realm_id)
+    }
+
+    /// Count of living nodes in a realm.
+    pub fn count_in_realm(&self, realm_id: RealmId) -> usize {
+        self.nodes.values().filter(|n| n.realm_id == realm_id).count()
     }
 
     pub fn tick_regen(&mut self, now_ms: u64) {
