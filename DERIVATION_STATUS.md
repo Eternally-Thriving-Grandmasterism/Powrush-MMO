@@ -47,14 +47,14 @@
 **Phase AS — Realm Abundance Observatory (COMPLETED v21.45)**  
 **Phase AT — Multi-Realm + Abundance API Wiring (COMPLETED v21.46)**  
 **Phase AU — Abundance Bridge Conversion Helper (COMPLETED v21.47)**  
-**Phase AV — Live Abundance Ingest + Soft Demo Seed (COMPLETED v21.48)**
+**Phase AV — Live Abundance Ingest + Soft Demo Seed (COMPLETED v21.48)**  
+**Phase AW — Abundance Observability Polish (COMPLETED v21.49)**
 
-## Completed This Cycle (v21.48)
+## Completed This Cycle (v21.49)
 
-- `AbundanceIngestEvent` — the live call site (send views → observatory).
-- `abundance_ingest_system` consumes events into `RealmAbundanceObservatory`.
-- `soft_demo_abundance_seed_system` populates gentle placeholder views when empty so the dashboard always has living abundance during development.
-- Demo yields the moment real data arrives (`has_live_data` flag).
+- Observatory summary shows **● LIVE data** vs **○ Demo seed** badge.
+- Per-realm abundance line surfaces **restricted node count**.
+- Soft demo is unmistakably visible in the Multi-Realm Dashboard.
 
 ## Next Council Cycle Priorities
 
@@ -64,10 +64,10 @@
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, holding those snapshots in a living observatory visible in the dashboard, fully wired into the public API, equipped with a one-expression conversion bridge, and now alive via event-based live ingest + soft demo seed.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, holding those snapshots in a living observatory visible in the dashboard (with Live/Demo distinction and restricted visibility), fully wired into the public API, equipped with a one-expression conversion bridge, and alive via event-based live ingest + soft demo seed.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**The observatory is now alive.**  
+**Soft demo is now unmistakably alive.**  
 Yoi ⚡
