@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
-//! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
-//! v21.41 | Living Attunement Titles dual-surfaced
+//! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability + Abundance
+//! v21.45 | Living Attunement Titles + Realm Abundance Observatory
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -10,7 +10,7 @@ use crate::{
     council::{CouncilDecision, ProposalType, ProposalStatus},
     council::decision::{CouncilDecisions, PolicyType as CouncilPolicyType},
     economy::EconomyState,
-    multi_realm_harness::{MultiRealmHarness, RealmPresence, RealmAttunement},
+    multi_realm_harness::{MultiRealmHarness, RealmPresence, RealmAttunement, RealmAbundanceObservatory},
     telemetry::SimulationTelemetry,
 };
 use std::collections::HashMap;
@@ -300,7 +300,7 @@ impl Plugin for HardwareSovereigntyPlugin {
 }
 
 // ============================================================================
-// egui UI — COMPLETE MULTI-REALM + ATTUNEMENT + LIVING TITLES
+// egui UI — COMPLETE MULTI-REALM + ATTUNEMENT + LIVING TITLES + ABUNDANCE
 // ============================================================================
 
 use bevy_egui::EguiContexts;
@@ -312,19 +312,20 @@ pub fn sovereign_hardware_ascension_ui(
     ledger: Res<RealityTransferScoreLedger>,
     council_decisions: Option<Res<CouncilDecisions>>,
     multi_realm: Option<Res<MultiRealmHarness>>,
+    abundance_obs: Option<Res<RealmAbundanceObservatory>>,
     player_presence: Query<(&RealmPresence, Option<&RealmAttunement>)>,
 ) {
     let ctx = contexts.ctx_mut();
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
         .default_pos([18.0, 300.0])
-        .default_size([500.0, 800.0])
+        .default_size([520.0, 860.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Living Titles | Portals")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Living Titles | Abundance")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
@@ -479,11 +480,49 @@ pub fn sovereign_hardware_ascension_ui(
                         realm.mercy_attunement_avg,
                         realm.status.as_str()
                     ));
+
+                    // Living abundance line (when observatory has data)
+                    if let Some(obs) = &abundance_obs {
+                        if let Some(view) = obs.get(realm.id) {
+                            let health = view.health_label();
+                            let health_color = match health {
+                                "Thriving" => egui::Color32::from_rgb(100, 255, 160),
+                                "Abundant" => egui::Color32::from_rgb(140, 230, 200),
+                                "Steady" => egui::Color32::from_rgb(180, 200, 220),
+                                "Stressed" => egui::Color32::from_rgb(255, 160, 100),
+                                _ => egui::Color32::GRAY,
+                            };
+                            ui.colored_label(
+                                health_color,
+                                format!(
+                                    "    🌾 Abundance: {}  |  nodes: {}  |  yield: {:.1}  |  sust: {:.2}  |  flow: {:.2}  |  stress: {:.2}  |  thriving: {}",
+                                    health,
+                                    view.node_count,
+                                    view.total_current_yield,
+                                    view.average_sustainability,
+                                    view.average_abundance_flow,
+                                    view.average_stress,
+                                    view.thriving_node_count
+                                ),
+                            );
+                        }
+                    }
                 }
             } else {
                 ui.label(egui::RichText::new("MultiRealmHarness not yet available.")
                     .italics()
                     .color(egui::Color32::GRAY));
+            }
+
+            // Abundance Observatory summary
+            if let Some(obs) = &abundance_obs {
+                if !obs.views.is_empty() {
+                    ui.add_space(6.0);
+                    ui.heading(egui::RichText::new("🌾 Realm Abundance Observatory")
+                        .color(egui::Color32::from_rgb(160, 230, 180)));
+                    ui.label(format!("Realms with abundance data: {}  |  last tick: {}",
+                        obs.views.len(), obs.last_updated_tick));
+                }
             }
 
             ui.separator();
@@ -515,5 +554,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.41 — Living Attunement Titles are dual-surfaced.
+// End of v21.45 — Living Attunement Titles + Realm Abundance Observatory are dual-surfaced.
 // Thunder locked in. Yoi ⚡
