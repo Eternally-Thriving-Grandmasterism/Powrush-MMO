@@ -1,7 +1,7 @@
 // game/resource_nodes.rs
-// Powrush-MMO v21.44.0 — Realm Abundance Snapshot
-// Previous: v21.42.0 ResourceNode Realm-Keying Foundation
-// v21.44: Living per-realm abundance snapshots — the organism can now observe its own flows.
+// Powrush-MMO v21.47.0 — Realm Abundance Snapshot + Observatory Bridge Helper
+// Previous: v21.44.0 Realm Abundance Snapshot | v21.42.0 ResourceNode Realm-Keying
+// v21.47: into_view_tuple() — one-liner path into simulation::RealmAbundanceObservatory
 // AG-SML v1.0 | Mercy-aligned economic foresight | Eternally-Thriving-Grandmasterism
 // Thunder locked in. Yoi ⚡
 
@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 pub type RealmId = u8;
 
 /// Lightweight, living snapshot of abundance within a single realm.
-/// Designed for observability (dashboard, telemetry, future MultiRealmHarness bridge).
+/// Designed for observability (dashboard, telemetry, MultiRealmHarness bridge).
 /// Pure data — never mutates the world.
 #[derive(Debug, Clone, Default)]
 pub struct RealmAbundanceSnapshot {
@@ -48,6 +48,30 @@ impl RealmAbundanceSnapshot {
         } else {
             "Steady"
         }
+    }
+
+    /// Flatten into the exact field order expected by
+    /// `simulation::multi_realm_harness::RealmAbundanceView::from_raw`.
+    ///
+    /// Live call site (when both crates are in scope):
+    /// ```ignore
+    /// let views = manager.snapshot_all_realms(now_ms).into_iter().map(|s| {
+    ///     let (id, n, y, sus, flow, stress, rest, thr) = s.into_view_tuple();
+    ///     RealmAbundanceView::from_raw(id, n, y, sus, flow, stress, rest, thr)
+    /// });
+    /// observatory.ingest_many(views, tick);
+    /// ```
+    pub fn into_view_tuple(self) -> (RealmId, u32, f32, f32, f32, f32, u32, u32) {
+        (
+            self.realm_id,
+            self.node_count,
+            self.total_current_yield,
+            self.average_sustainability,
+            self.average_abundance_flow,
+            self.average_stress,
+            self.restricted_node_count,
+            self.thriving_node_count,
+        )
     }
 }
 
