@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.51.0 — Multi-Realm + Abundance + Origin Provenance fully wired
+//! v21.53.0 — Multi-Realm + Abundance + Origin + Harness-Derived Live Ingest fully wired
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi + Hardware Sovereignty + Obsidian/Aether aligned
 
 // ============================================================================
@@ -31,26 +31,14 @@ pub mod spatial_interest;
 pub mod telemetry;
 pub mod world;
 
-// Council Proposal System
 pub mod council;
-
-// NEW Phase A foundational modules
 pub mod race;
-
-// Phase B + C + D — Volatility, Mutation, Synergy
 pub mod epigenetic_modulation;
 pub mod ability_tree;
-
-// NEW: Sovereign Hardware Ascension Tech Tree Tier (Obsidian + Aether | X Thread embodied) + 3D Council Chamber
 pub mod hardware_sovereignty;
-
-// BEGIN Cross-Race Diplomacy Mechanics
 pub mod diplomacy;
-
-// Multi-Realm organism (presence, travel, attunement, titles, soft bonuses, abundance, origin provenance)
 pub mod multi_realm_harness;
 
-// Sub-module directories
 pub mod fracture;
 pub mod player_persistence;
 pub mod spatial;
@@ -60,7 +48,6 @@ pub mod web;
 // RE-EXPORTS — Public Simulation API
 // ============================================================================
 
-// GPU Economic Plugin & Systems
 pub use gpu_economic::{
     GpuEconomicPlugin,
     GpuEconomicSystemSet,
@@ -71,10 +58,8 @@ pub use gpu_economic::{
     gpu_economic_telemetry_system,
 };
 
-// Legacy GPU Economic items
 pub use gpu_economic::{GpuEconomicCompute, PATSAGiEconomicParams};
 
-// Spatial Interest Layer
 pub use spatial_interest::{
     SpatialHash, InterestManager, InterestZone, CouncilBloomZone,
     InterestZoneReplicated, CouncilBloomStateReplicated, RequestResync,
@@ -82,82 +67,61 @@ pub use spatial_interest::{
     update_interest_zones_system, query_entities_in_interest, SpatialInterestPlugin,
 };
 
-// Flow State & Mercy
 pub use flow_state_forge::{
     PresenceDebt, FlowStateMetrics, ChallengeBalancerConfig, FlowCascade, FlowStateOutcome,
     dynamic_challenge_skill_balancer,
 };
 
-// Epiphany & Divine
 pub use epiphany_catalyst::{EpiphanyOutcome, EpiphanyCatalyst, EpiphanyCatalystPlugin};
 pub use divine_whispers::{DivineWhisper, DivineWhispersSystem, generate_divine_whisper};
 
-// Council Mercy Trials
 pub use council_mercy_trial::{CouncilMercyTrial, CouncilSessionManager, MercyTrialVote, CouncilPhase};
 
-// Council Proposal System
 pub use council::{CouncilProposal, CouncilSession, CouncilDecision, CouncilDecisions, ProposalType, ProposalStatus};
 
-// Harvest & RBE Economy
 pub use harvest::{HarvestEvent, HarvestSystem, ResourceNode, RbeFlowReconciliation};
 pub use economy::{EconomyState, ResourceTransaction, PostScarcityAllocator};
 
-// Persistence
 pub use player_persistence::{PlayerSaveData, PersistenceManager, save_player_data, load_player_data};
 
-// Orchestration & World
 pub use orchestrator::{SimulationOrchestrator, TickResult};
 
-// Spatial & Fracture
 pub use fracture::{LatticeFractureSolver, FractureEvent};
 pub use spatial::{SpatialGrid, SpatialQuery};
 
-// Telemetry & Monitoring
 pub use telemetry::{SimulationTelemetry, TelemetryEvent};
 pub use bot_detection::{BotDetector, BotDetectionConfig};
 pub use closed_beta::{ClosedBetaManager, BetaAccessLevel};
 
-// Cloud & Mycorrhizal Sync
 pub use cloud_sync::{CloudSyncManager, CloudSyncEvent};
 pub use mycorrhizal_volatile_sync::{MycorrhizalSync, VolatileResource};
 
-// PATSAGi Tunables
 pub use patsagi_council_tunable_config::{PatsagiCouncilTunableConfig, TunableParameter};
 
-// Resonance & Scenario
 pub use resonance_decay_recovery_sim::{ResonanceDecayRecoverySim, ResonanceState};
 pub use scenario::{Scenario, ScenarioRunner, ScenarioOutcome};
 
-// Bevy integrations
 pub use bevy_integration::{BevySimulationPlugin, SimulationTime};
 pub use bevy_ra_thor_ui::{RaThorUiBridge, CouncilUiEvent};
 
-// Endocannabinoid Receptor Forge
 pub use endocannabinoid_receptor_forge::{ReceptorBloomOutcome, ReceptorBloomForge};
 
-// Archetype & Config
 pub use archetype::{PlayerArchetype, ArchetypeConfig};
 
-// NEW Phase A re-exports
 pub use race::{Race, RaceModifiers};
 
-// NEW Phase B re-exports — Volatility Lifecycle
 pub use epigenetic_modulation::{
     EpigeneticProfile, EpigeneticChange, apply_change,
     apply_volatility_drift, is_high_volatility_risk,
     apply_double_edged_volatility_effects, apply_epigenetic_repair, apply_corruption_lifecycle,
 };
 
-// NEW Phase C re-exports — Epigenetic Mutation Triggers
 pub use epigenetic_modulation::{MutationType, try_trigger_epigenetic_mutation};
 
-// NEW Phase D re-exports — Mutation Synergy Chains + Stage 0/1/2 + SynergyEffectEvent
 pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState, SynergyBonus, SynergyType, SynergyEffectEvent};
 
-// NEW — Cross-Race Diplomacy
 pub use diplomacy::{DiplomacyManager, DiplomacyRelation, ActiveTreaty, TreatyType};
 
-// NEW v19.6+: Sovereign Hardware Ascension Tech Tree Tier + Polished Dashboard + 3D Council Chamber
 pub use hardware_sovereignty::{
     HardwareSovereigntyPlugin,
     SovereignHardwareState,
@@ -181,7 +145,7 @@ pub use hardware_sovereignty::{
 };
 
 // ============================================================================
-// Multi-Realm organism (v21.18 → v21.51)
+// Multi-Realm organism (v21.18 → v21.53)
 // ============================================================================
 pub use multi_realm_harness::{
     MultiRealmHarness,
@@ -200,6 +164,8 @@ pub use multi_realm_harness::{
     OriginIngestEvent,
     RealmTravelRequest,
     ResonancePulse,
+    derive_abundance_from_harness,
+    derive_origin_from_harness,
     realm_presence_bootstrap_system,
     realm_attunement_bootstrap_system,
     realm_attunement_system,
@@ -207,12 +173,10 @@ pub use multi_realm_harness::{
     abundance_ingest_system,
     origin_ingest_system,
     soft_demo_abundance_seed_system,
+    harness_derived_live_ingest_system,
     multi_realm_harness_system,
 };
 
-// ============================================================================
-// NEW: Recovered Advanced Particle Effects + Lissajous Knot Reactive System (v19.1)
-// ============================================================================
 pub use world::{
     setup_policy_particle_effects,
     PolicyParticleEffects,
@@ -230,10 +194,6 @@ pub use world::{
     debug_lissajous_knot_input,
 };
 
-// ============================================================================
-// PLUGIN AGGREGATOR — NOW INCLUDES HARDWARE SOVEREIGNTY + MULTI-REALM
-// ============================================================================
-
 pub struct FullSimulationPlugins;
 
 impl bevy::app::PluginGroup for FullSimulationPlugins {
@@ -242,12 +202,12 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(SpatialInterestPlugin)
             .add(BevySimulationPlugin)
             .add(HardwareSovereigntyPlugin)
-            .add(MultiRealmHarnessPlugin)  // v21.51 — Multi-Realm + Abundance + Origin Provenance live
+            .add(MultiRealmHarnessPlugin)  // v21.53 — full organism + harness-derived live ingest
     }
 }
 
 // ============================================================================
-// END OF COMPLETE WIRING v21.51
-// Multi-Realm organism + Abundance + Origin Provenance now fully wired.
+// END OF COMPLETE WIRING v21.53
+// Multi-Realm + Abundance + Origin + Harness-Derived Live Ingest fully wired.
 // TOLC 8 sealed. Flywheel turning. Yoi ⚡
 // ============================================================================
