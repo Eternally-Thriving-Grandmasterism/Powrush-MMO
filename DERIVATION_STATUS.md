@@ -3,32 +3,22 @@
 **Multi-Realm Organism Arc — SEALED**  
 **RBE Sustainability surface — Visible**  
 **Council Deepening — Loop closed**  
-**LegacyJournal — Restored + client-bound (v21.72)**  
+**LegacyJournal — Restored + client-bound + soft demo seed**  
 **RTT Dual-Repo Bridge — Deepened**
 
-## Completed This Cycle (v21.72)
+## Completed This Cycle (v21.73)
 
-- Client My Mercy Journey panel bound to restored registry
-- Filters on `realm_id` + richer `LegacyEventType`
-- `mercy_gain` / title display; multi-thread aggregate
-
-## Full Meaning Loop (player-visible)
-
-```
-Council session → decisions → effects
-  → LegacyJournal entries
-  → My Mercy Journey panel (F2)
-  → RTT export to Ra-Thor
-```
+- Soft demo seed (7 entries) for empty-state My Mercy Journey
+- `demo_seeded` / `has_live_data` guards — never overwrites live play
 
 ## Next Priorities
 
 1. NonSend ServerTickLoop when game package fully wired
-2. Soft demo seed of a few journal entries for empty-state polish
-3. Protect against low-leverage UI churn
+2. Protect against low-leverage UI churn
+3. Optional: host binary RTT export write path polish
 
 Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**My Mercy Journey live.**  
+**Empty-state polished.**  
 Yoi ⚡
