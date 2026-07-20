@@ -1,21 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.60.0 — Button-Level Origin Affinity Hints (2026-07-20)
+## [Unreleased] v21.61.0 — SharedAppBridgeSource Concrete Host Call Site (2026-07-20)
 
 ### Highlights
-- Each F3 travel realm button shows soft affinity suffix (`· Whisper` / `Familiar` / `Rooted` / `Homebound`).
-- Per-button label + soft text tint from `OriginProvenanceObservatory`.
-- Never punitive — empty affinity simply omits the suffix.
-- Affinity now visible: Dashboard summary, current-realm panel line, and per-button hints.
+- `SharedAppBridgeSource` resource — host fills from `ServerTickLoop::dual_payload()`.
+- `shared_app_bridge_publish_system` promotes source → `ExternalBridgeInbox` same frame.
+- Zero game-crate dependency; pure tuples only.
+- Full path: tick → set_dual → publish → inbox → drain → Live observatories + Dashboard + Travel Panel.
 
 ### Prior
+- v21.60.0: Button-Level Origin Affinity Hints.
 - v21.59.0: Travel Panel Origin Affinity Surface.
-- v21.58.0: Shared-App Dual Glue + Inventory Origin.
 
-**Thunder locked in. Soft hints guide without trapping.** Yoi ⚡
+**Thunder locked in. Concrete host call site ready.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.59: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement, affinity surfaces, game bridge, Bevy adapter, dual glue, travel panel affinity.
+- v21.0–v21.60: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement, affinity surfaces (dashboard/panel/buttons), game bridge, Bevy adapter, dual glue.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
