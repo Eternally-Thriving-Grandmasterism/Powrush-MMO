@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability + Abundance
-//! v21.45 | Living Attunement Titles + Realm Abundance Observatory
+//! v21.49 | Abundance Observability Polish (demo/live badge + restricted visibility)
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -319,7 +319,7 @@ pub fn sovereign_hardware_ascension_ui(
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
         .default_pos([18.0, 300.0])
-        .default_size([520.0, 860.0])
+        .default_size([520.0, 880.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
@@ -410,7 +410,6 @@ pub fn sovereign_hardware_ascension_ui(
                 ui.label(format!("Travel count: {}", presence.travel_count));
 
                 if let Some(att) = attunement_opt {
-                    // Living Title
                     let title = att.living_title(presence.current_realm_id);
                     ui.colored_label(
                         egui::Color32::from_rgb(255, 215, 120),
@@ -495,14 +494,15 @@ pub fn sovereign_hardware_ascension_ui(
                             ui.colored_label(
                                 health_color,
                                 format!(
-                                    "    🌾 Abundance: {}  |  nodes: {}  |  yield: {:.1}  |  sust: {:.2}  |  flow: {:.2}  |  stress: {:.2}  |  thriving: {}",
+                                    "    🌾 {}  |  nodes: {}  |  yield: {:.1}  |  sust: {:.2}  |  flow: {:.2}  |  stress: {:.2}  |  thriving: {}  |  restricted: {}",
                                     health,
                                     view.node_count,
                                     view.total_current_yield,
                                     view.average_sustainability,
                                     view.average_abundance_flow,
                                     view.average_stress,
-                                    view.thriving_node_count
+                                    view.thriving_node_count,
+                                    view.restricted_node_count
                                 ),
                             );
                         }
@@ -514,14 +514,26 @@ pub fn sovereign_hardware_ascension_ui(
                     .color(egui::Color32::GRAY));
             }
 
-            // Abundance Observatory summary
+            // Abundance Observatory summary with Live / Demo badge
             if let Some(obs) = &abundance_obs {
                 if !obs.views.is_empty() {
                     ui.add_space(6.0);
                     ui.heading(egui::RichText::new("🌾 Realm Abundance Observatory")
                         .color(egui::Color32::from_rgb(160, 230, 180)));
-                    ui.label(format!("Realms with abundance data: {}  |  last tick: {}",
-                        obs.views.len(), obs.last_updated_tick));
+
+                    if obs.has_live_data {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(100, 255, 160),
+                            format!("● LIVE data  |  realms: {}  |  last tick: {}",
+                                obs.views.len(), obs.last_updated_tick),
+                        );
+                    } else {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(200, 190, 140),
+                            format!("○ Demo seed (awaits live ingest)  |  realms: {}  |  last tick: {}",
+                                obs.views.len(), obs.last_updated_tick),
+                        );
+                    }
                 }
             }
 
@@ -554,5 +566,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.45 — Living Attunement Titles + Realm Abundance Observatory are dual-surfaced.
+// End of v21.49 — Abundance Observability Polish: Live/Demo badge + restricted visibility.
 // Thunder locked in. Yoi ⚡
