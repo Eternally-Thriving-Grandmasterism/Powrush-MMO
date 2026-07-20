@@ -1,8 +1,7 @@
 // game/multi_realm_bridge.rs
-// Powrush-MMO v21.56.0 — External Game→Simulation Multi-Realm Bridge
+// Powrush-MMO v21.58.0 — DualBridgePayload + inventory origin collection
 // Zero-cycle pure payloads. No simulation crate dependency.
-// Field order matches simulation::multi_realm_harness::RealmAbundanceView::from_raw
-// and OriginProvenanceView { realm_id, total_amount, resource_types }.
+// Field order matches simulation::multi_realm_harness views + ExternalBridgeInbox.
 //
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 // Thunder locked in. Yoi ⚡
@@ -52,8 +51,24 @@ impl OriginBridgePayload {
     }
 }
 
+/// Paired abundance + origin for a single shared-app publish step.
+#[derive(Clone, Debug, Default)]
+pub struct DualBridgePayload {
+    pub abundance: AbundanceBridgePayload,
+    pub origin: OriginBridgePayload,
+}
+
+impl DualBridgePayload {
+    pub fn is_empty(&self) -> bool {
+        self.abundance.is_empty() && self.origin.is_empty()
+    }
+
+    pub fn tick_ms(&self) -> u64 {
+        self.abundance.tick_ms.max(self.origin.tick_ms)
+    }
+}
+
 /// Collect living abundance snapshots from ResourceNodeManager.
-/// Call from server tick (or any authoritative loop) on a soft cadence.
 pub fn collect_abundance_payload(
     manager: &ResourceNodeManager,
     now_ms: u64,
@@ -80,7 +95,18 @@ pub fn collect_origin_from_inventory(
     }
 }
 
-/// Merge origin snapshots from many inventories (e.g. all online players).
+/// Collect and merge origin from many inventories (all online players).
+pub fn collect_origin_from_inventories<'a>(
+    inventories: impl IntoIterator<Item = &'a ServerInventoryComponent>,
+    tick_ms: u64,
+) -> OriginBridgePayload {
+    let payloads = inventories
+        .into_iter()
+        .map(|inv| collect_origin_from_inventory(inv, tick_ms));
+    merge_origin_payloads(payloads, tick_ms)
+}
+
+/// Merge origin snapshots from many inventories.
 /// Amounts sum; resource_types takes the max seen per realm.
 pub fn merge_origin_payloads(
     payloads: impl IntoIterator<Item = OriginBridgePayload>,
@@ -106,30 +132,35 @@ pub fn merge_origin_payloads(
     OriginBridgePayload { views, tick_ms }
 }
 
-/// Documented Bevy wiring (call site when game + simulation share an App):
+/// Collect both abundance (from nodes) and origin (from inventories) in one step.
+pub fn collect_dual_payload<'a>(
+    manager: &ResourceNodeManager,
+    inventories: impl IntoIterator<Item = &'a ServerInventoryComponent>,
+    now_ms: u64,
+) -> DualBridgePayload {
+    DualBridgePayload {
+        abundance: collect_abundance_payload(manager, now_ms),
+        origin: collect_origin_from_inventories(inventories, now_ms),
+    }
+}
+
+/// Shared-app publish pattern (when game + simulation share a Bevy App):
 ///
 /// ```ignore
-/// use simulation::multi_realm_harness::{
-///     AbundanceIngestEvent, OriginIngestEvent,
-///     RealmAbundanceView, OriginProvenanceView,
-/// };
+/// // After ServerTickLoop::tick (or any authoritative collect):
+/// let dual = tick_loop.dual_payload(); // or collect_dual_payload(...)
 ///
-/// // Abundance
-/// let payload = collect_abundance_payload(&manager, now_ms);
-/// let views: Vec<_> = payload.views.into_iter().map(|(id, n, y, sus, flow, stress, rest, thr)| {
-///     RealmAbundanceView::from_raw(id, n, y, sus, flow, stress, rest, thr)
-/// }).collect();
-/// abundance_writer.send(AbundanceIngestEvent { views, tick: payload.tick_ms });
-///
-/// // Origin
-/// let origin = collect_origin_from_inventory(&inventory, now_ms);
-/// let views: Vec<_> = origin.views.into_iter().map(|(id, amt, types)| {
-///     OriginProvenanceView { realm_id: id, total_amount: amt, resource_types: types }
-/// }).collect();
-/// origin_writer.send(OriginIngestEvent { views, tick: origin.tick_ms });
+/// let mut inbox = world.resource_mut::<simulation::ExternalBridgeInbox>();
+/// if !dual.abundance.is_empty() {
+///     inbox.push_abundance(dual.abundance.views.clone(), dual.abundance.tick_ms);
+/// }
+/// if !dual.origin.is_empty() {
+///     inbox.push_origin(dual.origin.views.clone(), dual.origin.tick_ms);
+/// }
+/// // external_bridge_drain_system promotes Demo → Live on next Update
 /// ```
-pub mod bevy_wiring_docs {}
+pub mod shared_app_publish_docs {}
 
 // Thunder locked in.
-// Pure payloads. Zero cycles. Live when both sides share an app.
+// Dual payloads. Inventory origin. Zero cycles.
 // Yoi ⚡
