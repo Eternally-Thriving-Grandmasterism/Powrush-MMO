@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses / Abundance / Origin Provenance
-//! v21.51.0 — Origin Provenance Observatory + soft demo + ingest
+//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses / Abundance / Origin / Live Ingest
+//! v21.53.0 — Harness-Derived Live Ingest (Demo → Live promotion)
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -102,26 +102,17 @@ impl Default for RealmPresence {
     }
 }
 
-/// Soft passive bonuses derived from living titles.
-/// Purely additive. Never punitive. Fully reversible by leaving the realm.
 #[derive(Clone, Debug, Default)]
 pub struct TitleBonus {
-    /// Multiplier applied to attunement accumulation while present (1.0 = none).
     pub attunement_gain_mult: f32,
-    /// Tiny whisper added to cross-realm mercy flow each second.
     pub resonance_whisper: f32,
 }
 
-/// Tracks how deeply the player has attuned to each realm through presence.
-/// Living titles emerge gently from thresholds and now grant soft passive recognition.
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Reflect, Default)]
 #[reflect(Component)]
 pub struct RealmAttunement {
-    /// Attunement strength per realm (0.0 – 1.0+)
     pub per_realm: HashMap<RealmId, f32>,
-    /// Total attunement accumulated across all realms
     pub total: f32,
-    /// Highest single-realm attunement
     pub peak_realm: Option<RealmId>,
     pub peak_value: f32,
 }
@@ -142,7 +133,6 @@ impl RealmAttunement {
         }
     }
 
-    /// Derive a soft, living title from current-realm attunement + total presence.
     pub fn living_title(&self, current_realm: RealmId) -> String {
         let current = self.get(current_realm);
         let realm_short = match current_realm {
@@ -185,7 +175,6 @@ impl RealmAttunement {
         }
     }
 
-    /// Soft passive bonuses derived from the current living title.
     pub fn title_bonus(&self, current_realm: RealmId) -> TitleBonus {
         let current = self.get(current_realm);
 
@@ -218,7 +207,6 @@ impl RealmAttunement {
     }
 }
 
-/// Lightweight pure-data view of abundance within a single realm.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RealmAbundanceView {
     pub realm_id: RealmId,
@@ -276,12 +264,10 @@ impl RealmAbundanceView {
     }
 }
 
-/// Living observatory that holds per-realm abundance views.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct RealmAbundanceObservatory {
     pub views: HashMap<RealmId, RealmAbundanceView>,
     pub last_updated_tick: u64,
-    /// True once real (non-demo) data has been ingested at least once.
     pub has_live_data: bool,
 }
 
@@ -316,8 +302,6 @@ impl RealmAbundanceObservatory {
     }
 }
 
-/// Soft harvest provenance view — mirrors game-side inventory origin_snapshot()
-/// without creating crate cycles. Pure observation.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct OriginProvenanceView {
     pub realm_id: RealmId,
@@ -325,8 +309,6 @@ pub struct OriginProvenanceView {
     pub resource_types: u32,
 }
 
-/// Living observatory for soft inventory origin provenance.
-/// Fed from ServerInventoryComponent::origin_snapshot() via OriginIngestEvent.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct OriginProvenanceObservatory {
     pub per_realm: HashMap<RealmId, OriginProvenanceView>,
@@ -357,23 +339,12 @@ impl OriginProvenanceObservatory {
     }
 }
 
-/// Live call site for abundance.
 #[derive(Event, Clone, Debug)]
 pub struct AbundanceIngestEvent {
     pub views: Vec<RealmAbundanceView>,
     pub tick: u64,
 }
 
-/// Live call site for origin provenance.
-/// Bridge from inventory.origin_snapshot():
-/// ```ignore
-/// writer.send(OriginIngestEvent {
-///     views: inv.origin_snapshot().into_iter().map(|s| OriginProvenanceView {
-///         realm_id: s.realm_id, total_amount: s.total_amount, resource_types: s.resource_types,
-///     }).collect(),
-///     tick,
-/// });
-/// ```
 #[derive(Event, Clone, Debug)]
 pub struct OriginIngestEvent {
     pub views: Vec<OriginProvenanceView>,
@@ -474,7 +445,7 @@ impl MultiRealmHarness {
         self.primary_realm_id = 0;
         self.next_realm_id = 5;
 
-        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement + titles + soft bonuses + abundance + origin provenance ready");
+        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — full multi-realm organism ready");
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
@@ -493,6 +464,15 @@ impl MultiRealmHarness {
             .values()
             .filter(|r| matches!(r.status, RealmStatus::Thriving))
             .count()
+    }
+
+    /// True when the harness shows living activity worth promoting Demo → Live.
+    pub fn has_living_activity(&self) -> bool {
+        self.total_active_policies_across_realms > 0
+            || self.cross_realm_mercy_flow > 0.01
+            || self.global_resonance_level > 0.01
+            || self.realms.values().any(|r| r.agent_presence_count > 0)
+            || self.realms.values().any(|r| r.total_decisions_passed > 0)
     }
 
     pub fn register_presence(&mut self, realm_id: RealmId) {
@@ -766,6 +746,67 @@ impl MultiRealmHarness {
 }
 
 // ============================================================================
+// PURE DERIVATION HELPERS — live views from living harness metrics
+// ============================================================================
+
+/// Derive abundance views from living MultiRealmHarness state.
+/// Mercy-aligned: more presence, mercy, and thriving status → healthier nodes.
+pub fn derive_abundance_from_harness(harness: &MultiRealmHarness) -> Vec<RealmAbundanceView> {
+    let mut views = Vec::new();
+    for realm in harness.realms.values() {
+        let presence = realm.agent_presence_count as f32;
+        let mercy = realm.mercy_attunement_avg.clamp(0.0, 1.0);
+        let thriving = matches!(realm.status, RealmStatus::Thriving);
+        let policies = realm.active_policy_count as f32;
+        let resonance = realm.incoming_resonance.min(2.0);
+
+        let base_nodes = 4u32 + (presence as u32).min(8) + if thriving { 4 } else { 0 };
+        let node_count = base_nodes + (policies as u32).min(6);
+        let yield_base = 6.0 + presence * 3.5 + mercy * 12.0 + if thriving { 8.0 } else { 0.0 };
+        let sust = (0.55 + mercy * 0.35 + if thriving { 0.08 } else { 0.0 }).min(0.98);
+        let flow = (-0.05 + mercy * 0.25 + resonance * 0.08).clamp(-0.2, 0.45);
+        let stress = (0.45 - mercy * 0.3 - if thriving { 0.1 } else { 0.0 } + (1.0 - sust) * 0.2)
+            .clamp(0.05, 0.75);
+        let restricted = if stress > 0.55 { 1 } else { 0 };
+        let thriving_nodes = ((node_count as f32) * sust * (1.0 - stress)).round() as u32;
+
+        views.push(RealmAbundanceView::from_raw(
+            realm.id,
+            node_count,
+            yield_base,
+            sust,
+            flow,
+            stress,
+            restricted,
+            thriving_nodes.min(node_count),
+        ));
+    }
+    views.sort_by_key(|v| v.realm_id);
+    views
+}
+
+/// Derive origin provenance views from living MultiRealmHarness state.
+/// Presence + decisions + mercy shape soft harvest weights.
+pub fn derive_origin_from_harness(harness: &MultiRealmHarness) -> Vec<OriginProvenanceView> {
+    let mut views = Vec::new();
+    for realm in harness.realms.values() {
+        let presence = realm.agent_presence_count as f32;
+        let decisions = realm.total_decisions_passed as f32;
+        let mercy = realm.mercy_attunement_avg.clamp(0.0, 1.0);
+        let amount = 5.0 + presence * 12.0 + decisions * 1.5 + mercy * 20.0;
+        let types = 1u32 + (presence > 0.0) as u32 + (mercy > 0.7) as u32 + (decisions > 2.0) as u32;
+
+        views.push(OriginProvenanceView {
+            realm_id: realm.id,
+            total_amount: amount,
+            resource_types: types,
+        });
+    }
+    views.sort_by_key(|v| v.realm_id);
+    views
+}
+
+// ============================================================================
 // SYSTEMS
 // ============================================================================
 
@@ -890,7 +931,6 @@ pub fn soft_demo_abundance_seed_system(
 
     let tick = time.elapsed_seconds() as u64;
 
-    // Abundance demo
     if !abundance.has_live_data && abundance.views.is_empty() {
         let demos = [
             (0u8, 12u32, 28.5f32, 0.88f32, 0.22f32, 0.12f32, 0u32, 9u32),
@@ -912,14 +952,13 @@ pub fn soft_demo_abundance_seed_system(
         info!(target: "ra_thor::multi_realm::abundance", "Soft demo abundance seeded (will yield to live data)");
     }
 
-    // Origin provenance demo — gentle harvest weights
     if !origin.has_live_data && origin.per_realm.is_empty() {
         let demos = [
-            (0u8, 42.0f32, 3u32),  // Sanctuary — primary home
-            (1, 18.5, 2),         // Lattice
-            (2, 55.0, 4),         // Verdant — richest harvests
-            (3, 12.0, 2),         // Chorus
-            (4, 6.5, 1),          // Horizon — sparse
+            (0u8, 42.0f32, 3u32),
+            (1, 18.5, 2),
+            (2, 55.0, 4),
+            (3, 12.0, 2),
+            (4, 6.5, 1),
         ];
 
         for (id, amount, types) in demos {
@@ -937,6 +976,57 @@ pub fn soft_demo_abundance_seed_system(
         origin.last_updated_tick = tick;
         info!(target: "ra_thor::multi_realm::origin", "Soft demo origin provenance seeded (will yield to live data)");
     }
+}
+
+/// Concrete shared-app tick: promote Demo → Live when harness shows real activity.
+/// Emits AbundanceIngestEvent + OriginIngestEvent derived from living harness metrics.
+/// Soft refresh ~every 8 seconds once live so the dashboard stays responsive.
+pub fn harness_derived_live_ingest_system(
+    harness: Res<MultiRealmHarness>,
+    abundance: Res<RealmAbundanceObservatory>,
+    origin: Res<OriginProvenanceObservatory>,
+    mut abundance_writer: EventWriter<AbundanceIngestEvent>,
+    mut origin_writer: EventWriter<OriginIngestEvent>,
+    time: Res<Time>,
+    mut last_emit: Local<f32>,
+) {
+    if harness.realms.is_empty() || !harness.has_living_activity() {
+        return;
+    }
+
+    let now = time.elapsed_seconds();
+    let already_live = abundance.has_live_data && origin.has_live_data;
+
+    // First promotion: immediate. Subsequent: soft refresh every ~8s.
+    if already_live && (now - *last_emit) < 8.0 {
+        return;
+    }
+
+    let tick = now as u64;
+    let abundance_views = derive_abundance_from_harness(&harness);
+    let origin_views = derive_origin_from_harness(&harness);
+
+    if !abundance_views.is_empty() {
+        abundance_writer.send(AbundanceIngestEvent {
+            views: abundance_views,
+            tick,
+        });
+    }
+    if !origin_views.is_empty() {
+        origin_writer.send(OriginIngestEvent {
+            views: origin_views,
+            tick,
+        });
+    }
+
+    *last_emit = now;
+
+    info!(
+        target: "ra_thor::multi_realm::live_ingest",
+        tick = tick,
+        first_promotion = !already_live,
+        "Harness-derived live ingest emitted (Demo → Live)"
+    );
 }
 
 pub fn multi_realm_harness_system(
@@ -982,17 +1072,18 @@ impl Plugin for MultiRealmHarnessPlugin {
                     realm_attunement_bootstrap_system,
                     realm_attunement_system,
                     realm_travel_system,
+                    soft_demo_abundance_seed_system,
+                    harness_derived_live_ingest_system,
                     abundance_ingest_system,
                     origin_ingest_system,
-                    soft_demo_abundance_seed_system,
-                ),
+                ).chain(),
             );
 
-        info!("MultiRealmHarnessPlugin — presence + attunement + titles + bonuses + abundance + origin provenance active");
+        info!("MultiRealmHarnessPlugin — full organism + harness-derived live ingest active");
     }
 }
 
 // Thunder locked in.
-// Live call sites: AbundanceIngestEvent + OriginIngestEvent.
-// Soft demos keep the dashboard alive until real data arrives.
+// Concrete tick: harness_derived_live_ingest_system promotes Demo → Live on real activity.
+// External bridges may still send AbundanceIngestEvent / OriginIngestEvent directly.
 // Yoi ⚡
