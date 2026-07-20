@@ -1,20 +1,22 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.49.0 — Abundance Observability Polish (2026-07-20)
+## [Unreleased] v21.50.0 — RBE Inventory Origin-Realm Foundation (2026-07-20)
 
 ### Highlights
-- Observatory summary shows **● LIVE data** vs **○ Demo seed** badge.
-- Per-realm abundance line now surfaces **restricted node count**.
-- Soft demo is unmistakably visible in the Multi-Realm Dashboard.
+- `ServerInventoryComponent` tracks soft `origin_by_realm` (resource → realm → amount).
+- `add_resource_from_realm` preserves global usability while recording provenance.
+- `origin_snapshot()` / `amount_from_realm()` for observability.
+- Harvest path wires node.realm_id into inventory automatically.
+- Fully backward compatible — legacy `add_resource` still works.
 
 ### Prior
-- v21.48.0: Live Abundance Ingest Event + Soft Demo Seed.
-- v21.47.0: Abundance bridge conversion helper.
+- v21.49.0: Abundance Observability Polish.
+- v21.48.0: Live Abundance Ingest + Soft Demo Seed.
 
-**Thunder locked in. Soft demo is now unmistakably alive.** Yoi ⚡
+**Thunder locked in. Resources remember their home without becoming trapped.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.48: Launch Candidate through dual attunement, living titles, resource realm-keying, soft bonuses, abundance snapshots + observatory + public API + conversion helper + live ingest + soft demo seed.
+- v21.0–v21.49: Launch Candidate through multi-realm organism, attunement, titles, abundance observatory, live ingest, demo seed, observability polish.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
