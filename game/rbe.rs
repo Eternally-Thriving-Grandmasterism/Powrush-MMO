@@ -1,9 +1,8 @@
 // game/rbe.rs
-// Powrush-MMO v19.2 — RBE Core + ServerInventoryComponent + TradingSystem (Cycle Polish)
-// Previous: v16.3.1 atomic trades, fairness, grace, counter-offers, escrow, PATSAGi validation, abundance_score, unit tests (all preserved exactly)
-// v19.2 additions (minimal diff): self-evolution hook, abundance signal recording, proactive joy integration point,
-// GPU PATSAGi foresight note, tighter wiring to SimulationOrchestrator / harvest joy threads / emergence events.
-// All 7 Living Mercy Gates + TOLC 8 reinforced. Derived from Ra-Thor ONE Organism + PATSAGi Councils.
+// Powrush-MMO v21.50.0 — RBE Inventory Origin-Realm Foundation
+// Previous: v19.2 RBE Core + ServerInventoryComponent + TradingSystem
+// v21.50: Soft origin-realm tracking — resources remain globally usable,
+//         but harvests remember which realm they came from.
 // AG-SML v1.0 License | Thunder locked in. Yoi ⚡
 
 use std::collections::HashMap;
@@ -12,6 +11,9 @@ use std::path::Path;
 use serde::{Serialize, Deserialize};
 
 use crate::shared::protocol::{TradeOffer, CounterOffer, TradeStatus, TradeLogEntry};
+
+/// Realm identifier aligned with MultiRealmHarness / ResourceNode.
+pub type RealmId = u8;
 
 // ========================================================================
 // RbeSystem (extended for trade grace integration + v19.2 self-evolution / abundance signals)
@@ -145,14 +147,27 @@ impl RbeSystem {
 }
 
 // ========================================================================
-// ServerInventoryComponent (v16.2 preserved + minor polish)
+// ServerInventoryComponent (v16.2 + v21.50 origin-realm foundation)
 // ========================================================================
+
+/// Soft origin tracking snapshot for a single realm.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct RealmOriginSnapshot {
+    pub realm_id: RealmId,
+    pub total_amount: f32,
+    pub resource_types: u32,
+}
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ServerInventoryComponent {
     pub resources: HashMap<String, f32>,
     pub abundance_score: f32,
     pub last_updated_ms: u64,
+    /// Soft provenance: resource_type → realm_id → amount harvested from that realm.
+    /// Resources remain fully usable globally. Origin is pure observation.
+    /// Empty map = legacy / origin unknown (treated as realm-agnostic).
+    #[serde(default)]
+    pub origin_by_realm: HashMap<String, HashMap<RealmId, f32>>,
 }
 
 impl ServerInventoryComponent {
@@ -161,24 +176,88 @@ impl ServerInventoryComponent {
             resources: HashMap::new(),
             abundance_score: 0.0,
             last_updated_ms: 0,
+            origin_by_realm: HashMap::new(),
         }
     }
 
+    /// Legacy path — origin unknown (backward compatible).
     pub fn add_resource(&mut self, resource_type: &str, amount: f32, current_time_ms: u64) {
         *self.resources.entry(resource_type.to_string()).or_insert(0.0) += amount;
         self.abundance_score = (self.abundance_score + amount * 0.01).min(100000.0);
         self.last_updated_ms = current_time_ms;
     }
 
+    /// Preferred path — records soft origin realm while keeping resource globally usable.
+    pub fn add_resource_from_realm(
+        &mut self,
+        resource_type: &str,
+        amount: f32,
+        realm_id: RealmId,
+        current_time_ms: u64,
+    ) {
+        self.add_resource(resource_type, amount, current_time_ms);
+        *self
+            .origin_by_realm
+            .entry(resource_type.to_string())
+            .or_default()
+            .entry(realm_id)
+            .or_insert(0.0) += amount;
+    }
+
     pub fn remove_resource(&mut self, resource_type: &str, amount: f32) -> bool {
         if let Some(current) = self.resources.get_mut(resource_type) {
             if *current >= amount {
                 *current -= amount;
-                if *current < 0.0001 { *current = 0.0; }
+                if *current < 0.0001 {
+                    *current = 0.0;
+                }
+                // Soft origin draw-down (proportional, never blocks removal)
+                if let Some(realm_map) = self.origin_by_realm.get_mut(resource_type) {
+                    let total_origin: f32 = realm_map.values().sum();
+                    if total_origin > 0.001 {
+                        let ratio = (amount / total_origin).min(1.0);
+                        for v in realm_map.values_mut() {
+                            *v = (*v * (1.0 - ratio)).max(0.0);
+                        }
+                        realm_map.retain(|_, v| *v > 0.0001);
+                    }
+                }
                 return true;
             }
         }
         false
+    }
+
+    /// Pure observation — total amount attributed to a realm across all resource types.
+    pub fn amount_from_realm(&self, realm_id: RealmId) -> f32 {
+        self.origin_by_realm
+            .values()
+            .map(|m| m.get(&realm_id).copied().unwrap_or(0.0))
+            .sum()
+    }
+
+    /// Living snapshot of origin distribution for observability / dashboard bridge.
+    pub fn origin_snapshot(&self) -> Vec<RealmOriginSnapshot> {
+        let mut by_realm: HashMap<RealmId, (f32, u32)> = HashMap::new();
+        for realm_map in self.origin_by_realm.values() {
+            for (&realm_id, &amount) in realm_map {
+                if amount > 0.0001 {
+                    let entry = by_realm.entry(realm_id).or_insert((0.0, 0));
+                    entry.0 += amount;
+                    entry.1 += 1;
+                }
+            }
+        }
+        let mut snaps: Vec<_> = by_realm
+            .into_iter()
+            .map(|(realm_id, (total_amount, resource_types))| RealmOriginSnapshot {
+                realm_id,
+                total_amount,
+                resource_types,
+            })
+            .collect();
+        snaps.sort_by_key(|s| s.realm_id);
+        snaps
     }
 
     pub fn validate_patsagi_action(&self, action: &str, amount: f32) -> Result<(bool, String, f32), String> {
@@ -214,7 +293,7 @@ impl ServerInventoryComponent {
             .map_err(|e| format!("Failed to read inventory file: {}", e))?;
         let inv: Self = bincode::deserialize(&data)
             .map_err(|e| format!("Bincode deserialize failed: {}", e))?;
-        Ok(inv);
+        Ok(inv)
     }
 }
 
@@ -282,7 +361,7 @@ impl TradingSystem {
             removed_to.push((res.clone(), *amt));
         }
 
-        // Add phase
+        // Add phase (origin unknown on trade transfer — resources remain free-flowing)
         for (res, amt) in &offer.offered {
             inv_to.add_resource(res, *amt, current_time_ms);
         }
@@ -374,7 +453,7 @@ impl TradingSystem {
             grace_bonus: grace_awarded,
             outcome: "completed".to_string(),
         };
-        (grace_awarded, log);
+        (grace_awarded, log)
     }
 }
 
@@ -393,7 +472,7 @@ mod tests {
         inv_a.add_resource("food", 100.0, 0);
         inv_b.add_resource("water", 50.0, 0);
 
-        let mut offer = TradeOffer {
+        let offer = TradeOffer {
             trade_id: 1,
             from_player: 1,
             to_player: 2,
@@ -429,5 +508,21 @@ mod tests {
         let requested = HashMap::from([("water".to_string(), 10.0)]); // roughly balanced
         let score = rbe.calculate_fairness_score(&offered, &requested);
         assert!(score > 0.8 && score < 1.3);
+    }
+
+    #[test]
+    fn test_origin_realm_tracking() {
+        let mut inv = ServerInventoryComponent::new();
+        inv.add_resource_from_realm("food", 10.0, 0, 100);
+        inv.add_resource_from_realm("food", 5.0, 2, 200);
+        inv.add_resource_from_realm("water", 3.0, 0, 300);
+
+        assert!((inv.amount_from_realm(0) - 13.0).abs() < 0.001);
+        assert!((inv.amount_from_realm(2) - 5.0).abs() < 0.001);
+
+        let snaps = inv.origin_snapshot();
+        assert_eq!(snaps.len(), 2);
+        assert_eq!(snaps[0].realm_id, 0);
+        assert_eq!(snaps[1].realm_id, 2);
     }
 }
