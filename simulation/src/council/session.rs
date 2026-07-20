@@ -1,19 +1,20 @@
 /*!
  * CouncilSession with World State Delta Scoring.
  *
- * v1.1 — run_deliberation now accepts optional &SovereignWorldState and threads it
- * into archetype scoring. Scoring hardened for current world shape.
+ * v21.71.0 — Session → CouncilDecisions promotion path
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
+use bevy::prelude::*;
 use tracing::info;
 
-use crate::council::decision::CouncilDecision;
+use crate::council::decision::{CouncilDecision, CouncilDecisions};
 use crate::council::event_bus::{CouncilEvent, CouncilEventBus};
 use crate::council::proposal::{CouncilProposal, ProposalStatus, ProposalType};
-use crate::world::SovereignWorldState;
+use crate::world::{AgentId, SovereignWorldState};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CouncilArchetype {
@@ -51,18 +52,13 @@ impl CouncilArchetype {
         }
     }
 
-    /// Archetype-specific scoring with optional world state delta awareness.
-    /// Cross-link: World-delta (RBE sustainability/abundance via resource_nodes) feeds render visuals,
-    /// divine whispers, InterestManager visible culling, and Kardashev dashboard.
     pub fn score_proposal(
         &self,
         decision: &CouncilDecision,
         world: Option<&SovereignWorldState>,
     ) -> f32 {
-        let effect = decision.effect_type.as_str();
         let mercy = decision.mercy_factor;
 
-        // Base archetype bias (now explicitly aware of KardashevAcceleration)
         let base_bias = match self {
             CouncilArchetype::Truth => {
                 if matches!(decision.proposal_type, ProposalType::KardashevAcceleration) {
@@ -109,9 +105,7 @@ impl CouncilArchetype {
             }
         };
 
-        // World state delta bonus (robust against current SovereignWorldState shape)
         let delta_bonus: f32 = if let Some(w) = world {
-            // Prefer resource_nodes sustainability when available
             let node_count = w.resource_nodes.len().max(1) as f32;
             let avg_sustainability: f32 = w
                 .resource_nodes
@@ -120,7 +114,6 @@ impl CouncilArchetype {
                 .sum::<f32>()
                 / node_count;
 
-            // Simple abundance proxy from current_yield vs base_yield
             let avg_abundance: f32 = w
                 .resource_nodes
                 .values()
@@ -138,11 +131,7 @@ impl CouncilArchetype {
                 CouncilArchetype::Abundance => (avg_abundance - 1.2).clamp(-0.1, 0.14),
                 CouncilArchetype::Harmony => (avg_sustainability - 0.55).clamp(-0.08, 0.12),
                 CouncilArchetype::Truth => {
-                    if avg_sustainability > 0.7 {
-                        0.05
-                    } else {
-                        -0.02
-                    }
+                    if avg_sustainability > 0.7 { 0.05 } else { -0.02 }
                 }
                 CouncilArchetype::Cosmic => (avg_abundance * 0.04).clamp(0.0, 0.08),
                 _ => 0.0,
@@ -240,25 +229,58 @@ impl CouncilSession {
         self.last_dynamic_threshold
     }
 
+    pub fn open_proposal_count(&self) -> usize {
+        self.active_proposals.iter().filter(|p| p.is_open()).count()
+    }
+
     pub fn submit_proposal(
         &mut self,
         proposal_type: ProposalType,
         title: String,
         description: String,
-        proposer: crate::world::AgentId,
+        proposer: AgentId,
         current_tick: u64,
+    ) -> u64 {
+        self.submit_proposal_rich(
+            proposal_type,
+            title,
+            description,
+            proposer,
+            current_tick,
+            None,
+            None,
+        )
+    }
+
+    /// Rich submission path — mercy hint + optional spatial target zone.
+    pub fn submit_proposal_rich(
+        &mut self,
+        proposal_type: ProposalType,
+        title: String,
+        description: String,
+        proposer: AgentId,
+        current_tick: u64,
+        mercy_hint: Option<f32>,
+        target_zone: Option<u64>,
     ) -> u64 {
         let id = self.next_proposal_id;
         self.next_proposal_id += 1;
 
-        let proposal = CouncilProposal::new(
+        let mut proposal = CouncilProposal::new(
             id,
-            proposal_type,
+            proposal_type.clone(),
             title.clone(),
             description,
             proposer,
             current_tick,
         );
+
+        if let Some(hint) = mercy_hint {
+            proposal = proposal.with_mercy_hint(hint);
+        }
+        if let Some(zone) = target_zone {
+            proposal = proposal.with_target_zone(zone);
+        }
 
         if let Some(bus) = &self.event_bus {
             let _ = bus.send(CouncilEvent::ProposalSubmitted {
@@ -277,9 +299,34 @@ impl CouncilSession {
         self.active_proposals.push(proposal);
     }
 
+    /// Cast a simple vote on an open proposal by id.
+    pub fn cast_vote_on(&mut self, proposal_id: u64, support: bool) -> bool {
+        if let Some(p) = self.active_proposals.iter_mut().find(|p| p.id == proposal_id && p.is_open()) {
+            p.cast_vote(support);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Promote resolved (Passed) proposals into CouncilDecision values.
+    pub fn promote_resolved_to_decisions(
+        &self,
+        resolved: &[CouncilProposal],
+        average_mercy: f32,
+        current_tick: u64,
+    ) -> Vec<CouncilDecision> {
+        let mercy_factor = (average_mercy / 100.0).clamp(0.0, 1.0);
+        resolved
+            .iter()
+            .filter(|p| p.status == ProposalStatus::Passed)
+            .map(|p| {
+                CouncilDecision::from_resolved_proposal(p, mercy_factor, current_tick, self.realm_id)
+            })
+            .collect()
+    }
+
     /// Run deliberation. Pass `Some(world)` to enable real world-delta scoring.
-    /// Backward compatible: existing callers that pass only mercy + tick continue to work
-    /// (world = None falls back to pure mercy / type scoring).
     pub fn run_deliberation(
         &mut self,
         average_mercy: f32,
@@ -317,7 +364,6 @@ impl CouncilSession {
                     let would_pass_vote = effective_for > proposal.votes_against as f32;
 
                     if would_pass_vote {
-                        let mut votes: Vec<CouncilVote> = Vec::new();
                         let mut total_weight: f32 = 0.0;
                         let mut weighted_approvals: f32 = 0.0;
                         let mut weighted_mas_sum: f32 = 0.0;
@@ -335,7 +381,6 @@ impl CouncilSession {
                                 self.realm_id,
                             );
 
-                            // Base MAS + archetype scoring (now with real world when provided)
                             let base_mas = temp_decision.mercy_alignment_score(None);
                             let archetype_bonus = archetype
                                 .as_ref()
@@ -350,14 +395,6 @@ impl CouncilSession {
                                 weighted_mas_sum += council_mas * weight;
                                 approving_weight += weight;
                             }
-
-                            votes.push(CouncilVote {
-                                council_id: council_id as u8,
-                                approved,
-                                mercy_alignment_score: council_mas,
-                                weight,
-                                archetype,
-                            });
                         }
 
                         let weighted_approval_ratio = if total_weight > 0.0 {
@@ -422,6 +459,106 @@ impl CouncilSession {
         self.last_session_tick = current_tick;
         resolved
     }
+
+    /// Full path: deliberate + promote Passed proposals into decisions.
+    pub fn deliberate_and_promote(
+        &mut self,
+        average_mercy: f32,
+        current_tick: u64,
+        world: Option<&SovereignWorldState>,
+    ) -> Vec<CouncilDecision> {
+        let resolved = self.run_deliberation(average_mercy, current_tick, world);
+        self.promote_resolved_to_decisions(&resolved, average_mercy, current_tick)
+    }
 }
 
-// Thunder locked in. Yoi ⚡
+// =============================================================================
+// Bevy: per-realm session registry + soft promotion system
+// =============================================================================
+
+#[derive(Resource, Debug, Default)]
+pub struct CouncilSessionRegistry {
+    pub sessions: HashMap<u8, CouncilSession>,
+    pub last_deliberation_tick: u64,
+    /// Soft cadence (ticks between auto-deliberation passes).
+    pub deliberation_interval: u64,
+    pub default_average_mercy: f32,
+}
+
+impl CouncilSessionRegistry {
+    pub fn ensure_session(&mut self, realm_id: u8, tick: u64) -> &mut CouncilSession {
+        self.sessions.entry(realm_id).or_insert_with(|| {
+            CouncilSession::new(realm_id, tick).with_archetype_defaults()
+        })
+    }
+
+    pub fn submit(
+        &mut self,
+        realm_id: u8,
+        proposal_type: ProposalType,
+        title: String,
+        description: String,
+        proposer: AgentId,
+        tick: u64,
+        mercy_hint: Option<f32>,
+        target_zone: Option<u64>,
+    ) -> u64 {
+        let session = self.ensure_session(realm_id, tick);
+        session.submit_proposal_rich(
+            proposal_type,
+            title,
+            description,
+            proposer,
+            tick,
+            mercy_hint,
+            target_zone,
+        )
+    }
+}
+
+/// Soft system: when sessions have open proposals past interval, deliberate and
+/// push Passed decisions into CouncilDecisions (feeds economy/legacy/RTT path).
+pub fn session_deliberation_system(
+    mut registry: ResMut<CouncilSessionRegistry>,
+    mut decisions: ResMut<CouncilDecisions>,
+    time: Res<Time>,
+) {
+    if registry.deliberation_interval == 0 {
+        registry.deliberation_interval = 90; // soft default
+    }
+    if registry.default_average_mercy <= 0.0 {
+        registry.default_average_mercy = 72.0;
+    }
+
+    // Approximate tick from elapsed seconds for host apps without explicit tick
+    let approx_tick = (time.elapsed_seconds_f64() * 10.0) as u64;
+    if approx_tick.saturating_sub(registry.last_deliberation_tick) < registry.deliberation_interval {
+        return;
+    }
+
+    let mercy = registry.default_average_mercy;
+    let mut any = false;
+
+    for session in registry.sessions.values_mut() {
+        if session.open_proposal_count() == 0 {
+            continue;
+        }
+        let promoted = session.deliberate_and_promote(mercy, approx_tick, None);
+        for decision in promoted {
+            decisions.push_decision(decision);
+            any = true;
+        }
+    }
+
+    if any {
+        registry.last_deliberation_tick = approx_tick;
+        info!(
+            target: "ra_thor::council::session",
+            tick = approx_tick,
+            "Session deliberation promoted decisions into CouncilDecisions"
+        );
+    }
+}
+
+// Thunder locked in. Session → decisions loop closed.
+// Yoi ⚡
