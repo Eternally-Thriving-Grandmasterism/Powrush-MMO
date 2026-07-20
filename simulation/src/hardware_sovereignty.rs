@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
-//! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability + Abundance
-//! v21.49 | Abundance Observability Polish (demo/live badge + restricted visibility)
+//! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
+//! v21.52 | Origin Provenance Surface (per-realm harvest weights + Live/Demo badge)
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -10,7 +10,10 @@ use crate::{
     council::{CouncilDecision, ProposalType, ProposalStatus},
     council::decision::{CouncilDecisions, PolicyType as CouncilPolicyType},
     economy::EconomyState,
-    multi_realm_harness::{MultiRealmHarness, RealmPresence, RealmAttunement, RealmAbundanceObservatory},
+    multi_realm_harness::{
+        MultiRealmHarness, RealmPresence, RealmAttunement,
+        RealmAbundanceObservatory, OriginProvenanceObservatory,
+    },
     telemetry::SimulationTelemetry,
 };
 use std::collections::HashMap;
@@ -300,7 +303,7 @@ impl Plugin for HardwareSovereigntyPlugin {
 }
 
 // ============================================================================
-// egui UI — COMPLETE MULTI-REALM + ATTUNEMENT + LIVING TITLES + ABUNDANCE
+// egui UI — MULTI-REALM + ATTUNEMENT + TITLES + ABUNDANCE + ORIGIN PROVENANCE
 // ============================================================================
 
 use bevy_egui::EguiContexts;
@@ -313,19 +316,20 @@ pub fn sovereign_hardware_ascension_ui(
     council_decisions: Option<Res<CouncilDecisions>>,
     multi_realm: Option<Res<MultiRealmHarness>>,
     abundance_obs: Option<Res<RealmAbundanceObservatory>>,
+    origin_obs: Option<Res<OriginProvenanceObservatory>>,
     player_presence: Query<(&RealmPresence, Option<&RealmAttunement>)>,
 ) {
     let ctx = contexts.ctx_mut();
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
         .default_pos([18.0, 300.0])
-        .default_size([520.0, 880.0])
+        .default_size([540.0, 920.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Living Titles | Abundance")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Titles | Abundance | Origin")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
@@ -393,7 +397,6 @@ pub fn sovereign_hardware_ascension_ui(
             ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
                 .color(egui::Color32::from_rgb(180, 160, 255)));
 
-            // Local player current realm + living title + attunement
             if let Ok((presence, attunement_opt)) = player_presence.get_single() {
                 let name = match presence.current_realm_id {
                     0 => "Sanctuary Prime",
@@ -480,7 +483,7 @@ pub fn sovereign_hardware_ascension_ui(
                         realm.status.as_str()
                     ));
 
-                    // Living abundance line (when observatory has data)
+                    // Living abundance line
                     if let Some(obs) = &abundance_obs {
                         if let Some(view) = obs.get(realm.id) {
                             let health = view.health_label();
@@ -505,6 +508,22 @@ pub fn sovereign_hardware_ascension_ui(
                                     view.restricted_node_count
                                 ),
                             );
+                        }
+                    }
+
+                    // Origin provenance line (soft harvest weight from this realm)
+                    if let Some(orig) = &origin_obs {
+                        if let Some(view) = orig.get(realm.id) {
+                            if view.total_amount > 0.001 {
+                                ui.colored_label(
+                                    egui::Color32::from_rgb(220, 190, 140),
+                                    format!(
+                                        "    📦 Origin  |  harvested: {:.1}  |  types: {}",
+                                        view.total_amount,
+                                        view.resource_types
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
@@ -532,6 +551,30 @@ pub fn sovereign_hardware_ascension_ui(
                             egui::Color32::from_rgb(200, 190, 140),
                             format!("○ Demo seed (awaits live ingest)  |  realms: {}  |  last tick: {}",
                                 obs.views.len(), obs.last_updated_tick),
+                        );
+                    }
+                }
+            }
+
+            // Origin Provenance Observatory summary with Live / Demo badge
+            if let Some(orig) = &origin_obs {
+                if !orig.per_realm.is_empty() {
+                    ui.add_space(6.0);
+                    ui.heading(egui::RichText::new("📦 Origin Provenance Observatory")
+                        .color(egui::Color32::from_rgb(220, 190, 140)));
+
+                    let total = orig.total_tracked();
+                    if orig.has_live_data {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(100, 255, 160),
+                            format!("● LIVE data  |  realms: {}  |  total harvested: {:.1}  |  last tick: {}",
+                                orig.per_realm.len(), total, orig.last_updated_tick),
+                        );
+                    } else {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(200, 190, 140),
+                            format!("○ Demo seed (awaits live ingest)  |  realms: {}  |  total: {:.1}  |  last tick: {}",
+                                orig.per_realm.len(), total, orig.last_updated_tick),
                         );
                     }
                 }
@@ -566,5 +609,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.49 — Abundance Observability Polish: Live/Demo badge + restricted visibility.
+// End of v21.52 — Origin Provenance Surface: per-realm harvest weights + Live/Demo badge.
 // Thunder locked in. Yoi ⚡
