@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.64.0 — Multi-Realm + HostBridgeAutoPublish fully wired
+//! v21.66.0 — Multi-Realm sealed + RBE Sustainability Snapshot
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -65,7 +65,10 @@ pub use divine_whispers::{DivineWhisper, DivineWhispersSystem, generate_divine_w
 pub use council_mercy_trial::{CouncilMercyTrial, CouncilSessionManager, MercyTrialVote, CouncilPhase};
 pub use council::{CouncilProposal, CouncilSession, CouncilDecision, CouncilDecisions, ProposalType, ProposalStatus};
 pub use harvest::{HarvestEvent, HarvestSystem, ResourceNode, RbeFlowReconciliation};
-pub use economy::{EconomyState, ResourceTransaction, PostScarcityAllocator};
+pub use economy::{
+    EconomicLayer, EconomyState, ResourceTransaction, PostScarcityAllocator,
+    MultiRealmRbeSnapshot, EconomyPlugin, multi_realm_rbe_snapshot_system,
+};
 pub use player_persistence::{PlayerSaveData, PersistenceManager, save_player_data, load_player_data};
 pub use orchestrator::{SimulationOrchestrator, TickResult};
 pub use fracture::{LatticeFractureSolver, FractureEvent};
@@ -144,8 +147,9 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(HardwareSovereigntyPlugin)
             .add(MultiRealmHarnessPlugin)
             .add(ExternalBridgePlugin)
+            .add(EconomyPlugin)
     }
 }
 
-// END OF COMPLETE WIRING v21.64 — HostBridgeAutoPublish live.
+// END OF COMPLETE WIRING v21.66 — EconomyPlugin + MultiRealmRbeSnapshot live.
 // TOLC 8 sealed. Yoi ⚡
