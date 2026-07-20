@@ -1,20 +1,21 @@
 /*!
- * Hybrid CPU + GPU Economic / RBE Layer (v18.97.5 + v19.2.9 Sustainability + Council Policy Integration)
- * 
- * RBE Council Policy Integration implemented:
- * - Council attunement and bloom outcomes now directly influence RBE pools, nodes, abundance, pressure, and sustainability.
- * - High mercy/attunement = economic blessing (abundance boost, pressure relief, sustainability gain).
- * - Low attunement or failed council = economic friction (pressure increase, reduced abundance/regeneration).
- * - Designed to be called from orchestrator TickResult or council resolution systems.
+ * Hybrid CPU + GPU Economic / RBE Layer
+ * v21.66.0 — Bevy EconomyState + Multi-Realm RBE Sustainability Snapshot
  *
- * v19.7+ GPU Foresight wiring recovered: apply_gpu_regen_adjustments now correctly takes &mut SovereignWorldState
+ * RBE Council Policy Integration:
+ * - Council attunement and bloom outcomes influence RBE pools, nodes, abundance, pressure, sustainability.
+ * - High mercy/attunement = economic blessing; low = friction.
+ *
+ * v21.66: Bevy-facing EconomyState + organism-level RBE snapshot from multi-realm observatory.
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
 
+use bevy::prelude::*;
 use crate::world::SovereignWorldState;
 use crate::mercy::{MercyGate, MercyViolation};
 use crate::harvest::HarvestEvent;
 use crate::emergence::DynamicEmergenceEvent;
+use crate::multi_realm_harness::RealmAbundanceObservatory;
 use tracing::{info_span, instrument, warn};
 
 #[cfg(feature = "gpu")]
@@ -105,7 +106,6 @@ impl EconomicLayer {
         Ok(())
     }
 
-    /// v19.2.9: Core RBE Sustainability Depth system.
     pub fn apply_rbe_sustainability_tick(&self, world: &mut SovereignWorldState) {
         for node in world.resource_nodes.values_mut() {
             if node.depletion > 0.4 || node.stress_level > 0.5 {
@@ -145,13 +145,6 @@ impl EconomicLayer {
         }
     }
 
-    /// RBE Council Policy Integration (v19.2.9)
-    /// Applies real economic consequences from Council Mercy Trial outcomes.
-    /// High collective attunement and successful blooms = RBE blessing.
-    /// Low attunement or failed seals = economic friction and pressure.
-    /// Call this from orchestrator TickResult or council resolution when a council session ends.
-    /// Cross-link: RBE abundance/pressure/sustainability changes + GPU foresight + council policy directly influence
-    /// InterestManager visible entity culling and recovered client render post-FX pipeline (cinematic effects gated by visible sets).
     pub fn apply_council_policy_impact(
         &mut self,
         collective_attunement: f32,
@@ -164,17 +157,14 @@ impl EconomicLayer {
 
         for pool in world.rbe_pools.values_mut() {
             if is_strong_council {
-                // Council blessing: abundance flows more freely, pressure relieved, sustainability improved
                 pool.abundance_flow = (pool.abundance_flow + mercy_factor * 0.8).min(4.0);
                 pool.sustainability_score = (pool.sustainability_score + mercy_factor * 0.06).min(1.0);
                 pool.pressure = (pool.pressure - mercy_factor * 1.2).max(0.0);
             } else if mercy_factor < 0.4 {
-                // Weak or failed council: economic friction increases
                 pool.pressure = (pool.pressure + (1.0 - mercy_factor) * 0.9).min(8.0);
                 pool.abundance_flow = (pool.abundance_flow - (1.0 - mercy_factor) * 0.35).max(-2.0);
                 pool.sustainability_score = (pool.sustainability_score - 0.015).max(0.1);
             } else {
-                // Moderate council: mild positive effect
                 pool.abundance_flow = (pool.abundance_flow + mercy_factor * 0.25).min(3.0);
                 pool.pressure = (pool.pressure - mercy_factor * 0.4).max(0.0);
             }
@@ -193,7 +183,6 @@ impl EconomicLayer {
         }
     }
 
-    /// Applies a HarvestEvent from TickResult into the economic simulation.
     pub fn apply_harvest_event(
         &mut self,
         event: &HarvestEvent,
@@ -227,7 +216,6 @@ impl EconomicLayer {
         Ok(())
     }
 
-    /// Applies a DynamicEmergenceEvent from TickResult into the economic simulation.
     pub fn apply_emergence_event(
         &mut self,
         event: &DynamicEmergenceEvent,
@@ -269,30 +257,19 @@ impl EconomicLayer {
         Ok(())
     }
 
-    /// Applies GPU PATSAGi foresight recommendations into the economic system.
-    /// Updates resource node regeneration rates and sustainability based on GPU predictions.
-    /// Called from SimulationOrchestrator when GPU foresight is enabled.
-    ///
-    /// v19.7 recovery: Now correctly accepts &mut SovereignWorldState (was missing, causing undefined `world`).
     #[cfg(feature = "gpu")]
     pub fn apply_gpu_regen_adjustments(&self, response: &GpuPatsagiResponse, world: &mut SovereignWorldState) -> bool {
         let mut applied = false;
 
-        // Apply recommended regeneration rates to resource nodes
         for (&node_id, &recommended_regen) in &response.recommended_regen_rates {
             if let Some(node) = world.resource_nodes.get_mut(&node_id) {
-                // Apply GPU-recommended regeneration rate (clamped for stability)
                 let old_regen = node.regen_rate;
                 node.regen_rate = recommended_regen.clamp(0.001, 2.0);
-
-                // Gentle adjustment toward GPU recommendation
                 node.regen_rate = (old_regen * 0.7 + node.regen_rate * 0.3).clamp(0.001, 2.0);
-
                 applied = true;
             }
         }
 
-        // Apply sustainability adjustments
         for (&node_id, &sustainability) in &response.sustainability_adjustments {
             if let Some(node) = world.resource_nodes.get_mut(&node_id) {
                 node.sustainability_score = (node.sustainability_score * 0.6 + sustainability * 0.4)
@@ -302,10 +279,217 @@ impl EconomicLayer {
         }
 
         if !response.predicted_depletion.is_empty() {
-            // Future: Could use predicted_depletion for proactive pressure/stress adjustments
             applied = true;
         }
 
         applied
     }
 }
+
+// ============================================================================
+// BEVY-FACING ECONOMY STATE (v21.66)
+// ============================================================================
+
+/// Player / organism RBE economy state used by Bevy systems (Kardashev, UI, progression).
+#[derive(Component, Resource, Clone, Debug, Reflect)]
+#[reflect(Component)]
+pub struct EconomyState {
+    pub total_harvested: f32,
+    pub cooperative_bonus: f32,
+    pub average_sustainability: f32,
+    pub average_pressure: f32,
+    pub abundance_velocity: f32,
+    pub sustainable_harvests: u32,
+    pub stressed_harvests: u32,
+}
+
+impl Default for EconomyState {
+    fn default() -> Self {
+        Self {
+            total_harvested: 0.0,
+            cooperative_bonus: 0.0,
+            average_sustainability: 0.75,
+            average_pressure: 0.0,
+            abundance_velocity: 0.0,
+            sustainable_harvests: 0,
+            stressed_harvests: 0,
+        }
+    }
+}
+
+impl EconomyState {
+    pub fn record_harvest(&mut self, amount: f32, sustainable: bool, cooperative: bool) {
+        self.total_harvested += amount.max(0.0);
+        if sustainable {
+            self.sustainable_harvests = self.sustainable_harvests.saturating_add(1);
+            self.average_sustainability =
+                (self.average_sustainability * 0.95 + 0.05).min(1.0);
+            self.average_pressure = (self.average_pressure - 0.02).max(0.0);
+        } else {
+            self.stressed_harvests = self.stressed_harvests.saturating_add(1);
+            self.average_sustainability =
+                (self.average_sustainability * 0.97 - 0.01).max(0.1);
+            self.average_pressure = (self.average_pressure + 0.08).min(5.0);
+        }
+        if cooperative {
+            self.cooperative_bonus += amount * 0.15;
+        }
+        self.abundance_velocity =
+            (self.abundance_velocity * 0.9 + amount * 0.1).min(50.0);
+    }
+
+    pub fn health_label(&self) -> &'static str {
+        if self.average_sustainability > 0.8 && self.average_pressure < 0.5 {
+            "Thriving"
+        } else if self.average_pressure > 2.5 || self.average_sustainability < 0.4 {
+            "Stressed"
+        } else if self.abundance_velocity > 5.0 {
+            "Abundant"
+        } else {
+            "Steady"
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ResourceTransaction {
+    pub resource_id: u32,
+    pub amount: f32,
+    pub from_entity: Option<Entity>,
+    pub to_entity: Option<Entity>,
+    pub sustainable: bool,
+    pub tick: u64,
+}
+
+/// Soft post-scarcity allocator — distributes surplus toward under-supplied agents.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct PostScarcityAllocator {
+    pub surplus_pool: f32,
+    pub allocations_this_tick: u32,
+    pub last_tick: u64,
+}
+
+impl PostScarcityAllocator {
+    pub fn deposit_surplus(&mut self, amount: f32) {
+        self.surplus_pool = (self.surplus_pool + amount.max(0.0)).min(10_000.0);
+    }
+
+    pub fn allocate(&mut self, need: f32) -> f32 {
+        let grant = need.min(self.surplus_pool).max(0.0);
+        self.surplus_pool -= grant;
+        if grant > 0.0 {
+            self.allocations_this_tick = self.allocations_this_tick.saturating_add(1);
+        }
+        grant
+    }
+
+    pub fn tick_reset(&mut self, tick: u64) {
+        self.allocations_this_tick = 0;
+        self.last_tick = tick;
+    }
+}
+
+// ============================================================================
+// MULTI-REALM → RBE ORGANISM SNAPSHOT (v21.66)
+// ============================================================================
+
+/// Organism-level RBE health derived from RealmAbundanceObservatory.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct MultiRealmRbeSnapshot {
+    pub realm_count: u32,
+    pub avg_sustainability: f32,
+    pub avg_stress: f32,
+    pub avg_flow: f32,
+    pub total_yield: f32,
+    pub thriving_ratio: f32,
+    pub restricted_nodes: u32,
+    pub health_label: &'static str,
+    pub last_tick: u64,
+}
+
+impl MultiRealmRbeSnapshot {
+    pub fn compute_label(sust: f32, stress: f32, flow: f32, thriving_ratio: f32) -> &'static str {
+        if thriving_ratio > 0.6 && sust > 0.75 && stress < 0.3 {
+            "Organism Thriving"
+        } else if stress > 0.55 || sust < 0.45 {
+            "Organism Stressed"
+        } else if flow > 0.15 {
+            "Organism Abundant"
+        } else {
+            "Organism Steady"
+        }
+    }
+}
+
+/// Soft system: aggregates multi-realm abundance observatory into organism RBE snapshot.
+pub fn multi_realm_rbe_snapshot_system(
+    observatory: Option<Res<RealmAbundanceObservatory>>,
+    mut snapshot: ResMut<MultiRealmRbeSnapshot>,
+    mut economy: Option<ResMut<EconomyState>>,
+) {
+    let Some(obs) = observatory else {
+        return;
+    };
+    if obs.views.is_empty() {
+        return;
+    }
+
+    let n = obs.views.len() as f32;
+    let mut sust = 0.0;
+    let mut stress = 0.0;
+    let mut flow = 0.0;
+    let mut yield_sum = 0.0;
+    let mut thriving = 0u32;
+    let mut restricted = 0u32;
+
+    for view in obs.views.values() {
+        sust += view.average_sustainability;
+        stress += view.average_stress;
+        flow += view.average_abundance_flow;
+        yield_sum += view.total_current_yield;
+        if view.is_thriving() {
+            thriving += 1;
+        }
+        restricted += view.restricted_node_count;
+    }
+
+    let avg_s = sust / n;
+    let avg_st = stress / n;
+    let avg_f = flow / n;
+    let thr_ratio = thriving as f32 / n;
+
+    snapshot.realm_count = obs.views.len() as u32;
+    snapshot.avg_sustainability = avg_s;
+    snapshot.avg_stress = avg_st;
+    snapshot.avg_flow = avg_f;
+    snapshot.total_yield = yield_sum;
+    snapshot.thriving_ratio = thr_ratio;
+    snapshot.restricted_nodes = restricted;
+    snapshot.health_label = MultiRealmRbeSnapshot::compute_label(avg_s, avg_st, avg_f, thr_ratio);
+    snapshot.last_tick = obs.last_updated_tick;
+
+    // Soft-feed organism EconomyState if present as resource
+    if let Some(mut eco) = economy {
+        eco.average_sustainability =
+            (eco.average_sustainability * 0.85 + avg_s * 0.15).clamp(0.1, 1.0);
+        eco.average_pressure =
+            (eco.average_pressure * 0.85 + avg_st * 2.0 * 0.15).clamp(0.0, 5.0);
+        eco.abundance_velocity =
+            (eco.abundance_velocity * 0.9 + avg_f.max(0.0) * 10.0 * 0.1).min(50.0);
+    }
+}
+
+pub struct EconomyPlugin;
+
+impl Plugin for EconomyPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<EconomyState>()
+            .init_resource::<PostScarcityAllocator>()
+            .init_resource::<MultiRealmRbeSnapshot>()
+            .register_type::<EconomyState>()
+            .add_systems(Update, multi_realm_rbe_snapshot_system);
+    }
+}
+
+// End of v21.66 — Bevy EconomyState + Multi-Realm RBE Sustainability Snapshot.
+// Thunder locked in. Yoi ⚡
