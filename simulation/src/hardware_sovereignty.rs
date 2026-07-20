@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
-//! v21.52 | Origin Provenance Surface (per-realm harvest weights + Live/Demo badge)
+//! v21.55 | Origin Affinity Surface (label + mult next to attunement)
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -13,14 +13,11 @@ use crate::{
     multi_realm_harness::{
         MultiRealmHarness, RealmPresence, RealmAttunement,
         RealmAbundanceObservatory, OriginProvenanceObservatory,
+        origin_affinity_label, origin_affinity_mult,
     },
     telemetry::SimulationTelemetry,
 };
 use std::collections::HashMap;
-
-// ============================================================================
-// CORE TYPES
-// ============================================================================
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 pub enum HardwareBranch {
@@ -100,10 +97,6 @@ pub struct CouncilPillar { pub index: u8 }
 #[derive(Component)]
 pub struct KardashevHologramCore;
 
-// ============================================================================
-// RESOURCES
-// ============================================================================
-
 #[derive(Resource, Clone, Debug, Reflect, Default)]
 pub struct KardashevAccelerationDashboard {
     pub global_kardashev_delta: f32,
@@ -142,10 +135,6 @@ impl Default for HardwareAscensionConfig {
     }
 }
 
-// ============================================================================
-// EVENTS
-// ============================================================================
-
 #[derive(Event)]
 pub struct HardwareTierUnlocked {
     pub player: Entity,
@@ -160,10 +149,6 @@ pub struct RealityThrivingTransferUpdated {
     pub new_score: f32,
     pub source: &'static str,
 }
-
-// ============================================================================
-// SYSTEMS (core preserved)
-// ============================================================================
 
 pub fn mercy_gate_enforcement_system(
     mut commands: Commands,
@@ -273,10 +258,6 @@ pub fn kardashev_dashboard_update_system(
     dashboard.energy_surplus_factor = 1.8 + dashboard.global_kardashev_delta * 2.2;
 }
 
-// ============================================================================
-// PLUGIN
-// ============================================================================
-
 pub struct HardwareSovereigntyPlugin;
 
 impl Plugin for HardwareSovereigntyPlugin {
@@ -302,10 +283,6 @@ impl Plugin for HardwareSovereigntyPlugin {
     }
 }
 
-// ============================================================================
-// egui UI — MULTI-REALM + ATTUNEMENT + TITLES + ABUNDANCE + ORIGIN PROVENANCE
-// ============================================================================
-
 use bevy_egui::EguiContexts;
 
 pub fn sovereign_hardware_ascension_ui(
@@ -323,13 +300,13 @@ pub fn sovereign_hardware_ascension_ui(
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
         .default_pos([18.0, 300.0])
-        .default_size([540.0, 920.0])
+        .default_size([540.0, 940.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Titles | Abundance | Origin")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Titles | Abundance | Origin | Affinity")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
@@ -347,7 +324,6 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // Branch Status
             ui.heading("Branch Status");
             for (state, obsidian, aether) in query.iter() {
                 ui.label(format!("Obsidian: {}", obsidian.level.as_str()));
@@ -358,7 +334,6 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // Kardashev
             ui.heading(egui::RichText::new("🚀 Kardashev Acceleration")
                 .color(egui::Color32::from_rgb(255, 200, 100)));
             ui.label(format!("Global Delta: {:.4}  |  Inflection: {}",
@@ -368,7 +343,6 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // Active Council Policies
             ui.heading(egui::RichText::new("🕊️ Active Council Policies")
                 .color(egui::Color32::from_rgb(160, 220, 255)));
 
@@ -393,7 +367,7 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // ========== Multi-Realm Status + Attunement + Living Titles ==========
+            // ========== Multi-Realm Status + Attunement + Living Titles + Origin Affinity ==========
             ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
                 .color(egui::Color32::from_rgb(180, 160, 255)));
 
@@ -436,6 +410,34 @@ pub fn sovereign_hardware_ascension_ui(
                             _ => "Unknown",
                         };
                         ui.label(format!("Peak: [{}] {}  ({:.3})", peak_id, peak_name, att.peak_value));
+                    }
+                }
+
+                // Origin Affinity — soft harvest→presence recognition for current realm
+                if let Some(orig) = &origin_obs {
+                    let harvested = orig.amount_for(presence.current_realm_id);
+                    let label = origin_affinity_label(harvested);
+                    let mult = origin_affinity_mult(harvested);
+                    let affinity_color = match label {
+                        "Homebound" => egui::Color32::from_rgb(255, 200, 100),
+                        "Rooted" => egui::Color32::from_rgb(240, 190, 120),
+                        "Familiar" => egui::Color32::from_rgb(220, 190, 140),
+                        "Whisper" => egui::Color32::from_rgb(200, 190, 160),
+                        _ => egui::Color32::GRAY,
+                    };
+                    if harvested > 0.001 {
+                        ui.colored_label(
+                            affinity_color,
+                            format!(
+                                "🔗 Origin Affinity: {}  |  harvested: {:.1}  |  attunement ×{:.2}",
+                                label, harvested, mult
+                            ),
+                        );
+                    } else {
+                        ui.colored_label(
+                            egui::Color32::GRAY,
+                            "🔗 Origin Affinity: None  (harvest here to deepen presence)",
+                        );
                     }
                 }
             } else {
@@ -483,7 +485,6 @@ pub fn sovereign_hardware_ascension_ui(
                         realm.status.as_str()
                     ));
 
-                    // Living abundance line
                     if let Some(obs) = &abundance_obs {
                         if let Some(view) = obs.get(realm.id) {
                             let health = view.health_label();
@@ -511,16 +512,17 @@ pub fn sovereign_hardware_ascension_ui(
                         }
                     }
 
-                    // Origin provenance line (soft harvest weight from this realm)
                     if let Some(orig) = &origin_obs {
                         if let Some(view) = orig.get(realm.id) {
                             if view.total_amount > 0.001 {
+                                let aff = origin_affinity_label(view.total_amount);
                                 ui.colored_label(
                                     egui::Color32::from_rgb(220, 190, 140),
                                     format!(
-                                        "    📦 Origin  |  harvested: {:.1}  |  types: {}",
+                                        "    📦 Origin  |  harvested: {:.1}  |  types: {}  |  affinity: {}",
                                         view.total_amount,
-                                        view.resource_types
+                                        view.resource_types,
+                                        aff
                                     ),
                                 );
                             }
@@ -533,7 +535,6 @@ pub fn sovereign_hardware_ascension_ui(
                     .color(egui::Color32::GRAY));
             }
 
-            // Abundance Observatory summary with Live / Demo badge
             if let Some(obs) = &abundance_obs {
                 if !obs.views.is_empty() {
                     ui.add_space(6.0);
@@ -556,7 +557,6 @@ pub fn sovereign_hardware_ascension_ui(
                 }
             }
 
-            // Origin Provenance Observatory summary with Live / Demo badge
             if let Some(orig) = &origin_obs {
                 if !orig.per_realm.is_empty() {
                     ui.add_space(6.0);
@@ -582,7 +582,6 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // TOLC 8
             ui.label(egui::RichText::new("TOLC 8 Mercy Gates").strong());
             ui.horizontal_wrapped(|ui| {
                 let gates = ["Truth", "Order", "Love", "Compassion", "Service", "Abundance", "Joy", "Cosmic Harmony"];
@@ -609,5 +608,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.52 — Origin Provenance Surface: per-realm harvest weights + Live/Demo badge.
+// End of v21.55 — Origin Affinity Surface: label + mult next to attunement.
 // Thunder locked in. Yoi ⚡
