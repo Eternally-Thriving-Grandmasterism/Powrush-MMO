@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.68.0 — CouncilPlugin + decision history + RBE feed
+//! v21.69.0 — LegacyJournal + Council history drain
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -23,6 +23,7 @@ pub mod mercy;
 pub mod mycorrhizal_volatile_sync;
 pub mod orchestrator;
 pub mod patsagi_council_tunable_config;
+pub mod player_legacy_journal;
 pub mod resonance_decay_recovery_sim;
 pub mod scenario;
 pub mod spatial_interest;
@@ -72,6 +73,11 @@ pub use harvest::{HarvestEvent, HarvestSystem, ResourceNode, RbeFlowReconciliati
 pub use economy::{
     EconomicLayer, EconomyState, ResourceTransaction, PostScarcityAllocator,
     MultiRealmRbeSnapshot, EconomyPlugin, multi_realm_rbe_snapshot_system,
+};
+pub use player_legacy_journal::{
+    LegacyJournalRegistry, LegacyEventType, LegacyEntry, LegacyThread, LegacyThreadId,
+    PlayerLegacyJournalPlugin, council_history_to_legacy_system,
+    ProactiveJoyTriggered, JoyBurstSpatialAudioEvent,
 };
 pub use player_persistence::{PlayerSaveData, PersistenceManager, save_player_data, load_player_data};
 pub use orchestrator::{SimulationOrchestrator, TickResult};
@@ -153,8 +159,9 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(ExternalBridgePlugin)
             .add(EconomyPlugin)
             .add(CouncilPlugin)
+            .add(PlayerLegacyJournalPlugin)
     }
 }
 
-// END OF COMPLETE WIRING v21.68 — CouncilPlugin + decision history live.
+// END OF COMPLETE WIRING v21.69 — LegacyJournal + Council history drain live.
 // TOLC 8 sealed. Yoi ⚡
