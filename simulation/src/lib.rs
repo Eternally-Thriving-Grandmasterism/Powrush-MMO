@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.66.0 — Multi-Realm sealed + RBE Sustainability Snapshot
+//! v21.68.0 — CouncilPlugin + decision history + RBE feed
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -63,7 +63,11 @@ pub use flow_state_forge::{
 pub use epiphany_catalyst::{EpiphanyOutcome, EpiphanyCatalyst, EpiphanyCatalystPlugin};
 pub use divine_whispers::{DivineWhisper, DivineWhispersSystem, generate_divine_whisper};
 pub use council_mercy_trial::{CouncilMercyTrial, CouncilSessionManager, MercyTrialVote, CouncilPhase};
-pub use council::{CouncilProposal, CouncilSession, CouncilDecision, CouncilDecisions, ProposalType, ProposalStatus};
+pub use council::{
+    CouncilProposal, CouncilSession, CouncilDecision, CouncilDecisions,
+    CouncilPlugin, apply_council_decision_effects,
+};
+pub use council::proposal::{ProposalType, ProposalStatus};
 pub use harvest::{HarvestEvent, HarvestSystem, ResourceNode, RbeFlowReconciliation};
 pub use economy::{
     EconomicLayer, EconomyState, ResourceTransaction, PostScarcityAllocator,
@@ -148,8 +152,9 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(MultiRealmHarnessPlugin)
             .add(ExternalBridgePlugin)
             .add(EconomyPlugin)
+            .add(CouncilPlugin)
     }
 }
 
-// END OF COMPLETE WIRING v21.66 — EconomyPlugin + MultiRealmRbeSnapshot live.
+// END OF COMPLETE WIRING v21.68 — CouncilPlugin + decision history live.
 // TOLC 8 sealed. Yoi ⚡
