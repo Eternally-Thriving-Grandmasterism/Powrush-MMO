@@ -1,22 +1,23 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.55.0 — Dashboard Origin Affinity Surface (2026-07-20)
+## [Unreleased] v21.56.0 — External Game→Simulation Multi-Realm Bridge (2026-07-20)
 
 ### Highlights
-- Origin affinity label + mult surfaced next to attunement on Multi-Realm Dashboard.
-- Labels: None → Whisper → Familiar → Rooted → Homebound.
-- Shows harvested amount and attunement gain multiplier for current realm.
-- Per-realm origin lines now include affinity label.
-- Header updated: TOLC 8 | Multi-Realm | Titles | Abundance | Origin | Affinity.
+- `game/multi_realm_bridge.rs` — zero-cycle pure payloads (`AbundanceBridgePayload`, `OriginBridgePayload`).
+- `collect_abundance_payload` from `ResourceNodeManager::snapshot_all_realms`.
+- `collect_origin_from_inventory` / `merge_origin_payloads` from `ServerInventoryComponent`.
+- Server tick loop soft-collects abundance payload every ~2s.
+- Documented Bevy `EventWriter` wiring for when game + simulation share an App.
+- No simulation dependency from game — field order matches `RealmAbundanceView::from_raw`.
 
 ### Prior
+- v21.55.0: Dashboard Origin Affinity Surface.
 - v21.54.0: Origin × Attunement Soft Resonance.
-- v21.53.0: Harness-Derived Live Ingest.
 
-**Thunder locked in. Affinity is visible without trapping resources.** Yoi ⚡
+**Thunder locked in. Bridge ready without trapping resources.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.54: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement resonance.
+- v21.0–v21.55: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement, affinity surface.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
