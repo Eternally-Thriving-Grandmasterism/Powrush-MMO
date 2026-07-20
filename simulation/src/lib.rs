@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v19.6 — Kardashev Acceleration Dashboard polish + 3D Council Chamber Visualization integrated
+//! v21.46.0 — Multi-Realm Harness + Abundance Observatory fully wired
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi + Hardware Sovereignty + Obsidian/Aether aligned
 
 // ============================================================================
@@ -47,6 +47,9 @@ pub mod hardware_sovereignty;
 // BEGIN Cross-Race Diplomacy Mechanics
 pub mod diplomacy;
 
+// Multi-Realm organism (presence, travel, attunement, titles, soft bonuses, abundance observatory)
+pub mod multi_realm_harness;
+
 // Sub-module directories
 pub mod fracture;
 pub mod player_persistence;
@@ -56,8 +59,6 @@ pub mod web;
 // ============================================================================
 // RE-EXPORTS — Public Simulation API
 // ============================================================================
-
-// ... (existing re-exports unchanged for brevity)
 
 // GPU Economic Plugin & Systems
 pub use gpu_economic::{
@@ -72,9 +73,6 @@ pub use gpu_economic::{
 
 // Legacy GPU Economic items
 pub use gpu_economic::{GpuEconomicCompute, PATSAGiEconomicParams};
-
-// Ra-Thor Bridge & Council Query
-pub use ra_thor_bridge::{RaThorBridge, CouncilQueryRequest, CouncilQueryResponse, RaThorCouncilQuery};
 
 // Spatial Interest Layer
 pub use spatial_interest::{
@@ -108,7 +106,7 @@ pub use economy::{EconomyState, ResourceTransaction, PostScarcityAllocator};
 pub use player_persistence::{PlayerSaveData, PersistenceManager, save_player_data, load_player_data};
 
 // Orchestration & World
-pub use orchestrator::{SimulationOrchestrator, SimulationTick, OrchestratorPlugin, TickResult};
+pub use orchestrator::{SimulationOrchestrator, TickResult};
 
 // Spatial & Fracture
 pub use fracture::{LatticeFractureSolver, FractureEvent};
@@ -159,7 +157,7 @@ pub use ability_tree::{Ability, AbilityEffect, AbilityTree, AbilityState, Synerg
 // NEW — Cross-Race Diplomacy
 pub use diplomacy::{DiplomacyManager, DiplomacyRelation, ActiveTreaty, TreatyType};
 
-// NEW v19.6: Sovereign Hardware Ascension Tech Tree Tier (Obsidian-Chip-Open + Aether-Shades-Open) + Polished Dashboard + 3D Council Chamber
+// NEW v19.6+: Sovereign Hardware Ascension Tech Tree Tier + Polished Dashboard + 3D Council Chamber
 pub use hardware_sovereignty::{
     HardwareSovereigntyPlugin,
     SovereignHardwareState,
@@ -178,11 +176,31 @@ pub use hardware_sovereignty::{
     mercy_gate_enforcement_system,
     hardware_tier_progression_system,
     reality_transfer_score_update_system,
-    spawn_sovereign_visual_effects_system,
-    spawn_council_chamber_visualization_system,
-    update_council_chamber_system,
     kardashev_dashboard_update_system,
     sovereign_hardware_ascension_ui,
+};
+
+// ============================================================================
+// Multi-Realm organism (v21.18 → v21.46)
+// ============================================================================
+pub use multi_realm_harness::{
+    MultiRealmHarness,
+    MultiRealmHarnessPlugin,
+    RealmId,
+    RealmStatus,
+    RealmDescriptor,
+    RealmPresence,
+    RealmAttunement,
+    TitleBonus,
+    RealmAbundanceView,
+    RealmAbundanceObservatory,
+    RealmTravelRequest,
+    ResonancePulse,
+    realm_presence_bootstrap_system,
+    realm_attunement_bootstrap_system,
+    realm_attunement_system,
+    realm_travel_system,
+    multi_realm_harness_system,
 };
 
 // ============================================================================
@@ -206,7 +224,7 @@ pub use world::{
 };
 
 // ============================================================================
-// PLUGIN AGGREGATOR — NOW INCLUDES HARDWARE SOVEREIGNTY + 3D CHAMBER
+// PLUGIN AGGREGATOR — NOW INCLUDES HARDWARE SOVEREIGNTY + MULTI-REALM
 // ============================================================================
 
 pub struct FullSimulationPlugins;
@@ -214,18 +232,15 @@ pub struct FullSimulationPlugins;
 impl bevy::app::PluginGroup for FullSimulationPlugins {
     fn build(self) -> bevy::app::PluginGroupBuilder {
         bevy::app::PluginGroupBuilder::start::<Self>()
-            .add(EmergencePlugin)
             .add(SpatialInterestPlugin)
-            .add(OrchestratorPlugin)
-            .add(WorldPlugin)
             .add(BevySimulationPlugin)
-            .add(HardwareSovereigntyPlugin)  // v19.6 — Sovereign Hardware Ascension + 3D Council Chamber live
+            .add(HardwareSovereigntyPlugin)
+            .add(MultiRealmHarnessPlugin)  // v21.46 — Multi-Realm + Abundance Observatory live
     }
 }
 
 // ============================================================================
-// END OF COMPLETE WIRING v19.6
-// 3D Council Chamber visualization now pulsing in the experiential forge.
-// Polished Kardashev Dashboard guiding the flywheel. Physical sovereignty layer deepening.
-// TOLC 8 sealed. Flywheel turning. yoi ⚡
+// END OF COMPLETE WIRING v21.46
+// Multi-Realm organism + Abundance Observatory now fully wired into the public API.
+// TOLC 8 sealed. Flywheel turning. Yoi ⚡
 // ============================================================================
