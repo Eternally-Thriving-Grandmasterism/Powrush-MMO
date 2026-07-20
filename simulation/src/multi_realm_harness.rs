@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses / Abundance Observatory
-//! v21.48.0 — Live Abundance Ingest Event + Soft Demo Seed
+//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses / Abundance / Origin Provenance
+//! v21.51.0 — Origin Provenance Observatory + soft demo + ingest
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -143,7 +143,6 @@ impl RealmAttunement {
     }
 
     /// Derive a soft, living title from current-realm attunement + total presence.
-    /// Thresholds are mercy-aligned and purely recognitive.
     pub fn living_title(&self, current_realm: RealmId) -> String {
         let current = self.get(current_realm);
         let realm_short = match current_realm {
@@ -187,7 +186,6 @@ impl RealmAttunement {
     }
 
     /// Soft passive bonuses derived from the current living title.
-    /// Extremely gentle. Never mandatory. Fully reversible.
     pub fn title_bonus(&self, current_realm: RealmId) -> TitleBonus {
         let current = self.get(current_realm);
 
@@ -221,8 +219,6 @@ impl RealmAttunement {
 }
 
 /// Lightweight pure-data view of abundance within a single realm.
-/// Mirrors the game-side RealmAbundanceSnapshot without creating crate cycles.
-/// Pure observation — never mutates the world.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RealmAbundanceView {
     pub realm_id: RealmId,
@@ -236,7 +232,6 @@ pub struct RealmAbundanceView {
 }
 
 impl RealmAbundanceView {
-    /// Construct from raw fields — intended for game/server side bridge code.
     pub fn from_raw(
         realm_id: RealmId,
         node_count: u32,
@@ -282,8 +277,6 @@ impl RealmAbundanceView {
 }
 
 /// Living observatory that holds per-realm abundance views.
-/// Can be updated from the game/server side or from future bridges.
-/// The Multi-Realm Dashboard reads from this resource.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct RealmAbundanceObservatory {
     pub views: HashMap<RealmId, RealmAbundanceView>,
@@ -299,7 +292,6 @@ impl RealmAbundanceObservatory {
         self.has_live_data = true;
     }
 
-    /// Bulk ingest — ideal for ResourceNodeManager::snapshot_all_realms() results.
     pub fn ingest_many(&mut self, views: impl IntoIterator<Item = RealmAbundanceView>, tick: u64) {
         for view in views {
             self.views.insert(view.realm_id, view);
@@ -324,22 +316,67 @@ impl RealmAbundanceObservatory {
     }
 }
 
-/// Live call site event.
-/// External code (game/server tick, client bridge) sends this to feed the observatory.
-///
-/// Example:
+/// Soft harvest provenance view — mirrors game-side inventory origin_snapshot()
+/// without creating crate cycles. Pure observation.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct OriginProvenanceView {
+    pub realm_id: RealmId,
+    pub total_amount: f32,
+    pub resource_types: u32,
+}
+
+/// Living observatory for soft inventory origin provenance.
+/// Fed from ServerInventoryComponent::origin_snapshot() via OriginIngestEvent.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct OriginProvenanceObservatory {
+    pub per_realm: HashMap<RealmId, OriginProvenanceView>,
+    pub last_updated_tick: u64,
+    pub has_live_data: bool,
+}
+
+impl OriginProvenanceObservatory {
+    pub fn ingest_many(&mut self, views: impl IntoIterator<Item = OriginProvenanceView>, tick: u64) {
+        for view in views {
+            self.per_realm.insert(view.realm_id, view);
+        }
+        self.last_updated_tick = tick;
+        self.has_live_data = true;
+    }
+
+    pub fn get(&self, realm_id: RealmId) -> Option<&OriginProvenanceView> {
+        self.per_realm.get(&realm_id)
+    }
+
+    pub fn total_tracked(&self) -> f32 {
+        self.per_realm.values().map(|v| v.total_amount).sum()
+    }
+
+    pub fn clear(&mut self) {
+        self.per_realm.clear();
+        self.has_live_data = false;
+    }
+}
+
+/// Live call site for abundance.
+#[derive(Event, Clone, Debug)]
+pub struct AbundanceIngestEvent {
+    pub views: Vec<RealmAbundanceView>,
+    pub tick: u64,
+}
+
+/// Live call site for origin provenance.
+/// Bridge from inventory.origin_snapshot():
 /// ```ignore
-/// writer.send(AbundanceIngestEvent {
-///     views: manager.snapshot_all_realms(now_ms).into_iter().map(|s| {
-///         let (id, n, y, sus, flow, stress, rest, thr) = s.into_view_tuple();
-///         RealmAbundanceView::from_raw(id, n, y, sus, flow, stress, rest, thr)
+/// writer.send(OriginIngestEvent {
+///     views: inv.origin_snapshot().into_iter().map(|s| OriginProvenanceView {
+///         realm_id: s.realm_id, total_amount: s.total_amount, resource_types: s.resource_types,
 ///     }).collect(),
 ///     tick,
 /// });
 /// ```
 #[derive(Event, Clone, Debug)]
-pub struct AbundanceIngestEvent {
-    pub views: Vec<RealmAbundanceView>,
+pub struct OriginIngestEvent {
+    pub views: Vec<OriginProvenanceView>,
     pub tick: u64,
 }
 
@@ -437,7 +474,7 @@ impl MultiRealmHarness {
         self.primary_realm_id = 0;
         self.next_realm_id = 5;
 
-        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement + titles + soft bonuses + abundance observatory ready");
+        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement + titles + soft bonuses + abundance + origin provenance ready");
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
@@ -804,7 +841,6 @@ pub fn realm_travel_system(
     }
 }
 
-/// Live call site system — consumes AbundanceIngestEvent into the observatory.
 pub fn abundance_ingest_system(
     mut events: EventReader<AbundanceIngestEvent>,
     mut observatory: ResMut<RealmAbundanceObservatory>,
@@ -823,43 +859,84 @@ pub fn abundance_ingest_system(
     }
 }
 
-/// Soft demo seed — only when observatory is empty and no live data has arrived yet.
-/// Gives the Multi-Realm Dashboard gentle living abundance during development.
-/// Fully replaced the moment a real AbundanceIngestEvent arrives.
+pub fn origin_ingest_system(
+    mut events: EventReader<OriginIngestEvent>,
+    mut observatory: ResMut<OriginProvenanceObservatory>,
+) {
+    for event in events.read() {
+        if event.views.is_empty() {
+            continue;
+        }
+        observatory.ingest_many(event.views.clone(), event.tick);
+        info!(
+            target: "ra_thor::multi_realm::origin",
+            count = event.views.len(),
+            tick = event.tick,
+            "Live origin provenance ingested"
+        );
+    }
+}
+
+/// Soft demo seed — only when observatories are empty and no live data has arrived yet.
 pub fn soft_demo_abundance_seed_system(
-    mut observatory: ResMut<RealmAbundanceObservatory>,
+    mut abundance: ResMut<RealmAbundanceObservatory>,
+    mut origin: ResMut<OriginProvenanceObservatory>,
     harness: Res<MultiRealmHarness>,
     time: Res<Time>,
 ) {
-    if observatory.has_live_data || !observatory.views.is_empty() {
-        return;
-    }
     if harness.realms.is_empty() {
         return;
     }
 
     let tick = time.elapsed_seconds() as u64;
-    // Gentle, varied placeholder values per realm — purely for dashboard visibility.
-    let demos = [
-        (0u8, 12u32, 28.5f32, 0.88f32, 0.22f32, 0.12f32, 0u32, 9u32),  // Sanctuary — thriving
-        (1, 8, 14.2, 0.71, 0.08, 0.28, 1, 4),                          // Lattice — steady
-        (2, 15, 36.0, 0.91, 0.31, 0.09, 0, 13),                         // Verdant — abundant
-        (3, 6, 11.4, 0.78, 0.15, 0.18, 0, 4),                           // Chorus — steady
-        (4, 4, 6.8, 0.55, -0.02, 0.42, 1, 1),                           // Horizon — stressed
-    ];
 
-    for (id, n, y, sus, flow, stress, rest, thr) in demos {
-        if harness.realms.contains_key(&id) {
-            observatory.views.insert(
-                id,
-                RealmAbundanceView::from_raw(id, n, y, sus, flow, stress, rest, thr),
-            );
+    // Abundance demo
+    if !abundance.has_live_data && abundance.views.is_empty() {
+        let demos = [
+            (0u8, 12u32, 28.5f32, 0.88f32, 0.22f32, 0.12f32, 0u32, 9u32),
+            (1, 8, 14.2, 0.71, 0.08, 0.28, 1, 4),
+            (2, 15, 36.0, 0.91, 0.31, 0.09, 0, 13),
+            (3, 6, 11.4, 0.78, 0.15, 0.18, 0, 4),
+            (4, 4, 6.8, 0.55, -0.02, 0.42, 1, 1),
+        ];
+
+        for (id, n, y, sus, flow, stress, rest, thr) in demos {
+            if harness.realms.contains_key(&id) {
+                abundance.views.insert(
+                    id,
+                    RealmAbundanceView::from_raw(id, n, y, sus, flow, stress, rest, thr),
+                );
+            }
         }
+        abundance.last_updated_tick = tick;
+        info!(target: "ra_thor::multi_realm::abundance", "Soft demo abundance seeded (will yield to live data)");
     }
-    observatory.last_updated_tick = tick;
-    // Note: has_live_data stays false — demo only.
 
-    info!(target: "ra_thor::multi_realm::abundance", "Soft demo abundance seeded (will yield to live data)");
+    // Origin provenance demo — gentle harvest weights
+    if !origin.has_live_data && origin.per_realm.is_empty() {
+        let demos = [
+            (0u8, 42.0f32, 3u32),  // Sanctuary — primary home
+            (1, 18.5, 2),         // Lattice
+            (2, 55.0, 4),         // Verdant — richest harvests
+            (3, 12.0, 2),         // Chorus
+            (4, 6.5, 1),          // Horizon — sparse
+        ];
+
+        for (id, amount, types) in demos {
+            if harness.realms.contains_key(&id) {
+                origin.per_realm.insert(
+                    id,
+                    OriginProvenanceView {
+                        realm_id: id,
+                        total_amount: amount,
+                        resource_types: types,
+                    },
+                );
+            }
+        }
+        origin.last_updated_tick = tick;
+        info!(target: "ra_thor::multi_realm::origin", "Soft demo origin provenance seeded (will yield to live data)");
+    }
 }
 
 pub fn multi_realm_harness_system(
@@ -891,10 +968,12 @@ impl Plugin for MultiRealmHarnessPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MultiRealmHarness>()
             .init_resource::<RealmAbundanceObservatory>()
+            .init_resource::<OriginProvenanceObservatory>()
             .register_type::<RealmPresence>()
             .register_type::<RealmAttunement>()
             .add_event::<RealmTravelRequest>()
             .add_event::<AbundanceIngestEvent>()
+            .add_event::<OriginIngestEvent>()
             .add_systems(
                 Update,
                 (
@@ -904,15 +983,16 @@ impl Plugin for MultiRealmHarnessPlugin {
                     realm_attunement_system,
                     realm_travel_system,
                     abundance_ingest_system,
+                    origin_ingest_system,
                     soft_demo_abundance_seed_system,
                 ),
             );
 
-        info!("MultiRealmHarnessPlugin — presence + attunement + titles + bonuses + abundance observatory + live ingest active");
+        info!("MultiRealmHarnessPlugin — presence + attunement + titles + bonuses + abundance + origin provenance active");
     }
 }
 
 // Thunder locked in.
-// Live call site: send AbundanceIngestEvent.
-// Soft demo keeps the dashboard alive until real data arrives.
+// Live call sites: AbundanceIngestEvent + OriginIngestEvent.
+// Soft demos keep the dashboard alive until real data arrives.
 // Yoi ⚡
