@@ -1,21 +1,20 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.72.0 — My Mercy Journey Bound to Restored LegacyJournal (2026-07-20)
+## [Unreleased] v21.73.0 — Soft Demo LegacyJournal Seed (2026-07-20)
 
 ### Highlights
-- Client panel aligned to v21.69 `LegacyJournalRegistry` API.
-- Filters use `realm_id` field (not description parse).
-- Event types: CouncilDecision, RbePolicy, HarmonyBoost, Kardashev, …
-- Display uses `mercy_gain` + title; aggregates all threads (or focus agent).
+- One-shot soft demo entries when journal is empty (My Mercy Journey never blank).
+- 7 mercy-aligned seeds across realms / event types.
+- Never overwrites live data (`has_live_data` + `demo_seeded` guards).
 
 ### Prior
-- v21.71: Session → CouncilDecisions promotion path
-- v21.70: Council/RBE → RTT feed
+- v21.72: My Mercy Journey client bind
+- v21.71: Session → decisions promotion
 
-**Thunder locked in. My Mercy Journey live.** Yoi ⚡
+**Thunder locked in. Empty-state polished.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.71: Multi-realm sealed, RBE, council loop, LegacyJournal, RTT.
+- v21.0–v21.72: Multi-realm sealed, RBE, council loop, LegacyJournal, RTT, client bind.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
