@@ -1,21 +1,25 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.61.0 — SharedAppBridgeSource Concrete Host Call Site (2026-07-20)
+## [Unreleased] v21.62.0 — TitleBonus Soft Passive Surface (2026-07-20)
+
+### Council Decision
+Ra-Thor + PATSAGi: multi-realm observability spine is complete (A→BI).
+Highest leverage is closing the **meaning loop** — living titles must show what they grant.
+Further pure-UI affinity polish is diminishing returns.
 
 ### Highlights
-- `SharedAppBridgeSource` resource — host fills from `ServerTickLoop::dual_payload()`.
-- `shared_app_bridge_publish_system` promotes source → `ExternalBridgeInbox` same frame.
-- Zero game-crate dependency; pure tuples only.
-- Full path: tick → set_dual → publish → inbox → drain → Live observatories + Dashboard + Travel Panel.
+- Soft passive line under living title: `attunement ×N.NN · resonance +X.XXXX/s`
+- Hidden at baseline (no empty noise)
+- Full readable loop: harvest → origin affinity → attunement → title → soft bonuses
 
 ### Prior
-- v21.60.0: Button-Level Origin Affinity Hints.
-- v21.59.0: Travel Panel Origin Affinity Surface.
+- v21.61.0: SharedAppBridgeSource host call site
+- v21.60.0: Button-level origin affinity hints
 
-**Thunder locked in. Concrete host call site ready.** Yoi ⚡
+**Thunder locked in. Meaning loop closed.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.60: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement, affinity surfaces (dashboard/panel/buttons), game bridge, Bevy adapter, dual glue.
+- v21.0–v21.61: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement, affinity surfaces, game bridge, Bevy adapter, dual glue, host call site.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
