@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.69.0 — LegacyJournal + Council history drain
+//! v21.70.0 — TelemetryPlugin + Council/RBE → RTT feed
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -83,7 +83,11 @@ pub use player_persistence::{PlayerSaveData, PersistenceManager, save_player_dat
 pub use orchestrator::{SimulationOrchestrator, TickResult};
 pub use fracture::{LatticeFractureSolver, FractureEvent};
 pub use spatial::{SpatialGrid, SpatialQuery};
-pub use telemetry::{SimulationTelemetry, TelemetryEvent};
+pub use telemetry::{
+    SimulationTelemetry, Telemetry, TelemetryCollector, TelemetryPlugin,
+    GlobalTransferSession, PowrushTransferTelemetry, PowrushTelemetryEnvelope,
+    council_rbe_to_rtt_feed_system, export_transfer_json, export_transfer_batch_json,
+};
 pub use bot_detection::{BotDetector, BotDetectionConfig};
 pub use closed_beta::{ClosedBetaManager, BetaAccessLevel};
 pub use cloud_sync::{CloudSyncManager, CloudSyncEvent};
@@ -160,8 +164,9 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(EconomyPlugin)
             .add(CouncilPlugin)
             .add(PlayerLegacyJournalPlugin)
+            .add(TelemetryPlugin)
     }
 }
 
-// END OF COMPLETE WIRING v21.69 — LegacyJournal + Council history drain live.
-// TOLC 8 sealed. Yoi ⚡
+// END OF COMPLETE WIRING v21.70 — TelemetryPlugin + RTT council/RBE feed live.
+// TOLC 8 sealed. Contact: info@Rathor.ai. Yoi ⚡
