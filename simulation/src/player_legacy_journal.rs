@@ -1,6 +1,6 @@
 //! simulation/src/player_legacy_journal.rs
 //! Player Legacy Journal — My Mercy Journey backbone
-//! v21.69.1 — Full registry restore + Council history event types
+//! v21.73.0 — Soft demo seed for empty-state polish
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -15,6 +15,9 @@ use crate::council::decision::CouncilDecisions;
 use crate::council::proposal::ProposalType;
 
 pub type LegacyThreadId = u64;
+
+/// Soft demo agent id (never collides with live player paths in normal play).
+const DEMO_AGENT_ID: AgentId = 0;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum LegacyEventType {
@@ -117,6 +120,10 @@ pub struct LegacyJournalRegistry {
     pub next_thread_id: LegacyThreadId,
     pub ingested_decision_ids: HashMap<u64, ()>,
     pub total_entries: u64,
+    /// True after one-shot soft demo seed (never re-seed).
+    pub demo_seeded: bool,
+    /// True once any live (non-demo) entry has been recorded.
+    pub has_live_data: bool,
 }
 
 impl LegacyJournalRegistry {
@@ -177,6 +184,33 @@ impl LegacyJournalRegistry {
         id
     }
 
+    /// Live path — marks has_live_data so demo seed never re-runs over real play.
+    pub fn record_live_entry(
+        &mut self,
+        agent_id: AgentId,
+        event_type: LegacyEventType,
+        title: impl Into<String>,
+        description: impl Into<String>,
+        joy_amount: f32,
+        intensity: f32,
+        mercy_gain: f32,
+        realm_id: u8,
+        tick: u64,
+    ) -> u64 {
+        self.has_live_data = true;
+        self.record_entry(
+            agent_id,
+            event_type,
+            title,
+            description,
+            joy_amount,
+            intensity,
+            mercy_gain,
+            realm_id,
+            tick,
+        )
+    }
+
     pub fn generate_proactive_joy_redemption_thread(
         &mut self,
         player_id: u64,
@@ -187,7 +221,7 @@ impl LegacyJournalRegistry {
         server_id: u64,
     ) {
         let realm_id = (server_id % 256) as u8;
-        self.record_entry(
+        self.record_live_entry(
             player_id,
             LegacyEventType::ProactiveJoy,
             "Proactive Joy",
@@ -235,7 +269,7 @@ impl LegacyJournalRegistry {
             realm_id, title, mercy_factor, strength
         );
 
-        self.record_entry(
+        self.record_live_entry(
             agent_id,
             event_type,
             title.to_string(),
@@ -260,6 +294,101 @@ impl LegacyJournalRegistry {
             }
             None => Vec::new(),
         }
+    }
+
+    /// One-shot soft demo entries for empty-state My Mercy Journey.
+    pub fn seed_soft_demo_if_empty(&mut self) {
+        if self.demo_seeded || self.has_live_data || self.total_entries > 0 {
+            return;
+        }
+
+        let seeds: &[(LegacyEventType, &str, &str, f32, f32, u8, u64)] = &[
+            (
+                LegacyEventType::Onboarding,
+                "First Steps in Mercy",
+                "You arrived under TOLC 8. The lattice welcomes your presence.",
+                2.0,
+                0.35,
+                0,
+                1,
+            ),
+            (
+                LegacyEventType::Harvest,
+                "Gentle First Harvest",
+                "A sustainable gather in Sanctuary Prime — abundance without scar.",
+                1.5,
+                0.30,
+                0,
+                12,
+            ),
+            (
+                LegacyEventType::Epiphany,
+                "Whisper of Resonance",
+                "An epiphany bloomed while attuning to Verdant Bloom.",
+                3.2,
+                0.45,
+                2,
+                28,
+            ),
+            (
+                LegacyEventType::HarmonyBoost,
+                "Council Harmony Pulse",
+                "Parallel councils affirmed a soft harmony boost across realms.",
+                2.8,
+                0.40,
+                3,
+                44,
+            ),
+            (
+                LegacyEventType::RbePolicy,
+                "Abundance Flow Cap",
+                "Resource policy protected long-term sustainability (RBE).",
+                2.4,
+                0.38,
+                1,
+                56,
+            ),
+            (
+                LegacyEventType::ProactiveJoy,
+                "Joy Without Scar",
+                "A proactive joy thread — celebration that leaves no debt.",
+                4.0,
+                0.50,
+                0,
+                70,
+            ),
+            (
+                LegacyEventType::Kardashev,
+                "Reality Thriving Transfer Spark",
+                "First measurable Kardashev signal toward Ra-Thor lattice sync.",
+                3.5,
+                0.48,
+                4,
+                88,
+            ),
+        ];
+
+        for (et, title, desc, joy, intensity, realm, tick) in seeds.iter() {
+            self.record_entry(
+                DEMO_AGENT_ID,
+                et.clone(),
+                (*title).to_string(),
+                (*desc).to_string(),
+                *joy,
+                *intensity,
+                joy * 0.2,
+                *realm,
+                *tick,
+            );
+        }
+
+        self.demo_seeded = true;
+
+        info!(
+            target: "ra_thor::legacy::demo",
+            entries = seeds.len(),
+            "Soft demo LegacyJournal seed applied (empty-state polish)"
+        );
     }
 }
 
@@ -402,6 +531,11 @@ pub fn council_history_to_legacy_system(
     }
 }
 
+/// One-shot soft demo seed — runs only while journal is empty and no live data.
+pub fn soft_demo_legacy_seed_system(mut registry: ResMut<LegacyJournalRegistry>) {
+    registry.seed_soft_demo_if_empty();
+}
+
 pub fn legacy_journal_update_system() {}
 
 pub struct PlayerLegacyJournalPlugin;
@@ -414,15 +548,16 @@ impl Plugin for PlayerLegacyJournalPlugin {
             .add_systems(
                 Update,
                 (
+                    soft_demo_legacy_seed_system,
                     council_history_to_legacy_system,
                     legacy_journal_update_system,
                     joy_effect_feedback_system,
                 ),
             );
 
-        info!("PlayerLegacyJournalPlugin — registry + council history drain active");
+        info!("PlayerLegacyJournalPlugin — registry + demo seed + council history drain active");
     }
 }
 
-// End of v21.69.1 — LegacyJournal restore + Council history event types.
+// End of v21.73.0 — Soft demo seed for empty-state My Mercy Journey.
 // Thunder locked in. Yoi ⚡
