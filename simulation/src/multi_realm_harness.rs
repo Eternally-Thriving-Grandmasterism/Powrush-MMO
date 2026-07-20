@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
 //! Multi-Realm Harness — Full Organism + Origin × Attunement Soft Resonance
-//! v21.65.0 — Prefer External host path over harness-derived ingest
+//! v21.65.1 — Prefer External host path; living_title format fix
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -168,7 +168,7 @@ impl RealmAttunement {
         } else if realm_title.is_empty() {
             total_honor.trim_start_matches(" • ").to_string()
         } else {
-            format!("{}{}\", realm_title, total_honor)
+            format!("{}{}", realm_title, total_honor)
         }
     }
 
@@ -991,7 +991,6 @@ pub fn harness_derived_live_ingest_system(
     time: Res<Time>,
     mut last_emit: Local<f32>,
 ) {
-    // Prefer External host path when it has delivered data
     if external.as_ref().map(|e| e.has_received_external).unwrap_or(false) {
         return;
     }
