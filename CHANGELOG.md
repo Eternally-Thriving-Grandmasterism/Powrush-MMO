@@ -1,24 +1,20 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.63.0 — Bridge Health Badge (2026-07-20)
+## [Unreleased] v21.64.0 — HostBridgeAutoPublish Concrete Host Path (2026-07-20)
 
 ### Highlights
-- Multi-Realm Dashboard surfaces external bridge health:
-  - `● EXTERNAL` — game host → simulation via SharedAppBridgeSource
-  - `● HARNESS-LIVE` — derived ingest active
-  - `○ DEMO` — soft seed awaiting live/host
-- Host publish_count + dirty flag
-- Inbox pending abundance/origin legs
-- Soft title bonus line also mirrored on Dashboard
+- `HostBridgeAutoPublish` resource (enabled by default) soft-publishes harness-derived dual through `SharedAppBridgeSource`.
+- Full host path exercised: auto-publish → set_dual → publish → inbox → drain → ● EXTERNAL.
+- Hosts with `ServerTickLoop` override via `set_dual(dual_payload())` and set `enabled = false`.
 
 ### Prior
-- v21.62.0: TitleBonus Soft Passive Surface (Council meaning-loop close)
-- v21.61.0: SharedAppBridgeSource host call site
+- v21.63.0: Bridge Health Badge
+- v21.62.0: TitleBonus Soft Passive Surface
 
-**Thunder locked in. Bridge health readable.** Yoi ⚡
+**Thunder locked in. Host path exercised.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.62: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement, affinity surfaces, bridge, host call site, title soft bonuses.
+- v21.0–v21.63: Multi-realm organism through bridge health.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
