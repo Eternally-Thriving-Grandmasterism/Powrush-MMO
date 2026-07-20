@@ -40,26 +40,28 @@
 **Phase AL — Realm Attunement (COMPLETED v21.38)**  
 **Phase AM — Surface Realm Attunement in Dashboard (COMPLETED v21.39)**  
 **Phase AN — Surface Realm Attunement in F3 Travel Panel (COMPLETED v21.40)**  
-**Phase AO — Living Attunement Titles (COMPLETED v21.41)**
+**Phase AO — Living Attunement Titles (COMPLETED v21.41)**  
+**Phase AP — ResourceNode Realm-Keying Foundation (COMPLETED v21.42)**
 
-## Completed This Cycle (v21.41)
+## Completed This Cycle (v21.42)
 
-- Soft living titles emerge from presence thresholds (Seeker → Resident → Attuned → Heart of [Realm]).
-- Total honorifics: Multi-Realm Traveler → Realm Weaver → Living Lattice.
-- Titles dual-surfaced in Multi-Realm Dashboard + F3 Travel Panel.
-- Pure recognition. Zero hard power.
+- Every ResourceNode now carries a realm_id.
+- Nodes are created and queried as living members of a specific realm.
+- Manager helpers: add_node_in_realm, nodes_in_realm, count_in_realm.
+- Backward-compatible default remains Sanctuary Prime (realm 0).
 
 ## Next Council Cycle Priorities
 
-1. Final resource_node / rbe_pool realm-keying when ready.
-2. Optional small passive bonuses tied to high titles (if desired).
+1. Optional small passive bonuses tied to high titles (if desired).
+2. Deeper RBE pool / inventory realm-scoping when ready.
+3. Per-realm abundance observability in the Multi-Realm Dashboard.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, and now title-bearing.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, and now resource-keyed by realm.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Presence now carries named meaning.**  
+**Abundance now knows its home realm.**  
 Yoi ⚡
