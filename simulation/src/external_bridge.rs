@@ -1,6 +1,6 @@
 //! simulation/src/external_bridge.rs
 //! Bevy adapter for game-crate multi_realm_bridge pure payloads.
-//! v21.61.0 — SharedAppBridgeSource concrete host publish call site
+//! v21.64.0 — HostBridgeAutoPublish concrete host path
 //!
 //! Field order matches game::multi_realm_bridge:
 //!   Abundance: (realm_id, node_count, yield, sust, flow, stress, restricted, thriving)
@@ -14,14 +14,13 @@ use tracing::info;
 
 use crate::multi_realm_harness::{
     AbundanceIngestEvent, OriginIngestEvent, RealmAbundanceView, OriginProvenanceView,
+    MultiRealmHarness, derive_abundance_from_harness, derive_origin_from_harness,
 };
 
 // ============================================================================
-// INBOX — push pure tuples from outside the ECS schedule
+// INBOX
 // ============================================================================
 
-/// Shared inbox for authoritative game-side payloads.
-/// Fill from server tick / shared-app glue; drained each Update into ingest events.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct ExternalBridgeInbox {
     pub abundance: Option<(Vec<(u8, u32, f32, f32, f32, f32, u32, u32)>, u64)>,
@@ -63,38 +62,18 @@ impl ExternalBridgeInbox {
 }
 
 // ============================================================================
-// SHARED-APP SOURCE — concrete host binary call site (v21.61)
+// SHARED-APP SOURCE — host fill point
 // ============================================================================
 
-/// Host-owned dual payload source.
-///
-/// Concrete call site for binaries that own both `ServerTickLoop` (game)
-/// and a Bevy `App` with `ExternalBridgePlugin` (simulation):
-///
-/// ```ignore
-/// // After authoritative tick:
-/// let dual = tick_loop.dual_payload();
-/// let mut source = world.resource_mut::<SharedAppBridgeSource>();
-/// source.set_dual(
-///     dual.abundance.views, dual.abundance.tick_ms,
-///     dual.origin.views, dual.origin.tick_ms,
-/// );
-/// // Next Update: publish → inbox → drain → Live observatories
-/// ```
-///
-/// Zero game-crate dependency. Pure tuples only.
 #[derive(Resource, Clone, Debug, Default)]
 pub struct SharedAppBridgeSource {
     pub abundance: Option<(Vec<(u8, u32, f32, f32, f32, f32, u32, u32)>, u64)>,
     pub origin: Option<(Vec<(u8, f32, u32)>, u64)>,
-    /// Set true by host after filling; cleared by publish system.
     pub dirty: bool,
-    /// How many times host has published (observability).
     pub publish_count: u64,
 }
 
 impl SharedAppBridgeSource {
-    /// Fill both legs and mark dirty for the next publish system pass.
     pub fn set_dual(
         &mut self,
         abundance_views: Vec<(u8, u32, f32, f32, f32, f32, u32, u32)>,
@@ -130,8 +109,83 @@ impl SharedAppBridgeSource {
     }
 }
 
-/// Promote dirty SharedAppBridgeSource → ExternalBridgeInbox.
-/// Runs before drain so the same frame can complete source → inbox → events.
+// ============================================================================
+// HOST AUTO-PUBLISH — concrete host path when ServerTickLoop not yet NonSend
+// ============================================================================
+
+/// Soft host stand-in: publishes harness-derived dual through SharedAppBridgeSource.
+///
+/// When a binary later owns `ServerTickLoop`, replace this by calling
+/// `source.set_dual(...)` from dual_payload() after each authoritative tick
+/// and set `enabled = false` on this config.
+#[derive(Resource, Clone, Debug)]
+pub struct HostBridgeAutoPublish {
+    pub enabled: bool,
+    pub interval_secs: f32,
+}
+
+impl Default for HostBridgeAutoPublish {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval_secs: 2.5,
+        }
+    }
+}
+
+pub fn host_bridge_auto_publish_system(
+    config: Res<HostBridgeAutoPublish>,
+    harness: Res<MultiRealmHarness>,
+    mut source: ResMut<SharedAppBridgeSource>,
+    time: Res<Time>,
+    mut last: Local<f32>,
+) {
+    if !config.enabled {
+        return;
+    }
+    if harness.realms.is_empty() {
+        return;
+    }
+
+    let now = time.elapsed_seconds();
+    if (now - *last) < config.interval_secs {
+        return;
+    }
+    *last = now;
+
+    // Prefer living activity; still publish soft dual so EXTERNAL path is exercised
+    let tick = (now * 1000.0) as u64;
+    let abundance = derive_abundance_from_harness(&harness);
+    let origin = derive_origin_from_harness(&harness);
+
+    if abundance.is_empty() && origin.is_empty() {
+        return;
+    }
+
+    let a_views: Vec<_> = abundance
+        .into_iter()
+        .map(|v| {
+            (
+                v.realm_id,
+                v.node_count,
+                v.total_current_yield,
+                v.average_sustainability,
+                v.average_abundance_flow,
+                v.average_stress,
+                v.restricted_node_count,
+                v.thriving_node_count,
+            )
+        })
+        .collect();
+
+    let o_views: Vec<_> = origin
+        .into_iter()
+        .map(|v| (v.realm_id, v.total_amount, v.resource_types))
+        .collect();
+
+    source.set_dual(a_views, tick, o_views, tick);
+}
+
 pub fn shared_app_bridge_publish_system(
     mut source: ResMut<SharedAppBridgeSource>,
     mut inbox: ResMut<ExternalBridgeInbox>,
@@ -167,7 +221,7 @@ pub fn shared_app_bridge_publish_system(
 }
 
 // ============================================================================
-// PURE EMIT HELPERS
+// EMIT + DRAIN
 // ============================================================================
 
 pub fn emit_abundance_from_tuples(
@@ -214,10 +268,6 @@ pub fn emit_origin_from_tuples(
     count
 }
 
-// ============================================================================
-// DRAIN SYSTEM
-// ============================================================================
-
 pub fn external_bridge_drain_system(
     mut inbox: ResMut<ExternalBridgeInbox>,
     mut abundance_writer: EventWriter<AbundanceIngestEvent>,
@@ -258,9 +308,12 @@ impl Plugin for ExternalBridgePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ExternalBridgeInbox>()
             .init_resource::<SharedAppBridgeSource>()
+            .init_resource::<HostBridgeAutoPublish>()
             .add_systems(
                 Update,
                 (
+                    host_bridge_auto_publish_system
+                        .before(shared_app_bridge_publish_system),
                     shared_app_bridge_publish_system
                         .before(external_bridge_drain_system),
                     external_bridge_drain_system
@@ -268,10 +321,10 @@ impl Plugin for ExternalBridgePlugin {
                 ),
             );
 
-        info!("ExternalBridgePlugin — SharedAppBridgeSource + inbox drain active");
+        info!("ExternalBridgePlugin — HostBridgeAutoPublish + inbox drain active");
     }
 }
 
 // Thunder locked in.
-// Host: source.set_dual(...) → publish → inbox → drain → Live
+// Host path: auto-publish (stand-in) or set_dual from ServerTickLoop.
 // Yoi ⚡
