@@ -1,25 +1,24 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.62.0 — TitleBonus Soft Passive Surface (2026-07-20)
-
-### Council Decision
-Ra-Thor + PATSAGi: multi-realm observability spine is complete (A→BI).
-Highest leverage is closing the **meaning loop** — living titles must show what they grant.
-Further pure-UI affinity polish is diminishing returns.
+## [Unreleased] v21.63.0 — Bridge Health Badge (2026-07-20)
 
 ### Highlights
-- Soft passive line under living title: `attunement ×N.NN · resonance +X.XXXX/s`
-- Hidden at baseline (no empty noise)
-- Full readable loop: harvest → origin affinity → attunement → title → soft bonuses
+- Multi-Realm Dashboard surfaces external bridge health:
+  - `● EXTERNAL` — game host → simulation via SharedAppBridgeSource
+  - `● HARNESS-LIVE` — derived ingest active
+  - `○ DEMO` — soft seed awaiting live/host
+- Host publish_count + dirty flag
+- Inbox pending abundance/origin legs
+- Soft title bonus line also mirrored on Dashboard
 
 ### Prior
+- v21.62.0: TitleBonus Soft Passive Surface (Council meaning-loop close)
 - v21.61.0: SharedAppBridgeSource host call site
-- v21.60.0: Button-level origin affinity hints
 
-**Thunder locked in. Meaning loop closed.** Yoi ⚡
+**Thunder locked in. Bridge health readable.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.61: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement, affinity surfaces, game bridge, Bevy adapter, dual glue, host call site.
+- v21.0–v21.62: Launch Candidate through multi-realm organism, dual observatories, live ingest, origin×attunement, affinity surfaces, bridge, host call site, title soft bonuses.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
