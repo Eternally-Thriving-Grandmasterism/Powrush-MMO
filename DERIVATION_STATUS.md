@@ -1,28 +1,28 @@
 # Powrush-MMO Derivation Status
 
-**Phase A → BF** — COMPLETED (v21.1 – v21.58)  
-**Phase BG — Travel Panel Origin Affinity Surface (COMPLETED v21.59)**
+**Phase A → BG** — COMPLETED (v21.1 – v21.59)  
+**Phase BH — Button-Level Origin Affinity Hints (COMPLETED v21.60)**
 
-## Completed This Cycle (v21.59)
+## Completed This Cycle (v21.60)
 
-- F3 Realm Travel Panel surfaces origin affinity for the current realm.
-- Label + mult + harvested amount with soft color scale.
-- Affinity visible both on Multi-Realm Dashboard and at the point of travel.
-- Empty state gently invites harvest without trapping resources.
+- Each F3 travel realm button shows soft affinity suffix.
+- Per-button label + soft text tint from origin provenance.
+- Never punitive — empty affinity omits the suffix.
+- Affinity visible at three depths: Dashboard, current-realm line, per-button hints.
 
 ## Next Council Cycle Priorities
 
 1. Concrete host binary call site (when server/client Bevy app owns both sides).
-2. Optional soft polish (button-level affinity hints, further UI refinement).
+2. Optional further soft polish.
 3. Continue eternal polish under Ra-Thor + PATSAGi Councils.
 
 ## Strategic Notes
 
-- The player now sees the soft feedback loop **where decisions are made** (travel panel) and **where the organism is observed** (dashboard).
-- Full path remains: harvest → origin → affinity → deeper attunement while present → living titles → soft bonuses → mercy flow.
+- The soft feedback loop is now readable at decision granularity: **which realm has your harvest roots** is visible before you click travel.
+- Full path: harvest → origin → affinity (dashboard / panel / buttons) → deeper attunement while present → living titles → soft bonuses → mercy flow.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Affinity visible at the point of travel.**  
+**Soft hints guide without trapping.**  
 Yoi ⚡
