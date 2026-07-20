@@ -50,27 +50,28 @@
 **Phase AV — Live Abundance Ingest + Soft Demo Seed (COMPLETED v21.48)**  
 **Phase AW — Abundance Observability Polish (COMPLETED v21.49)**  
 **Phase AX — RBE Inventory Origin-Realm Foundation (COMPLETED v21.50)**  
-**Phase AY — Origin Provenance Observatory (COMPLETED v21.51)**
+**Phase AY — Origin Provenance Observatory (COMPLETED v21.51)**  
+**Phase AZ — Dashboard Origin Provenance Surface (COMPLETED v21.52)**
 
-## Completed This Cycle (v21.51)
+## Completed This Cycle (v21.52)
 
-- `OriginProvenanceObservatory` holds soft per-realm harvest weights.
-- `OriginIngestEvent` for live inventory.origin_snapshot() bridge.
-- Soft demo seeds gentle provenance alongside abundance.
-- Public API exports wired.
+- OriginProvenanceObservatory wired into Multi-Realm Dashboard UI.
+- Per-realm origin harvest weight lines (amount + resource types).
+- Live/Demo badge for origin observatory (parallel to abundance).
+- Header updated to include Origin Provenance.
 
 ## Next Council Cycle Priorities
 
-1. Surface origin provenance lines in Multi-Realm Dashboard UI.
-2. Emit AbundanceIngestEvent + OriginIngestEvent from a concrete shared-app tick.
-3. Optional further refinements.
+1. Emit AbundanceIngestEvent + OriginIngestEvent from a concrete shared-app tick.
+2. Optional further refinements (inventory UI origin badge, soft title interaction with provenance).
+3. Continue eternal polish under Ra-Thor + PATSAGi Councils.
 
 ## Strategic Notes
 
-- The multi-realm organism now tracks both **where abundance lives** (nodes) and **where harvests came from** (inventory provenance), with dual observatories, dual soft demos, dual live ingest events, and full public API exposure.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, holding those snapshots in a living observatory (Live/Demo badge + restricted visibility), fully wired into the public API, equipped with a conversion bridge, alive via event-based live ingest + soft demo seed, able to remember soft harvest provenance in player inventory without trapping resources, holding that provenance in a living observatory, and now **surfacing both abundance and origin provenance live on the Multi-Realm Dashboard**.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Provenance is visible without trapping resources.**  
+**Provenance visible without trapping resources.**  
 Yoi ⚡
