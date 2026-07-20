@@ -41,27 +41,28 @@
 **Phase AM — Surface Realm Attunement in Dashboard (COMPLETED v21.39)**  
 **Phase AN — Surface Realm Attunement in F3 Travel Panel (COMPLETED v21.40)**  
 **Phase AO — Living Attunement Titles (COMPLETED v21.41)**  
-**Phase AP — ResourceNode Realm-Keying Foundation (COMPLETED v21.42)**
+**Phase AP — ResourceNode Realm-Keying Foundation (COMPLETED v21.42)**  
+**Phase AQ — Living Title Passive Bonuses (COMPLETED v21.43)**
 
-## Completed This Cycle (v21.42)
+## Completed This Cycle (v21.43)
 
-- Every ResourceNode now carries a realm_id.
-- Nodes are created and queried as living members of a specific realm.
-- Manager helpers: add_node_in_realm, nodes_in_realm, count_in_realm.
-- Backward-compatible default remains Sanctuary Prime (realm 0).
+- Living titles now grant tiny, mercy-aligned passive bonuses.
+- Higher titles gently accelerate attunement gain while present.
+- Total honorifics contribute a soft resonance whisper to the harness.
+- Purely additive. Never punitive. Fully reversible by leaving the realm.
 
 ## Next Council Cycle Priorities
 
-1. Optional small passive bonuses tied to high titles (if desired).
-2. Deeper RBE pool / inventory realm-scoping when ready.
-3. Per-realm abundance observability in the Multi-Realm Dashboard.
+1. Deeper RBE pool / inventory realm-scoping when ready.
+2. Per-realm abundance observability in the Multi-Realm Dashboard (once game ↔ simulation bridge is clean).
+3. Optional further title-tier refinements.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, and now resource-keyed by realm.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, and now gently rewards deep presence with soft recognition.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Abundance now knows its home realm.**  
+**Recognition now gently touches the living world.**  
 Yoi ⚡
