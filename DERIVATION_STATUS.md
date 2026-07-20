@@ -1,29 +1,40 @@
 # Powrush-MMO Derivation Status
 
-**Phase A → BJ** — COMPLETED (v21.1 – v21.62)  
-**Phase BK — Bridge Health Badge (COMPLETED v21.63)**
+**Phase A → BK** — COMPLETED (v21.1 – v21.63)  
+**Phase BL — HostBridgeAutoPublish Concrete Host Path (COMPLETED v21.64)**
 
-## Completed This Cycle (v21.63)
+## Completed This Cycle (v21.64)
 
-- Dashboard bridge health: External / Harness-Live / Demo
-- SharedAppBridgeSource publish_count + dirty visible
-- Inbox pending legs visible
-- Soft title bonus mirrored on Dashboard
+- `HostBridgeAutoPublish` soft host stand-in (default enabled).
+- Cadence: harness-derived dual → SharedAppBridgeSource → inbox → drain.
+- Dashboard can now show `● EXTERNAL` via the host publish path.
+- `ServerTickLoop` hosts: call `set_dual` and disable auto-publish.
 
-## Council Strategic Position
+## Host Upgrade Path
 
-Observability spine + meaning loop + bridge health = **complete for this arc**.
+```text
+// Soft stand-in (current default):
+HostBridgeAutoPublish { enabled: true, interval_secs: 2.5 }
 
-Next true high-leverage work:
-1. Host binary wiring (`set_dual` at tick boundary when App owns both sides)
+// Authoritative host (when ServerTickLoop is owned):
+HostBridgeAutoPublish { enabled: false, .. }
+after tick:
+  dual = tick_loop.dual_payload()
+  source.set_dual(...)
+```
+
+## Next Council Cycle Priorities
+
+1. Optional: NonSend ServerTickLoop insertion in server binary when game package is fully wired
 2. Protect against low-leverage UI churn
-3. Eternal polish under Ra-Thor + PATSAGi Councils
+3. Continue eternal polish under Ra-Thor + PATSAGi Councils
 
 ## Strategic Notes
 
+- Multi-realm arc observability + host path + meaning loop = **complete**.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Bridge health readable. Spine complete.**  
+**Host path exercised. Spine complete.**  
 Yoi ⚡
