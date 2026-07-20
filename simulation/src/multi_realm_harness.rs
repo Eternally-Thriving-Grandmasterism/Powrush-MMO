@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
 //! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses / Abundance Observatory
-//! v21.46.0
+//! v21.48.0 — Live Abundance Ingest Event + Soft Demo Seed
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -191,26 +191,24 @@ impl RealmAttunement {
     pub fn title_bonus(&self, current_realm: RealmId) -> TitleBonus {
         let current = self.get(current_realm);
 
-        // Realm-title tier
         let (att_mult, realm_whisper) = if current >= 1.0 {
-            (1.18, 0.004) // Heart of [Realm]
+            (1.18, 0.004)
         } else if current >= 0.75 {
-            (1.12, 0.0025) // Attuned of [Realm]
+            (1.12, 0.0025)
         } else if current >= 0.50 {
-            (1.07, 0.0015) // Resident of [Realm]
+            (1.07, 0.0015)
         } else if current >= 0.25 {
-            (1.03, 0.0008) // Seeker of [Realm]
+            (1.03, 0.0008)
         } else {
             (1.0, 0.0)
         };
 
-        // Total-honorific whisper (stacks softly)
         let total_whisper = if self.total >= 4.0 {
-            0.006 // Living Lattice
+            0.006
         } else if self.total >= 2.5 {
-            0.0035 // Realm Weaver
+            0.0035
         } else if self.total >= 1.0 {
-            0.0015 // Multi-Realm Traveler
+            0.0015
         } else {
             0.0
         };
@@ -290,12 +288,15 @@ impl RealmAbundanceView {
 pub struct RealmAbundanceObservatory {
     pub views: HashMap<RealmId, RealmAbundanceView>,
     pub last_updated_tick: u64,
+    /// True once real (non-demo) data has been ingested at least once.
+    pub has_live_data: bool,
 }
 
 impl RealmAbundanceObservatory {
     pub fn upsert(&mut self, view: RealmAbundanceView, tick: u64) {
         self.views.insert(view.realm_id, view);
         self.last_updated_tick = tick;
+        self.has_live_data = true;
     }
 
     /// Bulk ingest — ideal for ResourceNodeManager::snapshot_all_realms() results.
@@ -304,6 +305,7 @@ impl RealmAbundanceObservatory {
             self.views.insert(view.realm_id, view);
         }
         self.last_updated_tick = tick;
+        self.has_live_data = true;
     }
 
     pub fn get(&self, realm_id: RealmId) -> Option<&RealmAbundanceView> {
@@ -318,7 +320,27 @@ impl RealmAbundanceObservatory {
 
     pub fn clear(&mut self) {
         self.views.clear();
+        self.has_live_data = false;
     }
+}
+
+/// Live call site event.
+/// External code (game/server tick, client bridge) sends this to feed the observatory.
+///
+/// Example:
+/// ```ignore
+/// writer.send(AbundanceIngestEvent {
+///     views: manager.snapshot_all_realms(now_ms).into_iter().map(|s| {
+///         let (id, n, y, sus, flow, stress, rest, thr) = s.into_view_tuple();
+///         RealmAbundanceView::from_raw(id, n, y, sus, flow, stress, rest, thr)
+///     }).collect(),
+///     tick,
+/// });
+/// ```
+#[derive(Event, Clone, Debug)]
+pub struct AbundanceIngestEvent {
+    pub views: Vec<RealmAbundanceView>,
+    pub tick: u64,
 }
 
 #[derive(Event, Clone, Debug)]
@@ -503,7 +525,6 @@ impl MultiRealmHarness {
         }
     }
 
-    // Decision / resonance / echo (preserved)
     pub fn record_decision_for_realm(&mut self, decision: &CouncilDecision, policy: ActivePolicy) {
         let realm_id = decision.realm_id;
         let target_realm = if self.realms.contains_key(&realm_id) {
@@ -723,15 +744,12 @@ pub fn realm_presence_bootstrap_system(
     }
 }
 
-/// Gently accumulate attunement while the player is present in a realm.
-/// Living titles now softly accelerate this accumulation and whisper into resonance.
 pub fn realm_attunement_system(
     time: Res<Time>,
     mut harness: ResMut<MultiRealmHarness>,
     mut query: Query<(&RealmPresence, &mut RealmAttunement)>,
 ) {
     let dt = time.delta_seconds();
-    // Base accumulation (~0.012 per second → ~0.72 per minute)
     let base_gain = 0.012 * dt;
 
     for (presence, mut attunement) in query.iter_mut() {
@@ -740,7 +758,6 @@ pub fn realm_attunement_system(
 
         attunement.add(presence.current_realm_id, gain);
 
-        // Soft resonance whisper from high titles
         if bonus.resonance_whisper > 0.0 {
             harness.cross_realm_mercy_flow =
                 (harness.cross_realm_mercy_flow + bonus.resonance_whisper * dt).min(2.5);
@@ -748,7 +765,6 @@ pub fn realm_attunement_system(
     }
 }
 
-/// Ensure RealmAttunement exists alongside RealmPresence.
 pub fn realm_attunement_bootstrap_system(
     mut commands: Commands,
     query: Query<Entity, (With<RealmPresence>, Without<RealmAttunement>)>,
@@ -788,6 +804,64 @@ pub fn realm_travel_system(
     }
 }
 
+/// Live call site system — consumes AbundanceIngestEvent into the observatory.
+pub fn abundance_ingest_system(
+    mut events: EventReader<AbundanceIngestEvent>,
+    mut observatory: ResMut<RealmAbundanceObservatory>,
+) {
+    for event in events.read() {
+        if event.views.is_empty() {
+            continue;
+        }
+        observatory.ingest_many(event.views.clone(), event.tick);
+        info!(
+            target: "ra_thor::multi_realm::abundance",
+            count = event.views.len(),
+            tick = event.tick,
+            "Live abundance ingested into observatory"
+        );
+    }
+}
+
+/// Soft demo seed — only when observatory is empty and no live data has arrived yet.
+/// Gives the Multi-Realm Dashboard gentle living abundance during development.
+/// Fully replaced the moment a real AbundanceIngestEvent arrives.
+pub fn soft_demo_abundance_seed_system(
+    mut observatory: ResMut<RealmAbundanceObservatory>,
+    harness: Res<MultiRealmHarness>,
+    time: Res<Time>,
+) {
+    if observatory.has_live_data || !observatory.views.is_empty() {
+        return;
+    }
+    if harness.realms.is_empty() {
+        return;
+    }
+
+    let tick = time.elapsed_seconds() as u64;
+    // Gentle, varied placeholder values per realm — purely for dashboard visibility.
+    let demos = [
+        (0u8, 12u32, 28.5f32, 0.88f32, 0.22f32, 0.12f32, 0u32, 9u32),  // Sanctuary — thriving
+        (1, 8, 14.2, 0.71, 0.08, 0.28, 1, 4),                          // Lattice — steady
+        (2, 15, 36.0, 0.91, 0.31, 0.09, 0, 13),                         // Verdant — abundant
+        (3, 6, 11.4, 0.78, 0.15, 0.18, 0, 4),                           // Chorus — steady
+        (4, 4, 6.8, 0.55, -0.02, 0.42, 1, 1),                           // Horizon — stressed
+    ];
+
+    for (id, n, y, sus, flow, stress, rest, thr) in demos {
+        if harness.realms.contains_key(&id) {
+            observatory.views.insert(
+                id,
+                RealmAbundanceView::from_raw(id, n, y, sus, flow, stress, rest, thr),
+            );
+        }
+    }
+    observatory.last_updated_tick = tick;
+    // Note: has_live_data stays false — demo only.
+
+    info!(target: "ra_thor::multi_realm::abundance", "Soft demo abundance seeded (will yield to live data)");
+}
+
 pub fn multi_realm_harness_system(
     mut harness: ResMut<MultiRealmHarness>,
     decisions: Option<Res<CouncilDecisions>>,
@@ -820,6 +894,7 @@ impl Plugin for MultiRealmHarnessPlugin {
             .register_type::<RealmPresence>()
             .register_type::<RealmAttunement>()
             .add_event::<RealmTravelRequest>()
+            .add_event::<AbundanceIngestEvent>()
             .add_systems(
                 Update,
                 (
@@ -828,13 +903,16 @@ impl Plugin for MultiRealmHarnessPlugin {
                     realm_attunement_bootstrap_system,
                     realm_attunement_system,
                     realm_travel_system,
+                    abundance_ingest_system,
+                    soft_demo_abundance_seed_system,
                 ),
             );
 
-        info!("MultiRealmHarnessPlugin — presence + attunement + living titles + soft bonuses + abundance observatory active");
+        info!("MultiRealmHarnessPlugin — presence + attunement + titles + bonuses + abundance observatory + live ingest active");
     }
 }
 
-// Thunder locked in. Presence now gently accumulates living attunement, named meaning, soft recognition, and abundance awareness.
-// Bridge path open for game-side ResourceNodeManager snapshots.
+// Thunder locked in.
+// Live call site: send AbundanceIngestEvent.
+// Soft demo keeps the dashboard alive until real data arrives.
 // Yoi ⚡
