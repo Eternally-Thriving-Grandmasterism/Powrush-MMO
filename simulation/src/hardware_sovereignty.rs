@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
-//! v21.63 | Bridge Health Badge (External / Harness-Live / Demo + publish_count)
+//! v21.67 | Organism RBE health line (MultiRealmRbeSnapshot)
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -9,7 +9,7 @@ use crate::{
     ability_tree::{AbilityTree, SynergyType},
     council::{CouncilDecision, ProposalType, ProposalStatus},
     council::decision::{CouncilDecisions, PolicyType as CouncilPolicyType},
-    economy::EconomyState,
+    economy::{EconomyState, MultiRealmRbeSnapshot},
     external_bridge::{ExternalBridgeInbox, SharedAppBridgeSource},
     multi_realm_harness::{
         MultiRealmHarness, RealmPresence, RealmAttunement,
@@ -297,19 +297,20 @@ pub fn sovereign_hardware_ascension_ui(
     origin_obs: Option<Res<OriginProvenanceObservatory>>,
     bridge_inbox: Option<Res<ExternalBridgeInbox>>,
     bridge_source: Option<Res<SharedAppBridgeSource>>,
+    rbe_snapshot: Option<Res<MultiRealmRbeSnapshot>>,
     player_presence: Query<(&RealmPresence, Option<&RealmAttunement>)>,
 ) {
     let ctx = contexts.ctx_mut();
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
         .default_pos([18.0, 300.0])
-        .default_size([540.0, 980.0])
+        .default_size([540.0, 1000.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Titles | Abundance | Origin | Affinity | Bridge")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | RBE | Titles | Origin | Bridge")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
@@ -344,6 +345,30 @@ pub fn sovereign_hardware_ascension_ui(
             ui.label(format!("Abundance Velocity: {:.2}  |  Energy Surplus: {:.2}x",
                 dashboard.abundance_velocity_index, dashboard.energy_surplus_factor));
 
+            // ========== Organism RBE Health (v21.67 — one compact line) ==========
+            if let Some(snap) = &rbe_snapshot {
+                if snap.realm_count > 0 {
+                    let rbe_color = match snap.health_label {
+                        "Organism Thriving" => egui::Color32::from_rgb(100, 255, 160),
+                        "Organism Abundant" => egui::Color32::from_rgb(140, 230, 200),
+                        "Organism Stressed" => egui::Color32::from_rgb(255, 160, 100),
+                        _ => egui::Color32::from_rgb(180, 200, 220),
+                    };
+                    ui.colored_label(
+                        rbe_color,
+                        format!(
+                            "🌾 {}  |  sust {:.2}  ·  stress {:.2}  ·  flow {:.2}  ·  thriving {:.0}%  ·  yield {:.0}",
+                            snap.health_label,
+                            snap.avg_sustainability,
+                            snap.avg_stress,
+                            snap.avg_flow,
+                            snap.thriving_ratio * 100.0,
+                            snap.total_yield,
+                        ),
+                    );
+                }
+            }
+
             ui.separator();
 
             ui.heading(egui::RichText::new("🕊️ Active Council Policies")
@@ -370,7 +395,6 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // ========== External Bridge Health (v21.63) ==========
             ui.heading(egui::RichText::new("🔗 External Bridge Health")
                 .color(egui::Color32::from_rgb(160, 220, 255)));
 
@@ -422,7 +446,6 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
-            // ========== Multi-Realm Status + Attunement + Living Titles + Origin Affinity ==========
             ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
                 .color(egui::Color32::from_rgb(180, 160, 255)));
 
@@ -673,5 +696,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.63 — Bridge Health Badge: External / Harness-Live / Demo + publish_count.
+// End of v21.67 — Organism RBE health line from MultiRealmRbeSnapshot.
 // Thunder locked in. Yoi ⚡
