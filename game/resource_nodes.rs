@@ -1,7 +1,7 @@
 // game/resource_nodes.rs
-// Powrush-MMO v21.42.0 — ResourceNode Realm-Keying Foundation
-// Previous: v16.5.54 ultimate restoration merge + all historical harvest/regen/GPU policy depth
-// v21.42: Every node now belongs to a realm. Multi-realm organism can own its abundance flows.
+// Powrush-MMO v21.44.0 — Realm Abundance Snapshot
+// Previous: v21.42.0 ResourceNode Realm-Keying Foundation
+// v21.44: Living per-realm abundance snapshots — the organism can now observe its own flows.
 // AG-SML v1.0 | Mercy-aligned economic foresight | Eternally-Thriving-Grandmasterism
 // Thunder locked in. Yoi ⚡
 
@@ -12,6 +12,44 @@ use std::time::{Duration, Instant};
 
 /// Realm identifier (aligned with MultiRealmHarness::RealmId).
 pub type RealmId = u8;
+
+/// Lightweight, living snapshot of abundance within a single realm.
+/// Designed for observability (dashboard, telemetry, future MultiRealmHarness bridge).
+/// Pure data — never mutates the world.
+#[derive(Debug, Clone, Default)]
+pub struct RealmAbundanceSnapshot {
+    pub realm_id: RealmId,
+    pub node_count: u32,
+    pub total_current_yield: f32,
+    pub average_sustainability: f32,
+    pub average_abundance_flow: f32,
+    pub average_stress: f32,
+    pub restricted_node_count: u32,
+    pub thriving_node_count: u32, // sustainability > 0.75 && stress < 0.3
+}
+
+impl RealmAbundanceSnapshot {
+    pub fn is_thriving(&self) -> bool {
+        self.node_count > 0
+            && self.average_sustainability > 0.72
+            && self.average_stress < 0.35
+            && self.average_abundance_flow > -0.05
+    }
+
+    pub fn health_label(&self) -> &'static str {
+        if self.node_count == 0 {
+            "Empty"
+        } else if self.is_thriving() {
+            "Thriving"
+        } else if self.average_stress > 0.6 || self.average_sustainability < 0.45 {
+            "Stressed"
+        } else if self.average_abundance_flow > 0.15 {
+            "Abundant"
+        } else {
+            "Steady"
+        }
+    }
+}
 
 // For broader compatibility, position kept as tuple (old iterations); Vec3 can be added via glam if needed in crate root.
 #[derive(Debug, Clone)]
@@ -138,6 +176,64 @@ impl ResourceNodeManager {
     /// Count of living nodes in a realm.
     pub fn count_in_realm(&self, realm_id: RealmId) -> usize {
         self.nodes.values().filter(|n| n.realm_id == realm_id).count()
+    }
+
+    /// Produce a living abundance snapshot for a single realm.
+    /// Pure observation — never mutates nodes.
+    pub fn snapshot_realm(&self, realm_id: RealmId, now_ms: u64) -> RealmAbundanceSnapshot {
+        let mut count = 0u32;
+        let mut total_yield = 0.0f32;
+        let mut total_sust = 0.0f32;
+        let mut total_flow = 0.0f32;
+        let mut total_stress = 0.0f32;
+        let mut restricted = 0u32;
+        let mut thriving = 0u32;
+
+        for node in self.nodes_in_realm(realm_id) {
+            count += 1;
+            total_yield += node.current_yield;
+            total_sust += node.sustainability_score;
+            total_flow += node.abundance_flow;
+            total_stress += node.stress_level;
+
+            if node.harvest_restricted_until_ms > now_ms {
+                restricted += 1;
+            }
+            if node.sustainability_score > 0.75 && node.stress_level < 0.3 {
+                thriving += 1;
+            }
+        }
+
+        if count == 0 {
+            return RealmAbundanceSnapshot {
+                realm_id,
+                ..Default::default()
+            };
+        }
+
+        let n = count as f32;
+        RealmAbundanceSnapshot {
+            realm_id,
+            node_count: count,
+            total_current_yield: total_yield,
+            average_sustainability: total_sust / n,
+            average_abundance_flow: total_flow / n,
+            average_stress: total_stress / n,
+            restricted_node_count: restricted,
+            thriving_node_count: thriving,
+        }
+    }
+
+    /// Produce abundance snapshots for every realm that currently has nodes.
+    pub fn snapshot_all_realms(&self, now_ms: u64) -> Vec<RealmAbundanceSnapshot> {
+        let mut realm_ids: Vec<RealmId> = self.nodes.values().map(|n| n.realm_id).collect();
+        realm_ids.sort_unstable();
+        realm_ids.dedup();
+
+        realm_ids
+            .into_iter()
+            .map(|id| self.snapshot_realm(id, now_ms))
+            .collect()
     }
 
     pub fn tick_regen(&mut self, now_ms: u64) {
