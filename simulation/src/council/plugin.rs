@@ -1,8 +1,7 @@
 /*!
  * CouncilPlugin
  *
- * Dedicated Bevy plugin for the full Council Proposal System.
- * Bundles resource initialization, effects system, and audit logging.
+ * v21.71.0 — Session registry + deliberation → decisions promotion
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  */
@@ -11,25 +10,26 @@ use bevy::prelude::*;
 use tracing::info;
 
 use crate::council::decision::{CouncilDecisions, apply_council_decision_effects};
+use crate::council::session::{CouncilSessionRegistry, session_deliberation_system};
 
 /// Dedicated plugin for Council governance, proposal effects, and audit logging.
-///
-/// This plugin:
-/// - Initializes the CouncilDecisions resource (pending proposals/effects)
-/// - Schedules the apply_council_decision_effects system
-/// - Enables full audit log + persistence via SovereignWorldState
 pub struct CouncilPlugin;
 
 impl Plugin for CouncilPlugin {
     fn build(&self, app: &mut App) {
         app
             .init_resource::<CouncilDecisions>()
-            .add_systems(Update, apply_council_decision_effects);
+            .init_resource::<CouncilSessionRegistry>()
+            .add_systems(
+                Update,
+                (
+                    session_deliberation_system,
+                    apply_council_decision_effects,
+                ).chain(),
+            );
 
-        info!("CouncilPlugin initialized — Council Proposal System + Audit Logs active");
+        info!("CouncilPlugin — sessions + deliberation → decisions + effects active");
     }
 }
 
-// Cross-link: CouncilPlugin (CouncilDecisions + apply_council_decision_effects) wires council decisions/effects to emergence (EpiphanyEvent),
-// persistence (council trial outcomes), InterestManager visible culling, recovered render post-FX pipeline, and council bloom visuals.
 // Thunder locked in. Yoi ⚡
