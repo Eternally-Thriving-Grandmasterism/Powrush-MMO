@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
-//! v21.55 | Origin Affinity Surface (label + mult next to attunement)
+//! v21.63 | Bridge Health Badge (External / Harness-Live / Demo + publish_count)
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -10,6 +10,7 @@ use crate::{
     council::{CouncilDecision, ProposalType, ProposalStatus},
     council::decision::{CouncilDecisions, PolicyType as CouncilPolicyType},
     economy::EconomyState,
+    external_bridge::{ExternalBridgeInbox, SharedAppBridgeSource},
     multi_realm_harness::{
         MultiRealmHarness, RealmPresence, RealmAttunement,
         RealmAbundanceObservatory, OriginProvenanceObservatory,
@@ -294,19 +295,21 @@ pub fn sovereign_hardware_ascension_ui(
     multi_realm: Option<Res<MultiRealmHarness>>,
     abundance_obs: Option<Res<RealmAbundanceObservatory>>,
     origin_obs: Option<Res<OriginProvenanceObservatory>>,
+    bridge_inbox: Option<Res<ExternalBridgeInbox>>,
+    bridge_source: Option<Res<SharedAppBridgeSource>>,
     player_presence: Query<(&RealmPresence, Option<&RealmAttunement>)>,
 ) {
     let ctx = contexts.ctx_mut();
 
     egui::Window::new("⚡ Sovereign Hardware Ascension ⚡")
         .default_pos([18.0, 300.0])
-        .default_size([540.0, 940.0])
+        .default_size([540.0, 980.0])
         .resizable(true)
         .show(ctx, |ui| {
             ui.vertical_centered(|ui| {
                 ui.heading(egui::RichText::new("Obsidian-Chip-Open  +  Aether-Shades-Open")
                     .color(egui::Color32::from_rgb(180, 140, 255)));
-                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Titles | Abundance | Origin | Affinity")
+                ui.label(egui::RichText::new("TOLC 8 | Multi-Realm | Titles | Abundance | Origin | Affinity | Bridge")
                     .italics()
                     .color(egui::Color32::from_rgb(140, 200, 255)));
             });
@@ -367,6 +370,58 @@ pub fn sovereign_hardware_ascension_ui(
 
             ui.separator();
 
+            // ========== External Bridge Health (v21.63) ==========
+            ui.heading(egui::RichText::new("🔗 External Bridge Health")
+                .color(egui::Color32::from_rgb(160, 220, 255)));
+
+            let external_received = bridge_inbox
+                .as_ref()
+                .map(|b| b.has_received_external)
+                .unwrap_or(false);
+            let abundance_live = abundance_obs
+                .as_ref()
+                .map(|o| o.has_live_data)
+                .unwrap_or(false);
+            let origin_live = origin_obs
+                .as_ref()
+                .map(|o| o.has_live_data)
+                .unwrap_or(false);
+
+            let (bridge_label, bridge_color) = if external_received {
+                ("● EXTERNAL  (game host → simulation)", egui::Color32::from_rgb(100, 255, 160))
+            } else if abundance_live || origin_live {
+                ("● HARNESS-LIVE  (derived ingest)", egui::Color32::from_rgb(140, 220, 255))
+            } else {
+                ("○ DEMO  (soft seed — awaits live/host)", egui::Color32::from_rgb(200, 190, 140))
+            };
+
+            ui.colored_label(bridge_color, bridge_label);
+
+            if let Some(source) = &bridge_source {
+                ui.label(format!(
+                    "Host publishes: {}  |  dirty: {}",
+                    source.publish_count,
+                    if source.dirty { "yes" } else { "no" }
+                ));
+            } else {
+                ui.colored_label(
+                    egui::Color32::GRAY,
+                    "SharedAppBridgeSource not in world (host not sharing App)",
+                );
+            }
+
+            if let Some(inbox) = &bridge_inbox {
+                let pending_a = inbox.abundance.is_some();
+                let pending_o = inbox.origin.is_some();
+                ui.label(format!(
+                    "Inbox pending: abundance={}  origin={}",
+                    if pending_a { "yes" } else { "no" },
+                    if pending_o { "yes" } else { "no" }
+                ));
+            }
+
+            ui.separator();
+
             // ========== Multi-Realm Status + Attunement + Living Titles + Origin Affinity ==========
             ui.heading(egui::RichText::new("🌌 Multi-Realm Status")
                 .color(egui::Color32::from_rgb(180, 160, 255)));
@@ -393,6 +448,17 @@ pub fn sovereign_hardware_ascension_ui(
                         format!("Title: {}", title),
                     );
 
+                    let bonus = att.title_bonus(presence.current_realm_id);
+                    if bonus.attunement_gain_mult > 1.001 || bonus.resonance_whisper > 0.0001 {
+                        ui.colored_label(
+                            egui::Color32::from_rgb(160, 220, 170),
+                            format!(
+                                "Soft bonus: attunement ×{:.2}  ·  resonance +{:.4}/s",
+                                bonus.attunement_gain_mult, bonus.resonance_whisper
+                            ),
+                        );
+                    }
+
                     let current_att = att.get(presence.current_realm_id);
                     ui.colored_label(
                         egui::Color32::from_rgb(200, 180, 255),
@@ -413,7 +479,6 @@ pub fn sovereign_hardware_ascension_ui(
                     }
                 }
 
-                // Origin Affinity — soft harvest→presence recognition for current realm
                 if let Some(orig) = &origin_obs {
                     let harvested = orig.amount_for(presence.current_realm_id);
                     let label = origin_affinity_label(harvested);
@@ -608,5 +673,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.55 — Origin Affinity Surface: label + mult next to attunement.
+// End of v21.63 — Bridge Health Badge: External / Harness-Live / Demo + publish_count.
 // Thunder locked in. Yoi ⚡
