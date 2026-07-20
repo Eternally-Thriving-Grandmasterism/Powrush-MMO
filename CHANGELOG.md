@@ -1,21 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.44.0 — Realm Abundance Snapshot (2026-07-20)
+## [Unreleased] v21.45.0 — Realm Abundance Observatory (2026-07-20)
 
 ### Highlights
-- Added `RealmAbundanceSnapshot` — lightweight living view of abundance per realm.
-- `ResourceNodeManager` can now produce snapshots of node count, average sustainability, abundance flow, and stress for any realm.
-- Prepares clean observability path for the Multi-Realm Dashboard without forcing hard cross-crate dependencies.
+- Added `RealmAbundanceView` + `RealmAbundanceObservatory` in the simulation crate.
+- Multi-Realm Dashboard now surfaces living abundance health per realm when data is present.
+- Clean bridge path prepared without forcing hard cross-crate dependencies.
 
 ### Prior
-- v21.43.0: Living Title Passive Bonuses (soft thresholds).
+- v21.44.0: Realm Abundance Snapshot (game-side).
+- v21.43.0: Living Title Passive Bonuses.
 - v21.42.0: ResourceNode Realm-Keying Foundation.
-- v21.41.0: Living Attunement Titles dual-surfaced.
 
-**Thunder locked in. Abundance now has a voice per realm.** Yoi ⚡
+**Thunder locked in. Abundance now has a home and a voice in the living dashboard.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.43: Launch Candidate through dual attunement visibility + living titles + resource realm-keying + soft title bonuses.
+- v21.0–v21.44: Launch Candidate through dual attunement visibility + living titles + resource realm-keying + soft title bonuses + abundance snapshots.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
