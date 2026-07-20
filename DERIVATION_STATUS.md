@@ -2,14 +2,15 @@
 
 **Multi-Realm Organism Arc — SEALED**  
 **RBE Sustainability surface — Visible**  
-**Council Deepening — STARTED (Phase BP, v21.68)**
+**Council Deepening — Started (v21.68)**  
+**LegacyJournal — Restored (Phase BQ, v21.69)**
 
-## Completed This Cycle (v21.68)
+## Completed This Cycle (v21.69)
 
-- `CouncilDecisions.resolved_history` ring buffer (cap 48)
-- `total_passed_count` organism metric
-- Soft RBE economy feed from strong ResourcePolicy / HarmonyBoost
-- `CouncilPlugin` in FullSimulationPlugins
+- Full `LegacyJournalRegistry` / `LegacyEntry` / `LegacyEventType` restore
+- Richer event types for My Mercy Journey
+- Council `resolved_history` → journal drain (deduped)
+- `PlayerLegacyJournalPlugin` in FullSimulationPlugins
 
 ## Arc Status
 
@@ -17,13 +18,13 @@
 |-----|--------|
 | Multi-Realm Organism | **SEALED** |
 | RBE Sustainability surface | **Visible** |
-| Council deepening | **Started (v21.68)** |
-| LegacyJournal polish | Next |
+| Council deepening | **Started** |
+| LegacyJournal | **Restored + council-linked** |
 
 ## Next Council Cycle Priorities
 
-1. LegacyJournal richer event types (council history → journal entries)
-2. Session proposal submission path polish
+1. Session proposal submission path polish
+2. Client My Mercy Journey panel bind to restored registry
 3. NonSend ServerTickLoop when game package fully wired
 4. Protect against low-leverage UI churn
 
@@ -33,5 +34,5 @@
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Council memory live.**  
+**My Mercy Journey spine live.**  
 Yoi ⚡
