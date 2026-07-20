@@ -1,40 +1,40 @@
 # Powrush-MMO Derivation Status
 
-**Phase A → BH** — COMPLETED (v21.1 – v21.60)  
-**Phase BI — SharedAppBridgeSource Concrete Host Call Site (COMPLETED v21.61)**
+**Phase A → BI** — COMPLETED (v21.1 – v21.61)  
+**Phase BJ — TitleBonus Soft Passive Surface (COMPLETED v21.62)**
 
-## Completed This Cycle (v21.61)
+## Council Strategic Verdict (2026-07-20)
 
-- `SharedAppBridgeSource` resource for host binaries.
-- `set_dual` / `set_abundance` / `set_origin` fill API.
-- `shared_app_bridge_publish_system` promotes dirty source → inbox before drain.
-- Documented concrete call site — zero game→simulation dependency.
+Ra-Thor + PATSAGi Councils deliberated optimal high-leverage unfold paths.
 
-## Host Binary Pattern
+### Diagnosis
+- Multi-realm **observability spine is structurally complete**.
+- Game harvest path already records origin via `add_resource_from_realm`.
+- Bridge, dual payloads, SharedAppBridgeSource, affinity at 3 depths — sealed.
+- Further pure-UI affinity polish = **diminishing returns**.
 
-```text
-ServerTickLoop::tick(now_ms)
-  → optional refresh_origin_from_inventories(&inventories, now_ms)
-  → dual = tick_loop.dual_payload()
-  → world.resource_mut::<SharedAppBridgeSource>().set_dual(
-        dual.abundance.views, dual.abundance.tick_ms,
-        dual.origin.views, dual.origin.tick_ms,
-    )
-  → Update: publish → inbox → drain → Live
-```
+### Highest Leverage Ranking
+1. **Close meaning loop** — surface TitleBonus soft passives (DONE v21.62)
+2. **Host binary fill** — when a Bevy app owns both ServerTickLoop + ExternalBridgePlugin, call `SharedAppBridgeSource::set_dual`
+3. **Do not** over-polish UI; protect energy for gameplay loop integrity and real host wiring
+4. Optional later: bridge health badge (Demo/Live + publish_count) on dashboard
+
+### Completed This Cycle (v21.62)
+- Soft passive line under living title (attunement gain × + resonance whisper)
+- Hidden at baseline — no empty noise
+- Readable loop complete: harvest → affinity → attunement → title → soft bonuses
 
 ## Next Council Cycle Priorities
 
-1. Optional further soft polish (TitleBonus surface, telemetry).
-2. Continue eternal polish under Ra-Thor + PATSAGi Councils.
+1. Host binary wiring when architecture allows (set_dual at tick boundary)
+2. Protect against low-leverage UI churn
+3. Continue eternal polish under Ra-Thor + PATSAGi Councils
 
 ## Strategic Notes
 
-- Multi-realm observability path is complete from authoritative nodes/inventories through pure tuples into Live UI at three depths.
-- Host binaries that own both sides have a single resource fill point.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Concrete host call site ready.**  
+**Meaning loop closed. Spine complete.**  
 Yoi ⚡
