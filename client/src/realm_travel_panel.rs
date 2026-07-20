@@ -1,9 +1,10 @@
 /*!
- * Realm Travel Panel — State-Aware + Attunement + Living Titles + Origin Affinity
- * v21.59.0
+ * Realm Travel Panel — Attunement + Titles + Origin Affinity + Button Hints
+ * v21.60.0
  *
  * Toggle with F3. Lists the five seeded realms.
- * Shows current realm, living title, attunement, origin affinity, and highlights the active one.
+ * Shows current realm, living title, attunement, origin affinity.
+ * Each realm button carries a soft affinity hint from harvest provenance.
  * Clicking a realm emits a RealmTravelRequest for the local player.
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
@@ -23,6 +24,12 @@ pub struct RealmTravelPanel;
 #[derive(Component)]
 struct TravelRealmButton {
     target_realm: RealmId,
+}
+
+#[derive(Component)]
+struct TravelRealmButtonLabel {
+    target_realm: RealmId,
+    base_name: &'static str,
 }
 
 #[derive(Component)]
@@ -117,7 +124,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     position_type: PositionType::Absolute,
                     top: Val::Percent(18.0),
                     left: Val::Percent(2.0),
-                    width: Val::Px(300.0),
+                    width: Val::Px(320.0),
                     padding: UiRect::all(Val::Px(14.0)),
                     border: UiRect::all(Val::Px(2.0)),
                     border_radius: BorderRadius::all(Val::Px(12.0)),
@@ -191,7 +198,6 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                 AttunementText,
             ));
 
-            // Origin Affinity (v21.59)
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -238,17 +244,23 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                         TravelRealmButton { target_realm: id },
                     ))
                     .with_children(|b| {
-                        b.spawn(TextBundle {
-                            text: Text::from_section(
-                                format!("[{}] {}", id, name),
-                                TextStyle {
-                                    font: font_reg.clone(),
-                                    font_size: 13.0,
-                                    color: Color::srgb(0.90, 0.95, 1.0),
-                                },
-                            ),
-                            ..default()
-                        });
+                        b.spawn((
+                            TextBundle {
+                                text: Text::from_section(
+                                    format!("[{}] {}", id, name),
+                                    TextStyle {
+                                        font: font_reg.clone(),
+                                        font_size: 13.0,
+                                        color: Color::srgb(0.90, 0.95, 1.0),
+                                    },
+                                ),
+                                ..default()
+                            },
+                            TravelRealmButtonLabel {
+                                target_realm: id,
+                                base_name: name,
+                            },
+                        ));
                     });
             }
 
@@ -332,7 +344,7 @@ fn handle_travel_button_clicks(
     }
 }
 
-/// Keep the panel in sync with current realm + living attunement + title + origin affinity.
+/// Keep the panel in sync with current realm + living attunement + title + origin affinity + button hints.
 fn update_travel_panel_current_realm(
     presence_query: Query<(&RealmPresence, Option<&RealmAttunement>), With<LocalPlayer>>,
     origin_obs: Option<Res<OriginProvenanceObservatory>>,
@@ -341,6 +353,7 @@ fn update_travel_panel_current_realm(
     mut attunement_text_query: Query<&mut Text, With<AttunementText>>,
     mut affinity_text_query: Query<&mut Text, With<OriginAffinityText>>,
     mut button_query: Query<(&TravelRealmButton, &mut BackgroundColor, &mut BorderColor)>,
+    mut button_label_query: Query<(&TravelRealmButtonLabel, &mut Text)>,
 ) {
     let (current_realm, attunement_opt) = presence_query
         .get_single()
@@ -396,7 +409,7 @@ fn update_travel_panel_current_realm(
         }
     }
 
-    // Origin Affinity for current realm
+    // Current-realm origin affinity summary
     let (aff_label, aff_mult, harvested, aff_color) = if let Some(ref obs) = origin_obs {
         let harvested = obs.amount_for(current_realm);
         let label = origin_affinity_label(harvested);
@@ -425,14 +438,48 @@ fn update_travel_panel_current_realm(
         text.sections[0].style.color = aff_color;
     }
 
+    // Current-realm button highlight
     for (button, mut bg, mut border) in &mut button_query {
         if button.target_realm == current_realm {
             *bg = Color::srgba(0.16, 0.30, 0.28, 0.98).into();
             *border = Color::srgb(0.40, 0.90, 0.70).into();
         }
     }
+
+    // Per-button soft affinity hints (v21.60)
+    for (label, mut text) in &mut button_label_query {
+        let suffix = if let Some(ref obs) = origin_obs {
+            let amount = obs.amount_for(label.target_realm);
+            let aff = origin_affinity_label(amount);
+            if amount > 0.001 && aff != "None" {
+                format!(" · {}", aff)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        text.sections[0].value = format!(
+            "[{}] {}{}",
+            label.target_realm, label.base_name, suffix
+        );
+
+        // Soft text tint by affinity depth (never harsh)
+        if let Some(ref obs) = origin_obs {
+            let amount = obs.amount_for(label.target_realm);
+            let aff = origin_affinity_label(amount);
+            text.sections[0].style.color = match aff {
+                "Homebound" => Color::srgb(1.00, 0.88, 0.55),
+                "Rooted" => Color::srgb(0.96, 0.86, 0.65),
+                "Familiar" => Color::srgb(0.92, 0.88, 0.75),
+                "Whisper" => Color::srgb(0.90, 0.90, 0.85),
+                _ => Color::srgb(0.90, 0.95, 1.0),
+            };
+        }
+    }
 }
 
-// End of client/src/realm_travel_panel.rs v21.59.0
-// Travel panel surfaces origin affinity at the point of travel.
+// End of client/src/realm_travel_panel.rs v21.60.0
+// Button-level soft affinity hints guide without trapping.
 // Thunder locked in. Yoi ⚡
