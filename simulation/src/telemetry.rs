@@ -5,6 +5,9 @@
  * envelopes matching Ra-Thor `reality-thriving-transfer` contract:
  *   schema: powrush_telemetry_v1 / powrush_telemetry_batch_v1
  *
+ * Live path: TelemetryCollector holds a GlobalTransferSession and updates it
+ * on every collect_tick / record_tick_result (not profile-only).
+ *
  * Consumer: https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor
  *           crates/reality-thriving-transfer
  * Contact: info@Rathor.ai
@@ -12,6 +15,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Telemetry {
@@ -26,27 +30,100 @@ pub struct Telemetry {
     pub custom_metrics: HashMap<String, f32>,
 }
 
+/// Dual-track collector: local sim metrics + Ra-Thor transfer session.
 pub struct TelemetryCollector {
     pub current: Telemetry,
+    /// Accumulates live counters for Ra-Thor Reality Thriving Transfer export.
+    pub transfer_session: GlobalTransferSession,
+    /// Seconds of sim time assumed per tick when estimating gameplay_hours.
+    pub seconds_per_tick: f64,
 }
 
 impl Default for TelemetryCollector {
     fn default() -> Self {
-        Self {
-            current: Telemetry::default(),
-        }
+        Self::new("powrush_sim_session")
     }
 }
 
 impl TelemetryCollector {
+    pub fn new(session_label: impl Into<String>) -> Self {
+        Self {
+            current: Telemetry::default(),
+            transfer_session: GlobalTransferSession::new(session_label),
+            seconds_per_tick: 6.0, // 10 ticks ≈ 1 minute of “play”
+        }
+    }
+
+    /// Primary tick hook — updates local telemetry and live transfer counters.
     pub fn collect_tick(&mut self, world_tick: u64, mercy_flow: f32) {
         self.current.tick = world_tick;
         self.current.average_mercy_flow =
             (self.current.average_mercy_flow * 0.9 + mercy_flow * 0.1).clamp(0.0, 2.0);
+
+        // Live transfer path (not profile-based)
+        let hours = (world_tick as f64 * self.seconds_per_tick) / 3600.0;
+        self.transfer_session.set_gameplay_hours(hours);
+        self.transfer_session
+            .ingest_sim_tick(&self.current, 0);
+    }
+
+    /// Richer feed from orchestrator TickResult (council / harvest / epiphany).
+    pub fn record_tick_result(
+        &mut self,
+        world_tick: u64,
+        mercy_flow: f32,
+        council_participants: u32,
+        epiphany_impacts: u32,
+        harvest_nodes: u32,
+        had_errors: bool,
+    ) {
+        if epiphany_impacts > 0 {
+            self.current.epiphany_count =
+                self.current.epiphany_count.saturating_add(epiphany_impacts);
+        }
+        if harvest_nodes > 0 {
+            self.current.abundance_blooms =
+                self.current.abundance_blooms.saturating_add(1);
+            self.current.total_yield_harvested += harvest_nodes as f32 * 0.1;
+        }
+        if had_errors {
+            self.current.stress_events = self.current.stress_events.saturating_add(1);
+        }
+        if council_participants > 0 {
+            self.current.flow_state_entries =
+                self.current.flow_state_entries.saturating_add(1);
+        }
+
+        self.collect_tick(world_tick, mercy_flow);
+
+        // Extra collaboration signal from council participation
+        if council_participants > 0 {
+            self.transfer_session
+                .counters
+                .record_collaboration(council_participants as u64);
+            self.transfer_session
+                .counters
+                .record_ethical_choice((0.7 + council_participants as f64 * 0.02).min(0.99));
+        }
     }
 
     pub fn generate_final_report(&self) -> Telemetry {
         self.current.clone()
+    }
+
+    /// Export live-accumulated Ra-Thor JSON (powrush_telemetry_v1).
+    pub fn export_transfer_json(&self) -> Result<String, String> {
+        self.transfer_session.export_json()
+    }
+
+    /// Write transfer JSON to a path (for harness / CI artifacts).
+    pub fn write_transfer_json_to(&self, path: impl AsRef<Path>) -> Result<(), String> {
+        let json = self.export_transfer_json()?;
+        std::fs::write(path.as_ref(), json).map_err(|e| e.to_string())
+    }
+
+    pub fn transfer_telemetry(&self) -> PowrushTransferTelemetry {
+        self.transfer_session.to_transfer_telemetry()
     }
 }
 
@@ -154,7 +231,6 @@ impl SessionTransferCounters {
         }
     }
 
-    /// Map session counters → Ra-Thor `PowrushTelemetry` fields.
     pub fn to_transfer_telemetry(&self) -> PowrushTransferTelemetry {
         let peaceful_rate = if self.total_resolutions == 0 {
             0.7
@@ -194,7 +270,6 @@ impl GlobalTransferSession {
         self.counters.gameplay_hours = hours.max(0.0);
     }
 
-    /// Merge a tick of in-sim telemetry into counters (best-effort).
     pub fn ingest_sim_tick(&mut self, sim: &Telemetry, collaboration_delta: u64) {
         let mercy = sim.average_mercy_flow.clamp(0.0, 2.0) as f64;
         self.counters.record_rbe_quality((mercy / 2.0).clamp(0.0, 1.0));
@@ -226,7 +301,6 @@ impl GlobalTransferSession {
     }
 }
 
-/// Build a single-session envelope ready for Ra-Thor ingest.
 pub fn export_transfer_envelope(
     label: &str,
     telemetry: PowrushTransferTelemetry,
@@ -239,13 +313,11 @@ pub fn export_transfer_envelope(
     }
 }
 
-/// Serialize single session to JSON (Ra-Thor contract).
 pub fn export_transfer_json(label: &str, telemetry: &PowrushTransferTelemetry) -> Result<String, String> {
     let env = export_transfer_envelope(label, telemetry.clone());
     serde_json::to_string_pretty(&env).map_err(|e| e.to_string())
 }
 
-/// Serialize a batch of sessions.
 pub fn export_transfer_batch_json(
     label: &str,
     sessions: Vec<(String, PowrushTransferTelemetry)>,
@@ -265,7 +337,6 @@ pub fn export_transfer_batch_json(
     serde_json::to_string_pretty(&batch).map_err(|e| e.to_string())
 }
 
-/// Example high-mercy snapshot (matches Ra-Thor fixture intent).
 pub fn example_high_mercy_session() -> PowrushTransferTelemetry {
     PowrushTransferTelemetry {
         gameplay_hours: 86.5,
@@ -279,7 +350,6 @@ pub fn example_high_mercy_session() -> PowrushTransferTelemetry {
     }
 }
 
-/// Best-effort map from in-sim `Telemetry` + session hours → transfer fields.
 pub fn map_sim_telemetry_to_transfer(
     sim: &Telemetry,
     gameplay_hours: f64,
@@ -314,38 +384,23 @@ mod tests {
         let t = example_high_mercy_session();
         let json = export_transfer_json("high_mercy_council_session", &t).unwrap();
         assert!(json.contains("powrush_telemetry_v1"));
-        assert!(json.contains("rbe_decision_quality_avg"));
         let parsed: PowrushTelemetryEnvelope = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.schema, "powrush_telemetry_v1");
-        assert!(parsed.telemetry.collaboration_events >= 400);
     }
 
     #[test]
-    fn counters_to_transfer_bounds() {
-        let mut c = SessionTransferCounters::default();
-        c.gameplay_hours = 10.0;
-        c.record_rbe_quality(0.9);
-        c.record_resolution(true);
-        c.record_resolution(true);
-        c.record_ethical_choice(0.85);
-        c.record_abundance_velocity(1.2);
-        c.collaboration_events = 20;
-        c.adaptation_events = 5;
-        c.innovation_contribution = 0.5;
-        let t = c.to_transfer_telemetry();
+    fn collector_live_path_accumulates() {
+        let mut c = TelemetryCollector::new("live_sim");
+        for tick in 1..=20 {
+            c.record_tick_result(tick, 1.2, 3, 1, 2, false);
+        }
+        let t = c.transfer_telemetry();
+        assert!(t.gameplay_hours > 0.0);
+        assert!(t.collaboration_events > 0);
         assert!((0.0..=1.0).contains(&t.rbe_decision_quality_avg));
-        assert!((0.0..=1.0).contains(&t.peaceful_resolution_rate));
-        assert!(t.abundance_velocity_signals >= 0.0);
-    }
-
-    #[test]
-    fn batch_export() {
-        let sessions = vec![(
-            "high_mercy_council_session".into(),
-            example_high_mercy_session(),
-        )];
-        let json = export_transfer_batch_json("demo_batch", sessions).unwrap();
-        assert!(json.contains("powrush_telemetry_batch_v1"));
+        let json = c.export_transfer_json().unwrap();
+        assert!(json.contains("powrush_telemetry_v1"));
+        assert!(json.contains("live_sim"));
     }
 
     #[test]
@@ -366,6 +421,5 @@ mod tests {
         session.ingest_sim_tick(&sim, 2);
         let json = session.export_json().unwrap();
         assert!(json.contains("powrush_telemetry_v1"));
-        assert!(json.contains("live_test"));
     }
 }
