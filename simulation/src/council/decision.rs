@@ -1,6 +1,6 @@
 //! simulation/src/council/decision.rs
 //! Council Decision + Active Policy Application Layer
-//! v1.11 — Per-realm scoped effect application
+//! v21.68.0 — Decision history + soft RBE economy feed
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 use bevy::prelude::*;
@@ -13,6 +13,9 @@ use crate::hardware_sovereignty::KardashevAccelerationDashboard;
 use crate::player_legacy_journal::LegacyJournalRegistry;
 use crate::epiphany_catalyst::record_proactive_joy_for_epiphany;
 use crate::multi_realm_harness::MultiRealmHarness;
+use crate::economy::EconomyState;
+
+const RESOLVED_HISTORY_CAP: usize = 48;
 
 // ============================================================================
 // CORE TYPES
@@ -109,6 +112,16 @@ impl CouncilDecision {
                     | ProposalType::KardashevAcceleration
             )
     }
+
+    /// Strong passed decisions that should soft-bless organism RBE metrics.
+    pub fn qualifies_for_rbe_economy_feed(&self) -> bool {
+        self.status == ProposalStatus::Passed
+            && self.mercy_factor >= 0.60
+            && matches!(
+                self.proposal_type,
+                ProposalType::ResourcePolicy | ProposalType::HarmonyBoost
+            )
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Component)]
@@ -146,12 +159,6 @@ impl ActivePolicy {
     }
 }
 
-// ============================================================================
-// PER-REALM SCOPED EFFECT HELPERS
-// ============================================================================
-
-/// Apply ResourcePolicy impact. Effects are attributed to the decision's realm.
-/// Cross-realm resonance (handled separately) provides the gentle bleed.
 pub fn apply_resource_policy_impact(
     decision: &CouncilDecision,
     world: &mut SovereignWorldState,
@@ -165,10 +172,6 @@ pub fn apply_resource_policy_impact(
     let is_strong = mercy > 0.65 && strength > 1.05;
     let realm_id = decision.realm_id;
 
-    // Primary effect strength is full for the originating realm.
-    // (Future: when resource_nodes / rbe_pools become realm-keyed,
-    //  we will filter by realm_id here. For now we apply fully and
-    //  rely on the resonance system for cross-realm influence.)
     for pool in world.rbe_pools.values_mut() {
         if is_strong {
             pool.abundance_flow = (pool.abundance_flow + mercy * 0.8 * strength).min(4.0);
@@ -206,7 +209,6 @@ pub fn apply_resource_policy_impact(
     );
 }
 
-/// Apply EpiphanyEvent impact with explicit realm attribution.
 pub fn apply_epiphany_policy_impact(
     decision: &CouncilDecision,
     _world: &mut SovereignWorldState,
@@ -226,10 +228,6 @@ pub fn apply_epiphany_policy_impact(
         "EpiphanyEvent LIVE IMPACT registered (realm-scoped)"
     );
 }
-
-// ============================================================================
-// REALM-AWARE LEGACY + PROACTIVE JOY
-// ============================================================================
 
 pub fn record_council_decision_to_legacy(decision: &CouncilDecision) {
     if decision.status != ProposalStatus::Passed {
@@ -300,6 +298,32 @@ pub fn seed_proactive_joy_from_decision(
     );
 }
 
+/// Soft-bless Bevy EconomyState from strong council RBE/harmony decisions.
+pub fn soft_feed_economy_from_decision(decision: &CouncilDecision, economy: &mut EconomyState) {
+    if !decision.qualifies_for_rbe_economy_feed() {
+        return;
+    }
+
+    let mercy = decision.mercy_factor.clamp(0.0, 1.0);
+    let strength = decision.strength;
+
+    economy.cooperative_bonus =
+        (economy.cooperative_bonus + mercy * strength * 2.5).min(500.0);
+    economy.average_sustainability =
+        (economy.average_sustainability + mercy * 0.04 * strength).min(1.0);
+    economy.average_pressure =
+        (economy.average_pressure - mercy * 0.12 * strength).max(0.0);
+    economy.abundance_velocity =
+        (economy.abundance_velocity + mercy * strength * 1.8).min(50.0);
+
+    info!(
+        target: "ra_thor::council::economy",
+        decision_id = decision.decision_id,
+        realm_id = decision.realm_id,
+        "Soft RBE economy feed applied from council decision"
+    );
+}
+
 // ============================================================================
 // RESOURCE + SYSTEM
 // ============================================================================
@@ -308,6 +332,9 @@ pub fn seed_proactive_joy_from_decision(
 pub struct CouncilDecisions {
     pub pending: Vec<CouncilDecision>,
     pub active_policies: Vec<ActivePolicy>,
+    /// Ring buffer of recently resolved (passed) decisions — council memory.
+    pub resolved_history: Vec<CouncilDecision>,
+    pub total_passed_count: u64,
     pub last_applied_tick: u64,
 }
 
@@ -316,8 +343,25 @@ impl CouncilDecisions {
         self.pending.push(decision);
     }
 
+    pub fn push_resolved(&mut self, decision: CouncilDecision) {
+        if decision.status != ProposalStatus::Passed {
+            return;
+        }
+        self.total_passed_count = self.total_passed_count.saturating_add(1);
+        self.resolved_history.push(decision);
+        if self.resolved_history.len() > RESOLVED_HISTORY_CAP {
+            let excess = self.resolved_history.len() - RESOLVED_HISTORY_CAP;
+            self.resolved_history.drain(0..excess);
+        }
+    }
+
     pub fn clear_expired_policies(&mut self) {
         self.active_policies.retain(|p| !p.is_expired());
+    }
+
+    pub fn recent_passed(&self, n: usize) -> impl Iterator<Item = &CouncilDecision> {
+        let start = self.resolved_history.len().saturating_sub(n);
+        self.resolved_history[start..].iter()
     }
 }
 
@@ -326,6 +370,7 @@ pub fn apply_council_decision_effects(
     mut dashboard: ResMut<KardashevAccelerationDashboard>,
     mut legacy_registry: ResMut<LegacyJournalRegistry>,
     mut multi_realm: Option<ResMut<MultiRealmHarness>>,
+    mut economy: Option<ResMut<EconomyState>>,
 ) {
     if decisions.pending.is_empty() {
         for policy in decisions.active_policies.iter_mut() {
@@ -348,6 +393,11 @@ pub fn apply_council_decision_effects(
         // 2. Realm-aware proactive joy
         seed_proactive_joy_from_decision(&decision, &mut legacy_registry);
 
+        // 3. Soft RBE economy feed (Bevy)
+        if let Some(ref mut eco) = economy {
+            soft_feed_economy_from_decision(&decision, eco);
+        }
+
         let duration = match decision.proposal_type {
             ProposalType::KardashevAcceleration => 1200,
             ProposalType::ResourcePolicy => 900,
@@ -358,7 +408,7 @@ pub fn apply_council_decision_effects(
 
         let policy = ActivePolicy::from_decision(&decision, duration);
 
-        // 3. Per-realm tracking + resonance + legacy count
+        // 4. Per-realm tracking + resonance + legacy count
         if let Some(ref mut harness) = multi_realm {
             harness.record_decision_for_realm(&decision, policy.clone());
             harness.record_legacy_entry_for_realm(decision.realm_id);
@@ -366,7 +416,10 @@ pub fn apply_council_decision_effects(
 
         decisions.active_policies.push(policy);
 
-        // 4. Type-specific live effects (now with explicit realm attribution in logs + helpers)
+        // 5. Persist into resolved history (council memory)
+        decisions.push_resolved(decision.clone());
+
+        // 6. Type-specific live effects
         match decision.proposal_type {
             ProposalType::KardashevAcceleration => {
                 let contribution = 0.018 * decision.strength;
@@ -376,7 +429,6 @@ pub fn apply_council_decision_effects(
                 info!(target: "ra_thor::council::kardashev", decision_id = decision.decision_id, realm_id = decision.realm_id, "KardashevAcceleration ACTIVATED (realm-scoped attribution)");
             }
             ProposalType::ResourcePolicy => {
-                // Note: full world mutation still happens in orchestrator path via apply_resource_policy_impact
                 info!(target: "ra_thor::council::rbe", decision_id = decision.decision_id, realm_id = decision.realm_id, "ResourcePolicy ACTIVATED (realm-scoped)");
             }
             ProposalType::EpiphanyEvent => {
@@ -397,10 +449,6 @@ pub fn apply_council_decision_effects(
     decisions.clear_expired_policies();
 }
 
-// ============================================================================
-// TESTS
-// ============================================================================
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -419,8 +467,26 @@ mod tests {
         let decision = CouncilDecision::from_resolved_proposal(&proposal, 0.80, 100, 2);
         assert_eq!(decision.realm_id, 2);
         assert!(decision.qualifies_for_proactive_joy());
+        assert!(decision.qualifies_for_rbe_economy_feed());
+    }
+
+    #[test]
+    fn test_resolved_history_cap() {
+        let mut cd = CouncilDecisions::default();
+        for i in 0..60u64 {
+            let mut d = CouncilDecision::from_resolved_proposal(
+                &CouncilProposal::new(i, ProposalType::General, "t".into(), "d".into(), 1, i),
+                0.7,
+                i,
+                0,
+            );
+            d.status = ProposalStatus::Passed;
+            cd.push_resolved(d);
+        }
+        assert_eq!(cd.resolved_history.len(), RESOLVED_HISTORY_CAP);
+        assert_eq!(cd.total_passed_count, 60);
     }
 }
 
-// Thunder locked in. Effects are now differentiated by realm.
+// Thunder locked in. Council memory + soft RBE feed live.
 // Yoi ⚡
