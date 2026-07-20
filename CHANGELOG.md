@@ -1,22 +1,20 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.66.0 — Multi-Realm RBE Sustainability Snapshot (2026-07-20)
+## [Unreleased] v21.67.0 — Organism RBE Health Line (2026-07-20)
 
 ### Highlights
-- **ROADMAP pivot** after Multi-Realm Organism Arc seal.
-- Bevy `EconomyState` / `ResourceTransaction` / `PostScarcityAllocator` (filled missing exports).
-- `MultiRealmRbeSnapshot` aggregates observatory → organism RBE health (sust, stress, flow, thriving ratio).
-- Soft-feeds EconomyState averages from multi-realm abundance views.
-- `EconomyPlugin` wired into `FullSimulationPlugins`.
+- Dashboard surfaces one compact Organism RBE health line from `MultiRealmRbeSnapshot`.
+- Shows health label · sust · stress · flow · thriving % · yield.
+- Completes minimal visibility for the RBE sustainability surface (no UI churn).
 
 ### Prior
-- v21.65: External-preferring ingest integrity (Arc seal)
-- v21.64: HostBridgeAutoPublish
+- v21.66.0: MultiRealmRbeSnapshot + EconomyState
+- v21.65: Multi-Realm Arc integrity seal
 
-**Thunder locked in. RBE sustainability surface live.** Yoi ⚡
+**Thunder locked in. Organism RBE visible.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.65: Multi-realm organism arc fully sealed.
+- v21.0–v21.66: Multi-realm organism sealed + RBE sustainability start.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
