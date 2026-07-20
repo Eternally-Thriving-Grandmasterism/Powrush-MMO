@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
 //! Multi-Realm Harness — Full Organism + Origin × Attunement Soft Resonance
-//! v21.54.0 — Origin × Attunement Soft Resonance
+//! v21.65.0 — Prefer External host path over harness-derived ingest
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -14,6 +14,7 @@ use crate::race::Race;
 use crate::council::decision::{ActivePolicy, CouncilDecision, CouncilDecisions, PolicyType};
 use crate::council::proposal::ProposalType;
 use crate::world::AgentId;
+use crate::external_bridge::ExternalBridgeInbox;
 
 pub type RealmId = u8;
 
@@ -167,7 +168,7 @@ impl RealmAttunement {
         } else if realm_title.is_empty() {
             total_honor.trim_start_matches(" • ").to_string()
         } else {
-            format!("{}{}", realm_title, total_honor)
+            format!("{}{}\", realm_title, total_honor)
         }
     }
 
@@ -203,14 +204,6 @@ impl RealmAttunement {
     }
 }
 
-// ============================================================================
-// ORIGIN × ATTUNEMENT SOFT RESONANCE
-// Harvests from a realm gently deepen presence while you remain there.
-// Purely additive. Never punitive. Fully reversible by leaving.
-// ============================================================================
-
-/// Soft multiplier applied to attunement gain when present in a realm you have harvested from.
-/// Capped at +10%. Zero origin → 1.0 (no penalty).
 pub fn origin_affinity_mult(harvested: f32) -> f32 {
     if harvested < 1.0 {
         1.0
@@ -221,11 +214,10 @@ pub fn origin_affinity_mult(harvested: f32) -> f32 {
     } else if harvested < 80.0 {
         1.08
     } else {
-        1.10 // Homebound — soft ceiling
+        1.10
     }
 }
 
-/// Living label for origin affinity strength (dashboard / UI).
 pub fn origin_affinity_label(harvested: f32) -> &'static str {
     if harvested < 1.0 {
         "None"
@@ -830,10 +822,6 @@ pub fn derive_origin_from_harness(harness: &MultiRealmHarness) -> Vec<OriginProv
     views
 }
 
-// ============================================================================
-// SYSTEMS
-// ============================================================================
-
 pub fn realm_presence_bootstrap_system(
     mut harness: ResMut<MultiRealmHarness>,
     mut query: Query<&mut RealmPresence>,
@@ -846,8 +834,6 @@ pub fn realm_presence_bootstrap_system(
     }
 }
 
-/// Attunement accumulation with living title bonuses + soft origin affinity.
-/// Harvests from a realm gently deepen presence while you remain there.
 pub fn realm_attunement_system(
     time: Res<Time>,
     mut harness: ResMut<MultiRealmHarness>,
@@ -993,15 +979,23 @@ pub fn soft_demo_abundance_seed_system(
     }
 }
 
+/// Harness-derived live ingest — yields when External host path is active
+/// so dual sources do not fight (v21.65 integrity).
 pub fn harness_derived_live_ingest_system(
     harness: Res<MultiRealmHarness>,
     abundance: Res<RealmAbundanceObservatory>,
     origin: Res<OriginProvenanceObservatory>,
+    external: Option<Res<ExternalBridgeInbox>>,
     mut abundance_writer: EventWriter<AbundanceIngestEvent>,
     mut origin_writer: EventWriter<OriginIngestEvent>,
     time: Res<Time>,
     mut last_emit: Local<f32>,
 ) {
+    // Prefer External host path when it has delivered data
+    if external.as_ref().map(|e| e.has_received_external).unwrap_or(false) {
+        return;
+    }
+
     if harness.realms.is_empty() || !harness.has_living_activity() {
         return;
     }
@@ -1087,10 +1081,10 @@ impl Plugin for MultiRealmHarnessPlugin {
                     .chain(),
             );
 
-        info!("MultiRealmHarnessPlugin — full organism + origin×attunement soft resonance active");
+        info!("MultiRealmHarnessPlugin — full organism + external-preferring ingest active");
     }
 }
 
 // Thunder locked in.
-// Harvests gently deepen presence where they came from.
+// External host path preferred when present. Sources do not fight.
 // Yoi ⚡
