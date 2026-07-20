@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses
-//! v21.43.0
+//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses / Abundance Observatory
+//! v21.45.0
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -222,6 +222,70 @@ impl RealmAttunement {
     }
 }
 
+/// Lightweight pure-data view of abundance within a single realm.
+/// Mirrors the game-side RealmAbundanceSnapshot without creating crate cycles.
+/// Pure observation — never mutates the world.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct RealmAbundanceView {
+    pub realm_id: RealmId,
+    pub node_count: u32,
+    pub total_current_yield: f32,
+    pub average_sustainability: f32,
+    pub average_abundance_flow: f32,
+    pub average_stress: f32,
+    pub restricted_node_count: u32,
+    pub thriving_node_count: u32,
+}
+
+impl RealmAbundanceView {
+    pub fn is_thriving(&self) -> bool {
+        self.node_count > 0
+            && self.average_sustainability > 0.72
+            && self.average_stress < 0.35
+            && self.average_abundance_flow > -0.05
+    }
+
+    pub fn health_label(&self) -> &'static str {
+        if self.node_count == 0 {
+            "Empty"
+        } else if self.is_thriving() {
+            "Thriving"
+        } else if self.average_stress > 0.6 || self.average_sustainability < 0.45 {
+            "Stressed"
+        } else if self.average_abundance_flow > 0.15 {
+            "Abundant"
+        } else {
+            "Steady"
+        }
+    }
+}
+
+/// Living observatory that holds per-realm abundance views.
+/// Can be updated from the game/server side or from future bridges.
+/// The Multi-Realm Dashboard reads from this resource.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct RealmAbundanceObservatory {
+    pub views: HashMap<RealmId, RealmAbundanceView>,
+    pub last_updated_tick: u64,
+}
+
+impl RealmAbundanceObservatory {
+    pub fn upsert(&mut self, view: RealmAbundanceView, tick: u64) {
+        self.views.insert(view.realm_id, view);
+        self.last_updated_tick = tick;
+    }
+
+    pub fn get(&self, realm_id: RealmId) -> Option<&RealmAbundanceView> {
+        self.views.get(&realm_id)
+    }
+
+    pub fn all_sorted(&self) -> Vec<&RealmAbundanceView> {
+        let mut v: Vec<_> = self.views.values().collect();
+        v.sort_by_key(|view| view.realm_id);
+        v
+    }
+}
+
 #[derive(Event, Clone, Debug)]
 pub struct RealmTravelRequest {
     pub agent_entity: Entity,
@@ -316,7 +380,7 @@ impl MultiRealmHarness {
         self.primary_realm_id = 0;
         self.next_realm_id = 5;
 
-        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement + titles + soft bonuses ready");
+        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement + titles + soft bonuses + abundance observatory ready");
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
@@ -717,6 +781,7 @@ pub struct MultiRealmHarnessPlugin;
 impl Plugin for MultiRealmHarnessPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<MultiRealmHarness>()
+            .init_resource::<RealmAbundanceObservatory>()
             .register_type::<RealmPresence>()
             .register_type::<RealmAttunement>()
             .add_event::<RealmTravelRequest>()
@@ -731,9 +796,9 @@ impl Plugin for MultiRealmHarnessPlugin {
                 ),
             );
 
-        info!("MultiRealmHarnessPlugin — presence + attunement + living titles + soft bonuses active");
+        info!("MultiRealmHarnessPlugin — presence + attunement + living titles + soft bonuses + abundance observatory active");
     }
 }
 
-// Thunder locked in. Presence now gently accumulates living attunement, named meaning, and soft recognition.
+// Thunder locked in. Presence now gently accumulates living attunement, named meaning, soft recognition, and abundance awareness.
 // Yoi ⚡
