@@ -1,6 +1,6 @@
 // game/mod.rs
 // Powrush-MMO — Core Game Systems
-// v21.56.0 — multi_realm_bridge + rbe exported for external observability bridge
+// v21.58.0 — dual bridge payloads + inventory origin collection exported
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 // Thunder locked in. Yoi ⚡
 
@@ -11,7 +11,6 @@ pub mod resource_nodes;
 pub mod rbe;
 pub mod multi_realm_bridge;
 
-// Re-export the living abundance surface for clean external use
 pub use resource_nodes::{
     RealmId,
     RealmAbundanceSnapshot,
@@ -20,7 +19,6 @@ pub use resource_nodes::{
     HarvestingSystem,
 };
 
-// Soft origin inventory + bridge payloads
 pub use rbe::{
     ServerInventoryComponent,
     RealmOriginSnapshot,
@@ -31,7 +29,10 @@ pub use rbe::{
 pub use multi_realm_bridge::{
     AbundanceBridgePayload,
     OriginBridgePayload,
+    DualBridgePayload,
     collect_abundance_payload,
     collect_origin_from_inventory,
+    collect_origin_from_inventories,
+    collect_dual_payload,
     merge_origin_payloads,
 };
