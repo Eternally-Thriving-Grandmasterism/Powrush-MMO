@@ -1,28 +1,40 @@
 # Powrush-MMO Derivation Status
 
-**Phase A → BG** — COMPLETED (v21.1 – v21.59)  
-**Phase BH — Button-Level Origin Affinity Hints (COMPLETED v21.60)**
+**Phase A → BH** — COMPLETED (v21.1 – v21.60)  
+**Phase BI — SharedAppBridgeSource Concrete Host Call Site (COMPLETED v21.61)**
 
-## Completed This Cycle (v21.60)
+## Completed This Cycle (v21.61)
 
-- Each F3 travel realm button shows soft affinity suffix.
-- Per-button label + soft text tint from origin provenance.
-- Never punitive — empty affinity omits the suffix.
-- Affinity visible at three depths: Dashboard, current-realm line, per-button hints.
+- `SharedAppBridgeSource` resource for host binaries.
+- `set_dual` / `set_abundance` / `set_origin` fill API.
+- `shared_app_bridge_publish_system` promotes dirty source → inbox before drain.
+- Documented concrete call site — zero game→simulation dependency.
+
+## Host Binary Pattern
+
+```text
+ServerTickLoop::tick(now_ms)
+  → optional refresh_origin_from_inventories(&inventories, now_ms)
+  → dual = tick_loop.dual_payload()
+  → world.resource_mut::<SharedAppBridgeSource>().set_dual(
+        dual.abundance.views, dual.abundance.tick_ms,
+        dual.origin.views, dual.origin.tick_ms,
+    )
+  → Update: publish → inbox → drain → Live
+```
 
 ## Next Council Cycle Priorities
 
-1. Concrete host binary call site (when server/client Bevy app owns both sides).
-2. Optional further soft polish.
-3. Continue eternal polish under Ra-Thor + PATSAGi Councils.
+1. Optional further soft polish (TitleBonus surface, telemetry).
+2. Continue eternal polish under Ra-Thor + PATSAGi Councils.
 
 ## Strategic Notes
 
-- The soft feedback loop is now readable at decision granularity: **which realm has your harvest roots** is visible before you click travel.
-- Full path: harvest → origin → affinity (dashboard / panel / buttons) → deeper attunement while present → living titles → soft bonuses → mercy flow.
+- Multi-realm observability path is complete from authoritative nodes/inventories through pure tuples into Live UI at three depths.
+- Host binaries that own both sides have a single resource fill point.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Soft hints guide without trapping.**  
+**Concrete host call site ready.**  
 Yoi ⚡
