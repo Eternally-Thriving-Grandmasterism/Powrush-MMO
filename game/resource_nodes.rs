@@ -1,14 +1,13 @@
 // game/resource_nodes.rs
-// Powrush-MMO v21.47.0 — Realm Abundance Snapshot + Observatory Bridge Helper
-// Previous: v21.44.0 Realm Abundance Snapshot | v21.42.0 ResourceNode Realm-Keying
-// v21.47: into_view_tuple() — one-liner path into simulation::RealmAbundanceObservatory
+// Powrush-MMO v21.50.0 — Realm Abundance + Harvest Origin-Realm Wiring
+// Previous: v21.47.0 Realm Abundance Snapshot + Observatory Bridge Helper
+// v21.50: Harvest records soft origin realm into ServerInventoryComponent
 // AG-SML v1.0 | Mercy-aligned economic foresight | Eternally-Thriving-Grandmasterism
 // Thunder locked in. Yoi ⚡
 
 use crate::engine::gpu_patsagi_bridge::GpuPatsagiResponse;
 use shared::protocol::{GpuPatsagiUpdate, NodeGpuPrediction, ServerMessage};
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 
 /// Realm identifier (aligned with MultiRealmHarness::RealmId).
 pub type RealmId = u8;
@@ -52,15 +51,6 @@ impl RealmAbundanceSnapshot {
 
     /// Flatten into the exact field order expected by
     /// `simulation::multi_realm_harness::RealmAbundanceView::from_raw`.
-    ///
-    /// Live call site (when both crates are in scope):
-    /// ```ignore
-    /// let views = manager.snapshot_all_realms(now_ms).into_iter().map(|s| {
-    ///     let (id, n, y, sus, flow, stress, rest, thr) = s.into_view_tuple();
-    ///     RealmAbundanceView::from_raw(id, n, y, sus, flow, stress, rest, thr)
-    /// });
-    /// observatory.ingest_many(views, tick);
-    /// ```
     pub fn into_view_tuple(self) -> (RealmId, u32, f32, f32, f32, f32, u32, u32) {
         (
             self.realm_id,
@@ -75,13 +65,12 @@ impl RealmAbundanceSnapshot {
     }
 }
 
-// For broader compatibility, position kept as tuple (old iterations); Vec3 can be added via glam if needed in crate root.
 #[derive(Debug, Clone)]
 pub struct ResourceNode {
     pub id: u64,
-    pub node_id: u64, // legacy alias for compatibility
+    pub node_id: u64,
     pub resource_type: String,
-    pub node_type: String, // legacy
+    pub node_type: String,
     pub position: (f32, f32, f32),
     /// The realm this node lives in. Defaults to 0 (Sanctuary Prime).
     pub realm_id: RealmId,
@@ -90,7 +79,7 @@ pub struct ResourceNode {
     pub depletion: f32,
     pub regeneration_rate: f32,
     pub last_harvested_ms: u64,
-    pub last_harvest_ms: u64, // legacy alias
+    pub last_harvest_ms: u64,
     pub sustainability_score: f32,
     pub stress_level: f32,
     pub harvest_restricted_until_ms: u64,
@@ -103,7 +92,6 @@ impl ResourceNode {
         Self::new_in_realm(node_id, node_type, position, 0)
     }
 
-    /// Create a node that belongs to a specific realm.
     pub fn new_in_realm(node_id: u64, node_type: &str, position: (f32, f32, f32), realm_id: RealmId) -> Self {
         let base_yield = match node_type {
             "food" => 2.5, "water" => 3.0, "energy" => 1.8,
@@ -141,7 +129,6 @@ impl ResourceNode {
             self.stress_level = (self.stress_level - 0.02).max(0.0);
         }
 
-        // Clear harvest restriction if time has passed (from v16.5.35)
         if self.harvest_restricted_until_ms > 0 && now_ms > self.harvest_restricted_until_ms {
             self.harvest_restricted_until_ms = 0;
             self.stress_level = (self.stress_level * 0.5).max(0.0);
@@ -170,7 +157,6 @@ impl ResourceNodeManager {
         self.add_node_in_realm(node_type, position, 0)
     }
 
-    /// Spawn a resource node that belongs to a specific realm.
     pub fn add_node_in_realm(&mut self, node_type: &str, position: (f32, f32, f32), realm_id: RealmId) -> u64 {
         let id = self.next_node_id;
         self.next_node_id += 1;
@@ -187,23 +173,18 @@ impl ResourceNodeManager {
         self.nodes.get_mut(&node_id)
     }
 
-    /// All nodes that live in the given realm.
     pub fn nodes_in_realm(&self, realm_id: RealmId) -> impl Iterator<Item = &ResourceNode> {
         self.nodes.values().filter(move |n| n.realm_id == realm_id)
     }
 
-    /// Mutable access to all nodes in a realm.
     pub fn nodes_in_realm_mut(&mut self, realm_id: RealmId) -> impl Iterator<Item = &mut ResourceNode> {
         self.nodes.values_mut().filter(move |n| n.realm_id == realm_id)
     }
 
-    /// Count of living nodes in a realm.
     pub fn count_in_realm(&self, realm_id: RealmId) -> usize {
         self.nodes.values().filter(|n| n.realm_id == realm_id).count()
     }
 
-    /// Produce a living abundance snapshot for a single realm.
-    /// Pure observation — never mutates nodes.
     pub fn snapshot_realm(&self, realm_id: RealmId, now_ms: u64) -> RealmAbundanceSnapshot {
         let mut count = 0u32;
         let mut total_yield = 0.0f32;
@@ -248,7 +229,6 @@ impl ResourceNodeManager {
         }
     }
 
-    /// Produce abundance snapshots for every realm that currently has nodes.
     pub fn snapshot_all_realms(&self, now_ms: u64) -> Vec<RealmAbundanceSnapshot> {
         let mut realm_ids: Vec<RealmId> = self.nodes.values().map(|n| n.realm_id).collect();
         realm_ids.sort_unstable();
@@ -266,11 +246,9 @@ impl ResourceNodeManager {
         }
     }
 
-    /// Ultimate production-ready GPU policy. Merges all prior policy depth + now_ms timestamps + full economic variables.
     pub fn apply_gpu_policy_update(&mut self, response: &GpuPatsagiResponse, now_ms: u64) {
         self.last_global_update_ms = now_ms;
 
-        // Core GPU predictions (recommended_regen, sustainability, predicted_depletion) - strengthened
         for (node_id, &rate) in &response.recommended_regen_rates {
             if let Some(node) = self.nodes.get_mut(node_id) {
                 let pred_dep = response.predicted_depletion.get(node_id).copied().unwrap_or(0.0);
@@ -300,7 +278,6 @@ impl ResourceNodeManager {
             }
         }
 
-        // Dynamic Yield Curves from abundance_flow (full)
         for (node_id, &flow) in &response.abundance_flow {
             if let Some(node) = self.nodes.get_mut(node_id) {
                 node.abundance_flow = flow;
@@ -317,7 +294,6 @@ impl ResourceNodeManager {
             }
         }
 
-        // Pressure scenario results → dynamic yield curves (full)
         for (key, scenarios) in &response.pressure_scenario_results {
             if let Some(node_id) = key.strip_prefix("node_").and_then(|s| s.parse::<u64>().ok()) {
                 if let Some(node) = self.nodes.get_mut(&node_id) {
@@ -334,7 +310,6 @@ impl ResourceNodeManager {
             }
         }
 
-        // Interdependence propagation (full live)
         for (node_id, linked_nodes) in &response.node_interdependence {
             if let Some(node) = self.nodes.get(node_id) {
                 for &linked_id in linked_nodes {
@@ -351,7 +326,6 @@ impl ResourceNodeManager {
             }
         }
 
-        // Faction-level global debuffs (implemented from restoration)
         let mut faction_stress_counts: HashMap<String, u32> = HashMap::new();
         for node in self.nodes.values() {
             if let Some(ref faction) = node.faction_affinity {
@@ -386,7 +360,7 @@ impl ResourceNodeManager {
             harvesting_pressure: None,
         };
         let response = bridge.run_simulation(request)?;
-        self.apply_gpu_policy_update(&response, /* current time */ 0); // caller should pass real now_ms in production
+        self.apply_gpu_policy_update(&response, 0);
         Ok(format!("Advanced GPU policy applied (confidence: {:.2})", response.confidence))
     }
 
@@ -421,7 +395,6 @@ impl HarvestingSystem {
     ) -> Result<String, String> {
         let node = manager.get_node_mut(node_id).ok_or_else(|| "Node not found".to_string())?;
 
-        // Enforce temporary harvest restriction from GPU policy (v16.5.35 + enhanced)
         if node.harvest_restricted_until_ms > now_ms {
             return Err("Node is under temporary harvest restriction from PATSAGi Council recommendation.".to_string());
         }
@@ -438,7 +411,10 @@ impl HarvestingSystem {
             return Err("Node yield too low this tick.".to_string());
         }
 
-        inventory.add_resource(&node.resource_type, actual_yield, now_ms);
+        // v21.50 — soft origin-realm provenance (resources remain globally usable)
+        let origin_realm = node.realm_id;
+        inventory.add_resource_from_realm(&node.resource_type, actual_yield, origin_realm, now_ms);
+
         node.depletion = (node.depletion + actual_yield * 0.008).min(1.0);
         node.current_yield = node.base_yield_per_tick * (1.0 - node.depletion * 0.7);
         node.last_harvested_ms = now_ms;
@@ -448,16 +424,15 @@ impl HarvestingSystem {
             node.stress_level = (node.stress_level + 0.15).min(1.0);
         }
 
-        // Grace + RBE reward (preserved from historical iterations)
         let grace_reward = (actual_yield * 0.8) as u64;
         rbe.add_grace(&player_id.to_string(), grace_reward);
 
         let status = if node.harvest_restricted_until_ms > 0 {
-            format!("Harvest successful under restriction (+{:.1} {}). Grace +{}", actual_yield, node.resource_type, grace_reward)
+            format!("Harvest successful under restriction (+{:.1} {} from realm {}). Grace +{}", actual_yield, node.resource_type, origin_realm, grace_reward)
         } else if node.stress_level > 0.5 {
-            format!("Harvest successful (+{:.1} {}) but node is stressed. Yield reduced. Grace +{}", actual_yield, node.resource_type, grace_reward)
+            format!("Harvest successful (+{:.1} {} from realm {}) but node is stressed. Yield reduced. Grace +{}", actual_yield, node.resource_type, origin_realm, grace_reward)
         } else {
-            format!("Harvest successful (+{:.1} {}). Grace +{}", actual_yield, node.resource_type, grace_reward)
+            format!("Harvest successful (+{:.1} {} from realm {}). Grace +{}", actual_yield, node.resource_type, origin_realm, grace_reward)
         };
 
         Ok(status)
