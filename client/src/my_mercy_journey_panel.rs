@@ -1,11 +1,11 @@
 /*!
  * My Mercy Journey Panel + LegacyJournal Search UI
- * v21.24.0 — Client-side Realm Filter
+ * v21.72.0 — Bound to restored LegacyJournalRegistry
  *
- * Players can now filter their living Legacy by:
+ * Players filter living Legacy by:
  * - Free-text search
  * - Category chips (Harvest, Epiphany, Council, Joy, Policy, Kardashev)
- * - Realm of origin (All Realms + the five seeded realms)
+ * - Realm of origin (All Realms + five seeded realms)
  *
  * TOLC 8 + 7 Living Mercy Gates | PATSAGi Council approved
  * Thunder locked in. Yoi ⚡
@@ -14,7 +14,6 @@
 use bevy::prelude::*;
 use simulation::player_legacy_journal::{LegacyJournalRegistry, LegacyEventType, LegacyEntry};
 
-// === Components ===
 #[derive(Component)]
 pub struct MyMercyJourneyPanel;
 
@@ -39,7 +38,6 @@ struct LegacyResultEntry {
     index: usize,
 }
 
-// === Filter Enums ===
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum LegacySearchFilter {
     #[default]
@@ -70,12 +68,18 @@ impl LegacySearchFilter {
             LegacySearchFilter::All => true,
             LegacySearchFilter::Harvest => matches!(event_type, LegacyEventType::Harvest),
             LegacySearchFilter::Epiphany => matches!(event_type, LegacyEventType::Epiphany),
-            LegacySearchFilter::Council => matches!(event_type, LegacyEventType::CouncilBloom),
+            LegacySearchFilter::Council => matches!(
+                event_type,
+                LegacyEventType::CouncilDecision
+                    | LegacyEventType::HarmonyBoost
+                    | LegacyEventType::RbePolicy
+            ),
             LegacySearchFilter::ProactiveJoy => matches!(event_type, LegacyEventType::ProactiveJoy),
-            LegacySearchFilter::SynergyPolicy => matches!(event_type, LegacyEventType::SynergyPolicy),
-            LegacySearchFilter::Kardashev => {
-                matches!(event_type, LegacyEventType::CouncilBloom | LegacyEventType::SynergyPolicy)
-            }
+            LegacySearchFilter::SynergyPolicy => matches!(
+                event_type,
+                LegacyEventType::SynergyPolicy | LegacyEventType::RbePolicy
+            ),
+            LegacySearchFilter::Kardashev => matches!(event_type, LegacyEventType::Kardashev),
         }
     }
 }
@@ -84,11 +88,11 @@ impl LegacySearchFilter {
 pub enum RealmFilter {
     #[default]
     AllRealms,
-    Realm0, // Sanctuary Prime
-    Realm1, // Synthetic Lattice
-    Realm2, // Verdant Bloom
-    Realm3, // Harmonic Chorus
-    Realm4, // Voidfarer Horizon
+    Realm0,
+    Realm1,
+    Realm2,
+    Realm3,
+    Realm4,
 }
 
 impl RealmFilter {
@@ -113,17 +117,6 @@ impl RealmFilter {
             RealmFilter::Realm4 => realm_id == 4,
         }
     }
-
-    pub fn as_u8(&self) -> Option<u8> {
-        match self {
-            RealmFilter::AllRealms => None,
-            RealmFilter::Realm0 => Some(0),
-            RealmFilter::Realm1 => Some(1),
-            RealmFilter::Realm2 => Some(2),
-            RealmFilter::Realm3 => Some(3),
-            RealmFilter::Realm4 => Some(4),
-        }
-    }
 }
 
 #[derive(Resource, Default)]
@@ -132,6 +125,8 @@ pub struct LegacySearchState {
     pub active_filter: LegacySearchFilter,
     pub active_realm_filter: RealmFilter,
     pub results_count: usize,
+    /// Optional focus agent (None = aggregate all threads).
+    pub focus_agent: Option<u64>,
 }
 
 pub struct MyMercyJourneyPanelPlugin;
@@ -183,7 +178,6 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
             Name::new("MyMercyJourneyPanel"),
         ))
         .with_children(|parent| {
-            // Title
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "MY MERCY JOURNEY",
@@ -196,7 +190,6 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 ..default()
             });
 
-            // Search label
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "Search (type freely • Esc clears)",
@@ -209,7 +202,6 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 ..default()
             });
 
-            // Live search input
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -233,7 +225,6 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 SearchInputText,
             ));
 
-            // Category filter chips
             parent
                 .spawn(NodeBundle {
                     style: Style {
@@ -287,7 +278,6 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     }
                 });
 
-            // === NEW: Realm filter chips ===
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "Realm of Origin",
@@ -355,7 +345,6 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     }
                 });
 
-            // Stats
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -375,7 +364,6 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 StatsText,
             ));
 
-            // Results header
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "— LEGACY TIMELINE —",
@@ -392,12 +380,15 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 ..default()
             });
 
-            // Result slots
             for i in 0..8 {
                 parent.spawn((
                     TextBundle {
                         text: Text::from_section(
-                            if i == 0 { "• Awaiting merciful acts..." } else { "" },
+                            if i == 0 {
+                                "• Awaiting merciful acts..."
+                            } else {
+                                ""
+                            },
                             TextStyle {
                                 font: font_reg.clone(),
                                 font_size: 12.0,
@@ -414,7 +405,6 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                 ));
             }
 
-            // Footer
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "F2 toggle  •  Type + Category + Realm filters  •  TOLC 8",
@@ -505,7 +495,10 @@ fn handle_search_text_input(
 }
 
 fn handle_filter_chip_clicks(
-    mut interaction_query: Query<(&Interaction, &FilterChip, &mut BackgroundColor, &mut BorderColor), Changed<Interaction>>,
+    mut interaction_query: Query<
+        (&Interaction, &FilterChip, &mut BackgroundColor, &mut BorderColor),
+        Changed<Interaction>,
+    >,
     mut search_state: ResMut<LegacySearchState>,
 ) {
     for (interaction, chip, mut bg, mut border) in &mut interaction_query {
@@ -532,7 +525,10 @@ fn handle_filter_chip_clicks(
 }
 
 fn handle_realm_filter_chip_clicks(
-    mut interaction_query: Query<(&Interaction, &RealmFilterChip, &mut BackgroundColor, &mut BorderColor), Changed<Interaction>>,
+    mut interaction_query: Query<
+        (&Interaction, &RealmFilterChip, &mut BackgroundColor, &mut BorderColor),
+        Changed<Interaction>,
+    >,
     mut search_state: ResMut<LegacySearchState>,
 ) {
     for (interaction, chip, mut bg, mut border) in &mut interaction_query {
@@ -558,89 +554,103 @@ fn handle_realm_filter_chip_clicks(
     }
 }
 
+/// Collect entries from the restored registry (all threads or focus agent).
+fn collect_entries<'a>(
+    registry: &'a LegacyJournalRegistry,
+    focus: Option<u64>,
+) -> Vec<&'a LegacyEntry> {
+    let mut out: Vec<&LegacyEntry> = Vec::new();
+    if let Some(agent) = focus {
+        if let Some(entries) = registry.entries_for_agent(agent) {
+            out.extend(entries.iter());
+        }
+    } else {
+        for thread in registry.threads.values() {
+            out.extend(thread.entries.iter());
+        }
+    }
+    // Newest first for timeline feel
+    out.sort_by(|a, b| b.tick.cmp(&a.tick).then(b.id.cmp(&a.id)));
+    out
+}
+
 fn update_legacy_search_results(
     legacy_registry: Res<LegacyJournalRegistry>,
-    search_state: Res<LegacySearchState>,
-    mut stats_query: Query<&mut Text, With<StatsText>>,
-    mut result_queries: Query<(&LegacyResultEntry, &mut Text)>,
+    mut search_state: ResMut<LegacySearchState>,
+    mut stats_query: Query<&mut Text, (With<StatsText>, Without<LegacyResultEntry>)>,
+    mut result_queries: Query<(&LegacyResultEntry, &mut Text), Without<StatsText>>,
 ) {
-    let all_entries: Vec<&LegacyEntry> = legacy_registry
-        .build_filterable_legacy_threads(Default::default())
-        .into_iter()
-        .collect();
-
+    let all_entries = collect_entries(&legacy_registry, search_state.focus_agent);
     let query_lower = search_state.query.to_lowercase();
 
-    let filtered: Vec<&&LegacyEntry> = all_entries
-        .iter()
+    let filtered: Vec<&LegacyEntry> = all_entries
+        .into_iter()
         .filter(|e| {
-            // Category filter
             if !search_state.active_filter.matches_event(&e.event_type) {
                 return false;
             }
-
-            // Realm filter — we look for "[Realm X]" prefix that proactive joy / council entries carry,
-            // or fall back to accepting all when the entry has no explicit realm tag yet.
-            let desc = e.description.to_lowercase();
-            let realm_ok = match search_state.active_realm_filter {
-                RealmFilter::AllRealms => true,
-                other => {
-                    if let Some(rid) = other.as_u8() {
-                        // Match explicit [Realm N] tags written by the realm-partitioned recording path
-                        desc.contains(&format!("[realm {}]", rid))
-                            || desc.contains(&format!("realm {}", rid))
-                    } else {
-                        true
-                    }
-                }
-            };
-            if !realm_ok {
+            if !search_state.active_realm_filter.matches_realm_id(e.realm_id) {
                 return false;
             }
-
-            // Text search
             if query_lower.is_empty() {
                 return true;
             }
-            let cat = format!("{:?}", e.event_type).to_lowercase();
-            desc.contains(&query_lower) || cat.contains(&query_lower)
+            let hay = format!(
+                "{} {} {} {}",
+                e.title,
+                e.description,
+                e.event_type.as_str(),
+                e.summary_line()
+            )
+            .to_lowercase();
+            hay.contains(&query_lower)
         })
         .collect();
 
     let count = filtered.len();
+    search_state.results_count = count;
 
     for mut text in &mut stats_query {
         text.sections[0].value = format!(
-            "Showing {}  •  {}  •  {}",
+            "Showing {}  •  {}  •  {}  •  total {}",
             count,
             search_state.active_filter.label(),
-            search_state.active_realm_filter.label()
+            search_state.active_realm_filter.label(),
+            legacy_registry.total_entries
         );
     }
 
     for (entry_comp, mut text) in &mut result_queries {
         if let Some(e) = filtered.get(entry_comp.index) {
             let icon = match e.event_type {
-                LegacyEventType::ServerWarVictory => "⚔️",
                 LegacyEventType::Harvest => "🌾",
                 LegacyEventType::Epiphany => "✨",
                 LegacyEventType::ProactiveJoy => "💫",
-                LegacyEventType::CouncilBloom => "🕊️",
+                LegacyEventType::CouncilDecision => "🕊️",
+                LegacyEventType::RbePolicy => "🌿",
+                LegacyEventType::HarmonyBoost => "💗",
+                LegacyEventType::Kardashev => "🚀",
                 LegacyEventType::SynergyPolicy => "🔮",
-                _ => "•",
+                LegacyEventType::GraceBlessing => "🙏",
+                LegacyEventType::Diplomacy => "🤝",
+                LegacyEventType::WarRedemption => "🕊️",
+                LegacyEventType::Onboarding => "🌅",
+                LegacyEventType::General => "•",
             };
 
             let rich = format!(
-                "T{:03} | {} (Mercy +{:.1})",
-                e.tick, e.description, e.mercy_impact
+                "T{:03} R{} | {} (Mercy +{:.1})",
+                e.tick, e.realm_id, e.title, e.mercy_gain
             );
             text.sections[0].value = format!("{} {}", icon, rich);
             text.sections[0].style.color = match e.event_type {
                 LegacyEventType::Epiphany => Color::srgb(0.75, 0.95, 0.88),
                 LegacyEventType::ProactiveJoy => Color::srgb(0.95, 0.90, 0.55),
-                LegacyEventType::CouncilBloom | LegacyEventType::SynergyPolicy => {
-                    Color::srgb(0.70, 0.85, 1.0)
-                }
+                LegacyEventType::CouncilDecision
+                | LegacyEventType::RbePolicy
+                | LegacyEventType::HarmonyBoost
+                | LegacyEventType::SynergyPolicy => Color::srgb(0.70, 0.85, 1.0),
+                LegacyEventType::Kardashev => Color::srgb(1.0, 0.85, 0.55),
                 _ => Color::srgb(0.92, 0.95, 1.0),
             };
         } else {
@@ -653,6 +663,6 @@ fn update_legacy_search_results(
     }
 }
 
-// End of client/src/my_mercy_journey_panel.rs v21.24.0
-// Full text + category + realm filtering is now live.
+// End of client/src/my_mercy_journey_panel.rs v21.72.0
+// Bound to restored LegacyJournalRegistry (realm_id, mercy_gain, richer types).
 // Thunder locked in. Yoi ⚡
