@@ -42,27 +42,27 @@
 **Phase AN — Surface Realm Attunement in F3 Travel Panel (COMPLETED v21.40)**  
 **Phase AO — Living Attunement Titles (COMPLETED v21.41)**  
 **Phase AP — ResourceNode Realm-Keying Foundation (COMPLETED v21.42)**  
-**Phase AQ — Living Title Passive Bonuses (COMPLETED v21.43)**
+**Phase AQ — Living Title Passive Bonuses (COMPLETED v21.43)**  
+**Phase AR — Realm Abundance Snapshot (COMPLETED v21.44)**
 
-## Completed This Cycle (v21.43)
+## Completed This Cycle (v21.44)
 
-- Living titles now grant tiny, mercy-aligned passive bonuses.
-- Higher titles gently accelerate attunement gain while present.
-- Total honorifics contribute a soft resonance whisper to the harness.
-- Purely additive. Never punitive. Fully reversible by leaving the realm.
+- Added `RealmAbundanceSnapshot` — pure observational structure for per-realm abundance.
+- `ResourceNodeManager` can now produce living snapshots (node count, average sustainability, abundance flow, stress, thriving count).
+- Prepares clean observability path for Multi-Realm Dashboard without forcing hard cross-crate dependencies yet.
 
 ## Next Council Cycle Priorities
 
-1. Deeper RBE pool / inventory realm-scoping when ready.
-2. Per-realm abundance observability in the Multi-Realm Dashboard (once game ↔ simulation bridge is clean).
-3. Optional further title-tier refinements.
+1. Surface abundance snapshots in the Multi-Realm Dashboard (once a clean bridge is ready).
+2. Deeper RBE pool / inventory realm-scoping when ready.
+3. Optional further title-tier or abundance-tier refinements.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, and now gently rewards deep presence with soft recognition.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, and now able to produce living abundance snapshots per realm.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Recognition now gently touches the living world.**  
+**Abundance now has a voice per realm.**  
 Yoi ⚡
