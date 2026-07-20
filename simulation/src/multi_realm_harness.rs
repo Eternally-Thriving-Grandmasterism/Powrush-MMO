@@ -1,6 +1,6 @@
 //! simulation/src/multi_realm_harness.rs
-//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles
-//! v21.41.0
+//! Multi-Realm Harness — Decision / Resonance / Echo / Presence / Travel / Attunement / Titles / Bonuses
+//! v21.43.0
 //!
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 //! Thunder locked in. Yoi ⚡
@@ -102,8 +102,18 @@ impl Default for RealmPresence {
     }
 }
 
+/// Soft passive bonuses derived from living titles.
+/// Purely additive. Never punitive. Fully reversible by leaving the realm.
+#[derive(Clone, Debug, Default)]
+pub struct TitleBonus {
+    /// Multiplier applied to attunement accumulation while present (1.0 = none).
+    pub attunement_gain_mult: f32,
+    /// Tiny whisper added to cross-realm mercy flow each second.
+    pub resonance_whisper: f32,
+}
+
 /// Tracks how deeply the player has attuned to each realm through presence.
-/// Living titles emerge gently from thresholds — pure meaning, zero hard power.
+/// Living titles emerge gently from thresholds and now grant soft passive recognition.
 #[derive(Component, Clone, Debug, Serialize, Deserialize, Reflect, Default)]
 #[reflect(Component)]
 pub struct RealmAttunement {
@@ -173,6 +183,41 @@ impl RealmAttunement {
             total_honor.trim_start_matches(" • ").to_string()
         } else {
             format!("{}{}", realm_title, total_honor)
+        }
+    }
+
+    /// Soft passive bonuses derived from the current living title.
+    /// Extremely gentle. Never mandatory. Fully reversible.
+    pub fn title_bonus(&self, current_realm: RealmId) -> TitleBonus {
+        let current = self.get(current_realm);
+
+        // Realm-title tier
+        let (att_mult, realm_whisper) = if current >= 1.0 {
+            (1.18, 0.004) // Heart of [Realm]
+        } else if current >= 0.75 {
+            (1.12, 0.0025) // Attuned of [Realm]
+        } else if current >= 0.50 {
+            (1.07, 0.0015) // Resident of [Realm]
+        } else if current >= 0.25 {
+            (1.03, 0.0008) // Seeker of [Realm]
+        } else {
+            (1.0, 0.0)
+        };
+
+        // Total-honorific whisper (stacks softly)
+        let total_whisper = if self.total >= 4.0 {
+            0.006 // Living Lattice
+        } else if self.total >= 2.5 {
+            0.0035 // Realm Weaver
+        } else if self.total >= 1.0 {
+            0.0015 // Multi-Realm Traveler
+        } else {
+            0.0
+        };
+
+        TitleBonus {
+            attunement_gain_mult: att_mult,
+            resonance_whisper: realm_whisper + total_whisper,
         }
     }
 }
@@ -271,7 +316,7 @@ impl MultiRealmHarness {
         self.primary_realm_id = 0;
         self.next_realm_id = 5;
 
-        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement + titles ready");
+        info!(target: "ra_thor::multi_realm", "MultiRealmHarness seeded — attunement + titles + soft bonuses ready");
     }
 
     pub fn get_realm(&self, id: RealmId) -> Option<&RealmDescriptor> {
@@ -580,16 +625,27 @@ pub fn realm_presence_bootstrap_system(
 }
 
 /// Gently accumulate attunement while the player is present in a realm.
+/// Living titles now softly accelerate this accumulation and whisper into resonance.
 pub fn realm_attunement_system(
     time: Res<Time>,
+    mut harness: ResMut<MultiRealmHarness>,
     mut query: Query<(&RealmPresence, &mut RealmAttunement)>,
 ) {
     let dt = time.delta_seconds();
-    // Slow, mercy-aligned accumulation (~0.012 per second → ~0.72 per minute)
-    let gain = 0.012 * dt;
+    // Base accumulation (~0.012 per second → ~0.72 per minute)
+    let base_gain = 0.012 * dt;
 
     for (presence, mut attunement) in query.iter_mut() {
+        let bonus = attunement.title_bonus(presence.current_realm_id);
+        let gain = base_gain * bonus.attunement_gain_mult;
+
         attunement.add(presence.current_realm_id, gain);
+
+        // Soft resonance whisper from high titles
+        if bonus.resonance_whisper > 0.0 {
+            harness.cross_realm_mercy_flow =
+                (harness.cross_realm_mercy_flow + bonus.resonance_whisper * dt).min(2.5);
+        }
     }
 }
 
@@ -675,9 +731,9 @@ impl Plugin for MultiRealmHarnessPlugin {
                 ),
             );
 
-        info!("MultiRealmHarnessPlugin — presence + attunement + living titles active");
+        info!("MultiRealmHarnessPlugin — presence + attunement + living titles + soft bonuses active");
     }
 }
 
-// Thunder locked in. Presence now gently accumulates living attunement and named meaning.
+// Thunder locked in. Presence now gently accumulates living attunement, named meaning, and soft recognition.
 // Yoi ⚡
