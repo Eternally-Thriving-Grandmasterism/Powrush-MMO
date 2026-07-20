@@ -1,5 +1,6 @@
 /*!
  * Sovereign Telemetry + Ra-Thor Transfer Export
+ * v21.70.0 — Bevy SimulationTelemetry + Council/RBE → RTT feed
  *
  * In-sim metrics for the Sovereign Simulation Harness, plus offline JSON
  * envelopes matching Ra-Thor `reality-thriving-transfer` contract:
@@ -13,9 +14,14 @@
  * Contact: info@Rathor.ai
  */
 
+use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use tracing::info;
+
+use crate::council::decision::CouncilDecisions;
+use crate::economy::MultiRealmRbeSnapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Telemetry {
@@ -30,7 +36,40 @@ pub struct Telemetry {
     pub custom_metrics: HashMap<String, f32>,
 }
 
+// =============================================================================
+// Bevy-facing SimulationTelemetry (used by hardware_sovereignty + systems)
+// =============================================================================
+
+#[derive(Resource, Debug, Clone)]
+pub struct SimulationTelemetry {
+    pub events: Vec<(String, f64)>,
+    pub last_tick: u64,
+    pub export_ready_for_ra_thor: bool,
+}
+
+impl Default for SimulationTelemetry {
+    fn default() -> Self {
+        Self {
+            events: Vec::new(),
+            last_tick: 0,
+            export_ready_for_ra_thor: false,
+        }
+    }
+}
+
+impl SimulationTelemetry {
+    pub fn record_event(&mut self, name: &str, value: f64) {
+        self.events.push((name.to_string(), value));
+        if self.events.len() > 256 {
+            let excess = self.events.len() - 256;
+            self.events.drain(0..excess);
+        }
+        self.export_ready_for_ra_thor = true;
+    }
+}
+
 /// Dual-track collector: local sim metrics + Ra-Thor transfer session.
+#[derive(Resource)]
 pub struct TelemetryCollector {
     pub current: Telemetry,
     /// Accumulates live counters for Ra-Thor Reality Thriving Transfer export.
@@ -127,6 +166,77 @@ impl TelemetryCollector {
     }
 }
 
+/// Soft system: feeds CouncilDecisions + MultiRealmRbeSnapshot into RTT session.
+pub fn council_rbe_to_rtt_feed_system(
+    decisions: Option<Res<CouncilDecisions>>,
+    rbe: Option<Res<MultiRealmRbeSnapshot>>,
+    mut collector: Option<ResMut<TelemetryCollector>>,
+    mut sim_tel: Option<ResMut<SimulationTelemetry>>,
+) {
+    let Some(mut collector) = collector else {
+        return;
+    };
+
+    if let Some(dec) = decisions {
+        if dec.total_passed_count > 0 {
+            // Collaboration + ethical signal from council memory
+            let n = dec.total_passed_count.min(32);
+            collector
+                .transfer_session
+                .counters
+                .record_collaboration(n);
+            let mercy_avg = if dec.resolved_history.is_empty() {
+                0.7
+            } else {
+                let sum: f32 = dec
+                    .resolved_history
+                    .iter()
+                    .map(|d| d.mercy_factor)
+                    .sum();
+                (sum / dec.resolved_history.len() as f32) as f64
+            };
+            collector
+                .transfer_session
+                .counters
+                .record_ethical_choice(mercy_avg.clamp(0.0, 1.0));
+            collector
+                .transfer_session
+                .counters
+                .record_rbe_quality(mercy_avg.clamp(0.0, 1.0));
+
+            if let Some(ref mut st) = sim_tel {
+                st.record_event("council_passed_total", dec.total_passed_count as f64);
+                st.record_event("council_mercy_avg", mercy_avg);
+            }
+        }
+    }
+
+    if let Some(snap) = rbe {
+        if snap.realm_count > 0 {
+            collector
+                .transfer_session
+                .counters
+                .record_abundance_velocity(snap.avg_flow.max(0.0) as f64 + 0.5);
+            collector
+                .transfer_session
+                .counters
+                .record_rbe_quality(snap.avg_sustainability.clamp(0.0, 1.0) as f64);
+
+            if snap.avg_stress > 0.55 {
+                collector.transfer_session.counters.record_resolution(false);
+            } else {
+                collector.transfer_session.counters.record_resolution(true);
+            }
+
+            if let Some(ref mut st) = sim_tel {
+                st.record_event("organism_sust", snap.avg_sustainability as f64);
+                st.record_event("organism_stress", snap.avg_stress as f64);
+                st.record_event("organism_thriving_ratio", snap.thriving_ratio as f64);
+            }
+        }
+    }
+}
+
 /// Sovereign helper expected by lib.rs and orchestrator.
 pub fn current() -> Telemetry {
     Telemetry {
@@ -198,6 +308,9 @@ pub struct SessionTransferCounters {
 impl SessionTransferCounters {
     pub fn record_rbe_quality(&mut self, q: f64) {
         self.rbe_quality_samples.push(q.clamp(0.0, 1.0));
+        if self.rbe_quality_samples.len() > 128 {
+            self.rbe_quality_samples.drain(0..64);
+        }
     }
 
     pub fn record_resolution(&mut self, peaceful: bool) {
@@ -209,10 +322,16 @@ impl SessionTransferCounters {
 
     pub fn record_ethical_choice(&mut self, score: f64) {
         self.ethical_choice_samples.push(score.clamp(0.0, 1.0));
+        if self.ethical_choice_samples.len() > 128 {
+            self.ethical_choice_samples.drain(0..64);
+        }
     }
 
     pub fn record_abundance_velocity(&mut self, v: f64) {
         self.abundance_velocity_samples.push(v.max(0.0));
+        if self.abundance_velocity_samples.len() > 128 {
+            self.abundance_velocity_samples.drain(0..64);
+        }
     }
 
     pub fn record_collaboration(&mut self, n: u64) {
@@ -372,6 +491,18 @@ pub fn map_sim_telemetry_to_transfer(
         adaptation_events: sim.epiphany_count as u64 + sim.flow_state_entries as u64,
         abundance_velocity_signals: abundance,
         innovation_contribution: innovation,
+    }
+}
+
+pub struct TelemetryPlugin;
+
+impl Plugin for TelemetryPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<SimulationTelemetry>()
+            .init_resource::<TelemetryCollector>()
+            .add_systems(Update, council_rbe_to_rtt_feed_system);
+
+        info!("TelemetryPlugin — SimulationTelemetry + Council/RBE → RTT feed active");
     }
 }
 
