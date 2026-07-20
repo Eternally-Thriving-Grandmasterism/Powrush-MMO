@@ -1,77 +1,29 @@
 # Powrush-MMO Derivation Status
 
-**Phase A — Race + Ability Tree (COMPLETED v21.1)**  
-**Phase B — Council Proposal System (ADVANCED v21.2)**  
-**Phase C — CouncilDecision + ActivePolicy Core (COMPLETED v21.3)**  
-**Phase D — World-State Threading (COMPLETED v21.4)**  
-**Phase E — ActivePolicy Effect Hooks (COMPLETED v21.5)**  
-**Phase F — Hardware Sovereignty Alignment (COMPLETED v21.6)**  
-**Phase G — Concrete Kardashev Effect Injection (COMPLETED v21.7)**  
-**Phase H — Maximal Effect Injection Expansion (COMPLETED v21.8)**  
-**Phase I — ResourcePolicy RBE Deepening (COMPLETED v21.9)**  
-**Phase J — Live ResourcePolicy → RBE Bridge Helper (COMPLETED v21.10)**  
-**Phase K — Orchestrator Wiring for Live ResourcePolicy Impact (COMPLETED v21.11)**  
-**Phase L — EpiphanyEvent Live Impact Path (COMPLETED v21.12)**  
-**Phase M — LegacyJournal Entries for Passed Decisions (COMPLETED v21.13)**  
-**Phase N — LegacyJournal Search UI (COMPLETED v21.14)**  
-**Phase O — Proactive Joy Seeding (COMPLETED v21.15)**  
-**Phase P — Active Policies Observability Dashboard (COMPLETED v21.16)**  
-**Phase Q — Real Search Input for Legacy Search (COMPLETED v21.17)**  
-**Phase R — Multi-Realm Harness Foundation (COMPLETED v21.18)**  
-**Phase S — Multi-Realm Status Observability (COMPLETED v21.19)**  
-**Phase T — Per-Realm Decision Tracking (COMPLETED v21.20)**  
-**Phase U — Cross-Realm Council Resonance (COMPLETED v21.21)**  
-**Phase V — LegacyJournal Realm Partitioning (COMPLETED v21.22)**  
-**Phase W — Per-Realm Scoped Effect Application (COMPLETED v21.23)**  
-**Phase X — Client-Side Realm Filter in Legacy Search UI (COMPLETED v21.24)**  
-**Phase Y — Deeper Inter-Realm Policy Influence / Echo Policies (COMPLETED v21.25)**  
-**Phase Z — Echo Policy Counts + Resonance Observability (COMPLETED v21.26)**  
-**Phase AA — Multi-Realm Presence Foundation + Travel Hooks (COMPLETED v21.27)**  
-**Phase AB — Agent Presence Counts in Dashboard (COMPLETED v21.28)**  
-**Phase AC — RealmPresence Bootstrap + Auto-Registration (COMPLETED v21.29)**  
-**Phase AD — Portal / Travel Command Surface (COMPLETED v21.30)**  
-**Phase AE — Simple Inter-Realm Travel UI Surface (COMPLETED v21.31)**  
-**Phase AF — LocalPlayer + RealmPresence Bootstrap (COMPLETED v21.32)**  
-**Phase AG — Visual Portal Entities (COMPLETED v21.33)**  
-**Phase AH — Portal VFX Polish + Travel Arrival Feedback (COMPLETED v21.34)**  
-**Phase AI — Travel Arrival Burst Feedback (COMPLETED v21.35)**  
-**Phase AJ — Travel Panel Current-Realm Awareness (COMPLETED v21.36)**  
-**Phase AK — Local Player Current Realm in Dashboard (COMPLETED v21.37)**  
-**Phase AL — Realm Attunement (COMPLETED v21.38)**  
-**Phase AM — Surface Realm Attunement in Dashboard (COMPLETED v21.39)**  
-**Phase AN — Surface Realm Attunement in F3 Travel Panel (COMPLETED v21.40)**  
-**Phase AO — Living Attunement Titles (COMPLETED v21.41)**  
-**Phase AP — ResourceNode Realm-Keying Foundation (COMPLETED v21.42)**  
-**Phase AQ — Living Title Passive Bonuses (COMPLETED v21.43)**  
-**Phase AR — Realm Abundance Snapshot (COMPLETED v21.44)**  
-**Phase AS — Realm Abundance Observatory (COMPLETED v21.45)**  
-**Phase AT — Multi-Realm + Abundance API Wiring (COMPLETED v21.46)**  
-**Phase AU — Abundance Bridge Conversion Helper (COMPLETED v21.47)**  
-**Phase AV — Live Abundance Ingest + Soft Demo Seed (COMPLETED v21.48)**  
-**Phase AW — Abundance Observability Polish (COMPLETED v21.49)**  
-**Phase AX — RBE Inventory Origin-Realm Foundation (COMPLETED v21.50)**  
-**Phase AY — Origin Provenance Observatory (COMPLETED v21.51)**  
-**Phase AZ — Dashboard Origin Provenance Surface (COMPLETED v21.52)**
+**Phase A → AZ** — COMPLETED (v21.1 – v21.52)  
+**Phase BA — Harness-Derived Live Ingest (COMPLETED v21.53)**
 
-## Completed This Cycle (v21.52)
+## Completed This Cycle (v21.53)
 
-- OriginProvenanceObservatory wired into Multi-Realm Dashboard UI.
-- Per-realm origin harvest weight lines (amount + resource types).
-- Live/Demo badge for origin observatory (parallel to abundance).
-- Header updated to include Origin Provenance.
+- `harness_derived_live_ingest_system` emits both `AbundanceIngestEvent` + `OriginIngestEvent` from a concrete shared-app tick.
+- Triggered by real harness activity: presence, mercy flow, policies, resonance, decisions.
+- Pure helpers `derive_abundance_from_harness` / `derive_origin_from_harness` map living metrics → observatory views.
+- Soft refresh every ~8s once live; first promotion is immediate.
+- System chain ordered so demo seeds first, then live emit, then event consumers.
+- Public API exports wired.
 
 ## Next Council Cycle Priorities
 
-1. Emit AbundanceIngestEvent + OriginIngestEvent from a concrete shared-app tick.
-2. Optional further refinements (inventory UI origin badge, soft title interaction with provenance).
+1. Optional further refinements (inventory UI origin badge, soft title × provenance interaction).
+2. External game-crate bridge when ResourceNodeManager + inventory share an app.
 3. Continue eternal polish under Ra-Thor + PATSAGi Councils.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, holding those snapshots in a living observatory (Live/Demo badge + restricted visibility), fully wired into the public API, equipped with a conversion bridge, alive via event-based live ingest + soft demo seed, able to remember soft harvest provenance in player inventory without trapping resources, holding that provenance in a living observatory, and now **surfacing both abundance and origin provenance live on the Multi-Realm Dashboard**.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, holding those snapshots in a living observatory (Live/Demo badge + restricted visibility), fully wired into the public API, equipped with a conversion bridge, alive via event-based live ingest + soft demo seed, able to remember soft harvest provenance in player inventory without trapping resources, holding that provenance in a living observatory, surfacing both abundance and origin provenance on the Multi-Realm Dashboard, and now **automatically promoting Demo → Live when the harness itself shows living activity** — a concrete shared-app tick with no external crate dependency.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Provenance visible without trapping resources.**  
+**Real activity promotes Demo → Live.**  
 Yoi ⚡
