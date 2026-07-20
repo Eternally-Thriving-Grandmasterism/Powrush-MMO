@@ -44,26 +44,28 @@
 **Phase AP — ResourceNode Realm-Keying Foundation (COMPLETED v21.42)**  
 **Phase AQ — Living Title Passive Bonuses (COMPLETED v21.43)**  
 **Phase AR — Realm Abundance Snapshot (COMPLETED v21.44)**  
-**Phase AS — Realm Abundance Observatory (COMPLETED v21.45)**
+**Phase AS — Realm Abundance Observatory (COMPLETED v21.45)**  
+**Phase AT — Multi-Realm + Abundance API Wiring (COMPLETED v21.46)**
 
-## Completed This Cycle (v21.45)
+## Completed This Cycle (v21.46)
 
-- Added `RealmAbundanceView` (pure-data mirror) + `RealmAbundanceObservatory` resource in simulation.
-- Multi-Realm Dashboard now surfaces living abundance health per realm when data is present.
-- Clean bridge path prepared without forcing hard cross-crate dependencies.
+- `multi_realm_harness` fully declared and re-exported from the public simulation API.
+- `MultiRealmHarnessPlugin` added to `FullSimulationPlugins`.
+- `RealmAbundanceView::from_raw` + `RealmAbundanceObservatory::ingest_many` for clean external intake.
+- Bridge path open for game-side ResourceNodeManager snapshots.
 
 ## Next Council Cycle Priorities
 
-1. Wire game-side ResourceNodeManager snapshots into the RealmAbundanceObservatory.
+1. Live call site: game/server produces snapshots → observatory.ingest_many(...).
 2. Deeper RBE pool / inventory realm-scoping when ready.
-3. Optional further refinements of abundance health labels or title tiers.
+3. Optional further refinements.
 
 ## Strategic Notes
 
-- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, and now has a home for those snapshots in the living dashboard.
+- The multi-realm organism is fully interconnected, observable, presence-aware, travel-capable, embodied, polished, attunement-bearing, dual-visible, title-bearing, resource-keyed by realm, softly rewarding deep presence, able to produce living abundance snapshots, holding those snapshots in a living observatory visible in the dashboard, and now fully wired into the public API with a clean ingestion bridge.
 - All TOLC 8 + mercy gating preserved.
 - Canonical contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Abundance now has a home and a voice in the living dashboard.**  
+**The organism can now see its own abundance.**  
 Yoi ⚡
