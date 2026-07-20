@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.57.0 — Multi-Realm + External Bridge Adapter fully wired
+//! v21.61.0 — Multi-Realm + SharedAppBridgeSource host call site fully wired
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -102,7 +102,7 @@ pub use hardware_sovereignty::{
     sovereign_hardware_ascension_ui,
 };
 
-// Multi-Realm organism (v21.18 → v21.57)
+// Multi-Realm organism (v21.18 → v21.61)
 pub use multi_realm_harness::{
     MultiRealmHarness, MultiRealmHarnessPlugin,
     RealmId, RealmStatus, RealmDescriptor,
@@ -119,11 +119,12 @@ pub use multi_realm_harness::{
     multi_realm_harness_system,
 };
 
-// External game→simulation bridge adapter (v21.57)
+// External game→simulation bridge adapter + host call site (v21.57 → v21.61)
 pub use external_bridge::{
     ExternalBridgeInbox, ExternalBridgePlugin,
+    SharedAppBridgeSource,
     emit_abundance_from_tuples, emit_origin_from_tuples,
-    external_bridge_drain_system,
+    external_bridge_drain_system, shared_app_bridge_publish_system,
 };
 
 pub use world::{
@@ -147,5 +148,5 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
     }
 }
 
-// END OF COMPLETE WIRING v21.57 — External Bridge Adapter live.
+// END OF COMPLETE WIRING v21.61 — SharedAppBridgeSource host call site live.
 // TOLC 8 sealed. Yoi ⚡
