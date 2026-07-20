@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.54.0 — Multi-Realm + Origin × Attunement Soft Resonance fully wired
+//! v21.57.0 — Multi-Realm + External Bridge Adapter fully wired
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -15,6 +15,7 @@ pub mod economy;
 pub mod emergence;
 pub mod endocannabinoid_receptor_forge;
 pub mod epiphany_catalyst;
+pub mod external_bridge;
 pub mod flow_state_forge;
 pub mod gpu_economic;
 pub mod harvest;
@@ -101,7 +102,7 @@ pub use hardware_sovereignty::{
     sovereign_hardware_ascension_ui,
 };
 
-// Multi-Realm organism (v21.18 → v21.54)
+// Multi-Realm organism (v21.18 → v21.57)
 pub use multi_realm_harness::{
     MultiRealmHarness, MultiRealmHarnessPlugin,
     RealmId, RealmStatus, RealmDescriptor,
@@ -116,6 +117,13 @@ pub use multi_realm_harness::{
     abundance_ingest_system, origin_ingest_system,
     soft_demo_abundance_seed_system, harness_derived_live_ingest_system,
     multi_realm_harness_system,
+};
+
+// External game→simulation bridge adapter (v21.57)
+pub use external_bridge::{
+    ExternalBridgeInbox, ExternalBridgePlugin,
+    emit_abundance_from_tuples, emit_origin_from_tuples,
+    external_bridge_drain_system,
 };
 
 pub use world::{
@@ -135,8 +143,9 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(BevySimulationPlugin)
             .add(HardwareSovereigntyPlugin)
             .add(MultiRealmHarnessPlugin)
+            .add(ExternalBridgePlugin)
     }
 }
 
-// END OF COMPLETE WIRING v21.54 — Origin × Attunement Soft Resonance live.
+// END OF COMPLETE WIRING v21.57 — External Bridge Adapter live.
 // TOLC 8 sealed. Yoi ⚡
