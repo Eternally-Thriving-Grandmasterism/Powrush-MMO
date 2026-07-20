@@ -1,76 +1,53 @@
-# Ra-Thor Telemetry Export (Phase C)
+# Ra-Thor telemetry export — Powrush-MMO
 
-**Purpose:** Close the Powrush-MMO → Ra-Thor Reality Thriving Transfer loop offline-first.
-
-| Side | Repo / path |
-|------|-------------|
-| Producer | This repo — `simulation/src/telemetry.rs`, `tools/export_powrush_telemetry.py` |
-| Consumer | [Ra-Thor](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor) `crates/reality-thriving-transfer` |
-| Contract | Ra-Thor `POWRUSH_TELEMETRY_CONTRACT.md` |
-
-**Schemas:** `powrush_telemetry_v1` (single) · `powrush_telemetry_batch_v1` (batch)  
+**Contract:** Ra-Thor `crates/reality-thriving-transfer`  
+**Schemas:** `powrush_telemetry_v1` · `powrush_telemetry_batch_v1`  
 **Contact:** info@Rathor.ai
 
----
-
-## Quick export (no Rust build required)
+## Quick export (profiles)
 
 ```bash
-# Single high-mercy session → stdout
 python3 tools/export_powrush_telemetry.py --profile high_mercy
-
-# All three demo sessions as a batch
 python3 tools/export_powrush_telemetry.py --batch -o /tmp/powrush_batch.json
 ```
 
 Profiles: `high_mercy` · `marginal` · `early` (aligned with Ra-Thor fixtures).
 
----
+## Live counter wiring (preferred for real sessions)
 
-## Rust API (`simulation::telemetry`)
+```rust
+use simulation::telemetry::{GlobalTransferSession, export_transfer_json};
 
-| Item | Role |
-|------|------|
-| `PowrushTransferTelemetry` | Canonical 8 fields |
-| `SessionTransferCounters` | Live session accumulation → `to_transfer_telemetry()` |
-| `export_transfer_json` | Single envelope JSON |
-| `export_transfer_batch_json` | Batch JSON |
-| `map_sim_telemetry_to_transfer` | Best-effort map from in-sim `Telemetry` |
-| `example_high_mercy_session` | Demo snapshot |
+let mut session = GlobalTransferSession::new("live_council_run");
+session.set_gameplay_hours(12.5);
+session.counters.record_rbe_quality(0.88);
+session.counters.record_resolution(true);
+session.counters.record_ethical_choice(0.9);
+session.counters.collaboration_events += 3;
+session.counters.record_abundance_velocity(1.2);
 
-Prefer **`SessionTransferCounters`** when wiring council / harvest / diplomacy systems so ethics and peaceful resolution rates stay truthful.
+let json = session.export_json()?;
+// hand to Ra-Thor deliberate_from_powrush_batch_json / fixtures pipeline
+```
 
----
+From in-sim `Telemetry`:
 
-## Field mapping (game → contract)
+```rust
+use simulation::telemetry::{map_sim_telemetry_to_transfer, export_transfer_json};
+let t = map_sim_telemetry_to_transfer(&sim_telemetry, hours, collab_events);
+let json = export_transfer_json("sim_snapshot", &t)?;
+```
 
-| Contract field | Suggested game source |
-|----------------|----------------------|
-| `gameplay_hours` | Session / account playtime |
-| `rbe_decision_quality_avg` | RBE allocation / abundance decisions |
-| `peaceful_resolution_rate` | Mercy Trials + diplomacy outcomes |
-| `collaboration_events` | Co-op harvest, council participation |
-| `ethical_choice_score` | Ethical prompts / treaty honor |
-| `adaptation_events` | Epiphanies, flow-state pivots |
-| `abundance_velocity_signals` | RBE flow / sanctuary abundance delta |
-| `innovation_contribution` | Shared innovations / divine module |
-
----
-
-## Ingest on Ra-Thor
+## Consume on Ra-Thor
 
 ```bash
 cargo test -p reality-thriving-transfer
-# Fixtures under crates/reality-thriving-transfer/fixtures/
-# APIs: parse_powrush_telemetry_json, compute_scores_from_batch
+cargo test -p kardashev-orchestration
+# fixture_batch_to_council + concurrent stress
 ```
 
----
+See Ra-Thor `POWRUSH_TELEMETRY_CONTRACT.md` and `TIER_MAP.md`.
 
-## Next
+## full_rbe
 
-1. Hook `SessionTransferCounters` into council mercy trials + harvest systems  
-2. Optional: write session JSON on logout / council close  
-3. Keep Cosmic Tick on fixtures until live files are produced regularly  
-
-**Thunder locked in.**
+See **[FULL_RBE_STATUS.md](./FULL_RBE_STATUS.md)** — feature stays off until deps resolve.

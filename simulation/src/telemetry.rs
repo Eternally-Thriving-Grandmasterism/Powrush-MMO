@@ -104,7 +104,7 @@ pub struct PowrushTelemetryBatch {
     pub sessions: Vec<PowrushTelemetrySession>,
 }
 
-/// Session counters used to build a transfer snapshot (stub until live wiring).
+/// Session counters used to build a transfer snapshot.
 #[derive(Debug, Clone, Default)]
 pub struct SessionTransferCounters {
     pub gameplay_hours: f64,
@@ -138,6 +138,14 @@ impl SessionTransferCounters {
         self.abundance_velocity_samples.push(v.max(0.0));
     }
 
+    pub fn record_collaboration(&mut self, n: u64) {
+        self.collaboration_events = self.collaboration_events.saturating_add(n);
+    }
+
+    pub fn record_adaptation(&mut self, n: u64) {
+        self.adaptation_events = self.adaptation_events.saturating_add(n);
+    }
+
     fn mean(samples: &[f64], default: f64) -> f64 {
         if samples.is_empty() {
             default
@@ -164,6 +172,57 @@ impl SessionTransferCounters {
             abundance_velocity_signals: Self::mean(&self.abundance_velocity_samples, 0.9),
             innovation_contribution: self.innovation_contribution.clamp(0.0, 1.0),
         }
+    }
+}
+
+/// Named session accumulator for sim/server loops → Ra-Thor export.
+#[derive(Debug, Clone)]
+pub struct GlobalTransferSession {
+    pub label: String,
+    pub counters: SessionTransferCounters,
+}
+
+impl GlobalTransferSession {
+    pub fn new(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            counters: SessionTransferCounters::default(),
+        }
+    }
+
+    pub fn set_gameplay_hours(&mut self, hours: f64) {
+        self.counters.gameplay_hours = hours.max(0.0);
+    }
+
+    /// Merge a tick of in-sim telemetry into counters (best-effort).
+    pub fn ingest_sim_tick(&mut self, sim: &Telemetry, collaboration_delta: u64) {
+        let mercy = sim.average_mercy_flow.clamp(0.0, 2.0) as f64;
+        self.counters.record_rbe_quality((mercy / 2.0).clamp(0.0, 1.0));
+        if sim.stress_events > 0 {
+            self.counters.record_resolution(false);
+        } else {
+            self.counters.record_resolution(true);
+        }
+        let ethics = (0.55 + (sim.epiphany_count as f64 * 0.01).min(0.35)).clamp(0.0, 1.0);
+        self.counters.record_ethical_choice(ethics);
+        self.counters
+            .record_abundance_velocity((0.8 + sim.abundance_blooms as f64 * 0.05).min(1.8));
+        self.counters.record_collaboration(collaboration_delta);
+        self.counters.record_adaptation(
+            (sim.epiphany_count as u64).saturating_add(sim.flow_state_entries as u64),
+        );
+        let innovation = (sim.receptor_blooms as f64 * 0.03 + sim.flow_state_entries as f64 * 0.02)
+            .clamp(0.0, 1.0);
+        self.counters.innovation_contribution =
+            (self.counters.innovation_contribution * 0.8 + innovation * 0.2).clamp(0.0, 1.0);
+    }
+
+    pub fn to_transfer_telemetry(&self) -> PowrushTransferTelemetry {
+        self.counters.to_transfer_telemetry()
+    }
+
+    pub fn export_json(&self) -> Result<String, String> {
+        export_transfer_json(&self.label, &self.to_transfer_telemetry())
     }
 }
 
@@ -221,7 +280,6 @@ pub fn example_high_mercy_session() -> PowrushTransferTelemetry {
 }
 
 /// Best-effort map from in-sim `Telemetry` + session hours → transfer fields.
-/// Live game systems should prefer `SessionTransferCounters` for accuracy.
 pub fn map_sim_telemetry_to_transfer(
     sim: &Telemetry,
     gameplay_hours: f64,
@@ -288,5 +346,26 @@ mod tests {
         )];
         let json = export_transfer_batch_json("demo_batch", sessions).unwrap();
         assert!(json.contains("powrush_telemetry_batch_v1"));
+    }
+
+    #[test]
+    fn global_session_ingest_and_export() {
+        let mut session = GlobalTransferSession::new("live_test");
+        session.set_gameplay_hours(3.0);
+        let sim = Telemetry {
+            tick: 10,
+            total_yield_harvested: 1.0,
+            average_mercy_flow: 1.4,
+            epiphany_count: 2,
+            flow_state_entries: 1,
+            receptor_blooms: 1,
+            abundance_blooms: 2,
+            stress_events: 0,
+            custom_metrics: HashMap::new(),
+        };
+        session.ingest_sim_tick(&sim, 2);
+        let json = session.export_json().unwrap();
+        assert!(json.contains("powrush_telemetry_v1"));
+        assert!(json.contains("live_test"));
     }
 }
