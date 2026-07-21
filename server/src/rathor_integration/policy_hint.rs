@@ -1,5 +1,5 @@
 //! Ra-Thor → Powrush soft Policy Hint surface
-//! v21.85.0 — Ultramasterism Feedback Loop (structural)
+//! v21.86.0 — Ultramasterism Feedback Loop (living soft application)
 //!
 //! Soft, non-authoritative, mercy-gated recommendations only.
 //! Never overrides local simulation sovereignty or player agency.
@@ -11,6 +11,8 @@ use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{info, warn};
+
+use super::ServerTransferSession;
 
 const MAX_HINTS: usize = 32;
 const DEFAULT_HINT_PATH: &str = "artifacts/ra_thor_policy_hints.json";
@@ -41,6 +43,21 @@ pub struct PolicyHintEnvelope {
     #[serde(default)]
     pub source_export_seq: Option<u64>,
     pub hints: Vec<PolicyHint>,
+}
+
+// =============================================================================
+// Soft Application State (observable effects)
+// =============================================================================
+
+#[derive(Resource, Debug, Default)]
+pub struct SoftPolicyState {
+    /// Accumulated soft abundance bias applied this session
+    pub abundance_bias_applied: f64,
+    /// Accumulated peaceful resolution weight applied
+    pub peaceful_weight_applied: f64,
+    /// Number of soft applications performed
+    pub applications: u64,
+    pub last_applied_hint_id: Option<String>,
 }
 
 // =============================================================================
@@ -105,7 +122,6 @@ impl PolicyHintInbox {
     }
 
     fn push(&mut self, hint: PolicyHint) {
-        // Simple de-dupe by hint_id
         if self.hints.iter().any(|h| h.hint_id == hint.hint_id) {
             return;
         }
@@ -150,7 +166,6 @@ fn validate_hint(h: &PolicyHint) -> Result<(), String> {
     if !(0.0..=1.0).contains(&h.mercy_factor) {
         return Err("mercy_factor out of [0,1]".into());
     }
-    // Zero-harm: recommended_delta must be non-negative for all current categories
     if h.recommended_delta < 0.0 {
         return Err("negative recommended_delta forbidden".into());
     }
@@ -190,7 +205,6 @@ pub fn policy_hint_ingest_system(mut inbox: ResMut<PolicyHintInbox>) {
         return;
     }
 
-    // Session filter
     if envelope.target_session_id != "*" && envelope.target_session_id != inbox.session_id {
         return;
     }
@@ -219,6 +233,67 @@ pub fn policy_hint_ingest_system(mut inbox: ResMut<PolicyHintInbox>) {
             session = %inbox.session_id,
             "Policy hints ingested (soft, mercy-gated)"
         );
+    }
+}
+
+// =============================================================================
+// Soft Application Systems (living feedback)
+// =============================================================================
+
+/// Apply soft abundance_bias and peaceful_resolution_weight hints.
+/// Effects are mild, scaled by strength × mercy_factor, and only positive.
+pub fn soft_policy_application_system(
+    inbox: Res<PolicyHintInbox>,
+    mut soft: ResMut<SoftPolicyState>,
+    mut transfer: ResMut<ServerTransferSession>,
+) {
+    // --- abundance_bias ---
+    if let Some(hint) = inbox.strongest_for("abundance_bias") {
+        let scale = (hint.strength * hint.mercy_factor) as f64;
+        let delta = (hint.recommended_delta as f64) * scale;
+
+        // Only apply once per unique hint_id to keep effects stable
+        if soft.last_applied_hint_id.as_deref() != Some(&hint.hint_id) {
+            transfer.record_abundance_velocity(1.0 + delta); // gentle upward nudge
+            soft.abundance_bias_applied += delta;
+            soft.applications = soft.applications.saturating_add(1);
+            soft.last_applied_hint_id = Some(hint.hint_id.clone());
+
+            info!(
+                target: "ra_thor::policy::soft",
+                category = "abundance_bias",
+                hint_id = %hint.hint_id,
+                delta = delta,
+                scale = scale,
+                mercy = hint.mercy_factor,
+                "Soft abundance bias applied (non-authoritative)"
+            );
+        }
+    }
+
+    // --- peaceful_resolution_weight ---
+    if let Some(hint) = inbox.strongest_for("peaceful_resolution_weight") {
+        let scale = (hint.strength * hint.mercy_factor) as f64;
+        let delta = (hint.recommended_delta as f64) * scale;
+
+        // Represent as a soft ethics / RBE sample boost
+        if soft.last_applied_hint_id.as_deref() != Some(&hint.hint_id) {
+            // Push a high peaceful sample
+            transfer.record_treaty(); // counts as peaceful collaboration signal
+            soft.peaceful_weight_applied += delta;
+            soft.applications = soft.applications.saturating_add(1);
+            soft.last_applied_hint_id = Some(hint.hint_id.clone());
+
+            info!(
+                target: "ra_thor::policy::soft",
+                category = "peaceful_resolution_weight",
+                hint_id = %hint.hint_id,
+                delta = delta,
+                scale = scale,
+                mercy = hint.mercy_factor,
+                "Soft peaceful resolution weight applied (non-authoritative)"
+            );
+        }
     }
 }
 

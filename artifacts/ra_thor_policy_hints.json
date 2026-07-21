@@ -1,0 +1,36 @@
+{
+  "schema": "ra_thor_policy_hint_v1",
+  "source": "ra-thor",
+  "emitted_at_unix": 1721523456,
+  "target_session_id": "*",
+  "source_export_seq": 1,
+  "hints": [
+    {
+      "hint_id": "fixture_abundance_001",
+      "category": "abundance_bias",
+      "strength": 0.78,
+      "mercy_factor": 0.92,
+      "recommended_delta": 0.07,
+      "rationale": "High ethical_choice_score + rising abundance_velocity observed in telemetry",
+      "expires_at_unix": null
+    },
+    {
+      "hint_id": "fixture_peaceful_001",
+      "category": "peaceful_resolution_weight",
+      "strength": 0.71,
+      "mercy_factor": 0.89,
+      "recommended_delta": 0.06,
+      "rationale": "Strong treaty + council harmony pattern detected",
+      "expires_at_unix": null
+    },
+    {
+      "hint_id": "fixture_mercy_001",
+      "category": "mercy_presence",
+      "strength": 0.65,
+      "mercy_factor": 0.95,
+      "recommended_delta": 0.04,
+      "rationale": "Elevated mercy_factor across recent council decisions",
+      "expires_at_unix": null
+    }
+  ]
+}
