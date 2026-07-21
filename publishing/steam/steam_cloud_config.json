@@ -1,0 +1,93 @@
+{
+  "schema": "powrush_steam_cloud_config_v1",
+  "product": "Powrush-MMO",
+  "contact": "info@Rathor.ai",
+
+  "app_id": {
+    "shipping": null,
+    "comment_shipping": "Set to the real Steam AppID once assigned in Steamworks. null = not yet registered.",
+    "development": 480,
+    "comment_development": "480 = Spacewar (Valve's public test AppID). Never ship with this."
+  },
+
+  "steam_cloud": {
+    "enabled_for_app": true,
+    "byte_quota_recommended": 104857600,
+    "byte_quota_note": "100 MB is more than enough for recipe JSON catalogs. Default partner quota is often 1 GB.",
+    "remote_storage_files": [
+      {
+        "name": "catalog_cloud_v1.json",
+        "purpose": "Audio moment recipe catalog (ISteamRemoteStorage FileWrite/FileRead)",
+        "max_expected_bytes": 2097152
+      }
+    ]
+  },
+
+  "auto_cloud": {
+    "enabled": true,
+    "note": "Configure these exact rows in Steamworks App Admin → Steam Cloud → Auto-Cloud.",
+    "rules": [
+      {
+        "root": "WinAppDataLocal",
+        "subdirectory": "Powrush-MMO/steam_cloud/audio_moments",
+        "pattern": "*",
+        "recursive": true,
+        "platforms": ["windows"]
+      },
+      {
+        "root": "MacAppSupport",
+        "subdirectory": "Powrush-MMO/steam_cloud/audio_moments",
+        "pattern": "*",
+        "recursive": true,
+        "platforms": ["macos"]
+      },
+      {
+        "root": "LinuxHome",
+        "subdirectory": ".local/share/Powrush-MMO/steam_cloud/audio_moments",
+        "pattern": "*",
+        "recursive": true,
+        "platforms": ["linux"]
+      },
+      {
+        "root": "AppInstallDirectory",
+        "subdirectory": "steam_cloud/audio_moments",
+        "pattern": "*",
+        "recursive": true,
+        "platforms": ["windows", "macos", "linux"],
+        "note": "Fallback when the game stages next to the install root (dev / portable)."
+      }
+    ]
+  },
+
+  "do_not_cloud_sync": [
+    "player_data/audio_moments/rendered/**",
+    "assets/audio/**",
+    "steam_appid.txt"
+  ],
+
+  "partner_checklist": {
+    "1_enable_steam_cloud": {
+      "dashboard": "Steamworks App Admin → Steam Cloud",
+      "actions": [
+        "Enable Steam Cloud for this application",
+        "Set byte quota (recommend ≥ 100 MB)",
+        "Save / Publish"
+      ]
+    },
+    "2_configure_auto_cloud": {
+      "dashboard": "Steamworks App Admin → Steam Cloud → Auto-Cloud",
+      "actions": [
+        "Add each rule from auto_cloud.rules above",
+        "Verify Root / Subdirectory / Pattern match exactly",
+        "Save / Publish"
+      ]
+    },
+    "3_set_shipping_app_id": {
+      "actions": [
+        "When AppID is assigned, set app_id.shipping in this file",
+        "Run: python publishing/steam/sync_steam_appid.py --shipping",
+        "Never ship steam_appid.txt with development AppID 480"
+      ]
+    }
+  }
+}
