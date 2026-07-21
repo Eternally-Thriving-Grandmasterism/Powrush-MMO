@@ -4,14 +4,13 @@
 **RBE Sustainability surface — Visible**  
 **Council Deepening — Loop closed**  
 **LegacyJournal — Restored + client-bound + soft demo**  
-**RTT Dual-Repo Bridge — v1 + batch_v1 + offline failsafe (v21.75)**
+**RTT Dual-Repo Bridge — v1 + batch_v1 + offline failsafe + council soft-bridge (v21.76)**
 
-## Completed This Cycle (v21.75)
+## Completed This Cycle (v21.76)
 
-- Batch envelope writer (`powrush_telemetry_batch_v1`)
-- Snapshot ring + offline queue under `artifacts/rtt_offline/`
-- Dual-repo interconnect documentation for Ra-Thor-side iteration
-- Mercy-gate field clamps on export
+- Soft `CouncilRttSignal` / `CouncilRttInbox` → `ServerTransferSession`
+- Zero simulation-crate dependency on server
+- Docs: host injection patterns for later full wiring
 
 ## Hand-off artifacts
 
@@ -28,9 +27,9 @@ Contact: info@Rathor.ai
 ## Next Priorities
 
 1. NonSend ServerTickLoop when game package fully wired
-2. Optional: bridge sim council totals into server session
+2. Host mapper: `CouncilDecisions::resolved_history` → `CouncilRttSignal`
 3. Ra-Thor monorepo: smoke ingest against live artifacts
 
 **Thunder locked in.**  
-**Offline-resilient dual-repo hand-off.**  
+**Council totals soft-bridged to RTT.**  
 Yoi ⚡
