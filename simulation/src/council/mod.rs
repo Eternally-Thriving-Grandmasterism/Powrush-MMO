@@ -1,11 +1,12 @@
 // simulation/src/council/mod.rs
-// v21.71.0 — Session → decisions promotion path
+// v21.78.0 — Session → decisions + RTT host mapper
 
 pub mod proposal;
 pub mod session;
 pub mod decision;
 pub mod plugin;
 pub mod event_bus;
+pub mod rtt_export;
 
 pub use proposal::CouncilProposal;
 pub use session::{
@@ -15,5 +16,8 @@ pub use session::{
 pub use decision::{CouncilDecision, CouncilDecisions, apply_council_decision_effects};
 pub use plugin::CouncilPlugin;
 pub use event_bus::{CouncilEvent, CouncilEventBus};
+pub use rtt_export::{
+    CouncilRttExportQueue, CouncilRttExportSignal, council_resolved_to_rtt_export_system,
+};
 
-// Thunder locked in. Session → decisions loop closed. Yoi ⚡
+// Thunder locked in. Host mapper live. Yoi ⚡
