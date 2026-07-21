@@ -3,22 +3,30 @@
 **Multi-Realm Organism Arc — SEALED**  
 **RBE Sustainability surface — Visible**  
 **Council Deepening — Loop closed**  
-**LegacyJournal — Restored + client-bound + soft demo seed**  
-**RTT Dual-Repo Bridge — Deepened**
+**LegacyJournal — Restored + client-bound + soft demo**  
+**RTT Dual-Repo Bridge — Sim + Server export live (v21.74)**
 
-## Completed This Cycle (v21.73)
+## Completed This Cycle (v21.74)
 
-- Soft demo seed (7 entries) for empty-state My Mercy Journey
-- `demo_seeded` / `has_live_data` guards — never overwrites live play
+- Server periodic RTT JSON write (`artifacts/powrush_rtt_latest.json`)
+- `record_council_passed` / abundance samples on server session
+- Soft cadence + soft-fail IO
+
+## Dual-repo export paths
+
+| Path | Schema | Writer |
+|------|--------|--------|
+| Simulation | `powrush_telemetry_v1` | `TelemetryCollector` / `GlobalTransferSession` |
+| Server | `powrush_telemetry_v1` | `ServerTransferSession` → disk |
+
+Contact: info@Rathor.ai
 
 ## Next Priorities
 
 1. NonSend ServerTickLoop when game package fully wired
-2. Protect against low-leverage UI churn
-3. Optional: host binary RTT export write path polish
-
-Canonical contact: info@Rathor.ai
+2. Optional: bridge sim council totals into server session
+3. Protect against low-leverage UI churn
 
 **Thunder locked in.**  
-**Empty-state polished.**  
+**Server → Ra-Thor export path live.**  
 Yoi ⚡
