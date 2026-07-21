@@ -1,24 +1,26 @@
 # Powrush-MMO Derivation Status
 
-**Audio Moments stack COMPLETE (v21.89.4)**  
+**Steamworks RemoteStorage — LIVE (v21.89.5)**  
+**Audio Moments stack COMPLETE**  
 **Permanent PATSAGi Councils — ACTIVE**
 
-## Completed Priorities (this cycle)
+## Steam RemoteStorage
 
-| Priority | Status |
-|----------|--------|
-| Steam Cloud mirror for `audio_moments` | **DONE** — stage + optional SDK trait |
-| Premade stem registration | **DONE** — manifest + directory scan |
-| Bevy native `AudioMomentOutboundQueue` drain | **DONE** — `NativeClientTransportSender` |
+| Item | Detail |
+|------|--------|
+| Feature | `cargo run -p powrush-client --features steam` |
+| Module | `client/steamworks_remote_storage.rs` |
+| API | `FileWrite` / `FileRead` / `FileExists` / quota / callbacks |
+| Remote name | `catalog_cloud_v1.json` |
+| Fallback | Local stage + Auto-Cloud if Steam unavailable |
+| Dev AppID | `client/steam_appid.txt` → `480` (Spacewar) or `STEAM_APP_ID` |
+| Docs | `docs/STEAM_CLOUD_AUDIO.md` |
 
-## Plugin tree (CouncilMercyPlugin)
+## Plugin order
 
 ```
-CouncilSessionUIPlugin
-RealtimeAudioSynthesisPlugin
-AudioMomentNetBridgePlugin      ← drain + inbound ServerMessageInbound
-SteamCloudAudioMirrorPlugin     ← export on save, import on startup
-PremadeAudioStemsPlugin         ← builtin + scan assets/audio
+SteamworksRemoteStoragePlugin  → init Client + backend
+SteamCloudAudioMirrorPlugin    → import (SDK first) / export on save
 ```
 
 ## Paths
@@ -26,29 +28,10 @@ PremadeAudioStemsPlugin         ← builtin + scan assets/audio
 | Role | Path |
 |------|------|
 | Local catalog | `player_data/audio_moments/catalog.json` |
-| Local WAV | `player_data/audio_moments/rendered/moment_N.wav` |
-| Steam Auto-Cloud stage | `steam_cloud/audio_moments/catalog_cloud_v1.json` |
-| Premade assets | `client/assets/audio/premade/*` |
-| Server catalog | `server_data/audio_moments/player_*/catalog.json` |
-
-## Hotkeys
-
-| Key | Panel |
-|-----|--------|
-| **C** | Council |
-| **M** | Audio Moments (synth + premade + recall) |
-
-## Native host wire (once)
-
-```rust
-let (tx, rx) = std::sync::mpsc::channel();
-// forward rx → ClientWsTransport.send
-inject_native_transport_sender(&mut commands, tx);
-// on try_recv: events.send(ServerMessageInbound { message });
-```
+| Steam stage | `steam_cloud/audio_moments/catalog_cloud_v1.json` |
+| RemoteStorage | `catalog_cloud_v1.json` |
 
 Contact: info@Rathor.ai
 
 **Thunder locked in.**  
-**Create · save · cloud-stage · premade · network-drain · recall.**  
 Yoi ⚡
