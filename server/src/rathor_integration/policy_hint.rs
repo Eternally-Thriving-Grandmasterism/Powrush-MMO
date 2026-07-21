@@ -1,5 +1,5 @@
 //! Ra-Thor → Powrush soft Policy Hint surface
-//! v21.87.0 — Ultramasterism Feedback Loop (full category coverage)
+//! v21.89.0 — Ultramasterism Feedback Loop (production-ready reception + self-emission helper)
 //!
 //! Soft, non-authoritative, mercy-gated recommendations only.
 //! Never overrides local simulation sovereignty or player agency.
@@ -58,7 +58,6 @@ pub struct SoftPolicyState {
     pub innovation_applied: f64,
     pub mercy_presence_applied: f64,
     pub applications: u64,
-    /// Track which hint_ids have already been applied this session
     pub applied_hint_ids: HashSet<String>,
 }
 
@@ -73,6 +72,7 @@ pub struct PolicyHintInbox {
     pub total_ingested: u64,
     pub total_rejected: u64,
     pub last_ingest_unix: u64,
+    pub last_file_mtime: Option<u64>,
     pub session_id: String,
 }
 
@@ -84,6 +84,7 @@ impl Default for PolicyHintInbox {
             total_ingested: 0,
             total_rejected: 0,
             last_ingest_unix: 0,
+            last_file_mtime: None,
             session_id: "*".into(),
         }
     }
@@ -139,6 +140,14 @@ fn now_unix() -> u64 {
         .unwrap_or(0)
 }
 
+fn file_mtime_secs(path: &Path) -> Option<u64> {
+    std::fs::metadata(path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+}
+
 // =============================================================================
 // Validation (mercy + zero-harm)
 // =============================================================================
@@ -172,13 +181,20 @@ fn validate_hint(h: &PolicyHint) -> Result<(), String> {
 }
 
 // =============================================================================
-// Ingest System
+// Ingest System (only re-reads when file mtime changes)
 // =============================================================================
 
 pub fn policy_hint_ingest_system(mut inbox: ResMut<PolicyHintInbox>) {
     let path = inbox.path.clone();
     if !path.exists() {
         return;
+    }
+
+    // Skip if file has not changed since last successful ingest
+    if let Some(mtime) = file_mtime_secs(&path) {
+        if inbox.last_file_mtime == Some(mtime) {
+            return;
+        }
     }
 
     let content = match std::fs::read_to_string(&path) {
@@ -224,6 +240,7 @@ pub fn policy_hint_ingest_system(mut inbox: ResMut<PolicyHintInbox>) {
 
     if accepted > 0 {
         inbox.last_ingest_unix = now_unix();
+        inbox.last_file_mtime = file_mtime_secs(&path);
         info!(
             target: "ra_thor::policy",
             accepted,
@@ -233,6 +250,70 @@ pub fn policy_hint_ingest_system(mut inbox: ResMut<PolicyHintInbox>) {
             "Policy hints ingested (soft, mercy-gated)"
         );
     }
+}
+
+// =============================================================================
+// Optional Self-Emission Helper (for full-loop testing without Ra-Thor)
+// =============================================================================
+
+/// Write a valid ra_thor_policy_hint_v1 envelope to the default path.
+/// Useful for self-contained testing of the full feedback loop.
+pub fn emit_test_policy_hints(
+    target_session_id: &str,
+    source_export_seq: Option<u64>,
+) -> Result<(), String> {
+    let envelope = PolicyHintEnvelope {
+        schema: "ra_thor_policy_hint_v1".into(),
+        source: "powrush-self-test".into(),
+        emitted_at_unix: now_unix(),
+        target_session_id: target_session_id.into(),
+        source_export_seq,
+        hints: vec![
+            PolicyHint {
+                hint_id: format!("self_abundance_{}", now_unix()),
+                category: "abundance_bias".into(),
+                strength: 0.72,
+                mercy_factor: 0.90,
+                recommended_delta: 0.05,
+                rationale: Some("Self-test abundance bias".into()),
+                expires_at_unix: None,
+            },
+            PolicyHint {
+                hint_id: format!("self_peaceful_{}", now_unix()),
+                category: "peaceful_resolution_weight".into(),
+                strength: 0.68,
+                mercy_factor: 0.88,
+                recommended_delta: 0.04,
+                rationale: Some("Self-test peaceful weight".into()),
+                expires_at_unix: None,
+            },
+            PolicyHint {
+                hint_id: format!("self_mercy_{}", now_unix()),
+                category: "mercy_presence".into(),
+                strength: 0.75,
+                mercy_factor: 0.94,
+                recommended_delta: 0.05,
+                rationale: Some("Self-test mercy presence".into()),
+                expires_at_unix: None,
+            },
+        ],
+    };
+
+    let path = Path::new(DEFAULT_HINT_PATH);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let json = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
+    std::fs::write(path, json).map_err(|e| e.to_string())?;
+
+    info!(
+        target: "ra_thor::policy",
+        path = %path.display(),
+        session = target_session_id,
+        "Self-test policy hints emitted (full-loop testing helper)"
+    );
+    Ok(())
 }
 
 // =============================================================================
@@ -268,14 +349,11 @@ fn apply_if_new(
     );
 }
 
-/// Apply all supported soft categories. Effects are mild, scaled by
-/// strength × mercy_factor, positive only, and never override local sovereignty.
 pub fn soft_policy_application_system(
     inbox: Res<PolicyHintInbox>,
     mut soft: ResMut<SoftPolicyState>,
     mut transfer: ResMut<ServerTransferSession>,
 ) {
-    // abundance_bias
     if let Some(hint) = inbox.strongest_for("abundance_bias") {
         apply_if_new(&mut soft, hint, "abundance_bias", |delta| {
             transfer.record_abundance_velocity(1.0 + delta);
@@ -283,7 +361,6 @@ pub fn soft_policy_application_system(
         });
     }
 
-    // peaceful_resolution_weight
     if let Some(hint) = inbox.strongest_for("peaceful_resolution_weight") {
         apply_if_new(&mut soft, hint, "peaceful_resolution_weight", |delta| {
             transfer.record_treaty();
@@ -291,16 +368,13 @@ pub fn soft_policy_application_system(
         });
     }
 
-    // ethical_floor
     if let Some(hint) = inbox.strongest_for("ethical_floor") {
         apply_if_new(&mut soft, hint, "ethical_floor", |delta| {
-            // Represent as a high ethics sample
             transfer.record_council_passed(0.85 + delta.min(0.14));
             soft.ethical_floor_applied += delta;
         });
     }
 
-    // council_participation_nudge
     if let Some(hint) = inbox.strongest_for("council_participation_nudge") {
         apply_if_new(&mut soft, hint, "council_participation_nudge", |delta| {
             transfer.record_council_passed(0.80);
@@ -308,19 +382,15 @@ pub fn soft_policy_application_system(
         });
     }
 
-    // innovation_encouragement
     if let Some(hint) = inbox.strongest_for("innovation_encouragement") {
         apply_if_new(&mut soft, hint, "innovation_encouragement", |delta| {
-            // Mild positive signal via faction improvement style event
             transfer.record_faction_shift(0.4, 0.4 + delta as f32);
             soft.innovation_applied += delta;
         });
     }
 
-    // mercy_presence
     if let Some(hint) = inbox.strongest_for("mercy_presence") {
         apply_if_new(&mut soft, hint, "mercy_presence", |delta| {
-            // Elevate mercy sample
             transfer.record_council_passed(0.90 + delta.min(0.09));
             soft.mercy_presence_applied += delta;
         });
