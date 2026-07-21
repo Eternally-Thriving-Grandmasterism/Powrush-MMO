@@ -68,56 +68,49 @@ impl Default for SimCouncilBridgeConfig {
     }
 }
 
-impl ServerTransferSession {
-    /// Ingest pure totals from sim (delta on total_passed).
-    pub fn ingest_sim_council_bridge(
-        &mut self,
-        payload: &SimCouncilBridgePayload,
-        last_passed: &mut u64,
-    ) -> u64 {
-        if payload.schema != "powrush_sim_council_bridge_v1" {
-            return 0;
-        }
-
-        let mut applied = 0u64;
-        if payload.total_passed > *last_passed {
-            let delta = payload.total_passed - *last_passed;
-            // Cap per-poll application to avoid spikes after long offline gaps
-            let apply_n = delta.min(16);
-            let mercy = payload.mercy_avg.clamp(0.0, 1.0);
-            for _ in 0..apply_n {
-                self.record_council_passed(mercy);
-            }
-            *last_passed = payload.total_passed;
-            applied = apply_n;
-        }
-
-        if payload.abundance_velocity > 0.0 {
-            self.record_abundance_velocity(payload.abundance_velocity.max(0.0));
-        }
-        if payload.sustainability_avg > 0.0 {
-            self.push_sample_pub(&mut self.rbe_samples.clone(), payload.sustainability_avg.clamp(0.0, 1.0));
-            // direct sample without exposing private — use record path
-            let q = payload.sustainability_avg.clamp(0.0, 1.0);
-            self.rbe_samples.push(q);
-            if self.rbe_samples.len() > 128 {
-                self.rbe_samples.drain(0..64);
-            }
-        }
-        if payload.stress_avg > 0.55 {
-            // mild peaceful bias down
-            self.rbe_samples.push(0.55);
-            if self.rbe_samples.len() > 128 {
-                self.rbe_samples.drain(0..64);
-            }
-        }
-
-        applied
+/// Apply pure totals from sim (delta on total_passed).
+pub fn apply_sim_council_bridge(
+    transfer: &mut ServerTransferSession,
+    payload: &SimCouncilBridgePayload,
+    last_passed: &mut u64,
+) -> u64 {
+    if payload.schema != "powrush_sim_council_bridge_v1" {
+        return 0;
     }
 
-    fn push_sample_pub(&self, _samples: &mut Vec<f64>, _v: f64) {
-        // no-op helper retained for clarity; samples pushed above
+    let mut applied = 0u64;
+    if payload.total_passed > *last_passed {
+        let delta = payload.total_passed - *last_passed;
+        // Cap per-poll application to avoid spikes after long offline gaps
+        let apply_n = delta.min(16);
+        let mercy = payload.mercy_avg.clamp(0.0, 1.0);
+        for _ in 0..apply_n {
+            transfer.record_council_passed(mercy);
+        }
+        *last_passed = payload.total_passed;
+        applied = apply_n;
     }
+
+    if payload.abundance_velocity > 0.0 {
+        transfer.record_abundance_velocity(payload.abundance_velocity.max(0.0));
+    }
+
+    let sust = payload.sustainability_avg.clamp(0.0, 1.0);
+    if sust > 0.0 {
+        transfer.rbe_samples.push(sust);
+        if transfer.rbe_samples.len() > 128 {
+            transfer.rbe_samples.drain(0..64);
+        }
+    }
+
+    if payload.stress_avg > 0.55 {
+        transfer.rbe_samples.push(0.55);
+        if transfer.rbe_samples.len() > 128 {
+            transfer.rbe_samples.drain(0..64);
+        }
+    }
+
+    applied
 }
 
 /// Soft poll of sim bridge file → server transfer session.
@@ -148,7 +141,11 @@ pub fn sim_council_bridge_ingest_system(
         }
     };
 
-    let applied = transfer.ingest_sim_council_bridge(&payload, &mut cfg.last_ingested_passed);
+    let applied = apply_sim_council_bridge(
+        &mut transfer,
+        &payload,
+        &mut cfg.last_ingested_passed,
+    );
     if applied > 0 || payload.total_passed > 0 {
         cfg.ingest_count = cfg.ingest_count.saturating_add(1);
         info!(
@@ -159,5 +156,32 @@ pub fn sim_council_bridge_ingest_system(
             tick = payload.tick,
             "Sim council bridge ingested into ServerTransferSession"
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn delta_apply_council_passed() {
+        let mut transfer = ServerTransferSession::new("bridge_test");
+        let mut last = 0u64;
+        let payload = SimCouncilBridgePayload {
+            schema: "powrush_sim_council_bridge_v1".into(),
+            total_passed: 3,
+            mercy_avg: 0.88,
+            abundance_velocity: 1.2,
+            sustainability_avg: 0.8,
+            stress_avg: 0.2,
+            tick: 42,
+        };
+        let applied = apply_sim_council_bridge(&mut transfer, &payload, &mut last);
+        assert_eq!(applied, 3);
+        assert_eq!(last, 3);
+        assert_eq!(transfer.council_passed, 3);
+        // second apply with same total → 0 delta
+        let applied2 = apply_sim_council_bridge(&mut transfer, &payload, &mut last);
+        assert_eq!(applied2, 0);
     }
 }
