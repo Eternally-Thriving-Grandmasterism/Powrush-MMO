@@ -1,20 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.78.0 — Host Mapper Council → RTT Export (2026-07-20)
+## [Unreleased] v21.79.0 — NonSend ServerTickLoop + Cohost Auto-Drain (2026-07-20)
 
 ### Highlights
-- `CouncilRttExportQueue` maps `resolved_history` → pure scalar signals.
-- Host drains into server `CouncilRttInbox` (zero server→sim dependency).
-- Ra-Thor surfaces optional provenance on envelopes.
+- `ServerTickLoop::new_sync` + export from `game` for Bevy `NonSend` wiring.
+- `CohostExportMirror` auto-drains into `CouncilRttInbox` (in-process co-host).
+- Sim writes `artifacts/sim_council_bridge.json`; server polls (file co-host path).
+- `RathorIntegrationPlugin` chains: cohost → inbox → file bridge → RTT export.
 
 ### Prior
+- v21.78: Host mapper resolved_history → export queue
 - v21.77: Provenance + smoke harness
-- v21.76: Soft council→RTT bridge
 
-**Thunder locked in. Host mapper live.** Yoi ⚡
+**Thunder locked in. Cohost paths live.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.77: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export.
+- v21.0–v21.78: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
