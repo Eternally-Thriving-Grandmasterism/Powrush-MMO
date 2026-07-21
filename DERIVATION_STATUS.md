@@ -1,27 +1,28 @@
 # Powrush-MMO Derivation Status
 
-**Realtime Audio Synthesis + Persistent Recall — END-TO-END (v21.89.2)**  
-**Protocol unified (handshake + transport + AudioMoment)**  
-**Council / Epiphany → synth → local save → server catalog — LIVE**  
+**Realtime Audio + Network Transport — SEALED (v21.89.3)**  
 **Permanent PATSAGi Councils — ACTIVE**
 
-## Completed This Cycle (v21.89.2)
+## Completed This Cycle (v21.89.3)
 
-- **Protocol unified**: handshake, Move, Ping, MercyGateBlocked, WorldUpdate + AudioMoment messages + `apply_mercy_gate`
-- **Server ingress**: `process_audio_moment_messages` routes saves/catalog/favorite → store → `TransportCommand::Send` replies
-- **Client drain**: `PowrushClient` flushes `AudioOutbound` every frame / poll; handles CatalogSnapshot + SaveAck
-- **On connect**: automatic `AudioMomentCatalogRequest`
+- **Host bootstrap**: `TransportCommandSender` injected alongside `TransportEventReceiver`
+- **ClientWsTransport v2.3**: `try_recv()`, `tick_heartbeat()`, protocol-aligned `HandshakeRequest`
+- **Client poll**: full drain loop each frame → route audio catalog/ack/pong
+- **On handshake accept**: automatic `AudioMomentCatalogRequest`
 
-## Flow
+## Sealed Paths
 
 ```
-Play event / UI (M)
-  → synthesize_pcm + local catalog/WAV
-  → AudioMomentServerSyncRequest (Bevy) or queue_audio_moment_save_json (WASM)
-  → ClientMessage::AudioMomentSave
-  → ServerAudioMomentStore
-  → ServerMessage::AudioMomentSaveAck
-  → Client route_server_message
+Server replies:
+  process_audio_moment_messages
+    → TransportCommand::Send
+    → TokioTransport writer
+
+Client ingress:
+  update() / poll_server_messages()
+    → transport.try_recv()
+    → route_server_message (catalog / ack / mercy / pong)
+    → flush AudioOutbound
 ```
 
 ## Hotkeys
@@ -35,11 +36,10 @@ Contact: info@Rathor.ai
 
 ## Next Priorities
 
-1. Inject `TransportCommandSender` in host bootstrap (if not already)
-2. Full `transport.try_recv()` loop in client poll (when ClientWsTransport exposes it)
-3. Optional Steam Cloud for `player_data/audio_moments/`
-4. Premade stem registration when assets land
+1. Optional Steam Cloud for `player_data/audio_moments/`
+2. Premade stem registration when assets land
+3. Bevy-side drain of `AudioMomentOutboundQueue` into same transport (native client)
 
 **Thunder locked in.**  
-**Audio moments: create in play → save local + server → recall forever.**  
+**Create → save local+server → recall — transport closed.**  
 Yoi ⚡
