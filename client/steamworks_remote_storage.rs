@@ -2,19 +2,10 @@
  * client/steamworks_remote_storage.rs
  * Powrush-MMO — Steamworks SDK RemoteStorage backend
  *
- * Feature-gated (`steam`). When Steam is running and Cloud is enabled for the
- * app + account, audio moment catalog bytes are written/read via:
- *   ISteamRemoteStorage::FileWrite / FileRead / FileExists / GetFileSize
+ * Feature-gated (`steam`). AppID from SteamPartnerRuntimeConfig resolution.
+ * Updates SteamPartnerChecklistState after init (app_cloud / account_cloud).
  *
- * Without the feature (or if init fails), NullSteamCloudBackend remains active
- * and only the local `steam_cloud/audio_moments/` stage is used (Auto-Cloud).
- *
- * Callbacks: call `pump_steam_callbacks` once per frame while Steam is live.
- *
- * Environment:
- *   STEAM_APP_ID — optional override (else steam_appid.txt / Client::init)
- *
- * v21.89.5 | AG-SML v1.0 | TOLC 8 | Permanent PATSAGi
+ * v21.89.6 | AG-SML v1.0 | TOLC 8 | Permanent PATSAGi
  * Contact: info@Rathor.ai
  */
 
@@ -23,16 +14,15 @@ use crate::steam_cloud_audio_mirror::{
     SteamCloudBackend, SteamCloudBackendHandle, NullSteamCloudBackend,
     STEAM_CLOUD_CATALOG_FILE,
 };
+use crate::steam_partner_config::SteamPartnerChecklistState;
 use std::sync::Arc;
-
-// ─── Feature: steam ──────────────────────────────────────────────────────────
 
 #[cfg(feature = "steam")]
 mod steam_impl {
     use super::*;
+    use crate::steam_partner_config::SteamPartnerRuntimeConfig;
     use steamworks::{Client, SingleClient};
 
-    /// Holds the Steam client + single-threaded callback runner.
     #[derive(Resource)]
     pub struct SteamworksRuntime {
         pub client: Client,
@@ -40,7 +30,6 @@ mod steam_impl {
         pub app_id: u32,
     }
 
-    /// RemoteStorage backend backed by a live Steam Client.
     pub struct SteamRemoteStorageBackend {
         client: Client,
     }
@@ -50,27 +39,9 @@ mod steam_impl {
             Self { client }
         }
 
-        pub fn quota(&self) -> Option<(u64, u64)> {
-            let rs = self.client.remote_storage();
-            // total, available — API: get_quota() -> (u64, u64) in steamworks 0.11
-            Some(rs.quota())
-        }
-
         pub fn cloud_enabled(&self) -> bool {
             let rs = self.client.remote_storage();
             rs.is_cloud_enabled_for_account() && rs.is_cloud_enabled_for_app()
-        }
-
-        pub fn file_exists(&self, name: &str) -> bool {
-            self.client.remote_storage().file_exists(name)
-        }
-
-        pub fn file_delete(&self, name: &str) -> bool {
-            self.client.remote_storage().file_delete(name)
-        }
-
-        pub fn file_count(&self) -> u32 {
-            self.client.remote_storage().file_count()
         }
     }
 
@@ -85,10 +56,12 @@ mod steam_impl {
                 return Err("Steam Cloud disabled for this account".into());
             }
             if !rs.is_cloud_enabled_for_app() {
-                return Err("Steam Cloud disabled for this app".into());
+                return Err(
+                    "Steam Cloud disabled for this app — enable + Publish in Partner checklist step 1"
+                        .into(),
+                );
             }
 
-            // Quota check (best-effort)
             let (total, available) = rs.quota();
             if available > 0 && (bytes.len() as u64) > available {
                 return Err(format!(
@@ -99,8 +72,7 @@ mod steam_impl {
                 ));
             }
 
-            let ok = rs.file_write(remote_name, bytes);
-            if ok {
+            if rs.file_write(remote_name, bytes) {
                 info!(
                     target: "powrush::steam",
                     remote_name,
@@ -125,14 +97,12 @@ mod steam_impl {
                     remote_name
                 ));
             }
-            // steamworks 0.11: file_read returns Vec<u8>
             let data = rs.file_read(remote_name);
             if data.is_empty() {
-                // Distinguish empty file vs read failure when size > 0
                 let size = rs.file_size(remote_name);
                 if size > 0 {
                     return Err(format!(
-                        "RemoteStorage FileRead returned empty for '{}' (reported size {})",
+                        "RemoteStorage FileRead empty for '{}' (size {})",
                         remote_name, size
                     ));
                 }
@@ -147,40 +117,49 @@ mod steam_impl {
         }
     }
 
-    /// Initialize Steamworks and inject SteamRemoteStorageBackend.
-    pub fn try_init_steamworks(commands: &mut Commands) -> Result<u32, String> {
-        // Prefer explicit app id from env for development (steam_appid.txt also works)
-        let app_id_env = std::env::var("STEAM_APP_ID")
-            .ok()
-            .and_then(|s| s.parse::<u32>().ok());
+    pub fn try_init_steamworks(
+        commands: &mut Commands,
+        partner: &SteamPartnerRuntimeConfig,
+        checklist: &mut SteamPartnerChecklistState,
+    ) -> Result<u32, String> {
+        let app_id = partner.app_id;
+        info!(
+            target: "powrush::steam",
+            app_id,
+            source = partner.app_id_source.as_str(),
+            "Initializing Steamworks with resolved AppID"
+        );
 
-        let result = if let Some(app_id) = app_id_env {
-            Client::init_app(steamworks::AppId(app_id)).map_err(|e| format!("{e:?}"))
-        } else {
-            Client::init().map_err(|e| format!("{e:?}"))
-        };
+        let (client, single) = Client::init_app(steamworks::AppId(app_id))
+            .map_err(|e| format!("Steam Client::init_app({app_id}) failed: {e:?}"))?;
 
-        let (client, single) = result.map_err(|e| format!("Steam Client::init failed: {e}"))?;
+        let resolved = client.utils().app_id().0;
+        let rs = client.remote_storage();
+        let account_cloud = rs.is_cloud_enabled_for_account();
+        let app_cloud = rs.is_cloud_enabled_for_app();
+        let (total, available) = rs.quota();
 
-        let app_id = client.utils().app_id().0;
+        checklist.steam_init_ok = true;
+        checklist.cloud_enabled_account = account_cloud;
+        checklist.cloud_enabled_app = app_cloud;
+        checklist.recompute_summary();
 
-        // Log cloud status
-        {
-            let rs = client.remote_storage();
-            info!(
+        info!(
+            target: "powrush::steam",
+            app_id = resolved,
+            account_cloud,
+            app_cloud,
+            file_count = rs.file_count(),
+            total_bytes = total,
+            available_bytes = available,
+            checklist = %checklist.status_summary,
+            "Steamworks initialized"
+        );
+
+        if !app_cloud {
+            warn!(
                 target: "powrush::steam",
-                app_id,
-                account_cloud = rs.is_cloud_enabled_for_account(),
-                app_cloud = rs.is_cloud_enabled_for_app(),
-                file_count = rs.file_count(),
-                "Steamworks initialized"
-            );
-            let (total, available) = rs.quota();
-            info!(
-                target: "powrush::steam",
-                total_bytes = total,
-                available_bytes = available,
-                "Steam Cloud quota"
+                "app_cloud=false — complete Partner checklist step 1 (Enable Steam Cloud + Publish). See publishing/steam/PARTNER_CHECKLIST.md"
             );
         }
 
@@ -191,10 +170,10 @@ mod steam_impl {
         commands.insert_resource(SteamworksRuntime {
             client,
             single,
-            app_id,
+            app_id: resolved,
         });
 
-        Ok(app_id)
+        Ok(resolved)
     }
 
     pub fn pump_steam_callbacks(runtime: Option<ResMut<SteamworksRuntime>>) {
@@ -203,13 +182,11 @@ mod steam_impl {
         }
     }
 
-    /// List remote file names (debug / settings UI)
     pub fn list_remote_files(runtime: &SteamworksRuntime) -> Vec<(String, i32)> {
         let rs = runtime.client.remote_storage();
         let n = rs.file_count();
         let mut out = Vec::with_capacity(n as usize);
         for i in 0..n {
-            // file_name_and_size(index) -> (String, i32) in steamworks 0.11
             let (name, size) = rs.file_name_and_size(i);
             out.push((name, size));
         }
@@ -228,13 +205,11 @@ mod steam_impl {
 #[cfg(feature = "steam")]
 pub use steam_impl::*;
 
-// ─── Plugin ──────────────────────────────────────────────────────────────────
-
-/// Adds Steam init (feature-gated) + optional callback pump.
 pub struct SteamworksRemoteStoragePlugin;
 
 impl Plugin for SteamworksRemoteStoragePlugin {
     fn build(&self, app: &mut App) {
+        // Partner config must load first (same Startup; registration order matters)
         app.add_systems(Startup, init_steam_backend_system);
 
         #[cfg(feature = "steam")]
@@ -244,10 +219,14 @@ impl Plugin for SteamworksRemoteStoragePlugin {
     }
 }
 
-fn init_steam_backend_system(mut commands: Commands) {
+fn init_steam_backend_system(
+    mut commands: Commands,
+    partner: Res<crate::steam_partner_config::SteamPartnerRuntimeConfig>,
+    mut checklist: ResMut<SteamPartnerChecklistState>,
+) {
     #[cfg(feature = "steam")]
     {
-        match steam_impl::try_init_steamworks(&mut commands) {
+        match steam_impl::try_init_steamworks(&mut commands, &partner, &mut checklist) {
             Ok(app_id) => {
                 info!(
                     target: "powrush::steam",
@@ -256,10 +235,13 @@ fn init_steam_backend_system(mut commands: Commands) {
                 );
             }
             Err(e) => {
+                checklist.steam_init_ok = false;
+                checklist.recompute_summary();
                 warn!(
                     target: "powrush::steam",
                     error = %e,
-                    "Steam init failed — using NullSteamCloudBackend (local stage only)"
+                    checklist = %checklist.status_summary,
+                    "Steam init failed — NullSteamCloudBackend (local stage / Auto-Cloud only)"
                 );
                 commands.insert_resource(SteamCloudBackendHandle {
                     backend: Arc::new(NullSteamCloudBackend),
@@ -271,11 +253,14 @@ fn init_steam_backend_system(mut commands: Commands) {
 
     #[cfg(not(feature = "steam"))]
     {
+        let _ = partner;
+        checklist.steam_init_ok = false;
+        checklist.recompute_summary();
         info!(
             target: "powrush::steam",
-            "Built without `steam` feature — NullSteamCloudBackend (Auto-Cloud stage only)"
+            checklist = %checklist.status_summary,
+            "Built without `steam` feature — Null backend"
         );
-        // Default handle already Null; ensure explicit
         commands.insert_resource(SteamCloudBackendHandle {
             backend: Arc::new(NullSteamCloudBackend),
         });
