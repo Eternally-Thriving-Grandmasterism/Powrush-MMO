@@ -1,45 +1,54 @@
 # Powrush-MMO Derivation Status
 
-**Realtime Audio + Network Transport — SEALED (v21.89.3)**  
+**Audio Moments stack COMPLETE (v21.89.4)**  
 **Permanent PATSAGi Councils — ACTIVE**
 
-## Completed This Cycle (v21.89.3)
+## Completed Priorities (this cycle)
 
-- **Host bootstrap**: `TransportCommandSender` injected alongside `TransportEventReceiver`
-- **ClientWsTransport v2.3**: `try_recv()`, `tick_heartbeat()`, protocol-aligned `HandshakeRequest`
-- **Client poll**: full drain loop each frame → route audio catalog/ack/pong
-- **On handshake accept**: automatic `AudioMomentCatalogRequest`
+| Priority | Status |
+|----------|--------|
+| Steam Cloud mirror for `audio_moments` | **DONE** — stage + optional SDK trait |
+| Premade stem registration | **DONE** — manifest + directory scan |
+| Bevy native `AudioMomentOutboundQueue` drain | **DONE** — `NativeClientTransportSender` |
 
-## Sealed Paths
+## Plugin tree (CouncilMercyPlugin)
 
 ```
-Server replies:
-  process_audio_moment_messages
-    → TransportCommand::Send
-    → TokioTransport writer
-
-Client ingress:
-  update() / poll_server_messages()
-    → transport.try_recv()
-    → route_server_message (catalog / ack / mercy / pong)
-    → flush AudioOutbound
+CouncilSessionUIPlugin
+RealtimeAudioSynthesisPlugin
+AudioMomentNetBridgePlugin      ← drain + inbound ServerMessageInbound
+SteamCloudAudioMirrorPlugin     ← export on save, import on startup
+PremadeAudioStemsPlugin         ← builtin + scan assets/audio
 ```
+
+## Paths
+
+| Role | Path |
+|------|------|
+| Local catalog | `player_data/audio_moments/catalog.json` |
+| Local WAV | `player_data/audio_moments/rendered/moment_N.wav` |
+| Steam Auto-Cloud stage | `steam_cloud/audio_moments/catalog_cloud_v1.json` |
+| Premade assets | `client/assets/audio/premade/*` |
+| Server catalog | `server_data/audio_moments/player_*/catalog.json` |
 
 ## Hotkeys
 
 | Key | Panel |
 |-----|--------|
 | **C** | Council |
-| **M** | Audio Moments |
+| **M** | Audio Moments (synth + premade + recall) |
+
+## Native host wire (once)
+
+```rust
+let (tx, rx) = std::sync::mpsc::channel();
+// forward rx → ClientWsTransport.send
+inject_native_transport_sender(&mut commands, tx);
+// on try_recv: events.send(ServerMessageInbound { message });
+```
 
 Contact: info@Rathor.ai
 
-## Next Priorities
-
-1. Optional Steam Cloud for `player_data/audio_moments/`
-2. Premade stem registration when assets land
-3. Bevy-side drain of `AudioMomentOutboundQueue` into same transport (native client)
-
 **Thunder locked in.**  
-**Create → save local+server → recall — transport closed.**  
+**Create · save · cloud-stage · premade · network-drain · recall.**  
 Yoi ⚡
