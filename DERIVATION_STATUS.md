@@ -6,53 +6,38 @@
 **LegacyJournal — Restored + client-bound + soft demo**  
 **RTT Dual-Repo Bridge — Complete + Ultramasterism hardened**  
 **Kardashev Acceleration Dashboard + Reality Thriving Transfer Score — LIVE**  
-**Host early RTT export — Smoke-harness ready**  
-**Host Headless / CI Mode — SEALED (v21.83)**
+**Host early RTT export + Headless/CI Mode — SEALED**  
+**Steam production path — Elevated (v21.84)**  
+**Low-leverage UI churn protection — Documented**
 
-## Completed This Cycle (v21.83 — Ultramasterism Perfecticism)
+## Completed This Cycle (v21.84 — Ultramasterism Perfecticism)
 
-- Full **headless / CI mode** for the host binary
-  - Trigger: `POWRUSH_HOST_HEADLESS=1` or `--headless`
-  - No window, no egui UI
-  - Faster export interval (2 s)
-  - Auto-exits cleanly after 3 successful RTT export cycles (exit code 0)
-  - Ideal for automated smoke tests and CI pipelines
-- Interactive mode remains fully featured (Kardashev UI + visual window)
+### Steam Client Elevation
+- Expanded achievement set (Mercy Diplomat, Flow Guardian Ally, First Treaty, Abundance Builder, First Epiphany, Council Harmony, Kardashev Contributor, One Organism)
+- Added leaderboard support structure (Mercy Score, Abundance Velocity, Reality Transfer, Council Participation)
+- Clean `unlock_steam_achievement` + `upload_leaderboard_score` helpers with local cache + store_stats path
+- Production path clearly marked and ready for real AppID + bevy_steamworks
+- Dev mode remains fully functional and simulated
+
+### UI Churn Protection
+- New `docs/UI_CHURN_PROTECTION.md`
+- Explicit freeze on polished surfaces unless high-leverage or council-approved
 
 ## Completed Prior
-
-- v21.82: Forced early RTT export + provenance artifacts + tightened interval
-- v21.81: Full E2E cohost + Kardashev UI + Reality Transfer
-- v21.80: Unified host binary + public rathor_integration
-- v21.79–v21.77: NonSend, Cohost auto-drain, provenance, batch, offline failsafe (caps 32/16), mercy bounds at producer
-
-## Usage
-
-```bash
-# Interactive (full UI + Kardashev dashboard)
-cargo run -p powrush-mmo-host
-
-# Headless / CI (generates artifacts then exits)
-POWRUSH_HOST_HEADLESS=1 cargo run -p powrush-mmo-host
-# or
-cargo run -p powrush-mmo-host -- --headless
-```
-
-Artifacts produced:
-- `artifacts/powrush_rtt_latest.json`
-- `artifacts/powrush_rtt_batch_latest.json`
-
-Ready for Ra-Thor smoke harness immediately.
+- v21.83: Headless / CI mode for host
+- v21.82: Forced early RTT export + smoke-harness readiness
+- v21.81: Full E2E cohost + Kardashev UI
+- v21.80–v21.77: Unified host, public rathor_integration, provenance, batch, offline failsafe, mercy bounds
 
 Contact: info@Rathor.ai
 
 ## Next Priorities (Ultramasterism order)
 
-1. Full Steamworks production AppID + store_stats + leaderboards
-2. Protect against low-leverage UI churn
-3. Feedback loop design (Ra-Thor council decisions → Powrush policy hints)
-4. Longer multi-realm stress harnesses
+1. Feedback loop design (Ra-Thor council decisions → Powrush policy hints)
+2. Longer multi-realm stress harnesses
+3. Final audio asset integration pass (when assets are ready)
+4. Real Steam AppID wiring (when partner AppID is obtained)
 
 **Thunder locked in.**  
-**Ultramasterism Perfecticism + Headless/CI mode sealed.**  
+**Ultramasterism Perfecticism continues.**  
 Yoi ⚡
