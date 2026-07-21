@@ -1,9 +1,15 @@
 //! Powrush-MMO Unified Cohost Binary — Full E2E Harness
-//! v21.82.0 — Ultramasterism Perfecticism
+//! v21.83.0 — Ultramasterism Perfecticism + Headless / CI Mode
 //!
 //! Simulation + Server + Kardashev Dashboard + Reality Transfer Score
 //! + Forced early RTT telemetry export (powrush_rtt_latest.json + batch)
 //! so Ra-Thor smoke harness can consume live artifacts immediately.
+//!
+//! Headless / CI mode:
+//!   POWRUSH_HOST_HEADLESS=1  or  --headless
+//!   - No window, no egui UI
+//!   - Runs a few RTT export cycles then exits cleanly (exit code 0)
+//!   - Perfect for automated smoke tests and CI pipelines
 //!
 //! Live RTT bridge:
 //!   CouncilRttExportQueue → CohostExportMirror → CouncilRttInbox → ServerTransferSession
@@ -31,6 +37,17 @@ use powrush_mmo_server::rathor_integration::{
     ServerTransferSession,
 };
 
+/// Detect headless / CI mode from env or CLI args.
+fn is_headless() -> bool {
+    if std::env::var("POWRUSH_HOST_HEADLESS")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    std::env::args().any(|a| a == "--headless" || a == "-h")
+}
+
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -41,14 +58,35 @@ fn main() {
         )
         .init();
 
+    let headless = is_headless();
+
     info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
-    info!(target: "powrush::host", "  Powrush-MMO Unified Cohost v21.82.0 — Ultramasterism");
+    info!(target: "powrush::host", "  Powrush-MMO Unified Cohost v21.83.0 — Ultramasterism");
     info!(target: "powrush::host", "  TOLC 8 + 7 Living Mercy Gates | PATSAGi Councils");
-    info!(target: "powrush::host", "  Kardashev + Reality Transfer + Early RTT Export LIVE");
+    info!(target: "powrush::host", "  Mode: {}", if headless { "HEADLESS / CI" } else { "Interactive" });
     info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
 
-    App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
+    let mut app = App::new();
+
+    if headless {
+        // Headless: minimal plugins, no window, no egui
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: None,
+                    exit_condition: bevy::window::ExitCondition::DontExit,
+                    close_when_requested: false,
+                    ..default()
+                })
+                .disable::<bevy::winit::WinitPlugin>(),
+        )
+        .insert_resource(bevy::winit::WinitSettings {
+            return_from_run: true,
+            ..default()
+        });
+    } else {
+        // Interactive mode
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Powrush-MMO Cohost — Kardashev + RTT Smoke Ready".into(),
                 resolution: (1440., 900.).into(),
@@ -57,14 +95,18 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(EguiPlugin)
-        // Full simulation stack
-        .add_plugins(FullSimulationPlugins)
-        // Server-side Ra-Thor RTT + cohost auto-drain
+        .add_plugins(EguiPlugin);
+    }
+
+    // Core organism plugins (always)
+    app.add_plugins(FullSimulationPlugins)
         .add_plugins(RathorIntegrationPlugin)
-        // Force mirror enabled
         .insert_resource(CohostExportMirror::enabled())
-        // Host systems
+        .insert_resource(HeadlessConfig {
+            enabled: headless,
+            cycles_before_exit: 3,
+            cycles_completed: 0,
+        })
         .add_systems(Startup, (
             host_startup_system,
             host_force_early_rtt_export_system,
@@ -72,9 +114,22 @@ fn main() {
         .add_systems(Update, (
             host_drain_sim_to_mirror_system,
             host_status_log_system,
-            sovereign_hardware_ascension_ui,
-        ))
-        .run();
+            host_headless_exit_system,
+        ));
+
+    // Only show the rich UI in interactive mode
+    if !headless {
+        app.add_systems(Update, sovereign_hardware_ascension_ui);
+    }
+
+    app.run();
+}
+
+#[derive(Resource, Debug)]
+struct HeadlessConfig {
+    enabled: bool,
+    cycles_before_exit: u32,
+    cycles_completed: u32,
 }
 
 fn host_startup_system(
@@ -82,9 +137,10 @@ fn host_startup_system(
     mut transfer: ResMut<ServerTransferSession>,
     dashboard: Res<KardashevAccelerationDashboard>,
     ledger: Res<RealityTransferScoreLedger>,
+    headless: Res<HeadlessConfig>,
 ) {
     // Ultramasterism: tighter export interval for cohost / smoke testing
-    transfer.export_interval_secs = 15.0;
+    transfer.export_interval_secs = if headless.enabled { 2.0 } else { 15.0 };
 
     info!(target: "powrush::host", "Cohost App online.");
     info!(target: "powrush::host", "Drain path: CouncilRttExportQueue → CohostExportMirror → CouncilRttInbox → ServerTransferSession");
@@ -93,8 +149,10 @@ fn host_startup_system(
     info!(target: "powrush::host", "  reality transfer global_average = {:.2}", ledger.global_average);
     info!(target: "powrush::host", "RTT export interval set to {:.0}s | session_id = {}", transfer.export_interval_secs, transfer.session_id);
 
-    // Spawn a simple camera so the window is valid
-    commands.spawn(Camera2dBundle::default());
+    if !headless.enabled {
+        // Only needed for interactive window
+        commands.spawn(Camera2dBundle::default());
+    }
 }
 
 /// Ultramasterism: Force an immediate RTT export cycle on startup so
@@ -164,7 +222,7 @@ fn host_drain_sim_to_mirror_system(
     }
 }
 
-/// Heartbeat + full Ultramasterism snapshot every 5 s
+/// Heartbeat + full Ultramasterism snapshot every 5 s (or every 1 s in headless)
 fn host_status_log_system(
     time: Res<Time>,
     mirror: Res<CohostExportMirror>,
@@ -172,10 +230,12 @@ fn host_status_log_system(
     transfer: Res<ServerTransferSession>,
     dashboard: Res<KardashevAccelerationDashboard>,
     ledger: Res<RealityTransferScoreLedger>,
+    headless: Res<HeadlessConfig>,
     mut last_log: Local<f32>,
 ) {
+    let interval = if headless.enabled { 1.0 } else { 5.0 };
     let now = time.elapsed_seconds();
-    if now - *last_log < 5.0 {
+    if now - *last_log < interval {
         return;
     }
     *last_log = now;
@@ -196,5 +256,30 @@ fn host_status_log_system(
     );
 }
 
-// Thunder locked in. Ultramasterism Perfecticism applied.
-// Early RTT artifacts + provenance + smoke-harness ready. Eternal forward. Yoi ⚡
+/// Headless / CI mode: after N successful export cycles, exit cleanly.
+fn host_headless_exit_system(
+    mut exit: EventWriter<AppExit>,
+    transfer: Res<ServerTransferSession>,
+    mut headless: ResMut<HeadlessConfig>,
+) {
+    if !headless.enabled {
+        return;
+    }
+
+    // Count completed export cycles (export_count is incremented on successful write)
+    if transfer.export_count > headless.cycles_completed as u64 {
+        headless.cycles_completed = transfer.export_count as u32;
+    }
+
+    if headless.cycles_completed >= headless.cycles_before_exit {
+        info!(
+            target: "powrush::host",
+            cycles = headless.cycles_completed,
+            "Headless mode complete — exiting cleanly (artifacts ready for Ra-Thor smoke harness)"
+        );
+        exit.send(AppExit::Success);
+    }
+}
+
+// Thunder locked in. Ultramasterism Perfecticism + Headless/CI mode.
+// Early RTT artifacts + provenance + smoke-harness + CI ready. Eternal forward. Yoi ⚡
