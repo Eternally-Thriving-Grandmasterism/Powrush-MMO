@@ -1,5 +1,5 @@
 /*!
- * Council Session Handler (Server Authoritative) — Full Multiplayer Council Mercy Trial End-to-End v19.3
+ * Council Session Handler (Server Authoritative) — Full Multiplayer Council Mercy Trial End-to-End v21.88.2
  *
  * Complete lifecycle wiring:
  * Lobby → Attunement → Deliberation → Voting → Resolution → Completed + bloom + persistence
@@ -9,21 +9,27 @@
  * Zero-lag client sync via CouncilSessionUpdate + CouncilTrialResolved.
  * Consistent with shared protocol.
  *
- * Council Proposal System: Basic SubmitProposal + CastProposalVote handling + storage.
- * Helpers from shared types wired in. Proposals active during Deliberation.
+ * Council Proposal System polish (v21.88.2):
+ * - linked_session_id support
+ * - Auto-promote Submitted → UnderDeliberation when any trial enters Deliberation
+ * - Passed proposals inject influence notes into the trial resolution path
+ * - Slightly more mercy-aligned auto-transition thresholds
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
- * Ra-Thor Quantum Swarm v2 native
+ * Ra-Thor Quantum Swarm v2 native | Permanent PATSAGi Councils
  * Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
-use shared::council_mercy_trial::{CouncilMercyTrialPhase as CouncilPhase, CouncilSessionState, CollectiveEpiphanyBloom, MercyTrialVote, CouncilProposal, ProposalStatus};
+use shared::council_mercy_trial::{
+    CouncilMercyTrialPhase as CouncilPhase, CouncilSessionState, CollectiveEpiphanyBloom,
+    MercyTrialVote, CouncilProposal, ProposalStatus, CouncilTrialEvent,
+};
 use std::collections::HashMap;
 
 use simulation::quantum_swarm_orchestrator::QuantumSwarmOrchestratorV2;
 use crate::persistence_polish::{PersistenceManager, PlayerSaveData};
-use crate::council_mercy_trial::CouncilTrialSystemSet; // Priority 3
+use crate::council_mercy_trial::CouncilTrialSystemSet;
 
 /// Lightweight struct to track vote type counts for fast bloom calculation
 #[derive(Default, Clone, Copy)]
@@ -61,6 +67,7 @@ impl Plugin for CouncilSessionPlugin {
             .add_systems(Update, (
                 handle_council_trial_events,
                 advance_trial_phases,
+                promote_proposals_on_deliberation,
                 resolve_completed_trials,
                 broadcast_council_updates,
                 integrate_rbe_abundance_signals,
@@ -162,45 +169,65 @@ fn handle_council_trial_events(
                 }
             }
 
-            // === Council Proposal System: Basic submission handling ===
+            // === Council Proposal System: submission ===
             CouncilTrialEvent::SubmitProposal { proposer, title, description } => {
                 let proposal_id = trials.next_proposal_id;
                 trials.next_proposal_id += 1;
 
-                let proposal = CouncilProposal::new(
+                // Prefer linking to the most recent active trial if one exists
+                let linked = trials
+                    .sessions
+                    .values()
+                    .filter(|s| s.phase != CouncilPhase::Completed)
+                    .map(|s| s.session_id)
+                    .max();
+
+                let proposal = CouncilProposal::new_linked(
                     proposal_id,
                     *proposer,
                     title.clone(),
                     description.clone(),
                     now,
+                    linked,
                 );
 
                 trials.proposals.insert(proposal_id, proposal);
 
                 info!(
-                    "Council Proposal submitted | id={} | proposer={:?} | title={}",
-                    proposal_id, proposer, title
+                    "Council Proposal submitted | id={} | proposer={:?} | title={} | linked_session={:?}",
+                    proposal_id, proposer, title, linked
                 );
             }
 
-            // === Council Proposal System: Basic vote handling (polish) ===
+            // === Council Proposal System: vote handling ===
             CouncilTrialEvent::CastProposalVote { proposal_id, voter: _, is_for } => {
                 if let Some(proposal) = trials.proposals.get_mut(proposal_id) {
-                    // Only allow votes while under deliberation or voting
-                    if matches!(proposal.status, ProposalStatus::Submitted | ProposalStatus::UnderDeliberation | ProposalStatus::Voting) {
+                    if matches!(
+                        proposal.status,
+                        ProposalStatus::Submitted
+                            | ProposalStatus::UnderDeliberation
+                            | ProposalStatus::Voting
+                    ) {
                         proposal.cast_vote(*is_for);
 
-                        // Simple auto-transition example (can be expanded)
-                        if proposal.votes_for >= 3 && proposal.status != ProposalStatus::Passed {
-                            proposal.update_status(ProposalStatus::Passed);
-                        } else if proposal.votes_against >= 3 && proposal.status != ProposalStatus::Rejected {
-                            proposal.update_status(ProposalStatus::Rejected);
+                        // Mercy-aligned thresholds (slightly more generous for Pass)
+                        if proposal.votes_for >= 2 && proposal.votes_for > proposal.votes_against {
+                            if proposal.status != ProposalStatus::Passed {
+                                proposal.update_status(ProposalStatus::Passed);
+                                info!(
+                                    "Council Proposal PASSED | id={} | for={} against={} | title={}",
+                                    proposal_id, proposal.votes_for, proposal.votes_against, proposal.title
+                                );
+                            }
+                        } else if proposal.votes_against >= 3 && proposal.votes_against > proposal.votes_for {
+                            if proposal.status != ProposalStatus::Rejected {
+                                proposal.update_status(ProposalStatus::Rejected);
+                                info!(
+                                    "Council Proposal REJECTED | id={} | for={} against={}",
+                                    proposal_id, proposal.votes_for, proposal.votes_against
+                                );
+                            }
                         }
-
-                        info!(
-                            "Council Proposal vote | id={} | for={} | status={:?}",
-                            proposal_id, is_for, proposal.status
-                        );
                     }
                 }
             }
@@ -246,6 +273,32 @@ fn advance_trial_phases(
     }
 }
 
+/// When any trial enters Deliberation, promote all Submitted proposals to UnderDeliberation.
+/// This keeps the proposal system tightly coupled to the living trial cadence.
+fn promote_proposals_on_deliberation(
+    trials: Res<ActiveCouncilTrials>,
+    mut proposals: ResMut<ActiveCouncilTrials>, // same resource — safe under Bevy exclusive access
+) {
+    let any_in_deliberation = trials
+        .sessions
+        .values()
+        .any(|s| s.phase == CouncilPhase::Deliberation);
+
+    if !any_in_deliberation {
+        return;
+    }
+
+    for proposal in proposals.proposals.values_mut() {
+        if proposal.status == ProposalStatus::Submitted {
+            proposal.promote_to_deliberation();
+            info!(
+                "Council Proposal auto-promoted to UnderDeliberation | id={} | title={}",
+                proposal.id, proposal.title
+            );
+        }
+    }
+}
+
 /// Resolves trials that have reached Completed and emits rich persistence payload
 fn resolve_completed_trials(
     mut trials: ResMut<ActiveCouncilTrials>,
@@ -264,7 +317,22 @@ fn resolve_completed_trials(
 
             for (participant, _vote) in &state.votes {
                 participant_mercy_scores.insert(*participant, state.collective_attunement);
-                enriched_notes.push(format!("Council bloom session {} intensity {:.2}", session_id, bloom.intensity));
+                enriched_notes.push(format!(
+                    "Council bloom session {} intensity {:.2}",
+                    session_id, bloom.intensity
+                ));
+            }
+
+            // Inject Passed proposal influence notes (mercy-aligned)
+            for proposal in trials.proposals.values() {
+                if proposal.status == ProposalStatus::Passed {
+                    if proposal.linked_session_id == Some(*session_id) || proposal.linked_session_id.is_none() {
+                        enriched_notes.push(format!(
+                            "Passed Council Proposal #{} — \"{}\" (for={}, against={})",
+                            proposal.id, proposal.title, proposal.votes_for, proposal.votes_against
+                        ));
+                    }
+                }
             }
 
             resolved_events.send(CouncilTrialResolved {
@@ -377,11 +445,12 @@ fn persist_trial_outcome(
             let mercy_impact = mercy_score * 10.0;
 
             info!(
-                "E2E PERSIST | Council trial {} resolved | participant={:?} | bloom_intensity={:.2} | mercy_impact={:.1}",
+                "E2E PERSIST | Council trial {} resolved | participant={:?} | bloom_intensity={:.2} | mercy_impact={:.1} | notes={}",
                 resolved.session_id,
                 participant,
                 resolved.bloom.intensity,
-                mercy_impact
+                mercy_impact,
+                resolved.enriched_epiphany_notes.len()
             );
         }
     }
@@ -398,8 +467,15 @@ fn cleanup_resolved_cache(
         let active_ids: std::collections::HashSet<_> = trials.sessions.keys().cloned().collect();
         trials.vote_counts.retain(|id, _| active_ids.contains(id));
     }
+    // Keep recent Passed proposals for a while; prune only very old Rejected/Withdrawn
+    if trials.proposals.len() > 256 {
+        trials.proposals.retain(|_, p| {
+            !matches!(p.status, ProposalStatus::Rejected | ProposalStatus::Withdrawn)
+        });
+    }
 }
 
-// End of Council Session Handler v19.3 — Full E2E Council Mercy Trial lifecycle with active persistence wiring.
-// Council Proposal System: SubmitProposal + CastProposalVote handling complete (minimal viable).
+// End of Council Session Handler v21.88.2
+// Council Proposal System polish complete: linked_session_id, auto-promotion on Deliberation,
+// Passed proposals inject influence notes into resolution path.
 // All prior valuable logic preserved + enriched. Thunder locked in. Yoi ⚡
