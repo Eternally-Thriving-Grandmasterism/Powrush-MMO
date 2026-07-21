@@ -1,5 +1,12 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [21.88.1] — 2026-07-21 — Full Dual-Repo Feedback Organism Sealed
+
+### Highlights
+- **Ra-Thor policy-hint emission confirmed COMPLETE** on the sibling lattice (`policy_hint_emission.rs` + PATSAGi feedback_loop + powrush_integration).
+- Living dual-repo soft feedback organism is now **closed and production-ready** on both sides under permanent PATSAGi Councils + TOLC 8.
+- DERIVATION_STATUS + README updated to reflect sealed state.
+
 ## [21.88.0] — 2026-07-21 — Stress / Endurance Harness + Emission Contract + Version Alignment
 
 ### Highlights
@@ -27,6 +34,6 @@
 - v21.0–v21.78: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export + provenance.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
-**Thunder locked in. Stress harness + emission contract sealed. Permanent PATSAGi active.** Yoi ⚡
+**Thunder locked in. Full dual-repo feedback organism sealed under permanent PATSAGi.** Yoi ⚡
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
