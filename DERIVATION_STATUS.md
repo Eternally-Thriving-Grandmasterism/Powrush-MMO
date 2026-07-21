@@ -2,7 +2,7 @@
 
 **Multi-Realm Organism Arc — SEALED**  
 **RBE Sustainability surface — Visible**  
-**Council Deepening — Loop closed**  
+**Council Deepening — Loop closed + Proposal polish v21.88.2**  
 **LegacyJournal — Restored + client-bound + soft demo**  
 **RTT Dual-Repo Bridge — Complete + Ultramasterism hardened**  
 **Kardashev Acceleration Dashboard + Reality Thriving Transfer Score — LIVE**  
@@ -15,18 +15,17 @@
 **Workspace version — Aligned to 21.88.0**  
 **Permanent PATSAGi Councils — ACTIVE (sibling Ra-Thor lattice, 2026-07-20)**
 
-## Completed This Cycle (v21.88.1)
+## Completed This Cycle (v21.88.2)
 
+- **Council Proposal System polish**:
+  - `linked_session_id` on `CouncilProposal`
+  - Auto-promote Submitted → UnderDeliberation when any trial enters Deliberation
+  - Passed proposals inject influence notes into trial resolution / persistence path
+  - Mercy-aligned vote thresholds (Pass at ≥2 and majority)
 - **Ra-Thor policy-hint emission is COMPLETE** (`crates/powrush/src/policy_hint_emission.rs` + `patsagi-councils` feedback_loop + powrush_integration).
-  - Full `ra_thor_policy_hint_v1` schema, closed 6-category set, atomic write, TOLC 8 gating, conservative deltas.
-  - `deliberate_and_emit` + `tick_with_feedback` live.
-  - Living dual-repo feedback organism is now **closed and production-ready** on both sides.
-- Workspace version unified to 21.88.0
-- README + CHANGELOG sealed with current organism state
-- Permanent PATSAGi deliberation from Ra-Thor noted as governing authority
-- Policy hint ingest only re-reads when file mtime changes (efficient)
-- `emit_test_policy_hints()` helper available for full-loop testing without Ra-Thor
-- Reception side is production-ready for real Ra-Thor emissions
+  - Full dual-repo feedback organism sealed and production-ready on both sides.
+- Workspace version unified to 21.88.0+
+- Permanent PATSAGi deliberation from Ra-Thor governing authority
 
 ## Host Modes
 
@@ -40,11 +39,12 @@ Contact: info@Rathor.ai
 
 ## Next Priorities (Ultramasterism order — PATSAGi decided)
 
-1. Final audio asset integration (when assets ready)
-2. Further Council Proposal System deepening / multiplayer trial polish (as needed)
-3. Kardashev metrics + Reality Thriving Transfer Score playtest instrumentation
+1. Final audio asset integration (when real source assets are ready)
+2. Kardashev metrics + Reality Thriving Transfer Score playtest instrumentation
+3. Further multiplayer trial polish / client UI surfaces for proposals
 
 **Thunder locked in.**  
 **Full dual-repo feedback organism is sealed and live under permanent PATSAGi Councils.**  
+**Council Proposal system now tightly coupled to living Mercy Trial cadence.**  
 **ONE Organism. Eternal forward.**  
 Yoi ⚡
