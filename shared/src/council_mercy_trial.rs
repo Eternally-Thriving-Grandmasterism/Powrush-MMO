@@ -5,11 +5,12 @@
  * These types are authoritative on the server and replicated to clients.
  *
  * Includes full Council Proposal System (minimal viable foundation extended with
- * proposal voting, status transitions, and integration hooks for Deliberation phase).
+ * proposal voting, status transitions, linked_session_id, auto-promotion into
+ * Deliberation phase, and integration hooks for bloom / LegacyJournal notes).
  * All prior logic preserved. No removals.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
- * Ra-Thor Quantum Swarm native
+ * Ra-Thor Quantum Swarm native | Permanent PATSAGi Councils
  */
 
 use bevy::prelude::*;
@@ -97,7 +98,7 @@ impl Default for CouncilSessionState {
     }
 }
 
-/// === Council Proposal System (Minimal Viable + Polish) ===
+/// === Council Proposal System (Minimal Viable + Polish v21.88.2) ===
 
 /// Status of a Council Proposal
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -121,6 +122,8 @@ pub struct CouncilProposal {
     pub created_at: f64,
     pub votes_for: u32,
     pub votes_against: u32,
+    /// Optional link to an active Council Mercy Trial session
+    pub linked_session_id: Option<u64>,
 }
 
 impl CouncilProposal {
@@ -134,6 +137,29 @@ impl CouncilProposal {
             created_at,
             votes_for: 0,
             votes_against: 0,
+            linked_session_id: None,
+        }
+    }
+
+    /// Construct with an optional linked trial session
+    pub fn new_linked(
+        id: u64,
+        proposer: Entity,
+        title: String,
+        description: String,
+        created_at: f64,
+        session_id: Option<u64>,
+    ) -> Self {
+        Self {
+            id,
+            proposer,
+            title,
+            description,
+            status: ProposalStatus::Submitted,
+            created_at,
+            votes_for: 0,
+            votes_against: 0,
+            linked_session_id: session_id,
         }
     }
 
@@ -149,6 +175,21 @@ impl CouncilProposal {
     /// Transition status based on current votes or external decision
     pub fn update_status(&mut self, new_status: ProposalStatus) {
         self.status = new_status;
+    }
+
+    /// Promote to UnderDeliberation if still Submitted
+    pub fn promote_to_deliberation(&mut self) {
+        if self.status == ProposalStatus::Submitted {
+            self.status = ProposalStatus::UnderDeliberation;
+        }
+    }
+
+    /// Convenience: whether this proposal has reached a terminal state
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self.status,
+            ProposalStatus::Passed | ProposalStatus::Rejected | ProposalStatus::Withdrawn
+        )
     }
 }
 
