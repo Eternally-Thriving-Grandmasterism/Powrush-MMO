@@ -1,60 +1,45 @@
 # Steam Cloud — Audio Moment Catalog
 
-Powrush-MMO syncs **recipe catalogs** (not bulk PCM) through Steam Cloud so players can recall moments across machines.
+**Partner dashboard steps:** [`publishing/steam/PARTNER_CHECKLIST.md`](../publishing/steam/PARTNER_CHECKLIST.md)  
+**Canonical config:** [`publishing/steam/steam_cloud_config.json`](../publishing/steam/steam_cloud_config.json)
+
+Powrush-MMO syncs **recipe catalogs** (not bulk PCM) through Steam Cloud.
 
 ## Two layers
 
 | Layer | Path / API | When |
 |-------|------------|------|
-| **Local stage** | `steam_cloud/audio_moments/catalog_cloud_v1.json` | Always (Auto-Cloud fallback) |
-| **RemoteStorage SDK** | `ISteamRemoteStorage::FileWrite("catalog_cloud_v1.json")` | `--features steam` + Steam running |
+| **Auto-Cloud stage** | OS-specific `…/Powrush-MMO/steam_cloud/audio_moments/catalog_cloud_v1.json` + portable `steam_cloud/audio_moments/` | Always |
+| **RemoteStorage SDK** | `FileWrite("catalog_cloud_v1.json")` | `--features steam` + Steam running + app cloud enabled |
 
-## Build
+## AppID resolution
+
+1. `STEAM_APP_ID` env  
+2. `app_id.shipping` in config (when set)  
+3. `steam_appid.txt`  
+4. `app_id.development` (480 Spacewar)
 
 ```bash
-# With Steamworks SDK linked
+python publishing/steam/sync_steam_appid.py --development
+python publishing/steam/sync_steam_appid.py --shipping   # after shipping ID is set
 cargo run -p powrush-client --features steam
-
-# Optional app id override (dev)
-export STEAM_APP_ID=480   # Spacewar for testing; replace with real AppID
 ```
 
-Place `steam_appid.txt` next to the binary (repo includes `client/steam_appid.txt` with `480` for Spacewar testing).
+**Never ship `steam_appid.txt` in production depots.**
 
-## Steamworks Partner setup
+## Partner checklist (summary)
 
-1. **Steamworks App Admin → Steam Cloud**
-   - Enable Steam Cloud for the app
-   - Byte quota: default 1 GB is plenty (catalog JSON is small)
-2. **Optional Auto-Cloud** (for the stage file without SDK):
-   - Root: App Install Directory (or appropriate platform root)
-   - Subdirectory: `steam_cloud/audio_moments`
-   - Pattern: `*`
-3. Publish the cloud settings change
+1. **Enable Steam Cloud** on the app + set quota + **Publish**
+2. **Auto-Cloud** four rules (Win/Mac/Linux/InstallDir) + **Publish**
+3. Set **`app_id.shipping`** and sync / strip for shipping builds
 
-## Runtime behavior
+See the full checklist for exact dashboard clicks and verification logs.
 
-**Export** (after any audio moment save):
-1. Write local stage JSON
-2. If Steam Cloud enabled for account + app → `FileWrite("catalog_cloud_v1.json", bytes)`
-3. Quota checked before write
+## Runtime
 
-**Import** (startup):
-1. Prefer `FileRead` from RemoteStorage when available
-2. Else read local stage file
-3. Merge any moments missing from the local catalog
-
-**Callbacks:** `SingleClient::run_callbacks()` is pumped every frame while Steam is initialized.
-
-## What is NOT uploaded
-
-- Rendered WAV under `player_data/audio_moments/rendered/` (regenerated from recipes)
-- Premade game assets under `assets/audio/` (ship with the build)
-
-## API surface (code)
-
-- Trait: `SteamCloudBackend` in `client/steam_cloud_audio_mirror.rs`
-- Impl: `SteamRemoteStorageBackend` in `client/steamworks_remote_storage.rs`
-- Plugin order: `SteamworksRemoteStoragePlugin` → `SteamCloudAudioMirrorPlugin`
+- Export on every audio moment save (stage + optional RemoteStorage)
+- Import on startup (RemoteStorage preferred, else stage files)
+- Callbacks pumped every frame when Steam is live
+- Checklist readiness logged: `config✓ · shipping_appid· · steam_init· · app_cloud· · account_cloud·`
 
 Contact: info@Rathor.ai
