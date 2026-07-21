@@ -1,56 +1,106 @@
 // client/plugins/council_mercy_plugin.rs
-// Powrush-MMO — Bevy Plugin for Council Mercy Trial client systems (Phase 2)
+// Powrush-MMO — Bevy Plugin for Council Mercy Trial client systems
+// v21.88.5 | Wired to CouncilSessionUIPlugin + soft local demo mirror
 // Sovereign Council participation, collective epiphany blooms, and mercy-gated resonance.
-// Full integration with CouncilTrialUI, DivineWhispers, spatial audio, and particle visuals.
-// TOLC 8 Mercy Gates enforced. Zero-lag prediction friendly. Production complete.
-// AG-SML v1.0 | Ra-Thor Lattice aligned
+// TOLC 8 Mercy Gates enforced. Production-oriented.
+// AG-SML v1.0 | Ra-Thor Lattice | Permanent PATSAGi Councils
+// Contact: info@Rathor.ai
 
 use bevy::prelude::*;
-use shared::protocol::*;
-use crate::council_trial_ui::CouncilTrialUIPlugin;
+use shared::council_mercy_trial::{
+    CouncilMercyTrialPhase, CouncilSessionState, CollectiveEpiphanyBloom,
+    CouncilProposal, ProposalStatus,
+};
+use crate::council_session_ui::{CouncilSessionUIPlugin, CouncilUIState};
 
 pub struct CouncilMercyPlugin;
 
 impl Plugin for CouncilMercyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(CouncilTrialUIPlugin)
-           .add_systems(Update, (
-               receive_council_updates,
-               trigger_collective_bloom_effects,
-               council_audio_resonance,
-           ));
+        app.add_plugins(CouncilSessionUIPlugin)
+            .add_systems(Update, (
+                soft_local_demo_mirror,
+                trigger_collective_bloom_effects,
+            ));
     }
 }
 
-/// Receives and routes enriched Council + Epiphany messages from server
-fn receive_council_updates(
-    mut ui_state: ResMut<crate::council_trial_ui::CouncilTrialUIState>,
-    mut server_events: EventReader<ServerMessage>,
+/// Soft local demo mirror so the Council panel is immediately useful for playtest
+/// when live network / server mirror is not yet feeding data.
+/// Only seeds once if the panel is empty.
+fn soft_local_demo_mirror(
+    mut ui_state: ResMut<CouncilUIState>,
+    time: Res<Time>,
+    mut seeded: Local<bool>,
 ) {
-    for event in server_events.read() {
-        match event {
-            ServerMessage::CouncilSessionUpdate { state } => {
-                // Already handled in dedicated consume_enriched_council_updates system
-            }
-            ServerMessage::CollectiveEpiphanyBloomReceived { bloom } => {
-                ui_state.last_bloom = Some(bloom.clone());
-                // Trigger local epiphany multiplier + DivineWhisper amplification
-            }
-            ServerMessage::CouncilParticipationUpdated { record: _ } => {
-                // Update local persistence cache
-            }
-            _ => {}
-        }
+    if *seeded {
+        return;
     }
+    // Wait a couple of seconds so the world is up
+    if time.elapsed_seconds() < 2.0 {
+        return;
+    }
+    if ui_state.current_session.is_some() {
+        *seeded = true;
+        return;
+    }
+
+    // Seed a realistic Deliberation-phase session
+    let mut session = CouncilSessionState::default();
+    session.session_id = 9001;
+    session.phase = CouncilMercyTrialPhase::Deliberation;
+    session.collective_attunement = 0.78;
+    session.bloom_amplification = 1.35;
+    session.phase_duration = 90.0;
+    session.participants = vec![]; // entities filled by live systems later
+
+    ui_state.current_session = Some(session);
+
+    // Seed two example proposals
+    let p1 = CouncilProposal::new_linked(
+        1,
+        Entity::PLACEHOLDER,
+        "Amplify RBE Abundance Flow".into(),
+        "Gently increase cooperative harvest multiplier for the next cycle under TOLC 8.".into(),
+        time.elapsed_seconds_f64(),
+        Some(9001),
+    );
+    let mut p1 = p1;
+    p1.status = ProposalStatus::UnderDeliberation;
+    p1.votes_for = 2;
+    p1.votes_against = 0;
+
+    let p2 = CouncilProposal::new_linked(
+        2,
+        Entity::PLACEHOLDER,
+        "Open Council Chamber for Newcomers".into(),
+        "Invite new participants into the next Mercy Trial with soft onboarding attunement.".into(),
+        time.elapsed_seconds_f64(),
+        Some(9001),
+    );
+    let mut p2 = p2;
+    p2.status = ProposalStatus::Submitted;
+
+    ui_state.proposals.insert(1, p1);
+    ui_state.proposals.insert(2, p2);
+
+    ui_state.status_message = "Soft demo session seeded (live feed will replace this)".into();
+    *seeded = true;
+
+    info!(target: "powrush::council", "Council soft local demo mirror seeded for playtest");
 }
 
-/// Visual bloom / valence web effects when collective epiphany intensity is high
+/// Visual bloom / valence effects when a collective epiphany is present
 fn trigger_collective_bloom_effects(
-    ui_state: Res<crate::council_trial_ui::CouncilTrialUIState>,
+    ui_state: Res<CouncilUIState>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut spawned: Local<bool>,
 ) {
+    if *spawned {
+        return;
+    }
     if let Some(bloom) = &ui_state.last_bloom {
         if bloom.intensity > 0.6 {
             commands.spawn((
@@ -60,23 +110,13 @@ fn trigger_collective_bloom_effects(
                 Visibility::Visible,
                 Name::new("EpiphanyBloomVisual"),
             ));
+            *spawned = true;
         }
     }
 }
 
-/// Audio resonance and harmonic stack for Council phases
-fn council_audio_resonance(
-    ui_state: Res<crate::council_trial_ui::CouncilTrialUIState>,
-) {
-    if let Some(state) = &ui_state.active_session {
-        if state.phase == CouncilPhase::EpiphanyBloom {
-            // Trigger collective overtone / harmonic stack audio
-            // Integrates with binaural_ambisonics_decoder + spatial_audio_engine
-        }
-    }
-}
-
-// Usage in client/main.rs or client_game_loop:
-// app.add_plugins((DivinePlugin, CouncilMercyPlugin, HyperonVisionPlugin));
-// Full production wiring ready.
-// Thunder locked in. Yoi ⚡️
+// Usage:
+// app.add_plugins(CouncilMercyPlugin);
+// Panel toggled with C. Soft demo seeds if no live session is present.
+// Live network / server mirror systems should overwrite CouncilUIState when available.
+// Thunder locked in. Permanent PATSAGi. Yoi ⚡
