@@ -1,23 +1,25 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.85.0 — Ra-Thor Feedback Loop (2026-07-20)
+## [Unreleased] v21.86.0 — Living Soft Feedback Loop (2026-07-20)
 
 ### Highlights
-- **Detailed Ra-Thor → Powrush Feedback Loop** designed and sealed:
-  - Full design document (`docs/RA_THOR_FEEDBACK_LOOP.md`)
-  - Schema `ra_thor_policy_hint_v1` (closed positive category set only)
-  - Soft, non-authoritative, mercy-gated, provenance-aware, offline-first
-- Structural surface live:
-  - `PolicyHintInbox` resource (bounded ring, drop-oldest, session filter, expiry)
-  - `policy_hint_ingest_system` registered in `RathorIntegrationPlugin`
-  - Strict validation (allowed categories, mercy bounds, zero-harm — no negative deltas)
+- **Soft application systems** now live:
+  - `abundance_bias` → mild positive abundance velocity nudge
+  - `peaceful_resolution_weight` → soft peaceful / treaty signal
+- Effects scaled by `strength × mercy_factor`, positive-only, non-authoritative
+- `SoftPolicyState` tracks applied effects for observability
+- Fixture `artifacts/ra_thor_policy_hints.json` provided
+- Host heartbeat surfaces full soft feedback state
+- Headless mode exercises the complete loop and reports results on exit
+
+**The dual-repo organism can now co-evolve under mercy.**
 
 ### Prior
+- v21.85: Feedback Loop design + PolicyHintInbox structural surface
 - v21.84: Steam production elevation + UI churn protection
 - v21.83: Headless / CI mode for host
-- v21.82: Ultramasterism early RTT export + smoke-harness readiness
 
-**Thunder locked in. Feedback loop designed for eternal mercy-gated co-evolution.** Yoi ⚡
+**Thunder locked in. Living feedback loop sealed.** Yoi ⚡
 
 ## Previous Versions (Summary)
 - v21.0–v21.78: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export + provenance.
