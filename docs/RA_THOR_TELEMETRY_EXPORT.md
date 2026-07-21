@@ -3,7 +3,7 @@
 **Contract:** Ra-Thor `crates/reality-thriving-transfer` (`POWRUSH_TELEMETRY_CONTRACT.md`)  
 **Schemas:** `powrush_telemetry_v1` · `powrush_telemetry_batch_v1`  
 **Contact:** info@Rathor.ai  
-**Powrush status:** v21.76 — server batch + offline failsafe + soft council→RTT bridge
+**Powrush status:** v21.77 — provenance + batch + offline failsafe + council soft-bridge
 
 ---
 
@@ -20,123 +20,81 @@ ServerTransferSession  ──JSON files──►    KardashevOrchestrationCounci
   artifacts/rtt_offline/*.json (failsafe)
 ```
 
-**Field set is 1:1 with Ra-Thor `PowrushTelemetry`.** Mercy-gate bounds are enforced on export (`[0,1]` scores, abundance ≥ 0).
+**Smoke harness (Ra-Thor):**
 
-When iterating from the **Ra-Thor monorepo**, treat these files as the stable hand-off surface. Prefer file/path ingest first; network streaming is optional and must degrade to the same offline queue.
+```bash
+cargo run -p reality-thriving-transfer --example powrush_rtt_smoke_harness
+
+# Live artifacts
+cargo run -p reality-thriving-transfer --example powrush_rtt_smoke_harness -- \
+  --single ../Powrush-MMO/artifacts/powrush_rtt_latest.json \
+  --batch  ../Powrush-MMO/artifacts/powrush_rtt_batch_latest.json
+```
+
+---
+
+## Provenance (v21.77)
+
+Optional envelope fields (serde-ignored by older consumers):
+
+| Field | Meaning |
+|-------|---------|
+| `session_id` | Stable host session identity |
+| `exported_at_unix` | Unix seconds at export |
+| `export_seq` | Monotonic export counter (single v1) |
+
+Enables councils to trace scores back to specific Powrush sessions — foundation for future **feedback** into game behavior.
+
+---
+
+## Offline failsafe limits
+
+| Limit | Value | Policy |
+|-------|-------|--------|
+| Snapshot ring | 32 | Drop-oldest |
+| Offline queue | **16** | Drop-oldest; flush-first on recovery |
+
+Primary write never panics. Batch write is soft.
 
 ---
 
 ## Soft council → server RTT bridge (v21.76)
 
-Server **does not depend on the simulation crate**. Council totals flow in as pure signals:
-
-| Inject path | Type |
-|-------------|------|
-| Bevy event | `CouncilRttSignal` |
-| Resource inbox | `CouncilRttInbox::push` / `push_passed` |
+Server **does not depend on the simulation crate**. Council totals flow as pure signals:
 
 ```rust
-// From a co-hosted host / NonSend tick (example)
-use server::rathor_integration::{CouncilRttInbox, CouncilRttSignal};
-
-// Event path
-writer.send(CouncilRttSignal::new(decision_id, mercy, strength, realm_id)
-    .with_abundance(abundance_velocity));
-
-// Inbox path (no EventWriter needed)
-inbox.push_passed(decision_id, mercy, strength, realm_id, Some(abundance_velocity));
-```
-
-`council_rtt_bridge_system` drains both into `ServerTransferSession::record_council_passed` (+ optional abundance sample). Dedupes by `decision_id` (ring clear at 512).
-
-**Sim-side note for later:** when wiring a full host, map `CouncilDecisions::resolved_history` → these signals once per new `decision_id`. No shared types required — only scalar fields.
-
----
-
-## Live paths (preferred)
-
-### 1. Simulation — TelemetryCollector
-
-`TelemetryCollector` holds a **`GlobalTransferSession`** and updates on:
-
-- `collect_tick(world_tick, mercy_flow)`
-- `record_tick_result(...)`
-- Council / RBE soft feeds (v21.70+)
-
-```rust
-use simulation::orchestrator::SimulationOrchestrator;
-use simulation::telemetry::TelemetryCollector;
-
-let mut orchestrator = SimulationOrchestrator::new();
-let mut telemetry = TelemetryCollector::new("live_council_run");
-
-let result = orchestrator.run_tick_with_telemetry(
-    &mut world,
-    interest.as_ref(),
-    council.as_mut(),
-    player.as_mut(),
-    decisions.as_ref(),
-    &mut telemetry,
-);
-
-let json = telemetry.export_transfer_json()?;
-// telemetry.write_transfer_json_to("session.json")?;
-```
-
-### 2. Server — ServerTransferSession (v21.74–v21.76)
-
-Wired via `RathorIntegrationPlugin`:
-
-| Artifact | Schema | Role |
-|----------|--------|------|
-| `artifacts/powrush_rtt_latest.json` | `powrush_telemetry_v1` | Latest single-session envelope |
-| `artifacts/powrush_rtt_batch_latest.json` | `powrush_telemetry_batch_v1` | Snapshot ring (up to 32) |
-| `artifacts/rtt_offline/queued_*.json` | `powrush_telemetry_v1` | Failsafe when primary write fails |
-
-Cadence: soft 60s default (`export_interval_secs`). Soft-fail never panics the host.
-
-Signals recorded: combat, treaty, faction shift, **council_passed** (via bridge), abundance velocity samples.
-
-### 3. Demo binary (no full world)
-
-```bash
-cargo run -p powrush-simulation --bin transfer_session_demo -- --ticks 100 --out /tmp/powrush_live.json
-```
-
-### 4. Profile / offline export scripts
-
-```bash
-python3 tools/export_powrush_telemetry.py --profile high_mercy
-python3 tools/export_powrush_telemetry.py --batch -o /tmp/powrush_batch.json
+inbox.push_passed(decision_id, mercy, strength, realm_id, Some(abundance));
+// or EventWriter<CouncilRttSignal>
 ```
 
 ---
 
-## Failsafe design (connectivity / disk lack)
+## Live paths
 
-1. **Primary write** to `powrush_rtt_latest.json`.
-2. On failure → enqueue JSON in memory + best-effort write under `artifacts/rtt_offline/`.
-3. Next cadence **flushes offline queue first** when primary path is writable again.
-4. Batch write is soft (failure does not drop single-session success).
-5. Ring buffer keeps recent snapshots in-process even if disk is unavailable.
+### Server artifacts
 
-**Ra-Thor side note (for later monorepo work):**  
-Ingest should accept either schema, tolerate missing optional envelope fields (`source`/`label` default empty), and never require network — file path or stdin is enough for offline CI and sovereign hosts.
+| Artifact | Schema |
+|----------|--------|
+| `artifacts/powrush_rtt_latest.json` | v1 + provenance |
+| `artifacts/powrush_rtt_batch_latest.json` | batch_v1 + provenance |
+| `artifacts/rtt_offline/queued_*.json` | v1 failsafe |
 
-Suggested Ra-Thor smoke (when iterating there):
+### Simulation / demo / profiles
 
-```text
-// Point at Powrush artifact after a server run
-KardashevOrchestrationCouncil::deliberate_from_powrush_json(
-    include_str!("../../Powrush-MMO/artifacts/powrush_rtt_latest.json")
-)
-// or batch:
-KardashevOrchestrationCouncil::deliberate_from_powrush_batch_json(
-    include_str!("../../Powrush-MMO/artifacts/powrush_rtt_batch_latest.json")
-)
-```
+See prior sections in git history; `run_tick_with_telemetry`, `transfer_session_demo`, `tools/export_powrush_telemetry.py` remain valid.
 
-Fixtures in Ra-Thor (`crates/reality-thriving-transfer/fixtures/`) remain the CI gold standard; live artifacts should match the same shapes.
+---
+
+## Mercy gate rejection (consumer)
+
+Ra-Thor **rejects** (log + skip — does not crash councils):
+
+- Wrong `schema` string
+- `rbe_decision_quality_avg` / `ethical_choice_score` ∉ `[0,1]`
+- Negative `abundance_velocity_signals`
+- Empty batch sessions
+
+Smoke harness exercises these paths explicitly.
 
 ---
 
@@ -153,12 +111,13 @@ Fixtures in Ra-Thor (`crates/reality-thriving-transfer/fixtures/`) remain the CI
 | `abundance_velocity_signals` | ≥ 0 (typ. 0.5–1.8) |
 | `innovation_contribution` | `[0, 1]` |
 
-Consumer rejects out-of-bounds scores and negative abundance (Mercy Gate Truth / Abundance).
-
 ---
 
-## full_rbe
+## Future: feedback loop (notes for Ra-Thor iteration)
 
-See **[FULL_RBE_STATUS.md](./FULL_RBE_STATUS.md)** — stays off until deps resolve.
+1. Ingest scores + `session_id` provenance on Ra-Thor.
+2. Emit soft council recommendations keyed by `session_id`.
+3. Powrush host maps recommendations → `CouncilRttInbox` inverse or policy hints.
+4. Keep file/path offline path as mandatory failsafe; network optional.
 
-**Thunder locked in.** Dual-repo hand-off is file-stable, offline-resilient, and council-bridge-ready. Yoi ⚡
+**Thunder locked in.** Dual-repo hand-off is provenance-aware, offline-resilient, and smoke-testable. Yoi ⚡
