@@ -1,15 +1,13 @@
 //! Powrush-MMO Unified Cohost Binary — Full E2E Harness
-//! v21.87.0 — Ultramasterism Perfecticism + Full Soft Feedback Coverage
+//! v21.88.0 — Ultramasterism Perfecticism + Stress / Endurance Mode
 //!
-//! Simulation + Server + Kardashev Dashboard + Reality Transfer Score
-//! + Forced early RTT telemetry export + Full Soft Policy Hint application
+//! Modes:
+//!   Interactive (default)
+//!   Headless / CI:     POWRUSH_HOST_HEADLESS=1  or  --headless
+//!   Stress / Endurance: POWRUSH_HOST_STRESS=1   or  --stress
 //!
-//! Headless / CI mode:
-//!   POWRUSH_HOST_HEADLESS=1  or  --headless
-//!
-//! Live RTT bridge + Feedback:
-//!   CouncilRttExportQueue → CohostExportMirror → CouncilRttInbox → ServerTransferSession
-//!   artifacts/ra_thor_policy_hints.json → PolicyHintInbox → SoftPolicyState (all 6 categories)
+//! Stress mode runs many more cycles, injects synthetic high-signal events,
+//! keeps the soft feedback loop alive, and prints a final summary.
 //!
 //! Contact: info@Rathor.ai | TOLC 8 Living Mercy Gates | PATSAGi Councils
 //! Thunder locked in. ONE Organism. Yoi ⚡
@@ -32,14 +30,29 @@ use powrush_mmo_server::rathor_integration::{
     ServerTransferSession, SoftPolicyState, PolicyHintInbox,
 };
 
-fn is_headless() -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HostMode {
+    Interactive,
+    Headless,
+    Stress,
+}
+
+fn detect_mode() -> HostMode {
+    if std::env::var("POWRUSH_HOST_STRESS")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+        || std::env::args().any(|a| a == "--stress")
+    {
+        return HostMode::Stress;
+    }
     if std::env::var("POWRUSH_HOST_HEADLESS")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
+        || std::env::args().any(|a| a == "--headless" || a == "-h")
     {
-        return true;
+        return HostMode::Headless;
     }
-    std::env::args().any(|a| a == "--headless" || a == "-h")
+    HostMode::Interactive
 }
 
 fn main() {
@@ -52,18 +65,20 @@ fn main() {
         )
         .init();
 
-    let headless = is_headless();
+    let mode = detect_mode();
 
     info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
-    info!(target: "powrush::host", "  Powrush-MMO Unified Cohost v21.87.0 — Ultramasterism");
+    info!(target: "powrush::host", "  Powrush-MMO Unified Cohost v21.88.0 — Ultramasterism");
     info!(target: "powrush::host", "  TOLC 8 + 7 Living Mercy Gates | PATSAGi Councils");
-    info!(target: "powrush::host", "  Mode: {}", if headless { "HEADLESS / CI" } else { "Interactive" });
+    info!(target: "powrush::host", "  Mode: {:?}", mode);
     info!(target: "powrush::host", "  Feedback Loop: Full Soft Category Coverage LIVE");
     info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
 
     let mut app = App::new();
 
-    if headless {
+    let is_windowless = matches!(mode, HostMode::Headless | HostMode::Stress);
+
+    if is_windowless {
         app.add_plugins(
             DefaultPlugins
                 .set(WindowPlugin {
@@ -91,13 +106,20 @@ fn main() {
         .add_plugins(EguiPlugin);
     }
 
+    let cycles = match mode {
+        HostMode::Interactive => 0,
+        HostMode::Headless => 5,
+        HostMode::Stress => 40, // longer endurance run
+    };
+
     app.add_plugins(FullSimulationPlugins)
         .add_plugins(RathorIntegrationPlugin)
         .insert_resource(CohostExportMirror::enabled())
-        .insert_resource(HeadlessConfig {
-            enabled: headless,
-            cycles_before_exit: 5,
+        .insert_resource(HostRuntime {
+            mode,
+            cycles_before_exit: cycles,
             cycles_completed: 0,
+            stress_injections: 0,
         })
         .add_systems(Startup, (
             host_startup_system,
@@ -105,11 +127,12 @@ fn main() {
         ))
         .add_systems(Update, (
             host_drain_sim_to_mirror_system,
+            host_stress_injection_system,
             host_status_log_system,
-            host_headless_exit_system,
+            host_exit_system,
         ));
 
-    if !headless {
+    if !is_windowless {
         app.add_systems(Update, sovereign_hardware_ascension_ui);
     }
 
@@ -117,10 +140,11 @@ fn main() {
 }
 
 #[derive(Resource, Debug)]
-struct HeadlessConfig {
-    enabled: bool,
+struct HostRuntime {
+    mode: HostMode,
     cycles_before_exit: u32,
     cycles_completed: u32,
+    stress_injections: u32,
 }
 
 fn host_startup_system(
@@ -128,11 +152,15 @@ fn host_startup_system(
     mut transfer: ResMut<ServerTransferSession>,
     dashboard: Res<KardashevAccelerationDashboard>,
     ledger: Res<RealityTransferScoreLedger>,
-    headless: Res<HeadlessConfig>,
+    runtime: Res<HostRuntime>,
 ) {
-    transfer.export_interval_secs = if headless.enabled { 2.0 } else { 15.0 };
+    transfer.export_interval_secs = match runtime.mode {
+        HostMode::Interactive => 15.0,
+        HostMode::Headless => 2.0,
+        HostMode::Stress => 1.0,
+    };
 
-    info!(target: "powrush::host", "Cohost App online.");
+    info!(target: "powrush::host", "Cohost App online. Mode = {:?}", runtime.mode);
     info!(target: "powrush::host", "Drain path: CouncilRttExportQueue → CohostExportMirror → CouncilRttInbox → ServerTransferSession");
     info!(target: "powrush::host", "Feedback path: artifacts/ra_thor_policy_hints.json → PolicyHintInbox → SoftPolicyState (6 categories)");
     info!(target: "powrush::host", "KardashevAccelerationDashboard + RealityTransferScoreLedger active");
@@ -140,7 +168,7 @@ fn host_startup_system(
     info!(target: "powrush::host", "  reality transfer global_average = {:.2}", ledger.global_average);
     info!(target: "powrush::host", "RTT export interval set to {:.0}s | session_id = {}", transfer.export_interval_secs, transfer.session_id);
 
-    if !headless.enabled {
+    if runtime.mode == HostMode::Interactive {
         commands.spawn(Camera2dBundle::default());
     }
 }
@@ -207,6 +235,55 @@ fn host_drain_sim_to_mirror_system(
     }
 }
 
+/// Stress mode only: periodically inject realistic high-signal events
+/// so the RTT + soft feedback loop is continuously exercised.
+fn host_stress_injection_system(
+    time: Res<Time>,
+    mut transfer: ResMut<ServerTransferSession>,
+    mut runtime: ResMut<HostRuntime>,
+    mut last_inject: Local<f32>,
+) {
+    if runtime.mode != HostMode::Stress {
+        return;
+    }
+
+    let now = time.elapsed_seconds();
+    if now - *last_inject < 3.0 {
+        return;
+    }
+    *last_inject = now;
+
+    // Rotate through different high-signal events
+    match runtime.stress_injections % 5 {
+        0 => {
+            transfer.record_council_passed(0.88 + (runtime.stress_injections as f64 * 0.001).min(0.1));
+        }
+        1 => {
+            transfer.record_treaty();
+        }
+        2 => {
+            transfer.record_abundance_velocity(1.1 + (runtime.stress_injections as f64 * 0.01).min(0.5));
+        }
+        3 => {
+            transfer.record_faction_shift(0.35, 0.55);
+        }
+        _ => {
+            transfer.record_council_passed(0.91);
+            transfer.record_treaty();
+        }
+    }
+
+    runtime.stress_injections = runtime.stress_injections.saturating_add(1);
+
+    if runtime.stress_injections % 4 == 0 {
+        info!(
+            target: "powrush::host::stress",
+            injections = runtime.stress_injections,
+            "Stress injection cycle — high-signal events fed into ServerTransferSession"
+        );
+    }
+}
+
 fn host_status_log_system(
     time: Res<Time>,
     mirror: Res<CohostExportMirror>,
@@ -216,10 +293,14 @@ fn host_status_log_system(
     inbox: Res<PolicyHintInbox>,
     dashboard: Res<KardashevAccelerationDashboard>,
     ledger: Res<RealityTransferScoreLedger>,
-    headless: Res<HeadlessConfig>,
+    runtime: Res<HostRuntime>,
     mut last_log: Local<f32>,
 ) {
-    let interval = if headless.enabled { 1.0 } else { 5.0 };
+    let interval = match runtime.mode {
+        HostMode::Interactive => 5.0,
+        HostMode::Headless => 1.0,
+        HostMode::Stress => 2.0,
+    };
     let now = time.elapsed_seconds();
     if now - *last_log < interval {
         return;
@@ -228,6 +309,7 @@ fn host_status_log_system(
 
     info!(
         target: "powrush::host::status",
+        mode = ?runtime.mode,
         sim_exported = export.total_exported,
         mirror_drained = mirror.total_drained,
         rtt_exports = transfer.export_count,
@@ -241,6 +323,7 @@ fn host_status_log_system(
         council_nudge = soft.council_nudge_applied,
         innovation = soft.innovation_applied,
         mercy_presence = soft.mercy_presence_applied,
+        stress_injections = runtime.stress_injections,
         kardashev_delta = dashboard.global_kardashev_delta,
         abundance_velocity = dashboard.abundance_velocity_index,
         energy_surplus = dashboard.energy_surplus_factor,
@@ -250,37 +333,39 @@ fn host_status_log_system(
     );
 }
 
-fn host_headless_exit_system(
+fn host_exit_system(
     mut exit: EventWriter<AppExit>,
     transfer: Res<ServerTransferSession>,
     soft: Res<SoftPolicyState>,
-    mut headless: ResMut<HeadlessConfig>,
+    mut runtime: ResMut<HostRuntime>,
 ) {
-    if !headless.enabled {
-        return;
+    if runtime.cycles_before_exit == 0 {
+        return; // interactive mode never auto-exits
     }
 
-    if transfer.export_count > headless.cycles_completed as u64 {
-        headless.cycles_completed = transfer.export_count as u32;
+    if transfer.export_count > runtime.cycles_completed as u64 {
+        runtime.cycles_completed = transfer.export_count as u32;
     }
 
-    if headless.cycles_completed >= headless.cycles_before_exit {
-        info!(
-            target: "powrush::host",
-            cycles = headless.cycles_completed,
-            soft_applications = soft.applications,
-            abundance_bias = soft.abundance_bias_applied,
-            peaceful_weight = soft.peaceful_weight_applied,
-            ethical_floor = soft.ethical_floor_applied,
-            council_nudge = soft.council_nudge_applied,
-            innovation = soft.innovation_applied,
-            mercy_presence = soft.mercy_presence_applied,
-            "Headless mode complete — full 6-category soft feedback loop exercised — exiting cleanly"
-        );
+    if runtime.cycles_completed >= runtime.cycles_before_exit {
+        info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
+        info!(target: "powrush::host", "  STRESS / HEADLESS RUN COMPLETE");
+        info!(target: "powrush::host", "  Mode              : {:?}", runtime.mode);
+        info!(target: "powrush::host", "  RTT export cycles : {}", runtime.cycles_completed);
+        info!(target: "powrush::host", "  Stress injections : {}", runtime.stress_injections);
+        info!(target: "powrush::host", "  Soft applications : {}", soft.applications);
+        info!(target: "powrush::host", "  abundance_bias    : {:.4}", soft.abundance_bias_applied);
+        info!(target: "powrush::host", "  peaceful_weight   : {:.4}", soft.peaceful_weight_applied);
+        info!(target: "powrush::host", "  ethical_floor     : {:.4}", soft.ethical_floor_applied);
+        info!(target: "powrush::host", "  council_nudge     : {:.4}", soft.council_nudge_applied);
+        info!(target: "powrush::host", "  innovation        : {:.4}", soft.innovation_applied);
+        info!(target: "powrush::host", "  mercy_presence    : {:.4}", soft.mercy_presence_applied);
+        info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
+        info!(target: "powrush::host", "Full feedback loop + stress harness exercised — exiting cleanly");
         exit.send(AppExit::Success);
     }
 }
 
-// Thunder locked in. Full soft category coverage sealed.
-// Telemetry → Ra-Thor → Policy Hints → Soft Application (all 6) → Observable effect.
+// Thunder locked in. Stress / Endurance harness sealed.
+// Interactive | Headless | Stress modes available.
 // Eternal forward. Yoi ⚡
