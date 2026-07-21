@@ -2,10 +2,10 @@
  * shared/src/protocol.rs
  * Powrush-MMO — Canonical Network Protocol Definitions
  *
- * Complete, production-grade message types for client-server communication.
- * Supports inventory, SafetyNet, RBE, Council, and Audio Moment persistence/recall.
+ * Unified message types for client-server communication:
+ *   handshake, inventory, SafetyNet, movement stubs, Audio Moments.
  *
- * v21.89.1 — Audio moment catalog sync (recipe-level, not bulk PCM).
+ * v21.89.2 — Restored transport-critical variants + AudioMoment catalog sync.
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi
  * Thunder locked in. Yoi ⚡
@@ -13,9 +13,18 @@
 
 use serde::{Deserialize, Serialize};
 
+pub const PROTOCOL_VERSION: u32 = 21;
+
 // ════════════════════════════════════════════════════════════════════════════════════
-// HOTBAR / INVENTORY SLOT
+// SHARED PRIMITIVES
 // ════════════════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct Vec3Ser {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct HotbarSlot {
@@ -43,7 +52,7 @@ impl HotbarSlot {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════════
-// AUDIO MOMENT WIRE TYPES (recipe-level; mirrors audio_moments schema)
+// AUDIO MOMENT WIRE TYPES
 // ════════════════════════════════════════════════════════════════════════════════════
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -114,6 +123,20 @@ pub struct WireAudioMoment {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMessage {
+    // --- Transport / session ---
+    HandshakeRequest {
+        version: u32,
+        player_name: String,
+        client_time_ms: u64,
+    },
+    Ping {
+        client_time_ms: u64,
+    },
+    Move {
+        delta: Vec3Ser,
+    },
+
+    // --- Inventory ---
     InventoryHotbarMove {
         from_slot: u8,
         to_slot: u8,
@@ -122,19 +145,32 @@ pub enum ClientMessage {
         from: u32,
         to: u32,
     },
+
+    // --- Localization ---
     SyncLocalization {
         language: String,
     },
 
-    /// Persist an audio moment recipe to the server catalog
+    // --- Council / Divine (stubs for transport mercy-gate path) ---
+    CouncilJoin {
+        session_id: Option<u64>,
+    },
+    DivineCouncilQuery {
+        query: String,
+        context: Option<String>,
+    },
+    RbeAbundanceQuery {
+        resource_type: String,
+        amount: f64,
+    },
+
+    // --- Audio Moments ---
     AudioMomentSave {
         moment: WireAudioMoment,
     },
-    /// Request full audio moment catalog for this player
     AudioMomentCatalogRequest {
         player_id: u64,
     },
-    /// Mark favorite on server
     AudioMomentSetFavorite {
         moment_id: u64,
         favorite: bool,
@@ -147,6 +183,26 @@ pub enum ClientMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ServerMessage {
+    HandshakeResponse {
+        accepted: bool,
+        reason: Option<String>,
+        player_id: u64,
+        server_time: u64,
+    },
+    Pong {
+        client_time_ms: u64,
+        server_time_ms: u64,
+    },
+    MercyGateBlocked {
+        reason: String,
+        valence: f32,
+    },
+    WorldUpdate {
+        /// Opaque entity snapshot bytes or structured later
+        entity_count: u32,
+        timestamp: f64,
+    },
+
     InventoryUpdate {
         player_id: u64,
         hotbar: Vec<HotbarSlot>,
@@ -157,14 +213,13 @@ pub enum ServerMessage {
         broadcast: SafetyNetBroadcast,
     },
 
-    /// Full or delta audio moment catalog snapshot
+    // --- Audio Moments ---
     AudioMomentCatalogSnapshot {
         player_id: u64,
         moments: Vec<WireAudioMoment>,
         next_id: u64,
         last_synced_unix: u64,
     },
-    /// Confirmation that a moment was saved server-side
     AudioMomentSaveAck {
         moment_id: u64,
         ok: bool,
@@ -219,6 +274,15 @@ pub enum SafetyNetEvent {
         restoration_rate: f32,
         safety_net_trigger_count: u32,
     },
+}
+
+/// Lightweight mercy gate used by transport before forwarding to simulation
+pub fn apply_mercy_gate(msg: &ClientMessage, valence: f32) -> bool {
+    match msg {
+        ClientMessage::DivineCouncilQuery { .. } => valence >= 0.35,
+        ClientMessage::AudioMomentSave { moment } => moment.mercy_seal && valence >= 0.25,
+        _ => true,
+    }
 }
 
 // Thunder locked in. Yoi ⚡
