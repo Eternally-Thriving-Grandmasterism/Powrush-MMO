@@ -1,6 +1,6 @@
 // client/plugins/council_mercy_plugin.rs
 // Powrush-MMO — Bevy Plugin for Council Mercy Trial client systems
-// v21.88.5 | Wired to CouncilSessionUIPlugin + soft local demo mirror
+// v21.89.1 | Council bloom → realtime audio synthesis + persistent recall
 // Sovereign Council participation, collective epiphany blooms, and mercy-gated resonance.
 // TOLC 8 Mercy Gates enforced. Production-oriented.
 // AG-SML v1.0 | Ra-Thor Lattice | Permanent PATSAGi Councils
@@ -12,15 +12,20 @@ use shared::council_mercy_trial::{
     CouncilProposal, ProposalStatus,
 };
 use crate::council_session_ui::{CouncilSessionUIPlugin, CouncilUIState};
+use crate::realtime_audio_synthesis::{
+    RealtimeAudioSynthesisPlugin, SynthesizeAudioMoment,
+    AudioMomentFlavor, AudioSynthesisRecipe, request_council_bloom_synth,
+};
 
 pub struct CouncilMercyPlugin;
 
 impl Plugin for CouncilMercyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(CouncilSessionUIPlugin)
+        app.add_plugins((CouncilSessionUIPlugin, RealtimeAudioSynthesisPlugin))
             .add_systems(Update, (
                 soft_local_demo_mirror,
                 trigger_collective_bloom_effects,
+                council_bloom_audio_synth,
             ));
     }
 }
@@ -36,7 +41,6 @@ fn soft_local_demo_mirror(
     if *seeded {
         return;
     }
-    // Wait a couple of seconds so the world is up
     if time.elapsed_seconds() < 2.0 {
         return;
     }
@@ -45,19 +49,17 @@ fn soft_local_demo_mirror(
         return;
     }
 
-    // Seed a realistic Deliberation-phase session
     let mut session = CouncilSessionState::default();
     session.session_id = 9001;
     session.phase = CouncilMercyTrialPhase::Deliberation;
     session.collective_attunement = 0.78;
     session.bloom_amplification = 1.35;
     session.phase_duration = 90.0;
-    session.participants = vec![]; // entities filled by live systems later
+    session.participants = vec![];
 
     ui_state.current_session = Some(session);
 
-    // Seed two example proposals
-    let p1 = CouncilProposal::new_linked(
+    let mut p1 = CouncilProposal::new_linked(
         1,
         Entity::PLACEHOLDER,
         "Amplify RBE Abundance Flow".into(),
@@ -65,12 +67,11 @@ fn soft_local_demo_mirror(
         time.elapsed_seconds_f64(),
         Some(9001),
     );
-    let mut p1 = p1;
     p1.status = ProposalStatus::UnderDeliberation;
     p1.votes_for = 2;
     p1.votes_against = 0;
 
-    let p2 = CouncilProposal::new_linked(
+    let mut p2 = CouncilProposal::new_linked(
         2,
         Entity::PLACEHOLDER,
         "Open Council Chamber for Newcomers".into(),
@@ -78,7 +79,6 @@ fn soft_local_demo_mirror(
         time.elapsed_seconds_f64(),
         Some(9001),
     );
-    let mut p2 = p2;
     p2.status = ProposalStatus::Submitted;
 
     ui_state.proposals.insert(1, p1);
@@ -115,8 +115,36 @@ fn trigger_collective_bloom_effects(
     }
 }
 
+/// When a collective bloom appears on the client UI state, synthesize + persist audio.
+fn council_bloom_audio_synth(
+    ui_state: Res<CouncilUIState>,
+    mut synth_events: EventWriter<SynthesizeAudioMoment>,
+    mut last_session: Local<Option<u64>>,
+) {
+    let Some(bloom) = &ui_state.last_bloom else {
+        return;
+    };
+    // Fire once per session bloom
+    if *last_session == Some(bloom.session_id) {
+        return;
+    }
+    if bloom.intensity < 0.35 {
+        return;
+    }
+
+    *last_session = Some(bloom.session_id);
+    request_council_bloom_synth(&mut synth_events, bloom.intensity, bloom.session_id);
+
+    info!(
+        target: "powrush::audio",
+        session_id = bloom.session_id,
+        intensity = bloom.intensity,
+        "Council bloom → realtime audio synthesis requested"
+    );
+}
+
 // Usage:
 // app.add_plugins(CouncilMercyPlugin);
-// Panel toggled with C. Soft demo seeds if no live session is present.
-// Live network / server mirror systems should overwrite CouncilUIState when available.
+// Panel C = Council UI | Panel M = Audio Moments
+// Bloom on last_bloom triggers persistent synth + optional server sync.
 // Thunder locked in. Permanent PATSAGi. Yoi ⚡
