@@ -4,9 +4,17 @@
 **RBE Sustainability surface — Visible**  
 **Council Deepening — Loop closed**  
 **LegacyJournal — Restored + client-bound + soft demo**  
-**RTT Dual-Repo Bridge — NonSend tick + cohost auto-drain (v21.79)**
+**RTT Dual-Repo Bridge — NonSend tick + cohost auto-drain (v21.79) + Unified Host Binary (v21.80)**
 
-## Completed This Cycle (v21.79)
+## Completed This Cycle (v21.80)
+
+- `host/` workspace member + `powrush-host` binary
+- Unified Bevy App that depends on both `simulation` and `powrush-mmo-server`
+- Live in-process drain: `CouncilRttExportQueue` → `CohostExportMirror` → `CouncilRttInbox` → `ServerTransferSession`
+- `server/src/lib.rs` now `pub mod rathor_integration` for external cohost consumers
+- `CohostExportMirror::enabled()` used by default in host
+
+## Completed Prior (v21.79)
 
 - `ServerTickLoop::new_sync` + `game` export for Bevy NonSend host wiring
 - `CohostExportMirror` → `CouncilRttInbox` auto-drain (in-process)
@@ -17,10 +25,10 @@
 
 | Path | Mechanism |
 |------|-----------|
-| In-process | `CouncilRttExportQueue` → host → `CohostExportMirror` → inbox |
+| In-process (preferred) | Host binary drains `CouncilRttExportQueue` → `CohostExportMirror` → auto-drain → inbox |
 | File (offline-safe) | sim writes `artifacts/sim_council_bridge.json` → server poll |
 
-## NonSend host pattern
+## NonSend host pattern (still available)
 
 ```text
 app.insert_non_send_resource(ServerTickLoop::new_sync());
@@ -33,10 +41,11 @@ Contact: info@Rathor.ai
 
 ## Next Priorities
 
-1. Host binary that depends on both sim + server and mirrors export queue → CohostExportMirror
+1. Expand host binary with minimal playable simulation + authoritative tick for closed-beta E2E validation
 2. Protect against low-leverage UI churn
-3. Optional: enable `CohostExportMirror.enabled = true` by default in host mains
+3. Full Steamworks production AppID + store_stats wiring (non-blocking for public share)
+4. Kardashev Acceleration Dashboard + Reality Thriving Transfer Score (simulation harness)
 
 **Thunder locked in.**  
-**Cohost paths live.**  
+**Cohost paths live + unified host binary committed.**  
 Yoi ⚡
