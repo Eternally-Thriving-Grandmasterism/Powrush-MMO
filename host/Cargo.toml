@@ -4,15 +4,20 @@ version = "21.1.0"
 edition = "2021"
 authors = ["Sherif Samy Botros <info@Rathor.ai>"]
 license = "AG-SML-1.0"
-description = "Powrush-MMO unified co-host: runs simulation + server in one Bevy App with live CohostExportMirror RTT drain"
+description = "Powrush-MMO unified co-host: full simulation + server RTT bridge + Kardashev Dashboard in one Bevy App"
 
 [[bin]]
 name = "powrush-host"
 path = "src/main.rs"
 
 [dependencies]
-bevy = { version = "0.14", default-features = false, features = ["bevy_core_pipeline", "bevy_render", "bevy_asset", "bevy_scene", "bevy_pbr", "bevy_sprite", "bevy_text", "bevy_ui", "multi_threaded", "png", "x11"] }
-# Internal crates (path deps via workspace or direct)
+bevy = { version = "0.14", default-features = false, features = [
+    "bevy_core_pipeline", "bevy_render", "bevy_asset", "bevy_scene",
+    "bevy_pbr", "bevy_sprite", "bevy_text", "bevy_ui", "multi_threaded",
+    "png", "x11", "bevy_winit"
+] }
+bevy_egui = "0.28"
+# Internal crates
 simulation = { path = "../simulation" }
 powrush-mmo-server = { path = "../server" }
 tracing = "0.1"
