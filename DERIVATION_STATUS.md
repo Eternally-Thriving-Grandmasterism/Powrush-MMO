@@ -4,32 +4,34 @@
 **RBE Sustainability surface — Visible**  
 **Council Deepening — Loop closed**  
 **LegacyJournal — Restored + client-bound + soft demo**  
-**RTT Dual-Repo Bridge — provenance + batch + offline + council soft-bridge + smoke harness (v21.77)**
+**RTT Dual-Repo Bridge — full soft path + host mapper (v21.78)**
 
-## Completed This Cycle (v21.77)
+## Completed This Cycle (v21.78)
 
-- Provenance fields on v1 / batch_v1 envelopes
-- Offline queue cap test (16, drop-oldest)
-- Ra-Thor: `powrush_rtt_smoke_harness` example (fixtures + live paths)
-- Docs: feedback-loop roadmap notes
+- `CouncilRttExportQueue` / `council_resolved_to_rtt_export_system`
+- Host drain pattern documented (sim export → server inbox)
+- Ra-Thor: optional provenance fields on envelopes + parse test
 
-## Stress-test answers (logged)
+## Full soft path
 
-| Topic | Status |
-|-------|--------|
-| Offline queue under load | Cap 16, drop-oldest; flush-first on recovery |
-| Batch vs single scores | Same `PowrushTelemetry` per session; smoke rank-checks high_mercy > marginal |
-| Mercy gate rejection | Parse/score errors; log + skip; smoke exercises wrong schema + OOB |
-| Feedback loop | Provenance enables future session-keyed council → host mapping |
+```
+CouncilDecisions::resolved_history
+  → CouncilRttExportQueue (sim)
+  → host drain
+  → CouncilRttInbox / CouncilRttSignal (server)
+  → ServerTransferSession
+  → artifacts/*.json (+ offline failsafe)
+  → Ra-Thor smoke / Kardashev ingest
+```
 
 Contact: info@Rathor.ai
 
 ## Next Priorities
 
 1. NonSend ServerTickLoop when game package fully wired
-2. Host mapper: `CouncilDecisions::resolved_history` → `CouncilRttSignal`
-3. Optional: surface provenance fields on Ra-Thor envelope structs
+2. Optional co-host system that auto-drains export queue → server inbox
+3. Protect against low-leverage UI churn
 
 **Thunder locked in.**  
-**Provenance-aware dual-repo hand-off.**  
+**Host mapper live.**  
 Yoi ⚡
