@@ -1,12 +1,12 @@
 // server/src/rathor_integration/mod.rs
-// Powrush-MMO — Ra-Thor Integration + live transfer session
-// Contact: info@Rathor.ai
+// Powrush-MMO — Ra-Thor Integration + live transfer session + RTT export
+// v21.74.0 | Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
 pub mod transfer_session;
 
-pub use transfer_session::ServerTransferSession;
+pub use transfer_session::{ServerTransferSession, server_rtt_export_system};
 
 /// Triggered when a major combat event occurs (suitable for council reasoning)
 #[derive(Event, Debug, Clone)]
@@ -81,6 +81,14 @@ impl Plugin for RathorIntegrationPlugin {
             .add_event::<MajorCombatEvent>()
             .add_event::<TreatyProposalEvent>()
             .add_event::<FactionShiftEvent>()
-            .add_systems(Update, council_consultation_system);
+            .add_systems(
+                Update,
+                (
+                    council_consultation_system,
+                    server_rtt_export_system,
+                ),
+            );
     }
 }
+
+// Thunder locked in. Server RTT export path live. Yoi ⚡
