@@ -30,6 +30,7 @@ pub struct ClientWsTransport {
     tx_out: mpsc::UnboundedSender<ClientMessage>,
     rx_in: mpsc::UnboundedReceiver<ServerMessage>,
     shutdown: Arc<tokio::sync::Notify>,
+    last_ping_ms: u64,
     #[cfg(target_arch = "wasm32")]
     ws: Option<WebSocket>,
 }
@@ -65,7 +66,6 @@ impl ClientWsTransport {
                 .await
                 .map_err(|e| format!("Handshake send failed: {}", e))?;
 
-            // Writer task
             tokio::spawn(async move {
                 while let Some(msg) = rx_out.recv().await {
                     if !apply_mercy_gate(&msg, 0.8) {
@@ -79,7 +79,6 @@ impl ClientWsTransport {
                 }
             });
 
-            // Reader task
             let tx_in_reader = tx_in.clone();
             tokio::spawn(async move {
                 while let Some(msg_result) = read.next().await {
@@ -95,7 +94,6 @@ impl ClientWsTransport {
                 }
             });
 
-            // Heartbeat
             let tx_hb = tx_out.clone();
             tokio::spawn(async move {
                 loop {
@@ -113,6 +111,7 @@ impl ClientWsTransport {
                     tx_out,
                     rx_in,
                     shutdown,
+                    last_ping_ms: now_ms(),
                 },
                 0,
             ))
@@ -145,27 +144,31 @@ impl ClientWsTransport {
             let player_id_cell_clone = player_id_cell.clone();
             let tx_in_clone = tx_in.clone();
 
-            let onmessage_callback = Closure::<dyn FnMut(MessageEvent)>::new(move |e: MessageEvent| {
-                if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
-                    let array = Uint8Array::new(&abuf);
-                    let mut data = vec![0; array.length() as usize];
-                    array.copy_to(&mut data);
-                    if let Ok(server_msg) = bincode::deserialize::<ServerMessage>(&data) {
-                        if let ServerMessage::HandshakeResponse { player_id, accepted, .. } =
-                            &server_msg
-                        {
-                            if *accepted {
-                                *player_id_cell_clone.borrow_mut() = Some(*player_id);
-                                info!(
-                                    "[WASM] Handshake complete. player_id = {}",
-                                    player_id
-                                );
+            let onmessage_callback =
+                Closure::<dyn FnMut(MessageEvent)>::new(move |e: MessageEvent| {
+                    if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
+                        let array = Uint8Array::new(&abuf);
+                        let mut data = vec![0; array.length() as usize];
+                        array.copy_to(&mut data);
+                        if let Ok(server_msg) = bincode::deserialize::<ServerMessage>(&data) {
+                            if let ServerMessage::HandshakeResponse {
+                                player_id,
+                                accepted,
+                                ..
+                            } = &server_msg
+                            {
+                                if *accepted {
+                                    *player_id_cell_clone.borrow_mut() = Some(*player_id);
+                                    info!(
+                                        "[WASM] Handshake complete. player_id = {}",
+                                        player_id
+                                    );
+                                }
                             }
+                            let _ = tx_in_clone.send(server_msg);
                         }
-                        let _ = tx_in_clone.send(server_msg);
                     }
-                }
-            });
+                });
             ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
             onmessage_callback.forget();
 
@@ -181,7 +184,6 @@ impl ClientWsTransport {
             ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
             onclose_callback.forget();
 
-            // Capture ws for send loop
             let ws_send = ws.clone();
             spawn_local(async move {
                 while let Some(msg) = rx_out.recv().await {
@@ -197,21 +199,12 @@ impl ClientWsTransport {
                 }
             });
 
-            let tx_out_hb = tx_out.clone();
-            spawn_local(async move {
-                loop {
-                    gloo_timers::future::TimeoutFuture::new(10_000).await;
-                    let _ = tx_out_hb.send(ClientMessage::Ping {
-                        client_time_ms: now_ms(),
-                    });
-                }
-            });
-
             let transport = Self {
                 player_id: None,
                 tx_out,
                 rx_in,
                 shutdown,
+                last_ping_ms: now_ms(),
                 ws: Some(ws),
             };
 
@@ -243,6 +236,17 @@ impl ClientWsTransport {
                 Some(msg)
             }
             Err(_) => None,
+        }
+    }
+
+    /// Call once per frame — sends Ping every ~10s without extra timer crates
+    pub fn tick_heartbeat(&mut self) {
+        let now = now_ms();
+        if now.saturating_sub(self.last_ping_ms) >= 10_000 {
+            let _ = self.send(ClientMessage::Ping {
+                client_time_ms: now,
+            });
+            self.last_ping_ms = now;
         }
     }
 
