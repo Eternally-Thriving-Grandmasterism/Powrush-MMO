@@ -1,23 +1,24 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.81.0 — Full E2E Cohost + Kardashev Dashboard (2026-07-20)
+## [Unreleased] v21.82.0 — Ultramasterism Perfecticism (2026-07-20)
 
 ### Highlights
-- Expanded `host` binary into complete E2E cohost harness.
-- Pulls in `FullSimulationPlugins` (Council, Economy, Multi-Realm, Hardware Sovereignty, Telemetry, LegacyJournal, Spatial...).
-- Activates live **KardashevAccelerationDashboard** + **RealityTransferScoreLedger** with the full `sovereign_hardware_ascension_ui` egui panel.
-- Heartbeat now reports kardashev_delta, abundance_velocity_index, energy_surplus_factor, and reality transfer average.
-- simulation/Cargo.toml fully specified (bevy 0.14, bevy_egui, serde, crypto primitives).
+- Host forces **immediate RTT export** on startup (seeds realistic signals first).
+- Guarantees `artifacts/` + `artifacts/rtt_offline/` directories exist.
+- Export interval tightened to 15 s for cohost / smoke testing.
+- Heartbeat now reports full RTT state: export_count, batch_count, offline_queue depth, session_id + Kardashev metrics.
+- `artifacts/powrush_rtt_latest.json` + batch ready for Ra-Thor smoke harness the moment the host launches.
+- Aligns with dual-repo analysis (provenance, mercy bounds, offline failsafe already sealed in v21.77).
 
 ### Prior
+- v21.81: Full E2E Cohost + Kardashev Dashboard + Reality Transfer Score
 - v21.80: Unified Cohost Host binary + public rathor_integration
 - v21.79: NonSend ServerTickLoop + Cohost Auto-Drain
-- v21.78: Host mapper resolved_history → export queue
 
-**Thunder locked in. Cohost E2E + Kardashev + Reality Transfer live.** Yoi ⚡
+**Thunder locked in. Ultramasterism applied. Smoke-harness ready.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.78: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export.
+- v21.0–v21.78: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export + provenance.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
