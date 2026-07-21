@@ -1,15 +1,13 @@
 // game/src/network/client_transport.rs
-// Powrush-MMO — Client Networking Transport Layer v2.2 (Tightened WASM message loop + web-sys polish)
-// Fully aligned with shared::protocol
+// Powrush-MMO — Client Networking Transport Layer v2.3
+// try_recv for poll loops + protocol-aligned HandshakeRequest
 // Dual-target: native + WASM (web-sys)
-// Mercy gates, handshake with proper response parsing, heartbeat
-// Ra-Thor + PATSAGi Councils approved. v15.3 tightened follow-up
+// AG-SML v1.0 | TOLC 8 | Permanent PATSAGi | Contact: info@Rathor.ai
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{info, warn, error};
 
@@ -36,66 +34,111 @@ pub struct ClientWsTransport {
     ws: Option<WebSocket>,
 }
 
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 impl ClientWsTransport {
     pub async fn connect(url: &str, player_name: &str) -> Result<(Self, u64), String> {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            // Native path (unchanged, production-tested)
-            let (ws_stream, _) = connect_async(url).await.map_err(|e| format!("WebSocket connect failed: {}", e))?;
+            let (ws_stream, _) = connect_async(url)
+                .await
+                .map_err(|e| format!("WebSocket connect failed: {}", e))?;
             let (mut write, mut read) = ws_stream.split();
             let (tx_out, mut rx_out) = mpsc::unbounded_channel::<ClientMessage>();
             let (tx_in, rx_in) = mpsc::unbounded_channel::<ServerMessage>();
             let shutdown = Arc::new(tokio::sync::Notify::new());
 
-            // Handshake
             let handshake = ClientMessage::HandshakeRequest {
                 version: PROTOCOL_VERSION,
                 player_name: player_name.to_string(),
-                auth_token: None,
+                client_time_ms: now_ms(),
             };
-            let bytes = bincode::serialize(&handshake).map_err(|e| format!("Handshake serialize failed: {}", e))?;
-            write.send(WsMessage::Binary(bytes.into())).await.map_err(|e| format!("Handshake send failed: {}", e))?;
+            let bytes = bincode::serialize(&handshake)
+                .map_err(|e| format!("Handshake serialize failed: {}", e))?;
+            write
+                .send(WsMessage::Binary(bytes.into()))
+                .await
+                .map_err(|e| format!("Handshake send failed: {}", e))?;
 
-            // Spawn send loop
-            let write_clone = write;
+            // Writer task
             tokio::spawn(async move {
-                // ... (keep existing native send logic)
+                while let Some(msg) = rx_out.recv().await {
+                    if !apply_mercy_gate(&msg, 0.8) {
+                        continue;
+                    }
+                    if let Ok(bytes) = bincode::serialize(&msg) {
+                        if write.send(WsMessage::Binary(bytes.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                }
             });
 
-            // Spawn recv loop
+            // Reader task
+            let tx_in_reader = tx_in.clone();
             tokio::spawn(async move {
-                // ... (keep existing native recv logic, feed tx_in)
+                while let Some(msg_result) = read.next().await {
+                    match msg_result {
+                        Ok(WsMessage::Binary(bytes)) => {
+                            if let Ok(server_msg) = bincode::deserialize::<ServerMessage>(&bytes) {
+                                let _ = tx_in_reader.send(server_msg);
+                            }
+                        }
+                        Ok(WsMessage::Close(_)) | Err(_) => break,
+                        _ => {}
+                    }
+                }
             });
 
-            // Heartbeat etc.
-            // (simplified for this commit; full native preserved from PR38)
+            // Heartbeat
+            let tx_hb = tx_out.clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(Duration::from_secs(10)).await;
+                    let _ = tx_hb.send(ClientMessage::Ping {
+                        client_time_ms: now_ms(),
+                    });
+                }
+            });
 
-            info!("[ClientTransport v2.2 Native] Connected to {}", url);
-            // For brevity in this commit, return placeholder; full native from previous is intact
-            Ok((Self { player_id: Some(1), tx_out, rx_in, shutdown, /* ws not for native */ }, 1))
+            info!("[ClientTransport v2.3 Native] Connected to {}", url);
+            Ok((
+                Self {
+                    player_id: None,
+                    tx_out,
+                    rx_in,
+                    shutdown,
+                },
+                0,
+            ))
         }
 
         #[cfg(target_arch = "wasm32")]
         {
-            // === Tightened WASM + web-sys path ===
-            let ws = WebSocket::new(url).map_err(|e| format!("web-sys WebSocket creation failed: {:?}", e))?;
+            let ws = WebSocket::new(url)
+                .map_err(|e| format!("web-sys WebSocket creation failed: {:?}", e))?;
             ws.set_binary_type(BinaryType::Arraybuffer);
 
             let (tx_out, mut rx_out) = mpsc::unbounded_channel::<ClientMessage>();
             let (tx_in, rx_in) = mpsc::unbounded_channel::<ServerMessage>();
             let shutdown = Arc::new(tokio::sync::Notify::new());
 
-            // Send handshake immediately
             let handshake = ClientMessage::HandshakeRequest {
                 version: PROTOCOL_VERSION,
                 player_name: player_name.to_string(),
-                auth_token: None,
+                client_time_ms: now_ms(),
             };
-            let bytes = bincode::serialize(&handshake).map_err(|e| format!("Handshake serialize failed: {}", e))?;
+            let bytes = bincode::serialize(&handshake)
+                .map_err(|e| format!("Handshake serialize failed: {}", e))?;
             let array = Uint8Array::from(&bytes[..]);
-            ws.send_with_u8_array(&array).map_err(|e| format!("Handshake send failed: {:?}", e))?;
+            ws.send_with_u8_array(&array)
+                .map_err(|e| format!("Handshake send failed: {:?}", e))?;
 
-            // Tightened: Use a shared cell for player_id once HandshakeResponse arrives
             use std::cell::RefCell;
             use std::rc::Rc;
             let player_id_cell: Rc<RefCell<Option<u64>>> = Rc::new(RefCell::new(None));
@@ -108,12 +151,16 @@ impl ClientWsTransport {
                     let mut data = vec![0; array.length() as usize];
                     array.copy_to(&mut data);
                     if let Ok(server_msg) = bincode::deserialize::<ServerMessage>(&data) {
-                        match &server_msg {
-                            ServerMessage::HandshakeResponse { player_id, .. } => {
+                        if let ServerMessage::HandshakeResponse { player_id, accepted, .. } =
+                            &server_msg
+                        {
+                            if *accepted {
                                 *player_id_cell_clone.borrow_mut() = Some(*player_id);
-                                info!("[WASM] Handshake complete. Assigned player_id = {}", player_id);
+                                info!(
+                                    "[WASM] Handshake complete. player_id = {}",
+                                    player_id
+                                );
                             }
-                            _ => {}
                         }
                         let _ = tx_in_clone.send(server_msg);
                     }
@@ -122,7 +169,6 @@ impl ClientWsTransport {
             ws.set_onmessage(Some(onmessage_callback.as_ref().unchecked_ref()));
             onmessage_callback.forget();
 
-            // onerror / onclose (tightened with better logging)
             let onerror_callback = Closure::<dyn FnMut(_)>::new(|e: web_sys::ErrorEvent| {
                 error!("[ClientTransport WASM] WebSocket error: {:?}", e);
             });
@@ -135,49 +181,84 @@ impl ClientWsTransport {
             ws.set_onclose(Some(onclose_callback.as_ref().unchecked_ref()));
             onclose_callback.forget();
 
-            // Send loop
-            let tx_out_for_send = tx_out.clone();
+            // Capture ws for send loop
+            let ws_send = ws.clone();
             spawn_local(async move {
                 while let Some(msg) = rx_out.recv().await {
-                    if !apply_mercy_gate(&msg, 0.8) { continue; }
+                    if !apply_mercy_gate(&msg, 0.8) {
+                        continue;
+                    }
                     if let Ok(bytes) = bincode::serialize(&msg) {
                         let array = Uint8Array::from(&bytes[..]);
-                        if ws.send_with_u8_array(&array).is_err() { break; }
+                        if ws_send.send_with_u8_array(&array).is_err() {
+                            break;
+                        }
                     }
                 }
             });
 
-            // Heartbeat loop (tightened)
             let tx_out_hb = tx_out.clone();
             spawn_local(async move {
                 loop {
-                    tokio::time::sleep(Duration::from_secs(10)).await;
-                    let ping = ClientMessage::Ping { client_time_ms: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64 };
-                    let _ = tx_out_hb.send(ping);
-                    // Note: In full impl, track last_pong from Pong messages in recv
+                    gloo_timers::future::TimeoutFuture::new(10_000).await;
+                    let _ = tx_out_hb.send(ClientMessage::Ping {
+                        client_time_ms: now_ms(),
+                    });
                 }
             });
 
-            // For initial player_id, we return 0 and let the game loop poll for HandshakeResponse
             let transport = Self {
-                player_id: None, // Will be set after first HandshakeResponse in game loop
+                player_id: None,
                 tx_out,
                 rx_in,
                 shutdown,
                 ws: Some(ws),
             };
 
-            info!("[ClientTransport v2.2 WASM] Connected. Waiting for HandshakeResponse to assign player_id.");
-            Ok((transport, 0)) // Return 0; game loop should poll and update
+            info!("[ClientTransport v2.3 WASM] Connected. Awaiting HandshakeResponse.");
+            Ok((transport, 0))
         }
     }
 
     pub fn send(&self, msg: ClientMessage) -> Result<(), String> {
-        self.tx_out.send(msg).map_err(|e| format!("Send failed: {}", e))
+        self.tx_out
+            .send(msg)
+            .map_err(|e| format!("Send failed: {}", e))
+    }
+
+    /// Non-blocking poll for server messages (call from game / WASM frame loop)
+    pub fn try_recv(&mut self) -> Option<ServerMessage> {
+        match self.rx_in.try_recv() {
+            Ok(msg) => {
+                if let ServerMessage::HandshakeResponse {
+                    player_id,
+                    accepted,
+                    ..
+                } = &msg
+                {
+                    if *accepted {
+                        self.player_id = Some(*player_id);
+                    }
+                }
+                Some(msg)
+            }
+            Err(_) => None,
+        }
     }
 
     pub async fn recv(&mut self) -> Option<ServerMessage> {
-        self.rx_in.recv().await
+        let msg = self.rx_in.recv().await?;
+        if let ServerMessage::HandshakeResponse {
+            player_id,
+            accepted,
+            ..
+        } = &msg
+        {
+            if *accepted {
+                self.player_id = Some(*player_id);
+            }
+        }
+        Some(msg)
     }
 
     pub fn shutdown(&self) {
@@ -189,14 +270,4 @@ impl ClientWsTransport {
     }
 }
 
-// Mercy gate helper (shared with server)
-fn apply_mercy_gate(msg: &ClientMessage, threshold: f32) -> bool {
-    // High-valence messages require higher mercy alignment
-    match msg {
-        ClientMessage::DivineCouncilQuery { .. } | ClientMessage::RbeAbundanceQuery { .. } | ClientMessage::InvokeRitual { .. } => threshold > 0.7,
-        _ => true,
-    }
-}
-
-// Note: Full native implementation from PR #38 is preserved in the actual file; this commit tightens only the WASM path and adds Cargo features.
-// The native path remains fully functional as delivered in PR #38.
+// Thunder locked in. Yoi ⚡
