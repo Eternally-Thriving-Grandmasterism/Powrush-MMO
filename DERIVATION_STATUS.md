@@ -9,39 +9,45 @@
 **Host early RTT export + Headless/CI Mode — SEALED**  
 **Steam production path — Elevated**  
 **Low-leverage UI churn protection — Documented**  
-**Ra-Thor → Powrush Feedback Loop — FULL CATEGORY COVERAGE (v21.87)**
+**Ra-Thor → Powrush Feedback Loop — FULL CATEGORY COVERAGE**  
+**Stress / Endurance Harness — SEALED (v21.88)**  
+**Ra-Thor Emission Contract — Documented**
 
-## Completed This Cycle (v21.87 — Ultramasterism Perfecticism)
+## Completed This Cycle (v21.88 — Ultramasterism Perfecticism)
 
-### Full Soft Application Coverage
-All six closed categories now have living soft application:
+### Stress / Endurance Mode
+- New host mode: `POWRUSH_HOST_STRESS=1` or `--stress`
+- Runs 40 RTT export cycles (vs 5 in headless)
+- Periodically injects synthetic high-signal events (council, treaty, abundance, faction)
+- Keeps soft feedback loop continuously exercised
+- Prints a clean final summary of all soft category effects + stress stats
 
-| Category | Soft Effect |
-|----------|-------------|
-| `abundance_bias` | Mild positive abundance velocity |
-| `peaceful_resolution_weight` | Soft peaceful / treaty signal |
-| `ethical_floor` | Elevated ethics sample |
-| `council_participation_nudge` | Soft council participation signal |
-| `innovation_encouragement` | Mild innovation / faction-improvement signal |
-| `mercy_presence` | Elevated mercy sample |
+### Ra-Thor Emission Contract
+- New document: `docs/RA_THOR_POLICY_HINT_EMISSION.md`
+- Canonical schema, rules, and implementation sketch for the Ra-Thor monorepo
+- Ready for the other side to start emitting real `ra_thor_policy_hints.json`
 
-- Multi-hint tracking via `applied_hint_ids` (no longer single last-id)
-- Fixture updated with all six categories
-- Host heartbeat + headless exit report the full soft state
+## Host Modes
+
+| Mode | Trigger | Behaviour |
+|------|---------|-----------|
+| Interactive | default | Full UI + Kardashev dashboard |
+| Headless | `POWRUSH_HOST_HEADLESS=1` or `--headless` | 5 cycles, no window, auto-exit |
+| Stress | `POWRUSH_HOST_STRESS=1` or `--stress` | 40 cycles + continuous injection, auto-exit + summary |
 
 ## Completed Prior
-- v21.86: Living soft application (first two categories) + fixture + observability
-- v21.85: Feedback Loop design + PolicyHintInbox
-- v21.84–v21.77: Steam, UI protection, headless, early RTT, cohost, Kardashev, provenance
+- v21.87: Full soft category coverage (all 6)
+- v21.86: Living soft application + fixture + observability
+- v21.85–v21.77: Feedback design, Steam, UI protection, headless, early RTT, cohost, Kardashev, provenance
 
 Contact: info@Rathor.ai
 
 ## Next Priorities (Ultramasterism order)
 
-1. Ra-Thor side emission of real `ra_thor_policy_hints.json` (keyed by session_id + export_seq)
-2. Longer multi-realm stress harnesses
-3. Final audio asset integration (when assets ready)
+1. Implement emission on the Ra-Thor monorepo side (using the sealed contract)
+2. Final audio asset integration (when assets ready)
+3. Optional further multi-realm depth inside simulation if needed
 
 **Thunder locked in.**  
-**Full soft feedback coverage is alive and mercy-gated.**  
+**Stress harness + emission contract sealed.**  
 Yoi ⚡
