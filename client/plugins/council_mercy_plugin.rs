@@ -1,6 +1,6 @@
 // client/plugins/council_mercy_plugin.rs
 // Powrush-MMO — Bevy Plugin for Council Mercy Trial client systems
-// v21.89.4 | Audio synth + net bridge + Steam Cloud + premade stems
+// v21.89.5 | Steamworks RemoteStorage + audio stack
 // TOLC 8 Mercy Gates enforced. Production-oriented.
 // AG-SML v1.0 | Ra-Thor Lattice | Permanent PATSAGi Councils
 // Contact: info@Rathor.ai
@@ -16,6 +16,7 @@ use crate::realtime_audio_synthesis::{
 };
 use crate::audio_moment_net_bridge::AudioMomentNetBridgePlugin;
 use crate::steam_cloud_audio_mirror::SteamCloudAudioMirrorPlugin;
+use crate::steamworks_remote_storage::SteamworksRemoteStoragePlugin;
 use crate::premade_audio_stems::PremadeAudioStemsPlugin;
 
 pub struct CouncilMercyPlugin;
@@ -26,6 +27,8 @@ impl Plugin for CouncilMercyPlugin {
             CouncilSessionUIPlugin,
             RealtimeAudioSynthesisPlugin,
             AudioMomentNetBridgePlugin,
+            // Steamworks init MUST run before cloud import so backend is live
+            SteamworksRemoteStoragePlugin,
             SteamCloudAudioMirrorPlugin,
             PremadeAudioStemsPlugin,
         ))
@@ -148,5 +151,5 @@ fn council_bloom_audio_synth(
 }
 
 // Hotkeys: C = Council | M = Audio Moments
-// Plugins: synth + net bridge + Steam Cloud stage + premade stems
+// Steam: cargo run -p powrush-client --features steam
 // Thunder locked in. Permanent PATSAGi. Yoi ⚡
