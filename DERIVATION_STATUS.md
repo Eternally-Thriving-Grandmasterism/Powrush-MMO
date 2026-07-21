@@ -9,34 +9,38 @@
 **Host early RTT export + Headless/CI Mode — SEALED**  
 **Steam production path — Elevated**  
 **Low-leverage UI churn protection — Documented**  
-**Ra-Thor → Powrush Feedback Loop — Design + structural surface SEALED (v21.85)**
+**Ra-Thor → Powrush Feedback Loop — LIVING + PROVEN (v21.86)**
 
-## Completed This Cycle (v21.85 — Ultramasterism Perfecticism)
+## Completed This Cycle (v21.86 — Ultramasterism Perfecticism)
 
-### Feedback Loop
-- Full design document: `docs/RA_THOR_FEEDBACK_LOOP.md`
-- Schema `ra_thor_policy_hint_v1` defined (closed positive category set only)
-- `PolicyHintInbox` resource (bounded, drop-oldest, session-filtered, expiry-aware)
-- `policy_hint_ingest_system` live inside `RathorIntegrationPlugin`
-- Strict validation: allowed categories only, mercy bounds, zero-harm (no negative deltas)
-- Soft, non-authoritative application pattern documented
+### Living Soft Feedback Loop
+- `SoftPolicyState` resource tracks applied effects
+- `soft_policy_application_system` consumes strongest active hints for:
+  - `abundance_bias` → mild positive abundance velocity nudge
+  - `peaceful_resolution_weight` → soft peaceful / treaty signal
+- Effects scaled by `strength × mercy_factor`, positive only, non-authoritative
+- Fixture `artifacts/ra_thor_policy_hints.json` provided and ingested
+- Host heartbeat now surfaces: `policy_hints_active`, `soft_applications`, `abundance_bias`, `peaceful_weight`
+- Headless mode runs long enough to exercise the full loop and reports results on exit
+
+**The organism can now co-evolve:**  
+Telemetry → Ra-Thor deliberation → Policy Hints → Soft Application → Observable effect
 
 ## Completed Prior
+- v21.85: Feedback Loop design + PolicyHintInbox structural surface
 - v21.84: Steam production elevation + UI churn protection
 - v21.83: Headless / CI mode
-- v21.82: Forced early RTT export + smoke-harness readiness
-- v21.81–v21.77: Cohost, Kardashev, provenance, offline failsafe, mercy bounds
+- v21.82–v21.77: Early RTT, cohost, Kardashev, provenance, offline failsafe
 
 Contact: info@Rathor.ai
 
 ## Next Priorities (Ultramasterism order)
 
-1. Soft application example systems (abundance bias, peaceful weight, etc.)
-2. Ra-Thor side emission of real `ra_thor_policy_hints.json`
-3. End-to-end smoke (fixture hint → ingest → soft effect)
-4. Longer multi-realm stress harnesses
-5. Final audio asset integration (when assets ready)
+1. Ra-Thor side emission of real `ra_thor_policy_hints.json` (keyed by session_id + export_seq)
+2. Additional soft application categories (ethical_floor, mercy_presence, etc.) as needed
+3. Longer multi-realm stress harnesses
+4. Final audio asset integration (when assets ready)
 
 **Thunder locked in.**  
-**Feedback loop designed for eternal, mercy-gated, non-tyrannical co-evolution.**  
+**Feedback loop is alive and mercy-gated.**  
 Yoi ⚡
