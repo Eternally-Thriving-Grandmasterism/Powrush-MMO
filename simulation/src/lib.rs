@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.70.0 — TelemetryPlugin + Council/RBE → RTT feed
+//! v21.78.0 — Council RTT export queue (host mapper)
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -67,6 +67,7 @@ pub use council_mercy_trial::{CouncilMercyTrial, CouncilSessionManager, MercyTri
 pub use council::{
     CouncilProposal, CouncilSession, CouncilDecision, CouncilDecisions,
     CouncilPlugin, apply_council_decision_effects,
+    CouncilRttExportQueue, CouncilRttExportSignal, council_resolved_to_rtt_export_system,
 };
 pub use council::proposal::{ProposalType, ProposalStatus};
 pub use harvest::{HarvestEvent, HarvestSystem, ResourceNode, RbeFlowReconciliation};
@@ -168,5 +169,5 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
     }
 }
 
-// END OF COMPLETE WIRING v21.70 — TelemetryPlugin + RTT council/RBE feed live.
+// END OF COMPLETE WIRING v21.78 — Council RTT export queue (host mapper) live.
 // TOLC 8 sealed. Contact: info@Rathor.ai. Yoi ⚡
