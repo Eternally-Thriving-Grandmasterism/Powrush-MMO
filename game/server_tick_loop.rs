@@ -1,5 +1,5 @@
 // game/server_tick_loop.rs
-// Powrush-MMO v21.79.0 — NonSend Bevy wiring + dual multi-realm bridge payloads
+// Powrush-MMO v21.79.1 — NonSend wiring notes + dual multi-realm bridge payloads
 // AG-SML v1.0 | Mercy-aligned authoritative GPU foresight
 // Thunder locked in. Yoi ⚡
 
@@ -45,13 +45,11 @@ pub struct ServerTickLoop {
     last_bridge_collect: Instant,
     bridge_collect_interval: Duration,
 
-    /// Soft tick counter for cohost observability.
     pub tick_count: u64,
     pub enabled: bool,
 }
 
 impl ServerTickLoop {
-    /// Async constructor (real GPU path when feature enabled).
     pub async fn new() -> Self {
         #[cfg(feature = "gpu")]
         let gpu_bridge: Box<dyn GpuPatsagiBridge> = Box::new(RealGpuPatsagiBridge::new(/* device, queue */));
@@ -62,7 +60,7 @@ impl ServerTickLoop {
         Self::from_bridge(gpu_bridge)
     }
 
-    /// Sync constructor for NonSend Bevy Startup (always mock GPU unless host swaps bridge).
+    /// Sync constructor for NonSend Bevy Startup.
     pub fn new_sync() -> Self {
         Self::from_bridge(Box::new(MockGpuPatsagiBridge))
     }
@@ -86,7 +84,6 @@ impl ServerTickLoop {
         }
     }
 
-    /// Main server tick. now_ms is authoritative game time (milliseconds).
     pub fn tick(&mut self, dt: f32, now_ms: u64) {
         if !self.enabled {
             return;
@@ -219,48 +216,15 @@ struct PendingReadback {
     node_ids: Vec<u64>,
 }
 
-// =============================================================================
-// Bevy NonSend wiring (when game package is fully in a Bevy App)
-// =============================================================================
-
-/// Insert `NonSend<ServerTickLoop>` and run soft ticks each frame.
-/// Host: `.add_plugins(ServerTickLoopPlugin)` after game package is wired.
-pub struct ServerTickLoopPlugin;
-
-#[cfg(feature = "bevy_tick")]
-mod bevy_nonsend {
-    use super::*;
-    use bevy::prelude::*;
-
-    impl Plugin for super::ServerTickLoopPlugin {
-        fn build(&self, app: &mut App) {
-            app.insert_non_send_resource(ServerTickLoop::new_sync())
-                .add_systems(Update, nonsend_server_tick_system);
-            info!("ServerTickLoopPlugin — NonSend ServerTickLoop active");
-        }
-    }
-
-    fn nonsend_server_tick_system(
-        time: Res<Time>,
-        mut loop_res: NonSendMut<ServerTickLoop>,
-    ) {
-        let dt = time.delta_seconds();
-        let now_ms = (time.elapsed_seconds_f64() * 1000.0) as u64;
-        loop_res.tick(dt, now_ms);
-    }
-}
-
-/// Feature-free registration helper for hosts that already own a Bevy App.
-/// Call from host binary when `bevy_tick` feature is unavailable:
-/// ```ignore
+/// Marker type for hosts that register NonSend wiring themselves.
+/// Host binary pattern:
+/// ```text
 /// app.insert_non_send_resource(ServerTickLoop::new_sync());
 /// app.add_systems(Update, |time: Res<Time>, mut t: NonSendMut<ServerTickLoop>| {
 ///     t.tick(time.delta_seconds(), (time.elapsed_seconds_f64() * 1000.0) as u64);
 /// });
 /// ```
-pub fn register_nonsend_server_tick_loop(app: &mut bevy::app::App) {
-    app.insert_non_send_resource(ServerTickLoop::new_sync());
-}
+pub struct ServerTickLoopPlugin;
 
 // Thunder locked in. NonSend ServerTickLoop ready when game package wired.
 // Yoi ⚡
