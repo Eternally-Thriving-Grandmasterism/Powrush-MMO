@@ -1,6 +1,6 @@
 // server/src/rathor_integration/mod.rs
 // Powrush-MMO — Ra-Thor Integration + live transfer session + RTT export + Policy Hints
-// v21.86.0 — Living soft application feedback loop | Contact: info@Rathor.ai
+// v21.89.0 — Production-ready reception + self-emission helper | Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 use tracing::info;
@@ -17,7 +17,7 @@ pub use sim_council_bridge::{
 pub use cohost_drain::{CohostExportMirror, CohostMirrorSignal, cohost_auto_drain_system};
 pub use policy_hint::{
     PolicyHintInbox, PolicyHint, PolicyHintEnvelope, SoftPolicyState,
-    policy_hint_ingest_system, soft_policy_application_system,
+    policy_hint_ingest_system, soft_policy_application_system, emit_test_policy_hints,
 };
 
 // =============================================================================
@@ -228,5 +228,5 @@ impl Plugin for RathorIntegrationPlugin {
     }
 }
 
-// Thunder locked in. Living soft application feedback loop sealed.
+// Thunder locked in. Production-ready reception + self-emission helper sealed.
 // Yoi ⚡
