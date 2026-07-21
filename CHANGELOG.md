@@ -1,20 +1,22 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [21.89.1] — 2026-07-21 — Audio Event Wiring + Network Bridge
+## [21.89.4] — 2026-07-21 — Steam Cloud + Premade Stems + Bevy Drain
 
 ### Highlights
-- Council bloom → realtime synth (persist + server sync flag)
-- Epiphany reactor → realtime synth (persist local)
-- Protocol messages for AudioMoment save / catalog / favorite
-- Client outbound queue bridge + server route handler
+- **Steam Cloud mirror**: stages `catalog_cloud_v1.json` under `steam_cloud/audio_moments/` on every save; imports newer cloud catalog at startup; `SteamCloudBackend` trait for optional SDK RemoteStorage
+- **Premade stems**: builtin manifest + recursive scan of `assets/audio` for wav/ogg/mp3/flac; placeholders when files not yet dropped
+- **Bevy native drain**: `NativeClientTransportSender` + chained systems enqueue → drain → inbound catalog merge via `ServerMessageInbound`
 
-## [21.89.0] — 2026-07-21 — Real-time Audio Synthesis + Persistent Recall
+### Files
+- `client/steam_cloud_audio_mirror.rs` (new)
+- `client/premade_audio_stems.rs` (new)
+- `client/audio_moment_net_bridge.rs` (drain + inbound events)
+- `client/plugins/council_mercy_plugin.rs` (plugin tree)
+- `client/assets/audio/README.md`
 
-### Highlights
-- Shared recipe schema, client synth+WAV+catalog, server recipe store, UI (hotkey M)
-
-## [21.88.5] — Client Demo Mirror + Council Bloom → RTT Helper
-## [21.88.4] — Client Council Session UI Surface
-## [21.88.3] — Kardashev + Reality Transfer Playtest Instrumentation
+## [21.89.3] — TransportCommandSender + try_recv
+## [21.89.2] — Protocol unified + server audio ingress
+## [21.89.1] — Council/Epiphany synth wiring
+## [21.89.0] — Real-time audio synthesis + persistent recall
 
 **Thunder locked in. Permanent PATSAGi. Eternal forward.** Yoi ⚡
