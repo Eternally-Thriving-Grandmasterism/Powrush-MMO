@@ -1,5 +1,5 @@
 //! Server-side Ra-Thor transfer session (powrush_telemetry_v1 / batch_v1).
-//! v21.75.0 — Batch export + offline failsafe ring buffer
+//! v21.77.0 — Provenance (session_id + exported_at_unix) + batch + offline failsafe
 //!
 //! Lightweight counters — no dependency on the simulation crate.
 //! Feed from high-signal events; export JSON for Ra-Thor Kardashev ingest.
@@ -8,6 +8,7 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::info;
 
 const MAX_SNAPSHOTS: usize = 32;
@@ -25,17 +26,32 @@ pub struct PowrushTransferTelemetry {
     pub innovation_contribution: f64,
 }
 
+/// Single-session envelope. Provenance fields are optional for forward compat
+/// (Ra-Thor serde ignores unknown fields; newer Ra-Thor may surface them).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PowrushTelemetryEnvelope {
     pub schema: String,
     pub source: String,
     pub label: String,
+    /// Stable session identity for council provenance / feedback loops.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    /// Unix seconds when this envelope was produced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exported_at_unix: Option<u64>,
+    /// Monotonic export sequence on this host process.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub export_seq: Option<u64>,
     pub telemetry: PowrushTransferTelemetry,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PowrushTelemetrySession {
     pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exported_at_unix: Option<u64>,
     pub telemetry: PowrushTransferTelemetry,
 }
 
@@ -44,12 +60,16 @@ pub struct PowrushTelemetryBatch {
     pub schema: String,
     pub source: String,
     pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exported_at_unix: Option<u64>,
     pub sessions: Vec<PowrushTelemetrySession>,
 }
 
 #[derive(Resource, Debug, Clone)]
 pub struct ServerTransferSession {
     pub label: String,
+    /// Stable session id (default: label + process start unix).
+    pub session_id: String,
     pub started: std::time::Instant,
     pub combat_events: u64,
     pub critical_hits: u64,
@@ -61,21 +81,15 @@ pub struct ServerTransferSession {
     pub rbe_samples: Vec<f64>,
     pub ethics_samples: Vec<f64>,
     pub abundance_samples: Vec<f64>,
-    /// Soft export path for latest single session.
     pub export_path: PathBuf,
-    /// Soft export path for batch envelope.
     pub batch_export_path: PathBuf,
-    /// Offline failsafe directory (queued JSON when primary write fails).
     pub offline_dir: PathBuf,
-    /// Seconds between automatic writes (0 = disabled).
     pub export_interval_secs: f32,
     pub last_export_at: f32,
     pub export_count: u64,
     pub batch_export_count: u64,
     pub offline_flush_count: u64,
-    /// Ring of session snapshots for batch_v1.
     pub session_snapshots: Vec<PowrushTelemetrySession>,
-    /// Queued single-session JSON strings awaiting disk when primary fails.
     pub offline_queue: Vec<String>,
 }
 
@@ -85,10 +99,20 @@ impl Default for ServerTransferSession {
     }
 }
 
+fn now_unix() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
 impl ServerTransferSession {
     pub fn new(label: impl Into<String>) -> Self {
+        let label = label.into();
+        let session_id = format!("{}_{}", label, now_unix());
         Self {
-            label: label.into(),
+            label,
+            session_id,
             started: std::time::Instant::now(),
             combat_events: 0,
             critical_hits: 0,
@@ -115,6 +139,11 @@ impl ServerTransferSession {
 
     pub fn with_export_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.export_path = path.into();
+        self
+    }
+
+    pub fn with_session_id(mut self, id: impl Into<String>) -> Self {
+        self.session_id = id.into();
         self
     }
 
@@ -220,6 +249,8 @@ impl ServerTransferSession {
     fn snapshot_session(&self) -> PowrushTelemetrySession {
         PowrushTelemetrySession {
             label: format!("{}_snap_{}", self.label, self.export_count),
+            session_id: Some(format!("{}_{}", self.session_id, self.export_count)),
+            exported_at_unix: Some(now_unix()),
             telemetry: self.to_transfer_telemetry(),
         }
     }
@@ -237,17 +268,21 @@ impl ServerTransferSession {
             schema: "powrush_telemetry_v1".into(),
             source: "powrush-mmo-server".into(),
             label: self.label.clone(),
+            session_id: Some(self.session_id.clone()),
+            exported_at_unix: Some(now_unix()),
+            export_seq: Some(self.export_count),
             telemetry: self.to_transfer_telemetry(),
         };
         serde_json::to_string_pretty(&env).map_err(|e| e.to_string())
     }
 
-    /// Batch envelope from ring snapshots (+ current if empty).
     pub fn export_batch_json(&self) -> Result<String, String> {
         let mut sessions = self.session_snapshots.clone();
         if sessions.is_empty() {
             sessions.push(PowrushTelemetrySession {
                 label: self.label.clone(),
+                session_id: Some(self.session_id.clone()),
+                exported_at_unix: Some(now_unix()),
                 telemetry: self.to_transfer_telemetry(),
             });
         }
@@ -255,6 +290,7 @@ impl ServerTransferSession {
             schema: "powrush_telemetry_batch_v1".into(),
             source: "powrush-mmo-server".into(),
             label: format!("{}_batch", self.label),
+            exported_at_unix: Some(now_unix()),
             sessions,
         };
         serde_json::to_string_pretty(&batch).map_err(|e| e.to_string())
@@ -279,20 +315,18 @@ impl ServerTransferSession {
         Self::write_bytes(path, &json)
     }
 
-    /// Queue JSON offline when primary path cannot be written.
+    /// Offline queue: drop-oldest when over MAX_OFFLINE_QUEUE (16).
     fn enqueue_offline(&mut self, json: String) {
         self.offline_queue.push(json);
         if self.offline_queue.len() > MAX_OFFLINE_QUEUE {
             let excess = self.offline_queue.len() - MAX_OFFLINE_QUEUE;
             self.offline_queue.drain(0..excess);
         }
-        // Best-effort persist each queued item under offline_dir
         let idx = self.offline_queue.len();
         let path = self.offline_dir.join(format!("queued_{:04}.json", idx));
         let _ = Self::write_bytes(&path, self.offline_queue.last().map(|s| s.as_str()).unwrap_or(""));
     }
 
-    /// Attempt to flush offline queue to primary latest path (connectivity/disk recovery).
     pub fn try_flush_offline_queue(&mut self) -> usize {
         let mut flushed = 0usize;
         while let Some(json) = self.offline_queue.first().cloned() {
@@ -302,18 +336,16 @@ impl ServerTransferSession {
                     flushed += 1;
                     self.offline_flush_count = self.offline_flush_count.saturating_add(1);
                 }
-                Err(_) => break, // still unavailable — keep queue
+                Err(_) => break,
             }
         }
         flushed
     }
 
-    /// Full export cycle: snapshot → single v1 → batch_v1 → offline failsafe.
     pub fn write_export_cycle(&mut self) -> Result<(), String> {
         let snap = self.snapshot_session();
         self.push_snapshot(snap);
 
-        // Prefer flushing any prior offline backlog first
         let _ = self.try_flush_offline_queue();
 
         let single = self.export_json()?;
@@ -322,13 +354,11 @@ impl ServerTransferSession {
                 self.export_count = self.export_count.saturating_add(1);
             }
             Err(e) => {
-                // Failsafe: keep data local for later Ra-Thor ingest
                 self.enqueue_offline(single);
                 return Err(format!("primary write failed (queued offline): {}", e));
             }
         }
 
-        // Batch is soft — failure does not fail the cycle
         if let Ok(batch) = self.export_batch_json() {
             if Self::write_bytes(&self.batch_export_path, &batch).is_ok() {
                 self.batch_export_count = self.batch_export_count.saturating_add(1);
@@ -339,7 +369,6 @@ impl ServerTransferSession {
     }
 }
 
-/// Soft periodic export — single v1 + batch_v1 + offline failsafe.
 pub fn server_rtt_export_system(time: Res<Time>, mut transfer: ResMut<ServerTransferSession>) {
     if transfer.export_interval_secs <= 0.0 {
         return;
@@ -356,19 +385,21 @@ pub fn server_rtt_export_system(time: Res<Time>, mut transfer: ResMut<ServerTran
                 target: "ra_thor::rtt",
                 path = %transfer.export_path.display(),
                 batch = %transfer.batch_export_path.display(),
+                session_id = %transfer.session_id,
                 export_count = transfer.export_count,
                 batch_count = transfer.batch_export_count,
                 snapshots = transfer.session_snapshots.len(),
-                "Server RTT export cycle OK (v1 + batch_v1)"
+                "Server RTT export cycle OK (v1 + batch_v1 + provenance)"
             );
         }
         Err(e) => {
-            transfer.last_export_at = now; // backoff
+            transfer.last_export_at = now;
             info!(
                 target: "ra_thor::rtt",
                 error = %e,
                 offline_queue = transfer.offline_queue.len(),
-                "Server RTT export soft-failed — offline queue retained"
+                max_offline = MAX_OFFLINE_QUEUE,
+                "Server RTT export soft-failed — offline queue retained (drop-oldest at cap)"
             );
         }
     }
@@ -379,7 +410,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn export_schema_v1() {
+    fn export_schema_v1_with_provenance() {
         let mut s = ServerTransferSession::new("unit");
         s.record_treaty();
         s.record_combat(false, 10.0);
@@ -388,6 +419,8 @@ mod tests {
         let json = s.export_json().unwrap();
         assert!(json.contains("powrush_telemetry_v1"));
         assert!(json.contains("powrush-mmo-server"));
+        assert!(json.contains("session_id"));
+        assert!(json.contains("exported_at_unix"));
     }
 
     #[test]
@@ -400,6 +433,7 @@ mod tests {
         let json = s.export_batch_json().unwrap();
         assert!(json.contains("powrush_telemetry_batch_v1"));
         assert!(json.contains("sessions"));
+        assert!(json.contains("exported_at_unix"));
     }
 
     #[test]
@@ -410,5 +444,14 @@ mod tests {
         assert!((0.0..=1.0).contains(&t.rbe_decision_quality_avg));
         assert!((0.0..=1.0).contains(&t.ethical_choice_score));
         assert!(t.abundance_velocity_signals >= 0.0);
+    }
+
+    #[test]
+    fn offline_queue_caps_at_16() {
+        let mut s = ServerTransferSession::new("cap");
+        for i in 0..20 {
+            s.enqueue_offline(format!("{{\"n\":{}}}", i));
+        }
+        assert_eq!(s.offline_queue.len(), MAX_OFFLINE_QUEUE);
     }
 }
