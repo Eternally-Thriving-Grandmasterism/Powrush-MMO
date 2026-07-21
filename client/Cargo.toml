@@ -1,10 +1,40 @@
 # client/Cargo.toml
+# Powrush-MMO Client
+# Contact: info@Rathor.ai
+
+[package]
+name = "powrush-client"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[features]
+default = []
+# Enable Steamworks SDK RemoteStorage for audio moment catalog sync
+steam = ["dep:steamworks"]
 
 [dependencies]
-# ... existing dependencies ...
-
-# Tracing for structured logging, spans, and instrumentation
+bevy = { workspace = true }
+bevy_egui = { workspace = true, optional = true }
 tracing = "0.1"
-
-# GPU memory layout + safe buffer casting
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bincode = "1"
 bytemuck = { version = "1.16", features = ["derive"] }
+
+# Optional Steamworks (RemoteStorage FileWrite/FileRead)
+steamworks = { workspace = true, optional = true }
+
+# Internal / workspace paths — adjust as monorepo layout requires
+# shared = { path = "../shared" }
+# game = { path = "../game" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["console", "WebSocket", "BinaryType", "MessageEvent", "ErrorEvent", "Window"] }
+js-sys = "0.3"
+console_log = "1"
+log = "0.4"
+serde-wasm-bindgen = "0.6"
