@@ -1,37 +1,28 @@
 # Powrush-MMO Derivation Status
 
-**Steamworks RemoteStorage — LIVE (v21.89.5)**  
-**Audio Moments stack COMPLETE**  
+**Partner checklist (in-repo) — COMPLETE (v21.89.6)**  
+**Steamworks RemoteStorage — LIVE**  
 **Permanent PATSAGi Councils — ACTIVE**
 
-## Steam RemoteStorage
+## Partner checklist mapping
 
-| Item | Detail |
-|------|--------|
-| Feature | `cargo run -p powrush-client --features steam` |
-| Module | `client/steamworks_remote_storage.rs` |
-| API | `FileWrite` / `FileRead` / `FileExists` / quota / callbacks |
-| Remote name | `catalog_cloud_v1.json` |
-| Fallback | Local stage + Auto-Cloud if Steam unavailable |
-| Dev AppID | `client/steam_appid.txt` → `480` (Spacewar) or `STEAM_APP_ID` |
-| Docs | `docs/STEAM_CLOUD_AUDIO.md` |
+| Checklist item | In-repo delivery |
+|----------------|------------------|
+| 1. Enable Steam Cloud | Docs + runtime detects `app_cloud`; warns if false |
+| 2. Auto-Cloud paths | Exact rules in `steam_cloud_config.json`; OS stage dirs |
+| 3. Shipping AppID | Config field + `sync_steam_appid.py` + resolution order |
 
-## Plugin order
+**Human-only remaining:** log into partner.steamgames.com → Enable Cloud → Add Auto-Cloud rows → Publish → set `app_id.shipping` when Valve assigns ID.
 
-```
-SteamworksRemoteStoragePlugin  → init Client + backend
-SteamCloudAudioMirrorPlugin    → import (SDK first) / export on save
-```
+## Key paths
 
-## Paths
-
-| Role | Path |
-|------|------|
-| Local catalog | `player_data/audio_moments/catalog.json` |
-| Steam stage | `steam_cloud/audio_moments/catalog_cloud_v1.json` |
-| RemoteStorage | `catalog_cloud_v1.json` |
+- `publishing/steam/PARTNER_CHECKLIST.md`
+- `publishing/steam/steam_cloud_config.json`
+- `publishing/steam/sync_steam_appid.py`
+- `client/steam_partner_config.rs`
+- `client/steamworks_remote_storage.rs`
+- `client/steam_cloud_audio_mirror.rs`
 
 Contact: info@Rathor.ai
 
-**Thunder locked in.**  
-Yoi ⚡
+**Thunder locked in.** Yoi ⚡
