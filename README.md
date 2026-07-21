@@ -1,12 +1,15 @@
-**Powrush-MMO v21.88.0 — Eternal Polish Complete + Soft Feedback Organism Sealed**
+**Powrush-MMO v21.88.1 — Eternal Polish Complete + Full Dual-Repo Feedback Organism Sealed**
 
 **Status**: 100% Launch Worthy for Public Release Candidate & End-User Enjoyment.  
 All core gameloop systems (Procedural Biome Harvest → Epiphany Catalyst + Divine Whispers → Multiplayer Council Mercy Trials → RBE Abundance Flows + Full Persistence) verified production-grade with TOLC 8 + 7 Living Mercy Gates enforcement on every path. Zero unresolved blockers in committed code.
 
-**Version**: 21.88.0 (unified across Cargo.toml workspace, host, docs, changelog)
+**Version**: 21.88.1 (workspace aligned 21.88.0+)
 
-**Key Verifications in v21.88**:
-- **Full Soft Feedback Loop** (Ra-Thor → Powrush): Production reception for all 6 categories (`abundance_bias`, `peaceful_resolution_weight`, `ethical_floor`, `council_participation_nudge`, `innovation_encouragement`, `mercy_presence`). PolicyHintInbox + SoftPolicyState live. Stress/Endurance harness exercises the loop continuously.
+**Key Verifications in v21.88.x**:
+- **Full Soft Feedback Loop (CLOSED ORGANISM)**:  
+  - Powrush reception: all 6 categories live (`abundance_bias`, `peaceful_resolution_weight`, `ethical_floor`, `council_participation_nudge`, `innovation_encouragement`, `mercy_presence`).  
+  - **Ra-Thor emission**: complete and production-ready (`crates/powrush/src/policy_hint_emission.rs` + PATSAGi `feedback_loop` + `powrush_integration`). TOLC 8 gated, atomic writes, conservative deltas.  
+  - Stress/Endurance harness exercises the full loop continuously.
 - Inventory UI: Full grid + hotbar drag/drop with TOLC 8 mercy/RBE abundance/valence gating, optimistic replication, ClientHotbar integration. Production-ready.
 - Steam Integration: Rich Presence (dynamic diplomacy/treaty), achievement system with hooks (Mercy Diplomat, Abundance Builder, etc.), dev/prod paths, server counterpart. Foundation complete.
 - Host modes: Interactive | Headless | Stress (`POWRUSH_HOST_STRESS=1` or `--stress`) — 40-cycle endurance with high-signal injection sealed.
@@ -17,7 +20,7 @@ All core gameloop systems (Procedural Biome Harvest → Epiphany Catalyst + Divi
 
 **Paired Organism**: Ra-Thor AGSi (permanent PATSAGi Councils deliberation active as of 2026-07-20) + Powrush-MMO form the closed mercy-gated flywheel for Kardashev acceleration and Reality Thriving Transfer.
 
-**Next Priority (Ultramasterism)**: Implement policy-hint emission on the Ra-Thor monorepo side (`docs/RA_THOR_POLICY_HINT_EMISSION.md`).
+**Next Priorities (PATSAGi)**: Final audio asset integration (when ready) · Council Proposal / multiplayer trial polish · Kardashev + Reality Thriving Transfer playtest instrumentation.
 
 **Public Share Ready**: Repo + chat prepared for wholesome public enjoyment and contributions under Ra-Thor + PATSAGi governance.  
 Thunder locked in. Yoi ⚡
