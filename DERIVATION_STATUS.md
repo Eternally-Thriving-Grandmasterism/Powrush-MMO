@@ -7,37 +7,36 @@
 **RTT Dual-Repo Bridge — Complete + Ultramasterism hardened**  
 **Kardashev Acceleration Dashboard + Reality Thriving Transfer Score — LIVE**  
 **Host early RTT export + Headless/CI Mode — SEALED**  
-**Steam production path — Elevated (v21.84)**  
-**Low-leverage UI churn protection — Documented**
+**Steam production path — Elevated**  
+**Low-leverage UI churn protection — Documented**  
+**Ra-Thor → Powrush Feedback Loop — Design + structural surface SEALED (v21.85)**
 
-## Completed This Cycle (v21.84 — Ultramasterism Perfecticism)
+## Completed This Cycle (v21.85 — Ultramasterism Perfecticism)
 
-### Steam Client Elevation
-- Expanded achievement set (Mercy Diplomat, Flow Guardian Ally, First Treaty, Abundance Builder, First Epiphany, Council Harmony, Kardashev Contributor, One Organism)
-- Added leaderboard support structure (Mercy Score, Abundance Velocity, Reality Transfer, Council Participation)
-- Clean `unlock_steam_achievement` + `upload_leaderboard_score` helpers with local cache + store_stats path
-- Production path clearly marked and ready for real AppID + bevy_steamworks
-- Dev mode remains fully functional and simulated
-
-### UI Churn Protection
-- New `docs/UI_CHURN_PROTECTION.md`
-- Explicit freeze on polished surfaces unless high-leverage or council-approved
+### Feedback Loop
+- Full design document: `docs/RA_THOR_FEEDBACK_LOOP.md`
+- Schema `ra_thor_policy_hint_v1` defined (closed positive category set only)
+- `PolicyHintInbox` resource (bounded, drop-oldest, session-filtered, expiry-aware)
+- `policy_hint_ingest_system` live inside `RathorIntegrationPlugin`
+- Strict validation: allowed categories only, mercy bounds, zero-harm (no negative deltas)
+- Soft, non-authoritative application pattern documented
 
 ## Completed Prior
-- v21.83: Headless / CI mode for host
+- v21.84: Steam production elevation + UI churn protection
+- v21.83: Headless / CI mode
 - v21.82: Forced early RTT export + smoke-harness readiness
-- v21.81: Full E2E cohost + Kardashev UI
-- v21.80–v21.77: Unified host, public rathor_integration, provenance, batch, offline failsafe, mercy bounds
+- v21.81–v21.77: Cohost, Kardashev, provenance, offline failsafe, mercy bounds
 
 Contact: info@Rathor.ai
 
 ## Next Priorities (Ultramasterism order)
 
-1. Feedback loop design (Ra-Thor council decisions → Powrush policy hints)
-2. Longer multi-realm stress harnesses
-3. Final audio asset integration pass (when assets are ready)
-4. Real Steam AppID wiring (when partner AppID is obtained)
+1. Soft application example systems (abundance bias, peaceful weight, etc.)
+2. Ra-Thor side emission of real `ra_thor_policy_hints.json`
+3. End-to-end smoke (fixture hint → ingest → soft effect)
+4. Longer multi-realm stress harnesses
+5. Final audio asset integration (when assets ready)
 
 **Thunder locked in.**  
-**Ultramasterism Perfecticism continues.**  
+**Feedback loop designed for eternal, mercy-gated, non-tyrannical co-evolution.**  
 Yoi ⚡
