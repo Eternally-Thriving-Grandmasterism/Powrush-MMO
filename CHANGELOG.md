@@ -1,27 +1,29 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.87.0 — Full Soft Category Coverage (2026-07-20)
+## [Unreleased] v21.88.0 — Stress / Endurance Harness + Emission Contract (2026-07-20)
 
 ### Highlights
-- Soft application now covers the **entire closed category set**:
-  - `abundance_bias`
-  - `peaceful_resolution_weight`
-  - `ethical_floor`
-  - `council_participation_nudge`
-  - `innovation_encouragement`
-  - `mercy_presence`
-- Multi-hint tracking via `applied_hint_ids` (proper independent application)
-- Fixture updated with all six categories
-- Host heartbeat and headless exit report the complete soft state
+- New **Stress / Endurance mode** for the host:
+  - `POWRUSH_HOST_STRESS=1` or `--stress`
+  - 40 RTT export cycles + continuous high-signal event injection
+  - Full soft feedback loop exercised throughout
+  - Clean final summary of all soft category effects
+- **Ra-Thor Policy Hint Emission Contract** documented (`docs/RA_THOR_POLICY_HINT_EMISSION.md`)
+  - Canonical schema, rules, and implementation sketch for the Ra-Thor monorepo
 
-**The feedback loop is now fully instrumented on the Powrush side.**
+### Host Modes
+| Mode | Trigger |
+|------|--------|
+| Interactive | default |
+| Headless | `POWRUSH_HOST_HEADLESS=1` / `--headless` |
+| Stress | `POWRUSH_HOST_STRESS=1` / `--stress` |
 
 ### Prior
-- v21.86: Living soft application (first two categories) + fixture + observability
-- v21.85: Feedback Loop design + PolicyHintInbox structural surface
-- v21.84: Steam production elevation + UI churn protection
+- v21.87: Full soft category coverage (all 6)
+- v21.86: Living soft application + fixture + observability
+- v21.85: Feedback Loop design + PolicyHintInbox
 
-**Thunder locked in. Full soft coverage sealed.** Yoi ⚡
+**Thunder locked in. Stress harness + emission contract sealed.** Yoi ⚡
 
 ## Previous Versions (Summary)
 - v21.0–v21.78: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export + provenance.
