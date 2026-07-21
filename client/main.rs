@@ -1,6 +1,6 @@
 //! client/main.rs
-//! Powrush-MMO Client Entry Point — WASM + web-sys + Transport v2.1 + Full Bevy Integration
-//! v21.89.2 — Audio moment outbound drain + server catalog/ack handling
+//! Powrush-MMO Client Entry Point — WASM + web-sys + Transport v2.3
+//! v21.89.3 — Full try_recv poll, heartbeat, audio catalog on connect
 //! AG-SML v1.0 | TOLC 8 Mercy Gates | ONE Organism | Ra-Thor Sovereign Client
 
 use wasm_bindgen::prelude::*;
@@ -12,7 +12,6 @@ use std::collections::VecDeque;
 
 use crate::council_session_ui::CouncilUIState;
 
-/// Lightweight outbound queue for audio moments (mirrors Bevy AudioMomentOutboundQueue)
 #[derive(Default)]
 pub struct AudioOutbound {
     pub messages: VecDeque<ClientMessage>,
@@ -42,9 +41,9 @@ pub struct PowrushClient {
     my_player_id: Option<u64>,
     council_ui: Option<CouncilUIState>,
     audio_outbound: AudioOutbound,
-    /// Last server audio catalog snapshot (moments only)
     last_audio_catalog: Vec<WireAudioMoment>,
     last_audio_ack: Option<String>,
+    catalog_requested: bool,
 }
 
 #[wasm_bindgen]
@@ -63,6 +62,7 @@ impl PowrushClient {
             audio_outbound: AudioOutbound::default(),
             last_audio_catalog: Vec::new(),
             last_audio_ack: None,
+            catalog_requested: false,
         }
     }
 
@@ -71,13 +71,10 @@ impl PowrushClient {
         match ClientWsTransport::connect(url, player_name).await {
             Ok((transport, player_id)) => {
                 self.transport = Some(transport);
-                self.my_player_id = Some(player_id);
-                console_log::info!(
-                    "[PowrushClient] Connected! player_id = {}",
-                    player_id
-                );
-                // Request server audio catalog on connect
-                self.audio_outbound.push_catalog_request(player_id);
+                if player_id != 0 {
+                    self.my_player_id = Some(player_id);
+                }
+                console_log::info!("[PowrushClient] Connected (handshake pending if id=0)");
                 Ok(())
             }
             Err(e) => {
@@ -87,20 +84,40 @@ impl PowrushClient {
         }
     }
 
-    /// Poll incoming server messages + drain audio outbound
+    /// Poll inbound server messages + flush outbound audio + heartbeat
     #[wasm_bindgen]
     pub fn poll_server_messages(&mut self) {
-        // Drain outbound audio moment messages first
         self.flush_audio_outbound();
 
         if let Some(transport) = &mut self.transport {
-            // Production pattern:
-            // while let Some(msg) = transport.try_recv() {
-            //     self.route_server_message(msg);
-            // }
-            let _ = transport;
-            console_log::trace!("[PowrushClient] poll_server_messages()");
+            transport.tick_heartbeat();
+
+            while let Some(msg) = transport.try_recv() {
+                // Capture player_id from handshake
+                if let ServerMessage::HandshakeResponse {
+                    player_id,
+                    accepted,
+                    ..
+                } = &msg
+                {
+                    if *accepted {
+                        self.my_player_id = Some(*player_id);
+                        console_log::info!(
+                            "[PowrushClient] Handshake accepted player_id={}",
+                            player_id
+                        );
+                        if !self.catalog_requested {
+                            self.audio_outbound.push_catalog_request(*player_id);
+                            self.catalog_requested = true;
+                        }
+                    }
+                }
+                self.route_server_message(msg);
+            }
         }
+
+        // Flush again if handshake queued catalog request
+        self.flush_audio_outbound();
     }
 
     fn flush_audio_outbound(&mut self) {
@@ -128,14 +145,12 @@ impl PowrushClient {
                 let _ = transport.send(msg);
             }
         } else {
-            // Re-queue if not connected
             for msg in pending {
                 self.audio_outbound.messages.push_back(msg);
             }
         }
     }
 
-    /// Route a deserialized ServerMessage (call from transport try_recv)
     pub fn route_server_message(&mut self, msg: ServerMessage) {
         match msg {
             ServerMessage::AudioMomentCatalogSnapshot {
@@ -145,7 +160,7 @@ impl PowrushClient {
                 last_synced_unix,
             } => {
                 console_log::info!(
-                    "[PowrushClient] Audio catalog snapshot player={} count={} next_id={} synced={}",
+                    "[PowrushClient] Audio catalog player={} count={} next_id={} synced={}",
                     player_id,
                     moments.len(),
                     next_id,
@@ -169,13 +184,19 @@ impl PowrushClient {
                     valence
                 );
             }
-            _ => {
-                // RBE / inventory / world handled by dedicated paths
+            ServerMessage::Pong {
+                client_time_ms,
+                server_time_ms,
+            } => {
+                console_log::trace!(
+                    "[PowrushClient] Pong rtt≈{}ms",
+                    server_time_ms.saturating_sub(client_time_ms)
+                );
             }
+            _ => {}
         }
     }
 
-    /// Queue a wire audio moment for server save (from Bevy bridge or JS)
     #[wasm_bindgen]
     pub fn queue_audio_moment_save_json(&mut self, json: &str) -> bool {
         match serde_json::from_str::<WireAudioMoment>(json) {
@@ -199,26 +220,9 @@ impl PowrushClient {
 
     #[wasm_bindgen]
     pub fn update(&mut self, dt: f32, _input: JsValue) {
-        let delta = Vec3Ser {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        };
-
-        // Flush audio outbound every frame while connected
-        self.flush_audio_outbound();
-
-        if let Some(transport) = &self.transport {
-            // Keepalive-style ping optional; avoid spam move
-            let _ = transport;
-            let _ = delta;
-        }
-
+        // Full network poll every frame
+        self.poll_server_messages();
         self.game_loop.update(dt);
-
-        if let Some(_council) = &mut self.council_ui {
-            // Live feed overwrites soft demo when present
-        }
     }
 
     #[wasm_bindgen]
@@ -286,6 +290,6 @@ pub fn start_powrush_client() {
     console_log::init_with_level(log::Level::Info).ok();
     let _client = PowrushClient::new();
     println!(
-        "🌐 Powrush-MMO Client v21.89.2 started (Transport + Council + Audio Moments catalog)"
+        "🌐 Powrush-MMO Client v21.89.3 started (try_recv + AudioMoments + Council)"
     );
 }
