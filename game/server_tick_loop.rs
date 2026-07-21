@@ -1,6 +1,5 @@
 // game/server_tick_loop.rs
-// Powrush-MMO v21.58.0 — dual multi-realm bridge payloads (abundance + origin)
-// Previous: v21.56.0 abundance bridge collection
+// Powrush-MMO v21.79.0 — NonSend Bevy wiring + dual multi-realm bridge payloads
 // AG-SML v1.0 | Mercy-aligned authoritative GPU foresight
 // Thunder locked in. Yoi ⚡
 
@@ -28,6 +27,7 @@ pub struct GpuPerformanceMetrics {
     pub samples: u32,
 }
 
+/// Authoritative game tick loop — intended as Bevy `NonSend` (not Send/Sync).
 pub struct ServerTickLoop {
     pub resource_nodes: ResourceNodeManager,
     gpu_bridge: Box<dyn GpuPatsagiBridge>,
@@ -40,15 +40,18 @@ pub struct ServerTickLoop {
 
     pub perf: GpuPerformanceMetrics,
 
-    /// Last collected multi-realm abundance payload.
     pub last_abundance_payload: AbundanceBridgePayload,
-    /// Last collected origin payload (from inventories when provided).
     pub last_origin_payload: OriginBridgePayload,
     last_bridge_collect: Instant,
     bridge_collect_interval: Duration,
+
+    /// Soft tick counter for cohost observability.
+    pub tick_count: u64,
+    pub enabled: bool,
 }
 
 impl ServerTickLoop {
+    /// Async constructor (real GPU path when feature enabled).
     pub async fn new() -> Self {
         #[cfg(feature = "gpu")]
         let gpu_bridge: Box<dyn GpuPatsagiBridge> = Box::new(RealGpuPatsagiBridge::new(/* device, queue */));
@@ -56,6 +59,15 @@ impl ServerTickLoop {
         #[cfg(not(feature = "gpu"))]
         let gpu_bridge: Box<dyn GpuPatsagiBridge> = Box::new(MockGpuPatsagiBridge);
 
+        Self::from_bridge(gpu_bridge)
+    }
+
+    /// Sync constructor for NonSend Bevy Startup (always mock GPU unless host swaps bridge).
+    pub fn new_sync() -> Self {
+        Self::from_bridge(Box::new(MockGpuPatsagiBridge))
+    }
+
+    fn from_bridge(gpu_bridge: Box<dyn GpuPatsagiBridge>) -> Self {
         Self {
             resource_nodes: ResourceNodeManager::new(),
             gpu_bridge,
@@ -69,24 +81,28 @@ impl ServerTickLoop {
             last_origin_payload: OriginBridgePayload::default(),
             last_bridge_collect: Instant::now(),
             bridge_collect_interval: Duration::from_secs(2),
+            tick_count: 0,
+            enabled: true,
         }
     }
 
     /// Main server tick. now_ms is authoritative game time (milliseconds).
     pub fn tick(&mut self, dt: f32, now_ms: u64) {
+        if !self.enabled {
+            return;
+        }
         let _ = dt;
         let frame_start = Instant::now();
+        self.tick_count = self.tick_count.saturating_add(1);
 
         self.resource_nodes.tick_regen(now_ms);
 
-        // Soft collect abundance for external simulation consumers.
         if self.last_bridge_collect.elapsed() >= self.bridge_collect_interval {
             self.last_abundance_payload =
                 collect_abundance_payload(&self.resource_nodes, now_ms);
             self.last_bridge_collect = Instant::now();
         }
 
-        // === GPU Query Submission (periodic) ===
         if self.last_gpu_update.elapsed() >= self.gpu_update_interval {
             if self.in_flight_gpu_query.is_none() {
                 let start = Instant::now();
@@ -144,13 +160,14 @@ impl ServerTickLoop {
 
         if self.perf.samples % 60 == 0 {
             tracing::info!(
-                "[GPU Perf] avg={:.2}ms submit={} readback={} policy={} | bridge_a={} bridge_o={}",
+                "[GPU Perf] avg={:.2}ms submit={} readback={} policy={} | bridge_a={} bridge_o={} ticks={}",
                 self.perf.avg_frame_gpu_ms,
                 self.perf.last_submit_ms,
                 self.perf.last_readback_ms,
                 self.perf.last_policy_ms,
                 self.last_abundance_payload.realm_count(),
-                self.last_origin_payload.realm_count()
+                self.last_origin_payload.realm_count(),
+                self.tick_count
             );
         }
 
@@ -159,7 +176,6 @@ impl ServerTickLoop {
         }
     }
 
-    /// Soft-collect origin provenance from live inventories (call when player set is available).
     pub fn refresh_origin_from_inventories<'a>(
         &mut self,
         inventories: impl IntoIterator<Item = &'a ServerInventoryComponent>,
@@ -188,7 +204,6 @@ impl ServerTickLoop {
         &self.last_origin_payload
     }
 
-    /// Paired view for one-step shared-app publish into ExternalBridgeInbox.
     pub fn dual_payload(&self) -> DualBridgePayload {
         DualBridgePayload {
             abundance: self.last_abundance_payload.clone(),
@@ -204,5 +219,48 @@ struct PendingReadback {
     node_ids: Vec<u64>,
 }
 
-// Thunder locked in. Dual bridge payloads ready for ExternalBridgeInbox.
+// =============================================================================
+// Bevy NonSend wiring (when game package is fully in a Bevy App)
+// =============================================================================
+
+/// Insert `NonSend<ServerTickLoop>` and run soft ticks each frame.
+/// Host: `.add_plugins(ServerTickLoopPlugin)` after game package is wired.
+pub struct ServerTickLoopPlugin;
+
+#[cfg(feature = "bevy_tick")]
+mod bevy_nonsend {
+    use super::*;
+    use bevy::prelude::*;
+
+    impl Plugin for super::ServerTickLoopPlugin {
+        fn build(&self, app: &mut App) {
+            app.insert_non_send_resource(ServerTickLoop::new_sync())
+                .add_systems(Update, nonsend_server_tick_system);
+            info!("ServerTickLoopPlugin — NonSend ServerTickLoop active");
+        }
+    }
+
+    fn nonsend_server_tick_system(
+        time: Res<Time>,
+        mut loop_res: NonSendMut<ServerTickLoop>,
+    ) {
+        let dt = time.delta_seconds();
+        let now_ms = (time.elapsed_seconds_f64() * 1000.0) as u64;
+        loop_res.tick(dt, now_ms);
+    }
+}
+
+/// Feature-free registration helper for hosts that already own a Bevy App.
+/// Call from host binary when `bevy_tick` feature is unavailable:
+/// ```ignore
+/// app.insert_non_send_resource(ServerTickLoop::new_sync());
+/// app.add_systems(Update, |time: Res<Time>, mut t: NonSendMut<ServerTickLoop>| {
+///     t.tick(time.delta_seconds(), (time.elapsed_seconds_f64() * 1000.0) as u64);
+/// });
+/// ```
+pub fn register_nonsend_server_tick_loop(app: &mut bevy::app::App) {
+    app.insert_non_send_resource(ServerTickLoop::new_sync());
+}
+
+// Thunder locked in. NonSend ServerTickLoop ready when game package wired.
 // Yoi ⚡
