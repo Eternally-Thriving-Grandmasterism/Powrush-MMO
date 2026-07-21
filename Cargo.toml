@@ -12,12 +12,12 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "21.1.0"
+version = "21.88.0"
 edition = "2021"
 authors = ["Sherif Samy Botros <info@Rathor.ai>"]
 license = "AG-SML-1.0"
 repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
-description = "Powrush-MMO: Universally Shared Naturally Thriving Heavens — RBE metaverse MMOARPG where abundance, mercy, and joy propagate for all sentience."
+description = "Powrush-MMO: Universally Shared Naturally Thriving Heavens — RBE metaverse MMOARPG where abundance, mercy, and joy propagate for all sentience. Paired with Ra-Thor AGSi under permanent PATSAGi Councils."
 
 [workspace.dependencies]
 # Shared Bevy + ecosystem (client + server + simulation)
