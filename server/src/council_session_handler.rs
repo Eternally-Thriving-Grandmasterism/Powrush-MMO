@@ -276,8 +276,7 @@ fn advance_trial_phases(
 /// When any trial enters Deliberation, promote all Submitted proposals to UnderDeliberation.
 /// This keeps the proposal system tightly coupled to the living trial cadence.
 fn promote_proposals_on_deliberation(
-    trials: Res<ActiveCouncilTrials>,
-    mut proposals: ResMut<ActiveCouncilTrials>, // same resource — safe under Bevy exclusive access
+    mut trials: ResMut<ActiveCouncilTrials>,
 ) {
     let any_in_deliberation = trials
         .sessions
@@ -288,7 +287,7 @@ fn promote_proposals_on_deliberation(
         return;
     }
 
-    for proposal in proposals.proposals.values_mut() {
+    for proposal in trials.proposals.values_mut() {
         if proposal.status == ProposalStatus::Submitted {
             proposal.promote_to_deliberation();
             info!(
