@@ -1,38 +1,45 @@
 // client/plugins/council_mercy_plugin.rs
 // Powrush-MMO — Bevy Plugin for Council Mercy Trial client systems
-// v21.89.1 | Council bloom → realtime audio synthesis + persistent recall
-// Sovereign Council participation, collective epiphany blooms, and mercy-gated resonance.
+// v21.89.4 | Audio synth + net bridge + Steam Cloud + premade stems
 // TOLC 8 Mercy Gates enforced. Production-oriented.
 // AG-SML v1.0 | Ra-Thor Lattice | Permanent PATSAGi Councils
 // Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 use shared::council_mercy_trial::{
-    CouncilMercyTrialPhase, CouncilSessionState, CollectiveEpiphanyBloom,
+    CouncilMercyTrialPhase, CouncilSessionState,
     CouncilProposal, ProposalStatus,
 };
 use crate::council_session_ui::{CouncilSessionUIPlugin, CouncilUIState};
 use crate::realtime_audio_synthesis::{
-    RealtimeAudioSynthesisPlugin, SynthesizeAudioMoment,
-    AudioMomentFlavor, AudioSynthesisRecipe, request_council_bloom_synth,
+    RealtimeAudioSynthesisPlugin, SynthesizeAudioMoment, request_council_bloom_synth,
 };
+use crate::audio_moment_net_bridge::AudioMomentNetBridgePlugin;
+use crate::steam_cloud_audio_mirror::SteamCloudAudioMirrorPlugin;
+use crate::premade_audio_stems::PremadeAudioStemsPlugin;
 
 pub struct CouncilMercyPlugin;
 
 impl Plugin for CouncilMercyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((CouncilSessionUIPlugin, RealtimeAudioSynthesisPlugin))
-            .add_systems(Update, (
+        app.add_plugins((
+            CouncilSessionUIPlugin,
+            RealtimeAudioSynthesisPlugin,
+            AudioMomentNetBridgePlugin,
+            SteamCloudAudioMirrorPlugin,
+            PremadeAudioStemsPlugin,
+        ))
+        .add_systems(
+            Update,
+            (
                 soft_local_demo_mirror,
                 trigger_collective_bloom_effects,
                 council_bloom_audio_synth,
-            ));
+            ),
+        );
     }
 }
 
-/// Soft local demo mirror so the Council panel is immediately useful for playtest
-/// when live network / server mirror is not yet feeding data.
-/// Only seeds once if the panel is empty.
 fn soft_local_demo_mirror(
     mut ui_state: ResMut<CouncilUIState>,
     time: Res<Time>,
@@ -90,7 +97,6 @@ fn soft_local_demo_mirror(
     info!(target: "powrush::council", "Council soft local demo mirror seeded for playtest");
 }
 
-/// Visual bloom / valence effects when a collective epiphany is present
 fn trigger_collective_bloom_effects(
     ui_state: Res<CouncilUIState>,
     mut commands: Commands,
@@ -115,7 +121,6 @@ fn trigger_collective_bloom_effects(
     }
 }
 
-/// When a collective bloom appears on the client UI state, synthesize + persist audio.
 fn council_bloom_audio_synth(
     ui_state: Res<CouncilUIState>,
     mut synth_events: EventWriter<SynthesizeAudioMoment>,
@@ -124,7 +129,6 @@ fn council_bloom_audio_synth(
     let Some(bloom) = &ui_state.last_bloom else {
         return;
     };
-    // Fire once per session bloom
     if *last_session == Some(bloom.session_id) {
         return;
     }
@@ -143,8 +147,6 @@ fn council_bloom_audio_synth(
     );
 }
 
-// Usage:
-// app.add_plugins(CouncilMercyPlugin);
-// Panel C = Council UI | Panel M = Audio Moments
-// Bloom on last_bloom triggers persistent synth + optional server sync.
+// Hotkeys: C = Council | M = Audio Moments
+// Plugins: synth + net bridge + Steam Cloud stage + premade stems
 // Thunder locked in. Permanent PATSAGi. Yoi ⚡
