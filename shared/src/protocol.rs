@@ -3,33 +3,25 @@
  * Powrush-MMO — Canonical Network Protocol Definitions
  *
  * Complete, production-grade message types for client-server communication.
- * Supports full inventory system (hotbar + 40-slot general), replication, persistence,
- * SafetyNet broadcasts, RBE signals, and TOLC 8 mercy-aligned gameplay.
+ * Supports inventory, SafetyNet, RBE, Council, and Audio Moment persistence/recall.
  *
- * All types are Serialize/Deserialize for networking.
- * Used by: inventory_ui, inventory_replication (client+server), persistence_polish,
- * safety_net_broadcast, lib.rs process_inventory_messages, and simulation systems.
+ * v21.89.1 — Audio moment catalog sync (recipe-level, not bulk PCM).
  *
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi
  * Thunder locked in. Yoi ⚡
  */
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 // ════════════════════════════════════════════════════════════════════════════════════
 // HOTBAR / INVENTORY SLOT
 // ════════════════════════════════════════════════════════════════════════════════════
 
-/// Represents a single slot in hotbar (8 slots) or general inventory (40 slots).
-/// Used for drag-drop, replication, persistence, and authoritative validation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct HotbarSlot {
     pub item_id: u32,
     pub count: u32,
-    /// Mercy valence of the item in this slot (-1.0 to +1.0)
     pub valence: f32,
-    // Future: durability, metadata, rarity, etc.
 }
 
 impl HotbarSlot {
@@ -42,8 +34,78 @@ impl HotbarSlot {
     }
 
     pub fn new(item_id: u32, count: u32, valence: f32) -> Self {
-        Self { item_id, count, valence }
+        Self {
+            item_id,
+            count,
+            valence,
+        }
     }
+}
+
+// ════════════════════════════════════════════════════════════════════════════════════
+// AUDIO MOMENT WIRE TYPES (recipe-level; mirrors audio_moments schema)
+// ════════════════════════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum WireWaveformKind {
+    Sine,
+    Triangle,
+    SoftSquare,
+    NoiseBurst,
+    HarmonicStack,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum WireAudioMomentFlavor {
+    DivineWhisper,
+    CouncilBloom,
+    EpiphanyChime,
+    MercyResonance,
+    AmbientPad,
+    TransitionStinger,
+    Custom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum WireAudioMomentSource {
+    RealtimeSynthesis,
+    PremadeAsset,
+    RecipeRecall,
+    ExternalImport,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WireAudioSynthesisRecipe {
+    pub waveform: WireWaveformKind,
+    pub frequency_hz: f32,
+    pub duration_secs: f32,
+    pub sample_rate: u32,
+    pub amplitude: f32,
+    pub attack: f32,
+    pub decay: f32,
+    pub sustain: f32,
+    pub release: f32,
+    pub partial_hz: f32,
+    pub partial_amp: f32,
+    pub brightness: f32,
+    pub valence: f32,
+    pub seed: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WireAudioMoment {
+    pub id: u64,
+    pub owner_player_id: u64,
+    pub title: String,
+    pub flavor: WireAudioMomentFlavor,
+    pub source: WireAudioMomentSource,
+    pub created_at_unix: u64,
+    pub context: String,
+    pub recipe: WireAudioSynthesisRecipe,
+    pub rendered_path: Option<String>,
+    pub favorite: bool,
+    pub play_count: u32,
+    pub mercy_seal: bool,
 }
 
 // ════════════════════════════════════════════════════════════════════════════════════
@@ -52,7 +114,6 @@ impl HotbarSlot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClientMessage {
-    // === Inventory System ===
     InventoryHotbarMove {
         from_slot: u8,
         to_slot: u8,
@@ -61,15 +122,23 @@ pub enum ClientMessage {
         from: u32,
         to: u32,
     },
-
-    // === Localization / Session ===
     SyncLocalization {
         language: String,
     },
 
-    // === Future extensibility ===
-    // RecordEpiphanyWithEnrichedWhisper { ... }
-    // Other gameplay messages
+    /// Persist an audio moment recipe to the server catalog
+    AudioMomentSave {
+        moment: WireAudioMoment,
+    },
+    /// Request full audio moment catalog for this player
+    AudioMomentCatalogRequest {
+        player_id: u64,
+    },
+    /// Mark favorite on server
+    AudioMomentSetFavorite {
+        moment_id: u64,
+        favorite: bool,
+    },
 }
 
 // ════════════════════════════════════════════════════════════════════════════════════
@@ -78,22 +147,29 @@ pub enum ClientMessage {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ServerMessage {
-    // === Inventory Replication ===
     InventoryUpdate {
         player_id: u64,
         hotbar: Vec<HotbarSlot>,
         inventory: Vec<HotbarSlot>,
         abundance_score: f32,
     },
-
-    // === SafetyNet / RBE / Council ===
     SafetyNetBroadcast {
         broadcast: SafetyNetBroadcast,
     },
 
-    // === Future extensibility ===
-    // LocalizationSynced { language: String },
-    // EpiphanyConfirmed { ... }
+    /// Full or delta audio moment catalog snapshot
+    AudioMomentCatalogSnapshot {
+        player_id: u64,
+        moments: Vec<WireAudioMoment>,
+        next_id: u64,
+        last_synced_unix: u64,
+    },
+    /// Confirmation that a moment was saved server-side
+    AudioMomentSaveAck {
+        moment_id: u64,
+        ok: bool,
+        message: String,
+    },
 }
 
 // ════════════════════════════════════════════════════════════════════════════════════
@@ -145,11 +221,4 @@ pub enum SafetyNetEvent {
     },
 }
 
-// ════════════════════════════════════════════════════════════════════════════════════
-// END OF PROTOCOL
-// ════════════════════════════════════════════════════════════════════════════════════
-// This file is the single source of truth for all network messages.
-// Keep in sync with inventory_replication, persistence_polish, safety_net_broadcast,
-// and client/server handlers.
-//
 // Thunder locked in. Yoi ⚡
