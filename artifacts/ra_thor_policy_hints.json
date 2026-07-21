@@ -24,11 +24,38 @@
       "expires_at_unix": null
     },
     {
+      "hint_id": "fixture_ethical_001",
+      "category": "ethical_floor",
+      "strength": 0.68,
+      "mercy_factor": 0.94,
+      "recommended_delta": 0.05,
+      "rationale": "Consistent high ethical_choice_score across sessions",
+      "expires_at_unix": null
+    },
+    {
+      "hint_id": "fixture_council_001",
+      "category": "council_participation_nudge",
+      "strength": 0.63,
+      "mercy_factor": 0.87,
+      "recommended_delta": 0.04,
+      "rationale": "Council decisions showing strong mercy alignment",
+      "expires_at_unix": null
+    },
+    {
+      "hint_id": "fixture_innovation_001",
+      "category": "innovation_encouragement",
+      "strength": 0.60,
+      "mercy_factor": 0.85,
+      "recommended_delta": 0.05,
+      "rationale": "Positive innovation_contribution trend",
+      "expires_at_unix": null
+    },
+    {
       "hint_id": "fixture_mercy_001",
       "category": "mercy_presence",
-      "strength": 0.65,
-      "mercy_factor": 0.95,
-      "recommended_delta": 0.04,
+      "strength": 0.75,
+      "mercy_factor": 0.96,
+      "recommended_delta": 0.06,
       "rationale": "Elevated mercy_factor across recent council decisions",
       "expires_at_unix": null
     }

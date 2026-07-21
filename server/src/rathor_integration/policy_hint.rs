@@ -1,5 +1,5 @@
 //! Ra-Thor → Powrush soft Policy Hint surface
-//! v21.86.0 — Ultramasterism Feedback Loop (living soft application)
+//! v21.87.0 — Ultramasterism Feedback Loop (full category coverage)
 //!
 //! Soft, non-authoritative, mercy-gated recommendations only.
 //! Never overrides local simulation sovereignty or player agency.
@@ -7,7 +7,7 @@
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tracing::{info, warn};
@@ -51,13 +51,15 @@ pub struct PolicyHintEnvelope {
 
 #[derive(Resource, Debug, Default)]
 pub struct SoftPolicyState {
-    /// Accumulated soft abundance bias applied this session
     pub abundance_bias_applied: f64,
-    /// Accumulated peaceful resolution weight applied
     pub peaceful_weight_applied: f64,
-    /// Number of soft applications performed
+    pub ethical_floor_applied: f64,
+    pub council_nudge_applied: f64,
+    pub innovation_applied: f64,
+    pub mercy_presence_applied: f64,
     pub applications: u64,
-    pub last_applied_hint_id: Option<String>,
+    /// Track which hint_ids have already been applied this session
+    pub applied_hint_ids: HashSet<String>,
 }
 
 // =============================================================================
@@ -71,7 +73,6 @@ pub struct PolicyHintInbox {
     pub total_ingested: u64,
     pub total_rejected: u64,
     pub last_ingest_unix: u64,
-    /// Only accept hints for this session (or "*")
     pub session_id: String,
 }
 
@@ -99,7 +100,6 @@ impl PolicyHintInbox {
         self
     }
 
-    /// Strongest (strength × mercy_factor) active hint for a category.
     pub fn strongest_for(&self, category: &str) -> Option<&PolicyHint> {
         let now = now_unix();
         self.hints
@@ -113,7 +113,6 @@ impl PolicyHintInbox {
             })
     }
 
-    /// All active hints (non-expired).
     pub fn active(&self) -> impl Iterator<Item = &PolicyHint> {
         let now = now_unix();
         self.hints
@@ -237,63 +236,94 @@ pub fn policy_hint_ingest_system(mut inbox: ResMut<PolicyHintInbox>) {
 }
 
 // =============================================================================
-// Soft Application Systems (living feedback)
+// Soft Application Systems (full closed category set)
 // =============================================================================
 
-/// Apply soft abundance_bias and peaceful_resolution_weight hints.
-/// Effects are mild, scaled by strength × mercy_factor, and only positive.
+fn apply_if_new(
+    soft: &mut SoftPolicyState,
+    hint: &PolicyHint,
+    category: &str,
+    apply_fn: impl FnOnce(f64),
+) {
+    if soft.applied_hint_ids.contains(&hint.hint_id) {
+        return;
+    }
+
+    let scale = (hint.strength * hint.mercy_factor) as f64;
+    let delta = (hint.recommended_delta as f64) * scale;
+
+    apply_fn(delta);
+
+    soft.applied_hint_ids.insert(hint.hint_id.clone());
+    soft.applications = soft.applications.saturating_add(1);
+
+    info!(
+        target: "ra_thor::policy::soft",
+        category = category,
+        hint_id = %hint.hint_id,
+        delta = delta,
+        scale = scale,
+        mercy = hint.mercy_factor,
+        "Soft policy applied (non-authoritative)"
+    );
+}
+
+/// Apply all supported soft categories. Effects are mild, scaled by
+/// strength × mercy_factor, positive only, and never override local sovereignty.
 pub fn soft_policy_application_system(
     inbox: Res<PolicyHintInbox>,
     mut soft: ResMut<SoftPolicyState>,
     mut transfer: ResMut<ServerTransferSession>,
 ) {
-    // --- abundance_bias ---
+    // abundance_bias
     if let Some(hint) = inbox.strongest_for("abundance_bias") {
-        let scale = (hint.strength * hint.mercy_factor) as f64;
-        let delta = (hint.recommended_delta as f64) * scale;
-
-        // Only apply once per unique hint_id to keep effects stable
-        if soft.last_applied_hint_id.as_deref() != Some(&hint.hint_id) {
-            transfer.record_abundance_velocity(1.0 + delta); // gentle upward nudge
+        apply_if_new(&mut soft, hint, "abundance_bias", |delta| {
+            transfer.record_abundance_velocity(1.0 + delta);
             soft.abundance_bias_applied += delta;
-            soft.applications = soft.applications.saturating_add(1);
-            soft.last_applied_hint_id = Some(hint.hint_id.clone());
-
-            info!(
-                target: "ra_thor::policy::soft",
-                category = "abundance_bias",
-                hint_id = %hint.hint_id,
-                delta = delta,
-                scale = scale,
-                mercy = hint.mercy_factor,
-                "Soft abundance bias applied (non-authoritative)"
-            );
-        }
+        });
     }
 
-    // --- peaceful_resolution_weight ---
+    // peaceful_resolution_weight
     if let Some(hint) = inbox.strongest_for("peaceful_resolution_weight") {
-        let scale = (hint.strength * hint.mercy_factor) as f64;
-        let delta = (hint.recommended_delta as f64) * scale;
-
-        // Represent as a soft ethics / RBE sample boost
-        if soft.last_applied_hint_id.as_deref() != Some(&hint.hint_id) {
-            // Push a high peaceful sample
-            transfer.record_treaty(); // counts as peaceful collaboration signal
+        apply_if_new(&mut soft, hint, "peaceful_resolution_weight", |delta| {
+            transfer.record_treaty();
             soft.peaceful_weight_applied += delta;
-            soft.applications = soft.applications.saturating_add(1);
-            soft.last_applied_hint_id = Some(hint.hint_id.clone());
+        });
+    }
 
-            info!(
-                target: "ra_thor::policy::soft",
-                category = "peaceful_resolution_weight",
-                hint_id = %hint.hint_id,
-                delta = delta,
-                scale = scale,
-                mercy = hint.mercy_factor,
-                "Soft peaceful resolution weight applied (non-authoritative)"
-            );
-        }
+    // ethical_floor
+    if let Some(hint) = inbox.strongest_for("ethical_floor") {
+        apply_if_new(&mut soft, hint, "ethical_floor", |delta| {
+            // Represent as a high ethics sample
+            transfer.record_council_passed(0.85 + delta.min(0.14));
+            soft.ethical_floor_applied += delta;
+        });
+    }
+
+    // council_participation_nudge
+    if let Some(hint) = inbox.strongest_for("council_participation_nudge") {
+        apply_if_new(&mut soft, hint, "council_participation_nudge", |delta| {
+            transfer.record_council_passed(0.80);
+            soft.council_nudge_applied += delta;
+        });
+    }
+
+    // innovation_encouragement
+    if let Some(hint) = inbox.strongest_for("innovation_encouragement") {
+        apply_if_new(&mut soft, hint, "innovation_encouragement", |delta| {
+            // Mild positive signal via faction improvement style event
+            transfer.record_faction_shift(0.4, 0.4 + delta as f32);
+            soft.innovation_applied += delta;
+        });
+    }
+
+    // mercy_presence
+    if let Some(hint) = inbox.strongest_for("mercy_presence") {
+        apply_if_new(&mut soft, hint, "mercy_presence", |delta| {
+            // Elevate mercy sample
+            transfer.record_council_passed(0.90 + delta.min(0.09));
+            soft.mercy_presence_applied += delta;
+        });
     }
 }
 
