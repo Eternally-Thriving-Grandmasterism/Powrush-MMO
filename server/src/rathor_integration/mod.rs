@@ -1,14 +1,18 @@
 // server/src/rathor_integration/mod.rs
 // Powrush-MMO — Ra-Thor Integration + live transfer session + RTT export
-// v21.74.0 | Contact: info@Rathor.ai
+// v21.76.0 — Soft council→RTT bridge | Contact: info@Rathor.ai
 
 use bevy::prelude::*;
+use tracing::info;
 
 pub mod transfer_session;
 
 pub use transfer_session::{ServerTransferSession, server_rtt_export_system};
 
-/// Triggered when a major combat event occurs (suitable for council reasoning)
+// =============================================================================
+// High-signal domain events (combat / diplomacy)
+// =============================================================================
+
 #[derive(Event, Debug, Clone)]
 pub struct MajorCombatEvent {
     pub attacker: Entity,
@@ -18,7 +22,6 @@ pub struct MajorCombatEvent {
     pub was_critical: bool,
 }
 
-/// Triggered when a significant treaty proposal or diplomatic action occurs
 #[derive(Event, Debug, Clone)]
 pub struct TreatyProposalEvent {
     pub proposer: Entity,
@@ -26,7 +29,6 @@ pub struct TreatyProposalEvent {
     pub terms: Vec<String>,
 }
 
-/// Triggered when a faction standing or alignment significantly shifts
 #[derive(Event, Debug, Clone)]
 pub struct FactionShiftEvent {
     pub faction_a: u32,
@@ -35,7 +37,71 @@ pub struct FactionShiftEvent {
     pub new_standing: f32,
 }
 
-/// Listens for high-signal events, logs, and accumulates Ra-Thor transfer counters.
+// =============================================================================
+// Soft council → RTT bridge (no dependency on simulation crate)
+// =============================================================================
+
+/// Pure signal from sim/host when a council decision passes.
+/// Inject via EventWriter or CouncilRttInbox::push without importing simulation types.
+#[derive(Event, Debug, Clone)]
+pub struct CouncilRttSignal {
+    pub decision_id: u64,
+    pub mercy_factor: f32,
+    pub strength: f32,
+    pub realm_id: u8,
+    /// Optional abundance velocity hint from EconomyState / MultiRealmRbeSnapshot.
+    pub abundance_velocity_hint: Option<f64>,
+}
+
+impl CouncilRttSignal {
+    pub fn new(decision_id: u64, mercy_factor: f32, strength: f32, realm_id: u8) -> Self {
+        Self {
+            decision_id,
+            mercy_factor,
+            strength,
+            realm_id,
+            abundance_velocity_hint: None,
+        }
+    }
+
+    pub fn with_abundance(mut self, v: f64) -> Self {
+        self.abundance_velocity_hint = Some(v.max(0.0));
+        self
+    }
+}
+
+/// Inbox for hosts that prefer resource push over Bevy events (e.g. NonSend tick).
+#[derive(Resource, Debug, Default)]
+pub struct CouncilRttInbox {
+    pub pending: Vec<CouncilRttSignal>,
+    pub ingested_ids: std::collections::HashMap<u64, ()>,
+    pub total_ingested: u64,
+}
+
+impl CouncilRttInbox {
+    pub fn push(&mut self, signal: CouncilRttSignal) {
+        if self.ingested_ids.contains_key(&signal.decision_id) {
+            return;
+        }
+        self.pending.push(signal);
+    }
+
+    pub fn push_passed(
+        &mut self,
+        decision_id: u64,
+        mercy_factor: f32,
+        strength: f32,
+        realm_id: u8,
+        abundance_hint: Option<f64>,
+    ) {
+        let mut s = CouncilRttSignal::new(decision_id, mercy_factor, strength, realm_id);
+        if let Some(v) = abundance_hint {
+            s = s.with_abundance(v);
+        }
+        self.push(s);
+    }
+}
+
 pub fn council_consultation_system(
     mut ev_major_combat: EventReader<MajorCombatEvent>,
     mut ev_treaty: EventReader<TreatyProposalEvent>,
@@ -73,22 +139,82 @@ pub fn council_consultation_system(
     }
 }
 
+/// Drain CouncilRttSignal events + inbox into ServerTransferSession.
+pub fn council_rtt_bridge_system(
+    mut ev_council: EventReader<CouncilRttSignal>,
+    mut inbox: ResMut<CouncilRttInbox>,
+    mut transfer: ResMut<ServerTransferSession>,
+) {
+    // Events
+    for signal in ev_council.read() {
+        if inbox.ingested_ids.contains_key(&signal.decision_id) {
+            continue;
+        }
+        inbox.ingested_ids.insert(signal.decision_id, ());
+        if inbox.ingested_ids.len() > 512 {
+            inbox.ingested_ids.clear();
+            inbox.ingested_ids.insert(signal.decision_id, ());
+        }
+        apply_council_signal(&mut transfer, signal);
+        inbox.total_ingested = inbox.total_ingested.saturating_add(1);
+    }
+
+    // Resource inbox (host / NonSend tick path)
+    if inbox.pending.is_empty() {
+        return;
+    }
+    let pending = std::mem::take(&mut inbox.pending);
+    for signal in pending {
+        if inbox.ingested_ids.contains_key(&signal.decision_id) {
+            continue;
+        }
+        inbox.ingested_ids.insert(signal.decision_id, ());
+        if inbox.ingested_ids.len() > 512 {
+            inbox.ingested_ids.clear();
+            inbox.ingested_ids.insert(signal.decision_id, ());
+        }
+        apply_council_signal(&mut transfer, &signal);
+        inbox.total_ingested = inbox.total_ingested.saturating_add(1);
+    }
+}
+
+fn apply_council_signal(transfer: &mut ServerTransferSession, signal: &CouncilRttSignal) {
+    let mercy = (signal.mercy_factor as f64).clamp(0.0, 1.0);
+    transfer.record_council_passed(mercy);
+    if let Some(v) = signal.abundance_velocity_hint {
+        transfer.record_abundance_velocity(v);
+    }
+    info!(
+        target: "ra_thor::rtt::council",
+        decision_id = signal.decision_id,
+        realm_id = signal.realm_id,
+        mercy = mercy,
+        strength = signal.strength,
+        "Council signal bridged into ServerTransferSession"
+    );
+}
+
 pub struct RathorIntegrationPlugin;
 
 impl Plugin for RathorIntegrationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ServerTransferSession>()
+            .init_resource::<CouncilRttInbox>()
             .add_event::<MajorCombatEvent>()
             .add_event::<TreatyProposalEvent>()
             .add_event::<FactionShiftEvent>()
+            .add_event::<CouncilRttSignal>()
             .add_systems(
                 Update,
                 (
                     council_consultation_system,
+                    council_rtt_bridge_system,
                     server_rtt_export_system,
-                ),
+                )
+                    .chain(),
             );
     }
 }
 
-// Thunder locked in. Server RTT export path live. Yoi ⚡
+// Thunder locked in. Soft council→RTT bridge live (zero sim dependency).
+// Yoi ⚡
