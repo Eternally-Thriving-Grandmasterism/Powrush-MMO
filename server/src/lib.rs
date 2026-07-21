@@ -1,7 +1,8 @@
 /*!
  * server/src/lib.rs
- * v19.3.6 — Complete mpsc-to-Bevy Event bridge + inventory processing.
+ * v21.80.0 — Complete mpsc-to-Bevy Event bridge + inventory processing + public Ra-Thor integration.
  * SafetyNet emission now correctly passed through to handle_inventory_action for severe cases only.
+ * rathor_integration (CohostExportMirror, CouncilRttInbox, transfer session) now public for unified cohost.
  * All prior bridge + detector logic preserved. AG-SML v1.0 | TOLC 8 + RBE + PATSAGi
  */
 
@@ -11,7 +12,10 @@ use crate::inventory_replication::handle_inventory_action;
 use crate::persistence_polish::PersistenceManager;
 use crate::mercy_anomaly_detector::MercyAnomalyDetector;
 use crate::safety_net_broadcast::EmitSafetyNetBroadcast;
-use server::network::tokio_transport::{TransportEvent, TransportCommand};
+use crate::network::tokio_transport::{TransportEvent, TransportCommand};
+
+// Public Ra-Thor / PATSAGi / RTT cohost surface
+pub mod rathor_integration;
 
 #[derive(Resource)]
 pub struct TransportEventReceiver {
@@ -74,4 +78,4 @@ fn process_inventory_messages(
     }
 }
 
-// End of server/src/lib.rs v19.3.6 — SafetyNet emission for severe inventory violations now fully wired. Thunder locked in. Yoi ⚡
+// End of server/src/lib.rs v21.80.0 — rathor_integration public for cohost. Thunder locked in. Yoi ⚡
