@@ -4,20 +4,24 @@
 **RBE Sustainability surface — Visible**  
 **Council Deepening — Loop closed**  
 **LegacyJournal — Restored + client-bound + soft demo**  
-**RTT Dual-Repo Bridge — Sim + Server export live (v21.74)**
+**RTT Dual-Repo Bridge — v1 + batch_v1 + offline failsafe (v21.75)**
 
-## Completed This Cycle (v21.74)
+## Completed This Cycle (v21.75)
 
-- Server periodic RTT JSON write (`artifacts/powrush_rtt_latest.json`)
-- `record_council_passed` / abundance samples on server session
-- Soft cadence + soft-fail IO
+- Batch envelope writer (`powrush_telemetry_batch_v1`)
+- Snapshot ring + offline queue under `artifacts/rtt_offline/`
+- Dual-repo interconnect documentation for Ra-Thor-side iteration
+- Mercy-gate field clamps on export
 
-## Dual-repo export paths
+## Hand-off artifacts
 
-| Path | Schema | Writer |
-|------|--------|--------|
-| Simulation | `powrush_telemetry_v1` | `TelemetryCollector` / `GlobalTransferSession` |
-| Server | `powrush_telemetry_v1` | `ServerTransferSession` → disk |
+| File | Schema |
+|------|--------|
+| `artifacts/powrush_rtt_latest.json` | v1 |
+| `artifacts/powrush_rtt_batch_latest.json` | batch_v1 |
+| `artifacts/rtt_offline/queued_*.json` | v1 failsafe |
+
+See `docs/RA_THOR_TELEMETRY_EXPORT.md`.
 
 Contact: info@Rathor.ai
 
@@ -25,8 +29,8 @@ Contact: info@Rathor.ai
 
 1. NonSend ServerTickLoop when game package fully wired
 2. Optional: bridge sim council totals into server session
-3. Protect against low-leverage UI churn
+3. Ra-Thor monorepo: smoke ingest against live artifacts
 
 **Thunder locked in.**  
-**Server → Ra-Thor export path live.**  
+**Offline-resilient dual-repo hand-off.**  
 Yoi ⚡
