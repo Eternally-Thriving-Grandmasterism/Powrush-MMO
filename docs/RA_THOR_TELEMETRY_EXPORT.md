@@ -3,7 +3,7 @@
 **Contract:** Ra-Thor `crates/reality-thriving-transfer` (`POWRUSH_TELEMETRY_CONTRACT.md`)  
 **Schemas:** `powrush_telemetry_v1` · `powrush_telemetry_batch_v1`  
 **Contact:** info@Rathor.ai  
-**Powrush status:** v21.75 — server batch + offline failsafe live
+**Powrush status:** v21.76 — server batch + offline failsafe + soft council→RTT bridge
 
 ---
 
@@ -23,6 +23,33 @@ ServerTransferSession  ──JSON files──►    KardashevOrchestrationCounci
 **Field set is 1:1 with Ra-Thor `PowrushTelemetry`.** Mercy-gate bounds are enforced on export (`[0,1]` scores, abundance ≥ 0).
 
 When iterating from the **Ra-Thor monorepo**, treat these files as the stable hand-off surface. Prefer file/path ingest first; network streaming is optional and must degrade to the same offline queue.
+
+---
+
+## Soft council → server RTT bridge (v21.76)
+
+Server **does not depend on the simulation crate**. Council totals flow in as pure signals:
+
+| Inject path | Type |
+|-------------|------|
+| Bevy event | `CouncilRttSignal` |
+| Resource inbox | `CouncilRttInbox::push` / `push_passed` |
+
+```rust
+// From a co-hosted host / NonSend tick (example)
+use server::rathor_integration::{CouncilRttInbox, CouncilRttSignal};
+
+// Event path
+writer.send(CouncilRttSignal::new(decision_id, mercy, strength, realm_id)
+    .with_abundance(abundance_velocity));
+
+// Inbox path (no EventWriter needed)
+inbox.push_passed(decision_id, mercy, strength, realm_id, Some(abundance_velocity));
+```
+
+`council_rtt_bridge_system` drains both into `ServerTransferSession::record_council_passed` (+ optional abundance sample). Dedupes by `decision_id` (ring clear at 512).
+
+**Sim-side note for later:** when wiring a full host, map `CouncilDecisions::resolved_history` → these signals once per new `decision_id`. No shared types required — only scalar fields.
 
 ---
 
@@ -56,7 +83,7 @@ let json = telemetry.export_transfer_json()?;
 // telemetry.write_transfer_json_to("session.json")?;
 ```
 
-### 2. Server — ServerTransferSession (v21.74–v21.75)
+### 2. Server — ServerTransferSession (v21.74–v21.76)
 
 Wired via `RathorIntegrationPlugin`:
 
@@ -68,7 +95,7 @@ Wired via `RathorIntegrationPlugin`:
 
 Cadence: soft 60s default (`export_interval_secs`). Soft-fail never panics the host.
 
-Signals recorded: combat, treaty, faction shift, **council_passed**, abundance velocity samples.
+Signals recorded: combat, treaty, faction shift, **council_passed** (via bridge), abundance velocity samples.
 
 ### 3. Demo binary (no full world)
 
@@ -134,4 +161,4 @@ Consumer rejects out-of-bounds scores and negative abundance (Mercy Gate Truth /
 
 See **[FULL_RBE_STATUS.md](./FULL_RBE_STATUS.md)** — stays off until deps resolve.
 
-**Thunder locked in.** Dual-repo hand-off is file-stable and offline-resilient. Yoi ⚡
+**Thunder locked in.** Dual-repo hand-off is file-stable, offline-resilient, and council-bridge-ready. Yoi ⚡
