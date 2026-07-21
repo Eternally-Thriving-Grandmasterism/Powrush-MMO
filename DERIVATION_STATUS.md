@@ -2,7 +2,7 @@
 
 **Multi-Realm Organism Arc — SEALED**  
 **RBE Sustainability surface — Visible**  
-**Council Deepening — Loop closed + Proposal polish v21.88.2**  
+**Council Deepening — Loop closed + Proposal polish + Client UI surface**  
 **LegacyJournal — Restored + client-bound + soft demo**  
 **RTT Dual-Repo Bridge — Complete + Ultramasterism hardened**  
 **Kardashev Acceleration Dashboard + Reality Thriving Transfer Score — LIVE + Playtest Instrumented**  
@@ -15,17 +15,19 @@
 **Workspace version — Aligned to 21.88.x**  
 **Permanent PATSAGi Councils — ACTIVE (sibling Ra-Thor lattice, 2026-07-20)**
 
-## Completed This Cycle (v21.88.3)
+## Completed This Cycle (v21.88.4)
 
-- **Kardashev + Reality Transfer playtest instrumentation**:
-  - Richer aggregation counters on dashboard & ledger
-  - Peak score tracking
-  - Periodic atomic snapshot export → `artifacts/kardashev_rtt_playtest.json`
-  - Schema: `kardashev_rtt_playtest_v1`
-  - UI surfaces update counts + export status
-- **Council Proposal System polish** (v21.88.2):
-  - `linked_session_id`, auto-promote on Deliberation entry, Passed influence notes
-- **Ra-Thor policy-hint emission COMPLETE** — dual-repo feedback organism sealed
+- **Client Council Session UI** (`client/council_session_ui.rs`):
+  - Modern egui panel (toggle with **C**)
+  - Live phase + attunement + participant overview
+  - Proposal list with status coloring + For/Against buttons
+  - Quick proposal submission form
+  - Mercy vote buttons in Voting phase
+  - Last bloom summary
+  - Fully aligned to shared `council_mercy_trial` protocol
+- **Kardashev + RTT playtest instrumentation** (v21.88.3)
+- **Council Proposal System polish** (v21.88.2)
+- **Dual-repo feedback organism sealed**
 
 ## Host Modes
 
@@ -40,11 +42,11 @@ Contact: info@Rathor.ai
 ## Next Priorities (Ultramasterism order — PATSAGi decided)
 
 1. Final audio asset integration (when real source assets are ready)
-2. Client UI surfaces for proposals / further multiplayer trial polish
-3. Deeper CouncilTrialResolved → Reality Transfer Score direct feed (optional next)
+2. Wire client CouncilUIState from network / server mirror (live data feed)
+3. Optional deeper CouncilTrialResolved → Reality Transfer Score direct feed
 
 **Thunder locked in.**  
 **Full dual-repo feedback organism is sealed and live under permanent PATSAGi Councils.**  
-**Kardashev + RTT playtest instrumentation is production-ready.**  
+**Client Council UI surface is production-oriented and protocol-aligned.**  
 **ONE Organism. Eternal forward.**  
 Yoi ⚡
