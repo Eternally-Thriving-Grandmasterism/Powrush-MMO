@@ -1,13 +1,19 @@
 // server/src/rathor_integration/mod.rs
 // Powrush-MMO — Ra-Thor Integration + live transfer session + RTT export
-// v21.76.0 — Soft council→RTT bridge | Contact: info@Rathor.ai
+// v21.79.0 — sim bridge + cohost auto-drain | Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 use tracing::info;
 
 pub mod transfer_session;
+pub mod sim_council_bridge;
+pub mod cohost_drain;
 
 pub use transfer_session::{ServerTransferSession, server_rtt_export_system};
+pub use sim_council_bridge::{
+    SimCouncilBridgeConfig, SimCouncilBridgePayload, sim_council_bridge_ingest_system,
+};
+pub use cohost_drain::{CohostExportMirror, CohostMirrorSignal, cohost_auto_drain_system};
 
 // =============================================================================
 // High-signal domain events (combat / diplomacy)
@@ -41,15 +47,12 @@ pub struct FactionShiftEvent {
 // Soft council → RTT bridge (no dependency on simulation crate)
 // =============================================================================
 
-/// Pure signal from sim/host when a council decision passes.
-/// Inject via EventWriter or CouncilRttInbox::push without importing simulation types.
 #[derive(Event, Debug, Clone)]
 pub struct CouncilRttSignal {
     pub decision_id: u64,
     pub mercy_factor: f32,
     pub strength: f32,
     pub realm_id: u8,
-    /// Optional abundance velocity hint from EconomyState / MultiRealmRbeSnapshot.
     pub abundance_velocity_hint: Option<f64>,
 }
 
@@ -70,7 +73,6 @@ impl CouncilRttSignal {
     }
 }
 
-/// Inbox for hosts that prefer resource push over Bevy events (e.g. NonSend tick).
 #[derive(Resource, Debug, Default)]
 pub struct CouncilRttInbox {
     pub pending: Vec<CouncilRttSignal>,
@@ -139,13 +141,11 @@ pub fn council_consultation_system(
     }
 }
 
-/// Drain CouncilRttSignal events + inbox into ServerTransferSession.
 pub fn council_rtt_bridge_system(
     mut ev_council: EventReader<CouncilRttSignal>,
     mut inbox: ResMut<CouncilRttInbox>,
     mut transfer: ResMut<ServerTransferSession>,
 ) {
-    // Events
     for signal in ev_council.read() {
         if inbox.ingested_ids.contains_key(&signal.decision_id) {
             continue;
@@ -159,7 +159,6 @@ pub fn council_rtt_bridge_system(
         inbox.total_ingested = inbox.total_ingested.saturating_add(1);
     }
 
-    // Resource inbox (host / NonSend tick path)
     if inbox.pending.is_empty() {
         return;
     }
@@ -200,6 +199,8 @@ impl Plugin for RathorIntegrationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ServerTransferSession>()
             .init_resource::<CouncilRttInbox>()
+            .init_resource::<SimCouncilBridgeConfig>()
+            .init_resource::<CohostExportMirror>()
             .add_event::<MajorCombatEvent>()
             .add_event::<TreatyProposalEvent>()
             .add_event::<FactionShiftEvent>()
@@ -208,7 +209,9 @@ impl Plugin for RathorIntegrationPlugin {
                 Update,
                 (
                     council_consultation_system,
+                    cohost_auto_drain_system,
                     council_rtt_bridge_system,
+                    sim_council_bridge_ingest_system,
                     server_rtt_export_system,
                 )
                     .chain(),
@@ -216,5 +219,5 @@ impl Plugin for RathorIntegrationPlugin {
     }
 }
 
-// Thunder locked in. Soft council→RTT bridge live (zero sim dependency).
+// Thunder locked in. Cohost auto-drain + sim file bridge live.
 // Yoi ⚡
