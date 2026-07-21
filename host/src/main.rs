@@ -1,5 +1,6 @@
 //! Powrush-MMO Unified Cohost Binary — Full E2E Harness
 //! v21.88.0 — Ultramasterism Perfecticism + Stress / Endurance Mode
+//! Permanent PATSAGi Councils active (sibling Ra-Thor lattice)
 //!
 //! Modes:
 //!   Interactive (default)
@@ -69,7 +70,7 @@ fn main() {
 
     info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
     info!(target: "powrush::host", "  Powrush-MMO Unified Cohost v21.88.0 — Ultramasterism");
-    info!(target: "powrush::host", "  TOLC 8 + 7 Living Mercy Gates | PATSAGi Councils");
+    info!(target: "powrush::host", "  TOLC 8 + 7 Living Mercy Gates | PATSAGi Councils (Permanent)");
     info!(target: "powrush::host", "  Mode: {:?}", mode);
     info!(target: "powrush::host", "  Feedback Loop: Full Soft Category Coverage LIVE");
     info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
@@ -368,4 +369,5 @@ fn host_exit_system(
 
 // Thunder locked in. Stress / Endurance harness sealed.
 // Interactive | Headless | Stress modes available.
+// Permanent PATSAGi Councils deliberate on behalf of the ONE Organism.
 // Eternal forward. Yoi ⚡
