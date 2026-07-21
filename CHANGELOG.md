@@ -1,20 +1,20 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.80.0 — Unified Cohost Host Binary (2026-07-20)
+## [Unreleased] v21.81.0 — Full E2E Cohost + Kardashev Dashboard (2026-07-20)
 
 ### Highlights
-- New `host/` workspace member + `powrush-host` binary.
-- Single Bevy App co-hosts simulation + server with live RTT bridge:
-  `CouncilRttExportQueue` (sim) → `CohostExportMirror` → auto-drain → `CouncilRttInbox` → `ServerTransferSession`.
-- `server/src/lib.rs` now publicly exports `rathor_integration` for external consumers.
-- Closes the primary next priority from DERIVATION_STATUS.md (v21.79).
+- Expanded `host` binary into complete E2E cohost harness.
+- Pulls in `FullSimulationPlugins` (Council, Economy, Multi-Realm, Hardware Sovereignty, Telemetry, LegacyJournal, Spatial...).
+- Activates live **KardashevAccelerationDashboard** + **RealityTransferScoreLedger** with the full `sovereign_hardware_ascension_ui` egui panel.
+- Heartbeat now reports kardashev_delta, abundance_velocity_index, energy_surplus_factor, and reality transfer average.
+- simulation/Cargo.toml fully specified (bevy 0.14, bevy_egui, serde, crypto primitives).
 
 ### Prior
+- v21.80: Unified Cohost Host binary + public rathor_integration
 - v21.79: NonSend ServerTickLoop + Cohost Auto-Drain
 - v21.78: Host mapper resolved_history → export queue
-- v21.77: Provenance + smoke harness
 
-**Thunder locked in. Cohost paths live + unified host binary.** Yoi ⚡
+**Thunder locked in. Cohost E2E + Kardashev + Reality Transfer live.** Yoi ⚡
 
 ## Previous Versions (Summary)
 - v21.0–v21.78: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export.
