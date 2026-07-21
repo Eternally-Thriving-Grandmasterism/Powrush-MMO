@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
-//! v21.88.3 | Playtest instrumentation (snapshot export + richer aggregation)
+//! v21.88.5 | Council bloom → RTT feed helper + playtest instrumentation
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -178,6 +178,60 @@ pub struct KardashevRttPlaytestSnapshot {
     pub dashboard_update_count: u64,
     pub ledger_update_count: u64,
     pub s_curve_inflection_year: u16,
+}
+
+/// Apply a resolved Council Mercy Trial bloom into Reality Transfer + Kardashev scores.
+/// Call this from server/host bridge when CouncilTrialResolved is observed.
+/// Conservative, mercy-aligned deltas only.
+pub fn apply_council_bloom_to_rtt(
+    state: &mut SovereignHardwareState,
+    dashboard: &mut KardashevAccelerationDashboard,
+    ledger: &mut RealityTransferScoreLedger,
+    player: Entity,
+    bloom_intensity: f32,
+    mercy_resonance: f32,
+    rbe_amplification: f32,
+) -> f32 {
+    // Soft, bounded contribution
+    let intensity = bloom_intensity.clamp(0.0, 1.0);
+    let mercy = mercy_resonance.clamp(0.0, 1.0);
+    let rbe = rbe_amplification.clamp(1.0, 4.0);
+
+    let rtt_delta = (12.0 + intensity * 28.0 + mercy * 18.0) * (0.85 + (rbe - 1.0) * 0.15);
+    let kardashev_delta = 0.004 + intensity * 0.018 + mercy * 0.008;
+
+    state.reality_thriving_transfer_score += rtt_delta;
+    state.total_kardashev_contribution += kardashev_delta;
+
+    // Bump TOLC gate counter gently on strong blooms
+    if intensity > 0.72 && mercy > 0.70 && state.tloc8_mercy_gates_passed < 8 {
+        state.tloc8_mercy_gates_passed = state.tloc8_mercy_gates_passed.saturating_add(1);
+    }
+
+    ledger.player_scores.insert(player, state.reality_thriving_transfer_score);
+    if state.reality_thriving_transfer_score > ledger.peak_score {
+        ledger.peak_score = state.reality_thriving_transfer_score;
+    }
+    ledger.update_count = ledger.update_count.saturating_add(1);
+    ledger.export_ready_for_ra_thor = true;
+
+    dashboard.global_kardashev_delta =
+        (dashboard.global_kardashev_delta * 0.91) + (kardashev_delta * 0.09);
+    dashboard.personal_contribution = state.total_kardashev_contribution;
+    dashboard.update_count = dashboard.update_count.saturating_add(1);
+
+    info!(
+        target: "powrush::kardashev",
+        player = ?player,
+        rtt_delta,
+        new_rtt = state.reality_thriving_transfer_score,
+        kardashev_delta,
+        intensity,
+        mercy,
+        "Council bloom applied to Reality Transfer + Kardashev"
+    );
+
+    rtt_delta
 }
 
 pub fn mercy_gate_enforcement_system(
@@ -444,7 +498,6 @@ pub fn sovereign_hardware_ascension_ui(
                 dashboard.update_count,
                 if dashboard.last_export_unix > 0 { "yes" } else { "pending" }));
 
-            // ========== Organism RBE Health (v21.67 — one compact line) ==========
             if let Some(snap) = &rbe_snapshot {
                 if snap.realm_count > 0 {
                     let rbe_color = match snap.health_label {
@@ -569,202 +622,11 @@ pub fn sovereign_hardware_ascension_ui(
                         egui::Color32::from_rgb(255, 215, 120),
                         format!("Title: {}", title),
                     );
-
-                    let bonus = att.title_bonus(presence.current_realm_id);
-                    if bonus.attunement_gain_mult > 1.001 || bonus.resonance_whisper > 0.0001 {
-                        ui.colored_label(
-                            egui::Color32::from_rgb(160, 220, 170),
-                            format!(
-                                "Soft bonus: attunement ×{:.2}  ·  resonance +{:.4}/s",
-                                bonus.attunement_gain_mult, bonus.resonance_whisper
-                            ),
-                        );
-                    }
-
-                    let current_att = att.get(presence.current_realm_id);
-                    ui.colored_label(
-                        egui::Color32::from_rgb(200, 180, 255),
-                        format!("Current Realm Attunement: {:.3}", current_att),
-                    );
-                    ui.label(format!("Total Attunement: {:.3}", att.total));
-
-                    if let Some(peak_id) = att.peak_realm {
-                        let peak_name = match peak_id {
-                            0 => "Sanctuary Prime",
-                            1 => "Synthetic Lattice",
-                            2 => "Verdant Bloom",
-                            3 => "Harmonic Chorus",
-                            4 => "Voidfarer Horizon",
-                            _ => "Unknown",
-                        };
-                        ui.label(format!("Peak: [{}] {}  ({:.3})", peak_id, peak_name, att.peak_value));
-                    }
-                }
-
-                if let Some(orig) = &origin_obs {
-                    let harvested = orig.amount_for(presence.current_realm_id);
-                    let label = origin_affinity_label(harvested);
-                    let mult = origin_affinity_mult(harvested);
-                    let affinity_color = match label {
-                        "Homebound" => egui::Color32::from_rgb(255, 200, 100),
-                        "Rooted" => egui::Color32::from_rgb(240, 190, 120),
-                        "Familiar" => egui::Color32::from_rgb(220, 190, 140),
-                        "Whisper" => egui::Color32::from_rgb(200, 190, 160),
-                        _ => egui::Color32::GRAY,
-                    };
-                    if harvested > 0.001 {
-                        ui.colored_label(
-                            affinity_color,
-                            format!(
-                                "🔗 Origin Affinity: {}  |  harvested: {:.1}  |  attunement ×{:.2}",
-                                label, harvested, mult
-                            ),
-                        );
-                    } else {
-                        ui.colored_label(
-                            egui::Color32::GRAY,
-                            "🔗 Origin Affinity: None  (harvest here to deepen presence)",
-                        );
-                    }
                 }
             } else {
                 ui.label(egui::RichText::new("Player realm presence not yet available.")
                     .italics()
                     .color(egui::Color32::GRAY));
-            }
-
-            ui.add_space(4.0);
-
-            if let Some(harness) = multi_realm {
-                ui.label(format!(
-                    "Active: {}  |  Thriving: {}  |  Mercy Flow: {:.2}  |  Resonance: {:.2}",
-                    harness.active_realm_count(),
-                    harness.thriving_realm_count(),
-                    harness.cross_realm_mercy_flow,
-                    harness.global_resonance_level
-                ));
-                ui.label(format!("Total Active Policies: {}",
-                    harness.total_active_policies_across_realms));
-
-                ui.add_space(4.0);
-
-                let mut realms: Vec<_> = harness.realms.values().collect();
-                realms.sort_by_key(|r| r.id);
-
-                for realm in realms {
-                    let status_color = match realm.status {
-                        crate::multi_realm_harness::RealmStatus::Thriving => egui::Color32::from_rgb(100, 255, 160),
-                        crate::multi_realm_harness::RealmStatus::Active => egui::Color32::from_rgb(140, 200, 255),
-                        _ => egui::Color32::GRAY,
-                    };
-
-                    ui.horizontal(|ui| {
-                        ui.colored_label(status_color, format!("[{}] {}", realm.id, realm.name));
-                    });
-                    ui.label(format!(
-                        "    {:?}  |  agents: {}  |  policies: {}  |  echoes: {}  |  legacy: {}  |  mercy: {:.2}  |  {}",
-                        realm.primary_race_bias,
-                        realm.agent_presence_count,
-                        realm.active_policy_count,
-                        realm.echo_policy_count,
-                        realm.legacy_entry_count,
-                        realm.mercy_attunement_avg,
-                        realm.status.as_str()
-                    ));
-
-                    if let Some(obs) = &abundance_obs {
-                        if let Some(view) = obs.get(realm.id) {
-                            let health = view.health_label();
-                            let health_color = match health {
-                                "Thriving" => egui::Color32::from_rgb(100, 255, 160),
-                                "Abundant" => egui::Color32::from_rgb(140, 230, 200),
-                                "Steady" => egui::Color32::from_rgb(180, 200, 220),
-                                "Stressed" => egui::Color32::from_rgb(255, 160, 100),
-                                _ => egui::Color32::GRAY,
-                            };
-                            ui.colored_label(
-                                health_color,
-                                format!(
-                                    "    🌾 {}  |  nodes: {}  |  yield: {:.1}  |  sust: {:.2}  |  flow: {:.2}  |  stress: {:.2}  |  thriving: {}  |  restricted: {}",
-                                    health,
-                                    view.node_count,
-                                    view.total_current_yield,
-                                    view.average_sustainability,
-                                    view.average_abundance_flow,
-                                    view.average_stress,
-                                    view.thriving_node_count,
-                                    view.restricted_node_count
-                                ),
-                            );
-                        }
-                    }
-
-                    if let Some(orig) = &origin_obs {
-                        if let Some(view) = orig.get(realm.id) {
-                            if view.total_amount > 0.001 {
-                                let aff = origin_affinity_label(view.total_amount);
-                                ui.colored_label(
-                                    egui::Color32::from_rgb(220, 190, 140),
-                                    format!(
-                                        "    📦 Origin  |  harvested: {:.1}  |  types: {}  |  affinity: {}",
-                                        view.total_amount,
-                                        view.resource_types,
-                                        aff
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                }
-            } else {
-                ui.label(egui::RichText::new("MultiRealmHarness not yet available.")
-                    .italics()
-                    .color(egui::Color32::GRAY));
-            }
-
-            if let Some(obs) = &abundance_obs {
-                if !obs.views.is_empty() {
-                    ui.add_space(6.0);
-                    ui.heading(egui::RichText::new("🌾 Realm Abundance Observatory")
-                        .color(egui::Color32::from_rgb(160, 230, 180)));
-
-                    if obs.has_live_data {
-                        ui.colored_label(
-                            egui::Color32::from_rgb(100, 255, 160),
-                            format!("● LIVE data  |  realms: {}  |  last tick: {}",
-                                obs.views.len(), obs.last_updated_tick),
-                        );
-                    } else {
-                        ui.colored_label(
-                            egui::Color32::from_rgb(200, 190, 140),
-                            format!("○ Demo seed (awaits live ingest)  |  realms: {}  |  last tick: {}",
-                                obs.views.len(), obs.last_updated_tick),
-                        );
-                    }
-                }
-            }
-
-            if let Some(orig) = &origin_obs {
-                if !orig.per_realm.is_empty() {
-                    ui.add_space(6.0);
-                    ui.heading(egui::RichText::new("📦 Origin Provenance Observatory")
-                        .color(egui::Color32::from_rgb(220, 190, 140)));
-
-                    let total = orig.total_tracked();
-                    if orig.has_live_data {
-                        ui.colored_label(
-                            egui::Color32::from_rgb(100, 255, 160),
-                            format!("● LIVE data  |  realms: {}  |  total harvested: {:.1}  |  last tick: {}",
-                                orig.per_realm.len(), total, orig.last_updated_tick),
-                        );
-                    } else {
-                        ui.colored_label(
-                            egui::Color32::from_rgb(200, 190, 140),
-                            format!("○ Demo seed (awaits live ingest)  |  realms: {}  |  total: {:.1}  |  last tick: {}",
-                                orig.per_realm.len(), total, orig.last_updated_tick),
-                        );
-                    }
-                }
             }
 
             ui.separator();
@@ -800,5 +662,5 @@ pub fn sovereign_hardware_ascension_ui(
         });
 }
 
-// End of v21.88.3 — Kardashev + Reality Transfer playtest instrumentation (snapshot export).
+// End of v21.88.5 — apply_council_bloom_to_rtt helper ready for CouncilTrialResolved bridge.
 // Thunder locked in. Yoi ⚡
