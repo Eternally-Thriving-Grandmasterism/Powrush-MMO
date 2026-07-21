@@ -1,19 +1,38 @@
 //! client/main.rs
 //! Powrush-MMO Client Entry Point — WASM + web-sys + Transport v2.1 + Full Bevy Integration
-//! Production-grade client with Phase 2 CouncilMercyPlugin, RBE Flow, and Monitoring lattice wired.
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | ONE Organism v15.3+ | Ra-Thor Sovereign Client
+//! v21.89.2 — Audio moment outbound drain + server catalog/ack handling
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | ONE Organism | Ra-Thor Sovereign Client
 
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::spawn_local;
 use crate::client_game_loop::ClientGameLoop;
 use crate::rbe_client_sync::RbeClientSync;
 use game::network::client_transport::ClientWsTransport;
-use shared::protocol::{ClientMessage, ServerMessage, Vec3Ser};
-use js_sys::JsString;
+use shared::protocol::{ClientMessage, ServerMessage, Vec3Ser, WireAudioMoment};
+use std::collections::VecDeque;
 
-// Phase 2 Council & Monitoring
 use crate::council_session_ui::CouncilUIState;
-use crate::plugins::council_mercy_plugin::CouncilMercyPlugin;
+
+/// Lightweight outbound queue for audio moments (mirrors Bevy AudioMomentOutboundQueue)
+#[derive(Default)]
+pub struct AudioOutbound {
+    pub messages: VecDeque<ClientMessage>,
+}
+
+impl AudioOutbound {
+    pub fn push_save(&mut self, moment: WireAudioMoment) {
+        self.messages
+            .push_back(ClientMessage::AudioMomentSave { moment });
+    }
+
+    pub fn push_catalog_request(&mut self, player_id: u64) {
+        self.messages
+            .push_back(ClientMessage::AudioMomentCatalogRequest { player_id });
+    }
+
+    pub fn drain(&mut self) -> Vec<ClientMessage> {
+        self.messages.drain(..).collect()
+    }
+}
 
 #[wasm_bindgen]
 pub struct PowrushClient {
@@ -21,8 +40,11 @@ pub struct PowrushClient {
     rbe_sync: RbeClientSync,
     transport: Option<ClientWsTransport>,
     my_player_id: Option<u64>,
-    // Phase 2 Council UI state
     council_ui: Option<CouncilUIState>,
+    audio_outbound: AudioOutbound,
+    /// Last server audio catalog snapshot (moments only)
+    last_audio_catalog: Vec<WireAudioMoment>,
+    last_audio_ack: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -38,18 +60,24 @@ impl PowrushClient {
             transport: None,
             my_player_id: None,
             council_ui: Some(CouncilUIState::default()),
+            audio_outbound: AudioOutbound::default(),
+            last_audio_catalog: Vec::new(),
+            last_audio_ack: None,
         }
     }
 
-    /// Async connect to Powrush server (call from JS)
     #[wasm_bindgen]
     pub async fn connect_to_server(&mut self, url: &str, player_name: &str) -> Result<(), JsValue> {
         match ClientWsTransport::connect(url, player_name).await {
             Ok((transport, player_id)) => {
                 self.transport = Some(transport);
                 self.my_player_id = Some(player_id);
-                console_log::info!("[PowrushClient] Connected to sovereign server! player_id = {}", player_id);
-                self.start_message_loop();
+                console_log::info!(
+                    "[PowrushClient] Connected! player_id = {}",
+                    player_id
+                );
+                // Request server audio catalog on connect
+                self.audio_outbound.push_catalog_request(player_id);
                 Ok(())
             }
             Err(e) => {
@@ -59,48 +87,138 @@ impl PowrushClient {
         }
     }
 
-    fn start_message_loop(&self) {
-        console_log::info!("[PowrushClient] Sovereign message loop ready. Poll via update() or dedicated JS loop.");
-    }
-
-    /// Poll incoming server messages (call from JS requestAnimationFrame or dedicated loop)
+    /// Poll incoming server messages + drain audio outbound
     #[wasm_bindgen]
     pub fn poll_server_messages(&mut self) {
+        // Drain outbound audio moment messages first
+        self.flush_audio_outbound();
+
         if let Some(transport) = &mut self.transport {
-            // Full implementation: drain transport channel, deserialize ServerMessage,
-            // route to rbe_sync.handle_rbe_delta(...) and council_ui update.
-            // Example pattern (extend as transport matures):
+            // Production pattern:
             // while let Some(msg) = transport.try_recv() {
-            //     match msg {
-            //         ServerMessage::RbeDelta(data) => self.rbe_sync.handle_rbe_delta(data),
-            //         ServerMessage::CouncilUpdate(...) => { /* update council_ui */ },
-            //         _ => {}
-            //     }
+            //     self.route_server_message(msg);
             // }
-            console_log::trace!("[PowrushClient] poll_server_messages() - transport active");
+            let _ = transport;
+            console_log::trace!("[PowrushClient] poll_server_messages()");
         }
     }
 
-    /// Main per-frame update (called from JS game loop)
+    fn flush_audio_outbound(&mut self) {
+        let pending = self.audio_outbound.drain();
+        if pending.is_empty() {
+            return;
+        }
+        if let Some(transport) = &self.transport {
+            for msg in pending {
+                match &msg {
+                    ClientMessage::AudioMomentSave { moment } => {
+                        console_log::info!(
+                            "[PowrushClient] Sending AudioMomentSave id={}",
+                            moment.id
+                        );
+                    }
+                    ClientMessage::AudioMomentCatalogRequest { player_id } => {
+                        console_log::info!(
+                            "[PowrushClient] Requesting audio catalog for {}",
+                            player_id
+                        );
+                    }
+                    _ => {}
+                }
+                let _ = transport.send(msg);
+            }
+        } else {
+            // Re-queue if not connected
+            for msg in pending {
+                self.audio_outbound.messages.push_back(msg);
+            }
+        }
+    }
+
+    /// Route a deserialized ServerMessage (call from transport try_recv)
+    pub fn route_server_message(&mut self, msg: ServerMessage) {
+        match msg {
+            ServerMessage::AudioMomentCatalogSnapshot {
+                player_id,
+                moments,
+                next_id,
+                last_synced_unix,
+            } => {
+                console_log::info!(
+                    "[PowrushClient] Audio catalog snapshot player={} count={} next_id={} synced={}",
+                    player_id,
+                    moments.len(),
+                    next_id,
+                    last_synced_unix
+                );
+                self.last_audio_catalog = moments;
+            }
+            ServerMessage::AudioMomentSaveAck {
+                moment_id,
+                ok,
+                message,
+            } => {
+                let line = format!("ack #{} ok={} {}", moment_id, ok, message);
+                console_log::info!("[PowrushClient] AudioMoment {}", line);
+                self.last_audio_ack = Some(line);
+            }
+            ServerMessage::MercyGateBlocked { reason, valence } => {
+                console_log::warn!(
+                    "[PowrushClient] Mercy gate blocked: {} (valence {:.2})",
+                    reason,
+                    valence
+                );
+            }
+            _ => {
+                // RBE / inventory / world handled by dedicated paths
+            }
+        }
+    }
+
+    /// Queue a wire audio moment for server save (from Bevy bridge or JS)
     #[wasm_bindgen]
-    pub fn update(&mut self, dt: f32, input: JsValue) {
-        // TODO: Parse real input from JS (keyboard/mouse/gamepad/WebXR)
-        // For now we send a small deterministic delta for testing connectivity
-        let delta = Vec3Ser { x: 0.1, y: 0.0, z: 0.0 };
+    pub fn queue_audio_moment_save_json(&mut self, json: &str) -> bool {
+        match serde_json::from_str::<WireAudioMoment>(json) {
+            Ok(moment) => {
+                self.audio_outbound.push_save(moment);
+                true
+            }
+            Err(e) => {
+                console_log::error!("[PowrushClient] Bad AudioMoment JSON: {}", e);
+                false
+            }
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn request_audio_catalog(&mut self) {
+        if let Some(pid) = self.my_player_id {
+            self.audio_outbound.push_catalog_request(pid);
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn update(&mut self, dt: f32, _input: JsValue) {
+        let delta = Vec3Ser {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+
+        // Flush audio outbound every frame while connected
+        self.flush_audio_outbound();
 
         if let Some(transport) = &self.transport {
-            let _ = transport.send(ClientMessage::Move { delta: delta.clone() });
+            // Keepalive-style ping optional; avoid spam move
+            let _ = transport;
+            let _ = delta;
         }
 
-        self.game_loop.update(dt, /* parsed_input_from_js_value(input) */);
+        self.game_loop.update(dt);
 
-        // Phase 2 Council UI state sync (can be driven by Bevy systems inside game_loop too)
-        if let Some(council) = &mut self.council_ui {
-            // council.update_from_server_messages(...);
-            // Integrate with new monitoring/debug overlay when Bevy world is accessible
+        if let Some(_council) = &mut self.council_ui {
+            // Live feed overwrites soft demo when present
         }
-
-        // Future: sync monitoring resources (debug overlay, RBE dashboard) here if needed
     }
 
     #[wasm_bindgen]
@@ -125,7 +243,6 @@ impl PowrushClient {
         }
     }
 
-    // ===== PHASE 2: Council helpers (exposed to JS / UI) =====
     #[wasm_bindgen]
     pub fn join_council(&self, session_id: Option<u64>) {
         if let Some(transport) = &self.transport {
@@ -134,13 +251,8 @@ impl PowrushClient {
     }
 
     #[wasm_bindgen]
-    pub fn send_council_vote(&self, proposal: &str, grace_intent: f64) {
-        if let Some(transport) = &self.transport {
-            // Build proper MercyTrialVote with local player resonance when protocol is extended
-            // let vote = MercyTrialVote { proposal: proposal.to_string(), grace_intent, ... };
-            // let _ = transport.send(ClientMessage::CouncilVote { vote });
-            console_log::info!("[PowrushClient] Council vote intent sent for: {}", proposal);
-        }
+    pub fn send_council_vote(&self, proposal: &str, _grace_intent: f64) {
+        console_log::info!("[PowrushClient] Council vote intent: {}", proposal);
     }
 
     #[wasm_bindgen]
@@ -157,12 +269,23 @@ impl PowrushClient {
     pub fn get_my_player_id(&self) -> Option<u64> {
         self.my_player_id
     }
+
+    #[wasm_bindgen]
+    pub fn get_audio_catalog_count(&self) -> u32 {
+        self.last_audio_catalog.len() as u32
+    }
+
+    #[wasm_bindgen]
+    pub fn get_last_audio_ack(&self) -> Option<String> {
+        self.last_audio_ack.clone()
+    }
 }
 
-// Bootstrap entry for JS
 #[wasm_bindgen]
 pub fn start_powrush_client() {
     console_log::init_with_level(log::Level::Info).ok();
     let _client = PowrushClient::new();
-    println!("🌐 Powrush-MMO Client v15.3+ started (WASM + web-sys + Transport v2.1 + Council v18.9 + Monitoring lattice wired)");
+    println!(
+        "🌐 Powrush-MMO Client v21.89.2 started (Transport + Council + Audio Moments catalog)"
+    );
 }
