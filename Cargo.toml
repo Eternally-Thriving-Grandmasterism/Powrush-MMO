@@ -6,6 +6,7 @@ members = [
     "game",
     "powrush-divine-module",
     "crates/rsil-identity",
+    "host",
 ]
 
 resolver = "2"
