@@ -1,6 +1,6 @@
 // server/src/rathor_integration/mod.rs
 // Powrush-MMO — Ra-Thor Integration + live transfer session + RTT export + Policy Hints
-// v21.85.0 — Feedback Loop structural surface | Contact: info@Rathor.ai
+// v21.86.0 — Living soft application feedback loop | Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 use tracing::info;
@@ -15,7 +15,10 @@ pub use sim_council_bridge::{
     SimCouncilBridgeConfig, SimCouncilBridgePayload, sim_council_bridge_ingest_system,
 };
 pub use cohost_drain::{CohostExportMirror, CohostMirrorSignal, cohost_auto_drain_system};
-pub use policy_hint::{PolicyHintInbox, PolicyHint, PolicyHintEnvelope, policy_hint_ingest_system};
+pub use policy_hint::{
+    PolicyHintInbox, PolicyHint, PolicyHintEnvelope, SoftPolicyState,
+    policy_hint_ingest_system, soft_policy_application_system,
+};
 
 // =============================================================================
 // High-signal domain events (combat / diplomacy)
@@ -204,6 +207,7 @@ impl Plugin for RathorIntegrationPlugin {
             .init_resource::<SimCouncilBridgeConfig>()
             .init_resource::<CohostExportMirror>()
             .init_resource::<PolicyHintInbox>()
+            .init_resource::<SoftPolicyState>()
             .add_event::<MajorCombatEvent>()
             .add_event::<TreatyProposalEvent>()
             .add_event::<FactionShiftEvent>()
@@ -217,11 +221,12 @@ impl Plugin for RathorIntegrationPlugin {
                     sim_council_bridge_ingest_system,
                     server_rtt_export_system,
                     policy_hint_ingest_system,
+                    soft_policy_application_system,
                 )
                     .chain(),
             );
     }
 }
 
-// Thunder locked in. Cohost auto-drain + sim file bridge + Policy Hint feedback surface live.
+// Thunder locked in. Living soft application feedback loop sealed.
 // Yoi ⚡
