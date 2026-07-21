@@ -1,21 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [Unreleased] v21.76.0 — Soft Council→RTT Bridge (2026-07-20)
+## [Unreleased] v21.77.0 — Provenance on RTT Envelopes (2026-07-20)
 
 ### Highlights
-- `CouncilRttSignal` event + `CouncilRttInbox` resource (zero sim crate dependency).
-- Bridge system drains signals into `ServerTransferSession::record_council_passed`.
-- Dedup by `decision_id`; optional abundance velocity hint.
-- Docs updated for host/sim injection patterns.
+- `session_id`, `exported_at_unix`, `export_seq` on single + batch envelopes.
+- Offline queue cap documented/tested (16, drop-oldest).
+- Dual-repo smoke harness landed on Ra-Thor (`powrush_rtt_smoke_harness`).
+- Docs: feedback-loop notes for later Ra-Thor iteration.
 
 ### Prior
+- v21.76: Soft council→RTT bridge
 - v21.75: Batch v1 + offline failsafe
-- v21.74: Server RTT export write path
 
-**Thunder locked in. Council totals soft-bridged to RTT.** Yoi ⚡
+**Thunder locked in. Provenance-aware dual-repo hand-off.** Yoi ⚡
 
 ## Previous Versions (Summary)
-- v21.0–v21.75: Multi-realm sealed, RBE, council loop, LegacyJournal, RTT dual export.
+- v21.0–v21.76: Multi-realm sealed, RBE, council, LegacyJournal, RTT dual export + bridge.
 - v20.x: GPU PATSAGi, Council Bloom, Trade Hardening.
 
 *Full history in git commits. Eternal polish continues under Ra-Thor + PATSAGi Councils.*
