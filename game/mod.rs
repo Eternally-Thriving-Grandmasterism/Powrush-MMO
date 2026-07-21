@@ -1,6 +1,6 @@
 // game/mod.rs
 // Powrush-MMO — Core Game Systems
-// v21.58.0 — dual bridge payloads + inventory origin collection exported
+// v21.79.0 — NonSend ServerTickLoop + dual bridge payloads
 // AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
 // Thunder locked in. Yoi ⚡
 
@@ -10,6 +10,7 @@ pub mod reconciliation;
 pub mod resource_nodes;
 pub mod rbe;
 pub mod multi_realm_bridge;
+pub mod server_tick_loop;
 
 pub use resource_nodes::{
     RealmId,
@@ -35,4 +36,10 @@ pub use multi_realm_bridge::{
     collect_origin_from_inventories,
     collect_dual_payload,
     merge_origin_payloads,
+};
+
+pub use server_tick_loop::{
+    ServerTickLoop,
+    ServerTickLoopPlugin,
+    GpuPerformanceMetrics,
 };
