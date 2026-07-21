@@ -2,14 +2,14 @@
  * client/audio_moment_net_bridge.rs
  * Powrush-MMO — Bridge between realtime audio synthesis and network transport
  *
- * - Converts AudioMomentServerSyncRequest → outbound ClientMessage::AudioMomentSave
- * - Queues messages for the WASM/native transport to drain
- * - Merges ServerMessage::AudioMomentCatalogSnapshot into local catalog
+ * Bevy-native path:
+ *   - AudioMomentServerSyncRequest → AudioMomentOutboundQueue
+ *   - drain_outbound_to_transport → NativeClientTransportSender (mpsc)
+ *   - ServerMessageInbound events → catalog merge
  *
- * Transport remains ownership of client/main.rs / ClientWsTransport.
- * This bridge is Bevy-side and transport-agnostic.
+ * WASM path continues via client/main.rs AudioOutbound + try_recv.
  *
- * v21.89.1 | AG-SML v1.0 | TOLC 8 | Permanent PATSAGi
+ * v21.89.4 | AG-SML v1.0 | TOLC 8 | Permanent PATSAGi
  * Contact: info@Rathor.ai
  */
 
@@ -25,6 +25,7 @@ use shared::protocol::{
 };
 use std::collections::VecDeque;
 use std::fs;
+use std::sync::mpsc;
 
 /// Outbound queue drained by the transport layer each tick
 #[derive(Resource, Default)]
@@ -50,15 +51,54 @@ impl AudioMomentOutboundQueue {
     }
 }
 
+/// Injected by native host when ClientWsTransport is connected.
+/// Holds a clone of the transport outbound sender.
+#[derive(Resource)]
+pub struct NativeClientTransportSender {
+    pub tx: mpsc::Sender<ClientMessage>,
+}
+
+impl NativeClientTransportSender {
+    pub fn new(tx: mpsc::Sender<ClientMessage>) -> Self {
+        Self { tx }
+    }
+
+    pub fn send(&self, msg: ClientMessage) -> Result<(), String> {
+        self.tx
+            .send(msg)
+            .map_err(|e| format!("Native transport send failed: {}", e))
+    }
+}
+
+/// Transport / poll layer pushes inbound ServerMessages into Bevy via this event
+#[derive(Event, Clone, Debug)]
+pub struct ServerMessageInbound {
+    pub message: ServerMessage,
+}
+
+#[derive(Resource, Default)]
+pub struct AudioNetBridgeStats {
+    pub drained: u64,
+    pub send_failures: u64,
+    pub catalog_merges: u64,
+}
+
 pub struct AudioMomentNetBridgePlugin;
 
 impl Plugin for AudioMomentNetBridgePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AudioMomentOutboundQueue>()
-            .add_systems(Update, (
-                enqueue_server_sync_requests,
-                // Catalog merge is invoked when transport pushes ServerMessage into an event
-            ));
+            .init_resource::<AudioNetBridgeStats>()
+            .add_event::<ServerMessageInbound>()
+            .add_systems(
+                Update,
+                (
+                    enqueue_server_sync_requests,
+                    drain_outbound_to_transport,
+                    apply_inbound_server_messages,
+                )
+                    .chain(),
+            );
     }
 }
 
@@ -79,7 +119,45 @@ fn enqueue_server_sync_requests(
     }
 }
 
-/// Call from transport poll when a ServerMessage arrives
+/// Bevy native drain — requires NativeClientTransportSender resource
+fn drain_outbound_to_transport(
+    mut queue: ResMut<AudioMomentOutboundQueue>,
+    sender: Option<Res<NativeClientTransportSender>>,
+    mut stats: ResMut<AudioNetBridgeStats>,
+) {
+    let Some(sender) = sender else {
+        return;
+    };
+    let pending = queue.drain();
+    for msg in pending {
+        match sender.send(msg) {
+            Ok(()) => {
+                stats.drained = stats.drained.saturating_add(1);
+            }
+            Err(e) => {
+                stats.send_failures = stats.send_failures.saturating_add(1);
+                warn!(target: "powrush::audio", error = %e, "Failed to drain audio outbound");
+            }
+        }
+    }
+}
+
+fn apply_inbound_server_messages(
+    mut events: EventReader<ServerMessageInbound>,
+    mut catalog: ResMut<AudioMomentCatalog>,
+    cfg: Res<RealtimeAudioConfig>,
+    mut stats: ResMut<AudioNetBridgeStats>,
+) {
+    for ev in events.read() {
+        let before = catalog.moments.len();
+        handle_server_audio_message(&ev.message, &mut catalog, &cfg);
+        if catalog.moments.len() != before {
+            stats.catalog_merges = stats.catalog_merges.saturating_add(1);
+        }
+    }
+}
+
+/// Call from transport poll when a ServerMessage arrives (WASM or non-Bevy)
 pub fn handle_server_audio_message(
     msg: &ServerMessage,
     catalog: &mut AudioMomentCatalog,
@@ -99,7 +177,6 @@ pub fn handle_server_audio_message(
                 let m = from_wire(w);
                 catalog.moments.insert(m.id, m);
             }
-            // Persist merged catalog locally
             let path = cfg.local_root.join("catalog.json");
             if let Some(parent) = path.parent() {
                 let _ = fs::create_dir_all(parent);
@@ -132,6 +209,14 @@ pub fn handle_server_audio_message(
         }
         _ => {}
     }
+}
+
+/// Helper: native host wires ClientWsTransport-like channel into Bevy
+pub fn inject_native_transport_sender(
+    commands: &mut Commands,
+    tx: mpsc::Sender<ClientMessage>,
+) {
+    commands.insert_resource(NativeClientTransportSender::new(tx));
 }
 
 fn to_wire(m: &AudioMoment) -> WireAudioMoment {
@@ -236,7 +321,9 @@ fn from_wire(w: &WireAudioMoment) -> AudioMoment {
     }
 }
 
-// Transport integration (client/main.rs pattern):
-//   for msg in audio_outbound.drain() { transport.send(msg); }
-//   on ServerMessage → handle_server_audio_message(&msg, &mut catalog, &cfg);
+// Native host pattern:
+//   let (tx, rx) = std::sync::mpsc::channel();
+//   // forward rx → ClientWsTransport.send in a thread
+//   inject_native_transport_sender(&mut commands, tx);
+//   // on try_recv: events.send(ServerMessageInbound { message });
 // Thunder locked in. Yoi ⚡
