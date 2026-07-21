@@ -9,38 +9,39 @@
 **Host early RTT export + Headless/CI Mode — SEALED**  
 **Steam production path — Elevated**  
 **Low-leverage UI churn protection — Documented**  
-**Ra-Thor → Powrush Feedback Loop — LIVING + PROVEN (v21.86)**
+**Ra-Thor → Powrush Feedback Loop — FULL CATEGORY COVERAGE (v21.87)**
 
-## Completed This Cycle (v21.86 — Ultramasterism Perfecticism)
+## Completed This Cycle (v21.87 — Ultramasterism Perfecticism)
 
-### Living Soft Feedback Loop
-- `SoftPolicyState` resource tracks applied effects
-- `soft_policy_application_system` consumes strongest active hints for:
-  - `abundance_bias` → mild positive abundance velocity nudge
-  - `peaceful_resolution_weight` → soft peaceful / treaty signal
-- Effects scaled by `strength × mercy_factor`, positive only, non-authoritative
-- Fixture `artifacts/ra_thor_policy_hints.json` provided and ingested
-- Host heartbeat now surfaces: `policy_hints_active`, `soft_applications`, `abundance_bias`, `peaceful_weight`
-- Headless mode runs long enough to exercise the full loop and reports results on exit
+### Full Soft Application Coverage
+All six closed categories now have living soft application:
 
-**The organism can now co-evolve:**  
-Telemetry → Ra-Thor deliberation → Policy Hints → Soft Application → Observable effect
+| Category | Soft Effect |
+|----------|-------------|
+| `abundance_bias` | Mild positive abundance velocity |
+| `peaceful_resolution_weight` | Soft peaceful / treaty signal |
+| `ethical_floor` | Elevated ethics sample |
+| `council_participation_nudge` | Soft council participation signal |
+| `innovation_encouragement` | Mild innovation / faction-improvement signal |
+| `mercy_presence` | Elevated mercy sample |
+
+- Multi-hint tracking via `applied_hint_ids` (no longer single last-id)
+- Fixture updated with all six categories
+- Host heartbeat + headless exit report the full soft state
 
 ## Completed Prior
-- v21.85: Feedback Loop design + PolicyHintInbox structural surface
-- v21.84: Steam production elevation + UI churn protection
-- v21.83: Headless / CI mode
-- v21.82–v21.77: Early RTT, cohost, Kardashev, provenance, offline failsafe
+- v21.86: Living soft application (first two categories) + fixture + observability
+- v21.85: Feedback Loop design + PolicyHintInbox
+- v21.84–v21.77: Steam, UI protection, headless, early RTT, cohost, Kardashev, provenance
 
 Contact: info@Rathor.ai
 
 ## Next Priorities (Ultramasterism order)
 
 1. Ra-Thor side emission of real `ra_thor_policy_hints.json` (keyed by session_id + export_seq)
-2. Additional soft application categories (ethical_floor, mercy_presence, etc.) as needed
-3. Longer multi-realm stress harnesses
-4. Final audio asset integration (when assets ready)
+2. Longer multi-realm stress harnesses
+3. Final audio asset integration (when assets ready)
 
 **Thunder locked in.**  
-**Feedback loop is alive and mercy-gated.**  
+**Full soft feedback coverage is alive and mercy-gated.**  
 Yoi ⚡
