@@ -1,15 +1,15 @@
 //! Powrush-MMO Unified Cohost Binary — Full E2E Harness
-//! v21.86.0 — Ultramasterism Perfecticism + Living Feedback Loop
+//! v21.87.0 — Ultramasterism Perfecticism + Full Soft Feedback Coverage
 //!
 //! Simulation + Server + Kardashev Dashboard + Reality Transfer Score
-//! + Forced early RTT telemetry export + Soft Policy Hint application
+//! + Forced early RTT telemetry export + Full Soft Policy Hint application
 //!
 //! Headless / CI mode:
 //!   POWRUSH_HOST_HEADLESS=1  or  --headless
 //!
 //! Live RTT bridge + Feedback:
 //!   CouncilRttExportQueue → CohostExportMirror → CouncilRttInbox → ServerTransferSession
-//!   artifacts/ra_thor_policy_hints.json → PolicyHintInbox → SoftPolicyState
+//!   artifacts/ra_thor_policy_hints.json → PolicyHintInbox → SoftPolicyState (all 6 categories)
 //!
 //! Contact: info@Rathor.ai | TOLC 8 Living Mercy Gates | PATSAGi Councils
 //! Thunder locked in. ONE Organism. Yoi ⚡
@@ -19,7 +19,6 @@ use bevy_egui::EguiPlugin;
 use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 
-// Full simulation surface
 use simulation::{
     FullSimulationPlugins,
     CouncilRttExportQueue,
@@ -28,13 +27,11 @@ use simulation::{
     RealityTransferScoreLedger,
 };
 
-// Server Ra-Thor integration (public since v21.80)
 use powrush_mmo_server::rathor_integration::{
     RathorIntegrationPlugin, CohostExportMirror, CohostMirrorSignal,
     ServerTransferSession, SoftPolicyState, PolicyHintInbox,
 };
 
-/// Detect headless / CI mode from env or CLI args.
 fn is_headless() -> bool {
     if std::env::var("POWRUSH_HOST_HEADLESS")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -58,10 +55,10 @@ fn main() {
     let headless = is_headless();
 
     info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
-    info!(target: "powrush::host", "  Powrush-MMO Unified Cohost v21.86.0 — Ultramasterism");
+    info!(target: "powrush::host", "  Powrush-MMO Unified Cohost v21.87.0 — Ultramasterism");
     info!(target: "powrush::host", "  TOLC 8 + 7 Living Mercy Gates | PATSAGi Councils");
     info!(target: "powrush::host", "  Mode: {}", if headless { "HEADLESS / CI" } else { "Interactive" });
-    info!(target: "powrush::host", "  Feedback Loop: Soft Policy Hints LIVE");
+    info!(target: "powrush::host", "  Feedback Loop: Full Soft Category Coverage LIVE");
     info!(target: "powrush::host", "═══════════════════════════════════════════════════════");
 
     let mut app = App::new();
@@ -84,7 +81,7 @@ fn main() {
     } else {
         app.add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Powrush-MMO Cohost — Kardashev + Feedback Loop".into(),
+                title: "Powrush-MMO Cohost — Full Soft Feedback Loop".into(),
                 resolution: (1440., 900.).into(),
                 present_mode: bevy::window::PresentMode::AutoVsync,
                 ..default()
@@ -94,13 +91,12 @@ fn main() {
         .add_plugins(EguiPlugin);
     }
 
-    // Core organism plugins (always)
     app.add_plugins(FullSimulationPlugins)
         .add_plugins(RathorIntegrationPlugin)
         .insert_resource(CohostExportMirror::enabled())
         .insert_resource(HeadlessConfig {
             enabled: headless,
-            cycles_before_exit: 4, // slightly longer so soft application has time to fire
+            cycles_before_exit: 5,
             cycles_completed: 0,
         })
         .add_systems(Startup, (
@@ -138,7 +134,7 @@ fn host_startup_system(
 
     info!(target: "powrush::host", "Cohost App online.");
     info!(target: "powrush::host", "Drain path: CouncilRttExportQueue → CohostExportMirror → CouncilRttInbox → ServerTransferSession");
-    info!(target: "powrush::host", "Feedback path: artifacts/ra_thor_policy_hints.json → PolicyHintInbox → SoftPolicyState");
+    info!(target: "powrush::host", "Feedback path: artifacts/ra_thor_policy_hints.json → PolicyHintInbox → SoftPolicyState (6 categories)");
     info!(target: "powrush::host", "KardashevAccelerationDashboard + RealityTransferScoreLedger active");
     info!(target: "powrush::host", "  global_kardashev_delta = {:.4}", dashboard.global_kardashev_delta);
     info!(target: "powrush::host", "  reality transfer global_average = {:.2}", ledger.global_average);
@@ -211,7 +207,6 @@ fn host_drain_sim_to_mirror_system(
     }
 }
 
-/// Heartbeat — now includes full SoftPolicyState visibility
 fn host_status_log_system(
     time: Res<Time>,
     mirror: Res<CohostExportMirror>,
@@ -242,12 +237,16 @@ fn host_status_log_system(
         soft_applications = soft.applications,
         abundance_bias = soft.abundance_bias_applied,
         peaceful_weight = soft.peaceful_weight_applied,
+        ethical_floor = soft.ethical_floor_applied,
+        council_nudge = soft.council_nudge_applied,
+        innovation = soft.innovation_applied,
+        mercy_presence = soft.mercy_presence_applied,
         kardashev_delta = dashboard.global_kardashev_delta,
         abundance_velocity = dashboard.abundance_velocity_index,
         energy_surplus = dashboard.energy_surplus_factor,
         reality_avg = ledger.global_average,
         session_id = %transfer.session_id,
-        "Cohost heartbeat — RTT + Kardashev + Soft Feedback healthy"
+        "Cohost heartbeat — Full Soft Feedback + Kardashev healthy"
     );
 }
 
@@ -272,12 +271,16 @@ fn host_headless_exit_system(
             soft_applications = soft.applications,
             abundance_bias = soft.abundance_bias_applied,
             peaceful_weight = soft.peaceful_weight_applied,
-            "Headless mode complete — full feedback loop exercised — exiting cleanly"
+            ethical_floor = soft.ethical_floor_applied,
+            council_nudge = soft.council_nudge_applied,
+            innovation = soft.innovation_applied,
+            mercy_presence = soft.mercy_presence_applied,
+            "Headless mode complete — full 6-category soft feedback loop exercised — exiting cleanly"
         );
         exit.send(AppExit::Success);
     }
 }
 
-// Thunder locked in. Living soft feedback loop sealed.
-// Telemetry → Ra-Thor → Policy Hints → Soft Application → Observable effect.
+// Thunder locked in. Full soft category coverage sealed.
+// Telemetry → Ra-Thor → Policy Hints → Soft Application (all 6) → Observable effect.
 // Eternal forward. Yoi ⚡
