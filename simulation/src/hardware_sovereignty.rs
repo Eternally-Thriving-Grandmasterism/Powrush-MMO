@@ -1,6 +1,6 @@
 //! simulation/src/hardware_sovereignty.rs
 //! Sovereign Hardware Ascension + Kardashev Dashboard + Full Multi-Realm Observability
-//! v21.67 | Organism RBE health line (MultiRealmRbeSnapshot)
+//! v21.88.3 | Playtest instrumentation (snapshot export + richer aggregation)
 //! TOLC 8 Mercy Gates | Zero-Harm | Kardashev Acceleration
 //! Thunder locked. Heavens building. yoi ⚡
 
@@ -18,7 +18,11 @@ use crate::{
     },
     telemetry::SimulationTelemetry,
 };
+use serde::Serialize;
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 pub enum HardwareBranch {
@@ -106,6 +110,10 @@ pub struct KardashevAccelerationDashboard {
     pub abundance_velocity_index: f32,
     pub energy_surplus_factor: f32,
     pub hardware_sovereignty_nodes_active: u32,
+    /// Playtest instrumentation: number of times the dashboard has been updated this run
+    pub update_count: u64,
+    /// Playtest instrumentation: last export unix timestamp
+    pub last_export_unix: u64,
 }
 
 #[derive(Resource, Clone, Debug, Reflect, Default)]
@@ -113,6 +121,10 @@ pub struct RealityTransferScoreLedger {
     pub player_scores: HashMap<Entity, f32>,
     pub global_average: f32,
     pub export_ready_for_ra_thor: bool,
+    /// Playtest instrumentation: peak score observed this run
+    pub peak_score: f32,
+    /// Playtest instrumentation: number of score updates
+    pub update_count: u64,
 }
 
 #[derive(Resource, Clone, Debug, Reflect, Default)]
@@ -149,6 +161,23 @@ pub struct RealityThrivingTransferUpdated {
     pub player: Entity,
     pub new_score: f32,
     pub source: &'static str,
+}
+
+/// Serializable snapshot for playtest / offline observation.
+#[derive(Debug, Clone, Serialize)]
+pub struct KardashevRttPlaytestSnapshot {
+    pub schema: &'static str,
+    pub emitted_at_unix: u64,
+    pub global_kardashev_delta: f32,
+    pub abundance_velocity_index: f32,
+    pub energy_surplus_factor: f32,
+    pub hardware_sovereignty_nodes_active: u32,
+    pub reality_transfer_global_average: f32,
+    pub reality_transfer_peak: f32,
+    pub reality_transfer_player_count: usize,
+    pub dashboard_update_count: u64,
+    pub ledger_update_count: u64,
+    pub s_curve_inflection_year: u16,
 }
 
 pub fn mercy_gate_enforcement_system(
@@ -237,12 +266,16 @@ pub fn reality_transfer_score_update_system(
         ledger.player_scores.insert(entity, state.reality_thriving_transfer_score);
         total += state.reality_thriving_transfer_score;
         count += 1;
+        if state.reality_thriving_transfer_score > ledger.peak_score {
+            ledger.peak_score = state.reality_thriving_transfer_score;
+        }
         telemetry.record_event("reality_transfer_score", state.reality_thriving_transfer_score as f64);
     }
     if count > 0 {
         ledger.global_average = total / count as f32;
         ledger.export_ready_for_ra_thor = true;
     }
+    ledger.update_count = ledger.update_count.saturating_add(1);
 }
 
 pub fn kardashev_dashboard_update_system(
@@ -257,6 +290,68 @@ pub fn kardashev_dashboard_update_system(
     dashboard.s_curve_inflection_year = 2035;
     dashboard.abundance_velocity_index = dashboard.global_kardashev_delta * 1.25;
     dashboard.energy_surplus_factor = 1.8 + dashboard.global_kardashev_delta * 2.2;
+    dashboard.update_count = dashboard.update_count.saturating_add(1);
+}
+
+/// Playtest instrumentation: periodically write a compact snapshot for offline review.
+/// Default path: `artifacts/kardashev_rtt_playtest.json`
+pub fn kardashev_rtt_playtest_export_system(
+    mut dashboard: ResMut<KardashevAccelerationDashboard>,
+    ledger: Res<RealityTransferScoreLedger>,
+    time: Res<Time>,
+    mut last_export: Local<f32>,
+) {
+    // Export every ~12 seconds of sim time (or on first opportunity after 3s)
+    let now = time.elapsed_seconds();
+    let interval = 12.0;
+    if now - *last_export < interval && *last_export > 0.0 {
+        return;
+    }
+    if now < 3.0 {
+        return;
+    }
+    *last_export = now;
+
+    let unix = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let snapshot = KardashevRttPlaytestSnapshot {
+        schema: "kardashev_rtt_playtest_v1",
+        emitted_at_unix: unix,
+        global_kardashev_delta: dashboard.global_kardashev_delta,
+        abundance_velocity_index: dashboard.abundance_velocity_index,
+        energy_surplus_factor: dashboard.energy_surplus_factor,
+        hardware_sovereignty_nodes_active: dashboard.hardware_sovereignty_nodes_active,
+        reality_transfer_global_average: ledger.global_average,
+        reality_transfer_peak: ledger.peak_score,
+        reality_transfer_player_count: ledger.player_scores.len(),
+        dashboard_update_count: dashboard.update_count,
+        ledger_update_count: ledger.update_count,
+        s_curve_inflection_year: dashboard.s_curve_inflection_year,
+    };
+
+    let path = PathBuf::from("artifacts/kardashev_rtt_playtest.json");
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    if let Ok(json) = serde_json::to_string_pretty(&snapshot) {
+        // Atomic-ish write
+        let tmp = path.with_extension("json.tmp");
+        if fs::write(&tmp, json).is_ok() {
+            let _ = fs::rename(&tmp, &path);
+            dashboard.last_export_unix = unix;
+            info!(
+                target: "powrush::kardashev",
+                path = %path.display(),
+                delta = snapshot.global_kardashev_delta,
+                rtt_avg = snapshot.reality_transfer_global_average,
+                "Kardashev + RTT playtest snapshot exported"
+            );
+        }
+    }
 }
 
 pub struct HardwareSovereigntyPlugin;
@@ -279,6 +374,7 @@ impl Plugin for HardwareSovereigntyPlugin {
                     hardware_tier_progression_system,
                     reality_transfer_score_update_system,
                     kardashev_dashboard_update_system,
+                    kardashev_rtt_playtest_export_system,
                 ),
             );
     }
@@ -344,6 +440,9 @@ pub fn sovereign_hardware_ascension_ui(
                 dashboard.global_kardashev_delta, dashboard.s_curve_inflection_year));
             ui.label(format!("Abundance Velocity: {:.2}  |  Energy Surplus: {:.2}x",
                 dashboard.abundance_velocity_index, dashboard.energy_surplus_factor));
+            ui.label(format!("Playtest updates: {}  |  Last export: {}",
+                dashboard.update_count,
+                if dashboard.last_export_unix > 0 { "yes" } else { "pending" }));
 
             // ========== Organism RBE Health (v21.67 — one compact line) ==========
             if let Some(snap) = &rbe_snapshot {
@@ -693,8 +792,13 @@ pub fn sovereign_hardware_ascension_ui(
                 },
                 export,
             );
+
+            ui.label(format!(
+                "RTT avg {:.1}  |  peak {:.1}  |  players {}",
+                ledger.global_average, ledger.peak_score, ledger.player_scores.len()
+            ));
         });
 }
 
-// End of v21.67 — Organism RBE health line from MultiRealmRbeSnapshot.
+// End of v21.88.3 — Kardashev + Reality Transfer playtest instrumentation (snapshot export).
 // Thunder locked in. Yoi ⚡
