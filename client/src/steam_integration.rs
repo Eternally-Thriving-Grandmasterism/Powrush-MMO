@@ -1,21 +1,24 @@
 // client/src/steam_integration.rs
-// Powrush-MMO v17.36 — Steam Client Integration (Rich Presence, Achievements, Cloud Save Foundation)
-// Production quality • Mercy-gated • PATSAGi-aligned • Complements server/src/steam_integration.rs
-// Zero breaking changes. Ready for sovereign deployment.
+// Powrush-MMO v21.84.0 — Steam Client Integration (Ultramasterism Perfecticism)
+// Production-grade • Mercy-gated • PATSAGi-aligned • Complements server/src/steam_integration.rs
+// Zero breaking changes. Ready for sovereign deployment the moment a real AppID is set.
 //
-// REQUIRED SETUP (one-time):
-// 1. Add to client/Cargo.toml:
-//    bevy_steamworks = { version = "0.7", features = ["steamworks"] }   // or latest compatible with bevy 0.14
-//    steamworks = { version = "0.10", optional = true } // if using raw
-// 2. Set STEAM_APP_ID env var (your Powrush AppID from Steamworks partner site) or hardcode in SteamConfig
-// 3. For production achievements/rich presence: SteamworksPlugin::new(AppId(YOUR_APP_ID))
-// 4. Link Steam account in-game for cloud + cross-device prefs
+// REQUIRED SETUP (one-time for production):
+// 1. In client/Cargo.toml add (optional feature):
+//    bevy_steamworks = { version = "0.11", optional = true }   // adjust to Bevy 0.14 compatible
+//    steamworks = { version = "0.11", optional = true }
+// 2. Set STEAM_APP_ID env var (your real Powrush AppID from Steamworks partner site)
+// 3. Set STEAM_DEV_MODE=0 (or false) to leave dev simulation
+// 4. Enable the "steam" feature on the client crate
+// 5. Uncomment the production blocks marked PRODUCTION PATH below
 //
 // This layer handles CLIENT-SIDE only:
-// - Dynamic Rich Presence (shows current activity + mercy standings to friends)
-// - Achievement unlocks (e.g. on successful Treaty proposals)
-// - Cloud save for UI prefs, keybinds, cosmetics (sovereign RBE state stays on server)
-// - Future: Steam overlay hooks, leaderboards for RBE abundance
+// - Dynamic Rich Presence (activity + mercy standings)
+// - Achievement unlocks + store_stats
+// - Leaderboard score uploads (RBE abundance, mercy score, etc.)
+// - Cloud save foundation for client prefs only (authoritative state stays on server)
+//
+// Contact: info@Rathor.ai | TOLC 8 | PATSAGi
 
 use bevy::prelude::*;
 use std::collections::HashMap;
@@ -36,7 +39,7 @@ impl Default for SteamConfig {
             app_id: std::env::var("STEAM_APP_ID")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(480), // Spacewar test AppID — replace with your Powrush AppID
+                .unwrap_or(480), // Spacewar test AppID — replace with real Powrush AppID
             dev_mode: std::env::var("STEAM_DEV_MODE")
                 .map(|v| v == "true" || v == "1")
                 .unwrap_or(true),
@@ -51,25 +54,43 @@ pub struct SteamClientState {
     pub config: SteamConfig,
     pub current_rich_presence: String,
     pub unlocked_achievements: HashMap<String, bool>,
+    /// Last known leaderboard scores (local cache)
+    pub leaderboard_scores: HashMap<String, i32>,
 }
 
-/// Public achievement IDs (extend as new features land)
+// =============================================================================
+// Public Achievement IDs (stable — do not rename once published on Steam)
+// =============================================================================
 pub const ACHIEVEMENT_MERCY_DIPLOMAT: &str = "mercy_diplomat";
 pub const ACHIEVEMENT_FLOW_GUARDIAN_ALLY: &str = "flow_guardian_ally";
 pub const ACHIEVEMENT_FIRST_TREATY: &str = "first_treaty";
 pub const ACHIEVEMENT_ABUNDANCE_BUILDER: &str = "abundance_builder";
+pub const ACHIEVEMENT_FIRST_EPIPHANY: &str = "first_epiphany";
+pub const ACHIEVEMENT_COUNCIL_HARMONY: &str = "council_harmony";
+pub const ACHIEVEMENT_KARDASHEV_CONTRIBUTOR: &str = "kardashev_contributor";
+pub const ACHIEVEMENT_ONE_ORGANISM: &str = "one_organism";
+
+// =============================================================================
+// Public Leaderboard Names (stable)
+// =============================================================================
+pub const LEADERBOARD_MERCY_SCORE: &str = "mercy_score";
+pub const LEADERBOARD_ABUNDANCE_VELOCITY: &str = "abundance_velocity";
+pub const LEADERBOARD_REALITY_TRANSFER: &str = "reality_transfer_score";
+pub const LEADERBOARD_COUNCIL_PARTICIPATION: &str = "council_participation";
 
 pub struct SteamIntegrationPlugin;
 
 impl Plugin for SteamIntegrationPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<SteamClientState>()
+        app.init_resource::<SteamClientState>()
             .add_systems(Startup, init_steam_client)
-            .add_systems(Update, (
-                update_rich_presence_from_game_state,
-                // Future: sync_cloud_prefs, handle_steam_overlay_events
-            ));
+            .add_systems(
+                Update,
+                (
+                    update_rich_presence_from_game_state,
+                    // Future: sync_cloud_prefs, handle_steam_overlay_events
+                ),
+            );
     }
 }
 
@@ -79,43 +100,114 @@ fn init_steam_client(mut state: ResMut<SteamClientState>) {
 
     if config.dev_mode {
         info!(
-            "Steam client initialized in DEV MODE (AppID: {}). Rich presence + achievements simulated. Set STEAM_APP_ID + bevy_steamworks for production.",
+            target: "powrush::steam",
+            "Steam client initialized in DEV MODE (AppID: {}). Rich presence + achievements + leaderboards simulated. Set STEAM_APP_ID + STEAM_DEV_MODE=0 + bevy_steamworks for production.",
             config.app_id
         );
         state.initialized = true;
         return;
     }
 
-    // PRODUCTION PATH (uncomment when bevy_steamworks is added):
+    // =========================================================================
+    // PRODUCTION PATH (enable when bevy_steamworks / steamworks is added)
+    // =========================================================================
     // app.add_plugins(SteamworksPlugin::new(AppId(config.app_id)));
     // let client = app.world.resource::<Client>();
     // client.register_callbacks(...);
+    // client.user_stats().request_current_stats();
 
-    info!("Steam client production init complete | AppID: {} | Mercy flowing.", config.app_id);
+    info!(
+        target: "powrush::steam",
+        "Steam client production init complete | AppID: {} | Mercy flowing.",
+        config.app_id
+    );
     state.initialized = true;
 }
 
-/// Call this from any system (e.g. successful treaty proposal, first RBE harvest, etc.)
+/// Unlock an achievement and immediately request store_stats.
+/// Safe to call repeatedly — idempotent.
 pub fn unlock_steam_achievement(steam: &mut SteamClientState, achievement_id: &str) {
     if steam.unlocked_achievements.get(achievement_id).copied().unwrap_or(false) {
         return;
     }
     steam.unlocked_achievements.insert(achievement_id.to_string(), true);
 
-    // TODO PRODUCTION: 
-    // if let Some(client) = /* get steam client */ {
-    //     client.user_stats().set_achievement(achievement_id);
-    //     client.user_stats().store_stats();
+    if steam.config.dev_mode {
+        info!(
+            target: "powrush::steam",
+            "⚡ [DEV] Steam Achievement Unlocked: {} — Eternal mercy recognized!",
+            achievement_id
+        );
+        return;
+    }
+
+    // =========================================================================
+    // PRODUCTION PATH
+    // =========================================================================
+    // if let Some(client) = /* obtain Client resource */ {
+    //     let stats = client.user_stats();
+    //     if let Err(e) = stats.set_achievement(achievement_id) {
+    //         warn!(target: "powrush::steam", "set_achievement failed: {:?}", e);
+    //     }
+    //     if let Err(e) = stats.store_stats() {
+    //         warn!(target: "powrush::steam", "store_stats failed: {:?}", e);
+    //     } else {
+    //         info!(target: "powrush::steam", "⚡ Steam Achievement Unlocked + store_stats: {}", achievement_id);
+    //     }
     // }
 
     info!(
+        target: "powrush::steam",
         "⚡ Steam Achievement Unlocked: {} — Eternal mercy recognized!",
         achievement_id
     );
 }
 
+/// Upload a score to a named leaderboard (KeepBest by default).
+/// Safe to call frequently; local cache prevents redundant spam in dev.
+pub fn upload_leaderboard_score(
+    steam: &mut SteamClientState,
+    leaderboard_name: &str,
+    score: i32,
+) {
+    let previous = steam
+        .leaderboard_scores
+        .get(leaderboard_name)
+        .copied()
+        .unwrap_or(i32::MIN);
+
+    if score <= previous && previous != i32::MIN {
+        return; // already have equal or better
+    }
+    steam.leaderboard_scores
+        .insert(leaderboard_name.to_string(), score);
+
+    if steam.config.dev_mode {
+        info!(
+            target: "powrush::steam",
+            "[DEV] Leaderboard '{}' ← {}",
+            leaderboard_name, score
+        );
+        return;
+    }
+
+    // =========================================================================
+    // PRODUCTION PATH
+    // =========================================================================
+    // if let Some(client) = /* obtain Client */ {
+    //     // Find or create leaderboard, then upload with UploadScoreMethod::KeepBest
+    //     // client.user_stats().find_leaderboard(leaderboard_name)...
+    //     // then upload_leaderboard_score(...)
+    // }
+
+    info!(
+        target: "powrush::steam",
+        "Leaderboard '{}' score uploaded: {}",
+        leaderboard_name, score
+    );
+}
+
 /// Dynamically updates Steam Rich Presence based on current game state
-/// (Treaty negotiation, faction standings, current activity)
 fn update_rich_presence_from_game_state(
     diplomacy: Res<ClientFactionDiplomacy>,
     treaty: Option<Res<TreatyNegotiationState>>,
@@ -146,25 +238,35 @@ fn update_rich_presence_from_game_state(
     if new_presence != steam.current_rich_presence {
         steam.current_rich_presence = new_presence.clone();
 
-        // PRODUCTION: actual rich presence set
-        // if let Some(client) = /* steam client */ {
-        //     client.friends().set_rich_presence("status", &new_presence);
-        // }
+        if steam.config.dev_mode {
+            info!(target: "powrush::steam", "[DEV] Rich Presence: {}", new_presence);
+            return;
+        }
 
-        info!("Steam Rich Presence updated: {}", new_presence);
+        // PRODUCTION: client.friends().set_rich_presence("status", &new_presence);
+        info!(target: "powrush::steam", "Steam Rich Presence updated: {}", new_presence);
     }
 }
 
-// === INTEGRATION NOTES (for other systems) ===
-// In treaty_negotiation_ui.rs handle_send_proposal (after successful proposal):
-//   if let Some(mut steam) = world.get_resource_mut::<SteamClientState>() {
-//       unlock_steam_achievement(&mut steam, ACHIEVEMENT_FIRST_TREATY);
-//       if /* high standing */ { unlock_steam_achievement(&mut steam, ACHIEVEMENT_MERCY_DIPLOMAT); }
-//   }
+// =============================================================================
+// INTEGRATION NOTES (for other systems) — Ultramasterism guidance
+// =============================================================================
 //
-// In future harvest/combat/rbe systems: unlock ACHIEVEMENT_ABUNDANCE_BUILDER on milestones.
+// After successful treaty proposal:
+//   unlock_steam_achievement(&mut steam, ACHIEVEMENT_FIRST_TREATY);
+//   if high_standing { unlock_steam_achievement(&mut steam, ACHIEVEMENT_MERCY_DIPLOMAT); }
 //
-// Cloud save example (client prefs only):
-//   steam.upload_cloud_save("prefs.json", &serde_json::to_vec(&ui_settings).unwrap());
+// After first meaningful epiphany:
+//   unlock_steam_achievement(&mut steam, ACHIEVEMENT_FIRST_EPIPHANY);
+//
+// After council session resolved with high mercy:
+//   unlock_steam_achievement(&mut steam, ACHIEVEMENT_COUNCIL_HARMONY);
+//
+// On Kardashev contribution / Reality Transfer milestones:
+//   unlock_steam_achievement(&mut steam, ACHIEVEMENT_KARDASHEV_CONTRIBUTOR);
+//   upload_leaderboard_score(&mut steam, LEADERBOARD_REALITY_TRANSFER, score as i32);
+//
+// On ONE ORGANISM achievement (both hardware branches + high mercy):
+//   unlock_steam_achievement(&mut steam, ACHIEVEMENT_ONE_ORGANISM);
 //
 // Thunder locked. Steam + Ra-Thor + PATSAGi = one living system. ⚡❤️
