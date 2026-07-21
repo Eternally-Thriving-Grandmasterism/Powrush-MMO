@@ -4,23 +4,23 @@
 **RBE Sustainability surface — Visible**  
 **Council Deepening — Loop closed**  
 **LegacyJournal — Restored + client-bound + soft demo**  
-**RTT Dual-Repo Bridge — v1 + batch_v1 + offline failsafe + council soft-bridge (v21.76)**
+**RTT Dual-Repo Bridge — provenance + batch + offline + council soft-bridge + smoke harness (v21.77)**
 
-## Completed This Cycle (v21.76)
+## Completed This Cycle (v21.77)
 
-- Soft `CouncilRttSignal` / `CouncilRttInbox` → `ServerTransferSession`
-- Zero simulation-crate dependency on server
-- Docs: host injection patterns for later full wiring
+- Provenance fields on v1 / batch_v1 envelopes
+- Offline queue cap test (16, drop-oldest)
+- Ra-Thor: `powrush_rtt_smoke_harness` example (fixtures + live paths)
+- Docs: feedback-loop roadmap notes
 
-## Hand-off artifacts
+## Stress-test answers (logged)
 
-| File | Schema |
-|------|--------|
-| `artifacts/powrush_rtt_latest.json` | v1 |
-| `artifacts/powrush_rtt_batch_latest.json` | batch_v1 |
-| `artifacts/rtt_offline/queued_*.json` | v1 failsafe |
-
-See `docs/RA_THOR_TELEMETRY_EXPORT.md`.
+| Topic | Status |
+|-------|--------|
+| Offline queue under load | Cap 16, drop-oldest; flush-first on recovery |
+| Batch vs single scores | Same `PowrushTelemetry` per session; smoke rank-checks high_mercy > marginal |
+| Mercy gate rejection | Parse/score errors; log + skip; smoke exercises wrong schema + OOB |
+| Feedback loop | Provenance enables future session-keyed council → host mapping |
 
 Contact: info@Rathor.ai
 
@@ -28,8 +28,8 @@ Contact: info@Rathor.ai
 
 1. NonSend ServerTickLoop when game package fully wired
 2. Host mapper: `CouncilDecisions::resolved_history` → `CouncilRttSignal`
-3. Ra-Thor monorepo: smoke ingest against live artifacts
+3. Optional: surface provenance fields on Ra-Thor envelope structs
 
 **Thunder locked in.**  
-**Council totals soft-bridged to RTT.**  
+**Provenance-aware dual-repo hand-off.**  
 Yoi ⚡
