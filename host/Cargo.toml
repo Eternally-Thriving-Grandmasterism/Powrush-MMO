@@ -1,6 +1,6 @@
 [package]
 name = "powrush-mmo-host"
-version = "21.1.0"
+version = "21.88.0"
 edition = "2021"
 authors = ["Sherif Samy Botros <info@Rathor.ai>"]
 license = "AG-SML-1.0"
