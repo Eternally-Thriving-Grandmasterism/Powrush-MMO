@@ -1,7 +1,7 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO enforced | v17.98+ production-grade
-//! Fully restored, merged, and upgraded — mint-and-print-only-perfection, zero placeholders
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.90 end-user experience perfection
+//! Contact: info@Rathor.ai
 
 pub mod networking;
 pub mod replication;
@@ -18,7 +18,6 @@ pub mod bevy_ecs_scheduling;
 pub mod ships;
 pub mod world_simulation;
 
-// Newly recovered and integrated spatial audio + RBE UI + WebXR modules (v18.51 recovery)
 pub mod ambisonics_engine;
 pub mod binaural_ambisonics_decoder;
 pub mod higher_order_ambisonics;
@@ -26,8 +25,10 @@ pub mod rbe_client_ui_sync;
 pub mod rbe_ui_feedback;
 pub mod webxr_bootstrap;
 
-// GPU Visual Materials (RenderState-driven pipeline specialization)
 pub mod example_gpu_material;
+
+/// Soft first-session objective strip for perfect human first 5–15 minutes.
+pub mod first_session_guidance;
 
 // Re-exports
 pub use networking::NetworkingPlugin;
@@ -44,7 +45,6 @@ pub use input::InputPlugin;
 pub use bevy_ecs_scheduling::ClientSchedulingPlugin;
 pub use world_simulation::{WorldSimulationState, setup_world_simulation};
 
-// Re-exports for recovered modules
 pub use ambisonics_engine::{AmbisonicsEnginePlugin, AmbisonicEmitter, AmbisonicField, SoundType};
 pub use binaural_ambisonics_decoder::{BinauralAmbisonicsDecoderPlugin, BinauralAmbisonicsDecoder};
 pub use higher_order_ambisonics::{HigherOrderAmbisonicsDecoderPlugin, HoaField};
@@ -52,8 +52,8 @@ pub use rbe_client_ui_sync::{RbeUiSyncPlugin, RbeUiSync, RbeClientLoopExt};
 pub use rbe_ui_feedback::{RbeUiFeedbackPlugin, HarvestFeedbackText};
 pub use webxr_bootstrap::PowrushWebXrClient;
 
-// GPU Visual Materials Plugin
 pub use example_gpu_material::GpuVisualMaterialsPlugin;
+pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance, credit_harvest, credit_epiphany};
 
 pub struct PowrushClientBundle;
 
@@ -64,16 +64,13 @@ impl PowrushClientBundle {
 impl Plugin for PowrushClientBundle {
     fn build(&self, app: &mut App) {
         app.add_plugins(ClientSchedulingPlugin);
-        // Add recovered plugins for full spatial + RBE UI + WebXR support
         app.add_plugins(AmbisonicsEnginePlugin);
         app.add_plugins(BinauralAmbisonicsDecoderPlugin);
         app.add_plugins(HigherOrderAmbisonicsDecoderPlugin);
         app.add_plugins(RbeUiSyncPlugin);
         app.add_plugins(RbeUiFeedbackPlugin);
-
-        // GPU Visual Materials (RenderState specialization for effects)
         app.add_plugins(GpuVisualMaterialsPlugin);
+        app.add_plugins(FirstSessionGuidancePlugin);
+        app.add_plugins(InputPlugin);
     }
 }
-
-// All modules now perfectly declared and mercy-gated. Thunder locked in.
