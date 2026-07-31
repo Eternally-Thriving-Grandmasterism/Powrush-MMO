@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.78.0 — Council RTT export queue (host mapper)
+//! v21.88.4 — Ra-Thor soft feedback bridge export
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -20,6 +20,7 @@ pub mod flow_state_forge;
 pub mod gpu_economic;
 pub mod harvest;
 pub mod mercy;
+pub mod ra_thor_bridge;
 pub mod mycorrhizal_volatile_sync;
 pub mod orchestrator;
 pub mod patsagi_council_tunable_config;
@@ -152,6 +153,10 @@ pub use world::{
     update_lissajous_knot_ui, update_active_lissajous_knot, debug_lissajous_knot_input,
 };
 
+pub use ra_thor_bridge::{
+    RaThorBridge, SoftFeedbackEvent, ZoneSnapshot,
+};
+
 pub struct FullSimulationPlugins;
 
 impl bevy::app::PluginGroup for FullSimulationPlugins {
@@ -169,5 +174,5 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
     }
 }
 
-// END OF COMPLETE WIRING v21.78 — Council RTT export queue (host mapper) live.
+// END OF COMPLETE WIRING v21.88.4 — Ra-Thor soft feedback bridge export live.
 // TOLC 8 sealed. Contact: info@Rathor.ai. Yoi ⚡
