@@ -1,13 +1,10 @@
 /*!
  * simulation/src/orchestrator.rs
- * Central Simulation Orchestrator (v21.88.5)
+ * Central Simulation Orchestrator (v21.88.6)
  *
  * Full TOLC 8 MercyGate + EconomicLayer batch_update
- * Integrated with robust PersistenceManager / PlayerSaveData
- * GPU PATSAGi foresight, Council bloom, Emergence, Harvest, Synergy
- * v21.12: Live EpiphanyEvent impact wired via apply_epiphany_policy_impact
- * v21.13: run_tick_with_telemetry → live Ra-Thor transfer counters
  * v21.88.5: Soft feedback loop hook (RaThorBridge::report_zone_grief)
+ * v21.88.6: Soft feedback → telemetry custom metrics
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -49,7 +46,6 @@ pub struct TickResult {
 }
 
 impl TickResult {
-    /// Mercy flow estimate for Ra-Thor transfer counters (TOLC-aligned, clamped).
     pub fn estimated_mercy_flow(&self) -> f32 {
         let base = 0.85_f32;
         let council_boost = (self.council_attunement_score * 0.25).clamp(0.0, 0.4);
@@ -63,7 +59,6 @@ pub struct SimulationOrchestrator {
     pub emergence_orchestrator: EmergenceOrchestrator,
     pub harvesting_system: HarvestingSystem,
     pub current_tick: u64,
-    /// Optional soft feedback bridge (dual-repo sealed protocol with Ra-Thor).
     pub soft_feedback_bridge: Option<RaThorBridge>,
 
     #[cfg(feature = "gpu")]
@@ -184,9 +179,8 @@ impl SimulationOrchestrator {
         }
 
         result.synergy_events = self.collect_synergy_events_direct(world, player_save);
-        let _ = interest_manager; // reserved for spatial-interest telemetry later
+        let _ = interest_manager;
 
-        // Soft feedback dual-repo loop (Ra-Thor sealed protocol)
         if let Some(bridge) = self.soft_feedback_bridge.as_mut() {
             let valence = result.estimated_mercy_flow().clamp(0.0, 1.0);
             let raw_energy = (1.2 - valence as f64 * 0.8).max(0.05);
@@ -198,7 +192,6 @@ impl SimulationOrchestrator {
         result
     }
 
-    /// Same as `run_tick`, then feeds live Ra-Thor transfer counters via `TelemetryCollector`.
     pub fn run_tick_with_telemetry(
         &mut self,
         world: &mut SovereignWorldState,
@@ -224,6 +217,21 @@ impl SimulationOrchestrator {
             result.harvest_nodes_processed.max(result.resource_policy_impacts),
             !result.errors.is_empty(),
         );
+
+        if result.soft_feedback_events > 0 {
+            telemetry.current.custom_metrics.insert(
+                "soft_feedback_events".into(),
+                result.soft_feedback_events as f32,
+            );
+            if let Some(bridge) = self.soft_feedback_bridge.as_ref() {
+                let snaps = bridge.soft_zone_snapshots();
+                let total_grief: f64 = snaps.iter().map(|z| z.grief_absorbed).sum();
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_total_grief".into(),
+                    total_grief as f32,
+                );
+            }
+        }
 
         result
     }
