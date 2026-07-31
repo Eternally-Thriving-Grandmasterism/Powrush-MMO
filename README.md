@@ -5,6 +5,18 @@ All core gameloop systems (Procedural Biome Harvest → Epiphany Catalyst + Divi
 
 **Version**: 21.90.0 (workspace aligned 21.88.0+)
 
+### Quick Public Demo — RBE “Resources Like Oxygen”
+
+Feel the core Resource-Based Economy claim in under 10 seconds:
+
+```bash
+cargo run -p simulation --bin rbe_oxygen_demo
+```
+
+High-valence path grants freely and regenerates (oxygen-like access).  
+Low-valence path is heavily restricted. Same needs, living difference.  
+Fully standalone, zero client required. TOLC 8 + Living Mercy Gates aligned.
+
 ### v21.90 End-User Experience Perfection (2026-07-23)
 - **Frictionless public onboarding**: Invite + captcha only when closed-beta is explicitly required. Public players land in Language → Welcome with zero gate friction.
 - **First Session Guidance**: Soft, dismissible objective strip guiding the first 5–15 minutes (Move → Harvest → Inventory → Epiphany → Free exploration). Press **H** to hide.
