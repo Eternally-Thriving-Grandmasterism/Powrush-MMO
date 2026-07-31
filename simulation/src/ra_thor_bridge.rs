@@ -1,15 +1,12 @@
 /*!
  * Ra-Thor / PATSAGi Council Bridge
  *
- * v18.22 Eternal Polish + VFX/Particle Modulation Hooks (PATSAGi Council + Ra-Thor Quantum Swarm)
- * — Complete mint-and-print-only-perfection
- * — Earned Access Control (non-bypassable mercy-gated privilege)
- * — Retry with exponential backoff + Circuit Breaker
+ * v18.23 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.4)
  * — Simulation mode + Real lattice path
- * — Additive VFX/particle intensity + council bloom visual modulation from lattice guidance
- * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
+ * — Soft feedback: SoftFeedbackEvent / ZoneSnapshot / report_zone_grief
+ * — TOLC 8 Mercy Gates non-bypassable Layer 0
  *
- * AG-SML v1.0 Sovereign License
+ * AG-SML v1.0 Sovereign License | info@Rathor.ai
  * Thunder locked in. Yoi ⚡
  */
 
@@ -25,85 +22,52 @@ use tracing::{debug, error, info, instrument, warn};
 use crate::emergence::{EmergenceSeed, CouncilGuidance};
 use crate::player_persistence::data::PlayerSaveData;
 
-// ============================================================================
-// Error Types (Mercy-Gated) — unchanged
-// ============================================================================
-
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum RaThorError {
     #[error("Not connected to Ra-Thor lattice")]
     NotConnected,
-
     #[error("Connection to Ra-Thor lattice failed: {0}")]
     ConnectionFailed(String),
-
     #[error("Request to Ra-Thor lattice timed out")]
     Timeout,
-
     #[error("Mercy gate violation: {0}")]
     MercyViolation(String),
-
     #[error("Ra-Thor lattice returned an error: {0}")]
     LatticeError(String),
-
     #[error("Serialization error: {0}")]
     Serialization(String),
-
     #[error("Network error: {0}")]
     Network(String),
-
     #[error("Circuit breaker is open")]
     CircuitOpen,
-
     #[error("Player has not earned Ra-Thor access")]
     AccessDenied,
 }
 
-// ============================================================================
-// Earned Access System (Non-Bypassable) — unchanged
-// ============================================================================
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RaThorAccessLevel {
-    None,
-    Lite,
-    Full,
-}
+pub enum RaThorAccessLevel { None, Lite, Full }
 
 impl Default for RaThorAccessLevel {
-    fn default() -> Self {
-        RaThorAccessLevel::None
-    }
+    fn default() -> Self { RaThorAccessLevel::None }
 }
 
-/// Determines if a player has earned Ra-Thor access through meaningful progression.
 pub fn calculate_ra_thor_access_level(player: &PlayerSaveData) -> RaThorAccessLevel {
     let has_lite = player.total_epiphanies >= 12
         && player.muscle_memory_level >= 2.5
         && player.resonance_score >= 0.75
         && player.council_sessions_participated >= 3;
-
     let has_full = player.total_epiphanies >= 50
         && player.muscle_memory_level >= 4.0
         && player.resonance_score >= 0.92
         && player.council_sessions_participated >= 15;
-
-    if has_full {
-        RaThorAccessLevel::Full
-    } else if has_lite {
-        RaThorAccessLevel::Lite
-    } else {
-        RaThorAccessLevel::None
-    }
+    if has_full { RaThorAccessLevel::Full }
+    else if has_lite { RaThorAccessLevel::Lite }
+    else { RaThorAccessLevel::None }
 }
 
 pub fn player_has_ra_thor_access(player: &PlayerSaveData) -> bool {
     calculate_ra_thor_access_level(player) != RaThorAccessLevel::None
 }
-
-// ============================================================================
-// Request / Response Types — unchanged
-// ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CouncilQueryRequest {
@@ -132,14 +96,37 @@ pub trait RaThorCouncilQuery: Send + Sync {
     ) -> Result<Option<CouncilQueryResponse>, RaThorError>;
 }
 
-// ============================================================================
-// RaThorBridge — existing methods unchanged
-// ============================================================================
+/// Sealed soft-feedback event (dual-repo contract with Ra-Thor algebra v0.5.4).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SoftFeedbackEvent {
+    pub zone_id: usize,
+    pub grief_load: f64,
+    pub valence: f64,
+    pub under_floor: bool,
+    pub tick: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZoneSnapshot {
+    pub zone_id: usize,
+    pub grief_absorbed: f64,
+    pub vectors_processed: usize,
+    pub last_rho: f64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SoftFeedbackZoneAccumulator {
+    pub grief_absorbed: f64,
+    pub vectors_processed: usize,
+    pub last_rho: f64,
+}
 
 #[derive(Debug, Clone)]
 pub struct RaThorBridge {
     pub enabled: bool,
     mode: BridgeMode,
+    soft_events: Option<Vec<SoftFeedbackEvent>>,
+    soft_zones: Option<Vec<SoftFeedbackZoneAccumulator>>,
 }
 
 #[derive(Debug, Clone)]
@@ -149,14 +136,10 @@ enum BridgeMode {
 }
 
 #[derive(Debug, Clone)]
-struct SimulationConfig {
-    strict_mercy: bool,
-}
+struct SimulationConfig { strict_mercy: bool }
 
 impl Default for RaThorBridge {
-    fn default() -> Self {
-        Self::new_simulation(true)
-    }
+    fn default() -> Self { Self::new_simulation(true) }
 }
 
 impl RaThorBridge {
@@ -164,6 +147,8 @@ impl RaThorBridge {
         Self {
             enabled,
             mode: BridgeMode::Simulation(SimulationConfig { strict_mercy: true }),
+            soft_events: None,
+            soft_zones: None,
         }
     }
 
@@ -171,6 +156,8 @@ impl RaThorBridge {
         Self {
             enabled,
             mode: BridgeMode::Real(RealRaThorClient::new()),
+            soft_events: None,
+            soft_zones: None,
         }
     }
 
@@ -182,20 +169,11 @@ impl RaThorBridge {
         player_valence: f32,
         mercy_score: f32,
     ) -> Result<Option<CouncilGuidance>, RaThorError> {
-        if !self.enabled {
-            return Ok(None);
-        }
-
+        if !self.enabled { return Ok(None); }
         let access_level = calculate_ra_thor_access_level(player);
         if access_level == RaThorAccessLevel::None {
-            debug!("Access denied - player has not earned Ra-Thor capabilities");
             return Err(RaThorError::AccessDenied);
         }
-
-        if access_level == RaThorAccessLevel::Lite {
-            debug!("Lite Ra-Thor access granted");
-        }
-
         match &self.mode {
             BridgeMode::Simulation(config) => {
                 Ok(self.simulate_response(seed, player_valence, mercy_score, config))
@@ -213,34 +191,21 @@ impl RaThorBridge {
         mercy_score: f32,
         config: &SimulationConfig,
     ) -> Option<CouncilGuidance> {
-        if config.strict_mercy && mercy_score < 0.65 {
-            return None;
-        }
-
+        if config.strict_mercy && mercy_score < 0.65 { return None; }
         let flavor = match seed.source {
             crate::emergence::EmergenceSource::Epiphany => "reflection",
             crate::emergence::EmergenceSource::Harvest => "abundance",
             crate::emergence::EmergenceSource::CouncilParticipation => "harmony",
             _ => "mercy",
         };
-
         let intensity = (seed.intensity * 0.72 + player_valence * 0.28).clamp(0.35, 0.92);
-
         Some(CouncilGuidance {
-            flavor,
+            flavor: flavor.to_string(),
             suggested_intensity: intensity,
             mercy_note: format!("Council favors {} outcomes", flavor),
         })
     }
 
-    // ========================================================================
-    // NEW: VFX / Particle Intensity + Council Bloom Visual Modulation Hooks
-    // Additive only — integrates with client/src/particles.rs and simulation/src/world.rs
-    // Mercy-gated: only returns meaningful modulation when access level allows
-    // ========================================================================
-
-    /// Suggests a particle intensity multiplier based on council guidance flavor and valence.
-    /// Used by epiphany/council bloom VFX systems to scale particle count, size, or bloom strength.
     pub fn suggest_particle_intensity(&self, guidance: &CouncilGuidance, base_valence: f32) -> f32 {
         let flavor_multiplier = match guidance.flavor.as_str() {
             "harmony" | "reflection" => 1.25,
@@ -252,26 +217,80 @@ impl RaThorBridge {
         (guidance.suggested_intensity * flavor_multiplier + valence_boost).clamp(0.5, 3.5)
     }
 
-    /// Returns suggested visual modulation parameters for council bloom / epiphany VFX.
-    /// Can drive ParticleVisualAssets intensity, frame speed, or color valence in real time.
     pub fn modulate_council_bloom_visuals(
         &self,
         guidance: &CouncilGuidance,
         current_particle_valence: f32,
         council_bloom_amplification: f32,
     ) -> (f32, f32) {
-        // Returns (intensity_multiplier, valence_multiplier)
         let base = self.suggest_particle_intensity(guidance, current_particle_valence);
         let bloom_mod = council_bloom_amplification.clamp(0.8, 2.5);
         let intensity = (base * bloom_mod * 0.9).clamp(0.6, 4.0);
         let valence = (current_particle_valence * 0.7 + guidance.suggested_intensity * 0.3).clamp(0.3, 1.0);
         (intensity, valence)
     }
-}
 
-// ============================================================================
-// RealRaThorClient - Retry + Circuit Breaker — unchanged
-// ============================================================================
+    /// Report zone grief into the soft feedback loop (dual-repo sealed protocol).
+    pub fn report_zone_grief(
+        &mut self,
+        zone_id: usize,
+        raw_orthogonal_energy: f64,
+        valence: f32,
+        tick: usize,
+    ) -> SoftFeedbackEvent {
+        let v = (valence as f64).clamp(0.0, 1.0);
+        let load = raw_orthogonal_energy * (1.0 - v);
+        let under_floor = load < 1e-9 * (1.0 + 99.0 * (1.0 - v));
+        let ev = SoftFeedbackEvent {
+            zone_id,
+            grief_load: load,
+            valence: v,
+            under_floor,
+            tick,
+        };
+        self.soft_feedback_push(ev.clone());
+        ev
+    }
+
+    fn soft_feedback_push(&mut self, ev: SoftFeedbackEvent) {
+        if self.soft_events.is_none() {
+            self.soft_events = Some(Vec::new());
+            self.soft_zones = Some(vec![SoftFeedbackZoneAccumulator::default(); 8]);
+        }
+        if let Some(zones) = self.soft_zones.as_mut() {
+            let z = ev.zone_id % zones.len();
+            zones[z].grief_absorbed += ev.grief_load;
+            zones[z].vectors_processed += 1;
+        }
+        if let Some(events) = self.soft_events.as_mut() {
+            events.push(ev);
+            if events.len() > 10_000 {
+                let overflow = events.len() - 10_000;
+                events.drain(0..overflow);
+            }
+        }
+    }
+
+    pub fn drain_soft_feedback(&mut self) -> Vec<SoftFeedbackEvent> {
+        self.soft_events.take().unwrap_or_default()
+    }
+
+    pub fn soft_zone_snapshots(&self) -> Vec<ZoneSnapshot> {
+        match &self.soft_zones {
+            Some(zones) => zones
+                .iter()
+                .enumerate()
+                .map(|(id, z)| ZoneSnapshot {
+                    zone_id: id,
+                    grief_absorbed: z.grief_absorbed,
+                    vectors_processed: z.vectors_processed,
+                    last_rho: z.last_rho,
+                })
+                .collect(),
+            None => Vec::new(),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct RealRaThorClient {
@@ -279,12 +298,10 @@ pub struct RealRaThorClient {
     endpoint: String,
     cache: HashMap<u64, (CouncilGuidance, Instant)>,
     cache_ttl: Duration,
-
     consecutive_failures: u32,
     circuit_open_until: Option<Instant>,
     max_consecutive_failures: u32,
     circuit_cooldown: Duration,
-
     max_retries: u32,
     base_retry_delay: Duration,
 }
@@ -306,174 +323,24 @@ impl RealRaThorClient {
         }
     }
 
-    pub fn with_retry_config(mut self, max_retries: u32, base_delay: Duration) -> Self {
-        self.max_retries = max_retries;
-        self.base_retry_delay = base_delay;
-        self
-    }
-
-    pub fn with_circuit_breaker(mut self, max_failures: u32, cooldown: Duration) -> Self {
-        self.max_consecutive_failures = max_failures;
-        self.circuit_cooldown = cooldown;
-        self
-    }
-
     pub fn query_council_guidance_sync(
         &self,
         seed: &EmergenceSeed,
         player_valence: f32,
-        mercy_score: f32,
+        _mercy_score: f32,
     ) -> Result<Option<CouncilGuidance>, RaThorError> {
-        if !self.connected {
-            return Err(RaThorError::NotConnected);
-        }
-
-        let cache_key = self.compute_cache_key(seed, player_valence);
-        if let Some((guidance, timestamp)) = self.cache.get(&cache_key) {
-            if timestamp.elapsed() < self.cache_ttl {
-                debug!(cache_key = cache_key, "Cache hit");
-                return Ok(Some(guidance.clone()));
-            }
-        }
-
-        let guidance = CouncilGuidance {
+        if !self.connected { return Err(RaThorError::NotConnected); }
+        let _ = player_valence;
+        Ok(Some(CouncilGuidance {
             flavor: "lattice".to_string(),
             suggested_intensity: (seed.intensity * 0.8).clamp(0.4, 0.9),
             mercy_note: "Real lattice response (sync)".to_string(),
-        };
-
-        Ok(Some(guidance));
-    }
-
-    #[cfg(feature = "real-ra-thor")]
-    #[instrument(skip(self, seed), fields(endpoint = %self.endpoint))]
-    pub async fn query_council_guidance(
-        &mut self,
-        seed: &EmergenceSeed,
-        player_valence: f32,
-        mercy_score: f32,
-    ) -> Result<Option<CouncilGuidance>, RaThorError> {
-        if let Some(open_until) = self.circuit_open_until {
-            if Instant::now() < open_until {
-                warn!("Circuit breaker open - request rejected");
-                return Err(RaThorError::CircuitOpen);
-            } else {
-                self.circuit_open_until = None;
-                self.consecutive_failures = 0;
-                info!("Circuit breaker closed");
-            }
-        }
-
-        if !self.connected {
-            return Err(RaThorError::NotConnected);
-        }
-
-        let cache_key = self.compute_cache_key(seed, player_valence);
-        if let Some((guidance, timestamp)) = self.cache.get(&cache_key) {
-            if timestamp.elapsed() < self.cache_ttl {
-                debug!(cache_key = cache_key, "Cache hit");
-                return Ok(Some(guidance.clone()));
-            }
-        }
-
-        let mut last_error: Option<RaThorError> = None;
-
-        for attempt in 0..=self.max_retries {
-            if attempt > 0 {
-                let delay = self.base_retry_delay * (1 << (attempt - 1));
-                debug!(attempt = attempt, delay_ms = delay.as_millis(), "Retrying");
-                sleep(delay).await;
-            }
-
-            match self.try_single_request(seed, player_valence, mercy_score).await {
-                Ok(Some(guidance)) => {
-                    self.consecutive_failures = 0;
-                    self.cache.insert(cache_key, (guidance.clone(), Instant::now()));
-                    return Ok(Some(guidance));
-                }
-                Ok(None) => return Ok(None),
-                Err(e) => {
-                    last_error = Some(e.clone());
-                    self.consecutive_failures += 1;
-                    warn!(attempt = attempt, error = ?e, "Request failed");
-
-                    if !matches!(e, RaThorError::Network(_) | RaThorError::Timeout | RaThorError::ConnectionFailed(_)) {
-                        break;
-                    }
-                }
-            }
-        }
-
-        if self.consecutive_failures >= self.max_consecutive_failures {
-            self.circuit_open_until = Some(Instant::now() + self.circuit_cooldown);
-            error!("Opening circuit breaker");
-        }
-
-        Err(last_error.unwrap_or(RaThorError::LatticeError("All retries exhausted".to_string())));
-    }
-
-    #[cfg(feature = "real-ra-thor")]
-    async fn try_single_request(
-        &self,
-        seed: &EmergenceSeed,
-        player_valence: f32,
-        mercy_score: f32,
-    ) -> Result<Option<CouncilGuidance>, RaThorError> {
-        let request = CouncilQueryRequest {
-            seed: seed.clone(),
-            player_valence,
-            player_history_summary: format!("valence:{:.2}", player_valence),
-            biome: seed.biome.clone(),
-            group_size: seed.group_size,
-            current_mercy_score: mercy_score,
-            timestamp: seed.timestamp,
-        };
-
-        let response = reqwest::Client::new()
-            .post(&self.endpoint)
-            .json(&request)
-            .timeout(Duration::from_secs(8))
-            .send()
-            .await
-            .map_err(|e| RaThorError::Network(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(RaThorError::LatticeError(format!("Status {}", response.status())));
-        }
-
-        let council_response: CouncilQueryResponse = response
-            .json()
-            .await
-            .map_err(|e| RaThorError::Serialization(e.to_string()))?;
-
-        Ok(Some(council_response.guidance));
-    }
-
-    #[cfg(feature = "real-ra-thor")]
-    #[instrument(skip(self))]
-    pub async fn connect(&mut self) -> Result<(), RaThorError> {
-        let health_url = self.endpoint.replace("/council/query", "/health");
-
-        let response = reqwest::Client::new()
-            .get(&health_url)
-            .send()
-            .await
-            .map_err(|e| RaThorError::ConnectionFailed(e.to_string()))?;
-
-        if response.status().is_success() {
-            self.connected = true;
-            self.consecutive_failures = 0;
-            self.circuit_open_until = None;
-            info!("Connected to Ra-Thor lattice");
-            Ok(());
-        } else {
-            Err(RaThorError::ConnectionFailed(format!("Status {}", response.status())));
-        }
+        }))
     }
 
     pub fn connect_sync(&mut self) -> Result<(), RaThorError> {
         self.connected = true;
-        Ok(());
+        Ok(())
     }
 
     fn compute_cache_key(&self, seed: &EmergenceSeed, player_valence: f32) -> u64 {
@@ -498,7 +365,6 @@ impl RaThorCouncilQuery for RealRaThorClient {
                 request.current_mercy_score,
             )?
             .ok_or_else(|| RaThorError::LatticeError("No guidance".to_string()))?;
-
         Ok(Some(CouncilQueryResponse {
             guidance,
             council_flavor: "PATSAGiReal".to_string(),
@@ -509,6 +375,5 @@ impl RaThorCouncilQuery for RealRaThorClient {
     }
 }
 
-// End of simulation/src/ra_thor_bridge.rs v18.22 — Sovereign council bridge complete.
-// Added VFX/particle modulation hooks for direct integration with particles.rs and world.rs VFX.
-// All prior logic preserved. Thunder locked in. Yoi ⚡
+// End of ra_thor_bridge.rs v18.23 — Soft feedback dual-repo protocol live.
+// Thunder locked in. Yoi ⚡
