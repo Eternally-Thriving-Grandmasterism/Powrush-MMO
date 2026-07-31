@@ -1,12 +1,13 @@
 /*!
  * simulation/src/orchestrator.rs
- * Central Simulation Orchestrator (v21.13)
+ * Central Simulation Orchestrator (v21.88.5)
  *
  * Full TOLC 8 MercyGate + EconomicLayer batch_update
  * Integrated with robust PersistenceManager / PlayerSaveData
  * GPU PATSAGi foresight, Council bloom, Emergence, Harvest, Synergy
  * v21.12: Live EpiphanyEvent impact wired via apply_epiphany_policy_impact
  * v21.13: run_tick_with_telemetry → live Ra-Thor transfer counters
+ * v21.88.5: Soft feedback loop hook (RaThorBridge::report_zone_grief)
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -21,6 +22,7 @@ use crate::council_mercy_trial::CouncilSessionManager;
 use crate::council::decision::{CouncilDecisions, apply_resource_policy_impact, apply_epiphany_policy_impact, PolicyType};
 use crate::player_persistence::PlayerSaveData;
 use crate::mercy::MercyGate;
+use crate::ra_thor_bridge::RaThorBridge;
 use crate::telemetry::TelemetryCollector;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -42,6 +44,7 @@ pub struct TickResult {
     pub synergy_events: Vec<SynergyEffectEvent>,
     pub gpu_foresight_used: bool,
     pub gpu_foresight_applied: bool,
+    pub soft_feedback_events: u32,
     pub errors: Vec<String>,
 }
 
@@ -60,6 +63,8 @@ pub struct SimulationOrchestrator {
     pub emergence_orchestrator: EmergenceOrchestrator,
     pub harvesting_system: HarvestingSystem,
     pub current_tick: u64,
+    /// Optional soft feedback bridge (dual-repo sealed protocol with Ra-Thor).
+    pub soft_feedback_bridge: Option<RaThorBridge>,
 
     #[cfg(feature = "gpu")]
     pub gpu_foresight: Option<Arc<dyn GpuPatsagiBridge + Send + Sync>>,
@@ -72,6 +77,7 @@ impl SimulationOrchestrator {
             emergence_orchestrator: EmergenceOrchestrator::default(),
             harvesting_system: HarvestingSystem::default(),
             current_tick: 0,
+            soft_feedback_bridge: Some(RaThorBridge::new_simulation(true)),
 
             #[cfg(feature = "gpu")]
             gpu_foresight: None,
@@ -179,6 +185,16 @@ impl SimulationOrchestrator {
 
         result.synergy_events = self.collect_synergy_events_direct(world, player_save);
         let _ = interest_manager; // reserved for spatial-interest telemetry later
+
+        // Soft feedback dual-repo loop (Ra-Thor sealed protocol)
+        if let Some(bridge) = self.soft_feedback_bridge.as_mut() {
+            let valence = result.estimated_mercy_flow().clamp(0.0, 1.0);
+            let raw_energy = (1.2 - valence as f64 * 0.8).max(0.05);
+            let zone = (self.current_tick as usize) % 8;
+            let _ev = bridge.report_zone_grief(zone, raw_energy, valence, self.current_tick as usize);
+            result.soft_feedback_events = 1;
+        }
+
         result
     }
 
