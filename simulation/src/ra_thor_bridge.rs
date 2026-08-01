@@ -1,9 +1,10 @@
 /*!
  * Ra-Thor / PATSAGi Council Bridge
  *
- * v18.23 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.4)
+ * v18.24 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.10)
  * — Simulation mode + Real lattice path
  * — Soft feedback: SoftFeedbackEvent / ZoneSnapshot / report_zone_grief
+ * — Zone observability: stress_ema, purify_count, effective_period
  * — TOLC 8 Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License | info@Rathor.ai
@@ -96,7 +97,7 @@ pub trait RaThorCouncilQuery: Send + Sync {
     ) -> Result<Option<CouncilQueryResponse>, RaThorError>;
 }
 
-/// Sealed soft-feedback event (dual-repo contract with Ra-Thor algebra v0.5.4).
+/// Sealed soft-feedback event (dual-repo contract with Ra-Thor algebra).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SoftFeedbackEvent {
     pub zone_id: usize,
@@ -110,15 +111,20 @@ pub struct SoftFeedbackEvent {
 pub struct ZoneSnapshot {
     pub zone_id: usize,
     pub grief_absorbed: f64,
+    pub stress_ema: f64,
     pub vectors_processed: usize,
     pub last_rho: f64,
+    pub purify_count: usize,
+    pub effective_period: usize,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct SoftFeedbackZoneAccumulator {
     pub grief_absorbed: f64,
+    pub stress_ema: f64,
     pub vectors_processed: usize,
     pub last_rho: f64,
+    pub purify_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -259,8 +265,20 @@ impl RaThorBridge {
         }
         if let Some(zones) = self.soft_zones.as_mut() {
             let z = ev.zone_id % zones.len();
+            let alpha = 0.05_f64;
             zones[z].grief_absorbed += ev.grief_load;
+            zones[z].stress_ema =
+                (1.0 - alpha) * zones[z].stress_ema + alpha * ev.grief_load;
             zones[z].vectors_processed += 1;
+            // Simulation-side adaptive period proxy (mirrors Ra-Thor defaults)
+            let scale = 500.0_f64;
+            let period = ((2500.0 / (1.0 + zones[z].stress_ema / scale)).round() as usize)
+                .max(50)
+                .max(1);
+            if zones[z].vectors_processed > 0 && zones[z].vectors_processed % period == 0 {
+                zones[z].purify_count = zones[z].purify_count.saturating_add(1);
+                zones[z].last_rho = 0.0;
+            }
         }
         if let Some(events) = self.soft_events.as_mut() {
             events.push(ev);
@@ -280,11 +298,20 @@ impl RaThorBridge {
             Some(zones) => zones
                 .iter()
                 .enumerate()
-                .map(|(id, z)| ZoneSnapshot {
-                    zone_id: id,
-                    grief_absorbed: z.grief_absorbed,
-                    vectors_processed: z.vectors_processed,
-                    last_rho: z.last_rho,
+                .map(|(id, z)| {
+                    let scale = 500.0_f64;
+                    let effective_period = ((2500.0 / (1.0 + z.stress_ema / scale)).round() as usize)
+                        .max(50)
+                        .max(1);
+                    ZoneSnapshot {
+                        zone_id: id,
+                        grief_absorbed: z.grief_absorbed,
+                        stress_ema: z.stress_ema,
+                        vectors_processed: z.vectors_processed,
+                        last_rho: z.last_rho,
+                        purify_count: z.purify_count,
+                        effective_period,
+                    }
                 })
                 .collect(),
             None => Vec::new(),
@@ -375,5 +402,5 @@ impl RaThorCouncilQuery for RealRaThorClient {
     }
 }
 
-// End of ra_thor_bridge.rs v18.23 — Soft feedback dual-repo protocol live.
+// End of ra_thor_bridge.rs v18.24 — Soft feedback dual-repo observability live.
 // Thunder locked in. Yoi ⚡
