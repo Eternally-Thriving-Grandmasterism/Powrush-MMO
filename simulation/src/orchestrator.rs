@@ -1,10 +1,11 @@
 /*!
  * simulation/src/orchestrator.rs
- * Central Simulation Orchestrator (v21.88.6)
+ * Central Simulation Orchestrator (v21.88.7)
  *
  * Full TOLC 8 MercyGate + EconomicLayer batch_update
  * v21.88.5: Soft feedback loop hook (RaThorBridge::report_zone_grief)
  * v21.88.6: Soft feedback → telemetry custom metrics
+ * v21.88.7: Soft feedback stress/purify aggregates → telemetry
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -226,9 +227,28 @@ impl SimulationOrchestrator {
             if let Some(bridge) = self.soft_feedback_bridge.as_ref() {
                 let snaps = bridge.soft_zone_snapshots();
                 let total_grief: f64 = snaps.iter().map(|z| z.grief_absorbed).sum();
+                let max_stress = snaps.iter().map(|z| z.stress_ema).fold(0.0_f64, f64::max);
+                let total_purify: usize = snaps.iter().map(|z| z.purify_count).sum();
+                let mean_period = if snaps.is_empty() {
+                    0.0
+                } else {
+                    snaps.iter().map(|z| z.effective_period as f64).sum::<f64>() / snaps.len() as f64
+                };
                 telemetry.current.custom_metrics.insert(
                     "soft_feedback_total_grief".into(),
                     total_grief as f32,
+                );
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_max_stress".into(),
+                    max_stress as f32,
+                );
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_purify_count".into(),
+                    total_purify as f32,
+                );
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_mean_period".into(),
+                    mean_period as f32,
                 );
             }
         }
