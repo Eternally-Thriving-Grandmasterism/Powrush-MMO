@@ -1,12 +1,13 @@
 /*!
  * simulation/src/orchestrator.rs
- * Central Simulation Orchestrator (v21.88.8)
+ * Central Simulation Orchestrator (v21.88.9)
  *
  * Full TOLC 8 MercyGate + EconomicLayer batch_update
  * v21.88.5: Soft feedback loop hook (RaThorBridge::report_zone_grief)
  * v21.88.6: Soft feedback → telemetry custom metrics
  * v21.88.7: Soft feedback stress/purify aggregates → telemetry
  * v21.88.8: soft_feedback_health_score composite → telemetry
+ * v21.88.9: ZoneHealthStatus counts → telemetry
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -251,7 +252,6 @@ impl SimulationOrchestrator {
                     "soft_feedback_mean_period".into(),
                     mean_period as f32,
                 );
-                // Composite score mirrors Ra-Thor LatticeHealthReport::compute_score
                 let max_rho = snaps.iter().map(|z| z.last_rho).fold(0.0_f64, f64::max);
                 let scale = 500.0_f64;
                 let purity_term = 1.0 / (1.0 + max_rho * 1e12);
@@ -260,6 +260,30 @@ impl SimulationOrchestrator {
                 telemetry.current.custom_metrics.insert(
                     "soft_feedback_health_score".into(),
                     health_score as f32,
+                );
+                let zones_healthy = snaps
+                    .iter()
+                    .filter(|z| z.status == crate::ra_thor_bridge::ZoneHealthStatus::Healthy)
+                    .count();
+                let zones_stressed = snaps
+                    .iter()
+                    .filter(|z| z.status == crate::ra_thor_bridge::ZoneHealthStatus::Stressed)
+                    .count();
+                let zones_critical = snaps
+                    .iter()
+                    .filter(|z| z.status == crate::ra_thor_bridge::ZoneHealthStatus::Critical)
+                    .count();
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_zones_healthy".into(),
+                    zones_healthy as f32,
+                );
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_zones_stressed".into(),
+                    zones_stressed as f32,
+                );
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_zones_critical".into(),
+                    zones_critical as f32,
                 );
             }
         }
