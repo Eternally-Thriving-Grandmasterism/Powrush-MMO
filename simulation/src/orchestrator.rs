@@ -1,11 +1,12 @@
 /*!
  * simulation/src/orchestrator.rs
- * Central Simulation Orchestrator (v21.88.7)
+ * Central Simulation Orchestrator (v21.88.8)
  *
  * Full TOLC 8 MercyGate + EconomicLayer batch_update
  * v21.88.5: Soft feedback loop hook (RaThorBridge::report_zone_grief)
  * v21.88.6: Soft feedback → telemetry custom metrics
  * v21.88.7: Soft feedback stress/purify aggregates → telemetry
+ * v21.88.8: soft_feedback_health_score composite → telemetry
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -249,6 +250,16 @@ impl SimulationOrchestrator {
                 telemetry.current.custom_metrics.insert(
                     "soft_feedback_mean_period".into(),
                     mean_period as f32,
+                );
+                // Composite score mirrors Ra-Thor LatticeHealthReport::compute_score
+                let max_rho = snaps.iter().map(|z| z.last_rho).fold(0.0_f64, f64::max);
+                let scale = 500.0_f64;
+                let purity_term = 1.0 / (1.0 + max_rho * 1e12);
+                let stress_term = 1.0 / (1.0 + max_stress / scale);
+                let health_score = (purity_term * stress_term).clamp(0.0, 1.0);
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_health_score".into(),
+                    health_score as f32,
                 );
             }
         }
