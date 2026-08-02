@@ -1,6 +1,6 @@
 /*!
  * simulation/src/orchestrator.rs
- * Central Simulation Orchestrator (v21.88.11)
+ * Central Simulation Orchestrator (v21.88.12)
  *
  * Full TOLC 8 MercyGate + EconomicLayer batch_update
  * v21.88.5: Soft feedback loop hook (RaThorBridge::report_zone_grief)
@@ -10,6 +10,7 @@
  * v21.88.9: ZoneHealthStatus counts → telemetry
  * v21.88.10: soft_feedback_critical_auto → telemetry
  * v21.88.11: valence histogram + mercy_ratio → telemetry
+ * v21.88.12: soft_feedback_soft_remediates → telemetry
  * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
  * Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -310,6 +311,14 @@ impl SimulationOrchestrator {
                 telemetry.current.custom_metrics.insert(
                     "soft_feedback_mercy_ratio".into(),
                     bridge.valence_mercy_ratio() as f32,
+                );
+                let soft_rem: usize = snaps
+                    .iter()
+                    .map(|z| z.soft_remediate_count)
+                    .sum();
+                telemetry.current.custom_metrics.insert(
+                    "soft_feedback_soft_remediates".into(),
+                    soft_rem as f32,
                 );
             }
         }
