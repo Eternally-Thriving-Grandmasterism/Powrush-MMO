@@ -1,10 +1,10 @@
 /*!
  * Ra-Thor / PATSAGi Council Bridge
  *
- * v18.24 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.10)
+ * v18.25 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.14)
  * — Simulation mode + Real lattice path
  * — Soft feedback: SoftFeedbackEvent / ZoneSnapshot / report_zone_grief
- * — Zone observability: stress_ema, purify_count, effective_period
+ * — Zone observability: stress_ema, purify_count, effective_period, ZoneHealthStatus
  * — TOLC 8 Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License | info@Rathor.ai
@@ -107,6 +107,35 @@ pub struct SoftFeedbackEvent {
     pub tick: usize,
 }
 
+/// Mirrors Ra-Thor ZoneHealthStatus (mercy_tolc_operator_algebra ≥ v0.5.14).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ZoneHealthStatus {
+    Healthy,
+    Stressed,
+    Critical,
+}
+
+impl ZoneHealthStatus {
+    pub fn classify(stress_ema: f64, last_rho: f64, stress_scale: f64) -> Self {
+        let scale = stress_scale.max(1e-9);
+        if last_rho >= 1e-6 || stress_ema >= scale {
+            ZoneHealthStatus::Critical
+        } else if stress_ema >= 0.10 * scale || last_rho >= 1e-9 {
+            ZoneHealthStatus::Stressed
+        } else {
+            ZoneHealthStatus::Healthy
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ZoneHealthStatus::Healthy => "healthy",
+            ZoneHealthStatus::Stressed => "stressed",
+            ZoneHealthStatus::Critical => "critical",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZoneSnapshot {
     pub zone_id: usize,
@@ -116,6 +145,7 @@ pub struct ZoneSnapshot {
     pub last_rho: f64,
     pub purify_count: usize,
     pub effective_period: usize,
+    pub status: ZoneHealthStatus,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -270,7 +300,6 @@ impl RaThorBridge {
             zones[z].stress_ema =
                 (1.0 - alpha) * zones[z].stress_ema + alpha * ev.grief_load;
             zones[z].vectors_processed += 1;
-            // Simulation-side adaptive period proxy (mirrors Ra-Thor defaults)
             let scale = 500.0_f64;
             let period = ((2500.0 / (1.0 + zones[z].stress_ema / scale)).round() as usize)
                 .max(50)
@@ -303,6 +332,7 @@ impl RaThorBridge {
                     let effective_period = ((2500.0 / (1.0 + z.stress_ema / scale)).round() as usize)
                         .max(50)
                         .max(1);
+                    let status = ZoneHealthStatus::classify(z.stress_ema, z.last_rho, scale);
                     ZoneSnapshot {
                         zone_id: id,
                         grief_absorbed: z.grief_absorbed,
@@ -311,6 +341,7 @@ impl RaThorBridge {
                         last_rho: z.last_rho,
                         purify_count: z.purify_count,
                         effective_period,
+                        status,
                     }
                 })
                 .collect(),
@@ -402,5 +433,5 @@ impl RaThorCouncilQuery for RealRaThorClient {
     }
 }
 
-// End of ra_thor_bridge.rs v18.24 — Soft feedback dual-repo observability live.
+// End of ra_thor_bridge.rs v18.25 — ZoneHealthStatus dual-repo observability live.
 // Thunder locked in. Yoi ⚡
