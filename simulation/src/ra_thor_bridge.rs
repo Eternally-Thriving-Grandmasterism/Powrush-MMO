@@ -1,7 +1,7 @@
 /*!
  * Ra-Thor / PATSAGi Council Bridge
  *
- * v18.28 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.17)
+ * v18.29 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.18)
  * — Simulation mode + Real lattice path
  * — Soft feedback: SoftFeedbackEvent / ZoneSnapshot / report_zone_grief
  * — Zone observability: stress_ema, ZoneHealthStatus, critical auto-remediate, soft-remediate Stressed, valence histogram
@@ -480,5 +480,5 @@ impl RaThorCouncilQuery for RealRaThorClient {
     }
 }
 
-// End of ra_thor_bridge.rs v18.28 — Soft-remediate Stressed dual-repo mirror live.
+// End of ra_thor_bridge.rs v18.29 — Grief-rate metrics dual-repo mirror live.
 // Thunder locked in. Yoi ⚡
