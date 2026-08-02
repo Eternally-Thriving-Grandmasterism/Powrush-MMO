@@ -1,10 +1,10 @@
 /*!
  * Ra-Thor / PATSAGi Council Bridge
  *
- * v18.26 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.15)
+ * v18.27 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.16)
  * — Simulation mode + Real lattice path
  * — Soft feedback: SoftFeedbackEvent / ZoneSnapshot / report_zone_grief
- * — Zone observability: stress_ema, purify_count, effective_period, ZoneHealthStatus, critical auto-remediate
+ * — Zone observability: stress_ema, purify_count, ZoneHealthStatus, critical auto-remediate, valence histogram
  * — TOLC 8 Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License | info@Rathor.ai
@@ -165,6 +165,10 @@ pub struct RaThorBridge {
     mode: BridgeMode,
     soft_events: Option<Vec<SoftFeedbackEvent>>,
     soft_zones: Option<Vec<SoftFeedbackZoneAccumulator>>,
+    /// Valence-band histogram (mirrors Ra-Thor v0.5.16).
+    pub valence_high_count: usize,
+    pub valence_mid_count: usize,
+    pub valence_low_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -187,6 +191,9 @@ impl RaThorBridge {
             mode: BridgeMode::Simulation(SimulationConfig { strict_mercy: true }),
             soft_events: None,
             soft_zones: None,
+            valence_high_count: 0,
+            valence_mid_count: 0,
+            valence_low_count: 0,
         }
     }
 
@@ -196,6 +203,18 @@ impl RaThorBridge {
             mode: BridgeMode::Real(RealRaThorClient::new()),
             soft_events: None,
             soft_zones: None,
+            valence_high_count: 0,
+            valence_mid_count: 0,
+            valence_low_count: 0,
+        }
+    }
+
+    pub fn valence_mercy_ratio(&self) -> f64 {
+        let total = self.valence_high_count + self.valence_mid_count + self.valence_low_count;
+        if total == 0 {
+            1.0
+        } else {
+            self.valence_high_count as f64 / total as f64
         }
     }
 
@@ -320,11 +339,19 @@ impl RaThorBridge {
             }
         }
         if let Some(events) = self.soft_events.as_mut() {
-            events.push(ev);
+            events.push(ev.clone());
             if events.len() > 10_000 {
                 let overflow = events.len() - 10_000;
                 events.drain(0..overflow);
             }
+        }
+        // Valence histogram (Ra-Thor v0.5.16 mirror)
+        if ev.valence >= 0.999999 {
+            self.valence_high_count = self.valence_high_count.saturating_add(1);
+        } else if ev.valence >= 0.5 {
+            self.valence_mid_count = self.valence_mid_count.saturating_add(1);
+        } else {
+            self.valence_low_count = self.valence_low_count.saturating_add(1);
         }
     }
 
@@ -444,5 +471,5 @@ impl RaThorCouncilQuery for RealRaThorClient {
     }
 }
 
-// End of ra_thor_bridge.rs v18.26 — Critical auto-remediate dual-repo mirror live.
+// End of ra_thor_bridge.rs v18.27 — Valence histogram dual-repo mirror live.
 // Thunder locked in. Yoi ⚡
