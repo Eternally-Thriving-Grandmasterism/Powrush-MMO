@@ -1,10 +1,10 @@
 /*!
  * Ra-Thor / PATSAGi Council Bridge
  *
- * v18.25 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.14)
+ * v18.26 Soft Feedback Loop (dual-repo sealed protocol with Ra-Thor v0.5.15)
  * — Simulation mode + Real lattice path
  * — Soft feedback: SoftFeedbackEvent / ZoneSnapshot / report_zone_grief
- * — Zone observability: stress_ema, purify_count, effective_period, ZoneHealthStatus
+ * — Zone observability: stress_ema, purify_count, effective_period, ZoneHealthStatus, critical auto-remediate
  * — TOLC 8 Mercy Gates non-bypassable Layer 0
  *
  * AG-SML v1.0 Sovereign License | info@Rathor.ai
@@ -146,6 +146,7 @@ pub struct ZoneSnapshot {
     pub purify_count: usize,
     pub effective_period: usize,
     pub status: ZoneHealthStatus,
+    pub critical_auto_purify_count: usize,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -155,6 +156,7 @@ pub struct SoftFeedbackZoneAccumulator {
     pub vectors_processed: usize,
     pub last_rho: f64,
     pub purify_count: usize,
+    pub critical_auto_purify_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -308,6 +310,14 @@ impl RaThorBridge {
                 zones[z].purify_count = zones[z].purify_count.saturating_add(1);
                 zones[z].last_rho = 0.0;
             }
+            // Critical auto-remediate mirror (Ra-Thor v0.5.15)
+            let status = ZoneHealthStatus::classify(zones[z].stress_ema, zones[z].last_rho, scale);
+            if status == ZoneHealthStatus::Critical {
+                zones[z].purify_count = zones[z].purify_count.saturating_add(1);
+                zones[z].critical_auto_purify_count =
+                    zones[z].critical_auto_purify_count.saturating_add(1);
+                zones[z].last_rho = 0.0;
+            }
         }
         if let Some(events) = self.soft_events.as_mut() {
             events.push(ev);
@@ -342,6 +352,7 @@ impl RaThorBridge {
                         purify_count: z.purify_count,
                         effective_period,
                         status,
+                        critical_auto_purify_count: z.critical_auto_purify_count,
                     }
                 })
                 .collect(),
@@ -433,5 +444,5 @@ impl RaThorCouncilQuery for RealRaThorClient {
     }
 }
 
-// End of ra_thor_bridge.rs v18.25 — ZoneHealthStatus dual-repo observability live.
+// End of ra_thor_bridge.rs v18.26 — Critical auto-remediate dual-repo mirror live.
 // Thunder locked in. Yoi ⚡
