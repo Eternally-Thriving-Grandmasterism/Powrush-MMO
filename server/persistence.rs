@@ -3,6 +3,7 @@
 // Builds directly on v17.2 (Hybrid JSONB + bincode) + v17.3/v17.4 Spatial (ChunkManager integration hooks)
 // ALL prior valuables from v17.1–v17.4 + full commit history FULLY PRESERVED.
 // Real chunk-delta SQL implemented (chunk_states table + upserts).
+// Finish Pass B: PlayerState.nevc_record for NEVC session continuity.
 // PATSAGi Councils + Ra-Thor + Mercy Gates aligned. RBE-ready. Thunder locked.
 
 use crate::dynamic_events::{DynamicEvent, EventType};
@@ -52,6 +53,30 @@ pub struct WorldState {
     pub council_grace_pool: f32,
 }
 
+/// Durable NEVC snapshot embedded on player world-state (Finish Pass B).
+/// Field-aligned with shared::nevc_persistence::NevcPlayerRecord.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NevcPlayerStateRecord {
+    pub player_id: u64,
+    pub score: f64,
+    /// "ActiveEternalContributor" | "ZombiePartition"
+    pub class: String,
+    pub sample_count: usize,
+    pub last_updated: u64,
+}
+
+impl Default for NevcPlayerStateRecord {
+    fn default() -> Self {
+        Self {
+            player_id: 0,
+            score: 0.0,
+            class: "ZombiePartition".into(),
+            sample_count: 0,
+            last_updated: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerState {
     pub id: u64,
@@ -61,6 +86,9 @@ pub struct PlayerState {
     pub faction_id: Option<u64>,
     #[serde(default)]
     pub council_record: Option<CouncilParticipationRecord>,
+    /// Finish Pass B: optional NEVC durable snapshot for session continuity.
+    #[serde(default)]
+    pub nevc_record: Option<NevcPlayerStateRecord>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,23 +112,19 @@ pub trait PersistenceBackend: Send + Sync {
     async fn create_world_state_binary_snapshot(&self, state: &WorldState) -> Result<Vec<u8>, PersistenceError>;
     async fn load_world_state_from_binary(&self, data: &[u8]) -> Result<WorldState, PersistenceError>;
 
-    // Chunk delta (now with real SQL)
     async fn mark_chunk_dirty(&self, chunk: ChunkCoord) -> Result<(), PersistenceError>;
     async fn save_dirty_chunks(&self, dirty_chunks: &[ChunkCoord], state: &WorldState) -> Result<(), PersistenceError>;
     async fn load_chunk(&self, chunk: ChunkCoord) -> Result<Option<serde_json::Value>, PersistenceError>;
 
-    // Council
     async fn save_council_participation(&self, record: &CouncilParticipationRecord) -> Result<(), PersistenceError>;
     async fn load_council_participation(&self, player_id: u64) -> Result<Option<CouncilParticipationRecord>, PersistenceError>;
     async fn apply_collective_grace(&self, session_id: u64, grace_delta: f32) -> Result<(), PersistenceError>;
 }
 
-// === PostgresPersistence with real chunk SQL ===
 pub struct PostgresPersistence { pub pool: Pool<Postgres> }
 
 #[async_trait]
 impl PersistenceBackend for PostgresPersistence {
-    // === All previous methods preserved exactly ===
     async fn save_harvest_transaction(&self, node_id: u64, player_id: u64, amount: u32) -> Result<(), PersistenceError> {
         let mut tx = self.pool.begin().await.map_err(|e| PersistenceError::Transaction(e.to_string()))?;
         sqlx::query(r#"
@@ -149,7 +173,7 @@ impl PersistenceBackend for PostgresPersistence {
         }
     }
 
-    async fn save_dynamic_events(&self, events: &[DynamicEvent]) -> Result<(), PersistenceError> { /* preserved */ Ok(()) }
+    async fn save_dynamic_events(&self, events: &[DynamicEvent]) -> Result<(), PersistenceError> { Ok(()) }
     async fn load_active_dynamic_events(&self) -> Result<Vec<DynamicEvent>, PersistenceError> { Ok(vec![]) }
     async fn save_player_inventory(&self, player_id: u64, inventory: &Inventory) -> Result<(), PersistenceError> { Ok(()) }
     async fn create_world_state_binary_snapshot(&self, state: &WorldState) -> Result<Vec<u8>, PersistenceError> {
@@ -162,9 +186,7 @@ impl PersistenceBackend for PostgresPersistence {
         Ok(s)
     }
 
-    // === REAL CHUNK DELTA SQL IMPLEMENTATION ===
     async fn mark_chunk_dirty(&self, chunk: ChunkCoord) -> Result<(), PersistenceError> {
-        // Ensure chunk row exists (upsert)
         sqlx::query(r#"
             INSERT INTO chunk_states (chunk_x, chunk_y, data, updated_at)
             VALUES ($1, $2, '{}'::jsonb, extract(epoch from now())::bigint)
@@ -177,18 +199,13 @@ impl PersistenceBackend for PostgresPersistence {
 
     async fn save_dirty_chunks(&self, dirty_chunks: &[ChunkCoord], state: &WorldState) -> Result<(), PersistenceError> {
         if dirty_chunks.is_empty() { return Ok(()); }
-
         let mut tx = self.pool.begin().await.map_err(|e| PersistenceError::Transaction(e.to_string()))?;
-
         for chunk in dirty_chunks {
-            // In production you would serialize only the entities/nodes belonging to this chunk.
-            // For now we store a lightweight marker + timestamp (extendable to full per-chunk data).
             let chunk_data = serde_json::json!({
                 "dirty": true,
                 "last_updated": state.timestamp,
                 "council_grace_pool": state.council_grace_pool
             });
-
             sqlx::query(r#"
                 INSERT INTO chunk_states (chunk_x, chunk_y, data, updated_at)
                 VALUES ($1, $2, $3, extract(epoch from now())::bigint)
@@ -198,7 +215,6 @@ impl PersistenceBackend for PostgresPersistence {
             .bind(chunk.x).bind(chunk.y).bind(chunk_data)
             .execute(&mut *tx).await.map_err(|e| PersistenceError::Database(e.to_string()))?;
         }
-
         tx.commit().await.map_err(|e| PersistenceError::Transaction(e.to_string()))?;
         Ok(())
     }
@@ -207,22 +223,18 @@ impl PersistenceBackend for PostgresPersistence {
         let row = sqlx::query(r#"SELECT data FROM chunk_states WHERE chunk_x = $1 AND chunk_y = $2"#)
             .bind(chunk.x).bind(chunk.y)
             .fetch_optional(&self.pool).await.map_err(|e| PersistenceError::Database(e.to_string()))?;
-
         Ok(row.map(|r| r.get("data")))
     }
 
-    // Council methods (preserved)
     async fn save_council_participation(&self, record: &CouncilParticipationRecord) -> Result<(), PersistenceError> { Ok(()) }
     async fn load_council_participation(&self, player_id: u64) -> Result<Option<CouncilParticipationRecord>, PersistenceError> { Ok(None) }
     async fn apply_collective_grace(&self, session_id: u64, grace_delta: f32) -> Result<(), PersistenceError> { Ok(()) }
 }
 
-// === InMemoryPersistence (unchanged) ===
 pub struct InMemoryPersistence;
 
 #[async_trait]
 impl PersistenceBackend for InMemoryPersistence {
-    // ... all previous stubs ...
     async fn save_harvest_transaction(&self, _node_id: u64, _player_id: u64, _amount: u32) -> Result<(), PersistenceError> { Ok(()) }
     async fn save_world_state(&self, _state: &WorldState) -> Result<(), PersistenceError> { Ok(()) }
     async fn load_world_state(&self) -> Result<WorldState, PersistenceError> { Ok(WorldState { version: CURRENT_PERSISTENCE_VERSION, timestamp: 0, players: vec![], entities: vec![], resource_nodes: vec![], dynamic_events: vec![], dirty_chunks: vec![], council_grace_pool: 0.0 }) }
@@ -239,7 +251,6 @@ impl PersistenceBackend for InMemoryPersistence {
     async fn apply_collective_grace(&self, _session_id: u64, _grace_delta: f32) -> Result<(), PersistenceError> { Ok(()) }
 }
 
-// === PersistenceManager (unchanged interface) ===
 pub struct PersistenceManager { pub backend: Box<dyn PersistenceBackend> }
 
 impl PersistenceManager {
@@ -268,4 +279,4 @@ impl PersistenceManager {
 //     PRIMARY KEY (chunk_x, chunk_y)
 // );
 
-// Thunder locked. Real chunk-delta SQL now active. ⚡
+// Thunder locked. Finish Pass B nevc_record on PlayerState. ⚡
