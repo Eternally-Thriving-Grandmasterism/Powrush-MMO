@@ -1,23 +1,17 @@
 // shared/lib.rs
-// Powrush-MMO v16.5+ — Professional Shared Crate Root
-// Wires protocol, rbe_queries, Phase-1 NEVC adapter, Phase-2 contribution ledger,
-// and Phase-2b event attachment surface.
+// Powrush-MMO — Professional Shared Crate Root
+// Wires protocol, rbe_queries, NEVC adapter, contribution ledger, events,
+// end-to-end pipeline demo, and real-estate lattice readiness stub.
 // Mercy-gated, Ra-Thor derived, PATSAGi 13+ Councils validated.
 // AG-SML v1.0 | Sovereign. Truthful. Abundant. Zero Harm.
 
-// Re-export core protocol for easy `use shared::protocol::*;`
 pub mod protocol;
-
-// Phase 1 thin NEVC adapter (dual-repo consumer surface)
 pub mod nevc_adapter;
-
-// Phase 2 first consumer — per-player contribution ledger
 pub mod contribution_ledger;
-
-// Phase 2b event attachment surface
 pub mod contribution_events;
+pub mod nevc_pipeline_demo;
+pub mod real_estate_lattice_nevc;
 
-// Feature-gate the RBE queries module until Ra-Thor monorepo crates are available
 #[cfg(feature = "full_rbe")]
 #[path = "rbe_queries.rs"]
 pub mod rbe_queries;
@@ -31,16 +25,14 @@ pub mod rbe_queries {
     }
 }
 
-// ECS directory exists in shared/ — commented to keep build clean until proper mod.rs added.
-// pub mod ecs;
-
-// Prelude for common imports in client/server
 pub mod prelude {
     pub use crate::protocol::{ClientMessage, ServerMessage, TradeOffer, Vec3Ser, HealthComponent};
     pub use crate::rbe_queries;
-    pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, compute_nevc, score_instant, sample_from_rbe_action};
+    pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
     pub use crate::contribution_events::{ContributionEvent, apply_event, apply_event_class};
+    pub use crate::nevc_pipeline_demo::{run_demo, classify};
+    pub use crate::real_estate_lattice_nevc::{RealEstateStewardshipEvent, apply_real_estate_event, sample_from_stewardship};
 }
 
 #[cfg(test)]
@@ -54,33 +46,27 @@ mod tests {
     }
 
     #[test]
-    fn nevc_adapter_is_reachable() {
-        let r = nevc_adapter::score_instant(0.999999, 0.0);
-        assert!(r.is_contributor());
+    fn full_nevc_pipeline_is_reachable() {
+        let results = nevc_pipeline_demo::run_demo();
+        assert_eq!(results.len(), 2);
+        assert!(results[0].1.class.is_contributor());
+        assert!(!results[1].1.class.is_contributor());
     }
 
     #[test]
-    fn contribution_ledger_is_reachable() {
+    fn real_estate_stub_is_reachable() {
         let mut ledger = contribution_ledger::ContributionLedger::new();
-        let r = ledger.record_rbe_action(1, 1.0, 0.0);
+        let r = real_estate_lattice_nevc::apply_real_estate_event(
+            &mut ledger,
+            real_estate_lattice_nevc::RealEstateStewardshipEvent::Stewardship {
+                agent_id: 7,
+                alignment: 1.0,
+            },
+        );
         assert!(r.is_contributor());
-        assert!(ledger.is_contributor(1));
-    }
-
-    #[test]
-    fn contribution_events_are_reachable() {
-        let mut ledger = contribution_ledger::ContributionLedger::new();
-        let event = contribution_events::ContributionEvent::RbeAction {
-            player_id: 5,
-            abundance_alignment: 1.0,
-            waste_or_harm: 0.0,
-        };
-        let class = contribution_events::apply_event_class(&mut ledger, event);
-        assert_eq!(class, nevc_adapter::ContributionClass::ActiveEternalContributor);
     }
 }
 
-// Eternal note: This crate now enables `cargo build -p shared` and workspace resolution.
-// Phase 1 adapter + Phase 2 ledger + Phase 2b event surface are live.
-// Game and simulation systems can now emit ContributionEvent and obtain ContributionClass.
+// Eternal note: Phase 0–5 complete. Incremental attachments (pipeline demo +
+// real-estate readiness) are live under the opened broader-consumer contract.
 // All paths pass 7 Living Mercy Gates. Yoi ⚡❤️︍
