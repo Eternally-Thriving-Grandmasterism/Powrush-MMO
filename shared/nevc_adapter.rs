@@ -1,5 +1,5 @@
 // shared/nevc_adapter.rs
-// Phase 1 Thin NEVC Adapter — Powrush-MMO dual-repo consumer surface
+// Phase 1 Thin NEVC Adapter + Phase 4 visibility/horizon parity
 //
 // Mirrors the essential types from Ra-Thor `mercy_tolc_operator_algebra::nevc`
 // so that game systems can emit samples and consume scores without a hard
@@ -82,6 +82,38 @@ impl NevcResult {
     pub fn is_contributor(&self) -> bool {
         self.class.is_contributor()
     }
+
+    pub fn summary(&self) -> NevcSummary {
+        NevcSummary::from(self)
+    }
+}
+
+/// Visibility summary suitable for dashboards, Steam overlays, or in-game UI.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NevcSummary {
+    pub class: ContributionClass,
+    pub score: f64,
+    pub sample_count: usize,
+    pub mean_valence: f64,
+    pub total_grief: f64,
+    pub label: &'static str,
+}
+
+impl From<&NevcResult> for NevcSummary {
+    fn from(r: &NevcResult) -> Self {
+        let label = match r.class {
+            ContributionClass::ActiveEternalContributor => "Active Eternal Contributor",
+            ContributionClass::ZombiePartition => "Zombie Partition",
+        };
+        Self {
+            class: r.class,
+            score: r.score,
+            sample_count: r.sample_count,
+            mean_valence: r.mean_valence,
+            total_grief: r.total_grief,
+            label,
+        }
+    }
 }
 
 /// Configuration for the discrete NEVC integrator (mirrors Ra-Thor defaults).
@@ -100,6 +132,26 @@ impl Default for NevcConfig {
             grief_penalty: 1.0,
             horizon_emphasis: 1.0,
             valence_floor: 0.999999,
+        }
+    }
+}
+
+impl NevcConfig {
+    pub fn neutral() -> Self {
+        Self {
+            horizon_emphasis: 0.0,
+            ..Default::default()
+        }
+    }
+
+    pub fn forward_emphasis() -> Self {
+        Self::default()
+    }
+
+    pub fn eternal_tilt() -> Self {
+        Self {
+            horizon_emphasis: 1.5,
+            ..Default::default()
         }
     }
 }
@@ -216,5 +268,13 @@ mod tests {
         assert!(s.valence >= 0.999999);
         assert_eq!(s.grief_load, 0.0);
         assert_eq!(s.t, 42);
+    }
+
+    #[test]
+    fn summary_label_is_correct() {
+        let r = score_instant(0.999999, 0.0);
+        let s = r.summary();
+        assert_eq!(s.label, "Active Eternal Contributor");
+        assert!(s.class.is_contributor());
     }
 }
