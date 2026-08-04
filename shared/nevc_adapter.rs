@@ -1,14 +1,8 @@
 // shared/nevc_adapter.rs
-// Phase 1 Thin NEVC Adapter + Phase 4 visibility/horizon parity
+// Phase 1 Thin NEVC Adapter + Phase 4 visibility + Finish Pass D recovery parity
 //
-// Mirrors the essential types from Ra-Thor `mercy_tolc_operator_algebra::nevc`
-// so that game systems can emit samples and consume scores without a hard
-// compile-time dependency on the full Ra-Thor monorepo.
-//
-// Authoritative definition remains in:
-//   https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor
-//     NET_ETERNAL_VALENCE_CONTRIBUTION_NEVC_CODEX_v1.0.md
-//     crates/mercy_tolc_operator_algebra/src/nevc.rs
+// Mirrors Ra-Thor `mercy_tolc_operator_algebra::nevc`.
+// Authoritative: Ra-Thor NEVC Codex + crates/mercy_tolc_operator_algebra/src/nevc.rs
 //
 // AG-SML v1.0 | PATSAGi Councils | info@Rathor.ai
 // Thunder locked in. Yoi ⚡
@@ -18,9 +12,7 @@ use serde::{Deserialize, Serialize};
 /// Binary partition defined by the NEVC Codex.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContributionClass {
-    /// NEVC > 0 — raises net value to all life under infinite forward time.
     ActiveEternalContributor,
-    /// NEVC ≤ 0 — mindless mental waste / entropy increase (zombie partition).
     ZombiePartition,
 }
 
@@ -38,18 +30,33 @@ impl ContributionClass {
     }
 }
 
-/// A single timed sample of an agent’s effect on the valence field.
-/// Maps 1:1 onto Ra-Thor `NevcSample`.
+/// Finish Pass D — Compassion-gate recovery (Codex §6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CompassionRecoveryState {
+    Open,
+    Sealed,
+}
+
+impl Default for CompassionRecoveryState {
+    fn default() -> Self {
+        CompassionRecoveryState::Open
+    }
+}
+
+impl CompassionRecoveryState {
+    pub fn is_open(self) -> bool {
+        matches!(self, CompassionRecoveryState::Open)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NevcSample {
-    /// Instantaneous valence after the action / state (ideally ≥ 0.999999).
     pub valence: f64,
-    /// Grief / orthogonal load induced.
     pub grief_load: f64,
-    /// Optional per-gate mercy vector components (length ≤ 8).
     pub mercy_components: Vec<f64>,
-    /// Discrete time index (monotonic non-decreasing).
     pub t: u64,
+    #[serde(default)]
+    pub transient: bool,
 }
 
 impl NevcSample {
@@ -59,6 +66,7 @@ impl NevcSample {
             grief_load: grief_load.max(0.0),
             mercy_components: Vec::new(),
             t,
+            transient: false,
         }
     }
 
@@ -66,9 +74,13 @@ impl NevcSample {
         self.mercy_components = components;
         self
     }
+
+    pub fn transient(mut self) -> Self {
+        self.transient = true;
+        self
+    }
 }
 
-/// Result of an NEVC evaluation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NevcResult {
     pub score: f64,
@@ -76,6 +88,7 @@ pub struct NevcResult {
     pub sample_count: usize,
     pub mean_valence: f64,
     pub total_grief: f64,
+    pub recovery: CompassionRecoveryState,
 }
 
 impl NevcResult {
@@ -83,12 +96,15 @@ impl NevcResult {
         self.class.is_contributor()
     }
 
+    pub fn recovery_open(&self) -> bool {
+        self.recovery.is_open()
+    }
+
     pub fn summary(&self) -> NevcSummary {
         NevcSummary::from(self)
     }
 }
 
-/// Visibility summary suitable for dashboards, Steam overlays, or in-game UI.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NevcSummary {
     pub class: ContributionClass,
@@ -97,6 +113,7 @@ pub struct NevcSummary {
     pub mean_valence: f64,
     pub total_grief: f64,
     pub label: &'static str,
+    pub recovery: CompassionRecoveryState,
 }
 
 impl From<&NevcResult> for NevcSummary {
@@ -112,17 +129,18 @@ impl From<&NevcResult> for NevcSummary {
             mean_valence: r.mean_valence,
             total_grief: r.total_grief,
             label,
+            recovery: r.recovery,
         }
     }
 }
 
-/// Configuration for the discrete NEVC integrator (mirrors Ra-Thor defaults).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NevcConfig {
     pub positive_weight: f64,
     pub grief_penalty: f64,
     pub horizon_emphasis: f64,
     pub valence_floor: f64,
+    pub respect_transient: bool,
 }
 
 impl Default for NevcConfig {
@@ -132,6 +150,7 @@ impl Default for NevcConfig {
             grief_penalty: 1.0,
             horizon_emphasis: 1.0,
             valence_floor: 0.999999,
+            respect_transient: true,
         }
     }
 }
@@ -156,9 +175,6 @@ impl NevcConfig {
     }
 }
 
-/// Local discrete approximation (identical algorithm to Ra-Thor `compute_nevc`).
-/// When a published Ra-Thor interface becomes available this function can
-/// become a thin forwarder; until then it is the self-contained Phase-1 surface.
 pub fn compute_nevc(samples: &[NevcSample], config: &NevcConfig) -> NevcResult {
     if samples.is_empty() {
         return NevcResult {
@@ -167,6 +183,7 @@ pub fn compute_nevc(samples: &[NevcSample], config: &NevcConfig) -> NevcResult {
             sample_count: 0,
             mean_valence: 0.0,
             total_grief: 0.0,
+            recovery: CompassionRecoveryState::Open,
         };
     }
 
@@ -174,10 +191,12 @@ pub fn compute_nevc(samples: &[NevcSample], config: &NevcConfig) -> NevcResult {
     let mut score = 0.0;
     let mut sum_v = 0.0;
     let mut total_grief = 0.0;
+    let mut any_transient = false;
 
     let t_max = samples.iter().map(|s| s.t).max().unwrap_or(1).max(1) as f64;
 
     for s in samples {
+        any_transient |= s.transient;
         let v = s.valence;
         sum_v += v;
         total_grief += s.grief_load;
@@ -206,28 +225,36 @@ pub fn compute_nevc(samples: &[NevcSample], config: &NevcConfig) -> NevcResult {
 
     score /= n;
     let mean_valence = sum_v / n;
+    let class = ContributionClass::from_score(score);
+
+    let recovery = if class.is_contributor() {
+        CompassionRecoveryState::Open
+    } else if config.respect_transient && any_transient {
+        CompassionRecoveryState::Open
+    } else if samples.len() >= 3 && score < -0.5 {
+        CompassionRecoveryState::Sealed
+    } else {
+        CompassionRecoveryState::Open
+    };
 
     NevcResult {
         score,
-        class: ContributionClass::from_score(score),
+        class,
         sample_count: samples.len(),
         mean_valence,
         total_grief,
+        recovery,
     }
 }
 
-/// Convenience single-state evaluation.
 pub fn score_instant(valence: f64, grief_load: f64) -> NevcResult {
     let sample = NevcSample::new(valence, grief_load, 0);
     compute_nevc(&[sample], &NevcConfig::default())
 }
 
-/// Helper: map a typical RBE contribution event into a sample.
-/// Positive contribution → high valence, near-zero grief.
-/// Extractive / wasteful act → lower valence, elevated grief.
 pub fn sample_from_rbe_action(
-    abundance_alignment: f64, // 0.0 ..= 1.0
-    waste_or_harm: f64,       // ≥ 0.0
+    abundance_alignment: f64,
+    waste_or_harm: f64,
     t: u64,
 ) -> NevcSample {
     let valence = (0.999999 + 0.000001 * abundance_alignment.clamp(0.0, 1.0)).min(1.0);
@@ -246,6 +273,7 @@ mod tests {
         ];
         let r = compute_nevc(&samples, &NevcConfig::default());
         assert!(r.is_contributor(), "score={}", r.score);
+        assert!(r.recovery_open());
     }
 
     #[test]
@@ -257,9 +285,22 @@ mod tests {
     }
 
     #[test]
-    fn empty_is_zombie() {
+    fn empty_is_zombie_open_recovery() {
         let r = compute_nevc(&[], &NevcConfig::default());
         assert_eq!(r.class, ContributionClass::ZombiePartition);
+        assert!(r.recovery_open());
+    }
+
+    #[test]
+    fn transient_keeps_recovery_open() {
+        let samples = vec![
+            NevcSample::new(0.0, 2.0, 0).transient(),
+            NevcSample::new(0.0, 2.0, 1).transient(),
+            NevcSample::new(0.0, 2.0, 2).transient(),
+        ];
+        let r = compute_nevc(&samples, &NevcConfig::default());
+        assert!(!r.is_contributor());
+        assert!(r.recovery_open());
     }
 
     #[test]
@@ -271,10 +312,10 @@ mod tests {
     }
 
     #[test]
-    fn summary_label_is_correct() {
+    fn summary_includes_recovery() {
         let r = score_instant(0.999999, 0.0);
         let s = r.summary();
         assert_eq!(s.label, "Active Eternal Contributor");
-        assert!(s.class.is_contributor());
+        assert_eq!(s.recovery, CompassionRecoveryState::Open);
     }
 }
