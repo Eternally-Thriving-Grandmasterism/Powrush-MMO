@@ -1,7 +1,6 @@
 // shared/lib.rs
 // Powrush-MMO — Shared Crate Root
-// Phase 0–8 NEVC: adapter, ledger, events, demo, real-estate, game-loop,
-// persistence, dual-repo bridge.
+// Phase 0–10 NEVC surfaces including visibility helpers.
 // AG-SML v1.0 | PATSAGi Councils | info@Rathor.ai
 
 pub mod protocol;
@@ -13,6 +12,7 @@ pub mod real_estate_lattice_nevc;
 pub mod nevc_game_loop;
 pub mod nevc_persistence;
 pub mod nevc_bridge;
+pub mod nevc_visibility;
 
 #[cfg(feature = "full_rbe")]
 #[path = "rbe_queries.rs"]
@@ -36,6 +36,7 @@ pub mod prelude {
     pub use crate::nevc_game_loop::{HarvestNevcInput, harvest_to_event, apply_harvest_to_ledger, apply_harvest_class, apply_harvest_summary};
     pub use crate::nevc_persistence::{NevcPlayerRecord, NevcPersistenceStore};
     pub use crate::nevc_bridge::{compute_nevc_bridged, score_instant_bridged, summary_bridged, active_mode};
+    pub use crate::nevc_visibility::{HorizonPreset, status_line, badge_text, summary_from_result, panel_fields};
 }
 
 #[cfg(test)]
@@ -43,9 +44,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bridge_is_reachable() {
-        let r = nevc_bridge::score_instant_bridged(0.999999, 0.0);
-        assert!(r.is_contributor());
-        assert!(!nevc_bridge::active_mode().is_empty());
+    fn visibility_helpers_reachable() {
+        let r = nevc_adapter::score_instant(0.999999, 0.0);
+        let s = nevc_visibility::summary_from_result(&r);
+        assert_eq!(nevc_visibility::badge_text(s.class), "Contributor");
     }
 }
