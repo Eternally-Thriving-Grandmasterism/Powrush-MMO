@@ -1,8 +1,8 @@
 /*!
  * server/src/lib.rs
- * v21.89.2 — Inventory + AudioMoment catalog processing on transport bridge.
+ * v21.89.3 — Inventory + AudioMoment + NEVC attachment (Finish Pass A).
  * SafetyNet emission preserved. rathor_integration public for unified cohost.
- * AG-SML v1.0 | TOLC 8 + RBE + PATSAGi
+ * AG-SML v1.0 | TOLC 8 + RBE + PATSAGi | info@Rathor.ai
  */
 
 use bevy::prelude::*;
@@ -21,6 +21,9 @@ pub mod rathor_integration;
 
 pub mod audio_moment_catalog;
 pub mod audio_moment_net_handler;
+
+// Finish Pass A: NEVC live attachment (shared-backed, no algorithm mirror)
+pub mod nevc_attachment;
 
 #[derive(Resource)]
 pub struct TransportEventReceiver {
@@ -55,7 +58,8 @@ impl Plugin for ServerCorePlugin {
 }
 
 fn setup_transport_bridge(mut commands: Commands) {
-    info!("[ServerCore] Transport bridge setup ready (receiver + audio catalog active).");
+    info!("[ServerCore] Transport bridge setup ready (receiver + audio catalog + NEVC attachment)."
+    );
 }
 
 fn transport_event_bridge(
@@ -105,7 +109,6 @@ fn process_audio_moment_messages(
             continue;
         };
 
-        // Ensure owner id is stamped for saves
         let mut msg = message.clone();
         if let ClientMessage::AudioMomentSave { ref mut moment } = msg {
             if moment.owner_player_id == 0 {
@@ -131,7 +134,6 @@ fn process_audio_moment_messages(
                 "Audio moment message routed + replies queued"
             );
         } else {
-            // Store still updated; replies deferred until TransportCommandSender is injected
             info!(
                 target: "powrush::audio",
                 player_id,
@@ -142,4 +144,4 @@ fn process_audio_moment_messages(
     }
 }
 
-// End of server/src/lib.rs v21.89.2 — AudioMoment ingress live. Thunder locked in. Yoi ⚡
+// End of server/src/lib.rs v21.89.3 — NEVC attachment declared. Thunder locked in. Yoi ⚡
