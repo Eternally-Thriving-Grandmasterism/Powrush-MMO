@@ -1,5 +1,11 @@
 /*!
- * RBE Harvest Handler v18.10
+ * RBE Harvest Handler v18.10 + Phase 6 NEVC Live Attachment
+ *
+ * On every harvest, the outcome is mapped into Net Eternal Valence Contribution
+ * via server/nevc_attachment.rs (sustainable + regen → contributor path;
+ * unsustainable → elevated grief / zombie partition path).
+ *
+ * AG-SML v1.0 | PATSAGi Councils | info@Rathor.ai
  */
 
 use bevy::prelude::*;
@@ -7,6 +13,8 @@ use simulation::epiphany_catalyst::check_epiphany_after_harvest;
 use simulation::bot_detection::BotDetectionConfig;
 use simulation::divine_whispers::DivineWhisperTrigger;
 use simulation::player_persistence::PlayerSaveData;
+
+use crate::nevc_attachment;
 
 #[derive(Debug, Clone)]
 pub struct HarvestResult {
@@ -16,6 +24,8 @@ pub struct HarvestResult {
     pub was_sustainable: bool,
     pub regen_participation: bool,
     pub biome: String,
+    /// Phase 6: resulting NEVC contribution class after this harvest.
+    pub nevc_contributor: bool,
 }
 
 pub fn process_harvest(
@@ -39,7 +49,17 @@ pub fn process_harvest(
         was_sustainable: sustainable_pacing,
         regen_participation,
         biome: biome.to_string(),
+        nevc_contributor: false,
     };
+
+    // Phase 6: live NEVC attachment — record harvest into server contribution ledger
+    let class = nevc_attachment::on_harvest(
+        player_id,
+        result.success,
+        result.was_sustainable,
+        result.regen_participation,
+    );
+    result.nevc_contributor = class.is_contributor();
 
     if let Some(epiphany) = check_epiphany_after_harvest(
         current_depletion,
@@ -69,7 +89,6 @@ fn apply_epiphany_effects(
     whisper_events: &mut EventWriter<DivineWhisperTrigger>,
     player_save: &mut PlayerSaveData,
 ) {
-    // Apply real temporary gameplay reward
     if epiphany.epiphany_multiplier > 1.0 {
         let duration_seconds: u64 = 600;
         let now = std::time::SystemTime::now()
@@ -81,7 +100,6 @@ fn apply_epiphany_effects(
         player_save.temporary_multiplier_expires_at = now + duration_seconds;
     }
 
-    // Send enhanced Divine Whisper for epiphanies
     let whisper_text = match epiphany.divine_whisper_flavor.as_str() {
         "sustainable_harmony_revelation" => "A deep sense of harmony flows through you. Your sustainable choices are writing a better future.",
         "sustainable_abundance_revelation" => "You have touched the rhythm of true abundance. The land remembers your care.",
