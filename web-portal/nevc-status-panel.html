@@ -9,38 +9,19 @@
     body { font-family: Inter, system-ui, sans-serif; background: #0a0a0c; color: #e4e4e7; }
     .panel { background: #18181b; border: 1px solid #27272a; border-radius: 1rem; }
     .contributor { border-color: #34d399; box-shadow: 0 0 24px rgba(52, 211, 153, 0.15); }
-    .zombie { border-color: #71717a; }
     .label-contributor { color: #34d399; }
     .label-zombie { color: #a1a1aa; }
   </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-6">
-  <!--
-    Phase 10 Visibility Surface
-    Binds NevcSummary: class + label only (no third category).
-    Drop this panel into web-portal, Steam overlay stubs, or operator consoles.
-    AG-SML v1.0 | PATSAGi | info@Rathor.ai
-  -->
   <div id="nevc-panel" class="panel p-8 max-w-md w-full">
     <div class="text-xs uppercase tracking-widest text-zinc-500 mb-2">Net Eternal Valence Contribution</div>
     <div id="nevc-label" class="text-2xl font-semibold mb-4 label-zombie">Zombie Partition</div>
     <div class="grid grid-cols-2 gap-4 text-sm">
-      <div>
-        <div class="text-zinc-500">Score</div>
-        <div id="nevc-score" class="text-lg font-mono">0.000</div>
-      </div>
-      <div>
-        <div class="text-zinc-500">Samples</div>
-        <div id="nevc-samples" class="text-lg font-mono">0</div>
-      </div>
-      <div>
-        <div class="text-zinc-500">Mean Valence</div>
-        <div id="nevc-valence" class="text-lg font-mono">0.000000</div>
-      </div>
-      <div>
-        <div class="text-zinc-500">Total Grief</div>
-        <div id="nevc-grief" class="text-lg font-mono">0.000</div>
-      </div>
+      <div><div class="text-zinc-500">Score</div><div id="nevc-score" class="text-lg font-mono">0.000</div></div>
+      <div><div class="text-zinc-500">Samples</div><div id="nevc-samples" class="text-lg font-mono">0</div></div>
+      <div><div class="text-zinc-500">Mean Valence</div><div id="nevc-valence" class="text-lg font-mono">0.000000</div></div>
+      <div><div class="text-zinc-500">Total Grief</div><div id="nevc-grief" class="text-lg font-mono">0.000</div></div>
     </div>
     <div class="mt-6 flex items-center justify-between gap-3">
       <label class="text-xs text-zinc-500">Horizon preset</label>
@@ -50,22 +31,19 @@
         <option value="eternal">Eternal tilt</option>
       </select>
     </div>
+    <div id="nevc-feed-status" class="mt-3 text-xs text-zinc-600">Feed: idle</div>
     <p class="mt-6 text-xs text-zinc-600 leading-relaxed">
       Binary partition only: <span class="text-emerald-400">Active Eternal Contributor</span>
       or <span class="text-zinc-400">Zombie Partition</span>.
-      Compassion-gate recovery remains open for transient states.
+      Finish Pass C: polls <code>../data/nevc_status.json</code> every 5s.
     </p>
   </div>
-
   <script>
-    // Demo / operator injection API
-    // window.setNevcSummary({ class, score, sample_count, mean_valence, total_grief, label })
     function setNevcSummary(s) {
       const isContributor = s.class === 'ActiveEternalContributor' || s.label === 'Active Eternal Contributor';
       const panel = document.getElementById('nevc-panel');
       const label = document.getElementById('nevc-label');
       panel.classList.toggle('contributor', isContributor);
-      panel.classList.toggle('zombie', !isContributor);
       label.textContent = s.label || (isContributor ? 'Active Eternal Contributor' : 'Zombie Partition');
       label.className = 'text-2xl font-semibold mb-4 ' + (isContributor ? 'label-contributor' : 'label-zombie');
       document.getElementById('nevc-score').textContent = Number(s.score ?? 0).toFixed(3);
@@ -73,8 +51,23 @@
       document.getElementById('nevc-valence').textContent = Number(s.mean_valence ?? 0).toFixed(6);
       document.getElementById('nevc-grief').textContent = Number(s.total_grief ?? 0).toFixed(3);
     }
+    window.setNevcSummary = setNevcSummary;
 
-    // Example demo state (replace with live server feed)
+    const FEED_URLS = ['../data/nevc_status.json', '/data/nevc_status.json', 'data/nevc_status.json'];
+    async function pollFeed() {
+      const el = document.getElementById('nevc-feed-status');
+      for (const url of FEED_URLS) {
+        try {
+          const res = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
+          if (!res.ok) continue;
+          const data = await res.json();
+          setNevcSummary(data);
+          el.textContent = 'Feed: live · ' + (data.updated_at || url);
+          return;
+        } catch (_) {}
+      }
+      el.textContent = 'Feed: offline — demo state shown';
+    }
     setNevcSummary({
       class: 'ActiveEternalContributor',
       label: 'Active Eternal Contributor',
@@ -83,8 +76,8 @@
       mean_valence: 0.999999,
       total_grief: 0.01
     });
-
-    window.setNevcSummary = setNevcSummary;
+    pollFeed();
+    setInterval(pollFeed, 5000);
   </script>
 </body>
 </html>
