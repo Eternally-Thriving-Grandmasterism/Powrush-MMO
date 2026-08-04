@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "shared",
     "client",
     "server",
     "simulation",
@@ -20,7 +21,6 @@ repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 description = "Powrush-MMO: Universally Shared Naturally Thriving Heavens — RBE metaverse MMOARPG where abundance, mercy, and joy propagate for all sentience. Paired with Ra-Thor AGSi under permanent PATSAGi Councils."
 
 [workspace.dependencies]
-# Shared Bevy + ecosystem (client + server + simulation)
 bevy = { version = "0.14", default-features = false }
 bevy_hanabi = { version = "0.11", features = ["2d", "3d"] }
 bevy_egui = "0.27"
@@ -28,14 +28,11 @@ bevy_kira_audio = "0.20"
 kira = { version = "0.8", features = ["cpal"] }
 fundsp = "0.18"
 steamworks = "0.11"
-
-# Cryptography (for cryptographic_trade_protocol)
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 rand = "0.8"
-
-# Internal
 simulation = { path = "simulation" }
 game = { path = "game" }
+shared = { path = "shared" }
 
 [profile.dev]
 opt-level = 1
@@ -45,7 +42,6 @@ lto = "thin"
 codegen-units = 1
 strip = true
 
-# Workspace features for consistent builds (gpu, audio, egui, steam, spectral)
 [workspace.features]
 gpu = []
 audio-advanced = ["bevy_kira_audio", "kira", "fundsp"]

@@ -1,19 +1,20 @@
 /*!
- * RBE Harvest Handler v18.10 + Phase 6 NEVC Live Attachment
+ * RBE Harvest Handler — Finish Pass A
  *
- * On every harvest, the outcome is mapped into Net Eternal Valence Contribution
- * via server/nevc_attachment.rs (sustainable + regen → contributor path;
- * unsustainable → elevated grief / zombie partition path).
+ * Canonical NEVC attachment: `server/src/nevc_attachment.rs` (uses `shared`).
+ * This top-level handler keeps the harvest signature and calls into the
+ * server crate module path when compiled as part of the package.
  *
  * AG-SML v1.0 | PATSAGi Councils | info@Rathor.ai
  */
 
 use bevy::prelude::*;
 use simulation::epiphany_catalyst::check_epiphany_after_harvest;
-use simulation::bot_detection::BotDetectionConfig;
 use simulation::divine_whispers::DivineWhisperTrigger;
 use simulation::player_persistence::PlayerSaveData;
 
+// When this file is compiled via server crate, prefer src module.
+#[allow(unused_imports)]
 use crate::nevc_attachment;
 
 #[derive(Debug, Clone)]
@@ -24,7 +25,6 @@ pub struct HarvestResult {
     pub was_sustainable: bool,
     pub regen_participation: bool,
     pub biome: String,
-    /// Phase 6: resulting NEVC contribution class after this harvest.
     pub nevc_contributor: bool,
 }
 
@@ -39,7 +39,7 @@ pub fn process_harvest(
     mut player_save: ResMut<PlayerSaveData>,
 ) -> HarvestResult {
     let multiplier = player_save.get_current_harvest_multiplier();
-    let base_resources = 12.5;
+    let base_resources = 12.5_f32;
     let final_resources = base_resources * multiplier;
 
     let mut result = HarvestResult {
@@ -52,7 +52,7 @@ pub fn process_harvest(
         nevc_contributor: false,
     };
 
-    // Phase 6: live NEVC attachment — record harvest into server contribution ledger
+    // Finish Pass A: shared-backed NEVC attachment
     let class = nevc_attachment::on_harvest(
         player_id,
         result.success,
@@ -71,11 +71,10 @@ pub fn process_harvest(
         apply_epiphany_effects(player_id, &epiphany, &mut whisper_events, &mut player_save);
     }
 
-    // Clear expired multiplier
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     if player_save.temporary_multiplier_expires_at < now {
         player_save.temporary_harvest_multiplier = 1.0;
     }
@@ -93,17 +92,22 @@ fn apply_epiphany_effects(
         let duration_seconds: u64 = 600;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
         player_save.temporary_harvest_multiplier = epiphany.epiphany_multiplier;
         player_save.temporary_multiplier_expires_at = now + duration_seconds;
     }
 
     let whisper_text = match epiphany.divine_whisper_flavor.as_str() {
-        "sustainable_harmony_revelation" => "A deep sense of harmony flows through you. Your sustainable choices are writing a better future.",
-        "sustainable_abundance_revelation" => "You have touched the rhythm of true abundance. The land remembers your care.",
-        "council_harmony_revelation" => "When hearts align in mercy, the whole becomes greater than the sum.",
+        "sustainable_harmony_revelation" => {
+            "A deep sense of harmony flows through you. Your sustainable choices are writing a better future."
+        }
+        "sustainable_abundance_revelation" => {
+            "You have touched the rhythm of true abundance. The land remembers your care."
+        }
+        "council_harmony_revelation" => {
+            "When hearts align in mercy, the whole becomes greater than the sum."
+        }
         _ => "A quiet revelation settles within you.",
     };
 
