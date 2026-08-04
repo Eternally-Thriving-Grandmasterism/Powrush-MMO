@@ -1,13 +1,5 @@
 // shared/contribution_ledger.rs
-// Phase 2 First Consumer — NEVC Contribution Ledger
-//
-// Lightweight per-player ledger that records NevcSamples, maintains
-// running NEVC scores, and exposes ContributionClass.
-// Consumes the Phase 1 nevc_adapter surface.
-//
-// Consistent with:
-//   NEVC_POWRUSH_INTEGRATION_CODEX_v1.0.md
-//   Ra-Thor NET_ETERNAL_VALENCE_CONTRIBUTION_NEVC_CODEX_v1.0.md
+// Phase 2 + Finish Pass B — NEVC Contribution Ledger with sample window compaction
 //
 // AG-SML v1.0 | PATSAGi Councils | info@Rathor.ai
 // Thunder locked in. Yoi ⚡
@@ -18,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use crate::nevc_adapter::{
     ContributionClass, NevcConfig, NevcResult, NevcSample, compute_nevc, sample_from_rbe_action,
 };
+
+/// Default max samples retained per player (Finish Pass B).
+pub const DEFAULT_MAX_SAMPLES: usize = 256;
 
 /// Running contribution state for a single agent / player.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -46,15 +41,34 @@ impl PlayerContribution {
     pub fn is_contributor(&self) -> bool {
         self.class().is_contributor()
     }
+
+    /// Keep only the most recent `max` samples (window compaction).
+    pub fn compact(&mut self, max: usize) {
+        if max == 0 {
+            self.samples.clear();
+            return;
+        }
+        if self.samples.len() > max {
+            let skip = self.samples.len() - max;
+            self.samples.drain(0..skip);
+        }
+    }
 }
 
-/// In-memory contribution ledger (Phase 2 surface).
-/// Can later be backed by persistent storage or fed into RBE query surfaces.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+/// In-memory contribution ledger with optional sample window.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ContributionLedger {
     players: HashMap<u64, PlayerContribution>,
     config: NevcConfig,
     next_t: u64,
+    /// Maximum samples retained per player (0 = unlimited).
+    pub max_samples: usize,
+}
+
+impl Default for ContributionLedger {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ContributionLedger {
@@ -63,6 +77,7 @@ impl ContributionLedger {
             players: HashMap::new(),
             config: NevcConfig::default(),
             next_t: 0,
+            max_samples: DEFAULT_MAX_SAMPLES,
         }
     }
 
@@ -71,17 +86,25 @@ impl ContributionLedger {
             players: HashMap::new(),
             config,
             next_t: 0,
+            max_samples: DEFAULT_MAX_SAMPLES,
         }
+    }
+
+    pub fn with_max_samples(mut self, max: usize) -> Self {
+        self.max_samples = max;
+        self
     }
 
     /// Record a raw sample for a player and recompute their NEVC result.
     pub fn record_sample(&mut self, player_id: u64, sample: NevcSample) -> NevcResult {
+        let max = self.max_samples;
         let entry = self
             .players
             .entry(player_id)
             .or_insert_with(|| PlayerContribution::new(player_id));
 
         entry.samples.push(sample);
+        entry.compact(max);
         let result = compute_nevc(&entry.samples, &self.config);
         entry.last_result = Some(result.clone());
         result
@@ -100,7 +123,6 @@ impl ContributionLedger {
         self.record_sample(player_id, sample)
     }
 
-    /// Current contribution class for a player (defaults to ZombiePartition if unknown).
     pub fn class_of(&self, player_id: u64) -> ContributionClass {
         self.players
             .get(&player_id)
@@ -123,9 +145,16 @@ impl ContributionLedger {
             .unwrap_or(0)
     }
 
-    /// Snapshot of all known players (for dashboards / queries).
     pub fn snapshot(&self) -> Vec<PlayerContribution> {
         self.players.values().cloned().collect()
+    }
+
+    /// Compact all players to `max_samples`.
+    pub fn compact_all(&mut self) {
+        let max = self.max_samples;
+        for p in self.players.values_mut() {
+            p.compact(max);
+        }
     }
 }
 
@@ -165,5 +194,15 @@ mod tests {
         ledger.record_rbe_action(1, 1.0, 0.0);
         assert!(ledger.is_contributor(1));
         assert_eq!(ledger.sample_count(1), 3);
+    }
+
+    #[test]
+    fn sample_window_compacts() {
+        let mut ledger = ContributionLedger::new().with_max_samples(3);
+        for _ in 0..10 {
+            ledger.record_rbe_action(5, 1.0, 0.0);
+        }
+        assert_eq!(ledger.sample_count(5), 3);
+        assert!(ledger.is_contributor(5));
     }
 }
