@@ -1,5 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [21.91.1] — 2026-08-11 — High-Road Bootstrap + Challenge Provenance
+
+**Council focus:** Player-visible high-road practice from multi-realm seed; dual-repo bridging carries challenge principle.
+
+### Highlights
+
+- **Cross-realm challenges (v21.91.0):** five portable-principle seeds (allocation, peace, mercy, abundance, opportunity cost)
+- **Bootstrap activation:** challenge id=1 *Caps Across Climates* auto-activates on first multi-realm seed
+- **Bridging enrichment:** active challenge id/title/principle attached to `powrush_bridging_context_v1` exports (Ra-Thor ignores unknown keys safely)
+- **Surface labels:** `realm_{id}_{effect}|challenge_{id}_{principle}` for SchemaRegistry high-road mapping
+- Soft-only; no hard Ra-Thor crate dependency
+
+Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
+
+---
+
 ## [21.91.0] — 2026-08-04 — NEVC Dual-Repo Arc + Finish Passes A–C
 
 **Council focus:** Bind Net Eternal Valence Contribution end-to-end under permanent PATSAGi + TOLC 8.
