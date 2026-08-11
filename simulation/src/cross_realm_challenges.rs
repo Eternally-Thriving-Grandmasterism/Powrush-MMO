@@ -1,5 +1,5 @@
 //! Cross-realm bridging challenges — high-road transfer practice seeds
-//! v21.91.1 — Auto-activate id=1 on first multi-realm seed
+//! v21.91.2 — Soft progress + mercy-gated completion across realm surfaces
 //!
 //! Same underlying principle, different surface features across realms.
 //! Designed for deliberate abstraction (bridging), not surface cloning (hugging).
@@ -8,8 +8,10 @@
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use tracing::info;
 
+use crate::council::decision::CouncilDecisions;
 use crate::multi_realm_harness::{MultiRealmHarness, RealmId};
 
 /// Portable principle the challenge is designed to train.
@@ -77,6 +79,9 @@ pub struct CrossRealmChallengeRegistry {
     pub seeded: bool,
     /// True once id=1 was auto-activated on first multi-realm seed.
     pub bootstrap_activated: bool,
+    /// Realms where active challenge already received a mercy-aligned resolve.
+    pub progress_realms: HashSet<RealmId>,
+    pub last_progress_history_len: usize,
 }
 
 impl CrossRealmChallengeRegistry {
@@ -117,6 +122,7 @@ impl CrossRealmChallengeRegistry {
     pub fn activate(&mut self, id: u64) -> bool {
         if self.challenges.iter().any(|c| c.id == id && !c.completed) {
             self.active_id = Some(id);
+            self.progress_realms.clear();
             true
         } else {
             false
@@ -132,6 +138,7 @@ impl CrossRealmChallengeRegistry {
         }
         if self.active_id == Some(id) {
             self.active_id = None;
+            self.progress_realms.clear();
         }
     }
 
@@ -142,6 +149,51 @@ impl CrossRealmChallengeRegistry {
 
     pub fn pending(&self) -> impl Iterator<Item = &CrossRealmChallenge> {
         self.challenges.iter().filter(|c| !c.completed)
+    }
+
+    /// Record a mercy-aligned resolve on a realm surface of the active challenge.
+    /// Completes when every surface realm has been touched at least once.
+    pub fn note_surface_progress(&mut self, realm_id: RealmId, mercy: f32) -> bool {
+        let Some(active) = self.active().cloned() else {
+            return false;
+        };
+        if mercy < active.mercy_floor {
+            return false;
+        }
+        let is_surface = active
+            .realm_surfaces
+            .iter()
+            .any(|s| s.realm_id == realm_id);
+        if !is_surface {
+            return false;
+        }
+        self.progress_realms.insert(realm_id);
+        let needed: HashSet<RealmId> = active
+            .realm_surfaces
+            .iter()
+            .map(|s| s.realm_id)
+            .collect();
+        if needed.is_subset(&self.progress_realms) {
+            info!(
+                target: "ra_thor::cross_realm",
+                id = active.id,
+                title = %active.title,
+                surfaces_cleared = self.progress_realms.len(),
+                "High-road challenge completed — all surfaces practiced under mercy floor"
+            );
+            self.mark_completed(active.id);
+            true
+        } else {
+            info!(
+                target: "ra_thor::cross_realm",
+                id = active.id,
+                realm = realm_id,
+                progress = self.progress_realms.len(),
+                needed = needed.len(),
+                "Challenge surface progress"
+            );
+            false
+        }
     }
 }
 
@@ -262,7 +314,6 @@ pub fn cross_realm_challenge_seed_system(
     if harness.realms.is_empty() {
         return;
     }
-    // First multi-realm seed → seed catalog + activate Caps Across Climates
     reg.seed_and_bootstrap_practice();
 }
 
@@ -288,6 +339,30 @@ pub fn cross_realm_challenge_pulse_system(
     );
 }
 
+/// Mercy-gated progress against active challenge surfaces from resolved council history.
+pub fn cross_realm_challenge_progress_system(
+    mut reg: ResMut<CrossRealmChallengeRegistry>,
+    decisions: Option<Res<CouncilDecisions>>,
+) {
+    let Some(decisions) = decisions else {
+        return;
+    };
+    if reg.active_id.is_none() {
+        return;
+    }
+    if decisions.resolved_history.len() <= reg.last_progress_history_len {
+        return;
+    }
+    let start = reg.last_progress_history_len;
+    reg.last_progress_history_len = decisions.resolved_history.len();
+    for d in &decisions.resolved_history[start..] {
+        let _ = reg.note_surface_progress(d.realm_id, d.mercy_factor);
+        if reg.active_id.is_none() {
+            break;
+        }
+    }
+}
+
 pub struct CrossRealmChallengePlugin;
 
 impl Plugin for CrossRealmChallengePlugin {
@@ -298,10 +373,11 @@ impl Plugin for CrossRealmChallengePlugin {
                 (
                     cross_realm_challenge_seed_system,
                     cross_realm_challenge_pulse_system,
+                    cross_realm_challenge_progress_system,
                 )
                     .chain(),
             );
-        info!("CrossRealmChallengePlugin — high-road bridging seeds + bootstrap id=1");
+        info!("CrossRealmChallengePlugin — bootstrap id=1 + mercy surface progress");
     }
 }
 
@@ -330,10 +406,28 @@ mod tests {
         assert_eq!(reg.active_id, Some(1));
         assert_eq!(reg.active().unwrap().title, "Caps Across Climates");
 
-        // Second call must not reset or re-fire activation path incorrectly
         reg.seed_and_bootstrap_practice();
         assert_eq!(reg.active_id, Some(1));
         assert!(reg.bootstrap_activated);
+    }
+
+    #[test]
+    fn surface_progress_completes_when_all_realms_hit() {
+        let mut reg = CrossRealmChallengeRegistry::default();
+        reg.seed_and_bootstrap_practice();
+        assert!(!reg.note_surface_progress(0, 0.7));
+        assert!(!reg.note_surface_progress(2, 0.7));
+        assert!(reg.note_surface_progress(4, 0.7));
+        assert!(reg.active().is_none());
+        assert_eq!(reg.completed_count, 1);
+    }
+
+    #[test]
+    fn below_mercy_floor_no_progress() {
+        let mut reg = CrossRealmChallengeRegistry::default();
+        reg.seed_and_bootstrap_practice();
+        assert!(!reg.note_surface_progress(0, 0.4));
+        assert!(reg.progress_realms.is_empty());
     }
 
     #[test]
