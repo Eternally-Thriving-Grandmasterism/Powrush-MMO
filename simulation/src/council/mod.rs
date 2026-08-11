@@ -1,5 +1,5 @@
 // simulation/src/council/mod.rs
-// v21.79.0 — Session → decisions + RTT host mapper + sim bridge writer
+// v21.90.0 — Session → decisions + RTT + sim bridge + high-road bridging export
 
 pub mod proposal;
 pub mod session;
@@ -8,6 +8,7 @@ pub mod plugin;
 pub mod event_bus;
 pub mod rtt_export;
 pub mod sim_bridge_writer;
+pub mod bridging_export;
 
 pub use proposal::CouncilProposal;
 pub use session::{
@@ -21,5 +22,9 @@ pub use rtt_export::{
     CouncilRttExportQueue, CouncilRttExportSignal, council_resolved_to_rtt_export_system,
 };
 pub use sim_bridge_writer::{SimCouncilBridgeWriterConfig, sim_council_bridge_writer_system};
+pub use bridging_export::{
+    BridgingExportConfig, MetacognitiveScaffold,
+    council_bridging_export_system, metacognitive_planning_pulse_system,
+};
 
 // Thunder locked in. Yoi ⚡
