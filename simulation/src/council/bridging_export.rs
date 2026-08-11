@@ -1,10 +1,11 @@
 //! Bridging export + metacognitive soft prompts
-//! v21.90.0 — High-road transfer producer for Ra-Thor SchemaRegistry
+//! v21.91.1 — Challenge-provenance enrichment for high-road transfer
 //!
 //! Writes `artifacts/powrush_bridging_latest.json` with schema
 //! `powrush_bridging_context_v1` — field-compatible with Ra-Thor
 //! `BridgingContext` (reality-thriving-transfer v14.16+).
 //!
+//! Optional challenge_* fields are additive; Ra-Thor ignores unknown keys.
 //! Zero dependency on Ra-Thor crate. Pure JSON handoff.
 //! Contact: info@Rathor.ai | TOLC 8. Yoi ⚡
 
@@ -14,10 +15,11 @@ use std::path::PathBuf;
 use tracing::info;
 
 use crate::council::decision::CouncilDecisions;
+use crate::cross_realm_challenges::CrossRealmChallengeRegistry;
 use crate::economy::{EconomyState, MultiRealmRbeSnapshot};
 
 // =============================================================================
-// Bridging context payload (matches Ra-Thor BridgingContext fields)
+// Bridging context payload (matches Ra-Thor BridgingContext fields + optional)
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize)]
@@ -35,6 +37,13 @@ pub struct BridgingContextPayload {
     pub surface_label: String,
     pub decision_id: Option<u64>,
     pub tick: u64,
+    /// Active cross-realm high-road challenge (optional enrichment).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub challenge_id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub challenge_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub challenge_principle: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -149,6 +158,29 @@ fn write_json(path: &PathBuf, bytes: &str) -> Result<(), String> {
     std::fs::write(path, bytes).map_err(|e| e.to_string())
 }
 
+fn challenge_enrichment(
+    challenges: Option<&CrossRealmChallengeRegistry>,
+) -> (Option<u64>, Option<String>, Option<String>, String) {
+    let Some(reg) = challenges else {
+        return (None, None, None, String::new());
+    };
+    let Some(active) = reg.active() else {
+        return (None, None, None, String::new());
+    };
+    let principle = active.principle.as_str().to_string();
+    let suffix = format!(
+        "|challenge_{}_{}",
+        active.id,
+        principle.replace(' ', "_")
+    );
+    (
+        Some(active.id),
+        Some(active.title.clone()),
+        Some(principle),
+        suffix,
+    )
+}
+
 /// Soft system: map recent resolved decisions → BridgingContext JSON for Ra-Thor.
 pub fn council_bridging_export_system(
     time: Res<Time>,
@@ -157,6 +189,7 @@ pub fn council_bridging_export_system(
     decisions: Res<CouncilDecisions>,
     economy: Option<Res<EconomyState>>,
     rbe: Option<Res<MultiRealmRbeSnapshot>>,
+    challenges: Option<Res<CrossRealmChallengeRegistry>>,
 ) {
     if !cfg.enabled {
         return;
@@ -206,9 +239,16 @@ pub fn council_bridging_export_system(
         .unwrap_or(0.3);
     let peaceful = (1.0 - stress * 0.5).clamp(0.0, 1.0);
 
+    let (ch_id, ch_title, ch_principle, ch_suffix) =
+        challenge_enrichment(challenges.as_deref());
+
     // Latest decision → single latest payload
     let latest = decisions.resolved_history.last().unwrap();
     let mercy = latest.mercy_factor as f64;
+    let surface = format!(
+        "realm_{}_{}{}",
+        latest.realm_id, latest.effect_type, ch_suffix
+    );
     let single = BridgingContextPayload {
         schema: "powrush_bridging_context_v1".into(),
         session_id: Some(format!("council_tick_{}", decisions.last_applied_tick)),
@@ -220,9 +260,12 @@ pub fn council_bridging_export_system(
         rbe_quality: sust.clamp(0.0, 1.0),
         peaceful_rate: peaceful,
         abundance_velocity: abundance.max(0.0),
-        surface_label: format!("realm_{}_{}", latest.realm_id, latest.effect_type),
+        surface_label: surface,
         decision_id: Some(latest.decision_id),
         tick: decisions.last_applied_tick,
+        challenge_id: ch_id,
+        challenge_title: ch_title.clone(),
+        challenge_principle: ch_principle.clone(),
     };
 
     // Batch: up to last 8 resolved
@@ -241,9 +284,15 @@ pub fn council_bridging_export_system(
             rbe_quality: sust.clamp(0.0, 1.0),
             peaceful_rate: peaceful,
             abundance_velocity: abundance.max(0.0),
-            surface_label: format!("realm_{}_{}", d.realm_id, d.effect_type),
+            surface_label: format!(
+                "realm_{}_{}{}",
+                d.realm_id, d.effect_type, ch_suffix
+            ),
             decision_id: Some(d.decision_id),
             tick: d.created_tick,
+            challenge_id: ch_id,
+            challenge_title: ch_title.clone(),
+            challenge_principle: ch_principle.clone(),
         });
     }
 
@@ -265,6 +314,7 @@ pub fn council_bridging_export_system(
                     path = %cfg.path.display(),
                     decision_id = latest.decision_id,
                     mercy = mercy,
+                    challenge_id = ?ch_id,
                     "BridgingContext exported for Ra-Thor SchemaRegistry"
                 );
             }
@@ -315,5 +365,14 @@ mod tests {
         let mut s = MetacognitiveScaffold::default();
         s.support_level = 0.0;
         assert!(s.planning_prompt().is_none());
+    }
+
+    #[test]
+    fn challenge_enrichment_empty_without_registry() {
+        let (id, title, principle, suffix) = challenge_enrichment(None);
+        assert!(id.is_none());
+        assert!(title.is_none());
+        assert!(principle.is_none());
+        assert!(suffix.is_empty());
     }
 }
