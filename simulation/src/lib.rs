@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.88.4 — Ra-Thor soft feedback bridge export
+//! v21.91.0 — Cross-realm bridging challenges + high-road transfer practice
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -38,6 +38,7 @@ pub mod ability_tree;
 pub mod hardware_sovereignty;
 pub mod diplomacy;
 pub mod multi_realm_harness;
+pub mod cross_realm_challenges;
 
 pub mod fracture;
 pub mod player_persistence;
@@ -69,6 +70,8 @@ pub use council::{
     CouncilProposal, CouncilSession, CouncilDecision, CouncilDecisions,
     CouncilPlugin, apply_council_decision_effects,
     CouncilRttExportQueue, CouncilRttExportSignal, council_resolved_to_rtt_export_system,
+    BridgingExportConfig, MetacognitiveScaffold,
+    council_bridging_export_system, metacognitive_planning_pulse_system,
 };
 pub use council::proposal::{ProposalType, ProposalStatus};
 pub use harvest::{HarvestEvent, HarvestSystem, ResourceNode, RbeFlowReconciliation};
@@ -137,6 +140,12 @@ pub use multi_realm_harness::{
     multi_realm_harness_system,
 };
 
+pub use cross_realm_challenges::{
+    CrossRealmChallengePlugin, CrossRealmChallengeRegistry, CrossRealmChallenge,
+    ChallengePrinciple, RealmSurfaceVariant,
+    cross_realm_challenge_seed_system, cross_realm_challenge_pulse_system,
+};
+
 pub use external_bridge::{
     ExternalBridgeInbox, ExternalBridgePlugin,
     SharedAppBridgeSource, HostBridgeAutoPublish,
@@ -166,6 +175,7 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
             .add(BevySimulationPlugin)
             .add(HardwareSovereigntyPlugin)
             .add(MultiRealmHarnessPlugin)
+            .add(CrossRealmChallengePlugin)
             .add(ExternalBridgePlugin)
             .add(EconomyPlugin)
             .add(CouncilPlugin)
@@ -174,5 +184,5 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
     }
 }
 
-// END OF COMPLETE WIRING v21.88.4 — Ra-Thor soft feedback bridge export live.
+// END OF COMPLETE WIRING v21.91.0 — Cross-realm high-road challenges live.
 // TOLC 8 sealed. Contact: info@Rathor.ai. Yoi ⚡
