@@ -1,5 +1,5 @@
 //! Cross-realm bridging challenges — high-road transfer practice seeds
-//! v21.91.0
+//! v21.91.1 — Auto-activate id=1 on first multi-realm seed
 //!
 //! Same underlying principle, different surface features across realms.
 //! Designed for deliberate abstraction (bridging), not surface cloning (hugging).
@@ -31,8 +31,8 @@ impl ChallengePrinciple {
             Self::PeacefulResolutionIncompleteInfo => {
                 "peaceful resolution under incomplete information"
             }
-            Self::MercyFirstHighStakes => "mercy-first prioritization when stakes are high"
-            Self::CrossRealmAbundanceSharing => "cross-realm abundance sharing with sustainability"
+            Self::MercyFirstHighStakes => "mercy-first prioritization when stakes are high",
+            Self::CrossRealmAbundanceSharing => "cross-realm abundance sharing with sustainability",
             Self::OpportunityCostUnderTimePressure => {
                 "opportunity-cost decision-making under time pressure"
             }
@@ -75,6 +75,8 @@ pub struct CrossRealmChallengeRegistry {
     pub active_id: Option<u64>,
     pub completed_count: u64,
     pub seeded: bool,
+    /// True once id=1 was auto-activated on first multi-realm seed.
+    pub bootstrap_activated: bool,
 }
 
 impl CrossRealmChallengeRegistry {
@@ -89,6 +91,27 @@ impl CrossRealmChallengeRegistry {
             count = self.challenges.len(),
             "Cross-realm bridging challenges seeded"
         );
+    }
+
+    /// Seed + auto-activate challenge id=1 for player-visible practice.
+    pub fn seed_and_bootstrap_practice(&mut self) {
+        self.seed_defaults();
+        if self.bootstrap_activated || self.active_id.is_some() {
+            return;
+        }
+        if self.activate(1) {
+            self.bootstrap_activated = true;
+            if let Some(c) = self.active() {
+                info!(
+                    target: "ra_thor::cross_realm",
+                    id = c.id,
+                    title = %c.title,
+                    principle = c.principle.as_str(),
+                    surfaces = c.realm_surfaces.len(),
+                    "Bootstrap practice active — Caps Across Climates (high-road)"
+                );
+            }
+        }
     }
 
     pub fn activate(&mut self, id: u64) -> bool {
@@ -239,7 +262,8 @@ pub fn cross_realm_challenge_seed_system(
     if harness.realms.is_empty() {
         return;
     }
-    reg.seed_defaults();
+    // First multi-realm seed → seed catalog + activate Caps Across Climates
+    reg.seed_and_bootstrap_practice();
 }
 
 /// Soft log of active challenge surfaces (host / debug visibility).
@@ -277,7 +301,7 @@ impl Plugin for CrossRealmChallengePlugin {
                 )
                     .chain(),
             );
-        info!("CrossRealmChallengePlugin — high-road bridging seeds active");
+        info!("CrossRealmChallengePlugin — high-road bridging seeds + bootstrap id=1");
     }
 }
 
@@ -295,6 +319,21 @@ mod tests {
         reg.mark_completed(1);
         assert_eq!(reg.completed_count, 1);
         assert!(reg.active().is_none());
+    }
+
+    #[test]
+    fn bootstrap_activates_id_1_once() {
+        let mut reg = CrossRealmChallengeRegistry::default();
+        reg.seed_and_bootstrap_practice();
+        assert!(reg.seeded);
+        assert!(reg.bootstrap_activated);
+        assert_eq!(reg.active_id, Some(1));
+        assert_eq!(reg.active().unwrap().title, "Caps Across Climates");
+
+        // Second call must not reset or re-fire activation path incorrectly
+        reg.seed_and_bootstrap_practice();
+        assert_eq!(reg.active_id, Some(1));
+        assert!(reg.bootstrap_activated);
     }
 
     #[test]
