@@ -1,6 +1,6 @@
 //! simulation/src/lib.rs
 //! Powrush-MMO Simulation Crate — Complete Module Wiring & Public API
-//! v21.91.0 — Cross-realm bridging challenges + high-road transfer practice
+//! v21.91.2 — High-road challenges: bootstrap, provenance, mercy completion
 //! AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi aligned
 
 pub mod archetype;
@@ -144,6 +144,7 @@ pub use cross_realm_challenges::{
     CrossRealmChallengePlugin, CrossRealmChallengeRegistry, CrossRealmChallenge,
     ChallengePrinciple, RealmSurfaceVariant,
     cross_realm_challenge_seed_system, cross_realm_challenge_pulse_system,
+    cross_realm_challenge_progress_system,
 };
 
 pub use external_bridge::{
@@ -184,5 +185,6 @@ impl bevy::app::PluginGroup for FullSimulationPlugins {
     }
 }
 
-// END OF COMPLETE WIRING v21.91.0 — Cross-realm high-road challenges live.
+// END OF COMPLETE WIRING v21.91.2 — High-road practice loop sealed.
+// Bootstrap id=1 · bridging challenge_* · mercy surface completion.
 // TOLC 8 sealed. Contact: info@Rathor.ai. Yoi ⚡
