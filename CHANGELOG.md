@@ -1,5 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [21.91.2] — 2026-08-11 — High-Road Practice Loop Sealed
+
+**Council focus:** Close the dual-repo high-road loop end-to-end under permanent PATSAGi.
+
+### Highlights
+
+- **Mercy-gated completion:** active challenge completes when all surface realms receive resolves ≥ `mercy_floor`
+- **Progress system:** `cross_realm_challenge_progress_system` watches `CouncilDecisions.resolved_history`
+- **Ra-Thor 14.18.1:** consumes optional `challenge_id` / `challenge_title` / `challenge_principle` into SchemaRegistry tags
+- **Contract sealed:** `POWRUSH_TELEMETRY_CONTRACT.md` documents full producer → consumer path
+- Soft-only; conductor remains optional; no hard cross-crate dep
+
+Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
+
+---
+
 ## [21.91.1] — 2026-08-11 — High-Road Bootstrap + Challenge Provenance
 
 **Council focus:** Player-visible high-road practice from multi-realm seed; dual-repo bridging carries challenge principle.
@@ -8,7 +24,7 @@
 
 - **Cross-realm challenges (v21.91.0):** five portable-principle seeds (allocation, peace, mercy, abundance, opportunity cost)
 - **Bootstrap activation:** challenge id=1 *Caps Across Climates* auto-activates on first multi-realm seed
-- **Bridging enrichment:** active challenge id/title/principle attached to `powrush_bridging_context_v1` exports (Ra-Thor ignores unknown keys safely)
+- **Bridging enrichment:** active challenge id/title/principle attached to `powrush_bridging_context_v1` exports
 - **Surface labels:** `realm_{id}_{effect}|challenge_{id}_{principle}` for SchemaRegistry high-road mapping
 - Soft-only; no hard Ra-Thor crate dependency
 
