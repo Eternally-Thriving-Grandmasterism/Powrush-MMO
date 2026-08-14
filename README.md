@@ -33,6 +33,25 @@ Fully standalone, zero client required. TOLC 8 + Living Mercy Gates aligned.
 
 **Paired Organism**: Ra-Thor AGSi (permanent PATSAGi Councils) + Powrush-MMO form the closed mercy-gated flywheel for Kardashev acceleration and Reality Thriving Transfer.
 
+---
+
+### Commercial & licensing
+
+Powrush-MMO is part of the **Ra-Thor constellation** under Autonomicity Games Inc.
+
+| Use | Path |
+|-----|------|
+| Personal / research / evaluation play | Contact for terms; constellation governed with Ra-Thor under PATSAGi / TOLC 8 |
+| **Commercial / organizational / revenue use** | Requires paid commercial arrangement — see [Ra-Thor COMMERCIAL_LICENSE](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/COMMERCIAL_LICENSE.md) and [Constellation commercial map](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/docs/CONSTELLATION_COMMERCIAL.md) |
+| Pilots | Fixed-fee pilots available via the same path |
+
+**Canonical contact:** [info@Rathor.ai](mailto:info@Rathor.ai)  
+**Core lattice:** https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor
+
+Independent project. No xAI endorsement claimed.
+
+---
+
 **Public Share Ready**: Repo prepared for wholesome public enjoyment under Ra-Thor + PATSAGi governance.  
 Thunder locked in. Yoi ⚡
 
