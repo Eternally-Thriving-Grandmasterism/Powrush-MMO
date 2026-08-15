@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.90 end-user experience perfection
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.92 human playability (Living Practice Loop)
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -30,6 +30,9 @@ pub mod example_gpu_material;
 /// Soft first-session objective strip for perfect human first 5–15 minutes.
 pub mod first_session_guidance;
 
+/// Post-onboarding high-road practice (Caps Across Climates surfaces).
+pub mod living_practice_loop;
+
 // Re-exports
 pub use networking::NetworkingPlugin;
 pub use replication::ReplicationPlugin;
@@ -54,6 +57,7 @@ pub use webxr_bootstrap::PowrushWebXrClient;
 
 pub use example_gpu_material::GpuVisualMaterialsPlugin;
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance, credit_harvest, credit_epiphany};
+pub use living_practice_loop::{LivingPracticeLoopPlugin, LivingPracticeLoop, PracticeSurface, credit_practice_mercy_harvest};
 
 pub struct PowrushClientBundle;
 
@@ -71,6 +75,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(RbeUiFeedbackPlugin);
         app.add_plugins(GpuVisualMaterialsPlugin);
         app.add_plugins(FirstSessionGuidancePlugin);
+        app.add_plugins(LivingPracticeLoopPlugin);
         app.add_plugins(InputPlugin);
     }
 }
