@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.93.3 lattice flow share
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.94.1 steam abundance stage
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -27,23 +27,13 @@ pub mod webxr_bootstrap;
 
 pub mod example_gpu_material;
 
-/// Soft first-session objective strip for perfect human first 5–15 minutes.
 pub mod first_session_guidance;
-
-/// Post-onboarding high-road practice (Caps Across Climates surfaces).
 pub mod living_practice_loop;
-
-/// Soft non-extractive joy toasts (Thriving Moments).
 pub mod thriving_moments;
-
-/// Soft RBE allocate choice: flow outward vs steward reserve.
 pub mod rbe_allocate_choice;
-
-/// Soft session + durable memory binding practice + allocate into a journey log.
 pub mod abundance_journey_echo;
-
-/// Soft lattice flow share envelope for peer / Ra-Thor ingest.
 pub mod lattice_flow_share;
+pub mod steam_abundance_mirror;
 
 // Re-exports
 pub use networking::NetworkingPlugin;
@@ -77,6 +67,9 @@ pub use thriving_moments::{ThrivingMomentsPlugin, ThrivingMoments, ThrivingKind,
 pub use rbe_allocate_choice::{RbeAllocateChoicePlugin, RbeAllocateChoice, AllocatePath};
 pub use abundance_journey_echo::{AbundanceJourneyEchoPlugin, AbundanceJourneyEcho, JourneyKind};
 pub use lattice_flow_share::{LatticeFlowSharePlugin, LatticeFlowShare, LatticeFlowShareEnvelope};
+pub use steam_abundance_mirror::{
+    SteamAbundanceMirrorPlugin, SteamAbundanceMirror, STEAM_STAGE_DIR, REMOTE_JOURNEY, REMOTE_LATTICE,
+};
 
 pub struct PowrushClientBundle;
 
@@ -99,6 +92,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(RbeAllocateChoicePlugin);
         app.add_plugins(AbundanceJourneyEchoPlugin);
         app.add_plugins(LatticeFlowSharePlugin);
+        app.add_plugins(SteamAbundanceMirrorPlugin);
         app.add_plugins(InputPlugin);
     }
 }
