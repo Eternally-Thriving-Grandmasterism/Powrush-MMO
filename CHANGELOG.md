@@ -1,5 +1,22 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [21.92.0] — 2026-08-15 — Human Playability: Living Practice Loop
+
+**Council focus:** Deeper human gameplay after onboarding — high-road practice without dark-pattern gamification.
+
+### Highlights
+
+- **Living Practice Loop** (`client/src/living_practice_loop.rs`): post–First Session soft objectives
+- **Caps Across Climates surfaces:** Sanctuary → Verdant → Horizon (same principle, three climates)
+- **Controls:** **P** toggle · **Shift+P** dismiss · never blocks movement/harvest
+- **Gentle depth:** 2 mercy harvests per surface, celebration pulse, principle-sealed end state
+- **Dual-repo coherence:** mirrors simulation challenge id=1; bridging provenance unchanged
+- **Docs:** `docs/HUMAN_PLAYABILITY_v21.92.md`
+
+Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
+
+---
+
 ## [21.91.2] — 2026-08-11 — High-Road Practice Loop Sealed
 
 **Council focus:** Close the dual-repo high-road loop end-to-end under permanent PATSAGi.
