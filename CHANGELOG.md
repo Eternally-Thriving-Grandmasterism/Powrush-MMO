@@ -1,20 +1,21 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [21.93.2] — 2026-08-15 — Durable Abundance Journey
+## [21.93.3] — 2026-08-15 — Soft Lattice Flow Share
 
-**Council focus:** Sovereign offline recall of thriving acts.
+**Council focus:** Multiplayer-ready abundance signal without scarcity.
 
 ### Highlights
 
-- Local JSON persist: `data/powrush_abundance_journey.json`
-- Loads journey lines + flow/reserve totals on startup
-- Saves on meaningful change (practice seal, allocate choice)
-- Soft fail on I/O — never blocks play
+- Envelope: `data/powrush_lattice_flow_share.json` (`powrush_lattice_flow_share_v1`)
+- Exports on each allocate choice (flow total, reserve total, last path)
+- Offline-first · soft-fail I/O · peer / Ra-Thor ingest ready
+- Explicit mercy note: voluntary abundance direction — never scarcity
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
 
 ---
 
+## [21.93.2] — Durable Abundance Journey
 ## [21.93.1] — Abundance Journey Echo (F4)
 ## [21.93.0] — Soft RBE Allocate Choice (R)
 ## [21.92.x] — Living Practice · Thriving Moments · bridges
