@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.94.1 steam abundance stage
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.94.2 Steam Auto-Cloud abundance stage
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -68,7 +68,8 @@ pub use rbe_allocate_choice::{RbeAllocateChoicePlugin, RbeAllocateChoice, Alloca
 pub use abundance_journey_echo::{AbundanceJourneyEchoPlugin, AbundanceJourneyEcho, JourneyKind};
 pub use lattice_flow_share::{LatticeFlowSharePlugin, LatticeFlowShare, LatticeFlowShareEnvelope};
 pub use steam_abundance_mirror::{
-    SteamAbundanceMirrorPlugin, SteamAbundanceMirror, STEAM_STAGE_DIR, REMOTE_JOURNEY, REMOTE_LATTICE,
+    SteamAbundanceMirrorPlugin, SteamAbundanceMirror, ABUNDANCE_SUBDIR, REMOTE_JOURNEY, REMOTE_LATTICE,
+    preferred_abundance_stage_root,
 };
 
 pub struct PowrushClientBundle;
