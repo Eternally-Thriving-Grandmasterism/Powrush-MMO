@@ -1,13 +1,13 @@
 /*!
- * Soft Lattice Flow Share — multiplayer-ready abundance envelope (v21.93.3)
+ * Soft Lattice Flow Share — export + peer ingest (v21.94.0)
  *
- * When the player allocates surplus (flow outward / steward reserve),
- * emit a soft JSON envelope peers or Ra-Thor can ingest offline-first.
+ * Export path:  `data/powrush_lattice_flow_share.json`
+ * Peer ingest:  `data/powrush_lattice_flow_share_peer.json` (or own share as demo)
+ * Schema:       powrush_lattice_flow_share_v1
  *
- * Path: `data/powrush_lattice_flow_share.json`
- * Schema: powrush_lattice_flow_share_v1
+ * **F5** — soft-ingest peer envelope → Abundance Journey Echo line
  *
- * No scarcity. No leaderboard. Share is voluntary signal of thriving direction.
+ * No scarcity. No leaderboard. Voluntary thriving signal only.
  *
  * TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -17,9 +17,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 
 const SHARE_PATH: &str = "data/powrush_lattice_flow_share.json";
+const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LatticeFlowShareEnvelope {
@@ -36,6 +38,8 @@ pub struct LatticeFlowShareEnvelope {
 pub struct LatticeFlowShare {
     pub last_exported_choices: u32,
     pub last_path: Option<PathBuf>,
+    pub last_peer: Option<LatticeFlowShareEnvelope>,
+    pub last_ingest_note: Option<String>,
 }
 
 pub struct LatticeFlowSharePlugin;
@@ -43,7 +47,7 @@ pub struct LatticeFlowSharePlugin;
 impl Plugin for LatticeFlowSharePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LatticeFlowShare>()
-            .add_systems(Update, export_on_allocate_change);
+            .add_systems(Update, (export_on_allocate_change, soft_peer_ingest));
     }
 }
 
@@ -55,10 +59,6 @@ fn export_on_allocate_change(
     if allocate.choices_made == 0 {
         return;
     }
-    if allocate.choices_made <= share.last_exported_choices && !allocate.is_changed() {
-        return;
-    }
-    // Only rewrite when a new choice landed
     if allocate.choices_made <= share.last_exported_choices {
         return;
     }
@@ -95,6 +95,51 @@ fn export_on_allocate_change(
             }
         }
         Err(e) => warn!(target: "powrush::lattice", "flow share serialize failed: {e}"),
+    }
+}
+
+fn try_read_envelope(path: &str) -> Option<LatticeFlowShareEnvelope> {
+    let bytes = fs::read(path).ok()?;
+    let env: LatticeFlowShareEnvelope = serde_json::from_slice(&bytes).ok()?;
+    if env.schema.starts_with("powrush_lattice_flow_share") {
+        Some(env)
+    } else {
+        None
+    }
+}
+
+/// F5 — soft ingest peer envelope (peer file preferred, else own share as local demo).
+fn soft_peer_ingest(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut share: ResMut<LatticeFlowShare>,
+    mut echo: ResMut<AbundanceJourneyEcho>,
+) {
+    if !keyboard.just_pressed(KeyCode::F5) {
+        return;
+    }
+
+    let env = try_read_envelope(PEER_PATH).or_else(|| try_read_envelope(SHARE_PATH));
+
+    match env {
+        Some(env) => {
+            let note = format!(
+                "Peer lattice signal · flow {:.1} · reserve {:.1} · choices {} · {}",
+                env.flow_total,
+                env.reserve_total,
+                env.choices_made,
+                env.last_path.as_deref().unwrap_or("—")
+            );
+            echo.push(JourneyKind::Note, note.clone());
+            share.last_ingest_note = Some(note.clone());
+            share.last_peer = Some(env);
+            info!(target: "powrush::lattice", "{note}");
+        }
+        None => {
+            let note = "No peer lattice envelope yet — drop one at data/powrush_lattice_flow_share_peer.json"
+                .to_string();
+            share.last_ingest_note = Some(note.clone());
+            info!(target: "powrush::lattice", "{note}");
+        }
     }
 }
 
