@@ -1,39 +1,96 @@
 /*!
- * Soft Steam Abundance Mirror — Auto-Cloud stage (v21.94.1)
+ * Steam Auto-Cloud triggers — abundance journey + lattice share (v21.94.2)
  *
- * Feature-agnostic: always stages journey + lattice share under
- * `data/steam_stage/` so Steam Auto-Cloud (or a later SDK write) can pick them up.
+ * Stages blobs to paths that match Steamworks Auto-Cloud rules:
+ *   - OS app-data: …/Powrush-MMO/steam_cloud/abundance/
+ *   - Portable:    steam_cloud/abundance/
  *
- * When built with `steam` feature, host may also push these remote names via
- * existing SteamCloudBackend (see client/steamworks_remote_storage.rs).
+ * Triggers:
+ *   1. Allocate choice advanced / journey dirty flush
+ *   2. Manual force: **F6**
+ *   3. App exit (Last)
  *
- * Remote names (SDK):
+ * Optional SDK RemoteStorage names (when `steam` backend is live):
  *   - powrush_abundance_journey.json
  *   - powrush_lattice_flow_share.json
  *
- * TOLC 8 · no scarcity · Contact: info@Rathor.ai · Yoi ⚡
+ * TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
 
 use bevy::prelude::*;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use crate::abundance_journey_echo::AbundanceJourneyEcho;
 use crate::lattice_flow_share::LatticeFlowShare;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
-use crate::abundance_journey_echo::AbundanceJourneyEcho;
 
-pub const STEAM_STAGE_DIR: &str = "data/steam_stage";
+pub const ABUNDANCE_SUBDIR: &str = "steam_cloud/abundance";
 pub const REMOTE_JOURNEY: &str = "powrush_abundance_journey.json";
 pub const REMOTE_LATTICE: &str = "powrush_lattice_flow_share.json";
 
 const LOCAL_JOURNEY: &str = "data/powrush_abundance_journey.json";
 const LOCAL_LATTICE: &str = "data/powrush_lattice_flow_share.json";
 
-#[derive(Resource, Debug, Default)]
+/// Preferred OS Auto-Cloud stage root for abundance (mirrors partner audio path shape).
+pub fn preferred_abundance_stage_root() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(local) = std::env::var("LOCALAPPDATA") {
+            return Path::new(&local)
+                .join("Powrush-MMO")
+                .join("steam_cloud")
+                .join("abundance");
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("Powrush-MMO")
+                .join("steam_cloud")
+                .join("abundance");
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home)
+                .join(".local")
+                .join("share")
+                .join("Powrush-MMO")
+                .join("steam_cloud")
+                .join("abundance");
+        }
+    }
+    PathBuf::from(ABUNDANCE_SUBDIR)
+}
+
+#[derive(Resource, Debug)]
 pub struct SteamAbundanceMirror {
+    pub enabled: bool,
+    pub stage_root: PathBuf,
     pub last_staged_choices: u32,
     pub last_stage_ok: bool,
     pub last_note: Option<String>,
+    pub force_pending: bool,
+    pub exports: u32,
+}
+
+impl Default for SteamAbundanceMirror {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            stage_root: preferred_abundance_stage_root(),
+            last_staged_choices: 0,
+            last_stage_ok: false,
+            last_note: None,
+            force_pending: false,
+            exports: 0,
+        }
+    }
 }
 
 pub struct SteamAbundanceMirrorPlugin;
@@ -41,69 +98,134 @@ pub struct SteamAbundanceMirrorPlugin;
 impl Plugin for SteamAbundanceMirrorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SteamAbundanceMirror>()
-            .add_systems(Update, stage_abundance_blobs);
+            .add_systems(Startup, ensure_abundance_stage_dirs)
+            .add_systems(
+                Update,
+                (
+                    force_flush_key,
+                    auto_cloud_trigger_on_progress,
+                ),
+            )
+            .add_systems(Last, flush_on_exit_hint);
     }
 }
 
-fn stage_one(local: &str, remote_name: &str) -> Result<(), String> {
-    let bytes = fs::read(local).map_err(|e| format!("{local}: {e}"))?;
-    let dir = PathBuf::from(STEAM_STAGE_DIR);
-    let _ = fs::create_dir_all(&dir);
-    let dest = dir.join(remote_name);
-    fs::write(&dest, &bytes).map_err(|e| format!("{}: {e}", dest.display()))?;
+fn ensure_abundance_stage_dirs(mirror: Res<SteamAbundanceMirror>) {
+    let _ = fs::create_dir_all(&mirror.stage_root);
+    let _ = fs::create_dir_all(ABUNDANCE_SUBDIR);
+    info!(
+        target: "powrush::steam_autocloud",
+        stage = %mirror.stage_root.display(),
+        portable = ABUNDANCE_SUBDIR,
+        "Abundance Auto-Cloud stage directories ready"
+    );
+}
+
+fn atomic_stage_copy(src: &str, dest: &Path) -> Result<(), String> {
+    let bytes = fs::read(src).map_err(|e| format!("{src}: {e}"))?;
+    if let Some(parent) = dest.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let tmp = dest.with_extension("json.tmp");
+    fs::write(&tmp, &bytes).map_err(|e| format!("tmp {}: {e}", tmp.display()))?;
+    fs::rename(&tmp, dest).map_err(|e| format!("rename {}: {e}", dest.display()))?;
     Ok(())
 }
 
-fn stage_abundance_blobs(
+fn stage_all(mirror: &mut SteamAbundanceMirror) {
+    if !mirror.enabled {
+        return;
+    }
+
+    let os_journey = mirror.stage_root.join(REMOTE_JOURNEY);
+    let os_lattice = mirror.stage_root.join(REMOTE_LATTICE);
+    let portable_journey = PathBuf::from(ABUNDANCE_SUBDIR).join(REMOTE_JOURNEY);
+    let portable_lattice = PathBuf::from(ABUNDANCE_SUBDIR).join(REMOTE_LATTICE);
+
+    let mut notes = Vec::new();
+    let mut any_ok = false;
+
+    for (src, dest, label) in [
+        (LOCAL_JOURNEY, &os_journey, "journey/os"),
+        (LOCAL_JOURNEY, &portable_journey, "journey/portable"),
+        (LOCAL_LATTICE, &os_lattice, "lattice/os"),
+        (LOCAL_LATTICE, &portable_lattice, "lattice/portable"),
+    ] {
+        match atomic_stage_copy(src, dest) {
+            Ok(()) => {
+                notes.push(format!("{label}✓"));
+                any_ok = true;
+            }
+            Err(e) => {
+                notes.push(format!("{label}·"));
+                info!(target: "powrush::steam_autocloud", "{e}");
+            }
+        }
+    }
+
+    mirror.last_stage_ok = any_ok;
+    mirror.last_note = Some(notes.join(" "));
+    if any_ok {
+        mirror.exports = mirror.exports.saturating_add(1);
+        info!(
+            target: "powrush::steam_autocloud",
+            note = ?mirror.last_note,
+            exports = mirror.exports,
+            stage = %mirror.stage_root.display(),
+            "Auto-Cloud abundance trigger fired"
+        );
+    }
+}
+
+fn auto_cloud_trigger_on_progress(
     allocate: Res<RbeAllocateChoice>,
     echo: Res<AbundanceJourneyEcho>,
     lattice: Res<LatticeFlowShare>,
     mut mirror: ResMut<SteamAbundanceMirror>,
 ) {
-    // Stage when allocate advanced or journey dirtied (echo dirty already flushed to disk by then)
-    let should = allocate.choices_made > mirror.last_staged_choices
-        || (echo.is_changed() && allocate.choices_made > 0)
-        || (lattice.is_changed() && lattice.last_exported_choices > mirror.last_staged_choices);
-
-    if !should {
+    if !mirror.enabled {
         return;
     }
 
-    let mut ok = true;
-    let mut notes = Vec::new();
-
-    match stage_one(LOCAL_JOURNEY, REMOTE_JOURNEY) {
-        Ok(()) => notes.push("journey staged"),
-        Err(e) => {
-            // Journey may not exist yet — soft
-            notes.push("journey skip");
-            info!(target: "powrush::steam_stage", "{e}");
-        }
+    let force = mirror.force_pending;
+    if force {
+        mirror.force_pending = false;
     }
 
-    match stage_one(LOCAL_LATTICE, REMOTE_LATTICE) {
-        Ok(()) => notes.push("lattice staged"),
-        Err(e) => {
-            notes.push("lattice skip");
-            info!(target: "powrush::steam_stage", "{e}");
-            ok = false;
-        }
+    let progressed = allocate.choices_made > mirror.last_staged_choices
+        || (lattice.last_exported_choices > mirror.last_staged_choices)
+        || (echo.is_changed() && !echo.lines.is_empty());
+
+    if !force && !progressed {
+        return;
     }
 
+    stage_all(&mut mirror);
     if allocate.choices_made > 0 {
-        mirror.last_staged_choices = allocate.choices_made;
+        mirror.last_staged_choices = allocate.choices_made.max(lattice.last_exported_choices);
     }
-    mirror.last_stage_ok = ok || notes.iter().any(|n| n.contains("staged"));
-    mirror.last_note = Some(notes.join(", "));
+}
 
-    if mirror.last_stage_ok {
-        info!(
-            target: "powrush::steam_stage",
-            dir = STEAM_STAGE_DIR,
-            note = ?mirror.last_note,
-            "abundance blobs staged for Auto-Cloud / RemoteStorage"
-        );
+fn force_flush_key(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut mirror: ResMut<SteamAbundanceMirror>,
+) {
+    if keyboard.just_pressed(KeyCode::F6) {
+        mirror.force_pending = true;
+        info!(target: "powrush::steam_autocloud", "F6 — force Auto-Cloud abundance flush requested");
     }
+}
+
+/// Soft exit-path flush: when the window close is requested, stage once more.
+fn flush_on_exit_hint(
+    mut exit: EventReader<AppExit>,
+    mut mirror: ResMut<SteamAbundanceMirror>,
+) {
+    if exit.is_empty() {
+        return;
+    }
+    for _ in exit.read() {}
+    stage_all(&mut mirror);
 }
 
 #[cfg(test)]
@@ -114,5 +236,6 @@ mod tests {
     fn remote_names_stable() {
         assert_eq!(REMOTE_JOURNEY, "powrush_abundance_journey.json");
         assert_eq!(REMOTE_LATTICE, "powrush_lattice_flow_share.json");
+        assert_eq!(ABUNDANCE_SUBDIR, "steam_cloud/abundance");
     }
 }
