@@ -1,9 +1,11 @@
 /*!
- * Abundance Journey Echo — soft session memory for human play (v21.93.1)
+ * Abundance Journey Echo — soft session + durable memory (v21.93.2)
  *
  * Binds Living Practice seals and RBE allocate choices into a visible,
- * non-extractive journey log. Complements My Mercy Journey (F2) without
- * requiring hard LegacyJournal coupling on every host path.
+ * non-extractive journey log. Complements My Mercy Journey (F2).
+ *
+ * Persistence: local `data/powrush_abundance_journey.json` (sovereign offline).
+ * Loads on startup; saves when lines or allocate totals change.
  *
  * Toggle: **F4**
  *
@@ -11,22 +13,37 @@
  */
 
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 
 use crate::living_practice_loop::LivingPracticeLoop;
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
 
-#[derive(Debug, Clone)]
+const PERSIST_PATH: &str = "data/powrush_abundance_journey.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JourneyLine {
     pub text: String,
     pub kind: JourneyKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JourneyKind {
     PracticeSeal,
     FlowOutward,
     StewardReserve,
     Note,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct JourneyPersistBlob {
+    schema: String,
+    lines: Vec<JourneyLine>,
+    practice_sealed: bool,
+    flow_total: f32,
+    reserve_total: f32,
+    choices_made: u32,
 }
 
 #[derive(Resource, Debug, Default)]
@@ -35,6 +52,9 @@ pub struct AbundanceJourneyEcho {
     pub panel_open: bool,
     pub last_practice_sealed: bool,
     pub last_choices_seen: u32,
+    /// Dirty flag for soft disk write.
+    pub dirty: bool,
+    pub loaded: bool,
 }
 
 impl AbundanceJourneyEcho {
@@ -43,9 +63,33 @@ impl AbundanceJourneyEcho {
             text: text.into(),
             kind,
         });
-        // Keep soft — no grind log explosion
         if self.lines.len() > 24 {
             self.lines.remove(0);
+        }
+        self.dirty = true;
+    }
+}
+
+fn persist_path() -> PathBuf {
+    PathBuf::from(PERSIST_PATH)
+}
+
+fn load_blob() -> Option<JourneyPersistBlob> {
+    let path = persist_path();
+    let bytes = fs::read(&path).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn save_blob(blob: &JourneyPersistBlob) {
+    let path = persist_path();
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(blob) {
+        if let Err(e) = fs::write(&path, json) {
+            warn!(target: "powrush::journey", "journey persist write failed: {e}");
+        } else {
+            info!(target: "powrush::journey", path = %path.display(), "journey echo saved");
         }
     }
 }
@@ -61,7 +105,7 @@ pub struct AbundanceJourneyEchoPlugin;
 impl Plugin for AbundanceJourneyEchoPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AbundanceJourneyEcho>()
-            .add_systems(Startup, spawn_echo_panel)
+            .add_systems(Startup, (load_journey_persist, spawn_echo_panel).chain())
             .add_systems(
                 Update,
                 (
@@ -69,9 +113,64 @@ impl Plugin for AbundanceJourneyEchoPlugin {
                     toggle_echo_panel,
                     update_echo_visibility,
                     update_echo_body,
+                    save_journey_persist,
                 ),
             );
     }
+}
+
+fn load_journey_persist(
+    mut echo: ResMut<AbundanceJourneyEcho>,
+    mut allocate: ResMut<RbeAllocateChoice>,
+) {
+    if echo.loaded {
+        return;
+    }
+    echo.loaded = true;
+    if let Some(blob) = load_blob() {
+        if blob.schema.starts_with("powrush_abundance_journey") {
+            echo.lines = blob.lines;
+            echo.last_practice_sealed = blob.practice_sealed;
+            echo.last_choices_seen = blob.choices_made;
+            allocate.flow_total = blob.flow_total;
+            allocate.reserve_total = blob.reserve_total;
+            allocate.choices_made = blob.choices_made;
+            if blob.practice_sealed {
+                // Reflect sealed practice softly without forcing active strip
+                info!(target: "powrush::journey", "restored practice seal from disk");
+            }
+            info!(
+                target: "powrush::journey",
+                lines = echo.lines.len(),
+                flow = allocate.flow_total,
+                reserve = allocate.reserve_total,
+                "journey echo loaded"
+            );
+        }
+    }
+}
+
+fn save_journey_persist(
+    mut echo: ResMut<AbundanceJourneyEcho>,
+    allocate: Res<RbeAllocateChoice>,
+) {
+    // Also dirty when allocate totals change via external path
+    if allocate.is_changed() {
+        echo.dirty = true;
+    }
+    if !echo.dirty {
+        return;
+    }
+    let blob = JourneyPersistBlob {
+        schema: "powrush_abundance_journey_v1".into(),
+        lines: echo.lines.clone(),
+        practice_sealed: echo.last_practice_sealed,
+        flow_total: allocate.flow_total,
+        reserve_total: allocate.reserve_total,
+        choices_made: allocate.choices_made,
+    };
+    save_blob(&blob);
+    echo.dirty = false;
 }
 
 fn spawn_echo_panel(mut commands: Commands) {
@@ -120,7 +219,7 @@ fn spawn_echo_panel(mut commands: Commands) {
                 JourneyEchoBody,
             ));
             p.spawn(TextBundle::from_section(
-                "F4 toggle · soft session memory · TOLC 8",
+                "F4 toggle · soft durable memory · TOLC 8",
                 TextStyle {
                     font_size: 11.0,
                     color: Color::srgb(0.55, 0.68, 0.75),
@@ -231,5 +330,24 @@ mod tests {
             e.push(JourneyKind::Note, format!("n{i}"));
         }
         assert!(e.lines.len() <= 24);
+    }
+
+    #[test]
+    fn blob_roundtrip_shape() {
+        let blob = JourneyPersistBlob {
+            schema: "powrush_abundance_journey_v1".into(),
+            lines: vec![JourneyLine {
+                text: "test".into(),
+                kind: JourneyKind::Note,
+            }],
+            practice_sealed: true,
+            flow_total: 2.0,
+            reserve_total: 1.0,
+            choices_made: 3,
+        };
+        let json = serde_json::to_string(&blob).unwrap();
+        let back: JourneyPersistBlob = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.choices_made, 3);
+        assert!(back.practice_sealed);
     }
 }
