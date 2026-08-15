@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.92.1 human playability package
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.93 soft RBE allocate choice
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -36,6 +36,9 @@ pub mod living_practice_loop;
 /// Soft non-extractive joy toasts (Thriving Moments).
 pub mod thriving_moments;
 
+/// Soft RBE allocate choice: flow outward vs steward reserve.
+pub mod rbe_allocate_choice;
+
 // Re-exports
 pub use networking::NetworkingPlugin;
 pub use replication::ReplicationPlugin;
@@ -65,6 +68,7 @@ pub use living_practice_loop::{
     credit_practice_mercy_harvest,
 };
 pub use thriving_moments::{ThrivingMomentsPlugin, ThrivingMoments, ThrivingKind, fire_thriving};
+pub use rbe_allocate_choice::{RbeAllocateChoicePlugin, RbeAllocateChoice, AllocatePath};
 
 pub struct PowrushClientBundle;
 
@@ -84,6 +88,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(FirstSessionGuidancePlugin);
         app.add_plugins(ThrivingMomentsPlugin);
         app.add_plugins(LivingPracticeLoopPlugin);
+        app.add_plugins(RbeAllocateChoicePlugin);
         app.add_plugins(InputPlugin);
     }
 }
