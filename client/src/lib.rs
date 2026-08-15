@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.93.1 Abundance Journey Echo
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.93.3 lattice flow share
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -39,8 +39,11 @@ pub mod thriving_moments;
 /// Soft RBE allocate choice: flow outward vs steward reserve.
 pub mod rbe_allocate_choice;
 
-/// Soft session memory binding practice + allocate into a journey log.
+/// Soft session + durable memory binding practice + allocate into a journey log.
 pub mod abundance_journey_echo;
+
+/// Soft lattice flow share envelope for peer / Ra-Thor ingest.
+pub mod lattice_flow_share;
 
 // Re-exports
 pub use networking::NetworkingPlugin;
@@ -73,6 +76,7 @@ pub use living_practice_loop::{
 pub use thriving_moments::{ThrivingMomentsPlugin, ThrivingMoments, ThrivingKind, fire_thriving};
 pub use rbe_allocate_choice::{RbeAllocateChoicePlugin, RbeAllocateChoice, AllocatePath};
 pub use abundance_journey_echo::{AbundanceJourneyEchoPlugin, AbundanceJourneyEcho, JourneyKind};
+pub use lattice_flow_share::{LatticeFlowSharePlugin, LatticeFlowShare, LatticeFlowShareEnvelope};
 
 pub struct PowrushClientBundle;
 
@@ -94,6 +98,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(LivingPracticeLoopPlugin);
         app.add_plugins(RbeAllocateChoicePlugin);
         app.add_plugins(AbundanceJourneyEchoPlugin);
+        app.add_plugins(LatticeFlowSharePlugin);
         app.add_plugins(InputPlugin);
     }
 }
