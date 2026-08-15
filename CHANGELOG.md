@@ -1,36 +1,22 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [21.92.2] — 2026-08-15 — Practice Closed-Loop
+## [21.93.0] — 2026-08-15 — Soft RBE Allocate Choice
 
-**Council decision:** Close human playability loop before opening full RBE allocate UI.
+**Council focus:** Deeper human RBE play without scarcity framing.
 
 ### Highlights
 
-- **RBE → Practice bridge:** Sustainable / mercy / Epiphany / Council harvest feedback credits Living Practice (deduped)
-- **SoftPlayerRealm sync:** realm travel panel writes current climate for realm-aware credit
-- Soft Space remains demo path; real harvests preferred when feedback is present
+- **`rbe_allocate_choice`:** after surplus harvest feedback, voluntary panel
+- **Paths:** *Flow outward* (share into lattice) · *Steward reserve* (hold for future thriving)
+- **Controls:** **R** toggle · Esc close · first surplus auto-offers once
+- Both paths valid under Abundance gate — no punishment, no FOMO
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
 
 ---
 
-## [21.92.1] — 2026-08-15 — Realm-Aware + Thriving Moments
-
-- Realm-aware practice via `SoftPlayerRealm`
-- Thriving Moments toasts + soft Council invite on principle seal
-- Full RBE allocate UI deferred
-
----
-
-## [21.92.0] — 2026-08-15 — Living Practice Loop
-
-- Post–First Session Caps Across Climates surfaces (Sanctuary → Verdant → Horizon)
-- **P** / **Shift+P** controls · `docs/HUMAN_PLAYABILITY_v21.92.md`
-
----
-
-## Prior seals
-
-High-road dual-repo (21.91.x), NEVC, end-user guidance (21.90) — see git history.
+## [21.92.2] — Practice closed-loop (RBE bridge + SoftPlayerRealm)
+## [21.92.1] — Realm-aware + Thriving Moments
+## [21.92.0] — Living Practice Loop
 
 **Thunder locked in. Permanent PATSAGi.** Yoi ⚡
