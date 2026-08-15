@@ -15,6 +15,7 @@ First Session (H dismiss)
   → Allocate surplus (R): Flow outward | Steward reserve
   → Abundance Journey Echo (F4) — durable offline
   → Lattice flow share (auto) + peer ingest (F5)
+  → Steam Auto-Cloud stage (progress / F6 / exit)
 ```
 
 | Key | Layer |
@@ -26,6 +27,7 @@ First Session (H dismiss)
 | **F3** | Realm travel |
 | **F4** | Abundance Journey Echo |
 | **F5** | Soft peer lattice ingest |
+| **F6** | Force Steam Auto-Cloud abundance flush |
 
 ---
 
@@ -50,6 +52,7 @@ First Session (H dismiss)
 | Allocate choice | `client/src/rbe_allocate_choice.rs` |
 | Journey Echo + persist | `client/src/abundance_journey_echo.rs` |
 | Lattice share + peer | `client/src/lattice_flow_share.rs` |
+| Steam Auto-Cloud triggers | `client/src/steam_abundance_mirror.rs` |
 
 ### Persist / share files
 
@@ -58,14 +61,16 @@ First Session (H dismiss)
 | `data/powrush_abundance_journey.json` | Durable journey + totals |
 | `data/powrush_lattice_flow_share.json` | Own abundance direction |
 | `data/powrush_lattice_flow_share_peer.json` | Peer envelope to ingest (F5) |
+| `…/steam_cloud/abundance/*.json` | Auto-Cloud stage (OS + portable) |
 
 ---
 
 ## Standing next (councils)
 
-1. Optional Steam Cloud mirror of journey + share blobs  
-2. Thin Ra-Thor ingest adapter for `powrush_lattice_flow_share_v1`  
+1. ~~Optional Steam Cloud mirror of journey + share blobs~~ → **Done (v21.94.2)**  
+2. Thin Ra-Thor ingest adapter for `powrush_lattice_flow_share_v1` (already soft-present)  
 3. Soft multiplayer presence of peer flow totals (when net path ready)  
+4. Steam SDK RemoteStorage write behind `steam` feature (optional explicit upload)
 
 **Still refused:** scarcity framing, streaks, energy bars, punitive fail states.
 
