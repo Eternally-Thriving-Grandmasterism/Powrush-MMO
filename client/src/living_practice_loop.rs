@@ -1,5 +1,6 @@
 /*!
  * Living Practice Loop — Human playability layer (post first-session)
+ * v21.92.1 — Realm-aware credit · Thriving Moments · soft Council invite
  *
  * After the soft first-session strip reaches Free Exploration, this loop
  * invites the player into *Caps Across Climates* — the same high-road
@@ -12,6 +13,7 @@
  * - No FOMO timers, no paywalls, no punitive failure
  * - Progress is presence + mercy-aligned action, not grind counters
  * - Mirrors simulation CrossRealmChallenge id=1 for dual-repo coherence
+ * - When RealmPresence exists, harvest credit requires matching climate realm
  *
  * AG-SML v1.0 | Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -20,6 +22,7 @@
 use bevy::prelude::*;
 
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
+use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
 /// Which climate-surface of Caps Across Climates the player is practicing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,6 +97,9 @@ pub struct LivingPracticeLoop {
     pub principle_sealed: bool,
     /// Soft celebration pulse when a surface clears.
     pub celebrate_until: f64,
+    /// When true, Space credits only if realm matches (or presence unknown).
+    pub realm_aware: bool,
+    pub last_realm_mismatch_hint_at: f64,
 }
 
 impl Default for LivingPracticeLoop {
@@ -107,6 +113,8 @@ impl Default for LivingPracticeLoop {
             surfaces_cleared: 0,
             principle_sealed: false,
             celebrate_until: 0.0,
+            realm_aware: true,
+            last_realm_mismatch_hint_at: -999.0,
         }
     }
 }
@@ -121,7 +129,6 @@ impl LivingPracticeLoop {
         if self.dismissed || self.active || self.principle_sealed {
             return;
         }
-        // Hand-off only once first-session reaches free exploration (or was dismissed after real play)
         let ready = matches!(guidance.objective, GuidanceObjective::FreeExploration)
             || (guidance.dismissed && guidance.harvests_completed >= 1);
         if ready {
@@ -132,9 +139,10 @@ impl LivingPracticeLoop {
     }
 
     /// Credit a harvest that was taken with mercy (caller decides mercy).
-    pub fn credit_mercy_harvest(&mut self, now_secs: f64) {
+    /// Returns true if progress was applied.
+    pub fn credit_mercy_harvest(&mut self, now_secs: f64) -> bool {
         if !self.active || self.dismissed || self.principle_sealed {
-            return;
+            return false;
         }
         self.mercy_harvests_on_surface = self.mercy_harvests_on_surface.saturating_add(1);
         if self.mercy_harvests_on_surface >= self.harvests_needed {
@@ -145,6 +153,20 @@ impl LivingPracticeLoop {
             if matches!(self.surface, PracticeSurface::PrincipleSealed) {
                 self.principle_sealed = true;
             }
+        }
+        true
+    }
+
+    /// Realm-aware gate: if presence is known and realm_aware, require match.
+    pub fn allows_credit(&self, player_realm: Option<u8>) -> bool {
+        if !self.realm_aware {
+            return true;
+        }
+        match (self.surface.realm_id(), player_realm) {
+            (Some(need), Some(have)) => need == have,
+            // Demo / no presence component → soft allow
+            (Some(_), None) => true,
+            (None, _) => false,
         }
     }
 }
@@ -224,12 +246,10 @@ fn handle_practice_toggle(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut practice: ResMut<LivingPracticeLoop>,
 ) {
-    // P toggles practice strip; Shift+P dismisses for the session
     if keyboard.just_pressed(KeyCode::KeyP) {
         if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
             practice.dismiss();
         } else if practice.principle_sealed {
-            // Already sealed — soft re-show sealed message
             practice.active = !practice.active;
         } else if !practice.dismissed {
             practice.active = !practice.active;
@@ -242,7 +262,6 @@ fn update_practice_visibility(
     guidance: Res<FirstSessionGuidance>,
     mut query: Query<&mut Visibility, With<LivingPracticeStrip>>,
 ) {
-    // Prefer not to fight the first-session strip
     let guidance_showing = guidance.active && !guidance.dismissed;
     let show = practice.active && !practice.dismissed && !guidance_showing;
     for mut vis in &mut query {
@@ -294,23 +313,83 @@ fn update_practice_text(
 }
 
 /// Soft credit path when Space is used during an active practice surface.
-/// Real harvest systems should call `credit_mercy_harvest` for authoritative progress.
 fn soft_space_harvest_credit(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut practice: ResMut<LivingPracticeLoop>,
+    mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
+    // Optional: local player realm from simulation component when present
+    presence: Query<&simulation::multi_realm_harness::RealmPresence>,
 ) {
     if !practice.active || practice.dismissed || practice.principle_sealed {
         return;
     }
-    if keyboard.just_pressed(KeyCode::Space) {
-        practice.credit_mercy_harvest(time.elapsed_seconds_f64());
+    if !keyboard.just_pressed(KeyCode::Space) {
+        return;
+    }
+
+    let player_realm = presence
+        .iter()
+        .next()
+        .map(|p| p.current_realm_id);
+
+    if !practice.allows_credit(player_realm) {
+        let now = time.elapsed_seconds_f64();
+        if now - practice.last_realm_mismatch_hint_at > 6.0 {
+            practice.last_realm_mismatch_hint_at = now;
+            if let Some(need) = practice.surface.realm_id() {
+                info!(
+                    target: "powrush::practice",
+                    need_realm = need,
+                    have = ?player_realm,
+                    "Practice surface wants another climate — travel when ready"
+                );
+            }
+        }
+        return;
+    }
+
+    let now = time.elapsed_seconds_f64();
+    let before_surface = practice.surface;
+    let before_sealed = practice.principle_sealed;
+    if practice.credit_mercy_harvest(now) {
+        fire_thriving(&mut moments, ThrivingKind::FirstMercyHarvest, now);
+        if practice.surface != before_surface || practice.surfaces_cleared > 0 {
+            if !matches!(before_surface, PracticeSurface::PrincipleSealed) {
+                fire_thriving(&mut moments, ThrivingKind::SurfaceCleared, now);
+            }
+        }
+        if practice.principle_sealed && !before_sealed {
+            fire_thriving(&mut moments, ThrivingKind::PrincipleSealed, now);
+            fire_thriving(&mut moments, ThrivingKind::CouncilInvite, now);
+        }
     }
 }
 
 /// Call from real harvest success when the action was mercy-aligned.
-pub fn credit_practice_mercy_harvest(practice: &mut LivingPracticeLoop, now_secs: f64) {
-    practice.credit_mercy_harvest(now_secs);
+pub fn credit_practice_mercy_harvest(
+    practice: &mut LivingPracticeLoop,
+    moments: &mut ThrivingMoments,
+    now_secs: f64,
+    player_realm: Option<u8>,
+) -> bool {
+    if !practice.allows_credit(player_realm) {
+        return false;
+    }
+    let before_sealed = practice.principle_sealed;
+    let before_surface = practice.surface;
+    if !practice.credit_mercy_harvest(now_secs) {
+        return false;
+    }
+    fire_thriving(moments, ThrivingKind::FirstMercyHarvest, now_secs);
+    if practice.surface != before_surface {
+        fire_thriving(moments, ThrivingKind::SurfaceCleared, now_secs);
+    }
+    if practice.principle_sealed && !before_sealed {
+        fire_thriving(moments, ThrivingKind::PrincipleSealed, now_secs);
+        fire_thriving(moments, ThrivingKind::CouncilInvite, now_secs);
+    }
+    true
 }
 
 #[cfg(test)]
@@ -322,16 +401,29 @@ mod tests {
         let mut loop_ = LivingPracticeLoop::default();
         loop_.active = true;
         assert_eq!(loop_.surface, PracticeSurface::SanctuaryCap);
-        loop_.credit_mercy_harvest(1.0);
-        loop_.credit_mercy_harvest(2.0);
+        assert!(loop_.credit_mercy_harvest(1.0));
+        assert!(loop_.credit_mercy_harvest(2.0));
         assert_eq!(loop_.surface, PracticeSurface::VerdantSurge);
-        loop_.credit_mercy_harvest(3.0);
-        loop_.credit_mercy_harvest(4.0);
+        assert!(loop_.credit_mercy_harvest(3.0));
+        assert!(loop_.credit_mercy_harvest(4.0));
         assert_eq!(loop_.surface, PracticeSurface::HorizonScarcity);
-        loop_.credit_mercy_harvest(5.0);
-        loop_.credit_mercy_harvest(6.0);
+        assert!(loop_.credit_mercy_harvest(5.0));
+        assert!(loop_.credit_mercy_harvest(6.0));
         assert!(loop_.principle_sealed);
         assert_eq!(loop_.surface, PracticeSurface::PrincipleSealed);
+    }
+
+    #[test]
+    fn realm_aware_blocks_mismatch() {
+        let loop_ = LivingPracticeLoop {
+            active: true,
+            surface: PracticeSurface::SanctuaryCap,
+            realm_aware: true,
+            ..Default::default()
+        };
+        assert!(loop_.allows_credit(None)); // demo soft allow
+        assert!(loop_.allows_credit(Some(0)));
+        assert!(!loop_.allows_credit(Some(2)));
     }
 
     #[test]
@@ -339,7 +431,7 @@ mod tests {
         let mut loop_ = LivingPracticeLoop::default();
         loop_.active = true;
         loop_.dismiss();
-        loop_.credit_mercy_harvest(1.0);
+        assert!(!loop_.credit_mercy_harvest(1.0));
         assert_eq!(loop_.mercy_harvests_on_surface, 0);
     }
 }
