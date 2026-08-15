@@ -13,12 +13,22 @@
   "steam_cloud": {
     "enabled_for_app": true,
     "byte_quota_recommended": 104857600,
-    "byte_quota_note": "100 MB is more than enough for recipe JSON catalogs. Default partner quota is often 1 GB.",
+    "byte_quota_note": "100 MB is more than enough for recipe JSON + abundance blobs. Default partner quota is often 1 GB.",
     "remote_storage_files": [
       {
         "name": "catalog_cloud_v1.json",
         "purpose": "Audio moment recipe catalog (ISteamRemoteStorage FileWrite/FileRead)",
         "max_expected_bytes": 2097152
+      },
+      {
+        "name": "powrush_abundance_journey.json",
+        "purpose": "Durable Abundance Journey Echo + allocate totals",
+        "max_expected_bytes": 65536
+      },
+      {
+        "name": "powrush_lattice_flow_share.json",
+        "purpose": "Soft lattice flow/reserve share envelope (peer + Ra-Thor ingest)",
+        "max_expected_bytes": 16384
       }
     ]
   },
@@ -55,6 +65,36 @@
         "recursive": true,
         "platforms": ["windows", "macos", "linux"],
         "note": "Fallback when the game stages next to the install root (dev / portable)."
+      },
+      {
+        "root": "WinAppDataLocal",
+        "subdirectory": "Powrush-MMO/steam_cloud/abundance",
+        "pattern": "*.json",
+        "recursive": true,
+        "platforms": ["windows"],
+        "note": "Abundance Journey + lattice flow share (v21.94.2 triggers)."
+      },
+      {
+        "root": "MacAppSupport",
+        "subdirectory": "Powrush-MMO/steam_cloud/abundance",
+        "pattern": "*.json",
+        "recursive": true,
+        "platforms": ["macos"]
+      },
+      {
+        "root": "LinuxHome",
+        "subdirectory": ".local/share/Powrush-MMO/steam_cloud/abundance",
+        "pattern": "*.json",
+        "recursive": true,
+        "platforms": ["linux"]
+      },
+      {
+        "root": "AppInstallDirectory",
+        "subdirectory": "steam_cloud/abundance",
+        "pattern": "*.json",
+        "recursive": true,
+        "platforms": ["windows", "macos", "linux"],
+        "note": "Portable abundance stage beside install root."
       }
     ]
   },
@@ -62,7 +102,8 @@
   "do_not_cloud_sync": [
     "player_data/audio_moments/rendered/**",
     "assets/audio/**",
-    "steam_appid.txt"
+    "steam_appid.txt",
+    "data/**"
   ],
 
   "partner_checklist": {
@@ -79,6 +120,7 @@
       "actions": [
         "Add each rule from auto_cloud.rules above",
         "Verify Root / Subdirectory / Pattern match exactly",
+        "Include abundance rules (Powrush-MMO/steam_cloud/abundance)",
         "Save / Publish"
       ]
     },
