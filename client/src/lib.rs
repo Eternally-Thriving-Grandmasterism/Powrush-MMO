@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.92 human playability (Living Practice Loop)
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.92.1 human playability package
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -33,6 +33,9 @@ pub mod first_session_guidance;
 /// Post-onboarding high-road practice (Caps Across Climates surfaces).
 pub mod living_practice_loop;
 
+/// Soft non-extractive joy toasts (Thriving Moments).
+pub mod thriving_moments;
+
 // Re-exports
 pub use networking::NetworkingPlugin;
 pub use replication::ReplicationPlugin;
@@ -57,7 +60,11 @@ pub use webxr_bootstrap::PowrushWebXrClient;
 
 pub use example_gpu_material::GpuVisualMaterialsPlugin;
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance, credit_harvest, credit_epiphany};
-pub use living_practice_loop::{LivingPracticeLoopPlugin, LivingPracticeLoop, PracticeSurface, credit_practice_mercy_harvest};
+pub use living_practice_loop::{
+    LivingPracticeLoopPlugin, LivingPracticeLoop, PracticeSurface, SoftPlayerRealm,
+    credit_practice_mercy_harvest,
+};
+pub use thriving_moments::{ThrivingMomentsPlugin, ThrivingMoments, ThrivingKind, fire_thriving};
 
 pub struct PowrushClientBundle;
 
@@ -75,6 +82,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(RbeUiFeedbackPlugin);
         app.add_plugins(GpuVisualMaterialsPlugin);
         app.add_plugins(FirstSessionGuidancePlugin);
+        app.add_plugins(ThrivingMomentsPlugin);
         app.add_plugins(LivingPracticeLoopPlugin);
         app.add_plugins(InputPlugin);
     }
