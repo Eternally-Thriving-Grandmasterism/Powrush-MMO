@@ -1,6 +1,6 @@
 /*!
  * Realm Travel Panel — Titles + Soft Bonuses + Affinity + Button Hints
- * v21.62.0
+ * v21.92.2 — SoftPlayerRealm feed for Living Practice climate match
  *
  * Toggle with F3. Lists the five seeded realms.
  * Shows current realm, living title, soft title bonuses, attunement,
@@ -16,6 +16,7 @@ use simulation::multi_realm_harness::{
     OriginProvenanceObservatory, origin_affinity_label, origin_affinity_mult,
 };
 use simulation::world::AgentId;
+use crate::living_practice_loop::SoftPlayerRealm;
 
 #[derive(Component)]
 pub struct RealmTravelPanel;
@@ -185,7 +186,6 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                 LivingTitleText,
             ));
 
-            // Soft title bonuses (v21.62 — Council decision)
             parent.spawn((
                 TextBundle {
                     text: Text::from_section(
@@ -365,6 +365,7 @@ fn handle_travel_button_clicks(
 fn update_travel_panel_current_realm(
     presence_query: Query<(&RealmPresence, Option<&RealmAttunement>), With<LocalPlayer>>,
     origin_obs: Option<Res<OriginProvenanceObservatory>>,
+    mut soft_realm: Option<ResMut<SoftPlayerRealm>>,
     mut current_text_query: Query<&mut Text, With<CurrentRealmText>>,
     mut title_text_query: Query<&mut Text, With<LivingTitleText>>,
     mut bonus_text_query: Query<&mut Text, With<TitleBonusText>>,
@@ -377,6 +378,11 @@ fn update_travel_panel_current_realm(
         .get_single()
         .map(|(p, a)| (p.current_realm_id, a))
         .unwrap_or((0, None));
+
+    // v21.92.2 — feed Living Practice realm-aware credit
+    if let Some(ref mut sr) = soft_realm {
+        sr.current = Some(current_realm);
+    }
 
     let realm_name = match current_realm {
         0 => "Sanctuary Prime",
@@ -397,7 +403,6 @@ fn update_travel_panel_current_realm(
             text.sections[0].value = title.clone();
         }
 
-        // Soft title bonuses — only surface when above baseline (no empty noise)
         let bonus = att.title_bonus(current_realm);
         for mut text in &mut bonus_text_query {
             if bonus.attunement_gain_mult > 1.001 || bonus.resonance_whisper > 0.0001 {
@@ -510,6 +515,6 @@ fn update_travel_panel_current_realm(
     }
 }
 
-// End of client/src/realm_travel_panel.rs v21.62.0
-// Title soft bonuses visible — meaning loop closed.
+// End of client/src/realm_travel_panel.rs v21.92.2
+// SoftPlayerRealm synced for Living Practice climate match.
 // Thunder locked in. Yoi ⚡
