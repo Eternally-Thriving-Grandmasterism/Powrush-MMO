@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.93 soft RBE allocate choice
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.93.1 Abundance Journey Echo
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -39,6 +39,9 @@ pub mod thriving_moments;
 /// Soft RBE allocate choice: flow outward vs steward reserve.
 pub mod rbe_allocate_choice;
 
+/// Soft session memory binding practice + allocate into a journey log.
+pub mod abundance_journey_echo;
+
 // Re-exports
 pub use networking::NetworkingPlugin;
 pub use replication::ReplicationPlugin;
@@ -69,6 +72,7 @@ pub use living_practice_loop::{
 };
 pub use thriving_moments::{ThrivingMomentsPlugin, ThrivingMoments, ThrivingKind, fire_thriving};
 pub use rbe_allocate_choice::{RbeAllocateChoicePlugin, RbeAllocateChoice, AllocatePath};
+pub use abundance_journey_echo::{AbundanceJourneyEchoPlugin, AbundanceJourneyEcho, JourneyKind};
 
 pub struct PowrushClientBundle;
 
@@ -89,6 +93,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(ThrivingMomentsPlugin);
         app.add_plugins(LivingPracticeLoopPlugin);
         app.add_plugins(RbeAllocateChoicePlugin);
+        app.add_plugins(AbundanceJourneyEchoPlugin);
         app.add_plugins(InputPlugin);
     }
 }
