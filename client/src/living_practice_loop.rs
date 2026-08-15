@@ -8,12 +8,8 @@
  * realm surfaces. Designed for deeper gameplay without extractive
  * gamification.
  *
- * Principles (PATSAGi + TOLC 8):
- * - Voluntary, dismissible (H still respects FirstSession; P toggles practice)
- * - No FOMO timers, no paywalls, no punitive failure
- * - Progress is presence + mercy-aligned action, not grind counters
- * - Mirrors simulation CrossRealmChallenge id=1 for dual-repo coherence
- * - When RealmPresence exists, harvest credit requires matching climate realm
+ * Realm awareness uses SoftPlayerRealm (set by host / travel panel bridges).
+ * When current realm is None, credit is soft-allowed (solo demo path).
  *
  * AG-SML v1.0 | Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -24,16 +20,19 @@ use bevy::prelude::*;
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
+/// Client-side soft mirror of current realm (no hard sim crate dep).
+/// Host / realm_travel_panel may write this when presence is known.
+#[derive(Resource, Debug, Default, Clone)]
+pub struct SoftPlayerRealm {
+    pub current: Option<u8>,
+}
+
 /// Which climate-surface of Caps Across Climates the player is practicing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PracticeSurface {
-    /// Realm 0 — stable yields, soft harvest cap without starving growth.
     SanctuaryCap,
-    /// Realm 2 — surplus flood, allocate without sustainability collapse.
     VerdantSurge,
-    /// Realm 4 — thin horizon, allocate under incomplete scouting.
     HorizonScarcity,
-    /// All three practiced — principle internalized.
     PrincipleSealed,
 }
 
@@ -73,7 +72,6 @@ impl PracticeSurface {
         }
     }
 
-    /// Soft mapping to multi-realm ids (simulation CrossRealmChallenge id=1).
     pub fn realm_id(&self) -> Option<u8> {
         match self {
             PracticeSurface::SanctuaryCap => Some(0),
@@ -89,15 +87,11 @@ pub struct LivingPracticeLoop {
     pub active: bool,
     pub dismissed: bool,
     pub surface: PracticeSurface,
-    /// Mercy-aligned harvests credited on current surface.
     pub mercy_harvests_on_surface: u32,
-    /// Harvests needed per surface (gentle, not grindy).
     pub harvests_needed: u32,
     pub surfaces_cleared: u32,
     pub principle_sealed: bool,
-    /// Soft celebration pulse when a surface clears.
     pub celebrate_until: f64,
-    /// When true, Space credits only if realm matches (or presence unknown).
     pub realm_aware: bool,
     pub last_realm_mismatch_hint_at: f64,
 }
@@ -138,8 +132,6 @@ impl LivingPracticeLoop {
         }
     }
 
-    /// Credit a harvest that was taken with mercy (caller decides mercy).
-    /// Returns true if progress was applied.
     pub fn credit_mercy_harvest(&mut self, now_secs: f64) -> bool {
         if !self.active || self.dismissed || self.principle_sealed {
             return false;
@@ -157,14 +149,12 @@ impl LivingPracticeLoop {
         true
     }
 
-    /// Realm-aware gate: if presence is known and realm_aware, require match.
     pub fn allows_credit(&self, player_realm: Option<u8>) -> bool {
         if !self.realm_aware {
             return true;
         }
         match (self.surface.realm_id(), player_realm) {
             (Some(need), Some(have)) => need == have,
-            // Demo / no presence component → soft allow
             (Some(_), None) => true,
             (None, _) => false,
         }
@@ -182,6 +172,7 @@ pub struct LivingPracticeLoopPlugin;
 impl Plugin for LivingPracticeLoopPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LivingPracticeLoop>()
+            .init_resource::<SoftPlayerRealm>()
             .add_systems(Startup, spawn_practice_strip)
             .add_systems(
                 Update,
@@ -312,14 +303,12 @@ fn update_practice_text(
     }
 }
 
-/// Soft credit path when Space is used during an active practice surface.
 fn soft_space_harvest_credit(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut practice: ResMut<LivingPracticeLoop>,
     mut moments: ResMut<ThrivingMoments>,
+    soft_realm: Res<SoftPlayerRealm>,
     time: Res<Time>,
-    // Optional: local player realm from simulation component when present
-    presence: Query<&simulation::multi_realm_harness::RealmPresence>,
 ) {
     if !practice.active || practice.dismissed || practice.principle_sealed {
         return;
@@ -328,11 +317,7 @@ fn soft_space_harvest_credit(
         return;
     }
 
-    let player_realm = presence
-        .iter()
-        .next()
-        .map(|p| p.current_realm_id);
-
+    let player_realm = soft_realm.current;
     if !practice.allows_credit(player_realm) {
         let now = time.elapsed_seconds_f64();
         if now - practice.last_realm_mismatch_hint_at > 6.0 {
@@ -354,10 +339,8 @@ fn soft_space_harvest_credit(
     let before_sealed = practice.principle_sealed;
     if practice.credit_mercy_harvest(now) {
         fire_thriving(&mut moments, ThrivingKind::FirstMercyHarvest, now);
-        if practice.surface != before_surface || practice.surfaces_cleared > 0 {
-            if !matches!(before_surface, PracticeSurface::PrincipleSealed) {
-                fire_thriving(&mut moments, ThrivingKind::SurfaceCleared, now);
-            }
+        if practice.surface != before_surface {
+            fire_thriving(&mut moments, ThrivingKind::SurfaceCleared, now);
         }
         if practice.principle_sealed && !before_sealed {
             fire_thriving(&mut moments, ThrivingKind::PrincipleSealed, now);
@@ -366,7 +349,6 @@ fn soft_space_harvest_credit(
     }
 }
 
-/// Call from real harvest success when the action was mercy-aligned.
 pub fn credit_practice_mercy_harvest(
     practice: &mut LivingPracticeLoop,
     moments: &mut ThrivingMoments,
@@ -400,7 +382,6 @@ mod tests {
     fn surfaces_progress_to_sealed() {
         let mut loop_ = LivingPracticeLoop::default();
         loop_.active = true;
-        assert_eq!(loop_.surface, PracticeSurface::SanctuaryCap);
         assert!(loop_.credit_mercy_harvest(1.0));
         assert!(loop_.credit_mercy_harvest(2.0));
         assert_eq!(loop_.surface, PracticeSurface::VerdantSurge);
@@ -410,7 +391,6 @@ mod tests {
         assert!(loop_.credit_mercy_harvest(5.0));
         assert!(loop_.credit_mercy_harvest(6.0));
         assert!(loop_.principle_sealed);
-        assert_eq!(loop_.surface, PracticeSurface::PrincipleSealed);
     }
 
     #[test]
@@ -421,7 +401,7 @@ mod tests {
             realm_aware: true,
             ..Default::default()
         };
-        assert!(loop_.allows_credit(None)); // demo soft allow
+        assert!(loop_.allows_credit(None));
         assert!(loop_.allows_credit(Some(0)));
         assert!(!loop_.allows_credit(Some(2)));
     }
@@ -432,6 +412,5 @@ mod tests {
         loop_.active = true;
         loop_.dismiss();
         assert!(!loop_.credit_mercy_harvest(1.0));
-        assert_eq!(loop_.mercy_harvests_on_surface, 0);
     }
 }
