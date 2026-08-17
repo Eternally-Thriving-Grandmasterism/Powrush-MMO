@@ -1,5 +1,18 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [21.94.3] — 2026-08-17 — Soft-Policy High-SNR Doctrine (Mission A)
+
+### Added
+- [`docs/RA_THOR_SOFT_POLICY_SNR.md`](docs/RA_THOR_SOFT_POLICY_SNR.md) — high-SNR emission/reception rules for Ra-Thor → Powrush soft policy
+- Transfer path verification checklist (telemetry → deliberation → hints → SoftPolicyState)
+
+### Principle
+Prefer sparse pure-signal PolicyHints (high `mercy_factor`, clear rationale, ≤3 per envelope) over dense low-SNR flooding. Aligns with Ra-Thor SNR External Truth + TOLC 8 Restraint. Soft, non-authoritative loop unchanged.
+
+Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
+
+---
+
 ## [21.94.2] — 2026-08-15 — Steam Auto-Cloud Abundance Triggers
 
 ### Highlights
