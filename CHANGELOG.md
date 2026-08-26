@@ -1,5 +1,23 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [21.95.1] — 2026-08-26 — Resonance Flavors (Soft Asymmetric Mastery)
+
+### Highlights
+
+- New module **`client/src/resonance_flavors.rs`** (cycle **F8**)
+- Three free-choice resonances: **Balanced Flow** · **Durable Steward** · **Adaptive Horizon**
+- Dune II house asymmetry adapted to RBE/mercy — distinct feeling, zero lock-in
+- Soft-tints Living Practice strip · appears on Foundation Lattice · Journey Echo notes shifts
+- Soft allocate *hints* only (never forces path)
+
+### Design law preserved
+
+Asymmetry without division · voluntary mastery · never scarcity.
+
+Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
+
+---
+
 ## [21.95.0] — 2026-08-26 — Foundation Lattice (Educational Mastery Surface)
 
 ### Highlights
