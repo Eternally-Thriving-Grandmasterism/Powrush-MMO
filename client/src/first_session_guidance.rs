@@ -1,27 +1,23 @@
 /*!
  * First Session Guidance — Powrush-MMO End-User Experience Layer
+ * v21.97.1 — Aligned with mainstream locomotion (Space=jump · E=interact)
  *
- * Soft, non-blocking objective strip that makes the first 5–15 minutes of
- * human play instantly clear without walls of text or forced tutorials.
+ * Soft, non-blocking objective strip for the first 5–15 minutes.
+ * Progressive disclosure · dismissible (H) · never blocks movement or joy.
  *
- * Principles (PATSAGi + TOLC 8):
- * - Progressive disclosure only
- * - Dismissible at any time (mercy skip)
- * - Never blocks movement, harvest, or joy
- * - Language-aware via Localization keys when available
- *
- * AG-SML v1.0 | Contact: info@Rathor.ai
- * Thunder locked in. Yoi ⚡
+ * AG-SML v1.0 | Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
+
+use crate::soft_play_bindings;
 
 /// Soft objective the player is gently invited to try next.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GuidanceObjective {
     MoveAround,
     ApproachGlowingNode,
-    HarvestWithSpace,
+    HarvestWithInteract,
     OpenInventory,
     FeelFirstEpiphany,
     MeetCouncilWhisper,
@@ -31,21 +27,33 @@ pub enum GuidanceObjective {
 impl GuidanceObjective {
     pub fn prompt(&self) -> &'static str {
         match self {
-            GuidanceObjective::MoveAround => "WASD or Arrow keys to walk · feel the Lattice",
-            GuidanceObjective::ApproachGlowingNode => "Walk toward the soft glowing harvest node",
-            GuidanceObjective::HarvestWithSpace => "Press Space near the node to harvest with mercy",
+            GuidanceObjective::MoveAround => {
+                "WASD to walk · Space to jump · Shift to sprint · feel the Lattice"
+            }
+            GuidanceObjective::ApproachGlowingNode => {
+                "Walk toward the soft glowing harvest node"
+            }
+            GuidanceObjective::HarvestWithInteract => {
+                "Press E near the node to harvest with mercy"
+            }
             GuidanceObjective::OpenInventory => "Press I to open your inventory & hotbar",
-            GuidanceObjective::FeelFirstEpiphany => "Stay present — a Divine Whisper may bloom",
-            GuidanceObjective::MeetCouncilWhisper => "Listen for the Council’s first soft invitation",
-            GuidanceObjective::FreeExploration => "You are sovereign. Explore, nurture, thrive.",
+            GuidanceObjective::FeelFirstEpiphany => {
+                "Stay present — a Divine Whisper may bloom"
+            }
+            GuidanceObjective::MeetCouncilWhisper => {
+                "Listen for the Council’s first soft invitation"
+            }
+            GuidanceObjective::FreeExploration => {
+                "You are sovereign. Explore, nurture, thrive."
+            }
         }
     }
 
     pub fn next(&self) -> Self {
         match self {
             GuidanceObjective::MoveAround => GuidanceObjective::ApproachGlowingNode,
-            GuidanceObjective::ApproachGlowingNode => GuidanceObjective::HarvestWithSpace,
-            GuidanceObjective::HarvestWithSpace => GuidanceObjective::OpenInventory,
+            GuidanceObjective::ApproachGlowingNode => GuidanceObjective::HarvestWithInteract,
+            GuidanceObjective::HarvestWithInteract => GuidanceObjective::OpenInventory,
             GuidanceObjective::OpenInventory => GuidanceObjective::FeelFirstEpiphany,
             GuidanceObjective::FeelFirstEpiphany => GuidanceObjective::MeetCouncilWhisper,
             GuidanceObjective::MeetCouncilWhisper => GuidanceObjective::FreeExploration,
@@ -94,10 +102,12 @@ impl FirstSessionGuidance {
         let should_advance = match self.objective {
             GuidanceObjective::MoveAround => self.moved_distance > 4.0,
             GuidanceObjective::ApproachGlowingNode => self.moved_distance > 12.0,
-            GuidanceObjective::HarvestWithSpace => self.harvests_completed >= 1,
+            GuidanceObjective::HarvestWithInteract => self.harvests_completed >= 1,
             GuidanceObjective::OpenInventory => self.inventory_opened,
             GuidanceObjective::FeelFirstEpiphany => self.epiphany_felt,
-            GuidanceObjective::MeetCouncilWhisper => self.epiphany_felt && self.harvests_completed >= 1,
+            GuidanceObjective::MeetCouncilWhisper => {
+                self.epiphany_felt && self.harvests_completed >= 1
+            }
             GuidanceObjective::FreeExploration => false,
         };
         if should_advance {
@@ -206,13 +216,11 @@ fn handle_guidance_dismiss_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
 ) {
-    // H hides the strip permanently for this session (mercy skip)
     if keyboard.just_pressed(KeyCode::KeyH) && guidance.active {
         guidance.dismiss();
     }
 }
 
-/// Lightweight progress signals that do not require deep system coupling.
 fn track_simple_progress_signals(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
@@ -239,10 +247,11 @@ fn track_simple_progress_signals(
         guidance.inventory_opened = true;
     }
 
-    if keyboard.just_pressed(KeyCode::Space)
+    // Interact key (E) credits soft harvest during harvest guidance stages
+    if keyboard.just_pressed(soft_play_bindings::INTERACT)
         && matches!(
             guidance.objective,
-            GuidanceObjective::HarvestWithSpace | GuidanceObjective::ApproachGlowingNode
+            GuidanceObjective::HarvestWithInteract | GuidanceObjective::ApproachGlowingNode
         )
     {
         guidance.harvests_completed = guidance.harvests_completed.saturating_add(1);
@@ -251,13 +260,11 @@ fn track_simple_progress_signals(
     guidance.advance_if_ready();
 }
 
-/// Call from harvest success path to credit a real harvest.
 pub fn credit_harvest(guidance: &mut FirstSessionGuidance) {
     guidance.harvests_completed = guidance.harvests_completed.saturating_add(1);
     guidance.advance_if_ready();
 }
 
-/// Call when a Divine Whisper / epiphany is presented to the player.
 pub fn credit_epiphany(guidance: &mut FirstSessionGuidance) {
     guidance.epiphany_felt = true;
     guidance.advance_if_ready();
