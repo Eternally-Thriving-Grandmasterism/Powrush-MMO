@@ -1,4 +1,4 @@
-# Human Playability — v21.97 Soft Play + Mainstream Locomotion
+# Human Playability — v21.98 Lived First Hour
 
 **Contact:** info@Rathor.ai  
 **Status:** Sealed under PATSAGi + TOLC 8  
@@ -8,19 +8,27 @@
 
 ## Core locomotion (v21.97.0) — never fight human hands
 
-Studied: ARK Survival Ascended, Starfield, Call of Duty, Warframe, Approximately Up, Avowed, Arc Raiders, PC Gamer consensus (2025).
-
 | Action | Key | Why |
 |--------|-----|-----|
 | Move | **WASD** | Universal |
 | **Jump** | **Space** | Universal thumb muscle memory |
-| **Interact / Use / Soft harvest** | **E** | Open-world standard (ARK, Starfield, Approx. Up) |
+| **Interact / Use / Soft harvest** | **E** | Open-world standard |
 | **Sprint** | **Shift** (hold) | Beside WASD |
-| Crouch (future) | Ctrl or C | Standard dual |
 
-**Diablo 4** uses Space for evade and click-to-move — different genre grammar. Powrush is embodiment + world care → Space stays jump.
+---
 
-**Conquer Online / older MMOs** often overloaded Space or non-semantic keys. We deliberately do better: one verb per key, readable, transfer-friendly.
+## Lived first harvest (v21.98.0)
+
+What a human *sees / feels* on first E:
+
+1. World-care prompt above the guidance strip: **E — harvest with mercy**
+2. Pulse toast: *The node still glows · you took with restraint*
+3. Thriving moment (once): FirstMercyHarvest
+4. First-session guidance advances (harvest + epiphany credited together)
+5. Journey Echo line: *First mercy harvest — the node was left glowing*
+6. Returning sessions: quiet welcome-back if journey memory exists (**J**)
+
+Module: `client/src/first_harvest_epiphany.rs`
 
 ---
 
@@ -40,8 +48,6 @@ Studied: ARK Survival Ascended, Starfield, Call of Duty, Warframe, Approximately
 | **Z** | Realm travel |
 | **H** | Dismiss first-session guidance |
 
-Legend: `client/src/soft_play_bindings.rs` → `soft_play_legend()` / `locomotion_legend()`
-
 ---
 
 ## Design law
@@ -50,15 +56,15 @@ Legend: `client/src/soft_play_bindings.rs` → `soft_play_legend()` / `locomotio
 |---------|---------|
 | Space = jump forever | Space as interact or harvest |
 | E = world care / interact | F-row as primary soft-play |
+| Felt first harvest | Silent keypress with no world reaction |
 | Semantic soft-play letters | Streaks / energy bars / FOMO |
-| Sprint on Shift | Forcing relearning of PC grammar |
 
 ---
 
 ## Standing next
 
 1. Finish **M** / **Z** on My Mercy Journey + Realm Travel panels if any F2/F3 remain  
-2. First-session on-screen locomotion legend (Space jump · E interact)  
+2. Bind harvest pulse to a real node entity + soft audio sting when assets exist  
 3. Soft multiplayer presence of peer flow totals  
 4. Optional Steam SDK RemoteStorage behind `steam` feature  
 
