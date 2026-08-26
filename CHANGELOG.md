@@ -1,14 +1,14 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [22.4.0] — 2026-08-26 — Believable temporary reality
+## [22.5.0] — 2026-08-26 — Living ecology on the plane
 
-Law: sci-fi may have races and cyborgs; it may not break bodies, ground, or living recovery.
-- Human-scale capsule on the climate plane; walk ~3.4 m/s, sprint ~5.4, gravity, jump that returns
-- Camera follows the body; harvest reach uses that body, not the origin
-- Untended nodes slowly recover — take thins, time and tend restore
-- Races/cybernetics wait until they can be persons, not mannequins
+Research: VISION + content/biomes already named Verdant Heartwood. README still overclaims launch.
+- Trees and stones occupy space (web anchors, not loot)
+- Resonant companion approaches **tend/flow**, withdraws from **take** — same as wildlife in base reality
+- Horizon climate shows stone, Sanctuary/Verdant show forest + companion
+- Still one human. No fake player counts from the marketing page.
 
+## [22.4.0] — Believable temporary reality
 ## [22.3.0] — Remember + one whisper
-## [22.2.0] — Tend vs take + allocate visible
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
