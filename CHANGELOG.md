@@ -1,5 +1,16 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [21.98.0] — 2026-08-26 — First-Harvest Epiphany (lived first hour)
+
+Player-shoe simulation (PATSAGi): first E must *feel* like abundance, not a silent keypress.
+
+- `client/src/first_harvest_epiphany.rs` — world-care prompt **E — harvest with mercy**
+- First interact: pulse toast, thriving moment, guidance harvest+epiphany credit, journey note
+- Welcome-back toast from durable Journey Echo (if memory exists)
+- Guidance no longer double-counts E (credit owned by epiphany plugin)
+
+## [21.97.1] — First-session guidance teaches E harvest / Space jump
+
 ## [21.97.0] — 2026-08-26 — Mainstream Locomotion Muscle Memory
 
 ### Why
@@ -7,8 +18,6 @@ PATSAGi + study of top-reviewed PC games (ARK, Starfield, CoD, Warframe, Approxi
 - **Space is jump** — near-universal thumb muscle memory
 - **E is interact** — open-world / survival standard
 - **Shift is sprint** — cluster beside WASD
-
-Previously Space was used for soft harvest/interact — that fought decades of PC training and blocked flow.
 
 ### Changes
 - `PlayerInput`: `jump`, `sprint`, `interact` (E)
