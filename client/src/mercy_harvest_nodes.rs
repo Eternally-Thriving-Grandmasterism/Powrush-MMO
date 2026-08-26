@@ -26,7 +26,7 @@ pub struct MercyHarvestNode {
 #[derive(Resource, Debug)]
 pub struct NearbyMercyNode {
     pub entity: Option<Entity>,
-    pub name: Option<&'static str,
+    pub name: Option<&'static str>,
     pub distance: f32,
     pub in_range: bool,
     pub nodes_exist: bool,
@@ -175,18 +175,19 @@ fn try_soft_harvest_sting(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     nearby: Res<NearbyMercyNode>,
-    mut last: Local<Option<Entity>>,
+    mut last: Local<Option<u32>>,
+    nodes: Query<&MercyHarvestNode>,
 ) {
     let Some(entity) = nearby.last_harvested else {
         return;
     };
-    if *last == Some(entity) && !nearby.is_changed() {
+    let Ok(node) = nodes.get(entity) else {
+        return;
+    };
+    if *last == Some(node.harvests) {
         return;
     }
-    if *last == nearby.last_harvested && !nearby.is_changed() {
-        return;
-    }
-    *last = Some(entity);
+    *last = Some(node.harvests);
     commands.spawn(AudioBundle {
         source: asset_server.load("audio/mercy_harvest_sting.ogg"),
         settings: PlaybackSettings::DESPAWN,
