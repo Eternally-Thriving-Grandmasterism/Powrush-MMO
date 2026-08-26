@@ -1,6 +1,6 @@
 //! client/src/lib.rs
-//! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.99.2 Soft RBE pool + rumble
+//! Powrush-MMO Client Crate Root
+//! AG-SML v1.0 | TOLC 8 | v21.99.4 Local sovereign first session
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -28,6 +28,7 @@ pub mod webxr_bootstrap;
 pub mod example_gpu_material;
 
 pub mod first_session_guidance;
+pub mod local_sovereign_session;
 pub mod harvest_feel;
 pub mod first_harvest_epiphany;
 pub mod mercy_harvest_nodes;
@@ -44,7 +45,6 @@ pub mod resonance_flavors;
 pub mod mercy_transporters;
 pub mod soft_play_bindings;
 
-// Re-exports
 pub use networking::NetworkingPlugin;
 pub use replication::ReplicationPlugin;
 pub use prediction::{PredictionPlugin, PredictedPosition, PredictedAbility, RollbackState};
@@ -68,6 +68,7 @@ pub use webxr_bootstrap::PowrushWebXrClient;
 
 pub use example_gpu_material::GpuVisualMaterialsPlugin;
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance, credit_harvest, credit_epiphany};
+pub use local_sovereign_session::{LocalSovereignSessionPlugin, LocalSovereignSession};
 pub use harvest_feel::{HarvestFeelPlugin, SoftRbePool};
 pub use first_harvest_epiphany::{FirstHarvestEpiphanyPlugin, FirstHarvestEpiphany};
 pub use mercy_harvest_nodes::{MercyHarvestNodesPlugin, NearbyMercyNode};
@@ -105,6 +106,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(RbeUiSyncPlugin);
         app.add_plugins(RbeUiFeedbackPlugin);
         app.add_plugins(GpuVisualMaterialsPlugin);
+        app.add_plugins(LocalSovereignSessionPlugin);
         app.add_plugins(FirstSessionGuidancePlugin);
         app.add_plugins(ThrivingMomentsPlugin);
         app.add_plugins(LivingPracticeLoopPlugin);
