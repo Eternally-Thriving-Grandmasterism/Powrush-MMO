@@ -1,7 +1,7 @@
 /*!
- * Mercy Harvest Nodes — embodied first-hour world (v22.4.0)
+ * Mercy Harvest Nodes — embodied first-hour world (v22.6.0)
  *
- * Reach uses the human body. Untended nodes slowly recover — living systems do.
+ * Reach uses the human body. Recovery rate follows BiomeFeel.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -9,6 +9,7 @@
 use bevy::prelude::*;
 
 use crate::human_presence::SoftPresence;
+use crate::living_ecology::BiomeFeel;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::prediction::PredictedPosition;
 
@@ -170,15 +171,17 @@ fn track_nearby_node(
 
 fn pulse_harvested_nodes(
     time: Res<Time>,
+    feel: Option<Res<BiomeFeel>>,
     mut nodes: Query<(&mut MercyHarvestNode, &mut Transform)>,
 ) {
     let dt = time.delta_seconds();
     let t = time.elapsed_seconds();
+    let mul = feel.map(|f| f.regen_mul).unwrap_or(1.0);
     for (mut node, mut tf) in &mut nodes {
         if node.pulse > 0.0 {
             node.pulse = (node.pulse - dt * 1.35).max(0.0);
         } else if node.vitality < 1.0 {
-            node.vitality = (node.vitality + dt * RECOVER_PER_SEC).min(1.0);
+            node.vitality = (node.vitality + dt * RECOVER_PER_SEC * mul).min(1.0);
         }
         let breathe = 1.0 + (t * 1.7).sin() * 0.06 * node.vitality;
         let burst = 1.0 + node.pulse * 0.28;
