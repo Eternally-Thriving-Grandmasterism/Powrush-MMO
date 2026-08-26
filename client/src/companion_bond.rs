@@ -3,7 +3,6 @@
  *
  * ARK ride, without the club. Tend raises trust. Take lowers it.
  * When trust is enough and you are not harvesting, E mounts.
- * E again returns you to your own feet.
  *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -12,7 +11,6 @@ use bevy::prelude::*;
 
 use crate::human_presence::SoftPresence;
 use crate::input::PlayerInput;
-use crate::living_ecology::ResonantDeer;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::mercy_harvest_nodes::NearbyMercyNode;
 use crate::soft_play_bindings;
@@ -74,7 +72,7 @@ fn follow_or_wait(
     realm: Res<SoftPlayerRealm>,
     mut bond: ResMut<CompanionBond>,
     time: Res<Time>,
-    mut deer: Query<&mut Transform, With<ResonantDeer>>,
+    mut deer: Query<(&Name, &mut Transform)>,
 ) {
     let id = realm.current.unwrap_or(0);
     if !matches!(id, 0 | 2) {
@@ -84,7 +82,10 @@ fn follow_or_wait(
     }
     let dt = time.delta_seconds();
     let player = presence.position;
-    for mut tf in &mut deer {
+    for (name, mut tf) in &mut deer {
+        if name.as_str() != "ResonantDeer" {
+            continue;
+        }
         let d = tf.translation.distance(player);
         bond.nearby = d <= MOUNT_REACH;
         if bond.mounted {
