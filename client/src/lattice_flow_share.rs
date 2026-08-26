@@ -1,9 +1,8 @@
 /*!
- * Soft Lattice Flow Share — export + peer ingest + ambient presence (v21.99.1)
+ * Soft Lattice Flow Share — local export + future peer socket (v21.99.4)
  *
- * **U** — explicit ingest into Journey Echo
- * Ambient chip re-reads peer JSON every few seconds without a key.
- * Never a leaderboard. Presence only.
+ * First hour is solo. Own export is not dressed up as a peer.
+ * Chip appears only if a *peer* file exists. U without a peer is honest, not an ops ticket.
  *
  * TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -136,13 +135,6 @@ fn export_on_allocate_change(
             } else {
                 share.last_exported_choices = allocate.choices_made;
                 share.last_path = Some(path.clone());
-                info!(
-                    target: "powrush::lattice",
-                    path = %path.display(),
-                    flow = env.flow_total,
-                    reserve = env.reserve_total,
-                    "lattice flow share exported"
-                );
             }
         }
         Err(e) => warn!(target: "powrush::lattice", "flow share serialize failed: {e}"),
@@ -165,19 +157,16 @@ fn ambient_peer_poll(mut share: ResMut<LatticeFlowShare>, time: Res<Time>) {
         return;
     }
     share.poll_accum = 0.0;
-
-    let env = try_read_envelope(PEER_PATH).or_else(|| try_read_envelope(SHARE_PATH));
-    let Some(env) = env else {
-        share.chip_visible = share.last_peer.is_some();
-        return;
-    };
-    let changed = share.ambient_seen_choices != Some(env.choices_made)
-        || share.last_peer.as_ref() != Some(&env);
-    share.ambient_seen_choices = Some(env.choices_made);
-    share.last_peer = Some(env);
-    share.chip_visible = true;
-    if changed {
-        info!(target: "powrush::lattice", "ambient peer presence refreshed");
+    // Solo first hour: only a *peer* file is presence. Own export stays local.
+    match try_read_envelope(PEER_PATH) {
+        Some(env) => {
+            share.ambient_seen_choices = Some(env.choices_made);
+            share.last_peer = Some(env);
+            share.chip_visible = true;
+        }
+        None => {
+            share.chip_visible = false;
+        }
     }
 }
 
@@ -190,28 +179,22 @@ fn soft_peer_ingest(
         return;
     }
 
-    let env = try_read_envelope(PEER_PATH).or_else(|| try_read_envelope(SHARE_PATH));
-
-    match env {
+    match try_read_envelope(PEER_PATH) {
         Some(env) => {
             let note = format!(
-                "Peer lattice signal · flow {:.1} · reserve {:.1} · choices {} · {}",
-                env.flow_total,
-                env.reserve_total,
-                env.choices_made,
-                env.last_path.as_deref().unwrap_or("—")
+                "A fellow traveler left flow {:.1} · reserve {:.1}",
+                env.flow_total, env.reserve_total
             );
             echo.push(JourneyKind::Note, note.clone());
-            share.last_ingest_note = Some(note.clone());
+            share.last_ingest_note = Some(note);
             share.last_peer = Some(env);
             share.chip_visible = true;
-            info!(target: "powrush::lattice", "{note}");
         }
         None => {
-            let note = "No peer lattice envelope yet — drop one at data/powrush_lattice_flow_share_peer.json"
-                .to_string();
-            share.last_ingest_note = Some(note.clone());
-            info!(target: "powrush::lattice", "{note}");
+            let note =
+                "This hour is yours alone — other travelers will appear here later".to_string();
+            echo.push(JourneyKind::Note, note.clone());
+            share.last_ingest_note = Some(note);
         }
     }
 }
@@ -231,8 +214,8 @@ fn update_peer_presence_chip(
     }
     if let Some(env) = &share.last_peer {
         let line = format!(
-            "Peer flow {:.0} · reserve {:.0} · U to remember",
-            env.flow_total, env.reserve_total
+            "A traveler shares flow {:.0} · U to remember",
+            env.flow_total
         );
         for mut text in &mut text_q {
             if let Some(s) = text.sections.get_mut(0) {
