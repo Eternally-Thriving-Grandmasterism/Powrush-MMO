@@ -1,7 +1,7 @@
 /*!
- * Human Presence — v22.9.0
+ * Human Presence — v22.11.0
  *
- * Grounded body. Mount is a gift of trust, not a vehicle stat.
+ * Ground, jump, mount, breath, carry.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -9,6 +9,7 @@ use bevy::prelude::*;
 
 use crate::companion_bond::CompanionBond;
 use crate::input::PlayerInput;
+use crate::living_body::LivingBody;
 
 const STAND: f32 = 0.90;
 const WALK: f32 = 3.4;
@@ -80,10 +81,19 @@ fn apply_locomotion(
     input: Res<PlayerInput>,
     time: Res<Time>,
     bond: Option<Res<CompanionBond>>,
+    body: Option<Res<LivingBody>>,
     mut presence: ResMut<SoftPresence>,
 ) {
     let dt = time.delta_seconds();
-    let mut speed = if input.sprint { SPRINT } else { WALK };
+    let sprint_ok = body.as_ref().map(|b| b.can_sprint()).unwrap_or(true);
+    let mut speed = if input.sprint && sprint_ok {
+        SPRINT
+    } else {
+        WALK
+    };
+    if let Some(b) = body.as_ref() {
+        speed *= b.carry_mul();
+    }
     if bond.map(|b| b.mounted).unwrap_or(false) {
         speed *= 1.28;
     }
