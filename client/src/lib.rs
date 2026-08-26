@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.98.0 First-harvest epiphany
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.99.0 Embodied harvest + M/Z panels
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -29,6 +29,8 @@ pub mod example_gpu_material;
 
 pub mod first_session_guidance;
 pub mod first_harvest_epiphany;
+pub mod mercy_harvest_nodes;
+pub mod human_soft_panels;
 pub mod living_practice_loop;
 pub mod thriving_moments;
 pub mod rbe_allocate_choice;
@@ -65,6 +67,8 @@ pub use webxr_bootstrap::PowrushWebXrClient;
 pub use example_gpu_material::GpuVisualMaterialsPlugin;
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance, credit_harvest, credit_epiphany};
 pub use first_harvest_epiphany::{FirstHarvestEpiphanyPlugin, FirstHarvestEpiphany};
+pub use mercy_harvest_nodes::{MercyHarvestNodesPlugin, NearbyMercyNode};
+pub use human_soft_panels::{HumanSoftPanelsPlugin, HumanSoftPanels};
 pub use living_practice_loop::{
     LivingPracticeLoopPlugin, LivingPracticeLoop, PracticeSurface, SoftPlayerRealm,
     credit_practice_mercy_harvest,
@@ -102,7 +106,9 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(LivingPracticeLoopPlugin);
         app.add_plugins(RbeAllocateChoicePlugin);
         app.add_plugins(AbundanceJourneyEchoPlugin);
+        app.add_plugins(MercyHarvestNodesPlugin);
         app.add_plugins(FirstHarvestEpiphanyPlugin);
+        app.add_plugins(HumanSoftPanelsPlugin);
         app.add_plugins(LatticeFlowSharePlugin);
         app.add_plugins(SteamAbundanceMirrorPlugin);
         app.add_plugins(FoundationLatticePlugin);
