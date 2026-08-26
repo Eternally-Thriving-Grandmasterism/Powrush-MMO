@@ -1,14 +1,13 @@
 /*!
- * Human Presence — v22.4.0
+ * Human Presence — v22.9.0
  *
- * A body on the ground. Human speed, gravity, jump that returns.
- * Camera follows. Nodes read SoftPresence so reach is real.
- *
- * PATSAGi v22.4 | Contact: info@Rathor.ai | Yoi ⚡
+ * Grounded body. Mount is a gift of trust, not a vehicle stat.
+ * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
 
+use crate::companion_bond::CompanionBond;
 use crate::input::PlayerInput;
 
 const STAND: f32 = 0.90;
@@ -80,11 +79,14 @@ fn spawn_human_presence(
 fn apply_locomotion(
     input: Res<PlayerInput>,
     time: Res<Time>,
+    bond: Option<Res<CompanionBond>>,
     mut presence: ResMut<SoftPresence>,
 ) {
     let dt = time.delta_seconds();
-    let speed = if input.sprint { SPRINT } else { WALK };
-    // W into the world (-Z), A/D on X — ground plane, not flying on Y
+    let mut speed = if input.sprint { SPRINT } else { WALK };
+    if bond.map(|b| b.mounted).unwrap_or(false) {
+        speed *= 1.28;
+    }
     let wish = Vec3::new(input.movement.x, 0.0, -input.movement.y);
     let wish = if wish.length_squared() > 1.0 {
         wish.normalize()
