@@ -1,18 +1,29 @@
 //! client/src/input.rs
-//! Player input handling with client-side prediction and mercy gating
-//! AG-SML v1.0 | TOLC 8 Mercy Gates + MIAL/MWPO enforced
-//! v21.90 — End-user comfort: keyboard + gamepad left-stick, normalized movement, clear interact
-//! Contact: info@Rathor.ai
+//! Player input — mainstream muscle memory (v21.97.0)
+//!
+//! Universal PC cluster (PC Gamer / ARK / Starfield / CoD consensus):
+//!   WASD move · Space jump · E interact · Shift sprint · Ctrl/C crouch
+//!
+//! Soft practice harvest and world interact both ride **E** so one key means
+//! “act on the world with care” — never Space (that is jump forever).
+//!
+//! AG-SML v1.0 | TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
 
 use bevy::prelude::*;
-use bevy::input::gamepad::{Gamepad, GamepadAxis, GamepadButton, GamepadButtonType};
+use bevy::input::gamepad::{GamepadAxis, GamepadAxisType, GamepadButton, GamepadButtonType};
 use crate::prediction::{PredictedPosition, PredictedAbility};
+use crate::soft_play_bindings;
 
 #[derive(Resource, Default, Debug)]
 pub struct PlayerInput {
     pub movement: Vec2,
     pub ability_slot: Option<u32>,
+    /// World interact / use / soft harvest (E or gamepad West/X / South hold patterns).
     pub interact: bool,
+    /// Jump (Space or gamepad South / A).
+    pub jump: bool,
+    /// Sprint held (Shift or gamepad Left Stick press).
+    pub sprint: bool,
 }
 
 pub struct InputPlugin;
@@ -56,24 +67,24 @@ fn handle_player_input(
         let ly = axes
             .get(GamepadAxis::new(gamepad, GamepadAxisType::LeftStickY))
             .unwrap_or(0.0);
-        // Deadzone
         if lx.abs() > 0.18 {
             movement.x += lx;
         }
         if ly.abs() > 0.18 {
             movement.y += ly;
         }
-        break; // primary pad only for now
+        break;
     }
 
-    // Normalize so diagonal is not faster
     if movement.length_squared() > 1.0 {
         movement = movement.normalize();
     }
     player_input.movement = movement;
 
     // Ability slots 1–4
-    player_input.ability_slot = if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Key1) {
+    player_input.ability_slot = if keyboard.just_pressed(KeyCode::Digit1)
+        || keyboard.just_pressed(KeyCode::Key1)
+    {
         Some(0)
     } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Key2) {
         Some(1)
@@ -85,15 +96,36 @@ fn handle_player_input(
         None
     };
 
-    // Interact: Space or gamepad South (A / Cross)
-    let mut interact = keyboard.just_pressed(KeyCode::Space);
+    // Interact: E (mainstream) — not Space
+    let mut interact = keyboard.just_pressed(soft_play_bindings::INTERACT);
     for gamepad in gamepads.iter() {
-        if buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::South)) {
+        // West (X / Square) is common secondary interact; South often jump
+        if buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::West)) {
             interact = true;
             break;
         }
     }
     player_input.interact = interact;
+
+    // Jump: Space (universal muscle memory)
+    let mut jump = keyboard.just_pressed(soft_play_bindings::JUMP);
+    for gamepad in gamepads.iter() {
+        if buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::South)) {
+            jump = true;
+            break;
+        }
+    }
+    player_input.jump = jump;
+
+    // Sprint: Left/Right Shift held
+    let mut sprint = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+    for gamepad in gamepads.iter() {
+        if buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::LeftThumb)) {
+            sprint = true;
+            break;
+        }
+    }
+    player_input.sprint = sprint;
 }
 
 fn apply_input_to_prediction(
@@ -101,10 +133,17 @@ fn apply_input_to_prediction(
     player_input: Res<PlayerInput>,
     time: Res<Time>,
 ) {
+    let speed = if player_input.sprint { 16.0 } else { 10.0 };
     for (mut pos, mut ability) in &mut query {
-        let delta = player_input.movement * 10.0 * time.delta_seconds();
+        let delta = player_input.movement * speed * time.delta_seconds();
         pos.position += delta.extend(0.0);
         pos.velocity = delta.extend(0.0);
+
+        // Soft jump impulse (client prediction placeholder — authoritative later)
+        if player_input.jump {
+            pos.velocity.y += 6.0;
+            pos.position.y += 0.35;
+        }
 
         if let Some(slot) = player_input.ability_slot {
             ability.ability_id = slot;
@@ -115,5 +154,5 @@ fn apply_input_to_prediction(
 #[derive(Component)]
 struct Player;
 
-// All input is mercy-gated, predicted locally, and reconciled with authoritative updates.
-// Keyboard + gamepad comfort complete for first-session joy.
+// Mercy-gated, predicted locally, reconciled with authority.
+// Space=jump · E=interact · Shift=sprint — sealed under PATSAGi.

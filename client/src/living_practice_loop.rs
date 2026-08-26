@@ -1,9 +1,8 @@
 /*!
  * Living Practice Loop — Human playability layer (post first-session)
- * v21.92.2 — RBE feedback bridge · SoftPlayerRealm · Thriving Moments
+ * v21.97.0 — Soft harvest on **E** (interact), never Space (jump)
  *
- * Soft Space remains demo path. Real harvest feedback (Sustainable / mercy /
- * Epiphany / Council) credits practice when active — realm-aware when known.
+ * Soft interact remains demo path. Real harvest feedback credits practice.
  *
  * AG-SML v1.0 | Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
@@ -12,6 +11,7 @@ use bevy::prelude::*;
 
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
 use crate::rbe_client_ui_sync::RbeUiSync;
+use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
 /// Client-side soft mirror of current realm (no hard sim crate dep).
@@ -41,13 +41,13 @@ impl PracticeSurface {
     pub fn prompt(&self) -> &'static str {
         match self {
             PracticeSurface::SanctuaryCap => {
-                "Caps Across Climates · Sanctuary: harvest with restraint — leave the node thriving"
+                "Caps Across Climates · Sanctuary: harvest with restraint — leave the node thriving (E)"
             }
             PracticeSurface::VerdantSurge => {
-                "Caps Across Climates · Verdant: abundance is flooding — allocate without collapse"
+                "Caps Across Climates · Verdant: abundance is flooding — allocate without collapse (E)"
             }
             PracticeSurface::HorizonScarcity => {
-                "Caps Across Climates · Horizon: sparse yields — choose carefully under uncertainty"
+                "Caps Across Climates · Horizon: sparse yields — choose carefully under uncertainty (E)"
             }
             PracticeSurface::PrincipleSealed => {
                 "You carried the same principle across three climates. Sovereign exploration continues."
@@ -86,7 +86,6 @@ pub struct LivingPracticeLoop {
     pub celebrate_until: f64,
     pub realm_aware: bool,
     pub last_realm_mismatch_hint_at: f64,
-    /// Dedup real harvest feedback lines so one result credits once.
     pub last_bridged_feedback: Option<String>,
 }
 
@@ -176,7 +175,7 @@ impl Plugin for LivingPracticeLoopPlugin {
                     handle_practice_toggle,
                     update_practice_visibility,
                     update_practice_text,
-                    soft_space_harvest_credit,
+                    soft_interact_harvest_credit,
                     bridge_rbe_feedback_to_practice,
                 ),
             );
@@ -324,7 +323,8 @@ fn apply_practice_credit(
     true
 }
 
-fn soft_space_harvest_credit(
+/// Soft demo harvest — **E** interact (never Space; Space is jump).
+fn soft_interact_harvest_credit(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut practice: ResMut<LivingPracticeLoop>,
     mut moments: ResMut<ThrivingMoments>,
@@ -334,7 +334,7 @@ fn soft_space_harvest_credit(
     if !practice.active || practice.dismissed || practice.principle_sealed {
         return;
     }
-    if !keyboard.just_pressed(KeyCode::Space) {
+    if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
         return;
     }
 
@@ -363,7 +363,6 @@ fn soft_space_harvest_credit(
     );
 }
 
-/// Authoritative-ish path: real RBE UI harvest feedback → practice credit.
 fn bridge_rbe_feedback_to_practice(
     rbe_ui: Res<RbeUiSync>,
     mut practice: ResMut<LivingPracticeLoop>,

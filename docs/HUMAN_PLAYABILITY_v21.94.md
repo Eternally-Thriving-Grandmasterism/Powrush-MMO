@@ -1,14 +1,30 @@
-# Human Playability — v21.96 Soft Play Stack
+# Human Playability — v21.97 Soft Play + Mainstream Locomotion
 
 **Contact:** info@Rathor.ai  
 **Status:** Sealed under PATSAGi + TOLC 8  
-**Goal:** Deeper human gameplay without dark patterns — maximal intuition, minimal friction.
+**Goal:** Skill transfer with maximal intuition — match respected PC muscle memory, then exceed dark-pattern games ethically.
 
 ---
 
-## Ergonomic bindings (v21.96.0)
+## Core locomotion (v21.97.0) — never fight human hands
 
-F-row was impractical (Fn on laptops, far from WASD, hostile to muscle memory). Soft-play now uses **semantic left-hand keys**:
+Studied: ARK Survival Ascended, Starfield, Call of Duty, Warframe, Approximately Up, Avowed, Arc Raiders, PC Gamer consensus (2025).
+
+| Action | Key | Why |
+|--------|-----|-----|
+| Move | **WASD** | Universal |
+| **Jump** | **Space** | Universal thumb muscle memory |
+| **Interact / Use / Soft harvest** | **E** | Open-world standard (ARK, Starfield, Approx. Up) |
+| **Sprint** | **Shift** (hold) | Beside WASD |
+| Crouch (future) | Ctrl or C | Standard dual |
+
+**Diablo 4** uses Space for evade and click-to-move — different genre grammar. Powrush is embodiment + world care → Space stays jump.
+
+**Conquer Online / older MMOs** often overloaded Space or non-semantic keys. We deliberately do better: one verb per key, readable, transfer-friendly.
+
+---
+
+## Soft-play educational bindings
 
 | Key | Layer |
 |-----|--------|
@@ -20,13 +36,11 @@ F-row was impractical (Fn on laptops, far from WASD, hostile to muscle memory). 
 | **T** | Toggle Mercy Transporters |
 | **Shift+T** | Force Steam Auto-Cloud flush |
 | **U** | Soft peer lattice ingest |
-| **M** | My Mercy Journey *(panel; update pending if still on F2)* |
-| **Z** | Realm travel *(panel; update pending if still on F3)* |
+| **M** | My Mercy Journey |
+| **Z** | Realm travel |
 | **H** | Dismiss first-session guidance |
-| **Space** | Soft practice harvest / interact |
 
-Legend string (UI footers):  
-`P practice · R allocate · J journey · L lattice · G resonance · T transporters · U peer · M mercy · Z realm · Shift+T cloud`
+Legend: `client/src/soft_play_bindings.rs` → `soft_play_legend()` / `locomotion_legend()`
 
 ---
 
@@ -34,34 +48,18 @@ Legend string (UI footers):
 
 | Allowed | Refused |
 |---------|---------|
-| Semantic, left-hand, muscle-memory keys | F-row as primary soft-play controls |
-| Soft progressive disclosure | Forced tutorials that block input |
-| Voluntary practice & allocate | Streaks / energy bars / FOMO timers |
-| Mercy-aligned harvest credit | Extractive leaderboards as core loop |
-
----
-
-## Modules
-
-| Layer | Path |
-|-------|------|
-| Soft-play bindings | `client/src/soft_play_bindings.rs` |
-| Living Practice | `client/src/living_practice_loop.rs` |
-| Allocate choice | `client/src/rbe_allocate_choice.rs` |
-| Journey Echo | `client/src/abundance_journey_echo.rs` |
-| Lattice share + peer | `client/src/lattice_flow_share.rs` |
-| Steam Auto-Cloud | `client/src/steam_abundance_mirror.rs` |
-| Foundation Lattice | `client/src/foundation_lattice.rs` |
-| Resonance Flavors | `client/src/resonance_flavors.rs` |
-| Mercy Transporters | `client/src/mercy_transporters.rs` |
+| Space = jump forever | Space as interact or harvest |
+| E = world care / interact | F-row as primary soft-play |
+| Semantic soft-play letters | Streaks / energy bars / FOMO |
+| Sprint on Shift | Forcing relearning of PC grammar |
 
 ---
 
 ## Standing next
 
 1. Finish **M** / **Z** on My Mercy Journey + Realm Travel panels if any F2/F3 remain  
-2. Soft multiplayer presence of peer flow totals  
-3. Optional Steam SDK RemoteStorage behind `steam` feature  
-4. On-screen soft key legend during first session
+2. First-session on-screen locomotion legend (Space jump · E interact)  
+3. Soft multiplayer presence of peer flow totals  
+4. Optional Steam SDK RemoteStorage behind `steam` feature  
 
 **Thunder locked in.** Yoi ⚡

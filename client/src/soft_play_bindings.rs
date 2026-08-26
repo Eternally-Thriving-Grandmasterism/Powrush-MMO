@@ -1,19 +1,29 @@
 /*!
- * Soft-play ergonomic bindings — v21.96.0
+ * Soft-play + core locomotion bindings — v21.97.0
  *
- * Derived from multi-persona human feedback under TOLC:
- * F-row is unreachable on laptops (Fn), far from WASD, and hostile to muscle memory.
+ * Mainstream muscle memory (PC Gamer, ARK, Starfield, CoD, Warframe):
+ *   Space = jump · E = interact · Shift = sprint · WASD = move
  *
- * Principles:
- *   • Left-hand reach while right hand stays on mouse
- *   • Semantic letters (J=Journey, L=Lattice, T=Transport…)
- *   • Rare power actions use Shift chords
- *   • Core loop keys (P, R, Space) unchanged — already excellent
+ * Soft-play educational layers stay semantic left-hand letters.
  *
  * Contact: info@Rathor.ai · PATSAGi · Yoi ⚡
  */
 
 use bevy::prelude::KeyCode;
+
+// ── Core locomotion (never remap casually) ──────────────────────────
+
+/// Jump — universal PC muscle memory (thumb on Space).
+pub const JUMP: KeyCode = KeyCode::Space;
+
+/// Interact / use / soft harvest — mainstream open-world (E).
+pub const INTERACT: KeyCode = KeyCode::KeyE;
+
+/// Sprint (held) — Shift beside WASD.
+pub const SPRINT_LEFT: KeyCode = KeyCode::ShiftLeft;
+pub const SPRINT_RIGHT: KeyCode = KeyCode::ShiftRight;
+
+// ── Soft-play educational surfaces ──────────────────────────────────
 
 /// Abundance Journey Echo panel toggle.
 pub const JOURNEY_ECHO: KeyCode = KeyCode::KeyJ;
@@ -41,7 +51,12 @@ pub const FORCE_CLOUD_FLUSH: KeyCode = KeyCode::KeyT;
 
 /// Human-readable legend for UI footers and onboarding.
 pub fn soft_play_legend() -> &'static str {
-    "P practice · R allocate · J journey · L lattice · G resonance · T transporters · U peer · M mercy · Z realm · Shift+T cloud"
+    "WASD move · Space jump · E interact · Shift sprint · P practice · R allocate · J journey · L lattice · G resonance · T transporters · U peer · M mercy · Z realm · Shift+T cloud"
+}
+
+/// Short first-session locomotion line.
+pub fn locomotion_legend() -> &'static str {
+    "WASD move · Space jump · E interact · Shift sprint"
 }
 
 #[cfg(test)]
@@ -49,11 +64,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn legend_mentions_core() {
+    fn core_keys_are_mainstream() {
+        assert_eq!(JUMP, KeyCode::Space);
+        assert_eq!(INTERACT, KeyCode::KeyE);
+    }
+
+    #[test]
+    fn legend_mentions_jump_and_interact() {
         let l = soft_play_legend();
-        assert!(l.contains('P'));
-        assert!(l.contains('J'));
-        assert!(l.contains('L'));
-        assert!(l.contains("Shift+T"));
+        assert!(l.contains("Space jump"));
+        assert!(l.contains("E interact"));
+        assert!(l.contains("Shift sprint"));
     }
 }
