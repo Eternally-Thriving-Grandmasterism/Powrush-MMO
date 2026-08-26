@@ -1,14 +1,13 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [22.9.0] — 2026-08-26 — Cycles and trust
+## [22.10.0] — 2026-08-26 — Watch the cycle
 
-ARK lesson, without starve or knockout:
-- Unused vitality composts back to the grove (~48s, faster on Horizon, slower in Depths)
-- Flash: *vitality went home to the grove* — use or share first
-- Companion trust from tend; follows; **E** beside them (not on a node) is a ride
-- Take can lose the ride. No narcotics. No fake tribe.
+- Companion trust stored next to thread_strength — they remember you
+- Watch strip: `V 2.1~` means vitality wants to go home (allocate or tend first)
+- `walk` / `E ride` / `ride` when the companion is with you
+- Still no starve bar. Still no tribe counter.
 
+## [22.9.0] — Cycles and trust
 ## [22.8.0] — Threads remember
-## [22.7.0] — Abyssal Depths
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
