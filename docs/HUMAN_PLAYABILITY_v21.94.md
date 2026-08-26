@@ -18,6 +18,7 @@ First Session (H dismiss)
   → Steam Auto-Cloud stage (progress / F6 / exit)
   → Foundation Lattice (F7) — educational dependency view
   → Resonance Flavors (F8) — soft asymmetric mastery coloring
+  → Mercy Transporters (F9) — autonomous durable-care helpers
 ```
 
 | Key | Layer |
@@ -32,6 +33,7 @@ First Session (H dismiss)
 | **F6** | Force Steam Auto-Cloud abundance flush |
 | **F7** | Foundation Lattice (educational overview) |
 | **F8** | Cycle Resonance Flavor |
+| **F9** | Toggle Mercy Transporters |
 
 ---
 
@@ -45,6 +47,7 @@ First Session (H dismiss)
 | Offline-first share envelopes | Gamification that softens TOLC 8 |
 | Visible systems thinking (Foundation Lattice) | Scarcity framing of dependencies |
 | Soft asymmetry (Resonance Flavors) | Lock-in classes or punitive faction gates |
+| Autonomous care helpers (Mercy Transporters) | Forced automation that steals agency |
 
 ---
 
@@ -61,6 +64,7 @@ First Session (H dismiss)
 | Steam Auto-Cloud triggers | `client/src/steam_abundance_mirror.rs` |
 | Foundation Lattice | `client/src/foundation_lattice.rs` |
 | Resonance Flavors | `client/src/resonance_flavors.rs` |
+| Mercy Transporters | `client/src/mercy_transporters.rs` |
 
 ### Persist / share files
 
@@ -73,19 +77,17 @@ First Session (H dismiss)
 
 ---
 
-## Foundation Lattice (v21.95.0)
+## Foundation Lattice (v21.95.0+)
 
 Inspired by the sequential clarity of classic RTS foundations (economy before force, visible dependencies) without importing scarcity or punishment.
 
 - Optional overlay (**F7**)
-- Live view of practice climate chain, allocate direction, journey depth, resonance, soft realm
+- Live view of practice climates, allocate, journey, resonance, transporters, soft realm
 - Pure educational presence — never blocks, never forces progression
 
 ---
 
 ## Resonance Flavors (v21.95.1)
-
-Dune II house asymmetry adapted to RBE / mercy — distinct mastery *feeling* without division.
 
 | Flavor | Spirit | Soft lean (never forced) |
 |--------|--------|--------------------------|
@@ -93,9 +95,19 @@ Dune II house asymmetry adapted to RBE / mercy — distinct mastery *feeling* wi
 | **Durable Steward** | Enduring foundations | Steward reserve |
 | **Adaptive Horizon** | Exploratory ingenuity | Both under uncertainty |
 
-- Cycle freely with **F8**
-- Tints practice strip · appears on Foundation Lattice · echoes into Journey
-- No lock-in · high-road transfer remains fully open
+Cycle freely with **F8**. No lock-in.
+
+---
+
+## Mercy Transporters (v21.95.2)
+
+Dune II Carryall spirit adapted to RBE: autonomous helpers that move abundance signals to durable foundations so the mind stays in educational flow.
+
+- On by default · toggle **F9**
+- Soft-nudge Auto-Cloud stage on allocate / journey progress
+- Gentle idle durability care
+- Journey Echo notes completed carries
+- Never steals agency · never forces attention
 
 ---
 
@@ -104,7 +116,7 @@ Dune II house asymmetry adapted to RBE / mercy — distinct mastery *feeling* wi
 1. ~~Optional Steam Cloud mirror of journey + share blobs~~ → **Done (v21.94.2)**  
 2. ~~Foundation Lattice educational surface~~ → **Done (v21.95.0)**  
 3. ~~Resonance flavors (asymmetric climate coloring)~~ → **Done (v21.95.1)**  
-4. Mercy Transporters (autonomous helpers that reduce logistics friction)  
+4. ~~Mercy Transporters (autonomous helpers)~~ → **Done (v21.95.2)**  
 5. Soft multiplayer presence of peer flow totals (when net path ready)  
 6. Steam SDK RemoteStorage write behind `steam` feature (optional explicit upload)
 
