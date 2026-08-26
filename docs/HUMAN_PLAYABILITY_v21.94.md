@@ -17,6 +17,7 @@ First Session (H dismiss)
   → Lattice flow share (auto) + peer ingest (F5)
   → Steam Auto-Cloud stage (progress / F6 / exit)
   → Foundation Lattice (F7) — educational dependency view
+  → Resonance Flavors (F8) — soft asymmetric mastery coloring
 ```
 
 | Key | Layer |
@@ -30,6 +31,7 @@ First Session (H dismiss)
 | **F5** | Soft peer lattice ingest |
 | **F6** | Force Steam Auto-Cloud abundance flush |
 | **F7** | Foundation Lattice (educational overview) |
+| **F8** | Cycle Resonance Flavor |
 
 ---
 
@@ -42,6 +44,7 @@ First Session (H dismiss)
 | Mercy-aligned harvest credit | Extractive leaderboards as core loop |
 | Offline-first share envelopes | Gamification that softens TOLC 8 |
 | Visible systems thinking (Foundation Lattice) | Scarcity framing of dependencies |
+| Soft asymmetry (Resonance Flavors) | Lock-in classes or punitive faction gates |
 
 ---
 
@@ -57,6 +60,7 @@ First Session (H dismiss)
 | Lattice share + peer | `client/src/lattice_flow_share.rs` |
 | Steam Auto-Cloud triggers | `client/src/steam_abundance_mirror.rs` |
 | Foundation Lattice | `client/src/foundation_lattice.rs` |
+| Resonance Flavors | `client/src/resonance_flavors.rs` |
 
 ### Persist / share files
 
@@ -74,8 +78,24 @@ First Session (H dismiss)
 Inspired by the sequential clarity of classic RTS foundations (economy before force, visible dependencies) without importing scarcity or punishment.
 
 - Optional overlay (**F7**)
-- Live view of practice climate chain, allocate direction, journey depth, soft realm
+- Live view of practice climate chain, allocate direction, journey depth, resonance, soft realm
 - Pure educational presence — never blocks, never forces progression
+
+---
+
+## Resonance Flavors (v21.95.1)
+
+Dune II house asymmetry adapted to RBE / mercy — distinct mastery *feeling* without division.
+
+| Flavor | Spirit | Soft lean (never forced) |
+|--------|--------|--------------------------|
+| **Balanced Flow** | Harmonic care / share | Flow outward |
+| **Durable Steward** | Enduring foundations | Steward reserve |
+| **Adaptive Horizon** | Exploratory ingenuity | Both under uncertainty |
+
+- Cycle freely with **F8**
+- Tints practice strip · appears on Foundation Lattice · echoes into Journey
+- No lock-in · high-road transfer remains fully open
 
 ---
 
@@ -83,10 +103,10 @@ Inspired by the sequential clarity of classic RTS foundations (economy before fo
 
 1. ~~Optional Steam Cloud mirror of journey + share blobs~~ → **Done (v21.94.2)**  
 2. ~~Foundation Lattice educational surface~~ → **Done (v21.95.0)**  
-3. Soft multiplayer presence of peer flow totals (when net path ready)  
-4. Steam SDK RemoteStorage write behind `steam` feature (optional explicit upload)  
-5. Resonance flavors (asymmetric climate coloring) — next high-leverage candidate  
-6. Mercy Transporters (autonomous helpers that reduce logistics friction)
+3. ~~Resonance flavors (asymmetric climate coloring)~~ → **Done (v21.95.1)**  
+4. Mercy Transporters (autonomous helpers that reduce logistics friction)  
+5. Soft multiplayer presence of peer flow totals (when net path ready)  
+6. Steam SDK RemoteStorage write behind `steam` feature (optional explicit upload)
 
 **Still refused:** scarcity framing, streaks, energy bars, punitive fail states.
 
