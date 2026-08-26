@@ -1,9 +1,8 @@
 /*!
- * Harvest Feel — soft RBE pool + pad rumble (v21.99.2)
+ * Harvest Feel — soft RBE pool + pad rumble (v22.2.0)
  *
- * Client-side abundance pool so a mercy harvest changes numbers a human can see
- * even before the simulation crate is a client dependency.
- * Rumble is short and weak — confirmation, never punishment.
+ * Take grows vitality. Tend grows harmony. Allocate spends a stack.
+ * Rumble is confirmation, never punishment.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -14,14 +13,15 @@ use bevy::input::gamepad::{GamepadRumbleIntensity, GamepadRumbleRequest};
 use bevy::prelude::*;
 
 use crate::rbe::RbeGlobalState;
+use crate::rbe_allocate_choice::AllocatePath;
 
-#[derive(Resource, Debug)]
 pub struct SoftRbePool {
     pub vitality: f32,
     pub harmony: f32,
     pub joy: f32,
     pub last_credit: f32,
     pub harvests: u32,
+    pub tends: u32,
 }
 
 impl Default for SoftRbePool {
@@ -32,6 +32,7 @@ impl Default for SoftRbePool {
             joy: 0.0,
             last_credit: 0.0,
             harvests: 0,
+            tends: 0,
         }
     }
 }
@@ -45,6 +46,32 @@ impl SoftRbePool {
         self.last_credit = amount;
         self.harvests = self.harvests.saturating_add(1);
         amount
+    }
+
+    pub fn credit_tend(&mut self, node_vitality: f32) -> f32 {
+        let amount = (0.28 + node_vitality * 0.12).clamp(0.22, 0.48);
+        self.harmony += amount;
+        self.joy += amount * 0.70;
+        self.vitality += amount * 0.20;
+        self.last_credit = amount;
+        self.tends = self.tends.saturating_add(1);
+        amount
+    }
+
+    pub fn spend_allocate(&mut self, path: AllocatePath, want: f32) -> f32 {
+        let take = match path {
+            AllocatePath::FlowOutward => {
+                let n = want.min(self.vitality.max(0.0));
+                self.vitality = (self.vitality - n).max(0.0);
+                n
+            }
+            AllocatePath::StewardReserve => {
+                let n = want.min(self.harmony.max(0.0));
+                self.harmony = (self.harmony - n).max(0.0);
+                n
+            }
+        };
+        take
     }
 
     pub fn line(&self) -> String {
@@ -68,7 +95,6 @@ pub fn credit_soft_and_global(
     amount
 }
 
-/// Short weak rumble on every connected pad — confirmation only.
 pub fn rumble_mercy_harvest(
     rumble: &mut EventWriter<GamepadRumbleRequest>,
     gamepads: &Gamepads,
@@ -105,5 +131,23 @@ mod tests {
         assert!(a > 0.0 && b > 0.0);
         assert_eq!(pool.harvests, 2);
         assert!(pool.vitality > a);
+    }
+
+    #[test]
+    fn tend_grows_harmony_more_than_vitality() {
+        let mut pool = SoftRbePool::default();
+        pool.credit_tend(1.0);
+        assert!(pool.harmony > pool.vitality);
+        assert_eq!(pool.tends, 1);
+    }
+
+    #[test]
+    fn allocate_spends_the_named_stack() {
+        let mut pool = SoftRbePool::default();
+        pool.vitality = 3.0;
+        pool.harmony = 2.0;
+        let spent = pool.spend_allocate(AllocatePath::FlowOutward, 1.0);
+        assert_eq!(spent, 1.0);
+        assert!((pool.vitality - 2.0).abs() < 0.01);
     }
 }
