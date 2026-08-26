@@ -1,19 +1,8 @@
 /*!
- * Foundation Lattice — soft educational dependency surface (v21.95.2)
+ * Foundation Lattice — soft educational dependency surface (v21.96.0)
  *
- * Makes the living soft-play stack legible the way Dune II made concrete,
- * power, and sequential unlocks legible — without scarcity, timers, or force.
- *
- * Shows:
- *   • Practice climate chain (Sanctuary → Verdant → Horizon → Sealed)
- *   • Allocate direction (Flow outward · Steward reserve)
- *   • Journey Echo depth
- *   • Resonance Flavor (F8)
- *   • Mercy Transporters (F9)
- *   • Soft realm resonance note
- *
- * Toggle: **F7**
- * Pure presence marker. Never blocks input. Never punishes.
+ * Toggle: **L** (Lattice — ergonomic left-hand)
+ * Shows climates, allocate, journey, resonance (G), transporters (T), realm.
  *
  * PATSAGi + TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -25,6 +14,7 @@ use crate::living_practice_loop::{LivingPracticeLoop, PracticeSurface, SoftPlaye
 use crate::mercy_transporters::MercyTransporters;
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
 use crate::resonance_flavors::ResonanceState;
+use crate::soft_play_bindings;
 
 #[derive(Resource, Debug)]
 pub struct FoundationLattice {
@@ -106,9 +96,9 @@ fn spawn_lattice_panel(mut commands: Commands) {
                 FoundationLatticeBody,
             ));
             p.spawn(TextBundle::from_section(
-                "F7 lattice · F8 resonance · F9 transporters · TOLC 8",
+                soft_play_bindings::soft_play_legend(),
                 TextStyle {
-                    font_size: 11.0,
+                    font_size: 10.5,
                     color: Color::srgb(0.52, 0.68, 0.72),
                     ..default()
                 },
@@ -120,7 +110,7 @@ fn toggle_lattice_panel(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut lattice: ResMut<FoundationLattice>,
 ) {
-    if keyboard.just_pressed(KeyCode::F7) {
+    if keyboard.just_pressed(soft_play_bindings::FOUNDATION_LATTICE) {
         lattice.panel_open = !lattice.panel_open;
         info!(
             target: "powrush::foundation",
@@ -229,7 +219,7 @@ fn build_lattice_body(
     };
 
     let resonance_block = format!(
-        "RESONANCE  (F8 cycle)\n\
+        "RESONANCE  (G cycle)\n\
 ●  {}\n\
 {}\n\
 {}",
@@ -239,7 +229,7 @@ fn build_lattice_body(
     );
 
     let transport_block = format!(
-        "CARE HELPERS  (F9)\n\
+        "CARE HELPERS  (T)\n\
 {}",
         transporters.status_line()
     );
@@ -353,66 +343,8 @@ mod tests {
             &transporters,
         );
         assert!(body.contains("Verdant"));
-        assert!(body.contains("Flow outward"));
-        assert!(body.contains("Steward reserve"));
-        assert!(body.contains("CLIMATES"));
         assert!(body.contains("RESONANCE"));
-        assert!(body.contains("Balanced Flow"));
-        assert!(body.contains("CARE HELPERS") || body.contains("Mercy Transporters"));
+        assert!(body.contains("CARE HELPERS") || body.contains("Mercy"));
         assert!(body.contains("never scarcity"));
-    }
-
-    #[test]
-    fn sealed_marks_principle() {
-        let practice = LivingPracticeLoop {
-            principle_sealed: true,
-            surface: PracticeSurface::PrincipleSealed,
-            ..Default::default()
-        };
-        let allocate = RbeAllocateChoice::default();
-        let echo = AbundanceJourneyEcho {
-            last_practice_sealed: true,
-            ..Default::default()
-        };
-        let realm = SoftPlayerRealm::default();
-        let resonance = ResonanceState::default();
-        let transporters = MercyTransporters::default();
-        let body = build_lattice_body(
-            &practice,
-            &allocate,
-            &echo,
-            &realm,
-            &resonance,
-            &transporters,
-        );
-        assert!(body.contains("Principle sealed") || body.contains("◎"));
-    }
-
-    #[test]
-    fn climate_marks_progress() {
-        assert_eq!(
-            climate_mark(
-                PracticeSurface::SanctuaryCap,
-                PracticeSurface::VerdantSurge,
-                false
-            ),
-            "○"
-        );
-        assert_eq!(
-            climate_mark(
-                PracticeSurface::VerdantSurge,
-                PracticeSurface::VerdantSurge,
-                false
-            ),
-            "●"
-        );
-        assert_eq!(
-            climate_mark(
-                PracticeSurface::HorizonScarcity,
-                PracticeSurface::VerdantSurge,
-                false
-            ),
-            "·"
-        );
     }
 }

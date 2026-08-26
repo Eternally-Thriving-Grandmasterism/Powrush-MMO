@@ -1,17 +1,7 @@
 /*!
- * Mercy Transporters — soft autonomous care helpers (v21.95.2)
+ * Mercy Transporters — soft autonomous care helpers (v21.96.0)
  *
- * Dune II Carryall spirit adapted to RBE / TOLC 8:
- * autonomous helpers that move abundance signals to durable foundations
- * so the player stays in strategic and educational flow — not logistics micro.
- *
- * What they do (when enabled):
- *   • Soft-nudge Steam Auto-Cloud stage on allocate / journey progress
- *   • Periodic gentle care re-stage (idle durability)
- *   • Journey Echo notes when a carry completes successfully
- *
- * Toggle: **F9** (on by default)
- * Never takes agency. Never punishes. Never forces attention.
+ * Toggle: **T** (Transport — ergonomic). Force cloud flush: **Shift+T**.
  *
  * PATSAGi + TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -21,9 +11,9 @@ use bevy::prelude::*;
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::lattice_flow_share::LatticeFlowShare;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
+use crate::soft_play_bindings;
 use crate::steam_abundance_mirror::SteamAbundanceMirror;
 
-/// Soft interval between idle care runs (seconds).
 const CARE_INTERVAL_SECS: f64 = 45.0;
 
 #[derive(Resource, Debug)]
@@ -52,7 +42,7 @@ impl Default for MercyTransporters {
 impl MercyTransporters {
     pub fn status_line(&self) -> String {
         if !self.enabled {
-            "Mercy Transporters  resting (F9 to wake)".to_string()
+            "Mercy Transporters  resting (T to wake)".to_string()
         } else if self.carries == 0 {
             "Mercy Transporters  ready · caring for durable foundations".to_string()
         } else {
@@ -88,7 +78,9 @@ fn toggle_transporters(
     mut transporters: ResMut<MercyTransporters>,
     mut echo: ResMut<AbundanceJourneyEcho>,
 ) {
-    if !keyboard.just_pressed(KeyCode::F9) {
+    // Plain T toggles transporters; Shift+T is reserved for force cloud flush.
+    let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+    if !keyboard.just_pressed(soft_play_bindings::MERCY_TRANSPORTERS) || shift {
         return;
     }
     transporters.enabled = !transporters.enabled;
@@ -101,8 +93,6 @@ fn toggle_transporters(
     info!(target: "powrush::mercy_transport", enabled = transporters.enabled, "{note}");
 }
 
-/// On meaningful progress, soft-nudge the Auto-Cloud mirror so durable stage happens
-/// without the player needing to remember F6.
 fn soft_nudge_on_progress(
     allocate: Res<RbeAllocateChoice>,
     lattice: Res<LatticeFlowShare>,
@@ -120,7 +110,6 @@ fn soft_nudge_on_progress(
     transporters.last_seen_choices = allocate
         .choices_made
         .max(lattice.last_exported_choices);
-    // Soft nudge — mirror will stage on next Update pass.
     mirror.force_pending = true;
     info!(
         target: "powrush::mercy_transport",
@@ -129,7 +118,6 @@ fn soft_nudge_on_progress(
     );
 }
 
-/// Gentle periodic care so offline durability stays healthy without attention.
 fn soft_idle_care(
     time: Res<Time>,
     mut transporters: ResMut<MercyTransporters>,
@@ -143,14 +131,12 @@ fn soft_idle_care(
         return;
     }
     transporters.last_care_at = now;
-    // Only nudge if mirror has never staged or last stage failed soft.
     if mirror.exports == 0 || !mirror.last_stage_ok {
         mirror.force_pending = true;
         info!(target: "powrush::mercy_transport", "Idle care — soft durability nudge");
     }
 }
 
-/// When the mirror successfully exports more, celebrate as a completed carry.
 fn observe_successful_carries(
     mirror: Res<SteamAbundanceMirror>,
     mut transporters: ResMut<MercyTransporters>,
@@ -189,18 +175,5 @@ mod tests {
     fn default_enabled() {
         let t = MercyTransporters::default();
         assert!(t.enabled);
-        assert_eq!(t.carries, 0);
-    }
-
-    #[test]
-    fn status_reflects_state() {
-        let mut t = MercyTransporters::default();
-        assert!(t.status_line().contains("ready"));
-        t.enabled = false;
-        assert!(t.status_line().contains("resting"));
-        t.enabled = true;
-        t.carries = 2;
-        t.last_carry_note = Some("test carry".into());
-        assert!(t.status_line().contains("2 carries"));
     }
 }

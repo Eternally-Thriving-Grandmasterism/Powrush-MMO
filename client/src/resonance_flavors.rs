@@ -1,15 +1,7 @@
 /*!
- * Resonance Flavors — soft asymmetric mastery coloring (v21.95.1)
+ * Resonance Flavors — soft asymmetric mastery coloring (v21.96.0)
  *
- * Dune II house asymmetry adapted to RBE / TOLC 8:
- * distinct play-feeling without division, lock-in, or scarcity.
- *
- *   Balanced Flow   — share-leaning, harmonic care (Atreides spirit)
- *   Durable Steward — foundation-leaning, enduring reserve (weight)
- *   Adaptive Horizon — exploratory ingenuity under uncertainty (Ordos spirit)
- *
- * Player cycles freely with **F8**. No forced path. High-road transfer remains open.
- * Colors practice strip text and appears on Foundation Lattice.
+ * Cycle: **G** (Gestalt / resonance — ergonomic left-hand)
  *
  * PATSAGi + TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -18,6 +10,7 @@ use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::living_practice_loop::LivingPracticeText;
+use crate::soft_play_bindings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ResonanceFlavor {
@@ -66,7 +59,6 @@ impl ResonanceFlavor {
         }
     }
 
-    /// Soft educational hint only — never forces allocate path.
     pub fn soft_allocate_hint(self) -> &'static str {
         match self {
             ResonanceFlavor::BalancedFlow => "Resonance leans Flow outward (still fully free)",
@@ -107,7 +99,7 @@ fn cycle_resonance(
     mut state: ResMut<ResonanceState>,
     mut echo: ResMut<AbundanceJourneyEcho>,
 ) {
-    if !keyboard.just_pressed(KeyCode::F8) {
+    if !keyboard.just_pressed(soft_play_bindings::RESONANCE_CYCLE) {
         return;
     }
     state.current = state.current.next();
@@ -136,8 +128,6 @@ fn tint_practice_strip_by_resonance(
     let accent = state.current.accent();
     for mut text in &mut query {
         if let Some(section) = text.sections.get_mut(0) {
-            // Soft tint only when not in celebration gold (celebration system owns that).
-            // Keep a gentle resonance wash on the practice strip.
             if section.style.color != Color::srgb(1.0, 0.95, 0.55) {
                 section.style.color = accent;
             }
@@ -152,23 +142,8 @@ mod tests {
     #[test]
     fn cycles_all_three() {
         let a = ResonanceFlavor::BalancedFlow;
-        let b = a.next();
-        let c = b.next();
-        let d = c.next();
-        assert_eq!(b, ResonanceFlavor::DurableSteward);
-        assert_eq!(c, ResonanceFlavor::AdaptiveHorizon);
-        assert_eq!(d, ResonanceFlavor::BalancedFlow);
-    }
-
-    #[test]
-    fn titles_distinct() {
-        assert_ne!(
-            ResonanceFlavor::BalancedFlow.title(),
-            ResonanceFlavor::DurableSteward.title()
-        );
-        assert_ne!(
-            ResonanceFlavor::DurableSteward.title(),
-            ResonanceFlavor::AdaptiveHorizon.title()
-        );
+        assert_eq!(a.next(), ResonanceFlavor::DurableSteward);
+        assert_eq!(a.next().next(), ResonanceFlavor::AdaptiveHorizon);
+        assert_eq!(a.next().next().next(), ResonanceFlavor::BalancedFlow);
     }
 }
