@@ -1,4 +1,4 @@
-# Human Playability — v21.94 Soft Play Stack
+# Human Playability — v21.95 Soft Play Stack
 
 **Contact:** info@Rathor.ai  
 **Status:** Sealed under PATSAGi + TOLC 8  
@@ -16,6 +16,7 @@ First Session (H dismiss)
   → Abundance Journey Echo (F4) — durable offline
   → Lattice flow share (auto) + peer ingest (F5)
   → Steam Auto-Cloud stage (progress / F6 / exit)
+  → Foundation Lattice (F7) — educational dependency view
 ```
 
 | Key | Layer |
@@ -28,6 +29,7 @@ First Session (H dismiss)
 | **F4** | Abundance Journey Echo |
 | **F5** | Soft peer lattice ingest |
 | **F6** | Force Steam Auto-Cloud abundance flush |
+| **F7** | Foundation Lattice (educational overview) |
 
 ---
 
@@ -39,6 +41,7 @@ First Session (H dismiss)
 | Voluntary practice & allocate | Streaks / energy bars / FOMO timers |
 | Mercy-aligned harvest credit | Extractive leaderboards as core loop |
 | Offline-first share envelopes | Gamification that softens TOLC 8 |
+| Visible systems thinking (Foundation Lattice) | Scarcity framing of dependencies |
 
 ---
 
@@ -53,6 +56,7 @@ First Session (H dismiss)
 | Journey Echo + persist | `client/src/abundance_journey_echo.rs` |
 | Lattice share + peer | `client/src/lattice_flow_share.rs` |
 | Steam Auto-Cloud triggers | `client/src/steam_abundance_mirror.rs` |
+| Foundation Lattice | `client/src/foundation_lattice.rs` |
 
 ### Persist / share files
 
@@ -65,12 +69,24 @@ First Session (H dismiss)
 
 ---
 
+## Foundation Lattice (v21.95.0)
+
+Inspired by the sequential clarity of classic RTS foundations (economy before force, visible dependencies) without importing scarcity or punishment.
+
+- Optional overlay (**F7**)
+- Live view of practice climate chain, allocate direction, journey depth, soft realm
+- Pure educational presence — never blocks, never forces progression
+
+---
+
 ## Standing next (councils)
 
 1. ~~Optional Steam Cloud mirror of journey + share blobs~~ → **Done (v21.94.2)**  
-2. Thin Ra-Thor ingest adapter for `powrush_lattice_flow_share_v1` (already soft-present)  
+2. ~~Foundation Lattice educational surface~~ → **Done (v21.95.0)**  
 3. Soft multiplayer presence of peer flow totals (when net path ready)  
-4. Steam SDK RemoteStorage write behind `steam` feature (optional explicit upload)
+4. Steam SDK RemoteStorage write behind `steam` feature (optional explicit upload)  
+5. Resonance flavors (asymmetric climate coloring) — next high-leverage candidate  
+6. Mercy Transporters (autonomous helpers that reduce logistics friction)
 
 **Still refused:** scarcity framing, streaks, energy bars, punitive fail states.
 
