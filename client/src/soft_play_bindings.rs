@@ -1,8 +1,7 @@
 /*!
- * Soft-play + core locomotion bindings — v21.99.3
+ * Soft-play + core locomotion bindings — v22.1.0
  *
- * M / Z are primary. F2 / F3 remain silent aliases so old muscle memory is not punished.
- *
+ * I = satchel (GoldenEye watch / Ocarina bag).
  * Contact: info@Rathor.ai · PATSAGi · Yoi ⚡
  */
 
@@ -20,9 +19,9 @@ pub const MERCY_TRANSPORTERS: KeyCode = KeyCode::KeyT;
 pub const PEER_INGEST: KeyCode = KeyCode::KeyU;
 pub const MY_MERCY_JOURNEY: KeyCode = KeyCode::KeyM;
 pub const REALM_TRAVEL: KeyCode = KeyCode::KeyZ;
+pub const INVENTORY: KeyCode = KeyCode::KeyI;
 pub const FORCE_CLOUD_FLUSH: KeyCode = KeyCode::KeyT;
 
-/// Legacy F-row aliases — heard, never taught.
 pub const MY_MERCY_JOURNEY_ALIAS: KeyCode = KeyCode::F2;
 pub const REALM_TRAVEL_ALIAS: KeyCode = KeyCode::F3;
 
@@ -35,7 +34,7 @@ pub fn realm_travel_just_pressed(keyboard: &ButtonInput<KeyCode>) -> bool {
 }
 
 pub fn soft_play_legend() -> &'static str {
-    "WASD move · Space jump · E interact · Shift sprint · P practice · R allocate · J journey · L lattice · G resonance · T transporters · U peer · M mercy · Z realm · Shift+T cloud"
+    "WASD move · Space jump · E interact · Shift sprint · I satchel · P practice · R allocate · J journey · M mercy · Z realm"
 }
 
 pub fn locomotion_legend() -> &'static str {
@@ -50,13 +49,6 @@ mod tests {
     fn core_keys_are_mainstream() {
         assert_eq!(JUMP, KeyCode::Space);
         assert_eq!(INTERACT, KeyCode::KeyE);
-    }
-
-    #[test]
-    fn f_row_is_alias_only() {
-        assert_eq!(MY_MERCY_JOURNEY, KeyCode::KeyM);
-        assert_eq!(REALM_TRAVEL, KeyCode::KeyZ);
-        assert_eq!(MY_MERCY_JOURNEY_ALIAS, KeyCode::F2);
-        assert_eq!(REALM_TRAVEL_ALIAS, KeyCode::F3);
+        assert_eq!(INVENTORY, KeyCode::KeyI);
     }
 }
