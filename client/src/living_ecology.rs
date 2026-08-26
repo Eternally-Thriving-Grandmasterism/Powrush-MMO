@@ -1,10 +1,8 @@
 /*!
- * Living Ecology — v22.6.0
+ * Living Ecology — v22.7.0
  *
- * Heartwood: trees + companion (content/biomes/verdant_heartwood_ecology.json).
- * Spires: harmonic crystals (content/biomes/crystal_spires_ecology_v18.10.json).
- * Tend / flow → resonance peak. Take → silent crystal.
- * BiomeFeel.regen_mul feeds node recovery (Spires 1.6×).
+ * Heartwood · Crystal Spires · Abyssal Depths (content/biomes/*).
+ * No ocean simulation — night, close air, glowing threads.
  *
  * PATSAGi v22.4 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -28,6 +26,7 @@ enum PropKind {
     Stone,
     Deer,
     Crystal,
+    Mycelium,
 }
 
 #[derive(Component)]
@@ -35,6 +34,11 @@ struct ResonantDeer;
 
 #[derive(Component)]
 struct CrystalGlow {
+    handle: Handle<StandardMaterial>,
+}
+
+#[derive(Component)]
+struct MyceliumGlow {
     handle: Handle<StandardMaterial>,
 }
 
@@ -51,7 +55,6 @@ impl Default for EcologyState {
     }
 }
 
-/// Living recovery multiplier from the active biome JSON.
 #[derive(Resource, Debug)]
 pub struct BiomeFeel {
     pub regen_mul: f32,
@@ -81,6 +84,7 @@ impl Plugin for LivingEcologyPlugin {
                     dress_for_climate,
                     move_deer,
                     sing_or_silence_spires,
+                    pulse_mycelium,
                 ),
             );
     }
@@ -202,7 +206,47 @@ fn spawn_ecology(
         ));
     }
 
-    info!(target: "powrush::ecology", "Heartwood + Crystal Spires seeded");
+    // Threads between the three harvest anchors — remember care, no water lie.
+    let thread_mesh = meshes.add(Cylinder::new(0.035, 1.0));
+    let anchors = [
+        Vec3::new(3.6, 0.08, 0.0),
+        Vec3::new(-2.4, 0.08, 3.1),
+        Vec3::new(1.2, 0.08, -3.4),
+    ];
+    let pairs = [(0, 1), (1, 2), (2, 0)];
+    for (a, b) in pairs {
+        let from = anchors[a];
+        let to = anchors[b];
+        let mid = (from + to) * 0.5;
+        let delta = to - from;
+        let len = delta.length().max(0.2);
+        let dir = delta.normalize();
+        let rot = Quat::from_rotation_arc(Vec3::Y, dir);
+        let handle = materials.add(StandardMaterial {
+            base_color: Color::srgb(0.18, 0.55, 0.42),
+            emissive: LinearRgba::new(0.08, 0.35, 0.28, 1.0),
+            perceptual_roughness: 0.4,
+            ..default()
+        });
+        commands.spawn((
+            PbrBundle {
+                mesh: thread_mesh.clone(),
+                material: handle.clone(),
+                transform: Transform {
+                    translation: mid,
+                    rotation: rot,
+                    scale: Vec3::new(1.0, len, 1.0),
+                },
+                ..default()
+            },
+            EcologyProp {
+                kind: PropKind::Mycelium,
+            },
+            MyceliumGlow { handle },
+        ));
+    }
+
+    info!(target: "powrush::ecology", "Heartwood + Spires + Abyssal threads seeded");
 }
 
 fn remember_care(answer: Res<WorldAnswer>, mut eco: ResMut<EcologyState>) {
@@ -220,20 +264,22 @@ fn dress_for_climate(
     feel.name = match id {
         2 => "Verdant Heartwood",
         4 | 1 => "Crystal Spires",
-        3 => "Chorus Grove",
+        3 => "Abyssal Depths",
         _ => "Sanctuary",
     };
     feel.regen_mul = match id {
         4 | 1 => 1.6,
+        3 => 1.9,
         2 => 1.0,
         _ => 1.0,
     };
     for (prop, mut vis) in &mut q {
         let show = match prop.kind {
-            PropKind::Tree => matches!(id, 0 | 2 | 3),
+            PropKind::Tree => matches!(id, 0 | 2),
             PropKind::Stone => matches!(id, 1 | 4),
             PropKind::Deer => matches!(id, 0 | 2),
             PropKind::Crystal => matches!(id, 1 | 4),
+            PropKind::Mycelium => id == 3,
         };
         *vis = if show {
             Visibility::Visible
@@ -272,6 +318,27 @@ fn sing_or_silence_spires(
         LinearRgba::new(0.08, 0.12, 0.22, 1.0)
     } else {
         LinearRgba::new(0.25, 0.45, 0.70, 1.0)
+    };
+    for glow in &q {
+        if let Some(mat) = materials.get_mut(&glow.handle) {
+            mat.emissive = e;
+        }
+    }
+}
+
+fn pulse_mycelium(
+    eco: Res<EcologyState>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    q: Query<&MyceliumGlow>,
+) {
+    let surge = matches!(eco.last_kind, AnswerKind::Tend | AnswerKind::Flow);
+    let night = matches!(eco.last_kind, AnswerKind::Take);
+    let e = if surge {
+        LinearRgba::new(0.25, 1.1, 0.70, 1.0)
+    } else if night {
+        LinearRgba::new(0.02, 0.08, 0.07, 1.0)
+    } else {
+        LinearRgba::new(0.08, 0.35, 0.28, 1.0)
     };
     for glow in &q {
         if let Some(mat) = materials.get_mut(&glow.handle) {
