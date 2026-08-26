@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.95.1 Resonance Flavors
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.95.2 Mercy Transporters
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -36,6 +36,7 @@ pub mod lattice_flow_share;
 pub mod steam_abundance_mirror;
 pub mod foundation_lattice;
 pub mod resonance_flavors;
+pub mod mercy_transporters;
 
 // Re-exports
 pub use networking::NetworkingPlugin;
@@ -75,6 +76,7 @@ pub use steam_abundance_mirror::{
 };
 pub use foundation_lattice::{FoundationLatticePlugin, FoundationLattice};
 pub use resonance_flavors::{ResonanceFlavorsPlugin, ResonanceState, ResonanceFlavor};
+pub use mercy_transporters::{MercyTransportersPlugin, MercyTransporters};
 
 pub struct PowrushClientBundle;
 
@@ -100,6 +102,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(SteamAbundanceMirrorPlugin);
         app.add_plugins(FoundationLatticePlugin);
         app.add_plugins(ResonanceFlavorsPlugin);
+        app.add_plugins(MercyTransportersPlugin);
         app.add_plugins(InputPlugin);
     }
 }
