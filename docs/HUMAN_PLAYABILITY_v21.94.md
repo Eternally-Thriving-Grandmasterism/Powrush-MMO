@@ -1,20 +1,27 @@
-# Human Playability — v21.99.2 Pool + Rumble
+# Human Playability — v21.99.4 Local First Hour
 
 **Contact:** info@Rathor.ai  
-**Status:** Sealed under PATSAGi + TOLC 8
+**Phase:** one human, one machine, no dedicated server, no other players yet.
 
-In-range E (or pad West) now:
-- pulses the named node (still glowing)
-- credits **SoftRbePool** vitality / harmony / joy
-- ticks global abundance if `RbeGlobalState` is alive
-- short weak rumble (~90ms) on connected pads
-- pulse text shows `+X.X vitality` and the running pool
+The first hour must feel finished without Steam, without a peer file, without a sim crate link.
+Those are future sockets. They are not onboarding.
 
-## Standing next
+---
 
-1. Commit generated `assets/audio/mercy_harvest_sting.ogg`
-2. Alias orphan F2/F3 panels to M/Z when `simulation` is a client dep
-3. Replace SoftRbePool with authoritative sim RBE when that crate links
-4. Per-climate sting timbres (optional)
+## What this hour is
+
+Walk · glance · E at a glowing node · pool numbers change · pad may rumble · journey remembers · M / Z / P / R still work.
+A quiet banner: *This hour is yours alone · no servers · the nodes still answer.* WASD dismisses it.
+
+Peer chip stays hidden until a real peer file exists. U without a traveler writes an honest journey line — not a path to drop JSON.
+
+---
+
+## Future sockets (not first-hour work)
+
+- Dedicated servers and other humans in the same realm
+- Authoritative sim RBE replacing SoftRbePool
+- Orphan F2/F3 panels if that crate ever links
+- Climate oggs as polish when someone is at a keyboard with ffmpeg
 
 **Thunder locked in.** Yoi ⚡
