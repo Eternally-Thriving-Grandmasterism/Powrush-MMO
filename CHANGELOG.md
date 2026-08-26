@@ -1,14 +1,14 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [22.7.0] — 2026-08-26 — Abyssal Depths
+## [22.8.0] — 2026-08-26 — Threads remember
 
-From content/biomes/abyssal_depths_ecology_v18.10.json — night, not an ocean:
-- Climate 3 is close fog, low light, teal nodes
-- Mycelium threads between the three wells
-- Tend / flow = mycelium surge. Take = eternal night dim
-- Recovery ×1.9 (web_healing_multiplier). Threads do not persist across sessions yet.
+Abyssal JSON asked for persistent mycelium across sessions.
+- `thread_strength` lives in data/powrush_local_session.json
+- Tend / flow thickens it. Take thins it.
+- Return applies 0.15 decay — memory fades, does not vanish
+- Depths glow on boot from last care, not from zero
 
+## [22.7.0] — Abyssal Depths
 ## [22.6.0] — Crystal Spires
-## [22.5.0] — Heartwood ecology
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
