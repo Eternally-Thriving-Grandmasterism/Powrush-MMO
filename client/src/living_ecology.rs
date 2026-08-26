@@ -1,8 +1,8 @@
 /*!
- * Living Ecology — v22.7.0
+ * Living Ecology — v22.8.0
  *
- * Heartwood · Crystal Spires · Abyssal Depths (content/biomes/*).
- * No ocean simulation — night, close air, glowing threads.
+ * PersistentWeb.thread_strength remembers mercy across local sessions
+ * (abyssal JSON: persistent_thread_strength + 0.15 decay on return).
  *
  * PATSAGi v22.4 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -70,12 +70,34 @@ impl Default for BiomeFeel {
     }
 }
 
+/// Mycelium memory. Lives in data/powrush_local_session.json.
+#[derive(Resource, Debug)]
+pub struct PersistentWeb {
+    pub thread_strength: f32,
+}
+
+impl Default for PersistentWeb {
+    fn default() -> Self {
+        Self {
+            thread_strength: 0.28,
+        }
+    }
+}
+
+impl PersistentWeb {
+    pub fn apply_decay_on_return(&mut self) {
+        // JSON: cross_session_resonance_decay = 0.15
+        self.thread_strength = (self.thread_strength * 0.85).clamp(0.05, 1.0);
+    }
+}
+
 pub struct LivingEcologyPlugin;
 
 impl Plugin for LivingEcologyPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EcologyState>()
             .init_resource::<BiomeFeel>()
+            .init_resource::<PersistentWeb>()
             .add_systems(Startup, spawn_ecology)
             .add_systems(
                 Update,
@@ -206,7 +228,6 @@ fn spawn_ecology(
         ));
     }
 
-    // Threads between the three harvest anchors — remember care, no water lie.
     let thread_mesh = meshes.add(Cylinder::new(0.035, 1.0));
     let anchors = [
         Vec3::new(3.6, 0.08, 0.0),
@@ -249,9 +270,23 @@ fn spawn_ecology(
     info!(target: "powrush::ecology", "Heartwood + Spires + Abyssal threads seeded");
 }
 
-fn remember_care(answer: Res<WorldAnswer>, mut eco: ResMut<EcologyState>) {
-    if answer.kind != AnswerKind::Idle {
-        eco.last_kind = answer.kind;
+fn remember_care(
+    answer: Res<WorldAnswer>,
+    mut eco: ResMut<EcologyState>,
+    mut web: ResMut<PersistentWeb>,
+) {
+    if !answer.is_changed() || answer.kind == AnswerKind::Idle {
+        return;
+    }
+    eco.last_kind = answer.kind;
+    match answer.kind {
+        AnswerKind::Tend | AnswerKind::Flow => {
+            web.thread_strength = (web.thread_strength + 0.08).min(1.0);
+        }
+        AnswerKind::Take => {
+            web.thread_strength = (web.thread_strength - 0.05).max(0.0);
+        }
+        _ => {}
     }
 }
 
@@ -328,17 +363,19 @@ fn sing_or_silence_spires(
 
 fn pulse_mycelium(
     eco: Res<EcologyState>,
+    web: Res<PersistentWeb>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     q: Query<&MyceliumGlow>,
 ) {
+    let s = web.thread_strength;
     let surge = matches!(eco.last_kind, AnswerKind::Tend | AnswerKind::Flow);
     let night = matches!(eco.last_kind, AnswerKind::Take);
     let e = if surge {
-        LinearRgba::new(0.25, 1.1, 0.70, 1.0)
+        LinearRgba::new(0.12 + s * 0.20, 0.45 + s * 0.70, 0.28 + s * 0.40, 1.0)
     } else if night {
-        LinearRgba::new(0.02, 0.08, 0.07, 1.0)
+        LinearRgba::new(0.02 + s * 0.04, 0.06 + s * 0.10, 0.05 + s * 0.08, 1.0)
     } else {
-        LinearRgba::new(0.08, 0.35, 0.28, 1.0)
+        LinearRgba::new(0.05 + s * 0.12, 0.18 + s * 0.40, 0.14 + s * 0.28, 1.0)
     };
     for glow in &q {
         if let Some(mat) = materials.get_mut(&glow.handle) {
