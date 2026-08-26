@@ -1,7 +1,7 @@
 /*!
  * Harvest Feel — soft RBE pool + pad rumble (v21.99.2)
  *
- * Client-side abundance pool so a mercy harvest *changes numbers a human can see*
+ * Client-side abundance pool so a mercy harvest changes numbers a human can see
  * even before the simulation crate is a client dependency.
  * Rumble is short and weak — confirmation, never punishment.
  *
@@ -89,8 +89,7 @@ pub struct HarvestFeelPlugin;
 
 impl Plugin for HarvestFeelPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<SoftRbePool>()
-            .add_event::<GamepadRumbleRequest>();
+        app.init_resource::<SoftRbePool>();
     }
 }
 
