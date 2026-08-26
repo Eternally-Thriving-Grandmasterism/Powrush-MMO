@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root
-//! AG-SML v1.0 | TOLC 8 | v21.99.4 Local sovereign first session
+//! AG-SML v1.0 | TOLC 8 | v22.0.0 Climate plane (Arc A)
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -32,6 +32,7 @@ pub mod local_sovereign_session;
 pub mod harvest_feel;
 pub mod first_harvest_epiphany;
 pub mod mercy_harvest_nodes;
+pub mod climate_plane;
 pub mod first_hour_camera;
 pub mod human_soft_panels;
 pub mod living_practice_loop;
@@ -72,6 +73,7 @@ pub use local_sovereign_session::{LocalSovereignSessionPlugin, LocalSovereignSes
 pub use harvest_feel::{HarvestFeelPlugin, SoftRbePool};
 pub use first_harvest_epiphany::{FirstHarvestEpiphanyPlugin, FirstHarvestEpiphany};
 pub use mercy_harvest_nodes::{MercyHarvestNodesPlugin, NearbyMercyNode};
+pub use climate_plane::{ClimatePlanePlugin, ClimatePlane};
 pub use first_hour_camera::{FirstHourCameraPlugin, FirstHourGlance};
 pub use human_soft_panels::{HumanSoftPanelsPlugin, HumanSoftPanels};
 pub use living_practice_loop::{
@@ -113,6 +115,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(RbeAllocateChoicePlugin);
         app.add_plugins(AbundanceJourneyEchoPlugin);
         app.add_plugins(MercyHarvestNodesPlugin);
+        app.add_plugins(ClimatePlanePlugin);
         app.add_plugins(HarvestFeelPlugin);
         app.add_plugins(FirstHarvestEpiphanyPlugin);
         app.add_plugins(FirstHourCameraPlugin);
