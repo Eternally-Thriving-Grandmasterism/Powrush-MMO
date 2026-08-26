@@ -1,13 +1,14 @@
 /*!
  * World Answer — v22.2.0
  *
- * Allocate and tend are not numbers-only. Sky warmth, fog, ambient, node pulse.
+ * Allocate spends a satchel stack. Sky, fog, ambient, node pulse answer.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::pbr::FogSettings;
 use bevy::prelude::*;
 
+use crate::harvest_feel::SoftRbePool;
 use crate::mercy_harvest_nodes::MercyHarvestNode;
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
 
@@ -42,12 +43,13 @@ impl Default for WorldAnswer {
 impl WorldAnswer {
     pub fn fire(&mut self, kind: AnswerKind, now: f64, line: impl Into<String>) {
         self.kind = kind;
-        self.until = now + match kind {
-            AnswerKind::Flow | AnswerKind::Reserve => 3.4,
-            AnswerKind::Tend => 2.2,
-            AnswerKind::Take => 1.4,
-            AnswerKind::Idle => 0.0,
-        };
+        self.until = now
+            + match kind {
+                AnswerKind::Flow | AnswerKind::Reserve => 3.4,
+                AnswerKind::Tend => 2.2,
+                AnswerKind::Take => 1.4,
+                AnswerKind::Idle => 0.0,
+            };
         self.warmth = match kind {
             AnswerKind::Flow => 0.85,
             AnswerKind::Reserve => 0.45,
@@ -78,6 +80,7 @@ impl Plugin for WorldAnswerPlugin {
 
 fn notice_allocate(
     allocate: Res<RbeAllocateChoice>,
+    mut pool: ResMut<SoftRbePool>,
     mut answer: ResMut<WorldAnswer>,
     time: Res<Time>,
     mut last: Local<u32>,
@@ -87,21 +90,25 @@ fn notice_allocate(
     }
     *last = allocate.choices_made;
     let now = time.elapsed_seconds_f64();
-    match allocate.last_choice {
-        Some(AllocatePath::FlowOutward) => fire_world_answer(
+    let Some(path) = allocate.last_choice else {
+        return;
+    };
+    let spent = pool.spend_allocate(path, 1.0);
+    match path {
+        AllocatePath::FlowOutward => fire_world_answer(
             &mut answer,
             AnswerKind::Flow,
             now,
-            "Flow outward — the climate brightens",
+            format!("Flow −{spent:.1} vitality — the climate brightens"),
         ),
-        Some(AllocatePath::StewardReserve) => fire_world_answer(
+        AllocatePath::StewardReserve => fire_world_answer(
             &mut answer,
             AnswerKind::Reserve,
             now,
-            "Reserve held — the climate steadies",
+            format!("Reserve −{spent:.1} harmony — the climate steadies"),
         ),
-        None => {}
     }
+    info!(target: "powrush::answer", ?path, spent, "allocate spent into the climate");
 }
 
 fn paint_world_answer(
@@ -139,10 +146,14 @@ fn paint_world_answer(
     if live && *last_kind != answer.kind {
         for mut node in &mut nodes {
             node.pulse = (node.pulse + 0.35).min(1.0);
-            if answer.kind == AnswerKind::Tend || answer.kind == AnswerKind::Flow {
+            if matches!(answer.kind, AnswerKind::Tend | AnswerKind::Flow) {
                 node.vitality = (node.vitality + 0.04).min(1.0);
             }
         }
     }
-    *last_kind = if live { answer.kind } else { AnswerKind::Idle };
+    *last_kind = if live {
+        answer.kind
+    } else {
+        AnswerKind::Idle
+    };
 }
