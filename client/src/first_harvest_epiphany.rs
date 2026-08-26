@@ -1,17 +1,21 @@
 /*!
- * First Harvest Epiphany — lived first-hour loop (v21.99.0)
+ * First Harvest Epiphany — lived first-hour loop (v21.99.2)
  *
- * Walk to a glowing node → E in reach → world answers.
- * If nodes exist, E at empty air is a gentle step-closer, not a harvest.
+ * Walk to a glowing node → E / pad West in reach → world answers.
+ * Soft RBE pool + optional global abundance + short rumble.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
+use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
+use crate::harvest_feel::{credit_soft_and_global, rumble_mercy_harvest, SoftRbePool};
+use crate::input::PlayerInput;
 use crate::mercy_harvest_nodes::{apply_node_harvest, MercyHarvestNode, NearbyMercyNode};
+use crate::rbe::RbeGlobalState;
 use crate::rbe_client_ui_sync::RbeUiSync;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -242,16 +246,22 @@ fn welcome_visible(state: &FirstHarvestEpiphany, now: f64) -> bool {
 
 fn handle_interact_harvest(
     keyboard: Res<ButtonInput<KeyCode>>,
+    player_input: Res<PlayerInput>,
     mut state: ResMut<FirstHarvestEpiphany>,
     mut guidance: ResMut<FirstSessionGuidance>,
     mut moments: ResMut<ThrivingMoments>,
     mut echo: ResMut<AbundanceJourneyEcho>,
     mut nearby: ResMut<NearbyMercyNode>,
     mut nodes: Query<&mut MercyHarvestNode>,
+    mut pool: ResMut<SoftRbePool>,
+    mut global: Option<ResMut<RbeGlobalState>>,
+    mut rumble: EventWriter<GamepadRumbleRequest>,
+    gamepads: Res<Gamepads>,
     mut rbe_ui: Option<ResMut<RbeUiSync>>,
     time: Res<Time>,
 ) {
-    if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    let pressed = keyboard.just_pressed(soft_play_bindings::INTERACT) || player_input.interact;
+    if !pressed {
         return;
     }
     let now = time.elapsed_seconds_f64();
@@ -270,12 +280,21 @@ fn handle_interact_harvest(
     state.last_interact_at = now;
     state.harvests_this_session = state.harvests_this_session.saturating_add(1);
 
+    let mut node_vitality = 1.0;
     if let Some(entity) = nearby.entity {
         if let Ok(mut node) = nodes.get_mut(entity) {
+            node_vitality = node.vitality;
             apply_node_harvest(&mut node);
             nearby.last_harvested = Some(entity);
         }
     }
+
+    let credited = credit_soft_and_global(
+        &mut pool,
+        global.as_deref_mut(),
+        node_vitality,
+    );
+    rumble_mercy_harvest(&mut rumble, &gamepads);
 
     credit_harvest(&mut guidance);
     credit_epiphany(&mut guidance);
@@ -288,26 +307,28 @@ fn handle_interact_harvest(
     state.pulse_until = now + PULSE_SECS;
     let node_name = nearby.name.unwrap_or("the node");
     state.pulse_line = if first {
-        format!("{node_name} still glows · you took with restraint · abundance remains")
+        format!(
+            "{node_name} still glows · +{credited:.1} vitality · abundance remains"
+        )
     } else {
         format!(
-            "Mercy harvest at {node_name} · climate still thrives · care {}",
-            state.harvests_this_session
+            "Mercy harvest at {node_name} · +{credited:.1} · {}",
+            pool.line()
         )
     };
 
     if first {
         echo.push(
             JourneyKind::Note,
-            format!("First mercy harvest at {node_name} — left glowing"),
+            format!("First mercy harvest at {node_name} — left glowing (+{credited:.1} vitality)"),
         );
     }
 
     if let Some(ref mut ui) = rbe_ui {
         ui.last_harvest_feedback = Some(if first {
-            format!("Epiphany · Sustainable harvest at {node_name}")
+            format!("Epiphany · Sustainable +{credited:.1} at {node_name}")
         } else {
-            format!("Sustainable harvest at {node_name} · mercy refinement active")
+            format!("Sustainable +{credited:.1} at {node_name} · {}", pool.line())
         });
     }
 
@@ -316,6 +337,7 @@ fn handle_interact_harvest(
         first,
         n = state.harvests_this_session,
         node = node_name,
+        credited,
         "lived harvest on E"
     );
 }
