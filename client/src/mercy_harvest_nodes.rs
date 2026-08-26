@@ -1,7 +1,7 @@
 /*!
  * Mercy Harvest Nodes — embodied first-hour world (v21.99.0)
  *
- * Three glowing nodes in the XY walk plane. E harvests only when near.
+ * Three glowing nodes in the walk plane. E harvests only when near.
  * Nodes dim slightly but keep glowing (restraint, not extraction).
  * Soft audio sting is attempted; missing assets fail silently.
  *
@@ -26,7 +26,7 @@ pub struct MercyHarvestNode {
 #[derive(Resource, Debug)]
 pub struct NearbyMercyNode {
     pub entity: Option<Entity>,
-    pub name: Option<&'static str>,
+    pub name: Option<&'static str,
     pub distance: f32,
     pub in_range: bool,
     pub nodes_exist: bool,
@@ -54,11 +54,7 @@ impl Plugin for MercyHarvestNodesPlugin {
             .add_systems(Startup, spawn_mercy_nodes)
             .add_systems(
                 Update,
-                (
-                    track_nearby_node,
-                    pulse_harvested_nodes,
-                    try_soft_harvest_sting,
-                ),
+                (track_nearby_node, pulse_harvested_nodes, try_soft_harvest_sting),
             );
     }
 }
@@ -154,22 +150,17 @@ fn track_nearby_node(
 
 fn pulse_harvested_nodes(
     time: Res<Time>,
-    nearby: Res<NearbyMercyNode>,
     mut nodes: Query<(&mut MercyHarvestNode, &mut Transform)>,
 ) {
     let dt = time.delta_seconds();
+    let t = time.elapsed_seconds();
     for (mut node, mut tf) in &mut nodes {
-        if nearby.last_harvested == Some(/* compared below via harvests pulse */ Entity::PLACEHOLDER)
-        {
-            // no-op guard; pulse is driven by node.pulse
-        }
         if node.pulse > 0.0 {
             node.pulse = (node.pulse - dt * 1.35).max(0.0);
         }
-        let breathe = 1.0 + (time.elapsed_seconds() * 1.7).sin() * 0.06 * node.vitality;
+        let breathe = 1.0 + (t * 1.7).sin() * 0.06 * node.vitality;
         let burst = 1.0 + node.pulse * 0.28;
-        let s = 0.92 * breathe * burst;
-        tf.scale = Vec3::splat(s);
+        tf.scale = Vec3::splat(0.92 * breathe * burst);
     }
 }
 
@@ -184,20 +175,18 @@ fn try_soft_harvest_sting(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     nearby: Res<NearbyMercyNode>,
-    mut last: Local<Option<u32>>,
-    nodes: Query<&MercyHarvestNode>,
+    mut last: Local<Option<Entity>>,
 ) {
     let Some(entity) = nearby.last_harvested else {
         return;
     };
-    let Ok(node) = nodes.get(entity) else {
-        return;
-    };
-    if *last == Some(node.harvests) {
+    if *last == Some(entity) && !nearby.is_changed() {
         return;
     }
-    *last = Some(node.harvests);
-    // Soft-fail: if the ogg is absent Bevy logs once; playback still attempts.
+    if *last == nearby.last_harvested && !nearby.is_changed() {
+        return;
+    }
+    *last = Some(entity);
     commands.spawn(AudioBundle {
         source: asset_server.load("audio/mercy_harvest_sting.ogg"),
         settings: PlaybackSettings::DESPAWN,
