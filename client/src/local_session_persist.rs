@@ -1,10 +1,8 @@
 /*!
- * Local Session Persist — v22.8.0
+ * Local Session Persist — v22.10.0
  *
- * Pool, climate, first-hour flags, PersistentWeb.thread_strength
- * → data/powrush_local_session.json
- *
- * PATSAGi v22 | Contact: info@Rathor.ai | Yoi ⚡
+ * Pool, climate, web, companion trust → data/powrush_local_session.json
+ * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -12,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::companion_bond::CompanionBond;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::human_inventory::HumanInventory;
@@ -33,6 +32,8 @@ struct SessionBlob {
     whisper_lived: bool,
     #[serde(default)]
     thread_strength: f32,
+    #[serde(default)]
+    companion_trust: f32,
 }
 
 impl Default for SessionBlob {
@@ -48,6 +49,7 @@ impl Default for SessionBlob {
             first_harvest_lived: false,
             whisper_lived: false,
             thread_strength: 0.28,
+            companion_trust: 0.18,
         }
     }
 }
@@ -107,6 +109,7 @@ fn load_local_session(
     mut harvest: ResMut<FirstHarvestEpiphany>,
     mut inv: ResMut<HumanInventory>,
     mut web: ResMut<PersistentWeb>,
+    mut bond: ResMut<CompanionBond>,
 ) {
     if persist.loaded {
         return;
@@ -130,11 +133,12 @@ fn load_local_session(
     inv.last_seen_harvests = blob.harvests;
     web.thread_strength = blob.thread_strength.max(0.0);
     web.apply_decay_on_return();
+    bond.trust = blob.companion_trust.clamp(0.0, 1.0);
+    bond.mounted = false;
     info!(
         target: "powrush::session",
         v = pool.vitality,
-        realm = ?realm.current,
-        harvests = pool.harvests,
+        trust = bond.trust,
         thread = web.thread_strength,
         "local session restored"
     );
@@ -145,9 +149,15 @@ fn mark_dirty(
     realm: Res<SoftPlayerRealm>,
     harvest: Res<FirstHarvestEpiphany>,
     web: Res<PersistentWeb>,
+    bond: Res<CompanionBond>,
     mut persist: ResMut<LocalSessionPersist>,
 ) {
-    if pool.is_changed() || realm.is_changed() || harvest.is_changed() || web.is_changed() {
+    if pool.is_changed()
+        || realm.is_changed()
+        || harvest.is_changed()
+        || web.is_changed()
+        || bond.is_changed()
+    {
         persist.dirty = true;
     }
 }
@@ -158,6 +168,7 @@ fn save_local_session(
     realm: Res<SoftPlayerRealm>,
     harvest: Res<FirstHarvestEpiphany>,
     web: Res<PersistentWeb>,
+    bond: Res<CompanionBond>,
 ) {
     if !persist.dirty {
         return;
@@ -173,6 +184,7 @@ fn save_local_session(
         first_harvest_lived: harvest.first_harvest_lived,
         whisper_lived: persist.whisper_lived,
         thread_strength: web.thread_strength,
+        companion_trust: bond.trust,
     };
     save_blob(&blob);
     persist.dirty = false;
@@ -183,17 +195,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn blob_roundtrip_includes_thread() {
+    fn blob_keeps_trust() {
         let blob = SessionBlob {
-            vitality: 2.5,
-            realm: Some(3),
-            thread_strength: 0.7,
-            whisper_lived: true,
+            companion_trust: 0.62,
+            thread_strength: 0.4,
             ..Default::default()
         };
         let json = serde_json::to_string(&blob).unwrap();
         let back: SessionBlob = serde_json::from_str(&json).unwrap();
-        assert!((back.thread_strength - 0.7).abs() < 0.01);
-        assert_eq!(back.realm, Some(3));
+        assert!((back.companion_trust - 0.62).abs() < 0.01);
     }
 }
