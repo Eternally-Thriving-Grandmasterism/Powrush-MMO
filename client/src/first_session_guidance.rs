@@ -1,6 +1,6 @@
 /*!
  * First Session Guidance — Powrush-MMO End-User Experience Layer
- * v21.97.1 — Aligned with mainstream locomotion (Space=jump · E=interact)
+ * v21.98.0 — Harvest credit lives in first_harvest_epiphany (E interact)
  *
  * Soft, non-blocking objective strip for the first 5–15 minutes.
  * Progressive disclosure · dismissible (H) · never blocks movement or joy.
@@ -9,8 +9,6 @@
  */
 
 use bevy::prelude::*;
-
-use crate::soft_play_bindings;
 
 /// Soft objective the player is gently invited to try next.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -247,16 +245,7 @@ fn track_simple_progress_signals(
         guidance.inventory_opened = true;
     }
 
-    // Interact key (E) credits soft harvest during harvest guidance stages
-    if keyboard.just_pressed(soft_play_bindings::INTERACT)
-        && matches!(
-            guidance.objective,
-            GuidanceObjective::HarvestWithInteract | GuidanceObjective::ApproachGlowingNode
-        )
-    {
-        guidance.harvests_completed = guidance.harvests_completed.saturating_add(1);
-    }
-
+    // Harvest + epiphany credits arrive from FirstHarvestEpiphanyPlugin (E).
     guidance.advance_if_ready();
 }
 
