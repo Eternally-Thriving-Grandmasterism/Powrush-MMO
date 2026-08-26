@@ -1,8 +1,8 @@
 /*!
- * Local Session Persist — v22.3.0
+ * Local Session Persist — v22.8.0
  *
- * SoftRbePool + SoftPlayerRealm + first-hour flags → data/powrush_local_session.json
- * Same folder as the journey echo. One human, no server.
+ * Pool, climate, first-hour flags, PersistentWeb.thread_strength
+ * → data/powrush_local_session.json
  *
  * PATSAGi v22 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::human_inventory::HumanInventory;
+use crate::living_ecology::PersistentWeb;
 use crate::living_practice_loop::SoftPlayerRealm;
 
 const PERSIST_PATH: &str = "data/powrush_local_session.json";
@@ -30,6 +31,8 @@ struct SessionBlob {
     realm: Option<u8>,
     first_harvest_lived: bool,
     whisper_lived: bool,
+    #[serde(default)]
+    thread_strength: f32,
 }
 
 impl Default for SessionBlob {
@@ -44,6 +47,7 @@ impl Default for SessionBlob {
             realm: Some(0),
             first_harvest_lived: false,
             whisper_lived: false,
+            thread_strength: 0.28,
         }
     }
 }
@@ -102,6 +106,7 @@ fn load_local_session(
     mut realm: ResMut<SoftPlayerRealm>,
     mut harvest: ResMut<FirstHarvestEpiphany>,
     mut inv: ResMut<HumanInventory>,
+    mut web: ResMut<PersistentWeb>,
 ) {
     if persist.loaded {
         return;
@@ -123,11 +128,14 @@ fn load_local_session(
     harvest.first_epiphany_lived = blob.first_harvest_lived;
     persist.whisper_lived = blob.whisper_lived;
     inv.last_seen_harvests = blob.harvests;
+    web.thread_strength = blob.thread_strength.max(0.0);
+    web.apply_decay_on_return();
     info!(
         target: "powrush::session",
         v = pool.vitality,
         realm = ?realm.current,
         harvests = pool.harvests,
+        thread = web.thread_strength,
         "local session restored"
     );
 }
@@ -136,9 +144,10 @@ fn mark_dirty(
     pool: Res<SoftRbePool>,
     realm: Res<SoftPlayerRealm>,
     harvest: Res<FirstHarvestEpiphany>,
+    web: Res<PersistentWeb>,
     mut persist: ResMut<LocalSessionPersist>,
 ) {
-    if pool.is_changed() || realm.is_changed() || harvest.is_changed() {
+    if pool.is_changed() || realm.is_changed() || harvest.is_changed() || web.is_changed() {
         persist.dirty = true;
     }
 }
@@ -148,6 +157,7 @@ fn save_local_session(
     pool: Res<SoftRbePool>,
     realm: Res<SoftPlayerRealm>,
     harvest: Res<FirstHarvestEpiphany>,
+    web: Res<PersistentWeb>,
 ) {
     if !persist.dirty {
         return;
@@ -162,6 +172,7 @@ fn save_local_session(
         realm: realm.current,
         first_harvest_lived: harvest.first_harvest_lived,
         whisper_lived: persist.whisper_lived,
+        thread_strength: web.thread_strength,
     };
     save_blob(&blob);
     persist.dirty = false;
@@ -172,17 +183,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn blob_roundtrip() {
+    fn blob_roundtrip_includes_thread() {
         let blob = SessionBlob {
             vitality: 2.5,
-            realm: Some(2),
+            realm: Some(3),
+            thread_strength: 0.7,
             whisper_lived: true,
             ..Default::default()
         };
         let json = serde_json::to_string(&blob).unwrap();
         let back: SessionBlob = serde_json::from_str(&json).unwrap();
-        assert!((back.vitality - 2.5).abs() < 0.01);
-        assert_eq!(back.realm, Some(2));
-        assert!(back.whisper_lived);
+        assert!((back.thread_strength - 0.7).abs() < 0.01);
+        assert_eq!(back.realm, Some(3));
     }
 }
