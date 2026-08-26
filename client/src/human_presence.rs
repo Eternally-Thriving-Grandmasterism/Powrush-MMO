@@ -1,30 +1,51 @@
 /*!
  * Human Presence — v22.4.0
  *
- * A body on the ground. Eye-height, shadow, camera that follows.
- * Believable temporary reality — not a floating HUD.
+ * A body on the ground. Human speed, gravity, jump that returns.
+ * Camera follows. Nodes read SoftPresence so reach is real.
  *
  * PATSAGi v22.4 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
 
-use crate::input::Player;
-use crate::prediction::{PredictedAbility, PredictedPosition};
+use crate::input::PlayerInput;
 
-const EYE: f32 = 0.92;
+const STAND: f32 = 0.90;
+const WALK: f32 = 3.4;
+const SPRINT: f32 = 5.4;
+const GRAVITY: f32 = 18.0;
+const JUMP: f32 = 5.6;
 const CAM_BACK: f32 = 6.4;
 const CAM_UP: f32 = 2.35;
 
 #[derive(Component)]
-struct HumanBody;
+pub struct HumanPresence;
+
+#[derive(Resource, Debug)]
+pub struct SoftPresence {
+    pub position: Vec3,
+    pub velocity: Vec3,
+    pub grounded: bool,
+}
+
+impl Default for SoftPresence {
+    fn default() -> Self {
+        Self {
+            position: Vec3::new(0.0, STAND, 0.0),
+            velocity: Vec3::ZERO,
+            grounded: true,
+        }
+    }
+}
 
 pub struct HumanPresencePlugin;
 
 impl Plugin for HumanPresencePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_human_presence)
-            .add_systems(Update, (sync_body, follow_camera));
+        app.init_resource::<SoftPresence>()
+            .add_systems(Startup, spawn_human_presence)
+            .add_systems(Update, (apply_locomotion, sync_body, follow_camera).chain());
     }
 }
 
@@ -32,43 +53,66 @@ fn spawn_human_presence(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    existing: Query<Entity, With<Player>>,
+    existing: Query<Entity, With<HumanPresence>>,
 ) {
     if existing.iter().next().is_some() {
         return;
     }
     let capsule = meshes.add(Capsule3d::new(0.28, 1.12));
     let mat = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.22, 0.28, 0.26),
-        perceptual_roughness: 0.72,
+        base_color: Color::srgb(0.20, 0.26, 0.24),
+        perceptual_roughness: 0.74,
         ..default()
     });
     commands.spawn((
         PbrBundle {
             mesh: capsule,
             material: mat,
-            transform: Transform::from_xyz(0.0, EYE, 0.0),
+            transform: Transform::from_xyz(0.0, STAND, 0.0),
             ..default()
         },
-        PredictedPosition {
-            position: Vec3::new(0.0, EYE, 0.0),
-            velocity: Vec3::ZERO,
-            ..default()
-        },
-        PredictedAbility::default(),
-        Player,
-        HumanBody,
+        HumanPresence,
         Name::new("HumanPresence"),
     ));
     info!(target: "powrush::presence", "human-scale body on the climate plane");
 }
 
-fn sync_body(
-    mut q: Query<(&PredictedPosition, &mut Transform), With<HumanBody>>,
+fn apply_locomotion(
+    input: Res<PlayerInput>,
+    time: Res<Time>,
+    mut presence: ResMut<SoftPresence>,
 ) {
-    for (pred, mut tf) in &mut q {
-        tf.translation = pred.position;
-        let horiz = Vec3::new(pred.velocity.x, 0.0, pred.velocity.z);
+    let dt = time.delta_seconds();
+    let speed = if input.sprint { SPRINT } else { WALK };
+    // W into the world (-Z), A/D on X — ground plane, not flying on Y
+    let wish = Vec3::new(input.movement.x, 0.0, -input.movement.y);
+    let wish = if wish.length_squared() > 1.0 {
+        wish.normalize()
+    } else {
+        wish
+    };
+    presence.velocity.x = wish.x * speed;
+    presence.velocity.z = wish.z * speed;
+    presence.velocity.y -= GRAVITY * dt;
+    if presence.grounded && input.jump {
+        presence.velocity.y = JUMP;
+        presence.grounded = false;
+    }
+    presence.position += presence.velocity * dt;
+    if presence.position.y <= STAND {
+        presence.position.y = STAND;
+        presence.velocity.y = 0.0;
+        presence.grounded = true;
+    }
+}
+
+fn sync_body(
+    presence: Res<SoftPresence>,
+    mut q: Query<&mut Transform, With<HumanPresence>>,
+) {
+    for mut tf in &mut q {
+        tf.translation = presence.position;
+        let horiz = Vec3::new(presence.velocity.x, 0.0, presence.velocity.z);
         if horiz.length_squared() > 0.04 {
             let dir = horiz.normalize();
             tf.rotation = Quat::from_rotation_y(dir.x.atan2(dir.z));
@@ -77,16 +121,13 @@ fn sync_body(
 }
 
 fn follow_camera(
-    bodies: Query<&Transform, (With<HumanBody>, Without<Camera3d>)>,
+    presence: Res<SoftPresence>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
 ) {
-    let Ok(body) = bodies.get_single() else {
-        return;
-    };
+    let desired = presence.position + Vec3::new(0.0, CAM_UP, CAM_BACK);
+    let look = presence.position + Vec3::Y * 0.45;
     for mut cam in &mut cams {
-        let desired = body.translation + Vec3::new(0.0, CAM_UP, CAM_BACK);
         cam.translation = cam.translation.lerp(desired, 0.12);
-        let look = body.translation + Vec3::Y * 0.45;
         cam.look_at(look, Vec3::Y);
     }
 }
