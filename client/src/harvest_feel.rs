@@ -15,6 +15,7 @@ use bevy::prelude::*;
 use crate::rbe::RbeGlobalState;
 use crate::rbe_allocate_choice::AllocatePath;
 
+#[derive(Resource, Debug)]
 pub struct SoftRbePool {
     pub vitality: f32,
     pub harmony: f32,
@@ -59,7 +60,7 @@ impl SoftRbePool {
     }
 
     pub fn spend_allocate(&mut self, path: AllocatePath, want: f32) -> f32 {
-        let take = match path {
+        match path {
             AllocatePath::FlowOutward => {
                 let n = want.min(self.vitality.max(0.0));
                 self.vitality = (self.vitality - n).max(0.0);
@@ -70,8 +71,7 @@ impl SoftRbePool {
                 self.harmony = (self.harmony - n).max(0.0);
                 n
             }
-        };
-        take
+        }
     }
 
     pub fn line(&self) -> String {
