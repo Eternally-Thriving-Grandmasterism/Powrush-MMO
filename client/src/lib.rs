@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.96.0 Ergonomic soft-play bindings
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.98.0 First-harvest epiphany
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -28,6 +28,7 @@ pub mod webxr_bootstrap;
 pub mod example_gpu_material;
 
 pub mod first_session_guidance;
+pub mod first_harvest_epiphany;
 pub mod living_practice_loop;
 pub mod thriving_moments;
 pub mod rbe_allocate_choice;
@@ -63,6 +64,7 @@ pub use webxr_bootstrap::PowrushWebXrClient;
 
 pub use example_gpu_material::GpuVisualMaterialsPlugin;
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance, credit_harvest, credit_epiphany};
+pub use first_harvest_epiphany::{FirstHarvestEpiphanyPlugin, FirstHarvestEpiphany};
 pub use living_practice_loop::{
     LivingPracticeLoopPlugin, LivingPracticeLoop, PracticeSurface, SoftPlayerRealm,
     credit_practice_mercy_harvest,
@@ -100,6 +102,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(LivingPracticeLoopPlugin);
         app.add_plugins(RbeAllocateChoicePlugin);
         app.add_plugins(AbundanceJourneyEchoPlugin);
+        app.add_plugins(FirstHarvestEpiphanyPlugin);
         app.add_plugins(LatticeFlowSharePlugin);
         app.add_plugins(SteamAbundanceMirrorPlugin);
         app.add_plugins(FoundationLatticePlugin);
