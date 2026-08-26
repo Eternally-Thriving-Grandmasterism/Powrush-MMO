@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root
-//! AG-SML v1.0 | TOLC 8 | v22.5.0 living ecology
+//! AG-SML v1.0 | TOLC 8 | v22.9.0 survival transfer
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -34,6 +34,8 @@ pub mod first_harvest_epiphany;
 pub mod mercy_harvest_nodes;
 pub mod climate_plane;
 pub mod living_ecology;
+pub mod living_freshness;
+pub mod companion_bond;
 pub mod world_answer;
 pub mod first_hour_camera;
 pub mod human_soft_panels;
@@ -81,6 +83,8 @@ pub use first_harvest_epiphany::{FirstHarvestEpiphanyPlugin, FirstHarvestEpiphan
 pub use mercy_harvest_nodes::{MercyHarvestNodesPlugin, NearbyMercyNode};
 pub use climate_plane::{ClimatePlanePlugin, ClimatePlane};
 pub use living_ecology::LivingEcologyPlugin;
+pub use living_freshness::{LivingFreshnessPlugin, LivingFreshness};
+pub use companion_bond::{CompanionBondPlugin, CompanionBond};
 pub use world_answer::{WorldAnswerPlugin, WorldAnswer, AnswerKind};
 pub use first_hour_camera::{FirstHourCameraPlugin, FirstHourGlance};
 pub use human_soft_panels::{HumanSoftPanelsPlugin, HumanSoftPanels};
@@ -129,6 +133,8 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(MercyHarvestNodesPlugin);
         app.add_plugins(ClimatePlanePlugin);
         app.add_plugins(LivingEcologyPlugin);
+        app.add_plugins(LivingFreshnessPlugin);
+        app.add_plugins(CompanionBondPlugin);
         app.add_plugins(HarvestFeelPlugin);
         app.add_plugins(WorldAnswerPlugin);
         app.add_plugins(FirstHarvestEpiphanyPlugin);
