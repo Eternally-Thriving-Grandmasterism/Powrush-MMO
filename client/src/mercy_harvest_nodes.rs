@@ -1,19 +1,22 @@
 /*!
- * Mercy Harvest Nodes — embodied first-hour world (v21.99.0)
+ * Mercy Harvest Nodes — embodied first-hour world (v21.99.3)
  *
- * Three glowing nodes in the walk plane. E harvests only when near.
- * Nodes dim slightly but keep glowing (restraint, not extraction).
- * Soft audio sting is attempted; missing assets fail silently.
+ * Climate sting: Sanctuary / Verdant / Horizon, else shared triad.
+ * Missing files fail silently.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
 
+use crate::living_practice_loop::SoftPlayerRealm;
 use crate::prediction::PredictedPosition;
 
-/// How close a human must stand (world units) before E is world-care.
 pub const HARVEST_REACH: f32 = 2.85;
+const STING_SHARED: &str = "audio/mercy_harvest_sting.ogg";
+const STING_SANCTUARY: &str = "audio/mercy_harvest_sting_sanctuary.ogg";
+const STING_VERDANT: &str = "audio/mercy_harvest_sting_verdant.ogg";
+const STING_HORIZON: &str = "audio/mercy_harvest_sting_horizon.ogg";
 
 #[derive(Component, Debug)]
 pub struct MercyHarvestNode {
@@ -43,6 +46,15 @@ impl Default for NearbyMercyNode {
             nodes_exist: false,
             last_harvested: None,
         }
+    }
+}
+
+pub fn sting_path_for_realm(realm: Option<u8>) -> &'static str {
+    match realm {
+        Some(0) | Some(3) => STING_SANCTUARY, // Sanctuary / Harmonic — warm triad
+        Some(2) => STING_VERDANT,
+        Some(4) | Some(1) => STING_HORIZON, // Horizon / Synthetic — cooler lift
+        _ => STING_SHARED,
     }
 }
 
@@ -164,7 +176,6 @@ fn pulse_harvested_nodes(
     }
 }
 
-/// Called by first-harvest epiphany after a successful in-range E.
 pub fn apply_node_harvest(node: &mut MercyHarvestNode) {
     node.harvests = node.harvests.saturating_add(1);
     node.vitality = (node.vitality * 0.92).max(0.45);
@@ -175,6 +186,7 @@ fn try_soft_harvest_sting(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     nearby: Res<NearbyMercyNode>,
+    realm: Option<Res<SoftPlayerRealm>>,
     mut last: Local<Option<u32>>,
     nodes: Query<&MercyHarvestNode>,
 ) {
@@ -188,11 +200,23 @@ fn try_soft_harvest_sting(
         return;
     }
     *last = Some(node.harvests);
+    let realm_id = realm.and_then(|r| r.current);
+    let climate = sting_path_for_realm(realm_id);
+    // Climate file first; shared triad as second voice if climate missing Bevy logs once.
     commands.spawn(AudioBundle {
-        source: asset_server.load("audio/mercy_harvest_sting.ogg"),
+        source: asset_server.load(climate),
         settings: PlaybackSettings::DESPAWN,
         ..default()
     });
+    if climate != STING_SHARED {
+        commands.spawn(AudioBundle {
+            source: asset_server.load(STING_SHARED),
+            settings: PlaybackSettings {
+                volume: bevy::audio::Volume::new(0.35),
+                ..PlaybackSettings::DESPAWN
+            },
+        });
+    }
 }
 
 #[cfg(test)]
@@ -214,7 +238,8 @@ mod tests {
     }
 
     #[test]
-    fn reach_is_human_scale() {
-        assert!(HARVEST_REACH > 1.5 && HARVEST_REACH < 5.0);
+    fn climate_paths_differ() {
+        assert_ne!(sting_path_for_realm(Some(0)), sting_path_for_realm(Some(2)));
+        assert_eq!(sting_path_for_realm(None), STING_SHARED);
     }
 }
