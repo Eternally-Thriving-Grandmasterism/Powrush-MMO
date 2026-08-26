@@ -1,7 +1,9 @@
 /*!
- * Soft Lattice Flow Share — export + peer ingest (v21.96.0)
+ * Soft Lattice Flow Share — export + peer ingest + ambient presence (v21.99.1)
  *
- * **U** — soft-ingest peer envelope (Unity / Us — ergonomic)
+ * **U** — explicit ingest into Journey Echo
+ * Ambient chip re-reads peer JSON every few seconds without a key.
+ * Never a leaderboard. Presence only.
  *
  * TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -17,8 +19,9 @@ use crate::soft_play_bindings;
 
 const SHARE_PATH: &str = "data/powrush_lattice_flow_share.json";
 const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
+const AMBIENT_POLL: f32 = 4.0;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LatticeFlowShareEnvelope {
     pub schema: String,
     pub flow_total: f32,
@@ -35,15 +38,68 @@ pub struct LatticeFlowShare {
     pub last_path: Option<PathBuf>,
     pub last_peer: Option<LatticeFlowShareEnvelope>,
     pub last_ingest_note: Option<String>,
+    pub ambient_seen_choices: Option<u32>,
+    pub poll_accum: f32,
+    pub chip_visible: bool,
 }
+
+#[derive(Component)]
+struct PeerPresenceRoot;
+#[derive(Component)]
+struct PeerPresenceText;
 
 pub struct LatticeFlowSharePlugin;
 
 impl Plugin for LatticeFlowSharePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LatticeFlowShare>()
-            .add_systems(Update, (export_on_allocate_change, soft_peer_ingest));
+            .add_systems(Startup, spawn_peer_presence_chip)
+            .add_systems(
+                Update,
+                (
+                    export_on_allocate_change,
+                    ambient_peer_poll,
+                    soft_peer_ingest,
+                    update_peer_presence_chip,
+                ),
+            );
     }
+}
+
+fn spawn_peer_presence_chip(mut commands: Commands) {
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    bottom: Val::Px(16.0),
+                    right: Val::Px(16.0),
+                    width: Val::Px(280.0),
+                    padding: UiRect::all(Val::Px(10.0)),
+                    border: UiRect::all(Val::Px(1.0)),
+                    border_radius: BorderRadius::all(Val::Px(10.0)),
+                    ..default()
+                },
+                background_color: Color::srgba(0.04, 0.06, 0.09, 0.82).into(),
+                border_color: Color::srgba(0.55, 0.72, 0.90, 0.35).into(),
+                visibility: Visibility::Hidden,
+                ..default()
+            },
+            PeerPresenceRoot,
+        ))
+        .with_children(|p| {
+            p.spawn((
+                TextBundle::from_section(
+                    "",
+                    TextStyle {
+                        font_size: 12.5,
+                        color: Color::srgb(0.82, 0.90, 1.0),
+                        ..default()
+                    },
+                ),
+                PeerPresenceText,
+            ));
+        });
 }
 
 fn export_on_allocate_change(
@@ -103,6 +159,28 @@ fn try_read_envelope(path: &str) -> Option<LatticeFlowShareEnvelope> {
     }
 }
 
+fn ambient_peer_poll(mut share: ResMut<LatticeFlowShare>, time: Res<Time>) {
+    share.poll_accum += time.delta_seconds();
+    if share.poll_accum < AMBIENT_POLL {
+        return;
+    }
+    share.poll_accum = 0.0;
+
+    let env = try_read_envelope(PEER_PATH).or_else(|| try_read_envelope(SHARE_PATH));
+    let Some(env) = env else {
+        share.chip_visible = share.last_peer.is_some();
+        return;
+    };
+    let changed = share.ambient_seen_choices != Some(env.choices_made)
+        || share.last_peer.as_ref() != Some(&env);
+    share.ambient_seen_choices = Some(env.choices_made);
+    share.last_peer = Some(env);
+    share.chip_visible = true;
+    if changed {
+        info!(target: "powrush::lattice", "ambient peer presence refreshed");
+    }
+}
+
 fn soft_peer_ingest(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut share: ResMut<LatticeFlowShare>,
@@ -126,6 +204,7 @@ fn soft_peer_ingest(
             echo.push(JourneyKind::Note, note.clone());
             share.last_ingest_note = Some(note.clone());
             share.last_peer = Some(env);
+            share.chip_visible = true;
             info!(target: "powrush::lattice", "{note}");
         }
         None => {
@@ -133,6 +212,34 @@ fn soft_peer_ingest(
                 .to_string();
             share.last_ingest_note = Some(note.clone());
             info!(target: "powrush::lattice", "{note}");
+        }
+    }
+}
+
+fn update_peer_presence_chip(
+    share: Res<LatticeFlowShare>,
+    mut root: Query<&mut Visibility, With<PeerPresenceRoot>>,
+    mut text_q: Query<&mut Text, With<PeerPresenceText>>,
+) {
+    let show = share.chip_visible && share.last_peer.is_some();
+    for mut vis in &mut root {
+        *vis = if show {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+    if let Some(env) = &share.last_peer {
+        let line = format!(
+            "Peer flow {:.0} · reserve {:.0} · U to remember",
+            env.flow_total, env.reserve_total
+        );
+        for mut text in &mut text_q {
+            if let Some(s) = text.sections.get_mut(0) {
+                if s.value != line {
+                    s.value = line.clone();
+                }
+            }
         }
     }
 }
