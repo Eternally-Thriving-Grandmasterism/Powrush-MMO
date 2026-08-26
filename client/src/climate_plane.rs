@@ -124,10 +124,7 @@ fn spawn_climate_place(
     lights: Query<Entity, With<DirectionalLight>>,
 ) {
     let look = look_for(Some(0));
-    let ground = meshes.add(Mesh::from(shape::Plane {
-        size: 56.0,
-        subdivisions: 1,
-    }));
+    let ground = meshes.add(Plane3d::default().mesh().size(56.0, 56.0));
     commands.spawn((
         PbrBundle {
             mesh: ground,
@@ -144,12 +141,7 @@ fn spawn_climate_place(
         Name::new("ClimateGround"),
     ));
 
-    let stone_mesh = meshes.add(Mesh::from(shape::Cylinder {
-        radius: 0.18,
-        height: 0.08,
-        resolution: 8,
-        segments: 1,
-    }));
+    let stone_mesh = meshes.add(Cylinder::new(0.18, 0.08));
     let stone_mat = materials.add(StandardMaterial {
         base_color: look.stone,
         perceptual_roughness: 0.88,
@@ -157,7 +149,6 @@ fn spawn_climate_place(
     });
     for target in NODE_ANCHORS {
         let dir = Vec3::new(target.x, 0.0, target.z);
-        let dist = dir.length().max(0.01);
         let steps = 4;
         for i in 1..=steps {
             let t = i as f32 / (steps as f32 + 0.35);
@@ -172,13 +163,13 @@ fn spawn_climate_place(
                 ClimateStone,
             ));
         }
-        let _ = dist;
     }
 
     if cameras.iter().next().is_none() {
         commands.spawn((
             Camera3dBundle {
-                transform: Transform::from_xyz(0.0, 7.2, 11.5).looking_at(Vec3::new(0.0, 0.4, 0.0), Vec3::Y),
+                transform: Transform::from_xyz(0.0, 7.2, 11.5)
+                    .looking_at(Vec3::new(0.0, 0.4, 0.0), Vec3::Y),
                 ..default()
             },
             FogSettings {
