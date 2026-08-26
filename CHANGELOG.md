@@ -1,14 +1,14 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [22.0.0] — 2026-08-26 — Arc A Climate Plane
+## [22.1.0] — 2026-08-26 — Arc B Satchel
 
-Z travel moves the *place*, not only a list.
-- Ground, sky, fog, stepping-stone paths, node tint follow SoftPlayerRealm
-- First hour defaults to Sanctuary Prime
-- Climate name chip at the top of the hour
+From the 90s thread (Keen, GoldenEye, Mario 64, Ocarina):
+- Watch strip bottom-left after first harvest (V / H / J counts)
+- **I** opens the satchel; **1–3** highlight a stack (ignored while Z is open)
+- Keen-style pickup flash on each mercy harvest
+- Harvest surplus now feeds **R** allocate directly from the pool
 
+## [22.0.0] — Arc A Climate Plane
 ## [21.99.4] — Local sovereign first hour
-## [21.99.3] — Climate stings + F-row aliases
-## [21.99.2] — Soft RBE pool + pad rumble
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
