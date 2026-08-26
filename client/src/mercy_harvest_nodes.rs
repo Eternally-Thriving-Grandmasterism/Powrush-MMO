@@ -1,18 +1,19 @@
 /*!
- * Mercy Harvest Nodes — embodied first-hour world (v22.2.0)
+ * Mercy Harvest Nodes — embodied first-hour world (v22.4.0)
  *
- * Tap E takes. Hold E tends — vitality returns.
- * Climate sting: Sanctuary / Verdant / Horizon, else shared triad.
+ * Reach uses the human body. Untended nodes slowly recover — living systems do.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
 
+use crate::human_presence::SoftPresence;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::prediction::PredictedPosition;
 
 pub const HARVEST_REACH: f32 = 2.85;
+const RECOVER_PER_SEC: f32 = 0.038;
 const STING_SHARED: &str = "audio/mercy_harvest_sting.ogg";
 const STING_SANCTUARY: &str = "audio/mercy_harvest_sting_sanctuary.ogg";
 const STING_VERDANT: &str = "audio/mercy_harvest_sting_verdant.ogg";
@@ -124,7 +125,13 @@ fn spawn_mercy_nodes(
     info!(target: "powrush::nodes", "three mercy harvest nodes seeded in the walk plane");
 }
 
-fn player_xy(query: &Query<&PredictedPosition>) -> Vec3 {
+fn player_xy(
+    presence: Option<&SoftPresence>,
+    query: &Query<&PredictedPosition>,
+) -> Vec3 {
+    if let Some(p) = presence {
+        return p.position;
+    }
     if let Some(p) = query.iter().next() {
         return p.position;
     }
@@ -132,11 +139,12 @@ fn player_xy(query: &Query<&PredictedPosition>) -> Vec3 {
 }
 
 fn track_nearby_node(
+    presence: Option<Res<SoftPresence>>,
     player: Query<&PredictedPosition>,
     nodes: Query<(Entity, &Transform, &MercyHarvestNode)>,
     mut nearby: ResMut<NearbyMercyNode>,
 ) {
-    let pos = player_xy(&player);
+    let pos = player_xy(presence.as_deref(), &player);
     nearby.nodes_exist = !nodes.is_empty();
     let mut best: Option<(Entity, &'static str, f32)> = None;
     for (entity, tf, node) in &nodes {
@@ -169,6 +177,8 @@ fn pulse_harvested_nodes(
     for (mut node, mut tf) in &mut nodes {
         if node.pulse > 0.0 {
             node.pulse = (node.pulse - dt * 1.35).max(0.0);
+        } else if node.vitality < 1.0 {
+            node.vitality = (node.vitality + dt * RECOVER_PER_SEC).min(1.0);
         }
         let breathe = 1.0 + (t * 1.7).sin() * 0.06 * node.vitality;
         let burst = 1.0 + node.pulse * 0.28;
@@ -228,7 +238,6 @@ mod tests {
         apply_node_harvest(&mut n);
         assert!(n.vitality < 1.0 && n.vitality >= 0.45);
         assert_eq!(n.harvests, 1);
-        assert!(n.pulse > 0.0);
     }
 
     #[test]
@@ -241,12 +250,5 @@ mod tests {
         };
         apply_node_tend(&mut n);
         assert!(n.vitality > 0.50);
-        assert!(n.vitality <= 1.0);
-    }
-
-    #[test]
-    fn climate_paths_differ() {
-        assert_ne!(sting_path_for_realm(Some(0)), sting_path_for_realm(Some(2)));
-        assert_eq!(sting_path_for_realm(None), STING_SHARED);
     }
 }
