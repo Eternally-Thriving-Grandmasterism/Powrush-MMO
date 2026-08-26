@@ -1,5 +1,23 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [21.95.0] — 2026-08-26 — Foundation Lattice (Educational Mastery Surface)
+
+### Highlights
+
+- New soft overlay **`client/src/foundation_lattice.rs`** (toggle **F7**)
+- Makes the soft-play stack legible: practice climate chain, allocate direction, journey depth, soft realm
+- Dune II–inspired sequential clarity **without** scarcity, timers, energy bars, or forced gates
+- Pure educational presence marker — never blocks input, never punishes
+- Wired into `PowrushClientBundle` · docs updated
+
+### Design law preserved
+
+Voluntary mastery · durable foundations · care before force · never scarcity.
+
+Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
+
+---
+
 ## [21.94.3] — 2026-08-17 — Soft-Policy High-SNR Doctrine (Mission A)
 
 ### Added
