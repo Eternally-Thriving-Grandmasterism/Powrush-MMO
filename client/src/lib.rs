@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.99.1 Peer presence + first-hour glance
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.99.2 Soft RBE pool + rumble
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -28,6 +28,7 @@ pub mod webxr_bootstrap;
 pub mod example_gpu_material;
 
 pub mod first_session_guidance;
+pub mod harvest_feel;
 pub mod first_harvest_epiphany;
 pub mod mercy_harvest_nodes;
 pub mod first_hour_camera;
@@ -67,6 +68,7 @@ pub use webxr_bootstrap::PowrushWebXrClient;
 
 pub use example_gpu_material::GpuVisualMaterialsPlugin;
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance, credit_harvest, credit_epiphany};
+pub use harvest_feel::{HarvestFeelPlugin, SoftRbePool};
 pub use first_harvest_epiphany::{FirstHarvestEpiphanyPlugin, FirstHarvestEpiphany};
 pub use mercy_harvest_nodes::{MercyHarvestNodesPlugin, NearbyMercyNode};
 pub use first_hour_camera::{FirstHourCameraPlugin, FirstHourGlance};
@@ -109,6 +111,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(RbeAllocateChoicePlugin);
         app.add_plugins(AbundanceJourneyEchoPlugin);
         app.add_plugins(MercyHarvestNodesPlugin);
+        app.add_plugins(HarvestFeelPlugin);
         app.add_plugins(FirstHarvestEpiphanyPlugin);
         app.add_plugins(FirstHourCameraPlugin);
         app.add_plugins(HumanSoftPanelsPlugin);
