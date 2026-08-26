@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root
-//! AG-SML v1.0 | TOLC 8 | v22.0.0 Climate plane (Arc A)
+//! AG-SML v1.0 | TOLC 8 | v22.1.0 Climate plane + satchel
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -35,6 +35,7 @@ pub mod mercy_harvest_nodes;
 pub mod climate_plane;
 pub mod first_hour_camera;
 pub mod human_soft_panels;
+pub mod human_inventory;
 pub mod living_practice_loop;
 pub mod thriving_moments;
 pub mod rbe_allocate_choice;
@@ -76,6 +77,7 @@ pub use mercy_harvest_nodes::{MercyHarvestNodesPlugin, NearbyMercyNode};
 pub use climate_plane::{ClimatePlanePlugin, ClimatePlane};
 pub use first_hour_camera::{FirstHourCameraPlugin, FirstHourGlance};
 pub use human_soft_panels::{HumanSoftPanelsPlugin, HumanSoftPanels};
+pub use human_inventory::{HumanInventoryPlugin, HumanInventory, SatchelSlot};
 pub use living_practice_loop::{
     LivingPracticeLoopPlugin, LivingPracticeLoop, PracticeSurface, SoftPlayerRealm,
     credit_practice_mercy_harvest,
@@ -118,6 +120,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(ClimatePlanePlugin);
         app.add_plugins(HarvestFeelPlugin);
         app.add_plugins(FirstHarvestEpiphanyPlugin);
+        app.add_plugins(HumanInventoryPlugin);
         app.add_plugins(FirstHourCameraPlugin);
         app.add_plugins(HumanSoftPanelsPlugin);
         app.add_plugins(LatticeFlowSharePlugin);
