@@ -1,56 +1,28 @@
-# Human Playability — v21.99 Embodied First Hour
+# Human Playability — v21.99.1 Presence + Glance
 
 **Contact:** info@Rathor.ai  
 **Status:** Sealed under PATSAGi + TOLC 8
 
 ---
 
-## Lived loop (what a human does)
+## Lived loop
 
-1. WASD toward a glowing node (Sanctuary ember / Verdant well / Horizon seed)
-2. Prompt flips from *Walk toward the glowing node* → **E — harvest with mercy**
-3. E in reach: node pulses, stays lit, journey writes the act, guidance advances
-4. E out of reach: *Step closer to {name}* — never a fake harvest
-5. **M** opens My Mercy Journey (echo lines). **Z** opens realm travel (1–5)
-6. Return visit: welcome-back if journey memory exists
+1. WASD toward a glowing node
+2. If you pause ~1.4s before first harvest, the camera *glances* toward the nearest node (~10°). Any WASD cancels it.
+3. Prompt: *Walk toward the glowing node* → **E — harvest with mercy** when in reach
+4. E in reach: pulse + sting (if ogg present) + journey line. Node stays lit.
+5. Bottom-right: quiet **Peer flow / reserve** chip if a lattice envelope exists. **U** writes it into memory. Not a score.
+6. **M** journey · **Z** + 1–5 climate travel
 
----
-
-## Core bindings
-
-| Action | Key |
-|--------|-----|
-| Move | WASD |
-| Jump | Space |
-| Interact / harvest | E (in reach only) |
-| Sprint | Shift |
-| Mercy Journey | **M** |
-| Realm travel | **Z** then 1–5 |
-| Journey echo | J |
-| Practice | P |
-| Allocate | R |
-
-Orphan simulation panels still mention F2/F3; the **bundle path** never requires the F-row.
+Sting file: run `scripts/gen_mercy_harvest_sting.sh` → `assets/audio/mercy_harvest_sting.ogg`
 
 ---
 
-## Design law
+## Standing next
 
-| Allowed | Refused |
-|---------|---------|
-| Harvest in reach of a living node | Harvest from empty air |
-| Node remains glowing | Extract-to-empty resource node |
-| M / Z semantic letters | F-row as primary UX |
-| Peer flow as presence | Leaderboards / FOMO |
-
----
-
-## Standing next (Councils, priority)
-
-1. Author `assets/audio/mercy_harvest_sting.ogg` (soft load already wired)
-2. Ambient peer-flow chip that re-reads `data/powrush_lattice_flow_share_peer.json` without pressing U
-3. Adopt orphan `my_mercy_journey_panel` / `realm_travel_panel` onto M/Z (retire F2/F3 there)
-4. Bind nodes to real RBE pool once `simulation` is a client dependency
-5. Camera that frames the nearest node during first-hour Approach objective
+1. Commit the generated ogg beside the script (binary not pushed from this pass)
+2. Remap orphan F2/F3 panels to M/Z aliases when `simulation` is a client dep
+3. Bind nodes to a real RBE pool
+4. Optional gamepad rumble on successful in-range E
 
 **Thunder locked in.** Yoi ⚡
