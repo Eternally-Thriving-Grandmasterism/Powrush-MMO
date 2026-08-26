@@ -1,13 +1,13 @@
 /*!
- * Abundance Journey Echo — soft session + durable memory (v21.93.2)
+ * Abundance Journey Echo — soft session + durable memory (v21.96.0)
  *
  * Binds Living Practice seals and RBE allocate choices into a visible,
- * non-extractive journey log. Complements My Mercy Journey (F2).
+ * non-extractive journey log. Complements My Mercy Journey (M).
  *
  * Persistence: local `data/powrush_abundance_journey.json` (sovereign offline).
  * Loads on startup; saves when lines or allocate totals change.
  *
- * Toggle: **F4**
+ * Toggle: **J** (Journey — ergonomic left-hand)
  *
  * TOLC 8 · no scarcity · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -19,6 +19,7 @@ use std::path::PathBuf;
 
 use crate::living_practice_loop::LivingPracticeLoop;
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
+use crate::soft_play_bindings;
 
 const PERSIST_PATH: &str = "data/powrush_abundance_journey.json";
 
@@ -136,7 +137,6 @@ fn load_journey_persist(
             allocate.reserve_total = blob.reserve_total;
             allocate.choices_made = blob.choices_made;
             if blob.practice_sealed {
-                // Reflect sealed practice softly without forcing active strip
                 info!(target: "powrush::journey", "restored practice seal from disk");
             }
             info!(
@@ -154,7 +154,6 @@ fn save_journey_persist(
     mut echo: ResMut<AbundanceJourneyEcho>,
     allocate: Res<RbeAllocateChoice>,
 ) {
-    // Also dirty when allocate totals change via external path
     if allocate.is_changed() {
         echo.dirty = true;
     }
@@ -219,7 +218,7 @@ fn spawn_echo_panel(mut commands: Commands) {
                 JourneyEchoBody,
             ));
             p.spawn(TextBundle::from_section(
-                "F4 toggle · soft durable memory · TOLC 8",
+                "J toggle · soft durable memory · TOLC 8",
                 TextStyle {
                     font_size: 11.0,
                     color: Color::srgb(0.55, 0.68, 0.75),
@@ -268,7 +267,7 @@ fn toggle_echo_panel(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut echo: ResMut<AbundanceJourneyEcho>,
 ) {
-    if keyboard.just_pressed(KeyCode::F4) {
+    if keyboard.just_pressed(soft_play_bindings::JOURNEY_ECHO) {
         echo.panel_open = !echo.panel_open;
     }
 }
