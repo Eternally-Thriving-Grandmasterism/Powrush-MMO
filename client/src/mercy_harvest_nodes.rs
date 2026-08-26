@@ -51,9 +51,9 @@ impl Default for NearbyMercyNode {
 
 pub fn sting_path_for_realm(realm: Option<u8>) -> &'static str {
     match realm {
-        Some(0) | Some(3) => STING_SANCTUARY, // Sanctuary / Harmonic — warm triad
+        Some(0) | Some(3) => STING_SANCTUARY,
         Some(2) => STING_VERDANT,
-        Some(4) | Some(1) => STING_HORIZON, // Horizon / Synthetic — cooler lift
+        Some(4) | Some(1) => STING_HORIZON,
         _ => STING_SHARED,
     }
 }
@@ -200,23 +200,12 @@ fn try_soft_harvest_sting(
         return;
     }
     *last = Some(node.harvests);
-    let realm_id = realm.and_then(|r| r.current);
-    let climate = sting_path_for_realm(realm_id);
-    // Climate file first; shared triad as second voice if climate missing Bevy logs once.
+    let path = sting_path_for_realm(realm.and_then(|r| r.current));
     commands.spawn(AudioBundle {
-        source: asset_server.load(climate),
+        source: asset_server.load(path),
         settings: PlaybackSettings::DESPAWN,
         ..default()
     });
-    if climate != STING_SHARED {
-        commands.spawn(AudioBundle {
-            source: asset_server.load(STING_SHARED),
-            settings: PlaybackSettings {
-                volume: bevy::audio::Volume::new(0.35),
-                ..PlaybackSettings::DESPAWN
-            },
-        });
-    }
 }
 
 #[cfg(test)]
