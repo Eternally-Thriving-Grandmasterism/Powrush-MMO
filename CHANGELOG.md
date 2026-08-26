@@ -1,14 +1,14 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [22.1.0] — 2026-08-26 — Arc B Satchel
+## [22.2.0] — 2026-08-26 — Tend vs take + allocate visible
 
-From the 90s thread (Keen, GoldenEye, Mario 64, Ocarina):
-- Watch strip bottom-left after first harvest (V / H / J counts)
-- **I** opens the satchel; **1–3** highlight a stack (ignored while Z is open)
-- Keen-style pickup flash on each mercy harvest
-- Harvest surplus now feeds **R** allocate directly from the pool
+- **Tap E** / pad West: take (vitality into satchel, node dimmer but alive)
+- **Hold E ~0.42s**: tend (harmony into satchel, node vitality returns)
+- **R** Flow spends vitality — sky brightens, fog opens, nodes pulse
+- **R** Reserve spends harmony — climate steadies, fog draws in
+- Watch strip still shows the three stacks after the spend
 
+## [22.1.0] — Arc B Satchel
 ## [22.0.0] — Arc A Climate Plane
-## [21.99.4] — Local sovereign first hour
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
