@@ -1,16 +1,13 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [21.99.2] — 2026-08-26 — Soft RBE pool + pad rumble
+## [21.99.3] — 2026-08-26 — Climate stings + F-row as alias
 
-In-range harvest now changes a felt economy and a felt controller:
-- `SoftRbePool` credits vitality / harmony / joy (node stays glowing)
-- Optional `RbeGlobalState` abundance tick when that resource exists
-- ~90ms weak rumble on connected pads
-- Gamepad West / `PlayerInput.interact` harvests the same as E
+- Harvest sting path follows SoftPlayerRealm: Sanctuary / Verdant / Horizon, else shared triad
+- `scripts/gen_mercy_harvest_sting.sh` writes all four oggs
+- **M / Z taught.** F2 / F3 still heard via `mercy_journey_just_pressed` / `realm_travel_just_pressed`
 
-## [21.99.1] — Peer presence + sovereignty glance + sting recipe
+## [21.99.2] — Soft RBE pool + pad rumble
+## [21.99.1] — Peer presence + sovereignty glance
 ## [21.99.0] — Embodied harvest + M/Z panels
-## [21.98.0] — First-Harvest Epiphany
-## [21.97.0] — Mainstream locomotion
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
