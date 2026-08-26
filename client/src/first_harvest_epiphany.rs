@@ -1,12 +1,8 @@
 /*!
- * First Harvest Epiphany — lived first-hour loop (v21.98.0)
+ * First Harvest Epiphany — lived first-hour loop (v21.99.0)
  *
- * Puts a human in the world:
- *   - Near-node prompt: "E — harvest with mercy"
- *   - First E: visual pulse + thriving moment + guidance + journey echo
- *   - Returning: one soft welcome-back from durable journey memory
- *
- * Never blocks movement. No scarcity. Soft-fail if audio/particles absent.
+ * Walk to a glowing node → E in reach → world answers.
+ * If nodes exist, E at empty air is a gentle step-closer, not a harvest.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -15,17 +11,14 @@ use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
+use crate::mercy_harvest_nodes::{apply_node_harvest, MercyHarvestNode, NearbyMercyNode};
 use crate::rbe_client_ui_sync::RbeUiSync;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
-/// How long the world-care prompt stays after first harvest (seconds).
 const PROMPT_LINGER: f64 = 2.4;
-/// Pulse / toast duration after a mercy harvest.
 const PULSE_SECS: f64 = 4.2;
-/// Welcome-back toast duration.
 const WELCOME_SECS: f64 = 6.0;
-/// Soft cooldown so later E presses do not spam the lattice.
 const REPEAT_COOLDOWN: f64 = 1.6;
 
 #[derive(Resource, Debug)]
@@ -46,7 +39,7 @@ impl Default for FirstHarvestEpiphany {
             first_harvest_lived: false,
             first_epiphany_lived: false,
             welcome_shown: false,
-            prompt_until: 9999.0, // visible from boot until first harvest settles
+            prompt_until: 9999.0,
             pulse_until: 0.0,
             pulse_line: String::new(),
             last_interact_at: -999.0,
@@ -72,19 +65,14 @@ impl FirstHarvestEpiphany {
 
 #[derive(Component)]
 pub struct WorldCarePromptRoot;
-
 #[derive(Component)]
 pub struct WorldCarePromptText;
-
 #[derive(Component)]
 pub struct HarvestPulseRoot;
-
 #[derive(Component)]
 pub struct HarvestPulseText;
-
 #[derive(Component)]
 pub struct WelcomeBackRoot;
-
 #[derive(Component)]
 pub struct WelcomeBackText;
 
@@ -108,7 +96,6 @@ impl Plugin for FirstHarvestEpiphanyPlugin {
 }
 
 fn spawn_lived_surfaces(mut commands: Commands) {
-    // World-care prompt — bottom-center, above first-session strip
     commands
         .spawn((
             NodeBundle {
@@ -135,7 +122,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
         .with_children(|p| {
             p.spawn((
                 TextBundle::from_section(
-                    "E  —  harvest with mercy",
+                    "Walk toward a glowing node",
                     TextStyle {
                         font_size: 17.0,
                         color: Color::srgb(0.82, 1.0, 0.90),
@@ -146,7 +133,6 @@ fn spawn_lived_surfaces(mut commands: Commands) {
             ));
         });
 
-    // Harvest pulse — center-upper, distinct from thriving toast
     commands
         .spawn((
             NodeBundle {
@@ -184,7 +170,6 @@ fn spawn_lived_surfaces(mut commands: Commands) {
             ));
         });
 
-    // Welcome-back — top-left, quiet
     commands
         .spawn((
             NodeBundle {
@@ -230,16 +215,13 @@ fn maybe_welcome_back(
         return;
     }
     if echo.lines.is_empty() && !echo.last_practice_sealed {
-        state.welcome_shown = true; // first-ever player: no toast
+        state.welcome_shown = true;
         return;
     }
     state.welcome_shown = true;
     let now = time.elapsed_seconds_f64();
-    // Reuse pulse_until channel only for welcome visibility clock via prompt field? Dedicated:
-    state.pulse_until = state.pulse_until.max(now); // keep harvest pulse independent
     let line = if echo.last_practice_sealed {
-        "Welcome back · your sealed practice still travels with you · J to remember"
-            .to_string()
+        "Welcome back · your sealed practice still travels with you · J to remember".to_string()
     } else if let Some(last) = echo.lines.last() {
         format!("Welcome back · last echo: {} · J to open journey", last.text)
     } else {
@@ -250,9 +232,6 @@ fn maybe_welcome_back(
             s.value = line.clone();
         }
     }
-    // stash welcome deadline in last_interact_at negative sentinel? use prompt_until only for prompt.
-    // Welcome visibility uses a dedicated field — piggyback harvests_this_session==0 + welcome_shown
-    // Store welcome end in last_interact_at as now+WELCOME when we just showed it.
     state.last_interact_at = -(now + WELCOME_SECS);
     info!(target: "powrush::epiphany", "welcome-back shown from journey memory");
 }
@@ -267,6 +246,8 @@ fn handle_interact_harvest(
     mut guidance: ResMut<FirstSessionGuidance>,
     mut moments: ResMut<ThrivingMoments>,
     mut echo: ResMut<AbundanceJourneyEcho>,
+    mut nearby: ResMut<NearbyMercyNode>,
+    mut nodes: Query<&mut MercyHarvestNode>,
     mut rbe_ui: Option<ResMut<RbeUiSync>>,
     time: Res<Time>,
 ) {
@@ -277,12 +258,27 @@ fn handle_interact_harvest(
     if now - state.last_interact_at.abs() < REPEAT_COOLDOWN && state.last_interact_at > 0.0 {
         return;
     }
+
+    if nearby.nodes_exist && !nearby.in_range {
+        state.pulse_until = now + 2.2;
+        let name = nearby.name.unwrap_or("the glowing node");
+        state.pulse_line = format!("Step closer to {} · then E", name);
+        info!(target: "powrush::epiphany", dist = nearby.distance, "E out of reach");
+        return;
+    }
+
     state.last_interact_at = now;
     state.harvests_this_session = state.harvests_this_session.saturating_add(1);
 
+    if let Some(entity) = nearby.entity {
+        if let Ok(mut node) = nodes.get_mut(entity) {
+            apply_node_harvest(&mut node);
+            nearby.last_harvested = Some(entity);
+        }
+    }
+
     credit_harvest(&mut guidance);
     credit_epiphany(&mut guidance);
-
     fire_thriving(&mut moments, ThrivingKind::FirstMercyHarvest, now);
 
     let first = !state.first_harvest_lived;
@@ -290,12 +286,12 @@ fn handle_interact_harvest(
     state.first_epiphany_lived = true;
     state.prompt_until = now + PROMPT_LINGER;
     state.pulse_until = now + PULSE_SECS;
-
+    let node_name = nearby.name.unwrap_or("the node");
     state.pulse_line = if first {
-        "The node still glows · you took with restraint · abundance remains for all".to_string()
+        format!("{node_name} still glows · you took with restraint · abundance remains")
     } else {
         format!(
-            "Mercy harvest · the climate still thrives · session care {}",
+            "Mercy harvest at {node_name} · climate still thrives · care {}",
             state.harvests_this_session
         )
     };
@@ -303,15 +299,15 @@ fn handle_interact_harvest(
     if first {
         echo.push(
             JourneyKind::Note,
-            "First mercy harvest — the node was left glowing",
+            format!("First mercy harvest at {node_name} — left glowing"),
         );
     }
 
     if let Some(ref mut ui) = rbe_ui {
         ui.last_harvest_feedback = Some(if first {
-            "Epiphany · Sustainable harvest · the node still glows".into()
+            format!("Epiphany · Sustainable harvest at {node_name}")
         } else {
-            "Sustainable harvest · mercy refinement active".into()
+            format!("Sustainable harvest at {node_name} · mercy refinement active")
         });
     }
 
@@ -319,6 +315,7 @@ fn handle_interact_harvest(
         target: "powrush::epiphany",
         first,
         n = state.harvests_this_session,
+        node = node_name,
         "lived harvest on E"
     );
 }
@@ -326,12 +323,14 @@ fn handle_interact_harvest(
 fn update_world_care_prompt(
     state: Res<FirstHarvestEpiphany>,
     guidance: Res<FirstSessionGuidance>,
+    nearby: Res<NearbyMercyNode>,
     time: Res<Time>,
     mut root: Query<&mut Visibility, With<WorldCarePromptRoot>>,
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
 ) {
     let now = time.elapsed_seconds_f64();
-    let show = state.prompt_visible(now, &guidance) && !guidance.dismissed;
+    let approaching = nearby.nodes_exist && !state.first_harvest_lived;
+    let show = (state.prompt_visible(now, &guidance) || approaching) && !guidance.dismissed;
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -339,7 +338,11 @@ fn update_world_care_prompt(
             Visibility::Hidden
         };
     }
-    let line = if state.first_harvest_lived {
+    let line = if nearby.nodes_exist && nearby.in_range {
+        "E  —  harvest with mercy"
+    } else if nearby.nodes_exist {
+        "Walk toward the glowing node"
+    } else if state.first_harvest_lived {
         "The node remembers your care"
     } else {
         "E  —  harvest with mercy"
