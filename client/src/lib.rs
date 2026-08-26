@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root
-//! AG-SML v1.0 | TOLC 8 | v22.2.0 tend / allocate visible
+//! AG-SML v1.0 | TOLC 8 | v22.3.0 persist + whisper
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -37,6 +37,8 @@ pub mod world_answer;
 pub mod first_hour_camera;
 pub mod human_soft_panels;
 pub mod human_inventory;
+pub mod local_session_persist;
+pub mod first_whisper;
 pub mod living_practice_loop;
 pub mod thriving_moments;
 pub mod rbe_allocate_choice;
@@ -80,6 +82,8 @@ pub use world_answer::{WorldAnswerPlugin, WorldAnswer, AnswerKind};
 pub use first_hour_camera::{FirstHourCameraPlugin, FirstHourGlance};
 pub use human_soft_panels::{HumanSoftPanelsPlugin, HumanSoftPanels};
 pub use human_inventory::{HumanInventoryPlugin, HumanInventory, SatchelSlot};
+pub use local_session_persist::{LocalSessionPersistPlugin, LocalSessionPersist};
+pub use first_whisper::FirstWhisperPlugin;
 pub use living_practice_loop::{
     LivingPracticeLoopPlugin, LivingPracticeLoop, PracticeSurface, SoftPlayerRealm,
     credit_practice_mercy_harvest,
@@ -124,6 +128,8 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(WorldAnswerPlugin);
         app.add_plugins(FirstHarvestEpiphanyPlugin);
         app.add_plugins(HumanInventoryPlugin);
+        app.add_plugins(LocalSessionPersistPlugin);
+        app.add_plugins(FirstWhisperPlugin);
         app.add_plugins(FirstHourCameraPlugin);
         app.add_plugins(HumanSoftPanelsPlugin);
         app.add_plugins(LatticeFlowSharePlugin);
