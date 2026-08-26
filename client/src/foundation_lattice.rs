@@ -139,23 +139,32 @@ fn update_lattice_visibility(
     }
 }
 
+/// Order of climates for progressive marking.
+fn climate_order(s: PracticeSurface) -> u8 {
+    match s {
+        PracticeSurface::SanctuaryCap => 0,
+        PracticeSurface::VerdantSurge => 1,
+        PracticeSurface::HorizonScarcity => 2,
+        PracticeSurface::PrincipleSealed => 3,
+    }
+}
+
 fn climate_mark(surface: PracticeSurface, current: PracticeSurface, sealed: bool) -> &'static str {
     if sealed {
-        return "◎";
+        return if matches!(surface, PracticeSurface::PrincipleSealed) {
+            "◎"
+        } else {
+            "○"
+        };
     }
-    if surface == current {
+    let cur = climate_order(current);
+    let here = climate_order(surface);
+    if here == cur {
         "●"
+    } else if here < cur {
+        "○"
     } else {
-        // Earlier surfaces that have been passed get a soft check feel via ordering.
-        match (surface, current) {
-            (PracticeSurface::SanctuaryCap, PracticeSurface::VerdantSurge)
-            | (PracticeSurface::SanctuaryCap, PracticeSurface::HorizonScarcity)
-            | (PracticeSurface::SanctuaryCap, PracticeSurface::PrincipleSealed)
-            | (PracticeSurface::VerdantSurge, PracticeSurface::HorizonScarcity)
-            | (PracticeSurface::VerdantSurge, PracticeSurface::PrincipleSealed)
-            | (PracticeSurface::HorizonScarcity, PracticeSurface::PrincipleSealed) => "○",
-            _ => "·",
-        }
+        "·"
     }
 }
 
@@ -177,17 +186,7 @@ fn build_lattice_body(
 
     let mut climate_lines = String::new();
     for s in climates {
-        let mark = climate_mark(s, current, sealed && matches!(s, PracticeSurface::PrincipleSealed) || (sealed && s != PracticeSurface::PrincipleSealed && matches!(current, PracticeSurface::PrincipleSealed)));
-        // Cleaner sealed rendering: all prior climates marked passed when sealed.
-        let mark = if sealed {
-            if matches!(s, PracticeSurface::PrincipleSealed) {
-                "◎"
-            } else {
-                "○"
-            }
-        } else {
-            climate_mark(s, current, false)
-        };
+        let mark = climate_mark(s, current, sealed);
         climate_lines.push_str(&format!("{}  {}\n", mark, s.title()));
     }
 
@@ -216,7 +215,11 @@ fn build_lattice_body(
         format!(
             "Journey echo  {} lines · sealed {}",
             echo.lines.len(),
-            if echo.last_practice_sealed { "yes" } else { "not yet" }
+            if echo.last_practice_sealed {
+                "yes"
+            } else {
+                "not yet"
+            }
         )
     };
 
@@ -258,7 +261,6 @@ fn update_lattice_body(
     if !lattice.panel_open {
         return;
     }
-    // Refresh when any of the soft-play resources change or panel just opened.
     if !(lattice.is_changed()
         || practice.is_changed()
         || allocate.is_changed()
@@ -302,7 +304,7 @@ mod tests {
         assert!(body.contains("Verdant"));
         assert!(body.contains("Flow outward"));
         assert!(body.contains("Steward reserve"));
-        assert!(body.contains("FOUNDATION") || body.contains("CLIMATES"));
+        assert!(body.contains("CLIMATES"));
         assert!(body.contains("never scarcity"));
     }
 
@@ -321,5 +323,33 @@ mod tests {
         let realm = SoftPlayerRealm::default();
         let body = build_lattice_body(&practice, &allocate, &echo, &realm);
         assert!(body.contains("Principle sealed") || body.contains("◎"));
+    }
+
+    #[test]
+    fn climate_marks_progress() {
+        assert_eq!(
+            climate_mark(
+                PracticeSurface::SanctuaryCap,
+                PracticeSurface::VerdantSurge,
+                false
+            ),
+            "○"
+        );
+        assert_eq!(
+            climate_mark(
+                PracticeSurface::VerdantSurge,
+                PracticeSurface::VerdantSurge,
+                false
+            ),
+            "●"
+        );
+        assert_eq!(
+            climate_mark(
+                PracticeSurface::HorizonScarcity,
+                PracticeSurface::VerdantSurge,
+                false
+            ),
+            "·"
+        );
     }
 }
