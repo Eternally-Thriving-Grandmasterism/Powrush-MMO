@@ -1,10 +1,8 @@
 /*!
- * Climate Plane — Arc A (v22.0.0)
+ * Climate Plane — v22.7.0
  *
- * Z travel moves the *place*: ground tint, sky, fog, stepping-stone path.
- * First hour defaults to Sanctuary. No server required.
- *
- * PATSAGi v22 | Contact: info@Rathor.ai | Yoi ⚡
+ * Z travel moves the place. Climate 3 = Abyssal Depths (night, close fog).
+ * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::pbr::{FogFalloff, FogSettings};
@@ -28,22 +26,28 @@ struct ClimateLook {
     ambient: Color,
     node: Color,
     stone: Color,
+    fog_start: f32,
+    fog_end: f32,
+    ambient_bright: f32,
 }
 
 fn look_for(realm: Option<u8>) -> ClimateLook {
     match realm {
         Some(2) => ClimateLook {
-            name: "Verdant Bloom",
+            name: "Verdant Heartwood",
             ground: Color::srgb(0.12, 0.28, 0.16),
             sky: Color::srgb(0.42, 0.72, 0.58),
             fog: Color::srgba(0.35, 0.62, 0.48, 1.0),
             ambient: Color::srgb(0.55, 0.85, 0.62),
             node: Color::srgb(0.40, 0.95, 0.62),
             stone: Color::srgb(0.22, 0.38, 0.24),
+            fog_start: 10.0,
+            fog_end: 42.0,
+            ambient_bright: 280.0,
         },
         Some(4) | Some(1) => ClimateLook {
             name: if realm == Some(1) {
-                "Synthetic Lattice"
+                "Crystal Spires"
             } else {
                 "Voidfarer Horizon"
             },
@@ -53,15 +57,21 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             ambient: Color::srgb(0.40, 0.48, 0.70),
             node: Color::srgb(0.95, 0.82, 0.38),
             stone: Color::srgb(0.22, 0.20, 0.28),
+            fog_start: 12.0,
+            fog_end: 40.0,
+            ambient_bright: 220.0,
         },
         Some(3) => ClimateLook {
-            name: "Harmonic Chorus",
-            ground: Color::srgb(0.16, 0.14, 0.22),
-            sky: Color::srgb(0.48, 0.42, 0.68),
-            fog: Color::srgba(0.40, 0.36, 0.58, 1.0),
-            ambient: Color::srgb(0.62, 0.55, 0.82),
-            node: Color::srgb(0.72, 0.62, 0.98),
-            stone: Color::srgb(0.28, 0.24, 0.36),
+            name: "Abyssal Depths",
+            ground: Color::srgb(0.04, 0.07, 0.08),
+            sky: Color::srgb(0.04, 0.06, 0.09),
+            fog: Color::srgba(0.03, 0.08, 0.09, 1.0),
+            ambient: Color::srgb(0.18, 0.42, 0.38),
+            node: Color::srgb(0.22, 0.92, 0.68),
+            stone: Color::srgb(0.10, 0.16, 0.16),
+            fog_start: 3.5,
+            fog_end: 16.0,
+            ambient_bright: 90.0,
         },
         _ => ClimateLook {
             name: "Sanctuary Prime",
@@ -71,6 +81,9 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             ambient: Color::srgb(0.70, 0.82, 0.74),
             node: Color::srgb(0.35, 0.92, 0.62),
             stone: Color::srgb(0.28, 0.30, 0.24),
+            fog_start: 10.0,
+            fog_end: 42.0,
+            ambient_bright: 280.0,
         },
     }
 }
@@ -103,7 +116,7 @@ impl Plugin for ClimatePlanePlugin {
             .insert_resource(ClearColor(look_for(Some(0)).sky))
             .insert_resource(AmbientLight {
                 color: look_for(Some(0)).ambient,
-                brightness: 280.0,
+                brightness: look_for(Some(0)).ambient_bright,
             })
             .add_systems(Startup, (ensure_sanctuary, spawn_climate_place, spawn_climate_chip))
             .add_systems(Update, (apply_climate_look, update_climate_chip));
@@ -175,8 +188,8 @@ fn spawn_climate_place(
             FogSettings {
                 color: look.fog,
                 falloff: FogFalloff::Linear {
-                    start: 10.0,
-                    end: 42.0,
+                    start: look.fog_start,
+                    end: look.fog_end,
                 },
                 ..default()
             },
@@ -186,8 +199,8 @@ fn spawn_climate_place(
             commands.entity(entity).insert(FogSettings {
                 color: look.fog,
                 falloff: FogFalloff::Linear {
-                    start: 10.0,
-                    end: 42.0,
+                    start: look.fog_start,
+                    end: look.fog_end,
                 },
                 ..default()
             });
@@ -266,6 +279,7 @@ fn apply_climate_look(
     let look = look_for(Some(id));
     clear.0 = look.sky;
     ambient.color = look.ambient;
+    ambient.brightness = look.ambient_bright;
 
     for handle in &grounds {
         if let Some(mat) = materials.get_mut(handle) {
@@ -285,6 +299,10 @@ fn apply_climate_look(
     }
     for mut fog in &mut fogs {
         fog.color = look.fog;
+        fog.falloff = FogFalloff::Linear {
+            start: look.fog_start,
+            end: look.fog_end,
+        };
     }
     info!(target: "powrush::climate", climate = look.name, id, "place shifted");
 }
@@ -310,6 +328,7 @@ mod tests {
     #[test]
     fn climates_disagree() {
         assert_ne!(look_for(Some(0)).name, look_for(Some(2)).name);
-        assert_ne!(look_for(Some(2)).name, look_for(Some(4)).name);
+        assert_ne!(look_for(Some(2)).name, look_for(Some(3)).name);
+        assert_eq!(look_for(Some(3)).name, "Abyssal Depths");
     }
 }
