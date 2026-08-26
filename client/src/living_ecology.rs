@@ -1,12 +1,12 @@
 /*!
- * Living Ecology — v22.5.0
+ * Living Ecology — v22.6.0
  *
- * Seeded from content/biomes/verdant_heartwood_ecology.json.
- * Ancient trees occupy space. A resonant companion approaches care
- * and withdraws from take — the same lesson as base-reality wildlife.
- * No faction mannequins. No fake player counts.
+ * Heartwood: trees + companion (content/biomes/verdant_heartwood_ecology.json).
+ * Spires: harmonic crystals (content/biomes/crystal_spires_ecology_v18.10.json).
+ * Tend / flow → resonance peak. Take → silent crystal.
+ * BiomeFeel.regen_mul feeds node recovery (Spires 1.6×).
  *
- * PATSAGi v22.4 law | Contact: info@Rathor.ai | Yoi ⚡
+ * PATSAGi v22.4 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -27,10 +27,16 @@ enum PropKind {
     Tree,
     Stone,
     Deer,
+    Crystal,
 }
 
 #[derive(Component)]
 struct ResonantDeer;
+
+#[derive(Component)]
+struct CrystalGlow {
+    handle: Handle<StandardMaterial>,
+}
 
 #[derive(Resource, Debug)]
 struct EcologyState {
@@ -45,13 +51,38 @@ impl Default for EcologyState {
     }
 }
 
+/// Living recovery multiplier from the active biome JSON.
+#[derive(Resource, Debug)]
+pub struct BiomeFeel {
+    pub regen_mul: f32,
+    pub name: &'static str,
+}
+
+impl Default for BiomeFeel {
+    fn default() -> Self {
+        Self {
+            regen_mul: 1.0,
+            name: "Sanctuary",
+        }
+    }
+}
+
 pub struct LivingEcologyPlugin;
 
 impl Plugin for LivingEcologyPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EcologyState>()
+            .init_resource::<BiomeFeel>()
             .add_systems(Startup, spawn_ecology)
-            .add_systems(Update, (remember_care, dress_for_climate, move_deer));
+            .add_systems(
+                Update,
+                (
+                    remember_care,
+                    dress_for_climate,
+                    move_deer,
+                    sing_or_silence_spires,
+                ),
+            );
     }
 }
 
@@ -142,7 +173,36 @@ fn spawn_ecology(
         Name::new("ResonantDeer"),
     ));
 
-    info!(target: "powrush::ecology", "Heartwood trees + resonant companion seeded");
+    let spire = meshes.add(Cylinder::new(0.16, 3.6));
+    let crystal_spots = [
+        Vec3::new(5.0, 1.8, -6.2),
+        Vec3::new(-5.4, 1.8, -6.8),
+        Vec3::new(7.4, 1.8, 1.6),
+        Vec3::new(-7.2, 1.8, 2.2),
+    ];
+    for pos in crystal_spots {
+        let handle = materials.add(StandardMaterial {
+            base_color: Color::srgb(0.55, 0.78, 0.95),
+            emissive: LinearRgba::new(0.25, 0.45, 0.70, 1.0),
+            perceptual_roughness: 0.18,
+            metallic: 0.12,
+            ..default()
+        });
+        commands.spawn((
+            PbrBundle {
+                mesh: spire.clone(),
+                material: handle.clone(),
+                transform: Transform::from_translation(pos),
+                ..default()
+            },
+            EcologyProp {
+                kind: PropKind::Crystal,
+            },
+            CrystalGlow { handle },
+        ));
+    }
+
+    info!(target: "powrush::ecology", "Heartwood + Crystal Spires seeded");
 }
 
 fn remember_care(answer: Res<WorldAnswer>, mut eco: ResMut<EcologyState>) {
@@ -153,14 +213,27 @@ fn remember_care(answer: Res<WorldAnswer>, mut eco: ResMut<EcologyState>) {
 
 fn dress_for_climate(
     realm: Res<SoftPlayerRealm>,
+    mut feel: ResMut<BiomeFeel>,
     mut q: Query<(&EcologyProp, &mut Visibility)>,
 ) {
     let id = realm.current.unwrap_or(0);
+    feel.name = match id {
+        2 => "Verdant Heartwood",
+        4 | 1 => "Crystal Spires",
+        3 => "Chorus Grove",
+        _ => "Sanctuary",
+    };
+    feel.regen_mul = match id {
+        4 | 1 => 1.6,
+        2 => 1.0,
+        _ => 1.0,
+    };
     for (prop, mut vis) in &mut q {
         let show = match prop.kind {
             PropKind::Tree => matches!(id, 0 | 2 | 3),
             PropKind::Stone => matches!(id, 1 | 4),
             PropKind::Deer => matches!(id, 0 | 2),
+            PropKind::Crystal => matches!(id, 1 | 4),
         };
         *vis = if show {
             Visibility::Visible
@@ -183,5 +256,26 @@ fn move_deer(
     let dt = time.delta_seconds();
     for mut tf in &mut q {
         tf.translation = tf.translation.lerp(target, (1.6 * dt).min(1.0));
+    }
+}
+
+fn sing_or_silence_spires(
+    eco: Res<EcologyState>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    q: Query<&CrystalGlow>,
+) {
+    let peak = matches!(eco.last_kind, AnswerKind::Tend | AnswerKind::Flow);
+    let silent = matches!(eco.last_kind, AnswerKind::Take);
+    let e = if peak {
+        LinearRgba::new(0.55, 0.85, 1.2, 1.0)
+    } else if silent {
+        LinearRgba::new(0.08, 0.12, 0.22, 1.0)
+    } else {
+        LinearRgba::new(0.25, 0.45, 0.70, 1.0)
+    };
+    for glow in &q {
+        if let Some(mat) = materials.get_mut(&glow.handle) {
+            mat.emissive = e;
+        }
     }
 }
