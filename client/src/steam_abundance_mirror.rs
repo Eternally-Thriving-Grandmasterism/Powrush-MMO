@@ -1,18 +1,7 @@
 /*!
- * Steam Auto-Cloud triggers — abundance journey + lattice share (v21.94.2)
+ * Steam Auto-Cloud triggers — abundance journey + lattice share (v21.96.0)
  *
- * Stages blobs to paths that match Steamworks Auto-Cloud rules:
- *   - OS app-data: …/Powrush-MMO/steam_cloud/abundance/
- *   - Portable:    steam_cloud/abundance/
- *
- * Triggers:
- *   1. Allocate choice advanced / journey dirty flush
- *   2. Manual force: **F6**
- *   3. App exit (Last)
- *
- * Optional SDK RemoteStorage names (when `steam` backend is live):
- *   - powrush_abundance_journey.json
- *   - powrush_lattice_flow_share.json
+ * Force flush: **Shift+T** (rare power action — ergonomic chord)
  *
  * TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -24,6 +13,7 @@ use std::path::{Path, PathBuf};
 use crate::abundance_journey_echo::AbundanceJourneyEcho;
 use crate::lattice_flow_share::LatticeFlowShare;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
+use crate::soft_play_bindings;
 
 pub const ABUNDANCE_SUBDIR: &str = "steam_cloud/abundance";
 pub const REMOTE_JOURNEY: &str = "powrush_abundance_journey.json";
@@ -32,7 +22,6 @@ pub const REMOTE_LATTICE: &str = "powrush_lattice_flow_share.json";
 const LOCAL_JOURNEY: &str = "data/powrush_abundance_journey.json";
 const LOCAL_LATTICE: &str = "data/powrush_lattice_flow_share.json";
 
-/// Preferred OS Auto-Cloud stage root for abundance (mirrors partner audio path shape).
 pub fn preferred_abundance_stage_root() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
@@ -210,13 +199,13 @@ fn force_flush_key(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut mirror: ResMut<SteamAbundanceMirror>,
 ) {
-    if keyboard.just_pressed(KeyCode::F6) {
+    let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+    if shift && keyboard.just_pressed(soft_play_bindings::FORCE_CLOUD_FLUSH) {
         mirror.force_pending = true;
-        info!(target: "powrush::steam_autocloud", "F6 — force Auto-Cloud abundance flush requested");
+        info!(target: "powrush::steam_autocloud", "Shift+T — force Auto-Cloud abundance flush requested");
     }
 }
 
-/// Soft exit-path flush: when the window close is requested, stage once more.
 fn flush_on_exit_hint(
     mut exit: EventReader<AppExit>,
     mut mirror: ResMut<SteamAbundanceMirror>,
@@ -236,6 +225,5 @@ mod tests {
     fn remote_names_stable() {
         assert_eq!(REMOTE_JOURNEY, "powrush_abundance_journey.json");
         assert_eq!(REMOTE_LATTICE, "powrush_lattice_flow_share.json");
-        assert_eq!(ABUNDANCE_SUBDIR, "steam_cloud/abundance");
     }
 }

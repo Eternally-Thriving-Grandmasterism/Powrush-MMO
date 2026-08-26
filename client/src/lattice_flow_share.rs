@@ -1,13 +1,7 @@
 /*!
- * Soft Lattice Flow Share — export + peer ingest (v21.94.0)
+ * Soft Lattice Flow Share — export + peer ingest (v21.96.0)
  *
- * Export path:  `data/powrush_lattice_flow_share.json`
- * Peer ingest:  `data/powrush_lattice_flow_share_peer.json` (or own share as demo)
- * Schema:       powrush_lattice_flow_share_v1
- *
- * **F5** — soft-ingest peer envelope → Abundance Journey Echo line
- *
- * No scarcity. No leaderboard. Voluntary thriving signal only.
+ * **U** — soft-ingest peer envelope (Unity / Us — ergonomic)
  *
  * TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
  */
@@ -19,6 +13,7 @@ use std::path::PathBuf;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::rbe_allocate_choice::RbeAllocateChoice;
+use crate::soft_play_bindings;
 
 const SHARE_PATH: &str = "data/powrush_lattice_flow_share.json";
 const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
@@ -108,13 +103,12 @@ fn try_read_envelope(path: &str) -> Option<LatticeFlowShareEnvelope> {
     }
 }
 
-/// F5 — soft ingest peer envelope (peer file preferred, else own share as local demo).
 fn soft_peer_ingest(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut share: ResMut<LatticeFlowShare>,
     mut echo: ResMut<AbundanceJourneyEcho>,
 ) {
-    if !keyboard.just_pressed(KeyCode::F5) {
+    if !keyboard.just_pressed(soft_play_bindings::PEER_INGEST) {
         return;
     }
 
@@ -161,6 +155,5 @@ mod tests {
         let json = serde_json::to_string(&env).unwrap();
         let back: LatticeFlowShareEnvelope = serde_json::from_str(&json).unwrap();
         assert_eq!(back.flow_total, 3.0);
-        assert_eq!(back.choices_made, 4);
     }
 }

@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root — Public API and module declarations
-//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.95.2 Mercy Transporters
+//! AG-SML v1.0 | TOLC 8 Mercy Gates | v21.96.0 Ergonomic soft-play bindings
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -37,6 +37,7 @@ pub mod steam_abundance_mirror;
 pub mod foundation_lattice;
 pub mod resonance_flavors;
 pub mod mercy_transporters;
+pub mod soft_play_bindings;
 
 // Re-exports
 pub use networking::NetworkingPlugin;
@@ -77,6 +78,7 @@ pub use steam_abundance_mirror::{
 pub use foundation_lattice::{FoundationLatticePlugin, FoundationLattice};
 pub use resonance_flavors::{ResonanceFlavorsPlugin, ResonanceState, ResonanceFlavor};
 pub use mercy_transporters::{MercyTransportersPlugin, MercyTransporters};
+pub use soft_play_bindings::soft_play_legend;
 
 pub struct PowrushClientBundle;
 
