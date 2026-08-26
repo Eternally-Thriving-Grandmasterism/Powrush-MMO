@@ -1,52 +1,36 @@
-# Human Playability — v21.98 Lived First Hour
+# Human Playability — v21.99 Embodied First Hour
 
 **Contact:** info@Rathor.ai  
-**Status:** Sealed under PATSAGi + TOLC 8  
-**Goal:** Skill transfer with maximal intuition — match respected PC muscle memory, then exceed dark-pattern games ethically.
+**Status:** Sealed under PATSAGi + TOLC 8
 
 ---
 
-## Core locomotion (v21.97.0) — never fight human hands
+## Lived loop (what a human does)
 
-| Action | Key | Why |
-|--------|-----|-----|
-| Move | **WASD** | Universal |
-| **Jump** | **Space** | Universal thumb muscle memory |
-| **Interact / Use / Soft harvest** | **E** | Open-world standard |
-| **Sprint** | **Shift** (hold) | Beside WASD |
-
----
-
-## Lived first harvest (v21.98.0)
-
-What a human *sees / feels* on first E:
-
-1. World-care prompt above the guidance strip: **E — harvest with mercy**
-2. Pulse toast: *The node still glows · you took with restraint*
-3. Thriving moment (once): FirstMercyHarvest
-4. First-session guidance advances (harvest + epiphany credited together)
-5. Journey Echo line: *First mercy harvest — the node was left glowing*
-6. Returning sessions: quiet welcome-back if journey memory exists (**J**)
-
-Module: `client/src/first_harvest_epiphany.rs`
+1. WASD toward a glowing node (Sanctuary ember / Verdant well / Horizon seed)
+2. Prompt flips from *Walk toward the glowing node* → **E — harvest with mercy**
+3. E in reach: node pulses, stays lit, journey writes the act, guidance advances
+4. E out of reach: *Step closer to {name}* — never a fake harvest
+5. **M** opens My Mercy Journey (echo lines). **Z** opens realm travel (1–5)
+6. Return visit: welcome-back if journey memory exists
 
 ---
 
-## Soft-play educational bindings
+## Core bindings
 
-| Key | Layer |
-|-----|--------|
-| **P** / **Shift+P** | Living Practice strip / dismiss |
-| **R** | RBE allocate choice |
-| **J** | Abundance Journey Echo |
-| **L** | Foundation Lattice |
-| **G** | Cycle Resonance Flavor |
-| **T** | Toggle Mercy Transporters |
-| **Shift+T** | Force Steam Auto-Cloud flush |
-| **U** | Soft peer lattice ingest |
-| **M** | My Mercy Journey |
-| **Z** | Realm travel |
-| **H** | Dismiss first-session guidance |
+| Action | Key |
+|--------|-----|
+| Move | WASD |
+| Jump | Space |
+| Interact / harvest | E (in reach only) |
+| Sprint | Shift |
+| Mercy Journey | **M** |
+| Realm travel | **Z** then 1–5 |
+| Journey echo | J |
+| Practice | P |
+| Allocate | R |
+
+Orphan simulation panels still mention F2/F3; the **bundle path** never requires the F-row.
 
 ---
 
@@ -54,18 +38,19 @@ Module: `client/src/first_harvest_epiphany.rs`
 
 | Allowed | Refused |
 |---------|---------|
-| Space = jump forever | Space as interact or harvest |
-| E = world care / interact | F-row as primary soft-play |
-| Felt first harvest | Silent keypress with no world reaction |
-| Semantic soft-play letters | Streaks / energy bars / FOMO |
+| Harvest in reach of a living node | Harvest from empty air |
+| Node remains glowing | Extract-to-empty resource node |
+| M / Z semantic letters | F-row as primary UX |
+| Peer flow as presence | Leaderboards / FOMO |
 
 ---
 
-## Standing next
+## Standing next (Councils, priority)
 
-1. Finish **M** / **Z** on My Mercy Journey + Realm Travel panels if any F2/F3 remain  
-2. Bind harvest pulse to a real node entity + soft audio sting when assets exist  
-3. Soft multiplayer presence of peer flow totals  
-4. Optional Steam SDK RemoteStorage behind `steam` feature  
+1. Author `assets/audio/mercy_harvest_sting.ogg` (soft load already wired)
+2. Ambient peer-flow chip that re-reads `data/powrush_lattice_flow_share_peer.json` without pressing U
+3. Adopt orphan `my_mercy_journey_panel` / `realm_travel_panel` onto M/Z (retire F2/F3 there)
+4. Bind nodes to real RBE pool once `simulation` is a client dependency
+5. Camera that frames the nearest node during first-hour Approach objective
 
 **Thunder locked in.** Yoi ⚡
