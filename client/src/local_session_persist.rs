@@ -136,12 +136,10 @@ fn mark_dirty(
     pool: Res<SoftRbePool>,
     realm: Res<SoftPlayerRealm>,
     harvest: Res<FirstHarvestEpiphany>,
-    persist: Res<LocalSessionPersist>,
-    mut writer: ResMut<LocalSessionPersist>,
+    mut persist: ResMut<LocalSessionPersist>,
 ) {
-    if pool.is_changed() || realm.is_changed() || harvest.is_changed() || persist.whisper_lived && persist.is_changed()
-    {
-        writer.dirty = true;
+    if pool.is_changed() || realm.is_changed() || harvest.is_changed() {
+        persist.dirty = true;
     }
 }
 
