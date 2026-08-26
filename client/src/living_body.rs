@@ -1,11 +1,7 @@
 /*!
- * Living Body — v22.11.0
+ * Living Body — v22.12.0
  *
- * ARK weight + real lungs:
- *   carry too much unused vitality → walk slower
- *   sprint spends breath → must walk to recover
- * Never a health bar. Never a starve tick.
- *
+ * Breath, carry, shade. Grove / Heartwood rest the lungs.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -13,12 +9,14 @@ use bevy::prelude::*;
 
 use crate::harvest_feel::SoftRbePool;
 use crate::input::PlayerInput;
+use crate::living_practice_loop::SoftPlayerRealm;
 
 #[derive(Resource, Debug)]
 pub struct LivingBody {
     pub breath: f32,
     pub heavy: bool,
     pub winded: bool,
+    pub in_shade: bool,
 }
 
 impl Default for LivingBody {
@@ -27,6 +25,7 @@ impl Default for LivingBody {
             breath: 1.0,
             heavy: false,
             winded: false,
+            in_shade: false,
         }
     }
 }
@@ -58,10 +57,12 @@ fn breathe_and_weigh(
     time: Res<Time>,
     input: Res<PlayerInput>,
     pool: Res<SoftRbePool>,
+    realm: Res<SoftPlayerRealm>,
     mut body: ResMut<LivingBody>,
 ) {
     let dt = time.delta_seconds();
     body.heavy = pool.vitality >= 3.2;
+    body.in_shade = matches!(realm.current, Some(0) | Some(2));
     let moving = input.movement.length_squared() > 0.04;
     let want_sprint = input.sprint && moving && body.can_sprint();
     if want_sprint {
@@ -70,7 +71,10 @@ fn breathe_and_weigh(
             body.winded = true;
         }
     } else {
-        let recover = if moving { 0.16 } else { 0.28 };
+        let mut recover = if moving { 0.16 } else { 0.28 };
+        if body.in_shade {
+            recover *= 1.55;
+        }
         body.breath = (body.breath + dt * recover).min(1.0);
         if body.breath >= 0.42 {
             body.winded = false;
