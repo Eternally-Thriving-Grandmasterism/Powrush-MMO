@@ -1,8 +1,7 @@
 /*!
- * Human Soft Panels — M Mercy Journey · Z Realm Travel (v21.99.0)
+ * Human Soft Panels — M Mercy Journey · Z Realm Travel (v21.99.3)
  *
- * Bundle-native surfaces so first-hour players never reach for F2/F3.
- * Z writes SoftPlayerRealm so Living Practice climate-match works.
+ * M / Z taught. F2 / F3 still heard as aliases.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -100,7 +99,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                 MercySoftBody,
             ));
             p.spawn(TextBundle::from_section(
-                "M toggle · J also opens the echo · no F-keys",
+                "M toggle · J also opens the echo",
                 TextStyle {
                     font_size: 11.0,
                     color: Color::srgb(0.55, 0.70, 0.75),
@@ -152,7 +151,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                 RealmSoftBody,
             ));
             p.spawn(TextBundle::from_section(
-                "Z toggle · 1–5 choose climate · no F-keys",
+                "Z toggle · 1–5 choose climate",
                 TextStyle {
                     font_size: 11.0,
                     color: Color::srgb(0.55, 0.68, 0.80),
@@ -166,10 +165,10 @@ fn toggle_soft_panels(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut panels: ResMut<HumanSoftPanels>,
 ) {
-    if keyboard.just_pressed(soft_play_bindings::MY_MERCY_JOURNEY) {
+    if soft_play_bindings::mercy_journey_just_pressed(&keyboard) {
         panels.mercy_open = !panels.mercy_open;
     }
-    if keyboard.just_pressed(soft_play_bindings::REALM_TRAVEL) {
+    if soft_play_bindings::realm_travel_just_pressed(&keyboard) {
         panels.realm_open = !panels.realm_open;
     }
 }
