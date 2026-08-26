@@ -1,5 +1,5 @@
 /*!
- * Foundation Lattice — soft educational dependency surface (v21.95.0)
+ * Foundation Lattice — soft educational dependency surface (v21.95.1)
  *
  * Makes the living soft-play stack legible the way Dune II made concrete,
  * power, and sequential unlocks legible — without scarcity, timers, or force.
@@ -8,6 +8,7 @@
  *   • Practice climate chain (Sanctuary → Verdant → Horizon → Sealed)
  *   • Allocate direction (Flow outward · Steward reserve)
  *   • Journey Echo depth
+ *   • Resonance Flavor (F8)
  *   • Soft realm resonance note
  *
  * Toggle: **F7**
@@ -21,6 +22,7 @@ use bevy::prelude::*;
 use crate::abundance_journey_echo::AbundanceJourneyEcho;
 use crate::living_practice_loop::{LivingPracticeLoop, PracticeSurface, SoftPlayerRealm};
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
+use crate::resonance_flavors::ResonanceState;
 
 #[derive(Resource, Debug)]
 pub struct FoundationLattice {
@@ -65,7 +67,7 @@ fn spawn_lattice_panel(mut commands: Commands) {
                     top: Val::Percent(14.0),
                     right: Val::Percent(2.0),
                     width: Val::Px(380.0),
-                    max_height: Val::Px(420.0),
+                    max_height: Val::Px(460.0),
                     padding: UiRect::all(Val::Px(16.0)),
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(8.0),
@@ -102,7 +104,7 @@ fn spawn_lattice_panel(mut commands: Commands) {
                 FoundationLatticeBody,
             ));
             p.spawn(TextBundle::from_section(
-                "F7 toggle · durable foundations · voluntary mastery · TOLC 8",
+                "F7 lattice · F8 resonance · voluntary mastery · TOLC 8",
                 TextStyle {
                     font_size: 11.0,
                     color: Color::srgb(0.52, 0.68, 0.72),
@@ -139,7 +141,6 @@ fn update_lattice_visibility(
     }
 }
 
-/// Order of climates for progressive marking.
 fn climate_order(s: PracticeSurface) -> u8 {
     match s {
         PracticeSurface::SanctuaryCap => 0,
@@ -173,6 +174,7 @@ fn build_lattice_body(
     allocate: &RbeAllocateChoice,
     echo: &AbundanceJourneyEcho,
     soft_realm: &SoftPlayerRealm,
+    resonance: &ResonanceState,
 ) -> String {
     let sealed = practice.principle_sealed;
     let current = practice.surface;
@@ -223,6 +225,16 @@ fn build_lattice_body(
         )
     };
 
+    let resonance_block = format!(
+        "RESONANCE  (F8 cycle)\n\
+●  {}\n\
+{}\n\
+{}",
+        resonance.current.title(),
+        resonance.current.line(),
+        resonance.current.soft_allocate_hint()
+    );
+
     format!(
         "CLIMATES  (Caps Across Climates)\n\
 {climates}\
@@ -233,6 +245,8 @@ ALLOCATE DIRECTION\n\
 ◇  Steward reserve  {reserve:.1}\n\
 Last path  {last}\n\
 Choices    {choices}\n\
+\n\
+{resonance}\n\
 \n\
 {journey}\n\
 {realm}\n\
@@ -245,6 +259,7 @@ Voluntary mastery · never scarcity",
         reserve = allocate.reserve_total,
         last = last_path,
         choices = allocate.choices_made,
+        resonance = resonance_block,
         journey = journey_depth,
         realm = realm_note,
     )
@@ -256,6 +271,7 @@ fn update_lattice_body(
     allocate: Res<RbeAllocateChoice>,
     echo: Res<AbundanceJourneyEcho>,
     soft_realm: Res<SoftPlayerRealm>,
+    resonance: Res<ResonanceState>,
     mut q: Query<&mut Text, With<FoundationLatticeBody>>,
 ) {
     if !lattice.panel_open {
@@ -265,12 +281,13 @@ fn update_lattice_body(
         || practice.is_changed()
         || allocate.is_changed()
         || echo.is_changed()
-        || soft_realm.is_changed())
+        || soft_realm.is_changed()
+        || resonance.is_changed())
     {
         return;
     }
 
-    let body = build_lattice_body(&practice, &allocate, &echo, &soft_realm);
+    let body = build_lattice_body(&practice, &allocate, &echo, &soft_realm, &resonance);
     for mut text in &mut q {
         if let Some(s) = text.sections.get_mut(0) {
             s.value = body.clone();
@@ -281,6 +298,7 @@ fn update_lattice_body(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::resonance_flavors::ResonanceFlavor;
 
     #[test]
     fn body_contains_core_layers() {
@@ -300,11 +318,17 @@ mod tests {
         };
         let echo = AbundanceJourneyEcho::default();
         let realm = SoftPlayerRealm { current: Some(2) };
-        let body = build_lattice_body(&practice, &allocate, &echo, &realm);
+        let resonance = ResonanceState {
+            current: ResonanceFlavor::BalancedFlow,
+            shifts: 0,
+        };
+        let body = build_lattice_body(&practice, &allocate, &echo, &realm, &resonance);
         assert!(body.contains("Verdant"));
         assert!(body.contains("Flow outward"));
         assert!(body.contains("Steward reserve"));
         assert!(body.contains("CLIMATES"));
+        assert!(body.contains("RESONANCE"));
+        assert!(body.contains("Balanced Flow"));
         assert!(body.contains("never scarcity"));
     }
 
@@ -321,7 +345,8 @@ mod tests {
             ..Default::default()
         };
         let realm = SoftPlayerRealm::default();
-        let body = build_lattice_body(&practice, &allocate, &echo, &realm);
+        let resonance = ResonanceState::default();
+        let body = build_lattice_body(&practice, &allocate, &echo, &realm, &resonance);
         assert!(body.contains("Principle sealed") || body.contains("◎"));
     }
 
