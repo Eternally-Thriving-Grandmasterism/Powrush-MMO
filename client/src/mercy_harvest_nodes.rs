@@ -1,8 +1,8 @@
 /*!
- * Mercy Harvest Nodes — embodied first-hour world (v21.99.3)
+ * Mercy Harvest Nodes — embodied first-hour world (v22.2.0)
  *
+ * Tap E takes. Hold E tends — vitality returns.
  * Climate sting: Sanctuary / Verdant / Horizon, else shared triad.
- * Missing files fail silently.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -182,6 +182,11 @@ pub fn apply_node_harvest(node: &mut MercyHarvestNode) {
     node.pulse = 1.0;
 }
 
+pub fn apply_node_tend(node: &mut MercyHarvestNode) {
+    node.vitality = (node.vitality + 0.14).min(1.0);
+    node.pulse = 0.55;
+}
+
 fn try_soft_harvest_sting(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -224,6 +229,19 @@ mod tests {
         assert!(n.vitality < 1.0 && n.vitality >= 0.45);
         assert_eq!(n.harvests, 1);
         assert!(n.pulse > 0.0);
+    }
+
+    #[test]
+    fn tend_restores_vitality() {
+        let mut n = MercyHarvestNode {
+            name: "test",
+            vitality: 0.50,
+            harvests: 1,
+            pulse: 0.0,
+        };
+        apply_node_tend(&mut n);
+        assert!(n.vitality > 0.50);
+        assert!(n.vitality <= 1.0);
     }
 
     #[test]
