@@ -1,19 +1,18 @@
 /*!
- * Human Inventory — Arc B (v22.1.0)
+ * Human Inventory — v22.10.0
  *
- * Keen: pickup is an event you see.
- * GoldenEye: watch stays on — three stacks always readable.
- * Mario 64: corner counts, no menu required.
- * Ocarina: I opens the bag; 1–3 highlight a stack (only while I is open and Z is not).
- *
- * PATSAGi v22 | Contact: info@Rathor.ai | Yoi ⚡
+ * Watch reads cycles: ~ means vitality wants to go home.
+ * Companion word when trust or a ride is live.
+ * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
 
+use crate::companion_bond::CompanionBond;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::human_soft_panels::HumanSoftPanels;
+use crate::living_freshness::LivingFreshness;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::soft_play_bindings;
 
@@ -92,7 +91,6 @@ impl Plugin for HumanInventoryPlugin {
 }
 
 fn spawn_inventory_surfaces(mut commands: Commands) {
-    // GoldenEye / Mario watch — always on after first harvest
     commands
         .spawn((
             NodeBundle {
@@ -100,7 +98,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     position_type: PositionType::Absolute,
                     bottom: Val::Px(16.0),
                     left: Val::Px(16.0),
-                    width: Val::Px(250.0),
+                    width: Val::Px(340.0),
                     padding: UiRect::all(Val::Px(10.0)),
                     border: UiRect::all(Val::Px(1.0)),
                     border_radius: BorderRadius::all(Val::Px(8.0)),
@@ -229,7 +227,7 @@ fn toggle_satchel(
         inv.first_open_lived = true;
         if harvest.harvests_this_session == 0 {
             inv.pickup_line = "Satchel is ready — harvest a glow to fill it".into();
-            inv.pickup_until = 9999.0; // brief; update_pickup uses time
+            inv.pickup_until = 9999.0;
         }
     }
 }
@@ -284,6 +282,8 @@ fn feed_allocate_surplus(
 fn update_watch_strip(
     pool: Res<SoftRbePool>,
     harvest: Res<FirstHarvestEpiphany>,
+    fresh: Option<Res<LivingFreshness>>,
+    bond: Option<Res<CompanionBond>>,
     mut root: Query<&mut Visibility, With<WatchStripRoot>>,
     mut text_q: Query<&mut Text, With<WatchStripText>>,
 ) {
@@ -295,10 +295,25 @@ fn update_watch_strip(
             Visibility::Hidden
         };
     }
-    let line = format!(
-        "V {:.1}   H {:.1}   J {:.1}   · I",
-        pool.vitality, pool.harmony, pool.joy
-    );
+    let aging = fresh.map(|f| f.age > 24.0 && pool.vitality >= 0.45).unwrap_or(false);
+    let vmark = if aging { "~" } else { "" };
+    let companion = match bond {
+        Some(b) if b.mounted => "ride",
+        Some(b) if b.nearby && b.trust >= 0.55 => "E ride",
+        Some(b) if b.trust >= 0.32 => "walk",
+        _ => "",
+    };
+    let line = if companion.is_empty() {
+        format!(
+            "V {:.1}{}  H {:.1}  J {:.1}  · I",
+            pool.vitality, vmark, pool.harmony, pool.joy
+        )
+    } else {
+        format!(
+            "V {:.1}{}  H {:.1}  J {:.1}  · {}",
+            pool.vitality, vmark, pool.harmony, pool.joy, companion
+        )
+    };
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
