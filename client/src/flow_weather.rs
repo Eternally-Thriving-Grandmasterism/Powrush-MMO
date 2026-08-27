@@ -27,7 +27,6 @@ pub enum FlowBand {
 pub struct FlowWeather {
     pub band: FlowBand,
     pub chain: f32,
-    last_drop: f32,
 }
 
 impl Default for FlowWeather {
@@ -35,7 +34,6 @@ impl Default for FlowWeather {
         Self {
             band: FlowBand::Rise,
             chain: 0.0,
-            last_drop: 0.0,
         }
     }
 }
@@ -44,6 +42,7 @@ impl Default for FlowWeather {
 struct RibbonBead {
     born: f32,
     handle: Handle<StandardMaterial>,
+    glow: LinearRgba,
 }
 
 #[derive(Resource)]
@@ -85,10 +84,12 @@ fn read_band(
     let winded = body.as_ref().map(|b| b.winded).unwrap_or(false);
     let heavy = body.as_ref().map(|b| b.heavy).unwrap_or(false);
     let aging = fresh.map(|f| f.age > 28.0).unwrap_or(false);
-    let quiet = harvest.map(|h| h.harvests_this_session == 0 && h.tends_this_session == 0);
+    let quiet = harvest
+        .map(|h| h.harvests_this_session == 0 && h.tends_this_session == 0)
+        .unwrap_or(false);
     weather.band = if winded || heavy {
         FlowBand::Anxiety
-    } else if quiet.unwrap_or(false) && weather.chain < 1.2 {
+    } else if quiet && weather.chain < 1.2 {
         FlowBand::Boredom
     } else if weather.chain > 3.5 && !aging {
         FlowBand::Flow
@@ -146,6 +147,7 @@ fn drop_beads(
         RibbonBead {
             born: now,
             handle,
+            glow,
         },
     ));
 }
@@ -163,9 +165,14 @@ fn fade_beads(
             commands.entity(entity).despawn_recursive();
             continue;
         }
-        let t = 1.0 - (age / BEAD_LIFE);
+        let t = (1.0 - age / BEAD_LIFE).clamp(0.04, 1.0);
         if let Some(mat) = materials.get_mut(&bead.handle) {
-            mat.emissive = mat.emissive * t.max(0.05);
+            mat.emissive = LinearRgba::new(
+                bead.glow.red * t,
+                bead.glow.green * t,
+                bead.glow.blue * t,
+                1.0,
+            );
         }
     }
 }
