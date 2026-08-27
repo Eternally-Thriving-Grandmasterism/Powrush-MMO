@@ -1,6 +1,6 @@
 //! client/src/lib.rs
 //! Powrush-MMO Client Crate Root
-//! AG-SML v1.0 | TOLC 8 | v22.12.0 day + hands
+//! AG-SML v1.0 | TOLC 8 | v22.13.0 flow weather
 //! Contact: info@Rathor.ai
 
 pub mod networking;
@@ -44,6 +44,7 @@ pub mod first_hour_camera;
 pub mod human_soft_panels;
 pub mod human_inventory;
 pub mod human_presence;
+pub mod flow_weather;
 pub mod local_session_persist;
 pub mod first_whisper;
 pub mod living_practice_loop;
@@ -96,6 +97,7 @@ pub use first_hour_camera::{FirstHourCameraPlugin, FirstHourGlance};
 pub use human_soft_panels::{HumanSoftPanelsPlugin, HumanSoftPanels};
 pub use human_inventory::{HumanInventoryPlugin, HumanInventory, SatchelSlot};
 pub use human_presence::{HumanPresencePlugin, SoftPresence};
+pub use flow_weather::{FlowWeatherPlugin, FlowWeather, FlowBand};
 pub use local_session_persist::{LocalSessionPersistPlugin, LocalSessionPersist};
 pub use first_whisper::FirstWhisperPlugin;
 pub use living_practice_loop::{
@@ -159,5 +161,6 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(MercyTransportersPlugin);
         app.add_plugins(InputPlugin);
         app.add_plugins(HumanPresencePlugin);
+        app.add_plugins(FlowWeatherPlugin);
     }
 }
