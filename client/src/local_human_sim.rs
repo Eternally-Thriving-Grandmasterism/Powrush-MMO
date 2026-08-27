@@ -13,15 +13,17 @@ use std::path::PathBuf;
 use crate::flow_weather::FlowWeather;
 use crate::human_presence::SoftPresence;
 use crate::lattice_flow_share::LatticeFlowShareEnvelope;
-use crate::mercy_harvest_nodes::NODE_ANCHORS;
 
 const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
 const POCKET: f32 = 5.8;
+const WELLS: [Vec3; 3] = [
+    Vec3::new(3.6, 0.55, 0.0),
+    Vec3::new(-2.4, 0.55, 3.1),
+    Vec3::new(1.2, 0.55, -3.4),
+];
 
 #[derive(Component)]
 struct PracticeTraveler {
-    name: &'static str,
-    race: &'static str,
     well: usize,
     phase: f32,
 }
@@ -60,17 +62,17 @@ fn seed_travelers(
 ) {
     let mesh = meshes.add(Capsule3d::new(0.22, 0.95));
     let roster = [
-        ("Mira", "Draek", Color::srgb(0.42, 0.28, 0.55), 0usize),
-        ("Ko", "Cydruid", Color::srgb(0.22, 0.48, 0.32), 1),
-        ("Ren", "Human", Color::srgb(0.38, 0.34, 0.28), 2),
+        ("Mira", Color::srgb(0.42, 0.28, 0.55), 0usize),
+        ("Ko", Color::srgb(0.22, 0.48, 0.32), 1),
+        ("Ren", Color::srgb(0.38, 0.34, 0.28), 2),
     ];
-    for (name, race, color, well) in roster {
+    for (name, color, well) in roster {
         let mat = materials.add(StandardMaterial {
             base_color: color,
             perceptual_roughness: 0.7,
             ..default()
         });
-        let pos = NODE_ANCHORS[well].1 + Vec3::new(1.4, 0.7, 0.6);
+        let pos = WELLS[well] + Vec3::new(1.4, 0.7, 0.6);
         commands.spawn((
             PbrBundle {
                 mesh: mesh.clone(),
@@ -79,10 +81,8 @@ fn seed_travelers(
                 ..default()
             },
             PracticeTraveler {
-                name,
-                race,
                 well,
-                phase: well as f32 * 1.7,
+                phase: well as f32 * 0.33,
             },
             Name::new(name),
         ));
@@ -90,20 +90,17 @@ fn seed_travelers(
     info!(target: "powrush::sim", "three practice travelers — not a live shard");
 }
 
-fn walk_wells(
-    time: Res<Time>,
-    mut q: Query<(&mut Transform, &mut PracticeTraveler)>,
-) {
+fn walk_wells(time: Res<Time>, mut q: Query<(&mut Transform, &mut PracticeTraveler)>) {
     let dt = time.delta_seconds();
-    let n = NODE_ANCHORS.len();
+    let n = WELLS.len();
     for (mut tf, mut t) in &mut q {
         t.phase += dt * 0.18;
         if t.phase > 1.0 {
             t.phase -= 1.0;
             t.well = (t.well + 1) % n;
         }
-        let a = NODE_ANCHORS[t.well].1;
-        let b = NODE_ANCHORS[(t.well + 1) % n].1;
+        let a = WELLS[t.well];
+        let b = WELLS[(t.well + 1) % n];
         let want = a.lerp(b, t.phase) + Vec3::new(1.2, 0.72, 0.4);
         tf.translation = tf.translation.lerp(want, (1.4 * dt).min(1.0));
     }
@@ -129,24 +126,7 @@ fn share_inhale(
     }
 }
 
-fn write_practice_peer(
-    time: Res<Time>,
-    sim: ResMut<LocalHumanSim>,
-    travelers: Query<&PracticeTraveler>,
-) {
-    let now = time.elapsed_seconds_f64();
-    if now - sim.last_peer_write < 18.0 {
-        return;
-    }
-    // ResMut needed to update last_peer_write — take mut via Resource
-    let _ = travelers;
-}
-
-// split so we can mut sim after the early return pattern
-fn write_practice_peer_tick(
-    time: Res<Time>,
-    mut sim: ResMut<LocalHumanSim>,
-) {
+fn write_practice_peer(time: Res<Time>, mut sim: ResMut<LocalHumanSim>) {
     let now = time.elapsed_seconds_f64();
     if now - sim.last_peer_write < 18.0 {
         return;
