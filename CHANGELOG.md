@@ -1,14 +1,13 @@
 # CHANGELOG.md — Powrush-MMO
 
-## [22.15.0] — 2026-08-26 — Practice travelers
+## [23.0.0] — 2026-08-26 — Lineage
 
-Local sim only — not a live shard:
-- Mira, Ko, Ren walk the three wells
-- If you inhale and one is near, the inhale lasts longer
-- They write the peer file so **U** can remember a traveler
-- HUD must not say multiplayer
+Players can *be* a Classic race on this machine.
+- **C** cycles Human → Cydruid → Quellorian → Draek → Ambrosian
+- Body tint + tend/take/freshness change. Draek take hits; Draek tend is the redemption beat.
+- Plan: docs/PATSAGI_v23_PLAYGROUND.md (skirmish wells → second chair → weekly war clock → aerial/land)
 
+## [22.15.0] — Practice travelers
 ## [22.14.0] — Inhale and current
-## [22.13.0] — Body is the meter
 
 Contact: **info@Rathor.ai**. Thunder locked in. Yoi ⚡
