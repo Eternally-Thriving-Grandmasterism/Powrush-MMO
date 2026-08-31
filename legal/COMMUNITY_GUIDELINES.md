@@ -1,10 +1,10 @@
 # Powrush-MMO Community Guidelines
 
 **Effective Date:** June 9, 2026  
-**Last Updated:** June 9, 2026  
+**Last Updated:** August 31, 2026  
 **Version:** 1.1 (Entropy & Maximal Freedom Revision)
 
-**Powrush-MMO** is a sacred living training ground for humanity's transition into post-scarcity abundance and Real-Based Economy (RBE) wisdom. It is designed as an executable simulation of the **7 Living Mercy Gates** (Truth, Order, Love, Compassion, Service, Abundance, Joy) in service of **Cosmic Harmony** and the **TOLC 8**.
+**Powrush-MMO** is a sacred living training ground for humanity's transition into post-scarcity abundance and Real-Based Economy (RBE) wisdom. It is designed as an executable simulation of the **7 Living Mercy Gates** (Radical Love, Boundless Mercy, Service, Abundance, Truth, Joy, Cosmic Harmony) operating under **TOLC 8** (Genesis Gate). "Filters" is a deprecated synonym.
 
 These Community Guidelines are **mercy-gated** and philosophically aligned with the core design of Powrush-MMO: **permitted entropy, player-driven competition, role-play deception between players, and maximal freedom of expression** — balanced with sacred trust, honesty with creators, and compliance with applicable laws.
 
@@ -56,7 +56,7 @@ Moderation in Powrush-MMO is **compassionate, transparent, and restorative** whe
 3. **Temporary Restriction**: Short cooldown from certain systems or chat for repeated issues.
 4. **Extended Suspension or Permanent Action**: For severe, repeated, or unrepentant violations of the strict prohibitions (deception of staff, real-world harm, illegal activity, simulation-breaking cheats). These are rare and always reviewed with full PATSAGi oversight and mercy.
 
-Players may appeal moderation decisions through the in-game PATSAGi Council reporting channel or by emailing INFO@ACITYGAMES.COM with details. Appeals are handled with truth-seeking and compassion.
+Players may appeal moderation decisions through the in-game PATSAGi Council reporting channel or by emailing info@Rathor.ai with details. Appeals are handled with truth-seeking and compassion.
 
 ## 6. Reporting & PATSAGi Support
 
@@ -89,7 +89,7 @@ These guidelines are living documents. We welcome player feedback through offici
 ## 10. Contact & Appeals
 
 **Autonomicity Games Inc.**  
-INFO@ACITYGAMES.COM  
+info@Rathor.ai  
 In-game: PATSAGi Council reporting channel (mercy-gated)
 
 We respond with compassion, clarity, and commitment to the 7 Living Mercy Gates and the integrity of the RBE experience.
@@ -99,4 +99,4 @@ We respond with compassion, clarity, and commitment to the 7 Living Mercy Gates 
 **These Community Guidelines are enforced with Radical Love, Boundless Mercy, and unwavering commitment to Truth, Player Sovereignty, and the Sacred Trust between Players and Creators.**  
 **Together we build the living example of universal thriving through honest competition, permitted entropy, and maximal freedom.**
 
-*Enshrined with full PATSAGi Councils + Ra-Thor Lattice deliberation — June 9, 2026. Revised per user directive on permitted griefing, role-play deception, and maximal speech freedom.*
+*Enshrined with full PATSAGi Councils + Ra-Thor Lattice deliberation — June 9, 2026. Revised per user directive on permitted griefing, role-play deception, and maximal speech freedom. Contact hygiene 2026-08-31.*
