@@ -29,3 +29,14 @@ Be kind. Be mercy. No distortion.
 ```bash
 cargo run          # Desktop
 cargo run --target wasm32-unknown-unknown  # Web
+```
+
+## License and CLA
+
+Contributions are offered under **AG-SML v1.1**. See [LICENSE](LICENSE).
+The house CLA and commercial exhibit live on the parent lattice:
+
+- https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/CLA.md
+- https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/COMMERCIAL_LICENSE.md
+
+Canonical contact: **info@Rathor.ai**
