@@ -23,6 +23,7 @@ bincode = { version = "1.3", optional = true }
 default = ["protocol"]
 protocol = []
 full_rbe = []
+nevc_rathor = []  # declared so cfg is expected; enabling it does not pull Ra-Thor
 # Mode A (Ra-Thor NEVC) is a local overlay. Do not path-dep
 # ../../Ra-Thor/crates/mercy_tolc_operator_algebra here — CI has no sibling tree.
 # When co-located, uncomment a path dep and restore:

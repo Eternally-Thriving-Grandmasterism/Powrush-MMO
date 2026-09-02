@@ -26,7 +26,7 @@ pub mod rbe_queries {
 }
 
 pub mod prelude {
-    pub use crate::protocol::{ClientMessage, ServerMessage, TradeOffer, Vec3Ser, HealthComponent};
+    pub use crate::protocol::HotbarSlot;
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
