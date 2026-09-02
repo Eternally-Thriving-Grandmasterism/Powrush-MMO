@@ -18,7 +18,6 @@ path = "lib.rs"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 bincode = { version = "1.3", optional = true }
-snappy = { version = "0.3", optional = true }
 
 [features]
 default = ["protocol"]

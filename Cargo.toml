@@ -1,15 +1,16 @@
 [workspace]
 members = [
     "shared",
-    "client",
-    "server",
-    "simulation",
     "crates/rsil-identity",
-    "host",
 ]
-# Not members (do not add back without a compiling standalone manifest):
-#   game/                    — loose .rs dump, no Cargo.toml. Lived hour is client/src.
-#   powrush-divine-module/   — path-deps ../../../Ra-Thor/ra-thor-core (missing on CI).
+# Parked members (on disk; add back only with a crates.io graph that resolves
+# and a real test). Lived hour client is still client/src — next slice.
+#   client/                   — PowrushClientBundle; default bin is GPU test
+#   server/                   — landlock host; not first hour
+#   simulation/               — shamirs-secret-sharing is not on crates.io
+#   host/                     — depends on simulation
+#   game/                     — no Cargo.toml
+#   powrush-divine-module/    — path-deps missing Ra-Thor ra-thor-core
 
 resolver = "2"
 
@@ -22,29 +23,6 @@ repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
 description = "Powrush-MMO: human game in the Ra-Thor constellation. Lived first hour is the product. Lattice stays in Ra-Thor."
 
 [workspace.dependencies]
-bevy = { version = "0.14", default-features = false }
-bevy_hanabi = { version = "0.11", features = ["2d", "3d"] }
-bevy_egui = "0.27"
-bevy_kira_audio = "0.20"
-kira = { version = "0.8", features = ["cpal"] }
-fundsp = "0.18"
-steamworks = "0.11"
-ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 rand = "0.8"
-simulation = { path = "simulation" }
-shared = { path = "shared" }
-
-[profile.dev]
-opt-level = 1
-
-[profile.release]
-lto = "thin"
-codegen-units = 1
-strip = true
-
-[workspace.features]
-gpu = []
-audio-advanced = ["bevy_kira_audio", "kira", "fundsp"]
-egui = ["bevy_egui"]
-steam = ["steamworks"]
-spectral_granular = []

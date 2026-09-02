@@ -18,10 +18,9 @@ One human, one machine, no dedicated server, no “12 players online.” Ra-Thor
 
 ```bash
 cargo test -p shared -p rsil-identity
-cargo run -p simulation --bin rbe_oxygen_demo
 ```
 
-High-valence path grants freely and regenerates (oxygen-like). Low-valence is restricted. Same needs, living difference.
+RBE oxygen demo (`simulation --bin rbe_oxygen_demo`) stays on disk. `simulation` is not a workspace member until its crates.io graph resolves (`shamirs-secret-sharing` is not a published crate). High-valence grant vs low-valence restriction is the teaching claim; it is not the first-hour client.
 
 ### Constellation (keep separate)
 
@@ -37,7 +36,7 @@ Shared across repos: NEVC + telemetry JSON + policy hints only. Do not fold the 
 
 NFT / chain mint, k8s, payments, P2W, Steam-as-blocker, a second HUD, corpse-grey.
 
-Workspace members that are **not** the player door: `game/` (dump, no manifest) and `powrush-divine-module/` (Ra-Thor path). Left on disk, dropped from `[workspace].members`.
+Workspace Core members: `shared`, `crates/rsil-identity`. Parked on disk: `client/`, `server/`, `simulation/`, `host/`, `game/`, `powrush-divine-module/`.
 
 ### Commercial & licensing
 
