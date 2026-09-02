@@ -12,8 +12,10 @@ https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/NEVC_DUAL
 
 | Mode | How to enable | Behavior |
 |------|----------------|----------|
-| **A — Ra-Thor path** | `cargo build -p shared --features nevc_rathor` (Ra-Thor tree at `../../Ra-Thor`) | Calls `mercy_tolc_operator_algebra::nevc` |
-| **B — Local adapter** | default | Uses `shared/nevc_adapter.rs` (algorithm-identical) |
+| **B — Local adapter (default, CI)** | default features | `shared/nevc_adapter.rs` (algorithm-identical) |
+| **A — Ra-Thor path** | Local overlay only: check out Ra-Thor as a sibling, uncomment the path dep in `shared/Cargo.toml`, restore feature `nevc_rathor` | Calls `mercy_tolc_operator_algebra::nevc` |
+
+CI never has `../../Ra-Thor`. Do not put that path dep back on `main`.
 
 ## Entry points
 
@@ -28,8 +30,9 @@ println!("{}", active_mode());
 ## Obligations
 
 - Do not invent a third contribution class.
-- Prefer Mode A when monorepos are co-located.
-- Mode B remains the sovereign offline default.
+- Mode B is the sovereign default and the only mode this repo builds in CI.
+- Prefer Mode A as a *local* overlay when the monorepos are co-located on a developer machine.
 - Persistence (Phase 7) and harvest attachment (Phase 6) stay active under both modes.
+- Ra-Thor may read lived-tick JSON. It may not drive player keys.
 
 **Thunder locked in. ONE Organism across dual repositories.**

@@ -1,60 +1,54 @@
-**Powrush-MMO v21.90 — End-User Experience Perfection + Full Dual-Repo Feedback Organism Sealed**
+# Powrush-MMO
 
-**Status**: 100% Launch Worthy for Public Release Candidate & End-User Enjoyment.  
-All core gameloop systems (Procedural Biome Harvest → Epiphany Catalyst + Divine Whispers → Multiplayer Council Mercy Trials → RBE Abundance Flows + Full Persistence) verified production-grade with TOLC 8 + 7 Living Mercy Gates enforcement on every path. Zero unresolved blockers in committed code.
+Human game in the Ra-Thor constellation (Autonomicity Games Inc.).
 
-**Version**: 21.90.0 (workspace aligned 21.88.0+)
+Walk a climate. Harvest with mercy. Learn a resource-based economy by playing. Earn later by sharing abundance, not by extracting.
 
-### Quick Public Demo — RBE “Resources Like Oxygen”
+**Status (2026-09-02):** Lived first hour is the product. This repo compiles `shared` without a sibling Ra-Thor checkout (NEVC Mode B). The playable Bevy bundle already lives in `client/src` (`PowrushClientBundle`: move, harvest, satchel, first-session strip). Wiring that bundle as the default binary is the next slice. **Not** a public launch candidate. Native CI on `main` was red because workspace members path-depended on Ra-Thor trees that CI does not have.
 
-Feel the core Resource-Based Economy claim in under 10 seconds:
+**Version:** workspace `21.88.0`. Lived-hour docs: `23.1` tick seam, `23.2` organism law in `docs/PATSAGI_v23.2_ARCHITECTURE.md`.
+
+### What a human does in the first hour
+
+WASD walk · Space jump · Shift sprint · **E** harvest / tend · **I** satchel · **H** hide guidance · **R** allocate.
+
+One human, one machine, no dedicated server, no “12 players online.” Ra-Thor may *read* `data/powrush_lived_tick.json`. It does not drive the keys.
+
+### Verify (no client window)
 
 ```bash
+cargo test -p shared -p rsil-identity
 cargo run -p simulation --bin rbe_oxygen_demo
 ```
 
-High-valence path grants freely and regenerates (oxygen-like access).  
-Low-valence path is heavily restricted. Same needs, living difference.  
-Fully standalone, zero client required. TOLC 8 + Living Mercy Gates aligned.
+High-valence path grants freely and regenerates (oxygen-like). Low-valence is restricted. Same needs, living difference.
 
-### v21.90 End-User Experience Perfection (2026-07-23)
-- **Frictionless public onboarding**: Invite + captcha only when closed-beta is explicitly required. Public players land in Language → Welcome with zero gate friction.
-- **First Session Guidance**: Soft, dismissible objective strip guiding the first 5–15 minutes (Move → Harvest → Inventory → Epiphany → Free exploration). Press **H** to hide.
-- **Input comfort**: Keyboard + gamepad left-stick, normalized movement, interact on Space or gamepad South.
-- **Closed-beta path restored**: Invite UI systems fully interactive again (were previously empty stubs).
+### Constellation (keep separate)
 
-**Key Verifications in v21.88.x–v21.90**:
-- **Full Soft Feedback Loop (CLOSED ORGANISM)** with Ra-Thor emission + Powrush reception (6 SoftPolicyState categories).
-- Inventory UI: Full grid + hotbar drag/drop with TOLC 8 mercy/RBE abundance/valence gating.
-- Steam Integration: Rich Presence, achievement hooks, cloud foundation.
-- Host modes: Interactive | Headless | Stress — 40-cycle endurance sealed.
+| Surface | Repo | Role |
+|---|---|---|
+| **Game (this repo)** | [Powrush-MMO](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO) | Hands, feel, first hour |
+| Lattice | [Ra-Thor](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor) | PATSAGi, TOLC 8, policy hints |
+| Browser client | [Powrush-MMO-Simulator](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO-Simulator) | Web view, not the lived hour |
 
-**Gameloop Players Will Enjoy**: Meaningful harvest in living procedural biomes, transformative personal/collective epiphanies with multilingual Divine Whispers, thoughtful cooperative Council Mercy Trials, persistent legacy through mercy scores + RBE abundance impact. Sensory immersion via valence-driven VFX/particles, higher-order ambisonics + procedural audio, sacred geometry. Sovereign, mercy-gated, zero-harm, joy-aligned design.
+Shared across repos: NEVC + telemetry JSON + policy hints only. Do not fold the player loop into Ra-Thor.
 
-**Paired Organism**: Ra-Thor AGSi (permanent PATSAGi Councils) + Powrush-MMO form the closed mercy-gated flywheel for Kardashev acceleration and Reality Thriving Transfer.
+### Not in the first hour
 
----
+NFT / chain mint, k8s, payments, P2W, Steam-as-blocker, a second HUD, corpse-grey.
+
+Workspace members that are **not** the player door: `game/` (dump, no manifest) and `powrush-divine-module/` (Ra-Thor path). Left on disk, dropped from `[workspace].members`.
 
 ### Commercial & licensing
-
-Powrush-MMO is part of the **Ra-Thor constellation** under Autonomicity Games Inc.
 
 | Use | Path |
 |-----|------|
 | Personal / research / evaluation play | Contact for terms; constellation governed with Ra-Thor under PATSAGi / TOLC 8 |
-| **Commercial / organizational / revenue use** | Requires paid commercial arrangement — see [Ra-Thor COMMERCIAL_LICENSE](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/COMMERCIAL_LICENSE.md) and [Constellation commercial map](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/docs/CONSTELLATION_COMMERCIAL.md) |
-| Pilots | Fixed-fee pilots available via the same path |
+| **Commercial / organizational / revenue use** | Paid arrangement — see [Ra-Thor COMMERCIAL_LICENSE](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/COMMERCIAL_LICENSE.md) and [Constellation commercial map](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/docs/CONSTELLATION_COMMERCIAL.md) |
+| Pilots | Fixed-fee pilots via the same path |
 
-**Canonical contact:** [info@Rathor.ai](mailto:info@Rathor.ai)  
-**Core lattice:** https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor
+**Contact:** [info@Rathor.ai](mailto:info@Rathor.ai)
 
-Independent project. No xAI endorsement claimed.
+Independent project. No xAI endorsement claimed. No ISO/IEC 42001, EU AI Act, or AGSi-warranty claims. Human override on every output.
 
----
-
-**Public Share Ready**: Repo prepared for wholesome public enjoyment under Ra-Thor + PATSAGi governance.  
-Thunder locked in. Yoi ⚡
-
-(See LAUNCH-CHECKLIST.md, ARCHITECTURE.md, STEAM_INTEGRATION.md, CHANGELOG.md)
-
-Contact: info@Rathor.ai
+See `CHANGELOG.md`, `docs/PATSAGI_v23.2_ARCHITECTURE.md`, `docs/HUMAN_PLAYABILITY_v21.94.md`.

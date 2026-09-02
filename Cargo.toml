@@ -4,11 +4,12 @@ members = [
     "client",
     "server",
     "simulation",
-    "game",
-    "powrush-divine-module",
     "crates/rsil-identity",
     "host",
 ]
+# Not members (do not add back without a compiling standalone manifest):
+#   game/                    — loose .rs dump, no Cargo.toml. Lived hour is client/src.
+#   powrush-divine-module/   — path-deps ../../../Ra-Thor/ra-thor-core (missing on CI).
 
 resolver = "2"
 
@@ -18,7 +19,7 @@ edition = "2021"
 authors = ["Sherif Samy Botros <info@Rathor.ai>"]
 license = "AG-SML-1.1"
 repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
-description = "Powrush-MMO: Universally Shared Naturally Thriving Heavens — RBE metaverse MMOARPG where abundance, mercy, and joy propagate for all sentience. Paired with Ra-Thor AGSi under permanent PATSAGi Councils."
+description = "Powrush-MMO: human game in the Ra-Thor constellation. Lived first hour is the product. Lattice stays in Ra-Thor."
 
 [workspace.dependencies]
 bevy = { version = "0.14", default-features = false }
@@ -31,7 +32,6 @@ steamworks = "0.11"
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
 rand = "0.8"
 simulation = { path = "simulation" }
-game = { path = "game" }
 shared = { path = "shared" }
 
 [profile.dev]
