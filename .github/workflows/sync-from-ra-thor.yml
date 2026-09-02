@@ -1,20 +1,7 @@
 name: Sync from Ra-Thor (Eternal Lattice Alignment)
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours - eternal vigilance
   workflow_dispatch:
-  push:
-    branches: [ main ]
-    paths:
-      - 'engine/patsagi**'
-      - 'client/**'
-      - 'shared/**'
-      - 'docs/RESTORATION_AND_MERGE_PROTOCOL.md'
-      - 'game/resource_nodes.rs'
-      - 'engine/gpu_patsagi_bridge.rs'
-      - '.github/workflows/**'
-
 permissions:
   contents: write
   pull-requests: write

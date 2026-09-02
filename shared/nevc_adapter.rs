@@ -201,9 +201,10 @@ pub fn compute_nevc(samples: &[NevcSample], config: &NevcConfig) -> NevcResult {
         sum_v += v;
         total_grief += s.grief_load;
 
+        // Inclusive HIGH floor: valence at the floor is already contributor-grade.
+        // Do not scale proximity from 0 at the floor (that made HIGH+0 grief a zombie).
         let positive = if v >= config.valence_floor {
-            let proximity = (v - config.valence_floor) / (1.0 - config.valence_floor).max(1e-12);
-            config.positive_weight * proximity
+            config.positive_weight
         } else {
             0.0
         };
