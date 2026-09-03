@@ -50,6 +50,8 @@ pub struct FirstHarvestEpiphany {
     pub crownstone_near: bool,
     /// Sylvaris grove live, tend not yet offered. E Offer a tend; do not harvest.
     pub redemption_near: bool,
+    /// Hybrid live, not yet attuned. E Attune; do not harvest.
+    pub hybrid_near: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -70,6 +72,7 @@ impl Default for FirstHarvestEpiphany {
             embassy_lamp: false,
             crownstone_near: false,
             redemption_near: false,
+            hybrid_near: false,
         }
     }
 }
@@ -322,6 +325,10 @@ fn handle_interact_harvest(
     }
 
     if state.redemption_near {
+        return;
+    }
+
+    if state.hybrid_near {
         return;
     }
 

@@ -14,6 +14,7 @@ pub mod embassy;
 pub mod war_week;
 pub mod crownstone;
 pub mod species_redemption;
+pub mod hybrid_matrix;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -47,6 +48,7 @@ pub mod prelude {
     pub use crate::war_week::WarWeek;
     pub use crate::crownstone::{CrownPath, CrownstoneState};
     pub use crate::species_redemption::SpeciesRedemptionState;
+    pub use crate::hybrid_matrix::HybridMatrix;
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -172,5 +174,12 @@ mod tests {
         assert_eq!(s.offer_tend(), "tended");
         assert!(s.sylvaris > 0.0);
         assert_eq!(s.veythari, 0.0);
+    }
+
+    #[test]
+    fn hybrid_attunes() {
+        let mut h = hybrid_matrix::HybridMatrix::default();
+        assert_eq!(h.attune(), "attuned");
+        assert_eq!(h.stability, 1.0);
     }
 }
