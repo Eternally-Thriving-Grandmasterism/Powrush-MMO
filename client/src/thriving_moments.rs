@@ -19,6 +19,7 @@ pub enum ThrivingKind {
     FirstInventoryOpen,
     FirstShare,
     FirstArrival,
+    FirstVoice,
 }
 
 impl ThrivingKind {
@@ -44,6 +45,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstArrival => {
                 "The machine exists — a crate arrived"
+            }
+            ThrivingKind::FirstVoice => {
+                "The card carried — the yard voted"
             }
         }
     }

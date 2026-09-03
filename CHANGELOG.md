@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.8] — 2026-09-02 — Co-op Voice (Slice 4)
+
+Quorum card on the beacon. After Charter + Frontier, **G** opens Voice. **E** aye · **2** nay. One local seat; the tutorial card carries. Dies in Peace. Harvest E still works when the sash is closed. Live multi-seat AOI waits on the parked server.
+
 ## [23.2.7] — 2026-09-02 — Vertical factory (Slice 3)
 
 Local House tutorial: Q on Frontier founds, then extractor → depot → hauler → two stops → arrival chime (*The machine exists*). Dies in Peace. Two-client AOI waits on the parked server.
