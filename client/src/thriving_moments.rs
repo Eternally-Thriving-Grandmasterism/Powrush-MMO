@@ -29,6 +29,7 @@ pub enum ThrivingKind {
     FirstRedemption,
     FirstHybrid,
     FirstCompass,
+    FirstWell,
 }
 
 impl ThrivingKind {
@@ -84,6 +85,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstCompass => {
                 "The air shifted — a cited wind"
+            }
+            ThrivingKind::FirstWell => {
+                "The well is yours — Mira stepped back"
             }
         }
     }

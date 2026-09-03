@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.19] — 2026-09-02 — Skirmish well (Slice 15 / Wave 2)
+
+Practice travelers hold the first well (Sanctuary ember). E Contest. After a short hold Mira answers. Dawn after loss — you still walk. Mercy aftercare, no corpse-grey, no F-key. Lives in Peace. Harvest still works while you hold.
+
 ## [23.2.18] — 2026-09-02 — Compass tells (Slice 14)
 
 Live W at 20 and 60 speaks. Peace is silent. UI never shows the formula. Opting DeclaredLethal posts hunter x so the 20-tell can fire. No extra key. Last later-list item.

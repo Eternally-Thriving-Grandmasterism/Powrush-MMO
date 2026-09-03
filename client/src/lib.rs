@@ -18,6 +18,7 @@ pub mod crownstone;
 pub mod species_redemption;
 pub mod hybrid_matrix;
 pub mod compass;
+pub mod skirmish_well;
 pub mod input;
 pub mod soft_play_bindings;
 pub mod first_session_guidance;
@@ -86,6 +87,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(species_redemption::SpeciesRedemptionPlugin);
         app.add_plugins(hybrid_matrix::HybridMatrixPlugin);
         app.add_plugins(compass::CompassPlugin);
+        app.add_plugins(skirmish_well::SkirmishWellPlugin);
         app.add_plugins(LivedHourEconomyPlugin);
         app.add_plugins(InputPlugin);
         app.add_plugins(first_session_guidance::FirstSessionGuidancePlugin);

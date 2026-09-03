@@ -13,13 +13,14 @@ use std::path::PathBuf;
 use crate::flow_weather::FlowWeather;
 use crate::human_presence::SoftPresence;
 use crate::lattice_flow_share::LatticeFlowShareEnvelope;
+use shared::skirmish_well::WELL_ANCHORS;
 
 const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
 const POCKET: f32 = 5.8;
 const WELLS: [Vec3; 3] = [
-    Vec3::new(3.6, 0.55, 0.0),
-    Vec3::new(-2.4, 0.55, 3.1),
-    Vec3::new(1.2, 0.55, -3.4),
+    Vec3::new(WELL_ANCHORS[0].0, WELL_ANCHORS[0].1, WELL_ANCHORS[0].2),
+    Vec3::new(WELL_ANCHORS[1].0, WELL_ANCHORS[1].1, WELL_ANCHORS[1].2),
+    Vec3::new(WELL_ANCHORS[2].0, WELL_ANCHORS[2].1, WELL_ANCHORS[2].2),
 ];
 
 #[derive(Component)]
