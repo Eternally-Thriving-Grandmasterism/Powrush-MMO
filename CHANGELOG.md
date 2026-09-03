@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.13] — 2026-09-02 — War week (Slice 9)
+
+Tab Chart declares War week. Score is tons delivered + nodes restored (LaneCrate + MendSpool). Not loot. No combat key. Dies in Peace. DeclaredLethal stays last.
+
 ## [23.2.12] — 2026-09-02 — Embassy + blueprints (Slice 8)
 
 After the Proof Pack unlocks, the embassy lamp is live. E Request seat. One local seat. Blueprints copy MendSpool and LaneCrate. Dies in Peace. War week is Slice 9.
