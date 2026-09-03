@@ -12,6 +12,7 @@ pub mod ledger_bind;
 pub mod fabricator;
 pub mod embassy;
 pub mod war_week;
+pub mod crownstone;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -43,6 +44,7 @@ pub mod prelude {
     pub use crate::fabricator::{Fabricator, ProofPack, Recipe};
     pub use crate::embassy::{BlueprintBook, Embassy};
     pub use crate::war_week::WarWeek;
+    pub use crate::crownstone::{CrownPath, CrownstoneState};
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -152,5 +154,13 @@ mod tests {
         assert_eq!(c.win, ledger_bind::WinCondition::BindEscort);
         assert_eq!(c.opt_lethal(), "lethal");
         assert_eq!(c.bind(), "idle");
+    }
+
+    #[test]
+    fn crownstone_is_seen() {
+        let mut c = crownstone::CrownstoneState::default();
+        assert_eq!(c.path, crownstone::CrownPath::Unset);
+        assert_eq!(c.witness(), "witnessed");
+        assert_eq!(c.path, crownstone::CrownPath::Unset);
     }
 }

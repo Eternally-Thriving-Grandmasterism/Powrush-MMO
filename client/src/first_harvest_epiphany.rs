@@ -46,6 +46,8 @@ pub struct FirstHarvestEpiphany {
     pub ledger_bind: bool,
     /// Embassy lamp live, not yet seated. E Request seat; do not harvest.
     pub embassy_lamp: bool,
+    /// Crownstone live, not yet witnessed. E Witness; do not harvest.
+    pub crownstone_near: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -64,6 +66,7 @@ impl Default for FirstHarvestEpiphany {
             beacon_voice: false,
             ledger_bind: false,
             embassy_lamp: false,
+            crownstone_near: false,
         }
     }
 }
@@ -308,6 +311,10 @@ fn handle_interact_harvest(
     }
 
     if state.embassy_lamp {
+        return;
+    }
+
+    if state.crownstone_near {
         return;
     }
 
