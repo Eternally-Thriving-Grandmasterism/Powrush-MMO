@@ -12,6 +12,12 @@ use crate::hour_sacred::HourSacred;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
+/// Client wrap. Shared `VerticalFactory` stays Bevy-free (same as HourSacred / SpaceSession).
+#[derive(Resource, Debug, Clone, Default)]
+pub struct FactoryYard {
+    pub factory: VerticalFactory,
+}
+
 #[derive(Component)]
 struct FactorySlabRoot;
 #[derive(Component)]
@@ -21,7 +27,7 @@ pub struct VerticalFactoryPlugin;
 
 impl Plugin for VerticalFactoryPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<VerticalFactory>()
+        app.init_resource::<FactoryYard>()
             .add_systems(Startup, spawn_factory_slab)
             .add_systems(Update, (handle_factory_q, update_factory_slab));
     }
@@ -67,7 +73,7 @@ fn spawn_factory_slab(mut commands: Commands) {
 fn handle_factory_q(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut hour: ResMut<HourSacred>,
-    mut factory: ResMut<VerticalFactory>,
+    mut yard: ResMut<FactoryYard>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
@@ -78,7 +84,7 @@ fn handle_factory_q(
         return;
     }
     if hour.session.charter_id.is_none() {
-        factory.found_house();
+        yard.factory.found_house();
         hour.session.charter_id = Some("house-local".into());
         hour.session.kind = CharterKind::House;
         return;
@@ -86,7 +92,7 @@ fn handle_factory_q(
     if !hour.charter_skin_live() {
         return;
     }
-    let step = factory.advance();
+    let step = yard.factory.advance();
     if step == "arrived" {
         fire_thriving(
             &mut moments,
@@ -98,7 +104,7 @@ fn handle_factory_q(
 
 fn update_factory_slab(
     hour: Res<HourSacred>,
-    factory: Res<VerticalFactory>,
+    yard: Res<FactoryYard>,
     mut root: Query<&mut Visibility, With<FactorySlabRoot>>,
     mut text_q: Query<&mut Text, With<FactorySlabText>>,
 ) {
@@ -113,7 +119,7 @@ fn update_factory_slab(
     if !show {
         return;
     }
-    let line = factory.slab_line();
+    let line = yard.factory.slab_line();
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -131,7 +137,7 @@ mod tests {
     fn peace_does_not_found() {
         let hour = HourSacred::default();
         assert_eq!(hour.hex(), HexFlag::Peace);
-        let f = VerticalFactory::default();
-        assert!(!f.founded);
+        let yard = FactoryYard::default();
+        assert!(!yard.factory.founded);
     }
 }
