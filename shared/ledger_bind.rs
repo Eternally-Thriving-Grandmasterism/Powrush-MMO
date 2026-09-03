@@ -1,7 +1,7 @@
-//! Ledger + Bind/Escort — Slice 6 (v23.2.10)
+//! Ledger + Bind/Escort — Slice 6, lethal clause Slice 10 (v23.2.14)
 //!
 //! Default win is Bind, not a corpse. Purse is flow + repair-rights, never pockets.
-//! Local graph. Server-auth Bind waits on the parked server.
+//! DeclaredLethal is an opt-in clause + hunter blood tariff. Not a combat key.
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -52,6 +52,8 @@ impl ContractState {
 pub struct Purse {
     pub flow: f32,
     pub repair_rights: f32,
+    /// Hunter blood tariff. 0 unless DeclaredLethal is opted in.
+    pub blood_tariff: f32,
 }
 
 impl Default for Purse {
@@ -59,13 +61,21 @@ impl Default for Purse {
         Self {
             flow: 1.0,
             repair_rights: 1.0,
+            blood_tariff: 0.0,
         }
     }
 }
 
 impl Purse {
     pub fn line(&self) -> String {
-        format!("flow {:.0} · repair-rights {:.0}", self.flow, self.repair_rights)
+        if self.blood_tariff > 0.0 {
+            format!(
+                "flow {:.0} · repair-rights {:.0} · blood tariff {:.0}",
+                self.flow, self.repair_rights, self.blood_tariff
+            )
+        } else {
+            format!("flow {:.0} · repair-rights {:.0}", self.flow, self.repair_rights)
+        }
     }
 }
 
@@ -78,6 +88,7 @@ pub struct LedgerContract {
     pub custody: bool,
     pub state: ContractState,
     pub stops_done: u8,
+    pub lethal_count: u32,
     pub last_line: String,
 }
 
@@ -91,6 +102,7 @@ impl LedgerContract {
             custody: true,
             state: ContractState::Posted,
             stops_done: 0,
+            lethal_count: 0,
             last_line: String::new(),
         };
         c.last_line = c.line();
@@ -105,6 +117,23 @@ impl LedgerContract {
             self.codes.join(","),
             self.purse.line()
         )
+    }
+
+    /// Opt-in clause. Does not fire a kill. Hunter pays the tariff.
+    pub fn opt_lethal(&mut self) -> &'static str {
+        if self.state != ContractState::Posted {
+            return "idle";
+        }
+        if self.win == WinCondition::DeclaredLethal {
+            return "idle";
+        }
+        self.win = WinCondition::DeclaredLethal;
+        self.purse.blood_tariff = 2.0;
+        self.lethal_count = self.lethal_count.saturating_add(1);
+        self.last_line =
+            "DeclaredLethal · hunter blood tariff 2 · Bind remains the default on other listings"
+                .into();
+        "lethal"
     }
 
     pub fn bind(&mut self) -> &'static str {
@@ -175,6 +204,10 @@ impl LedgerBoard {
         self.open_mut().map(|c| c.act()).unwrap_or("idle")
     }
 
+    pub fn opt_lethal_local(&mut self) -> &'static str {
+        self.open_mut().map(|c| c.opt_lethal()).unwrap_or("idle")
+    }
+
     pub fn sash_line(&self) -> String {
         self.open()
             .map(|c| {
@@ -221,5 +254,25 @@ mod tests {
         assert_eq!(b.act_local(), "settled");
         assert_eq!(b.open().unwrap().state, ContractState::Settled);
         assert!(b.open().unwrap().last_line.contains("right to mend"));
+    }
+
+    #[test]
+    fn opt_lethal_sets_tariff_not_default() {
+        let mut c = LedgerContract::from_i2("abc");
+        assert_eq!(c.purse.blood_tariff, 0.0);
+        assert_eq!(c.opt_lethal(), "lethal");
+        assert_eq!(c.win, WinCondition::DeclaredLethal);
+        assert_eq!(c.purse.blood_tariff, 2.0);
+        assert_eq!(c.lethal_count, 1);
+        assert_eq!(c.bind(), "idle");
+        assert_eq!(c.state, ContractState::Posted);
+    }
+
+    #[test]
+    fn default_listing_still_binds() {
+        let mut b = LedgerBoard::default();
+        b.ensure_i2("x");
+        assert_eq!(b.open().unwrap().win, WinCondition::BindEscort);
+        assert_eq!(b.act_local(), "bound");
     }
 }

@@ -145,4 +145,12 @@ mod tests {
         w.ingest(1.0, 1);
         assert_eq!(w.score(), 2.0);
     }
+
+    #[test]
+    fn lethal_is_opt_in() {
+        let mut c = ledger_bind::LedgerContract::from_i2("z");
+        assert_eq!(c.win, ledger_bind::WinCondition::BindEscort);
+        assert_eq!(c.opt_lethal(), "lethal");
+        assert_eq!(c.bind(), "idle");
+    }
 }
