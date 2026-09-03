@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.17] — 2026-09-02 — Hybrid Matrix v0 (Slice 13)
+
+After a Sylvaris tend, E Attune. Stability 1. Double vision under the ledger. Not racial modules, not a second body. Dies in Peace. Compass ±20/60 is next.
+
 ## [23.2.16] — 2026-09-02 — Species redemption v0 (Slice 12)
 
 After the stone is seen, E Offer a tend to the Sylvaris grove. One tick (0.25). Other four progresses stay 0. Not boarding, not Hivelord. Dies in Peace. Hybrid Matrix / Compass stay later.
