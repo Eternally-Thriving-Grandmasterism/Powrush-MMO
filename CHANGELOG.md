@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.16] — 2026-09-02 — Species redemption v0 (Slice 12)
+
+After the stone is seen, E Offer a tend to the Sylvaris grove. One tick (0.25). Other four progresses stay 0. Not boarding, not Hivelord. Dies in Peace. Hybrid Matrix / Compass stay later.
+
 ## [23.2.15] — 2026-09-02 — Crownstone set-piece (Slice 11)
 
 After the embassy seat, the stone is live. E Witness. Integrity 1, no owner, path Unset. Does not fire purify/destroy/sabotage. No F-key, no Peace PK, W stays walk. Species redemption / Hybrid / Compass stay later.
