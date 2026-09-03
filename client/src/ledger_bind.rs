@@ -1,7 +1,7 @@
 //! Lived-hour Ledger — Slice 6 (v23.2.10)
 //!
-//! L opens the board. E Bind then escort. Dies in Peace.
-//! Default win is Bind. Contact: info@Rathor.ai
+//! L opens the board. E Bind then escort. Digit3 opts DeclaredLethal (tariff).
+//! Default win is Bind. No F-key. Dies in Peace. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
@@ -103,6 +103,10 @@ fn handle_ledger(
         return;
     }
     if !yard.sash_open {
+        return;
+    }
+    if keyboard.just_pressed(KeyCode::Digit3) {
+        let _ = yard.board.opt_lethal_local();
         return;
     }
     let go = keyboard.just_pressed(soft_play_bindings::INTERACT)

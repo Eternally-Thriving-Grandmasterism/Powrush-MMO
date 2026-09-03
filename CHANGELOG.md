@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.14] — 2026-09-02 — DeclaredLethal + blood tariff (Slice 10)
+
+Opt-in Ledger clause. L open, **3** posts DeclaredLethal and a hunter blood tariff. Default win stays Bind. E still Bind/Escort. No F-key, no Peace PK, W stays walk. Last pack slice.
+
 ## [23.2.13] — 2026-09-02 — War week (Slice 9)
 
 Tab Chart declares War week. Score is tons delivered + nodes restored (LaneCrate + MendSpool). Not loot. No combat key. Dies in Peace. DeclaredLethal stays last.
