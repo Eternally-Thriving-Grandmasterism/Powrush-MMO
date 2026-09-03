@@ -21,6 +21,14 @@ pub const MY_MERCY_JOURNEY: KeyCode = KeyCode::KeyM;
 pub const REALM_TRAVEL: KeyCode = KeyCode::KeyZ;
 pub const INVENTORY: KeyCode = KeyCode::KeyI;
 pub const ALLOCATE: KeyCode = KeyCode::KeyR;
+/// Charter Chart. No-op in Peace (Slice 0).
+pub const CHART: KeyCode = KeyCode::Tab;
+/// Charter sash. Same physical key as resonance; gated by HourSacred.
+pub const SASH: KeyCode = KeyCode::KeyG;
+/// Ledger. Same physical key as foundation lattice; gated by HourSacred.
+pub const LEDGER: KeyCode = KeyCode::KeyL;
+/// Build wheel. Dies in Peace.
+pub const BUILD_WHEEL: KeyCode = KeyCode::KeyQ;
 pub const FORCE_CLOUD_FLUSH: KeyCode = KeyCode::KeyT;
 
 pub const MY_MERCY_JOURNEY_ALIAS: KeyCode = KeyCode::F2;
@@ -52,5 +60,9 @@ mod tests {
         assert_eq!(INTERACT, KeyCode::KeyE);
         assert_eq!(INVENTORY, KeyCode::KeyI);
         assert_eq!(ALLOCATE, KeyCode::KeyR);
+        assert_eq!(CHART, KeyCode::Tab);
+        assert_eq!(SASH, KeyCode::KeyG);
+        assert_eq!(LEDGER, KeyCode::KeyL);
+        assert_eq!(BUILD_WHEEL, KeyCode::KeyQ);
     }
 }

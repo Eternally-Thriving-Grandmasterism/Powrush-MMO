@@ -10,6 +10,7 @@ use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::living_practice_loop::LivingPracticeText;
+use crate::hour_sacred::HourSacred;
 use crate::soft_play_bindings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -96,9 +97,13 @@ impl Plugin for ResonanceFlavorsPlugin {
 
 fn cycle_resonance(
     keyboard: Res<ButtonInput<KeyCode>>,
+    hour: Res<HourSacred>,
     mut state: ResMut<ResonanceState>,
     mut echo: ResMut<AbundanceJourneyEcho>,
 ) {
+    if !hour.charter_skin_live() {
+        return;
+    }
     if !keyboard.just_pressed(soft_play_bindings::RESONANCE_CYCLE) {
         return;
     }
