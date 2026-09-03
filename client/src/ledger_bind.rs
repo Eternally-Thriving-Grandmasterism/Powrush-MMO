@@ -81,7 +81,7 @@ fn mark_ledger_bind(
 
 fn handle_ledger(
     keyboard: Res<ButtonInput<KeyCode>>,
-    hour: Res<HourSacred>,
+    mut hour: ResMut<HourSacred>,
     evidence: Res<EvidenceYard>,
     mut yard: ResMut<LedgerYard>,
     mut moments: ResMut<ThrivingMoments>,
@@ -106,7 +106,10 @@ fn handle_ledger(
         return;
     }
     if keyboard.just_pressed(KeyCode::Digit3) {
-        let _ = yard.board.opt_lethal_local();
+        let step = yard.board.opt_lethal_local();
+        if step == "lethal" {
+            hour.session.warrant.x = hour.session.warrant.x.max(10.0);
+        }
         return;
     }
     let go = keyboard.just_pressed(soft_play_bindings::INTERACT)

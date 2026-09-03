@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.18] — 2026-09-02 — Compass tells (Slice 14)
+
+Live W at 20 and 60 speaks. Peace is silent. UI never shows the formula. Opting DeclaredLethal posts hunter x so the 20-tell can fire. No extra key. Last later-list item.
+
 ## [23.2.17] — 2026-09-02 — Hybrid Matrix v0 (Slice 13)
 
 After a Sylvaris tend, E Attune. Stability 1. Double vision under the ledger. Not racial modules, not a second body. Dies in Peace. Compass ±20/60 is next.
