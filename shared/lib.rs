@@ -13,6 +13,7 @@ pub mod fabricator;
 pub mod embassy;
 pub mod war_week;
 pub mod crownstone;
+pub mod species_redemption;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -45,6 +46,7 @@ pub mod prelude {
     pub use crate::embassy::{BlueprintBook, Embassy};
     pub use crate::war_week::WarWeek;
     pub use crate::crownstone::{CrownPath, CrownstoneState};
+    pub use crate::species_redemption::SpeciesRedemptionState;
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -162,5 +164,13 @@ mod tests {
         assert_eq!(c.path, crownstone::CrownPath::Unset);
         assert_eq!(c.witness(), "witnessed");
         assert_eq!(c.path, crownstone::CrownPath::Unset);
+    }
+
+    #[test]
+    fn sylvaris_tend() {
+        let mut s = species_redemption::SpeciesRedemptionState::default();
+        assert_eq!(s.offer_tend(), "tended");
+        assert!(s.sylvaris > 0.0);
+        assert_eq!(s.veythari, 0.0);
     }
 }

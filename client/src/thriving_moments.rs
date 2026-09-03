@@ -26,6 +26,7 @@ pub enum ThrivingKind {
     FirstEmbassy,
     FirstWarWeek,
     FirstCrownstone,
+    FirstRedemption,
 }
 
 impl ThrivingKind {
@@ -72,6 +73,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstCrownstone => {
                 "The stone is seen — path waits"
+            }
+            ThrivingKind::FirstRedemption => {
+                "A tend offered — the grove answers"
             }
         }
     }

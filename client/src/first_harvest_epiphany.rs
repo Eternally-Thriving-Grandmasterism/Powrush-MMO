@@ -48,6 +48,8 @@ pub struct FirstHarvestEpiphany {
     pub embassy_lamp: bool,
     /// Crownstone live, not yet witnessed. E Witness; do not harvest.
     pub crownstone_near: bool,
+    /// Sylvaris grove live, tend not yet offered. E Offer a tend; do not harvest.
+    pub redemption_near: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -67,6 +69,7 @@ impl Default for FirstHarvestEpiphany {
             ledger_bind: false,
             embassy_lamp: false,
             crownstone_near: false,
+            redemption_near: false,
         }
     }
 }
@@ -315,6 +318,10 @@ fn handle_interact_harvest(
     }
 
     if state.crownstone_near {
+        return;
+    }
+
+    if state.redemption_near {
         return;
     }
 
