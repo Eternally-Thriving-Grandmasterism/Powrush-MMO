@@ -11,6 +11,7 @@ pub mod infra_spill;
 pub mod ledger_bind;
 pub mod fabricator;
 pub mod embassy;
+pub mod war_week;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -41,6 +42,7 @@ pub mod prelude {
     pub use crate::ledger_bind::{LedgerBoard, LedgerContract, Purse, WinCondition};
     pub use crate::fabricator::{Fabricator, ProofPack, Recipe};
     pub use crate::embassy::{BlueprintBook, Embassy};
+    pub use crate::war_week::WarWeek;
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -134,5 +136,13 @@ mod tests {
         let mut e = embassy::Embassy::default();
         e.ensure_lamp(&f.pack);
         assert_eq!(e.request_seat(), "seated");
+    }
+
+    #[test]
+    fn war_week_scores() {
+        let mut w = war_week::WarWeek::default();
+        w.declare();
+        w.ingest(1.0, 1);
+        assert_eq!(w.score(), 2.0);
     }
 }

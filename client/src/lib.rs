@@ -13,6 +13,7 @@ pub mod infra_spill;
 pub mod ledger_bind;
 pub mod fabricator;
 pub mod embassy;
+pub mod war_week;
 pub mod input;
 pub mod soft_play_bindings;
 pub mod first_session_guidance;
@@ -76,6 +77,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(ledger_bind::LedgerBindPlugin);
         app.add_plugins(fabricator::FabricatorPlugin);
         app.add_plugins(embassy::EmbassyPlugin);
+        app.add_plugins(war_week::WarWeekPlugin);
         app.add_plugins(LivedHourEconomyPlugin);
         app.add_plugins(InputPlugin);
         app.add_plugins(first_session_guidance::FirstSessionGuidancePlugin);

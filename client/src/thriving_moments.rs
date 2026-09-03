@@ -24,6 +24,7 @@ pub enum ThrivingKind {
     FirstBind,
     FirstProofPack,
     FirstEmbassy,
+    FirstWarWeek,
 }
 
 impl ThrivingKind {
@@ -64,6 +65,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstEmbassy => {
                 "Seated at the lamp — the book is yours"
+            }
+            ThrivingKind::FirstWarWeek => {
+                "Hex gone green — tons plus restored"
             }
         }
     }
