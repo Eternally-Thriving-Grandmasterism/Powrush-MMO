@@ -232,9 +232,10 @@ fn toggle_satchel(
 fn slot_select_when_open(
     keyboard: Res<ButtonInput<KeyCode>>,
     panels: Res<HumanSoftPanels>,
+    allocate: Res<RbeAllocateChoice>,
     mut inv: ResMut<HumanInventory>,
 ) {
-    if !inv.open || panels.realm_open {
+    if !inv.open || panels.realm_open || allocate.panel_open {
         return;
     }
     if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Digit1) {

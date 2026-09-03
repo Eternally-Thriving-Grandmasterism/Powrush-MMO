@@ -17,6 +17,7 @@ pub enum GuidanceObjective {
     ApproachGlowingNode,
     HarvestWithInteract,
     OpenInventory,
+    ShareAbundance,
     FeelFirstEpiphany,
     MeetCouncilWhisper,
     FreeExploration,
@@ -34,7 +35,10 @@ impl GuidanceObjective {
             GuidanceObjective::HarvestWithInteract => {
                 "Press E near the node to harvest with mercy"
             }
-            GuidanceObjective::OpenInventory => "Press I to open your inventory & hotbar",
+            GuidanceObjective::OpenInventory => "Press I to open your satchel",
+            GuidanceObjective::ShareAbundance => {
+                "Press R to share surplus · 1 flow outward · 2 steward reserve"
+            }
             GuidanceObjective::FeelFirstEpiphany => {
                 "Stay present — a Divine Whisper may bloom"
             }
@@ -52,8 +56,9 @@ impl GuidanceObjective {
             GuidanceObjective::MoveAround => GuidanceObjective::ApproachGlowingNode,
             GuidanceObjective::ApproachGlowingNode => GuidanceObjective::HarvestWithInteract,
             GuidanceObjective::HarvestWithInteract => GuidanceObjective::OpenInventory,
-            GuidanceObjective::OpenInventory => GuidanceObjective::FeelFirstEpiphany,
-            GuidanceObjective::FeelFirstEpiphany => GuidanceObjective::MeetCouncilWhisper,
+            GuidanceObjective::OpenInventory => GuidanceObjective::ShareAbundance,
+            GuidanceObjective::ShareAbundance => GuidanceObjective::FreeExploration,
+            GuidanceObjective::FeelFirstEpiphany => GuidanceObjective::FreeExploration,
             GuidanceObjective::MeetCouncilWhisper => GuidanceObjective::FreeExploration,
             GuidanceObjective::FreeExploration => GuidanceObjective::FreeExploration,
         }
@@ -68,6 +73,7 @@ pub struct FirstSessionGuidance {
     pub harvests_completed: u32,
     pub moved_distance: f32,
     pub inventory_opened: bool,
+    pub shared_abundance: bool,
     pub epiphany_felt: bool,
     pub shown_at_seconds: f64,
 }
@@ -81,6 +87,7 @@ impl Default for FirstSessionGuidance {
             harvests_completed: 0,
             moved_distance: 0.0,
             inventory_opened: false,
+            shared_abundance: false,
             epiphany_felt: false,
             shown_at_seconds: 0.0,
         }
@@ -102,6 +109,7 @@ impl FirstSessionGuidance {
             GuidanceObjective::ApproachGlowingNode => self.moved_distance > 12.0,
             GuidanceObjective::HarvestWithInteract => self.harvests_completed >= 1,
             GuidanceObjective::OpenInventory => self.inventory_opened,
+            GuidanceObjective::ShareAbundance => self.shared_abundance,
             GuidanceObjective::FeelFirstEpiphany => self.epiphany_felt,
             GuidanceObjective::MeetCouncilWhisper => {
                 self.epiphany_felt && self.harvests_completed >= 1
@@ -256,4 +264,25 @@ pub fn credit_harvest(guidance: &mut FirstSessionGuidance) {
 pub fn credit_epiphany(guidance: &mut FirstSessionGuidance) {
     guidance.epiphany_felt = true;
     guidance.advance_if_ready();
+}
+
+pub fn credit_share(guidance: &mut FirstSessionGuidance) {
+    guidance.shared_abundance = true;
+    guidance.advance_if_ready();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn satchel_then_share_then_free() {
+        let mut g = FirstSessionGuidance::default();
+        g.objective = GuidanceObjective::OpenInventory;
+        g.inventory_opened = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::ShareAbundance);
+        credit_share(&mut g);
+        assert_eq!(g.objective, GuidanceObjective::FreeExploration);
+    }
 }

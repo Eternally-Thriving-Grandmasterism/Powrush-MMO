@@ -8,14 +8,18 @@
  * No scarcity language. No punishment for either path.
  * Both are abundance-aligned; the difference is timing and direction.
  *
- * Controls: **R** toggles panel when eligible · buttons choose · Esc / R closes
+ * Controls: **R** toggles panel when eligible · **1** flow · **2** reserve · Esc / R closes
  *
  * PATSAGi + TOLC 8 | AG-SML v1.0 | Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
  */
 
+use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 
+use crate::first_session_guidance::{credit_share, FirstSessionGuidance};
+use crate::harvest_feel::rumble_mercy_harvest;
+use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -229,7 +233,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
             });
 
             p.spawn(TextBundle::from_section(
-                "R toggle · both paths are abundance — never scarcity",
+                "1 flow outward · 2 steward reserve · R close · both paths thrive",
                 TextStyle {
                     font_size: 12.0,
                     color: Color::srgb(0.65, 0.80, 0.75),
@@ -274,7 +278,7 @@ fn toggle_allocate_panel(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut allocate: ResMut<RbeAllocateChoice>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyR) {
+    if keyboard.just_pressed(soft_play_bindings::ALLOCATE) {
         if allocate.panel_open {
             allocate.panel_open = false;
         } else if allocate.eligible || allocate.surplus_signal > 0.0 {
@@ -319,9 +323,29 @@ fn update_allocate_body(
     }
 }
 
+fn commit_allocate(
+    allocate: &mut RbeAllocateChoice,
+    moments: &mut ThrivingMoments,
+    guidance: &mut FirstSessionGuidance,
+    rumble: &mut EventWriter<GamepadRumbleRequest>,
+    gamepads: &Gamepads,
+    path: AllocatePath,
+    now: f64,
+) {
+    allocate.apply(path, 1.0);
+    rumble_mercy_harvest(rumble, gamepads);
+    fire_thriving(moments, ThrivingKind::FirstShare, now);
+    credit_share(guidance);
+    info!(target: "powrush::rbe", ?path, "Allocate committed");
+}
+
 fn handle_allocate_buttons(
     mut allocate: ResMut<RbeAllocateChoice>,
     mut moments: ResMut<ThrivingMoments>,
+    mut guidance: ResMut<FirstSessionGuidance>,
+    mut rumble: EventWriter<GamepadRumbleRequest>,
+    gamepads: Res<Gamepads>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     flow_q: Query<&Interaction, (Changed<Interaction>, With<AllocateFlowButton>)>,
     reserve_q: Query<&Interaction, (Changed<Interaction>, With<AllocateReserveButton>)>,
@@ -330,18 +354,35 @@ fn handle_allocate_buttons(
         return;
     }
     let now = time.elapsed_seconds_f64();
+    let path = if keyboard.just_pressed(KeyCode::Digit1) {
+        Some(AllocatePath::FlowOutward)
+    } else if keyboard.just_pressed(KeyCode::Digit2) {
+        Some(AllocatePath::StewardReserve)
+    } else {
+        None
+    };
+    if let Some(path) = path {
+        commit_allocate(
+            &mut allocate, &mut moments, &mut guidance, &mut rumble, &gamepads, path, now,
+        );
+        return;
+    }
     for inter in &flow_q {
         if *inter == Interaction::Pressed {
-            allocate.apply(AllocatePath::FlowOutward, 1.0);
-            fire_thriving(&mut moments, ThrivingKind::FirstMercyHarvest, now);
-            info!(target: "powrush::rbe", "Allocate: flow outward");
+            commit_allocate(
+                &mut allocate, &mut moments, &mut guidance, &mut rumble, &gamepads,
+                AllocatePath::FlowOutward, now,
+            );
+            return;
         }
     }
     for inter in &reserve_q {
         if *inter == Interaction::Pressed {
-            allocate.apply(AllocatePath::StewardReserve, 1.0);
-            fire_thriving(&mut moments, ThrivingKind::FirstInventoryOpen, now);
-            info!(target: "powrush::rbe", "Allocate: steward reserve");
+            commit_allocate(
+                &mut allocate, &mut moments, &mut guidance, &mut rumble, &gamepads,
+                AllocatePath::StewardReserve, now,
+            );
+            return;
         }
     }
 }
@@ -367,5 +408,11 @@ mod tests {
         a.apply(AllocatePath::StewardReserve, 1.0);
         a.apply(AllocatePath::FlowOutward, 1.0);
         assert_eq!(a.choices_made, 2);
+    }
+
+    #[test]
+    fn digit_labels_are_flow_then_reserve() {
+        assert_eq!(AllocatePath::FlowOutward.title(), "Flow outward");
+        assert_eq!(AllocatePath::StewardReserve.title(), "Steward reserve");
     }
 }

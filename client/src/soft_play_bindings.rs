@@ -20,6 +20,7 @@ pub const PEER_INGEST: KeyCode = KeyCode::KeyU;
 pub const MY_MERCY_JOURNEY: KeyCode = KeyCode::KeyM;
 pub const REALM_TRAVEL: KeyCode = KeyCode::KeyZ;
 pub const INVENTORY: KeyCode = KeyCode::KeyI;
+pub const ALLOCATE: KeyCode = KeyCode::KeyR;
 pub const FORCE_CLOUD_FLUSH: KeyCode = KeyCode::KeyT;
 
 pub const MY_MERCY_JOURNEY_ALIAS: KeyCode = KeyCode::F2;
@@ -50,5 +51,6 @@ mod tests {
         assert_eq!(JUMP, KeyCode::Space);
         assert_eq!(INTERACT, KeyCode::KeyE);
         assert_eq!(INVENTORY, KeyCode::KeyI);
+        assert_eq!(ALLOCATE, KeyCode::KeyR);
     }
 }
