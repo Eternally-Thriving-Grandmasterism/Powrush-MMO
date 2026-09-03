@@ -99,8 +99,10 @@ mod tests {
     #[test]
     fn frontier_band_is_readable() {
         let mut p = IdentityPersist::new("did:powrush:test");
-        p.warrant.i = 50.0;
+        p.warrant.i = 25.0; // 0.80 * 25 = 20 → Cited (15–34)
         assert_eq!(p.band(HexFlag::Frontier), WarrantBand::Cited);
         assert!(p.bridge_export(HexFlag::Frontier)["warrant_live"].as_f64().unwrap() > 15.0);
+        p.warrant.i = 50.0; // 0.80 * 50 = 40 → Wanted (35–64)
+        assert_eq!(p.band(HexFlag::Frontier), WarrantBand::Wanted);
     }
 }
