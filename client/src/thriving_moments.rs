@@ -25,6 +25,7 @@ pub enum ThrivingKind {
     FirstProofPack,
     FirstEmbassy,
     FirstWarWeek,
+    FirstCrownstone,
 }
 
 impl ThrivingKind {
@@ -68,6 +69,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstWarWeek => {
                 "Hex gone green — tons plus restored"
+            }
+            ThrivingKind::FirstCrownstone => {
+                "The stone is seen — path waits"
             }
         }
     }
