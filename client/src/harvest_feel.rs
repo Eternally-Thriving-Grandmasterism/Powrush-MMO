@@ -23,6 +23,9 @@ pub struct SoftRbePool {
     pub last_credit: f32,
     pub harvests: u32,
     pub tends: u32,
+    /// 1.0 = first-take camera punch. Decays every frame. Never steals look.
+    pub kick: f32,
+    pub blooms: u32,
 }
 
 impl Default for SoftRbePool {
@@ -34,6 +37,8 @@ impl Default for SoftRbePool {
             last_credit: 0.0,
             harvests: 0,
             tends: 0,
+            kick: 0.0,
+            blooms: 0,
         }
     }
 }
@@ -80,7 +85,17 @@ impl SoftRbePool {
             self.vitality, self.harmony, self.joy
         )
     }
+
+    pub fn punch(&mut self, first: bool) {
+        self.kick = if first { 1.0 } else { 0.42 };
+        self.blooms = self.blooms.saturating_add(1);
+    }
+
+    pub fn tick_juice(&mut self, dt: f32) {
+        self.kick = (self.kick - dt * 2.8).max(0.0);
+    }
 }
+
 
 pub fn credit_soft_and_global(
     pool: &mut SoftRbePool,
@@ -99,23 +114,41 @@ pub fn rumble_mercy_harvest(
     rumble: &mut EventWriter<GamepadRumbleRequest>,
     gamepads: &Gamepads,
 ) {
+    rumble_harvest(rumble, gamepads, false);
+}
+
+pub fn rumble_harvest(
+    rumble: &mut EventWriter<GamepadRumbleRequest>,
+    gamepads: &Gamepads,
+    first: bool,
+) {
+    let (strong, weak, ms) = if first {
+        (0.28, 0.52, 160)
+    } else {
+        (0.12, 0.28, 90)
+    };
     for gamepad in gamepads.iter() {
         rumble.send(GamepadRumbleRequest::Add {
             gamepad,
             intensity: GamepadRumbleIntensity {
-                strong_motor: 0.12,
-                weak_motor: 0.28,
+                strong_motor: strong,
+                weak_motor: weak,
             },
-            duration: Duration::from_millis(90),
+            duration: Duration::from_millis(ms),
         });
     }
+}
+
+fn tick_harvest_juice(time: Res<Time>, mut pool: ResMut<SoftRbePool>) {
+    pool.tick_juice(time.delta_seconds());
 }
 
 pub struct HarvestFeelPlugin;
 
 impl Plugin for HarvestFeelPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<SoftRbePool>();
+        app.init_resource::<SoftRbePool>()
+            .add_systems(Update, tick_harvest_juice);
     }
 }
 
@@ -149,5 +182,17 @@ mod tests {
         let spent = pool.spend_allocate(AllocatePath::FlowOutward, 1.0);
         assert_eq!(spent, 1.0);
         assert!((pool.vitality - 2.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn first_punch_is_stronger_than_repeat() {
+        let mut pool = SoftRbePool::default();
+        pool.punch(true);
+        let first = pool.kick;
+        pool.punch(false);
+        assert!(first > pool.kick);
+        assert_eq!(pool.blooms, 2);
+        pool.tick_juice(0.5);
+        assert!(pool.kick < 0.42);
     }
 }

@@ -11,7 +11,7 @@ use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
-use crate::harvest_feel::{credit_soft_and_global, rumble_mercy_harvest, SoftRbePool};
+use crate::harvest_feel::{credit_soft_and_global, rumble_harvest, rumble_mercy_harvest, SoftRbePool};
 use crate::input::PlayerInput;
 use crate::mercy_harvest_nodes::{apply_node_harvest, apply_node_tend, MercyHarvestNode, NearbyMercyNode};
 use crate::lived_hour_support::RbeGlobalState;
@@ -352,15 +352,18 @@ fn resolve_take(
     }
 
     let credited = credit_soft_and_global(pool, global, node_vitality);
-    rumble_mercy_harvest(rumble, gamepads);
+    let first = !state.first_harvest_lived;
+    rumble_harvest(rumble, gamepads, first);
+    pool.punch(first);
     credit_harvest(guidance);
-    credit_epiphany(guidance);
+    if first {
+        credit_epiphany(guidance);
+        state.first_epiphany_lived = true;
+    }
     fire_thriving(moments, ThrivingKind::FirstMercyHarvest, now);
     fire_world_answer(answer, AnswerKind::Take, now, "taken with mercy");
 
-    let first = !state.first_harvest_lived;
     state.first_harvest_lived = true;
-    state.first_epiphany_lived = true;
     state.prompt_until = now + PROMPT_LINGER;
     state.pulse_until = now + PULSE_SECS;
     let node_name = nearby.name.unwrap_or("the node");
