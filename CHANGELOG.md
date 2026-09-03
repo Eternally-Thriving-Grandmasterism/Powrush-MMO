@@ -1,5 +1,11 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.1] — 2026-09-02 — Lived-hour client bin
+
+- Default `powrush-client` bin is `PowrushClientBundle` (walk, harvest, satchel, guidance), not GPU test spheres.
+- Bundle no longer pulls networking, `simulation`, ambisonics, or egui GPU materials.
+- Harvest reach uses `SoftPresence` (the human body). `RbeGlobalState` / `RbeUiSync` are local first-hour resources.
+
 ## [23.2.0] — 2026-09-02 — Standalone cargo (human game)
 
 Lived first hour is the product. This slice unblocks building *this* repo alone:

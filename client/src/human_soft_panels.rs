@@ -67,7 +67,6 @@ fn spawn_soft_panels(mut commands: Commands) {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(6.0),
                     border: UiRect::all(Val::Px(1.5)),
-                    border_radius: BorderRadius::all(Val::Px(12.0)),
                     overflow: Overflow::clip_y(),
                     ..default()
                 },
@@ -120,7 +119,6 @@ fn spawn_soft_panels(mut commands: Commands) {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(6.0),
                     border: UiRect::all(Val::Px(1.5)),
-                    border_radius: BorderRadius::all(Val::Px(12.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.05, 0.07, 0.12, 0.94).into(),
@@ -182,15 +180,15 @@ fn digit_realm_travel(
     if !panels.realm_open {
         return;
     }
-    let pick = if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Key1) {
+    let pick = if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Digit1) {
         Some(0u8)
-    } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Key2) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Digit2) {
         Some(1)
-    } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Key3) {
+    } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Digit3) {
         Some(2)
-    } else if keyboard.just_pressed(KeyCode::Digit4) || keyboard.just_pressed(KeyCode::Key4) {
+    } else if keyboard.just_pressed(KeyCode::Digit4) || keyboard.just_pressed(KeyCode::Digit4) {
         Some(3)
-    } else if keyboard.just_pressed(KeyCode::Digit5) || keyboard.just_pressed(KeyCode::Key5) {
+    } else if keyboard.just_pressed(KeyCode::Digit5) || keyboard.just_pressed(KeyCode::Digit5) {
         Some(4)
     } else {
         None

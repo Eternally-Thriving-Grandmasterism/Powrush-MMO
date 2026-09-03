@@ -76,7 +76,6 @@ fn spawn_peer_presence_chip(mut commands: Commands) {
                     width: Val::Px(280.0),
                     padding: UiRect::all(Val::Px(10.0)),
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(10.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.04, 0.06, 0.09, 0.82).into(),

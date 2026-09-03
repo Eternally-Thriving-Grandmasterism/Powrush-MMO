@@ -4,7 +4,7 @@ Human game in the Ra-Thor constellation (Autonomicity Games Inc.).
 
 Walk a climate. Harvest with mercy. Learn a resource-based economy by playing. Earn later by sharing abundance, not by extracting.
 
-**Status (2026-09-02):** Lived first hour is the product. This repo compiles `shared` without a sibling Ra-Thor checkout (NEVC Mode B). The playable Bevy bundle already lives in `client/src` (`PowrushClientBundle`: move, harvest, satchel, first-session strip). Wiring that bundle as the default binary is the next slice. **Not** a public launch candidate. Native CI on `main` was red because workspace members path-depended on Ra-Thor trees that CI does not have.
+**Status (2026-09-02):** Lived first hour is the product. This repo compiles `shared` without a sibling Ra-Thor checkout (NEVC Mode B). Default binary is the lived hour: `cargo run -p powrush-client`. WASD / E / I / H / R. Not a public launch candidate. **Not** a public launch candidate. Native CI on `main` was red because workspace members path-depended on Ra-Thor trees that CI does not have.
 
 **Version:** workspace `21.88.0`. Lived-hour docs: `23.1` tick seam, `23.2` organism law in `docs/PATSAGI_v23.2_ARCHITECTURE.md`.
 
@@ -18,6 +18,8 @@ One human, one machine, no dedicated server, no “12 players online.” Ra-Thor
 
 ```bash
 cargo test -p shared -p rsil-identity
+cargo test -p powrush-client --lib
+cargo run -p powrush-client
 ```
 
 RBE oxygen demo (`simulation --bin rbe_oxygen_demo`) stays on disk. `simulation` is not a workspace member until its crates.io graph resolves (`shamirs-secret-sharing` is not a published crate). High-valence grant vs low-valence restriction is the teaching claim; it is not the first-hour client.
@@ -36,7 +38,7 @@ Shared across repos: NEVC + telemetry JSON + policy hints only. Do not fold the 
 
 NFT / chain mint, k8s, payments, P2W, Steam-as-blocker, a second HUD, corpse-grey.
 
-Workspace Core members: `shared`, `crates/rsil-identity`. Parked on disk: `client/`, `server/`, `simulation/`, `host/`, `game/`, `powrush-divine-module/`.
+Workspace Core members: `shared`, `crates/rsil-identity`, `client`. Parked on disk: `server/`, `simulation/`, `host/`, `game/`, `powrush-divine-module/`.
 
 ### Commercial & licensing
 

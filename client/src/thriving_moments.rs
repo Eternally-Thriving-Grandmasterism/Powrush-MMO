@@ -109,7 +109,6 @@ fn spawn_toast(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(12.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.08, 0.06, 0.12, 0.92).into(),

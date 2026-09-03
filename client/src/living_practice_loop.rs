@@ -10,7 +10,7 @@
 use bevy::prelude::*;
 
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
-use crate::rbe_client_ui_sync::RbeUiSync;
+use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
@@ -196,7 +196,6 @@ fn spawn_practice_strip(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     border: UiRect::all(Val::Px(1.5)),
-                    border_radius: BorderRadius::all(Val::Px(14.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.05, 0.09, 0.08, 0.90).into(),

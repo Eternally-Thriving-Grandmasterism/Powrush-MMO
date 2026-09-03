@@ -2,10 +2,10 @@
 members = [
     "shared",
     "crates/rsil-identity",
+    "client",
 ]
 # Parked members (on disk; add back only with a crates.io graph that resolves
-# and a real test). Lived hour client is still client/src — next slice.
-#   client/                   — PowrushClientBundle; default bin is GPU test
+# and a real test).
 #   server/                   — landlock host; not first hour
 #   simulation/               — shamirs-secret-sharing is not on crates.io
 #   host/                     — depends on simulation

@@ -11,7 +11,6 @@
 
 use bevy::prelude::*;
 use bevy::input::gamepad::{GamepadAxis, GamepadAxisType, GamepadButton, GamepadButtonType};
-use crate::prediction::{PredictedPosition, PredictedAbility};
 use crate::soft_play_bindings;
 
 #[derive(Resource, Default, Debug)]
@@ -31,8 +30,7 @@ pub struct InputPlugin;
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PlayerInput::default())
-            .add_systems(Update, handle_player_input)
-            .add_systems(Update, apply_input_to_prediction);
+            .add_systems(Update, handle_player_input);
     }
 }
 
@@ -83,14 +81,14 @@ fn handle_player_input(
 
     // Ability slots 1–4
     player_input.ability_slot = if keyboard.just_pressed(KeyCode::Digit1)
-        || keyboard.just_pressed(KeyCode::Key1)
+        || keyboard.just_pressed(KeyCode::Digit1)
     {
         Some(0)
-    } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Key2) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Digit2) {
         Some(1)
-    } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Key3) {
+    } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Digit3) {
         Some(2)
-    } else if keyboard.just_pressed(KeyCode::Digit4) || keyboard.just_pressed(KeyCode::Key4) {
+    } else if keyboard.just_pressed(KeyCode::Digit4) || keyboard.just_pressed(KeyCode::Digit4) {
         Some(3)
     } else {
         None
@@ -127,32 +125,3 @@ fn handle_player_input(
     }
     player_input.sprint = sprint;
 }
-
-fn apply_input_to_prediction(
-    mut query: Query<(&mut PredictedPosition, &mut PredictedAbility), With<Player>>,
-    player_input: Res<PlayerInput>,
-    time: Res<Time>,
-) {
-    let speed = if player_input.sprint { 16.0 } else { 10.0 };
-    for (mut pos, mut ability) in &mut query {
-        let delta = player_input.movement * speed * time.delta_seconds();
-        pos.position += delta.extend(0.0);
-        pos.velocity = delta.extend(0.0);
-
-        // Soft jump impulse (client prediction placeholder — authoritative later)
-        if player_input.jump {
-            pos.velocity.y += 6.0;
-            pos.position.y += 0.35;
-        }
-
-        if let Some(slot) = player_input.ability_slot {
-            ability.ability_id = slot;
-        }
-    }
-}
-
-#[derive(Component)]
-struct Player;
-
-// Mercy-gated, predicted locally, reconciled with authority.
-// Space=jump · E=interact · Shift=sprint — sealed under PATSAGi.

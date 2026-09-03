@@ -152,7 +152,6 @@ fn spawn_guidance_strip(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     border: UiRect::all(Val::Px(1.5)),
-                    border_radius: BorderRadius::all(Val::Px(14.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.04, 0.07, 0.11, 0.88).into(),

@@ -62,7 +62,6 @@ fn spawn_banner(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(10.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.04, 0.06, 0.09, 0.86).into(),

@@ -14,8 +14,8 @@ use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessio
 use crate::harvest_feel::{credit_soft_and_global, rumble_mercy_harvest, SoftRbePool};
 use crate::input::PlayerInput;
 use crate::mercy_harvest_nodes::{apply_node_harvest, apply_node_tend, MercyHarvestNode, NearbyMercyNode};
-use crate::rbe::RbeGlobalState;
-use crate::rbe_client_ui_sync::RbeUiSync;
+use crate::lived_hour_support::RbeGlobalState;
+use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::world_answer::{fire_world_answer, AnswerKind, WorldAnswer};
@@ -123,7 +123,6 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(10.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.03, 0.10, 0.07, 0.78).into(),
@@ -160,7 +159,6 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     border: UiRect::all(Val::Px(1.2)),
-                    border_radius: BorderRadius::all(Val::Px(12.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.07, 0.12, 0.08, 0.90).into(),
@@ -194,7 +192,6 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     width: Val::Px(380.0),
                     padding: UiRect::all(Val::Px(12.0)),
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(10.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.05, 0.07, 0.10, 0.88).into(),

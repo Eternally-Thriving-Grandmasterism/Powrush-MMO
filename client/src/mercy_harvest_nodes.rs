@@ -11,7 +11,6 @@ use bevy::prelude::*;
 use crate::human_presence::SoftPresence;
 use crate::living_ecology::BiomeFeel;
 use crate::living_practice_loop::SoftPlayerRealm;
-use crate::prediction::PredictedPosition;
 
 pub const HARVEST_REACH: f32 = 2.85;
 const RECOVER_PER_SEC: f32 = 0.038;
@@ -126,26 +125,16 @@ fn spawn_mercy_nodes(
     info!(target: "powrush::nodes", "three mercy harvest nodes seeded in the walk plane");
 }
 
-fn player_xy(
-    presence: Option<&SoftPresence>,
-    query: &Query<&PredictedPosition>,
-) -> Vec3 {
-    if let Some(p) = presence {
-        return p.position;
-    }
-    if let Some(p) = query.iter().next() {
-        return p.position;
-    }
-    Vec3::ZERO
+fn player_xy(presence: Option<&SoftPresence>) -> Vec3 {
+    presence.map(|p| p.position).unwrap_or(Vec3::ZERO)
 }
 
 fn track_nearby_node(
     presence: Option<Res<SoftPresence>>,
-    player: Query<&PredictedPosition>,
     nodes: Query<(Entity, &Transform, &MercyHarvestNode)>,
     mut nearby: ResMut<NearbyMercyNode>,
 ) {
-    let pos = player_xy(presence.as_deref(), &player);
+    let pos = player_xy(presence.as_deref());
     nearby.nodes_exist = !nodes.is_empty();
     let mut best: Option<(Entity, &'static str, f32)> = None;
     for (entity, tf, node) in &nodes {
