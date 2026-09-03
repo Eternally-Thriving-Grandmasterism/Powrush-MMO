@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.7] — 2026-09-02 — Vertical factory (Slice 3)
+
+Local House tutorial: Q on Frontier founds, then extractor → depot → hauler → two stops → arrival chime (*The machine exists*). Dies in Peace. Two-client AOI waits on the parked server.
+
 ## [23.2.6] — 2026-09-02 — Hex flags (Slice 2)
 
 Peace / Frontier / War / Contestable. Industry and Ledger only where flagged. Contestable is opt-in. A Peace visitor on Frontier: E says *Not your charter / Peace visitor*. Peace hour E still harvests.

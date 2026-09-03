@@ -18,6 +18,7 @@ pub enum ThrivingKind {
     CouncilInvite,
     FirstInventoryOpen,
     FirstShare,
+    FirstArrival,
 }
 
 impl ThrivingKind {
@@ -40,6 +41,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstShare => {
                 "Thriving moment · Surplus shared — others may thrive now"
+            }
+            ThrivingKind::FirstArrival => {
+                "The machine exists — a crate arrived"
             }
         }
     }
