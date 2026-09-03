@@ -14,6 +14,7 @@ use crate::living_practice_loop::{LivingPracticeLoop, PracticeSurface, SoftPlaye
 use crate::mercy_transporters::MercyTransporters;
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
 use crate::resonance_flavors::ResonanceState;
+use crate::hour_sacred::HourSacred;
 use crate::soft_play_bindings;
 
 #[derive(Resource, Debug)]
@@ -107,8 +108,13 @@ fn spawn_lattice_panel(mut commands: Commands) {
 
 fn toggle_lattice_panel(
     keyboard: Res<ButtonInput<KeyCode>>,
+    hour: Res<HourSacred>,
     mut lattice: ResMut<FoundationLattice>,
 ) {
+    if !hour.charter_skin_live() {
+        lattice.panel_open = false;
+        return;
+    }
     if keyboard.just_pressed(soft_play_bindings::FOUNDATION_LATTICE) {
         lattice.panel_open = !lattice.panel_open;
         info!(

@@ -6,6 +6,7 @@
 use bevy::prelude::*;
 
 pub mod lived_hour_support;
+pub mod hour_sacred;
 pub mod input;
 pub mod soft_play_bindings;
 pub mod first_session_guidance;
@@ -62,6 +63,7 @@ impl PowrushClientBundle {
 
 impl Plugin for PowrushClientBundle {
     fn build(&self, app: &mut App) {
+        app.add_plugins(hour_sacred::HourSacredPlugin);
         app.add_plugins(LivedHourEconomyPlugin);
         app.add_plugins(InputPlugin);
         app.add_plugins(first_session_guidance::FirstSessionGuidancePlugin);

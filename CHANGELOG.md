@@ -1,5 +1,12 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.4] — 2026-09-02 — Hour sacred (Slice 0)
+
+Peace hour stays one human / one machine:
+- `shared::space_law` — HexFlag, WarrantWeight (live 0 in Peace), CharterKind, skin gate
+- Tab / G / L / Q no-op without `charter_id` + Frontier. WASD / E / I / H / R untouched
+- No hunt UI, no Currency3, no factory
+
 ## [23.2.3] — 2026-09-02 — Allocate by hand
 
 R is earn-by-sharing, not a mouse-only panel:
