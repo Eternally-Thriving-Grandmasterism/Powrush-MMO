@@ -5,6 +5,7 @@
 
 pub mod protocol;
 pub mod space_law;
+pub mod vertical_factory;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -29,6 +30,7 @@ pub mod rbe_queries {
 pub mod prelude {
     pub use crate::protocol::HotbarSlot;
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
+    pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -67,5 +69,15 @@ mod tests {
         let s = space_law::SpaceSession::default();
         assert_eq!(s.warrant_live(), 0.0);
         assert!(!s.charter_skin_live());
+    }
+
+    #[test]
+    fn vertical_factory_arrives() {
+        let mut f = vertical_factory::VerticalFactory::default();
+        f.found_house();
+        for _ in 0..6 {
+            f.advance();
+        }
+        assert!(f.tutorial_complete());
     }
 }

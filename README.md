@@ -10,7 +10,7 @@ Walk a climate. Harvest with mercy. Learn a resource-based economy by playing. E
 
 ### What a human does in the first hour
 
-WASD walk · Space jump · Shift sprint · **E** harvest / tend (glow, camera punch, first-take rumble) · **I** satchel · **H** hide guidance · **R** allocate (**1** flow · **2** reserve). Peace: W is silent 0. **Tab / G / L / Q** stay dead until Charter + Frontier. Peace visitor on Frontier: E is *Not your charter*.
+WASD walk · Space jump · Shift sprint · **E** harvest / tend (glow, camera punch, first-take rumble) · **I** satchel · **H** hide guidance · **R** allocate (**1** flow · **2** reserve). Peace: W is silent 0. **Tab / G / L / Q** stay dead until Charter + Frontier. Peace visitor on Frontier: E is *Not your charter*. Frontier **Q**: House tutorial until a crate arrives.
 
 One human, one machine, no dedicated server, no “12 players online.” Ra-Thor may *read* `data/powrush_lived_tick.json`. It does not drive the keys.
 
