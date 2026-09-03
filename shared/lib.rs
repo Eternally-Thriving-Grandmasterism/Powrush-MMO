@@ -9,6 +9,7 @@ pub mod vertical_factory;
 pub mod coop_voice;
 pub mod infra_spill;
 pub mod ledger_bind;
+pub mod fabricator;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -37,6 +38,7 @@ pub mod prelude {
     pub use crate::coop_voice::{CoopVoice, QuorumCard, VoiceTopic};
     pub use crate::infra_spill::{EvidencePack, InfraWitness, OffenseCode};
     pub use crate::ledger_bind::{LedgerBoard, LedgerContract, Purse, WinCondition};
+    pub use crate::fabricator::{Fabricator, ProofPack, Recipe};
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -110,5 +112,14 @@ mod tests {
         assert_eq!(b.act_local(), "escorting");
         assert_eq!(b.act_local(), "escorting");
         assert_eq!(b.act_local(), "settled");
+    }
+
+    #[test]
+    fn fabricator_unlocks() {
+        let mut f = fabricator::Fabricator::default();
+        assert_eq!(f.craft_next(), "planted");
+        assert_eq!(f.craft_next(), "crafted");
+        assert_eq!(f.craft_next(), "unlocked");
+        assert!(f.pack.unlocked());
     }
 }
