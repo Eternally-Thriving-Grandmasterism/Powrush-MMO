@@ -101,27 +101,10 @@ fn cycle_resonance(
     mut state: ResMut<ResonanceState>,
     mut echo: ResMut<AbundanceJourneyEcho>,
 ) {
-    if !hour.charter_skin_live() {
-        return;
-    }
-    if !keyboard.just_pressed(soft_play_bindings::RESONANCE_CYCLE) {
-        return;
-    }
-    state.current = state.current.next();
-    state.shifts = state.shifts.saturating_add(1);
-    let note = format!(
-        "Resonance shifted · {} — {}",
-        state.current.title(),
-        state.current.line()
-    );
-    echo.push(JourneyKind::Note, note.clone());
-    info!(
-        target: "powrush::resonance",
-        flavor = state.current.title(),
-        shifts = state.shifts,
-        "{note}"
-    );
+    // Slice 4: Charter G is Voice sash. Peace already swallows G.
+    let _ = (keyboard, hour, &mut *state, &mut *echo);
 }
+
 
 fn tint_practice_strip_by_resonance(
     state: Res<ResonanceState>,

@@ -40,6 +40,8 @@ pub struct FirstHarvestEpiphany {
     pub tends_this_session: u32,
     /// Frontier+ hex, no charter_id. E must not harvest.
     pub peace_visitor: bool,
+    /// Voice sash open with a live card. E votes; do not harvest.
+    pub beacon_voice: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -55,6 +57,7 @@ impl Default for FirstHarvestEpiphany {
             harvests_this_session: 0,
             tends_this_session: 0,
             peace_visitor: false,
+            beacon_voice: false,
         }
     }
 }
@@ -287,6 +290,10 @@ fn handle_interact_harvest(
             state.pulse_until = now + 2.4;
             state.pulse_line = "Not your charter / Peace visitor".into();
         }
+        return;
+    }
+
+    if state.beacon_voice {
         return;
     }
 
