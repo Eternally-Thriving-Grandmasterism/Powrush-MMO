@@ -44,6 +44,8 @@ pub struct FirstHarvestEpiphany {
     pub beacon_voice: bool,
     /// Ledger sash open. E Bind/Escort; do not harvest.
     pub ledger_bind: bool,
+    /// Embassy lamp live, not yet seated. E Request seat; do not harvest.
+    pub embassy_lamp: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -61,6 +63,7 @@ impl Default for FirstHarvestEpiphany {
             peace_visitor: false,
             beacon_voice: false,
             ledger_bind: false,
+            embassy_lamp: false,
         }
     }
 }
@@ -301,6 +304,10 @@ fn handle_interact_harvest(
     }
 
     if state.ledger_bind {
+        return;
+    }
+
+    if state.embassy_lamp {
         return;
     }
 
