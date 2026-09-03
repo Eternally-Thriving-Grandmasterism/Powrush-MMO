@@ -1,5 +1,12 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.3] — 2026-09-02 — Allocate by hand
+
+R is earn-by-sharing, not a mouse-only panel:
+- **1** flow outward · **2** steward reserve while the panel is open (satchel 1/2 yield)
+- First share is its own thriving moment (does not steal harvest/inventory firsts)
+- Guidance teaches R after the satchel
+
 ## [23.2.2] — 2026-09-02 — Harvest juice
 
 First E at a glowing node is a reward, not a counter tick:

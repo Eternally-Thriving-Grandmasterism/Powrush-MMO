@@ -17,6 +17,7 @@ pub enum ThrivingKind {
     PrincipleSealed,
     CouncilInvite,
     FirstInventoryOpen,
+    FirstShare,
 }
 
 impl ThrivingKind {
@@ -36,6 +37,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstInventoryOpen => {
                 "Thriving moment · Inventory open — abundance is held, not hoarded"
+            }
+            ThrivingKind::FirstShare => {
+                "Thriving moment · Surplus shared — others may thrive now"
             }
         }
     }
