@@ -1,5 +1,12 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.2] — 2026-09-02 — Harvest juice
+
+First E at a glowing node is a reward, not a counter tick:
+- Node emissive + child point light bloom with `pulse`
+- Camera punch from `HarvestJuice` (first take stronger; never steals look)
+- First-take rumble is longer; epiphany credit only on the first harvest
+
 ## [23.2.1] — 2026-09-02 — Lived-hour client bin
 
 - Default `powrush-client` bin is `PowrushClientBundle` (walk, harvest, satchel, guidance), not GPU test spheres.

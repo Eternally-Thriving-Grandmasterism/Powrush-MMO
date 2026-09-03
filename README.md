@@ -4,13 +4,13 @@ Human game in the Ra-Thor constellation (Autonomicity Games Inc.).
 
 Walk a climate. Harvest with mercy. Learn a resource-based economy by playing. Earn later by sharing abundance, not by extracting.
 
-**Status (2026-09-02):** Lived first hour is the product. This repo compiles `shared` without a sibling Ra-Thor checkout (NEVC Mode B). Default binary is the lived hour: `cargo run -p powrush-client`. WASD / E / I / H / R. Not a public launch candidate. **Not** a public launch candidate. Native CI on `main` was red because workspace members path-depended on Ra-Thor trees that CI does not have.
+**Status (2026-09-02):** Lived first hour is the product. This repo compiles without a sibling Ra-Thor checkout (NEVC Mode B). Default binary is the lived hour: `cargo run -p powrush-client`. WASD / E / I / H / R. Not a public launch candidate. Core CI: `shared` + `rsil-identity` + `powrush-client --lib`.
 
 **Version:** workspace `21.88.0`. Lived-hour docs: `23.1` tick seam, `23.2` organism law in `docs/PATSAGI_v23.2_ARCHITECTURE.md`.
 
 ### What a human does in the first hour
 
-WASD walk · Space jump · Shift sprint · **E** harvest / tend · **I** satchel · **H** hide guidance · **R** allocate.
+WASD walk · Space jump · Shift sprint · **E** harvest / tend (glow, camera punch, first-take rumble) · **I** satchel · **H** hide guidance · **R** allocate.
 
 One human, one machine, no dedicated server, no “12 players online.” Ra-Thor may *read* `data/powrush_lived_tick.json`. It does not drive the keys.
 

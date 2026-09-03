@@ -99,27 +99,40 @@ fn spawn_mercy_nodes(
 
     for (name, pos, color) in placements {
         let emissive = LinearRgba::from(color).with_alpha(1.0) * 2.4;
-        commands.spawn((
-            PbrBundle {
-                mesh: mesh.clone(),
-                material: materials.add(StandardMaterial {
-                    base_color: color,
-                    emissive,
-                    perceptual_roughness: 0.35,
-                    metallic: 0.05,
+        commands
+            .spawn((
+                PbrBundle {
+                    mesh: mesh.clone(),
+                    material: materials.add(StandardMaterial {
+                        base_color: color,
+                        emissive,
+                        perceptual_roughness: 0.35,
+                        metallic: 0.05,
+                        ..default()
+                    }),
+                    transform: Transform::from_translation(pos),
                     ..default()
-                }),
-                transform: Transform::from_translation(pos),
-                ..default()
-            },
-            MercyHarvestNode {
-                name,
-                vitality: 1.0,
-                harvests: 0,
-                pulse: 0.0,
-            },
-            Name::new(format!("MercyNode:{name}")),
-        ));
+                },
+                MercyHarvestNode {
+                    name,
+                    vitality: 1.0,
+                    harvests: 0,
+                    pulse: 0.0,
+                },
+                Name::new(format!("MercyNode:{name}")),
+            ))
+            .with_children(|c| {
+                c.spawn(PointLightBundle {
+                    point_light: PointLight {
+                        color,
+                        intensity: 420.0,
+                        range: 6.5,
+                        shadows_enabled: false,
+                        ..default()
+                    },
+                    ..default()
+                });
+            });
     }
     nearby.nodes_exist = true;
     info!(target: "powrush::nodes", "three mercy harvest nodes seeded in the walk plane");
@@ -161,20 +174,39 @@ fn track_nearby_node(
 fn pulse_harvested_nodes(
     time: Res<Time>,
     feel: Option<Res<BiomeFeel>>,
-    mut nodes: Query<(&mut MercyHarvestNode, &mut Transform)>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut nodes: Query<(
+        &mut MercyHarvestNode,
+        &mut Transform,
+        &Handle<StandardMaterial>,
+        Option<&Children>,
+    )>,
+    mut lights: Query<&mut PointLight>,
 ) {
     let dt = time.delta_seconds();
     let t = time.elapsed_seconds();
     let mul = feel.map(|f| f.regen_mul).unwrap_or(1.0);
-    for (mut node, mut tf) in &mut nodes {
+    for (mut node, mut tf, handle, children) in &mut nodes {
         if node.pulse > 0.0 {
             node.pulse = (node.pulse - dt * 1.35).max(0.0);
         } else if node.vitality < 1.0 {
             node.vitality = (node.vitality + dt * RECOVER_PER_SEC * mul).min(1.0);
         }
         let breathe = 1.0 + (t * 1.7).sin() * 0.06 * node.vitality;
-        let burst = 1.0 + node.pulse * 0.28;
+        let burst = 1.0 + node.pulse * 0.38;
         tf.scale = Vec3::splat(0.92 * breathe * burst);
+        if let Some(mat) = materials.get_mut(handle) {
+            let glow = 2.4 + node.pulse * 6.2;
+            mat.emissive = LinearRgba::from(mat.base_color) * glow;
+        }
+        if let Some(children) = children {
+            for child in children.iter() {
+                if let Ok(mut light) = lights.get_mut(*child) {
+                    light.intensity = 420.0 + node.pulse * 2800.0;
+                    light.range = 6.5 + node.pulse * 3.5;
+                }
+            }
+        }
     }
 }
 
