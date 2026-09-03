@@ -146,7 +146,6 @@ fn spawn_allocate_panel(mut commands: Commands) {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(10.0),
                     border: UiRect::all(Val::Px(1.5)),
-                    border_radius: BorderRadius::all(Val::Px(14.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.04, 0.08, 0.10, 0.94).into(),
@@ -185,7 +184,6 @@ fn spawn_allocate_panel(mut commands: Commands) {
                         style: Style {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                             border: UiRect::all(Val::Px(1.0)),
-                            border_radius: BorderRadius::all(Val::Px(8.0)),
                             ..default()
                         },
                         background_color: Color::srgba(0.12, 0.28, 0.22, 0.95).into(),
@@ -210,7 +208,6 @@ fn spawn_allocate_panel(mut commands: Commands) {
                         style: Style {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                             border: UiRect::all(Val::Px(1.0)),
-                            border_radius: BorderRadius::all(Val::Px(8.0)),
                             ..default()
                         },
                         background_color: Color::srgba(0.14, 0.18, 0.28, 0.95).into(),
@@ -243,7 +240,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
 }
 
 fn soft_surplus_from_rbe_feedback(
-    rbe_ui: Option<Res<crate::rbe_client_ui_sync::RbeUiSync>>,
+    rbe_ui: Option<Res<crate::lived_hour_support::RbeUiSync>>,
     mut allocate: ResMut<RbeAllocateChoice>,
     mut last: Local<Option<String>>,
 ) {

@@ -110,7 +110,8 @@ fn apply_locomotion(
         presence.velocity.y = JUMP;
         presence.grounded = false;
     }
-    presence.position += presence.velocity * dt;
+    let velocity = presence.velocity;
+    presence.position += velocity * dt;
     if presence.position.y <= STAND {
         presence.position.y = STAND;
         presence.velocity.y = 0.0;

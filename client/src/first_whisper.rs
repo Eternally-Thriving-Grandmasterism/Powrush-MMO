@@ -50,7 +50,6 @@ fn spawn_whisper(mut commands: Commands) {
                     padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(10.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.04, 0.07, 0.08, 0.82).into(),

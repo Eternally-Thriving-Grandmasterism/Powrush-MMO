@@ -186,7 +186,6 @@ fn spawn_echo_panel(mut commands: Commands) {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(6.0),
                     border: UiRect::all(Val::Px(1.5)),
-                    border_radius: BorderRadius::all(Val::Px(12.0)),
                     overflow: Overflow::clip_y(),
                     ..default()
                 },

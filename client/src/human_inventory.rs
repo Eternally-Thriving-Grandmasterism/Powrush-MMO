@@ -101,7 +101,6 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     width: Val::Px(340.0),
                     padding: UiRect::all(Val::Px(10.0)),
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(8.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.04, 0.06, 0.07, 0.78).into(),
@@ -137,7 +136,6 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(6.0),
                     border: UiRect::all(Val::Px(1.5)),
-                    border_radius: BorderRadius::all(Val::Px(10.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.05, 0.08, 0.07, 0.94).into(),
@@ -189,7 +187,6 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(8.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.08, 0.12, 0.06, 0.88).into(),
@@ -240,11 +237,11 @@ fn slot_select_when_open(
     if !inv.open || panels.realm_open {
         return;
     }
-    if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Key1) {
+    if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Digit1) {
         inv.selected = SatchelSlot::Vitality;
-    } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Key2) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Digit2) {
         inv.selected = SatchelSlot::Harmony;
-    } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Key3) {
+    } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Digit3) {
         inv.selected = SatchelSlot::Joy;
     }
 }

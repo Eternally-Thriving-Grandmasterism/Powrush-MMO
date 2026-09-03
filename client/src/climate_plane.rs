@@ -236,7 +236,6 @@ fn spawn_climate_chip(mut commands: Commands) {
                     padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
-                    border_radius: BorderRadius::all(Val::Px(8.0)),
                     ..default()
                 },
                 background_color: Color::srgba(0.04, 0.07, 0.08, 0.72).into(),

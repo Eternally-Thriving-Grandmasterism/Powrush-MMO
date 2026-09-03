@@ -12,8 +12,9 @@ use crate::harvest_feel::SoftRbePool;
 use crate::mercy_harvest_nodes::MercyHarvestNode;
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum AnswerKind {
+    #[default]
     Idle,
     Take,
     Tend,

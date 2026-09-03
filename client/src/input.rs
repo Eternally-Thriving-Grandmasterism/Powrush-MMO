@@ -81,14 +81,14 @@ fn handle_player_input(
 
     // Ability slots 1–4
     player_input.ability_slot = if keyboard.just_pressed(KeyCode::Digit1)
-        || keyboard.just_pressed(KeyCode::Key1)
+        || keyboard.just_pressed(KeyCode::Digit1)
     {
         Some(0)
-    } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Key2) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) || keyboard.just_pressed(KeyCode::Digit2) {
         Some(1)
-    } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Key3) {
+    } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Digit3) {
         Some(2)
-    } else if keyboard.just_pressed(KeyCode::Digit4) || keyboard.just_pressed(KeyCode::Key4) {
+    } else if keyboard.just_pressed(KeyCode::Digit4) || keyboard.just_pressed(KeyCode::Digit4) {
         Some(3)
     } else {
         None
