@@ -15,6 +15,10 @@ This is an initial skeleton. Production implementation will replace the placehol
 - Challenge-response signing for login
 - Foundation for Verifiable Credentials
 
+## Persist (Slice 1)
+
+`IdentityPersist` stores `charter_id`, WarrantWeight, `CharterKind`, `lethal_count`, `repair_ratio` beside the DID. Band is computed. Peace still reports live W = 0. Bridge export is those fields only — no tradecraft.
+
 ## Future
 
 - Integrate real ML-DSA implementation

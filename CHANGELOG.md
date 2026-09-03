@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.5] — 2026-09-02 — Identity persist (Slice 1)
+
+`rsil-identity::IdentityPersist` keeps charter_id, W, kind, lethal_count, repair_ratio on the DID. Peace still reports live W = 0. No tradecraft in the JSON.
+
 ## [23.2.4] — 2026-09-02 — Hour sacred (Slice 0)
 
 Peace hour stays one human / one machine:

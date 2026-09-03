@@ -8,6 +8,9 @@ use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 use rand::rngs::OsRng;
 use std::fmt;
 
+pub mod persist;
+pub use persist::IdentityPersist;
+
 /// RSIL Error types
 #[derive(Debug)]
 pub enum RsilError {
