@@ -10,6 +10,7 @@ pub mod hour_sacred;
 pub mod vertical_factory;
 pub mod coop_voice;
 pub mod infra_spill;
+pub mod ledger_bind;
 pub mod input;
 pub mod soft_play_bindings;
 pub mod first_session_guidance;
@@ -70,6 +71,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(vertical_factory::VerticalFactoryPlugin);
         app.add_plugins(coop_voice::CoopVoicePlugin);
         app.add_plugins(infra_spill::InfraSpillPlugin);
+        app.add_plugins(ledger_bind::LedgerBindPlugin);
         app.add_plugins(LivedHourEconomyPlugin);
         app.add_plugins(InputPlugin);
         app.add_plugins(first_session_guidance::FirstSessionGuidancePlugin);

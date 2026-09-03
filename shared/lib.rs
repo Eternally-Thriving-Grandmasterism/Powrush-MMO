@@ -8,6 +8,7 @@ pub mod space_law;
 pub mod vertical_factory;
 pub mod coop_voice;
 pub mod infra_spill;
+pub mod ledger_bind;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -35,6 +36,7 @@ pub mod prelude {
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
     pub use crate::coop_voice::{CoopVoice, QuorumCard, VoiceTopic};
     pub use crate::infra_spill::{EvidencePack, InfraWitness, OffenseCode};
+    pub use crate::ledger_bind::{LedgerBoard, LedgerContract, Purse, WinCondition};
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -98,5 +100,15 @@ mod tests {
         w.ensure_offline_extractor();
         assert!(w.visible_on(space_law::HexFlag::Frontier));
         assert!(!w.visible_on(space_law::HexFlag::Peace));
+    }
+
+    #[test]
+    fn ledger_bind_settles() {
+        let mut b = ledger_bind::LedgerBoard::default();
+        b.ensure_i2("test");
+        assert_eq!(b.act_local(), "bound");
+        assert_eq!(b.act_local(), "escorting");
+        assert_eq!(b.act_local(), "escorting");
+        assert_eq!(b.act_local(), "settled");
     }
 }

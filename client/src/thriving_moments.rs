@@ -21,6 +21,7 @@ pub enum ThrivingKind {
     FirstArrival,
     FirstVoice,
     FirstSpillWitness,
+    FirstBind,
 }
 
 impl ThrivingKind {
@@ -52,6 +53,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstSpillWitness => {
                 "Spill is the witness — the pack is readable"
+            }
+            ThrivingKind::FirstBind => {
+                "Bind, not a corpse — escort delivered"
             }
         }
     }
