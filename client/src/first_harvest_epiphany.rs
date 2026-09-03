@@ -11,7 +11,7 @@ use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
-use crate::harvest_feel::{credit_soft_and_global, rumble_harvest, rumble_mercy_harvest, HarvestJuice, SoftRbePool};
+use crate::harvest_feel::{credit_soft_and_global, rumble_harvest, rumble_mercy_harvest, SoftRbePool};
 use crate::input::PlayerInput;
 use crate::mercy_harvest_nodes::{apply_node_harvest, apply_node_tend, MercyHarvestNode, NearbyMercyNode};
 use crate::lived_hour_support::RbeGlobalState;
@@ -266,7 +266,6 @@ fn handle_interact_harvest(
     gamepads: Res<Gamepads>,
     mut rbe_ui: Option<ResMut<RbeUiSync>>,
     mut answer: ResMut<WorldAnswer>,
-    mut juice: ResMut<HarvestJuice>,
     time: Res<Time>,
 ) {
     let now = time.elapsed_seconds_f64();
@@ -278,7 +277,7 @@ fn handle_interact_harvest(
         resolve_take(
             now, &mut state, &mut guidance, &mut moments, &mut echo,
             &mut nearby, &mut nodes, &mut pool, global.as_deref_mut(),
-            &mut rumble, &gamepads, rbe_ui.as_deref_mut(), &mut answer, &mut juice,
+            &mut rumble, &gamepads, rbe_ui.as_deref_mut(), &mut answer,
         );
         return;
     }
@@ -307,7 +306,7 @@ fn handle_interact_harvest(
             resolve_take(
                 now, &mut state, &mut guidance, &mut moments, &mut echo,
                 &mut nearby, &mut nodes, &mut pool, global.as_deref_mut(),
-                &mut rumble, &gamepads, rbe_ui.as_deref_mut(), &mut answer, &mut juice,
+                &mut rumble, &gamepads, rbe_ui.as_deref_mut(), &mut answer,
             );
         }
         hold.holding = false;
@@ -329,7 +328,6 @@ fn resolve_take(
     gamepads: &Gamepads,
     rbe_ui: Option<&mut RbeUiSync>,
     answer: &mut WorldAnswer,
-    juice: &mut HarvestJuice,
 ) {
     if now - state.last_interact_at.abs() < REPEAT_COOLDOWN && state.last_interact_at > 0.0 {
         return;
@@ -356,7 +354,7 @@ fn resolve_take(
     let credited = credit_soft_and_global(pool, global, node_vitality);
     let first = !state.first_harvest_lived;
     rumble_harvest(rumble, gamepads, first);
-    juice.punch(first);
+    pool.punch(first);
     credit_harvest(guidance);
     if first {
         credit_epiphany(guidance);

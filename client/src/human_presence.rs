@@ -9,7 +9,7 @@ use bevy::prelude::*;
 
 use crate::companion_bond::CompanionBond;
 use crate::input::PlayerInput;
-use crate::harvest_feel::HarvestJuice;
+use crate::harvest_feel::SoftRbePool;
 use crate::living_body::LivingBody;
 
 const STAND: f32 = 0.90;
@@ -136,10 +136,10 @@ fn sync_body(
 
 fn follow_camera(
     presence: Res<SoftPresence>,
-    juice: Option<Res<HarvestJuice>>,
+    pool: Option<Res<SoftRbePool>>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
 ) {
-    let punch = juice.map(|j| j.kick).unwrap_or(0.0);
+    let punch = pool.map(|p| p.kick).unwrap_or(0.0);
     let desired = presence.position + Vec3::new(0.0, CAM_UP + punch * 0.22, CAM_BACK - punch * 0.35);
     let look = presence.position + Vec3::Y * (0.45 + punch * 0.08);
     for mut cam in &mut cams {
