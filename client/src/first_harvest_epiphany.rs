@@ -12,6 +12,7 @@ use bevy::prelude::*;
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
 use crate::harvest_feel::{credit_soft_and_global, rumble_harvest, rumble_mercy_harvest, SoftRbePool};
+use crate::hour_sacred::HourSacred;
 use crate::input::PlayerInput;
 use crate::mercy_harvest_nodes::{apply_node_harvest, apply_node_tend, MercyHarvestNode, NearbyMercyNode};
 use crate::lived_hour_support::RbeGlobalState;
@@ -37,6 +38,8 @@ pub struct FirstHarvestEpiphany {
     pub last_interact_at: f64,
     pub harvests_this_session: u32,
     pub tends_this_session: u32,
+    /// Frontier+ hex, no charter_id. E must not harvest.
+    pub peace_visitor: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -51,6 +54,7 @@ impl Default for FirstHarvestEpiphany {
             last_interact_at: -999.0,
             harvests_this_session: 0,
             tends_this_session: 0,
+            peace_visitor: false,
         }
     }
 }
@@ -99,12 +103,13 @@ impl Plugin for FirstHarvestEpiphanyPlugin {
             .add_systems(
                 Update,
                 (
+                    mark_peace_visitor,
                     maybe_welcome_back,
                     handle_interact_harvest,
                     update_world_care_prompt,
                     update_harvest_pulse,
                     update_welcome_back,
-                ),
+                ).chain(),
             );
     }
 }
@@ -250,6 +255,10 @@ fn welcome_visible(state: &FirstHarvestEpiphany, now: f64) -> bool {
     state.welcome_shown && state.last_interact_at < 0.0 && now < (-state.last_interact_at)
 }
 
+fn mark_peace_visitor(hour: Res<HourSacred>, mut state: ResMut<FirstHarvestEpiphany>) {
+    state.peace_visitor = hour.session.peace_visitor_on_frontier();
+}
+
 fn handle_interact_harvest(
     keyboard: Res<ButtonInput<KeyCode>>,
     player_input: Res<PlayerInput>,
@@ -272,6 +281,14 @@ fn handle_interact_harvest(
     let e_down = keyboard.pressed(soft_play_bindings::INTERACT);
     let e_up = keyboard.just_released(soft_play_bindings::INTERACT);
     let pad_tap = player_input.interact;
+
+    if state.peace_visitor {
+        if pad_tap || keyboard.just_pressed(soft_play_bindings::INTERACT) || e_up {
+            state.pulse_until = now + 2.4;
+            state.pulse_line = "Not your charter / Peace visitor".into();
+        }
+        return;
+    }
 
     if pad_tap {
         resolve_take(
@@ -500,6 +517,8 @@ fn update_welcome_back(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hour_sacred::HourSacred;
+    use shared::space_law::HexFlag;
 
     #[test]
     fn prompt_shows_before_first_harvest() {
@@ -516,5 +535,22 @@ mod tests {
         let mut g = FirstSessionGuidance::default();
         g.objective = GuidanceObjective::FreeExploration;
         assert!(!state.prompt_visible(5.0, &g));
+    }
+
+    #[test]
+    fn peace_hour_is_not_a_visitor() {
+        let h = HourSacred::default();
+        assert!(!h.session.peace_visitor_on_frontier());
+        let s = FirstHarvestEpiphany::default();
+        assert!(!s.peace_visitor);
+    }
+
+    #[test]
+    fn frontier_without_charter_is_a_visitor() {
+        let mut h = HourSacred::default();
+        h.session.hex = HexFlag::Frontier;
+        assert!(h.session.peace_visitor_on_frontier());
+        h.session.charter_id = Some("iec-1".into());
+        assert!(!h.session.peace_visitor_on_frontier());
     }
 }
