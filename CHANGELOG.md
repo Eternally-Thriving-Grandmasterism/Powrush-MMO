@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.11] — 2026-09-02 — Fabricator + Proof Pack (Slice 7)
+
+After the crate arrives, Q plants a fabricator, then MendSpool (repair) and LaneCrate (logi). Proof Pack unlocks when both have run. Not +DPS. Dies in Peace. Embassy is Slice 8.
+
 ## [23.2.10] — 2026-09-02 — Ledger + Bind/Escort (Slice 6)
 
 L opens The Ledger after Charter + Frontier. Default win is Bind, not lethal. Purse is flow + repair-rights. E Bind, then escort to the post. Dies in Peace. Server-auth Bind waits on the parked server.
