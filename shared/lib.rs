@@ -7,6 +7,7 @@ pub mod protocol;
 pub mod space_law;
 pub mod vertical_factory;
 pub mod coop_voice;
+pub mod infra_spill;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -33,6 +34,7 @@ pub mod prelude {
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
     pub use crate::coop_voice::{CoopVoice, QuorumCard, VoiceTopic};
+    pub use crate::infra_spill::{EvidencePack, InfraWitness, OffenseCode};
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -88,5 +90,13 @@ mod tests {
         let mut v = coop_voice::CoopVoice::default();
         v.ensure_tutorial();
         assert_eq!(v.vote_local(true), "carried");
+    }
+
+    #[test]
+    fn infra_spill_witness() {
+        let mut w = infra_spill::InfraWitness::default();
+        w.ensure_offline_extractor();
+        assert!(w.visible_on(space_law::HexFlag::Frontier));
+        assert!(!w.visible_on(space_law::HexFlag::Peace));
     }
 }

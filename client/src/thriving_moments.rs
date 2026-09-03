@@ -20,6 +20,7 @@ pub enum ThrivingKind {
     FirstShare,
     FirstArrival,
     FirstVoice,
+    FirstSpillWitness,
 }
 
 impl ThrivingKind {
@@ -48,6 +49,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstVoice => {
                 "The card carried — the yard voted"
+            }
+            ThrivingKind::FirstSpillWitness => {
+                "Spill is the witness — the pack is readable"
             }
         }
     }

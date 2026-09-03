@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.9] — 2026-09-02 — Infra offline + spill (Slice 5)
+
+An extractor is already Offline with visible spill (I2). E-slab shows life + pack hash. Dies in Peace. Does not teach attack. Repair/Ledger is Slice 6.
+
 ## [23.2.8] — 2026-09-02 — Co-op Voice (Slice 4)
 
 Quorum card on the beacon. After Charter + Frontier, **G** opens Voice. **E** aye · **2** nay. One local seat; the tutorial card carries. Dies in Peace. Harvest E still works when the sash is closed. Live multi-seat AOI waits on the parked server.
