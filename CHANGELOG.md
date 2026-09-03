@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.12] — 2026-09-02 — Embassy + blueprints (Slice 8)
+
+After the Proof Pack unlocks, the embassy lamp is live. E Request seat. One local seat. Blueprints copy MendSpool and LaneCrate. Dies in Peace. War week is Slice 9.
+
 ## [23.2.11] — 2026-09-02 — Fabricator + Proof Pack (Slice 7)
 
 After the crate arrives, Q plants a fabricator, then MendSpool (repair) and LaneCrate (logi). Proof Pack unlocks when both have run. Not +DPS. Dies in Peace. Embassy is Slice 8.

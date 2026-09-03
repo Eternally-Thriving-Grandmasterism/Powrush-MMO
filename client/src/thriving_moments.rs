@@ -23,6 +23,7 @@ pub enum ThrivingKind {
     FirstSpillWitness,
     FirstBind,
     FirstProofPack,
+    FirstEmbassy,
 }
 
 impl ThrivingKind {
@@ -60,6 +61,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstProofPack => {
                 "The graph unlocked — repair and logi"
+            }
+            ThrivingKind::FirstEmbassy => {
+                "Seated at the lamp — the book is yours"
             }
         }
     }
