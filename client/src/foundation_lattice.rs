@@ -111,18 +111,9 @@ fn toggle_lattice_panel(
     hour: Res<HourSacred>,
     mut lattice: ResMut<FoundationLattice>,
 ) {
-    if !hour.charter_skin_live() {
-        lattice.panel_open = false;
-        return;
-    }
-    if keyboard.just_pressed(soft_play_bindings::FOUNDATION_LATTICE) {
-        lattice.panel_open = !lattice.panel_open;
-        info!(
-            target: "powrush::foundation",
-            open = lattice.panel_open,
-            "Foundation Lattice toggled"
-        );
-    }
+    // Slice 6: Charter L is The Ledger. Peace already swallows L.
+    lattice.panel_open = false;
+    let _ = (keyboard, hour);
 }
 
 fn update_lattice_visibility(

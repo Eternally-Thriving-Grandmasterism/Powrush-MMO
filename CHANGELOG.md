@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.10] — 2026-09-02 — Ledger + Bind/Escort (Slice 6)
+
+L opens The Ledger after Charter + Frontier. Default win is Bind, not lethal. Purse is flow + repair-rights. E Bind, then escort to the post. Dies in Peace. Server-auth Bind waits on the parked server.
+
 ## [23.2.9] — 2026-09-02 — Infra offline + spill (Slice 5)
 
 An extractor is already Offline with visible spill (I2). E-slab shows life + pack hash. Dies in Peace. Does not teach attack. Repair/Ledger is Slice 6.

@@ -42,6 +42,8 @@ pub struct FirstHarvestEpiphany {
     pub peace_visitor: bool,
     /// Voice sash open with a live card. E votes; do not harvest.
     pub beacon_voice: bool,
+    /// Ledger sash open. E Bind/Escort; do not harvest.
+    pub ledger_bind: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -58,6 +60,7 @@ impl Default for FirstHarvestEpiphany {
             tends_this_session: 0,
             peace_visitor: false,
             beacon_voice: false,
+            ledger_bind: false,
         }
     }
 }
@@ -294,6 +297,10 @@ fn handle_interact_harvest(
     }
 
     if state.beacon_voice {
+        return;
+    }
+
+    if state.ledger_bind {
         return;
     }
 
