@@ -14,8 +14,8 @@ use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessio
 use crate::harvest_feel::{credit_soft_and_global, rumble_mercy_harvest, SoftRbePool};
 use crate::input::PlayerInput;
 use crate::mercy_harvest_nodes::{apply_node_harvest, apply_node_tend, MercyHarvestNode, NearbyMercyNode};
-use crate::rbe::RbeGlobalState;
-use crate::rbe_client_ui_sync::RbeUiSync;
+use crate::lived_hour_support::RbeGlobalState;
+use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::world_answer::{fire_world_answer, AnswerKind, WorldAnswer};

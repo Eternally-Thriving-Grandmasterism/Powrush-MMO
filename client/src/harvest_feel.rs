@@ -12,7 +12,7 @@ use std::time::Duration;
 use bevy::input::gamepad::{GamepadRumbleIntensity, GamepadRumbleRequest};
 use bevy::prelude::*;
 
-use crate::rbe::RbeGlobalState;
+use crate::lived_hour_support::RbeGlobalState;
 use crate::rbe_allocate_choice::AllocatePath;
 
 #[derive(Resource, Debug)]

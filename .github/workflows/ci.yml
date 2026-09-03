@@ -31,3 +31,6 @@ jobs:
 
       - name: Core tests (shared + identity)
         run: cargo test -p shared -p rsil-identity
+
+      - name: Lived-hour client library
+        run: cargo test -p powrush-client --lib

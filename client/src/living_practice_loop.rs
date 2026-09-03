@@ -10,7 +10,7 @@
 use bevy::prelude::*;
 
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
-use crate::rbe_client_ui_sync::RbeUiSync;
+use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
