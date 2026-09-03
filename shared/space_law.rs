@@ -20,6 +20,28 @@ impl HexFlag {
     pub fn charter_jurisdiction(self) -> bool {
         !matches!(self, HexFlag::Peace)
     }
+
+    pub fn industry_live(self) -> bool {
+        self.charter_jurisdiction()
+    }
+
+    pub fn ledger_live(self) -> bool {
+        self.charter_jurisdiction()
+    }
+
+    /// Contestable is an opt-in, never the Peace default.
+    pub fn contestable(self) -> bool {
+        matches!(self, HexFlag::ContestableCharter)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            HexFlag::Peace => "Peace",
+            HexFlag::Frontier => "Frontier",
+            HexFlag::War => "War",
+            HexFlag::ContestableCharter => "Contestable",
+        }
+    }
 }
 
 /// Company kinds. Independent Earth Coalition = Human default (Patchwork firm).
@@ -206,5 +228,18 @@ mod tests {
         assert_eq!(s.hex, HexFlag::Peace);
         assert_eq!(s.kind, CharterKind::PatchworkFirm);
         assert_eq!(s.warrant_live(), 0.0);
+    }
+
+    #[test]
+    fn contestable_is_opt_in_not_peace_default() {
+        let s = SpaceSession::default();
+        assert!(!s.hex.contestable());
+        assert!(!s.hex.industry_live());
+        assert!(!s.hex.ledger_live());
+        assert_eq!(s.hex.label(), "Peace");
+        let f = HexFlag::ContestableCharter;
+        assert!(f.contestable());
+        assert!(f.industry_live());
+        assert_eq!(f.label(), "Contestable");
     }
 }
