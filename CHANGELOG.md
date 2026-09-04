@@ -1,5 +1,15 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.20] — 2026-09-03 — LivedHour client bind (Slice 0c)
+
+Hands talk to `shared::climate_node` without a new key.
+
+- `client/src/lived_hour_bind.rs`: E tend, I satchel count, R 1/2 allocate
+- Writes `data/powrush_lived_tick.json` (Ra-Thor may read; it does not drive keys)
+- `LivedHourEconomyPlugin` now also starts `LivedHourBindPlugin`
+- Does not replace `harvest_feel` or `rbe_allocate_choice`
+- Dies in Peace. Workspace stays `21.88.0`
+
 ## [23.2.19] — 2026-09-03 — Climate node first-hour law (Slice 0b)
 
 Hands law for the Peace hour, without a new key.
