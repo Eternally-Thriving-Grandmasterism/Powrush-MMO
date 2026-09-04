@@ -1,0 +1,32 @@
+name: Playable hour
+description: A first-hour feel, tend, satchel, or allocate defect
+title: "[hour] "
+labels: ["playable-hour"]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: What you pressed. WASD / E / I / H / R preferred.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected feel
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual feel
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: Gates
+      options:
+        - label: Reproduced on default `cargo run -p powrush-client`
+        - label: No dedicated server required
+        - label: Does not require Ra-Thor checkout
