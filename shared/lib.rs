@@ -40,6 +40,7 @@ pub mod rbe_queries {
 
 pub mod prelude {
     pub use crate::protocol::HotbarSlot;
+    pub use crate::climate_node::{AllocKind, Allocation, ClimateNode, ClimateTake, LivedHour, NodeState, Satchel, TendResult};
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
     pub use crate::coop_voice::{CoopVoice, QuorumCard, VoiceTopic};
