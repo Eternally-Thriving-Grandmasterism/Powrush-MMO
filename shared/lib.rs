@@ -17,6 +17,7 @@ pub mod crownstone;
 pub mod species_redemption;
 pub mod hybrid_matrix;
 pub mod compass;
+pub mod skirmish_well;
 pub mod nevc_adapter;
 pub mod contribution_ledger;
 pub mod contribution_events;
@@ -53,6 +54,7 @@ pub mod prelude {
     pub use crate::species_redemption::SpeciesRedemptionState;
     pub use crate::hybrid_matrix::HybridMatrix;
     pub use crate::compass;
+    pub use crate::skirmish_well::{SkirmishWell, WellHold};
     pub use crate::rbe_queries;
     pub use crate::nevc_adapter::{ContributionClass, NevcSample, NevcResult, NevcConfig, NevcSummary, compute_nevc, score_instant, sample_from_rbe_action};
     pub use crate::contribution_ledger::{ContributionLedger, PlayerContribution};
@@ -193,5 +195,13 @@ mod tests {
         w.x = 10.0;
         assert!(compass::tell(&w, space_law::HexFlag::Frontier).unwrap().contains("20"));
         assert_eq!(compass::tell(&w, space_law::HexFlag::Peace), None);
+    }
+
+    #[test]
+    fn skirmish_well_contests() {
+        let mut w = skirmish_well::SkirmishWell::default();
+        assert_eq!(w.act(), "won");
+        assert_eq!(w.traveler_answers(), "lost");
+        assert_eq!(w.act(), "dawn");
     }
 }
