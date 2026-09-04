@@ -134,7 +134,6 @@ fn update_climate_state_slab(
     if !show {
         return;
     }
-    let taught = claim.and_then(|c| c.sentence());
     let line = nearby
         .entity
         .and_then(|e| nodes.get(e).ok())
@@ -146,7 +145,10 @@ fn update_climate_state_slab(
                 .find(|c| c.id == n.climate_id)
                 .map(|c| c.state)
                 .unwrap_or(NodeState::Idle);
-            let hint = taught.unwrap_or(state.hand_hint());
+            let hint = claim
+                .as_ref()
+                .and_then(|c| c.sentence_for(n.climate_id))
+                .unwrap_or(state.hand_hint());
             format!("{} · {} · {}", n.name, state.label(), hint)
         })
         .unwrap_or_else(|| bind.last_line.clone());
