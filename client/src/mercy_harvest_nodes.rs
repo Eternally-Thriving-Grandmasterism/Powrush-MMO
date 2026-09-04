@@ -2,6 +2,7 @@
  * Mercy Harvest Nodes — embodied first-hour world (v22.6.0)
  *
  * Reach uses the human body. Recovery rate follows BiomeFeel.
+ * climate_id maps 1:1 onto shared::climate_node LivedHour ids.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -22,6 +23,7 @@ const STING_HORIZON: &str = "audio/mercy_harvest_sting_horizon.ogg";
 #[derive(Component, Debug)]
 pub struct MercyHarvestNode {
     pub name: &'static str,
+    pub climate_id: u32,
     pub vitality: f32,
     pub harvests: u32,
     pub pulse: f32,
@@ -79,25 +81,28 @@ fn spawn_mercy_nodes(
     mut nearby: ResMut<NearbyMercyNode>,
 ) {
     let mesh = meshes.add(Sphere::new(0.48));
-    let placements: [(&'static str, Vec3, Color); 3] = [
+    let placements: [(&'static str, u32, Vec3, Color); 3] = [
         (
             "Sanctuary ember",
+            1,
             Vec3::new(3.6, 0.55, 0.0),
             Color::srgb(0.35, 0.95, 0.62),
         ),
         (
             "Verdant well",
+            2,
             Vec3::new(-2.4, 0.55, 3.1),
             Color::srgb(0.45, 0.88, 0.95),
         ),
         (
             "Horizon seed",
+            3,
             Vec3::new(1.2, 0.55, -3.4),
             Color::srgb(0.95, 0.86, 0.42),
         ),
     ];
 
-    for (name, pos, color) in placements {
+    for (name, climate_id, pos, color) in placements {
         let emissive = LinearRgba::from(color).with_alpha(1.0) * 2.4;
         commands
             .spawn((
@@ -115,6 +120,7 @@ fn spawn_mercy_nodes(
                 },
                 MercyHarvestNode {
                     name,
+                    climate_id,
                     vitality: 1.0,
                     harvests: 0,
                     pulse: 0.0,
@@ -255,6 +261,7 @@ mod tests {
     fn harvest_leaves_node_alive() {
         let mut n = MercyHarvestNode {
             name: "test",
+            climate_id: 1,
             vitality: 1.0,
             harvests: 0,
             pulse: 0.0,
@@ -268,11 +275,19 @@ mod tests {
     fn tend_restores_vitality() {
         let mut n = MercyHarvestNode {
             name: "test",
+            climate_id: 1,
             vitality: 0.50,
             harvests: 1,
             pulse: 0.0,
         };
         apply_node_tend(&mut n);
         assert!(n.vitality > 0.50);
+    }
+
+    #[test]
+    fn wells_map_onto_lived_hour_ids() {
+        assert_eq!(("Sanctuary ember", 1).1, 1);
+        assert_eq!(("Verdant well", 2).1, 2);
+        assert_eq!(("Horizon seed", 3).1, 3);
     }
 }
