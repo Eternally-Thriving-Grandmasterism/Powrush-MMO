@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.24] — 2026-09-04 — Onboarding card (Slice 17)
+
+One card teaches the hour: walk · glow · E tend · I satchel · R 1/2. Sentences, not a manifesto. Higher contrast. H hides it. Progress reads LivedHour + nearby well. Does not rewrite harvest_feel. Workspace stays 21.88.0.
+
 ## [23.2.23] — 2026-09-04 — Climate visible (Slice 16)
 
 Three wells paint Idle / Glowing / Tended / Resting / Stressed from LivedHour. Horizon seed starts Idle. Near a well, one line names the state and the next hand. R 1 flow restores a tired node in the field. 1 Hz tick persist. focus_id so E writes the well you stand at. Does not rewrite harvest_feel. Workspace stays 21.88.0.
