@@ -1,12 +1,14 @@
 //! Lived-hour climate visible — Slice 16 (v23.2.23)
 //!
 //! Node states paint the three wells. Tick restores a tired field.
+//! Teaching claim (23.2.25) may replace the hand hint with one sentence.
 //! Does not replace harvest_feel. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
 use shared::climate_node::NodeState;
 
+use crate::climate_script::TeachingClaim;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 
@@ -116,6 +118,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
 fn update_climate_state_slab(
     nearby: Res<NearbyMercyNode>,
     bind: Res<LivedHourBind>,
+    claim: Option<Res<TeachingClaim>>,
     nodes: Query<&MercyHarvestNode>,
     mut root: Query<&mut Visibility, With<ClimateStateRoot>>,
     mut text_q: Query<&mut Text, With<ClimateStateText>>,
@@ -131,6 +134,7 @@ fn update_climate_state_slab(
     if !show {
         return;
     }
+    let taught = claim.and_then(|c| c.sentence());
     let line = nearby
         .entity
         .and_then(|e| nodes.get(e).ok())
@@ -142,7 +146,8 @@ fn update_climate_state_slab(
                 .find(|c| c.id == n.climate_id)
                 .map(|c| c.state)
                 .unwrap_or(NodeState::Idle);
-            format!("{} · {} · {}", n.name, state.label(), state.hand_hint())
+            let hint = taught.unwrap_or(state.hand_hint());
+            format!("{} · {} · {}", n.name, state.label(), hint)
         })
         .unwrap_or_else(|| bind.last_line.clone());
     for mut text in &mut text_q {

@@ -31,20 +31,23 @@ impl Plugin for ClimateScriptPlugin {
     }
 }
 
-fn witness_teaching_climates(bind: Res<LivedHourBind>, mut claim: ResMut<TeachingClaim>) {
+fn witness_teaching_climates(mut bind: ResMut<LivedHourBind>, mut claim: ResMut<TeachingClaim>) {
     let id = bind.focus_id.unwrap_or(1);
     if extract_only_holds(&bind.hour, id) {
         claim.extract_seen = true;
         if !claim.mercy_seen {
             claim.line = Some(extract_line());
             if bind.last_line != extract_line() {
-                // last_line is owned by bind; only stamp when the claim first lands.
+                bind.last_line = extract_line().to_string();
             }
         }
     }
     if mercy_restore_holds(&bind.hour, id) {
         claim.mercy_seen = true;
         claim.line = Some(mercy_line());
+        if bind.last_line != mercy_line() {
+            bind.last_line = mercy_line().to_string();
+        }
     }
 }
 
