@@ -1,5 +1,13 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.21] — 2026-09-03 — Hands hook LivedHourBind
+
+harvest_feel E writes a climate take.
+rbe_allocate_choice R 1/2 writes flow/reserve.
+Tick file stays data/powrush_lived_tick.json.
+Does not replace existing feel or allocate panel.
+Dies in Peace. Workspace stays 21.88.0
+
 ## [23.2.20] — 2026-09-03 — LivedHour client bind (Slice 0c)
 
 Hands talk to `shared::climate_node` without a new key.
