@@ -4,6 +4,7 @@
 // AG-SML v1.0 | PATSAGi Councils | info@Rathor.ai
 
 pub mod protocol;
+pub mod climate_node;
 pub mod space_law;
 pub mod vertical_factory;
 pub mod coop_voice;
