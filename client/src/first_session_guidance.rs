@@ -1,14 +1,17 @@
 /*!
- * First Session Guidance — Powrush-MMO End-User Experience Layer
- * v21.98.0 — Harvest credit lives in first_harvest_epiphany (E interact)
+ * First Session Guidance — single onboarding card (v23.2.24)
  *
- * Soft, non-blocking objective strip for the first 5–15 minutes.
- * Progressive disclosure · dismissible (H) · never blocks movement or joy.
+ * One sentence at a time: walk · tend · satchel · allocate.
+ * H hides. World still teaches. Not a second HUD.
+ * Does not rewrite harvest_feel or rbe_allocate_choice.
  *
- * AG-SML v1.0 | Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
+ * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
 use bevy::prelude::*;
+
+use crate::lived_hour_bind::LivedHourBind;
+use crate::mercy_harvest_nodes::NearbyMercyNode;
 
 /// Soft objective the player is gently invited to try next.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,30 +27,17 @@ pub enum GuidanceObjective {
 }
 
 impl GuidanceObjective {
+    /// One sentence. Not a manifesto.
     pub fn prompt(&self) -> &'static str {
         match self {
-            GuidanceObjective::MoveAround => {
-                "WASD to walk · Space to jump · Shift to sprint · feel the Lattice"
-            }
-            GuidanceObjective::ApproachGlowingNode => {
-                "Walk toward the soft glowing harvest node"
-            }
-            GuidanceObjective::HarvestWithInteract => {
-                "Press E near the node to harvest with mercy"
-            }
-            GuidanceObjective::OpenInventory => "Press I to open your satchel",
-            GuidanceObjective::ShareAbundance => {
-                "Press R to share surplus · 1 flow outward · 2 steward reserve"
-            }
-            GuidanceObjective::FeelFirstEpiphany => {
-                "Stay present — a Divine Whisper may bloom"
-            }
-            GuidanceObjective::MeetCouncilWhisper => {
-                "Listen for the Council’s first soft invitation"
-            }
-            GuidanceObjective::FreeExploration => {
-                "You are sovereign. Explore, nurture, thrive."
-            }
+            GuidanceObjective::MoveAround => "WASD walk · Space jump · Shift sprint",
+            GuidanceObjective::ApproachGlowingNode => "Walk to a glow",
+            GuidanceObjective::HarvestWithInteract => "E tend the glow",
+            GuidanceObjective::OpenInventory => "I opens the satchel",
+            GuidanceObjective::ShareAbundance => "R then 1 flow · 2 reserve",
+            GuidanceObjective::FeelFirstEpiphany => "The field answers",
+            GuidanceObjective::MeetCouncilWhisper => "The field answers",
+            GuidanceObjective::FreeExploration => "The field keeps teaching",
         }
     }
 
@@ -76,6 +66,8 @@ pub struct FirstSessionGuidance {
     pub shared_abundance: bool,
     pub epiphany_felt: bool,
     pub shown_at_seconds: f64,
+    pub near_glow: bool,
+    pub free_since: f32,
 }
 
 impl Default for FirstSessionGuidance {
@@ -90,6 +82,8 @@ impl Default for FirstSessionGuidance {
             shared_abundance: false,
             epiphany_felt: false,
             shown_at_seconds: 0.0,
+            near_glow: false,
+            free_since: 0.0,
         }
     }
 }
@@ -106,7 +100,7 @@ impl FirstSessionGuidance {
         }
         let should_advance = match self.objective {
             GuidanceObjective::MoveAround => self.moved_distance > 4.0,
-            GuidanceObjective::ApproachGlowingNode => self.moved_distance > 12.0,
+            GuidanceObjective::ApproachGlowingNode => self.near_glow || self.moved_distance > 12.0,
             GuidanceObjective::HarvestWithInteract => self.harvests_completed >= 1,
             GuidanceObjective::OpenInventory => self.inventory_opened,
             GuidanceObjective::ShareAbundance => self.shared_abundance,
@@ -154,16 +148,16 @@ fn spawn_guidance_strip(mut commands: Commands) {
                     position_type: PositionType::Absolute,
                     bottom: Val::Px(72.0),
                     left: Val::Percent(50.0),
-                    width: Val::Px(560.0),
-                    margin: UiRect::left(Val::Px(-280.0)),
+                    width: Val::Px(520.0),
+                    margin: UiRect::left(Val::Px(-260.0)),
                     padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
-                    border: UiRect::all(Val::Px(1.5)),
+                    border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.04, 0.07, 0.11, 0.88).into(),
-                border_color: Color::srgba(0.45, 0.78, 0.95, 0.55).into(),
+                background_color: Color::srgba(0.02, 0.03, 0.04, 0.94).into(),
+                border_color: Color::srgba(0.92, 0.96, 0.78, 0.82).into(),
                 visibility: Visibility::Visible,
                 ..default()
             },
@@ -172,10 +166,10 @@ fn spawn_guidance_strip(mut commands: Commands) {
         .with_children(|parent| {
             parent.spawn((
                 TextBundle::from_section(
-                    GuidanceObjective::MoveAround.prompt(),
+                    card_line(GuidanceObjective::MoveAround.prompt()),
                     TextStyle {
-                        font_size: 16.0,
-                        color: Color::srgb(0.88, 0.94, 1.0),
+                        font_size: 17.0,
+                        color: Color::srgb(0.96, 0.98, 0.88),
                         ..default()
                     },
                 ),
@@ -184,11 +178,17 @@ fn spawn_guidance_strip(mut commands: Commands) {
         });
 }
 
+fn card_line(prompt: &str) -> String {
+    format!("{prompt}  · H hides")
+}
+
 fn update_guidance_visibility(
     guidance: Res<FirstSessionGuidance>,
+    bind: Option<Res<LivedHourBind>>,
     mut query: Query<&mut Visibility, With<FirstSessionGuidanceStrip>>,
 ) {
-    let show = guidance.active && !guidance.dismissed;
+    let hidden_by_bind = bind.map(|b| b.guidance_hidden).unwrap_or(false);
+    let show = guidance.active && !guidance.dismissed && !hidden_by_bind;
     for mut vis in &mut query {
         *vis = if show {
             Visibility::Visible
@@ -206,13 +206,15 @@ fn update_guidance_text(
         return;
     }
     let prompt = if guidance.dismissed {
-        ""
+        String::new()
     } else {
-        guidance.objective.prompt()
+        card_line(guidance.objective.prompt())
     };
     for mut text in &mut query {
         if let Some(section) = text.sections.get_mut(0) {
-            section.value = prompt.to_string();
+            if section.value != prompt {
+                section.value = prompt.clone();
+            }
         }
     }
 }
@@ -220,9 +222,13 @@ fn update_guidance_text(
 fn handle_guidance_dismiss_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
+    bind: Option<ResMut<LivedHourBind>>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyH) && guidance.active {
         guidance.dismiss();
+        if let Some(mut bind) = bind {
+            bind.guidance_hidden = true;
+        }
     }
 }
 
@@ -230,6 +236,8 @@ fn track_simple_progress_signals(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
     time: Res<Time>,
+    nearby: Option<Res<NearbyMercyNode>>,
+    bind: Option<Res<LivedHourBind>>,
 ) {
     if guidance.dismissed {
         return;
@@ -252,8 +260,28 @@ fn track_simple_progress_signals(
         guidance.inventory_opened = true;
     }
 
-    // Harvest + epiphany credits arrive from FirstHarvestEpiphanyPlugin (E).
+    if let Some(near) = nearby {
+        guidance.near_glow = near.in_range;
+    }
+
+    if let Some(bind) = bind {
+        let taken = bind.satchel_count() as u32 + bind.hour.allocation.flow + bind.hour.allocation.reserve;
+        if taken > guidance.harvests_completed {
+            guidance.harvests_completed = taken;
+        }
+        if bind.hour.allocation.flow + bind.hour.allocation.reserve > 0 {
+            guidance.shared_abundance = true;
+        }
+    }
+
     guidance.advance_if_ready();
+
+    if guidance.objective == GuidanceObjective::FreeExploration {
+        guidance.free_since += time.delta_seconds();
+        if guidance.free_since > 8.0 {
+            guidance.dismiss();
+        }
+    }
 }
 
 pub fn credit_harvest(guidance: &mut FirstSessionGuidance) {
@@ -276,6 +304,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn hour_is_four_hands() {
+        let mut g = FirstSessionGuidance::default();
+        assert_eq!(g.objective, GuidanceObjective::MoveAround);
+        g.moved_distance = 5.0;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::ApproachGlowingNode);
+        g.near_glow = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::HarvestWithInteract);
+        credit_harvest(&mut g);
+        assert_eq!(g.objective, GuidanceObjective::OpenInventory);
+        g.inventory_opened = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::ShareAbundance);
+        credit_share(&mut g);
+        assert_eq!(g.objective, GuidanceObjective::FreeExploration);
+    }
+
+    #[test]
     fn satchel_then_share_then_free() {
         let mut g = FirstSessionGuidance::default();
         g.objective = GuidanceObjective::OpenInventory;
@@ -284,5 +331,31 @@ mod tests {
         assert_eq!(g.objective, GuidanceObjective::ShareAbundance);
         credit_share(&mut g);
         assert_eq!(g.objective, GuidanceObjective::FreeExploration);
+    }
+
+    #[test]
+    fn prompts_are_one_sentence() {
+        for obj in [
+            GuidanceObjective::MoveAround,
+            GuidanceObjective::ApproachGlowingNode,
+            GuidanceObjective::HarvestWithInteract,
+            GuidanceObjective::OpenInventory,
+            GuidanceObjective::ShareAbundance,
+            GuidanceObjective::FreeExploration,
+        ] {
+            let p = obj.prompt();
+            assert!(p.len() < 48, "{p} is a manifesto");
+            assert!(!p.contains("Lattice"));
+            assert!(!p.contains("Council"));
+            assert!(!p.contains("Divine"));
+        }
+    }
+
+    #[test]
+    fn h_dismisses() {
+        let mut g = FirstSessionGuidance::default();
+        g.dismiss();
+        assert!(g.dismissed);
+        assert!(!g.active);
     }
 }
