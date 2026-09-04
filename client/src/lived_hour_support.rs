@@ -34,11 +34,11 @@ impl RbeUiSync {
 }
 
 pub struct LivedHourEconomyPlugin;
-
 impl Plugin for LivedHourEconomyPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RbeGlobalState>()
-            .init_resource::<RbeUiSync>();
+            .init_resource::<RbeUiSync>()
+            .add_plugins(crate::lived_hour_bind::LivedHourBindPlugin);
     }
 }
 
