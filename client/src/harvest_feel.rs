@@ -139,6 +139,14 @@ pub fn rumble_harvest(
     }
 }
 
+/// After a successful first-hour E juice path, write a climate take.
+/// Does not change camera punch, rumble, or glow.
+pub fn note_lived_hour_take(bind: Option<&mut crate::lived_hour_bind::LivedHourBind>) {
+    if let Some(bind) = bind {
+        let _ = bind.tend_nearest();
+    }
+}
+
 fn tick_harvest_juice(time: Res<Time>, mut pool: ResMut<SoftRbePool>) {
     pool.tick_juice(time.delta_seconds());
 }
@@ -194,5 +202,10 @@ mod tests {
         assert_eq!(pool.blooms, 2);
         pool.tick_juice(0.5);
         assert!(pool.kick < 0.42);
+    }
+
+    #[test]
+    fn lived_hour_hook_is_optional() {
+        note_lived_hour_take(None);
     }
 }
