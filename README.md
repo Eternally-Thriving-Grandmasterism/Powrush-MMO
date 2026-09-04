@@ -53,3 +53,13 @@ Workspace Core members: `shared`, `crates/rsil-identity`, `client`. Parked on di
 Independent project. No xAI endorsement claimed. No ISO/IEC 42001, EU AI Act, or AGSi-warranty claims. Human override on every output.
 
 See `CHANGELOG.md`, `docs/PATSAGI_v23.2_ARCHITECTURE.md`, `docs/HUMAN_PLAYABILITY_v21.94.md`.
+
+### Builders
+
+Start here if you want to complete the game:
+
+- `docs/COMPLETION_BRIEF.md` — what “done” means
+- `docs/FIRST_HOUR_PLAYTEST.md` — 5-minute proof
+- `docs/RBE_FIRST_HOUR.md` — economy in the hands
+- `docs/PARKED_SURFACES.md` — what not to wire into the default binary
+- `docs/DOC_CANON.md` — which docs are current
