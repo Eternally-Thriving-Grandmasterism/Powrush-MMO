@@ -11,7 +11,10 @@ use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
-use crate::harvest_feel::{credit_soft_and_global, rumble_harvest, rumble_mercy_harvest, SoftRbePool};
+use crate::harvest_feel::{
+    credit_soft_and_global, note_lived_hour_take, rumble_harvest, rumble_mercy_harvest, SoftRbePool,
+};
+use crate::lived_hour_bind::LivedHourBind;
 use crate::hour_sacred::HourSacred;
 use crate::input::PlayerInput;
 use crate::mercy_harvest_nodes::{apply_node_harvest, apply_node_tend, MercyHarvestNode, NearbyMercyNode};
@@ -288,6 +291,7 @@ fn handle_interact_harvest(
     mut nearby: ResMut<NearbyMercyNode>,
     mut nodes: Query<&mut MercyHarvestNode>,
     mut pool: ResMut<SoftRbePool>,
+    mut bind: ResMut<LivedHourBind>,
     mut global: Option<ResMut<RbeGlobalState>>,
     mut rumble: EventWriter<GamepadRumbleRequest>,
     gamepads: Res<Gamepads>,
@@ -335,7 +339,7 @@ fn handle_interact_harvest(
     if pad_tap {
         resolve_take(
             now, &mut state, &mut guidance, &mut moments, &mut echo,
-            &mut nearby, &mut nodes, &mut pool, global.as_deref_mut(),
+            &mut nearby, &mut nodes, &mut pool, &mut bind, global.as_deref_mut(),
             &mut rumble, &gamepads, rbe_ui.as_deref_mut(), &mut answer,
         );
         return;
@@ -364,7 +368,7 @@ fn handle_interact_harvest(
         if hold.holding && !hold.tended {
             resolve_take(
                 now, &mut state, &mut guidance, &mut moments, &mut echo,
-                &mut nearby, &mut nodes, &mut pool, global.as_deref_mut(),
+                &mut nearby, &mut nodes, &mut pool, &mut bind, global.as_deref_mut(),
                 &mut rumble, &gamepads, rbe_ui.as_deref_mut(), &mut answer,
             );
         }
@@ -382,6 +386,7 @@ fn resolve_take(
     nearby: &mut NearbyMercyNode,
     nodes: &mut Query<&mut MercyHarvestNode>,
     pool: &mut SoftRbePool,
+    bind: &mut LivedHourBind,
     global: Option<&mut RbeGlobalState>,
     rumble: &mut EventWriter<GamepadRumbleRequest>,
     gamepads: &Gamepads,
@@ -414,6 +419,7 @@ fn resolve_take(
     let first = !state.first_harvest_lived;
     rumble_harvest(rumble, gamepads, first);
     pool.punch(first);
+    note_lived_hour_take(Some(bind));
     credit_harvest(guidance);
     if first {
         credit_epiphany(guidance);
