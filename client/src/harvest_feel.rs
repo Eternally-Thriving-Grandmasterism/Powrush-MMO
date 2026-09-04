@@ -12,6 +12,7 @@ use std::time::Duration;
 use bevy::input::gamepad::{GamepadRumbleIntensity, GamepadRumbleRequest};
 use bevy::prelude::*;
 
+use crate::lived_hour_bind::LivedHourBind;
 use crate::lived_hour_support::RbeGlobalState;
 use crate::rbe_allocate_choice::AllocatePath;
 
@@ -141,7 +142,7 @@ pub fn rumble_harvest(
 
 /// After a successful first-hour E juice path, write a climate take.
 /// Does not change camera punch, rumble, or glow.
-pub fn note_lived_hour_take(bind: Option<&mut crate::lived_hour_bind::LivedHourBind>) {
+pub fn note_lived_hour_take(bind: Option<&mut LivedHourBind>) {
     if let Some(bind) = bind {
         let _ = bind.tend_nearest();
     }
@@ -151,12 +152,26 @@ fn tick_harvest_juice(time: Res<Time>, mut pool: ResMut<SoftRbePool>) {
     pool.tick_juice(time.delta_seconds());
 }
 
+fn sync_lived_hour_take(
+    pool: Res<SoftRbePool>,
+    mut bind: ResMut<LivedHourBind>,
+    mut last: Local<u32>,
+) {
+    if pool.harvests <= *last {
+        return;
+    }
+    *last = pool.harvests;
+    note_lived_hour_take(Some(&mut bind));
+}
+
 pub struct HarvestFeelPlugin;
 
 impl Plugin for HarvestFeelPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<SoftRbePool>()
-            .add_systems(Update, tick_harvest_juice);
+        app.init_resource::<SoftRbePool>().add_systems(
+            Update,
+            (tick_harvest_juice, sync_lived_hour_take),
+        );
     }
 }
 
