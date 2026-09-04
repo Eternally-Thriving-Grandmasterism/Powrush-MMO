@@ -29,6 +29,7 @@ pub enum ThrivingKind {
     FirstRedemption,
     FirstHybrid,
     FirstCompass,
+    FirstWell,
 }
 
 impl ThrivingKind {
@@ -84,6 +85,9 @@ impl ThrivingKind {
             }
             ThrivingKind::FirstCompass => {
                 "The air shifted — a cited wind"
+            }
+            ThrivingKind::FirstWell => {
+                "The well is yours — Mira stepped back"
             }
         }
     }
@@ -221,7 +225,6 @@ fn soft_council_note(
     keyboard: Res<ButtonInput<KeyCode>>,
     moments: Res<ThrivingMoments>,
 ) {
-    // C acknowledges the invite — soft log only (no forced UI jump)
     if keyboard.just_pressed(KeyCode::KeyC) && moments.fired.contains(&ThrivingKind::CouncilInvite)
     {
         info!(target: "powrush::thrive", "Player noted Council invitation — voluntary");
