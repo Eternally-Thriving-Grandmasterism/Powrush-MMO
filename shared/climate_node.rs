@@ -21,7 +21,7 @@ pub enum AllocKind {
     Reserve,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TendResult {
     Taken { item: ClimateTake },
     NoTake { reason: &'static str },
@@ -30,7 +30,7 @@ pub enum TendResult {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClimateTake {
     pub node_id: u32,
-    pub kind: &'static str,
+    pub kind: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +63,7 @@ impl ClimateNode {
                 TendResult::Taken {
                     item: ClimateTake {
                         node_id: self.id,
-                        kind: "tend",
+                        kind: "tend".to_string(),
                     },
                 }
             }
@@ -80,10 +80,10 @@ impl ClimateNode {
             }
             NodeState::Resting | NodeState::Stressed => TendResult::NoTake {
                 reason: "node is resting",
-            }
+            },
             NodeState::Idle => TendResult::NoTake {
                 reason: "no glow",
-            }
+            },
         }
     }
 
