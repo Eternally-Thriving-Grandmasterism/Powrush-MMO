@@ -19,7 +19,9 @@ Design tick landed: 23.2.21
 - CHANGELOG 23.2.19, 23.2.20, 23.2.21
 - docs: COMPLETION_BRIEF, PARKED_SURFACES, FIRST_HOUR_PLAYTEST,
   RBE_FIRST_HOUR, SECOND_HOUR_CHARTER_FRONTIER, FIRST_HOUR_CLIENT_BIND
-- harvest_feel::note_lived_hour_take + first_harvest_epiphany resolve_take hook
+- harvest_feel::note_lived_hour_take + HarvestFeelPlugin::sync_lived_hour_take
+- first_harvest_epiphany handle_interact_harvest stays at 16 Bevy 0.14 params
+  (LivedHour take is mirrored from SoftRbePool.harvests, not a 17th ResMut)
 - rbe_allocate_choice commit_allocate → LivedHourBind::allocate
 
 ## TODO 3 — verify (run on merge)
@@ -33,6 +35,12 @@ cargo test -p powrush-client --lib
 ```
 
 Manual 5-minute check: docs/FIRST_HOUR_PLAYTEST.md
+
+## After 209 is green
+
+- Merge PR 209 into main
+- Rebase PR 208 (feat/skirmish-well-23.2.19) onto main
+- Do not start second-hour charter/frontier work until 208 is merged or explicitly requested
 
 ## Do not do in this pass
 
