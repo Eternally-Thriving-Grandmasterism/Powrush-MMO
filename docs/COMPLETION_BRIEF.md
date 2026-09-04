@@ -1,0 +1,89 @@
+# COMPLETION_BRIEF.md — Powrush-MMO
+
+Status date: 2026-09-03  
+Canonical product: lived first hour (`cargo run -p powrush-client`)  
+Workspace: 21.88.0  
+This file is an instruction document for manual, non-agentic work.
+
+## Product law
+
+1. Hands beat lore. If a system cannot be felt with WASD / E / I / H / R in the first hour, it is parked.
+2. One human, one machine. No dedicated server in the default binary.
+3. Ra-Thor may read `data/powrush_lived_tick.json`. It does not drive keys.
+4. Keep constellation repos separate:
+   - This repo = feel
+   - Ra-Thor = policy lattice
+   - Powrush-MMO-Simulator = browser view
+5. Older “100% launch worthy” documents are historical. They do not override README.
+
+## Done when first hour is complete
+
+A stranger can:
+
+- Build and run without a Ra-Thor checkout
+- Walk a climate and find a glow without a second HUD
+- Tend with E and feel glow + camera punch + first-take rumble
+- Open satchel with I and see what was taken
+- Allocate with R (1 flow, 2 reserve) and see the field change
+- Hide guidance with H and still know what to do from world feedback
+- Quit and resume without losing satchel + allocation
+- Finish in about 40–70 minutes without reading governance docs
+
+## Explicitly not first hour
+
+NFT / chain mint, k8s, payments, P2W, Steam-as-blocker, second HUD, corpse-grey, 12-player lobby, parked `server/` / `simulation/` / `host/` / `game/` / `powrush-divine-module/` as required deps.
+
+## Workstreams (do in order)
+
+### A. Playable hour (highest fruit)
+
+- [ ] Single onboarding card: walk, tend, satchel, allocate
+- [ ] Resource node states: idle / glowing / tended / resting / stressed
+- [ ] Allocation consequence visible in 30 seconds (flow grows shared field; reserve holds repair-rights)
+- [ ] Save / load of satchel + node states + allocation
+- [ ] Accessibility: toggle guidance, readable contrast, remappable keys
+- [ ] Crash-safe tick write to `data/powrush_lived_tick.json`
+
+### B. Proof the teaching claim
+
+- [ ] One scripted climate where mercy-tending restores a node
+- [ ] One scripted climate where extract-only leaves a resting/stressed node
+- [ ] On-screen teaching is a sentence, not a manifesto
+- [ ] Automated lib tests for node state transitions in `shared` or `powrush-client --lib`
+
+### C. Second hour only after A+B
+
+Unlock behind Charter, in this order only:
+
+1. Frontier yard + Offline extractor witness
+2. Ledger bind + escort
+3. Stop. Do not add Embassy / Crownstone / Sylvaris / Hybrid until hour two is timed.
+
+### D. Repo hygiene (do in parallel, small commits)
+
+- [ ] Mark historical launch docs as `docs/archive/` or add a banner: “Historical. README is canonical.”
+- [ ] One version line in README, CHANGELOG, Cargo.toml
+- [ ] Workspace members list matches what CI actually builds
+- [ ] Parked crates documented in `docs/PARKED_SURFACES.md`
+
+### E. Later, only if A–C are green
+
+- Simulator verb parity (same E/I/H/R meanings)
+- Optional listen-server for two humans
+- Steam as optional publisher path, never as a gate to the hour
+
+## Definition of fruit
+
+A change is fruitful if it:
+
+- shortens time-to-first-tend
+- makes allocation consequences visible
+- reduces doc contradiction
+- keeps the default binary offline and solo
+- can be tested with `cargo test -p shared -p rsil-identity` and `cargo test -p powrush-client --lib`
+
+A change is not fruitful if it:
+
+- adds a new race, council, or governance file without a new verb
+- requires Ra-Thor to be checked out to play
+- expands Steam / WebXR / k8s / payments before the hour is sealed
