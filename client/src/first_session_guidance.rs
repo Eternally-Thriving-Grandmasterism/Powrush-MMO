@@ -131,11 +131,12 @@ impl Plugin for FirstSessionGuidancePlugin {
             .add_systems(
                 Update,
                 (
-                    update_guidance_visibility,
-                    update_guidance_text,
                     handle_guidance_dismiss_input,
                     track_simple_progress_signals,
-                ),
+                    update_guidance_visibility,
+                    update_guidance_text,
+                )
+                    .chain(),
             );
     }
 }
@@ -265,7 +266,9 @@ fn track_simple_progress_signals(
     }
 
     if let Some(bind) = bind {
-        let taken = bind.satchel_count() as u32 + bind.hour.allocation.flow + bind.hour.allocation.reserve;
+        let taken = bind.satchel_count() as u32
+            + bind.hour.allocation.flow
+            + bind.hour.allocation.reserve;
         if taken > guidance.harvests_completed {
             guidance.harvests_completed = taken;
         }
