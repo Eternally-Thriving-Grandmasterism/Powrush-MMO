@@ -1,6 +1,6 @@
 # COMPLETION_BRIEF.md — Powrush-MMO
 
-Status date: 2026-09-03  
+Status date: 2026-09-04  
 Canonical product: lived first hour (`cargo run -p powrush-client`)  
 Workspace: 21.88.0  
 This file is an instruction document for manual, non-agentic work.
@@ -38,11 +38,11 @@ NFT / chain mint, k8s, payments, P2W, Steam-as-blocker, second HUD, corpse-grey,
 ### A. Playable hour (highest fruit)
 
 - [ ] Single onboarding card: walk, tend, satchel, allocate
-- [ ] Resource node states: idle / glowing / tended / resting / stressed
-- [ ] Allocation consequence visible in 30 seconds (flow grows shared field; reserve holds repair-rights)
-- [ ] Save / load of satchel + node states + allocation
+- [x] Resource node states: idle / glowing / tended / resting / stressed
+- [x] Allocation consequence visible in 30 seconds (flow grows shared field; reserve holds repair-rights)
+- [x] Save / load of satchel + node states + allocation (`data/powrush_lived_tick.json`)
 - [ ] Accessibility: toggle guidance, readable contrast, remappable keys
-- [ ] Crash-safe tick write to `data/powrush_lived_tick.json`
+- [x] Crash-safe tick write to `data/powrush_lived_tick.json`
 
 ### B. Proof the teaching claim
 

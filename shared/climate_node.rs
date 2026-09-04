@@ -15,6 +15,39 @@ pub enum NodeState {
     Stressed,
 }
 
+impl NodeState {
+    pub fn label(self) -> &'static str {
+        match self {
+            NodeState::Idle => "Idle",
+            NodeState::Glowing => "Glowing",
+            NodeState::Tended => "Tended",
+            NodeState::Resting => "Resting",
+            NodeState::Stressed => "Stressed",
+        }
+    }
+
+    /// One-line hand hint. Not a manifesto.
+    pub fn hand_hint(self) -> &'static str {
+        match self {
+            NodeState::Idle => "no glow yet",
+            NodeState::Glowing => "E tend",
+            NodeState::Tended => "let it breathe · R 1 flow",
+            NodeState::Resting => "R 1 flow restores",
+            NodeState::Stressed => "only take faded it · R 1 flow",
+        }
+    }
+
+    pub fn glow_mul(self) -> f32 {
+        match self {
+            NodeState::Idle => 0.28,
+            NodeState::Glowing => 1.0,
+            NodeState::Tended => 0.72,
+            NodeState::Resting => 0.38,
+            NodeState::Stressed => 0.16,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AllocKind {
     Flow,
@@ -50,7 +83,6 @@ impl ClimateNode {
         }
     }
 
-    /// E on this node.
     pub fn tend(&mut self) -> TendResult {
         match self.state {
             NodeState::Glowing => {
@@ -87,7 +119,6 @@ impl ClimateNode {
         }
     }
 
-    /// Slow world tick. Flow allocation should call restore() instead of waiting.
     pub fn tick(&mut self) {
         match self.state {
             NodeState::Tended => {
@@ -112,7 +143,6 @@ impl ClimateNode {
         }
     }
 
-    /// R → 1 Flow. Shared field repair. Visible in one short tick burst.
     pub fn restore_from_flow(&mut self) {
         self.fatigue = (self.fatigue - 0.40).clamp(0.0, 1.0);
         self.state = if self.fatigue <= 0.20 {
@@ -141,7 +171,6 @@ impl Satchel {
         self.takes.len()
     }
 
-    /// R spend. Returns false if the satchel has nothing to allocate.
     pub fn spend_one(&mut self) -> bool {
         self.takes.pop().is_some()
     }
@@ -165,7 +194,6 @@ impl Allocation {
         true
     }
 
-    /// Reserve is repair-rights. Spending one later is hour-two Ledger work.
     pub fn spend_reserve(&mut self) -> bool {
         if self.reserve == 0 {
             return false;
@@ -175,7 +203,6 @@ impl Allocation {
     }
 }
 
-/// One-machine first hour. Serialize this to data/powrush_lived_tick.json.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LivedHour {
     pub nodes: Vec<ClimateNode>,
@@ -311,5 +338,12 @@ mod tests {
         let restored = LivedHour::from_json(&json).unwrap();
         assert_eq!(restored.satchel.count(), 1);
         assert_eq!(restored.nodes[0].state, NodeState::Tended);
+    }
+
+    #[test]
+    fn labels_are_one_word() {
+        assert_eq!(NodeState::Glowing.label(), "Glowing");
+        assert!(NodeState::Stressed.hand_hint().contains("flow"));
+        assert!(NodeState::Glowing.glow_mul() > NodeState::Idle.glow_mul());
     }
 }

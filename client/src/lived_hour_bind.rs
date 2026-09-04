@@ -17,6 +17,8 @@ pub struct LivedHourBind {
     pub hour: LivedHour,
     pub last_line: String,
     pub guidance_hidden: bool,
+    /// Nearest well the body is looking at. tend_nearest uses this first.
+    pub focus_id: Option<u32>,
 }
 
 impl Default for LivedHourBind {
@@ -33,6 +35,7 @@ impl LivedHourBind {
                     hour,
                     last_line: "resumed".to_string(),
                     guidance_hidden: false,
+                    focus_id: None,
                 };
             }
         }
@@ -40,6 +43,7 @@ impl LivedHourBind {
             hour: LivedHour::new_demo(),
             last_line: "walk to a glow".to_string(),
             guidance_hidden: false,
+            focus_id: None,
         }
     }
 
@@ -74,7 +78,7 @@ impl LivedHourBind {
     }
 
     pub fn tend_nearest(&mut self) -> TendResult {
-        match self.nearest_glow_id() {
+        match self.focus_id.or_else(|| self.nearest_glow_id()) {
             Some(id) => self.tend(id),
             None => TendResult::NoTake {
                 reason: "no glow",
@@ -110,11 +114,26 @@ impl LivedHourBind {
     }
 }
 
+fn tick_lived_hour(time: Res<Time>, mut bind: ResMut<LivedHourBind>, mut acc: Local<f32>) {
+    *acc += time.delta_seconds();
+    if *acc < 1.0 {
+        return;
+    }
+    *acc = 0.0;
+    let before: Vec<NodeState> = bind.hour.nodes.iter().map(|n| n.state).collect();
+    bind.tick();
+    let after: Vec<NodeState> = bind.hour.nodes.iter().map(|n| n.state).collect();
+    if before != after {
+        bind.persist();
+    }
+}
+
 pub struct LivedHourBindPlugin;
 
 impl Plugin for LivedHourBindPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LivedHourBind>();
+        app.init_resource::<LivedHourBind>()
+            .add_systems(Update, tick_lived_hour);
     }
 }
 
@@ -128,6 +147,7 @@ mod tests {
             hour: LivedHour::new_demo(),
             last_line: String::new(),
             guidance_hidden: false,
+            focus_id: None,
         };
         assert!(matches!(bind.tend(1), TendResult::Taken { .. }));
         assert_eq!(bind.satchel_count(), 1);
@@ -139,12 +159,26 @@ mod tests {
             hour: LivedHour::new_demo(),
             last_line: String::new(),
             guidance_hidden: false,
+            focus_id: None,
         };
         assert!(!bind.allocate(AllocKind::Flow));
         let _ = bind.tend(1);
         assert!(bind.allocate(AllocKind::Flow));
         assert_eq!(bind.satchel_count(), 0);
         assert_eq!(bind.hour.allocation.flow, 1);
+    }
+
+    #[test]
+    fn focus_beats_first_glow() {
+        let mut bind = LivedHourBind {
+            hour: LivedHour::new_demo(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: Some(2),
+        };
+        assert!(matches!(bind.tend_nearest(), TendResult::Taken { .. }));
+        assert_eq!(bind.hour.nodes[1].state, NodeState::Tended);
+        assert_eq!(bind.hour.nodes[0].state, NodeState::Glowing);
     }
 
     #[test]
