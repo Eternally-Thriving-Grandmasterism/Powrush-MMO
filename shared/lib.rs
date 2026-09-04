@@ -5,6 +5,7 @@
 
 pub mod protocol;
 pub mod climate_node;
+pub mod climate_script;
 pub mod space_law;
 pub mod vertical_factory;
 pub mod coop_voice;
@@ -42,6 +43,7 @@ pub mod rbe_queries {
 pub mod prelude {
     pub use crate::protocol::HotbarSlot;
     pub use crate::climate_node::{AllocKind, Allocation, ClimateNode, ClimateTake, LivedHour, NodeState, Satchel, TendResult};
+    pub use crate::climate_script;
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
     pub use crate::coop_voice::{CoopVoice, QuorumCard, VoiceTopic};
@@ -203,5 +205,13 @@ mod tests {
         assert_eq!(w.act(), "won");
         assert_eq!(w.traveler_answers(), "lost");
         assert_eq!(w.act(), "dawn");
+    }
+
+    #[test]
+    fn teaching_climates_reachable() {
+        let tired = climate_script::run_extract_only();
+        assert!(climate_script::extract_only_holds(&tired, 1));
+        let kind = climate_script::run_mercy_restore();
+        assert!(climate_script::mercy_restore_holds(&kind, 1));
     }
 }

@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.25] — 2026-09-04 — Teaching climates (Slice 18)
+
+Two scripts, two sentences. E twice on a glow: extract left it tired. R 1 flow: flow restored the well. Lives in shared/climate_script.rs. Client witnesses on the existing slab. Does not rewrite harvest_feel. Workspace stays 21.88.0.
+
 ## [23.2.24] — 2026-09-04 — Onboarding card (Slice 17)
 
 One card teaches the hour: walk · glow · E tend · I satchel · R 1/2. Sentences, not a manifesto. Higher contrast. H hides it. Progress reads LivedHour + nearby well. Does not rewrite harvest_feel. Workspace stays 21.88.0.
