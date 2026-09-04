@@ -1,4 +1,4 @@
-# Skirmish well — Slice 15 / Wave 2 (v23.2.19)
+# Skirmish well — Slice 15 / Wave 2 (v23.2.22)
 
 **Contact:** info@Rathor.ai  
 E contests. Dawn after loss. Mercy aftercare.

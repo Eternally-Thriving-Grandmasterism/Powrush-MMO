@@ -1,4 +1,4 @@
-//! Skirmish well — Slice 15 (v23.2.19)
+//! Skirmish well — Slice 15 (v23.2.22)
 //!
 //! Practice travelers hold the first well. E contests. Dawn after loss.
 //! Mercy aftercare. No corpse-grey. No F-key. Contact: info@Rathor.ai
