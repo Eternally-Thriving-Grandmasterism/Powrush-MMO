@@ -3,7 +3,7 @@
 Status date: 2026-09-05  
 Canonical product: lived first hour (`cargo run -p powrush-client`)  
 Workspace: 21.88.0  
-Design tick: 23.2.28 (not a Cargo bump)  
+Design tick: 23.2.29 (not a Cargo bump)  
 This file is an instruction document for manual, non-agentic work.
 
 ## Product law
@@ -58,7 +58,8 @@ Unlock behind Charter, in this order only:
 
 1. [x] Frontier yard + Offline extractor witness — Tab after allocate steps the ridge; Q founds House; I2 spill speaks (23.2.28)
 2. [x] Ledger bind + escort — L then E after skin is live (already in 23.2.10; door now reaches it)
-3. Stop. Do not add Embassy / Crownstone / Sylvaris / Hybrid until hour two is timed.
+3. [x] Persist + Settled checkpoint — `HourTwoPack` in `data/powrush_hour_two.json`; slab *Hour two held · the yard remembers* (23.2.29)
+4. Stop. Do not add Embassy / Crownstone / Sylvaris / Hybrid until a human times hour two.
 
 See `docs/HOUR_TWO.md`.
 

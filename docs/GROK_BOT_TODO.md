@@ -5,31 +5,33 @@ Do not rewrite harvest_feel.rs or rbe_allocate_choice.rs.
 Surgical hooks only. No server. No Ra-Thor path dep.
 
 Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
-Branch: feat/hour-two-charter-door-23.2.28
+Branch: feat/hour-two-persist-settle-23.2.29
 Workspace: 21.88.0
-Design tick: 23.2.28
+Design tick: 23.2.29
 
 ## Already done (do not redo)
 
 - First hour A+B + Workstream D (PR 209–215)
+- Hour-two Charter door (PR 216 / 23.2.28)
 - handle_interact_harvest stays at 16 Bevy 0.14 params
 
 ## This slice
 
-Hour two door: allocate → Tab ridge → Q House → spill witness → L Bind/Escort.
+Hour two pack: persist session + factory + I2 + Ledger. Complete when Bind settles.
 
 ```bash
+cargo test -p shared hour_two
 cargo test -p shared space_law
 cargo test -p powrush-client --lib hour_sacred
 cargo test -p shared -p rsil-identity
 cargo test -p powrush-client --lib
 ```
 
-## After 23.2.28 is green
+## After 23.2.29 is green
 
 - Merge
-- Workstream C item 1+2 become playable
-- Do not add Embassy / Crownstone / Sylvaris until hour two is timed
+- Workstream C is playable and resumable
+- Do not add Embassy / Crownstone / Sylvaris until a human times hour two
 
 ## Do not do in this pass
 

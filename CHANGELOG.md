@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.29] — 2026-09-05 — Hour-two persist + Settled (Slice 22 / Workstream C)
+
+Hour two is held when House is live, the I2 spill was seen, and Ledger Bind/Escort settles. data/powrush_hour_two.json now keeps session + factory + witness + board (old SpaceSession-only files still load). Slab: Hour two held · the yard remembers. Peace E/I/H/R untouched. No harvest_feel rewrite. No server. No Embassy. Workspace stays 21.88.0. Design tick, not a Cargo bump.
+
 ## [23.2.28] — 2026-09-05 — Hour-two Charter door (Slice 21 / Workstream C)
 
 After a first-hour allocate, Tab steps the Frontier ridge as a Peace visitor. Q founds a local House. Offline extractor spill and L Ledger Bind/Escort become reachable. Persist data/powrush_hour_two.json. Peace E/I/H/R untouched. No harvest_feel rewrite. No server. No Embassy. Workspace stays 21.88.0. Design tick, not a Cargo bump.
