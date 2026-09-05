@@ -1,8 +1,10 @@
-//! Space law — Slice 0 hour-sacred stubs (v23.2.4)
+//! Space law — Slice 0 hour-sacred stubs (v23.2.4) + hour-two door (v23.2.28)
 //!
 //! Peace hour: Warrant Weight is silent 0. Charter skin (Tab/G/L/Q)
 //! is dead until `charter_id` AND a non-Peace hex exist.
-//! Formula is stored; UI never shows it. Contact: info@Rathor.ai
+//! After a first-hour allocate, Tab steps the ridge (Frontier visitor).
+//! Q founds the local House. Formula is stored; UI never shows it.
+//! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
 
@@ -185,6 +187,32 @@ impl SpaceSession {
     pub fn peace_visitor_on_frontier(&self) -> bool {
         self.charter_id.is_none() && self.hex.charter_jurisdiction()
     }
+
+    /// First-hour allocate (flow or reserve) opens the Charter door. Not a tend.
+    pub fn hour_two_door_ready(flow: u32, reserve: u32) -> bool {
+        flow + reserve > 0
+    }
+
+    /// Tab after allocate. Steps the ridge as a Peace visitor. Q still founds.
+    pub fn take_frontier_ridge(&mut self) -> bool {
+        if self.hex != HexFlag::Peace {
+            return false;
+        }
+        self.hex = HexFlag::Frontier;
+        true
+    }
+
+    pub fn hour_two_line(&self, door_ready: bool) -> &'static str {
+        if self.charter_skin_live() {
+            "Frontier · L Ledger · Q House"
+        } else if self.peace_visitor_on_frontier() {
+            "Not your charter · Q plant a House stake"
+        } else if door_ready {
+            "Tab Charter — the ridge is open"
+        } else {
+            "Peace · tend then allocate"
+        }
+    }
 }
 
 #[cfg(test)]
@@ -241,5 +269,28 @@ mod tests {
         assert!(f.contestable());
         assert!(f.industry_live());
         assert_eq!(f.label(), "Contestable");
+    }
+
+    #[test]
+    fn allocate_opens_door_tend_does_not() {
+        assert!(!SpaceSession::hour_two_door_ready(0, 0));
+        assert!(SpaceSession::hour_two_door_ready(1, 0));
+        assert!(SpaceSession::hour_two_door_ready(0, 1));
+    }
+
+    #[test]
+    fn tab_steps_ridge_q_still_founds() {
+        let mut s = SpaceSession::default();
+        assert_eq!(s.hour_two_line(true), "Tab Charter — the ridge is open");
+        assert!(s.take_frontier_ridge());
+        assert!(s.peace_visitor_on_frontier());
+        assert!(!s.charter_skin_live());
+        assert_eq!(s.hex, HexFlag::Frontier);
+        assert_eq!(s.hour_two_line(true), "Not your charter · Q plant a House stake");
+        assert!(!s.take_frontier_ridge());
+        s.charter_id = Some("house-local".into());
+        s.kind = CharterKind::House;
+        assert!(s.charter_skin_live());
+        assert_eq!(s.hour_two_line(true), "Frontier · L Ledger · Q House");
     }
 }
