@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.30] — 2026-09-05 — Hour-two card sentences (Slice 23)
+
+Same card. After allocate it says Tab the ridge, then Q plant a House stake, then L opens the Ledger, then E Bind then escort, then Hour two held. H still hides. No new HUD. No harvest_feel rewrite. No server. No Embassy. Workspace stays 21.88.0. Design tick, not a Cargo bump.
+
 ## [23.2.29] — 2026-09-05 — Hour-two persist + Settled (Slice 22 / Workstream C)
 
 Hour two is held when House is live, the I2 spill was seen, and Ledger Bind/Escort settles. data/powrush_hour_two.json now keeps session + factory + witness + board (old SpaceSession-only files still load). Slab: Hour two held · the yard remembers. Peace E/I/H/R untouched. No harvest_feel rewrite. No server. No Embassy. Workspace stays 21.88.0. Design tick, not a Cargo bump.

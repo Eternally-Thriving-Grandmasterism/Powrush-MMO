@@ -1,7 +1,7 @@
 /*!
- * First Session Guidance — single onboarding card (v23.2.24)
+ * First Session Guidance — single onboarding card (v23.2.24 + hour two v23.2.30)
  *
- * One sentence at a time: walk · tend · satchel · allocate.
+ * One sentence at a time: walk · tend · satchel · allocate · Tab · Q · L.
  * H hides. World still teaches. Not a second HUD.
  * Does not rewrite harvest_feel or rbe_allocate_choice.
  *
@@ -10,8 +10,12 @@
 
 use bevy::prelude::*;
 
+use crate::hour_sacred::HourSacred;
+use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::NearbyMercyNode;
+use shared::ledger_bind::ContractState;
+use shared::space_law::HexFlag;
 
 /// Soft objective the player is gently invited to try next.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +25,11 @@ pub enum GuidanceObjective {
     HarvestWithInteract,
     OpenInventory,
     ShareAbundance,
+    StepCharter,
+    PlantHouse,
+    OpenLedger,
+    BindEscort,
+    HourTwoHeld,
     FeelFirstEpiphany,
     MeetCouncilWhisper,
     FreeExploration,
@@ -35,6 +44,11 @@ impl GuidanceObjective {
             GuidanceObjective::HarvestWithInteract => "E tend the glow",
             GuidanceObjective::OpenInventory => "I opens the satchel",
             GuidanceObjective::ShareAbundance => "R then 1 flow · 2 reserve",
+            GuidanceObjective::StepCharter => "Tab the ridge",
+            GuidanceObjective::PlantHouse => "Q plant a House stake",
+            GuidanceObjective::OpenLedger => "L opens the Ledger",
+            GuidanceObjective::BindEscort => "E Bind then escort",
+            GuidanceObjective::HourTwoHeld => "Hour two held",
             GuidanceObjective::FeelFirstEpiphany => "The field answers",
             GuidanceObjective::MeetCouncilWhisper => "The field answers",
             GuidanceObjective::FreeExploration => "The field keeps teaching",
@@ -47,7 +61,12 @@ impl GuidanceObjective {
             GuidanceObjective::ApproachGlowingNode => GuidanceObjective::HarvestWithInteract,
             GuidanceObjective::HarvestWithInteract => GuidanceObjective::OpenInventory,
             GuidanceObjective::OpenInventory => GuidanceObjective::ShareAbundance,
-            GuidanceObjective::ShareAbundance => GuidanceObjective::FreeExploration,
+            GuidanceObjective::ShareAbundance => GuidanceObjective::StepCharter,
+            GuidanceObjective::StepCharter => GuidanceObjective::PlantHouse,
+            GuidanceObjective::PlantHouse => GuidanceObjective::OpenLedger,
+            GuidanceObjective::OpenLedger => GuidanceObjective::BindEscort,
+            GuidanceObjective::BindEscort => GuidanceObjective::HourTwoHeld,
+            GuidanceObjective::HourTwoHeld => GuidanceObjective::FreeExploration,
             GuidanceObjective::FeelFirstEpiphany => GuidanceObjective::FreeExploration,
             GuidanceObjective::MeetCouncilWhisper => GuidanceObjective::FreeExploration,
             GuidanceObjective::FreeExploration => GuidanceObjective::FreeExploration,
@@ -68,6 +87,10 @@ pub struct FirstSessionGuidance {
     pub shown_at_seconds: f64,
     pub near_glow: bool,
     pub free_since: f32,
+    pub ridge_stepped: bool,
+    pub house_live: bool,
+    pub ledger_open: bool,
+    pub hour_two_held: bool,
 }
 
 impl Default for FirstSessionGuidance {
@@ -84,6 +107,10 @@ impl Default for FirstSessionGuidance {
             shown_at_seconds: 0.0,
             near_glow: false,
             free_since: 0.0,
+            ridge_stepped: false,
+            house_live: false,
+            ledger_open: false,
+            hour_two_held: false,
         }
     }
 }
@@ -104,6 +131,11 @@ impl FirstSessionGuidance {
             GuidanceObjective::HarvestWithInteract => self.harvests_completed >= 1,
             GuidanceObjective::OpenInventory => self.inventory_opened,
             GuidanceObjective::ShareAbundance => self.shared_abundance,
+            GuidanceObjective::StepCharter => self.ridge_stepped || self.house_live,
+            GuidanceObjective::PlantHouse => self.house_live,
+            GuidanceObjective::OpenLedger => self.ledger_open || self.hour_two_held,
+            GuidanceObjective::BindEscort => self.hour_two_held,
+            GuidanceObjective::HourTwoHeld => false,
             GuidanceObjective::FeelFirstEpiphany => self.epiphany_felt,
             GuidanceObjective::MeetCouncilWhisper => {
                 self.epiphany_felt && self.harvests_completed >= 1
@@ -239,6 +271,8 @@ fn track_simple_progress_signals(
     time: Res<Time>,
     nearby: Option<Res<NearbyMercyNode>>,
     bind: Option<Res<LivedHourBind>>,
+    hour: Option<Res<HourSacred>>,
+    ledger: Option<Res<LedgerYard>>,
 ) {
     if guidance.dismissed {
         return;
@@ -277,11 +311,43 @@ fn track_simple_progress_signals(
         }
     }
 
+    if let Some(hour) = hour {
+        if hour.hex() != HexFlag::Peace {
+            guidance.ridge_stepped = true;
+        }
+        if hour.charter_skin_live() {
+            guidance.house_live = true;
+        }
+        if hour.complete {
+            guidance.hour_two_held = true;
+        }
+    }
+
+    if let Some(ledger) = ledger {
+        if ledger.sash_open {
+            guidance.ledger_open = true;
+        }
+        if ledger
+            .board
+            .open()
+            .map(|c| c.state == ContractState::Settled)
+            .unwrap_or(false)
+        {
+            guidance.hour_two_held = true;
+        }
+    }
+
     guidance.advance_if_ready();
 
-    if guidance.objective == GuidanceObjective::FreeExploration {
+    if guidance.objective == GuidanceObjective::HourTwoHeld
+        || guidance.objective == GuidanceObjective::FreeExploration
+    {
         guidance.free_since += time.delta_seconds();
-        if guidance.free_since > 8.0 {
+        if guidance.objective == GuidanceObjective::HourTwoHeld && guidance.free_since > 6.0 {
+            guidance.objective = GuidanceObjective::FreeExploration;
+            guidance.free_since = 0.0;
+        } else if guidance.objective == GuidanceObjective::FreeExploration && guidance.free_since > 8.0
+        {
             guidance.dismiss();
         }
     }
@@ -307,7 +373,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hour_is_four_hands() {
+    fn hour_is_four_hands_then_ridge() {
         let mut g = FirstSessionGuidance::default();
         assert_eq!(g.objective, GuidanceObjective::MoveAround);
         g.moved_distance = 5.0;
@@ -322,18 +388,27 @@ mod tests {
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::ShareAbundance);
         credit_share(&mut g);
-        assert_eq!(g.objective, GuidanceObjective::FreeExploration);
+        assert_eq!(g.objective, GuidanceObjective::StepCharter);
     }
 
     #[test]
-    fn satchel_then_share_then_free() {
+    fn hour_two_card_walks_to_held() {
         let mut g = FirstSessionGuidance::default();
-        g.objective = GuidanceObjective::OpenInventory;
-        g.inventory_opened = true;
+        g.objective = GuidanceObjective::StepCharter;
+        g.ridge_stepped = true;
         g.advance_if_ready();
-        assert_eq!(g.objective, GuidanceObjective::ShareAbundance);
-        credit_share(&mut g);
-        assert_eq!(g.objective, GuidanceObjective::FreeExploration);
+        assert_eq!(g.objective, GuidanceObjective::PlantHouse);
+        g.house_live = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::OpenLedger);
+        g.ledger_open = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::BindEscort);
+        g.hour_two_held = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
     }
 
     #[test]
@@ -344,6 +419,11 @@ mod tests {
             GuidanceObjective::HarvestWithInteract,
             GuidanceObjective::OpenInventory,
             GuidanceObjective::ShareAbundance,
+            GuidanceObjective::StepCharter,
+            GuidanceObjective::PlantHouse,
+            GuidanceObjective::OpenLedger,
+            GuidanceObjective::BindEscort,
+            GuidanceObjective::HourTwoHeld,
             GuidanceObjective::FreeExploration,
         ] {
             let p = obj.prompt();

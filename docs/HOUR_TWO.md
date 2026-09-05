@@ -1,4 +1,4 @@
-# HOUR_TWO.md — Charter door (v23.2.29)
+# HOUR_TWO.md — Charter door (v23.2.30)
 
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick, not a Cargo bump.
@@ -8,12 +8,12 @@ Hour two unlocks **after** a first-hour allocate. Peace E / I / H / R stay harve
 ## Hands
 
 1. Finish the first hour: walk · E tend · I satchel · R 1 or 2.
-2. Slab: *Tab Charter — the ridge is open*.
+2. Same card: *Tab the ridge*.
 3. **Tab** steps Frontier as a Peace visitor. E is *Not your charter*.
-4. **Q** plants a House stake (`house-local`). Skin goes live.
+4. Card: *Q plant a House stake*. **Q** plants `house-local`. Skin goes live.
 5. Spill slab: Offline extractor · I2 pack. Witness, not attack.
-6. **L** opens the Ledger. **E** Bind, then E escort until Settled.
-7. Slab: *Hour two held · the yard remembers*. Quit. Rerun. The yard is still there.
+6. Card: *L opens the Ledger*. **L** then **E** Bind, escort until Settled.
+7. Card then slab: *Hour two held*. Quit. Rerun. The yard is still there.
 8. Stop. Embassy / Crownstone / Sylvaris stay later. Human timing is the remaining proof.
 
 ## Persist
