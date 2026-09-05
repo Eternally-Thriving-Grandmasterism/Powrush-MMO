@@ -1,14 +1,15 @@
-//! Lived-hour Charter tutorial — Slice 3 (v23.2.7)
+//! Lived-hour Charter tutorial — Slice 3 (v23.2.7) + door hint (v23.2.28)
 //!
 //! Q on Frontier: found House, then extractor → depot → hauler → two stops → arrival.
-//! Dies in Peace. Contact: info@Rathor.ai
+//! Peace slab speaks Tab only after a first-hour allocate. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
-use shared::space_law::{CharterKind, HexFlag};
+use shared::space_law::{CharterKind, HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
 use crate::hour_sacred::HourSacred;
+use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
@@ -29,7 +30,7 @@ impl Plugin for VerticalFactoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FactoryYard>()
             .add_systems(Startup, spawn_factory_slab)
-            .add_systems(Update, (handle_factory_q, update_factory_slab));
+            .add_systems(Update, (handle_factory_q, persist_after_found, update_factory_slab));
     }
 }
 
@@ -87,6 +88,7 @@ fn handle_factory_q(
         yard.factory.found_house();
         hour.session.charter_id = Some("house-local".into());
         hour.session.kind = CharterKind::House;
+        hour.persist();
         return;
     }
     if !hour.charter_skin_live() {
@@ -106,13 +108,25 @@ fn handle_factory_q(
     }
 }
 
+fn persist_after_found(hour: Res<HourSacred>) {
+    if hour.is_changed() && hour.charter_skin_live() {
+        hour.persist();
+    }
+}
+
 fn update_factory_slab(
     hour: Res<HourSacred>,
     yard: Res<FactoryYard>,
+    bind: Option<Res<LivedHourBind>>,
     mut root: Query<&mut Visibility, With<FactorySlabRoot>>,
     mut text_q: Query<&mut Text, With<FactorySlabText>>,
 ) {
-    let show = hour.hex() != HexFlag::Peace;
+    let ready = bind
+        .map(|b| {
+            SpaceSession::hour_two_door_ready(b.hour.allocation.flow, b.hour.allocation.reserve)
+        })
+        .unwrap_or(false);
+    let show = hour.hex() != HexFlag::Peace || ready;
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -123,7 +137,13 @@ fn update_factory_slab(
     if !show {
         return;
     }
-    let line = yard.factory.slab_line();
+    let line = if hour.hex() == HexFlag::Peace {
+        hour.session.hour_two_line(ready).to_string()
+    } else if hour.session.peace_visitor_on_frontier() {
+        hour.session.hour_two_line(ready).to_string()
+    } else {
+        yard.factory.slab_line()
+    };
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -139,7 +159,9 @@ mod tests {
 
     #[test]
     fn peace_does_not_found() {
-        let hour = HourSacred::default();
+        let hour = HourSacred {
+            session: SpaceSession::default(),
+        };
         assert_eq!(hour.hex(), HexFlag::Peace);
         let yard = FactoryYard::default();
         assert!(!yard.factory.founded);
