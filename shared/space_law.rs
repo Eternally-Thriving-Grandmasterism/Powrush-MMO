@@ -1,7 +1,8 @@
-//! Space law — Slice 0 hour-sacred stubs (v23.2.4)
+//! Space law — Slice 0 hour-sacred stubs (v23.2.4) + hour-two door (v23.2.28)
 //!
 //! Peace hour: Warrant Weight is silent 0. Charter skin (Tab/G/L/Q)
 //! is dead until `charter_id` AND a non-Peace hex exist.
+//! After a first-hour allocate, Tab takes the Frontier charter door.
 //! Formula is stored; UI never shows it. Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -185,6 +186,32 @@ impl SpaceSession {
     pub fn peace_visitor_on_frontier(&self) -> bool {
         self.charter_id.is_none() && self.hex.charter_jurisdiction()
     }
+
+    /// First-hour allocate (flow or reserve) opens the Charter door. Not a tend.
+    pub fn hour_two_door_ready(flow: u32, reserve: u32) -> bool {
+        flow + reserve > 0
+    }
+
+    /// Tab after allocate. Local House on Frontier. Idempotent if already live.
+    pub fn take_frontier_charter(&mut self) -> bool {
+        if self.charter_skin_live() {
+            return false;
+        }
+        self.charter_id = Some("house-local".into());
+        self.hex = HexFlag::Frontier;
+        self.kind = CharterKind::House;
+        true
+    }
+
+    pub fn hour_two_line(&self, door_ready: bool) -> &'static str {
+        if self.charter_skin_live() {
+            "Frontier · L Ledger · Q House"
+        } else if door_ready {
+            "Tab Charter — the ridge is open"
+        } else {
+            "Peace · tend then allocate"
+        }
+    }
 }
 
 #[cfg(test)]
@@ -241,5 +268,25 @@ mod tests {
         assert!(f.contestable());
         assert!(f.industry_live());
         assert_eq!(f.label(), "Contestable");
+    }
+
+    #[test]
+    fn allocate_opens_door_tend_does_not() {
+        assert!(!SpaceSession::hour_two_door_ready(0, 0));
+        assert!(SpaceSession::hour_two_door_ready(1, 0));
+        assert!(SpaceSession::hour_two_door_ready(0, 1));
+    }
+
+    #[test]
+    fn tab_takes_frontier_house() {
+        let mut s = SpaceSession::default();
+        assert_eq!(s.hour_two_line(true), "Tab Charter — the ridge is open");
+        assert!(s.take_frontier_charter());
+        assert!(s.charter_skin_live());
+        assert_eq!(s.hex, HexFlag::Frontier);
+        assert_eq!(s.kind, CharterKind::House);
+        assert_eq!(s.charter_id.as_deref(), Some("house-local"));
+        assert!(!s.take_frontier_charter());
+        assert_eq!(s.hour_two_line(true), "Frontier · L Ledger · Q House");
     }
 }
