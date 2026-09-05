@@ -7,6 +7,7 @@ pub mod protocol;
 pub mod climate_node;
 pub mod climate_script;
 pub mod space_law;
+pub mod hour_two;
 pub mod vertical_factory;
 pub mod coop_voice;
 pub mod infra_spill;
@@ -45,6 +46,7 @@ pub mod prelude {
     pub use crate::climate_node::{AllocKind, Allocation, ClimateNode, ClimateTake, LivedHour, NodeState, Satchel, TendResult};
     pub use crate::climate_script;
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
+    pub use crate::hour_two::HourTwoPack;
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
     pub use crate::coop_voice::{CoopVoice, QuorumCard, VoiceTopic};
     pub use crate::infra_spill::{EvidencePack, InfraWitness, OffenseCode};
@@ -213,5 +215,14 @@ mod tests {
         assert!(climate_script::extract_only_holds(&tired, 1));
         let kind = climate_script::run_mercy_restore();
         assert!(climate_script::mercy_restore_holds(&kind, 1));
+    }
+
+    #[test]
+    fn hour_two_pack_reads_old_session() {
+        let pack = hour_two::HourTwoPack::from_json(
+            r#"{"hex":"Peace","kind":"PatchworkFirm"}"#,
+        );
+        assert!(!pack.complete);
+        assert_eq!(pack.session.hex, space_law::HexFlag::Peace);
     }
 }
