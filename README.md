@@ -6,7 +6,7 @@ Walk a climate. Harvest with mercy. Learn a resource-based economy by playing. E
 
 **Status (2026-09-04):** Lived first hour is the product. This repo compiles without a sibling Ra-Thor checkout (NEVC Mode B). Default binary is the lived hour: `cargo run -p powrush-client`. WASD / E / I / H / R. One card teaches walk · tend · satchel · allocate. Wells speak Idle / Glowing / Tended / Resting / Stressed. Not a public launch candidate. Core CI: `shared` + `rsil-identity` + `powrush-client --lib`.
 
-**Version:** workspace `21.88.0`. Lived-hour docs: `23.1` tick seam, `23.2` organism law in `docs/PATSAGI_v23.2_ARCHITECTURE.md`.
+**Version:** workspace `21.88.0` (Cargo.toml). Lived-hour design tick `23.2.26` — not a Cargo bump. See `CHANGELOG.md`. Historical launch docs: `docs/archive/README.md`. README wins conflicts.
 
 ### What a human does in the first hour
 
@@ -63,3 +63,4 @@ Start here if you want to complete the game:
 - `docs/RBE_FIRST_HOUR.md` — economy in the hands
 - `docs/PARKED_SURFACES.md` — what not to wire into the default binary
 - `docs/DOC_CANON.md` — which docs are current
+- `docs/archive/README.md` — historical. README is canonical.

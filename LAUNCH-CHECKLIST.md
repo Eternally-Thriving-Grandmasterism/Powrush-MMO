@@ -1,3 +1,8 @@
+> Historical. README is canonical. Lived first hour is the product.
+> Workspace 21.88.0. Design ticks 23.1 / 23.2 are not Cargo versions.
+> Do not treat a “100% launch worthy” verdict as current ship state.
+> See docs/archive/README.md and docs/DOC_CANON.md.
+
 # LAUNCH-CHECKLIST.md — Powrush-MMO v21.0 Launch Candidate
 
 **Overall Status: 100% LAUNCH WORTHY — Public Release Candidate (Eternal Polish v21.0 Complete)**

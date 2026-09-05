@@ -1,10 +1,14 @@
+> Historical. README is canonical. Lived first hour is the product.
+> Workspace 21.88.0. Design ticks 23.1 / 23.2 are not Cargo versions.
+> Seed map from 2026-08-26. The hour has since grown: onboarding card, wells that speak, teaching climates.
+
 # PATSAGi + Ra-Thor — Flesh the Game (v22)
 
 **Sealed:** 2026-08-26  
 **Phase of truth:** one human, one machine. No dedicated servers. No other players yet.  
 **Contact:** info@Rathor.ai
 
-README still says “100% launch worthy.” The lived client does not. The Councils choose the lived hour over the banner.
+README no longer says “100% launch worthy.” The lived client is the product. The Councils choose the lived hour over any historical banner.
 
 ---
 
