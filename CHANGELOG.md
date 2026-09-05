@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.27] — 2026-09-05 — Archive stubs (Slice 20 / Workstream D)
+
+Root recovery / launch-scenario / derivation blobs are stubs. Full body stays at git e2ae388. Playtest step 8 is the teaching claim. Workstream D complete. No harvest_feel rewrite. No server. Workspace stays 21.88.0. Design tick, not a Cargo bump.
+
 ## [23.2.26] — 2026-09-04 — Repo hygiene (Slice 19 / Workstream D)
 
 Historical. README is canonical. Banner on LAUNCH-CHECKLIST. Archive index at docs/archive/README.md. One workspace version: 21.88.0. CI members match Cargo.toml. Parked crates already listed in docs/PARKED_SURFACES.md. No harvest_feel rewrite. No server. Design tick, not a Cargo bump.

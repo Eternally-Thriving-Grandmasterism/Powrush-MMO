@@ -13,9 +13,8 @@
 ## Historical (do not treat as current ship state)
 
 - LAUNCH-CHECKLIST.md and any “100% launch worthy” verdict (bannered 23.2.26)
-- DERIVATION_ROADMAP.md phases that assume a live MMO server
-- ETERNAL_RA_THOR_PATSAGI_GOVERNANCE.md as a substitute for playtests
-- Version-stamped recovery reports v18.x–v19.x unless you are archaeology-debugging
+- Root recovery / launch-scenario / derivation files (stubbed 23.2.27; full body at e2ae388)
+- ETERNAL_RA_THOR_PATSAGI_GOVERNANCE.md as a substitute for playtests (stubbed)
 - docs/PATSAGI_v22_FLESH_THE_GAME.md seed map (bannered; hour has grown)
 
 When a historical doc conflicts with README, README wins.
