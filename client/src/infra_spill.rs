@@ -1,18 +1,34 @@
-//! Lived-hour infra witness — Slice 5 (v23.2.9)
+//! Lived-hour infra witness — Slice 5 (v23.2.9) + pack (v23.2.29)
 //!
 //! Offline extractor + spill as readable evidence. Dies in Peace.
 //! Does not teach attack. Contact: info@Rathor.ai
 
+use std::fs;
+
 use bevy::prelude::*;
 
+use shared::hour_two::HourTwoPack;
 use shared::infra_spill::InfraWitness;
 
-use crate::hour_sacred::HourSacred;
+use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
-#[derive(Resource, Debug, Clone, Default)]
+#[derive(Resource, Debug, Clone)]
 pub struct EvidenceYard {
     pub witness: InfraWitness,
+}
+
+impl Default for EvidenceYard {
+    fn default() -> Self {
+        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+            return Self {
+                witness: HourTwoPack::from_json(&raw).witness,
+            };
+        }
+        Self {
+            witness: InfraWitness::default(),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -120,9 +136,14 @@ mod tests {
 
     #[test]
     fn peace_hides_spill() {
-        let hour = HourSacred::default();
+        let hour = HourSacred {
+            session: shared::space_law::SpaceSession::default(),
+            complete: false,
+        };
         assert_eq!(hour.hex(), HexFlag::Peace);
-        let mut yard = EvidenceYard::default();
+        let mut yard = EvidenceYard {
+            witness: InfraWitness::default(),
+        };
         yard.witness.ensure_offline_extractor();
         assert!(!yard.witness.visible_on(hour.hex()));
     }
