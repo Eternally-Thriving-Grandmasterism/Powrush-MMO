@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.26] — 2026-09-04 — Repo hygiene (Slice 19 / Workstream D)
+
+Historical. README is canonical. Banner on LAUNCH-CHECKLIST. Archive index at docs/archive/README.md. One workspace version: 21.88.0. CI members match Cargo.toml. Parked crates already listed in docs/PARKED_SURFACES.md. No harvest_feel rewrite. No server. Design tick, not a Cargo bump.
+
 ## [23.2.25] — 2026-09-04 — Teaching climates (Slice 18)
 
 Two scripts, two sentences. E twice on a glow: extract left it tired. R 1 flow: flow restored the well. Lives in shared/climate_script.rs. Client witnesses on the existing slab. Does not rewrite harvest_feel. Workspace stays 21.88.0.
