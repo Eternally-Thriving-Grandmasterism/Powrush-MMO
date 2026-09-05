@@ -1,22 +1,40 @@
-//! Lived-hour Ledger — Slice 6 (v23.2.10)
+//! Lived-hour Ledger — Slice 6 (v23.2.10) + pack (v23.2.29)
 //!
 //! L opens the board. E Bind then escort. Digit3 opts DeclaredLethal (tariff).
 //! Default win is Bind. No F-key. Dies in Peace. Contact: info@Rathor.ai
 
+use std::fs;
+
 use bevy::prelude::*;
 
-use shared::ledger_bind::LedgerBoard;
+use shared::hour_two::HourTwoPack;
+use shared::ledger_bind::{ContractState, LedgerBoard};
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::hour_sacred::HourSacred;
+use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::infra_spill::EvidenceYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
-#[derive(Resource, Debug, Clone, Default)]
+#[derive(Resource, Debug, Clone)]
 pub struct LedgerYard {
     pub board: LedgerBoard,
     pub sash_open: bool,
+}
+
+impl Default for LedgerYard {
+    fn default() -> Self {
+        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+            return Self {
+                board: HourTwoPack::from_json(&raw).board,
+                sash_open: false,
+            };
+        }
+        Self {
+            board: LedgerBoard::default(),
+            sash_open: false,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -31,7 +49,7 @@ impl Plugin for LedgerBindPlugin {
         app.init_resource::<LedgerYard>()
             .add_systems(Startup, spawn_ledger_slab)
             .add_systems(PreUpdate, mark_ledger_bind)
-            .add_systems(Update, (handle_ledger, update_ledger_slab));
+            .add_systems(Update, (handle_ledger, stamp_complete, update_ledger_slab));
     }
 }
 
@@ -127,6 +145,20 @@ fn handle_ledger(
     }
 }
 
+fn stamp_complete(mut hour: ResMut<HourSacred>, evidence: Res<EvidenceYard>, yard: Res<LedgerYard>) {
+    if hour.complete {
+        return;
+    }
+    let settled = yard
+        .board
+        .open()
+        .map(|c| c.state == ContractState::Settled)
+        .unwrap_or(false);
+    if hour.charter_skin_live() && evidence.witness.seen && settled {
+        hour.complete = true;
+    }
+}
+
 fn update_ledger_slab(
     hour: Res<HourSacred>,
     yard: Res<LedgerYard>,
@@ -161,9 +193,15 @@ mod tests {
 
     #[test]
     fn peace_keeps_ledger_closed() {
-        let hour = HourSacred::default();
+        let hour = HourSacred {
+            session: shared::space_law::SpaceSession::default(),
+            complete: false,
+        };
         assert_eq!(hour.hex(), HexFlag::Peace);
-        let yard = LedgerYard::default();
+        let yard = LedgerYard {
+            board: LedgerBoard::default(),
+            sash_open: false,
+        };
         assert!(!yard.sash_open);
         assert!(yard.board.contracts.is_empty());
     }

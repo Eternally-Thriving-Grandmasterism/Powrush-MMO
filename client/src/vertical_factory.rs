@@ -1,22 +1,38 @@
-//! Lived-hour Charter tutorial — Slice 3 (v23.2.7) + door hint (v23.2.28)
+//! Lived-hour Charter tutorial — Slice 3 (v23.2.7) + door hint (v23.2.28) + pack (v23.2.29)
 //!
 //! Q on Frontier: found House, then extractor → depot → hauler → two stops → arrival.
 //! Peace slab speaks Tab only after a first-hour allocate. Contact: info@Rathor.ai
 
+use std::fs;
+
 use bevy::prelude::*;
 
+use shared::hour_two::HourTwoPack;
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
-use crate::hour_sacred::HourSacred;
+use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
 /// Client wrap. Shared `VerticalFactory` stays Bevy-free (same as HourSacred / SpaceSession).
-#[derive(Resource, Debug, Clone, Default)]
+#[derive(Resource, Debug, Clone)]
 pub struct FactoryYard {
     pub factory: VerticalFactory,
+}
+
+impl Default for FactoryYard {
+    fn default() -> Self {
+        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+            return Self {
+                factory: HourTwoPack::from_json(&raw).factory,
+            };
+        }
+        Self {
+            factory: VerticalFactory::default(),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -30,7 +46,7 @@ impl Plugin for VerticalFactoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FactoryYard>()
             .add_systems(Startup, spawn_factory_slab)
-            .add_systems(Update, (handle_factory_q, persist_after_found, update_factory_slab));
+            .add_systems(Update, (handle_factory_q, update_factory_slab));
     }
 }
 
@@ -88,7 +104,6 @@ fn handle_factory_q(
         yard.factory.found_house();
         hour.session.charter_id = Some("house-local".into());
         hour.session.kind = CharterKind::House;
-        hour.persist();
         return;
     }
     if !hour.charter_skin_live() {
@@ -108,15 +123,11 @@ fn handle_factory_q(
     }
 }
 
-fn persist_after_found(hour: Res<HourSacred>) {
-    if hour.is_changed() && hour.charter_skin_live() {
-        hour.persist();
-    }
-}
-
 fn update_factory_slab(
     hour: Res<HourSacred>,
     yard: Res<FactoryYard>,
+    evidence: Option<Res<crate::infra_spill::EvidenceYard>>,
+    ledger: Option<Res<crate::ledger_bind::LedgerYard>>,
     bind: Option<Res<LivedHourBind>>,
     mut root: Query<&mut Visibility, With<FactorySlabRoot>>,
     mut text_q: Query<&mut Text, With<FactorySlabText>>,
@@ -126,7 +137,16 @@ fn update_factory_slab(
             SpaceSession::hour_two_door_ready(b.hour.allocation.flow, b.hour.allocation.reserve)
         })
         .unwrap_or(false);
-    let show = hour.hex() != HexFlag::Peace || ready;
+    let pack = HourTwoPack {
+        session: hour.session.clone(),
+        factory: yard.factory.clone(),
+        witness: evidence
+            .map(|e| e.witness.clone())
+            .unwrap_or_default(),
+        board: ledger.map(|l| l.board.clone()).unwrap_or_default(),
+        complete: hour.complete,
+    };
+    let show = hour.hex() != HexFlag::Peace || ready || pack.complete;
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -137,10 +157,9 @@ fn update_factory_slab(
     if !show {
         return;
     }
-    let line = if hour.hex() == HexFlag::Peace {
-        hour.session.hour_two_line(ready).to_string()
-    } else if hour.session.peace_visitor_on_frontier() {
-        hour.session.hour_two_line(ready).to_string()
+    let line = if pack.complete || hour.hex() == HexFlag::Peace || hour.session.peace_visitor_on_frontier()
+    {
+        pack.line(ready).to_string()
     } else {
         yard.factory.slab_line()
     };
@@ -161,9 +180,12 @@ mod tests {
     fn peace_does_not_found() {
         let hour = HourSacred {
             session: SpaceSession::default(),
+            complete: false,
         };
         assert_eq!(hour.hex(), HexFlag::Peace);
-        let yard = FactoryYard::default();
+        let yard = FactoryYard {
+            factory: VerticalFactory::default(),
+        };
         assert!(!yard.factory.founded);
     }
 }
