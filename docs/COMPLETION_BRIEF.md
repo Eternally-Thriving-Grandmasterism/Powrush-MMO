@@ -1,9 +1,9 @@
 # COMPLETION_BRIEF.md — Powrush-MMO
 
-Status date: 2026-09-04  
+Status date: 2026-09-05  
 Canonical product: lived first hour (`cargo run -p powrush-client`)  
 Workspace: 21.88.0  
-Design tick: 23.2.26 (not a Cargo bump)  
+Design tick: 23.2.27 (not a Cargo bump)  
 This file is an instruction document for manual, non-agentic work.
 
 ## Product law
@@ -66,7 +66,7 @@ Unlock behind Charter, in this order only:
 - [x] One version line in README, CHANGELOG, Cargo.toml (`21.88.0` workspace; 23.2.x is design tick)
 - [x] Workspace members list matches what CI actually builds (`shared`, `rsil-identity`, `powrush-client --lib`)
 - [x] Parked crates documented in `docs/PARKED_SURFACES.md`
-- [ ] Later: physically move root recovery / launch-scenario blobs into `docs/archive/` (index only this slice)
+- [x] Root recovery / launch-scenario / derivation blobs stubbed; full body at git e2ae388
 
 ### E. Later, only if A–C are green
 

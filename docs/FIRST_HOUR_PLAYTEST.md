@@ -19,6 +19,7 @@ cargo run -p powrush-client
 5. Press R, then 1 (flow) and 2 (reserve). Did anything in the world change?
 6. Press H. Can you still tend without the guidance card?
 7. Quit. Rerun. Are satchel and allocation still there?
+8. Teaching claim on Sanctuary: E twice on a glow — slab *extract left it tired*. Then R 1 — *flow restored the well*.
 
 ## Pass / fail
 
@@ -28,6 +29,7 @@ Fail if R does not change the field or the satchel rights.
 Fail if the client requires a server process.
 Fail if a second HUD appears before the first tend.
 Fail if the card is a manifesto.
+Fail if extract-only never tires a well, or flow never restores one.
 
 ## Report template
 
@@ -39,5 +41,7 @@ Satchel correct: yes/no
 Allocate visible: yes/no
 Save/load: yes/no
 Card hid with H: yes/no
+Extract tired the well: yes/no
+Flow restored the well: yes/no
 Confusion point:
 Suggested one-line fix:

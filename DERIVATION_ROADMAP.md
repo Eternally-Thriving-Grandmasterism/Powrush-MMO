@@ -1,61 +1,10 @@
-# POWRUSH-MMO DERIVATION ROADMAP (v19.3 + Harvest/Persistence Polish)
+> Historical. README is canonical. Lived first hour is the product.
+> Full text lives in git history at e2ae388. Do not treat as current ship state.
 
-**Goal**: Develop Powrush-MMO as a lean, standalone MMOARPG by intelligently deriving systems, patterns, and components from the Ra-Thor monorepo while keeping Ra-Thor as the canonical source of truth for AGI, GPU compute, and advanced simulation infrastructure.
+# DERIVATION_ROADMAP.md (archived)
 
-## 1. Core Principles
+Phases that assumed a live MMO server are not the first-hour product.
 
-| Principle                    | Description |
-|------------------------------|-------------|
-| **Ra-Thor = Source of Truth**    | All core AGI, GPU pipeline, memory management, coalescing, PATSAGi Councils, and ONE Organism logic remain in Ra-Thor. |
-| **Powrush-MMO = Game Layer**     | Powrush-MMO focuses on player experience, gameplay systems, client, RBE mechanics, and deployment. |
-| **Derive, Don’t Duplicate**     | Only bring over what is needed. Avoid copying entire modules when referencing or adapting is sufficient. |
-| **Keep Powrush-MMO Lean**        | The standalone repository should stay focused and maintainable. |
-| **Clear Separation**             | Ra-Thor owns intelligence & simulation tech. Powrush-MMO owns the game built on top of it. |
+Workspace `21.88.0`. Design tick `23.2.27`.
 
-## 2. Current State (June 2026 — v19.3 + Harvest/Persistence/Epiphany Integration)
-
-| Repository       | Powrush-MMO Related Work                                      | Maturity |
-|------------------|---------------------------------------------------------------|----------|
-| **Ra-Thor**      | Deep design docs + GPU systems + Memory Allocator + Coalescing + PATSAGi integration + Eternal Simulation harness | High     |
-| **Powrush-MMO**  | Full simulation layer (orchestrator, council_systems, RBE, economy, harvest/resource nodes with ULTIMATE RESTORATION MERGE, emergence), Bevy client with spatial audio / Hanabi VFX / real-distance falloff / multisensory valence halos, authoritative server with persistence (SharePackage, hybrid master_secret, record_council_trial_outcome + harvest epiphany hooks), Steam integration, council audio polish (v19.2.9–v19.3) | High     |
-
-**Progress**: Significant derivation has occurred. Core game systems, council mechanics, RBE flows, harvest/resource nodes (full legacy + GPU policy + epiphany triggering), persistence (sovereign recovery + cross-system hooks), and client rendering/audio/multisensory feedback are now mature in Powrush-MMO while maintaining clean bridges to Ra-Thor. All valuable prior logic preserved across rapid iteration cycles.
-
-## 3. Derivation Phases
-
-| Phase   | Focus                        | Key Deliverables                                      | Priority |
-|---------|------------------------------|-------------------------------------------------------|----------|
-| **1**   | Core Game Systems            | Movement, Network Prediction, Server Reconciliation   | High     |
-| **2**   | GPU Simulation Layer         | Integration of GPU Memory Allocator + Coalescing      | High     |
-| **3**   | Client Foundations           | Basic client using `GpuPatsagiQuery` + multisensory (divine_whispers, valence halos) | Medium   |
-| **4**   | Economy & Factions           | RBE mechanics, harvest/resource nodes, faction systems | Medium   |
-| **5**   | Polish & Deployment          | Persistence (sovereign recovery + council/harvest hooks), Steam integration, matchmaking, production readiness | Low      |
-
-## 4. What Stays in Ra-Thor vs Moves/Derives to Powrush-MMO
-
-| Component                              | Location              | Reason |
-|----------------------------------------|-----------------------|--------|
-| GPU Compute Pipeline & Allocator       | Ra-Thor               | Core infrastructure |
-| Memory Coalescing & Stats              | Ra-Thor               | Low-level systems |
-| PATSAGi Councils & ONE Organism        | Ra-Thor               | AGI layer |
-| Movement + Reconciliation Logic        | Derive to Powrush-MMO | Game-specific |
-| RBE, Harvest/Resource Nodes, Faction Systems | Derive to Powrush-MMO | Game-specific |
-| Client & Rendering + Multisensory      | Powrush-MMO           | Purely game layer |
-| Server (game logic + persistence)      | Powrush-MMO           | Game deployment layer |
-
-## 5. Success Criteria
-
-- Powrush-MMO can run as a standalone game with meaningful Ra-Thor integration.
-- Major systems are properly derived rather than duplicated.
-- Clear documentation exists showing what came from Ra-Thor and how it was adapted.
-- The standalone repository remains focused and does not become bloated.
-- All valuable historical logic (legacy aliases, GPU policy, epiphany triggering, sovereign persistence, multisensory feedback) preserved through eternal polish cycles.
-
-## 6. Working Process
-
-1. Major advancements in GPU/simulation/AGI stay in **Ra-Thor**.
-2. When a system is mature enough, it gets **derived** into **Powrush-MMO** with proper adaptation.
-3. Powrush-MMO maintains its own roadmap focused on game development.
-4. Both repositories keep updated Derivation Roadmaps and release notes.
-
-**License:** AG-SML v1.0
+Last full body: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/blob/e2ae38820d5b599ca03b9fa43989054d13027175/DERIVATION_ROADMAP.md
