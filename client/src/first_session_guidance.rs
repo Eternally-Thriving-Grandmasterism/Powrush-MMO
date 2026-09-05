@@ -135,7 +135,7 @@ impl FirstSessionGuidance {
             GuidanceObjective::PlantHouse => self.house_live,
             GuidanceObjective::OpenLedger => self.ledger_open || self.hour_two_held,
             GuidanceObjective::BindEscort => self.hour_two_held,
-            GuidanceObjective::HourTwoHeld => self.hour_two_held,
+            GuidanceObjective::HourTwoHeld => false,
             GuidanceObjective::FeelFirstEpiphany => self.epiphany_felt,
             GuidanceObjective::MeetCouncilWhisper => {
                 self.epiphany_felt && self.harvests_completed >= 1
@@ -339,9 +339,15 @@ fn track_simple_progress_signals(
 
     guidance.advance_if_ready();
 
-    if guidance.objective == GuidanceObjective::FreeExploration {
+    if guidance.objective == GuidanceObjective::HourTwoHeld
+        || guidance.objective == GuidanceObjective::FreeExploration
+    {
         guidance.free_since += time.delta_seconds();
-        if guidance.free_since > 8.0 {
+        if guidance.objective == GuidanceObjective::HourTwoHeld && guidance.free_since > 6.0 {
+            guidance.objective = GuidanceObjective::FreeExploration;
+            guidance.free_since = 0.0;
+        } else if guidance.objective == GuidanceObjective::FreeExploration && guidance.free_since > 8.0
+        {
             guidance.dismiss();
         }
     }
@@ -402,7 +408,7 @@ mod tests {
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
         g.advance_if_ready();
-        assert_eq!(g.objective, GuidanceObjective::FreeExploration);
+        assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
     }
 
     #[test]
