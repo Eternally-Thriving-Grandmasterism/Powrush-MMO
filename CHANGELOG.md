@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.37] — 2026-09-05 — Phase R local hex standing
+
+Standing beside climate at `data/powrush_shard_standing.json`. peace / harmony / consumption / steward; human_hybrid_heat=0; declared_lethal=false (parked). Same verbs write climate + standing. Embassy intact. No race select, no standing HUD. Workspace stays 21.88.0.
+
 ## [23.2.36] — 2026-09-05 — Phase Q solo shard climate
 
 One hex ledger at `data/powrush_shard_climate.json`. Same verbs: care-tend / glowing take / tired refuse / flow / reserve / MendSpool / LaneCrate. Face stays well speech. Optional *the well is tired* / *the yard is circulating* on the existing slab. No factions, no War week, no server, no Embassy rewrite. Workspace stays 21.88.0.

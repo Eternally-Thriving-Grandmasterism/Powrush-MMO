@@ -114,12 +114,22 @@ fn handle_fab_q(
     let step = yard.fab.craft_next();
     if yard.fab.pack.repair && !had_repair {
         bind.climate.on_mend();
-        bind.climate_slab = bind.climate.slab_line().map(|s| s.to_string());
+        bind.standing.on_mend();
+        bind.climate_slab = bind
+            .standing
+            .slab_line()
+            .or_else(|| bind.climate.slab_line())
+            .map(|s| s.to_string());
         bind.persist();
     }
     if yard.fab.pack.logi && !had_logi {
         bind.climate.on_lane();
-        bind.climate_slab = bind.climate.slab_line().map(|s| s.to_string());
+        bind.standing.on_lane();
+        bind.climate_slab = bind
+            .standing
+            .slab_line()
+            .or_else(|| bind.climate.slab_line())
+            .map(|s| s.to_string());
         bind.persist();
     }
     if step == "unlocked" {

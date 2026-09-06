@@ -7,6 +7,7 @@ pub mod protocol;
 pub mod climate_node;
 pub mod climate_script;
 pub mod shard_climate;
+pub mod shard_standing;
 pub mod space_law;
 pub mod hour_two;
 pub mod vertical_factory;
@@ -47,6 +48,7 @@ pub mod prelude {
     pub use crate::climate_node::{AllocKind, Allocation, ClimateNode, ClimateTake, LivedHour, NodeState, Satchel, TendResult};
     pub use crate::climate_script;
     pub use crate::shard_climate::ShardClimate;
+    pub use crate::shard_standing::ShardStanding;
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::hour_two::HourTwoPack;
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
@@ -209,6 +211,13 @@ mod tests {
         assert_eq!(w.act(), "won");
         assert_eq!(w.traveler_answers(), "lost");
         assert_eq!(w.act(), "dawn");
+    }
+
+    #[test]
+    fn shard_standing_lethal_parked() {
+        let s = shard_standing::ShardStanding::default();
+        assert!(!s.declared_lethal);
+        assert_eq!(s.human_hybrid_heat, 0.0);
     }
 
     #[test]
