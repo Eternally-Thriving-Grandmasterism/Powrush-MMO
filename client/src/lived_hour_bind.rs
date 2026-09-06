@@ -10,19 +10,22 @@ use std::path::Path;
 use bevy::prelude::*;
 use shared::climate_node::{AllocKind, LivedHour, NodeState, TendResult};
 use shared::shard_climate::ShardClimate;
+use shared::shard_standing::ShardStanding;
 
 pub const LIVED_TICK_PATH: &str = "data/powrush_lived_tick.json";
 pub const SHARD_CLIMATE_PATH: &str = "data/powrush_shard_climate.json";
+pub const SHARD_STANDING_PATH: &str = "data/powrush_shard_standing.json";
 
 #[derive(Resource, Debug, Clone)]
 pub struct LivedHourBind {
     pub hour: LivedHour,
     pub climate: ShardClimate,
+    pub standing: ShardStanding,
     pub last_line: String,
     pub guidance_hidden: bool,
     /// Nearest well the body is looking at. tend_nearest uses this first.
     pub focus_id: Option<u32>,
-    /// Optional climate slab after allocate / resume (not a second HUD).
+    /// Optional climate/standing clause after allocate / resume (not a second HUD).
     pub climate_slab: Option<String>,
 }
 
@@ -42,14 +45,28 @@ impl LivedHourBind {
         ShardClimate::default()
     }
 
+    fn load_standing() -> ShardStanding {
+        if let Ok(raw) = fs::read_to_string(SHARD_STANDING_PATH) {
+            if let Ok(s) = ShardStanding::from_json(&raw) {
+                return s;
+            }
+        }
+        ShardStanding::default()
+    }
+
     pub fn load_or_demo() -> Self {
         let climate = Self::load_climate();
-        let climate_slab = climate.slab_line().map(|s| s.to_string());
+        let standing = Self::load_standing();
+        let climate_slab = standing
+            .slab_line()
+            .or_else(|| climate.slab_line())
+            .map(|s| s.to_string());
         if let Ok(raw) = fs::read_to_string(LIVED_TICK_PATH) {
             if let Ok(hour) = LivedHour::from_json(&raw) {
                 return Self {
                     hour,
                     climate,
+                    standing,
                     last_line: "resumed".to_string(),
                     guidance_hidden: false,
                     focus_id: None,
@@ -60,6 +77,7 @@ impl LivedHourBind {
         Self {
             hour: LivedHour::new_demo(),
             climate,
+            standing,
             last_line: "walk to a glow".to_string(),
             guidance_hidden: false,
             focus_id: None,
@@ -74,14 +92,21 @@ impl LivedHourBind {
         if let Ok(json) = self.hour.to_json() {
             let _ = fs::write(LIVED_TICK_PATH, json);
         }
-        // Soft-fail climate I/O — never block the hour.
+        // Soft-fail climate / standing I/O — never block the hour.
         if let Ok(json) = self.climate.to_json() {
             let _ = fs::write(SHARD_CLIMATE_PATH, json);
+        }
+        if let Ok(json) = self.standing.to_json() {
+            let _ = fs::write(SHARD_STANDING_PATH, json);
         }
     }
 
     fn refresh_climate_slab(&mut self) {
-        self.climate_slab = self.climate.slab_line().map(|s| s.to_string());
+        self.climate_slab = self
+            .standing
+            .slab_line()
+            .or_else(|| self.climate.slab_line())
+            .map(|s| s.to_string());
     }
 
     /// E on a node id (nearest glow is the client's job).
@@ -96,11 +121,13 @@ impl LivedHourBind {
         match &result {
             TendResult::Taken { item } => {
                 self.climate.on_glowing_take();
+                self.standing.on_glowing_take();
                 self.last_line = format!("tended node {}", item.node_id);
             }
             TendResult::NoTake { reason } => {
                 if matches!(prior, Some(NodeState::Resting | NodeState::Stressed)) {
                     self.climate.on_tired_refuse();
+                    self.standing.on_tired_refuse();
                 }
                 self.last_line = (*reason).to_string();
             }
@@ -136,10 +163,12 @@ impl LivedHourBind {
             match kind {
                 AllocKind::Flow => {
                     self.climate.on_flow();
+                    self.standing.on_flow();
                     "flow restored the well".to_string()
                 }
                 AllocKind::Reserve => {
                     self.climate.on_reserve();
+                    self.standing.on_reserve();
                     "reserve held as repair-rights".to_string()
                 }
             }
@@ -156,6 +185,7 @@ impl LivedHourBind {
     /// Hold-E care tend (ledger only — does not rewrite harvest_feel take).
     pub fn care_tend(&mut self) {
         self.climate.on_care_tend();
+        self.standing.on_care_tend();
         self.refresh_climate_slab();
         self.persist();
     }
@@ -205,6 +235,7 @@ mod tests {
         let mut bind = LivedHourBind {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -219,6 +250,7 @@ mod tests {
         let mut bind = LivedHourBind {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -236,6 +268,7 @@ mod tests {
         let mut bind = LivedHourBind {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: Some(2),
@@ -250,6 +283,7 @@ mod tests {
     fn json_roundtrip_path_constant() {
         assert_eq!(LIVED_TICK_PATH, "data/powrush_lived_tick.json");
         assert_eq!(SHARD_CLIMATE_PATH, "data/powrush_shard_climate.json");
+        assert_eq!(SHARD_STANDING_PATH, "data/powrush_shard_standing.json");
     }
 
     #[test]
@@ -257,6 +291,7 @@ mod tests {
         let mut bind = LivedHourBind {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -276,6 +311,7 @@ mod tests {
                 stress: 0.7,
                 ..Default::default()
             },
+            standing: ShardStanding::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -291,6 +327,7 @@ mod tests {
         let mut bind = LivedHourBind {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -299,5 +336,24 @@ mod tests {
         let _ = bind.tend(1);
         assert!(bind.allocate(AllocKind::Reserve));
         assert_eq!(bind.climate.reserve_pool, 1);
+        assert!(bind.standing.steward > 0.40);
+    }
+
+    #[test]
+    fn standing_lethal_stays_parked() {
+        let mut bind = LivedHourBind {
+            hour: LivedHour::new_demo(),
+            climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        };
+        bind.care_tend();
+        let _ = bind.tend(1);
+        assert!(bind.allocate(AllocKind::Flow));
+        assert!(!bind.standing.declared_lethal);
+        assert_eq!(bind.standing.human_hybrid_heat, 0.0);
     }
 }

@@ -62,6 +62,7 @@ fn persist_climate_on_escape(keyboard: Res<ButtonInput<KeyCode>>, bind: Res<Live
 mod tests {
     use shared::hour_two::HourTwoPack;
     use shared::shard_climate::ShardClimate;
+    use shared::shard_standing::ShardStanding;
 
     #[test]
     fn book_and_climate_paths_are_siblings() {
@@ -69,10 +70,15 @@ mod tests {
             crate::lived_hour_bind::SHARD_CLIMATE_PATH,
             "data/powrush_shard_climate.json"
         );
+        assert_eq!(
+            crate::lived_hour_bind::SHARD_STANDING_PATH,
+            "data/powrush_shard_standing.json"
+        );
         assert_eq!(crate::hour_sacred::HOUR_TWO_PATH, "data/powrush_hour_two.json");
         let mut pack = HourTwoPack::default();
         pack.hour_three_complete = true;
         assert!(pack.hour_three_complete);
+        let _ = ShardStanding::default();
         let mut c = ShardClimate::default();
         c.on_care_tend();
         let raw = c.to_json().unwrap();

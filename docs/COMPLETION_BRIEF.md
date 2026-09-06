@@ -110,3 +110,9 @@ A change is not fruitful if it:
 1. [x] `data/powrush_shard_climate.json` ledger
 2. [x] Writers: care-tend / take / tired refuse / flow / reserve / mend / lane
 3. [x] Face = well speech + optional tired/circulating clause
+
+## Phase R — local hex standing (23.2.37)
+
+1. [x] `data/powrush_shard_standing.json`
+2. [x] Same verbs write standing; lethal false
+3. [x] Book + climate + standing survive quit
