@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.47] — 2026-09-05 — Stranger-loop proof
+
+One-page `docs/STRANGER_LOOP.md` (keys-only beats). Shared persist/flag proof: hour two held, hour three / book, climate harmony/stress, standing `declared_lethal == false` until Ledger 3, week tons + restored; Peace/fresh fixture non-lethal; quit/rerun JSON round-trip. Resume soft cues already on card / welcome / Ledger sash — no new verbs. Workspace stays 21.88.0.
+
 ## [23.2.46] — 2026-09-05 — Playable-loop polish
 
 Docs `PHASE_PLAYABLE_LOOP.md` for the stranger offline path. Soft cues on the existing card + welcome + Ledger sash: after harvest toward House; after Hour two name climate/week; after book Ledger 3 optional (never default E, never Peace lethal UI). Mythic SLICE_LOG receipt fixed. Workspace stays 21.88.0.
