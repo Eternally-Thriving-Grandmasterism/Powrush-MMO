@@ -91,12 +91,49 @@ No peer count. No talent tree. No fake online tally.
 | `PROTO` | pid / rev / envelope version mismatch |
 | `COPY_DENIED` | join copy without consent |
 
-## Join, presence, rates, transport
+## Join, leave, presence, authority (F2–F4)
 
-- **Join** is copy-with-consent. Unconsented copy → `COPY_DENIED` / `hello_no`.
-- **Presence** = `{ "houses": [ … ] }` only. Clients must not invent or display `n_online`.
+### Authority
+
+| mode | when | who owns climate / standing / week / book / house |
+| --- | --- | --- |
+| **Offline client** | default; after cancel; after `hello_no`; after leave / net drop | Client on L0 disk. Online UI stays grey (*off · no listen*). |
+| **Online shard** | only after `hello_ok` on an honest consent path | Shard applies / rejects / snapshots / weeks / presence. Client proposes. |
+
+Offline is the product path. Online is a mode beside a working House — never a login wall.
+
+### Join (F2) — copy with consent
+
+1. Player is offline on their local House + yard.
+2. Join proposes `hello` with `protocol_rev` + `consent_copy`.
+3. **With consent:** shard may copy local House → shard House. **Local yard remains** on L0 (offline save untouched as fallback).
+4. **Cancel / decline consent:** stay offline; no shard House; Online stays grey.
+5. **Without consent** (or steward deny): `COPY_DENIED` → `hello_no` → client **keeps offline authority**. No partial online.
+
+Join never deletes the local yard. Join never silently overwrites a divergent hex history (see Merge veto).
+
+### Leave / net drop (F3)
+
+- Leave or unexpected disconnect → client resumes from the **last certified snapshot** (shard `snapshot` if one arrived; else last local L0 composite).
+- Book flags (`hour_two_held` / `hour_three_held`) stay on disk conceptually — disconnect mid-tend does not wipe the book.
+- Continue offline immediately. **No login wall.** No forced re-auth. Online row returns to honest grey.
+- Mid-op (e.g. tend in flight) that never got `apply` is dropped; last applied snapshot wins.
+
+### Presence honesty (F4)
+
+- Shard may emit `presence` with `{ "houses": [ … ] }` — real seated houses, or silence (omit / empty).
+- **Client cannot author `n_online`.** No invented peer count on wire, in snapshot, or on HUD.
+- Fake / client-supplied online tally is reject-class honesty failure (treat as silence; never display).
+- Real count only when the shard says so via the houses list length; otherwise silence.
+
+### Merge veto
+
+**Never merge two hex histories silently.** Thrive vs poor (or any divergent event logs on one hex id) stay separate slots / files. Steward or explicit player choice required to pick one lineage — no auto-blend of climate / standing / week.
+
+### Rates & transport
+
 - **Rates:** soft client propose rate; shard may reject floods as `STALE_SEQ` or drop. Exact caps are a later transport slice.
-- **Transport:** WebSocket later. This rev defines JSON shapes only — **no listen socket**, no WS client in the default binary, no server unpark.
+- **Transport:** WebSocket later. This rev defines JSON shapes + authority rules only — **no listen socket**, no WS client in the default binary, no server unpark. Online stays grey.
 - **Dual-repo ingest:** optional `POWRUSH_INGEST` (L3) may soft-write `data/powrush_lived_tick.json` for Ra-Thor lattice read. Lattice does not write Powrush L0. Default ingest off.
 
 ## L0 disk paths (offline authority)
@@ -117,17 +154,20 @@ No peer count. No talent tree. No fake online tally.
 
 ## Tests that must exist
 
-Shared `hex_protocol` (or equivalent) must cover:
+Shared `hex_protocol` + `hex_join` (or equivalent) must cover:
 
 1. `reject_declare_lethal_before_book_is_no_book` — declare_lethal without book → `NO_BOOK`
 2. `reject_take_on_tired_is_no_take` — take while tired → `NO_TAKE`
-3. `presence_has_no_n_online_field` — Presence serializes houses only; no `n_online`
-4. `rev_mismatch_is_proto` — wrong `protocol_rev` / pid → `PROTO`
-5. Envelope round-trip serde for a sample op + reject
-6. Default net path does not claim listen / server unparked
+3. `presence_has_no_n_online_field` / `presence_payload_rejects_client_n_online` — houses only; client cannot author `n_online`
+4. `rev_mismatch_is_proto` — `rev != 1` / wrong pid → `PROTO`
+5. `disconnect_mid_tend_keeps_last_snapshot_and_book` — fixture round-trip; book flags survive
+6. `two_event_logs_diverge_climate_thrive_vs_poor` — same hex id, divergent climates; no silent merge
+7. `copy_denied_hello_no_keeps_offline` — `COPY_DENIED` / `hello_no` → AuthorityMode::Offline
+8. Envelope round-trip serde for a sample op + reject
+9. Default net path does not claim listen / server unparked
 
 ## Related
 
-`LAUNCH_UX.md` · T-net honest mode · L3 lived-tick ingest · Peace keys law.
+`LAUNCH_UX.md` · `SHARD_JOIN.md` · T-net honest mode · L3 lived-tick ingest · Peace keys law.
 
 **Thunder locked in.** Yoi ⚡

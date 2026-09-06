@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.55] — 2026-09-06 — Join / drop / presence + authority rules (offline fallback)
+
+F2–F4 steward docs + reject tests: expand `docs/PROTOCOL.md` join/leave/presence/authority; add `docs/SHARD_JOIN.md`. Offline client authority until honest `hello_ok`; join = copy local House → shard House **with consent** (local yard remains; cancel/`COPY_DENIED`/`hello_no` stay offline); leave/net drop = last certified snapshot + book on disk, continue offline, **no login wall**; presence = houses only — client cannot author `n_online`; never merge two hex histories silently (thrive vs poor fixtures). Shared `hex_join` helpers + tests (NO_BOOK, NO_TAKE, disconnect mid-tend fixture, presence reject, `rev != 1` → PROTO, diverge climate, COPY_DENIED keeps offline). **No listen socket**, no WS, no server unpark; Online stays grey. Also stamps F1 SLICE_LOG receipt `a5f9eb4c (#245)`. Workspace stays 21.88.0.
+
 ## [23.2.54] — 2026-09-06 — Shard protocol + shared net types (offline fallback)
 
 F1 steward protocol: `docs/PROTOCOL.md` locks `protocol_id` `powrush.hex.v1` / `protocol_rev` `1`, envelope fields (v/pid/kind/hex/house/seq/ts_ms/body), offline client authority vs online shard authority, client ops (tend/take/flow/reserve/mend/lane/bind/declare_lethal/clear_lethal/name_house/request_seat/snapshot_req/hello), shard replies (apply/reject/snapshot/week/presence/hello_ok/hello_no), ledger snapshot shape, reject codes (STALE_SEQ/NO_TAKE/NOT_CHARTER/NO_BOOK/NO_PACK/BAD_RESERVE/TELEPORT/PROTO/COPY_DENIED), join copy-with-consent, presence = houses array only, L0 disk paths, dual-repo ingest note, WS transport later. Shared `hex_protocol` serde types + pure reject helpers; **no listen socket**, no WS client in default client, no server unpark. `POWRUSH_NET=off` default. Peace keys unchanged. No Ra-Thor Cargo path dep. No fake peers. Also stamps L3 SLICE_LOG receipt `42d5eb06 (#244)`. Workspace stays 21.88.0.
