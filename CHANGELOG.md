@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.44] — 2026-09-05 — Lethal opt-in Ledger 3
+
+DeclaredLethal after Hour three held only. Digit3 on Ledger. Tariff from reserve else restored debt. Harmony/stress hit. Clear keeps tariff paid. Peace hour unchanged. Week still tons + restored. Workspace stays 21.88.0.
+
 ## [23.2.43] — 2026-09-05 — U divergent shard slots
 
 `ShardBank` with thrive vs poor hex slots. Separate paths under `data/shards/`. No race menu. Workspace stays 21.88.0.

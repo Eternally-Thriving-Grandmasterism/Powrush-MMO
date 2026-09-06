@@ -1,7 +1,7 @@
 //! Phase R — local hex faction standing (v23.2.37)
 //!
 //! Standing beside climate. Same verbs write both.
-//! declared_lethal stays false (Ledger 3 is later, opt-in).
+//! declared_lethal flips only via Ledger 3 after Hour three held (opt-in).
 //! No race select. No second HUD. Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -20,8 +20,11 @@ pub struct ShardStanding {
     pub steward: f32,
     /// Reserved for hybrid heat; starts at 0
     pub human_hybrid_heat: f32,
-    /// Lethal parked. Never default E.
+    /// Opt-in via Ledger 3 after the book. Never default E.
     pub declared_lethal: bool,
+    /// Blood tariff units paid this week (not refunded on clear).
+    #[serde(default)]
+    pub tariff_paid: u32,
     pub updated_at: u64,
 }
 
@@ -35,6 +38,7 @@ impl Default for ShardStanding {
             steward: 0.40,
             human_hybrid_heat: 0.0,
             declared_lethal: false,
+            tariff_paid: 0,
             updated_at: 0,
         }
     }
@@ -47,8 +51,7 @@ impl ShardStanding {
         self.consumption = self.consumption.clamp(0.0, 1.0);
         self.steward = self.steward.clamp(0.0, 1.0);
         self.human_hybrid_heat = self.human_hybrid_heat.clamp(0.0, 1.0);
-        // Constitution: Phase R never flips lethal on.
-        self.declared_lethal = false;
+        // declared_lethal is set only by declare_lethal / clear_lethal — clamp does not wipe it.
     }
 
     fn touch(&mut self) {
@@ -101,6 +104,31 @@ impl ShardStanding {
         self.consumption = (self.consumption + 0.03).clamp(0.0, 1.0);
         self.steward = (self.steward + 0.04).clamp(0.0, 1.0);
         self.touch();
+    }
+
+    /// Ledger 3 after Hour three held. Returns false if book missing or already lethal.
+    pub fn declare_lethal(&mut self, hour_three_held: bool) -> bool {
+        if !hour_three_held || self.declared_lethal {
+            return false;
+        }
+        self.declared_lethal = true;
+        self.harmony = (self.harmony - 0.18).clamp(0.0, 1.0);
+        self.peace = (self.peace - 0.12).clamp(0.0, 1.0);
+        self.consumption = (self.consumption + 0.15).clamp(0.0, 1.0);
+        self.tariff_paid = self.tariff_paid.saturating_add(1);
+        self.touch();
+        true
+    }
+
+    /// Mercy / second L clears the flag. Tariff already paid stays.
+    pub fn clear_lethal(&mut self) -> bool {
+        if !self.declared_lethal {
+            return false;
+        }
+        self.declared_lethal = false;
+        self.peace = (self.peace + 0.06).clamp(0.0, 1.0);
+        self.touch();
+        true
     }
 
     /// Optional one clause — not a standing HUD.
@@ -179,11 +207,30 @@ mod tests {
     }
 
     #[test]
-    fn clamp_forces_lethal_false() {
+    fn clamp_preserves_declared_lethal() {
         let mut s = ShardStanding::default();
-        s.declared_lethal = true;
+        assert!(s.declare_lethal(true));
         s.clamp_fields();
+        assert!(s.declared_lethal);
+        assert_eq!(s.tariff_paid, 1);
+    }
+
+    #[test]
+    fn declare_requires_hour_three() {
+        let mut s = ShardStanding::default();
+        assert!(!s.declare_lethal(false));
         assert!(!s.declared_lethal);
+        assert!(s.declare_lethal(true));
+        assert!(s.declared_lethal);
+    }
+
+    #[test]
+    fn clear_keeps_tariff_paid() {
+        let mut s = ShardStanding::default();
+        assert!(s.declare_lethal(true));
+        assert!(s.clear_lethal());
+        assert!(!s.declared_lethal);
+        assert_eq!(s.tariff_paid, 1);
     }
 
     #[test]

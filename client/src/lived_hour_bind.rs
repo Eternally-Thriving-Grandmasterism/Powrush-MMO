@@ -396,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn standing_lethal_stays_parked() {
+    fn standing_lethal_default_false_until_declare() {
         let mut bind = LivedHourBind {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
@@ -411,6 +411,19 @@ mod tests {
         let _ = bind.tend(1);
         assert!(bind.allocate(AllocKind::Flow));
         assert!(!bind.standing.declared_lethal);
-        assert_eq!(bind.standing.human_hybrid_heat, 0.0);
+        assert!(!bind.standing.declare_lethal(false));
+        assert!(bind.standing.declare_lethal(true));
+        bind.climate.reserve_pool = 1;
+        let paid = bind.climate.on_lethal_declare();
+        assert_eq!(paid, 1);
+        bind.refresh_climate_slab();
+        // Week slab still tons + restored language when week has counts.
+        bind.climate.tons_moved = 2;
+        bind.climate.restored_count = 1;
+        bind.refresh_climate_slab();
+        let slab = bind.climate_slab.unwrap();
+        assert!(slab.contains("tons"));
+        assert!(slab.contains("restored"));
+        assert!(!slab.to_lowercase().contains("kill"));
     }
 }
