@@ -10,6 +10,7 @@ pub mod shard_climate;
 pub mod shard_standing;
 pub mod week_audit;
 pub mod shard_sim;
+pub mod net_mode;
 pub mod space_law;
 pub mod hour_two;
 pub mod vertical_factory;
@@ -53,6 +54,7 @@ pub mod prelude {
     pub use crate::shard_standing::ShardStanding;
     pub use crate::week_audit::WeekAudit;
     pub use crate::shard_sim::ShardSim;
+    pub use crate::net_mode::NetMode;
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::hour_two::HourTwoPack;
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
@@ -215,6 +217,12 @@ mod tests {
         assert_eq!(w.act(), "won");
         assert_eq!(w.traveler_answers(), "lost");
         assert_eq!(w.act(), "dawn");
+    }
+
+    #[test]
+    fn net_mode_offline_default_no_fake_peers() {
+        assert_eq!(net_mode::NetMode::default(), net_mode::NetMode::Offline);
+        assert!(net_mode::NetMode::Offline.peer_count_for_peace_boot().is_none());
     }
 
     #[test]
