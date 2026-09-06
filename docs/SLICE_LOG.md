@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-05 — Playable-loop polish
+
+```
+slice: Playable-loop polish
+idea: stranger 40–90 min offline cues — yard → House → book → climate → week → optional lethal
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-05 — Mythic verbs
 
 ```
@@ -7,7 +17,7 @@ slice: Mythic
 idea: Witness/Offer/Attune read-first after book+seat; gate hour_three
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 141505d0 (#233)
 ```
 
 ## 2026-09-05 — Lethal

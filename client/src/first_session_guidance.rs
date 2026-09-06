@@ -2,6 +2,8 @@
  * First Session Guidance — single onboarding card (v23.2.24 + hour two v23.2.31)
  *
  * One sentence at a time: walk · tend · satchel · allocate · Tab · Q · L · fabricator · Embassy.
+ * Playable-loop polish: after harvest tip House; after Hour two name climate/week;
+ * after book Ledger 3 is optional (never shouted on Peace boot).
  * Resume skips the walk when the hour pack is already held.
  * H hides. World still teaches. Not a second HUD.
  * Does not rewrite harvest_feel or rbe_allocate_choice.
@@ -48,19 +50,19 @@ impl GuidanceObjective {
             GuidanceObjective::MoveAround => "WASD walk · Space jump · Shift sprint",
             GuidanceObjective::ApproachGlowingNode => "Walk to a glow",
             GuidanceObjective::HarvestWithInteract => "E tend the glow",
-            GuidanceObjective::OpenInventory => "I opens the satchel",
+            GuidanceObjective::OpenInventory => "I satchel · House after allocate",
             GuidanceObjective::ShareAbundance => "R then 1 flow · 2 reserve",
             GuidanceObjective::StepCharter => "Tab the ridge",
             GuidanceObjective::PlantHouse => "Q plant a House stake",
             GuidanceObjective::OpenLedger => "L opens the Ledger",
             GuidanceObjective::BindEscort => "E Bind then escort",
-            GuidanceObjective::HourTwoHeld => "Hour two held",
+            GuidanceObjective::HourTwoHeld => "climate on slab · week tons+restored",
             GuidanceObjective::PlantFabricator => "Q after arrival — plant the fabricator",
             GuidanceObjective::EmbassySeat => "Embassy lamp · E Request seat",
-            GuidanceObjective::HourThreeHeld => "Hour three held",
+            GuidanceObjective::HourThreeHeld => "Hour three · the book is yours",
             GuidanceObjective::FeelFirstEpiphany => "The field answers",
             GuidanceObjective::MeetCouncilWhisper => "The field answers",
-            GuidanceObjective::FreeExploration => "The field keeps teaching",
+            GuidanceObjective::FreeExploration => "Ledger 3 optional · not default E",
         }
     }
 
@@ -569,5 +571,28 @@ mod tests {
         g.house_live = true;
         g.resume_from_pack();
         assert_eq!(g.objective, GuidanceObjective::OpenLedger);
+    }
+
+    #[test]
+    fn playable_loop_soft_cues_stay_quiet() {
+        let harvest_next = GuidanceObjective::OpenInventory.prompt();
+        assert!(harvest_next.contains("House"));
+        assert!(harvest_next.len() < 48);
+
+        let hour_two = GuidanceObjective::HourTwoHeld.prompt();
+        assert!(hour_two.contains("climate") || hour_two.contains("week"));
+        assert!(hour_two.contains("tons"));
+        assert!(!hour_two.to_lowercase().contains("kill"));
+        assert!(!hour_two.to_lowercase().contains("lethal"));
+        assert!(hour_two.len() < 48);
+
+        let after_book = GuidanceObjective::FreeExploration.prompt();
+        assert!(after_book.contains("Ledger 3") || after_book.contains("optional"));
+        assert!(!after_book.to_lowercase().contains("combat"));
+        assert!(after_book.len() < 48);
+
+        let book = GuidanceObjective::HourThreeHeld.prompt();
+        assert!(book.contains("book"));
+        assert!(book.len() < 48);
     }
 }
