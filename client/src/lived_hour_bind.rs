@@ -91,7 +91,7 @@ impl LivedHourBind {
         let ok = self.hour.allocate(kind);
         self.last_line = if ok {
             match kind {
-                AllocKind::Flow => "flow restored a tired node".to_string(),
+                AllocKind::Flow => "flow restored the well".to_string(),
                 AllocKind::Reserve => "reserve held as repair-rights".to_string(),
             }
         } else {

@@ -6,7 +6,7 @@ Walk a climate. Harvest with mercy. Learn a resource-based economy by playing. E
 
 **Status (2026-09-05):** Hours one and two are code-complete on main (`798352fe`). Hour three is mapped in `docs/HOUR_THREE.md` and waits on the Hour-two playtest Report. Lived first hour remains the product. This repo compiles without a sibling Ra-Thor checkout (NEVC Mode B). Default binary is the lived hour: `cargo run -p powrush-client`. WASD / E / I / H / R. One card teaches walk · tend · satchel · allocate. Wells speak Idle / Glowing / Tended / Resting / Stressed. After allocate, Tab steps Frontier; Q founds a House; L Bind settles. Quit and rerun: Welcome slab *Welcome back · Hour two held · the yard remembers*. The yard remembers in `data/powrush_hour_two.json`. Not a public launch candidate. Core CI: `shared` + `rsil-identity` + `powrush-client --lib`.
 
-**Version:** workspace `21.88.0` (Cargo.toml). Lived-hour design tick `23.2.33` map / live code `23.2.32` — not a Cargo bump. See `CHANGELOG.md`. Historical launch docs: `docs/archive/README.md`. README wins conflicts.
+**Version:** workspace `21.88.0` (Cargo.toml). Lived-hour design tick `23.2.34` / map `23.2.33` / code `23.2.32` — not a Cargo bump. See `CHANGELOG.md` and `docs/WORK_PACK_NATIVE.md`. Historical launch docs: `docs/archive/README.md`. README wins conflicts.
 
 ### What a human does in the first hour
 
