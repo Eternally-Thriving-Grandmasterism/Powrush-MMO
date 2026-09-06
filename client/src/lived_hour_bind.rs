@@ -2,6 +2,7 @@
 //! Bind first-hour hands to shared::climate_node::LivedHour.
 //! E tend · I satchel · R 1 flow · R 2 reserve.
 //! Persist: data/powrush_lived_tick.json + data/powrush_shard_climate.json (Phase Q)
+//! L3 optional lattice ingest (`POWRUSH_INGEST`, default off) soft-writes versioned tick.
 //! Does not replace harvest_feel or rbe_allocate_choice.
 
 use std::fs;
@@ -12,6 +13,7 @@ use shared::climate_node::{AllocKind, LivedHour, NodeState, TendResult};
 use shared::shard_climate::ShardClimate;
 use shared::shard_standing::ShardStanding;
 use shared::week_audit::WeekAudit;
+use shared::lived_tick_ingest::{self, LivedTickIngest};
 
 pub const LIVED_TICK_PATH: &str = "data/powrush_lived_tick.json";
 pub const SHARD_CLIMATE_PATH: &str = "data/powrush_shard_climate.json";
@@ -73,6 +75,21 @@ impl LivedHourBind {
         week.sync_from_climate(climate.tons_moved, climate.restored_count);
         let climate_slab = Self::compose_slab(&climate, &standing, &week);
         if let Ok(raw) = fs::read_to_string(LIVED_TICK_PATH) {
+            // L3 composite (ingest on) nests hour — Mode B resume still works.
+            if let Ok(tick) = LivedTickIngest::from_json(&raw) {
+                if let Some(hour) = tick.hour {
+                    return Self {
+                        hour,
+                        climate,
+                        standing,
+                        week,
+                        last_line: "resumed".to_string(),
+                        guidance_hidden: false,
+                        focus_id: None,
+                        climate_slab,
+                    };
+                }
+            }
             if let Ok(hour) = LivedHour::from_json(&raw) {
                 return Self {
                     hour,
@@ -117,7 +134,16 @@ impl LivedHourBind {
         if let Some(parent) = Path::new(LIVED_TICK_PATH).parent() {
             let _ = fs::create_dir_all(parent);
         }
-        if let Ok(json) = self.hour.to_json() {
+        // L3: when POWRUSH_INGEST=on, soft-write versioned lattice tick (nested hour).
+        // Default off → bare LivedHour resume file only. Never block WASD.
+        if lived_tick_ingest::ingest_enabled() {
+            let _ = lived_tick_ingest::soft_write_if_enabled(
+                &self.climate,
+                &self.standing,
+                &self.week,
+                &self.hour,
+            );
+        } else if let Ok(json) = self.hour.to_json() {
             let _ = fs::write(LIVED_TICK_PATH, json);
         }
         // Soft-fail climate / standing I/O — never block the hour.
@@ -314,9 +340,25 @@ mod tests {
     #[test]
     fn json_roundtrip_path_constant() {
         assert_eq!(LIVED_TICK_PATH, "data/powrush_lived_tick.json");
+        assert_eq!(
+            lived_tick_ingest::LIVED_TICK_INGEST_PATH,
+            LIVED_TICK_PATH
+        );
         assert_eq!(SHARD_CLIMATE_PATH, "data/powrush_shard_climate.json");
         assert_eq!(SHARD_STANDING_PATH, "data/powrush_shard_standing.json");
         assert_eq!(WEEK_AUDIT_PATH, "data/powrush_week_audit.json");
+    }
+
+    #[test]
+    fn ingest_default_off_in_client_bind() {
+        // Default boot path must not require POWRUSH_INGEST.
+        // Flag false unless explicitly on/1/true.
+        let raw = std::env::var("POWRUSH_INGEST").unwrap_or_default();
+        let on = matches!(
+            raw.trim().to_ascii_lowercase().as_str(),
+            "on" | "1" | "true" | "yes"
+        );
+        assert_eq!(lived_tick_ingest::ingest_enabled(), on);
     }
 
     #[test]
