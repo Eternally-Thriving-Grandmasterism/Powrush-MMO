@@ -1,0 +1,21 @@
+# Parked crate — NOT a workspace member (see root Cargo.toml comment block).
+# Build with: cargo run --manifest-path powrush-shard/Cargo.toml -- --help
+# Do NOT wire into default `cargo run -p powrush-client`.
+[package]
+name = "powrush-shard"
+version = "0.1.0"
+edition = "2021"
+authors = ["Sherif Samy Botros <info@Rathor.ai>"]
+license = "AG-SML-1.1"
+description = "Parked hex shard binary: offline dry-apply + snapshot write. --listen stubbed."
+repository = "https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO"
+publish = false
+
+[[bin]]
+name = "powrush-shard"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+shared = { path = "../shared" }
