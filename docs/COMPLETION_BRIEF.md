@@ -104,3 +104,9 @@ A change is not fruitful if it:
 - adds a new race, council, or governance file without a new verb
 - requires Ra-Thor to be checked out to play
 - expands Steam / WebXR / k8s / payments before the hour is sealed
+
+## Phase Q — solo shard climate (23.2.36)
+
+1. [x] `data/powrush_shard_climate.json` ledger
+2. [x] Writers: care-tend / take / tired refuse / flow / reserve / mend / lane
+3. [x] Face = well speech + optional tired/circulating clause

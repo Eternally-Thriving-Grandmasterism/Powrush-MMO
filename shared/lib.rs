@@ -6,6 +6,7 @@
 pub mod protocol;
 pub mod climate_node;
 pub mod climate_script;
+pub mod shard_climate;
 pub mod space_law;
 pub mod hour_two;
 pub mod vertical_factory;
@@ -45,6 +46,7 @@ pub mod prelude {
     pub use crate::protocol::HotbarSlot;
     pub use crate::climate_node::{AllocKind, Allocation, ClimateNode, ClimateTake, LivedHour, NodeState, Satchel, TendResult};
     pub use crate::climate_script;
+    pub use crate::shard_climate::ShardClimate;
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::hour_two::HourTwoPack;
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
@@ -207,6 +209,14 @@ mod tests {
         assert_eq!(w.act(), "won");
         assert_eq!(w.traveler_answers(), "lost");
         assert_eq!(w.act(), "dawn");
+    }
+
+    #[test]
+    fn shard_climate_flow_lowers_stress() {
+        let mut c = shard_climate::ShardClimate::default();
+        c.stress = 0.6;
+        c.on_flow();
+        assert!(c.stress < 0.6);
     }
 
     #[test]

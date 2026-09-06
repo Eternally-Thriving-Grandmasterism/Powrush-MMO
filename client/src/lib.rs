@@ -29,6 +29,7 @@ pub mod harvest_feel;
 pub mod first_harvest_epiphany;
 pub mod mercy_harvest_nodes;
 pub mod climate_visible;
+pub mod shard_climate;
 pub mod climate_script;
 pub mod human_inventory;
 pub mod local_session_persist;
@@ -101,6 +102,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(abundance_journey_echo::AbundanceJourneyEchoPlugin);
         app.add_plugins(mercy_harvest_nodes::MercyHarvestNodesPlugin);
         app.add_plugins(climate_visible::ClimateVisiblePlugin);
+        app.add_plugins(shard_climate::ShardClimatePlugin);
         app.add_plugins(climate_script::ClimateScriptPlugin);
         app.add_plugins(climate_plane::ClimatePlanePlugin);
         app.add_plugins(living_ecology::LivingEcologyPlugin);

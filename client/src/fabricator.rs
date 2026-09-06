@@ -12,6 +12,7 @@ use shared::hour_two::HourTwoPack;
 use shared::space_law::HexFlag;
 
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::vertical_factory::FactoryYard;
@@ -91,6 +92,7 @@ fn handle_fab_q(
     hour: Res<HourSacred>,
     factory: Res<FactoryYard>,
     mut yard: ResMut<FabricatorYard>,
+    mut bind: ResMut<LivedHourBind>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
@@ -107,7 +109,19 @@ fn handle_fab_q(
     if !factory.factory.tutorial_complete() {
         return;
     }
+    let had_repair = yard.fab.pack.repair;
+    let had_logi = yard.fab.pack.logi;
     let step = yard.fab.craft_next();
+    if yard.fab.pack.repair && !had_repair {
+        bind.climate.on_mend();
+        bind.climate_slab = bind.climate.slab_line().map(|s| s.to_string());
+        bind.persist();
+    }
+    if yard.fab.pack.logi && !had_logi {
+        bind.climate.on_lane();
+        bind.climate_slab = bind.climate.slab_line().map(|s| s.to_string());
+        bind.persist();
+    }
     if step == "unlocked" {
         fire_thriving(
             &mut moments,
