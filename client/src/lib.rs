@@ -8,6 +8,7 @@ use bevy::prelude::*;
 pub mod lived_hour_support;
 pub mod lived_hour_bind;
 pub mod hour_sacred;
+pub mod hour_two_resume;
 pub mod vertical_factory;
 pub mod coop_voice;
 pub mod infra_spill;

@@ -1,7 +1,8 @@
 /*!
- * First Session Guidance — single onboarding card (v23.2.24 + hour two v23.2.30)
+ * First Session Guidance — single onboarding card (v23.2.24 + hour two v23.2.31)
  *
  * One sentence at a time: walk · tend · satchel · allocate · Tab · Q · L.
+ * Resume skips the walk when HourTwoPack is already held.
  * H hides. World still teaches. Not a second HUD.
  * Does not rewrite harvest_feel or rbe_allocate_choice.
  *
@@ -144,6 +145,45 @@ impl FirstSessionGuidance {
         };
         if should_advance {
             self.objective = self.objective.next();
+        }
+    }
+
+    /// Quit/rerun: do not re-teach WASD if the pack already holds the yard.
+    pub fn resume_from_pack(&mut self) {
+        if self.dismissed {
+            return;
+        }
+        if self.hour_two_held {
+            self.objective = GuidanceObjective::HourTwoHeld;
+            return;
+        }
+        if self.house_live {
+            if matches!(
+                self.objective,
+                GuidanceObjective::MoveAround
+                    | GuidanceObjective::ApproachGlowingNode
+                    | GuidanceObjective::HarvestWithInteract
+                    | GuidanceObjective::OpenInventory
+                    | GuidanceObjective::ShareAbundance
+                    | GuidanceObjective::StepCharter
+                    | GuidanceObjective::PlantHouse
+            ) {
+                self.objective = GuidanceObjective::OpenLedger;
+            }
+            return;
+        }
+        if self.ridge_stepped {
+            if matches!(
+                self.objective,
+                GuidanceObjective::MoveAround
+                    | GuidanceObjective::ApproachGlowingNode
+                    | GuidanceObjective::HarvestWithInteract
+                    | GuidanceObjective::OpenInventory
+                    | GuidanceObjective::ShareAbundance
+                    | GuidanceObjective::StepCharter
+            ) {
+                self.objective = GuidanceObjective::PlantHouse;
+            }
         }
     }
 }
@@ -337,6 +377,7 @@ fn track_simple_progress_signals(
         }
     }
 
+    guidance.resume_from_pack();
     guidance.advance_if_ready();
 
     if guidance.objective == GuidanceObjective::HourTwoHeld
@@ -440,5 +481,21 @@ mod tests {
         g.dismiss();
         assert!(g.dismissed);
         assert!(!g.active);
+    }
+
+    #[test]
+    fn resume_held_skips_walk() {
+        let mut g = FirstSessionGuidance::default();
+        g.hour_two_held = true;
+        g.resume_from_pack();
+        assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
+    }
+
+    #[test]
+    fn resume_house_skips_to_ledger() {
+        let mut g = FirstSessionGuidance::default();
+        g.house_live = true;
+        g.resume_from_pack();
+        assert_eq!(g.objective, GuidanceObjective::OpenLedger);
     }
 }
