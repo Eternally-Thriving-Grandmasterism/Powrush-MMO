@@ -27,7 +27,7 @@ Fail if Welcome slab silent, card re-teaches WASD, E invisible, I empty after ta
 - Allocate climate answer via fog / world_answer (`world_answer.rs`)
 - Hour-two resume + WelcomeBack (`23.2.31`–`23.2.32`)
 
-## Wave 2 — Hour three civic (23.2.35)
+## Wave 2 — Hour three civic (23.2.35) — on main
 
 Exact `docs/HOUR_THREE.md`: Q fabricator → MendSpool + LaneCrate → Proof Pack → Embassy seat → *Hour three held*. Shipping under steward proceed.
 

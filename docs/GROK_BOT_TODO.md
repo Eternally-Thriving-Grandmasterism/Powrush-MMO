@@ -6,20 +6,17 @@ Surgical hooks only. No server. No Ra-Thor path dep.
 
 Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
 Workspace: 21.88.0
-Live design tip: 23.2.35
-Collab law: `docs/WORK_PACK_NATIVE.md`
+Live design tip: 23.2.36
 
 ## Already done
 
-- Hours 1–2 + welcome wire + teaching line (through #222)
-- Hour-three map docs (#221)
-- Steward proceed note on `HOUR_TWO_PLAYTEST.md`
-- Hour three civic door (Proof Pack + Embassy + persist held) — this pass
+- Hours 1–3 (#223 Hour three civic)
+- Phase Q solo shard climate ledger (this pass)
 
-## Next after Hour 3 is on main
+## Next after Q on main
 
-Phase Q — solo shard climate ledger (harmony / stress / regen). Same hands. Local JSON only.
+Phase R — faction law standing (peace / harmony / consumption / steward / declared_lethal=false). Wait for steward + PATSAGi go.
 
-## Still refused until stranger loves 1–3
+## Still refused
 
-G Voice · War week Chart · DeclaredLethal as new hour · Crownstone · Sylvaris · Hybrid · Compass · unpark server/
+G Voice as new hour · War week Chart · DeclaredLethal as new hour · Crownstone · Sylvaris · Hybrid · Compass · unpark server/ · climate dashboard · second Embassy chair

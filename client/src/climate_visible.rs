@@ -149,9 +149,21 @@ fn update_climate_state_slab(
                 .as_ref()
                 .and_then(|c| c.sentence_for(n.climate_id))
                 .unwrap_or(state.hand_hint());
-            format!("{} · {} · {}", n.name, state.label(), hint)
+            let mut line = format!("{} · {} · {}", n.name, state.label(), hint);
+            if let Some(slab) = bind.climate_slab.as_deref() {
+                line = format!("{line} · {slab}");
+            }
+            line
         })
-        .unwrap_or_else(|| bind.last_line.clone());
+        .unwrap_or_else(|| {
+            match bind.climate_slab.as_deref() {
+                Some(slab) if !bind.last_line.is_empty() => {
+                    format!("{} · {}", bind.last_line, slab)
+                }
+                Some(slab) => slab.to_string(),
+                None => bind.last_line.clone(),
+            }
+        });
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
