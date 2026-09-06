@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.39] — 2026-09-05 — Phase S week audit preview
+
+Local week line: tons + restored from the climate ledger. Persist `data/powrush_week_audit.json`. One honest slab. No kills, no war HUD. Workspace stays 21.88.0.
+
 ## [23.2.38] — 2026-09-05 — R+ climate feel (fog / pulse / sting)
 
 Climate stress closes fog and cools the mist. Harmony opens ambient. Stress spikes pulse the near well (ecological sting, not HP). No second HUD. Workspace stays 21.88.0.

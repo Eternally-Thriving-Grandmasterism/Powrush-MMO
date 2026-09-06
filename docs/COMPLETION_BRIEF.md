@@ -116,3 +116,8 @@ A change is not fruitful if it:
 1. [x] `data/powrush_shard_standing.json`
 2. [x] Same verbs write standing; lethal false
 3. [x] Book + climate + standing survive quit
+
+## Phase S — week audit preview (23.2.39)
+
+1. [x] Persist tons + restored week bucket
+2. [x] Honest slab *this week · N tons · M restored*
