@@ -12,6 +12,7 @@ pub mod week_audit;
 pub mod stranger_loop_proof;
 pub mod house_name;
 pub mod title_house_proof;
+pub mod pause_ledger_face;
 pub mod shard_sim;
 pub mod net_mode;
 pub mod shard_slots;
@@ -59,6 +60,7 @@ pub mod prelude {
     pub use crate::shard_standing::ShardStanding;
     pub use crate::week_audit::WeekAudit;
     pub use crate::house_name::{HouseName, HOUSE_PATH, UNNAMED};
+    pub use crate::pause_ledger_face::{face_from, face_lines, LETHAL_DECLARED_LINE};
     pub use crate::shard_sim::ShardSim;
     pub use crate::net_mode::NetMode;
     pub use crate::shard_slots::{ShardBank, ShardSlot};

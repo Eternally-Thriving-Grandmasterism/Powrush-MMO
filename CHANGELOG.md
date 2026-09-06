@@ -1,5 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.52] — 2026-09-06 — Pause / Ledger face (house + week)
+
+L2 S3 Pause/Ledger face on existing panels: **I** (satchel) and **L** (Ledger sash) show House name or *Unnamed House*, week line (`this week · N tons · M restored`), and lethal clause only when already `declared_lethal`. No talent tree, no peer count, no fake online, no second HUD. Shared `pause_ledger_face` + proof tests. Peace keys WASD E I H R unchanged. No harvest_feel / rbe rewrite. server/ parked. Workspace stays 21.88.0.
+
+
 ## [23.2.51] — 2026-09-06 — Title continue truth (Unnamed House + yard remembers)
 
 L1 title truth: Continue shows House name or exactly *Unnamed House* + *the yard remembers* whenever local persist exists. Esc from title closes Settings only — house / climate / standing / book JSON untouched. Online row visible+disabled with honest *off (no listen)* copy. First-run Play still has no name wall. Bevy 0.14 SmolStr ReceivedCharacter drained off NameHouse to stop Continue/name flicker. Proof tests: first-run, Unnamed cue, Esc persist, Online disabled. Peace keys WASD E I H R unchanged. No harvest_feel / rbe rewrite. server/ parked. Default POWRUSH_NET=off. Workspace stays 21.88.0.
