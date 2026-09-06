@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.50] — 2026-09-06 — Title + Continue + skippable House name
+
+S0 title door: Play / Continue / Settings; Online grey stub (feature off). Continue shows House name + *the yard remembers* when local persist exists. S2 skippable House naming after Settled or Escape quit path → `data/powrush_house.json` beside climate; Skip = Unnamed House. First run has no name wall before Hands. Proof: title_house_proof + house_name tests; Continue restores book+climate+standing flags; lethal false until L3 on Peace/fresh. No login wall, no race/class, no peer count, no harvest_feel rewrite. Workspace stays 21.88.0.
+
 ## [23.2.49] — 2026-09-06 — P2 stranger-path feel juice
 
 Mute hole: fabricator MendSpool / LaneCrate now `refresh_climate_slab` so the week audit answers (*this week · N tons · M restored*) instead of standing-only overwrite. Soft well_glow on contest win; WeekFeelGlow breath on the existing climate slab. Bench S+ light kept. R+ fog/pulse kept. No second HUD. No new verbs. No harvest_feel rewrite. Workspace stays 21.88.0.

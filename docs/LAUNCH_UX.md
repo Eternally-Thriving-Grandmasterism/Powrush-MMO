@@ -26,14 +26,14 @@ Boot → Title (climate breathing; no peer count)
 ## Screens (S0–S4)
 
 ### S0 — Title
-Play / Continue / Settings.  
+Play / Continue / Settings. *(shipped v0 · design tick 23.2.50)*  
 Continue shows House name + *the yard remembers* if persist is present. Climate breathing on the title — no peer count, no fake online tally.
 
 ### S1 — First card
 Existing lived-hour card. No login. Same Peace keys. Soft cues only (see `PHASE_PLAYABLE_LOOP` · `STRANGER_LOOP`).
 
 ### S2 — House naming
-One field. Confirm. Skippable after Settled or on quit. Skip = **Unnamed House**. Persist next to climate (`data/` beside shard climate / standing). Does not replace climate, standing, or book.
+One field. Confirm. Skippable after Settled or on quit. *(shipped v0 · `data/powrush_house.json`)* Skip = **Unnamed House**. Persist next to climate (`data/` beside shard climate / standing). Does not replace climate, standing, or book.
 
 ### S3 — Pause / Ledger
 House name · week tons + restored · lethal only if declared. No kill board. No race chrome.
