@@ -3,10 +3,8 @@
 //! Reuses stranger_loop_proof fixtures. No login wall. Lethal false until L3.
 //! Contact: info@Rathor.ai
 
-use crate::house_name::{continue_cue, local_persist_present, HouseName, UNNAMED};
-use crate::stranger_loop_proof::{
-    climate_week_fixture, hour_three_held_fixture, hour_two_held_fixture, peace_fixture,
-};
+use crate::house_name::HouseName;
+use crate::stranger_loop_proof::{climate_week_fixture, hour_three_held_fixture};
 use crate::hour_two::HourTwoPack;
 use crate::shard_climate::ShardClimate;
 use crate::shard_standing::ShardStanding;
@@ -29,6 +27,8 @@ pub fn continue_restore_bundle() -> (HourTwoPack, ShardClimate, ShardStanding, H
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::house_name::{continue_cue, local_persist_present, UNNAMED};
+    use crate::stranger_loop_proof::{hour_two_held_fixture, peace_fixture};
 
     #[test]
     fn first_run_no_name_wall_reaches_hands() {
@@ -71,7 +71,7 @@ mod tests {
         assert!(!house.blocks_hands());
         // Hour-two held, still no lethal without book+L3
         let h2 = hour_two_held_fixture();
-        let (_c2, standing2, _) = climate_week_fixture();
+        let (_c2, mut standing2, _) = climate_week_fixture();
         assert!(h2.complete);
         assert!(!h2.hour_three_complete);
         assert!(!standing2.declared_lethal);
