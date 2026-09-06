@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Parked powrush-shard binary (F7)
+
+```
+slice: Parked powrush-shard binary (F7)
+idea: parked crate powrush-shard (not workspace member / not client door); shared hex_shard_apply load snapshot + apply tend/take JSONL + write ledger; --listen accepted but parked/not enabled; soft cap 32 Houses; lethal-before-book reject; Core green
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Join / drop / presence offline fallback (F2–F4)
 
 ```
@@ -7,7 +17,7 @@ slice: Join / drop / presence offline fallback (F2–F4)
 idea: PROTOCOL+SHARD_JOIN authority (offline client / online shard); join=copy-with-consent yard remains; leave/drop=last snapshot offline no login wall; presence houses-only no client n_online; never silent hex merge; hex_join reject tests; no listen
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 61103815 (#246)
 ```
 
 ## 2026-09-06 — Shard protocol + shared net types (F1)

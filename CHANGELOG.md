@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.56] — 2026-09-06 — Parked powrush-shard binary (not default door)
+
+F7 parked crate `powrush-shard/` (commented beside `server/` in workspace members — **not** default `cargo run -p powrush-client`). Shared `hex_shard_apply`: load one hex ledger snapshot, apply verb events (tend/take/…) from JSONL via `hex_protocol` reject helpers, write `ledger_snapshot.json`. CLI `--hex` / `--data` / `--dry-apply`; `--listen` accepted but prints parked / not enabled (no WS bind). Soft cap **32 Houses** documented. Tests: offline tend/take on fixture; lethal-before-book → NO_BOOK; client default still no listen; soft-cap seat. No Online lighting, no login wall, no fake peers, no Ra-Thor path dep, no postcard v1. Also stamps F2 SLICE_LOG receipt `61103815 (#246)`. Workspace stays 21.88.0.
+
 ## [23.2.55] — 2026-09-06 — Join / drop / presence + authority rules (offline fallback)
 
 F2–F4 steward docs + reject tests: expand `docs/PROTOCOL.md` join/leave/presence/authority; add `docs/SHARD_JOIN.md`. Offline client authority until honest `hello_ok`; join = copy local House → shard House **with consent** (local yard remains; cancel/`COPY_DENIED`/`hello_no` stay offline); leave/net drop = last certified snapshot + book on disk, continue offline, **no login wall**; presence = houses only — client cannot author `n_online`; never merge two hex histories silently (thrive vs poor fixtures). Shared `hex_join` helpers + tests (NO_BOOK, NO_TAKE, disconnect mid-tend fixture, presence reject, `rev != 1` → PROTO, diverge climate, COPY_DENIED keeps offline). **No listen socket**, no WS, no server unpark; Online stays grey. Also stamps F1 SLICE_LOG receipt `a5f9eb4c (#245)`. Workspace stays 21.88.0.

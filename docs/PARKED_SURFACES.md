@@ -5,6 +5,7 @@ Parked means: keep on disk, do not make the default lived hour depend on it.
 | Path | Why it exists | When to unpark |
 | --- | --- | --- |
 | `server/` | Authoritative multiplayer / AOI experiments | After first hour save/load + two-player need |
+| `powrush-shard/` | Parked hex dry-apply bin (`--listen` stubbed; soft cap 32 Houses); not default door | After honest WS listen + two-player need; never wire into `powrush-client` default |
 | `simulation/` | RBE demos (`rbe_oxygen_demo`) | After first-hour client shows the same teaching claim |
 | `host/` | Hosting / wrapper experiments | After a real second machine needs hosting |
 | `game/` | Older game-layer slice | Only to mine code into `client` / `shared` |
