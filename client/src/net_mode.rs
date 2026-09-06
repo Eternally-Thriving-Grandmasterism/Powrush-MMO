@@ -4,10 +4,7 @@
 //! Never invent peer counts. No listen socket. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
-use shared::hex_listen::{
-    client_may_outbound_ws, client_opens_listen_socket, default_localhost_shard_url,
-    parse_powrush_net, PowrushNet,
-};
+use shared::hex_listen::{default_localhost_shard_url, parse_powrush_net, PowrushNet};
 use shared::net_mode::NetMode;
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
@@ -27,6 +24,22 @@ impl Default for SessionNetMode {
         let powrush_net = parse_powrush_net();
         let outbound_ws = powrush_net.may_outbound_ws();
         // HonestShard label only when localhost door is open; still no peer count / no Online light.
+        let mode = if outbound_ws {
+            NetMode::HonestShard
+        } else {
+            NetMode::Offline
+        };
+        Self {
+            mode,
+            powrush_net,
+            outbound_ws,
+            shard_url: default_localhost_shard_url(),
+        }
+    }
+
+    /// Build from an explicit net flag — tests must not race on process env.
+    pub fn from_powrush_net(powrush_net: PowrushNet) -> Self {
+        let outbound_ws = powrush_net.may_outbound_ws();
         let mode = if outbound_ws {
             NetMode::HonestShard
         } else {
@@ -64,37 +77,36 @@ impl Plugin for NetModePlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared::hex_listen::parse_powrush_net_from;
 
     #[test]
     fn boot_is_offline_without_peer_count() {
-        std::env::remove_var("POWRUSH_NET");
-        let s = SessionNetMode::default();
+        let s = SessionNetMode::from_powrush_net(PowrushNet::Off);
         assert_eq!(s.mode, NetMode::Offline);
         assert_eq!(s.powrush_net, PowrushNet::Off);
         assert!(!s.outbound_ws);
         assert!(!s.opens_listen_socket());
         assert!(s.mode.peer_count_for_peace_boot().is_none());
-        assert!(!client_may_outbound_ws());
-        assert!(!client_opens_listen_socket());
+        assert!(!PowrushNet::Off.may_outbound_ws());
+        assert!(!PowrushNet::Off.opens_listen_socket());
     }
 
     #[test]
     fn powrush_net_off_asserts_no_listen_no_outbound() {
-        std::env::set_var("POWRUSH_NET", "off");
-        let s = SessionNetMode::default();
+        assert_eq!(parse_powrush_net_from(Some("off")), PowrushNet::Off);
+        let s = SessionNetMode::from_powrush_net(PowrushNet::Off);
         assert!(!s.outbound_ws);
         assert!(!s.opens_listen_socket());
         assert!(!s.title_online_enabled());
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, s.title_online_enabled()));
-        std::env::remove_var("POWRUSH_NET");
     }
 
     #[test]
     fn powrush_net_localhost_gates_connect_title_stays_grey() {
-        std::env::set_var("POWRUSH_NET", "localhost");
-        let s = SessionNetMode::default();
+        assert_eq!(parse_powrush_net_from(Some("localhost")), PowrushNet::Localhost);
+        let s = SessionNetMode::from_powrush_net(PowrushNet::Localhost);
         assert!(s.outbound_ws);
-        assert!(client_may_outbound_ws());
+        assert!(s.powrush_net.may_outbound_ws());
         assert!(!s.opens_listen_socket());
         assert!(!s.title_online_enabled());
         assert_eq!(s.mode, NetMode::HonestShard);
@@ -102,6 +114,5 @@ mod tests {
         // Title Online row remains honest grey — Settings/env is the door.
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(!online_row_is_honest_disabled(ONLINE_STUB_LABEL, true));
-        std::env::remove_var("POWRUSH_NET");
     }
 }
