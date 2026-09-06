@@ -11,6 +11,7 @@ pub mod shard_standing;
 pub mod week_audit;
 pub mod shard_sim;
 pub mod net_mode;
+pub mod shard_slots;
 pub mod space_law;
 pub mod hour_two;
 pub mod vertical_factory;
@@ -55,6 +56,7 @@ pub mod prelude {
     pub use crate::week_audit::WeekAudit;
     pub use crate::shard_sim::ShardSim;
     pub use crate::net_mode::NetMode;
+    pub use crate::shard_slots::{ShardBank, ShardSlot};
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::hour_two::HourTwoPack;
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
@@ -217,6 +219,12 @@ mod tests {
         assert_eq!(w.act(), "won");
         assert_eq!(w.traveler_answers(), "lost");
         assert_eq!(w.act(), "dawn");
+    }
+
+    #[test]
+    fn shard_slots_diverge_thrive_vs_poor() {
+        let b = shard_slots::ShardBank::default();
+        assert!(b.thrive.climate.harmony > b.poor.climate.harmony);
     }
 
     #[test]
