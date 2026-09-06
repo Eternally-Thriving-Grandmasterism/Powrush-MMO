@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.43] — 2026-09-05 — U divergent shard slots
+
+`ShardBank` with thrive vs poor hex slots. Separate paths under `data/shards/`. No race menu. Workspace stays 21.88.0.
+
 ## [23.2.42] — 2026-09-05 — T-net honest mode label
 
 `NetMode::Offline` default. `HonestShard` labelled; never fakes Peace-hour peers. server/ still parked. Workspace stays 21.88.0.
