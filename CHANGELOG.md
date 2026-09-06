@@ -1,5 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.53] — 2026-09-06 — Optional lived-tick ingest (off by default)
+
+L3 optional lattice ingest: env `POWRUSH_INGEST` default **off**. When `on`/`1`/`true`, soft-write versioned `data/powrush_lived_tick.json` (schema `powrush_lived_tick_v1`) with house id/name, climate snapshot, standing (incl `declared_lethal`), week tons+restored, hour flags; nested hour keeps Mode B resume. When off, ingest write is never called — bare LivedHour persist unchanged. Shared `lived_tick_ingest` + thin client hook. Soft-fail I/O; never blocks WASD. No Ra-Thor checkout / path dep. No Online enable, no server unpark, no login wall, no public launch speak. Also stamps L2 SLICE_LOG receipt `fe6ddedd (#243)`. Workspace stays 21.88.0.
+
+
 ## [23.2.52] — 2026-09-06 — Pause / Ledger face (house + week)
 
 L2 S3 Pause/Ledger face on existing panels: **I** (satchel) and **L** (Ledger sash) show House name or *Unnamed House*, week line (`this week · N tons · M restored`), and lethal clause only when already `declared_lethal`. No talent tree, no peer count, no fake online, no second HUD. Shared `pause_ledger_face` + proof tests. Peace keys WASD E I H R unchanged. No harvest_feel / rbe rewrite. server/ parked. Workspace stays 21.88.0.

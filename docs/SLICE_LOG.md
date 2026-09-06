@@ -1,5 +1,16 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Optional lived-tick ingest (L3)
+
+```
+slice: Optional lived-tick ingest (L3)
+idea: POWRUSH_INGEST default off; when on soft-write versioned data/powrush_lived_tick.json (house·climate·standing·week·hour flags); no Ra-Thor dep; Mode B offline unchanged
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
 ## 2026-09-06 — Pause / Ledger face (L2)
 
 ```
@@ -7,7 +18,7 @@ slice: Pause / Ledger face (L2)
 idea: I satchel + L Ledger sash show House name (or Unnamed House) · week tons+restored · lethal only if declared; no peer count / talent / fake online; no second HUD
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: fe6ddedd (#243)
 ```
 
 ## 2026-09-06 — Title continue truth (L1)
