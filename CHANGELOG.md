@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.34] — 2026-09-05 — Teaching sentence align + native work pack
+
+`lived_hour_bind` Flow line matches playtest: *flow restored the well*. Docs: `WORK_PACK_NATIVE.md` (X-Grok collab). No Hour-three Bevy. No harvest_feel rewrite. Workspace stays 21.88.0.
+
 ## [23.2.33] — 2026-09-05 — Hour-three delivery map (docs)
 
 Docs only. Locks Hour three order: Proof Pack → Embassy seat → *Hour three held*. Gate: human Report on `docs/HOUR_TWO_PLAYTEST.md`. No Bevy systems. No server. Workspace stays 21.88.0.
