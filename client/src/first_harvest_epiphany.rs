@@ -244,26 +244,27 @@ fn spawn_lived_surfaces(mut commands: Commands) {
 
 fn maybe_welcome_back(
     echo: Res<AbundanceJourneyEcho>,
+    hour: Option<Res<HourSacred>>,
     mut state: ResMut<FirstHarvestEpiphany>,
     time: Res<Time>,
     mut text_q: Query<&mut Text, With<WelcomeBackText>>,
 ) {
-    if state.welcome_shown || !echo.loaded {
+    if state.welcome_shown {
         return;
     }
-    if echo.lines.is_empty() && !echo.last_practice_sealed {
-        state.welcome_shown = true;
+    let held = hour.as_ref().map(|h| h.complete).unwrap_or(false);
+    if !held && !echo.loaded {
         return;
     }
+    let last = echo.lines.last().map(|l| l.text.as_str());
+    let Some(line) = crate::hour_two_resume::welcome_line(held, echo.last_practice_sealed, last) else {
+        if echo.loaded {
+            state.welcome_shown = true;
+        }
+        return;
+    };
     state.welcome_shown = true;
     let now = time.elapsed_seconds_f64();
-    let line = if echo.last_practice_sealed {
-        "Welcome back · your sealed practice still travels with you · J to remember".to_string()
-    } else if let Some(last) = echo.lines.last() {
-        format!("Welcome back · last echo: {} · J to open journey", last.text)
-    } else {
-        "Welcome back · the Lattice held your place".to_string()
-    };
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             s.value = line.clone();
@@ -601,5 +602,11 @@ mod tests {
         assert!(h.session.peace_visitor_on_frontier());
         h.session.charter_id = Some("iec-1".into());
         assert!(!h.session.peace_visitor_on_frontier());
+    }
+
+    #[test]
+    fn welcome_held_yard() {
+        let line = crate::hour_two_resume::welcome_line(true, false, None).unwrap();
+        assert!(line.contains("yard remembers"));
     }
 }
