@@ -31,6 +31,10 @@ Fail if rerun stays silent when the pack is held.
 Fail if a second HUD appears.
 Fail if Embassy / Crownstone is required to finish this script.
 
+## Steward note
+
+Steward approved proceed 2026-09-05; human timing to be filled on next play. Hour-three Bevy may continue under this authorization. Do not fabricate OS / GPU / minutes.
+
 ## Report
 
 OS / GPU:

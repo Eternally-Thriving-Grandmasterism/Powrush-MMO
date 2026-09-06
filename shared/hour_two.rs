@@ -1,17 +1,19 @@
-//! Hour-two pack — Slice 22 (v23.2.29)
+//! Hour pack — Slice 22 (v23.2.29) + Hour three civic (v23.2.35)
 //!
-//! One file remembers the Charter door: hex, House, offline extractor,
-//! and Ledger Bind/Escort. Old `powrush_hour_two.json` (SpaceSession-only)
-//! still loads. No Embassy. Contact: info@Rathor.ai
+//! One file remembers the Charter door and the civic book.
+//! Old SpaceSession-only and hour-two-only JSON still load.
+//! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
 
+use crate::embassy::Embassy;
+use crate::fabricator::Fabricator;
 use crate::infra_spill::InfraWitness;
 use crate::ledger_bind::{ContractState, LedgerBoard};
 use crate::space_law::SpaceSession;
 use crate::vertical_factory::VerticalFactory;
 
-/// On-disk hour-two state. Flattened session keeps 23.2.28 files readable.
+/// On-disk hour state. Flattened session keeps 23.2.28 files readable.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct HourTwoPack {
     #[serde(flatten)]
@@ -23,7 +25,13 @@ pub struct HourTwoPack {
     #[serde(default)]
     pub board: LedgerBoard,
     #[serde(default)]
+    pub fabricator: Fabricator,
+    #[serde(default)]
+    pub embassy: Embassy,
+    #[serde(default)]
     pub complete: bool,
+    #[serde(default)]
+    pub hour_three_complete: bool,
 }
 
 impl HourTwoPack {
@@ -54,8 +62,15 @@ impl HourTwoPack {
             && self.ledger_settled();
     }
 
+    /// Hour three is held when Proof Pack is unlocked and one Embassy seat is taken.
+    pub fn mark_hour_three(&mut self) {
+        self.hour_three_complete = self.fabricator.pack.unlocked() && self.embassy.seated;
+    }
+
     pub fn line(&self, door_ready: bool) -> &'static str {
-        if self.complete {
+        if self.hour_three_complete {
+            "Hour three held · the book is yours"
+        } else if self.complete {
             "Hour two held · the yard remembers"
         } else if self.session.charter_skin_live() && self.witness.seen {
             "L Ledger · E Bind then escort"
@@ -78,6 +93,7 @@ mod tests {
         assert_eq!(pack.session.charter_id.as_deref(), Some("house-local"));
         assert!(pack.session.charter_skin_live());
         assert!(!pack.complete);
+        assert!(!pack.hour_three_complete);
         assert!(!pack.factory.founded);
     }
 
@@ -98,6 +114,19 @@ mod tests {
         assert_eq!(pack.line(true), "Hour two held · the yard remembers");
     }
 
+    #[test]
+    fn proof_pack_and_seat_mark_hour_three() {
+        let mut pack = HourTwoPack::default();
+        assert_eq!(pack.fabricator.craft_next(), "planted");
+        assert_eq!(pack.fabricator.craft_next(), "crafted");
+        assert_eq!(pack.fabricator.craft_next(), "unlocked");
+        pack.embassy.ensure_lamp(&pack.fabricator.pack);
+        assert_eq!(pack.embassy.request_seat(), "seated");
+        pack.mark_hour_three();
+        assert!(pack.hour_three_complete);
+        assert_eq!(pack.line(true), "Hour three held · the book is yours");
+    }
+
     impl HourTwoPack {
         fn act_until_settled(&mut self) -> &'static str {
             let mut last = "idle";
@@ -115,9 +144,10 @@ mod tests {
     fn peace_json_is_not_complete() {
         let pack = HourTwoPack::from_json("{}");
         assert_eq!(pack.session.hex, HexFlag::Peace);
-        pack.clone().mark_complete();
         let mut p = pack;
         p.mark_complete();
         assert!(!p.complete);
+        p.mark_hour_three();
+        assert!(!p.hour_three_complete);
     }
 }

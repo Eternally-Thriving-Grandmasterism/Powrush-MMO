@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.35] — 2026-09-05 — Hour three civic door (Proof Pack + Embassy)
+
+Steward-approved proceed. Fabricator after Hour two held + House arrival. MendSpool + LaneCrate → Proof Pack. Embassy E Request seat. Persist *Hour three held · the book is yours*. Welcome slab names the book. Card teaches Q → Embassy → held. No G Voice / War week / Crownstone. Workspace stays 21.88.0.
+
 ## [23.2.34] — 2026-09-05 — Teaching sentence align + native work pack
 
 `lived_hour_bind` Flow line matches playtest: *flow restored the well*. Docs: `WORK_PACK_NATIVE.md` (X-Grok collab). No Hour-three Bevy. No harvest_feel rewrite. Workspace stays 21.88.0.
