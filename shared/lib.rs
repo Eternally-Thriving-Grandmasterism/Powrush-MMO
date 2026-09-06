@@ -5,6 +5,7 @@
 
 pub mod protocol;
 pub mod hex_protocol;
+pub mod hex_join;
 pub mod climate_node;
 pub mod climate_script;
 pub mod shard_climate;
@@ -67,6 +68,7 @@ pub mod prelude {
     pub use crate::shard_sim::ShardSim;
     pub use crate::net_mode::NetMode;
     pub use crate::hex_protocol::{Envelope, Op, Presence, RejectCode, Snapshot, PROTOCOL_ID, PROTOCOL_REV};
+    pub use crate::hex_join::{AuthorityMode, JoinOutcome, attempt_join, leave_or_drop};
     pub use crate::shard_slots::{ShardBank, ShardSlot};
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::hour_two::HourTwoPack;
@@ -257,6 +259,14 @@ mod tests {
         assert_eq!(hex_protocol::PROTOCOL_REV, 1);
         assert!(!hex_protocol::default_client_listens());
         assert!(!hex_protocol::server_unparked_v1());
+    }
+
+    #[test]
+    fn hex_join_copy_denied_stays_offline() {
+        let o = hex_join::attempt_join(false, false, hex_protocol::PROTOCOL_REV);
+        assert_eq!(hex_join::authority_after_join(&o), hex_join::AuthorityMode::Offline);
+        assert!(!hex_join::join_slice_listens());
+        assert!(!hex_join::join_slice_unparks_server());
     }
 
     #[test]

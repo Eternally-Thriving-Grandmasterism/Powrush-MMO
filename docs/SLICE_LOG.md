@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Join / drop / presence offline fallback (F2–F4)
+
+```
+slice: Join / drop / presence offline fallback (F2–F4)
+idea: PROTOCOL+SHARD_JOIN authority (offline client / online shard); join=copy-with-consent yard remains; leave/drop=last snapshot offline no login wall; presence houses-only no client n_online; never silent hex merge; hex_join reject tests; no listen
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Shard protocol + shared net types (F1)
 
 ```
@@ -7,7 +17,7 @@ slice: Shard protocol + shared net types (F1)
 idea: docs/PROTOCOL.md powrush.hex.v1 rev1 + shared/hex_protocol Envelope/Op/RejectCode/Presence/Snapshot; offline client authority default; POWRUSH_NET=off; no listen / no WS / no server unpark; reject NO_BOOK/NO_TAKE/PROTO; presence houses-only
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: a5f9eb4c (#245)
 ```
 
 ## 2026-09-06 — Optional lived-tick ingest (L3)
