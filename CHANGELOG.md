@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.54] — 2026-09-06 — Shard protocol + shared net types (offline fallback)
+
+F1 steward protocol: `docs/PROTOCOL.md` locks `protocol_id` `powrush.hex.v1` / `protocol_rev` `1`, envelope fields (v/pid/kind/hex/house/seq/ts_ms/body), offline client authority vs online shard authority, client ops (tend/take/flow/reserve/mend/lane/bind/declare_lethal/clear_lethal/name_house/request_seat/snapshot_req/hello), shard replies (apply/reject/snapshot/week/presence/hello_ok/hello_no), ledger snapshot shape, reject codes (STALE_SEQ/NO_TAKE/NOT_CHARTER/NO_BOOK/NO_PACK/BAD_RESERVE/TELEPORT/PROTO/COPY_DENIED), join copy-with-consent, presence = houses array only, L0 disk paths, dual-repo ingest note, WS transport later. Shared `hex_protocol` serde types + pure reject helpers; **no listen socket**, no WS client in default client, no server unpark. `POWRUSH_NET=off` default. Peace keys unchanged. No Ra-Thor Cargo path dep. No fake peers. Also stamps L3 SLICE_LOG receipt `42d5eb06 (#244)`. Workspace stays 21.88.0.
+
 ## [23.2.53] — 2026-09-06 — Optional lived-tick ingest (off by default)
 
 L3 optional lattice ingest: env `POWRUSH_INGEST` default **off**. When `on`/`1`/`true`, soft-write versioned `data/powrush_lived_tick.json` (schema `powrush_lived_tick_v1`) with house id/name, climate snapshot, standing (incl `declared_lethal`), week tons+restored, hour flags; nested hour keeps Mode B resume. When off, ingest write is never called — bare LivedHour persist unchanged. Shared `lived_tick_ingest` + thin client hook. Soft-fail I/O; never blocks WASD. No Ra-Thor checkout / path dep. No Online enable, no server unpark, no login wall, no public launch speak. Also stamps L2 SLICE_LOG receipt `fe6ddedd (#243)`. Workspace stays 21.88.0.
