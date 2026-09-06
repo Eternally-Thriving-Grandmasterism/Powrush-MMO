@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.59] — 2026-09-06 — Preview checklist + stranger loop sync (docs / honesty)
+
+P10 honesty pack (docs only): README default is **one human, one machine**; Title / Continue / *Unnamed House* called out; Dev section links `docs/F9_TWO_CLIENT_LOCALHOST.md` (not a Features/store claim). `docs/STRANGER_LOOP.md` synced to L1 title truth + minute keys; Online grey; L3 ingest absent on first hour. New `docs/PREVIEW_CHECKLIST.md` (~15 human tick boxes) — explicit: ticking ≠ cutting `playable-preview` tag. Stamps F9 SLICE_LOG receipt `7d9a733a (#249)`. No Steam copy, no launch-speak, no fake presence, no `POWRUSH_NET=on` default, no `0.0.0.0` bind, no new verbs. Workspace stays 21.88.0.
+
 ## [23.2.58] — 2026-09-06 — F9 two-client same-hex localhost recipe (docs / dev only)
 
 F9 **dev recipe** (not a store or title feature): `docs/F9_TWO_CLIENT_LOCALHOST.md` — build/run `powrush-shard --listen 127.0.0.1:7788 --data …`; launch **two** client processes with `POWRUSH_NET=localhost` from separate CWDs (separate L0 `data/` books); expect presence length 2, one shared climate ledger, take-on-tired `NO_TAKE`, drop → offline book intact. Title Online stays **grey**; no public bind; stranger pass stays offline-first. Short pointers in `PROTOCOL.md` + `PARKED_SURFACES.md`. Reuses existing `hex_listen` unit helpers (presence=2, NO_TAKE, drop intact, refuse public bind) — no flaky live WS integration required in Core. Also stamps F8 SLICE_LOG receipt `b16462f7 (#248)`. Workspace stays 21.88.0.

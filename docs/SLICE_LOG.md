@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Preview checklist + stranger loop sync (P10 honesty)
+
+```
+slice: Preview checklist + stranger loop sync (P10 honesty)
+idea: docs honesty pack — README default one-human/one-machine + Dev link to F9_TWO_CLIENT_LOCALHOST (not Features); STRANGER_LOOP sync Title/Continue/Unnamed House + Online grey + L3 absent first hour (minute keys); new PREVIEW_CHECKLIST ~15 human ticks (ticking ≠ playable-preview tag); stamp F9 receipt 7d9a733a (#249); no Steam/launch-speak/fake presence/net-on default/0.0.0.0/new verbs
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Two-client same-hex localhost recipe (F9)
 
 ```
@@ -7,7 +17,7 @@ slice: Two-client same-hex localhost recipe (F9)
 idea: docs-only dev recipe — one powrush-shard --listen 127.0.0.1:7788 + two client processes POWRUSH_NET=localhost (separate CWDs); expect presence len 2, one climate ledger, take-on-tired NO_TAKE, drop→offline book intact; NOT a store/title feature; Online grey; no public bind; stranger offline-first; pointers in PROTOCOL+PARKED; reuse hex_listen unit helpers (no flaky live WS in Core)
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 7d9a733a (#249)
 ```
 
 ## 2026-09-06 — Localhost shard WS (F8)
