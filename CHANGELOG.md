@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.58] — 2026-09-06 — F9 two-client same-hex localhost recipe (docs / dev only)
+
+F9 **dev recipe** (not a store or title feature): `docs/F9_TWO_CLIENT_LOCALHOST.md` — build/run `powrush-shard --listen 127.0.0.1:7788 --data …`; launch **two** client processes with `POWRUSH_NET=localhost` from separate CWDs (separate L0 `data/` books); expect presence length 2, one shared climate ledger, take-on-tired `NO_TAKE`, drop → offline book intact. Title Online stays **grey**; no public bind; stranger pass stays offline-first. Short pointers in `PROTOCOL.md` + `PARKED_SURFACES.md`. Reuses existing `hex_listen` unit helpers (presence=2, NO_TAKE, drop intact, refuse public bind) — no flaky live WS integration required in Core. Also stamps F8 SLICE_LOG receipt `b16462f7 (#248)`. Workspace stays 21.88.0.
+
 ## [23.2.57] — 2026-09-06 — Localhost shard WS (flag-gated; title Online grey)
 
 F8: `powrush-shard --listen 127.0.0.1:7788` accepts JSON WebSocket envelopes (tokio-tungstenite). Bind **loopback only** — refuse `0.0.0.0` / non-loopback. `hello` → `hello_ok` / `hello_no` (v1 may hello_ok a second local House on same hex). `tend` / `take` / `flow` / `reserve` apply via `shared/hex_protocol` + `hex_shard_apply` with `NO_TAKE` / `NO_BOOK` / `STALE_SEQ` / `PROTO`. Persist `ledger_snapshot.json` under `--data`. Client drop → Offline; book/house intact. Presence = `houses.len()` from real seats. Client connects **only** if `POWRUSH_NET=localhost`; default `off` opens zero sockets. Title Online row stays **grey**. `powrush-shard` remains outside default-members / not client door. Shared `hex_listen` bind + hello helpers + tests. Also stamps F7 SLICE_LOG receipt `82dbb4bf (#247)`. Workspace stays 21.88.0.

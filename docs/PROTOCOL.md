@@ -134,6 +134,7 @@ Join never deletes the local yard. Join never silently overwrites a divergent he
 
 - **Rates:** soft client propose rate; shard may reject floods as `STALE_SEQ` or drop. Exact caps are a later transport slice.
 - **Transport (F8):** WebSocket JSON envelopes on **loopback only** via `powrush-shard --listen 127.0.0.1:7788`. Refuse `0.0.0.0` / non-loopback. Default client binary still opens **zero** sockets unless `POWRUSH_NET=localhost` (outbound only; no client listen). Title Online stays grey — Settings/env is the door. No TLS theatre on localhost. `server/` stays parked.
+- **Two-client same-hex (F9, dev recipe only):** one shard + two client processes on one machine — see `docs/F9_TWO_CLIENT_LOCALHOST.md`. Not a store / title feature; Online stays grey; no public bind; stranger pass stays offline-first.
 - **Dual-repo ingest:** optional `POWRUSH_INGEST` (L3) may soft-write `data/powrush_lived_tick.json` for Ra-Thor lattice read. Lattice does not write Powrush L0. Default ingest off.
 
 ## L0 disk paths (offline authority)
@@ -166,9 +167,10 @@ Shared `hex_protocol` + `hex_join` (or equivalent) must cover:
 7. `copy_denied_hello_no_keeps_offline` — `COPY_DENIED` / `hello_no` → AuthorityMode::Offline
 8. Envelope round-trip serde for a sample op + reject
 9. Default net path does not claim listen / server unparked
+10. F9 helpers (already present): `hello_ok_seats_house_presence_real` (presence length 2), `take_on_tired_rejects_no_take`, `kill_shard_mid_session_client_offline_house_intact` — see `F9_TWO_CLIENT_LOCALHOST.md` checklist (no flaky live WS required in Core)
 
 ## Related
 
-`LAUNCH_UX.md` · `SHARD_JOIN.md` · T-net honest mode · L3 lived-tick ingest · Peace keys law.
+`LAUNCH_UX.md` · `SHARD_JOIN.md` · `F9_TWO_CLIENT_LOCALHOST.md` (dev recipe) · T-net honest mode · L3 lived-tick ingest · Peace keys law.
 
 **Thunder locked in.** Yoi ⚡
