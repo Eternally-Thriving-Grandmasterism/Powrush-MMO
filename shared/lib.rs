@@ -9,6 +9,7 @@ pub mod climate_script;
 pub mod shard_climate;
 pub mod shard_standing;
 pub mod week_audit;
+pub mod stranger_loop_proof;
 pub mod shard_sim;
 pub mod net_mode;
 pub mod shard_slots;
