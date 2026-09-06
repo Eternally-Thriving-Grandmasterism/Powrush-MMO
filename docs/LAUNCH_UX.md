@@ -36,7 +36,7 @@ Existing lived-hour card. No login. Same Peace keys. Soft cues only (see `PHASE_
 One field. Confirm. Skippable after Settled or on quit. *(shipped v0 · `data/powrush_house.json`)* Skip = **Unnamed House**. Persist next to climate (`data/` beside shard climate / standing). Does not replace climate, standing, or book.
 
 ### S3 — Pause / Ledger
-House name · week tons + restored · lethal only if declared. No kill board. No race chrome.
+House name · week tons + restored · lethal only if declared. No kill board. No race chrome. *(shipped v0 · design tick 23.2.52 · I satchel + L Ledger sash)*
 
 ### S4 — Online door
 Stub + honest copy (*Online — off (no listen)*). Feature-flagged **off** by default (`POWRUSH_NET=off`). No listen socket. Grey until net exists. Never fakes Peace-hour peers (see T-net honest mode).

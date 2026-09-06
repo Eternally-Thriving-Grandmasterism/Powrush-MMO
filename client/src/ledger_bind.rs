@@ -1,8 +1,9 @@
-//! Lived-hour Ledger — Slice 6 (v23.2.10) + pack (v23.2.29)
+//! Lived-hour Ledger — Slice 6 (v23.2.10) + pack (v23.2.29) + S3 face (v23.2.52)
 //!
 //! L opens the board. E Bind then escort. Digit3 opts DeclaredLethal (tariff)
 //! Soft cue after book: sash may append "· 3 optional". Never Peace boot.
 //! only after Hour three held. Default win is Bind. No F-key. Peace silent.
+//! S3 Pause/Ledger face: House · week tons+restored · lethal only if declared.
 //! Contact: info@Rathor.ai
 
 use std::fs;
@@ -11,10 +12,12 @@ use bevy::prelude::*;
 
 use shared::hour_two::HourTwoPack;
 use shared::ledger_bind::{ContractState, LedgerBoard};
+use shared::pause_ledger_face::face_from;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::LivedHourBind;
+use crate::title_screen::HouseLabel;
 use crate::infra_spill::EvidenceYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -195,6 +198,7 @@ fn update_ledger_slab(
     hour: Res<HourSacred>,
     yard: Res<LedgerYard>,
     bind: Res<LivedHourBind>,
+    house_label: Res<HouseLabel>,
     mut root: Query<&mut Visibility, With<LedgerSlabRoot>>,
     mut text_q: Query<&mut Text, With<LedgerSlabText>>,
 ) {
@@ -209,12 +213,19 @@ fn update_ledger_slab(
     if !show {
         return;
     }
+    // S3 face on existing Ledger sash - no second HUD.
+    let face = face_from(
+        &house_label.house,
+        &bind.week,
+        bind.standing.declared_lethal,
+    );
     // Soft discoverability only after the book. Never on Peace boot (sash closed).
-    let mut line = yard.board.sash_line();
+    let mut sash = yard.board.sash_line();
     let clause = lethal_soft_clause(hour.hour_three_complete, bind.standing.declared_lethal);
-    if !clause.is_empty() && !line.contains("3 optional") {
-        line = format!("{line}{clause}");
+    if !clause.is_empty() && !sash.contains("3 optional") {
+        sash = format!("{sash}{clause}");
     }
+    let line = format!("{face}\n{sash}");
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -262,5 +273,40 @@ mod tests {
         assert_eq!(lethal_soft_clause(true, true), "");
         assert!(!lethal_soft_clause(true, false).to_lowercase().contains("combat"));
         assert!(!lethal_soft_clause(true, false).contains("kill"));
+    }
+
+    #[test]
+    fn ledger_face_strings_house_week_no_peer() {
+        use shared::house_name::HouseName;
+        use shared::pause_ledger_face::{face_from, face_is_steward_honest};
+        use shared::week_audit::WeekAudit;
+        let mut house = HouseName::default();
+        house.skip();
+        let mut week = WeekAudit::default();
+        week.sync_from_climate(2, 4);
+        let face = face_from(&house, &week, false);
+        assert!(face.contains("Unnamed House"));
+        assert!(face.contains("2 tons"));
+        assert!(face.contains("4 restored"));
+        assert!(!face.contains("lethal"));
+        assert!(face_is_steward_honest(&face));
+        assert!(!face.to_lowercase().contains("peer"));
+    }
+
+    #[test]
+    fn ledger_face_lethal_only_when_declared() {
+        use shared::house_name::HouseName;
+        use shared::pause_ledger_face::{face_from, LETHAL_DECLARED_LINE};
+        use shared::week_audit::WeekAudit;
+        let mut house = HouseName::default();
+        house.confirm("River House");
+        let mut week = WeekAudit::default();
+        week.sync_from_climate(1, 0);
+        let quiet = face_from(&house, &week, false);
+        assert!(!quiet.contains(LETHAL_DECLARED_LINE));
+        let lethal = face_from(&house, &week, true);
+        assert!(lethal.contains(LETHAL_DECLARED_LINE));
+        assert!(lethal.contains("River House"));
+        assert!(lethal.contains("1 tons"));
     }
 }

@@ -1,17 +1,22 @@
 /*!
- * Human Inventory — v22.10.0
+ * Human Inventory — v22.10.0 + S3 Pause face (v23.2.52)
  *
  * Watch reads cycles: ~ means vitality wants to go home.
  * Companion word when trust or a ride is live.
+ * I satchel shows Pause/Ledger face: House · week · lethal if declared.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
 
+use shared::pause_ledger_face::face_from;
+
 use crate::companion_bond::CompanionBond;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::human_soft_panels::HumanSoftPanels;
+use crate::lived_hour_bind::LivedHourBind;
+use crate::title_screen::HouseLabel;
 use crate::living_freshness::LivingFreshness;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::soft_play_bindings;
@@ -324,6 +329,8 @@ fn update_watch_strip(
 fn update_satchel(
     inv: Res<HumanInventory>,
     pool: Res<SoftRbePool>,
+    bind: Res<LivedHourBind>,
+    house_label: Res<HouseLabel>,
     mut root: Query<&mut Visibility, With<SatchelRoot>>,
     mut body: Query<&mut Text, With<SatchelBody>>,
 ) {
@@ -344,8 +351,20 @@ fn update_satchel(
             " "
         }
     };
+    // S3 Pause face on existing satchel - no second HUD.
+    let face = face_from(
+        &house_label.house,
+        &bind.week,
+        bind.standing.declared_lethal,
+    );
     let body_line = format!(
-        "{} [1] Vitality   {:.1}\n{} [2] Harmony    {:.1}\n{} [3] Joy        {:.1}\n\nHarvests {}",
+        "{face}
+
+{} [1] Vitality   {:.1}
+{} [2] Harmony    {:.1}
+{} [3] Joy        {:.1}
+
+Harvests {}",
         mark(SatchelSlot::Vitality),
         pool.vitality,
         mark(SatchelSlot::Harmony),
@@ -392,10 +411,39 @@ fn update_pickup_flash(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared::house_name::HouseName;
+    use shared::pause_ledger_face::{face_from, face_is_steward_honest, LETHAL_DECLARED_LINE};
+    use shared::week_audit::WeekAudit;
 
     #[test]
     fn slots_are_three() {
         assert_eq!(SatchelSlot::Vitality as u8, 0);
         assert_eq!(SatchelSlot::Joy as u8, 2);
+    }
+
+    #[test]
+    fn pause_face_on_satchel_has_house_and_week() {
+        let mut house = HouseName::default();
+        house.confirm("Satchel Keep");
+        let mut week = WeekAudit::default();
+        week.sync_from_climate(5, 3);
+        let face = face_from(&house, &week, false);
+        assert!(face.contains("Satchel Keep"));
+        assert!(face.contains("5 tons"));
+        assert!(face.contains("3 restored"));
+        assert!(!face.contains(LETHAL_DECLARED_LINE));
+        assert!(face_is_steward_honest(&face));
+        assert!(!face.to_lowercase().contains("peer"));
+    }
+
+    #[test]
+    fn pause_face_lethal_gate() {
+        let mut week = WeekAudit::default();
+        week.sync_from_climate(1, 1);
+        let quiet = face_from(&HouseName::default(), &week, false);
+        assert!(!quiet.contains(LETHAL_DECLARED_LINE));
+        let lethal = face_from(&HouseName::default(), &week, true);
+        assert!(lethal.contains(LETHAL_DECLARED_LINE));
+        assert!(lethal.contains("Unnamed House") || lethal.contains("this week"));
     }
 }
