@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.40] — 2026-09-05 — S+ civic juice (fabricator bench light)
+
+MendSpool / LaneCrate soft-light the fab slab border. Not a second HUD. Workspace stays 21.88.0.
+
 ## [23.2.39] — 2026-09-05 — Phase S week audit preview
 
 Local week line: tons + restored from the climate ledger. Persist `data/powrush_week_audit.json`. One honest slab. No kills, no war HUD. Workspace stays 21.88.0.
