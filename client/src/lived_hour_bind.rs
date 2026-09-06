@@ -426,4 +426,31 @@ mod tests {
         assert!(slab.contains("restored"));
         assert!(!slab.to_lowercase().contains("kill"));
     }
+
+    #[test]
+    fn mend_then_refresh_prefers_week_line() {
+        // P2 mute-hole: MendSpool / LaneCrate must not bury the week audit.
+        let mut bind = LivedHourBind {
+            hour: LivedHour::new_demo(),
+            climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
+            week: WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        };
+        bind.climate.on_mend();
+        bind.standing.on_mend();
+        bind.refresh_climate_slab();
+        let slab = bind.climate_slab.as_deref().unwrap_or("");
+        assert!(slab.starts_with("this week"), "got {slab}");
+        assert!(slab.contains("restored"));
+        bind.climate.on_lane();
+        bind.standing.on_lane();
+        bind.refresh_climate_slab();
+        let slab = bind.climate_slab.as_deref().unwrap_or("");
+        assert!(slab.contains("tons"));
+        assert!(slab.contains("restored"));
+    }
 }

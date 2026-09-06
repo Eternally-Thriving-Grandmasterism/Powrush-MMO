@@ -1,7 +1,8 @@
-//! Lived-hour fabricator — Slice 7 (v23.2.11)
+//! Lived-hour fabricator — Slice 7 (v23.2.11) + P2 week answer
 //!
 //! After Hour two held and the crate arrives, Q plants a fabricator then runs MendSpool and LaneCrate.
-//! Dies in Peace. Contact: info@Rathor.ai
+//! Mend/Lane refresh the week audit slab (tons + restored). Soft bench light (S+). Dies in Peace.
+//! Contact: info@Rathor.ai
 
 use std::fs;
 
@@ -120,22 +121,16 @@ fn handle_fab_q(
         yard.bench_glow = 1.0;
         bind.climate.on_mend();
         bind.standing.on_mend();
-        bind.climate_slab = bind
-            .standing
-            .slab_line()
-            .or_else(|| bind.climate.slab_line())
-            .map(|s| s.to_string());
+        // P2: prefer week line after restored↑ — do not mute with standing-only clause.
+        bind.refresh_climate_slab();
         bind.persist();
     }
     if yard.fab.pack.logi && !had_logi {
         yard.bench_glow = 1.0;
         bind.climate.on_lane();
         bind.standing.on_lane();
-        bind.climate_slab = bind
-            .standing
-            .slab_line()
-            .or_else(|| bind.climate.slab_line())
-            .map(|s| s.to_string());
+        // P2: prefer week line after tons↑ — stranger path hears the audit.
+        bind.refresh_climate_slab();
         bind.persist();
     }
     if step == "unlocked" {

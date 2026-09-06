@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — P2 stranger-path feel juice
+
+```
+slice: P2 feel (stranger-path juice)
+idea: unmute week after Mend/Lane; soft well + week slab breath; no second HUD
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Launch UX steward-house
 
 ```
