@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.41] — 2026-09-05 — T-offline shard sim harness
+
+`ShardSim` time-lapses climate / standing / week without a second human. Not on the boot card. No fake peers. Workspace stays 21.88.0.
+
 ## [23.2.40] — 2026-09-05 — S+ civic juice (fabricator bench light)
 
 MendSpool / LaneCrate soft-light the fab slab border. Not a second HUD. Workspace stays 21.88.0.
