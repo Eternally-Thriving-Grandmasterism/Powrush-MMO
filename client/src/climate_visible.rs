@@ -1,7 +1,8 @@
-//! Lived-hour climate visible — Slice 16 (v23.2.23)
+//! Lived-hour climate visible — Slice 16 (v23.2.23) + P2 week feel
 //!
 //! Node states paint the three wells. Tick restores a tired field.
 //! Teaching claim (23.2.25) may replace the hand hint with one sentence.
+//! Soft border breath when the week audit line answers (not a second HUD).
 //! Does not replace harvest_feel. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -17,11 +18,19 @@ struct ClimateStateRoot;
 #[derive(Component)]
 struct ClimateStateText;
 
+/// Soft pulse when week tons/restored answers on the existing slab (P2).
+#[derive(Resource, Default)]
+struct WeekFeelGlow {
+    glow: f32,
+    last_updated: u64,
+}
+
 pub struct ClimateVisiblePlugin;
 
 impl Plugin for ClimateVisiblePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_climate_state_slab)
+        app.init_resource::<WeekFeelGlow>()
+            .add_systems(Startup, spawn_climate_state_slab)
             .add_systems(
                 PreUpdate,
                 focus_lived_hour_on_nearby,
@@ -30,6 +39,7 @@ impl Plugin for ClimateVisiblePlugin {
                 Update,
                 (
                     paint_nodes_from_hour,
+                    tick_week_feel_glow,
                     update_climate_state_slab,
                 ),
             );
@@ -79,6 +89,23 @@ fn paint_nodes_from_hour(
     }
 }
 
+
+fn tick_week_feel_glow(
+    bind: Res<LivedHourBind>,
+    time: Res<Time>,
+    mut glow: ResMut<WeekFeelGlow>,
+) {
+    if bind.week.updated_at != glow.last_updated {
+        glow.last_updated = bind.week.updated_at;
+        if bind.week.tons_moved > 0 || bind.week.restored_count > 0 {
+            glow.glow = 1.0;
+        }
+    }
+    if glow.glow > 0.0 {
+        glow.glow = (glow.glow - time.delta_seconds() * 0.55).max(0.0);
+    }
+}
+
 fn spawn_climate_state_slab(mut commands: Commands) {
     commands
         .spawn((
@@ -119,17 +146,45 @@ fn update_climate_state_slab(
     nearby: Res<NearbyMercyNode>,
     bind: Res<LivedHourBind>,
     claim: Option<Res<TeachingClaim>>,
+    week_glow: Res<WeekFeelGlow>,
     nodes: Query<&MercyHarvestNode>,
-    mut root: Query<&mut Visibility, With<ClimateStateRoot>>,
+    mut root: Query<
+        (&mut Visibility, &mut BorderColor, &mut BackgroundColor),
+        With<ClimateStateRoot>,
+    >,
     mut text_q: Query<&mut Text, With<ClimateStateText>>,
 ) {
     let show = nearby.in_range;
-    for mut vis in &mut root {
+    let glow = week_glow.glow;
+    let week_live = bind
+        .climate_slab
+        .as_deref()
+        .map(|s| s.starts_with("this week"))
+        .unwrap_or(false);
+    for (mut vis, mut border, mut bg) in &mut root {
         *vis = if show {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
+        if show {
+            let pulse = if week_live { 0.12 + glow * 0.38 } else { glow * 0.25 };
+            let a = 0.42 + pulse;
+            *border = Color::srgba(
+                0.48 + glow * 0.10,
+                0.78 + glow * 0.14,
+                0.58 + glow * 0.08,
+                a,
+            )
+            .into();
+            *bg = Color::srgba(
+                0.06 + glow * 0.06,
+                0.08 + glow * 0.08,
+                0.07 + glow * 0.05,
+                0.88,
+            )
+            .into();
+        }
     }
     if !show {
         return;

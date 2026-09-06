@@ -1,6 +1,7 @@
-//! Lived-hour skirmish well — Slice 15 (v23.2.22)
+//! Lived-hour skirmish well — Slice 15 (v23.2.22) + P2 soft answer
 //!
-//! E contests the first well. Dawn after loss. Lives in Peace. Contact: info@Rathor.ai
+//! E contests the first well. Dawn after loss. Soft slab pulse on win (not a HUD).
+//! Lives in Peace. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
@@ -19,6 +20,8 @@ const HOLD_SECS: f64 = 6.0;
 pub struct WellYard {
     pub well: SkirmishWell,
     pub hold_until: f64,
+    /// Soft slab breath after contest win (P2). Not a second HUD.
+    pub well_glow: f32,
 }
 
 impl Default for WellYard {
@@ -26,6 +29,7 @@ impl Default for WellYard {
         Self {
             well: SkirmishWell::default(),
             hold_until: 0.0,
+            well_glow: 0.0,
         }
     }
 }
@@ -42,7 +46,10 @@ impl Plugin for SkirmishWellPlugin {
         app.init_resource::<WellYard>()
             .add_systems(Startup, spawn_well_slab)
             .add_systems(PreUpdate, mark_well_near)
-            .add_systems(Update, (pressure_hold, handle_well, update_well_slab));
+            .add_systems(
+                Update,
+                (pressure_hold, handle_well, tick_well_glow, update_well_slab),
+            );
     }
 }
 
@@ -134,6 +141,7 @@ fn handle_well(
     let step = yard.well.act();
     if step == "won" {
         yard.hold_until = time.elapsed_seconds_f64() + HOLD_SECS;
+        yard.well_glow = 1.0;
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstWell,
@@ -142,19 +150,36 @@ fn handle_well(
     }
 }
 
+fn tick_well_glow(time: Res<Time>, mut yard: ResMut<WellYard>) {
+    if yard.well_glow > 0.0 {
+        yard.well_glow = (yard.well_glow - time.delta_seconds() * 0.55).max(0.0);
+    }
+}
+
 fn update_well_slab(
     presence: Res<SoftPresence>,
     yard: Res<WellYard>,
-    mut root: Query<&mut Visibility, With<WellSlabRoot>>,
+    mut root: Query<
+        (&mut Visibility, &mut BorderColor, &mut BackgroundColor),
+        With<WellSlabRoot>,
+    >,
     mut text_q: Query<&mut Text, With<WellSlabText>>,
 ) {
     let show = near_first_well(&presence);
-    for mut vis in &mut root {
+    let glow = yard.well_glow;
+    for (mut vis, mut border, mut bg) in &mut root {
         *vis = if show {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
+        if show {
+            let a = 0.50 + glow * 0.40;
+            *border = Color::srgba(0.55 + glow * 0.20, 0.78 + glow * 0.16, 0.62 + glow * 0.12, a)
+                .into();
+            *bg = Color::srgba(0.07 + glow * 0.08, 0.09 + glow * 0.10, 0.08 + glow * 0.06, 0.92)
+                .into();
+        }
     }
     if !show {
         return;

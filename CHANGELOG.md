@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.49] — 2026-09-06 — P2 stranger-path feel juice
+
+Mute hole: fabricator MendSpool / LaneCrate now `refresh_climate_slab` so the week audit answers (*this week · N tons · M restored*) instead of standing-only overwrite. Soft well_glow on contest win; WeekFeelGlow breath on the existing climate slab. Bench S+ light kept. R+ fog/pulse kept. No second HUD. No new verbs. No harvest_feel rewrite. Workspace stays 21.88.0.
+
 ## [23.2.48] — 2026-09-06 — Launch UX steward-house (docs)
 
 Docs `LAUNCH_UX.md`: offline-first steward law (no account wall before yard; default `cargo run -p powrush-client`; no fake peers / race-class DPS; lethal opt-in after book; Online as mode beside offline House). Screens S0–S4, veto list, Joy/Mercy/Sustain UI notes, Traditional MMO vs steward contrast. Workspace stays 21.88.0.
