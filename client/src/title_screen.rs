@@ -548,13 +548,15 @@ fn name_house_text_input(
     if *door != LaunchDoor::NameHouse {
         return;
     }
+    // Bevy 0.14: ReceivedCharacter.char is SmolStr (deprecated API; still compiles).
     for ev in chars.read() {
-        let c = ev.char;
-        if c.is_control() {
-            continue;
-        }
-        if (c.is_alphanumeric() || c == ' ' || c == '-' || c == '\'') && label.draft.len() < 32 {
-            label.draft.push(c);
+        for c in ev.char.chars() {
+            if c.is_control() {
+                continue;
+            }
+            if (c.is_alphanumeric() || c == ' ' || c == '-' || c == '\'') && label.draft.len() < 32 {
+                label.draft.push(c);
+            }
         }
     }
     if keyboard.just_pressed(KeyCode::Backspace) {
@@ -633,7 +635,7 @@ mod tests {
     fn play_does_not_require_house_name() {
         let house = HouseName::default();
         assert!(!house.blocks_hands());
-        assert_eq!(*LaunchDoor::default(), LaunchDoor::Title);
+        assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
     }
 
     #[test]
