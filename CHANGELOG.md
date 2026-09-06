@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.38] — 2026-09-05 — R+ climate feel (fog / pulse / sting)
+
+Climate stress closes fog and cools the mist. Harmony opens ambient. Stress spikes pulse the near well (ecological sting, not HP). No second HUD. Workspace stays 21.88.0.
+
 ## [23.2.37] — 2026-09-05 — Phase R local hex standing
 
 Standing beside climate at `data/powrush_shard_standing.json`. peace / harmony / consumption / steward; human_hybrid_heat=0; declared_lethal=false (parked). Same verbs write climate + standing. Embassy intact. No race select, no standing HUD. Workspace stays 21.88.0.
