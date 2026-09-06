@@ -7,7 +7,7 @@ members = [
 # Parked members (on disk; add back only with a crates.io graph that resolves
 # and a real test).
 #   server/                   — landlock host; not first hour
-#   powrush-shard/            — parked hex dry-apply bin; --listen not enabled; not default door
+#   powrush-shard/            — loopback WS + dry-apply bin; not workspace member; not default door
 #   simulation/               — shamirs-secret-sharing is not on crates.io
 #   host/                     — depends on simulation
 #   game/                     — no Cargo.toml

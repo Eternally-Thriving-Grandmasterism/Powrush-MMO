@@ -1,6 +1,6 @@
-# powrush-shard (parked)
+# powrush-shard (loopback WS — not default door)
 
-Parked hex-shard binary. **Not** the default door — `cargo run -p powrush-client` must not depend on this crate.
+Hex-shard binary with **loopback-only** WebSocket listen. **Not** the default door — `cargo run -p powrush-client` must not depend on this crate.
 
 ## Soft cap
 
@@ -9,27 +9,32 @@ Parked hex-shard binary. **Not** the default door — `cargo run -p powrush-clie
 ## CLI
 
 ```bash
-# Offline dry-apply (preferred parked path)
-cargo run --manifest-path powrush-shard/Cargo.toml -- \
-  --hex hex_local_0 \
-  --data ./data/hex_local_0/ \
-  --dry-apply ./events.jsonl
-
-# --listen is accepted but parked / not enabled
+# Loopback WS listen (F8)
 cargo run --manifest-path powrush-shard/Cargo.toml -- \
   --hex hex_local_0 \
   --listen 127.0.0.1:7788 \
   --data ./data/hex_local_0/
+
+# Offline dry-apply
+cargo run --manifest-path powrush-shard/Cargo.toml -- \
+  --hex hex_local_0 \
+  --data ./data/hex_local_0/ \
+  --dry-apply ./events.jsonl
 ```
 
-`--listen` prints that WS listen is not wired yet and exits unless `--dry-apply` is also set (then apply proceeds offline after the parked notice).
+`--listen` binds **loopback only**. `0.0.0.0`, `::`, and non-loopback addresses are refused.
 
-## What it does
+## Wire (JSON envelopes)
 
-1. Load one hex JSON / ledger snapshot from `--data/ledger_snapshot.json` (or fresh fixture).
-2. Apply verb events from JSONL (`tend` / `take` / …) via `shared::hex_shard_apply`.
-3. Write `ledger_snapshot.json` back under `--data`.
+1. Client → `hello` → shard `hello_ok` / `hello_no` (v1 may hello_ok a second local House on same hex).
+2. Client → `tend` / `take` / `flow` / `reserve` / … → shard `apply` / `reject` (`NO_TAKE`, `NO_BOOK`, `STALE_SEQ`, `PROTO`, …).
+3. Snapshot persisted under `--data/ledger_snapshot.json`.
+4. Client drop → Offline; book/house intact. Presence = `houses.len()` from real seats.
 
-## Refuse (this rev)
+## Client gate
 
-Lighting Online row · login wall · fake peers · Ra-Thor hard dep · postcard as v1 · adding this crate to workspace `members` / client default graph.
+Outbound WS only when `POWRUSH_NET=localhost`. Default `POWRUSH_NET=off` opens zero sockets. Title **Online** row stays **grey** — Settings/env is the door.
+
+## Refuse
+
+Public bind · TLS theatre on localhost · Postcard · Login wall · Lighting title Online · Wiring this crate into workspace `members` / client default graph.

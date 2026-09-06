@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Localhost shard WS (F8)
+
+```
+slice: Localhost shard WS (F8)
+idea: powrush-shard --listen 127.0.0.1:7788 accepts JSON WS (hello→hello_ok/no; tend/take/flow/reserve apply); loopback-only bind refuse 0.0.0.0; POWRUSH_NET=localhost gates client outbound; default off zero sockets; title Online stays grey; presence=houses.len(); persist --data; drop→Offline book intact
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Parked powrush-shard binary (F7)
 
 ```
@@ -7,7 +17,7 @@ slice: Parked powrush-shard binary (F7)
 idea: parked crate powrush-shard (not workspace member / not client door); shared hex_shard_apply load snapshot + apply tend/take JSONL + write ledger; --listen accepted but parked/not enabled; soft cap 32 Houses; lethal-before-book reject; Core green
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 82dbb4bf (#247)
 ```
 
 ## 2026-09-06 — Join / drop / presence offline fallback (F2–F4)
