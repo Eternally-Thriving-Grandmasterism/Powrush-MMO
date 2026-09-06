@@ -1,6 +1,6 @@
 //! Lived-hour species redemption v0 — Slice 12 (v23.2.16)
 //!
-//! After the stone is seen, E Offer a tend to the Sylvaris grove. Dies in Peace.
+//! After Witness, E Offer a tend — read-first mercy, not damage. Dies in Peace.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;

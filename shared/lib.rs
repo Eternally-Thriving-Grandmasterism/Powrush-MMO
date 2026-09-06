@@ -22,6 +22,7 @@ pub mod fabricator;
 pub mod embassy;
 pub mod war_week;
 pub mod crownstone;
+pub mod mythic_verbs;
 pub mod species_redemption;
 pub mod hybrid_matrix;
 pub mod compass;
@@ -67,6 +68,7 @@ pub mod prelude {
     pub use crate::embassy::{BlueprintBook, Embassy};
     pub use crate::war_week::WarWeek;
     pub use crate::crownstone::{CrownPath, CrownstoneState};
+    pub use crate::mythic_verbs::{mythic_unlocked, MythicVerb};
     pub use crate::species_redemption::SpeciesRedemptionState;
     pub use crate::hybrid_matrix::HybridMatrix;
     pub use crate::compass;
@@ -219,6 +221,12 @@ mod tests {
         assert_eq!(w.act(), "won");
         assert_eq!(w.traveler_answers(), "lost");
         assert_eq!(w.act(), "dawn");
+    }
+
+    #[test]
+    fn mythic_verbs_not_damage() {
+        assert!(!mythic_verbs::MythicVerb::Witness.is_damage());
+        assert!(mythic_verbs::mythic_unlocked(true, true));
     }
 
     #[test]

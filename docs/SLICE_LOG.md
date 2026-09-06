@@ -1,16 +1,19 @@
 # SLICE_LOG.md — Powrush-MMO
 
-## 2026-09-05 — Lethal opt-in
+## 2026-09-05 — Mythic verbs
 
 ```
-slice: Lethal
-idea: Ledger 3 DeclaredLethal after book; tariff reserve→restored debt; Peace silent
+slice: Mythic
+idea: Witness/Offer/Attune read-first after book+seat; gate hour_three
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
 receipt: pending-merge
 ```
 
-Refused: lethal as default E; HP/starve; fake PvP peers; declare before book; server unpark.
+## 2026-09-05 — Lethal
 
-## Prior
-U `334ff87d` (#231) · T-net `a0a92899` (#230) · …
+```
+slice: Lethal
+verdict: SHIP
+receipt: 03bddc41 (#232)
+```
