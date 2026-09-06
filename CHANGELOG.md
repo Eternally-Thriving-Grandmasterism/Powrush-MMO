@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.32] — 2026-09-05 — Hour-two welcome wire (Slice 25)
+
+Existing WelcomeBack slab now reads `welcome_line`. Quit after Settled, rerun: *Welcome back · Hour two held · the yard remembers*. First boot stays quiet. No new HUD. No harvest_feel rewrite. No server. No Embassy. Workspace stays 21.88.0. Design tick, not a Cargo bump.
+
 ## [23.2.31] — 2026-09-05 — Hour-two resume (Slice 24)
 
 Quit after Settled. Rerun. Welcome slab: Welcome back · Hour two held · the yard remembers. Card skips the first-hour walk when the pack is complete. Existing WelcomeBack surface — not a new HUD. No harvest_feel rewrite. No server. No Embassy. Workspace stays 21.88.0. Design tick, not a Cargo bump.
