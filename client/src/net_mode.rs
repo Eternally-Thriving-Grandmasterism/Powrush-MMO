@@ -21,7 +21,13 @@ pub struct SessionNetMode {
 
 impl Default for SessionNetMode {
     fn default() -> Self {
-        let powrush_net = parse_powrush_net();
+        Self::from_powrush_net(parse_powrush_net())
+    }
+}
+
+impl SessionNetMode {
+    /// Build from an explicit net flag — tests must not race on process env.
+    pub fn from_powrush_net(powrush_net: PowrushNet) -> Self {
         let outbound_ws = powrush_net.may_outbound_ws();
         // HonestShard label only when localhost door is open; still no peer count / no Online light.
         let mode = if outbound_ws {
@@ -37,24 +43,6 @@ impl Default for SessionNetMode {
         }
     }
 
-    /// Build from an explicit net flag — tests must not race on process env.
-    pub fn from_powrush_net(powrush_net: PowrushNet) -> Self {
-        let outbound_ws = powrush_net.may_outbound_ws();
-        let mode = if outbound_ws {
-            NetMode::HonestShard
-        } else {
-            NetMode::Offline
-        };
-        Self {
-            mode,
-            powrush_net,
-            outbound_ws,
-            shard_url: default_localhost_shard_url(),
-        }
-    }
-}
-
-impl SessionNetMode {
     /// Client never listens. Shard bin is the listen door.
     pub fn opens_listen_socket(&self) -> bool {
         self.powrush_net.opens_listen_socket()
@@ -98,12 +86,18 @@ mod tests {
         assert!(!s.outbound_ws);
         assert!(!s.opens_listen_socket());
         assert!(!s.title_online_enabled());
-        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, s.title_online_enabled()));
+        assert!(online_row_is_honest_disabled(
+            ONLINE_STUB_LABEL,
+            s.title_online_enabled()
+        ));
     }
 
     #[test]
     fn powrush_net_localhost_gates_connect_title_stays_grey() {
-        assert_eq!(parse_powrush_net_from(Some("localhost")), PowrushNet::Localhost);
+        assert_eq!(
+            parse_powrush_net_from(Some("localhost")),
+            PowrushNet::Localhost
+        );
         let s = SessionNetMode::from_powrush_net(PowrushNet::Localhost);
         assert!(s.outbound_ws);
         assert!(s.powrush_net.may_outbound_ws());
