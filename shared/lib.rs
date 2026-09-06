@@ -7,6 +7,7 @@ pub mod protocol;
 pub mod hex_protocol;
 pub mod hex_join;
 pub mod hex_shard_apply;
+pub mod hex_listen;
 pub mod climate_node;
 pub mod climate_script;
 pub mod shard_climate;
@@ -70,7 +71,8 @@ pub mod prelude {
     pub use crate::net_mode::NetMode;
     pub use crate::hex_protocol::{Envelope, Op, Presence, RejectCode, Snapshot, PROTOCOL_ID, PROTOCOL_REV};
     pub use crate::hex_join::{AuthorityMode, JoinOutcome, attempt_join, leave_or_drop};
-    pub use crate::hex_shard_apply::{apply_jsonl, apply_verb, soft_cap_houses, ShardLedger, SOFT_CAP_HOUSES, LISTEN_PARKED_MSG};
+    pub use crate::hex_shard_apply::{apply_jsonl, apply_verb, soft_cap_houses, ShardLedger, SOFT_CAP_HOUSES, LISTEN_PARKED_MSG, LISTEN_LOOPBACK_MSG};
+    pub use crate::hex_listen::{parse_powrush_net, PowrushNet, validate_listen_bind, client_may_outbound_ws};
     pub use crate::shard_slots::{ShardBank, ShardSlot};
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::hour_two::HourTwoPack;

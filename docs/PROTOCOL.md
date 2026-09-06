@@ -5,7 +5,7 @@
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick (CHANGELOG), not a Cargo bump.
 
-Steward law: offline client is authority until a real shard is joined. Online shard is authority only after honest hello. Default client never listens. `POWRUSH_NET=off` by default. server/ stays parked in this rev. Peace keys WASD E I H R unchanged. No Ra-Thor path dep. No fake peers.
+Steward law: offline client is authority until a real shard is joined. Online shard is authority only after honest hello. Default client never listens. `POWRUSH_NET=off` by default; `localhost` is the outbound door. server/ stays parked; powrush-shard loopback listen is separate from the client door. Peace keys WASD E I H R unchanged. No Ra-Thor path dep. No fake peers.
 
 ## Envelope (JSON)
 
@@ -133,7 +133,7 @@ Join never deletes the local yard. Join never silently overwrites a divergent he
 ### Rates & transport
 
 - **Rates:** soft client propose rate; shard may reject floods as `STALE_SEQ` or drop. Exact caps are a later transport slice.
-- **Transport:** WebSocket later. This rev defines JSON shapes + authority rules only — **no listen socket**, no WS client in the default binary, no server unpark. Online stays grey.
+- **Transport (F8):** WebSocket JSON envelopes on **loopback only** via `powrush-shard --listen 127.0.0.1:7788`. Refuse `0.0.0.0` / non-loopback. Default client binary still opens **zero** sockets unless `POWRUSH_NET=localhost` (outbound only; no client listen). Title Online stays grey — Settings/env is the door. No TLS theatre on localhost. `server/` stays parked.
 - **Dual-repo ingest:** optional `POWRUSH_INGEST` (L3) may soft-write `data/powrush_lived_tick.json` for Ra-Thor lattice read. Lattice does not write Powrush L0. Default ingest off.
 
 ## L0 disk paths (offline authority)
@@ -149,8 +149,9 @@ Join never deletes the local yard. Join never silently overwrites a divergent he
 
 ## Flags & refused as v1
 
-- `POWRUSH_NET=off` **default**. When off: offline client authority; Online UI stays honest *off (no listen)*.
-- Postcard / mail / listen server / fake peers / server unpark / Ra-Thor Cargo path dep — **refused as v1**.
+- `POWRUSH_NET=off` **default**. When off: offline client authority; no listen / no outbound WS; Online UI stays honest *off (no listen)*.
+- `POWRUSH_NET=localhost` — client may dial loopback shard WS; title Online row stays **grey** (do not promote title row).
+- Postcard / mail / public bind / TLS theatre on localhost / fake peers / server unpark / Ra-Thor Cargo path dep — **refused as v1**.
 
 ## Tests that must exist
 

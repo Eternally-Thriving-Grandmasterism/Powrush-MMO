@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.57] — 2026-09-06 — Localhost shard WS (flag-gated; title Online grey)
+
+F8: `powrush-shard --listen 127.0.0.1:7788` accepts JSON WebSocket envelopes (tokio-tungstenite). Bind **loopback only** — refuse `0.0.0.0` / non-loopback. `hello` → `hello_ok` / `hello_no` (v1 may hello_ok a second local House on same hex). `tend` / `take` / `flow` / `reserve` apply via `shared/hex_protocol` + `hex_shard_apply` with `NO_TAKE` / `NO_BOOK` / `STALE_SEQ` / `PROTO`. Persist `ledger_snapshot.json` under `--data`. Client drop → Offline; book/house intact. Presence = `houses.len()` from real seats. Client connects **only** if `POWRUSH_NET=localhost`; default `off` opens zero sockets. Title Online row stays **grey**. `powrush-shard` remains outside default-members / not client door. Shared `hex_listen` bind + hello helpers + tests. Also stamps F7 SLICE_LOG receipt `82dbb4bf (#247)`. Workspace stays 21.88.0.
+
 ## [23.2.56] — 2026-09-06 — Parked powrush-shard binary (not default door)
 
 F7 parked crate `powrush-shard/` (commented beside `server/` in workspace members — **not** default `cargo run -p powrush-client`). Shared `hex_shard_apply`: load one hex ledger snapshot, apply verb events (tend/take/…) from JSONL via `hex_protocol` reject helpers, write `ledger_snapshot.json`. CLI `--hex` / `--data` / `--dry-apply`; `--listen` accepted but prints parked / not enabled (no WS bind). Soft cap **32 Houses** documented. Tests: offline tend/take on fixture; lethal-before-book → NO_BOOK; client default still no listen; soft-cap seat. No Online lighting, no login wall, no fake peers, no Ra-Thor path dep, no postcard v1. Also stamps F2 SLICE_LOG receipt `61103815 (#246)`. Workspace stays 21.88.0.

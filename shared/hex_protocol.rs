@@ -1,7 +1,8 @@
 //! F1 — shared hex shard protocol types (v23.2.54)
 //!
 //! protocol_id `powrush.hex.v1` · protocol_rev `1`.
-//! Pure serde shapes + reject helpers. No listen socket. No WS client.
+//! Pure serde shapes + reject helpers. Default: no listen socket / no WS client.
+//! F8: outbound WS gated by POWRUSH_NET=localhost (see hex_listen).
 //! No server unpark. Default remains offline client authority.
 //! Contact: info@Rathor.ai
 
@@ -358,11 +359,13 @@ pub fn server_unparked_v1() -> bool {
 }
 
 /// Env mirror — POWRUSH_NET default off (honest offline).
+/// F8: only `localhost` / `loopback` / `127.0.0.1` enable outbound WS intent.
+/// Legacy on/true/yes do **not** open sockets (Settings/env door is localhost).
 pub fn net_enabled() -> bool {
     match std::env::var("POWRUSH_NET") {
         Ok(v) => {
             let t = v.trim().to_ascii_lowercase();
-            matches!(t.as_str(), "on" | "1" | "true" | "yes")
+            matches!(t.as_str(), "localhost" | "loopback" | "127.0.0.1")
         }
         Err(_) => false,
     }
@@ -452,7 +455,7 @@ mod tests {
     fn default_net_path_no_listen_no_unpark() {
         assert!(!default_client_listens());
         assert!(!server_unparked_v1());
-        // Without POWRUSH_NET=on, net stays off.
+        // Without POWRUSH_NET=localhost, net stays off.
         std::env::remove_var("POWRUSH_NET");
         assert!(!net_enabled());
     }

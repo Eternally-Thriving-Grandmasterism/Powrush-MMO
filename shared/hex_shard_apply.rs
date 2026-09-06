@@ -2,7 +2,8 @@
 //!
 //! Pure offline apply: load one hex snapshot, apply verb events, write snapshot.
 //! Soft cap: 32 Houses (documented). Reuses `hex_protocol` reject helpers.
-//! No listen socket. No WS. No client wire-up. Contact: info@Rathor.ai
+//! F8: loopback listen lives in powrush-shard + hex_listen (not client default door).
+//! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,9 +18,13 @@ use crate::hex_protocol::{
 /// Soft cap on seated Houses per hex shard (steward law; not a hard crash).
 pub const SOFT_CAP_HOUSES: usize = 32;
 
-/// Honest copy when `--listen` is accepted but not wired.
+/// Legacy parked string (F7). F8 loopback listen is live — prefer LISTEN_LOOPBACK_MSG.
 pub const LISTEN_PARKED_MSG: &str =
     "powrush-shard: --listen is parked / not enabled (WS listen not wired yet)";
+
+/// Honest copy when loopback listen is active (F8).
+pub const LISTEN_LOOPBACK_MSG: &str =
+    "powrush-shard: listening on loopback only (refuse 0.0.0.0 / non-loopback)";
 
 /// Snapshot filename under `--data`.
 pub const SNAPSHOT_FILE: &str = "ledger_snapshot.json";
@@ -100,9 +105,9 @@ pub fn soft_cap_houses() -> usize {
     SOFT_CAP_HOUSES
 }
 
-/// Listen path is parked for this rev.
+/// F7 parked flag — F8 returns false (loopback listen unparked in powrush-shard).
 pub fn listen_is_parked() -> bool {
-    true
+    false
 }
 
 /// Default client door still does not listen (Core law; shard bin stays parked).
@@ -445,9 +450,10 @@ mod tests {
     fn client_default_still_no_listen() {
         assert!(!client_default_door_listens());
         assert!(!default_client_listens());
-        assert!(listen_is_parked());
+        assert!(!listen_is_parked()); // F8: shard loopback listen live; client door still quiet
         assert_eq!(soft_cap_houses(), 32);
-        assert!(LISTEN_PARKED_MSG.contains("parked"));
+        assert!(LISTEN_LOOPBACK_MSG.contains("loopback"));
+        assert!(LISTEN_PARKED_MSG.contains("parked")); // retained for archaeology
     }
 
     #[test]
