@@ -9,6 +9,7 @@ pub mod climate_script;
 pub mod shard_climate;
 pub mod shard_standing;
 pub mod week_audit;
+pub mod shard_sim;
 pub mod space_law;
 pub mod hour_two;
 pub mod vertical_factory;
@@ -51,6 +52,7 @@ pub mod prelude {
     pub use crate::shard_climate::ShardClimate;
     pub use crate::shard_standing::ShardStanding;
     pub use crate::week_audit::WeekAudit;
+    pub use crate::shard_sim::ShardSim;
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::hour_two::HourTwoPack;
     pub use crate::vertical_factory::{FactoryNodeKind, VerticalFactory};
@@ -213,6 +215,16 @@ mod tests {
         assert_eq!(w.act(), "won");
         assert_eq!(w.traveler_answers(), "lost");
         assert_eq!(w.act(), "dawn");
+    }
+
+    #[test]
+    fn shard_sim_eases_stress_offline() {
+        let mut sim = shard_sim::ShardSim::default();
+        let mut c = shard_climate::ShardClimate { stress: 0.7, regen: 0.25, ..Default::default() };
+        let mut s = shard_standing::ShardStanding::default();
+        let mut w = week_audit::WeekAudit::default();
+        let after = sim.lapse(&mut c, &mut s, &mut w, 5);
+        assert!(after < 0.7);
     }
 
     #[test]

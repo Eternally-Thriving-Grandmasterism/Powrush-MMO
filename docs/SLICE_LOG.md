@@ -1,22 +1,16 @@
 # SLICE_LOG.md — Powrush-MMO
 
-## 2026-09-05 — S+ civic juice
+## 2026-09-05 — T-offline shard sim
 
 ```
-slice: S+
-idea: fabricator bench light on MendSpool / LaneCrate
-joy 0.97 | mercy 0.99 | sustain 0.97 | veto no
+slice: T-offline
+idea: ShardSim time-lapse (same ledgers, no second human, not boot card)
+joy 0.97 | mercy 0.99 | sustain 0.98 | veto no
 verdict: SHIP
 receipt: pending-merge
 ```
 
-## 2026-09-05 — Phase S
-
-```
-slice: S
-verdict: SHIP
-receipt: 5e2e66f1 (#227)
-```
+Refused: fake peer count on Peace boot; unparking server/ as default.
 
 ## Prior
-R+ `72fe7bb8` (#226) · R `8bc7499a` (#225) · Q `1d4b075e` (#224) · Hour3 `f6c967a5` (#223)
+S+ `229c3f2d` (#228) · S `5e2e66f1` (#227) · R+ `72fe7bb8` (#226) · R `8bc7499a` (#225)
