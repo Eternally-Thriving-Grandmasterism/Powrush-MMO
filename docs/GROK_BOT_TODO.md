@@ -1,9 +1,9 @@
 # GROK_BOT_TODO.md
 
-Autonomous. Constitution intact. Design tip 23.2.39.
+Design tip 23.2.40. Autonomous.
 
 ## Done
-Hours 1–3 · Q · R · R+ · S (this pass)
+Hours 1–3 · Q · R · R+ · S · S+ (this pass)
 
 ## Next
-S+ civic juice → T-offline → T-net → U → Lethal opt-in → Mythic → playable loop
+T-offline shard sim → T-net → U → Lethal opt-in → Mythic → playable loop

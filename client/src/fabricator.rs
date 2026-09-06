@@ -20,6 +20,8 @@ use crate::vertical_factory::FactoryYard;
 #[derive(Resource, Debug, Clone)]
 pub struct FabricatorYard {
     pub fab: Fabricator,
+    /// Soft bench light after MendSpool / LaneCrate (S+). Not a HUD.
+    pub bench_glow: f32,
 }
 
 impl Default for FabricatorYard {
@@ -27,10 +29,12 @@ impl Default for FabricatorYard {
         if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
             return Self {
                 fab: HourTwoPack::from_json(&raw).fabricator,
+                bench_glow: 0.0,
             };
         }
         Self {
             fab: Fabricator::default(),
+            bench_glow: 0.0,
         }
     }
 }
@@ -46,7 +50,7 @@ impl Plugin for FabricatorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FabricatorYard>()
             .add_systems(Startup, spawn_fab_slab)
-            .add_systems(Update, (handle_fab_q, update_fab_slab));
+            .add_systems(Update, (handle_fab_q, tick_bench_glow, update_fab_slab));
     }
 }
 
@@ -113,6 +117,7 @@ fn handle_fab_q(
     let had_logi = yard.fab.pack.logi;
     let step = yard.fab.craft_next();
     if yard.fab.pack.repair && !had_repair {
+        yard.bench_glow = 1.0;
         bind.climate.on_mend();
         bind.standing.on_mend();
         bind.climate_slab = bind
@@ -123,6 +128,7 @@ fn handle_fab_q(
         bind.persist();
     }
     if yard.fab.pack.logi && !had_logi {
+        yard.bench_glow = 1.0;
         bind.climate.on_lane();
         bind.standing.on_lane();
         bind.climate_slab = bind
@@ -141,20 +147,32 @@ fn handle_fab_q(
     }
 }
 
+fn tick_bench_glow(time: Res<Time>, mut yard: ResMut<FabricatorYard>) {
+    if yard.bench_glow > 0.0 {
+        yard.bench_glow = (yard.bench_glow - time.delta_seconds() * 0.55).max(0.0);
+    }
+}
+
 fn update_fab_slab(
     hour: Res<HourSacred>,
     factory: Res<FactoryYard>,
     yard: Res<FabricatorYard>,
-    mut root: Query<&mut Visibility, With<FabSlabRoot>>,
+    mut root: Query<(&mut Visibility, &mut BorderColor, &mut BackgroundColor), With<FabSlabRoot>>,
     mut text_q: Query<&mut Text, With<FabSlabText>>,
 ) {
     let show = hour.complete && hour.charter_skin_live() && factory.factory.tutorial_complete();
-    for mut vis in &mut root {
+    let glow = yard.bench_glow;
+    for (mut vis, mut border, mut bg) in &mut root {
         *vis = if show {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
+        if show {
+            let a = 0.45 + glow * 0.45;
+            *border = Color::srgba(0.78 + glow * 0.18, 0.70 + glow * 0.22, 0.92, a).into();
+            *bg = Color::srgba(0.07 + glow * 0.10, 0.06 + glow * 0.08, 0.10 + glow * 0.12, 0.90).into();
+        }
     }
     if !show {
         return;
