@@ -48,7 +48,7 @@ pub struct HourFlags {
 
 /// Versioned composite tick — house · climate · standing · week · hour flags.
 /// Nested `hour` keeps Mode B resume when ingest owns the file.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LivedTickIngest {
     pub schema: String,
     pub house_id: String,
