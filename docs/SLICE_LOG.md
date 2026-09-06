@@ -7,7 +7,7 @@ slice: Title + Continue + skippable House name
 idea: S0 title (Play/Continue/Settings; Online grey); S2 skippable House name → data/powrush_house.json; first run no name wall; Continue restores book+climate+standing path; lethal false until L3
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 5db1c0ad (#240)
 ```
 
 ## 2026-09-06 — P2 stranger-path feel juice
