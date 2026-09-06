@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.60] — 2026-09-06 — W1–W3 waiting pack (P10 receipt + no-dial banner)
+
+Steward side work while waiting for stranger pass (docs only). Stamps P10 SLICE_LOG receipt `pending-merge` → `a678b035 (#250)`. Top-of-doc **no-dial banner** on `docs/PROTOCOL.md` + `docs/F9_TWO_CLIENT_LOCALHOST.md`: default client **does not dial**; `POWRUSH_NET=off` (default) opens zero sockets; loopback WS is opt-in via env/Settings, not the title Online row. Strengthen PROTOCOL steward law never-listens → does-not-dial. Explicit L3 note: `POWRUSH_INGEST` off by default; writes `data/powrush_lived_tick.json` only when on; **no client overlay**; Ra-Thor may read ticks, never drives keys (`PROTOCOL` + `PARKED_SURFACES`). Waiting-pack SLICE_LOG entry receipt pending-merge. No preview tag, no Online live, no public bind, no feel juice, no new verbs. Workspace stays 21.88.0.
+
 ## [23.2.59] — 2026-09-06 — Preview checklist + stranger loop sync (docs / honesty)
 
 P10 honesty pack (docs only): README default is **one human, one machine**; Title / Continue / *Unnamed House* called out; Dev section links `docs/F9_TWO_CLIENT_LOCALHOST.md` (not a Features/store claim). `docs/STRANGER_LOOP.md` synced to L1 title truth + minute keys; Online grey; L3 ingest absent on first hour. New `docs/PREVIEW_CHECKLIST.md` (~15 human tick boxes) — explicit: ticking ≠ cutting `playable-preview` tag. Stamps F9 SLICE_LOG receipt `7d9a733a (#249)`. No Steam copy, no launch-speak, no fake presence, no `POWRUSH_NET=on` default, no `0.0.0.0` bind, no new verbs. Workspace stays 21.88.0.

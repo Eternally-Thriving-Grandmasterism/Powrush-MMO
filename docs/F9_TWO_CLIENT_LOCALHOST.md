@@ -1,5 +1,7 @@
 # F9 — Two-client same-hex localhost recipe (dev only)
 
+> **No-dial banner:** Default client **does not dial**. `POWRUSH_NET=off` (default) opens **zero** sockets. Loopback WS is opt-in via env/Settings, **not** the title Online row.
+
 **protocol_id:** `powrush.hex.v1` · **protocol_rev:** `1`  
 Workspace `21.88.0`. Design tick (CHANGELOG), not a Cargo bump.  
 Contact: info@Rathor.ai
