@@ -1,24 +1,28 @@
-# STRANGER_LOOP.md — one cold stranger, keys only (v23.2.47)
+# STRANGER_LOOP.md — one cold stranger, keys only (v23.2.59)
 
 **Contact:** info@Rathor.ai  
-Workspace `21.88.0`. Design tick. Same binary. No second HUD. No server.
+Workspace `21.88.0`. Design tick. Same binary. No second HUD. No server required.
 
-Stand-alone proof script. Deeper maps: `PHASE_PLAYABLE_LOOP` · `HOUR_TWO` · `HOUR_THREE` · `PHASE_Q`/`R`/`S` · `PHASE_LETHAL`.
+Stand-alone proof script. Match L1 title truth + playable loop. Deeper maps: `LAUNCH_UX` · `PHASE_PLAYABLE_LOOP` · `HOUR_TWO` · `HOUR_THREE` · `PHASE_Q`/`R`/`S` · `PHASE_LETHAL` · `PREVIEW_CHECKLIST`.
 
-| Beat | Hands | Must see |
+Minute-by-minute. Keys only. Online stays grey. L3 ingest absent on first hour.
+
+| Min | Hands | Must see |
 | --- | --- | --- |
-| Open | `cargo run -p powrush-client` | one card, climate readable |
-| Hour 1 | WASD, E tend/take, I, R 1/2 | well speech; tired / circulating |
-| Hour 2 | Tab Q L | Settled; yard remembers after quit |
-| Hour 3 | Q recipes, E on lamp | the book is yours |
-| Climate | same E/R | file + slab true after rerun |
-| Week | play a bit more | tons + restored, not kills |
-| Lethal | only after book, Ledger **3** | Peace boot still silent |
+| 0 | `cargo run -p powrush-client` | Title: Play / Continue / Settings; Online grey *off (no listen)*; climate breathing; no peer count |
+| 0–1 | Play (first run) or Continue | First run → Hands, no name wall. Continue → House name **or** exactly *Unnamed House* + *the yard remembers* when persist exists |
+| 1–10 | WASD, E tend/take, I, H, R 1/2 | one card; well speech Idle/Glowing/Tended/Resting/Stressed; tired / circulating |
+| 10–25 | Tab → Q → L Bind | Settled; *Hour two held · the yard remembers*; quit/rerun welcome slab |
+| 25–40 | Q fabricator (MendSpool + LaneCrate) → Embassy E seat | *Hour three held · the book is yours* |
+| 40–50 | same E / R; I or L sash | climate file + slab true; week *this week · N tons · M restored* (not kills) |
+| after book | Ledger **3** only if choosing | DeclaredLethal opt-in; Peace boot still silent; never default E |
+| always | — | `POWRUSH_NET` default off = zero sockets; `POWRUSH_INGEST` default off = L3 absent on first hour; House name skippable → Unnamed House |
 
 ## Quiet law
 
 - Peace keys WASD / E I H R unchanged. No F-row. No fake peers. No XP / starve / NFT.
 - Lethal never default E. Week score = tons + restored only.
-- Soft cues only if a beat is mute. `server/` parked. No public v1 speak.
+- Soft cues only if a beat is mute. `server/` parked. No public launch speak.
+- Title Online stays grey. No Steam copy. No lighting Online. No `playable-preview` tag from this loop alone.
 
 **Thunder locked in.** Yoi ⚡
