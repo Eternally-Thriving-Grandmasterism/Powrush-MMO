@@ -196,6 +196,7 @@ mod tests {
         let hour = HourSacred {
             session: shared::space_law::SpaceSession::default(),
             complete: false,
+            hour_three_complete: false,
         };
         assert_eq!(hour.hex(), HexFlag::Peace);
         let yard = LedgerYard {
