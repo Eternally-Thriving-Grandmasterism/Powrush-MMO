@@ -16,3 +16,7 @@ Parked means: keep on disk, do not make the default lived hour depend on it.
 | `web-portal/`, `website/` | Public site | Copy verbs from README; do not invent a second game |
 
 Rule: if a parked crate is imported by `powrush-client` default features, that is a defect.
+
+## Lived-tick ingest (not a parked crate — flag law)
+
+`POWRUSH_INGEST` is **off by default**. When on, soft-writes `data/powrush_lived_tick.json` only; when off, the write is never called. **No client overlay** — not HUD, not presence, not title Online. Ra-Thor may **read** ticks; Ra-Thor **never drives keys**. Not a reason to unpark `server/` or light Online.

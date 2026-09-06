@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — W1–W3 waiting pack (P10 receipt + no-dial banner)
+
+```
+slice: W1–W3 waiting pack (P10 receipt + no-dial banner)
+idea: steward side work while waiting for stranger pass — stamp P10 receipt a678b035 (#250); PROTOCOL+F9 no-dial banner (default client does not dial; POWRUSH_NET=off zero sockets; loopback WS opt-in via env/Settings not title Online); POWRUSH_INGEST off-by-default note + no client overlay + Ra-Thor may read ticks never drives keys; no preview tag / Online live / public bind / feel juice / new verbs
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Preview checklist + stranger loop sync (P10 honesty)
 
 ```
@@ -7,7 +17,7 @@ slice: Preview checklist + stranger loop sync (P10 honesty)
 idea: docs honesty pack — README default one-human/one-machine + Dev link to F9_TWO_CLIENT_LOCALHOST (not Features); STRANGER_LOOP sync Title/Continue/Unnamed House + Online grey + L3 absent first hour (minute keys); new PREVIEW_CHECKLIST ~15 human ticks (ticking ≠ playable-preview tag); stamp F9 receipt 7d9a733a (#249); no Steam/launch-speak/fake presence/net-on default/0.0.0.0/new verbs
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: a678b035 (#250)
 ```
 
 ## 2026-09-06 — Two-client same-hex localhost recipe (F9)
