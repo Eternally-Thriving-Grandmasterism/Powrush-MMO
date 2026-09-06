@@ -1,6 +1,6 @@
 //! Lived-hour Hybrid Matrix v0 — Slice 13 (v23.2.17)
 //!
-//! After a tend is offered, E Attune. Stability 1. Dies in Peace.
+//! After Offer, E Attune — read-first stability tell, not a second body. Dies in Peace.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;

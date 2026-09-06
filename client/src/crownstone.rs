@@ -1,7 +1,7 @@
 //! Lived-hour Crownstone set-piece — Slice 11 (v23.2.15)
 //!
-//! After the embassy seat, E Witness. Path stays Unset. Dies in Peace.
-//! Contact: info@Rathor.ai
+//! After Hour three held (book) + embassy seat, E Witness — read-first, not damage.
+//! Path stays Unset. Dies in Peace. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
@@ -73,7 +73,7 @@ fn spawn_crownstone_slab(mut commands: Commands) {
 }
 
 fn stone_live(hour: &HourSacred, embassy: &EmbassyYard) -> bool {
-    hour.charter_skin_live() && embassy.embassy.seated
+    hour.hour_three_complete && hour.charter_skin_live() && embassy.embassy.seated
 }
 
 fn mark_crownstone_near(
@@ -151,7 +151,19 @@ fn update_crownstone_slab(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::embassy::EmbassyYard;
     use shared::space_law::HexFlag;
+
+    #[test]
+    fn hour_three_gates_witness() {
+        let hour = HourSacred {
+            session: shared::space_law::SpaceSession::default(),
+            complete: true,
+            hour_three_complete: false,
+        };
+        let embassy = EmbassyYard::default();
+        assert!(!stone_live(&hour, &embassy));
+    }
 
     #[test]
     fn peace_hides_stone() {
