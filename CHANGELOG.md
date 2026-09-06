@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.33] — 2026-09-05 — Hour-three delivery map (docs)
+
+Docs only. Locks Hour three order: Proof Pack → Embassy seat → *Hour three held*. Gate: human Report on `docs/HOUR_TWO_PLAYTEST.md`. No Bevy systems. No server. Workspace stays 21.88.0.
+
 ## [23.2.32] — 2026-09-05 — Hour-two welcome wire (Slice 25)
 
 Existing WelcomeBack slab now reads `welcome_line`. Quit after Settled, rerun: *Welcome back · Hour two held · the yard remembers*. First boot stays quiet. No new HUD. No harvest_feel rewrite. No server. No Embassy. Workspace stays 21.88.0. Design tick, not a Cargo bump.
