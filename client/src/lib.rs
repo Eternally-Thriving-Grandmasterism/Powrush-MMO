@@ -9,6 +9,7 @@ pub mod lived_hour_support;
 pub mod lived_hour_bind;
 pub mod hour_sacred;
 pub mod hour_two_resume;
+pub mod title_screen;
 pub mod vertical_factory;
 pub mod coop_voice;
 pub mod infra_spill;
@@ -82,6 +83,7 @@ impl PowrushClientBundle {
 impl Plugin for PowrushClientBundle {
     fn build(&self, app: &mut App) {
         app.add_plugins(hour_sacred::HourSacredPlugin);
+        app.add_plugins(title_screen::TitleScreenPlugin);
         app.add_plugins(vertical_factory::VerticalFactoryPlugin);
         app.add_plugins(coop_voice::CoopVoicePlugin);
         app.add_plugins(infra_spill::InfraSpillPlugin);
