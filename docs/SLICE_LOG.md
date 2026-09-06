@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Shard protocol + shared net types (F1)
+
+```
+slice: Shard protocol + shared net types (F1)
+idea: docs/PROTOCOL.md powrush.hex.v1 rev1 + shared/hex_protocol Envelope/Op/RejectCode/Presence/Snapshot; offline client authority default; POWRUSH_NET=off; no listen / no WS / no server unpark; reject NO_BOOK/NO_TAKE/PROTO; presence houses-only
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Optional lived-tick ingest (L3)
 
 ```
@@ -7,7 +17,7 @@ slice: Optional lived-tick ingest (L3)
 idea: POWRUSH_INGEST default off; when on soft-write versioned data/powrush_lived_tick.json (house·climate·standing·week·hour flags); no Ra-Thor dep; Mode B offline unchanged
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 42d5eb06 (#244)
 ```
 
 

@@ -4,6 +4,7 @@
 // AG-SML v1.0 | PATSAGi Councils | info@Rathor.ai
 
 pub mod protocol;
+pub mod hex_protocol;
 pub mod climate_node;
 pub mod climate_script;
 pub mod shard_climate;
@@ -65,6 +66,7 @@ pub mod prelude {
     pub use crate::lived_tick_ingest::{ingest_enabled, soft_write_if_enabled, LivedTickIngest, LIVED_TICK_INGEST_PATH};
     pub use crate::shard_sim::ShardSim;
     pub use crate::net_mode::NetMode;
+    pub use crate::hex_protocol::{Envelope, Op, Presence, RejectCode, Snapshot, PROTOCOL_ID, PROTOCOL_REV};
     pub use crate::shard_slots::{ShardBank, ShardSlot};
     pub use crate::space_law::{CharterKind, HexFlag, SpaceSession, WarrantBand, WarrantWeight};
     pub use crate::hour_two::HourTwoPack;
@@ -247,6 +249,14 @@ mod tests {
     fn net_mode_offline_default_no_fake_peers() {
         assert_eq!(net_mode::NetMode::default(), net_mode::NetMode::Offline);
         assert!(net_mode::NetMode::Offline.peer_count_for_peace_boot().is_none());
+    }
+
+    #[test]
+    fn hex_protocol_rev_and_no_listen() {
+        assert_eq!(hex_protocol::PROTOCOL_ID, "powrush.hex.v1");
+        assert_eq!(hex_protocol::PROTOCOL_REV, 1);
+        assert!(!hex_protocol::default_client_listens());
+        assert!(!hex_protocol::server_unparked_v1());
     }
 
     #[test]
