@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Title continue truth (L1)
+
+```
+slice: Title continue truth (L1)
+idea: Continue Unnamed House + yard remembers; Esc-from-title preserves persist; Online disabled honest; SmolStr drain; first-run no wall hardened
+joy 0.98 | mercy 0.99 | sustain 0.98 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Title + Continue + skippable House name
 
 ```

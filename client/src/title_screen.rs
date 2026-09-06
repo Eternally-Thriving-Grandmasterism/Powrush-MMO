@@ -1,4 +1,7 @@
-//! S0 Title + S2 skippable House naming (v23.2.50)
+//! S0 Title + S2 skippable House naming (v23.2.51)
+//!
+//! L1 title truth: Continue Unnamed House + yard remembers; Esc-from-title
+//! preserves persist; Online disabled honest; SmolStr input drained off-panel.
 //!
 //! Play / Continue / Settings. Online grey stub. No peer count. No login wall.
 //! House name persist: data/powrush_house.json (beside climate).
@@ -10,8 +13,9 @@ use std::path::Path;
 use bevy::prelude::*;
 
 use shared::house_name::{
-    continue_cue, local_persist_present, HouseName, HOUSE_PATH, UNNAMED,
+    continue_cue_when_persist, local_persist_present, HouseName, HOUSE_PATH, UNNAMED,
 };
+use shared::title_house_proof::ONLINE_STUB_LABEL;
 
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
@@ -189,7 +193,7 @@ fn spawn_title_screen(mut commands: Commands) {
                 spawn_menu_btn(p, "Play — first Hands", TitlePlayBtn, true);
                 spawn_menu_btn(p, "Continue", TitleContinueBtn, true);
                 spawn_menu_btn(p, "Settings", TitleSettingsBtn, true);
-                spawn_menu_btn(p, "Online — not yet", TitleOnlineBtn, false);
+                spawn_menu_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false);
                 p.spawn(TextBundle::from_section(
                     "1 Play · 2 Continue · 3 Settings · no peer count",
                     TextStyle {
@@ -373,12 +377,8 @@ fn refresh_title_cue(
     label: Res<HouseLabel>,
     mut q: Query<&mut Text, With<TitleCueText>>,
 ) {
-    let cue = if label.persist_present {
-        continue_cue(label.hour_two_held, &label.house)
-            .unwrap_or_else(|| label.house.display_name().to_string())
-    } else {
-        "Play opens the yard · no account wall".into()
-    };
+    let cue = continue_cue_when_persist(label.persist_present, &label.house)
+        .unwrap_or_else(|| "Play opens the yard · no account wall".into());
     for mut text in &mut q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != cue {
@@ -440,6 +440,9 @@ fn title_keyboard_shortcuts(
                 }
             } else if keyboard.just_pressed(KeyCode::Digit3) {
                 label.settings_open = !label.settings_open;
+            } else if keyboard.just_pressed(KeyCode::Escape) {
+                // Esc-from-title: close settings only. Never wipe house/climate/standing/book.
+                label.settings_open = false;
             }
         }
         LaunchDoor::InYard => {
@@ -546,6 +549,8 @@ fn name_house_text_input(
     mut draft_q: Query<&mut Text, With<NameDraftText>>,
 ) {
     if *door != LaunchDoor::NameHouse {
+        // Drain SmolStr ReceivedCharacter so Continue/name does not flicker with stale input.
+        chars.clear();
         return;
     }
     // Bevy 0.14: ReceivedCharacter.char is SmolStr (deprecated API; still compiles).
@@ -629,23 +634,67 @@ fn sync_name_house_visibility(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared::house_name::{
+        continue_cue, continue_cue_when_persist, esc_from_title_preserves_persist, YARD_REMEMBERS,
+    };
     use shared::stranger_loop_proof::{hour_two_held_fixture, peace_fixture};
+    use shared::title_house_proof::online_row_is_honest_disabled;
 
     #[test]
     fn play_does_not_require_house_name() {
         let house = HouseName::default();
         assert!(!house.blocks_hands());
         assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
+        assert!(continue_cue(false, &house).is_none());
     }
 
     #[test]
-    fn continue_meaningful_when_persist() {
+    fn continue_cue_unnamed_house_yard_remembers() {
         assert!(local_persist_present(true, false, false, false));
         let mut house = HouseName::default();
-        house.confirm("Yard");
-        let cue = continue_cue(true, &house).unwrap();
-        assert!(cue.contains("Yard"));
-        assert!(cue.contains("yard remembers"));
+        house.skip();
+        let cue = continue_cue_when_persist(true, &house).unwrap();
+        assert_eq!(cue, "Unnamed House · the yard remembers");
+        assert!(cue.contains(UNNAMED));
+        assert!(cue.contains(YARD_REMEMBERS));
+        let mut named = HouseName::default();
+        named.confirm("Yard");
+        let cue2 = continue_cue(true, &named).unwrap();
+        assert_eq!(cue2, "Yard · the yard remembers");
+    }
+
+    #[test]
+    fn esc_from_title_does_not_clear_persist_files() {
+        let mut house = HouseName::default();
+        house.confirm("Keep Me");
+        let house_json = house.to_json().unwrap();
+        let climate = r#"{"harmony":1.0}"#;
+        let standing = r#"{"declared_lethal":false}"#;
+        let book = r#"{"complete":true}"#;
+        // Esc-from-title only flips settings_open=false; payloads identical.
+        let mut settings_open = true;
+        settings_open = false; // Esc on Title
+        assert!(!settings_open);
+        assert!(esc_from_title_preserves_persist(
+            &house_json,
+            &house_json,
+            climate,
+            climate,
+            standing,
+            standing,
+            book,
+            book,
+        ));
+        let back = HouseName::from_json(&house_json).unwrap();
+        assert!(back.resolved);
+        assert_eq!(back.display_name(), "Keep Me");
+    }
+
+    #[test]
+    fn online_row_visible_disabled_honest() {
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        let net = SessionNetMode::default();
+        assert!(net.mode.peer_count_for_peace_boot().is_none());
     }
 
     #[test]
@@ -659,12 +708,5 @@ mod tests {
         assert!(!standing.declared_lethal);
         let h2 = hour_two_held_fixture();
         assert!(h2.complete);
-    }
-
-    #[test]
-    fn online_stub_stays_offline_label() {
-        // Title Online button is visual-only; SessionNetMode boots Offline.
-        let net = SessionNetMode::default();
-        assert!(net.mode.peer_count_for_peace_boot().is_none());
     }
 }

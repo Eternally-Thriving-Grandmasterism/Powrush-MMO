@@ -26,8 +26,8 @@ Boot → Title (climate breathing; no peer count)
 ## Screens (S0–S4)
 
 ### S0 — Title
-Play / Continue / Settings. *(shipped v0 · design tick 23.2.50)*  
-Continue shows House name + *the yard remembers* if persist is present. Climate breathing on the title — no peer count, no fake online tally.
+Play / Continue / Settings. *(shipped v0 · design tick 23.2.50 · L1 truth 23.2.51)*  
+Continue shows House name **or** exactly *Unnamed House* + *the yard remembers* when any local persist exists. Esc from title does not wipe house/climate/standing/book. Online row visible+disabled — honest *off (no listen)* copy. Climate breathing on the title — no peer count, no fake online tally.
 
 ### S1 — First card
 Existing lived-hour card. No login. Same Peace keys. Soft cues only (see `PHASE_PLAYABLE_LOOP` · `STRANGER_LOOP`).
@@ -39,7 +39,7 @@ One field. Confirm. Skippable after Settled or on quit. *(shipped v0 · `data/po
 House name · week tons + restored · lethal only if declared. No kill board. No race chrome.
 
 ### S4 — Online door
-Stub + honest copy. Feature-flagged **off** by default. Grey until net exists. Never fakes Peace-hour peers (see T-net honest mode).
+Stub + honest copy (*Online — off (no listen)*). Feature-flagged **off** by default (`POWRUSH_NET=off`). No listen socket. Grey until net exists. Never fakes Peace-hour peers (see T-net honest mode).
 
 ## Veto list
 
