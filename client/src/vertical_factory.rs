@@ -144,7 +144,10 @@ fn update_factory_slab(
             .map(|e| e.witness.clone())
             .unwrap_or_default(),
         board: ledger.map(|l| l.board.clone()).unwrap_or_default(),
+        fabricator: Default::default(),
+        embassy: Default::default(),
         complete: hour.complete,
+        hour_three_complete: hour.hour_three_complete,
     };
     let show = hour.hex() != HexFlag::Peace || ready || pack.complete;
     for mut vis in &mut root {
@@ -181,6 +184,7 @@ mod tests {
         let hour = HourSacred {
             session: SpaceSession::default(),
             complete: false,
+            hour_three_complete: false,
         };
         assert_eq!(hour.hex(), HexFlag::Peace);
         let yard = FactoryYard {

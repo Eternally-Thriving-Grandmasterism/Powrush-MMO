@@ -253,11 +253,12 @@ fn maybe_welcome_back(
         return;
     }
     let held = hour.as_ref().map(|h| h.complete).unwrap_or(false);
+    let hour_three = hour.as_ref().map(|h| h.hour_three_complete).unwrap_or(false);
     if !held && !echo.loaded {
         return;
     }
     let last = echo.lines.last().map(|l| l.text.as_str());
-    let Some(line) = crate::hour_two_resume::welcome_line(held, echo.last_practice_sealed, last) else {
+    let Some(line) = crate::hour_two_resume::welcome_line(hour_three, held, echo.last_practice_sealed, last) else {
         if echo.loaded {
             state.welcome_shown = true;
         }
@@ -606,7 +607,7 @@ mod tests {
 
     #[test]
     fn welcome_held_yard() {
-        let line = crate::hour_two_resume::welcome_line(true, false, None).unwrap();
+        let line = crate::hour_two_resume::welcome_line(false, true, false, None).unwrap();
         assert!(line.contains("yard remembers"));
     }
 }

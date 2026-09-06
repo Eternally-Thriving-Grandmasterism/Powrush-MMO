@@ -1,13 +1,13 @@
-# HOUR_THREE.md — Proof Pack + Embassy door (v23.2.33 design)
+# HOUR_THREE.md — Proof Pack + Embassy door (v23.2.35)
 
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick, not a Cargo bump.
 
 Hour three unlocks **only after**:
 1. Hour two code is on main (23.2.28–23.2.32), and
-2. A human timing note exists for `docs/HOUR_TWO_PLAYTEST.md` (OS / GPU / commit / minutes / confusion).
+2. A human timing note **or** steward proceed note on `docs/HOUR_TWO_PLAYTEST.md`.
 
-Until that note exists, do **not** wire new Bevy systems for this hour.
+Steward approved proceed 2026-09-05. Human OS / GPU / minutes still to be filled on next play.
 
 ## Product law
 

@@ -60,7 +60,7 @@ Unlock behind Charter, in this order only:
 2. [x] Ledger bind + escort — L then E after skin is live (already in 23.2.10; door now reaches it)
 3. [x] Persist + Settled checkpoint — `HourTwoPack` in `data/powrush_hour_two.json`; slab *Hour two held · the yard remembers* (23.2.29)
 4. [x] Resume — card skips walk when pack is held; WelcomeBack slab uses `welcome_line` (23.2.31–23.2.32)
-5. [ ] Human times hour two — fill `docs/HOUR_TWO_PLAYTEST.md` Report (OS / GPU / commit / minutes / confusion). **Gate for Hour three.**
+5. [~] Steward proceed 2026-09-05; human OS / GPU / minutes still to fill on next play.
 
 See `docs/HOUR_TWO.md` and `docs/HOUR_TWO_PLAYTEST.md`.
 
@@ -68,9 +68,9 @@ See `docs/HOUR_TWO.md` and `docs/HOUR_TWO_PLAYTEST.md`.
 
 Unlock behind Proof Pack + Embassy, in this order only:
 
-1. [ ] Fabricator + MendSpool + LaneCrate → Proof Pack (Q after House arrival)
-2. [ ] Embassy lamp · E Request seat · blueprints in the book
-3. [ ] Persist + *Hour three held* resume
+1. [x] Fabricator + MendSpool + LaneCrate → Proof Pack (Q after House arrival)
+2. [x] Embassy lamp · E Request seat · blueprints in the book
+3. [x] Persist + *Hour three held* resume (23.2.35)
 4. Stop. G Voice / War week / DeclaredLethal / Crownstone / Sylvaris / Hybrid / Compass wait for Hour four+.
 
 See `docs/HOUR_THREE.md` and `docs/HOUR_THREE_PLAYTEST.md`. No Bevy systems until the Hour-two Report exists.

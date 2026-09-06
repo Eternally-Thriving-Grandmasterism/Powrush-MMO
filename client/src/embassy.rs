@@ -3,21 +3,37 @@
 //! After the Proof Pack, the lamp is live. E Request seat. Dies in Peace.
 //! Contact: info@Rathor.ai
 
+use std::fs;
+
 use bevy::prelude::*;
 
 use shared::embassy::Embassy;
+use shared::hour_two::HourTwoPack;
 
 use crate::coop_voice::VoiceYard;
 use crate::fabricator::FabricatorYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::hour_sacred::HourSacred;
+use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
-#[derive(Resource, Debug, Clone, Default)]
+#[derive(Resource, Debug, Clone)]
 pub struct EmbassyYard {
     pub embassy: Embassy,
+}
+
+impl Default for EmbassyYard {
+    fn default() -> Self {
+        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+            return Self {
+                embassy: HourTwoPack::from_json(&raw).embassy,
+            };
+        }
+        Self {
+            embassy: Embassy::default(),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -79,7 +95,8 @@ fn mark_embassy_lamp(
     ledger: Res<LedgerYard>,
     mut epi: ResMut<FirstHarvestEpiphany>,
 ) {
-    epi.embassy_lamp = hour.charter_skin_live()
+    epi.embassy_lamp = hour.complete
+        && hour.charter_skin_live()
         && yard.embassy.lamp_live
         && !yard.embassy.seated
         && !voice.sash_open
@@ -96,7 +113,7 @@ fn handle_embassy(
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
-    if !hour.charter_skin_live() {
+    if !hour.complete || !hour.charter_skin_live() {
         return;
     }
     yard.embassy.ensure_lamp(&fab.fab.pack);
@@ -128,7 +145,7 @@ fn update_embassy_slab(
     mut root: Query<&mut Visibility, With<EmbassySlabRoot>>,
     mut text_q: Query<&mut Text, With<EmbassySlabText>>,
 ) {
-    let show = hour.charter_skin_live() && yard.embassy.lamp_live;
+    let show = hour.complete && hour.charter_skin_live() && yard.embassy.lamp_live;
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible

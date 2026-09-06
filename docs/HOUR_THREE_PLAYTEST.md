@@ -1,6 +1,6 @@
 # HOUR_THREE_PLAYTEST.md
 
-Run only after Hour two timing note exists and Hour three hands are on main. Same binary. No server.
+Run after steward proceed (or a filled Hour-two Report) and Hour three hands are on main. Same binary. No server.
 
 ## Build
 
@@ -20,11 +20,15 @@ cargo run -p powrush-client
 
 ## Pass / fail
 
-Fail if Hour three unlocks without an Hour-two timing note on record.
+Fail if Hour three unlocks without steward proceed or an Hour-two timing note on record.
 Fail if a second HUD appears.
 Fail if server is required.
 Fail if G / Tab War / Ledger 3 / Crownstone are required to finish this script.
 Fail if quit drops Proof Pack or Embassy seat.
+
+## Steward note
+
+Steward approved proceed 2026-09-05; human timing to be filled on next play.
 
 ## Report
 

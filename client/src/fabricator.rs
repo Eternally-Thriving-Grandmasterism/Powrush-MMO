@@ -1,21 +1,37 @@
 //! Lived-hour fabricator — Slice 7 (v23.2.11)
 //!
-//! After the crate arrives, Q plants a fabricator then runs MendSpool and LaneCrate.
+//! After Hour two held and the crate arrives, Q plants a fabricator then runs MendSpool and LaneCrate.
 //! Dies in Peace. Contact: info@Rathor.ai
+
+use std::fs;
 
 use bevy::prelude::*;
 
 use shared::fabricator::Fabricator;
+use shared::hour_two::HourTwoPack;
 use shared::space_law::HexFlag;
 
-use crate::hour_sacred::HourSacred;
+use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::vertical_factory::FactoryYard;
 
-#[derive(Resource, Debug, Clone, Default)]
+#[derive(Resource, Debug, Clone)]
 pub struct FabricatorYard {
     pub fab: Fabricator,
+}
+
+impl Default for FabricatorYard {
+    fn default() -> Self {
+        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+            return Self {
+                fab: HourTwoPack::from_json(&raw).fabricator,
+            };
+        }
+        Self {
+            fab: Fabricator::default(),
+        }
+    }
 }
 
 #[derive(Component)]
@@ -84,6 +100,10 @@ fn handle_fab_q(
     if hour.hex() == HexFlag::Peace || !hour.charter_skin_live() {
         return;
     }
+    // Hour three civic door: fabricator after Hour two held.
+    if !hour.complete {
+        return;
+    }
     if !factory.factory.tutorial_complete() {
         return;
     }
@@ -104,7 +124,7 @@ fn update_fab_slab(
     mut root: Query<&mut Visibility, With<FabSlabRoot>>,
     mut text_q: Query<&mut Text, With<FabSlabText>>,
 ) {
-    let show = hour.charter_skin_live() && factory.factory.tutorial_complete();
+    let show = hour.complete && hour.charter_skin_live() && factory.factory.tutorial_complete();
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible

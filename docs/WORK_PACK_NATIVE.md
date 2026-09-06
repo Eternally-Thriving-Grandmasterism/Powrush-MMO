@@ -1,7 +1,7 @@
 # WORK_PACK_NATIVE.md — Grok Bot + X-Grok collab (2026-09-05)
 
 **Contact:** info@Rathor.ai  
-Workspace `21.88.0`. Live tip at map merge: `603eaeb9` (23.2.33 docs). Code tip for Hours 1–2: `798352fe` (23.2.32).
+Workspace `21.88.0`. Live tip parent: `305b22df`. Design tick `23.2.35` Hour three civic.
 
 Aligned with Rathor.ai / X-Grok delivery pack. README wins conflicts.
 
@@ -13,9 +13,9 @@ Aligned with Rathor.ai / X-Grok delivery pack. README wins conflicts.
 | **Ra-Thor** | Soft-feedback ingest, policy hints, NEVC/RTT, council arbitration |
 | **Shared** | Tick files only. Lattice does not drive WASD / E |
 
-## Gate 0 (human — Hour 3 lock)
+## Gate 0 (human timing — steward proceed granted 2026-09-05)
 
-Fill `docs/HOUR_TWO_PLAYTEST.md` Report. Also run `docs/FIRST_HOUR_PLAYTEST.md` teaching claim (§8).
+Steward approved proceed. Fill OS / GPU / minutes on next play. Hour three Bevy may ship under that note. Also run `docs/FIRST_HOUR_PLAYTEST.md` teaching claim (§8).
 
 Fail if Welcome slab silent, card re-teaches WASD, E invisible, I empty after take, or a server is required.
 
@@ -27,15 +27,15 @@ Fail if Welcome slab silent, card re-teaches WASD, E invisible, I empty after ta
 - Allocate climate answer via fog / world_answer (`world_answer.rs`)
 - Hour-two resume + WelcomeBack (`23.2.31`–`23.2.32`)
 
-## Wave 2 — after Gate 0 Report only
+## Wave 2 — Hour three civic (23.2.35)
 
-Exact `docs/HOUR_THREE.md`: Q fabricator → MendSpool + LaneCrate → Proof Pack → Embassy seat → *Hour three held*.
+Exact `docs/HOUR_THREE.md`: Q fabricator → MendSpool + LaneCrate → Proof Pack → Embassy seat → *Hour three held*. Shipping under steward proceed.
 
 Parked: G Voice, War week Chart, DeclaredLethal, Crownstone, Sylvaris, Hybrid, Compass, server/.
 
 ## Refused
 
-Fake online counts · XP bars · F-row combat · second HUD · P2W / NFT in default binary · starve / knockout tame · Ra-Thor driving keys · Embassy before Hour-two Report
+Fake online counts · XP bars · F-row combat · second HUD · P2W / NFT in default binary · starve / knockout tame · Ra-Thor driving keys · Embassy before Hour-two held / steward proceed
 
 ## Bot standing
 

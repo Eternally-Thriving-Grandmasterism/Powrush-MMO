@@ -6,26 +6,20 @@ Surgical hooks only. No server. No Ra-Thor path dep.
 
 Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
 Workspace: 21.88.0
-Live design tip: 23.2.33 map / code 23.2.32
+Live design tip: 23.2.35
 Collab law: `docs/WORK_PACK_NATIVE.md`
 
-## Already done (do not redo)
+## Already done
 
-- First hour A+B + Workstream D (PR 209–215)
-- Hour-two door + pack + card + resume + welcome wire (PR 216–220)
-- Hour-three delivery map docs (PR 221)
-- Teaching climates + allocate climate answer on main
-- handle_interact_harvest stays at 16 Bevy 0.14 params
+- Hours 1–2 + welcome wire + teaching line (through #222)
+- Hour-three map docs (#221)
+- Steward proceed note on `HOUR_TWO_PLAYTEST.md`
+- Hour three civic door (Proof Pack + Embassy + persist held) — this pass
 
-## Now
+## Next after Hour 3 is on main
 
-1. Human: `docs/HOUR_TWO_PLAYTEST.md` (+ first-hour teaching claim).
-2. Bot: fix only what the Report names (slab, card skip, E feel, persistence).
-3. After Report: wire Hour three per `docs/HOUR_THREE.md`. Core green before merge.
+Phase Q — solo shard climate ledger (harmony / stress / regen). Same hands. Local JSON only.
 
-## Do not do until Hour-two Report
+## Still refused until stranger loves 1–3
 
-- Embassy / Crownstone / Sylvaris / Hybrid / Compass as new hour systems
-- Steam / WebXR / k8s / payments
-- Unpark server/ simulation/ host/
-- New HUD / F-row / fake peer counts
+G Voice · War week Chart · DeclaredLethal as new hour · Crownstone · Sylvaris · Hybrid · Compass · unpark server/

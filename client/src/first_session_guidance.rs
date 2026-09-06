@@ -1,8 +1,8 @@
 /*!
  * First Session Guidance — single onboarding card (v23.2.24 + hour two v23.2.31)
  *
- * One sentence at a time: walk · tend · satchel · allocate · Tab · Q · L.
- * Resume skips the walk when HourTwoPack is already held.
+ * One sentence at a time: walk · tend · satchel · allocate · Tab · Q · L · fabricator · Embassy.
+ * Resume skips the walk when the hour pack is already held.
  * H hides. World still teaches. Not a second HUD.
  * Does not rewrite harvest_feel or rbe_allocate_choice.
  *
@@ -11,6 +11,8 @@
 
 use bevy::prelude::*;
 
+use crate::embassy::EmbassyYard;
+use crate::fabricator::FabricatorYard;
 use crate::hour_sacred::HourSacred;
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
@@ -31,6 +33,9 @@ pub enum GuidanceObjective {
     OpenLedger,
     BindEscort,
     HourTwoHeld,
+    PlantFabricator,
+    EmbassySeat,
+    HourThreeHeld,
     FeelFirstEpiphany,
     MeetCouncilWhisper,
     FreeExploration,
@@ -50,6 +55,9 @@ impl GuidanceObjective {
             GuidanceObjective::OpenLedger => "L opens the Ledger",
             GuidanceObjective::BindEscort => "E Bind then escort",
             GuidanceObjective::HourTwoHeld => "Hour two held",
+            GuidanceObjective::PlantFabricator => "Q after arrival — plant the fabricator",
+            GuidanceObjective::EmbassySeat => "Embassy lamp · E Request seat",
+            GuidanceObjective::HourThreeHeld => "Hour three held",
             GuidanceObjective::FeelFirstEpiphany => "The field answers",
             GuidanceObjective::MeetCouncilWhisper => "The field answers",
             GuidanceObjective::FreeExploration => "The field keeps teaching",
@@ -67,7 +75,10 @@ impl GuidanceObjective {
             GuidanceObjective::PlantHouse => GuidanceObjective::OpenLedger,
             GuidanceObjective::OpenLedger => GuidanceObjective::BindEscort,
             GuidanceObjective::BindEscort => GuidanceObjective::HourTwoHeld,
-            GuidanceObjective::HourTwoHeld => GuidanceObjective::FreeExploration,
+            GuidanceObjective::HourTwoHeld => GuidanceObjective::PlantFabricator,
+            GuidanceObjective::PlantFabricator => GuidanceObjective::EmbassySeat,
+            GuidanceObjective::EmbassySeat => GuidanceObjective::HourThreeHeld,
+            GuidanceObjective::HourThreeHeld => GuidanceObjective::FreeExploration,
             GuidanceObjective::FeelFirstEpiphany => GuidanceObjective::FreeExploration,
             GuidanceObjective::MeetCouncilWhisper => GuidanceObjective::FreeExploration,
             GuidanceObjective::FreeExploration => GuidanceObjective::FreeExploration,
@@ -92,6 +103,9 @@ pub struct FirstSessionGuidance {
     pub house_live: bool,
     pub ledger_open: bool,
     pub hour_two_held: bool,
+    pub proof_pack: bool,
+    pub embassy_seated: bool,
+    pub hour_three_held: bool,
 }
 
 impl Default for FirstSessionGuidance {
@@ -112,6 +126,9 @@ impl Default for FirstSessionGuidance {
             house_live: false,
             ledger_open: false,
             hour_two_held: false,
+            proof_pack: false,
+            embassy_seated: false,
+            hour_three_held: false,
         }
     }
 }
@@ -137,6 +154,9 @@ impl FirstSessionGuidance {
             GuidanceObjective::OpenLedger => self.ledger_open || self.hour_two_held,
             GuidanceObjective::BindEscort => self.hour_two_held,
             GuidanceObjective::HourTwoHeld => false,
+            GuidanceObjective::PlantFabricator => self.proof_pack,
+            GuidanceObjective::EmbassySeat => self.embassy_seated,
+            GuidanceObjective::HourThreeHeld => false,
             GuidanceObjective::FeelFirstEpiphany => self.epiphany_felt,
             GuidanceObjective::MeetCouncilWhisper => {
                 self.epiphany_felt && self.harvests_completed >= 1
@@ -153,8 +173,18 @@ impl FirstSessionGuidance {
         if self.dismissed {
             return;
         }
+        if self.hour_three_held {
+            self.objective = GuidanceObjective::HourThreeHeld;
+            return;
+        }
         if self.hour_two_held {
-            self.objective = GuidanceObjective::HourTwoHeld;
+            if self.embassy_seated {
+                self.objective = GuidanceObjective::HourThreeHeld;
+            } else if self.proof_pack {
+                self.objective = GuidanceObjective::EmbassySeat;
+            } else {
+                self.objective = GuidanceObjective::PlantFabricator;
+            }
             return;
         }
         if self.house_live {
@@ -313,6 +343,8 @@ fn track_simple_progress_signals(
     bind: Option<Res<LivedHourBind>>,
     hour: Option<Res<HourSacred>>,
     ledger: Option<Res<LedgerYard>>,
+    fab: Option<Res<FabricatorYard>>,
+    embassy: Option<Res<EmbassyYard>>,
 ) {
     if guidance.dismissed {
         return;
@@ -361,6 +393,9 @@ fn track_simple_progress_signals(
         if hour.complete {
             guidance.hour_two_held = true;
         }
+        if hour.hour_three_complete {
+            guidance.hour_three_held = true;
+        }
     }
 
     if let Some(ledger) = ledger {
@@ -377,14 +412,29 @@ fn track_simple_progress_signals(
         }
     }
 
+
+    if let Some(fab) = fab {
+        if fab.fab.pack.unlocked() {
+            guidance.proof_pack = true;
+        }
+    }
+    if let Some(embassy) = embassy {
+        if embassy.embassy.seated {
+            guidance.embassy_seated = true;
+        }
+    }
     guidance.resume_from_pack();
     guidance.advance_if_ready();
 
     if guidance.objective == GuidanceObjective::HourTwoHeld
+        || guidance.objective == GuidanceObjective::HourThreeHeld
         || guidance.objective == GuidanceObjective::FreeExploration
     {
         guidance.free_since += time.delta_seconds();
         if guidance.objective == GuidanceObjective::HourTwoHeld && guidance.free_since > 6.0 {
+            guidance.objective = GuidanceObjective::PlantFabricator;
+            guidance.free_since = 0.0;
+        } else if guidance.objective == GuidanceObjective::HourThreeHeld && guidance.free_since > 6.0 {
             guidance.objective = GuidanceObjective::FreeExploration;
             guidance.free_since = 0.0;
         } else if guidance.objective == GuidanceObjective::FreeExploration && guidance.free_since > 8.0
@@ -465,6 +515,9 @@ mod tests {
             GuidanceObjective::OpenLedger,
             GuidanceObjective::BindEscort,
             GuidanceObjective::HourTwoHeld,
+            GuidanceObjective::PlantFabricator,
+            GuidanceObjective::EmbassySeat,
+            GuidanceObjective::HourThreeHeld,
             GuidanceObjective::FreeExploration,
         ] {
             let p = obj.prompt();
@@ -484,11 +537,30 @@ mod tests {
     }
 
     #[test]
+    fn hour_three_card_after_proof_pack() {
+        let mut g = FirstSessionGuidance::default();
+        g.objective = GuidanceObjective::PlantFabricator;
+        g.proof_pack = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::EmbassySeat);
+        g.embassy_seated = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::HourThreeHeld);
+    }
+
+    #[test]
     fn resume_held_skips_walk() {
         let mut g = FirstSessionGuidance::default();
         g.hour_two_held = true;
         g.resume_from_pack();
-        assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
+        assert_eq!(g.objective, GuidanceObjective::PlantFabricator);
+        g.proof_pack = true;
+        g.resume_from_pack();
+        assert_eq!(g.objective, GuidanceObjective::EmbassySeat);
+        g.embassy_seated = true;
+        g.hour_three_held = true;
+        g.resume_from_pack();
+        assert_eq!(g.objective, GuidanceObjective::HourThreeHeld);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //!
 //! Peace: W is silent 0. Tab / G / L / Q no-op without charter_id + Frontier.
 //! After a first-hour allocate, Tab steps the ridge. Q founds the House.
-//! Pack persist keeps factory + I2 + Ledger across quit.
+//! Pack persist keeps factory + I2 + Ledger + fabricator + Embassy across quit.
 //! WASD / E / I / H / R stay the player door. Contact: info@Rathor.ai
 
 use std::fs;
@@ -17,6 +17,8 @@ use crate::infra_spill::EvidenceYard;
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
+use crate::embassy::EmbassyYard;
+use crate::fabricator::FabricatorYard;
 use crate::vertical_factory::FactoryYard;
 
 pub const HOUR_TWO_PATH: &str = "data/powrush_hour_two.json";
@@ -25,6 +27,7 @@ pub const HOUR_TWO_PATH: &str = "data/powrush_hour_two.json";
 pub struct HourSacred {
     pub session: SpaceSession,
     pub complete: bool,
+    pub hour_three_complete: bool,
 }
 
 impl Default for HourSacred {
@@ -40,28 +43,38 @@ impl HourSacred {
             return Self {
                 session: pack.session,
                 complete: pack.complete,
+                hour_three_complete: pack.hour_three_complete,
             };
         }
         Self {
             session: SpaceSession::default(),
             complete: false,
+            hour_three_complete: false,
         }
     }
 
     pub fn persist_pack(
-        &self,
+        &mut self,
         factory: &FactoryYard,
         evidence: &EvidenceYard,
         ledger: &LedgerYard,
+        fab: &FabricatorYard,
+        embassy: &EmbassyYard,
     ) {
         let mut pack = HourTwoPack {
             session: self.session.clone(),
             factory: factory.factory.clone(),
             witness: evidence.witness.clone(),
             board: ledger.board.clone(),
+            fabricator: fab.fab.clone(),
+            embassy: embassy.embassy.clone(),
             complete: self.complete,
+            hour_three_complete: self.hour_three_complete,
         };
         pack.mark_complete();
+        pack.mark_hour_three();
+        self.complete = pack.complete;
+        self.hour_three_complete = pack.hour_three_complete;
         if let Some(parent) = Path::new(HOUR_TWO_PATH).parent() {
             let _ = fs::create_dir_all(parent);
         }
@@ -136,15 +149,19 @@ fn swallow_charter_skin_in_peace(
 }
 
 fn persist_hour_two_pack(
-    hour: Res<HourSacred>,
+    mut hour: ResMut<HourSacred>,
     factory: Option<Res<FactoryYard>>,
     evidence: Option<Res<EvidenceYard>>,
     ledger: Option<Res<LedgerYard>>,
+    fab: Option<Res<FabricatorYard>>,
+    embassy: Option<Res<EmbassyYard>>,
 ) {
     let changed = hour.is_changed()
         || factory.as_ref().map(|f| f.is_changed()).unwrap_or(false)
         || evidence.as_ref().map(|e| e.is_changed()).unwrap_or(false)
-        || ledger.as_ref().map(|l| l.is_changed()).unwrap_or(false);
+        || ledger.as_ref().map(|l| l.is_changed()).unwrap_or(false)
+        || fab.as_ref().map(|f| f.is_changed()).unwrap_or(false)
+        || embassy.as_ref().map(|e| e.is_changed()).unwrap_or(false);
     if !changed {
         return;
     }
@@ -157,7 +174,13 @@ fn persist_hour_two_pack(
     let Some(ledger) = ledger else {
         return;
     };
-    hour.persist_pack(&factory, &evidence, &ledger);
+    let Some(fab) = fab else {
+        return;
+    };
+    let Some(embassy) = embassy else {
+        return;
+    };
+    hour.persist_pack(&factory, &evidence, &ledger, &fab, &embassy);
 }
 
 #[cfg(test)]
@@ -170,6 +193,7 @@ mod tests {
         let h = HourSacred {
             session: SpaceSession::default(),
             complete: false,
+            hour_three_complete: false,
         };
         assert!(!h.charter_skin_live());
         assert_eq!(h.warrant_live(), 0.0);
@@ -182,6 +206,7 @@ mod tests {
         let mut h = HourSacred {
             session: SpaceSession::default(),
             complete: false,
+            hour_three_complete: false,
         };
         h.session.warrant = WarrantWeight {
             h: 99.0,
@@ -195,6 +220,7 @@ mod tests {
         let mut h = HourSacred {
             session: SpaceSession::default(),
             complete: false,
+            hour_three_complete: false,
         };
         assert!(h.session.take_frontier_ridge());
         assert_eq!(h.hex(), HexFlag::Frontier);
