@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Two-client same-hex localhost recipe (F9)
+
+```
+slice: Two-client same-hex localhost recipe (F9)
+idea: docs-only dev recipe — one powrush-shard --listen 127.0.0.1:7788 + two client processes POWRUSH_NET=localhost (separate CWDs); expect presence len 2, one climate ledger, take-on-tired NO_TAKE, drop→offline book intact; NOT a store/title feature; Online grey; no public bind; stranger offline-first; pointers in PROTOCOL+PARKED; reuse hex_listen unit helpers (no flaky live WS in Core)
+joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Localhost shard WS (F8)
 
 ```
@@ -7,7 +17,7 @@ slice: Localhost shard WS (F8)
 idea: powrush-shard --listen 127.0.0.1:7788 accepts JSON WS (hello→hello_ok/no; tend/take/flow/reserve apply); loopback-only bind refuse 0.0.0.0; POWRUSH_NET=localhost gates client outbound; default off zero sockets; title Online stays grey; presence=houses.len(); persist --data; drop→Offline book intact
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: b16462f7 (#248)
 ```
 
 ## 2026-09-06 — Parked powrush-shard binary (F7)
