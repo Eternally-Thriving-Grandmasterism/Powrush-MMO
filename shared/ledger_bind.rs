@@ -136,6 +136,17 @@ impl LedgerContract {
         "lethal"
     }
 
+    /// Second Digit3 / mercy path. Does not refund blood tariff.
+    pub fn clear_lethal(&mut self) -> &'static str {
+        if self.win != WinCondition::DeclaredLethal {
+            return "idle";
+        }
+        self.win = WinCondition::BindEscort;
+        self.last_line =
+            "Peace declared on this listing · tariff already paid stays on the week".into();
+        "cleared"
+    }
+
     pub fn bind(&mut self) -> &'static str {
         if self.state != ContractState::Posted {
             return "idle";
@@ -208,6 +219,10 @@ impl LedgerBoard {
         self.open_mut().map(|c| c.opt_lethal()).unwrap_or("idle")
     }
 
+    pub fn clear_lethal_local(&mut self) -> &'static str {
+        self.open_mut().map(|c| c.clear_lethal()).unwrap_or("idle")
+    }
+
     pub fn sash_line(&self) -> String {
         self.open()
             .map(|c| {
@@ -266,6 +281,16 @@ mod tests {
         assert_eq!(c.lethal_count, 1);
         assert_eq!(c.bind(), "idle");
         assert_eq!(c.state, ContractState::Posted);
+    }
+
+    #[test]
+    fn clear_lethal_keeps_tariff() {
+        let mut c = LedgerContract::from_i2("abc");
+        assert_eq!(c.opt_lethal(), "lethal");
+        assert_eq!(c.purse.blood_tariff, 2.0);
+        assert_eq!(c.clear_lethal(), "cleared");
+        assert_eq!(c.win, WinCondition::BindEscort);
+        assert_eq!(c.purse.blood_tariff, 2.0);
     }
 
     #[test]

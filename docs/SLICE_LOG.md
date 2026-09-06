@@ -1,16 +1,16 @@
 # SLICE_LOG.md — Powrush-MMO
 
-## 2026-09-05 — U divergent shards
+## 2026-09-05 — Lethal opt-in
 
 ```
-slice: U
-idea: ShardBank thrive vs poor (two hex file trees)
-joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
+slice: Lethal
+idea: Ledger 3 DeclaredLethal after book; tariff reserve→restored debt; Peace silent
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
 receipt: pending-merge
 ```
 
-Refused: race/class select UI.
+Refused: lethal as default E; HP/starve; fake PvP peers; declare before book; server unpark.
 
 ## Prior
-T-net `a0a92899` (#230) · T-offline `d7c43a09` (#229)
+U `334ff87d` (#231) · T-net `a0a92899` (#230) · …

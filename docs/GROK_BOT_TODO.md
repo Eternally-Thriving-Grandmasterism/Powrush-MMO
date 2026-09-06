@@ -1,6 +1,10 @@
 # GROK_BOT_TODO.md
 
-Tip 23.2.43.
+Tip 23.2.44. Autonomous.
 
-## Next after U
-Lethal opt-in (Ledger 3 + tariff) → Mythic verbs → playable loop polish
+## Done through Lethal
+… · U · Lethal (this pass)
+
+## Next
+Mythic verbs (Crownstone Witness / Sylvaris Offer / Hybrid Attune — read-first)
+→ Playable-loop polish (40–90 min offline stranger path)

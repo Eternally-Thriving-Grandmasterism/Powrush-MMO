@@ -1,7 +1,8 @@
 //! Lived-hour Ledger — Slice 6 (v23.2.10) + pack (v23.2.29)
 //!
-//! L opens the board. E Bind then escort. Digit3 opts DeclaredLethal (tariff).
-//! Default win is Bind. No F-key. Dies in Peace. Contact: info@Rathor.ai
+//! L opens the board. E Bind then escort. Digit3 opts DeclaredLethal (tariff)
+//! only after Hour three held. Default win is Bind. No F-key. Peace silent.
+//! Contact: info@Rathor.ai
 
 use std::fs;
 
@@ -12,6 +13,7 @@ use shared::ledger_bind::{ContractState, LedgerBoard};
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::lived_hour_bind::LivedHourBind;
 use crate::infra_spill::EvidenceYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -102,6 +104,7 @@ fn handle_ledger(
     mut hour: ResMut<HourSacred>,
     evidence: Res<EvidenceYard>,
     mut yard: ResMut<LedgerYard>,
+    mut bind: ResMut<LivedHourBind>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
@@ -123,10 +126,28 @@ fn handle_ledger(
     if !yard.sash_open {
         return;
     }
+    // Ledger 3 / Digit3 — DeclaredLethal only after the book. Peace hour never reaches here.
     if keyboard.just_pressed(KeyCode::Digit3) {
+        if bind.standing.declared_lethal {
+            let step = yard.board.clear_lethal_local();
+            if step == "cleared" {
+                bind.standing.clear_lethal();
+                bind.refresh_climate_slab();
+                bind.persist();
+            }
+            return;
+        }
+        if !hour.hour_three_complete {
+            // Resume without book cannot declare.
+            return;
+        }
         let step = yard.board.opt_lethal_local();
         if step == "lethal" {
             hour.session.warrant.x = hour.session.warrant.x.max(10.0);
+            let _paid = bind.climate.on_lethal_declare();
+            bind.standing.declare_lethal(true);
+            bind.refresh_climate_slab();
+            bind.persist();
         }
         return;
     }
@@ -190,6 +211,16 @@ fn update_ledger_slab(
 mod tests {
     use super::*;
     use shared::space_law::HexFlag;
+
+    #[test]
+    fn digit3_needs_hour_three_flag() {
+        let hour = HourSacred {
+            session: shared::space_law::SpaceSession::default(),
+            complete: true,
+            hour_three_complete: false,
+        };
+        assert!(!hour.hour_three_complete);
+    }
 
     #[test]
     fn peace_keeps_ledger_closed() {

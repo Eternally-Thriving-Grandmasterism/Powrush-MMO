@@ -103,6 +103,24 @@ impl ShardClimate {
         self.touch();
     }
 
+    /// DeclaredLethal blood tariff: prefer reserve_pool, else restored_count debt.
+    /// Returns units paid. Week score stays tons + restored (not kills).
+    pub fn on_lethal_declare(&mut self) -> u32 {
+        self.stress = (self.stress + 0.14).clamp(0.0, 1.0);
+        self.harmony = (self.harmony - 0.16).clamp(0.0, 1.0);
+        let paid = if self.reserve_pool > 0 {
+            self.reserve_pool = self.reserve_pool.saturating_sub(1);
+            1
+        } else if self.restored_count > 0 {
+            self.restored_count = self.restored_count.saturating_sub(1);
+            1
+        } else {
+            0
+        };
+        self.touch();
+        paid
+    }
+
     /// Optional slab — not a second HUD.
     pub fn slab_line(&self) -> Option<&'static str> {
         if self.stress >= 0.55 {
@@ -184,6 +202,20 @@ mod tests {
         c.on_lane();
         assert_eq!(c.restored_count, 1);
         assert_eq!(c.tons_moved, 1);
+    }
+
+    #[test]
+    fn lethal_raises_stress_and_spends_reserve() {
+        let mut c = ShardClimate {
+            reserve_pool: 2,
+            stress: 0.2,
+            harmony: 0.7,
+            ..Default::default()
+        };
+        assert_eq!(c.on_lethal_declare(), 1);
+        assert_eq!(c.reserve_pool, 1);
+        assert!(c.stress > 0.2);
+        assert!(c.harmony < 0.7);
     }
 
     #[test]
