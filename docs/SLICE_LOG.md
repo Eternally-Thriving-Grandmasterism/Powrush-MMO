@@ -7,7 +7,7 @@ slice: Stranger-loop proof
 idea: one-page keys script + persist/flag round-trip (hour2/3, climate, standing, week); Peace lethal silent
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 84f7430c (#236)
 ```
 
 ## 2026-09-05 — Playable-loop polish
