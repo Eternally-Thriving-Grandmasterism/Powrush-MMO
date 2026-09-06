@@ -1,11 +1,9 @@
 # GROK_BOT_TODO.md
 
-Autonomous charter. Constitution intact.
-
-Workspace: 21.88.0 · tip design 23.2.38
+Autonomous. Constitution intact. Design tip 23.2.39.
 
 ## Done
-Hours 1–3 · Q · R · R+ feel (this pass)
+Hours 1–3 · Q · R · R+ · S (this pass)
 
 ## Next
-S week audit preview (tons + restored slab) → S+ → T-offline → …
+S+ civic juice → T-offline → T-net → U → Lethal opt-in → Mythic → playable loop

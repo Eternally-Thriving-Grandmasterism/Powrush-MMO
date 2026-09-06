@@ -11,16 +11,19 @@ use bevy::prelude::*;
 use shared::climate_node::{AllocKind, LivedHour, NodeState, TendResult};
 use shared::shard_climate::ShardClimate;
 use shared::shard_standing::ShardStanding;
+use shared::week_audit::WeekAudit;
 
 pub const LIVED_TICK_PATH: &str = "data/powrush_lived_tick.json";
 pub const SHARD_CLIMATE_PATH: &str = "data/powrush_shard_climate.json";
 pub const SHARD_STANDING_PATH: &str = "data/powrush_shard_standing.json";
+pub const WEEK_AUDIT_PATH: &str = "data/powrush_week_audit.json";
 
 #[derive(Resource, Debug, Clone)]
 pub struct LivedHourBind {
     pub hour: LivedHour,
     pub climate: ShardClimate,
     pub standing: ShardStanding,
+    pub week: WeekAudit,
     pub last_line: String,
     pub guidance_hidden: bool,
     /// Nearest well the body is looking at. tend_nearest uses this first.
@@ -54,19 +57,28 @@ impl LivedHourBind {
         ShardStanding::default()
     }
 
+    fn load_week() -> WeekAudit {
+        if let Ok(raw) = fs::read_to_string(WEEK_AUDIT_PATH) {
+            if let Ok(w) = WeekAudit::from_json(&raw) {
+                return w;
+            }
+        }
+        WeekAudit::default()
+    }
+
     pub fn load_or_demo() -> Self {
         let climate = Self::load_climate();
         let standing = Self::load_standing();
-        let climate_slab = standing
-            .slab_line()
-            .or_else(|| climate.slab_line())
-            .map(|s| s.to_string());
+        let mut week = Self::load_week();
+        week.sync_from_climate(climate.tons_moved, climate.restored_count);
+        let climate_slab = Self::compose_slab(&climate, &standing, &week);
         if let Ok(raw) = fs::read_to_string(LIVED_TICK_PATH) {
             if let Ok(hour) = LivedHour::from_json(&raw) {
                 return Self {
                     hour,
                     climate,
                     standing,
+                    week,
                     last_line: "resumed".to_string(),
                     guidance_hidden: false,
                     focus_id: None,
@@ -78,11 +90,27 @@ impl LivedHourBind {
             hour: LivedHour::new_demo(),
             climate,
             standing,
+            week,
             last_line: "walk to a glow".to_string(),
             guidance_hidden: false,
             focus_id: None,
             climate_slab,
         }
+    }
+
+    fn compose_slab(
+        climate: &ShardClimate,
+        standing: &ShardStanding,
+        week: &WeekAudit,
+    ) -> Option<String> {
+        // After any tons/restored, prefer the honest week line.
+        if week.tons_moved > 0 || week.restored_count > 0 {
+            return Some(week.slab_line());
+        }
+        standing
+            .slab_line()
+            .or_else(|| climate.slab_line())
+            .map(|s| s.to_string())
     }
 
     pub fn persist(&self) {
@@ -99,14 +127,15 @@ impl LivedHourBind {
         if let Ok(json) = self.standing.to_json() {
             let _ = fs::write(SHARD_STANDING_PATH, json);
         }
+        if let Ok(json) = self.week.to_json() {
+            let _ = fs::write(WEEK_AUDIT_PATH, json);
+        }
     }
 
-    fn refresh_climate_slab(&mut self) {
-        self.climate_slab = self
-            .standing
-            .slab_line()
-            .or_else(|| self.climate.slab_line())
-            .map(|s| s.to_string());
+    pub fn refresh_climate_slab(&mut self) {
+        self.week
+            .sync_from_climate(self.climate.tons_moved, self.climate.restored_count);
+        self.climate_slab = Self::compose_slab(&self.climate, &self.standing, &self.week);
     }
 
     /// E on a node id (nearest glow is the client's job).
@@ -236,6 +265,7 @@ mod tests {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
             standing: ShardStanding::default(),
+            week: WeekAudit::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -251,6 +281,7 @@ mod tests {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
             standing: ShardStanding::default(),
+            week: WeekAudit::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -269,6 +300,7 @@ mod tests {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
             standing: ShardStanding::default(),
+            week: WeekAudit::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: Some(2),
@@ -284,6 +316,7 @@ mod tests {
         assert_eq!(LIVED_TICK_PATH, "data/powrush_lived_tick.json");
         assert_eq!(SHARD_CLIMATE_PATH, "data/powrush_shard_climate.json");
         assert_eq!(SHARD_STANDING_PATH, "data/powrush_shard_standing.json");
+        assert_eq!(WEEK_AUDIT_PATH, "data/powrush_week_audit.json");
     }
 
     #[test]
@@ -292,6 +325,7 @@ mod tests {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
             standing: ShardStanding::default(),
+            week: WeekAudit::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -312,6 +346,7 @@ mod tests {
                 ..Default::default()
             },
             standing: ShardStanding::default(),
+            week: WeekAudit::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -328,6 +363,7 @@ mod tests {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
             standing: ShardStanding::default(),
+            week: WeekAudit::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
@@ -340,11 +376,32 @@ mod tests {
     }
 
     #[test]
+    fn week_slab_tracks_tons_and_restored() {
+        let mut bind = LivedHourBind {
+            hour: LivedHour::new_demo(),
+            climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
+            week: WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        };
+        bind.climate.tons_moved = 2;
+        bind.climate.restored_count = 3;
+        bind.refresh_climate_slab();
+        let slab = bind.climate_slab.unwrap();
+        assert!(slab.contains("2 tons"));
+        assert!(slab.contains("3 restored"));
+    }
+
+    #[test]
     fn standing_lethal_stays_parked() {
         let mut bind = LivedHourBind {
             hour: LivedHour::new_demo(),
             climate: ShardClimate::default(),
             standing: ShardStanding::default(),
+            week: WeekAudit::default(),
             last_line: String::new(),
             guidance_hidden: false,
             focus_id: None,
