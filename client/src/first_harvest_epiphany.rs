@@ -609,5 +609,7 @@ mod tests {
     fn welcome_held_yard() {
         let line = crate::hour_two_resume::welcome_line(false, true, false, None).unwrap();
         assert!(line.contains("yard remembers"));
+        assert!(line.contains("climate"));
+        assert!(!line.to_lowercase().contains("lethal"));
     }
 }

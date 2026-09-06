@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.46] — 2026-09-05 — Playable-loop polish
+
+Docs `PHASE_PLAYABLE_LOOP.md` for the stranger offline path. Soft cues on the existing card + welcome + Ledger sash: after harvest toward House; after Hour two name climate/week; after book Ledger 3 optional (never default E, never Peace lethal UI). Mythic SLICE_LOG receipt fixed. Workspace stays 21.88.0.
+
 ## [23.2.45] — 2026-09-05 — Mythic verbs read-first
 
 Witness / Offer / Attune gated on Hour three held + seat. Not damage. Peace unchanged. Workspace stays 21.88.0.

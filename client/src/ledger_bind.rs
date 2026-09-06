@@ -1,6 +1,7 @@
 //! Lived-hour Ledger — Slice 6 (v23.2.10) + pack (v23.2.29)
 //!
 //! L opens the board. E Bind then escort. Digit3 opts DeclaredLethal (tariff)
+//! Soft cue after book: sash may append "· 3 optional". Never Peace boot.
 //! only after Hour three held. Default win is Bind. No F-key. Peace silent.
 //! Contact: info@Rathor.ai
 
@@ -180,9 +181,20 @@ fn stamp_complete(mut hour: ResMut<HourSacred>, evidence: Res<EvidenceYard>, yar
     }
 }
 
+
+/// Quiet Ledger hint after Hour three. Empty string before the book.
+pub fn lethal_soft_clause(hour_three_held: bool, already_lethal: bool) -> &'static str {
+    if hour_three_held && !already_lethal {
+        " · 3 optional"
+    } else {
+        ""
+    }
+}
+
 fn update_ledger_slab(
     hour: Res<HourSacred>,
     yard: Res<LedgerYard>,
+    bind: Res<LivedHourBind>,
     mut root: Query<&mut Visibility, With<LedgerSlabRoot>>,
     mut text_q: Query<&mut Text, With<LedgerSlabText>>,
 ) {
@@ -197,7 +209,12 @@ fn update_ledger_slab(
     if !show {
         return;
     }
-    let line = yard.board.sash_line();
+    // Soft discoverability only after the book. Never on Peace boot (sash closed).
+    let mut line = yard.board.sash_line();
+    let clause = lethal_soft_clause(hour.hour_three_complete, bind.standing.declared_lethal);
+    if !clause.is_empty() && !line.contains("3 optional") {
+        line = format!("{line}{clause}");
+    }
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -236,5 +253,14 @@ mod tests {
         };
         assert!(!yard.sash_open);
         assert!(yard.board.contracts.is_empty());
+    }
+
+    #[test]
+    fn lethal_soft_clause_only_after_book() {
+        assert_eq!(lethal_soft_clause(false, false), "");
+        assert_eq!(lethal_soft_clause(true, false), " · 3 optional");
+        assert_eq!(lethal_soft_clause(true, true), "");
+        assert!(!lethal_soft_clause(true, false).to_lowercase().contains("combat"));
+        assert!(!lethal_soft_clause(true, false).contains("kill"));
     }
 }
