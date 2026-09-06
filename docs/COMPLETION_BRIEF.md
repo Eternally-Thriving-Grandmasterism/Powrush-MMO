@@ -3,7 +3,7 @@
 Status date: 2026-09-05  
 Canonical product: lived first hour (`cargo run -p powrush-client`)  
 Workspace: 21.88.0  
-Design tick: 23.2.32 (not a Cargo bump)  
+Design tick: 23.2.33 design map (not a Cargo bump); live code tip 23.2.32  
 This file is an instruction document for manual, non-agentic work.
 
 ## Product law
@@ -60,9 +60,20 @@ Unlock behind Charter, in this order only:
 2. [x] Ledger bind + escort — L then E after skin is live (already in 23.2.10; door now reaches it)
 3. [x] Persist + Settled checkpoint — `HourTwoPack` in `data/powrush_hour_two.json`; slab *Hour two held · the yard remembers* (23.2.29)
 4. [x] Resume — card skips walk when pack is held; WelcomeBack slab uses `welcome_line` (23.2.31–23.2.32)
-5. Stop. Do not add Embassy / Crownstone / Sylvaris / Hybrid until a human times hour two.
+5. [ ] Human times hour two — fill `docs/HOUR_TWO_PLAYTEST.md` Report (OS / GPU / commit / minutes / confusion). **Gate for Hour three.**
 
 See `docs/HOUR_TWO.md` and `docs/HOUR_TWO_PLAYTEST.md`.
+
+### C2. Third hour only after C gate
+
+Unlock behind Proof Pack + Embassy, in this order only:
+
+1. [ ] Fabricator + MendSpool + LaneCrate → Proof Pack (Q after House arrival)
+2. [ ] Embassy lamp · E Request seat · blueprints in the book
+3. [ ] Persist + *Hour three held* resume
+4. Stop. G Voice / War week / DeclaredLethal / Crownstone / Sylvaris / Hybrid / Compass wait for Hour four+.
+
+See `docs/HOUR_THREE.md` and `docs/HOUR_THREE_PLAYTEST.md`. No Bevy systems until the Hour-two Report exists.
 
 ### D. Repo hygiene (do in parallel, small commits)
 
@@ -72,7 +83,7 @@ See `docs/HOUR_TWO.md` and `docs/HOUR_TWO_PLAYTEST.md`.
 - [x] Parked crates documented in `docs/PARKED_SURFACES.md`
 - [x] Root recovery / launch-scenario / derivation blobs stubbed; full body at git e2ae388
 
-### E. Later, only if A–C are green
+### E. Later, only if A–C2 are green
 
 - Simulator verb parity (same E/I/H/R meanings)
 - Optional listen-server for two humans

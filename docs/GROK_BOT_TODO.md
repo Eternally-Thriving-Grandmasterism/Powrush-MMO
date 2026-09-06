@@ -5,38 +5,24 @@ Do not rewrite harvest_feel.rs or rbe_allocate_choice.rs.
 Surgical hooks only. No server. No Ra-Thor path dep.
 
 Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
-Branch: feat/hour-two-welcome-wire-23.2.32
 Workspace: 21.88.0
-Design tick: 23.2.32
+Live design tip: 23.2.32 (`798352fe`)
 
 ## Already done (do not redo)
 
 - First hour A+B + Workstream D (PR 209–215)
-- Hour-two door + pack + card + resume skip (PR 216–219 / 23.2.28–23.2.31)
+- Hour-two door + pack + card + resume + welcome wire (PR 216–220 / 23.2.28–23.2.32)
 - handle_interact_harvest stays at 16 Bevy 0.14 params
 
-## This slice
+## Now (PATSAGi)
 
-Wire `welcome_line` into the existing WelcomeBack slab.
-When `HourSacred.complete`, the slab speaks the held-yard sentence.
-No Embassy.
+1. Human runs `docs/HOUR_TWO_PLAYTEST.md` and drops the Report.
+2. Until that Report exists: **no new Bevy systems**. Docs-only maps are allowed.
+3. After the Report: wire Hour three per `docs/HOUR_THREE.md` (Proof Pack → Embassy seat → held). Merge only if Core green.
 
-```bash
-cargo test -p powrush-client --lib first_harvest
-cargo test -p powrush-client --lib hour_two_resume
-cargo test -p powrush-client --lib first_session_guidance
-cargo test -p shared -p rsil-identity
-cargo test -p powrush-client --lib
-```
+## Do not do until Hour-two Report
 
-## After 23.2.32 is green
-
-- Merge
-- Stop. Human times hour two (docs/HOUR_TWO_PLAYTEST.md).
-- Do not add Embassy / Crownstone / Sylvaris until that timing note exists.
-
-## Do not do in this pass
-
+- Embassy / Crownstone / Sylvaris / Hybrid / Compass as new hours
 - Steam / WebXR / k8s / payments
 - Unpark server/ simulation/ host/
 - New HUD
