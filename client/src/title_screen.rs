@@ -15,7 +15,7 @@ use bevy::prelude::*;
 use shared::house_name::{
     continue_cue_when_persist, local_persist_present, HouseName, HOUSE_PATH, UNNAMED,
 };
-use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+use shared::title_house_proof::ONLINE_STUB_LABEL;
 
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
@@ -638,6 +638,7 @@ mod tests {
         continue_cue, continue_cue_when_persist, esc_from_title_preserves_persist, YARD_REMEMBERS,
     };
     use shared::stranger_loop_proof::{hour_two_held_fixture, peace_fixture};
+    use shared::title_house_proof::online_row_is_honest_disabled;
 
     #[test]
     fn play_does_not_require_house_name() {
