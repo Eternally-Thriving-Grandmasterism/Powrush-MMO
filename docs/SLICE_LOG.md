@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Launch UX steward-house
+
+```
+slice: Launch UX steward-house
+idea: docs/LAUNCH_UX.md — offline-first Title→Hands→House→Online; S0–S4; veto list; Joy/Mercy/Sustain; Traditional vs steward contrast
+joy 0.98 | mercy 0.99 | sustain 0.98 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-05 — Stranger-loop proof
 
 ```
