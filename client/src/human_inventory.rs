@@ -4,6 +4,7 @@
  * Watch reads cycles: ~ means vitality wants to go home.
  * Companion word when trust or a ride is live.
  * I satchel shows Pause/Ledger face: House · week · lethal if declared.
+ * Quiet copy: abundance is held, not hoarded.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -360,6 +361,8 @@ fn update_satchel(
     let body_line = format!(
         "{face}
 
+abundance is held, not hoarded
+
 {} [1] Vitality   {:.1}
 {} [2] Harmony    {:.1}
 {} [3] Joy        {:.1}
@@ -445,5 +448,18 @@ mod tests {
         let lethal = face_from(&HouseName::default(), &week, true);
         assert!(lethal.contains(LETHAL_DECLARED_LINE));
         assert!(lethal.contains("Unnamed House") || lethal.contains("this week"));
+    }
+
+    #[test]
+    fn satchel_face_unnamed_week_zero_no_lethal() {
+        let mut house = HouseName::default();
+        house.skip();
+        let week = WeekAudit::default();
+        let face = face_from(&house, &week, false);
+        assert!(face.contains("Unnamed House"));
+        assert!(face.contains("0 tons"));
+        assert!(face.contains("0 restored"));
+        assert!(!face.contains(LETHAL_DECLARED_LINE));
+        assert!(face_is_steward_honest(&face));
     }
 }

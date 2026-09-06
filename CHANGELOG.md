@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.61] — 2026-09-06 — Stranger-pass: title contrast + Esc→Title + L wait + house file
+
+Title door readable on soft GPU / Mesa: opaque light-on-dark plate (no alpha-on-fog); Esc from InYard → `LaunchDoor::Title` (quit via window close / Settings). L sash never blank before Settled — *Not your charter* / *the ledger waits*; L2 house+week face when charter live; I keeps abundance copy. `data/powrush_house.json` written on Settled offer and quit-to-title even if name skipped (Unnamed). Tick path honesty: default `powrush_lived_tick.json` is session persist, not Ra-Thor ingest; checklist “no tick” = no ingest overlay; blob kept. Stamps W1–W3 waiting-pack SLICE_LOG receipt `ae2589b4 (#251)`. Peace keys unchanged. No Online live, no preview tag, no Vulkan product requirement, no harvest_feel rewrite. Workspace stays 21.88.0.
+
 ## [23.2.60] — 2026-09-06 — W1–W3 waiting pack (P10 receipt + no-dial banner)
 
 Steward side work while waiting for stranger pass (docs only). Stamps P10 SLICE_LOG receipt `pending-merge` → `a678b035 (#250)`. Top-of-doc **no-dial banner** on `docs/PROTOCOL.md` + `docs/F9_TWO_CLIENT_LOCALHOST.md`: default client **does not dial**; `POWRUSH_NET=off` (default) opens zero sockets; loopback WS is opt-in via env/Settings, not the title Online row. Strengthen PROTOCOL steward law never-listens → does-not-dial. Explicit L3 note: `POWRUSH_INGEST` off by default; writes `data/powrush_lived_tick.json` only when on; **no client overlay**; Ra-Thor may read ticks, never drives keys (`PROTOCOL` + `PARKED_SURFACES`). Waiting-pack SLICE_LOG entry receipt pending-merge. No preview tag, no Online live, no public bind, no feel juice, no new verbs. Workspace stays 21.88.0.

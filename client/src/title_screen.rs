@@ -1,10 +1,9 @@
-//! S0 Title + S2 skippable House naming (v23.2.51)
+//! S0 Title + S2 skippable House naming (v23.2.61)
 //!
-//! L1 title truth: Continue Unnamed House + yard remembers; Esc-from-title
-//! preserves persist; Online disabled honest; SmolStr input drained off-panel.
-//!
-//! Play / Continue / Settings. Online grey stub. No peer count. No login wall.
-//! House name persist: data/powrush_house.json (beside climate).
+//! High-contrast title plate (opaque light-on-dark — soft GPU / Mesa readable).
+//! Esc from InYard → Title (not quit-to-desktop); quit via window close / Settings.
+//! Esc-to-title + Settled write data/powrush_house.json even if name skipped.
+//! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //! Contact: info@Rathor.ai
 
 use std::fs;
@@ -20,6 +19,52 @@ use shared::title_house_proof::ONLINE_STUB_LABEL;
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
 use crate::net_mode::SessionNetMode;
+use crate::lived_hour_bind::LivedHourBind;
+
+// --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
+// Soft GPU / Mesa must read Play · Continue · Online · Settings before the yard.
+/// Opaque dark plate behind menu text (light-on-dark).
+pub const TITLE_PLATE_BG: Color = Color::srgb(0.05, 0.07, 0.09);
+/// Full-screen dimmer over the world (opaque dark — stranger reads the door).
+pub const TITLE_DIM_BG: Color = Color::srgb(0.02, 0.03, 0.04);
+/// Primary menu / title text — high contrast on TITLE_PLATE_BG.
+pub const TITLE_TEXT_PRIMARY: Color = Color::srgb(0.96, 0.98, 0.94);
+/// Secondary cue / subtitle text.
+pub const TITLE_TEXT_SECONDARY: Color = Color::srgb(0.82, 0.92, 0.86);
+/// Enabled button fill (opaque).
+pub const TITLE_BTN_BG: Color = Color::srgb(0.12, 0.18, 0.15);
+/// Enabled button label.
+pub const TITLE_BTN_FG: Color = Color::srgb(0.96, 0.98, 0.95);
+/// Disabled / Online-grey fill.
+pub const TITLE_BTN_DISABLED_BG: Color = Color::srgb(0.10, 0.11, 0.12);
+/// Disabled / Online-grey label.
+pub const TITLE_BTN_DISABLED_FG: Color = Color::srgb(0.55, 0.58, 0.60);
+/// Plate + button border (opaque green).
+pub const TITLE_BORDER: Color = Color::srgb(0.45, 0.78, 0.58);
+
+/// Relative luminance from linear-ish sRGB channels (Bevy 0.14 Color::Srgba).
+pub fn title_luminance(c: Color) -> f32 {
+    let s = match c {
+        Color::Srgba(srgba) => srgba,
+        other => other.to_srgba(),
+    };
+    0.2126 * s.red + 0.7152 * s.green + 0.0722 * s.blue
+}
+
+/// True when primary text is clearly brighter than the plate (soft-GPU readable).
+pub fn title_contrast_is_high() -> bool {
+    let plate = title_luminance(TITLE_PLATE_BG);
+    let text = title_luminance(TITLE_TEXT_PRIMARY);
+    text - plate >= 0.55
+}
+
+/// Alpha channel of a Color (1.0 = opaque plate / no alpha-on-fog).
+pub fn title_alpha(c: Color) -> f32 {
+    match c {
+        Color::Srgba(srgba) => srgba.alpha,
+        other => other.to_srgba().alpha,
+    }
+}
 
 /// Boot door. Title until Play/Continue. Naming is optional after Settled / quit.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
@@ -114,7 +159,7 @@ impl Plugin for TitleScreenPlugin {
                     title_keyboard_shortcuts,
                     sync_title_visibility,
                     watch_settled_for_naming,
-                    quit_path_naming,
+                    esc_yard_to_title,
                     name_house_text_input,
                     name_house_buttons,
                     sync_name_house_visibility,
@@ -138,8 +183,9 @@ fn spawn_title_screen(mut commands: Commands) {
                     row_gap: Val::Px(14.0),
                     ..default()
                 },
-                background_color: Color::srgba(0.03, 0.05, 0.06, 0.82).into(),
-                z_index: ZIndex::Global(40),
+                // Opaque dimmer — soft GPU must not alpha-blend menu into fog.
+                background_color: TITLE_DIM_BG.into(),
+                z_index: ZIndex::Global(120),
                 ..default()
             },
             TitleRoot,
@@ -153,12 +199,12 @@ fn spawn_title_screen(mut commands: Commands) {
                         padding: UiRect::all(Val::Px(22.0)),
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(10.0),
-                        border: UiRect::all(Val::Px(1.5)),
+                        border: UiRect::all(Val::Px(2.0)),
                         align_items: AlignItems::Stretch,
                         ..default()
                     },
-                    background_color: Color::srgba(0.05, 0.08, 0.09, 0.94).into(),
-                    border_color: Color::srgba(0.48, 0.78, 0.58, 0.55).into(),
+                    background_color: TITLE_PLATE_BG.into(),
+                    border_color: TITLE_BORDER.into(),
                     ..default()
                 },
             )
@@ -167,7 +213,7 @@ fn spawn_title_screen(mut commands: Commands) {
                     "POWRUSH",
                     TextStyle {
                         font_size: 28.0,
-                        color: Color::srgb(0.88, 0.98, 0.92),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ));
@@ -175,7 +221,7 @@ fn spawn_title_screen(mut commands: Commands) {
                     "Steward House · offline first",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.62, 0.82, 0.72),
+                        color: TITLE_TEXT_SECONDARY,
                         ..default()
                     },
                 ));
@@ -184,7 +230,7 @@ fn spawn_title_screen(mut commands: Commands) {
                         "",
                         TextStyle {
                             font_size: 13.0,
-                            color: Color::srgb(0.78, 0.92, 0.84),
+                            color: TITLE_TEXT_SECONDARY,
                             ..default()
                         },
                     ),
@@ -195,10 +241,10 @@ fn spawn_title_screen(mut commands: Commands) {
                 spawn_menu_btn(p, "Settings", TitleSettingsBtn, true);
                 spawn_menu_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false);
                 p.spawn(TextBundle::from_section(
-                    "1 Play · 2 Continue · 3 Settings · no peer count",
+                    "1 Play · 2 Continue · 3 Settings · Esc from yard returns here",
                     TextStyle {
                         font_size: 11.0,
-                        color: Color::srgb(0.50, 0.62, 0.58),
+                        color: TITLE_TEXT_SECONDARY,
                         ..default()
                     },
                 ));
@@ -212,16 +258,8 @@ fn spawn_menu_btn<C: Component>(
     marker: C,
     enabled: bool,
 ) {
-    let bg = if enabled {
-        Color::srgba(0.10, 0.16, 0.14, 0.95)
-    } else {
-        Color::srgba(0.08, 0.09, 0.10, 0.70)
-    };
-    let fg = if enabled {
-        Color::srgb(0.90, 0.96, 0.92)
-    } else {
-        Color::srgb(0.45, 0.48, 0.50)
-    };
+    let bg = if enabled { TITLE_BTN_BG } else { TITLE_BTN_DISABLED_BG };
+    let fg = if enabled { TITLE_BTN_FG } else { TITLE_BTN_DISABLED_FG };
     p.spawn((
         ButtonBundle {
             style: Style {
@@ -231,7 +269,7 @@ fn spawn_menu_btn<C: Component>(
                 ..default()
             },
             background_color: bg.into(),
-            border_color: Color::srgba(0.40, 0.70, 0.55, if enabled { 0.45 } else { 0.20 }).into(),
+            border_color: TITLE_BORDER.into(),
             ..default()
         },
         marker,
@@ -263,10 +301,10 @@ fn spawn_settings_stub(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.07, 0.10, 0.94).into(),
-                border_color: Color::srgba(0.50, 0.75, 0.95, 0.45).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: Color::srgb(0.50, 0.75, 0.95).into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(45),
+                z_index: ZIndex::Global(130),
                 ..default()
             },
             SettingsStubRoot,
@@ -276,15 +314,15 @@ fn spawn_settings_stub(mut commands: Commands) {
                 "Settings",
                 TextStyle {
                     font_size: 15.0,
-                    color: Color::srgb(0.78, 0.94, 1.0),
+                    color: TITLE_TEXT_PRIMARY,
                     ..default()
                 },
             ));
             p.spawn(TextBundle::from_section(
-                "Peace keys · WASD E I H R unchanged\nLethal stays opt-in after the book\n3 / Esc closes",
+                "Peace keys · WASD E I H R unchanged\nLethal stays opt-in after the book\nEsc from yard → Title · window close quits",
                 TextStyle {
                     font_size: 13.0,
-                    color: Color::srgb(0.86, 0.92, 0.96),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));
@@ -303,9 +341,9 @@ fn spawn_name_house_panel(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                background_color: Color::srgba(0.02, 0.04, 0.05, 0.72).into(),
+                background_color: TITLE_DIM_BG.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(50),
+                z_index: ZIndex::Global(140),
                 ..default()
             },
             NameHouseRoot,
@@ -320,8 +358,8 @@ fn spawn_name_house_panel(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.08, 0.09, 0.96).into(),
-                border_color: Color::srgba(0.55, 0.88, 0.70, 0.50).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 ..default()
             })
             .with_children(|p| {
@@ -369,7 +407,8 @@ fn breath_title_border(
     let pulse = 0.45 + (time.elapsed_seconds() * 1.2).sin() * 0.12;
     for mut border in &mut q {
         // TitleBreath is on the full-screen root (no border) — keep noop-safe.
-        *border = Color::srgba(0.48, 0.78, 0.58, pulse).into();
+        let _ = pulse; // opaque plate — no alpha breath on soft GPU
+        *border = TITLE_BORDER.into();
     }
 }
 
@@ -446,6 +485,7 @@ fn title_keyboard_shortcuts(
             }
         }
         LaunchDoor::InYard => {
+            // Esc → Title is handled by esc_yard_to_title (not quit-to-desktop).
             if keyboard.just_pressed(KeyCode::Digit3) && label.settings_open {
                 label.settings_open = false;
             }
@@ -473,11 +513,11 @@ fn sync_title_visibility(
     let enabled = label.persist_present;
     for (mut bg, mut border) in &mut cont_style {
         *bg = if enabled {
-            Color::srgba(0.10, 0.16, 0.14, 0.95).into()
+            TITLE_BTN_BG.into()
         } else {
-            Color::srgba(0.08, 0.09, 0.10, 0.55).into()
+            TITLE_BTN_DISABLED_BG.into()
         };
-        *border = Color::srgba(0.40, 0.70, 0.55, if enabled { 0.45 } else { 0.15 }).into();
+        *border = TITLE_BORDER.into();
     }
     let _ = net.mode; // Online stays Offline; peer count never shown
 }
@@ -513,16 +553,22 @@ fn watch_settled_for_naming(
     };
     if hour.complete {
         label.naming_offered = true;
+        // Soft-write Unnamed so Continue works even if they quit mid-name panel.
+        ensure_house_file_written(&mut label);
         label.draft.clear();
         *door = LaunchDoor::NameHouse;
     }
 }
 
-fn quit_path_naming(
+/// Esc while InYard → LaunchDoor::Title (stranger-pass).
+/// Does **not** quit-to-desktop — close the window or use Settings for that.
+/// First Esc closes Settings if open; second Esc (or Esc with settings closed) returns to Title.
+/// Writes `data/powrush_house.json` even if name was skipped (Unnamed House).
+fn esc_yard_to_title(
     keyboard: Res<ButtonInput<KeyCode>>,
-    hour: Option<Res<HourSacred>>,
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    bind: Option<Res<LivedHourBind>>,
 ) {
     if *door != LaunchDoor::InYard {
         return;
@@ -530,14 +576,33 @@ fn quit_path_naming(
     if !keyboard.just_pressed(KeyCode::Escape) {
         return;
     }
-    if label.house.resolved || label.naming_offered {
+    if label.settings_open {
+        label.settings_open = false;
         return;
     }
-    let settled = hour.map(|h| h.complete).unwrap_or(false);
-    if settled {
+    // Persist house on first quit-to-title even when naming was skipped.
+    ensure_house_file_written(&mut label);
+    if let Some(bind) = bind.as_ref() {
+        bind.persist();
+    }
+    *door = LaunchDoor::Title;
+}
+
+/// After Settled or quit-to-title: house JSON exists (name may be null / Unnamed).
+fn ensure_house_file_written(label: &mut HouseLabel) {
+    if !label.house.resolved {
+        label.house.skip();
         label.naming_offered = true;
-        label.draft.clear();
-        *door = LaunchDoor::NameHouse;
+    }
+    label.house.persist();
+    label.persist_present = true;
+}
+
+/// Pure helper for proof tests: Esc from InYard yields Title.
+pub fn esc_from_inyard_returns_title(from: LaunchDoor) -> LaunchDoor {
+    match from {
+        LaunchDoor::InYard => LaunchDoor::Title,
+        other => other,
     }
 }
 
@@ -708,5 +773,67 @@ mod tests {
         assert!(!standing.declared_lethal);
         let h2 = hour_two_held_fixture();
         assert!(h2.complete);
+    }
+
+    #[test]
+    fn title_default_is_launch_door_title() {
+        assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
+    }
+
+    #[test]
+    fn title_contrast_light_on_opaque_dark() {
+        assert!(title_contrast_is_high(), "primary text must out-luminance plate");
+        let a = title_alpha(TITLE_PLATE_BG);
+        assert!((a - 1.0).abs() < 0.01, "plate must be opaque, got alpha={a}");
+        let a2 = title_alpha(TITLE_DIM_BG);
+        assert!((a2 - 1.0).abs() < 0.01, "dimmer must be opaque, got alpha={a2}");
+        assert!(title_luminance(TITLE_TEXT_PRIMARY) > title_luminance(TITLE_PLATE_BG));
+        assert!(title_luminance(TITLE_BTN_FG) > title_luminance(TITLE_BTN_BG));
+    }
+
+    #[test]
+    fn esc_from_inyard_maps_to_title() {
+        assert_eq!(
+            super::esc_from_inyard_returns_title(LaunchDoor::InYard),
+            LaunchDoor::Title
+        );
+        assert_eq!(
+            super::esc_from_inyard_returns_title(LaunchDoor::Title),
+            LaunchDoor::Title
+        );
+        assert_eq!(
+            super::esc_from_inyard_returns_title(LaunchDoor::NameHouse),
+            LaunchDoor::NameHouse
+        );
+    }
+
+    #[test]
+    fn ensure_house_written_on_skip_path() {
+        // In-memory skip path (no disk write in unit test).
+        let mut label = HouseLabel {
+            house: HouseName::default(),
+            persist_present: false,
+            hour_two_held: false,
+            settings_open: false,
+            draft: String::new(),
+            naming_offered: false,
+        };
+        assert!(!label.house.resolved);
+        if !label.house.resolved {
+            label.house.skip();
+            label.naming_offered = true;
+        }
+        label.persist_present = true;
+        assert!(label.house.resolved);
+        assert_eq!(label.house.display_name(), UNNAMED);
+        assert!(label.persist_present);
+        assert!(label.naming_offered);
+        let raw = label.house.to_json().unwrap();
+        assert!(raw.contains("powrush_house_v1"));
+        // name empty / Unnamed — Continue reads Unnamed House · the yard remembers
+        let cue = continue_cue_when_persist(true, &label.house).unwrap();
+        assert_eq!(cue, "Unnamed House · the yard remembers");
+        // esc helper still maps InYard → Title
+        assert_eq!(super::esc_from_inyard_returns_title(LaunchDoor::InYard), LaunchDoor::Title);
     }
 }

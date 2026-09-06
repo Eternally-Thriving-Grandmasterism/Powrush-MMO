@@ -2,8 +2,12 @@
 //! Bind first-hour hands to shared::climate_node::LivedHour.
 //! E tend · I satchel · R 1 flow · R 2 reserve.
 //! Persist: data/powrush_lived_tick.json + data/powrush_shard_climate.json (Phase Q)
-//! L3 optional lattice ingest (`POWRUSH_INGEST`, default off) soft-writes versioned tick.
-//! Does not replace harvest_feel or rbe_allocate_choice.
+//!
+//! Tick path honesty: default `data/powrush_lived_tick.json` is **session persist**
+//! (Mode B resume / Continuity) — not Ra-Thor ingest. Keep writing the lived-hour
+//! blob whenever the client needs it. `POWRUSH_INGEST=on` soft-writes a versioned
+//! lattice overlay on the same path; checklist “no tick” means no ingest overlay.
+//! Do not delete the blob. Does not replace harvest_feel or rbe_allocate_choice.
 
 use std::fs;
 use std::path::Path;
@@ -134,8 +138,9 @@ impl LivedHourBind {
         if let Some(parent) = Path::new(LIVED_TICK_PATH).parent() {
             let _ = fs::create_dir_all(parent);
         }
-        // L3: when POWRUSH_INGEST=on, soft-write versioned lattice tick (nested hour).
-        // Default off → bare LivedHour resume file only. Never block WASD.
+        // Session persist always: bare LivedHour blob for Continuity (not Ra-Thor ingest).
+        // L3: when POWRUSH_INGEST=on, soft-write versioned lattice overlay (nested hour).
+        // Checklist "no tick" = no ingest overlay. Never delete the blob. Never block WASD.
         if lived_tick_ingest::ingest_enabled() {
             let _ = lived_tick_ingest::soft_write_if_enabled(
                 &self.climate,

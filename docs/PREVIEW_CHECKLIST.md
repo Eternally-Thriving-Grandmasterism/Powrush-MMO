@@ -1,4 +1,4 @@
-# PREVIEW_CHECKLIST.md — human tick boxes (v23.2.59)
+# PREVIEW_CHECKLIST.md — human tick boxes (v23.2.61)
 
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick, not a Cargo bump.
@@ -19,7 +19,9 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 - [ ] **Book** — Hour three path reaches *the book is yours* (fabricator → Embassy seat) without a login wall
 - [ ] **Climate** — slab + `data/` climate truth survive quit/rerun (harmony / stress / tired / circulating)
 - [ ] **Week tons+restored** — week line is *this week · N tons · M restored* (not kills / XP)
-- [ ] **L3 absent on first hour** — default `POWRUSH_INGEST=off`; no lived-tick write forced on Peace boot
+- [ ] **L3 absent on first hour** — default `POWRUSH_INGEST=off`; no **ingest overlay** on Peace boot. Note: `data/powrush_lived_tick.json` may still exist as **session persist** (Mode B resume) — that is not Ra-Thor ingest. Checklist “no tick” = no ingest overlay; do not delete the blob
+- [ ] **Title contrast + Esc→Title** — Play/Continue/Online/Settings readable (opaque high-contrast plate); Esc from yard returns to Title (not quit-to-desktop)
+- [ ] **House file** — after Settled or quit-to-title, `data/powrush_house.json` exists even if name skipped (Continue: *Unnamed House · the yard remembers*)
 - [ ] **Lethal quiet** — Peace boot has no lethal UI; Ledger **3** only after book; never default E
 - [ ] **Quit / rerun remembers** — house / climate / standing / book JSON intact after Esc quit and relaunch
 - [ ] **Pause / Ledger face** — I or L shows House (or Unnamed House) + week tons+restored; no fake online tally

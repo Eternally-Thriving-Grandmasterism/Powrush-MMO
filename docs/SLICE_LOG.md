@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Stranger-pass: title contrast + Esc→Title + L wait + house file
+
+```
+slice: Stranger-pass title contrast + Esc→Title + L wait + house file
+idea: opaque high-contrast title plate (soft GPU readable); Esc InYard→Title (not quit-desktop); L never blank (Not your charter / the ledger waits) + L2 face when charter; house JSON on Settled/quit-to-title even if Unnamed; tick blob = session persist not Ra-Thor ingest; stamp W1–W3 receipt ae2589b4 (#251)
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — W1–W3 waiting pack (P10 receipt + no-dial banner)
 
 ```
@@ -7,7 +17,7 @@ slice: W1–W3 waiting pack (P10 receipt + no-dial banner)
 idea: steward side work while waiting for stranger pass — stamp P10 receipt a678b035 (#250); PROTOCOL+F9 no-dial banner (default client does not dial; POWRUSH_NET=off zero sockets; loopback WS opt-in via env/Settings not title Online); POWRUSH_INGEST off-by-default note + no client overlay + Ra-Thor may read ticks never drives keys; no preview tag / Online live / public bind / feel juice / new verbs
 joy 0.98 | mercy 0.98 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: ae2589b4 (#251)
 ```
 
 ## 2026-09-06 — Preview checklist + stranger loop sync (P10 honesty)
