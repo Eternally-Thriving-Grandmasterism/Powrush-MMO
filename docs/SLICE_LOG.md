@@ -1,6 +1,18 @@
 # SLICE_LOG.md — Powrush-MMO
 
 
+## 2026-09-07 — G0 stranger floor 2163551
+
+```
+slice: G0 stranger floor 2163551
+idea: stranger/door floor honesty — tip 2163551 (G0 #279 merge) in README + PREVIEW_CHECKLIST + STRANGER_LOOP; replace older floors 8d91e95 / 1e07103 / 5c18a68; G0 default OFF — enable POWRUSH_GEN=light; lavapipe Settled Esc/Q/L click-clean with gen on; comfort + canons live; Online grey; not a launch candidate; docs only; no client/shared/Cargo; no meshes/keys/birds; no preview tag; no Wave P; no POWRUSH_NET
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — G0 hex-seed scatter + climate fog behind UI
 
 ```
