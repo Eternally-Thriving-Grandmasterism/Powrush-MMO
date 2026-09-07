@@ -7,7 +7,7 @@ slice: GDD 1.5–2.0 adaptation map
 idea: docs/GDD_ADAPTATION.md — name map Druid→Cydruid / Quelorian / Draexx→Draek; keep/transform/refuse; heritage after House only; XP-from-kills refused; no class tree / iso HUD / UR gambling / wallet / preview tag / net-on
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 78c880f7 (#254)
 ```
 
 ## 2026-09-06 — Physics / graphics canon
@@ -17,7 +17,7 @@ slice: Physics / graphics canon
 idea: docs/PHYSICS_GRAPHICS_CANON.md — three surfaces, four physics layers, Sanctuary graphics, Crownstone Witness-only map, Title PASS on c5299d11; no new verbs / no race select / no Brood Spire in Sanctuary
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 9ab10821 (#253)
 ```
 
 ## 2026-09-06 — Stranger-pass: title contrast + Esc→Title + L wait + house file
