@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — E3 G0.5 Grove Settings receipt
+
+```
+slice: E3 G0.5 Grove Settings receipt
+idea: PREVIEW_CHECKLIST + STRANGER_LOOP — Settings Grove off|light persist default off; no env required (lavapipe click PASS after #285 @ 98b1467); floor stays 2163551; Online grey; no F-slice/G1/birds/sockets/playable-preview; docs only; no client/shared/Cargo
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — G0.5 Settings Grove off/light
 
 ```

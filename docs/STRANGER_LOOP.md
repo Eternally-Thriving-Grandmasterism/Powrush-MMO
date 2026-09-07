@@ -20,7 +20,7 @@ Minute-by-minute. Keys only. Online stays grey. L3 ingest absent on first hour.
 | 25–40 | Q fabricator (MendSpool + LaneCrate) → Embassy E seat | *Hour three held · the book is yours* |
 | 40–50 | same E / R; I or L sash | climate file + slab true; week *this week · N tons · M restored* (not kills); Seal · … on Pause/Ledger when dressed |
 | after book | Ledger **3** only if choosing | DeclaredLethal opt-in; Peace boot still silent; never default E |
-| always | — | `POWRUSH_NET` default off = zero sockets; `POWRUSH_INGEST` default off = L3 absent on first hour; House name skippable → Unnamed House; **G0 opt-in** — default boot no extra scatter (G0 off); Settings Grove · light or `POWRUSH_GEN=light` (OR) same hex seed each run, plates still click, fog behind UI |
+| always | — | `POWRUSH_NET` default off = zero sockets; `POWRUSH_INGEST` default off = L3 absent on first hour; House name skippable → Unnamed House; **G0 opt-in** — default boot no extra scatter (G0 off); Settings Grove · light alone (**no env required**) or `POWRUSH_GEN=light` (OR) same hex seed each run, plates still click, fog behind UI |
 
 ## Quiet law
 
