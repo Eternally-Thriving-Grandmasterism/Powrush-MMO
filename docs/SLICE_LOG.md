@@ -7,7 +7,7 @@ slice: D1 Pause honesty plate
 idea: one-line opaque pause plate when Settings/pause opens in yard — "the yard is waiting"; Resume (stay InYard) / Title (Esc-to-title + house JSON + lived persist) / Quit (AppExit, not Esc); Esc yard→Title kept; no new sim / Peace keys / Online / race select
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: f2a6411f (#256)
 ```
 
 
