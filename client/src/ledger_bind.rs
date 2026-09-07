@@ -22,6 +22,7 @@ use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
 use crate::infra_spill::EvidenceYard;
 use crate::soft_play_bindings;
+use crate::input::{InputMapSet, PlayerInput};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
 #[derive(Resource, Debug, Clone)]
@@ -57,7 +58,10 @@ impl Plugin for LedgerBindPlugin {
         app.init_resource::<LedgerYard>()
             .add_systems(Startup, spawn_ledger_slab)
             .add_systems(PreUpdate, mark_ledger_bind)
-            .add_systems(Update, (handle_ledger, stamp_complete, update_ledger_slab));
+            .add_systems(
+                Update,
+                (handle_ledger, stamp_complete, update_ledger_slab).after(InputMapSet),
+            );
     }
 }
 
@@ -110,6 +114,7 @@ fn mark_ledger_bind(
 
 fn handle_ledger(
     keyboard: Res<ButtonInput<KeyCode>>,
+    player_input: Res<PlayerInput>,
     mut hour: ResMut<HourSacred>,
     evidence: Res<EvidenceYard>,
     mut yard: ResMut<LedgerYard>,
@@ -117,8 +122,8 @@ fn handle_ledger(
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
-    // L always toggles sash — pre-Settled shows wait line (never blank panel).
-    if keyboard.just_pressed(soft_play_bindings::LEDGER) {
+    // L / pad North always toggles sash — pre-Settled shows wait line (never blank panel).
+    if keyboard.just_pressed(soft_play_bindings::LEDGER) || player_input.sheet_l {
         yard.sash_open = !yard.sash_open;
         return;
     }

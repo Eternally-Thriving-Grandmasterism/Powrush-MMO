@@ -25,6 +25,7 @@ pub mod hybrid_matrix;
 pub mod compass;
 pub mod skirmish_well;
 pub mod input;
+pub mod touch_controls;
 pub mod soft_play_bindings;
 pub mod first_session_guidance;
 pub mod first_hour_camera;
@@ -103,6 +104,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(LivedHourEconomyPlugin);
         app.add_plugins(local_settings::LocalSettingsPlugin);
         app.add_plugins(InputPlugin);
+        app.add_plugins(touch_controls::TouchControlsPlugin);
         app.add_plugins(first_session_guidance::FirstSessionGuidancePlugin);
         app.add_plugins(thriving_moments::ThrivingMomentsPlugin);
         app.add_plugins(living_practice_loop::LivingPracticeLoopPlugin);

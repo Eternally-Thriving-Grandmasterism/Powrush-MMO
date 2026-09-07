@@ -36,6 +36,7 @@ use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
 use crate::net_mode::SessionNetMode;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
+use crate::input::{InputMapSet, PlayerInput};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
 use shared::local_settings::{
     refuse_online_socket_toggle, LocalSettings, SETTINGS_PATH,
@@ -200,6 +201,18 @@ struct SettingsGroveBtn;
 #[derive(Component)]
 struct SettingsGroveLabel;
 #[derive(Component)]
+struct SettingsSticksBtn;
+#[derive(Component)]
+struct SettingsSticksLabel;
+#[derive(Component)]
+struct SettingsTapUseBtn;
+#[derive(Component)]
+struct SettingsTapUseLabel;
+#[derive(Component)]
+struct SettingsSprintBtn;
+#[derive(Component)]
+struct SettingsSprintLabel;
+#[derive(Component)]
 struct SettingsOnlineStubBtn;
 #[derive(Component)]
 struct NameHouseRoot;
@@ -259,7 +272,6 @@ impl Plugin for TitleScreenPlugin {
                     title_keyboard_shortcuts,
                     sync_title_visibility,
                     watch_settled_for_naming,
-                    esc_yard_pause,
                     name_house_text_input,
                     name_house_buttons,
                     sync_name_house_visibility,
@@ -270,9 +282,11 @@ impl Plugin for TitleScreenPlugin {
                     refresh_pause_cue,
                     pause_plate_clicks,
                     refresh_local_settings_labels,
+                    refresh_controls_settings_labels,
                     local_settings_clicks,
                 ),
-            );
+            )
+            .add_systems(Update, esc_yard_pause.after(InputMapSet));
     }
 }
 
@@ -463,6 +477,25 @@ fn spawn_settings_stub(mut commands: Commands) {
                 "Grove · off",
                 SettingsGroveBtn,
                 SettingsGroveLabel,
+            );
+            // I0 Controls essentials (persist beside Grove).
+            spawn_settings_row(
+                p,
+                "Sticks · auto",
+                SettingsSticksBtn,
+                SettingsSticksLabel,
+            );
+            spawn_settings_row(
+                p,
+                "Tap-to-Use · off",
+                SettingsTapUseBtn,
+                SettingsTapUseLabel,
+            );
+            spawn_settings_row(
+                p,
+                "Sprint · key",
+                SettingsSprintBtn,
+                SettingsSprintLabel,
             );
             // Online stays grey — never binds a socket from this plate.
             spawn_menu_btn(p, ONLINE_STUB_LABEL, SettingsOnlineStubBtn, false);
@@ -846,17 +879,21 @@ fn watch_settled_for_naming(
 /// `return_yard_to_title` still writes house JSON + lived persist; Quit = AppExit.
 fn esc_yard_pause(
     keyboard: Res<ButtonInput<KeyCode>>,
+    player_input: Res<PlayerInput>,
     door: Res<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
 ) {
     if *door != LaunchDoor::InYard {
         return;
     }
-    if !keyboard.just_pressed(KeyCode::Escape) {
+    let esc = keyboard.just_pressed(KeyCode::Escape);
+    // Start/Options = same pause toggle as Esc (INPUT_CANON).
+    let start = player_input.pause_toggle;
+    if !esc && !start {
         return;
     }
-    // Esc opens pause when closed; Esc closes pause when open (Resume).
-    // Never LaunchDoor::Title / never AppExit from Esc.
+    // Esc / Start opens pause when closed; closes when open (Resume).
+    // Never LaunchDoor::Title / never AppExit from Esc/Start.
     label.settings_open = !label.settings_open;
 }
 
@@ -1012,6 +1049,18 @@ pub fn grove_btn_label(s: &LocalSettings) -> String {
     format!("Grove · {g}")
 }
 
+pub fn sticks_btn_label(s: &LocalSettings) -> String {
+    format!("Sticks · {}", s.on_screen_sticks)
+}
+
+pub fn tap_use_btn_label(s: &LocalSettings) -> String {
+    format!("Tap-to-Use · {}", on_off(s.tap_to_use))
+}
+
+pub fn sprint_btn_label(s: &LocalSettings) -> String {
+    format!("Sprint · {}", s.sprint_mode)
+}
+
 fn set_btn_section_text(text: &mut Text, value: &str) {
     if let Some(s) = text.sections.get_mut(0) {
         if s.value != value {
@@ -1093,6 +1142,9 @@ fn local_settings_clicks(
     bright: Query<&Interaction, (Changed<Interaction>, With<SettingsBrightnessBtn>)>,
     scale: Query<&Interaction, (Changed<Interaction>, With<SettingsTextScaleBtn>)>,
     grove: Query<&Interaction, (Changed<Interaction>, With<SettingsGroveBtn>)>,
+    sticks: Query<&Interaction, (Changed<Interaction>, With<SettingsSticksBtn>)>,
+    tap_use: Query<&Interaction, (Changed<Interaction>, With<SettingsTapUseBtn>)>,
+    sprint: Query<&Interaction, (Changed<Interaction>, With<SettingsSprintBtn>)>,
     online: Query<&Interaction, (Changed<Interaction>, With<SettingsOnlineStubBtn>)>,
 ) {
     if !label.settings_open {
@@ -1143,6 +1195,24 @@ fn local_settings_clicks(
             changed = true;
         }
     }
+    for i in &sticks {
+        if *i == Interaction::Pressed {
+            settings.inner.cycle_on_screen_sticks();
+            changed = true;
+        }
+    }
+    for i in &tap_use {
+        if *i == Interaction::Pressed {
+            settings.inner.toggle_tap_to_use();
+            changed = true;
+        }
+    }
+    for i in &sprint {
+        if *i == Interaction::Pressed {
+            settings.inner.cycle_sprint_mode();
+            changed = true;
+        }
+    }
     for i in &online {
         if *i == Interaction::Pressed {
             // Hard refuse — Online never binds a socket from Settings.
@@ -1152,6 +1222,37 @@ fn local_settings_clicks(
     }
     if changed {
         settings.mark_and_persist();
+    }
+}
+
+fn refresh_controls_settings_labels(
+    label: Res<HouseLabel>,
+    settings: Res<LocalSettingsState>,
+    mut texts: ParamSet<(
+        Query<&mut Text, With<SettingsSticksLabel>>,
+        Query<&mut Text, With<SettingsTapUseLabel>>,
+        Query<&mut Text, With<SettingsSprintLabel>>,
+    )>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let s = &settings.inner;
+    let sticks = sticks_btn_label(s);
+    let tap = tap_use_btn_label(s);
+    let sprint = sprint_btn_label(s);
+    let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
+    for mut text in &mut texts.p0() {
+        set_btn_section_text(&mut text, &sticks);
+        set_btn_section_font(&mut text, font);
+    }
+    for mut text in &mut texts.p1() {
+        set_btn_section_text(&mut text, &tap);
+        set_btn_section_font(&mut text, font);
+    }
+    for mut text in &mut texts.p2() {
+        set_btn_section_text(&mut text, &sprint);
+        set_btn_section_font(&mut text, font);
     }
 }
 

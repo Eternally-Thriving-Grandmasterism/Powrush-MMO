@@ -1,8 +1,9 @@
-//! D2 Local settings — persist beside house JSON (v23.2.63)
+//! D2 Local settings — persist beside house JSON (v23.2.64)
 //!
 //! `data/powrush_settings.json` next to `data/powrush_house.json`.
-//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove.
-//! Defaults = Peace hour behavior. Mute on pause plate = same MasterMute flag.
+//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove · Controls (I0).
+//! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
+//! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
 //! Contact: info@Rathor.ai
 
@@ -57,6 +58,24 @@ pub struct LocalSettings {
     /// Same path as env `POWRUSH_GEN=light` (OR at the door — not a second gen system).
     #[serde(default = "default_grove")]
     pub grove: String,
+    /// I0 on-screen sticks: "auto" | "on" | "off". Default **auto** (mouse Title stays clean).
+    #[serde(default = "default_on_screen_sticks")]
+    pub on_screen_sticks: String,
+    /// I0 tap-to-use. Default false (tap focuses, then Use).
+    #[serde(default)]
+    pub tap_to_use: bool,
+    /// I0 gamepad South = Use. Default true (INPUT_CANON).
+    #[serde(default = "default_true")]
+    pub gamepad_south_use: bool,
+    /// I0 Nintendo face remap stub: "auto" (unknown → auto). Keeps South = Use.
+    #[serde(default = "default_nintendo_face")]
+    pub nintendo_face: String,
+    /// I0 sprint: "stick" | "trigger" | "key". Default **key** (Peace desktop = Shift).
+    #[serde(default = "default_sprint_mode")]
+    pub sprint_mode: String,
+    /// I0 soft Use cue when in range. Default true.
+    #[serde(default = "default_true")]
+    pub show_use_prompt: bool,
 }
 
 fn default_look() -> f32 {
@@ -75,6 +94,22 @@ fn default_grove() -> String {
     "off".into()
 }
 
+fn default_on_screen_sticks() -> String {
+    "auto".into()
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_nintendo_face() -> String {
+    "auto".into()
+}
+
+fn default_sprint_mode() -> String {
+    "key".into()
+}
+
 impl Default for LocalSettings {
     fn default() -> Self {
         Self {
@@ -86,6 +121,12 @@ impl Default for LocalSettings {
             brightness: DEFAULT_BRIGHTNESS,
             text_scale: DEFAULT_TEXT_SCALE,
             grove: default_grove(),
+            on_screen_sticks: default_on_screen_sticks(),
+            tap_to_use: false,
+            gamepad_south_use: true,
+            nintendo_face: default_nintendo_face(),
+            sprint_mode: default_sprint_mode(),
+            show_use_prompt: true,
         }
     }
 }
@@ -123,6 +164,7 @@ impl LocalSettings {
         self.clamp_brightness();
         self.clamp_text_scale();
         self.normalize_grove();
+        self.normalize_controls();
     }
 
     /// Clamp grove to "off" | "light". Missing/unknown → off.
@@ -146,6 +188,108 @@ impl LocalSettings {
         } else {
             self.grove = "light".into();
         }
+    }
+
+    /// Normalize I0 Controls fields (missing/unknown → Peace desktop defaults).
+    pub fn normalize_controls(&mut self) {
+        self.normalize_on_screen_sticks();
+        self.normalize_nintendo_face();
+        self.normalize_sprint_mode();
+    }
+
+    /// Clamp on_screen_sticks to auto|on|off. Unknown → auto.
+    pub fn normalize_on_screen_sticks(&mut self) {
+        let t = self.on_screen_sticks.trim().to_ascii_lowercase();
+        self.on_screen_sticks = match t.as_str() {
+            "on" => "on".into(),
+            "off" => "off".into(),
+            _ => "auto".into(),
+        };
+    }
+
+    /// Clamp nintendo_face; unknown → auto (stub — keeps South = Use).
+    pub fn normalize_nintendo_face(&mut self) {
+        let t = self.nintendo_face.trim().to_ascii_lowercase();
+        self.nintendo_face = match t.as_str() {
+            "auto" => "auto".into(),
+            // Future fixed layouts normalize here; unknown stays auto.
+            _ => "auto".into(),
+        };
+    }
+
+    /// Clamp sprint_mode to stick|trigger|key. Unknown → key.
+    pub fn normalize_sprint_mode(&mut self) {
+        let t = self.sprint_mode.trim().to_ascii_lowercase();
+        self.sprint_mode = match t.as_str() {
+            "stick" => "stick".into(),
+            "trigger" => "trigger".into(),
+            _ => "key".into(),
+        };
+    }
+
+    pub fn on_screen_sticks_is_on(&self) -> bool {
+        self.on_screen_sticks.eq_ignore_ascii_case("on")
+    }
+
+    pub fn on_screen_sticks_is_off(&self) -> bool {
+        self.on_screen_sticks.eq_ignore_ascii_case("off")
+    }
+
+    pub fn on_screen_sticks_is_auto(&self) -> bool {
+        !self.on_screen_sticks_is_on() && !self.on_screen_sticks_is_off()
+    }
+
+    /// Resolve whether overlay sticks should show given last pointer was Touch.
+    pub fn resolve_on_screen_sticks(&self, last_pointer_touch: bool) -> bool {
+        match self.on_screen_sticks.trim().to_ascii_lowercase().as_str() {
+            "on" => true,
+            "off" => false,
+            _ => last_pointer_touch, // auto
+        }
+    }
+
+    /// Cycle on_screen_sticks auto → on → off → auto.
+    pub fn cycle_on_screen_sticks(&mut self) {
+        self.normalize_on_screen_sticks();
+        self.on_screen_sticks = match self.on_screen_sticks.as_str() {
+            "auto" => "on".into(),
+            "on" => "off".into(),
+            _ => "auto".into(),
+        };
+    }
+
+    pub fn toggle_tap_to_use(&mut self) {
+        self.tap_to_use = !self.tap_to_use;
+    }
+
+    pub fn toggle_gamepad_south_use(&mut self) {
+        self.gamepad_south_use = !self.gamepad_south_use;
+    }
+
+    pub fn toggle_show_use_prompt(&mut self) {
+        self.show_use_prompt = !self.show_use_prompt;
+    }
+
+    /// Cycle sprint_mode key → stick → trigger → key.
+    pub fn cycle_sprint_mode(&mut self) {
+        self.normalize_sprint_mode();
+        self.sprint_mode = match self.sprint_mode.as_str() {
+            "key" => "stick".into(),
+            "stick" => "trigger".into(),
+            _ => "key".into(),
+        };
+    }
+
+    pub fn sprint_mode_is_stick(&self) -> bool {
+        self.sprint_mode.eq_ignore_ascii_case("stick")
+    }
+
+    pub fn sprint_mode_is_trigger(&self) -> bool {
+        self.sprint_mode.eq_ignore_ascii_case("trigger")
+    }
+
+    pub fn sprint_mode_is_key(&self) -> bool {
+        !self.sprint_mode_is_stick() && !self.sprint_mode_is_trigger()
     }
 
     /// Cycle look sensitivity up by one step (wraps at max → min).
@@ -282,6 +426,14 @@ mod tests {
         assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
         assert_eq!(s.grove, "off");
         assert!(!s.grove_is_light());
+        assert_eq!(s.on_screen_sticks, "auto");
+        assert!(!s.tap_to_use);
+        assert!(s.gamepad_south_use);
+        assert_eq!(s.nintendo_face, "auto");
+        assert_eq!(s.sprint_mode, "key");
+        assert!(s.show_use_prompt);
+        assert!(!s.resolve_on_screen_sticks(false));
+        assert!(s.resolve_on_screen_sticks(true));
         assert!((s.master_gain() - 1.0).abs() < f32::EPSILON);
         assert!((s.look_y_sign() - 1.0).abs() < f32::EPSILON);
     }
@@ -296,12 +448,20 @@ mod tests {
         s.brightness = 1.25;
         s.text_scale = 1.10;
         s.grove = "light".into();
+        s.on_screen_sticks = "on".into();
+        s.tap_to_use = true;
+        s.gamepad_south_use = false;
+        s.nintendo_face = "auto".into();
+        s.sprint_mode = "stick".into();
+        s.show_use_prompt = false;
         let raw = s.to_json().unwrap();
         assert!(raw.contains("powrush_settings_v1"));
         assert!(raw.contains("look_sensitivity"));
         assert!(raw.contains("brightness"));
         assert!(raw.contains("text_scale"));
         assert!(raw.contains("grove") && raw.contains("light"));
+        assert!(raw.contains("on_screen_sticks"));
+        assert!(raw.contains("sprint_mode") && raw.contains("stick"));
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(back, s);
         assert!(back.grove_is_light());
@@ -404,6 +564,50 @@ mod tests {
         cyc.cycle_grove();
         assert!(!cyc.grove_is_light());
         assert_eq!(cyc.grove, "off");
+    }
+
+    #[test]
+    fn controls_defaults_and_legacy_json_load() {
+        let s = LocalSettings::peace_defaults();
+        assert_eq!(s.on_screen_sticks, "auto");
+        assert!(!s.tap_to_use);
+        assert!(s.gamepad_south_use);
+        assert_eq!(s.nintendo_face, "auto");
+        assert_eq!(s.sprint_mode, "key");
+        assert!(s.show_use_prompt);
+        // Legacy JSON without Controls fields still loads (Peace desktop defaults).
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"grove":"off"}"#;
+        let back = LocalSettings::from_json(legacy).unwrap();
+        assert_eq!(back.on_screen_sticks, "auto");
+        assert!(!back.tap_to_use);
+        assert!(back.gamepad_south_use);
+        assert_eq!(back.nintendo_face, "auto");
+        assert_eq!(back.sprint_mode, "key");
+        assert!(back.show_use_prompt);
+        // Unknown normalizes
+        let junk = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"grove":"off","on_screen_sticks":"birds","nintendo_face":"pro","sprint_mode":"turbo"}"#;
+        let junked = LocalSettings::from_json(junk).unwrap();
+        assert_eq!(junked.on_screen_sticks, "auto");
+        assert_eq!(junked.nintendo_face, "auto");
+        assert_eq!(junked.sprint_mode, "key");
+        let mut cyc = LocalSettings::default();
+        cyc.cycle_on_screen_sticks();
+        assert_eq!(cyc.on_screen_sticks, "on");
+        cyc.cycle_on_screen_sticks();
+        assert_eq!(cyc.on_screen_sticks, "off");
+        cyc.cycle_on_screen_sticks();
+        assert_eq!(cyc.on_screen_sticks, "auto");
+        cyc.cycle_sprint_mode();
+        assert_eq!(cyc.sprint_mode, "stick");
+        cyc.cycle_sprint_mode();
+        assert_eq!(cyc.sprint_mode, "trigger");
+        cyc.cycle_sprint_mode();
+        assert_eq!(cyc.sprint_mode, "key");
+        assert!(!cyc.resolve_on_screen_sticks(false));
+        cyc.on_screen_sticks = "on".into();
+        assert!(cyc.resolve_on_screen_sticks(false));
+        cyc.on_screen_sticks = "off".into();
+        assert!(!cyc.resolve_on_screen_sticks(true));
     }
 
     #[test]
