@@ -66,6 +66,8 @@ Start here if you want to complete the game:
 - `docs/FIRST_HOUR_PLAYTEST.md` — 5-minute proof
 - `docs/STRANGER_LOOP.md` — cold stranger, keys only (Title → Continue / Unnamed House → yard)
 - `docs/PREVIEW_CHECKLIST.md` — human tick boxes; ticking ≠ cutting a `playable-preview` tag
+- `docs/INPUT_CANON.md` — one Use verb; keyboard / touch / gamepad; Controls next to Grove
+- `docs/PLACES_BIBLE.md` — Heartwood rings; Sanctuary Prime = yard only until after preview
 - `docs/HOUR_TWO.md` — Charter door after allocate
 - `docs/HOUR_TWO_PLAYTEST.md` — Tab → Settled → quit → welcome slab
 - `docs/RBE_FIRST_HOUR.md` — economy in the hands

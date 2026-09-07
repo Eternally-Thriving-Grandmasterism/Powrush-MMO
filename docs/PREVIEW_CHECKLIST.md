@@ -19,6 +19,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 - [ ] **Continue / Unnamed House** — with local persist, Continue shows House name **or** exactly *Unnamed House* + *the yard remembers*
 - [ ] **House name skippable** — Skip (or quit path) → Unnamed House; progress kept; no name wall on first Play
 - [ ] **Esc → pause** — Esc in yard opens opaque pause *the yard is waiting* → Resume / Title / Quit (Quit ≠ Esc; Title keeps house JSON + lived persist)
+- [ ] **Use / Pause / sticks** — Use is **E** / gamepad **South** / on-screen **Use**; pause is **Esc** / **Start** / overlay **Pause**; on-screen sticks **cull on plates** (Title/pause/Settings/L/Q/I). See `INPUT_CANON`.
 - [ ] **Settings persist** — Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · **Grove off|light** on Title/pause Settings plate; persists in `data/powrush_settings.json` (default **off**); survives quit/rerun; **env not required** — Settings alone enables light path; Title opaque contrast stays law
 - [ ] **Seals / heritage (after Settled)** — Well / Grove / Ember skippable (cosmetic only); heritage string only (`none|human|cydruid|quellorian|draek|ambrosian`); Q shows Seal · … when dressed; **no combat stats** / +take / +STR
 - [ ] **Book** — Hour three path reaches *the book is yours* (fabricator → Embassy seat) without a login wall
@@ -39,6 +40,6 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 
 ## Related
 
-`STRANGER_LOOP` · `LAUNCH_UX` · `FIRST_HOUR_PLAYTEST` · `PHASE_PLAYABLE_LOOP` · Dev recipe `F9_TWO_CLIENT_LOCALHOST` (not a title feature).
+`STRANGER_LOOP` · `INPUT_CANON` · `PLACES_BIBLE` · `LAUNCH_UX` · `FIRST_HOUR_PLAYTEST` · `PHASE_PLAYABLE_LOOP` · Dev recipe `F9_TWO_CLIENT_LOCALHOST` (not a title feature).
 
 **Thunder locked in.** Yoi ⚡

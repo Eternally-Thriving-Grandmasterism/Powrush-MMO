@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — E/I INPUT_CANON + PLACES_BIBLE docs stamp
+
+```
+slice: E/I INPUT_CANON + PLACES_BIBLE docs stamp
+idea: NEW docs/INPUT_CANON.md (layers Pointer/Move/Use/Menu/Sheets/Look; kb+mouse; touch ≥44dp sticks cull on plates; gamepad South=Use Start=Pause; Controls fields next to Grove; detection on boot; refuse 2nd Camera3d/Online gesture/combat/brand SDK; lavapipe+keyboard PASS) + NEW docs/PLACES_BIBLE.md (Heartwood Lamp→Lip→Wards→Teeth→Threshold→Spiral; Market one lethal tooth credit not gold; Recipes no combat stats; seed hash(house⊕hex⊕epoch); GenShare=recipe; Sanctuary Prime=yard only; three-surfaces/RBE + sacred Tend/Take/Flow/Reserve/Mend; week=tons+restored) + PREVIEW_CHECKLIST Use/Pause/sticks tick; floor stays 2163551; STRANGER_LOOP pointer; docs only; no client/shared/Cargo; no tag/Wave P/sockets/birds
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — E3 G0.5 Grove Settings receipt
 
 ```
