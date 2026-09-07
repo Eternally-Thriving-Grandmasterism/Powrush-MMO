@@ -1,7 +1,7 @@
 //! D2 Local settings — persist beside house JSON (v23.2.63)
 //!
 //! `data/powrush_settings.json` next to `data/powrush_house.json`.
-//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale.
+//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove.
 //! Defaults = Peace hour behavior. Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
 //! Contact: info@Rathor.ai
@@ -53,6 +53,10 @@ pub struct LocalSettings {
     /// UI text scale. Default 1.0. Title contrast palette stays opaque law.
     #[serde(default = "default_text_scale")]
     pub text_scale: f32,
+    /// G0.5 Grove light-gen: "off" | "light". Default **off**. Unknown → off.
+    /// Same path as env `POWRUSH_GEN=light` (OR at the door — not a second gen system).
+    #[serde(default = "default_grove")]
+    pub grove: String,
 }
 
 fn default_look() -> f32 {
@@ -67,6 +71,10 @@ fn default_text_scale() -> f32 {
     DEFAULT_TEXT_SCALE
 }
 
+fn default_grove() -> String {
+    "off".into()
+}
+
 impl Default for LocalSettings {
     fn default() -> Self {
         Self {
@@ -77,6 +85,7 @@ impl Default for LocalSettings {
             hide_slabs: false,
             brightness: DEFAULT_BRIGHTNESS,
             text_scale: DEFAULT_TEXT_SCALE,
+            grove: default_grove(),
         }
     }
 }
@@ -113,6 +122,30 @@ impl LocalSettings {
         self.clamp_look();
         self.clamp_brightness();
         self.clamp_text_scale();
+        self.normalize_grove();
+    }
+
+    /// Clamp grove to "off" | "light". Missing/unknown → off.
+    pub fn normalize_grove(&mut self) {
+        let t = self.grove.trim().to_ascii_lowercase();
+        self.grove = match t.as_str() {
+            "light" => "light".into(),
+            _ => "off".into(),
+        };
+    }
+
+    pub fn grove_is_light(&self) -> bool {
+        self.grove.eq_ignore_ascii_case("light")
+    }
+
+    /// Cycle Grove off ↔ light (Settings plate row).
+    pub fn cycle_grove(&mut self) {
+        self.normalize_grove();
+        if self.grove_is_light() {
+            self.grove = "off".into();
+        } else {
+            self.grove = "light".into();
+        }
     }
 
     /// Cycle look sensitivity up by one step (wraps at max → min).
@@ -247,6 +280,8 @@ mod tests {
         assert!(!s.hide_slabs);
         assert!((s.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
         assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
+        assert_eq!(s.grove, "off");
+        assert!(!s.grove_is_light());
         assert!((s.master_gain() - 1.0).abs() < f32::EPSILON);
         assert!((s.look_y_sign() - 1.0).abs() < f32::EPSILON);
     }
@@ -260,13 +295,16 @@ mod tests {
         s.hide_slabs = true;
         s.brightness = 1.25;
         s.text_scale = 1.10;
+        s.grove = "light".into();
         let raw = s.to_json().unwrap();
         assert!(raw.contains("powrush_settings_v1"));
         assert!(raw.contains("look_sensitivity"));
         assert!(raw.contains("brightness"));
         assert!(raw.contains("text_scale"));
+        assert!(raw.contains("grove") && raw.contains("light"));
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(back, s);
+        assert!(back.grove_is_light());
         assert!((back.master_gain() - 0.0).abs() < f32::EPSILON);
         let (dx, dy) = back.apply_look_delta(2.0, 4.0);
         assert!((dx - 3.0).abs() < 0.01);
@@ -338,6 +376,34 @@ mod tests {
         let back = LocalSettings::from_json(legacy).unwrap();
         assert!((back.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
         assert!((back.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
+    }
+
+
+    #[test]
+    fn grove_defaults_off_and_normalizes_unknown() {
+        let s = LocalSettings::peace_defaults();
+        assert_eq!(s.grove, "off");
+        assert!(!s.grove_is_light());
+        // Missing field in old JSON → off
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false}"#;
+        let back = LocalSettings::from_json(legacy).unwrap();
+        assert_eq!(back.grove, "off");
+        assert!(!back.grove_is_light());
+        // Unknown → off
+        let junk = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"grove":"birds"}"#;
+        let junked = LocalSettings::from_json(junk).unwrap();
+        assert_eq!(junked.grove, "off");
+        // light round-trip
+        let light = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"grove":"light"}"#;
+        let lit = LocalSettings::from_json(light).unwrap();
+        assert_eq!(lit.grove, "light");
+        assert!(lit.grove_is_light());
+        let mut cyc = LocalSettings::default();
+        cyc.cycle_grove();
+        assert!(cyc.grove_is_light());
+        cyc.cycle_grove();
+        assert!(!cyc.grove_is_light());
+        assert_eq!(cyc.grove, "off");
     }
 
     #[test]

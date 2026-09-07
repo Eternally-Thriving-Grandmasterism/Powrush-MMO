@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — G0.5 Settings Grove off/light
+
+```
+slice: G0.5 Settings Grove off/light
+idea: Settings plate Grove · off|light persists in powrush_settings.json (default off); OR with POWRUSH_GEN=light — same light-gen path; cull Title/pause/Settings/L/Q; no birds/sockets/Camera3d/Avian/GenShare; no preview tag; Peace keys untouched; workspace 21.88.0
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — E2 G0 opt-in checklist beat
 
 ```
