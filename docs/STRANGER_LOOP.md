@@ -5,7 +5,7 @@ Workspace `21.88.0`. Design tick. Same binary. No second HUD. No server required
 
 Stand-alone proof script. Match L1 title truth + playable loop. Deeper maps: `LAUNCH_UX` · `PHASE_PLAYABLE_LOOP` · `HOUR_TWO` · `HOUR_THREE` · `PHASE_Q`/`R`/`S` · `PHASE_LETHAL` · `PREVIEW_CHECKLIST`.
 
-**Stranger floor:** `5c18a68` (F1 floor stamp; Esc→pause + B0001 + comfort/canons). Door: `cargo run -p powrush-client`. Online grey.
+**Stranger floor:** `8d91e95` (F3 floor stamp; Settled Esc/L click-pass on lavapipe after #275; comfort/canons). Door: `cargo run -p powrush-client`. Online grey.
 
 Minute-by-minute. Keys only. Online stays grey. L3 ingest absent on first hour.
 
