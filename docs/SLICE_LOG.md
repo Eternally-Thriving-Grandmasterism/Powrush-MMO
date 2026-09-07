@@ -1,5 +1,18 @@
 # SLICE_LOG.md — Powrush-MMO
 
+
+## 2026-09-07 — G0 hex-seed scatter + climate fog behind UI
+
+```
+slice: G0 hex-seed scatter + climate fog behind UI
+idea: POWRUSH_GEN=light (default OFF) — seed=hash(house⊕hex⊕climate_epoch); tiny atlas trees/stones ≤4 mesh types low count; FogSettings world Camera3d only density from stress; cull when Title/pause/Settings/L/Q open; no birds / no new Camera3d / no Avian / no combat / no sockets / no Wave P; ui_above_world + TargetCamera + Msaa::Off + LivedUiPlate untouched
+joy 0.97 | mercy 0.99 | sustain 0.96 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — F3 stranger floor 8d91e95
 
 ```

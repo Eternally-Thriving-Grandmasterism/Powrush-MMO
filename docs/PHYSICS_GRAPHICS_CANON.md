@@ -26,6 +26,7 @@ Parked crates (`server/`, `simulation/`, `host/`, `game/`, `powrush-divine-modul
 ## Sanctuary graphics
 
 - Quiet low trees, stones, colored nodes; climate fog (`FogSettings` / Z planes) answers stress/harmony.
+- G0 light gen (`POWRUSH_GEN=light`, **default off**): hex-seed scatter (≤4 mesh types, low count) + FogSettings on world Camera3d only; cull when Title/pause/Settings/L/Q open; no birds / no second Camera3d / no Avian.
 - Well glow answers `NodeState`, not a second HUD.
 - Readable **opaque** Title plate (no alpha-on-fog). Esc from yard → Title (not quit-to-desktop).
 - Councils may seed fog / birds / seals. Constitution owns the door and Peace keys (E I H R). No generator “+STR Draek.”

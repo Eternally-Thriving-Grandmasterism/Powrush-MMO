@@ -1,5 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
+
+## [23.2.62] — 2026-09-07 — G0 light gen (hex-seed scatter + climate fog)
+
+Optional `POWRUSH_GEN=light` (default **off** — lavapipe door-safe): deterministic grove seed from house⊕hex⊕climate_epoch; tiny atlas trees/stones (≤4 mesh types, ≤12 instances); FogSettings on world Camera3d only from stress/harmony; cull scatter when Title / pause / Settings / L / Q open; no birds, no second Camera3d, no Avian/Rapier, no combat stats, no sockets, no Wave P. Shared `powrush_gen` unit tests (seed stability, flag off by default, cull helper). F3 re-walk with env set; revert if occlusion. Workspace stays 21.88.0.
+
 ## [23.2.61] — 2026-09-06 — Stranger-pass: title contrast + Esc→Title + L wait + house file
 
 Title door readable on soft GPU / Mesa: opaque light-on-dark plate (no alpha-on-fog); Esc from InYard → `LaunchDoor::Title` (quit via window close / Settings). L sash never blank before Settled — *Not your charter* / *the ledger waits*; L2 house+week face when charter live; I keeps abundance copy. `data/powrush_house.json` written on Settled offer and quit-to-title even if name skipped (Unnamed). Tick path honesty: default `powrush_lived_tick.json` is session persist, not Ra-Thor ingest; checklist “no tick” = no ingest overlay; blob kept. Stamps W1–W3 waiting-pack SLICE_LOG receipt `ae2589b4 (#251)`. Peace keys unchanged. No Online live, no preview tag, no Vulkan product requirement, no harvest_feel rewrite. Workspace stays 21.88.0.
