@@ -8,7 +8,8 @@
 4. docs/RBE_FIRST_HOUR.md
 5. ARCHITECTURE.md (plugin / event rules only)
 6. docs/PARKED_SURFACES.md
-7. docs/archive/README.md (historical index)
+7. docs/PHYSICS_GRAPHICS_CANON.md
+8. docs/archive/README.md (historical index)
 
 ## Historical (do not treat as current ship state)
 

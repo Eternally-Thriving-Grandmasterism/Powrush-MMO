@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — Physics / graphics canon
+
+```
+slice: Physics / graphics canon
+idea: docs/PHYSICS_GRAPHICS_CANON.md — three surfaces, four physics layers, Sanctuary graphics, Crownstone Witness-only map, Title PASS on c5299d11; no new verbs / no race select / no Brood Spire in Sanctuary
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Stranger-pass: title contrast + Esc→Title + L wait + house file
 
 ```
@@ -7,7 +17,7 @@ slice: Stranger-pass title contrast + Esc→Title + L wait + house file
 idea: opaque high-contrast title plate (soft GPU readable); Esc InYard→Title (not quit-desktop); L never blank (Not your charter / the ledger waits) + L2 face when charter; house JSON on Settled/quit-to-title even if Unnamed; tick blob = session persist not Ra-Thor ingest; stamp W1–W3 receipt ae2589b4 (#251)
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: c5299d11 (#252)
 ```
 
 ## 2026-09-06 — W1–W3 waiting pack (P10 receipt + no-dial banner)
