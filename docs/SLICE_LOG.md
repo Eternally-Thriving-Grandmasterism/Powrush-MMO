@@ -1,5 +1,18 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — GenShare L0 disk (Method A)
+
+```
+slice: GenShare L0 disk (Method A — offline JSONL)
+idea: NEW shared/genshare.rs GenShare envelope (v/house/hex/epoch/seed_u64/climate_digest/dress seal+heritage no stats) + path data/powrush_genshare.jsonl append-only; load house⊕hex or latest hex; newer epoch wins never merge seeds; client light_gen prefer disk seed else compute+append; despawn LightGenProp/HexScatter reseed; defer mesh hitch while plates open; cull+fog unchanged; optional Method D seed_u64/gen_epoch on ShardClimate serde default; no socket/Title Online/Wave P/postcard/Method B UI; floor stays 2163551; workspace 21.88.0
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
+
 ## 2026-09-07 — GenShare recipe + lavapipe click-clean docs stamp
 
 ```

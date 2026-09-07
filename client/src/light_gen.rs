@@ -4,14 +4,17 @@
 //! Default **off**. Same gen path — not a second system. Tiny atlas trees/stones
 //! from house⊕hex⊕climate_epoch seed. FogSettings on world Camera3d only — never
 //! covers Title / pause / Settings / L / Q. No birds (lavapipe-safe). No new
-//! Camera3d, no Avian/Rapier, no combat stats, no sockets. Contact: info@Rathor.ai
+//! Camera3d, no Avian/Rapier, no combat stats, no sockets.
+//! GenShare Method A: offline `data/powrush_genshare.jsonl` seed persist (no port).
+//! Contact: info@Rathor.ai
 
 use bevy::pbr::{FogFalloff, FogSettings};
 use bevy::prelude::*;
 
+use shared::genshare::{append_genshare, load_genshare, GenShare, GENSHARE_PATH};
 use shared::house_name::UNNAMED;
 use shared::powrush_gen::{
-    cull_gen_when_plate_open, fog_falloff_from_climate, grove_seed_from,
+    climate_epoch, cull_gen_when_plate_open, fog_falloff_from_climate, grove_seed_from,
     light_gen_enabled_with, scatter_from_seed, PowrushGen, ScatterKind,
 };
 
@@ -54,10 +57,17 @@ impl LightGenDoor {
 #[derive(Resource, Debug, Default)]
 struct LightGenSpawned {
     seed: Option<u64>,
+    /// Seed written to JSONL but mesh rebuild deferred while plates open.
+    pending_seed: Option<u64>,
 }
 
+/// G0 light-gen prop marker (atlas trees/stones).
 #[derive(Component)]
 struct LightGenProp;
+
+/// Alias marker for GenShare rebuild docs (`HexScatter` = same props as LightGenProp).
+#[derive(Component)]
+struct HexScatter;
 
 #[derive(Resource)]
 struct LightGenAtlas {
@@ -188,15 +198,19 @@ fn sync_scatter(
     atlas: Option<Res<LightGenAtlas>>,
     bind: Res<LivedHourBind>,
     house: Res<HouseLabel>,
+    launch: Res<LaunchDoor>,
+    ledger: Res<LedgerYard>,
+    factory: Res<FactoryYard>,
     mut spawned: ResMut<LightGenSpawned>,
     existing: Query<Entity, With<LightGenProp>>,
 ) {
     if !door.is_light() {
-        if spawned.seed.is_some() || !existing.is_empty() {
+        if spawned.seed.is_some() || spawned.pending_seed.is_some() || !existing.is_empty() {
             for e in &existing {
                 commands.entity(e).despawn_recursive();
             }
             spawned.seed = None;
+            spawned.pending_seed = None;
         }
         return;
     }
@@ -217,14 +231,53 @@ fn sync_scatter(
     } else {
         bind.climate.hex_id.as_str()
     };
-    let seed = grove_seed_from(
-        house_id,
-        hex_id,
-        bind.climate.harmony,
-        bind.climate.stress,
-    );
+    let dress = house
+        .house
+        .dress_line_for_plate()
+        .unwrap_or_default();
 
+    // GenShare A: prefer persisted seed for house⊕hex; else compute + append JSONL.
+    let (seed, from_disk) = if let Some(row) = load_genshare(hex_id, Some(house_id)) {
+        (row.seed_u64, true)
+    } else if let Some(row) = load_genshare(hex_id, None) {
+        (row.seed_u64, true)
+    } else {
+        let local = grove_seed_from(
+            house_id,
+            hex_id,
+            bind.climate.harmony,
+            bind.climate.stress,
+        );
+        let envelope = GenShare::build(
+            house_id,
+            hex_id,
+            climate_epoch(bind.climate.harmony, bind.climate.stress),
+            local,
+            bind.climate.harmony,
+            bind.climate.stress,
+            &dress,
+        );
+        // Write immediately — never open a plate-bury path for file I/O.
+        let _ = append_genshare(&envelope);
+        (local, false)
+    };
     if spawned.seed == Some(seed) {
+        spawned.pending_seed = None;
+        return;
+    }
+
+    // Defer mesh hitch while plates are open (Title / pause / Settings / L / Q).
+    // File already written above when missing; rebuild waits for a safe frame.
+    let title_open = matches!(
+        *launch,
+        LaunchDoor::Title | LaunchDoor::NameHouse | LaunchDoor::HouseDress
+    );
+    let pause_or_settings = house.settings_open;
+    let ledger_open = ledger.sash_open;
+    let q_open = factory.factory.founded && !factory.factory.tutorial_complete();
+    let plates_open = cull_gen_when_plate_open(title_open, pause_or_settings, ledger_open, q_open);
+    if plates_open && spawned.seed.is_some() {
+        spawned.pending_seed = Some(seed);
         return;
     }
 
@@ -264,17 +317,21 @@ fn sync_scatter(
                 ..default()
             },
             LightGenProp,
+            HexScatter,
             Name::new("LightGenProp"),
         ));
     }
 
     spawned.seed = Some(seed);
+    spawned.pending_seed = None;
     info!(
         target: "powrush::gen",
         seed,
         house = house_id,
         hex = hex_id,
-        "G0 grove scattered (no physics, no birds)"
+        from_disk,
+        path = GENSHARE_PATH,
+        "G0 grove scattered (GenShare L0; no physics, no birds, no socket)"
     );
 }
 

@@ -3,6 +3,8 @@
 //! One hex remembers thriving vs tired. Same verbs as the lived hour.
 //! Visible face stays well speech (Idle / Glowing / Tended / Resting / Stressed).
 //! Persist: data/powrush_shard_climate.json
+//! Method D stub: optional `seed_u64` / `gen_epoch` (serde default) — GenShare
+//! A JSONL (`data/powrush_genshare.jsonl`) remains the primary offline recipe.
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -23,6 +25,13 @@ pub struct ShardClimate {
     /// Tons only after LaneCrate has run
     pub tons_moved: u32,
     pub updated_at: u64,
+    /// Method D (optional): GenShare seed piggyback. Prefer A JSONL as primary.
+    /// Absent on load → None / 0 via serde default. Soft — climate schema stays hairy-safe.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed_u64: Option<u64>,
+    /// Method D (optional): climate epoch for GenShare match. Prefer A JSONL.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gen_epoch: Option<u64>,
 }
 
 impl Default for ShardClimate {
@@ -36,6 +45,8 @@ impl Default for ShardClimate {
             restored_count: 0,
             tons_moved: 0,
             updated_at: 0,
+            seed_u64: None,
+            gen_epoch: None,
         }
     }
 }
@@ -145,7 +156,17 @@ impl ShardClimate {
 mod tests {
     use super::*;
 
+
     #[test]
+    fn optional_genshare_fields_default_on_legacy_json() {
+        let raw = r#"{"hex_id":"local-hex","harmony":0.55,"stress":0.15,"regen":0.08,"reserve_pool":0,"restored_count":0,"tons_moved":0,"updated_at":1}"#;
+        let c = ShardClimate::from_json(raw).unwrap();
+        assert!(c.seed_u64.is_none());
+        assert!(c.gen_epoch.is_none());
+        assert_eq!(c.hex_id, "local-hex");
+    }
+
+        #[test]
     fn tend_save_load_keeps_stress() {
         let mut c = ShardClimate::default();
         let before = c.stress;
