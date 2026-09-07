@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.66] — 2026-09-07 — Wave P: playable-preview tag receipt (11c577e)
+
+Docs only: steward preview yes; annotated `playable-preview` @ tip `11c577e`; play floor stays `2163551`; Online grey; no GenShare sockets / birds / default Grove from tag alone. Workspace stays 21.88.0.
+
 ## [23.2.65] — 2026-09-07 — GenShare L0: persist grove seed JSONL (offline, no port)
 
 Method A offline recipe: `data/powrush_genshare.jsonl` append-only beside house/climate; `shared/genshare` envelope + unit tests (roundtrip, epoch wins); Grove light path loads matching house⊕hex seed or computes+appends; HexScatter alias; defer rebuild while plates open. Optional climate `seed_u64`/`gen_epoch` (Method D soft). No sockets, Title Online, Wave P, postcard, or Method B UI. Workspace stays 21.88.0.

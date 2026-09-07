@@ -5,7 +5,7 @@ Workspace `21.88.0`. Design tick. Same binary. No second HUD. No server required
 
 Stand-alone proof script. Match L1 title truth + playable loop. Deeper maps: `LAUNCH_UX` · `INPUT_CANON` · `PLACES_BIBLE` · `GENSHARE` · `LAVAPIPE_CLICK_CLEAN` · `PHASE_PLAYABLE_LOOP` · `HOUR_TWO` · `HOUR_THREE` · `PHASE_Q`/`R`/`S` · `PHASE_LETHAL` · `PREVIEW_CHECKLIST`.
 
-**Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door: `cargo run -p powrush-client`. Online grey; not a launch candidate.
+**Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door: `cargo run -p powrush-client`. Online grey; not a launch candidate. **Wave P:** `playable-preview` @ `11c577e` (steward-cut; this loop alone still does not cut a tag).
 
 Minute-by-minute. Keys only. Online stays grey. L3 ingest absent on first hour.
 

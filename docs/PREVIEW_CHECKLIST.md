@@ -5,7 +5,9 @@ Workspace `21.88.0`. Design tick, not a Cargo bump.
 
 One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No server required.
 
-**Steward law:** ticking every box here makes a stranger pass *possible* and keeps the repo honest. It does **not** cut a `playable-preview` git tag. A human says the preview tag when it sings — Proceed ≠ playable-preview tag.
+**Steward law:** ticking every box here makes a stranger pass *possible* and keeps the repo honest. It does **not** cut a `playable-preview` git tag. A human says the preview tag when it sings — Proceed ≠ playable-preview tag. Checklist ticks still ≠ tag even after Wave P.
+
+**Wave P (2026-09-07):** steward preview **yes**. Annotated tag `playable-preview` now exists on tip `11c577e` (human-cut; tag object `e37ed6e`). Play/stranger floor remains `2163551` (G0). Online grey; no public bind. Tag alone does not turn on GenShare sockets, birds, or default Grove.
 
 **Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door stays `cargo run -p powrush-client`. Online grey; not a launch candidate.
 
