@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — fail beat B0001 dress labels
+
+```
+slice: fail beat B0001 dress labels
+idea: Bevy 0.14 B0001 — refresh_house_dress_labels (+ refresh_local_settings_labels) multi Query<&mut Text> → ParamSet; lavapipe boot window no panic; no preview / POWRUSH_NET / birds
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: 690c6414 (#267)
+```
+
+
+
 ## 2026-09-07 — F0 README stranger floor sync
 
 ```
