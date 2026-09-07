@@ -7,7 +7,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 
 **Steward law:** ticking every box here makes a stranger pass *possible* and keeps the repo honest. It does **not** cut a `playable-preview` git tag. A human says the preview tag when it sings — Proceed ≠ playable-preview tag.
 
-**Stranger floor:** `8d91e95` (F3 floor stamp; Settled Esc/L click-pass on lavapipe after #275; comfort/canons). Door stays `cargo run -p powrush-client`. Online grey.
+**Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door stays `cargo run -p powrush-client`. Online grey; not a launch candidate.
 
 ## Tick (~15)
 
