@@ -7,7 +7,7 @@ slice: F0 README stranger floor sync
 idea: README floor honesty — replace stale play floor c5299d11 with stranger floor 168a990b / main tip da38fb26; comfort + canons live; not a launch candidate; docs only; no client/shared/Cargo; no meshes/keys/birds; no preview tag; no POWRUSH_NET
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 4a3d7681 (#265)
 ```
 
 
