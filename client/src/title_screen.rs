@@ -1,9 +1,11 @@
 //! S0 Title + S2 House naming + D1 Pause + D2 Settings + D3 seals/heritage (v23.2.64)
 //!
 //! High-contrast title plate (opaque light-on-dark — soft GPU / Mesa readable).
-//! Esc from InYard → Title (not quit-to-desktop); quit via window close / Pause Quit.
+//! Esc from InYard opens D1 pause (not Title / not quit-to-desktop); quit via
+//! window close / Pause Quit. Esc again (or Resume) closes pause; Title button
+//! still returns to Title with house JSON + lived persist.
 //! D1: when Settings/pause opens in yard — one-line plate "the yard is waiting"
-//! with Resume / Title / Quit (Title = Esc-to-title path; Quit = AppExit).
+//! with Resume / Title / Quit (Title = old Esc-to-title path; Quit = AppExit).
 //! D2: same plate hosts local Look / Mute / Invert-Y / Hide slabs; persist
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
@@ -13,7 +15,7 @@
 //! rename allowed; persist seals+heritage on powrush_house.json; refuse +take/+STR.
 //! No race select at Title. No new Peace keys. No Online socket. No preview tag.
 //! Fog/birds visual comfort PARKED (Title contrast law).
-//! Esc-to-title + Settled write data/powrush_house.json even if name skipped.
+//! Pause→Title + Settled write data/powrush_house.json even if name skipped.
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //! Contact: info@Rathor.ai
 
@@ -251,7 +253,7 @@ impl Plugin for TitleScreenPlugin {
                     title_keyboard_shortcuts,
                     sync_title_visibility,
                     watch_settled_for_naming,
-                    esc_yard_to_title,
+                    esc_yard_pause,
                     name_house_text_input,
                     name_house_buttons,
                     sync_name_house_visibility,
@@ -340,7 +342,7 @@ fn spawn_title_screen(mut commands: Commands) {
                 spawn_menu_btn(p, "Settings", TitleSettingsBtn, true);
                 spawn_menu_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false);
                 p.spawn(TextBundle::from_section(
-                    "1 Play · 2 Continue · 3 Settings · Esc from yard returns here",
+                    "1 Play · 2 Continue · 3 Settings · Esc from yard opens pause",
                     TextStyle {
                         font_size: 11.0,
                         color: TITLE_TEXT_SECONDARY,
@@ -737,8 +739,8 @@ fn title_keyboard_shortcuts(
             }
         }
         LaunchDoor::InYard => {
-            // Esc → Title is handled by esc_yard_to_title (not quit-to-desktop).
-            // Digit3 opens/closes D1 pause plate (Settings path in yard).
+            // Esc opens/closes D1 pause (esc_yard_pause) — never Title / never quit.
+            // Digit3 also toggles D1 pause plate (Settings path in yard).
             if keyboard.just_pressed(KeyCode::Digit3) {
                 label.settings_open = !label.settings_open;
             }
@@ -822,15 +824,14 @@ fn watch_settled_for_naming(
     }
 }
 
-/// Esc while InYard → LaunchDoor::Title (stranger-pass).
-/// Does **not** quit-to-desktop — close the window or use Settings for that.
-/// First Esc closes Settings if open; second Esc (or Esc with settings closed) returns to Title.
-/// Writes `data/powrush_house.json` even if name was skipped (Unnamed House).
-fn esc_yard_to_title(
+/// Esc while InYard toggles D1 pause plate (stranger-pass / E1 + Wave H).
+/// Pause closed → open (*the yard is waiting*); pause open → close (Resume).
+/// Does **not** set Title and does **not** quit-to-desktop — Title button /
+/// `return_yard_to_title` still writes house JSON + lived persist; Quit = AppExit.
+fn esc_yard_pause(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut door: ResMut<LaunchDoor>,
+    door: Res<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
-    bind: Option<Res<LivedHourBind>>,
 ) {
     if *door != LaunchDoor::InYard {
         return;
@@ -838,12 +839,9 @@ fn esc_yard_to_title(
     if !keyboard.just_pressed(KeyCode::Escape) {
         return;
     }
-    if label.settings_open {
-        // First Esc closes pause/Settings; second Esc returns to Title.
-        label.settings_open = false;
-        return;
-    }
-    return_yard_to_title(&mut door, &mut label, bind.as_ref());
+    // Esc opens pause when closed; Esc closes pause when open (Resume).
+    // Never LaunchDoor::Title / never AppExit from Esc.
+    label.settings_open = !label.settings_open;
 }
 
 /// After Settled or quit-to-title: house JSON exists (name may be null / Unnamed).
@@ -908,7 +906,7 @@ fn pause_plate_clicks(
     }
 }
 
-/// Shared Esc-to-title / Pause→Title path: house JSON + lived persist, then Title.
+/// Shared Pause→Title path (Title button): house JSON + lived persist, then Title.
 fn return_yard_to_title(
     door: &mut LaunchDoor,
     label: &mut HouseLabel,
@@ -1135,8 +1133,17 @@ pub fn resume_keeps_door(from: LaunchDoor) -> LaunchDoor {
     from
 }
 
-/// Pure helper for proof tests: Esc from InYard yields Title.
-pub fn esc_from_inyard_returns_title(from: LaunchDoor) -> LaunchDoor {
+/// Pure helper: Esc from InYard toggles pause open/closed; door stays InYard.
+/// Never yields Title. `pause_was_open` is settings_open before the Esc press.
+pub fn esc_from_inyard_toggles_pause(from: LaunchDoor, pause_was_open: bool) -> (LaunchDoor, bool) {
+    match from {
+        LaunchDoor::InYard => (LaunchDoor::InYard, !pause_was_open),
+        other => (other, pause_was_open),
+    }
+}
+
+/// Pure helper: Title button from pause / InYard yields Title (house JSON path).
+pub fn title_from_pause_returns_title(from: LaunchDoor) -> LaunchDoor {
     match from {
         LaunchDoor::InYard => LaunchDoor::Title,
         other => other,
@@ -1492,22 +1499,29 @@ mod tests {
     }
 
     #[test]
-    fn esc_from_inyard_maps_to_title() {
+    fn esc_from_inyard_opens_pause_not_title() {
+        // Esc with pause closed → open pause; door stays InYard (not Title).
         assert_eq!(
-            super::esc_from_inyard_returns_title(LaunchDoor::InYard),
-            LaunchDoor::Title
+            super::esc_from_inyard_toggles_pause(LaunchDoor::InYard, false),
+            (LaunchDoor::InYard, true)
+        );
+        // Esc with pause open → close pause (Resume); still InYard.
+        assert_eq!(
+            super::esc_from_inyard_toggles_pause(LaunchDoor::InYard, true),
+            (LaunchDoor::InYard, false)
+        );
+        // Other doors unchanged.
+        assert_eq!(
+            super::esc_from_inyard_toggles_pause(LaunchDoor::Title, false),
+            (LaunchDoor::Title, false)
         );
         assert_eq!(
-            super::esc_from_inyard_returns_title(LaunchDoor::Title),
-            LaunchDoor::Title
+            super::esc_from_inyard_toggles_pause(LaunchDoor::NameHouse, true),
+            (LaunchDoor::NameHouse, true)
         );
         assert_eq!(
-            super::esc_from_inyard_returns_title(LaunchDoor::NameHouse),
-            LaunchDoor::NameHouse
-        );
-        assert_eq!(
-            super::esc_from_inyard_returns_title(LaunchDoor::HouseDress),
-            LaunchDoor::HouseDress
+            super::esc_from_inyard_toggles_pause(LaunchDoor::HouseDress, false),
+            (LaunchDoor::HouseDress, false)
         );
     }
 
@@ -1523,9 +1537,26 @@ mod tests {
     #[test]
     fn d1_resume_keeps_inyard() {
         assert_eq!(super::resume_keeps_door(LaunchDoor::InYard), LaunchDoor::InYard);
+        // Esc close-pause path is Resume-equivalent (stays InYard).
         assert_eq!(
-            super::esc_from_inyard_returns_title(LaunchDoor::InYard),
+            super::esc_from_inyard_toggles_pause(LaunchDoor::InYard, true),
+            (LaunchDoor::InYard, false)
+        );
+    }
+
+    #[test]
+    fn title_from_pause_maps_to_title() {
+        assert_eq!(
+            super::title_from_pause_returns_title(LaunchDoor::InYard),
             LaunchDoor::Title
+        );
+        assert_eq!(
+            super::title_from_pause_returns_title(LaunchDoor::Title),
+            LaunchDoor::Title
+        );
+        assert_eq!(
+            super::title_from_pause_returns_title(LaunchDoor::NameHouse),
+            LaunchDoor::NameHouse
         );
     }
 
@@ -1556,8 +1587,13 @@ mod tests {
         // name empty / Unnamed — Continue reads Unnamed House · the yard remembers
         let cue = continue_cue_when_persist(true, &label.house).unwrap();
         assert_eq!(cue, "Unnamed House · the yard remembers");
-        // esc helper still maps InYard → Title
-        assert_eq!(super::esc_from_inyard_returns_title(LaunchDoor::InYard), LaunchDoor::Title);
+        // Title-from-pause helper still maps InYard → Title (house JSON path).
+        assert_eq!(super::title_from_pause_returns_title(LaunchDoor::InYard), LaunchDoor::Title);
+        // Esc itself only toggles pause — never Title.
+        assert_eq!(
+            super::esc_from_inyard_toggles_pause(LaunchDoor::InYard, false),
+            (LaunchDoor::InYard, true)
+        );
     }
 
     #[test]
