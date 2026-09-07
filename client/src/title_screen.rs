@@ -35,7 +35,7 @@ use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
 use crate::net_mode::SessionNetMode;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
-use crate::ui_above_world::{LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
+use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
 use shared::local_settings::{
     refuse_online_socket_toggle, LocalSettings, SETTINGS_PATH,
 };
@@ -292,6 +292,7 @@ fn spawn_title_screen(mut commands: Commands) {
             },
             TitleRoot,
             TitleBreath,
+            LivedUiPlate,
         ))
         .with_children(|root| {
             root.spawn(
@@ -416,6 +417,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                 ..default()
             },
             SettingsStubRoot,
+            LivedUiPlate,
         ))
         .with_children(|p| {
             p.spawn((
@@ -477,6 +479,7 @@ fn spawn_name_house_panel(mut commands: Commands) {
                 ..default()
             },
             NameHouseRoot,
+            LivedUiPlate,
         ))
         .with_children(|root| {
             root.spawn(NodeBundle {
@@ -545,6 +548,7 @@ fn spawn_house_dress_panel(mut commands: Commands) {
                 ..default()
             },
             HouseDressRoot,
+            LivedUiPlate,
         ))
         .with_children(|root| {
             root.spawn(NodeBundle {

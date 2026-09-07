@@ -18,7 +18,7 @@ use crate::harvest_feel::SoftRbePool;
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_BORDER, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
-use crate::ui_above_world::LIVED_UI_Z_LEDGER;
+use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
 use crate::living_freshness::LivingFreshness;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::soft_play_bindings;
@@ -153,6 +153,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                 ..default()
             },
             SatchelRoot,
+            LivedUiPlate,
         ))
         .with_children(|p| {
             p.spawn(TextBundle::from_section(
