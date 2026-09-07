@@ -70,6 +70,8 @@ Start here if you want to complete the game:
 - `docs/LAUNCH_UX.md` — steward Title → Hands → House → Online grey
 - `docs/PARKED_SURFACES.md` — what not to wire into the default binary
 - `docs/DOC_CANON.md` — which docs are current
+- `docs/PHYSICS_GRAPHICS_CANON.md` — Sanctuary surfaces, physics layers, Crownstone Witness-only
+- `docs/GDD_ADAPTATION.md` — GDD 1.5–2.0 name map / keep·transform·refuse
 - `docs/archive/README.md` — historical. README is canonical.
 
 ### Dev
