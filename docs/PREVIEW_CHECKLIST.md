@@ -25,6 +25,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 - [ ] **Climate** — slab + `data/` climate truth survive quit/rerun (harmony / stress / tired / circulating)
 - [ ] **Week tons+restored** — week line is *this week · N tons · M restored* (not kills / XP)
 - [ ] **L3 absent on first hour** — default `POWRUSH_INGEST=off`; no **ingest overlay** on Peace boot. Note: `data/powrush_lived_tick.json` may still exist as **session persist** (Mode B resume) — that is not Ra-Thor ingest. Checklist “no tick” = no ingest overlay; do not delete the blob
+- [ ] **G0 opt-in** — default boot: no extra scatter required (G0 off). `POWRUSH_GEN=light`: same hex seed each run; Title/pause/Ledger plates still click; fog behind UI only. Never default gen on; no birds; no GenShare sockets
 - [ ] **Title contrast** — Play/Continue/Online/Settings readable (opaque high-contrast plate)
 - [ ] **House file** — after Settled or quit-to-title, `data/powrush_house.json` exists even if name skipped (Continue: *Unnamed House · the yard remembers*)
 - [ ] **Lethal quiet** — Peace boot has no lethal UI; Ledger **3** only after book; never default E
@@ -34,7 +35,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 
 ## Explicit refuse (do not tick these into existence)
 
-- `POWRUSH_NET=on` as default · bind `0.0.0.0` · lighting title Online · Steam store copy · fake presence · new Peace verbs · combat stats on seals/heritage · fog/birds as preview juice · cutting `playable-preview` from this checklist alone
+- `POWRUSH_NET=on` as default · bind `0.0.0.0` · lighting title Online · Steam store copy · fake presence · new Peace verbs · combat stats on seals/heritage · `POWRUSH_GEN` default on · GenShare sockets · fog/birds as preview juice · cutting `playable-preview` from this checklist alone
 
 ## Related
 

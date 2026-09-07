@@ -1,5 +1,16 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — E2 G0 opt-in checklist beat
+
+```
+slice: E2 G0 opt-in checklist beat
+idea: PREVIEW_CHECKLIST + STRANGER_LOOP — default boot no extra scatter (G0 off); POWRUSH_GEN=light same hex seed each run, plates still click, fog behind UI; stranger floor stays 2163551; Online grey; never default gen on; no birds; no GenShare sockets; no preview tag; docs only; no client/shared/Cargo
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
 
 ## 2026-09-07 — G0 stranger floor 2163551
 
