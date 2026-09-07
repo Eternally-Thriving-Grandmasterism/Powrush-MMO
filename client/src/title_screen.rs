@@ -35,6 +35,7 @@ use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
 use crate::net_mode::SessionNetMode;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
+use crate::ui_above_world::{LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
 use shared::local_settings::{
     refuse_online_socket_toggle, LocalSettings, SETTINGS_PATH,
 };
@@ -286,7 +287,7 @@ fn spawn_title_screen(mut commands: Commands) {
                 },
                 // Opaque dimmer — soft GPU must not alpha-blend menu into fog.
                 background_color: TITLE_DIM_BG.into(),
-                z_index: ZIndex::Global(120),
+                z_index: ZIndex::Global(LIVED_UI_Z_TITLE),
                 ..default()
             },
             TitleRoot,
@@ -411,7 +412,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                 background_color: TITLE_PLATE_BG.into(),
                 border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(130),
+                z_index: ZIndex::Global(LIVED_UI_Z_PAUSE),
                 ..default()
             },
             SettingsStubRoot,

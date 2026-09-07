@@ -119,7 +119,14 @@ impl Plugin for ClimatePlanePlugin {
                 brightness: look_for(Some(0)).ambient_bright,
             })
             .add_systems(Startup, (ensure_sanctuary, spawn_climate_place, spawn_climate_chip))
-            .add_systems(Update, (apply_climate_look, update_climate_chip));
+            .add_systems(
+                Update,
+                (
+                    attach_fog_when_world_camera_arrives,
+                    apply_climate_look,
+                    update_climate_chip,
+                ),
+            );
     }
 }
 
@@ -178,22 +185,14 @@ fn spawn_climate_place(
         }
     }
 
+    // Never spawn a second Camera3d here — main owns the yard camera.
+    // A duplicate at order 0 races the lived UI camera on soft GPU (lavapipe)
+    // and can bury Title / pause / Ledger under the world pass.
     if cameras.iter().next().is_none() {
-        commands.spawn((
-            Camera3dBundle {
-                transform: Transform::from_xyz(0.0, 7.2, 11.5)
-                    .looking_at(Vec3::new(0.0, 0.4, 0.0), Vec3::Y),
-                ..default()
-            },
-            FogSettings {
-                color: look.fog,
-                falloff: FogFalloff::Linear {
-                    start: look.fog_start,
-                    end: look.fog_end,
-                },
-                ..default()
-            },
-        ));
+        warn!(
+            target: "powrush::climate",
+            "no Camera3d yet — fog waits for world camera (ui-above-world)"
+        );
     } else {
         for entity in &cameras {
             commands.entity(entity).insert(FogSettings {
@@ -258,6 +257,28 @@ fn spawn_climate_chip(mut commands: Commands) {
             ));
         });
 }
+
+fn attach_fog_when_world_camera_arrives(
+    mut commands: Commands,
+    cameras: Query<Entity, (With<Camera3d>, Without<FogSettings>)>,
+    realm: Res<SoftPlayerRealm>,
+) {
+    if cameras.is_empty() {
+        return;
+    }
+    let look = look_for(realm.current.or(Some(0)));
+    for entity in &cameras {
+        commands.entity(entity).insert(FogSettings {
+            color: look.fog,
+            falloff: FogFalloff::Linear {
+                start: look.fog_start,
+                end: look.fog_end,
+            },
+            ..default()
+        });
+    }
+}
+
 
 fn apply_climate_look(
     realm: Res<SoftPlayerRealm>,
