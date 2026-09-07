@@ -6,7 +6,7 @@ Walk a climate. Harvest with mercy. Learn a resource-based economy by playing. E
 
 **Default:** one human, one machine. Offline first. No dedicated server required. No “12 players online.” Title Online stays grey until a real net mode exists. Ra-Thor may *read* `data/powrush_lived_tick.json`. It does not drive the keys.
 
-**Floor:** stranger floor `5c18a68` / main tip `5c18a68`; comfort + canons live; not a launch candidate.
+**Floor:** stranger floor `5c18a68` / main tip `d99a1db`; comfort + canons live; not a launch candidate.
 
 **Status (2026-09-06):** Hours one and two are code-complete. Hours 1–3 on main. Hours 1–3 + Q + R. Standing at `data/powrush_shard_standing.json` — see `docs/PHASE_R.md`. Lived first hour remains the product. This repo compiles without a sibling Ra-Thor checkout (NEVC Mode B). Default binary is the lived hour: `cargo run -p powrush-client`. Title: Play / Continue / Settings — Continue shows House name or *Unnamed House* + *the yard remembers* when local persist exists; House naming is skippable. WASD / E / I / H / R. One card teaches walk · tend · satchel · allocate. Wells speak Idle / Glowing / Tended / Resting / Stressed. After allocate, Tab steps Frontier; Q founds a House; L Bind settles. Quit and rerun: Welcome slab *Welcome back · Hour two held · the yard remembers*. The yard remembers in `data/powrush_hour_two.json`. Not a public launch candidate. Core CI: `shared` + `rsil-identity` + `powrush-client --lib`.
 
