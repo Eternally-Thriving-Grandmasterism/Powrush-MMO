@@ -9,6 +9,7 @@
 //! D2: same plate hosts local Look / Mute / Invert-Y / Hide slabs; persist
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
+//! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! Q/Pause face shows Seal · … when dressed (heritage string only).
 //! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
 //! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
@@ -194,6 +195,10 @@ struct SettingsBrightnessLabel;
 struct SettingsTextScaleBtn;
 #[derive(Component)]
 struct SettingsTextScaleLabel;
+#[derive(Component)]
+struct SettingsGroveBtn;
+#[derive(Component)]
+struct SettingsGroveLabel;
 #[derive(Component)]
 struct SettingsOnlineStubBtn;
 #[derive(Component)]
@@ -452,6 +457,12 @@ fn spawn_settings_stub(mut commands: Commands) {
                 "Text scale · 1.00",
                 SettingsTextScaleBtn,
                 SettingsTextScaleLabel,
+            );
+            spawn_settings_row(
+                p,
+                "Grove · off",
+                SettingsGroveBtn,
+                SettingsGroveLabel,
             );
             // Online stays grey — never binds a socket from this plate.
             spawn_menu_btn(p, ONLINE_STUB_LABEL, SettingsOnlineStubBtn, false);
@@ -996,6 +1007,11 @@ pub fn text_scale_btn_label(s: &LocalSettings) -> String {
     format!("Text scale · {:.2}", s.text_scale)
 }
 
+pub fn grove_btn_label(s: &LocalSettings) -> String {
+    let g = if s.grove_is_light() { "light" } else { "off" };
+    format!("Grove · {g}")
+}
+
 fn set_btn_section_text(text: &mut Text, value: &str) {
     if let Some(s) = text.sections.get_mut(0) {
         if s.value != value {
@@ -1022,6 +1038,7 @@ fn refresh_local_settings_labels(
         Query<&mut Text, With<SettingsHideLabel>>,
         Query<&mut Text, With<SettingsBrightnessLabel>>,
         Query<&mut Text, With<SettingsTextScaleLabel>>,
+        Query<&mut Text, With<SettingsGroveLabel>>,
     )>,
 ) {
     if !label.settings_open {
@@ -1034,6 +1051,7 @@ fn refresh_local_settings_labels(
     let hide = hide_slabs_btn_label(s);
     let bright = brightness_btn_label(s);
     let scale = text_scale_btn_label(s);
+    let grove = grove_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
     for mut text in &mut texts.p0() {
         set_btn_section_text(&mut text, &look);
@@ -1059,6 +1077,10 @@ fn refresh_local_settings_labels(
         set_btn_section_text(&mut text, &scale);
         set_btn_section_font(&mut text, font);
     }
+    for mut text in &mut texts.p6() {
+        set_btn_section_text(&mut text, &grove);
+        set_btn_section_font(&mut text, font);
+    }
 }
 
 fn local_settings_clicks(
@@ -1070,6 +1092,7 @@ fn local_settings_clicks(
     hide: Query<&Interaction, (Changed<Interaction>, With<SettingsHideSlabsBtn>)>,
     bright: Query<&Interaction, (Changed<Interaction>, With<SettingsBrightnessBtn>)>,
     scale: Query<&Interaction, (Changed<Interaction>, With<SettingsTextScaleBtn>)>,
+    grove: Query<&Interaction, (Changed<Interaction>, With<SettingsGroveBtn>)>,
     online: Query<&Interaction, (Changed<Interaction>, With<SettingsOnlineStubBtn>)>,
 ) {
     if !label.settings_open {
@@ -1110,6 +1133,13 @@ fn local_settings_clicks(
     for i in &scale {
         if *i == Interaction::Pressed {
             settings.inner.bump_text_scale();
+            changed = true;
+        }
+    }
+    for i in &grove {
+        if *i == Interaction::Pressed {
+            // G0.5 — same light-gen path as POWRUSH_GEN=light (OR at door).
+            settings.inner.cycle_grove();
             changed = true;
         }
     }
@@ -1613,6 +1643,8 @@ mod tests {
         assert_eq!(hide_slabs_btn_label(&s), "Hide slabs · off");
         assert_eq!(brightness_btn_label(&s), "Brightness · 1.00");
         assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00");
+        assert_eq!(grove_btn_label(&s), "Grove · off");
+        assert_eq!(s.grove, "off");
         assert_eq!(SETTINGS_PATH, "data/powrush_settings.json");
     }
 
@@ -1632,6 +1664,7 @@ mod tests {
         s.look_sensitivity = 1.50;
         s.brightness = 1.25;
         s.text_scale = 1.10;
+        s.grove = "light".into();
         let raw = s.to_json().unwrap();
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(mute_btn_label(&back), "Mute · on");
@@ -1640,6 +1673,17 @@ mod tests {
         assert_eq!(look_btn_label(&back), "Look · 1.50");
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
         assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10");
+        assert_eq!(grove_btn_label(&back), "Grove · light");
+    }
+
+    #[test]
+    fn g05_grove_cycles_off_light() {
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(grove_btn_label(&s), "Grove · off");
+        s.cycle_grove();
+        assert_eq!(grove_btn_label(&s), "Grove · light");
+        s.cycle_grove();
+        assert_eq!(grove_btn_label(&s), "Grove · off");
     }
 
     #[test]

@@ -14,13 +14,13 @@ Minute-by-minute. Keys only. Online stays grey. L3 ingest absent on first hour.
 | 0 | `cargo run -p powrush-client` | Title: Play / Continue / Settings; Online grey *off (no listen)*; climate breathing; no peer count |
 | 0–1 | Play (first run) or Continue | First run → Hands, no name wall. Continue → House name **or** exactly *Unnamed House* + *the yard remembers* when persist exists |
 | 1–10 | WASD, E tend/take, I, H, R 1/2 | one card; well speech Idle/Glowing/Tended/Resting/Stressed; tired / circulating |
-| pause | Esc (or Settings) | opaque *the yard is waiting* → Resume / Title / Quit; Settings: Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale (`powrush_settings.json` survives quit/rerun) |
+| pause | Esc (or Settings) | opaque *the yard is waiting* → Resume / Title / Quit; Settings: Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove off|light (`powrush_settings.json` survives quit/rerun) |
 | 10–25 | Tab → Q → L Bind | Settled; *Hour two held · the yard remembers*; quit/rerun welcome slab |
 | after Settled | seals / heritage | Well / Grove / Ember skippable (cosmetic); heritage string only; Q shows Seal · … when dressed; **no combat stats** |
 | 25–40 | Q fabricator (MendSpool + LaneCrate) → Embassy E seat | *Hour three held · the book is yours* |
 | 40–50 | same E / R; I or L sash | climate file + slab true; week *this week · N tons · M restored* (not kills); Seal · … on Pause/Ledger when dressed |
 | after book | Ledger **3** only if choosing | DeclaredLethal opt-in; Peace boot still silent; never default E |
-| always | — | `POWRUSH_NET` default off = zero sockets; `POWRUSH_INGEST` default off = L3 absent on first hour; House name skippable → Unnamed House; **G0 opt-in** — default boot no extra scatter (G0 off); `POWRUSH_GEN=light` same hex seed each run, plates still click, fog behind UI |
+| always | — | `POWRUSH_NET` default off = zero sockets; `POWRUSH_INGEST` default off = L3 absent on first hour; House name skippable → Unnamed House; **G0 opt-in** — default boot no extra scatter (G0 off); Settings Grove · light or `POWRUSH_GEN=light` (OR) same hex seed each run, plates still click, fog behind UI |
 
 ## Quiet law
 

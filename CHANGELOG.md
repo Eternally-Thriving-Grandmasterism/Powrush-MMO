@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.63] — 2026-09-07 — G0.5 Settings Grove off/light
+
+Settings plate **Grove · off|light** persists in `data/powrush_settings.json` (default **off**; missing/unknown → off). Enabled when Grove is light **OR** env `POWRUSH_GEN=light` — same G0 light-gen path, not a second system. Cull when Title/pause/Settings/L/Q open. No birds, sockets, second Camera3d, Avian/Rapier, GenShare, preview tag. Peace keys untouched. Workspace stays 21.88.0.
+
 ## [23.2.62] — 2026-09-07 — G0 light gen (hex-seed scatter + climate fog)
 
 Optional `POWRUSH_GEN=light` (default **off** — lavapipe door-safe): deterministic grove seed from house⊕hex⊕climate_epoch; tiny atlas trees/stones (≤4 mesh types, ≤12 instances); FogSettings on world Camera3d only from stress/harmony; cull scatter when Title / pause / Settings / L / Q open; no birds, no second Camera3d, no Avian/Rapier, no combat stats, no sockets, no Wave P. Shared `powrush_gen` unit tests (seed stability, flag off by default, cull helper). F3 re-walk with env set; revert if occlusion. Workspace stays 21.88.0.

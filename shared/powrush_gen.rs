@@ -1,8 +1,10 @@
 //! G0 light gen — hex-seed grove + env door (v23.2.62+)
 //!
 //! `POWRUSH_GEN=light` enables tiny atlas scatter. **Default off** so lavapipe
-//! Title / pause / Settings / L / Q clicks stay clean. No Avian/Rapier, no
-//! second Camera3d, no combat stats, no GenShare net. Contact: info@Rathor.ai
+//! Title / pause / Settings / L / Q clicks stay clean. G0.5 Settings Grove
+//! (`off`|`light`) ORs with env — same gen path, not a second system. No
+//! Avian/Rapier, no second Camera3d, no combat stats, no GenShare net.
+//! Contact: info@Rathor.ai
 
 /// Env values that enable light gen (case-insensitive).
 pub const POWRUSH_GEN_LIGHT: &str = "light";
@@ -56,6 +58,18 @@ pub fn light_gen_enabled() -> bool {
 /// Same as [`light_gen_enabled`] but from an explicit string (tests).
 pub fn light_gen_enabled_from(raw: Option<&str>) -> bool {
     parse_powrush_gen_from(raw).is_light()
+}
+
+/// G0.5 door: settings grove is light **OR** env `POWRUSH_GEN=light` (OR).
+/// `settings_grove` missing / unknown / off → settings half is off; env still wins.
+/// Same gen path as env — not a second system.
+pub fn light_gen_enabled_with(settings_grove: Option<&str>) -> bool {
+    light_gen_enabled_from(settings_grove) || light_gen_enabled()
+}
+
+/// Pure OR helper for tests (no process env): settings light OR env_raw light.
+pub fn light_gen_enabled_or(settings_grove: Option<&str>, env_raw: Option<&str>) -> bool {
+    light_gen_enabled_from(settings_grove) || light_gen_enabled_from(env_raw)
 }
 
 /// FNV-1a 64 — stable string → u64 for house/hex ids.
@@ -225,6 +239,22 @@ mod tests {
         assert!(light_gen_enabled_from(Some("light")));
         assert!(light_gen_enabled_from(Some("ON")));
         assert!(light_gen_enabled_from(Some("1")));
+    }
+
+    #[test]
+    fn light_gen_or_settings_with_env() {
+        // Both off → off
+        assert!(!light_gen_enabled_or(None, None));
+        assert!(!light_gen_enabled_or(Some("off"), Some("off")));
+        assert!(!light_gen_enabled_or(Some("garbage"), None));
+        // Settings light alone → on
+        assert!(light_gen_enabled_or(Some("light"), None));
+        assert!(light_gen_enabled_or(Some("LIGHT"), Some("off")));
+        // Env light alone → on
+        assert!(light_gen_enabled_or(Some("off"), Some("light")));
+        assert!(light_gen_enabled_or(None, Some("1")));
+        // Both light → on
+        assert!(light_gen_enabled_or(Some("light"), Some("light")));
     }
 
     #[test]

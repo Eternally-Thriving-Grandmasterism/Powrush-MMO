@@ -19,13 +19,13 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 - [ ] **Continue / Unnamed House** — with local persist, Continue shows House name **or** exactly *Unnamed House* + *the yard remembers*
 - [ ] **House name skippable** — Skip (or quit path) → Unnamed House; progress kept; no name wall on first Play
 - [ ] **Esc → pause** — Esc in yard opens opaque pause *the yard is waiting* → Resume / Title / Quit (Quit ≠ Esc; Title keeps house JSON + lived persist)
-- [ ] **Settings persist** — Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale on Title/pause Settings; `data/powrush_settings.json` survives quit/rerun; Title opaque contrast stays law
+- [ ] **Settings persist** — Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove (off|light, default off) on Title/pause Settings; `data/powrush_settings.json` survives quit/rerun; Title opaque contrast stays law
 - [ ] **Seals / heritage (after Settled)** — Well / Grove / Ember skippable (cosmetic only); heritage string only (`none|human|cydruid|quellorian|draek|ambrosian`); Q shows Seal · … when dressed; **no combat stats** / +take / +STR
 - [ ] **Book** — Hour three path reaches *the book is yours* (fabricator → Embassy seat) without a login wall
 - [ ] **Climate** — slab + `data/` climate truth survive quit/rerun (harmony / stress / tired / circulating)
 - [ ] **Week tons+restored** — week line is *this week · N tons · M restored* (not kills / XP)
 - [ ] **L3 absent on first hour** — default `POWRUSH_INGEST=off`; no **ingest overlay** on Peace boot. Note: `data/powrush_lived_tick.json` may still exist as **session persist** (Mode B resume) — that is not Ra-Thor ingest. Checklist “no tick” = no ingest overlay; do not delete the blob
-- [ ] **G0 opt-in** — default boot: no extra scatter required (G0 off). `POWRUSH_GEN=light`: same hex seed each run; Title/pause/Ledger plates still click; fog behind UI only. Never default gen on; no birds; no GenShare sockets
+- [ ] **G0 opt-in** — default boot: no extra scatter required (G0 off). Settings Grove · light **or** `POWRUSH_GEN=light` (OR): same hex seed each run; Title/pause/Ledger plates still click; fog behind UI only. Never default gen on; no birds; no GenShare sockets
 - [ ] **Title contrast** — Play/Continue/Online/Settings readable (opaque high-contrast plate)
 - [ ] **House file** — after Settled or quit-to-title, `data/powrush_house.json` exists even if name skipped (Continue: *Unnamed House · the yard remembers*)
 - [ ] **Lethal quiet** — Peace boot has no lethal UI; Ledger **3** only after book; never default E
