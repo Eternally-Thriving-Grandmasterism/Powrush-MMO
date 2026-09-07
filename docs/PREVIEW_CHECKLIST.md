@@ -38,7 +38,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 ## Explicit refuse (do not tick these into existence)
 
 - `POWRUSH_NET=on` as default · bind `0.0.0.0` · lighting title Online · Steam store copy · fake presence · new Peace verbs · combat stats on seals/heritage · `POWRUSH_GEN` default on · GenShare sockets · fog/birds as preview juice · cutting `playable-preview` from this checklist alone
-- **GenShare is not a Peace tick** — recipe law lives in `docs/GENSHARE.md`; do not invent a Peace-hour GenShare checkbox or claim sockets shipped
+- **GenShare is not a Peace tick** — recipe law lives in `docs/GENSHARE.md`; do not invent a Peace-hour GenShare checkbox or claim sockets shipped. L0 file may exist offline (`data/powrush_genshare.jsonl`); not a Peace Online tick.
 
 ## Related
 

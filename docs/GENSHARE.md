@@ -3,7 +3,7 @@
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick, not a Cargo bump.  
 **Floor stays:** `2163551`. Tip reference `b215275`.  
-**Law:** GenShare = **recipe**, not triangles. Docs now; no client / shared / Cargo in this stamp. No sockets claimed as shipped. No Wave P. No `playable-preview` tag from this doc alone. Title Online stays **grey** until a real online-yes path exists.
+**Law:** GenShare = **recipe**, not triangles. L0 file may exist offline (`data/powrush_genshare.jsonl`); not a Peace Online tick. Docs now; no client / shared / Cargo in this stamp. No sockets claimed as shipped. No Wave P. No `playable-preview` tag from this doc alone. Title Online stays **grey** until a real online-yes path exists.
 
 Share the **seed story** so a peer can rebuild the same light-gen yard. Never stream glTF / mesh floods / peer triangle blasts on the default door. Never change Tw / Uw (Peace keys / well speech) to carry GenShare.
 
