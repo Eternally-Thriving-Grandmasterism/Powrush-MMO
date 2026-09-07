@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — D3 House seals + heritage caption
+
+```
+slice: D3 House seals + heritage caption
+idea: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove · Ember) cosmetic only; optional heritage caption string none|human|cydruid|quellorian|draek|ambrosian; rename OK; persist on powrush_house.json; refuse +take/+STR/combat; no race Title / Peace keys / Online / preview
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-06 — D2 Local settings persist
 
 ```

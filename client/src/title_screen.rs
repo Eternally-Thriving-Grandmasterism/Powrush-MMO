@@ -1,4 +1,4 @@
-//! S0 Title + S2 skippable House naming + D1 Pause honesty + D2 Local settings (v23.2.63)
+//! S0 Title + S2 House naming + D1 Pause + D2 Settings + D3 seals/heritage (v23.2.64)
 //!
 //! High-contrast title plate (opaque light-on-dark — soft GPU / Mesa readable).
 //! Esc from InYard → Title (not quit-to-desktop); quit via window close / Pause Quit.
@@ -6,6 +6,10 @@
 //! with Resume / Title / Quit (Title = Esc-to-title path; Quit = AppExit).
 //! D2: same plate hosts local Look / Mute / Invert-Y / Hide slabs; persist
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
+//! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
+//! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
+//! rename allowed; persist seals+heritage on powrush_house.json; refuse +take/+STR.
+//! No race select at Title. No new Peace keys. No Online socket. No preview tag.
 //! Esc-to-title + Settled write data/powrush_house.json even if name skipped.
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //! Contact: info@Rathor.ai
@@ -16,7 +20,8 @@ use std::path::Path;
 use bevy::prelude::*;
 
 use shared::house_name::{
-    continue_cue_when_persist, local_persist_present, HouseName, HOUSE_PATH, UNNAMED,
+    continue_cue_when_persist, local_persist_present, HouseName, HOUSE_PATH, HOUSE_SEALS,
+    SEAL_EMBER, SEAL_GROVE, SEAL_WELL, UNNAMED,
 };
 use shared::title_house_proof::ONLINE_STUB_LABEL;
 
@@ -83,6 +88,8 @@ pub enum LaunchDoor {
     Title,
     InYard,
     NameHouse,
+    /// D3: seals + heritage caption after Settled / skip-named.
+    HouseDress,
 }
 
 impl Default for LaunchDoor {
@@ -100,6 +107,8 @@ pub struct HouseLabel {
     pub draft: String,
     /// Offer naming once after Settled / Escape.
     pub naming_offered: bool,
+    /// Offer D3 seals/heritage once after name resolved.
+    pub seals_offered: bool,
 }
 
 impl Default for HouseLabel {
@@ -117,6 +126,7 @@ impl Default for HouseLabel {
             Path::new(SHARD_STANDING_PATH).exists(),
             house.resolved,
         );
+        let seals_offered = house.seals_resolved;
         Self {
             house,
             persist_present,
@@ -124,6 +134,7 @@ impl Default for HouseLabel {
             settings_open: false,
             draft: String::new(),
             naming_offered: false,
+            seals_offered,
         }
     }
 }
@@ -179,6 +190,30 @@ struct NameDraftText;
 struct NameConfirmBtn;
 #[derive(Component)]
 struct NameSkipBtn;
+#[derive(Component)]
+struct HouseDressRoot;
+#[derive(Component)]
+struct DressSealWellBtn;
+#[derive(Component)]
+struct DressSealGroveBtn;
+#[derive(Component)]
+struct DressSealEmberBtn;
+#[derive(Component)]
+struct DressSealWellLabel;
+#[derive(Component)]
+struct DressSealGroveLabel;
+#[derive(Component)]
+struct DressSealEmberLabel;
+#[derive(Component)]
+struct DressHeritageBtn;
+#[derive(Component)]
+struct DressHeritageLabel;
+#[derive(Component)]
+struct DressRenameBtn;
+#[derive(Component)]
+struct DressConfirmBtn;
+#[derive(Component)]
+struct DressSkipBtn;
 
 pub struct TitleScreenPlugin;
 
@@ -187,7 +222,15 @@ impl Plugin for TitleScreenPlugin {
         app.init_resource::<LaunchDoor>()
             .init_resource::<HouseLabel>()
             .init_resource::<LocalSettingsState>()
-            .add_systems(Startup, (spawn_title_screen, spawn_name_house_panel, spawn_settings_stub))
+            .add_systems(
+                Startup,
+                (
+                    spawn_title_screen,
+                    spawn_name_house_panel,
+                    spawn_house_dress_panel,
+                    spawn_settings_stub,
+                ),
+            )
             .add_systems(
                 Update,
                 (
@@ -201,6 +244,9 @@ impl Plugin for TitleScreenPlugin {
                     name_house_text_input,
                     name_house_buttons,
                     sync_name_house_visibility,
+                    house_dress_buttons,
+                    refresh_house_dress_labels,
+                    sync_house_dress_visibility,
                     sync_settings_stub,
                     refresh_pause_cue,
                     pause_plate_clicks,
@@ -454,6 +500,131 @@ fn spawn_name_house_panel(mut commands: Commands) {
         });
 }
 
+
+fn spawn_house_dress_panel(mut commands: Commands) {
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                background_color: TITLE_DIM_BG.into(),
+                visibility: Visibility::Hidden,
+                z_index: ZIndex::Global(141),
+                ..default()
+            },
+            HouseDressRoot,
+        ))
+        .with_children(|root| {
+            root.spawn(NodeBundle {
+                style: Style {
+                    width: Val::Px(420.0),
+                    padding: UiRect::all(Val::Px(18.0)),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(8.0),
+                    border: UiRect::all(Val::Px(1.5)),
+                    ..default()
+                },
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
+                ..default()
+            })
+            .with_children(|p| {
+                p.spawn(TextBundle::from_section(
+                    "House seals · heritage",
+                    TextStyle {
+                        font_size: 18.0,
+                        color: Color::srgb(0.88, 0.98, 0.92),
+                        ..default()
+                    },
+                ));
+                p.spawn(TextBundle::from_section(
+                    "Cosmetic only. Skip keeps none. No combat kits.",
+                    TextStyle {
+                        font_size: 12.0,
+                        color: Color::srgb(0.60, 0.78, 0.70),
+                        ..default()
+                    },
+                ));
+                spawn_dress_seal_row(p, "Well", DressSealWellBtn, DressSealWellLabel);
+                spawn_dress_seal_row(p, "Grove", DressSealGroveBtn, DressSealGroveLabel);
+                spawn_dress_seal_row(p, "Ember", DressSealEmberBtn, DressSealEmberLabel);
+                p.spawn((
+                    ButtonBundle {
+                        style: Style {
+                            padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
+                            justify_content: JustifyContent::Center,
+                            border: UiRect::all(Val::Px(1.0)),
+                            width: Val::Percent(100.0),
+                            ..default()
+                        },
+                        background_color: TITLE_BTN_BG.into(),
+                        border_color: TITLE_BORDER.into(),
+                        ..default()
+                    },
+                    DressHeritageBtn,
+                ))
+                .with_children(|b| {
+                    b.spawn((
+                        TextBundle::from_section(
+                            "Heritage · none",
+                            TextStyle {
+                                font_size: 15.0,
+                                color: TITLE_BTN_FG,
+                                ..default()
+                            },
+                        ),
+                        DressHeritageLabel,
+                    ));
+                });
+                spawn_menu_btn(p, "Rename House", DressRenameBtn, true);
+                spawn_menu_btn(p, "Confirm seals", DressConfirmBtn, true);
+                spawn_menu_btn(p, "Skip seals", DressSkipBtn, true);
+            });
+        });
+}
+
+fn spawn_dress_seal_row<B: Component, L: Component>(
+    p: &mut ChildBuilder,
+    label: &str,
+    btn: B,
+    text_marker: L,
+) {
+    p.spawn((
+        ButtonBundle {
+            style: Style {
+                padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(1.0)),
+                width: Val::Percent(100.0),
+                ..default()
+            },
+            background_color: TITLE_BTN_BG.into(),
+            border_color: TITLE_BORDER.into(),
+            ..default()
+        },
+        btn,
+    ))
+    .with_children(|b| {
+        b.spawn((
+            TextBundle::from_section(
+                format!("Seal · {label} · off"),
+                TextStyle {
+                    font_size: 15.0,
+                    color: TITLE_BTN_FG,
+                    ..default()
+                },
+            ),
+            text_marker,
+        ));
+    });
+}
+
 fn breath_title_border(
     time: Res<Time>,
     door: Res<LaunchDoor>,
@@ -549,7 +720,7 @@ fn title_keyboard_shortcuts(
                 label.settings_open = !label.settings_open;
             }
         }
-        LaunchDoor::NameHouse => {}
+        LaunchDoor::NameHouse | LaunchDoor::HouseDress => {}
     }
 }
 
@@ -586,7 +757,9 @@ fn sync_settings_stub(
     door: Res<LaunchDoor>,
     mut q: Query<&mut Visibility, With<SettingsStubRoot>>,
 ) {
-    let show = label.settings_open && *door != LaunchDoor::NameHouse;
+    let show = label.settings_open
+        && *door != LaunchDoor::NameHouse
+        && *door != LaunchDoor::HouseDress;
     for mut vis in &mut q {
         *vis = if show {
             Visibility::Visible
@@ -604,18 +777,25 @@ fn watch_settled_for_naming(
     if *door != LaunchDoor::InYard {
         return;
     }
-    if label.house.resolved || label.naming_offered {
-        return;
-    }
     let Some(hour) = hour else {
         return;
     };
-    if hour.complete {
+    if !hour.complete {
+        return;
+    }
+    // Name first (skippable) — then D3 seals/heritage after Settled.
+    if !label.house.resolved && !label.naming_offered {
         label.naming_offered = true;
         // Soft-write Unnamed so Continue works even if they quit mid-name panel.
         ensure_house_file_written(&mut label);
         label.draft.clear();
         *door = LaunchDoor::NameHouse;
+        return;
+    }
+    if label.house.resolved && !label.house.seals_resolved && !label.seals_offered {
+        label.seals_offered = true;
+        ensure_house_file_written(&mut label);
+        *door = LaunchDoor::HouseDress;
     }
 }
 
@@ -873,7 +1053,7 @@ fn local_settings_clicks(
 pub fn pause_plate_line(door: LaunchDoor) -> Option<&'static str> {
     match door {
         LaunchDoor::InYard => Some(YARD_WAITING),
-        LaunchDoor::Title | LaunchDoor::NameHouse => None,
+        LaunchDoor::Title | LaunchDoor::NameHouse | LaunchDoor::HouseDress => None,
     }
 }
 
@@ -954,15 +1134,38 @@ fn name_house_buttons(
     }
     if do_confirm {
         let draft = label.draft.clone();
-        label.house.confirm(&draft);
+        // Rename path: already resolved → rename keeps seals/heritage.
+        if label.house.resolved && label.house.seals_resolved {
+            label.house.rename(&draft);
+        } else {
+            label.house.confirm(&draft);
+        }
         label.house.persist();
         label.persist_present = true;
-        *door = LaunchDoor::InYard;
+        *door = advance_after_naming(&mut label);
     } else if do_skip {
-        label.house.skip();
-        label.house.persist();
-        label.persist_present = true;
-        *door = LaunchDoor::InYard;
+        if label.house.seals_resolved {
+            // Rename cancel after dress — keep existing name, back to yard.
+            *door = LaunchDoor::InYard;
+        } else if label.house.resolved && label.seals_offered {
+            // Mid-dress rename cancel — keep name, return to seals panel.
+            *door = LaunchDoor::HouseDress;
+        } else {
+            label.house.skip();
+            label.house.persist();
+            label.persist_present = true;
+            *door = advance_after_naming(&mut label);
+        }
+    }
+}
+
+/// After naming: D3 dress if seals not yet resolved; else yard.
+fn advance_after_naming(label: &mut HouseLabel) -> LaunchDoor {
+    if label.house.resolved && !label.house.seals_resolved {
+        label.seals_offered = true;
+        LaunchDoor::HouseDress
+    } else {
+        LaunchDoor::InYard
     }
 }
 
@@ -971,6 +1174,144 @@ fn sync_name_house_visibility(
     mut q: Query<&mut Visibility, With<NameHouseRoot>>,
 ) {
     let show = *door == LaunchDoor::NameHouse;
+    for mut vis in &mut q {
+        *vis = if show {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+fn seal_btn_label(house: &HouseName, id: &str) -> String {
+    let on = house.seals.iter().any(|s| s == id);
+    format!(
+        "Seal · {} · {}",
+        HouseName::seal_label(id),
+        if on { "on" } else { "off" }
+    )
+}
+
+pub fn heritage_btn_label(house: &HouseName) -> String {
+    format!("Heritage · {}", house.heritage)
+}
+
+fn refresh_house_dress_labels(
+    door: Res<LaunchDoor>,
+    label: Res<HouseLabel>,
+    mut well_q: Query<&mut Text, With<DressSealWellLabel>>,
+    mut grove_q: Query<&mut Text, With<DressSealGroveLabel>>,
+    mut ember_q: Query<&mut Text, With<DressSealEmberLabel>>,
+    mut heritage_q: Query<&mut Text, With<DressHeritageLabel>>,
+) {
+    if *door != LaunchDoor::HouseDress {
+        return;
+    }
+    let h = &label.house;
+    let well = seal_btn_label(h, SEAL_WELL);
+    let grove = seal_btn_label(h, SEAL_GROVE);
+    let ember = seal_btn_label(h, SEAL_EMBER);
+    let heritage = heritage_btn_label(h);
+    for mut text in &mut well_q {
+        set_btn_section_text(&mut text, &well);
+    }
+    for mut text in &mut grove_q {
+        set_btn_section_text(&mut text, &grove);
+    }
+    for mut text in &mut ember_q {
+        set_btn_section_text(&mut text, &ember);
+    }
+    for mut text in &mut heritage_q {
+        set_btn_section_text(&mut text, &heritage);
+    }
+}
+
+fn house_dress_buttons(
+    mut door: ResMut<LaunchDoor>,
+    mut label: ResMut<HouseLabel>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    well: Query<&Interaction, (Changed<Interaction>, With<DressSealWellBtn>)>,
+    grove: Query<&Interaction, (Changed<Interaction>, With<DressSealGroveBtn>)>,
+    ember: Query<&Interaction, (Changed<Interaction>, With<DressSealEmberBtn>)>,
+    heritage: Query<&Interaction, (Changed<Interaction>, With<DressHeritageBtn>)>,
+    rename: Query<&Interaction, (Changed<Interaction>, With<DressRenameBtn>)>,
+    confirm: Query<&Interaction, (Changed<Interaction>, With<DressConfirmBtn>)>,
+    skip: Query<&Interaction, (Changed<Interaction>, With<DressSkipBtn>)>,
+) {
+    if *door != LaunchDoor::HouseDress {
+        return;
+    }
+    for i in &well {
+        if *i == Interaction::Pressed {
+            label.house.toggle_seal(SEAL_WELL);
+        }
+    }
+    for i in &grove {
+        if *i == Interaction::Pressed {
+            label.house.toggle_seal(SEAL_GROVE);
+        }
+    }
+    for i in &ember {
+        if *i == Interaction::Pressed {
+            label.house.toggle_seal(SEAL_EMBER);
+        }
+    }
+    for i in &heritage {
+        if *i == Interaction::Pressed {
+            label.house.bump_heritage();
+        }
+    }
+    for i in &rename {
+        if *i == Interaction::Pressed {
+            // Rename allowed — return to name panel with current name as draft.
+            label.draft = if label.house.name.is_empty() {
+                String::new()
+            } else {
+                label.house.name.clone()
+            };
+            // Mark seals resolved temporarily? No — keep dress state; name confirm
+            // with seals_resolved false would re-enter dress. Set seals_resolved
+            // only on Confirm/Skip. For rename mid-dress, go to NameHouse and
+            // come back via advance_after_naming.
+            *door = LaunchDoor::NameHouse;
+            return;
+        }
+    }
+    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter);
+    let mut do_skip = keyboard.just_pressed(KeyCode::Escape);
+    for i in &confirm {
+        if *i == Interaction::Pressed {
+            do_confirm = true;
+        }
+    }
+    for i in &skip {
+        if *i == Interaction::Pressed {
+            do_skip = true;
+        }
+    }
+    if do_confirm {
+        label.house.confirm_seals();
+        // Heritage already set via bump; persist caption as-is.
+        if !HouseName::is_valid_heritage(&label.house.heritage) {
+            label.house.skip_heritage();
+        }
+        label.house.persist();
+        label.persist_present = true;
+        *door = LaunchDoor::InYard;
+    } else if do_skip {
+        label.house.skip_seals();
+        label.house.skip_heritage();
+        label.house.persist();
+        label.persist_present = true;
+        *door = LaunchDoor::InYard;
+    }
+}
+
+fn sync_house_dress_visibility(
+    door: Res<LaunchDoor>,
+    mut q: Query<&mut Visibility, With<HouseDressRoot>>,
+) {
+    let show = *door == LaunchDoor::HouseDress;
     for mut vis in &mut q {
         *vis = if show {
             Visibility::Visible
@@ -1089,6 +1430,10 @@ mod tests {
             super::esc_from_inyard_returns_title(LaunchDoor::NameHouse),
             LaunchDoor::NameHouse
         );
+        assert_eq!(
+            super::esc_from_inyard_returns_title(LaunchDoor::HouseDress),
+            LaunchDoor::HouseDress
+        );
     }
 
     #[test]
@@ -1096,6 +1441,7 @@ mod tests {
         assert_eq!(super::pause_plate_line(LaunchDoor::InYard), Some(YARD_WAITING));
         assert_eq!(super::pause_plate_line(LaunchDoor::Title), None);
         assert_eq!(super::pause_plate_line(LaunchDoor::NameHouse), None);
+        assert_eq!(super::pause_plate_line(LaunchDoor::HouseDress), None);
         assert_eq!(YARD_WAITING, "the yard is waiting");
     }
 
@@ -1118,6 +1464,7 @@ mod tests {
             settings_open: false,
             draft: String::new(),
             naming_offered: false,
+            seals_offered: false,
         };
         assert!(!label.house.resolved);
         if !label.house.resolved {
@@ -1169,5 +1516,84 @@ mod tests {
         assert_eq!(invert_btn_label(&back), "Invert-Y · on");
         assert_eq!(hide_slabs_btn_label(&back), "Hide slabs · on");
         assert_eq!(look_btn_label(&back), "Look · 1.50");
+    }
+
+    #[test]
+    fn d3_seals_skippable_after_settled() {
+        let mut house = HouseName::default();
+        house.skip(); // Settled / skip-named
+        assert!(house.resolved);
+        assert!(!house.seals_resolved);
+        house.skip_seals();
+        assert!(house.seals_resolved);
+        assert!(house.seals.is_empty());
+        assert!(!house.seals_grant_combat());
+        // Choose Peace-tone seals only
+        let mut h2 = HouseName::default();
+        h2.confirm("Grove House");
+        for id in HOUSE_SEALS {
+            assert!(h2.toggle_seal(id));
+        }
+        assert_eq!(h2.seals.len(), 3);
+        h2.confirm_seals();
+        assert!(h2.seals_resolved);
+        let raw = h2.to_json().unwrap();
+        assert!(raw.contains("well") && raw.contains("grove") && raw.contains("ember"));
+        assert!(!raw.contains("+STR") && !raw.contains("+take"));
+    }
+
+    #[test]
+    fn d3_heritage_string_only_no_stats() {
+        let mut house = HouseName::default();
+        house.skip();
+        assert_eq!(heritage_btn_label(&house), "Heritage · none");
+        assert!(house.set_heritage("human"));
+        assert_eq!(heritage_btn_label(&house), "Heritage · human");
+        assert!(house.set_heritage("ambrosian"));
+        assert!(!house.heritage_grants_stats());
+        assert!(!house.set_heritage("+STR"));
+        let raw = house.to_json().unwrap();
+        assert!(raw.contains("heritage"));
+        assert!(!raw.contains("str_bonus") && !raw.contains("+take"));
+    }
+
+    #[test]
+    fn d3_rename_ok_keeps_seals_heritage() {
+        let mut house = HouseName::default();
+        house.confirm("Old");
+        house.set_seals(&[SEAL_WELL, SEAL_GROVE]);
+        house.confirm_seals();
+        house.set_heritage("quellorian");
+        house.rename("New Ridge");
+        assert_eq!(house.display_name(), "New Ridge");
+        assert_eq!(house.seals.len(), 2);
+        assert_eq!(house.heritage, "quellorian");
+        assert!(house.seals_resolved);
+    }
+
+    #[test]
+    fn d3_refuse_combat_mods() {
+        assert!(HouseName::refuse_combat_mod("+take"));
+        assert!(HouseName::refuse_combat_mod("+STR"));
+        let house = HouseName::default();
+        assert!(house.apply_combat_mod("+take").is_err());
+        assert!(house.apply_combat_mod("+STR").is_err());
+        assert!(!house.seals_grant_combat());
+        assert!(!house.heritage_grants_stats());
+        // advance_after_naming offers dress when seals pending
+        let mut label = HouseLabel {
+            house: HouseName::default(),
+            persist_present: true,
+            hour_two_held: false,
+            settings_open: false,
+            draft: String::new(),
+            naming_offered: true,
+            seals_offered: false,
+        };
+        label.house.skip();
+        assert_eq!(super::advance_after_naming(&mut label), LaunchDoor::HouseDress);
+        assert!(label.seals_offered);
+        label.house.confirm_seals();
+        assert_eq!(super::advance_after_naming(&mut label), LaunchDoor::InYard);
     }
 }
