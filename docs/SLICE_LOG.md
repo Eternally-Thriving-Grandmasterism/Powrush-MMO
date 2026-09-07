@@ -1,5 +1,16 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — D2 Local settings persist
+
+```
+slice: D2 Local settings persist
+idea: Title/pause Settings plate — Look · Mute · Invert-Y · Hide slabs; persist data/powrush_settings.json beside house; defaults = Peace hour; Online grey no socket / no POWRUSH_NET=on; H still hides; no new Peace verbs
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
 ## 2026-09-06 — D1 Pause honesty plate
 
 ```

@@ -1,9 +1,11 @@
-//! S0 Title + S2 skippable House naming + D1 Pause honesty (v23.2.62)
+//! S0 Title + S2 skippable House naming + D1 Pause honesty + D2 Local settings (v23.2.63)
 //!
 //! High-contrast title plate (opaque light-on-dark — soft GPU / Mesa readable).
 //! Esc from InYard → Title (not quit-to-desktop); quit via window close / Pause Quit.
 //! D1: when Settings/pause opens in yard — one-line plate "the yard is waiting"
 //! with Resume / Title / Quit (Title = Esc-to-title path; Quit = AppExit).
+//! D2: same plate hosts local Look / Mute / Invert-Y / Hide slabs; persist
+//! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
 //! Esc-to-title + Settled write data/powrush_house.json even if name skipped.
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //! Contact: info@Rathor.ai
@@ -22,6 +24,10 @@ use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
 use crate::net_mode::SessionNetMode;
 use crate::lived_hour_bind::LivedHourBind;
+use crate::local_settings::LocalSettingsState;
+use shared::local_settings::{
+    refuse_online_socket_toggle, LocalSettings, SETTINGS_PATH,
+};
 
 // --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
 // Soft GPU / Mesa must read Play · Continue · Online · Settings before the yard.
@@ -148,6 +154,24 @@ struct PauseTitleBtn;
 #[derive(Component)]
 struct PauseQuitBtn;
 #[derive(Component)]
+struct SettingsLookBtn;
+#[derive(Component)]
+struct SettingsMuteBtn;
+#[derive(Component)]
+struct SettingsInvertBtn;
+#[derive(Component)]
+struct SettingsHideSlabsBtn;
+#[derive(Component)]
+struct SettingsLookLabel;
+#[derive(Component)]
+struct SettingsMuteLabel;
+#[derive(Component)]
+struct SettingsInvertLabel;
+#[derive(Component)]
+struct SettingsHideLabel;
+#[derive(Component)]
+struct SettingsOnlineStubBtn;
+#[derive(Component)]
 struct NameHouseRoot;
 #[derive(Component)]
 struct NameDraftText;
@@ -162,6 +186,7 @@ impl Plugin for TitleScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LaunchDoor>()
             .init_resource::<HouseLabel>()
+            .init_resource::<LocalSettingsState>()
             .add_systems(Startup, (spawn_title_screen, spawn_name_house_panel, spawn_settings_stub))
             .add_systems(
                 Update,
@@ -179,6 +204,8 @@ impl Plugin for TitleScreenPlugin {
                     sync_settings_stub,
                     refresh_pause_cue,
                     pause_plate_clicks,
+                    refresh_local_settings_labels,
+                    local_settings_clicks,
                 ),
             );
     }
@@ -302,22 +329,22 @@ fn spawn_menu_btn<C: Component>(
 }
 
 fn spawn_settings_stub(mut commands: Commands) {
-    // D1 Pause honesty — extend Settings stub into opaque pause plate (no second HUD).
+    // D1 Pause honesty + D2 local settings — one opaque plate (no second HUD).
     commands
         .spawn((
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(28.0),
+                    top: Val::Percent(18.0),
                     left: Val::Percent(50.0),
-                    width: Val::Px(360.0),
+                    width: Val::Px(400.0),
                     margin: UiRect {
-                        left: Val::Px(-180.0),
+                        left: Val::Px(-200.0),
                         ..default()
                     },
                     padding: UiRect::all(Val::Px(16.0)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(10.0),
+                    row_gap: Val::Px(8.0),
                     border: UiRect::all(Val::Px(1.5)),
                     align_items: AlignItems::Center,
                     ..default()
@@ -342,6 +369,18 @@ fn spawn_settings_stub(mut commands: Commands) {
                 ),
                 PauseCueText,
             ));
+            // D2 local settings rows (persist beside house JSON).
+            spawn_settings_row(p, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
+            spawn_settings_row(p, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
+            spawn_settings_row(p, "Invert-Y · off", SettingsInvertBtn, SettingsInvertLabel);
+            spawn_settings_row(
+                p,
+                "Hide slabs · off",
+                SettingsHideSlabsBtn,
+                SettingsHideLabel,
+            );
+            // Online stays grey — never binds a socket from this plate.
+            spawn_menu_btn(p, ONLINE_STUB_LABEL, SettingsOnlineStubBtn, false);
             spawn_menu_btn(p, "Resume", PauseResumeBtn, true);
             spawn_menu_btn(p, "Title", PauseTitleBtn, true);
             spawn_menu_btn(p, "Quit", PauseQuitBtn, true);
@@ -622,7 +661,7 @@ fn refresh_pause_cue(
     if !label.settings_open {
         return;
     }
-    let line = pause_plate_line(*door).unwrap_or("Settings · Esc closes · Quit exits");
+    let line = pause_plate_line(*door).unwrap_or("Local settings · Esc closes");
     for mut text in &mut q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -681,6 +720,153 @@ fn return_yard_to_title(
         bind.persist();
     }
     *door = LaunchDoor::Title;
+}
+
+fn spawn_settings_row<B: Component, L: Component>(
+    p: &mut ChildBuilder,
+    label: &str,
+    btn: B,
+    text_marker: L,
+) {
+    p.spawn((
+        ButtonBundle {
+            style: Style {
+                padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(1.0)),
+                width: Val::Percent(100.0),
+                ..default()
+            },
+            background_color: TITLE_BTN_BG.into(),
+            border_color: TITLE_BORDER.into(),
+            ..default()
+        },
+        btn,
+    ))
+    .with_children(|b| {
+        b.spawn((
+            TextBundle::from_section(
+                label,
+                TextStyle {
+                    font_size: 15.0,
+                    color: TITLE_BTN_FG,
+                    ..default()
+                },
+            ),
+            text_marker,
+        ));
+    });
+}
+
+fn on_off(v: bool) -> &'static str {
+    if v {
+        "on"
+    } else {
+        "off"
+    }
+}
+
+pub fn look_btn_label(s: &LocalSettings) -> String {
+    format!("Look · {:.2}", s.look_sensitivity)
+}
+
+pub fn mute_btn_label(s: &LocalSettings) -> String {
+    format!("Mute · {}", on_off(s.mute))
+}
+
+pub fn invert_btn_label(s: &LocalSettings) -> String {
+    format!("Invert-Y · {}", on_off(s.invert_y))
+}
+
+pub fn hide_slabs_btn_label(s: &LocalSettings) -> String {
+    format!("Hide slabs · {}", on_off(s.hide_slabs))
+}
+
+fn set_btn_section_text(text: &mut Text, value: &str) {
+    if let Some(s) = text.sections.get_mut(0) {
+        if s.value != value {
+            s.value = value.to_string();
+        }
+    }
+}
+
+fn refresh_local_settings_labels(
+    label: Res<HouseLabel>,
+    settings: Res<LocalSettingsState>,
+    mut look_q: Query<&mut Text, With<SettingsLookLabel>>,
+    mut mute_q: Query<&mut Text, With<SettingsMuteLabel>>,
+    mut invert_q: Query<&mut Text, With<SettingsInvertLabel>>,
+    mut hide_q: Query<&mut Text, With<SettingsHideLabel>>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let s = &settings.inner;
+    let look = look_btn_label(s);
+    let mute = mute_btn_label(s);
+    let invert = invert_btn_label(s);
+    let hide = hide_slabs_btn_label(s);
+    for mut text in &mut look_q {
+        set_btn_section_text(&mut text, &look);
+    }
+    for mut text in &mut mute_q {
+        set_btn_section_text(&mut text, &mute);
+    }
+    for mut text in &mut invert_q {
+        set_btn_section_text(&mut text, &invert);
+    }
+    for mut text in &mut hide_q {
+        set_btn_section_text(&mut text, &hide);
+    }
+}
+
+fn local_settings_clicks(
+    label: Res<HouseLabel>,
+    mut settings: ResMut<LocalSettingsState>,
+    look: Query<&Interaction, (Changed<Interaction>, With<SettingsLookBtn>)>,
+    mute: Query<&Interaction, (Changed<Interaction>, With<SettingsMuteBtn>)>,
+    invert: Query<&Interaction, (Changed<Interaction>, With<SettingsInvertBtn>)>,
+    hide: Query<&Interaction, (Changed<Interaction>, With<SettingsHideSlabsBtn>)>,
+    online: Query<&Interaction, (Changed<Interaction>, With<SettingsOnlineStubBtn>)>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let mut changed = false;
+    for i in &look {
+        if *i == Interaction::Pressed {
+            settings.inner.bump_look();
+            changed = true;
+        }
+    }
+    for i in &mute {
+        if *i == Interaction::Pressed {
+            settings.inner.toggle_mute();
+            changed = true;
+        }
+    }
+    for i in &invert {
+        if *i == Interaction::Pressed {
+            settings.inner.toggle_invert_y();
+            changed = true;
+        }
+    }
+    for i in &hide {
+        if *i == Interaction::Pressed {
+            settings.inner.toggle_hide_slabs();
+            changed = true;
+        }
+    }
+    for i in &online {
+        if *i == Interaction::Pressed {
+            // Hard refuse — Online never binds a socket from Settings.
+            let _refused = refuse_online_socket_toggle(true);
+            debug_assert!(_refused);
+        }
+    }
+    if changed {
+        settings.mark_and_persist();
+    }
 }
 
 /// D1: pause plate one-liner when Settings/pause is open in the yard.
@@ -950,5 +1136,38 @@ mod tests {
         assert_eq!(cue, "Unnamed House · the yard remembers");
         // esc helper still maps InYard → Title
         assert_eq!(super::esc_from_inyard_returns_title(LaunchDoor::InYard), LaunchDoor::Title);
+    }
+
+    #[test]
+    fn d2_local_settings_defaults_and_labels() {
+        let s = LocalSettings::peace_defaults();
+        assert!(!s.mute && !s.invert_y && !s.hide_slabs);
+        assert_eq!(look_btn_label(&s), "Look · 1.00");
+        assert_eq!(mute_btn_label(&s), "Mute · off");
+        assert_eq!(invert_btn_label(&s), "Invert-Y · off");
+        assert_eq!(hide_slabs_btn_label(&s), "Hide slabs · off");
+        assert_eq!(SETTINGS_PATH, "data/powrush_settings.json");
+    }
+
+    #[test]
+    fn d2_refuse_online_socket_from_settings_plate() {
+        assert!(refuse_online_socket_toggle(true));
+        assert!(!refuse_online_socket_toggle(false));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+    }
+
+    #[test]
+    fn d2_settings_round_trip_labels_follow_state() {
+        let mut s = LocalSettings::default();
+        s.mute = true;
+        s.invert_y = true;
+        s.hide_slabs = true;
+        s.look_sensitivity = 1.50;
+        let raw = s.to_json().unwrap();
+        let back = LocalSettings::from_json(&raw).unwrap();
+        assert_eq!(mute_btn_label(&back), "Mute · on");
+        assert_eq!(invert_btn_label(&back), "Invert-Y · on");
+        assert_eq!(hide_slabs_btn_label(&back), "Hide slabs · on");
+        assert_eq!(look_btn_label(&back), "Look · 1.50");
     }
 }
