@@ -19,7 +19,7 @@ use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
-use crate::ui_above_world::LIVED_UI_Z_LEDGER;
+use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
 use crate::infra_spill::EvidenceYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -83,6 +83,7 @@ fn spawn_ledger_slab(mut commands: Commands) {
                 ..default()
             },
             LedgerSlabRoot,
+            LivedUiPlate,
         ))
         .with_children(|p| {
             p.spawn((

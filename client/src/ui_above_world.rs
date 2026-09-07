@@ -1,14 +1,24 @@
-//! Soft-GPU UI above the 3D yard (fail beat F2 — lavapipe / Mesa).
+//! Soft-GPU UI above the 3D yard (fail beats F2 + F3 — lavapipe / Mesa).
 //!
 //! Bevy 0.14 draws UI on the default UI camera's graph. When a second Camera3d
 //! shares order 0 (climate race vs main), or when UI rides the world camera,
 //! soft backends can composite the yard *over* Title / pause / Ledger so only
-//! top strings read and Play needs Digit1. Fix: one Camera2d with higher order,
-//! ClearColorConfig::None, IsDefaultUiCamera — lived plates always draw last.
-//! Contact: info@Rathor.ai
+//! top strings read and Play needs Digit1.
+//!
+//! F2: one Camera2d (order 10, ClearColorConfig::None, IsDefaultUiCamera) so
+//! lived plates draw last; climate never spawns a second Camera3d.
+//!
+//! F3 (Settled / Continue): after hour-two Settled data + Continue into yard,
+//! lavapipe could re-bury Esc pause + L face (HUD strings still readable). Soft
+//! MSAA writeback across Camera3d→Camera2d + any lost IsDefaultUiCamera / order
+//! stomp re-opens the bury. Fix: Msaa::Off; re-stamp UI+world camera orders
+//! every frame; strip IsDefaultUiCamera from world cams; TargetCamera-bind lived
+//! plates (pause / Ledger / Title / dress) to LivedUiCamera; respawn UI cam if
+//! missing. No new Camera3d. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 use bevy::render::camera::ClearColorConfig;
+use bevy::render::view::Msaa;
 
 /// World / yard Camera3d order (drawn first).
 pub const WORLD_CAMERA_ORDER: isize = 0;
@@ -26,6 +36,10 @@ pub const LIVED_UI_Z_PAUSE: i32 = 130;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct LivedUiCamera;
 
+/// Marker on lived UI plate roots that must stay on the UI camera after Settled.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct LivedUiPlate;
+
 /// True when UI camera order is strictly above the world camera.
 pub fn ui_camera_draws_above_world() -> bool {
     UI_CAMERA_ORDER > WORLD_CAMERA_ORDER
@@ -41,16 +55,38 @@ pub fn ledger_z_between_title_and_pause() -> bool {
     LIVED_UI_Z_LEDGER > LIVED_UI_Z_TITLE && LIVED_UI_Z_LEDGER < LIVED_UI_Z_PAUSE
 }
 
+/// Soft GPU: MSAA writeback across world→UI cameras re-buries plates on lavapipe.
+pub fn soft_gpu_msaa_is_off(msaa: Msaa) -> bool {
+    matches!(msaa, Msaa::Off)
+}
+
 pub struct UiAboveWorldPlugin;
 
 impl Plugin for UiAboveWorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_lived_ui_camera)
-            .add_systems(Update, stamp_world_camera_order);
+        // Sample4 MSAA writeback across Camera3d → Camera2d re-buries mid-screen
+        // plates on lavapipe after Settled/Continue (F3). Off keeps UI honest.
+        app.insert_resource(Msaa::Off)
+            .add_systems(Startup, spawn_lived_ui_camera)
+            .add_systems(
+                Update,
+                (
+                    ensure_lived_ui_camera,
+                    stamp_world_camera_order,
+                    stamp_lived_ui_camera,
+                    strip_world_default_ui_camera,
+                    bind_lived_ui_plates,
+                )
+                    .chain(),
+            );
     }
 }
 
 fn spawn_lived_ui_camera(mut commands: Commands) {
+    spawn_ui_camera_entity(&mut commands);
+}
+
+fn spawn_ui_camera_entity(commands: &mut Commands) {
     commands.spawn((
         Camera2dBundle {
             camera: Camera {
@@ -73,6 +109,20 @@ fn spawn_lived_ui_camera(mut commands: Commands) {
     );
 }
 
+/// Settled / Continue must not leave the yard without a UI camera.
+fn ensure_lived_ui_camera(
+    existing: Query<Entity, With<LivedUiCamera>>,
+    mut commands: Commands,
+) {
+    if existing.is_empty() {
+        warn!(
+            target: "powrush::ui",
+            "LivedUiCamera missing — respawning (ui-above-world after Settled)"
+        );
+        spawn_ui_camera_entity(&mut commands);
+    }
+}
+
 /// Keep every Camera3d on the world order so it never races the UI camera.
 fn stamp_world_camera_order(
     mut cams: Query<&mut Camera, (With<Camera3d>, Without<LivedUiCamera>)>,
@@ -81,6 +131,52 @@ fn stamp_world_camera_order(
         if cam.order != WORLD_CAMERA_ORDER {
             cam.order = WORLD_CAMERA_ORDER;
         }
+    }
+}
+
+/// Re-assert UI camera order / clear / active after Settled path stomps.
+fn stamp_lived_ui_camera(
+    mut cams: Query<&mut Camera, With<LivedUiCamera>>,
+    missing_marker: Query<Entity, (With<LivedUiCamera>, Without<IsDefaultUiCamera>)>,
+    mut commands: Commands,
+) {
+    for mut cam in &mut cams {
+        if cam.order != UI_CAMERA_ORDER {
+            cam.order = UI_CAMERA_ORDER;
+        }
+        if !matches!(cam.clear_color, ClearColorConfig::None) {
+            cam.clear_color = ClearColorConfig::None;
+        }
+        if !cam.is_active {
+            cam.is_active = true;
+        }
+    }
+    for entity in &missing_marker {
+        commands.entity(entity).insert(IsDefaultUiCamera);
+    }
+}
+
+/// World Camera3d must never steal IsDefaultUiCamera from LivedUiCamera.
+fn strip_world_default_ui_camera(
+    worlds: Query<Entity, (With<Camera3d>, With<IsDefaultUiCamera>, Without<LivedUiCamera>)>,
+    mut commands: Commands,
+) {
+    for entity in &worlds {
+        commands.entity(entity).remove::<IsDefaultUiCamera>();
+    }
+}
+
+/// Parent lived plates to the UI camera so Settled HUD chips cannot retarget them.
+fn bind_lived_ui_plates(
+    ui_cam: Query<Entity, With<LivedUiCamera>>,
+    roots: Query<Entity, (With<LivedUiPlate>, Without<TargetCamera>)>,
+    mut commands: Commands,
+) {
+    let Ok(cam) = ui_cam.get_single() else {
+        return;
+    };
+    for entity in &roots {
+        commands.entity(entity).insert(TargetCamera(cam));
     }
 }
 
@@ -102,5 +198,23 @@ mod tests {
         assert_eq!(LIVED_UI_Z_TITLE, 120);
         assert_eq!(LIVED_UI_Z_LEDGER, 125);
         assert_eq!(LIVED_UI_Z_PAUSE, 130);
+    }
+
+    #[test]
+    fn soft_gpu_msaa_off_for_multi_camera() {
+        assert!(soft_gpu_msaa_is_off(Msaa::Off));
+        assert!(!soft_gpu_msaa_is_off(Msaa::Sample4));
+    }
+
+    #[test]
+    fn plugin_stamps_msaa_off_and_ui_order() {
+        use bevy::MinimalPlugins;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(Msaa::Sample4)
+            .add_plugins(UiAboveWorldPlugin);
+        // Plugin build inserts Msaa::Off immediately.
+        assert!(soft_gpu_msaa_is_off(*app.world().resource::<Msaa>()));
+        assert!(ui_camera_draws_above_world());
     }
 }
