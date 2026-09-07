@@ -33,7 +33,8 @@ Continue shows House name **or** exactly *Unnamed House* + *the yard remembers* 
 Existing lived-hour card. No login. Same Peace keys. Soft cues only (see `PHASE_PLAYABLE_LOOP` · `STRANGER_LOOP`).
 
 ### S2 — House naming
-One field. Confirm. Skippable after Settled or on quit. *(shipped v0 · `data/powrush_house.json`)* Skip = **Unnamed House**. Persist next to climate (`data/` beside shard climate / standing). Does not replace climate, standing, or book.
+One field. Confirm. Skippable after Settled or on quit. *(shipped v0 · `data/powrush_house.json`)* Skip = **Unnamed House**. Persist next to climate (`data/` beside shard climate / standing). Does not replace climate, standing, or book.  
+**D3 House seals + heritage:** after Settled / skip-named — three skippable Peace-tone seals (Well · Grove · Ember; cosmetic silhouettes only) + optional heritage caption (`none|human|cydruid|quellorian|draek|ambrosian`, string only, no stats). Rename allowed. Refuse +take / +STR / combat mods. No race select at Title.
 
 ### S3 — Pause / Ledger
 House name · week tons + restored · lethal only if declared. No kill board. No race chrome. *(shipped v0 · design tick 23.2.52 · I satchel + L Ledger sash)*  
