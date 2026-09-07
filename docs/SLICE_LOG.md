@@ -7,7 +7,7 @@ slice: fail beat UI above world after Settled
 idea: F3 lavapipe — after Settled hour-two + Continue, Esc pause + L face re-buried under world while Q Seal HUD string readable; keep Camera2d order 10 + IsDefaultUiCamera; Msaa::Off (writeback bury); re-stamp UI/world orders every frame; strip world IsDefaultUiCamera; TargetCamera-bind LivedUiPlate (Title/pause/Ledger/I/dress); respawn UI cam if missing; opaque plates unchanged; no new Camera3d / Wave P / birds / net / preview
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: a310cf23 (#275)
 ```
 
 
