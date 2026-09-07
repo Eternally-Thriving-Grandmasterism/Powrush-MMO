@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — fail beat Esc opens pause plate
+
+```
+slice: fail beat Esc opens pause plate
+idea: InYard Esc opens D1 pause *the yard is waiting* (Resume / Title / Quit) instead of Title; Esc again = Resume; Title button keeps house JSON + lived persist; Quit = AppExit; Digit3 toggle kept; Online grey; lavapipe Play→Esc confirm; no preview / POWRUSH_NET / birds / Lethal
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: b749d9e8 (#269)
+```
+
+
+
 ## 2026-09-07 — fail beat B0001 dress labels
 
 ```
