@@ -154,7 +154,8 @@ fn update_climate_state_slab(
     >,
     mut text_q: Query<&mut Text, With<ClimateStateText>>,
 ) {
-    let show = nearby.in_range;
+    // Hide slabs respects LivedHourBind.guidance_hidden (D2 hide_slabs / H).
+    let show = nearby.in_range && !bind.guidance_hidden;
     let glow = week_glow.glow;
     let week_live = bind
         .climate_slab
