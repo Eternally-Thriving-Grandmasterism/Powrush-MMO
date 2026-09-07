@@ -1,6 +1,7 @@
 //! Lived-hour Charter tutorial — Slice 3 (v23.2.7) + door hint (v23.2.28) + pack (v23.2.29)
 //!
 //! Q on Frontier: found House, then extractor → depot → hauler → two stops → arrival.
+//! After-D3: Q plate shows Seal · … when house seals are dressed (heritage string only).
 //! Peace slab speaks Tab only after a first-hour allocate. Contact: info@Rathor.ai
 
 use std::fs;
@@ -15,6 +16,8 @@ use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
+use crate::title_screen::HouseLabel;
+use shared::pause_ledger_face::q_plate_seal_line;
 
 /// Client wrap. Shared `VerticalFactory` stays Bevy-free (same as HourSacred / SpaceSession).
 #[derive(Resource, Debug, Clone)]
@@ -129,6 +132,7 @@ fn update_factory_slab(
     evidence: Option<Res<crate::infra_spill::EvidenceYard>>,
     ledger: Option<Res<crate::ledger_bind::LedgerYard>>,
     bind: Option<Res<LivedHourBind>>,
+    house_label: Option<Res<HouseLabel>>,
     mut root: Query<&mut Visibility, With<FactorySlabRoot>>,
     mut text_q: Query<&mut Text, With<FactorySlabText>>,
 ) {
@@ -160,12 +164,20 @@ fn update_factory_slab(
     if !show {
         return;
     }
-    let line = if pack.complete || hour.hex() == HexFlag::Peace || hour.session.peace_visitor_on_frontier()
+    let mut line = if pack.complete || hour.hex() == HexFlag::Peace || hour.session.peace_visitor_on_frontier()
     {
         pack.line(ready).to_string()
     } else {
         yard.factory.slab_line()
     };
+    // After-D3 comfort: show current seal on Q plate when dressed.
+    if let Some(hl) = house_label.as_ref() {
+        if let Some(seal) = q_plate_seal_line(&hl.house) {
+            if !line.contains("Seal ·") {
+                line = format!("{line} · {seal}");
+            }
+        }
+    }
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -191,5 +203,16 @@ mod tests {
             factory: VerticalFactory::default(),
         };
         assert!(!yard.factory.founded);
+    }
+
+    #[test]
+    fn q_plate_seal_line_when_dressed() {
+        use shared::house_name::{HouseName, SEAL_WELL};
+        let mut house = HouseName::default();
+        house.skip();
+        assert!(q_plate_seal_line(&house).is_none());
+        house.set_seals(&[SEAL_WELL]);
+        house.confirm_seals();
+        assert_eq!(q_plate_seal_line(&house).as_deref(), Some("Seal · Well"));
     }
 }

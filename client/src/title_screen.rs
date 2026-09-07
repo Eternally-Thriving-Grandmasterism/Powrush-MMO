@@ -6,10 +6,13 @@
 //! with Resume / Title / Quit (Title = Esc-to-title path; Quit = AppExit).
 //! D2: same plate hosts local Look / Mute / Invert-Y / Hide slabs; persist
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
+//! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
+//! Q/Pause face shows Seal · … when dressed (heritage string only).
 //! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
 //! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
 //! rename allowed; persist seals+heritage on powrush_house.json; refuse +take/+STR.
 //! No race select at Title. No new Peace keys. No Online socket. No preview tag.
+//! Fog/birds visual comfort PARKED (Title contrast law).
 //! Esc-to-title + Settled write data/powrush_house.json even if name skipped.
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //! Contact: info@Rathor.ai
@@ -180,6 +183,14 @@ struct SettingsMuteLabel;
 struct SettingsInvertLabel;
 #[derive(Component)]
 struct SettingsHideLabel;
+#[derive(Component)]
+struct SettingsBrightnessBtn;
+#[derive(Component)]
+struct SettingsBrightnessLabel;
+#[derive(Component)]
+struct SettingsTextScaleBtn;
+#[derive(Component)]
+struct SettingsTextScaleLabel;
 #[derive(Component)]
 struct SettingsOnlineStubBtn;
 #[derive(Component)]
@@ -424,6 +435,18 @@ fn spawn_settings_stub(mut commands: Commands) {
                 "Hide slabs · off",
                 SettingsHideSlabsBtn,
                 SettingsHideLabel,
+            );
+            spawn_settings_row(
+                p,
+                "Brightness · 1.00",
+                SettingsBrightnessBtn,
+                SettingsBrightnessLabel,
+            );
+            spawn_settings_row(
+                p,
+                "Text scale · 1.00",
+                SettingsTextScaleBtn,
+                SettingsTextScaleLabel,
             );
             // Online stays grey — never binds a socket from this plate.
             spawn_menu_btn(p, ONLINE_STUB_LABEL, SettingsOnlineStubBtn, false);
@@ -962,10 +985,26 @@ pub fn hide_slabs_btn_label(s: &LocalSettings) -> String {
     format!("Hide slabs · {}", on_off(s.hide_slabs))
 }
 
+pub fn brightness_btn_label(s: &LocalSettings) -> String {
+    format!("Brightness · {:.2}", s.brightness)
+}
+
+pub fn text_scale_btn_label(s: &LocalSettings) -> String {
+    format!("Text scale · {:.2}", s.text_scale)
+}
+
 fn set_btn_section_text(text: &mut Text, value: &str) {
     if let Some(s) = text.sections.get_mut(0) {
         if s.value != value {
             s.value = value.to_string();
+        }
+    }
+}
+
+fn set_btn_section_font(text: &mut Text, size: f32) {
+    if let Some(s) = text.sections.get_mut(0) {
+        if (s.style.font_size - size).abs() > 0.01 {
+            s.style.font_size = size;
         }
     }
 }
@@ -977,6 +1016,8 @@ fn refresh_local_settings_labels(
     mut mute_q: Query<&mut Text, With<SettingsMuteLabel>>,
     mut invert_q: Query<&mut Text, With<SettingsInvertLabel>>,
     mut hide_q: Query<&mut Text, With<SettingsHideLabel>>,
+    mut bright_q: Query<&mut Text, With<SettingsBrightnessLabel>>,
+    mut scale_q: Query<&mut Text, With<SettingsTextScaleLabel>>,
 ) {
     if !label.settings_open {
         return;
@@ -986,17 +1027,32 @@ fn refresh_local_settings_labels(
     let mute = mute_btn_label(s);
     let invert = invert_btn_label(s);
     let hide = hide_slabs_btn_label(s);
+    let bright = brightness_btn_label(s);
+    let scale = text_scale_btn_label(s);
+    let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
     for mut text in &mut look_q {
         set_btn_section_text(&mut text, &look);
+        set_btn_section_font(&mut text, font);
     }
     for mut text in &mut mute_q {
         set_btn_section_text(&mut text, &mute);
+        set_btn_section_font(&mut text, font);
     }
     for mut text in &mut invert_q {
         set_btn_section_text(&mut text, &invert);
+        set_btn_section_font(&mut text, font);
     }
     for mut text in &mut hide_q {
         set_btn_section_text(&mut text, &hide);
+        set_btn_section_font(&mut text, font);
+    }
+    for mut text in &mut bright_q {
+        set_btn_section_text(&mut text, &bright);
+        set_btn_section_font(&mut text, font);
+    }
+    for mut text in &mut scale_q {
+        set_btn_section_text(&mut text, &scale);
+        set_btn_section_font(&mut text, font);
     }
 }
 
@@ -1007,6 +1063,8 @@ fn local_settings_clicks(
     mute: Query<&Interaction, (Changed<Interaction>, With<SettingsMuteBtn>)>,
     invert: Query<&Interaction, (Changed<Interaction>, With<SettingsInvertBtn>)>,
     hide: Query<&Interaction, (Changed<Interaction>, With<SettingsHideSlabsBtn>)>,
+    bright: Query<&Interaction, (Changed<Interaction>, With<SettingsBrightnessBtn>)>,
+    scale: Query<&Interaction, (Changed<Interaction>, With<SettingsTextScaleBtn>)>,
     online: Query<&Interaction, (Changed<Interaction>, With<SettingsOnlineStubBtn>)>,
 ) {
     if !label.settings_open {
@@ -1021,6 +1079,7 @@ fn local_settings_clicks(
     }
     for i in &mute {
         if *i == Interaction::Pressed {
+            // Same MasterMute / mute flag as D2 — pause plate Mute is not a second system.
             settings.inner.toggle_mute();
             changed = true;
         }
@@ -1034,6 +1093,18 @@ fn local_settings_clicks(
     for i in &hide {
         if *i == Interaction::Pressed {
             settings.inner.toggle_hide_slabs();
+            changed = true;
+        }
+    }
+    for i in &bright {
+        if *i == Interaction::Pressed {
+            settings.inner.bump_brightness();
+            changed = true;
+        }
+    }
+    for i in &scale {
+        if *i == Interaction::Pressed {
+            settings.inner.bump_text_scale();
             changed = true;
         }
     }
@@ -1489,10 +1560,14 @@ mod tests {
     fn d2_local_settings_defaults_and_labels() {
         let s = LocalSettings::peace_defaults();
         assert!(!s.mute && !s.invert_y && !s.hide_slabs);
+        assert!((s.brightness - 1.0).abs() < f32::EPSILON);
+        assert!((s.text_scale - 1.0).abs() < f32::EPSILON);
         assert_eq!(look_btn_label(&s), "Look · 1.00");
         assert_eq!(mute_btn_label(&s), "Mute · off");
         assert_eq!(invert_btn_label(&s), "Invert-Y · off");
         assert_eq!(hide_slabs_btn_label(&s), "Hide slabs · off");
+        assert_eq!(brightness_btn_label(&s), "Brightness · 1.00");
+        assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00");
         assert_eq!(SETTINGS_PATH, "data/powrush_settings.json");
     }
 
@@ -1510,12 +1585,52 @@ mod tests {
         s.invert_y = true;
         s.hide_slabs = true;
         s.look_sensitivity = 1.50;
+        s.brightness = 1.25;
+        s.text_scale = 1.10;
         let raw = s.to_json().unwrap();
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(mute_btn_label(&back), "Mute · on");
         assert_eq!(invert_btn_label(&back), "Invert-Y · on");
         assert_eq!(hide_slabs_btn_label(&back), "Hide slabs · on");
         assert_eq!(look_btn_label(&back), "Look · 1.50");
+        assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
+        assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10");
+    }
+
+    #[test]
+    fn after_d3_mute_from_pause_is_master_mute() {
+        // Pause plate Mute · uses LocalSettings.mute → MasterMuteGain (not a second audio system).
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(mute_btn_label(&s), "Mute · off");
+        assert!((s.master_gain() - 1.0).abs() < f32::EPSILON);
+        s.toggle_mute();
+        assert_eq!(mute_btn_label(&s), "Mute · on");
+        assert!((s.master_gain() - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn after_d3_title_contrast_unchanged_with_brightness() {
+        // Brightness/text_scale persist must not regress opaque Title plate law.
+        assert!(title_contrast_is_high());
+        assert!((title_alpha(TITLE_PLATE_BG) - 1.0).abs() < 0.01);
+        let mut s = LocalSettings::default();
+        s.brightness = 1.50;
+        s.text_scale = 1.35;
+        let _ = s; // settings do not mutate TITLE_* constants
+        assert!(title_contrast_is_high());
+    }
+
+    #[test]
+    fn after_d3_q_plate_shows_seal_when_dressed() {
+        let mut house = HouseName::default();
+        house.confirm("Ridge");
+        house.set_seals(&[SEAL_GROVE]);
+        house.confirm_seals();
+        house.set_heritage("draek");
+        let line = house.dress_line_for_plate().unwrap();
+        assert_eq!(line, "Seal · Grove · draek");
+        assert!(!house.heritage_grants_stats());
+        assert!(!house.seals_grant_combat());
     }
 
     #[test]

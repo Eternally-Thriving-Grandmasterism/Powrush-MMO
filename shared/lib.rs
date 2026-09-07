@@ -67,7 +67,7 @@ pub mod prelude {
     pub use crate::week_audit::WeekAudit;
     pub use crate::house_name::{HouseName, HOUSE_PATH, UNNAMED};
     pub use crate::local_settings::{LocalSettings, SETTINGS_PATH};
-    pub use crate::pause_ledger_face::{face_from, face_lines, ledger_sash_body, bind_only_before_settled_body, wait_line_before_settled, LETHAL_DECLARED_LINE, LEDGER_WAITS, NOT_YOUR_CHARTER};
+    pub use crate::pause_ledger_face::{face_from, face_lines, ledger_sash_body, bind_only_before_settled_body, wait_line_before_settled, q_plate_seal_line, LETHAL_DECLARED_LINE, LEDGER_WAITS, NOT_YOUR_CHARTER};
     pub use crate::lived_tick_ingest::{ingest_enabled, soft_write_if_enabled, LivedTickIngest, LIVED_TICK_INGEST_PATH};
     pub use crate::shard_sim::ShardSim;
     pub use crate::net_mode::NetMode;
