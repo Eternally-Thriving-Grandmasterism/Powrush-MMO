@@ -7,7 +7,7 @@ slice: F3 stranger floor 8d91e95
 idea: stranger/door floor honesty — tip 8d91e95 in README + PREVIEW_CHECKLIST + STRANGER_LOOP; replace older floors 5c18a68 / d99a1db / 932973ef; Settled Esc/L click-pass on lavapipe after #275; comfort + canons live; Online grey; not a launch candidate; docs only; no client/shared/Cargo; no meshes/keys/birds; no preview tag; no POWRUSH_NET
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 1e07103 (#277)
 ```
 
 
