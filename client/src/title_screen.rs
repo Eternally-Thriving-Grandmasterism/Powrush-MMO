@@ -1,7 +1,9 @@
-//! S0 Title + S2 skippable House naming (v23.2.61)
+//! S0 Title + S2 skippable House naming + D1 Pause honesty (v23.2.62)
 //!
 //! High-contrast title plate (opaque light-on-dark — soft GPU / Mesa readable).
-//! Esc from InYard → Title (not quit-to-desktop); quit via window close / Settings.
+//! Esc from InYard → Title (not quit-to-desktop); quit via window close / Pause Quit.
+//! D1: when Settings/pause opens in yard — one-line plate "the yard is waiting"
+//! with Resume / Title / Quit (Title = Esc-to-title path; Quit = AppExit).
 //! Esc-to-title + Settled write data/powrush_house.json even if name skipped.
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //! Contact: info@Rathor.ai
@@ -41,6 +43,9 @@ pub const TITLE_BTN_DISABLED_BG: Color = Color::srgb(0.10, 0.11, 0.12);
 pub const TITLE_BTN_DISABLED_FG: Color = Color::srgb(0.55, 0.58, 0.60);
 /// Plate + button border (opaque green).
 pub const TITLE_BORDER: Color = Color::srgb(0.45, 0.78, 0.58);
+
+/// D1 Pause honesty one-liner (opaque plate — soft GPU readable).
+pub const YARD_WAITING: &str = "the yard is waiting";
 
 /// Relative luminance from linear-ish sRGB channels (Bevy 0.14 Color::Srgba).
 pub fn title_luminance(c: Color) -> f32 {
@@ -135,6 +140,14 @@ struct TitleOnlineBtn;
 #[derive(Component)]
 struct SettingsStubRoot;
 #[derive(Component)]
+struct PauseCueText;
+#[derive(Component)]
+struct PauseResumeBtn;
+#[derive(Component)]
+struct PauseTitleBtn;
+#[derive(Component)]
+struct PauseQuitBtn;
+#[derive(Component)]
 struct NameHouseRoot;
 #[derive(Component)]
 struct NameDraftText;
@@ -164,6 +177,8 @@ impl Plugin for TitleScreenPlugin {
                     name_house_buttons,
                     sync_name_house_visibility,
                     sync_settings_stub,
+                    refresh_pause_cue,
+                    pause_plate_clicks,
                 ),
             );
     }
@@ -287,22 +302,28 @@ fn spawn_menu_btn<C: Component>(
 }
 
 fn spawn_settings_stub(mut commands: Commands) {
+    // D1 Pause honesty — extend Settings stub into opaque pause plate (no second HUD).
     commands
         .spawn((
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(18.0),
-                    right: Val::Percent(4.0),
-                    width: Val::Px(300.0),
-                    padding: UiRect::all(Val::Px(14.0)),
+                    top: Val::Percent(28.0),
+                    left: Val::Percent(50.0),
+                    width: Val::Px(360.0),
+                    margin: UiRect {
+                        left: Val::Px(-180.0),
+                        ..default()
+                    },
+                    padding: UiRect::all(Val::Px(16.0)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
-                    border: UiRect::all(Val::Px(1.0)),
+                    row_gap: Val::Px(10.0),
+                    border: UiRect::all(Val::Px(1.5)),
+                    align_items: AlignItems::Center,
                     ..default()
                 },
                 background_color: TITLE_PLATE_BG.into(),
-                border_color: Color::srgb(0.50, 0.75, 0.95).into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 z_index: ZIndex::Global(130),
                 ..default()
@@ -310,22 +331,20 @@ fn spawn_settings_stub(mut commands: Commands) {
             SettingsStubRoot,
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                "Settings",
-                TextStyle {
-                    font_size: 15.0,
-                    color: TITLE_TEXT_PRIMARY,
-                    ..default()
-                },
+            p.spawn((
+                TextBundle::from_section(
+                    YARD_WAITING,
+                    TextStyle {
+                        font_size: 16.0,
+                        color: TITLE_TEXT_PRIMARY,
+                        ..default()
+                    },
+                ),
+                PauseCueText,
             ));
-            p.spawn(TextBundle::from_section(
-                "Peace keys · WASD E I H R unchanged\nLethal stays opt-in after the book\nEsc from yard → Title · window close quits",
-                TextStyle {
-                    font_size: 13.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
+            spawn_menu_btn(p, "Resume", PauseResumeBtn, true);
+            spawn_menu_btn(p, "Title", PauseTitleBtn, true);
+            spawn_menu_btn(p, "Quit", PauseQuitBtn, true);
         });
 }
 
@@ -486,8 +505,9 @@ fn title_keyboard_shortcuts(
         }
         LaunchDoor::InYard => {
             // Esc → Title is handled by esc_yard_to_title (not quit-to-desktop).
-            if keyboard.just_pressed(KeyCode::Digit3) && label.settings_open {
-                label.settings_open = false;
+            // Digit3 opens/closes D1 pause plate (Settings path in yard).
+            if keyboard.just_pressed(KeyCode::Digit3) {
+                label.settings_open = !label.settings_open;
             }
         }
         LaunchDoor::NameHouse => {}
@@ -577,15 +597,11 @@ fn esc_yard_to_title(
         return;
     }
     if label.settings_open {
+        // First Esc closes pause/Settings; second Esc returns to Title.
         label.settings_open = false;
         return;
     }
-    // Persist house on first quit-to-title even when naming was skipped.
-    ensure_house_file_written(&mut label);
-    if let Some(bind) = bind.as_ref() {
-        bind.persist();
-    }
-    *door = LaunchDoor::Title;
+    return_yard_to_title(&mut door, &mut label, bind.as_ref());
 }
 
 /// After Settled or quit-to-title: house JSON exists (name may be null / Unnamed).
@@ -596,6 +612,88 @@ fn ensure_house_file_written(label: &mut HouseLabel) {
     }
     label.house.persist();
     label.persist_present = true;
+}
+
+fn refresh_pause_cue(
+    door: Res<LaunchDoor>,
+    label: Res<HouseLabel>,
+    mut q: Query<&mut Text, With<PauseCueText>>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let line = pause_plate_line(*door).unwrap_or("Settings · Esc closes · Quit exits");
+    for mut text in &mut q {
+        if let Some(s) = text.sections.get_mut(0) {
+            if s.value != line {
+                s.value = line.to_string();
+            }
+        }
+    }
+}
+
+fn pause_plate_clicks(
+    mut door: ResMut<LaunchDoor>,
+    mut label: ResMut<HouseLabel>,
+    bind: Option<Res<LivedHourBind>>,
+    mut exit: EventWriter<AppExit>,
+    resume: Query<&Interaction, (Changed<Interaction>, With<PauseResumeBtn>)>,
+    title: Query<&Interaction, (Changed<Interaction>, With<PauseTitleBtn>)>,
+    quit: Query<&Interaction, (Changed<Interaction>, With<PauseQuitBtn>)>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    for i in &resume {
+        if *i == Interaction::Pressed {
+            label.settings_open = false;
+            return;
+        }
+    }
+    for i in &title {
+        if *i == Interaction::Pressed {
+            return_yard_to_title(&mut door, &mut label, bind.as_ref());
+            return;
+        }
+    }
+    for i in &quit {
+        if *i == Interaction::Pressed {
+            // Same window-close / Settings quit path — not Esc.
+            label.settings_open = false;
+            exit.send(AppExit::Success);
+            return;
+        }
+    }
+}
+
+/// Shared Esc-to-title / Pause→Title path: house JSON + lived persist, then Title.
+fn return_yard_to_title(
+    door: &mut LaunchDoor,
+    label: &mut HouseLabel,
+    bind: Option<&Res<LivedHourBind>>,
+) {
+    label.settings_open = false;
+    if *door != LaunchDoor::InYard {
+        return;
+    }
+    ensure_house_file_written(label);
+    if let Some(bind) = bind {
+        bind.persist();
+    }
+    *door = LaunchDoor::Title;
+}
+
+/// D1: pause plate one-liner when Settings/pause is open in the yard.
+pub fn pause_plate_line(door: LaunchDoor) -> Option<&'static str> {
+    match door {
+        LaunchDoor::InYard => Some(YARD_WAITING),
+        LaunchDoor::Title | LaunchDoor::NameHouse => None,
+    }
+}
+
+/// Pure helper: Resume keeps InYard (unpause only).
+pub fn resume_keeps_door(from: LaunchDoor) -> LaunchDoor {
+    from
 }
 
 /// Pure helper for proof tests: Esc from InYard yields Title.
@@ -804,6 +902,23 @@ mod tests {
         assert_eq!(
             super::esc_from_inyard_returns_title(LaunchDoor::NameHouse),
             LaunchDoor::NameHouse
+        );
+    }
+
+    #[test]
+    fn d1_pause_plate_yard_waiting_line() {
+        assert_eq!(super::pause_plate_line(LaunchDoor::InYard), Some(YARD_WAITING));
+        assert_eq!(super::pause_plate_line(LaunchDoor::Title), None);
+        assert_eq!(super::pause_plate_line(LaunchDoor::NameHouse), None);
+        assert_eq!(YARD_WAITING, "the yard is waiting");
+    }
+
+    #[test]
+    fn d1_resume_keeps_inyard() {
+        assert_eq!(super::resume_keeps_door(LaunchDoor::InYard), LaunchDoor::InYard);
+        assert_eq!(
+            super::esc_from_inyard_returns_title(LaunchDoor::InYard),
+            LaunchDoor::Title
         );
     }
 
