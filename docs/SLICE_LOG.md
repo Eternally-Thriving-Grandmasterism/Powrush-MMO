@@ -1,5 +1,15 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — GDD 1.5–2.0 adaptation map
+
+```
+slice: GDD 1.5–2.0 adaptation map
+idea: docs/GDD_ADAPTATION.md — name map Druid→Cydruid / Quelorian / Draexx→Draek; keep/transform/refuse; heritage after House only; XP-from-kills refused; no class tree / iso HUD / UR gambling / wallet / preview tag / net-on
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
 ## 2026-09-06 — Physics / graphics canon
 
 ```
