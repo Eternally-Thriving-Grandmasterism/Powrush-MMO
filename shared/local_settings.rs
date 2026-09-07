@@ -1,7 +1,8 @@
 //! D2 Local settings — persist beside house JSON (v23.2.63)
 //!
 //! `data/powrush_settings.json` next to `data/powrush_house.json`.
-//! Look · Mute · Invert-Y · Hide slabs. Defaults = Peace hour behavior.
+//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale.
+//! Defaults = Peace hour behavior. Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
 //! Contact: info@Rathor.ai
 
@@ -19,13 +20,25 @@ pub const LOOK_SENS_MIN: f32 = 0.25;
 pub const LOOK_SENS_MAX: f32 = 2.0;
 pub const LOOK_SENS_STEP: f32 = 0.25;
 
+/// Default world/UI brightness multiplier (1.0 = Peace hour).
+pub const DEFAULT_BRIGHTNESS: f32 = 1.0;
+pub const BRIGHTNESS_MIN: f32 = 0.50;
+pub const BRIGHTNESS_MAX: f32 = 1.50;
+pub const BRIGHTNESS_STEP: f32 = 0.25;
+
+/// Default UI text scale (1.0 = Peace hour). Title plate contrast law stays absolute.
+pub const DEFAULT_TEXT_SCALE: f32 = 1.0;
+pub const TEXT_SCALE_MIN: f32 = 0.85;
+pub const TEXT_SCALE_MAX: f32 = 1.35;
+pub const TEXT_SCALE_STEP: f32 = 0.05;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LocalSettings {
     pub schema: String,
     /// Mouse look sensitivity multiplier. Default 1.0.
     #[serde(default = "default_look")]
     pub look_sensitivity: f32,
-    /// Master mute. Default false (Peace hour hears).
+    /// Master mute. Default false (Peace hour hears). Same flag from pause Mute.
     #[serde(default)]
     pub mute: bool,
     /// Invert look Y. Default false.
@@ -34,10 +47,24 @@ pub struct LocalSettings {
     /// Persist default for guidance/slab hide (H still works in session).
     #[serde(default)]
     pub hide_slabs: bool,
+    /// Soft brightness multiplier. Default 1.0. Does not alpha-blend Title plate.
+    #[serde(default = "default_brightness")]
+    pub brightness: f32,
+    /// UI text scale. Default 1.0. Title contrast palette stays opaque law.
+    #[serde(default = "default_text_scale")]
+    pub text_scale: f32,
 }
 
 fn default_look() -> f32 {
     DEFAULT_LOOK_SENSITIVITY
+}
+
+fn default_brightness() -> f32 {
+    DEFAULT_BRIGHTNESS
+}
+
+fn default_text_scale() -> f32 {
+    DEFAULT_TEXT_SCALE
 }
 
 impl Default for LocalSettings {
@@ -48,6 +75,8 @@ impl Default for LocalSettings {
             mute: false,
             invert_y: false,
             hide_slabs: false,
+            brightness: DEFAULT_BRIGHTNESS,
+            text_scale: DEFAULT_TEXT_SCALE,
         }
     }
 }
@@ -66,6 +95,26 @@ impl LocalSettings {
             .clamp(LOOK_SENS_MIN, LOOK_SENS_MAX);
     }
 
+    pub fn clamp_brightness(&mut self) {
+        if !self.brightness.is_finite() {
+            self.brightness = DEFAULT_BRIGHTNESS;
+        }
+        self.brightness = self.brightness.clamp(BRIGHTNESS_MIN, BRIGHTNESS_MAX);
+    }
+
+    pub fn clamp_text_scale(&mut self) {
+        if !self.text_scale.is_finite() {
+            self.text_scale = DEFAULT_TEXT_SCALE;
+        }
+        self.text_scale = self.text_scale.clamp(TEXT_SCALE_MIN, TEXT_SCALE_MAX);
+    }
+
+    pub fn clamp_all(&mut self) {
+        self.clamp_look();
+        self.clamp_brightness();
+        self.clamp_text_scale();
+    }
+
     /// Cycle look sensitivity up by one step (wraps at max → min).
     pub fn bump_look(&mut self) {
         self.clamp_look();
@@ -76,6 +125,30 @@ impl LocalSettings {
             (next * 100.0).round() / 100.0
         };
         self.clamp_look();
+    }
+
+    /// Cycle brightness up by one step (wraps at max → min).
+    pub fn bump_brightness(&mut self) {
+        self.clamp_brightness();
+        let next = self.brightness + BRIGHTNESS_STEP;
+        self.brightness = if next > BRIGHTNESS_MAX + 0.001 {
+            BRIGHTNESS_MIN
+        } else {
+            (next * 100.0).round() / 100.0
+        };
+        self.clamp_brightness();
+    }
+
+    /// Cycle text scale up by one step (wraps at max → min).
+    pub fn bump_text_scale(&mut self) {
+        self.clamp_text_scale();
+        let next = self.text_scale + TEXT_SCALE_STEP;
+        self.text_scale = if next > TEXT_SCALE_MAX + 0.001 {
+            TEXT_SCALE_MIN
+        } else {
+            (next * 100.0).round() / 100.0
+        };
+        self.clamp_text_scale();
     }
 
     pub fn toggle_mute(&mut self) {
@@ -127,7 +200,7 @@ impl LocalSettings {
         if s.schema.is_empty() {
             s.schema = SETTINGS_SCHEMA.into();
         }
-        s.clamp_look();
+        s.clamp_all();
         Ok(s)
     }
 
@@ -172,6 +245,8 @@ mod tests {
         assert!(!s.mute);
         assert!(!s.invert_y);
         assert!(!s.hide_slabs);
+        assert!((s.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
+        assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
         assert!((s.master_gain() - 1.0).abs() < f32::EPSILON);
         assert!((s.look_y_sign() - 1.0).abs() < f32::EPSILON);
     }
@@ -183,9 +258,13 @@ mod tests {
         s.mute = true;
         s.invert_y = true;
         s.hide_slabs = true;
+        s.brightness = 1.25;
+        s.text_scale = 1.10;
         let raw = s.to_json().unwrap();
         assert!(raw.contains("powrush_settings_v1"));
         assert!(raw.contains("look_sensitivity"));
+        assert!(raw.contains("brightness"));
+        assert!(raw.contains("text_scale"));
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(back, s);
         assert!((back.master_gain() - 0.0).abs() < f32::EPSILON);
@@ -237,5 +316,37 @@ mod tests {
         assert!(s.mute && s.invert_y && s.hide_slabs);
         s.toggle_mute();
         assert!(!s.mute);
+    }
+
+    #[test]
+    fn brightness_and_text_scale_defaults_and_bump() {
+        let mut s = LocalSettings::peace_defaults();
+        assert!((s.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
+        assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
+        s.bump_brightness();
+        assert!((s.brightness - 1.25).abs() < 0.01);
+        s.brightness = BRIGHTNESS_MAX;
+        s.bump_brightness();
+        assert!((s.brightness - BRIGHTNESS_MIN).abs() < 0.01);
+        s.bump_text_scale();
+        assert!((s.text_scale - 1.05).abs() < 0.01);
+        s.text_scale = TEXT_SCALE_MAX;
+        s.bump_text_scale();
+        assert!((s.text_scale - TEXT_SCALE_MIN).abs() < 0.01);
+        // Missing fields in old JSON → peace defaults
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false}"#;
+        let back = LocalSettings::from_json(legacy).unwrap();
+        assert!((back.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
+        assert!((back.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn mute_flag_is_master_mute_for_pause() {
+        // Pause Mute · and Settings Mute · share one LocalSettings.mute / master_gain.
+        let mut s = LocalSettings::default();
+        assert!((s.master_gain() - 1.0).abs() < f32::EPSILON);
+        s.toggle_mute();
+        assert!(s.mute);
+        assert!((s.master_gain() - 0.0).abs() < f32::EPSILON);
     }
 }

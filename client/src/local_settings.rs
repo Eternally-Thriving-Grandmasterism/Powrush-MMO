@@ -2,7 +2,8 @@
 //!
 //! Persist: shared::local_settings → data/powrush_settings.json.
 //! Apply hide_slabs → guidance_hidden; look/invert → LocalLookFeel;
-//! mute → MasterMuteGain (thin audio hook — no second HUD).
+//! mute → MasterMuteGain (thin audio hook — pause Mute uses same flag);
+//! brightness / text_scale → LocalUiFeel (Title plate contrast stays law).
 //! No Online socket toggle. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -89,6 +90,37 @@ impl Default for MasterMuteGain {
     }
 }
 
+/// Thin UI feel — brightness + text scale (does not mutate Title plate colors).
+#[derive(Resource, Debug, Clone, Copy)]
+pub struct LocalUiFeel {
+    pub brightness: f32,
+    pub text_scale: f32,
+}
+
+impl Default for LocalUiFeel {
+    fn default() -> Self {
+        let s = LocalSettings::peace_defaults();
+        Self {
+            brightness: s.brightness,
+            text_scale: s.text_scale,
+        }
+    }
+}
+
+impl LocalUiFeel {
+    pub fn from_settings(s: &LocalSettings) -> Self {
+        Self {
+            brightness: s.brightness,
+            text_scale: s.text_scale,
+        }
+    }
+
+    /// Scaled font size for pause/settings rows (base * text_scale).
+    pub fn scaled_font(&self, base: f32) -> f32 {
+        (base * self.text_scale).clamp(11.0, 22.0)
+    }
+}
+
 pub struct LocalSettingsPlugin;
 
 impl Plugin for LocalSettingsPlugin {
@@ -96,6 +128,7 @@ impl Plugin for LocalSettingsPlugin {
         app.init_resource::<LocalSettingsState>()
             .init_resource::<LocalLookFeel>()
             .init_resource::<MasterMuteGain>()
+            .init_resource::<LocalUiFeel>()
             .add_systems(Startup, seed_runtime_from_settings)
             .add_systems(Update, (apply_local_settings_runtime, persist_dirty_settings));
     }
@@ -105,11 +138,13 @@ fn seed_runtime_from_settings(
     settings: Res<LocalSettingsState>,
     mut look: ResMut<LocalLookFeel>,
     mut mute: ResMut<MasterMuteGain>,
+    mut ui: ResMut<LocalUiFeel>,
     mut bind: ResMut<LivedHourBind>,
 ) {
     *look = LocalLookFeel::from_settings(&settings.inner);
     mute.muted = settings.inner.mute;
     mute.gain = settings.inner.master_gain();
+    *ui = LocalUiFeel::from_settings(&settings.inner);
     // Persist default for Hide slabs — H still works in session after this.
     bind.guidance_hidden = settings.inner.hide_slabs;
 }
@@ -118,6 +153,7 @@ fn apply_local_settings_runtime(
     settings: Res<LocalSettingsState>,
     mut look: ResMut<LocalLookFeel>,
     mut mute: ResMut<MasterMuteGain>,
+    mut ui: ResMut<LocalUiFeel>,
     mut bind: ResMut<LivedHourBind>,
 ) {
     if !settings.is_changed() {
@@ -126,6 +162,7 @@ fn apply_local_settings_runtime(
     *look = LocalLookFeel::from_settings(&settings.inner);
     mute.muted = settings.inner.mute;
     mute.gain = settings.inner.master_gain();
+    *ui = LocalUiFeel::from_settings(&settings.inner);
     // Only when settings change (UI) — H session toggles are not overwritten every frame.
     bind.guidance_hidden = settings.inner.hide_slabs;
 }
@@ -176,5 +213,23 @@ mod tests {
         g.gain = s.master_gain();
         assert!(g.muted);
         assert!((g.gain - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn ui_feel_brightness_and_text_scale() {
+        let mut s = LocalSettings::peace_defaults();
+        assert!((s.brightness - 1.0).abs() < f32::EPSILON);
+        assert!((s.text_scale - 1.0).abs() < f32::EPSILON);
+        s.brightness = 1.25;
+        s.text_scale = 1.10;
+        let ui = LocalUiFeel::from_settings(&s);
+        assert!((ui.brightness - 1.25).abs() < 0.01);
+        assert!((ui.scaled_font(15.0) - 16.5).abs() < 0.01);
+        // Pause mute shares MasterMuteGain with settings.mute
+        s.toggle_mute();
+        let mut g = MasterMuteGain::default();
+        g.muted = s.mute;
+        g.gain = s.master_gain();
+        assert!(g.muted && g.gain == 0.0);
     }
 }

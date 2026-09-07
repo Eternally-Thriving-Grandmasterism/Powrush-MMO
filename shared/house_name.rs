@@ -131,6 +131,37 @@ impl HouseName {
         }
     }
 
+    /// Current seals as display names joined with · (empty when none).
+    pub fn seals_caption(&self) -> String {
+        if self.seals.is_empty() {
+            return String::new();
+        }
+        self.seals
+            .iter()
+            .map(|s| Self::seal_label(s))
+            .collect::<Vec<_>>()
+            .join(" · ")
+    }
+
+    /// One-line dress cue for Q / Pause face when seals resolved.
+    /// Heritage is string-only (already persisted by D3).
+    pub fn dress_line_for_plate(&self) -> Option<String> {
+        if !self.seals_resolved {
+            return None;
+        }
+        let seals = self.seals_caption();
+        let seal_part = if seals.is_empty() {
+            "Seal · none".to_string()
+        } else {
+            format!("Seal · {seals}")
+        };
+        if self.heritage.is_empty() || self.heritage == HERITAGE_NONE {
+            Some(seal_part)
+        } else {
+            Some(format!("{seal_part} · {}", self.heritage))
+        }
+    }
+
     /// Toggle a seal on the house (max three; invalid ids ignored). Cosmetic only.
     pub fn toggle_seal(&mut self, id: &str) -> bool {
         if !Self::is_valid_seal(id) {
@@ -495,6 +526,25 @@ mod tests {
         assert_eq!(back.seals, h2.seals);
         assert!(back.seals_resolved);
         assert!(!back.seals_grant_combat());
+    }
+
+    #[test]
+    fn seals_caption_and_dress_line_for_q_plate() {
+        let mut h = HouseName::default();
+        h.skip();
+        assert!(h.dress_line_for_plate().is_none());
+        h.skip_seals();
+        assert_eq!(h.dress_line_for_plate().as_deref(), Some("Seal · none"));
+        h.set_seals(&[SEAL_WELL, SEAL_EMBER]);
+        h.confirm_seals();
+        h.set_heritage("cydruid");
+        assert_eq!(h.seals_caption(), "Well · Ember");
+        assert_eq!(
+            h.dress_line_for_plate().as_deref(),
+            Some("Seal · Well · Ember · cydruid")
+        );
+        // heritage remains string only
+        assert!(!h.heritage_grants_stats());
     }
 
     #[test]

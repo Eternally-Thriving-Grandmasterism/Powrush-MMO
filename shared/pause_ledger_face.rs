@@ -1,7 +1,8 @@
 //! Pause / Ledger face — S3 (v23.2.52) + stranger-pass wait line (v23.2.61)
 //!
-//! House name · week tons + restored · lethal only if already declared.
-//! Shown on I (satchel) and/or L (Ledger sash). No second HUD.
+//! House name · seals (when dressed) · week tons + restored · lethal only if declared.
+//! Shown on I (satchel) and/or L (Ledger sash) — and Q plate reuses seal caption.
+//! No second HUD.
 //! Before charter / Bind-only pre-Settled: never a blank panel — wait line.
 //! No talent tree · no peer count · no fake online.
 //! Contact: info@Rathor.ai
@@ -40,8 +41,26 @@ pub fn face_lines(house_display: &str, week: &WeekAudit, declared_lethal: bool) 
 }
 
 /// Face from persisted HouseName + week audit + lethal flag.
+/// When seals resolved, inserts Seal · … (heritage string) under the house name.
 pub fn face_from(house: &HouseName, week: &WeekAudit, declared_lethal: bool) -> String {
-    face_lines(house.display_name(), week, declared_lethal)
+    let mut out = String::new();
+    out.push_str(house.display_name());
+    if let Some(dress) = house.dress_line_for_plate() {
+        out.push('\n');
+        out.push_str(&dress);
+    }
+    out.push('\n');
+    out.push_str(&week.slab_line());
+    if declared_lethal {
+        out.push('\n');
+        out.push_str(LETHAL_DECLARED_LINE);
+    }
+    out
+}
+
+/// Seal caption for the Q founding plate (same dress line as Pause face).
+pub fn q_plate_seal_line(house: &HouseName) -> Option<String> {
+    house.dress_line_for_plate()
 }
 
 /// One-line wait copy when L opens before Settled / without charter.
@@ -126,6 +145,25 @@ mod tests {
         assert!(face.contains("0 tons"));
         assert!(face.contains("0 restored"));
         assert!(!face.contains(LETHAL_DECLARED_LINE));
+    }
+
+    #[test]
+    fn face_and_q_plate_show_seal_when_dressed() {
+        let mut house = HouseName::default();
+        house.confirm("Keep Yard");
+        house.set_seals(&["well"]);
+        house.confirm_seals();
+        house.set_heritage("human");
+        let face = face_from(&house, &week(1, 0), false);
+        assert!(face.contains("Keep Yard"), "got {face}");
+        assert!(face.contains("Seal · Well"), "got {face}");
+        assert!(face.contains("human"), "got {face}");
+        assert!(face.contains("1 tons"), "got {face}");
+        assert_eq!(
+            q_plate_seal_line(&house).as_deref(),
+            Some("Seal · Well · human")
+        );
+        assert!(face_is_steward_honest(&face));
     }
 
     #[test]
