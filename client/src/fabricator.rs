@@ -15,6 +15,7 @@ use shared::space_law::HexFlag;
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
+use crate::input::{InputMapSet, PlayerInput};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::vertical_factory::FactoryYard;
 
@@ -51,7 +52,7 @@ impl Plugin for FabricatorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FabricatorYard>()
             .add_systems(Startup, spawn_fab_slab)
-            .add_systems(Update, (handle_fab_q, tick_bench_glow, update_fab_slab));
+            .add_systems(Update, (handle_fab_q, tick_bench_glow, update_fab_slab).after(InputMapSet));
     }
 }
 
@@ -94,6 +95,7 @@ fn spawn_fab_slab(mut commands: Commands) {
 
 fn handle_fab_q(
     keyboard: Res<ButtonInput<KeyCode>>,
+    player_input: Res<PlayerInput>,
     hour: Res<HourSacred>,
     factory: Res<FactoryYard>,
     mut yard: ResMut<FabricatorYard>,
@@ -101,7 +103,8 @@ fn handle_fab_q(
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
-    if !keyboard.just_pressed(soft_play_bindings::BUILD_WHEEL) {
+    // Q / pad West (same sheet verb).
+    if !(keyboard.just_pressed(soft_play_bindings::BUILD_WHEEL) || player_input.sheet_q) {
         return;
     }
     if hour.hex() == HexFlag::Peace || !hour.charter_skin_live() {

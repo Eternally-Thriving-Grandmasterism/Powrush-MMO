@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — I0 Controls + one Use map
+
+```
+slice: I0 Controls + one Use map (pad/touch auto; sticks cull on plates)
+idea: shared Controls fields beside Grove (on_screen_sticks auto|on|off, tap_to_use, gamepad_south_use, nintendo_face auto stub, sprint_mode stick|trigger|key, show_use_prompt) + input.rs INPUT_CANON (South=Use, Jump=LB/LeftTrigger, Sprint per mode, Start=Pause, West=Q North=L) + touch overlay (≥44dp, cull on Title/pause/Settings/L/Q/I, default mouse Title hidden) + Settings cycle rows; floor stays 2163551; no 2nd Camera3d/Online/birds/Wave P/preview tag/GenShare/combat
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — E/I INPUT_CANON + PLACES_BIBLE docs stamp
 
 ```

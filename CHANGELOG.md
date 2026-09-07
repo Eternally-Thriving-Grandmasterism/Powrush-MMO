@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.64] — 2026-09-07 — I0 Controls + one Use map
+
+One Use verb across keyboard/mouse, gamepad, and touch overlay (`INPUT_CANON`): **E / South / overlay Use**; Jump = Space / LB; Start = Pause; on-screen sticks `auto|on|off` (default auto — mouse Title stays click-clean; cull on plates); Settings Controls rows persist beside Grove. Nintendo face remap stub (`auto`). No second Camera3d, Online socket, birds, Wave P, or preview tag. Workspace stays 21.88.0.
+
 ## [23.2.63] — 2026-09-07 — G0.5 Settings Grove off/light
 
 Settings plate **Grove · off|light** persists in `data/powrush_settings.json` (default **off**; missing/unknown → off). Enabled when Grove is light **OR** env `POWRUSH_GEN=light` — same G0 light-gen path, not a second system. Cull when Title/pause/Settings/L/Q open. No birds, sockets, second Camera3d, Avian/Rapier, GenShare, preview tag. Peace keys untouched. Workspace stays 21.88.0.
