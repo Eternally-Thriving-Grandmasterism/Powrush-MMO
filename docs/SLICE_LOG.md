@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-06 — E1 checklist + stranger-loop sync
+
+```
+slice: E1 checklist + stranger-loop sync
+idea: PREVIEW_CHECKLIST + STRANGER_LOOP sync Esc→pause *the yard is waiting* · settings persist (look/mute/invert-Y/hide slabs/brightness/text scale) · Well/Grove/Ember skippable + heritage string only + Q seal · no combat stats; door cargo run -p powrush-client; Online grey; stranger floor start c8ec538c + E1 (stamp tip after merge); ticking ≠ playable-preview tag
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-06 — After-D3 comfort pack
 
 ```
