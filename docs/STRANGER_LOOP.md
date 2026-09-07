@@ -20,7 +20,7 @@ Minute-by-minute. Keys only. Online stays grey. L3 ingest absent on first hour.
 | 25–40 | Q fabricator (MendSpool + LaneCrate) → Embassy E seat | *Hour three held · the book is yours* |
 | 40–50 | same E / R; I or L sash | climate file + slab true; week *this week · N tons · M restored* (not kills); Seal · … on Pause/Ledger when dressed |
 | after book | Ledger **3** only if choosing | DeclaredLethal opt-in; Peace boot still silent; never default E |
-| always | — | `POWRUSH_NET` default off = zero sockets; `POWRUSH_INGEST` default off = L3 absent on first hour; House name skippable → Unnamed House |
+| always | — | `POWRUSH_NET` default off = zero sockets; `POWRUSH_INGEST` default off = L3 absent on first hour; House name skippable → Unnamed House; **G0 opt-in** — default boot no extra scatter (G0 off); `POWRUSH_GEN=light` same hex seed each run, plates still click, fog behind UI |
 
 ## Quiet law
 
@@ -28,6 +28,6 @@ Minute-by-minute. Keys only. Online stays grey. L3 ingest absent on first hour.
 - Lethal never default E. Week score = tons + restored only.
 - Seals cosmetic only; heritage is a string — refuse +take / +STR / combat mods. No race select at Title.
 - Soft cues only if a beat is mute. `server/` parked. No public launch speak.
-- Title Online stays grey. No Steam copy. No lighting Online. No fog/birds as preview juice. No `playable-preview` tag from this loop alone.
+- Title Online stays grey. No Steam copy. No lighting Online. G0 stays opt-in (`POWRUSH_GEN` never default on). No GenShare sockets. No fog/birds as preview juice. No `playable-preview` tag from this loop alone.
 
 **Thunder locked in.** Yoi ⚡
