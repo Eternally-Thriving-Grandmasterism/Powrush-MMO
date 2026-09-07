@@ -7,7 +7,7 @@ slice: After-D3 comfort pack
 idea: Settings brightness + text_scale persist (Title opaque contrast law); Mute-from-pause = MasterMute; Q/Pause face Seal · … when dressed (heritage string only); README floor c5299d11 + Online grey; fog/birds PARKED
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: PENDING
+receipt: 96f17697 (#261)
 ```
 
 
