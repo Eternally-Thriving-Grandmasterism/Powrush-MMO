@@ -18,7 +18,8 @@ use shared::pause_ledger_face::ledger_sash_body;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::LivedHourBind;
-use crate::title_screen::HouseLabel;
+use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
+use crate::ui_above_world::LIVED_UI_Z_LEDGER;
 use crate::infra_spill::EvidenceYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -61,6 +62,7 @@ impl Plugin for LedgerBindPlugin {
 }
 
 fn spawn_ledger_slab(mut commands: Commands) {
+    // Opaque plate + Global z — Title contrast law; soft GPU must not alpha into fog.
     commands
         .spawn((
             NodeBundle {
@@ -74,9 +76,10 @@ fn spawn_ledger_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.06, 0.09, 0.92).into(),
-                border_color: Color::srgba(0.70, 0.78, 0.92, 0.50).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: Color::srgb(0.70, 0.78, 0.92).into(),
                 visibility: Visibility::Hidden,
+                z_index: ZIndex::Global(LIVED_UI_Z_LEDGER),
                 ..default()
             },
             LedgerSlabRoot,
@@ -87,7 +90,7 @@ fn spawn_ledger_slab(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.88, 0.92, 1.0),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),

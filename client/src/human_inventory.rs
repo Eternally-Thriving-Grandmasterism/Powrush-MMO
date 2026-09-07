@@ -17,7 +17,8 @@ use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::lived_hour_bind::LivedHourBind;
-use crate::title_screen::HouseLabel;
+use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_BORDER, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
+use crate::ui_above_world::LIVED_UI_Z_LEDGER;
 use crate::living_freshness::LivingFreshness;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::soft_play_bindings;
@@ -144,9 +145,11 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.08, 0.07, 0.94).into(),
-                border_color: Color::srgba(0.50, 0.88, 0.62, 0.50).into(),
+                // Opaque I/Ledger face — Title contrast law on soft GPU.
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
+                z_index: ZIndex::Global(LIVED_UI_Z_LEDGER),
                 ..default()
             },
             SatchelRoot,
@@ -156,7 +159,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                 "SATCHEL",
                 TextStyle {
                     font_size: 14.0,
-                    color: Color::srgb(0.75, 0.96, 0.82),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));
@@ -165,7 +168,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 13.5,
-                        color: Color::srgb(0.90, 0.96, 0.92),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -175,7 +178,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                 "I close · 1–3 highlight · R allocate surplus",
                 TextStyle {
                     font_size: 11.0,
-                    color: Color::srgb(0.55, 0.70, 0.62),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));

@@ -22,7 +22,12 @@ fn main() {
 }
 
 fn spawn_sun_and_camera(mut commands: Commands) {
+    // World camera order 0 — lived UI Camera2d (order 10) draws above on soft GPU.
     commands.spawn(Camera3dBundle {
+        camera: Camera {
+            order: powrush_client::ui_above_world::WORLD_CAMERA_ORDER,
+            ..default()
+        },
         transform: Transform::from_xyz(0.0, 8.0, 14.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
