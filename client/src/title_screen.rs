@@ -1012,12 +1012,14 @@ fn set_btn_section_font(text: &mut Text, size: f32) {
 fn refresh_local_settings_labels(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
-    mut look_q: Query<&mut Text, With<SettingsLookLabel>>,
-    mut mute_q: Query<&mut Text, With<SettingsMuteLabel>>,
-    mut invert_q: Query<&mut Text, With<SettingsInvertLabel>>,
-    mut hide_q: Query<&mut Text, With<SettingsHideLabel>>,
-    mut bright_q: Query<&mut Text, With<SettingsBrightnessLabel>>,
-    mut scale_q: Query<&mut Text, With<SettingsTextScaleLabel>>,
+    mut texts: ParamSet<(
+        Query<&mut Text, With<SettingsLookLabel>>,
+        Query<&mut Text, With<SettingsMuteLabel>>,
+        Query<&mut Text, With<SettingsInvertLabel>>,
+        Query<&mut Text, With<SettingsHideLabel>>,
+        Query<&mut Text, With<SettingsBrightnessLabel>>,
+        Query<&mut Text, With<SettingsTextScaleLabel>>,
+    )>,
 ) {
     if !label.settings_open {
         return;
@@ -1030,27 +1032,27 @@ fn refresh_local_settings_labels(
     let bright = brightness_btn_label(s);
     let scale = text_scale_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
-    for mut text in &mut look_q {
+    for mut text in &mut texts.p0() {
         set_btn_section_text(&mut text, &look);
         set_btn_section_font(&mut text, font);
     }
-    for mut text in &mut mute_q {
+    for mut text in &mut texts.p1() {
         set_btn_section_text(&mut text, &mute);
         set_btn_section_font(&mut text, font);
     }
-    for mut text in &mut invert_q {
+    for mut text in &mut texts.p2() {
         set_btn_section_text(&mut text, &invert);
         set_btn_section_font(&mut text, font);
     }
-    for mut text in &mut hide_q {
+    for mut text in &mut texts.p3() {
         set_btn_section_text(&mut text, &hide);
         set_btn_section_font(&mut text, font);
     }
-    for mut text in &mut bright_q {
+    for mut text in &mut texts.p4() {
         set_btn_section_text(&mut text, &bright);
         set_btn_section_font(&mut text, font);
     }
-    for mut text in &mut scale_q {
+    for mut text in &mut texts.p5() {
         set_btn_section_text(&mut text, &scale);
         set_btn_section_font(&mut text, font);
     }
@@ -1270,10 +1272,12 @@ pub fn heritage_btn_label(house: &HouseName) -> String {
 fn refresh_house_dress_labels(
     door: Res<LaunchDoor>,
     label: Res<HouseLabel>,
-    mut well_q: Query<&mut Text, With<DressSealWellLabel>>,
-    mut grove_q: Query<&mut Text, With<DressSealGroveLabel>>,
-    mut ember_q: Query<&mut Text, With<DressSealEmberLabel>>,
-    mut heritage_q: Query<&mut Text, With<DressHeritageLabel>>,
+    mut texts: ParamSet<(
+        Query<&mut Text, With<DressSealWellLabel>>,
+        Query<&mut Text, With<DressSealGroveLabel>>,
+        Query<&mut Text, With<DressSealEmberLabel>>,
+        Query<&mut Text, With<DressHeritageLabel>>,
+    )>,
 ) {
     if *door != LaunchDoor::HouseDress {
         return;
@@ -1283,16 +1287,16 @@ fn refresh_house_dress_labels(
     let grove = seal_btn_label(h, SEAL_GROVE);
     let ember = seal_btn_label(h, SEAL_EMBER);
     let heritage = heritage_btn_label(h);
-    for mut text in &mut well_q {
+    for mut text in &mut texts.p0() {
         set_btn_section_text(&mut text, &well);
     }
-    for mut text in &mut grove_q {
+    for mut text in &mut texts.p1() {
         set_btn_section_text(&mut text, &grove);
     }
-    for mut text in &mut ember_q {
+    for mut text in &mut texts.p2() {
         set_btn_section_text(&mut text, &ember);
     }
-    for mut text in &mut heritage_q {
+    for mut text in &mut texts.p3() {
         set_btn_section_text(&mut text, &heritage);
     }
 }
