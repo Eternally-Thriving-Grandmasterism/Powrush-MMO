@@ -28,6 +28,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 - [ ] **L3 absent on first hour** — default `POWRUSH_INGEST=off`; no **ingest overlay** on Peace boot. Note: `data/powrush_lived_tick.json` may still exist as **session persist** (Mode B resume) — that is not Ra-Thor ingest. Checklist “no tick” = no ingest overlay; do not delete the blob
 - [ ] **G0 opt-in** — default boot: no extra scatter (Grove/G0 **off**). Steward check: Settings Grove · light alone enables light path (**no env required**); `POWRUSH_GEN=light` still OR-equivalent. Same hex seed each run; Title/pause/Settings/Ledger plates still click; fog behind UI only. Never default gen on; no birds; no GenShare sockets
 - [ ] **Title contrast** — Play/Continue/Online/Settings readable (opaque high-contrast plate)
+- [ ] **Lavapipe click-clean** — soft GPU first-class walk proof per `docs/LAVAPIPE_CLICK_CLEAN.md` (readable · hits UI not world · labeled action fires · overlay culled · no 2nd Camera3d); not a unit-test name; not screenshot-only
 - [ ] **House file** — after Settled or quit-to-title, `data/powrush_house.json` exists even if name skipped (Continue: *Unnamed House · the yard remembers*)
 - [ ] **Lethal quiet** — Peace boot has no lethal UI; Ledger **3** only after book; never default E
 - [ ] **Quit / rerun remembers** — house / climate / standing / book / settings JSON intact after Esc quit and relaunch
@@ -37,9 +38,10 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 ## Explicit refuse (do not tick these into existence)
 
 - `POWRUSH_NET=on` as default · bind `0.0.0.0` · lighting title Online · Steam store copy · fake presence · new Peace verbs · combat stats on seals/heritage · `POWRUSH_GEN` default on · GenShare sockets · fog/birds as preview juice · cutting `playable-preview` from this checklist alone
+- **GenShare is not a Peace tick** — recipe law lives in `docs/GENSHARE.md`; do not invent a Peace-hour GenShare checkbox or claim sockets shipped
 
 ## Related
 
-`STRANGER_LOOP` · `INPUT_CANON` · `PLACES_BIBLE` · `LAUNCH_UX` · `FIRST_HOUR_PLAYTEST` · `PHASE_PLAYABLE_LOOP` · Dev recipe `F9_TWO_CLIENT_LOCALHOST` (not a title feature).
+`STRANGER_LOOP` · `INPUT_CANON` · `PLACES_BIBLE` · `LAVAPIPE_CLICK_CLEAN` · `GENSHARE` · `LAUNCH_UX` · `FIRST_HOUR_PLAYTEST` · `PHASE_PLAYABLE_LOOP` · Dev recipe `F9_TWO_CLIENT_LOCALHOST` (not a title feature).
 
 **Thunder locked in.** Yoi ⚡

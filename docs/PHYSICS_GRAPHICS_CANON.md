@@ -45,6 +45,10 @@ Yard rhyme: take-to-ruin ≈ Destroy; flow+purify ≈ Capture; quiet poison ≈ 
 
 On floor `c5299d11` (#252): Title contrast readable; Esc yard→Title; L non-blank (`Not your charter` / ledger waits); `powrush_house.json` writes even when Unnamed. Preview tag still waits steward yes.
 
+## Soft GPU / lavapipe click-clean
+
+Soft GPU first-class — lavapipe is a **walk proof**, not a unit-test name and not screenshot-only. Five checks + failure modes + pass/fail/revert: `docs/LAVAPIPE_CLICK_CLEAN.md`. Reference fix shape: Camera2d + TargetCamera + MSAA-off; no second Camera3d.
+
 ## Standing orders
 
 1. No race / class select in Hour 1. Lore ≤ one flavor line.
@@ -55,4 +59,4 @@ On floor `c5299d11` (#252): Title contrast readable; Esc yard→Title; L non-bla
 
 ## Relates
 
-`DOC_CANON.md`, `PARKED_SURFACES.md`, `PHASE_MYTHIC.md`, `CROWNSTONE_TRILEMMA_PATHS.md`, `LAUNCH_UX.md`, `PREVIEW_CHECKLIST.md`, `GDD_ADAPTATION.md`.
+`DOC_CANON.md`, `PARKED_SURFACES.md`, `PHASE_MYTHIC.md`, `CROWNSTONE_TRILEMMA_PATHS.md`, `LAUNCH_UX.md`, `PREVIEW_CHECKLIST.md`, `LAVAPIPE_CLICK_CLEAN.md`, `GENSHARE.md`, `GDD_ADAPTATION.md`.

@@ -68,6 +68,8 @@ Start here if you want to complete the game:
 - `docs/PREVIEW_CHECKLIST.md` — human tick boxes; ticking ≠ cutting a `playable-preview` tag
 - `docs/INPUT_CANON.md` — one Use verb; keyboard / touch / gamepad; Controls next to Grove
 - `docs/PLACES_BIBLE.md` — Heartwood rings; Sanctuary Prime = yard only until after preview
+- `docs/GENSHARE.md` — GenShare = recipe not triangles (A–E methods; Online grey)
+- `docs/LAVAPIPE_CLICK_CLEAN.md` — soft GPU first-class walk proof (five checks)
 - `docs/HOUR_TWO.md` — Charter door after allocate
 - `docs/HOUR_TWO_PLAYTEST.md` — Tab → Settled → quit → welcome slab
 - `docs/RBE_FIRST_HOUR.md` — economy in the hands
