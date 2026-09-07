@@ -52,7 +52,7 @@ Same house + hex + climate epoch → same light-gen scatter when Grove / `POWRUS
 
 ## GenShare
 
-- GenShare = **recipe**, not triangles.
+- GenShare = **recipe**, not triangles. Full law: `docs/GENSHARE.md`.
 - Share the recipe / seed story; do **not** ship raw mesh floods or peer triangle blasts on the default door.
 - No GenShare sockets while Online is grey.
 
@@ -74,6 +74,6 @@ Same house + hex + climate epoch → same light-gen scatter when Grove / `POWRUS
 
 ## Relates
 
-`INPUT_CANON` · `PHYSICS_GRAPHICS_CANON` · `PREVIEW_CHECKLIST` · `STRANGER_LOOP` · `GDD_ADAPTATION` · `PHASE_MYTHIC` · `PARKED_SURFACES`.
+`INPUT_CANON` · `PHYSICS_GRAPHICS_CANON` · `GENSHARE` · `LAVAPIPE_CLICK_CLEAN` · `PREVIEW_CHECKLIST` · `STRANGER_LOOP` · `GDD_ADAPTATION` · `PHASE_MYTHIC` · `PARKED_SURFACES`.
 
 **Thunder locked in.** Yoi ⚡

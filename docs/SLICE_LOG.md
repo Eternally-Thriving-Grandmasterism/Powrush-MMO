@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — GenShare recipe + lavapipe click-clean docs stamp
+
+```
+slice: GenShare recipe + lavapipe click-clean docs stamp
+idea: NEW docs/GENSHARE.md (recipe not triangles; envelope v/hex/epoch/seed_u64/climate_digest/dress seal+heritage no stats; methods A L0 jsonl offline prefer+D, B adopt-consent, C loopback WS after preview+online yes not Title Online, D climate piggyback, E postcard/varint later; rebuild despawn HexScatter/reseed/fog/cull/defer hitch; never stream glTF; never change Tw/Uw; Online grey) + NEW docs/LAVAPIPE_CLICK_CLEAN.md (soft GPU first-class walk proof; five checks; failure modes Camera3d/TargetCamera/MSAA-fog-Z/extra cam/uncull; pass/fail/revert; Camera2d+TargetCamera+MSAA-off; past beats incl 932973ef) + PREVIEW lavapipe tick; GenShare not a Peace tick; floor stays 2163551; tip ref b215275; docs only; no client/shared/Cargo; no tag/Wave P/sockets claimed shipped
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — I0 Controls + one Use map
 
 ```
