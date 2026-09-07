@@ -57,6 +57,7 @@ pub mod abundance_journey_echo;
 pub mod world_answer;
 pub mod lattice_flow_share;
 pub mod climate_plane;
+pub mod light_gen;
 pub mod hands_memory;
 pub mod foundation_lattice;
 pub mod resonance_flavors;
@@ -113,6 +114,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(net_mode::NetModePlugin);
         app.add_plugins(climate_script::ClimateScriptPlugin);
         app.add_plugins(climate_plane::ClimatePlanePlugin);
+        app.add_plugins(light_gen::LightGenPlugin);
         app.add_plugins(living_ecology::LivingEcologyPlugin);
         app.add_plugins(living_freshness::LivingFreshnessPlugin);
         app.add_plugins(living_body::LivingBodyPlugin);
