@@ -7,7 +7,7 @@ slice: fail beat UI above world soft GPU
 idea: lived UI Camera2d order 10 + IsDefaultUiCamera above Camera3d order 0; climate never spawns second Camera3d (order-ambiguity bury); Title/pause/Settings/Ledger+I opaque plates + Global z (120/125/130); lavapipe Title buttons + Esc pause Resume readable/clickable; no preview / POWRUSH_NET / birds / Wave P; settled/seal/hour-two untouched
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
-receipt: pending-merge
+receipt: 8492a318 (#273)
 ```
 
 
