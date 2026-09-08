@@ -18,9 +18,7 @@ use std::path::{Path, PathBuf};
 
 use crate::house_name::{HouseName, HOUSE_PATH};
 use crate::hour_two::HourTwoPack;
-use crate::pause_ledger_face::{
-    lethal_sign_row, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER,
-};
+use crate::pause_ledger_face::lethal_sign_row;
 use crate::shard_climate::ShardClimate;
 use crate::shard_standing::ShardStanding;
 use crate::stranger_loop_proof::{climate_week_fixture, hour_three_held_fixture};
@@ -130,6 +128,7 @@ pub fn f_book_harm_row() -> &'static str {
 mod tests {
     use super::*;
     use crate::house_name::UNNAMED;
+    use crate::pause_ledger_face::{HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER};
     use crate::stranger_loop_proof::peace_fixture;
 
     #[test]
