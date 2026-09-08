@@ -1,0 +1,79 @@
+{
+  "charter_id": "house-local",
+  "hex": "Frontier",
+  "kind": "House",
+  "warrant": {
+    "h": 0.0,
+    "i": 0.0,
+    "c": 0.0,
+    "f": 0.0,
+    "x": 0.0,
+    "repair": 0.0,
+    "return_cargo": 0.0,
+    "council": 0.0,
+    "tend_spill": 0.0
+  },
+  "factory": {
+    "founded": true,
+    "kind": "House",
+    "reserve": 3.0,
+    "nodes": [],
+    "route_stops": 0,
+    "arrived": false,
+    "last_line": "House founded — plant an extractor"
+  },
+  "witness": {
+    "life": "Offline",
+    "pack": {
+      "code": "I2",
+      "node": "Extractor",
+      "spill": true,
+      "hash": "849c23f0880d2f9d"
+    },
+    "last_line": "Extractor Offline · spill on the ground · I2 extractor · Offline · spill visible · pack 849c23f0",
+    "seen": true
+  },
+  "board": {
+    "contracts": [
+      {
+        "codes": [
+          "I2"
+        ],
+        "evidence_hash": "local-i2",
+        "purse": {
+          "flow": 1.0,
+          "repair_rights": 1.0,
+          "blood_tariff": 0.0
+        },
+        "win": "BindEscort",
+        "custody": true,
+        "state": "Settled",
+        "stops_done": 2,
+        "lethal_count": 0,
+        "last_line": "Settled — flow and the right to mend"
+      }
+    ]
+  },
+  "fabricator": {
+    "planted": true,
+    "reserve": 0.0,
+    "pack": {
+      "repair": true,
+      "logi": true
+    },
+    "last_line": "The graph unlocked — repair and logi"
+  },
+  "embassy": {
+    "lamp_live": true,
+    "seated": true,
+    "book": {
+      "entries": [
+        "MendSpool",
+        "LaneCrate"
+      ]
+    },
+    "last_line": "Seated — one embassy seat · Blueprints · MendSpool + LaneCrate"
+  },
+  "complete": true,
+  "hour_three_complete": true
+}
