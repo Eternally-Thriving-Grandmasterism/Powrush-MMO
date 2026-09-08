@@ -17,8 +17,7 @@ use std::path::Path;
 
 use crate::hex_listen::PowrushNet;
 use crate::hex_protocol::default_client_listens;
-use crate::hex_travel::ISOLATION_GAMMA;
-use crate::local_settings::{local_settings_opens_socket, LocalSettings};
+use crate::local_settings::LocalSettings;
 use crate::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
 /// Bevy asset path (under `assets/`).
@@ -224,7 +223,8 @@ pub fn title_online_stays_grey() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hex_travel::PlaceId;
+    use crate::hex_travel::{PlaceId, ISOLATION_GAMMA};
+    use crate::local_settings::local_settings_opens_socket;
     use crate::shard_standing::ShardStanding;
 
     #[test]

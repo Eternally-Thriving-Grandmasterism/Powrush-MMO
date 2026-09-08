@@ -11,11 +11,7 @@
 use bevy::audio::{AudioSink, Volume};
 use bevy::prelude::*;
 
-use shared::local_settings::local_settings_opens_socket;
-use shared::peace_audio::{
-    audio_output_safe, peace_audio_opens_socket, title_online_stays_grey, PeaceVoice, BED_ASSET,
-    STING_ASSET,
-};
+use shared::peace_audio::{audio_output_safe, PeaceVoice, BED_ASSET, STING_ASSET};
 
 use crate::harvest_feel::SoftRbePool;
 use crate::local_settings::{LocalSettingsState, MasterMuteGain};
@@ -138,8 +134,11 @@ mod tests {
     use shared::hex_listen::PowrushNet;
     use shared::hex_protocol::default_client_listens;
     use shared::hex_travel::ISOLATION_GAMMA;
-    use shared::local_settings::LocalSettings;
-    use shared::peace_audio::{bed_gain, should_emit_bed, should_emit_sting, sting_gain};
+    use shared::local_settings::{local_settings_opens_socket, LocalSettings};
+    use shared::peace_audio::{
+        bed_gain, peace_audio_opens_socket, should_emit_bed, should_emit_sting, sting_gain,
+        title_online_stays_grey,
+    };
     use shared::shard_standing::ShardStanding;
     use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
