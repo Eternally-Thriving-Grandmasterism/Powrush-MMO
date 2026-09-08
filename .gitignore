@@ -17,3 +17,6 @@ Builds/
 # OS
 .DS_Store
 Thumbs.db
+
+# Powrush-MMO runtime artifacts (Steam Auto-Cloud staging written on client boot)
+steam_cloud/
