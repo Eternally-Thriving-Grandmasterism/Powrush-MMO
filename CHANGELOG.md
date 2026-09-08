@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.79] — 2026-09-08 — U5: Steam Deck title click-clean
+
+The default window is 1280×800. The unchanged 420px Title plate now has a 24px responsive safe-area guard and a full-screen pointer-focus blocker, keeping Play, Continue, Settings, and grey Online inside the Deck surface and preventing click-through to the world. The dedicated UI camera remains above the single world Camera3d; soft-GPU MSAA remains off. Title Online stays grey with no listen. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
+
 ## [23.2.78] — 2026-09-08 — U4: Peace yard audio bed + well sting
 
 Quiet Peace-yard bed plus a well sting on the existing well Use. Pause/Settings Mute silences both; unmuted does not open a socket. No ALSA card: AudioPlugin stays off so boot cannot hang. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
