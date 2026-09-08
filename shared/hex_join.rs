@@ -7,8 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::hex_protocol::{
-    reject_copy_without_consent, reject_declare_lethal_before_book,
-    reject_declare_lethal_before_settled, reject_rev_mismatch,
+    reject_copy_without_consent, reject_declare_lethal_before_book, reject_rev_mismatch,
     reject_take_on_tired, BookFlags, Envelope, HelloBody, Presence, RejectCode, ShardKind,
     Snapshot, SnapshotClimate, WellFace, PROTOCOL_ID, PROTOCOL_REV,
 };
@@ -202,7 +201,10 @@ pub fn join_slice_unparks_server() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hex_protocol::{RejectBody, SnapshotHouse, SnapshotStanding, SnapshotWeek};
+    use crate::hex_protocol::{
+        reject_declare_lethal_before_settled, RejectBody, SnapshotHouse, SnapshotStanding,
+        SnapshotWeek,
+    };
 
     #[test]
     fn reject_declare_lethal_before_book_is_no_book() {
