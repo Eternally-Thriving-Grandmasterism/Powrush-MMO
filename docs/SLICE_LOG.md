@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U7: Threshold shelf
+
+`slice: U7 Threshold shelf | Heartwood-local roof shelf with look + tend only on existing Peace Use; complete footprint outside empty lamp disk and water bath; session-only hook cannot persist the Heartwood stub over the house book, preserving hour_three_complete, embassy seat, Places eligibility, and Sanctuary return; no Market/socket/listen/public bind/Title Online/0.0.0.0; LAN off; same seed hash; isolation gamma 0 with no tons/seeds/declared_lethal coupling; harm row remains off; no Heartwood mesh on Sanctuary; no Depths boot; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`
+
 ## 2026-09-08 — U6: Heartwood Lip
 
 `slice: U6 Heartwood Lip | Heartwood-only dry Lip dress: exactly two walkway capsules plus hanging roof ribs, all complete footprints outside the empty lamp disk and no buildings in water; pond drop is a local body bath back to dry Lip and never calls house/embassy persist, preserving hour_three_complete, embassy seat, Places eligibility, and Sanctuary return; same seed hash; isolation gamma 0 with no tons/seeds/declared_lethal coupling; same Peace E; no Heartwood mesh on Sanctuary; no Threshold/Market/socket/listen/public bind/0.0.0.0; Online grey; LAN off; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`

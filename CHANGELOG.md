@@ -1,5 +1,8 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.81] — 2026-09-08 — U7: Threshold shelf
+
+Heartwood now carries a roof-height Threshold shelf outside both the empty lamp disk and the water bath. Its complete local vocabulary is look and tend on the existing Peace Use; neither action writes a hex stub over the house book, so `hour_three_complete`, the embassy seat, Places eligibility, and Sanctuary return remain held. No Market, socket, public bind, or Title Online path was added. Seed hashing and isolation gamma remain unchanged. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
 
 ## [23.2.80] — 2026-09-08 — U6: Heartwood Lip
 
