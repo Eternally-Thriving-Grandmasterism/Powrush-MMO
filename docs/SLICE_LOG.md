@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — P3: Settings LAN off / loopback
+
+```
+slice: P3 Settings LAN off / loopback (127.0.0.1 lab)
+idea: one Settings row LAN · off|loopback persisted beside Grove in data/powrush_settings.json (default off; unknown/on → off); loopback reuses existing F8/F9 localhost door — bind/listen 127.0.0.1 only, never 0.0.0.0, never public, never POWRUSH_NET=on from Title; Title Online stays grey and does not bind; SettingsOnlineStubBtn hard-refuse stays; LAN off boots exactly as today (no listen, no outbound); loopback may send existing L0 GenShare line + climate only; no fake peers/counts, no combat, no birds, no default Grove, no Depths mesh, no XP, no second Camera3d; playable-preview stays 11c577e; floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-08 — E4: preview tag 11c577e + welcome-back breath (minutes blank)
 
 ```

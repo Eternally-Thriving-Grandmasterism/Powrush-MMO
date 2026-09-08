@@ -4,7 +4,8 @@
 //! Apply hide_slabs → guidance_hidden; look/invert → LocalLookFeel;
 //! mute → MasterMuteGain (thin audio hook — pause Mute uses same flag);
 //! brightness / text_scale → LocalUiFeel (Title plate contrast stays law).
-//! No Online socket toggle. Contact: info@Rathor.ai
+//! No Online socket toggle. LAN off (default) opens nothing; loopback is 127.0.0.1 only.
+//! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 

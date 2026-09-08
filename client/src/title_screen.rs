@@ -10,6 +10,7 @@
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
+//! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
 //! Q/Pause face shows Seal · … when dressed (heritage string only).
 //! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
 //! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
@@ -29,7 +30,7 @@ use shared::house_name::{
     continue_cue_when_persist, local_persist_present, HouseName, HOUSE_PATH, HOUSE_SEALS,
     SEAL_EMBER, SEAL_GROVE, SEAL_WELL, UNNAMED,
 };
-use shared::title_house_proof::ONLINE_STUB_LABEL;
+use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
@@ -200,6 +201,10 @@ struct SettingsTextScaleLabel;
 struct SettingsGroveBtn;
 #[derive(Component)]
 struct SettingsGroveLabel;
+#[derive(Component)]
+struct SettingsLanBtn;
+#[derive(Component)]
+struct SettingsLanLabel;
 #[derive(Component)]
 struct SettingsSticksBtn;
 #[derive(Component)]
@@ -415,16 +420,18 @@ fn spawn_settings_stub(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(18.0),
+                    // Tight so LAN row + Resume/Title/Quit stay on a 720p plate.
+                    top: Val::Percent(4.0),
                     left: Val::Percent(50.0),
                     width: Val::Px(400.0),
+                    max_height: Val::Percent(92.0),
                     margin: UiRect {
                         left: Val::Px(-200.0),
                         ..default()
                     },
-                    padding: UiRect::all(Val::Px(16.0)),
+                    padding: UiRect::all(Val::Px(10.0)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(8.0),
+                    row_gap: Val::Px(4.0),
                     border: UiRect::all(Val::Px(1.5)),
                     align_items: AlignItems::Center,
                     ..default()
@@ -477,6 +484,13 @@ fn spawn_settings_stub(mut commands: Commands) {
                 "Grove · off",
                 SettingsGroveBtn,
                 SettingsGroveLabel,
+            );
+            // P3 LAN lab — separate row from the Online stub. Default off. Loopback only.
+            spawn_settings_row(
+                p,
+                "LAN · off",
+                SettingsLanBtn,
+                SettingsLanLabel,
             );
             // I0 Controls essentials (persist beside Grove).
             spawn_settings_row(
@@ -672,7 +686,7 @@ fn spawn_dress_seal_row<B: Component, L: Component>(
     p.spawn((
         ButtonBundle {
             style: Style {
-                padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
+                padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
                 width: Val::Percent(100.0),
@@ -1049,6 +1063,10 @@ pub fn grove_btn_label(s: &LocalSettings) -> String {
     format!("Grove · {g}")
 }
 
+pub fn lan_btn_label(s: &LocalSettings) -> String {
+    format!("LAN · {}", s.lan_label())
+}
+
 pub fn sticks_btn_label(s: &LocalSettings) -> String {
     format!("Sticks · {}", s.on_screen_sticks)
 }
@@ -1088,6 +1106,7 @@ fn refresh_local_settings_labels(
         Query<&mut Text, With<SettingsBrightnessLabel>>,
         Query<&mut Text, With<SettingsTextScaleLabel>>,
         Query<&mut Text, With<SettingsGroveLabel>>,
+        Query<&mut Text, With<SettingsLanLabel>>,
     )>,
 ) {
     if !label.settings_open {
@@ -1101,6 +1120,7 @@ fn refresh_local_settings_labels(
     let bright = brightness_btn_label(s);
     let scale = text_scale_btn_label(s);
     let grove = grove_btn_label(s);
+    let lan = lan_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
     for mut text in &mut texts.p0() {
         set_btn_section_text(&mut text, &look);
@@ -1130,6 +1150,10 @@ fn refresh_local_settings_labels(
         set_btn_section_text(&mut text, &grove);
         set_btn_section_font(&mut text, font);
     }
+    for mut text in &mut texts.p7() {
+        set_btn_section_text(&mut text, &lan);
+        set_btn_section_font(&mut text, font);
+    }
 }
 
 fn local_settings_clicks(
@@ -1142,6 +1166,7 @@ fn local_settings_clicks(
     bright: Query<&Interaction, (Changed<Interaction>, With<SettingsBrightnessBtn>)>,
     scale: Query<&Interaction, (Changed<Interaction>, With<SettingsTextScaleBtn>)>,
     grove: Query<&Interaction, (Changed<Interaction>, With<SettingsGroveBtn>)>,
+    lan: Query<&Interaction, (Changed<Interaction>, With<SettingsLanBtn>)>,
     sticks: Query<&Interaction, (Changed<Interaction>, With<SettingsSticksBtn>)>,
     tap_use: Query<&Interaction, (Changed<Interaction>, With<SettingsTapUseBtn>)>,
     sprint: Query<&Interaction, (Changed<Interaction>, With<SettingsSprintBtn>)>,
@@ -1195,6 +1220,13 @@ fn local_settings_clicks(
             changed = true;
         }
     }
+    for i in &lan {
+        if *i == Interaction::Pressed {
+            // P3 — off ↔ loopback. Does not touch Title Online or POWRUSH_NET=on.
+            settings.inner.cycle_lan();
+            changed = true;
+        }
+    }
     for i in &sticks {
         if *i == Interaction::Pressed {
             settings.inner.cycle_on_screen_sticks();
@@ -1216,8 +1248,10 @@ fn local_settings_clicks(
     for i in &online {
         if *i == Interaction::Pressed {
             // Hard refuse — Online never binds a socket from Settings.
+            // LAN is a separate row. Title Online stays grey.
             let _refused = refuse_online_socket_toggle(true);
             debug_assert!(_refused);
+            debug_assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         }
     }
     if changed {
@@ -1746,6 +1780,8 @@ mod tests {
         assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00");
         assert_eq!(grove_btn_label(&s), "Grove · off");
         assert_eq!(s.grove, "off");
+        assert_eq!(lan_btn_label(&s), "LAN · off");
+        assert_eq!(s.lan, "off");
         assert_eq!(SETTINGS_PATH, "data/powrush_settings.json");
     }
 
@@ -1766,6 +1802,7 @@ mod tests {
         s.brightness = 1.25;
         s.text_scale = 1.10;
         s.grove = "light".into();
+        s.lan = "loopback".into();
         let raw = s.to_json().unwrap();
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(mute_btn_label(&back), "Mute · on");
@@ -1775,6 +1812,7 @@ mod tests {
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
         assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10");
         assert_eq!(grove_btn_label(&back), "Grove · light");
+        assert_eq!(lan_btn_label(&back), "LAN · loopback");
     }
 
     #[test]
@@ -1785,6 +1823,22 @@ mod tests {
         assert_eq!(grove_btn_label(&s), "Grove · light");
         s.cycle_grove();
         assert_eq!(grove_btn_label(&s), "Grove · off");
+    }
+
+    #[test]
+    fn p3_lan_row_cycles_off_loopback_online_stays_grey() {
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(lan_btn_label(&s), "LAN · off");
+        assert!(!s.lan_is_loopback());
+        s.cycle_lan();
+        assert_eq!(lan_btn_label(&s), "LAN · loopback");
+        assert!(s.lan_is_loopback());
+        // Grove stays default off. Online stub still hard-refuses. Title does not bind.
+        assert!(!s.grove_is_light());
+        assert!(refuse_online_socket_toggle(true));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        s.cycle_lan();
+        assert_eq!(lan_btn_label(&s), "LAN · off");
     }
 
     #[test]
