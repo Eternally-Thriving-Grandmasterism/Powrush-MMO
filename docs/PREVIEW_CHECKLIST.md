@@ -15,6 +15,8 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 
 **L1 hex sign:** After Settled + book, Settings / Q / Ledger may confirm **this hex admits harm** (default **off**; missing/unknown → off). Reuses standing `declare_lethal`. Confirm without book does nothing. No ton mint. Sanctuary E unchanged. Do not retag `playable-preview`.
 
+**E5 (2026-09-08):** L1 is on main **`7ea48328`** (#295). First hour / no book the harm row **must not arm** — hidden, or *Not your charter* / *the ledger waits* / disabled, is PASS. Lavapipe lethal-off walk: Title readable; Online grey *off (no listen)*; Play → Esc pause (*the yard is waiting*); Settings row *Not your charter* (inert, unclicked); Grove off; LAN off; no listen; nothing on `0.0.0.0`. After Settled + book the row may appear, default **off**. Do not flip it in CI. Do not retag `playable-preview` (`11c577e`). Floor stays `2163551`. **Minutes / OS / GPU / Time** stay blank.
+
 **Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door stays `cargo run -p powrush-client`. Online grey; not a launch candidate.
 
 ## Tick (~15)
