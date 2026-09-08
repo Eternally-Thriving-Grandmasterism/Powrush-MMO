@@ -4,15 +4,13 @@
 //! After-D3: Q plate shows Seal · … when house seals are dressed (heritage string only).
 //! Peace slab speaks Tab only after a first-hour allocate. Contact: info@Rathor.ai
 
-use std::fs;
-
 use bevy::prelude::*;
 
 use shared::hour_two::HourTwoPack;
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
-use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
 use crate::input::{InputMapSet, PlayerInput};
@@ -28,7 +26,7 @@ pub struct FactoryYard {
 
 impl Default for FactoryYard {
     fn default() -> Self {
-        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+        if let Some(raw) = read_hour_two_json() {
             return Self {
                 factory: HourTwoPack::from_json(&raw).factory,
             };

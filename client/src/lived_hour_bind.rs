@@ -1,16 +1,14 @@
 //! client/src/lived_hour_bind.rs
 //! Bind first-hour hands to shared::climate_node::LivedHour.
 //! E tend · I satchel · R 1 flow · R 2 reserve.
-//! Persist: data/powrush_lived_tick.json + data/powrush_shard_climate.json (Phase Q)
+//! Persist: powrush_lived_tick.json + powrush_shard_climate.json in the
+//! OS user-data dir (or `POWRUSH_USER_DIR`). Phase Q.
 //!
-//! Tick path honesty: default `data/powrush_lived_tick.json` is **session persist**
+//! Tick path honesty: default `powrush_lived_tick.json` is **session persist**
 //! (Mode B resume / Continuity) — not Ra-Thor ingest. Keep writing the lived-hour
 //! blob whenever the client needs it. `POWRUSH_INGEST=on` soft-writes a versioned
 //! lattice overlay on the same path; checklist “no tick” means no ingest overlay.
 //! Do not delete the blob. Does not replace harvest_feel or rbe_allocate_choice.
-
-use std::fs;
-use std::path::Path;
 
 use bevy::prelude::*;
 use shared::climate_node::{AllocKind, LivedHour, NodeState, TendResult};
@@ -46,7 +44,7 @@ impl Default for LivedHourBind {
 
 impl LivedHourBind {
     fn load_climate() -> ShardClimate {
-        if let Ok(raw) = fs::read_to_string(SHARD_CLIMATE_PATH) {
+        if let Ok(raw) = shared::user_persist::read_named(SHARD_CLIMATE_PATH) {
             if let Ok(c) = ShardClimate::from_json(&raw) {
                 return c;
             }
@@ -55,7 +53,7 @@ impl LivedHourBind {
     }
 
     fn load_standing() -> ShardStanding {
-        if let Ok(raw) = fs::read_to_string(SHARD_STANDING_PATH) {
+        if let Ok(raw) = shared::user_persist::read_named(SHARD_STANDING_PATH) {
             if let Ok(s) = ShardStanding::from_json(&raw) {
                 return s;
             }
@@ -64,7 +62,7 @@ impl LivedHourBind {
     }
 
     fn load_week() -> WeekAudit {
-        if let Ok(raw) = fs::read_to_string(WEEK_AUDIT_PATH) {
+        if let Ok(raw) = shared::user_persist::read_named(WEEK_AUDIT_PATH) {
             if let Ok(w) = WeekAudit::from_json(&raw) {
                 return w;
             }
@@ -78,7 +76,7 @@ impl LivedHourBind {
         let mut week = Self::load_week();
         week.sync_from_climate(climate.tons_moved, climate.restored_count);
         let climate_slab = Self::compose_slab(&climate, &standing, &week);
-        if let Ok(raw) = fs::read_to_string(LIVED_TICK_PATH) {
+        if let Ok(raw) = shared::user_persist::read_named(LIVED_TICK_PATH) {
             // L3 composite (ingest on) nests hour — Mode B resume still works.
             if let Ok(tick) = LivedTickIngest::from_json(&raw) {
                 if let Some(hour) = tick.hour {
@@ -135,9 +133,6 @@ impl LivedHourBind {
     }
 
     pub fn persist(&self) {
-        if let Some(parent) = Path::new(LIVED_TICK_PATH).parent() {
-            let _ = fs::create_dir_all(parent);
-        }
         // Session persist always: bare LivedHour blob for Continuity (not Ra-Thor ingest).
         // L3: when POWRUSH_INGEST=on, soft-write versioned lattice overlay (nested hour).
         // Checklist "no tick" = no ingest overlay. Never delete the blob. Never block WASD.
@@ -149,17 +144,17 @@ impl LivedHourBind {
                 &self.hour,
             );
         } else if let Ok(json) = self.hour.to_json() {
-            let _ = fs::write(LIVED_TICK_PATH, json);
+            let _ = shared::user_persist::write_named(LIVED_TICK_PATH, json);
         }
         // Soft-fail climate / standing I/O — never block the hour.
         if let Ok(json) = self.climate.to_json() {
-            let _ = fs::write(SHARD_CLIMATE_PATH, json);
+            let _ = shared::user_persist::write_named(SHARD_CLIMATE_PATH, json);
         }
         if let Ok(json) = self.standing.to_json() {
-            let _ = fs::write(SHARD_STANDING_PATH, json);
+            let _ = shared::user_persist::write_named(SHARD_STANDING_PATH, json);
         }
         if let Ok(json) = self.week.to_json() {
-            let _ = fs::write(WEEK_AUDIT_PATH, json);
+            let _ = shared::user_persist::write_named(WEEK_AUDIT_PATH, json);
         }
     }
 
@@ -352,6 +347,14 @@ mod tests {
         assert_eq!(SHARD_CLIMATE_PATH, "data/powrush_shard_climate.json");
         assert_eq!(SHARD_STANDING_PATH, "data/powrush_shard_standing.json");
         assert_eq!(WEEK_AUDIT_PATH, "data/powrush_week_audit.json");
+        let resolved = shared::user_persist::persist_path(LIVED_TICK_PATH);
+        assert_eq!(
+            resolved.file_name().and_then(|s| s.to_str()),
+            Some("powrush_lived_tick.json")
+        );
+        assert!(shared::user_persist::is_writable_user_dir_rule(&resolved));
+        assert!(!shared::user_persist::is_program_files_path(&resolved));
+        assert!(!resolved.to_string_lossy().contains("f-book"));
     }
 
     #[test]

@@ -121,7 +121,7 @@ impl LivedTickIngest {
 }
 
 fn soft_hour_flags() -> (bool, bool) {
-    let Ok(raw) = fs::read_to_string(HOUR_TWO_DISK) else {
+    let Ok(raw) = crate::user_persist::read_named(HOUR_TWO_DISK) else {
         return (false, false);
     };
     let pack = HourTwoPack::from_json(&raw);
@@ -146,11 +146,8 @@ pub fn soft_write_if_enabled(
 
 /// Soft-write a prepared tick (tests / explicit path). Soft-fail I/O.
 pub fn soft_write_tick(tick: &LivedTickIngest) -> bool {
-    if let Some(parent) = Path::new(LIVED_TICK_INGEST_PATH).parent() {
-        let _ = fs::create_dir_all(parent);
-    }
     match tick.to_json() {
-        Ok(json) => fs::write(LIVED_TICK_INGEST_PATH, json).is_ok(),
+        Ok(json) => crate::user_persist::write_named(LIVED_TICK_INGEST_PATH, json).is_ok(),
         Err(_) => false,
     }
 }

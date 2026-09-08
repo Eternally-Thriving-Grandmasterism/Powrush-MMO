@@ -27,7 +27,7 @@ Two processes, one loopback shard, one climate ledger. Title Online stays grey. 
 
 - Main tip at/after F8 (`powrush-shard` loopback WS live; client outbound only when `POWRUSH_NET=localhost`)
 - Two terminal tabs (or tmux panes) plus one for the shard
-- Separate client CWDs so each House keeps its own L0 `data/` book
+- Separate client books: each process sets `POWRUSH_USER_DIR` to its own directory (cwd `data/` is adopted only when that user dir is empty)
 
 ## 1. Build / run the shard (loopback only)
 

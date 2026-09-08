@@ -1,6 +1,7 @@
 //! D2 Local settings — persist beside house JSON (v23.2.64)
 //!
-//! `data/powrush_settings.json` next to `data/powrush_house.json`.
+//! `powrush_settings.json` next to house JSON in the OS user-data dir
+//! (or `POWRUSH_USER_DIR`). Cwd `data/powrush_settings.json` is adopt-only.
 //! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove · LAN · Controls (I0).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
@@ -10,8 +11,6 @@
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
 
 pub const SETTINGS_PATH: &str = "data/powrush_settings.json";
 pub const SETTINGS_SCHEMA: &str = "powrush_settings_v1";
@@ -427,18 +426,15 @@ impl LocalSettings {
     }
 
     pub fn load_or_default() -> Self {
-        let Ok(raw) = fs::read_to_string(SETTINGS_PATH) else {
+        let Ok(raw) = crate::user_persist::read_named(SETTINGS_PATH) else {
             return Self::default();
         };
         Self::from_json(&raw).unwrap_or_default()
     }
 
     pub fn persist(&self) {
-        if let Some(parent) = Path::new(SETTINGS_PATH).parent() {
-            let _ = fs::create_dir_all(parent);
-        }
         if let Ok(json) = self.to_json() {
-            let _ = fs::write(SETTINGS_PATH, json);
+            let _ = crate::user_persist::write_named(SETTINGS_PATH, json);
         }
     }
 }
@@ -458,6 +454,7 @@ pub fn local_settings_opens_socket(_settings: &LocalSettings) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     #[test]
     fn defaults_match_peace_hour() {

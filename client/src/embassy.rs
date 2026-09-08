@@ -3,8 +3,6 @@
 //! After the Proof Pack, the lamp is live. E Request seat. Dies in Peace.
 //! Contact: info@Rathor.ai
 
-use std::fs;
-
 use bevy::prelude::*;
 
 use shared::embassy::Embassy;
@@ -13,7 +11,7 @@ use shared::hour_two::HourTwoPack;
 use crate::coop_voice::VoiceYard;
 use crate::fabricator::FabricatorYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -25,7 +23,7 @@ pub struct EmbassyYard {
 
 impl Default for EmbassyYard {
     fn default() -> Self {
-        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+        if let Some(raw) = read_hour_two_json() {
             return Self {
                 embassy: HourTwoPack::from_json(&raw).embassy,
             };

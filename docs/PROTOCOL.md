@@ -141,6 +141,8 @@ Join never deletes the local yard. Join never silently overwrites a divergent he
 
 ## L0 disk paths (offline authority)
 
+Filenames stay. The directory is the OS user-data dir (Linux `$XDG_DATA_HOME/powrush` or `~/.local/share/powrush`; Windows `%LOCALAPPDATA%\Powrush`; macOS `~/Library/Application Support/Powrush`), or **`POWRUSH_USER_DIR`** for lab / lavapipe (the directory that holds these files). Cwd `data/` is adopted only when that user dir has no `powrush_*` persist files. Program Files / beside-exe-only is a fail.
+
 | path | role |
 | --- | --- |
 | `data/powrush_house.json` | House name / Unnamed |

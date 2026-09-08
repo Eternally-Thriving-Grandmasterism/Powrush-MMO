@@ -72,7 +72,7 @@ impl AbundanceJourneyEcho {
 }
 
 fn persist_path() -> PathBuf {
-    PathBuf::from(PERSIST_PATH)
+    shared::user_persist::persist_path(PERSIST_PATH)
 }
 
 fn load_blob() -> Option<JourneyPersistBlob> {

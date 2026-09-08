@@ -1,6 +1,7 @@
 //! S2 House naming + D3 seals / heritage caption (v23.2.64)
 //!
-//! Persist beside climate: `data/powrush_house.json`.
+//! Persist: `powrush_house.json` in the OS user-data dir (or `POWRUSH_USER_DIR`).
+//! Cwd `data/powrush_house.json` is the adopt source when the user dir is empty.
 //! Skip → Unnamed House. Never a wall before first E.
 //! D3 (after Settled / skip-named): three skippable Peace-tone seals
 //! (Well · Grove · Ember) — cosmetic silhouettes / labels only.
@@ -11,8 +12,6 @@
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::Path;
 
 pub const HOUSE_PATH: &str = "data/powrush_house.json";
 pub const HOUSE_SCHEMA: &str = "powrush_house_v1";
@@ -299,18 +298,15 @@ impl HouseName {
     }
 
     pub fn load_or_default() -> Self {
-        let Ok(raw) = fs::read_to_string(HOUSE_PATH) else {
+        let Ok(raw) = crate::user_persist::read_named(HOUSE_PATH) else {
             return Self::default();
         };
         Self::from_json(&raw).unwrap_or_default()
     }
 
     pub fn persist(&self) {
-        if let Some(parent) = Path::new(HOUSE_PATH).parent() {
-            let _ = fs::create_dir_all(parent);
-        }
         if let Ok(json) = self.to_json() {
-            let _ = fs::write(HOUSE_PATH, json);
+            let _ = crate::user_persist::write_named(HOUSE_PATH, json);
         }
     }
 }
@@ -491,6 +487,13 @@ mod tests {
     fn house_path_beside_climate() {
         assert_eq!(HOUSE_PATH, "data/powrush_house.json");
         assert!(HOUSE_PATH.starts_with("data/powrush_"));
+        let resolved = crate::user_persist::persist_path(HOUSE_PATH);
+        assert_eq!(
+            resolved.file_name().and_then(|s| s.to_str()),
+            Some("powrush_house.json")
+        );
+        assert!(crate::user_persist::is_writable_user_dir_rule(&resolved));
+        assert!(!crate::user_persist::is_program_files_path(&resolved));
     }
 
     #[test]

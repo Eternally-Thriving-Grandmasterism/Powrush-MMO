@@ -7,8 +7,6 @@
 
 use bevy::prelude::*;
 use serde::Serialize;
-use std::fs;
-use std::path::PathBuf;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::flow_weather::{FlowBand, FlowWeather};
@@ -105,11 +103,7 @@ fn write_lived_tick(
         first_harvest_lived: harvest.first_harvest_lived,
         elapsed: now,
     };
-    let path = PathBuf::from(TICK_PATH);
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
     if let Ok(json) = serde_json::to_string_pretty(&tick) {
-        let _ = fs::write(path, json);
+        let _ = shared::user_persist::write_named(TICK_PATH, json);
     }
 }

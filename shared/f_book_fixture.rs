@@ -1,15 +1,17 @@
 //! F-book — test-only Settled + book fixture (harm row still off).
 //!
 //! On-disk JSON lives at `tests/fixtures/f-book/data/` (repo root), **not**
-//! the stranger door `data/`. Reuses house / hour-two / standing / climate /
-//! week shapes. `declared_lethal` stays false. Week stays tons + restored.
-//! Do not copy these files into the repo `data/` dir.
+//! the stranger door (OS user-data dir / `POWRUSH_USER_DIR`). Reuses house /
+//! hour-two / standing / climate / week shapes. `declared_lethal` stays false.
+//! Week stays tons + restored. Do not copy these files into the repo `data/`
+//! or the stranger user dir.
 //!
-//! Parent lavapipe (temp cwd only):
+//! Parent lavapipe (temp book dir; set the lab override so adopt does not
+//! land F-book in the OS user dir):
 //!   WALK=$(mktemp -d)
 //!   mkdir -p "$WALK/data"
 //!   cp tests/fixtures/f-book/data/*.json "$WALK/data/"
-//!   cd "$WALK" && /path/to/powrush-client
+//!   POWRUSH_USER_DIR="$WALK/data" /path/to/powrush-client
 //! Do not click the harm row. Do not retag playable-preview.
 //! Contact: info@Rathor.ai
 
@@ -105,12 +107,14 @@ pub fn f_book_data_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join(F_BOOK_DATA_REL)
 }
 
-/// Default stranger persist filenames live under `data/`, not the fixture tree.
+/// Default stranger persist filenames are not the fixture tree.
 pub fn fixture_is_not_default_door() -> bool {
     !F_BOOK_DATA_REL.eq("data")
         && !F_BOOK_REL_DIR.eq("data")
         && !HOUSE_PATH.starts_with(F_BOOK_REL_DIR)
         && HOUSE_PATH.starts_with("data/")
+        && !crate::user_persist::is_f_book_fixture_dir(&crate::user_persist::os_user_data_dir())
+        && crate::user_persist::persist_file_name(HOUSE_PATH) == F_BOOK_HOUSE_FILE
 }
 
 /// Harm row for this fixture: Settled + book, lethal still off.
