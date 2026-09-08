@@ -69,7 +69,7 @@ pub mod prelude {
     pub use crate::week_audit::WeekAudit;
     pub use crate::house_name::{HouseName, HOUSE_PATH, UNNAMED};
     pub use crate::local_settings::{LocalSettings, SETTINGS_PATH};
-    pub use crate::pause_ledger_face::{face_from, face_lines, ledger_sash_body, bind_only_before_settled_body, wait_line_before_settled, q_plate_seal_line, LETHAL_DECLARED_LINE, LEDGER_WAITS, NOT_YOUR_CHARTER};
+    pub use crate::pause_ledger_face::{face_from, face_lines, ledger_sash_body, bind_only_before_settled_body, wait_line_before_settled, lethal_sign_eligible, lethal_sign_row, q_plate_seal_line, LETHAL_DECLARED_LINE, HEX_ADMITS_HARM, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER};
     pub use crate::lived_tick_ingest::{ingest_enabled, soft_write_if_enabled, LivedTickIngest, LIVED_TICK_INGEST_PATH};
     pub use crate::powrush_gen::{parse_powrush_gen, light_gen_enabled, PowrushGen, cull_gen_when_plate_open, grove_seed};
     pub use crate::genshare::{GenShare, GENSHARE_PATH, append_genshare, load_genshare};
@@ -303,6 +303,32 @@ mod tests {
         let s = shard_standing::ShardStanding::default();
         assert!(!s.declared_lethal);
         assert_eq!(s.human_hybrid_heat, 0.0);
+    }
+
+    #[test]
+    fn l1_hex_sign_default_off_needs_settled_book_no_ton_mint() {
+        let mut standing = shard_standing::ShardStanding::default();
+        let mut climate = shard_climate::ShardClimate::default();
+        climate.tons_moved = 3;
+        climate.reserve_pool = 1;
+        assert!(!standing.confirm_hex_sign(false, true));
+        assert!(!standing.confirm_hex_sign(true, false));
+        assert!(!standing.declared_lethal);
+        assert!(standing.confirm_hex_sign(true, true));
+        let paid = climate.on_lethal_declare();
+        assert_eq!(paid, 1);
+        assert_eq!(climate.tons_moved, 3);
+        assert!(standing.declared_lethal);
+        assert_eq!(
+            pause_ledger_face::lethal_sign_row(true, true, true, true),
+            pause_ledger_face::HEX_ADMITS_HARM
+        );
+        assert_eq!(hex_protocol::reject_declare_lethal_before_book(false), Err(hex_protocol::RejectCode::NoBook));
+        assert_eq!(
+            hex_protocol::reject_declare_lethal_before_settled(false),
+            Err(hex_protocol::RejectCode::NotCharter)
+        );
+        assert!(!hex_protocol::default_client_listens());
     }
 
     #[test]

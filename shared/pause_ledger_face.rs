@@ -13,6 +13,12 @@ use crate::week_audit::WeekAudit;
 /// Same clause standing uses when lethal is already declared.
 pub const LETHAL_DECLARED_LINE: &str = "lethal is declared — the hex will remember";
 
+/// L1 hex sign (Settings / Q / Ledger confirm). Not a weapon. Default off.
+pub const HEX_ADMITS_HARM: &str = "this hex admits harm";
+
+/// Confirm row while Settled + book and still off.
+pub const HEX_ADMITS_HARM_OFF: &str = "this hex admits harm · off";
+
 /// Pre-charter L press — honest refuse, never blank.
 pub const NOT_YOUR_CHARTER: &str = "Not your charter";
 
@@ -70,6 +76,28 @@ pub fn wait_line_before_settled(charter_live: bool) -> &'static str {
         LEDGER_WAITS
     } else {
         NOT_YOUR_CHARTER
+    }
+}
+
+/// Settled + Hour three / book held — the only moment the hex sign may confirm.
+pub fn lethal_sign_eligible(settled: bool, book_held: bool) -> bool {
+    settled && book_held
+}
+
+/// Settings / Q / Ledger confirm row. Wait copy when Settled+book not held.
+/// Declared → "this hex admits harm". Else off. Never a combat verb.
+pub fn lethal_sign_row(
+    settled: bool,
+    book_held: bool,
+    charter_live: bool,
+    declared: bool,
+) -> &'static str {
+    if !lethal_sign_eligible(settled, book_held) {
+        wait_line_before_settled(charter_live)
+    } else if declared {
+        HEX_ADMITS_HARM
+    } else {
+        HEX_ADMITS_HARM_OFF
     }
 }
 
@@ -228,5 +256,26 @@ mod tests {
         let settled = ledger_sash_body(true, true, &house, &week(0, 0), false);
         assert!(settled.contains(UNNAMED));
         assert!(!settled.contains("lethal"));
+    }
+
+    #[test]
+    fn l1_sign_default_off_requires_settled_and_book() {
+        assert!(!lethal_sign_eligible(false, false));
+        assert!(!lethal_sign_eligible(true, false));
+        assert!(!lethal_sign_eligible(false, true));
+        assert!(lethal_sign_eligible(true, true));
+        assert_eq!(
+            lethal_sign_row(false, false, false, false),
+            NOT_YOUR_CHARTER
+        );
+        assert_eq!(lethal_sign_row(true, false, true, false), LEDGER_WAITS);
+        assert_eq!(lethal_sign_row(false, true, true, false), LEDGER_WAITS);
+        assert_eq!(
+            lethal_sign_row(true, true, true, false),
+            HEX_ADMITS_HARM_OFF
+        );
+        assert_eq!(lethal_sign_row(true, true, true, true), HEX_ADMITS_HARM);
+        assert!(!HEX_ADMITS_HARM_OFF.to_lowercase().contains("combat"));
+        assert!(!HEX_ADMITS_HARM.contains("kill"));
     }
 }

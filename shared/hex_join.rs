@@ -201,7 +201,10 @@ pub fn join_slice_unparks_server() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hex_protocol::{RejectBody, SnapshotHouse, SnapshotStanding, SnapshotWeek};
+    use crate::hex_protocol::{
+        reject_declare_lethal_before_settled, RejectBody, SnapshotHouse, SnapshotStanding,
+        SnapshotWeek,
+    };
 
     #[test]
     fn reject_declare_lethal_before_book_is_no_book() {
@@ -210,6 +213,11 @@ mod tests {
             Err(RejectCode::NoBook)
         );
         assert_eq!(reject_declare_lethal_before_book(true), Ok(()));
+        assert_eq!(
+            reject_declare_lethal_before_settled(false),
+            Err(RejectCode::NotCharter)
+        );
+        assert_eq!(reject_declare_lethal_before_settled(true), Ok(()));
     }
 
     #[test]

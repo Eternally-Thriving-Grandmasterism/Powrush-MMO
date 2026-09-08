@@ -17,8 +17,8 @@ One cold stranger. Same binary. Same card. No second HUD. No server.
    See `docs/PHASE_Q.md` · `docs/PHASE_R.md` · R+ feel in CHANGELOG 23.2.38.
 5. **Week line** — *this week · N tons · M restored*. Score is tons + restored only.  
    See `docs/PHASE_S.md`.
-6. **Optional lethal** — after the book, open Ledger (L) · Digit3 DeclaredLethal. Never default E.  
-   See `docs/PHASE_LETHAL.md`. Peace hour has **no** lethal UI.
+6. **Optional lethal** — after Settled + book, Settings or Ledger (L) · Digit3 confirm **this hex admits harm** (default off). Never default E.  
+   See `docs/PHASE_LETHAL.md`. Peace hour has **no** lethal UI. L1 is a sign, not a weapon.
 
 ## Mythic (read-first, after book + seat)
 

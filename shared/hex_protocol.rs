@@ -230,6 +230,7 @@ pub struct SnapshotStanding {
     pub consumption: f32,
     pub steward: f32,
     pub human_hybrid_heat: f32,
+    #[serde(default)]
     pub declared_lethal: bool,
     #[serde(default)]
     pub tariff_paid: u32,
@@ -301,6 +302,15 @@ pub fn reject_declare_lethal_before_book(hour_three_held: bool) -> Result<(), Re
         Ok(())
     } else {
         Err(RejectCode::NoBook)
+    }
+}
+
+/// declare_lethal before Settled (hour two held) → NOT_CHARTER.
+pub fn reject_declare_lethal_before_settled(hour_two_held: bool) -> Result<(), RejectCode> {
+    if hour_two_held {
+        Ok(())
+    } else {
+        Err(RejectCode::NotCharter)
     }
 }
 
@@ -383,6 +393,12 @@ mod tests {
         );
         assert_eq!(reject_declare_lethal_before_book(true), Ok(()));
         assert_eq!(RejectCode::NoBook.as_str(), "NO_BOOK");
+        assert_eq!(
+            reject_declare_lethal_before_settled(false),
+            Err(RejectCode::NotCharter)
+        );
+        assert_eq!(reject_declare_lethal_before_settled(true), Ok(()));
+        assert_eq!(RejectCode::NotCharter.as_str(), "NOT_CHARTER");
     }
 
     #[test]

@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.70] — 2026-09-08 — L1: DeclareLethal hex sign (this hex admits harm)
+
+After Settled + book, the human may optionally confirm lethal on **this hex only**. Confirm lives on Settings and the existing Q/Ledger face: **this hex admits harm** (default **off**; missing/unknown → off). Reuses `ShardStanding::declare_lethal` / `clear_lethal` — no second flag. Confirm without Settled + book does nothing; the plate says *the ledger waits* / *Not your charter*. Tariff may raise stress / dent harmony on that hex only; week stays tons + restored (no ton mint). Peace yard and Sanctuary **E** unchanged. No combat as default Use. No new Peace keys. Title Online stays grey. LAN row stays off|loopback (default off). `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0. L1 is a sign, not a weapon.
+
 ## [23.2.69] — 2026-09-08 — P3: Settings LAN off / loopback
 
 Settings plate **LAN · off|loopback** persists beside Grove in `data/powrush_settings.json` (default **off**; missing/unknown/`on` → off). Loopback reuses the existing F8 localhost door: listen/bind **127.0.0.1** only (`127.0.0.1:7788`), never `0.0.0.0`, never a public bind, never `POWRUSH_NET=on` from Title. Title Online stays grey and does not bind; Settings Online stub hard-refuse stays. LAN off boots exactly as today — no listen, no outbound. Loopback may send the existing L0 GenShare line + climate only. No fake peers, no player counts, no combat, no birds, no default Grove, no Depths mesh, no XP, no second Camera3d. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.

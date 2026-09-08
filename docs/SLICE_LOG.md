@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — L1: DeclareLethal hex sign (this hex admits harm)
+
+```
+slice: L1 DeclareLethal as a sign on one hex
+idea: after Settled + book the human may optionally confirm lethal on THIS hex only; confirm lives on Settings + existing Q/Ledger face (copy this hex admits harm · off); default declared_lethal false (missing/unknown → off); stranger boot stays lethal off; reuse ShardStanding::declare_lethal / clear_lethal (no second flag); confirm without Settled+book no-ops and the plate says the ledger waits / not your charter; tariff may raise stress / dent harmony on that hex only; week stays tons+restored (no ton mint); Peace yard / Sanctuary E / no combat as default Use / no new Peace keys / no XP / no birds / no Title Online bind / Online grey / no Depths mesh / no fake peers; LAN row stays off|loopback default off (never 0.0.0.0); Pause and Title stay above world; playable-preview stays 11c577e; floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty; L1 is a sign, not a weapon
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-08 — P3: Settings LAN off / loopback
 
 ```

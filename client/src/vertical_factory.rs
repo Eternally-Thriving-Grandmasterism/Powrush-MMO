@@ -18,7 +18,7 @@ use crate::soft_play_bindings;
 use crate::input::{InputMapSet, PlayerInput};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::title_screen::HouseLabel;
-use shared::pause_ledger_face::q_plate_seal_line;
+use shared::pause_ledger_face::{lethal_sign_row, q_plate_seal_line, HEX_ADMITS_HARM};
 
 /// Client wrap. Shared `VerticalFactory` stays Bevy-free (same as HourSacred / SpaceSession).
 #[derive(Resource, Debug, Clone)]
@@ -140,9 +140,20 @@ fn update_factory_slab(
     mut text_q: Query<&mut Text, With<FactorySlabText>>,
 ) {
     let ready = bind
+        .as_ref()
         .map(|b| {
             SpaceSession::hour_two_door_ready(b.hour.allocation.flow, b.hour.allocation.reserve)
         })
+        .unwrap_or(false);
+    let settled = hour.complete
+        || ledger
+            .as_ref()
+            .and_then(|l| l.board.open())
+            .map(|c| c.state == shared::ledger_bind::ContractState::Settled)
+            .unwrap_or(false);
+    let declared = bind
+        .as_ref()
+        .map(|b| b.standing.declared_lethal)
         .unwrap_or(false);
     let pack = HourTwoPack {
         session: hour.session.clone(),
@@ -181,6 +192,13 @@ fn update_factory_slab(
             }
         }
     }
+    // L1 hex sign — Settled + book only. Wait copy stays on Ledger/Settings, not Q.
+    if settled && hour.hour_three_complete {
+        let sign = lethal_sign_row(true, true, true, declared);
+        if !line.contains(HEX_ADMITS_HARM) {
+            line = format!("{line} · {sign}");
+        }
+    }
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -217,5 +235,20 @@ mod tests {
         house.set_seals(&[SEAL_WELL]);
         house.confirm_seals();
         assert_eq!(q_plate_seal_line(&house).as_deref(), Some("Seal · Well"));
+    }
+
+    #[test]
+    fn q_plate_hex_sign_only_after_settled_and_book() {
+        use shared::pause_ledger_face::{HEX_ADMITS_HARM_OFF, LEDGER_WAITS};
+        assert_eq!(
+            lethal_sign_row(false, false, false, false),
+            shared::pause_ledger_face::NOT_YOUR_CHARTER
+        );
+        assert_eq!(lethal_sign_row(true, false, true, false), LEDGER_WAITS);
+        assert_eq!(
+            lethal_sign_row(true, true, true, false),
+            HEX_ADMITS_HARM_OFF
+        );
+        assert_eq!(lethal_sign_row(true, true, true, true), HEX_ADMITS_HARM);
     }
 }

@@ -62,7 +62,7 @@ impl GuidanceObjective {
             GuidanceObjective::HourThreeHeld => "Hour three · the book is yours",
             GuidanceObjective::FeelFirstEpiphany => "The field answers",
             GuidanceObjective::MeetCouncilWhisper => "The field answers",
-            GuidanceObjective::FreeExploration => "Ledger 3 optional · not default E",
+            GuidanceObjective::FreeExploration => "this hex admits harm · optional",
         }
     }
 
@@ -587,7 +587,7 @@ mod tests {
         assert!(hour_two.len() < 48);
 
         let after_book = GuidanceObjective::FreeExploration.prompt();
-        assert!(after_book.contains("Ledger 3") || after_book.contains("optional"));
+        assert!(after_book.contains("this hex admits harm") || after_book.contains("optional"));
         assert!(!after_book.to_lowercase().contains("combat"));
         assert!(after_book.len() < 48);
 
