@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — E5: L1 receipt 7ea48328 (lethal-off walk, minutes blank)
+
+```
+slice: E5 L1 receipt 7ea48328 (lethal-off walk)
+idea: docs only; L1 DeclareLethal hex sign is on main merge 7ea48328 (#295; slice head d212313); after Settled + book only, Settings/Q/Ledger may show this hex admits harm, default off; reuses ShardStanding::declare_lethal / clear_lethal; no tons minted; Sanctuary E unchanged; first hour / no book the row must not arm — hidden, or visible as Not your charter / the ledger waits / disabled, is PASS; lavapipe lethal-off walk 2026-09-08: Title readable; Online · off (no listen); Play then Esc pause (the yard is waiting); Settings row Not your charter (inert, unclicked); Grove off; LAN off; no listen; nothing on 0.0.0.0; lethal could not be enabled; playable-preview stays 11c577e; floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty; minutes/OS/GPU/Time not a bot field (HOUR_TWO_PLAYTEST left blank); no public Online; no Depths mesh; no birds; no XP; no sockets; no client/shared/Cargo
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: walked-lethal-off
+```
+
+
+
 ## 2026-09-08 — L1: DeclareLethal hex sign (this hex admits harm)
 
 ```

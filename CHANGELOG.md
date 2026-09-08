@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.71] — 2026-09-08 — E5: L1 receipt 7ea48328 (lethal-off walk, minutes blank)
+
+Docs only: L1 hex sign is on main `7ea48328` (#295). After Settled + book, *this hex admits harm* stays default **off**; no ton mint; Sanctuary E unchanged. First hour the row must not arm — lavapipe walk saw *Not your charter* (inert, unclicked). Online grey; no listen; nothing on `0.0.0.0`. `playable-preview` stays `11c577e`. Floor stays `2163551`. Minutes / OS / GPU / Time left blank. Workspace stays 21.88.0.
+
 ## [23.2.70] — 2026-09-08 — L1: DeclareLethal hex sign (this hex admits harm)
 
 After Settled + book, the human may optionally confirm lethal on **this hex only**. Confirm lives on Settings and the existing Q/Ledger face: **this hex admits harm** (default **off**; missing/unknown → off). Reuses `ShardStanding::declare_lethal` / `clear_lethal` — no second flag. Confirm without Settled + book does nothing; the plate says *the ledger waits* / *Not your charter*. Tariff may raise stress / dent harmony on that hex only; week stays tons + restored (no ton mint). Peace yard and Sanctuary **E** unchanged. No combat as default Use. No new Peace keys. Title Online stays grey. LAN row stays off|loopback (default off). `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0. L1 is a sign, not a weapon.
