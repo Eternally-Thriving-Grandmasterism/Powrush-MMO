@@ -1,5 +1,12 @@
 # Audio Assets
 
+## U4 Peace yard
+
+- Bed (loop): `assets/audio/peace_yard_bed.ogg` — quiet two-partial drone.
+- Well sting: `assets/audio/peace_well_sting.ogg` — soft short triad on existing well Use.
+- Generate: `bash scripts/gen_peace_yard_audio.sh`
+- Mute is the existing pause/Settings row. Missing files must never block Use or hang boot.
+
 ## First-hour sting
 
 - Path loaded by harvest nodes: `assets/audio/mercy_harvest_sting.ogg`

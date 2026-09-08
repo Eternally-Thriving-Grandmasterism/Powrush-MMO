@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U4: Peace yard audio bed + well sting
+
+```
+slice: U4 Peace yard audio bed + well sting
+idea: quiet bed while InYard + well sting on existing well Use (SoftRbePool harvests/tends from E take / hold-E tend); existing Mute · (LocalSettings.mute / MasterMute) silences both — no second mute, no F-row, no new settings plate; muted persist must not blast; no ALSA card: fast /proc/asound probe, disable AudioPlugin so boot cannot hang (lavapipe); unmute does not open a socket; Title Online stays grey (no listen); LAN default off; no public bind; no 0.0.0.0; no Depths as boot; no Always allow; Heartwood stays a stub (lamp disk empty, same Peace E, no hanging mesh); isolation gamma stays 0; Sanctuary stays isolated; do not couple tons, seeds, or declared_lethal across hexes; house book survives hex travel; Places hidden / Not your charter until Settled+book; do not enable the harm row; declared_lethal stays false; do not retag playable-preview (stays 11c577e); floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty; Ra-Thor does not drive WASD
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-08 — U3: Heartwood lamp spatial rules
 
 ```

@@ -4,18 +4,28 @@
 
 use bevy::prelude::*;
 use powrush_client::PowrushClientBundle;
+use shared::peace_audio::audio_output_safe;
 
 fn main() {
+    // Lavapipe / Deck boxes often have no ALSA card. DefaultPlugins'
+    // AudioPlugin talks to rodio/cpal — skip it when the fast probe
+    // says there is no output so boot cannot hang. Mute is a later gate.
+    let window = WindowPlugin {
+        primary_window: Some(Window {
+            title: "Powrush-MMO — first hour".into(),
+            ..default()
+        }),
+        ..default()
+    };
+    let default_plugins = if audio_output_safe() {
+        DefaultPlugins.set(window)
+    } else {
+        DefaultPlugins
+            .set(window)
+            .disable::<bevy::audio::AudioPlugin>()
+    };
     App::new()
-        .add_plugins(
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Powrush-MMO — first hour".into(),
-                    ..default()
-                }),
-                ..default()
-            }),
-        )
+        .add_plugins(default_plugins)
         .add_plugins(PowrushClientBundle)
         .add_systems(Startup, spawn_sun_and_camera)
         .run();

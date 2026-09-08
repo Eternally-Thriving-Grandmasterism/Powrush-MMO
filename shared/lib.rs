@@ -20,6 +20,7 @@ pub mod hex_travel;
 pub mod heartwood_lamp;
 pub mod house_name;
 pub mod local_settings;
+pub mod peace_audio;
 pub mod title_house_proof;
 pub mod pause_ledger_face;
 pub mod lived_tick_ingest;
@@ -78,6 +79,7 @@ pub mod prelude {
     pub use crate::heartwood_lamp::{try_place_building, BuildRefuse, HeartwoodYard};
     pub use crate::house_name::{HouseName, HOUSE_PATH, UNNAMED};
     pub use crate::local_settings::{LocalSettings, SETTINGS_PATH};
+    pub use crate::peace_audio::{audio_output_safe, PeaceVoice};
     pub use crate::pause_ledger_face::{face_from, face_lines, ledger_sash_body, bind_only_before_settled_body, wait_line_before_settled, lethal_sign_eligible, lethal_sign_row, q_plate_seal_line, LETHAL_DECLARED_LINE, HEX_ADMITS_HARM, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER};
     pub use crate::lived_tick_ingest::{ingest_enabled, soft_write_if_enabled, LivedTickIngest, LIVED_TICK_INGEST_PATH};
     pub use crate::powrush_gen::{parse_powrush_gen, light_gen_enabled, PowrushGen, cull_gen_when_plate_open, grove_seed};
@@ -361,6 +363,28 @@ mod tests {
         assert!(!heartwood_lamp::embassy_lamp_is_spatial_gate());
         assert!(!heartwood_lamp::heartwood_mesh_on_sanctuary());
         assert_eq!(hex_travel::ISOLATION_GAMMA, 0.0);
+    }
+
+    #[test]
+    fn u4_mute_silences_bed_and_sting_unmute_opens_no_socket() {
+        use peace_audio::PeaceVoice;
+        let mut settings = local_settings::LocalSettings::peace_defaults();
+        settings.mute = true;
+        let mut voice = PeaceVoice::from_settings(&settings, true);
+        voice.set_in_yard(true);
+        assert!((voice.bed_gain() - 0.0).abs() < f32::EPSILON);
+        assert!(voice.note_well_use(1, 1));
+        assert!((voice.take_sting() - 0.0).abs() < f32::EPSILON);
+        voice.set_mute(false);
+        assert!(voice.should_play_bed());
+        assert!(voice.note_well_use(2, 1));
+        assert!(voice.take_sting() > 0.0);
+        assert!(!voice.opens_socket());
+        assert!(!peace_audio::peace_audio_opens_socket(&voice));
+        assert!(peace_audio::title_online_stays_grey());
+        assert!(!hex_protocol::default_client_listens());
+        assert_eq!(hex_travel::ISOLATION_GAMMA, 0.0);
+        assert!(!shard_standing::ShardStanding::default().declared_lethal);
     }
 
     #[test]

@@ -31,6 +31,7 @@ pub mod soft_play_bindings;
 pub mod first_session_guidance;
 pub mod first_hour_camera;
 pub mod harvest_feel;
+pub mod peace_audio;
 pub mod first_harvest_epiphany;
 pub mod mercy_harvest_nodes;
 pub mod climate_visible;
@@ -128,6 +129,8 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(harvest_feel::HarvestFeelPlugin);
         app.add_plugins(world_answer::WorldAnswerPlugin);
         app.add_plugins(first_harvest_epiphany::FirstHarvestEpiphanyPlugin);
+        // After FirstHarvest so the same-frame well Use credits the sting.
+        app.add_plugins(peace_audio::PeaceAudioPlugin);
         app.add_plugins(human_inventory::HumanInventoryPlugin);
         app.add_plugins(local_session_persist::LocalSessionPersistPlugin);
         app.add_plugins(first_whisper::FirstWhisperPlugin);

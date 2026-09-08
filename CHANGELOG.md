@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.78] — 2026-09-08 — U4: Peace yard audio bed + well sting
+
+Quiet Peace-yard bed plus a well sting on the existing well Use. Pause/Settings Mute silences both; unmuted does not open a socket. No ALSA card: AudioPlugin stays off so boot cannot hang. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
+
 ## [23.2.77] — 2026-09-08 — U3: Heartwood lamp spatial rules
 
 Heartwood hex generation refuses buildings in water and in the lamp disk. The disk stays empty of structures. Embassy lamp stays the house seat cue (display-only on the stub) — not the spatial gate. Same Peace E. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
