@@ -69,7 +69,11 @@ impl Plugin for MercyHarvestNodesPlugin {
             .add_systems(Startup, spawn_mercy_nodes)
             .add_systems(
                 Update,
-                (track_nearby_node, pulse_harvested_nodes, try_soft_harvest_sting),
+                (
+                    track_nearby_node,
+                    pulse_harvested_nodes,
+                    try_soft_harvest_sting,
+                ),
             );
     }
 }
@@ -234,7 +238,21 @@ fn try_soft_harvest_sting(
     realm: Option<Res<SoftPlayerRealm>>,
     mut last: Local<Option<u32>>,
     nodes: Query<&MercyHarvestNode>,
+    voice: Option<Res<crate::peace_audio::PeaceAudioState>>,
+    mute: Option<Res<crate::local_settings::MasterMuteGain>>,
 ) {
+    // U4 owns the well sting on the existing Use. Skip this path when the
+    // Peace mixer is live so take does not double-fire. Still refuse to
+    // blast when mute is on or the box has no output.
+    if voice.is_some() {
+        return;
+    }
+    if mute.map(|m| m.muted || m.gain <= 0.0).unwrap_or(false) {
+        return;
+    }
+    if !shared::peace_audio::audio_output_safe() {
+        return;
+    }
     let Some(entity) = nearby.last_harvested else {
         return;
     };
