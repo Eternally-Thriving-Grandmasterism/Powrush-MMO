@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.67] — 2026-09-08 — Hour-two: welcome-back reward glow (existing slab)
+
+Returning after Hour two held: the existing Welcome slab border breathes once (well/bench glow decay), then rests. First boot stays quiet — no glow without the held pack. No new HUD, verbs, or XP. Peace keys unchanged. Workspace stays 21.88.0.
+
 ## [23.2.66] — 2026-09-07 — Wave P: playable-preview tag receipt (11c577e)
 
 Docs only: steward preview yes; annotated `playable-preview` @ tip `11c577e`; play floor stays `2163551`; Online grey; no GenShare sockets / birds / default Grove from tag alone. Workspace stays 21.88.0.

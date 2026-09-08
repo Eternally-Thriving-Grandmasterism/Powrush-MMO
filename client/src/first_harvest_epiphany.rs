@@ -19,6 +19,7 @@ use crate::lived_hour_support::RbeGlobalState;
 use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
+use crate::ui_above_world::LivedUiPlate;
 use crate::world_answer::{fire_world_answer, AnswerKind, WorldAnswer};
 
 const PROMPT_LINGER: f64 = 2.4;
@@ -32,6 +33,8 @@ pub struct FirstHarvestEpiphany {
     pub first_harvest_lived: bool,
     pub first_epiphany_lived: bool,
     pub welcome_shown: bool,
+    /// Soft border breath on Hour-two welcome-back. Rest at 0 (well/bench decay).
+    pub welcome_glow: f32,
     pub prompt_until: f64,
     pub pulse_until: f64,
     pub pulse_line: String,
@@ -62,6 +65,7 @@ impl Default for FirstHarvestEpiphany {
             first_harvest_lived: false,
             first_epiphany_lived: false,
             welcome_shown: false,
+            welcome_glow: 0.0,
             prompt_until: 9999.0,
             pulse_until: 0.0,
             pulse_line: String::new(),
@@ -226,6 +230,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                 ..default()
             },
             WelcomeBackRoot,
+            LivedUiPlate,
         ))
         .with_children(|p| {
             p.spawn((
@@ -265,6 +270,10 @@ fn maybe_welcome_back(
         return;
     };
     state.welcome_shown = true;
+    // One beat on the existing slab — only when the line names Hour two held.
+    if crate::hour_two_resume::hour_two_welcome_reward(Some(line.as_str())) {
+        state.welcome_glow = 1.0;
+    }
     let now = time.elapsed_seconds_f64();
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
@@ -551,17 +560,43 @@ fn update_harvest_pulse(
 }
 
 fn update_welcome_back(
-    state: Res<FirstHarvestEpiphany>,
+    mut state: ResMut<FirstHarvestEpiphany>,
     time: Res<Time>,
-    mut root: Query<&mut Visibility, With<WelcomeBackRoot>>,
+    mut root: Query<
+        (&mut Visibility, &mut BorderColor, &mut BackgroundColor),
+        With<WelcomeBackRoot>,
+    >,
 ) {
+    // Same decay as well_glow / bench_glow — one breath, then rest.
+    if state.welcome_glow > 0.0 {
+        state.welcome_glow = (state.welcome_glow - time.delta_seconds() * 0.55).max(0.0);
+    }
     let show = welcome_visible(&state, time.elapsed_seconds_f64());
-    for mut vis in &mut root {
+    let glow = state.welcome_glow;
+    for (mut vis, mut border, mut bg) in &mut root {
         *vis = if show {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
+        if show {
+            // Rest colors stay the existing welcome card; lift matches well_glow.
+            let a = 0.40 + glow * 0.40;
+            *border = Color::srgba(
+                (0.70 + glow * 0.20).min(1.0),
+                (0.82 + glow * 0.16).min(1.0),
+                (0.95 + glow * 0.04).min(1.0),
+                a,
+            )
+            .into();
+            *bg = Color::srgba(
+                0.05 + glow * 0.08,
+                0.07 + glow * 0.10,
+                0.10 + glow * 0.06,
+                0.88,
+            )
+            .into();
+        }
     }
 }
 
@@ -611,5 +646,16 @@ mod tests {
         assert!(line.contains("yard remembers"));
         assert!(line.contains("climate"));
         assert!(!line.to_lowercase().contains("lethal"));
+        assert!(crate::hour_two_resume::hour_two_welcome_reward(Some(
+            line.as_str()
+        )));
+    }
+
+    #[test]
+    fn first_boot_welcome_glow_stays_quiet() {
+        let s = FirstHarvestEpiphany::default();
+        assert!(!s.welcome_shown);
+        assert_eq!(s.welcome_glow, 0.0);
+        assert!(!crate::hour_two_resume::hour_two_welcome_reward(None));
     }
 }
