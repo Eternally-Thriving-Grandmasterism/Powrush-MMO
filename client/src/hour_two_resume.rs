@@ -4,6 +4,12 @@
 //! Pure sentences. Client welcome slab and tests share this.
 //! Contact: info@Rathor.ai
 
+/// Soft reward beat only when the welcome line names Hour two held.
+/// First boot (`None`) and other echoes stay mute — no glow without the held pack.
+pub fn hour_two_welcome_reward(line: Option<&str>) -> bool {
+    line.map(|s| s.contains("Hour two held")).unwrap_or(false)
+}
+
 /// Welcome slab copy. None = stay quiet (first boot, empty echo).
 pub fn welcome_line(
     hour_three_held: bool,
@@ -57,5 +63,25 @@ mod tests {
     #[test]
     fn first_boot_stays_quiet() {
         assert_eq!(welcome_line(false, false, false, None), None);
+        assert!(!hour_two_welcome_reward(None));
+    }
+
+    #[test]
+    fn hour_two_held_line_earns_reward_glow() {
+        let line = welcome_line(false, true, false, None).unwrap();
+        assert!(hour_two_welcome_reward(Some(line.as_str())));
+        assert!(line.contains("Hour two held"));
+        assert!(line.contains("the yard remembers"));
+    }
+
+    #[test]
+    fn other_welcome_lines_stay_mute() {
+        let three = welcome_line(true, true, false, None).unwrap();
+        assert!(!hour_two_welcome_reward(Some(three.as_str())));
+        let sealed = welcome_line(false, false, true, None).unwrap();
+        assert!(!hour_two_welcome_reward(Some(sealed.as_str())));
+        let echo = welcome_line(false, false, false, Some("tend")).unwrap();
+        assert!(!hour_two_welcome_reward(Some(echo.as_str())));
+        assert!(!hour_two_welcome_reward(None));
     }
 }

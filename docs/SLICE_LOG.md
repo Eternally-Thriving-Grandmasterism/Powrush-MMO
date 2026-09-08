@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — Hour-two welcome-back reward glow (existing slab)
+
+```
+slice: Hour-two welcome-back reward glow (existing slab)
+idea: when welcome_line contains Hour two held, existing WelcomeBack slab border breathes once (well_glow/bench_glow decay 0.55, rest colors of the same card) then rests; hour_two_welcome_reward pure helper; first boot None and other echoes stay mute; LivedUiPlate on that slab only; no second HUD, no new verbs, no XP, no harvest_feel/rbe_allocate_choice rewrite; floor stays 2163551; workspace 21.88.0
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — Wave P: playable-preview tag receipt (11c577e)
 
 ```
