@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.72] — 2026-09-08 — F-book: Settled+book fixture (harm row off, test-only)
+
+Test-only Settled + hour-three / book fixture at `tests/fixtures/f-book/data/` so a lavapipe walk can see *this hex admits harm · off*. `declared_lethal` stays false; no tons minted; week stays tons + restored. Not written to default `data/`; fresh `cargo run -p powrush-client` still boots first hour. Parent copies the fixture into a temp cwd `data/` — do not copy into the repo door. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
+
 ## [23.2.71] — 2026-09-08 — E5: L1 receipt 7ea48328 (lethal-off walk, minutes blank)
 
 Docs only: L1 hex sign is on main `7ea48328` (#295). After Settled + book, *this hex admits harm* stays default **off**; no ton mint; Sanctuary E unchanged. First hour the row must not arm — lavapipe walk saw *Not your charter* (inert, unclicked). Online grey; no listen; nothing on `0.0.0.0`. `playable-preview` stays `11c577e`. Floor stays `2163551`. Minutes / OS / GPU / Time left blank. Workspace stays 21.88.0.

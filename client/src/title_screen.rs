@@ -1966,6 +1966,13 @@ mod tests {
             lethal_sign_btn_label(true, true, true, true),
             HEX_ADMITS_HARM
         );
+        let (pack, _c, standing, _w, _h) = shared::f_book_fixture::load_f_book_disk();
+        assert!(pack.complete && pack.hour_three_complete);
+        assert!(!standing.declared_lethal);
+        assert_eq!(
+            lethal_sign_btn_label(true, true, true, standing.declared_lethal),
+            HEX_ADMITS_HARM_OFF
+        );
         let mut standing = ShardStanding::default();
         let mut climate = ShardClimate::default();
         climate.tons_moved = 2;

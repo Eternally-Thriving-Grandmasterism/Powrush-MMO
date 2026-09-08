@@ -232,4 +232,31 @@ mod tests {
     fn hour_two_path_is_local() {
         assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
     }
+
+    #[test]
+    fn f_book_fixture_is_not_default_boot() {
+        use shared::f_book_fixture::{
+            fixture_is_not_default_door, load_f_book_disk, F_BOOK_DATA_REL, F_BOOK_REL_DIR,
+        };
+        use shared::pause_ledger_face::{lethal_sign_row, HEX_ADMITS_HARM_OFF};
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+        assert_eq!(F_BOOK_DATA_REL, "tests/fixtures/f-book/data");
+        assert!(!HOUR_TWO_PATH.contains("f-book"));
+        assert!(!HOUR_TWO_PATH.starts_with(F_BOOK_REL_DIR));
+        assert!(fixture_is_not_default_door());
+        let (pack, climate, standing, week, _house) = load_f_book_disk();
+        assert!(pack.complete && pack.hour_three_complete && pack.ledger_settled());
+        assert!(!standing.declared_lethal);
+        assert_eq!(week.tons_moved, climate.tons_moved);
+        assert_eq!(
+            lethal_sign_row(true, true, true, standing.declared_lethal),
+            HEX_ADMITS_HARM_OFF
+        );
+        // Stranger cwd without the copied fixture stays first hour.
+        if !std::path::Path::new(HOUR_TWO_PATH).exists() {
+            let h = HourSacred::load_or_peace();
+            assert!(!h.complete);
+            assert!(!h.hour_three_complete);
+        }
+    }
 }

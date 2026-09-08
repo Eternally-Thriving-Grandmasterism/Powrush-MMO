@@ -14,6 +14,7 @@ pub mod shard_climate;
 pub mod shard_standing;
 pub mod week_audit;
 pub mod stranger_loop_proof;
+pub mod f_book_fixture;
 pub mod house_name;
 pub mod local_settings;
 pub mod title_house_proof;

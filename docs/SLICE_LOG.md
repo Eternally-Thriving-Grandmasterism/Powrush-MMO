@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — F-book: Settled+book fixture (harm row off)
+
+```
+slice: F-book Settled+book fixture (harm row off)
+idea: test-only Settled + hour three / book held JSON under tests/fixtures/f-book/data (reuse house / hour-two / standing / climate / week shapes); core proves row is this hex admits harm · off, declared_lethal false, no ton mint, week tons+restored; not default new-game — stranger cargo run -p powrush-client still first hour (harm row Not your charter / wait / hidden, Online grey, no listen); parent copies fixture into a temp cwd data/ for lavapipe; do not click the row; do not retag playable-preview (11c577e); floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty; HOUR_TWO_PLAYTEST minutes left blank; no public Online; no Depths mesh; no birds; no XP; no 0.0.0.0; Sanctuary E unchanged; no new Peace keys
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: fixture-exists-row-off-not-default
+```
+
+
+
 ## 2026-09-08 — E5: L1 receipt 7ea48328 (lethal-off walk, minutes blank)
 
 ```
