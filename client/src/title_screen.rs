@@ -25,6 +25,7 @@
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
+use bevy::ui::FocusPolicy;
 
 use shared::house_name::{
     continue_cue_when_persist, local_persist_present, HouseName, HOUSE_PATH, HOUSE_SEALS,
