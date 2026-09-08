@@ -86,13 +86,25 @@ fn spawn_embassy_slab(mut commands: Commands) {
         });
 }
 
+fn on_heartwood_stub(travel: Option<&crate::hex_travel::HexTravelState>) -> bool {
+    travel
+        .map(|t| t.current == shared::hex_travel::PlaceId::Heartwood)
+        .unwrap_or(false)
+}
+
 fn mark_embassy_lamp(
     hour: Res<HourSacred>,
     yard: Res<EmbassyYard>,
     voice: Res<VoiceYard>,
     ledger: Res<LedgerYard>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut epi: ResMut<FirstHarvestEpiphany>,
 ) {
+    // Heartwood lamp disk is empty. Do not offer a house seat prompt on the stub.
+    if on_heartwood_stub(travel.as_deref()) {
+        epi.embassy_lamp = false;
+        return;
+    }
     epi.embassy_lamp = hour.complete
         && hour.charter_skin_live()
         && yard.embassy.lamp_live
@@ -116,12 +128,8 @@ fn handle_embassy(
         return;
     }
     // Heartwood stub: lamp disk stays empty. Same Peace E (tend), not Embassy seat.
-    if travel
-        .as_ref()
-        .map(|t| t.current == shared::hex_travel::PlaceId::Heartwood)
-        .unwrap_or(false)
-    {
-        yard.embassy.lamp_live = false;
+    // Do not mutate the house EmbassyYard — persist_pack would then drop the book.
+    if on_heartwood_stub(travel.as_deref()) {
         return;
     }
     yard.embassy.ensure_lamp(&fab.fab.pack);
@@ -150,10 +158,14 @@ fn handle_embassy(
 fn update_embassy_slab(
     hour: Res<HourSacred>,
     yard: Res<EmbassyYard>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut root: Query<&mut Visibility, With<EmbassySlabRoot>>,
     mut text_q: Query<&mut Text, With<EmbassySlabText>>,
 ) {
-    let show = hour.complete && hour.charter_skin_live() && yard.embassy.lamp_live;
+    let show = !on_heartwood_stub(travel.as_deref())
+        && hour.complete
+        && hour.charter_skin_live()
+        && yard.embassy.lamp_live;
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible

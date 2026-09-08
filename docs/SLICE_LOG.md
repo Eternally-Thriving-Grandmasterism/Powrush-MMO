@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U2 fail beat: house book survives Heartwood stub
+
+```
+slice: U2 fail beat house book survives Heartwood stub
+idea: after Settled+book confirm leave Heartwood then Sanctuary, Places stays a live door on both; travel must not drop hour_three_complete or replace the house book / embassy seat with the Heartwood stub (lamp_empty is hex climate, not EmbassyYard); persist_pack keep_house_book_over_hex_stub + mark_hour_three latch; hex climate still only powrush_hex_<id>.json in the U1 user dir; no socket; default new-game still must not drop a Heartwood save; no-book Play still boots Sanctuary only; Places hidden or Not your charter; first hour cannot enter Heartwood; do not click harm row; declared_lethal stays false; Title Online stays grey (no listen); no public bind; no 0.0.0.0; no Depths as boot; no Always allow; Heartwood stays a stub (lamp disk empty, same Peace E, no hanging mesh); isolation gamma stays 0; Sanctuary stays isolated; do not start U3; do not retag playable-preview (stays 11c577e); floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-08 — U2: local hex travel (disk only)
 
 ```
