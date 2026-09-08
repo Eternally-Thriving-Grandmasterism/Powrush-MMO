@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-07 — Wave P: playable-preview tag receipt (11c577e)
+
+```
+slice: Wave P playable-preview tag receipt (11c577e)
+idea: steward preview yes 2026-09-07; annotated git tag playable-preview @ tip 11c577e (tag object e37ed6e; walked I0 #288 + GenShare L0 #290; lavapipe click-clean); play/stranger floor remains 2163551 (G0); Online grey; no public bind; tag alone does not enable GenShare sockets / birds / default Grove on; checklist ticks still ≠ tag (human-cut); docs only; no client/shared/Cargo; no Online socket; no Wave M C
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-07 — GenShare L0 disk (Method A)
 
 ```
