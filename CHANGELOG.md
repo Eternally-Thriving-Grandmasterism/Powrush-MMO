@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.73] — 2026-09-08 — U0: Steam Offline SKU law (docs only)
+
+Docs only: SKU = Steam Offline; full MMO is a second product. Title Online stays *off (no listen)*. LAN default off. Hexes are disk save-slots sharing one House and one House-week footer; per-hex climate; isolation (gamma = 0). Play boots Sanctuary Prime. User-dir persist is install law (U1 implements). `playable-preview` stays `11c577e`. Floor stays `2163551`. Minutes / OS / GPU / Time left blank. Workspace stays 21.88.0.
+
 ## [23.2.72] — 2026-09-08 — F-book: Settled+book fixture (harm row off, test-only)
 
 Test-only Settled + hour-three / book fixture at `tests/fixtures/f-book/data/` so a lavapipe walk can see *this hex admits harm · off*. `declared_lethal` stays false; no tons minted; week stays tons + restored. Not written to default `data/`; fresh `cargo run -p powrush-client` still boots first hour. Parent copies the fixture into a temp cwd `data/` — do not copy into the repo door. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.

@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U0: Steam Offline SKU law (docs only)
+
+```
+slice: U0 Steam Offline SKU law (docs only)
+idea: NEW docs/OFFLINE_SKU.md + NEW docs/STEAM_CHECKLIST.md; SKU = Steam Offline (full MMO is a second product — do not block the first on the second); Title Online · off (no listen); LAN default off (loopback may exist, not the SKU promise); hexes = disk save-slots sharing one House + one House-week footer (sum tons+restored), per-hex climate, not shards on a wire; Sanctuary Prime is the boot hex — Play always boots Sanctuary; Continue loads last hex later (U2); places after Settled+book disk only later slices — Heartwood (Peace), Threshold (look/tend), Market spike only if lethal declared on that hex, Depths one landing; do not ship five Sanctuary clones; do not spawn Heartwood/Depths on Sanctuary; climate isolation Offline 1.0 (gamma = 0); Sanctuary forever isolated unless a later named law; leak tick is U3.5 not U0; never couple lethal/seeds/tons across hexes; user-dir saves are install law (U1 implements) — house/settings/genshare/hex files in a writable user dir not Program Files only; not a server; cloud save later = those JSON files; not in Offline 1.0: public Online, 0.0.0.0, shard wars, GenShare listen, postcard L1, XP bar, race select, Brood Spire on first card, always-on lethal, Pages/deploy from the coding PAT; Peace keys unchanged; Sanctuary E unchanged; lethal is a sign after book, default off, no ton mint; STEAM_CHECKLIST human ticks (store copy offline RBE sanctuary no account, release build, writable user-dir persist, age/content Peace default lethal opt-in after book, lavapipe/Deck later); ticking ≠ retag; do not fill HOUR_TWO_PLAYTEST minutes/OS/GPU/Time; bot does not create a Steam partner account; playable-preview stays 11c577e until a human names a Steam retag; floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty / legal-product claims; docs only; no client/shared/Cargo; do not run lavapipe; do not retag
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-08 — F-book: Settled+book fixture (harm row off)
 
 ```
