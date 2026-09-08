@@ -4,15 +4,13 @@
 //! Mend/Lane refresh the week audit slab (tons + restored). Soft bench light (S+). Dies in Peace.
 //! Contact: info@Rathor.ai
 
-use std::fs;
-
 use bevy::prelude::*;
 
 use shared::fabricator::Fabricator;
 use shared::hour_two::HourTwoPack;
 use shared::space_law::HexFlag;
 
-use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
 use crate::input::{InputMapSet, PlayerInput};
@@ -28,7 +26,7 @@ pub struct FabricatorYard {
 
 impl Default for FabricatorYard {
     fn default() -> Self {
-        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+        if let Some(raw) = read_hour_two_json() {
             return Self {
                 fab: HourTwoPack::from_json(&raw).fabricator,
                 bench_glow: 0.0,

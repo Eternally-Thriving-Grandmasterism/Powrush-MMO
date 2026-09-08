@@ -7,8 +7,6 @@
  */
 
 use bevy::prelude::*;
-use std::fs;
-use std::path::PathBuf;
 
 use crate::flow_weather::FlowWeather;
 use crate::human_presence::SoftPresence;
@@ -142,11 +140,7 @@ fn write_practice_peer(time: Res<Time>, mut sim: ResMut<LocalHumanSim>) {
         mercy_note: "Practice file — not a live shard".into(),
         exported_at_secs: now,
     };
-    let path = PathBuf::from(PEER_PATH);
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
     if let Ok(json) = serde_json::to_string_pretty(&env) {
-        let _ = fs::write(path, json);
+        let _ = shared::user_persist::write_named(PEER_PATH, json);
     }
 }

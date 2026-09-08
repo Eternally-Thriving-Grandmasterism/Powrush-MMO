@@ -1,7 +1,8 @@
 //! GenShare Method A — L0 disk recipe (offline, no socket)
 //!
 //! Persist grove seed story beside house/climate:
-//! `data/powrush_genshare.jsonl` — append-only JSONL.
+//! `powrush_genshare.jsonl` in the OS user-data dir (or `POWRUSH_USER_DIR`).
+//! Cwd `data/powrush_genshare.jsonl` is adopt-only.
 //! Recipe = seed story so a peer (later Method B) can rebuild the same yard.
 //! Never stream glTF / mesh floods. Never bind / dial. Dress = seal+heritage
 //! caption only — no combat stats. Prefer with Method D (optional climate
@@ -108,9 +109,9 @@ pub fn append_genshare_at(path: &Path, row: &GenShare) -> bool {
     writeln!(f, "{line}").is_ok()
 }
 
-/// Append one JSON line to [`GENSHARE_PATH`]. Soft-fail.
+/// Append one JSON line to the resolved user-dir [`GENSHARE_PATH`]. Soft-fail.
 pub fn append_genshare(row: &GenShare) -> bool {
-    append_genshare_at(Path::new(GENSHARE_PATH), row)
+    append_genshare_at(&crate::user_persist::persist_path(GENSHARE_PATH), row)
 }
 
 /// Parse all valid GenShare rows from JSONL text (skips blank / corrupt lines).
@@ -202,9 +203,9 @@ pub fn load_genshare_at(path: &Path, hex: &str, house: Option<&str>) -> Option<G
     load_best_from_jsonl(&raw, hex, house)
 }
 
-/// Soft-fail load from [`GENSHARE_PATH`].
+/// Soft-fail load from the resolved user-dir [`GENSHARE_PATH`].
 pub fn load_genshare(hex: &str, house: Option<&str>) -> Option<GenShare> {
-    load_genshare_at(Path::new(GENSHARE_PATH), hex, house)
+    load_genshare_at(&crate::user_persist::persist_path(GENSHARE_PATH), hex, house)
 }
 
 /// Resolve seed for scatter: prefer persisted GenShare seed for house⊕hex,
@@ -216,12 +217,14 @@ pub fn resolve_grove_seed(
     stress: f32,
     path: Option<&Path>,
 ) -> (u64, bool) {
-    let p = path.unwrap_or_else(|| Path::new(GENSHARE_PATH));
-    if let Some(row) = load_genshare_at(p, hex, Some(house)) {
+    let owned = path
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| crate::user_persist::persist_path(GENSHARE_PATH));
+    if let Some(row) = load_genshare_at(&owned, hex, Some(house)) {
         return (row.seed_u64, true);
     }
     // Hex-only fallback (house absent on older rows).
-    if let Some(row) = load_genshare_at(p, hex, None) {
+    if let Some(row) = load_genshare_at(&owned, hex, None) {
         return (row.seed_u64, true);
     }
     (grove_seed_from(house, hex, harmony, stress), false)

@@ -7,8 +7,6 @@
 //! Bind-only / pre-Settled: *Not your charter* / *the ledger waits* — never blank.
 //! Contact: info@Rathor.ai
 
-use std::fs;
-
 use bevy::prelude::*;
 
 use shared::hour_two::HourTwoPack;
@@ -16,7 +14,7 @@ use shared::ledger_bind::{ContractState, LedgerBoard};
 use shared::pause_ledger_face::{ledger_sash_body, lethal_sign_row, HEX_ADMITS_HARM_OFF};
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
@@ -33,7 +31,7 @@ pub struct LedgerYard {
 
 impl Default for LedgerYard {
     fn default() -> Self {
-        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+        if let Some(raw) = read_hour_two_json() {
             return Self {
                 board: HourTwoPack::from_json(&raw).board,
                 sash_open: false,

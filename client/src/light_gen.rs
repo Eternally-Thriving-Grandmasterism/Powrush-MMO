@@ -330,7 +330,7 @@ fn sync_scatter(
         house = house_id,
         hex = hex_id,
         from_disk,
-        path = GENSHARE_PATH,
+        path = %shared::user_persist::persist_path(GENSHARE_PATH).display(),
         "G0 grove scattered (GenShare L0; no physics, no birds, no socket)"
     );
 }

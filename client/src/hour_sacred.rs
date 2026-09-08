@@ -5,8 +5,7 @@
 //! Pack persist keeps factory + I2 + Ledger + fabricator + Embassy across quit.
 //! WASD / E / I / H / R stay the player door. Contact: info@Rathor.ai
 
-use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 
 use bevy::prelude::*;
 
@@ -23,6 +22,16 @@ use crate::vertical_factory::FactoryYard;
 
 pub const HOUR_TWO_PATH: &str = "data/powrush_hour_two.json";
 
+/// Resolved user-dir path for the hour-two / book pack.
+pub fn hour_two_disk() -> PathBuf {
+    shared::user_persist::persist_path(HOUR_TWO_PATH)
+}
+
+/// Soft-read the hour-two pack JSON from the user dir.
+pub fn read_hour_two_json() -> Option<String> {
+    shared::user_persist::read_named(HOUR_TWO_PATH).ok()
+}
+
 #[derive(Resource, Debug, Clone)]
 pub struct HourSacred {
     pub session: SpaceSession,
@@ -38,7 +47,7 @@ impl Default for HourSacred {
 
 impl HourSacred {
     pub fn load_or_peace() -> Self {
-        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+        if let Some(raw) = read_hour_two_json() {
             let pack = HourTwoPack::from_json(&raw);
             return Self {
                 session: pack.session,
@@ -75,11 +84,8 @@ impl HourSacred {
         pack.mark_hour_three();
         self.complete = pack.complete;
         self.hour_three_complete = pack.hour_three_complete;
-        if let Some(parent) = Path::new(HOUR_TWO_PATH).parent() {
-            let _ = fs::create_dir_all(parent);
-        }
         if let Ok(json) = serde_json::to_string_pretty(&pack) {
-            let _ = fs::write(HOUR_TWO_PATH, json);
+            let _ = shared::user_persist::write_named(HOUR_TWO_PATH, json);
         }
     }
 
@@ -252,11 +258,17 @@ mod tests {
             lethal_sign_row(true, true, true, standing.declared_lethal),
             HEX_ADMITS_HARM_OFF
         );
-        // Stranger cwd without the copied fixture stays first hour.
-        if !std::path::Path::new(HOUR_TWO_PATH).exists() {
-            let h = HourSacred::load_or_peace();
-            assert!(!h.complete);
-            assert!(!h.hour_three_complete);
-        }
+        // Stranger first hour is not the F-book pack (empty book ≠ Settled+book).
+        let fresh = HourTwoPack::default();
+        assert!(!fresh.complete);
+        assert!(!fresh.hour_three_complete);
+        assert!(!fresh.ledger_settled());
+        let resolved = hour_two_disk();
+        assert!(!resolved.to_string_lossy().contains("f-book"));
+        assert_eq!(
+            resolved.file_name().and_then(|s| s.to_str()),
+            Some("powrush_hour_two.json")
+        );
+        assert!(shared::user_persist::is_writable_user_dir_rule(&resolved));
     }
 }

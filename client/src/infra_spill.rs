@@ -3,14 +3,12 @@
 //! Offline extractor + spill as readable evidence. Dies in Peace.
 //! Does not teach attack. Contact: info@Rathor.ai
 
-use std::fs;
-
 use bevy::prelude::*;
 
 use shared::hour_two::HourTwoPack;
 use shared::infra_spill::InfraWitness;
 
-use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
 #[derive(Resource, Debug, Clone)]
@@ -20,7 +18,7 @@ pub struct EvidenceYard {
 
 impl Default for EvidenceYard {
     fn default() -> Self {
-        if let Ok(raw) = fs::read_to_string(HOUR_TWO_PATH) {
+        if let Some(raw) = read_hour_two_json() {
             return Self {
                 witness: HourTwoPack::from_json(&raw).witness,
             };

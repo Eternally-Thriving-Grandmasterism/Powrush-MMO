@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.74] — 2026-09-08 — U1: writable user-dir saves
+
+House, settings, GenShare, and the other client `powrush_*` JSON land in a writable OS user-data dir: Linux `$XDG_DATA_HOME/powrush` or `~/.local/share/powrush`; Windows `%LOCALAPPDATA%\Powrush`; macOS `~/Library/Application Support/Powrush`. Lab / lavapipe: `POWRUSH_USER_DIR` (directory that holds the files). Cwd `data/` is adopted only when that user dir is empty of `powrush_*` files. Fresh first boot writes a new house there — not the F-book fixture. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
+
 ## [23.2.73] — 2026-09-08 — U0: Steam Offline SKU law (docs only)
 
 Docs only: SKU = Steam Offline; full MMO is a second product. Title Online stays *off (no listen)*. LAN default off. Hexes are disk save-slots sharing one House and one House-week footer; per-hex climate; isolation (gamma = 0). Play boots Sanctuary Prime. User-dir persist is install law (U1 implements). `playable-preview` stays `11c577e`. Floor stays `2163551`. Minutes / OS / GPU / Time left blank. Workspace stays 21.88.0.

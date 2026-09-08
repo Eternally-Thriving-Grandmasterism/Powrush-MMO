@@ -15,6 +15,7 @@ pub mod shard_standing;
 pub mod week_audit;
 pub mod stranger_loop_proof;
 pub mod f_book_fixture;
+pub mod user_persist;
 pub mod house_name;
 pub mod local_settings;
 pub mod title_house_proof;
@@ -68,6 +69,7 @@ pub mod prelude {
     pub use crate::shard_climate::ShardClimate;
     pub use crate::shard_standing::ShardStanding;
     pub use crate::week_audit::WeekAudit;
+    pub use crate::user_persist::{persist_dir, persist_path, USER_DIR_OVERRIDE_ENV};
     pub use crate::house_name::{HouseName, HOUSE_PATH, UNNAMED};
     pub use crate::local_settings::{LocalSettings, SETTINGS_PATH};
     pub use crate::pause_ledger_face::{face_from, face_lines, ledger_sash_body, bind_only_before_settled_body, wait_line_before_settled, lethal_sign_eligible, lethal_sign_row, q_plate_seal_line, LETHAL_DECLARED_LINE, HEX_ADMITS_HARM, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER};

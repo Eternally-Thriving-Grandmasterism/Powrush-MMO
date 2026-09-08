@@ -110,8 +110,9 @@ fn ensure_abundance_stage_dirs(mirror: Res<SteamAbundanceMirror>) {
     );
 }
 
-fn atomic_stage_copy(src: &str, dest: &Path) -> Result<(), String> {
-    let bytes = fs::read(src).map_err(|e| format!("{src}: {e}"))?;
+fn atomic_stage_copy(src: impl AsRef<Path>, dest: &Path) -> Result<(), String> {
+    let src = src.as_ref();
+    let bytes = fs::read(src).map_err(|e| format!("{}: {e}", src.display()))?;
     if let Some(parent) = dest.parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -134,11 +135,13 @@ fn stage_all(mirror: &mut SteamAbundanceMirror) {
     let mut notes = Vec::new();
     let mut any_ok = false;
 
+    let local_journey = shared::user_persist::persist_path(LOCAL_JOURNEY);
+    let local_lattice = shared::user_persist::persist_path(LOCAL_LATTICE);
     for (src, dest, label) in [
-        (LOCAL_JOURNEY, &os_journey, "journey/os"),
-        (LOCAL_JOURNEY, &portable_journey, "journey/portable"),
-        (LOCAL_LATTICE, &os_lattice, "lattice/os"),
-        (LOCAL_LATTICE, &portable_lattice, "lattice/portable"),
+        (local_journey.as_path(), &os_journey, "journey/os"),
+        (local_journey.as_path(), &portable_journey, "journey/portable"),
+        (local_lattice.as_path(), &os_lattice, "lattice/os"),
+        (local_lattice.as_path(), &portable_lattice, "lattice/portable"),
     ] {
         match atomic_stage_copy(src, dest) {
             Ok(()) => {

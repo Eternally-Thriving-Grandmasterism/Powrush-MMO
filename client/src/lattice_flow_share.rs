@@ -123,7 +123,7 @@ fn export_on_allocate_change(
         exported_at_secs: time.elapsed_seconds_f64(),
     };
 
-    let path = PathBuf::from(SHARE_PATH);
+    let path = shared::user_persist::persist_path(SHARE_PATH);
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -140,8 +140,8 @@ fn export_on_allocate_change(
     }
 }
 
-fn try_read_envelope(path: &str) -> Option<LatticeFlowShareEnvelope> {
-    let bytes = fs::read(path).ok()?;
+fn try_read_envelope(path: impl AsRef<std::path::Path>) -> Option<LatticeFlowShareEnvelope> {
+    let bytes = fs::read(path.as_ref()).ok()?;
     let env: LatticeFlowShareEnvelope = serde_json::from_slice(&bytes).ok()?;
     if env.schema.starts_with("powrush_lattice_flow_share") {
         Some(env)
@@ -157,7 +157,7 @@ fn ambient_peer_poll(mut share: ResMut<LatticeFlowShare>, time: Res<Time>) {
     }
     share.poll_accum = 0.0;
     // Solo first hour: only a *peer* file is presence. Own export stays local.
-    match try_read_envelope(PEER_PATH) {
+    match try_read_envelope(shared::user_persist::persist_path(PEER_PATH)) {
         Some(env) => {
             share.ambient_seen_choices = Some(env.choices_made);
             share.last_peer = Some(env);
@@ -178,7 +178,7 @@ fn soft_peer_ingest(
         return;
     }
 
-    match try_read_envelope(PEER_PATH) {
+    match try_read_envelope(shared::user_persist::persist_path(PEER_PATH)) {
         Some(env) => {
             let note = format!(
                 "A fellow traveler left flow {:.1} · reserve {:.1}",

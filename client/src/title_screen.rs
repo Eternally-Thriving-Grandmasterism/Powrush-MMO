@@ -22,9 +22,6 @@
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //! Contact: info@Rathor.ai
 
-use std::fs;
-use std::path::Path;
-
 use bevy::prelude::*;
 
 use shared::house_name::{
@@ -125,16 +122,16 @@ pub struct HouseLabel {
 impl Default for HouseLabel {
     fn default() -> Self {
         let house = HouseName::load_or_default();
-        let hour_two_held = Path::new(HOUR_TWO_PATH).exists()
-            && fs::read_to_string(HOUR_TWO_PATH)
+        let hour_two_held = shared::user_persist::named_exists(HOUR_TWO_PATH)
+            && shared::user_persist::read_named(HOUR_TWO_PATH)
                 .ok()
                 .and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok())
                 .and_then(|v| v.get("complete").and_then(|c| c.as_bool()))
                 .unwrap_or(false);
         let persist_present = local_persist_present(
-            Path::new(HOUR_TWO_PATH).exists(),
-            Path::new(SHARD_CLIMATE_PATH).exists(),
-            Path::new(SHARD_STANDING_PATH).exists(),
+            shared::user_persist::named_exists(HOUR_TWO_PATH),
+            shared::user_persist::named_exists(SHARD_CLIMATE_PATH),
+            shared::user_persist::named_exists(SHARD_STANDING_PATH),
             house.resolved,
         );
         let seals_offered = house.seals_resolved;

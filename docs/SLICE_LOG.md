@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U1: writable user-dir saves
+
+```
+slice: U1 writable user-dir saves
+idea: House / settings / genshare / other client powrush_* JSON write to OS user-data dir (Linux $XDG_DATA_HOME/powrush or ~/.local/share/powrush; Windows %LOCALAPPDATA%\Powrush; macOS ~/Library/Application Support/Powrush) or POWRUSH_USER_DIR lab override; adopt cwd data/ only when user dir has no powrush_* files so lab walks do not go blank; not Program Files / beside-exe-only; fresh first boot writes a new house in the user dir; do not ship F-book as default new-game / do not copy tests/fixtures/f-book into the stranger door; Title Online stays grey and does not bind; LAN default off; no 0.0.0.0; no public Online; no GenShare listen; no Depths mesh as boot; no fake peers; no XP; no birds; no ton mint; Sanctuary E unchanged; lethal sign default off; playable-preview stays 11c577e; floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty; HOUR_TWO_PLAYTEST minutes left blank; no hex travel (U2); no leak tick; Sanctuary stays the boot hex; no Steamworks account or cloud API; Peace keys unchanged; Pause/Title still above world
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: user-dir-named-not-f-book-online-grey
+```
+
+
+
 ## 2026-09-08 — U0: Steam Offline SKU law (docs only)
 
 ```
