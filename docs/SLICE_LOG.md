@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U3: Heartwood lamp spatial rules
+
+```
+slice: U3 Heartwood lamp spatial rules
+idea: Heartwood hex generation / lamp disk refuses buildings in water and in the lamp disk; disk stays empty of structures; embassy lamp cue stays display-only (not house persist / not the spatial gate); same Peace E; no hanging mesh; no Heartwood mesh on Sanctuary; Title Online stays grey (no listen); LAN default off; no public bind; no 0.0.0.0; no Depths as boot; no Always allow; default new-game still must not drop a Heartwood save; no-book first hour cannot enter Heartwood; Places stays Not your charter / hidden until Settled + book; declared_lethal stays false; do not click the harm row; isolation gamma stays 0; Sanctuary stays isolated; do not couple tons, seeds, or declared_lethal across hexes; house book and hex isolation still hold; do not retag playable-preview (stays 11c577e); floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-08 — U2 fail beat: house book survives Heartwood stub
 
 ```

@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.77] — 2026-09-08 — U3: Heartwood lamp spatial rules
+
+Heartwood hex generation refuses buildings in water and in the lamp disk. The disk stays empty of structures. Embassy lamp stays the house seat cue (display-only on the stub) — not the spatial gate. Same Peace E. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
+
 ## [23.2.76] — 2026-09-08 — U2 fail beat: house book survives Heartwood stub
 
 Travel must not drop `hour_three_complete` or replace the house embassy seat with the Heartwood stub. Places stays a live door on Sanctuary and the stub so confirm leave can go and return. Hex climate still writes only `powrush_hex_<id>.json`. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.

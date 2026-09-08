@@ -17,6 +17,7 @@ pub mod stranger_loop_proof;
 pub mod f_book_fixture;
 pub mod user_persist;
 pub mod hex_travel;
+pub mod heartwood_lamp;
 pub mod house_name;
 pub mod local_settings;
 pub mod title_house_proof;
@@ -74,6 +75,7 @@ pub mod prelude {
     pub use crate::hex_travel::{
         boot_place, confirm_leave, places_eligible, BootKind, PlaceId, ISOLATION_GAMMA,
     };
+    pub use crate::heartwood_lamp::{try_place_building, BuildRefuse, HeartwoodYard};
     pub use crate::house_name::{HouseName, HOUSE_PATH, UNNAMED};
     pub use crate::local_settings::{LocalSettings, SETTINGS_PATH};
     pub use crate::pause_ledger_face::{face_from, face_lines, ledger_sash_body, bind_only_before_settled_body, wait_line_before_settled, lethal_sign_eligible, lethal_sign_row, q_plate_seal_line, LETHAL_DECLARED_LINE, HEX_ADMITS_HARM, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER};
@@ -327,6 +329,38 @@ mod tests {
         assert!(!hex_travel::may_enter(hex_travel::PlaceId::Heartwood, false));
         assert!(hex_travel::travel_is_disk_only());
         assert!(!hex_protocol::default_client_listens());
+    }
+
+    #[test]
+    fn u3_heartwood_lamp_refuses_water_and_disk() {
+        use heartwood_lamp::{
+            try_place_building, BuildRefuse, LAMP_DISK_CENTER, LIP_BUILD_POINT, WATER_POND_CENTER,
+        };
+        assert_eq!(
+            try_place_building(
+                hex_travel::PlaceId::Heartwood,
+                WATER_POND_CENTER[0],
+                WATER_POND_CENTER[1]
+            ),
+            Err(BuildRefuse::Water)
+        );
+        assert_eq!(
+            try_place_building(
+                hex_travel::PlaceId::Heartwood,
+                LAMP_DISK_CENTER[0],
+                LAMP_DISK_CENTER[1]
+            ),
+            Err(BuildRefuse::LampDisk)
+        );
+        assert!(try_place_building(
+            hex_travel::PlaceId::Heartwood,
+            LIP_BUILD_POINT[0],
+            LIP_BUILD_POINT[1]
+        )
+        .is_ok());
+        assert!(!heartwood_lamp::embassy_lamp_is_spatial_gate());
+        assert!(!heartwood_lamp::heartwood_mesh_on_sanctuary());
+        assert_eq!(hex_travel::ISOLATION_GAMMA, 0.0);
     }
 
     #[test]

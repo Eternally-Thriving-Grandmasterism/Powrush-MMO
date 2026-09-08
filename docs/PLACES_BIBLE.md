@@ -21,7 +21,7 @@ Deeper map of surfaces + physics layers: `PHYSICS_GRAPHICS_CANON.md`.
 
 Outward from the living core:
 
-1. **Lamp** — quiet center; teaching light; no lethal UI.
+1. **Lamp** — quiet center; teaching light; no lethal UI. U3 spatial: no buildings in the lamp disk; no buildings in water. Embassy lamp cue stays house display-only.
 2. **Lip** — first working rim; wells and paths the stranger already feels as yard rhyme.
 3. **Wards** — house / charter concern; standing and seals dress here later.
 4. **Teeth** — edged places; scarcity and choice get sharp.

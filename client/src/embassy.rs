@@ -100,7 +100,7 @@ fn mark_embassy_lamp(
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut epi: ResMut<FirstHarvestEpiphany>,
 ) {
-    // Heartwood lamp disk is empty. Do not offer a house seat prompt on the stub.
+    // Heartwood embassy lamp is display-only. Spatial refuse is shared/heartwood_lamp.
     if on_heartwood_stub(travel.as_deref()) {
         epi.embassy_lamp = false;
         return;
@@ -127,8 +127,9 @@ fn handle_embassy(
     if !hour.complete || !hour.charter_skin_live() {
         return;
     }
-    // Heartwood stub: lamp disk stays empty. Same Peace E (tend), not Embassy seat.
-    // Do not mutate the house EmbassyYard — persist_pack would then drop the book.
+    // Heartwood stub: same Peace E (tend), not Embassy seat. Do not mutate the
+    // house EmbassyYard — persist_pack would then drop the book. Lamp disk
+    // buildings are refused in shared/heartwood_lamp, not here.
     if on_heartwood_stub(travel.as_deref()) {
         return;
     }
