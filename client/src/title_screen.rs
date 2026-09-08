@@ -355,14 +355,14 @@ fn spawn_title_screen(mut commands: Commands) {
                 // Opaque dimmer — soft GPU must not alpha-blend menu into fog.
                 background_color: TITLE_DIM_BG.into(),
                 z_index: ZIndex::Global(LIVED_UI_Z_TITLE),
+                // Consume pointer focus across the opaque title door so clicks
+                // in its gaps cannot reach world UI/interactions below it.
+                focus_policy: FocusPolicy::Block,
                 ..default()
             },
             TitleRoot,
             TitleBreath,
             LivedUiPlate,
-            // Consume pointer focus across the opaque title door so clicks in
-            // its gaps cannot reach world UI/interactions below it.
-            FocusPolicy::Block,
         ))
         .with_children(|root| {
             root.spawn((
