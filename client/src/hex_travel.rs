@@ -3,6 +3,7 @@
 //! Places list (Sanctuary / Heartwood) after Settled + book. Confirm leave
 //! writes `powrush_hex_<id>.json` via the U1 user dir and loads the other
 //! place. Heartwood is a stub: lamp disk empty, same Peace E, no hanging mesh.
+//! U3 spatial refuse (water / lamp disk) is shared/heartwood_lamp, not this plate.
 //! Play always boots Sanctuary. Continue without the book boots Sanctuary.
 //! Dedicated Places plate (LivedUiPlate / Camera2d) — not extra Settings rows,
 //! so Title / pause / Settings stay above the world. Sticks cull when open.
@@ -621,5 +622,35 @@ mod tests {
         assert_eq!(on_stub, house.embassy);
         assert_ne!(on_stub, heartwood_stub_embassy());
         assert!(places_eligible(house.complete, house.hour_three_complete));
+    }
+
+    #[test]
+    fn heartwood_lamp_spatial_is_shared_not_embassy_mesh() {
+        use shared::heartwood_lamp::{
+            embassy_lamp_is_spatial_gate, heartwood_mesh_on_sanctuary, hanging_mesh_shipped,
+            try_place_building, BuildRefuse, LAMP_DISK_CENTER, WATER_POND_CENTER,
+        };
+        assert_eq!(
+            try_place_building(
+                PlaceId::Heartwood,
+                WATER_POND_CENTER[0],
+                WATER_POND_CENTER[1]
+            ),
+            Err(BuildRefuse::Water)
+        );
+        assert_eq!(
+            try_place_building(
+                PlaceId::Heartwood,
+                LAMP_DISK_CENTER[0],
+                LAMP_DISK_CENTER[1]
+            ),
+            Err(BuildRefuse::LampDisk)
+        );
+        assert!(!embassy_lamp_is_spatial_gate());
+        assert!(!heartwood_mesh_on_sanctuary());
+        assert!(!hanging_mesh_shipped());
+        assert_eq!(PlaceId::Heartwood.peace_hex(), HexFlag::Peace);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!default_client_listens());
     }
 }

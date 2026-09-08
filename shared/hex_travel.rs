@@ -8,8 +8,9 @@
 //! Travel is another file in the user dir (`powrush_hex_<id>.json`), not a
 //! server. Isolation: gamma = 0. No leak tick. Do not couple tons, seeds, or
 //! declared_lethal across hexes. Heartwood is a stub (lamp disk empty, same
-//! Peace E). Do not drop a Heartwood save on default new-game. F-book is not
-//! the stranger door.
+//! Peace E). U3 spatial refuse (water / lamp disk) lives in `heartwood_lamp` —
+//! not house embassy persist. Do not drop a Heartwood save on default new-game.
+//! F-book is not the stranger door.
 //!
 //! Contact: info@Rathor.ai. Independent of xAI.
 
@@ -120,7 +121,7 @@ pub struct HexClimateFile {
     pub climate: ShardClimate,
     #[serde(default)]
     pub standing: ShardStanding,
-    /// Heartwood stub: embassy lamp disk empty.
+    /// Heartwood stub: lamp disk empty of structures (hex climate, not EmbassyYard).
     #[serde(default)]
     pub lamp_empty: bool,
 }
@@ -225,7 +226,7 @@ pub fn sanctuary_fresh_standing() -> ShardStanding {
     }
 }
 
-/// Heartwood lamp disk is empty (embassy lamp not live on the stub).
+/// Display-only house cue. Spatial refuse is `heartwood_lamp::try_place_building`.
 pub fn heartwood_lamp_empty(embassy: &Embassy) -> bool {
     !embassy.lamp_live
 }
