@@ -62,9 +62,27 @@ impl HourTwoPack {
             && self.ledger_settled();
     }
 
-    /// Hour three is held when Proof Pack is unlocked and one Embassy seat is taken.
+    /// Hour three is a house latch. Once the book is held, a hex stub embassy
+    /// (not seated) must not clear it — travel writes hex climate, not the house book.
     pub fn mark_hour_three(&mut self) {
+        if self.hour_three_complete {
+            return;
+        }
         self.hour_three_complete = self.fabricator.pack.unlocked() && self.embassy.seated;
+    }
+
+    /// Hex stub embassy must not replace the house seat or drop the book flag.
+    /// `prior` is the on-disk house pack before this persist.
+    pub fn keep_house_book_over_hex_stub(&mut self, prior: &HourTwoPack) {
+        if prior.hour_three_complete {
+            self.hour_three_complete = true;
+        }
+        if prior.embassy.seated && !self.embassy.seated {
+            self.embassy = prior.embassy.clone();
+        }
+        if prior.complete {
+            self.complete = true;
+        }
     }
 
     pub fn line(&self, door_ready: bool) -> &'static str {
@@ -149,5 +167,27 @@ mod tests {
         assert!(!p.complete);
         p.mark_hour_three();
         assert!(!p.hour_three_complete);
+    }
+
+    #[test]
+    fn hex_stub_embassy_does_not_unlatch_house_book() {
+        let prior = crate::stranger_loop_proof::hour_three_held_fixture();
+        assert!(prior.hour_three_complete);
+        assert!(prior.embassy.seated);
+        let mut live = prior.clone();
+        live.embassy = crate::embassy::Embassy {
+            lamp_live: false,
+            seated: false,
+            ..Default::default()
+        };
+        live.mark_hour_three();
+        assert!(
+            live.hour_three_complete,
+            "mark_hour_three is a house latch — stub seat must not drop the book"
+        );
+        live.keep_house_book_over_hex_stub(&prior);
+        assert!(live.embassy.seated);
+        assert_eq!(live.embassy, prior.embassy);
+        assert!(live.complete);
     }
 }

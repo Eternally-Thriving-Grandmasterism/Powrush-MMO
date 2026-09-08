@@ -81,6 +81,11 @@ impl HourSacred {
             hour_three_complete: self.hour_three_complete,
         };
         pack.mark_complete();
+        // Hex travel must not persist a Heartwood stub seat over the house book.
+        if let Some(raw) = read_hour_two_json() {
+            let prior = HourTwoPack::from_json(&raw);
+            pack.keep_house_book_over_hex_stub(&prior);
+        }
         pack.mark_hour_three();
         self.complete = pack.complete;
         self.hour_three_complete = pack.hour_three_complete;
@@ -270,5 +275,21 @@ mod tests {
             Some("powrush_hour_two.json")
         );
         assert!(shared::user_persist::is_writable_user_dir_rule(&resolved));
+    }
+
+    #[test]
+    fn persist_pack_keeps_house_book_over_heartwood_stub() {
+        use shared::hex_travel::{heartwood_stub_embassy, places_eligible};
+        use shared::stranger_loop_proof::hour_three_held_fixture;
+        let prior = hour_three_held_fixture();
+        let mut pack = prior.clone();
+        pack.embassy = heartwood_stub_embassy();
+        pack.mark_complete();
+        pack.keep_house_book_over_hex_stub(&prior);
+        pack.mark_hour_three();
+        assert!(pack.hour_three_complete);
+        assert!(pack.embassy.seated);
+        assert_eq!(pack.embassy, prior.embassy);
+        assert!(places_eligible(pack.complete, pack.hour_three_complete));
     }
 }

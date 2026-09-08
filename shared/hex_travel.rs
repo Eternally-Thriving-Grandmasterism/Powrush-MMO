@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::embassy::Embassy;
+use crate::hour_two::HourTwoPack;
 use crate::hex_listen::PowrushNet;
 use crate::hex_protocol::default_client_listens;
 use crate::pause_ledger_face::wait_line_before_settled;
@@ -235,6 +236,18 @@ pub fn heartwood_stub_embassy() -> Embassy {
         seated: false,
         ..Embassy::default()
     }
+}
+
+/// House embassy is house-level. Heartwood `lamp_empty` is hex climate, not a second seat.
+pub fn house_embassy_on_place(house: &Embassy, place: PlaceId) -> Embassy {
+    let _ = place;
+    house.clone()
+}
+
+/// After confirm leave, keep the house HourTwoPack. Hex climate is a different file.
+pub fn house_pack_after_leave(house: &HourTwoPack, dest: PlaceId) -> HourTwoPack {
+    let _ = dest;
+    house.clone()
 }
 
 /// Fresh stub disk for a place. Heartwood lamp empty; Sanctuary lamp not implied.
@@ -743,5 +756,102 @@ mod tests {
             confirm_leave(true, true, PlaceId::Sanctuary, PlaceId::Sanctuary),
             Err(TravelRefuse::SamePlace)
         );
+    }
+
+    #[test]
+    fn house_book_and_embassy_survive_heartwood_leave_and_sanctuary_return() {
+        use crate::f_book_fixture::load_f_book_disk;
+
+        let dir = scratch("book-survive");
+        let (house, climate, standing, _week, _name) = load_f_book_disk();
+        assert!(house.complete && house.hour_three_complete && house.embassy.seated);
+        let house_embassy = house.embassy.clone();
+
+        let loaded = apply_travel_at(
+            &dir,
+            house.complete,
+            house.hour_three_complete,
+            PlaceId::Sanctuary,
+            PlaceId::Heartwood,
+            &climate,
+            &standing,
+        )
+        .expect("leave Heartwood");
+        assert!(loaded.lamp_empty);
+        assert!(!loaded.standing.declared_lethal);
+        assert_eq!(loaded.climate.hex_id, PlaceId::Heartwood.as_str());
+
+        // Fail beat: persist_pack used to swap the stub into the house pack
+        // then mark_hour_three (requires seated) cleared the book.
+        let mut persist = house.clone();
+        persist.embassy = heartwood_stub_embassy();
+        persist.keep_house_book_over_hex_stub(&house);
+        persist.mark_hour_three();
+        assert!(
+            persist.hour_three_complete,
+            "travel must not drop hour_three_complete"
+        );
+        assert!(
+            persist.embassy.seated,
+            "house embassy seat must survive the Heartwood stub"
+        );
+        assert_eq!(persist.embassy, house_embassy);
+        assert!(places_eligible(persist.complete, persist.hour_three_complete));
+        assert_eq!(
+            house_embassy_on_place(&house_embassy, PlaceId::Heartwood),
+            house_embassy
+        );
+        assert_eq!(
+            house_pack_after_leave(&house, PlaceId::Heartwood).embassy,
+            house_embassy
+        );
+
+        let hour_path = dir.join("powrush_hour_two.json");
+        fs::write(
+            &hour_path,
+            serde_json::to_string_pretty(&persist).expect("house json"),
+        )
+        .expect("write house");
+        let on_stub = HourTwoPack::from_json(&fs::read_to_string(&hour_path).expect("read house"));
+        assert!(on_stub.hour_three_complete && on_stub.embassy.seated);
+        assert!(places_eligible(on_stub.complete, on_stub.hour_three_complete));
+
+        let back = apply_travel_at(
+            &dir,
+            persist.complete,
+            persist.hour_three_complete,
+            PlaceId::Heartwood,
+            PlaceId::Sanctuary,
+            &heartwood_stub_climate(),
+            &heartwood_stub_standing(),
+        )
+        .expect("return Sanctuary");
+        assert_eq!(back.hex_id, PlaceId::Sanctuary.as_str());
+        assert!(!back.standing.declared_lethal);
+
+        let mut persist_back = persist.clone();
+        persist_back.embassy = house_embassy_on_place(&persist.embassy, PlaceId::Sanctuary);
+        persist_back.keep_house_book_over_hex_stub(&persist);
+        persist_back.mark_hour_three();
+        assert!(persist_back.hour_three_complete);
+        assert!(persist_back.embassy.seated);
+        assert!(places_eligible(
+            persist_back.complete,
+            persist_back.hour_three_complete
+        ));
+        fs::write(
+            &hour_path,
+            serde_json::to_string_pretty(&persist_back).expect("house json"),
+        )
+        .expect("rewrite house");
+        let returned = HourTwoPack::from_json(&fs::read_to_string(&hour_path).expect("reread"));
+        assert!(returned.hour_three_complete && returned.embassy.seated);
+        assert_eq!(returned.embassy, house_embassy);
+
+        let hw = read_hex_at(&dir, PlaceId::Heartwood).expect("heartwood hex");
+        assert!(hw.lamp_empty);
+        assert!(!hw.standing.declared_lethal);
+        assert_eq!(read_current_at(&dir), Some(PlaceId::Sanctuary));
+        let _ = fs::remove_dir_all(&dir);
     }
 }

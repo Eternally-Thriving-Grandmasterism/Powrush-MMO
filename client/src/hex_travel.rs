@@ -11,7 +11,7 @@
 use bevy::prelude::*;
 
 use shared::hex_travel::{
-    apply_travel_named, boot_place, confirm_leave, heartwood_stub_embassy, house_week_footer,
+    apply_travel_named, boot_place, confirm_leave, house_embassy_on_place, house_week_footer,
     places_eligible, places_row_label, read_current_named, read_hex_named, sanctuary_fresh_climate,
     BootKind, PlaceId, TravelRefuse, LEAVE_CONFIRM, PLACES_ROW, PLACES_TITLE,
 };
@@ -122,12 +122,7 @@ fn apply_place(
     match dest {
         PlaceId::Sanctuary => {
             load_sanctuary_into(bind);
-            if let Some(yard) = embassy.as_deref_mut() {
-                if let Some(raw) = crate::hour_sacred::read_hour_two_json() {
-                    let pack = shared::hour_two::HourTwoPack::from_json(&raw);
-                    yard.embassy = pack.embassy;
-                }
-            }
+            restore_house_embassy(embassy.as_deref_mut());
         }
         PlaceId::Heartwood => {
             let file = read_hex_named(PlaceId::Heartwood)
@@ -135,12 +130,19 @@ fn apply_place(
             bind.climate = file.climate;
             bind.standing = file.standing;
             bind.refresh_climate_slab_keep_week();
-            if let Some(yard) = embassy.as_deref_mut() {
-                yard.embassy = heartwood_stub_embassy();
-            }
+            // Hex lamp_empty is climate. Leave the house EmbassyYard seated.
         }
     }
     maybe_sum_house_week(bind);
+}
+
+fn restore_house_embassy(embassy: Option<&mut EmbassyYard>) {
+    if let Some(yard) = embassy {
+        if let Some(raw) = crate::hour_sacred::read_hour_two_json() {
+            let pack = shared::hour_two::HourTwoPack::from_json(&raw);
+            yard.embassy = house_embassy_on_place(&pack.embassy, PlaceId::Sanctuary);
+        }
+    }
 }
 
 fn load_sanctuary_into(bind: &mut LivedHourBind) {
@@ -495,14 +497,10 @@ fn places_plate_clicks(
                         bind.refresh_climate_slab_keep_week();
                         maybe_sum_house_week(bind);
                         bind.persist();
-                        if let Some(yard) = embassy.as_deref_mut() {
-                            if to == PlaceId::Heartwood {
-                                yard.embassy = heartwood_stub_embassy();
-                            } else if let Some(raw) = crate::hour_sacred::read_hour_two_json() {
-                                yard.embassy =
-                                    shared::hour_two::HourTwoPack::from_json(&raw).embassy;
-                            }
+                        if to == PlaceId::Sanctuary {
+                            restore_house_embassy(embassy.as_deref_mut());
                         }
+                        // Heartwood: leave the house embassy seated. Stub lamp is hex climate.
                     }
                     plate.open = false;
                     plate.selected = None;
@@ -549,8 +547,8 @@ mod tests {
     use shared::hex_listen::PowrushNet;
     use shared::hex_protocol::default_client_listens;
     use shared::hex_travel::{
-        hex_file_name, new_game_writes_heartwood, places_row_or_inert, travel_is_disk_only,
-        CURRENT_HEX_FILE, ISOLATION_GAMMA,
+        heartwood_stub_embassy, hex_file_name, new_game_writes_heartwood, places_row_or_inert,
+        travel_is_disk_only, CURRENT_HEX_FILE, ISOLATION_GAMMA,
     };
     use shared::space_law::HexFlag;
     use shared::user_persist::is_f_book_fixture_dir;
@@ -611,5 +609,17 @@ mod tests {
     fn plate_stays_on_ui_camera_order() {
         assert!(crate::ui_above_world::ui_camera_draws_above_world());
         assert!(crate::ui_above_world::pause_z_above_title());
+    }
+
+    #[test]
+    fn house_embassy_stays_on_heartwood_stub() {
+        use shared::hex_travel::house_embassy_on_place;
+        use shared::stranger_loop_proof::hour_three_held_fixture;
+        let house = hour_three_held_fixture();
+        let on_stub = house_embassy_on_place(&house.embassy, PlaceId::Heartwood);
+        assert!(on_stub.seated);
+        assert_eq!(on_stub, house.embassy);
+        assert_ne!(on_stub, heartwood_stub_embassy());
+        assert!(places_eligible(house.complete, house.hour_three_complete));
     }
 }

@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.76] — 2026-09-08 — U2 fail beat: house book survives Heartwood stub
+
+Travel must not drop `hour_three_complete` or replace the house embassy seat with the Heartwood stub. Places stays a live door on Sanctuary and the stub so confirm leave can go and return. Hex climate still writes only `powrush_hex_<id>.json`. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
+
 ## [23.2.75] — 2026-09-08 — U2: local hex travel (disk only)
 
 After Settled + book, Places (Sanctuary / Heartwood) can confirm leave, write `powrush_hex_<id>.json` into the U1 user dir, and load the other place. Play always boots Sanctuary Prime. Continue without the book still boots Sanctuary. Heartwood is a stub (lamp empty, same Peace E, no hanging mesh). Isolation gamma = 0. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
