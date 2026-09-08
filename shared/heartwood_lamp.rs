@@ -25,6 +25,55 @@ pub const WATER_POND_RADIUS: f32 = 2.0;
 /// Dry Lip sample — buildable on Heartwood, outside water and the lamp.
 pub const LIP_BUILD_POINT: [f32; 2] = [0.0, 6.0];
 
+/// Return point after stepping into the Heartwood pond. It is dry Lip ground,
+/// outside the lamp disk.
+pub const HEARTWOOD_BATH_RETURN: [f32; 2] = LIP_BUILD_POINT;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeartwoodLipKind {
+    WalkwayCapsule,
+    HangingRib,
+}
+
+/// Fixed Heartwood dress. `footprint_radius` encloses the whole mesh in xz,
+/// so validating the footprint (not only its origin) keeps the lamp disk empty.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HeartwoodLipInstance {
+    pub kind: HeartwoodLipKind,
+    pub center: [f32; 3],
+    pub footprint_radius: f32,
+}
+
+/// Two dry walkway capsules and three overhead ribs on the Lip. These are
+/// deterministic fixed dress and do not consume or alter the grove seed.
+pub const HEARTWOOD_LIP_INSTANCES: [HeartwoodLipInstance; 5] = [
+    HeartwoodLipInstance {
+        kind: HeartwoodLipKind::WalkwayCapsule,
+        center: [-1.35, 0.30, 5.20],
+        footprint_radius: 1.40,
+    },
+    HeartwoodLipInstance {
+        kind: HeartwoodLipKind::WalkwayCapsule,
+        center: [1.35, 0.30, 5.20],
+        footprint_radius: 1.40,
+    },
+    HeartwoodLipInstance {
+        kind: HeartwoodLipKind::HangingRib,
+        center: [-2.40, 2.80, 5.20],
+        footprint_radius: 1.55,
+    },
+    HeartwoodLipInstance {
+        kind: HeartwoodLipKind::HangingRib,
+        center: [0.0, 2.95, 5.20],
+        footprint_radius: 1.55,
+    },
+    HeartwoodLipInstance {
+        kind: HeartwoodLipKind::HangingRib,
+        center: [2.40, 2.80, 5.20],
+        footprint_radius: 1.55,
+    },
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroundKind {
     Land,
@@ -96,6 +145,42 @@ pub fn try_place_building(place: PlaceId, x: f32, z: f32) -> Result<(), BuildRef
     refuse_ground(place, ground_at(place, x, z), x, z)
 }
 
+pub fn lip_instance_outside_lamp(instance: &HeartwoodLipInstance) -> bool {
+    dist_xz(
+        instance.center[0],
+        instance.center[2],
+        LAMP_DISK_CENTER[0],
+        LAMP_DISK_CENTER[1],
+    ) - instance.footprint_radius
+        > LAMP_DISK_RADIUS
+}
+
+pub fn heartwood_lip_is_valid() -> bool {
+    HEARTWOOD_LIP_INSTANCES
+        .iter()
+        .filter(|instance| instance.kind == HeartwoodLipKind::WalkwayCapsule)
+        .count()
+        == 2
+        && HEARTWOOD_LIP_INSTANCES.iter().all(|instance| {
+            lip_instance_outside_lamp(instance)
+                && try_place_building(
+                    PlaceId::Heartwood,
+                    instance.center[0],
+                    instance.center[2],
+                )
+                .is_ok()
+        })
+}
+
+/// A pond step is a local bath/return, never a house-persist operation.
+pub fn heartwood_bath_return(place: PlaceId, x: f32, z: f32) -> Option<[f32; 2]> {
+    if place == PlaceId::Heartwood && in_heartwood_water(x, z) {
+        Some(HEARTWOOD_BATH_RETURN)
+    } else {
+        None
+    }
+}
+
 /// Session yard for Heartwood structures. Not written into house persist.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct HeartwoodYard {
@@ -122,9 +207,9 @@ pub fn embassy_lamp_is_spatial_gate() -> bool {
     false
 }
 
-/// Hanging Heartwood mesh is a later dress. U3 is the refuse rule only.
+/// U6 ships only the Heartwood Lip ribs, place-scoped outside the lamp disk.
 pub fn hanging_mesh_shipped() -> bool {
-    false
+    true
 }
 
 pub fn heartwood_mesh_on_sanctuary() -> bool {
@@ -240,6 +325,53 @@ mod tests {
     }
 
     #[test]
+    fn lip_capsules_and_ribs_leave_lamp_and_water_empty() {
+        assert!(heartwood_lip_is_valid());
+        assert_eq!(
+            HEARTWOOD_LIP_INSTANCES
+                .iter()
+                .filter(|instance| instance.kind == HeartwoodLipKind::WalkwayCapsule)
+                .count(),
+            2
+        );
+        for instance in HEARTWOOD_LIP_INSTANCES {
+            assert!(lip_instance_outside_lamp(&instance));
+            assert_eq!(
+                try_place_building(
+                    PlaceId::Heartwood,
+                    instance.center[0],
+                    instance.center[2]
+                ),
+                Ok(())
+            );
+        }
+        assert_eq!(
+            heartwood_bath_return(
+                PlaceId::Heartwood,
+                WATER_POND_CENTER[0],
+                WATER_POND_CENTER[1]
+            ),
+            Some(HEARTWOOD_BATH_RETURN)
+        );
+        assert_eq!(
+            heartwood_bath_return(
+                PlaceId::Sanctuary,
+                WATER_POND_CENTER[0],
+                WATER_POND_CENTER[1]
+            ),
+            None
+        );
+        assert!(!in_heartwood_lamp_disk(
+            HEARTWOOD_BATH_RETURN[0],
+            HEARTWOOD_BATH_RETURN[1]
+        ));
+        assert!(!in_heartwood_water(
+            HEARTWOOD_BATH_RETURN[0],
+            HEARTWOOD_BATH_RETURN[1]
+        ));
+    }
+
+    #[test]
     fn house_book_and_hex_isolation_still_hold() {
         let dir = scratch("book-iso");
         let (house, climate, standing, _week, _name) = load_f_book_disk();
@@ -314,7 +446,7 @@ mod tests {
         assert_eq!(stub_hex_file(PlaceId::Heartwood).standing.declared_lethal, false);
         assert!(!sanctuary_fresh_standing().declared_lethal);
         assert_eq!(sanctuary_fresh_climate().hex_id, PlaceId::Sanctuary.as_str());
-        assert!(!hanging_mesh_shipped());
+        assert!(hanging_mesh_shipped());
         assert!(!heartwood_mesh_on_sanctuary());
         assert!(!depths_is_boot());
         assert!(spatial_is_disk_only());

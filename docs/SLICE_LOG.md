@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U6: Heartwood Lip
+
+`slice: U6 Heartwood Lip | Heartwood-only dry Lip dress: exactly two walkway capsules plus hanging roof ribs, all complete footprints outside the empty lamp disk and no buildings in water; pond drop is a local body bath back to dry Lip and never calls house/embassy persist, preserving hour_three_complete, embassy seat, Places eligibility, and Sanctuary return; same seed hash; isolation gamma 0 with no tons/seeds/declared_lethal coupling; same Peace E; no Heartwood mesh on Sanctuary; no Threshold/Market/socket/listen/public bind/0.0.0.0; Online grey; LAN off; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`
+
 ## 2026-09-08 — U5: Steam Deck / 1280×800 Title click-clean
 
 `slice: U5 Deck title click-clean | 1280×800 default; existing 420px Title plate bounded by 24px safe area and full-screen pointer blocker; Play/Continue/Settings/Online remain inside and UI camera remains above one world Camera3d; Online grey/no listen; LAN off/no public bind; declared_lethal false; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`
