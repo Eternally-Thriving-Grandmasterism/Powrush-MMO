@@ -70,6 +70,23 @@ pub const TITLE_BTN_DISABLED_FG: Color = Color::srgb(0.55, 0.58, 0.60);
 /// Plate + button border (opaque green).
 pub const TITLE_BORDER: Color = Color::srgb(0.45, 0.78, 0.58);
 
+/// U5 Steam Deck layout contract. The title plate remains inside this surface.
+pub const DECK_TITLE_WIDTH: f32 = 1280.0;
+pub const DECK_TITLE_HEIGHT: f32 = 800.0;
+/// Edge room for Deck/window decorations and UI scaling.
+pub const TITLE_SAFE_INSET: f32 = 24.0;
+/// Existing desktop title width, now used as a responsive maximum.
+pub const TITLE_PLATE_MAX_WIDTH: f32 = 420.0;
+
+/// Pure layout guard used by the Deck-sized title test.
+pub fn title_plate_fits_surface(surface: Vec2, plate: Vec2, safe_inset: f32) -> bool {
+    safe_inset >= 0.0
+        && plate.x >= 0.0
+        && plate.y >= 0.0
+        && plate.x <= (surface.x - safe_inset * 2.0).max(0.0)
+        && plate.y <= (surface.y - safe_inset * 2.0).max(0.0)
+}
+
 /// D1 Pause honesty one-liner (opaque plate — soft GPU readable).
 pub const YARD_WAITING: &str = "the yard is waiting";
 
@@ -164,6 +181,8 @@ impl Default for HouseLabel {
 
 #[derive(Component)]
 struct TitleRoot;
+#[derive(Component)]
+struct TitlePlate;
 #[derive(Component)]
 struct TitleCueText;
 #[derive(Component)]
@@ -327,6 +346,9 @@ fn spawn_title_screen(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(14.0),
+                    // U5: reserve a Deck-safe edge and constrain the centered
+                    // plate instead of scaling or restyling the title.
+                    padding: UiRect::all(Val::Px(TITLE_SAFE_INSET)),
                     ..default()
                 },
                 // Opaque dimmer — soft GPU must not alpha-blend menu into fog.
@@ -337,12 +359,17 @@ fn spawn_title_screen(mut commands: Commands) {
             TitleRoot,
             TitleBreath,
             LivedUiPlate,
+            // Consume pointer focus across the opaque title door so clicks in
+            // its gaps cannot reach world UI/interactions below it.
+            FocusPolicy::Block,
         ))
         .with_children(|root| {
-            root.spawn(
+            root.spawn((
                 NodeBundle {
                     style: Style {
-                        width: Val::Px(420.0),
+                        width: Val::Percent(100.0),
+                        max_width: Val::Px(TITLE_PLATE_MAX_WIDTH),
+                        max_height: Val::Percent(100.0),
                         padding: UiRect::all(Val::Px(22.0)),
                         flex_direction: FlexDirection::Column,
                         row_gap: Val::Px(10.0),
@@ -354,7 +381,8 @@ fn spawn_title_screen(mut commands: Commands) {
                     border_color: TITLE_BORDER.into(),
                     ..default()
                 },
-            )
+                TitlePlate,
+            ))
             .with_children(|p| {
                 p.spawn(TextBundle::from_section(
                     "POWRUSH",
@@ -1852,6 +1880,36 @@ mod tests {
         assert!((a2 - 1.0).abs() < 0.01, "dimmer must be opaque, got alpha={a2}");
         assert!(title_luminance(TITLE_TEXT_PRIMARY) > title_luminance(TITLE_PLATE_BG));
         assert!(title_luminance(TITLE_BTN_FG) > title_luminance(TITLE_BTN_BG));
+    }
+
+    #[test]
+    fn u5_deck_title_plate_is_inside_surface_and_above_world() {
+        let surface = Vec2::new(DECK_TITLE_WIDTH, DECK_TITLE_HEIGHT);
+        let available = surface - Vec2::splat(TITLE_SAFE_INSET * 2.0);
+        assert!(title_plate_fits_surface(
+            surface,
+            Vec2::new(TITLE_PLATE_MAX_WIDTH, available.y),
+            TITLE_SAFE_INSET,
+        ));
+        assert!(crate::ui_above_world::ui_camera_draws_above_world());
+
+        let mut app = App::new();
+        app.add_systems(Startup, spawn_title_screen);
+        app.update();
+
+        let world = app.world_mut();
+        let root = world
+            .query_filtered::<(&Style, &FocusPolicy), With<TitleRoot>>()
+            .single(world);
+        assert_eq!(root.0.padding, UiRect::all(Val::Px(TITLE_SAFE_INSET)));
+        assert_eq!(*root.1, FocusPolicy::Block);
+
+        let plate = world
+            .query_filtered::<&Style, With<TitlePlate>>()
+            .single(world);
+        assert_eq!(plate.width, Val::Percent(100.0));
+        assert_eq!(plate.max_width, Val::Px(TITLE_PLATE_MAX_WIDTH));
+        assert_eq!(plate.max_height, Val::Percent(100.0));
     }
 
     #[test]
