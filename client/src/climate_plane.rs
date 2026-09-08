@@ -329,13 +329,19 @@ fn apply_climate_look(
 
 fn update_climate_chip(
     realm: Res<SoftPlayerRealm>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut text_q: Query<&mut Text, With<ClimateNameText>>,
 ) {
-    let look = look_for(realm.current);
+    // U2 Heartwood is a disk stub — do not switch SoftPlayerRealm to 2
+    // (that would dress Heartwood look onto the Sanctuary boot map).
+    let name = travel
+        .as_ref()
+        .map(|t| t.chip_name())
+        .unwrap_or_else(|| look_for(realm.current).name);
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
-            if s.value != look.name {
-                s.value = look.name.to_string();
+            if s.value != name {
+                s.value = name.to_string();
             }
         }
     }
@@ -350,5 +356,13 @@ mod tests {
         assert_ne!(look_for(Some(0)).name, look_for(Some(2)).name);
         assert_ne!(look_for(Some(2)).name, look_for(Some(3)).name);
         assert_eq!(look_for(Some(3)).name, "Abyssal Depths");
+        assert_eq!(look_for(Some(0)).name, "Sanctuary Prime");
+    }
+
+    #[test]
+    fn sanctuary_boot_does_not_use_heartwood_look() {
+        assert_eq!(look_for(Some(0)).name, "Sanctuary Prime");
+        assert_eq!(look_for(None).name, "Sanctuary Prime");
+        assert_ne!(look_for(Some(0)).name, look_for(Some(2)).name);
     }
 }

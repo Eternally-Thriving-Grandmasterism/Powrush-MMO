@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U2: local hex travel (disk only)
+
+```
+slice: U2 local hex travel (disk only)
+idea: after Settled + book a Places list (Sanctuary / Heartwood) can confirm leave, write the current hex climate into the U1 user dir as powrush_hex_<id>.json via shared/user_persist.rs, and load the other place; Play (first hands) always boots Sanctuary Prime; first Continue without the book still boots Sanctuary only; Places row hidden or Not your charter without book; Heartwood is a stub (lamp disk empty, same Peace E); do not ship hanging mesh (U3); do not spawn Heartwood on the Sanctuary boot map; default new-game must not drop a Heartwood save; F-book fixture is not the stranger door; Places plate is Camera2d / UI above world (LivedUiPlate), sticks cull on that plate, Title/pause/Settings stay above world (Places is a dedicated plate, not extra Settings rows); travel is another file in the user dir, not a server; no socket; no GenShare listen; no 0.0.0.0; Title Online stays grey and does not bind; LAN default off; isolation gamma = 0; no leak tick; do not couple tons, seeds, or declared_lethal across hexes; Sanctuary stays isolated; one House for all hexes; House week footer may sum tons/restored; do not copy Sanctuary tons into Heartwood; persist path is the U1 user dir (POWRUSH_USER_DIR or OS user-data); playable-preview stays 11c577e; floor stays 2163551; workspace 21.88.0; contact info@Rathor.ai; independent of xAI; no certification / AGSi warranty; HOUR_TWO_PLAYTEST minutes left blank; no XP; no birds; no race select; no Depths mesh as boot; no public Online; Peace keys unchanged; Sanctuary E unchanged; lethal sign stays default off
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: no-book-cannot-enter-heartwood-book-writes-hex-loads-stub-online-grey
+```
+
+
+
 ## 2026-09-08 — U1: writable user-dir saves
 
 ```

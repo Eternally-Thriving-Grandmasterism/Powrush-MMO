@@ -201,6 +201,7 @@ fn sync_scatter(
     launch: Res<LaunchDoor>,
     ledger: Res<LedgerYard>,
     factory: Res<FactoryYard>,
+    places: Option<Res<crate::hex_travel::PlacesPlate>>,
     mut spawned: ResMut<LightGenSpawned>,
     existing: Query<Entity, With<LightGenProp>>,
 ) {
@@ -272,7 +273,11 @@ fn sync_scatter(
         *launch,
         LaunchDoor::Title | LaunchDoor::NameHouse | LaunchDoor::HouseDress
     );
-    let pause_or_settings = house.settings_open;
+    let pause_or_settings = house.settings_open
+        || places
+            .as_ref()
+            .map(|p| crate::hex_travel::places_culls_sticks(p))
+            .unwrap_or(false);
     let ledger_open = ledger.sash_open;
     let q_open = factory.factory.founded && !factory.factory.tutorial_complete();
     let plates_open = cull_gen_when_plate_open(title_open, pause_or_settings, ledger_open, q_open);
@@ -368,6 +373,7 @@ fn cull_scatter_when_plates_open(
     house: Res<HouseLabel>,
     ledger: Res<LedgerYard>,
     factory: Res<FactoryYard>,
+    places: Option<Res<crate::hex_travel::PlacesPlate>>,
     mut props: Query<&mut Visibility, With<LightGenProp>>,
 ) {
     if !door.is_light() {
@@ -377,7 +383,11 @@ fn cull_scatter_when_plates_open(
         *launch,
         LaunchDoor::Title | LaunchDoor::NameHouse | LaunchDoor::HouseDress
     );
-    let pause_or_settings = house.settings_open;
+    let pause_or_settings = house.settings_open
+        || places
+            .as_ref()
+            .map(|p| crate::hex_travel::places_culls_sticks(p))
+            .unwrap_or(false);
     let ledger_open = ledger.sash_open;
     // Q plate: charter / fabricator tutorial active (Frontier slab content).
     let q_open = factory.factory.founded && !factory.factory.tutorial_complete();

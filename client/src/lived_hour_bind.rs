@@ -164,6 +164,11 @@ impl LivedHourBind {
         self.climate_slab = Self::compose_slab(&self.climate, &self.standing, &self.week);
     }
 
+    /// Keep House week footer (may sum hexes). Do not copy current-hex tons into week.
+    pub fn refresh_climate_slab_keep_week(&mut self) {
+        self.climate_slab = Self::compose_slab(&self.climate, &self.standing, &self.week);
+    }
+
     /// E on a node id (nearest glow is the client's job).
     pub fn tend(&mut self, node_id: u32) -> TendResult {
         let prior = self

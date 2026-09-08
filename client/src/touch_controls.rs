@@ -221,6 +221,7 @@ fn sync_touch_overlay_visibility(
     last: Res<LastPointerKind>,
     door: Res<LaunchDoor>,
     house: Res<HouseLabel>,
+    places: Option<Res<crate::hex_travel::PlacesPlate>>,
     ledger: Option<Res<crate::ledger_bind::LedgerYard>>,
     inv: Option<Res<crate::human_inventory::HumanInventory>>,
     factory: Option<Res<crate::vertical_factory::FactoryYard>>,
@@ -231,7 +232,8 @@ fn sync_touch_overlay_visibility(
         *door,
         LaunchDoor::Title | LaunchDoor::NameHouse | LaunchDoor::HouseDress
     );
-    let pause = house.settings_open;
+    let pause = house.settings_open
+        || places.map(|p| crate::hex_travel::places_culls_sticks(&p)).unwrap_or(false);
     let ledger_open = ledger.map(|l| l.sash_open).unwrap_or(false);
     let inv_open = inv.map(|i| i.open).unwrap_or(false);
     let q_hint = factory
