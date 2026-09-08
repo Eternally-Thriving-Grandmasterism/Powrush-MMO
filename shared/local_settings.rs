@@ -1,10 +1,12 @@
 //! D2 Local settings — persist beside house JSON (v23.2.64)
 //!
 //! `data/powrush_settings.json` next to `data/powrush_house.json`.
-//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove · Controls (I0).
+//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove · LAN · Controls (I0).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
+//! LAN is a separate row (off | loopback). Default **off**. Unknown → off.
+//! Loopback may use the existing F8 127.0.0.1 door only — never 0.0.0.0, never Title Online.
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -58,6 +60,11 @@ pub struct LocalSettings {
     /// Same path as env `POWRUSH_GEN=light` (OR at the door — not a second gen system).
     #[serde(default = "default_grove")]
     pub grove: String,
+    /// P3 LAN lab: "off" | "loopback". Default **off**. Unknown → off.
+    /// Separate from Title Online / Settings Online stub. Never writes POWRUSH_NET=on.
+    /// Loopback unlocks the existing F8 door on 127.0.0.1 only.
+    #[serde(default = "default_lan")]
+    pub lan: String,
     /// I0 on-screen sticks: "auto" | "on" | "off". Default **auto** (mouse Title stays clean).
     #[serde(default = "default_on_screen_sticks")]
     pub on_screen_sticks: String,
@@ -94,6 +101,10 @@ fn default_grove() -> String {
     "off".into()
 }
 
+fn default_lan() -> String {
+    "off".into()
+}
+
 fn default_on_screen_sticks() -> String {
     "auto".into()
 }
@@ -121,6 +132,7 @@ impl Default for LocalSettings {
             brightness: DEFAULT_BRIGHTNESS,
             text_scale: DEFAULT_TEXT_SCALE,
             grove: default_grove(),
+            lan: default_lan(),
             on_screen_sticks: default_on_screen_sticks(),
             tap_to_use: false,
             gamepad_south_use: true,
@@ -164,6 +176,7 @@ impl LocalSettings {
         self.clamp_brightness();
         self.clamp_text_scale();
         self.normalize_grove();
+        self.normalize_lan();
         self.normalize_controls();
     }
 
@@ -187,6 +200,38 @@ impl LocalSettings {
             self.grove = "off".into();
         } else {
             self.grove = "light".into();
+        }
+    }
+
+    /// Clamp LAN to "off" | "loopback". Missing/unknown/`on`/public → off.
+    pub fn normalize_lan(&mut self) {
+        let t = self.lan.trim().to_ascii_lowercase();
+        self.lan = match t.as_str() {
+            "loopback" => "loopback".into(),
+            _ => "off".into(),
+        };
+    }
+
+    pub fn lan_is_loopback(&self) -> bool {
+        self.lan.eq_ignore_ascii_case("loopback")
+    }
+
+    /// Settings row face. Unknown already normalized to off.
+    pub fn lan_label(&self) -> &'static str {
+        if self.lan_is_loopback() {
+            "loopback"
+        } else {
+            "off"
+        }
+    }
+
+    /// Cycle LAN off ↔ loopback (Settings plate row — not the Online stub).
+    pub fn cycle_lan(&mut self) {
+        self.normalize_lan();
+        if self.lan_is_loopback() {
+            self.lan = "off".into();
+        } else {
+            self.lan = "loopback".into();
         }
     }
 
@@ -426,6 +471,8 @@ mod tests {
         assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
         assert_eq!(s.grove, "off");
         assert!(!s.grove_is_light());
+        assert_eq!(s.lan, "off");
+        assert!(!s.lan_is_loopback());
         assert_eq!(s.on_screen_sticks, "auto");
         assert!(!s.tap_to_use);
         assert!(s.gamepad_south_use);
@@ -448,6 +495,7 @@ mod tests {
         s.brightness = 1.25;
         s.text_scale = 1.10;
         s.grove = "light".into();
+        s.lan = "loopback".into();
         s.on_screen_sticks = "on".into();
         s.tap_to_use = true;
         s.gamepad_south_use = false;
@@ -460,11 +508,13 @@ mod tests {
         assert!(raw.contains("brightness"));
         assert!(raw.contains("text_scale"));
         assert!(raw.contains("grove") && raw.contains("light"));
+        assert!(raw.contains("\"lan\"") && raw.contains("loopback"));
         assert!(raw.contains("on_screen_sticks"));
         assert!(raw.contains("sprint_mode") && raw.contains("stick"));
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(back, s);
         assert!(back.grove_is_light());
+        assert!(back.lan_is_loopback());
         assert!((back.master_gain() - 0.0).abs() < f32::EPSILON);
         let (dx, dy) = back.apply_look_delta(2.0, 4.0);
         assert!((dx - 3.0).abs() < 0.01);
@@ -563,6 +613,42 @@ mod tests {
         assert!(cyc.grove_is_light());
         cyc.cycle_grove();
         assert!(!cyc.grove_is_light());
+        assert_eq!(cyc.grove, "off");
+    }
+
+    #[test]
+    fn lan_defaults_off_unknown_and_cycle() {
+        let s = LocalSettings::peace_defaults();
+        assert_eq!(s.lan, "off");
+        assert!(!s.lan_is_loopback());
+        assert_eq!(s.lan_label(), "off");
+        // Missing field in old JSON → off (same persist path as Grove).
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"grove":"off"}"#;
+        let back = LocalSettings::from_json(legacy).unwrap();
+        assert_eq!(back.lan, "off");
+        assert!(!back.lan_is_loopback());
+        // Unknown / "on" / public bind spellings → off. Never Title Online.
+        for junk_lan in ["on", "ON", "true", "0.0.0.0", "localhost", "127.0.0.1", "birds", "public"] {
+            let junk = format!(
+                r#"{{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"grove":"off","lan":"{}"}}"#,
+                junk_lan
+            );
+            let junked = LocalSettings::from_json(&junk).unwrap();
+            assert_eq!(junked.lan, "off", "unknown lan {junk_lan} must be off");
+            assert!(!junked.lan_is_loopback());
+        }
+        let loopback = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"grove":"off","lan":"loopback"}"#;
+        let lab = LocalSettings::from_json(loopback).unwrap();
+        assert_eq!(lab.lan, "loopback");
+        assert!(lab.lan_is_loopback());
+        assert_eq!(lab.lan_label(), "loopback");
+        // Grove stays independent — LAN does not default Grove on.
+        assert!(!lab.grove_is_light());
+        let mut cyc = LocalSettings::default();
+        cyc.cycle_lan();
+        assert!(cyc.lan_is_loopback());
+        cyc.cycle_lan();
+        assert!(!cyc.lan_is_loopback());
         assert_eq!(cyc.grove, "off");
     }
 

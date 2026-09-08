@@ -146,6 +146,82 @@ pub fn default_localhost_shard_url() -> &'static str {
     "ws://127.0.0.1:7788"
 }
 
+/// Settings LAN loopback is the only persisted value that unlocks this door.
+fn lan_value_is_loopback(lan: &str) -> bool {
+    lan.trim().eq_ignore_ascii_case("loopback")
+}
+
+/// Resolve the F8 flag: Settings **LAN · loopback** OR existing `POWRUSH_NET=localhost`.
+/// Never treats `on` / public bind as a door. Does not write the env. Title stays grey.
+pub fn resolve_powrush_net(settings_lan: &str, env: Option<&str>) -> PowrushNet {
+    if lan_value_is_loopback(settings_lan) {
+        return PowrushNet::Localhost;
+    }
+    parse_powrush_net_from(env)
+}
+
+/// Settings LAN listen/bind address. **127.0.0.1 only** (`DEFAULT_LOCALHOST_LISTEN`).
+/// Off / unknown / `on` / `0.0.0.0` → refuse. Client must not bind when this is Err.
+pub fn settings_lan_listen_bind(lan: &str) -> Result<SocketAddr, ListenRefuse> {
+    if !lan_value_is_loopback(lan) {
+        return Err(ListenRefuse::BadAddr(
+            "LAN off — no listen, no outbound from Settings".into(),
+        ));
+    }
+    // Hard-coded F8 loopback. Never a caller-supplied public or wildcard addr.
+    let addr = validate_listen_bind(DEFAULT_LOCALHOST_LISTEN)?;
+    if addr.ip() != IpAddr::V4(Ipv4Addr::LOCALHOST) {
+        return Err(ListenRefuse::PublicOrNonLoopback(
+            "LAN door is 127.0.0.1 only".into(),
+        ));
+    }
+    Ok(addr)
+}
+
+/// True only when Settings LAN is loopback — existing localhost outbound intent.
+/// Does not enable Title Online. Does not set `POWRUSH_NET=on`.
+pub fn settings_lan_may_outbound(lan: &str) -> bool {
+    lan_value_is_loopback(lan)
+}
+
+/// Payload the loopback lab may send: existing L0 GenShare JSONL line + climate JSON.
+/// No fake peers, no player counts, no combat. Empty → None (send nothing).
+pub fn loopback_share_payload(genshare_line: &str, climate_json: &str) -> Option<String> {
+    let g = genshare_line.trim();
+    let c = climate_json.trim();
+    if g.is_empty() && c.is_empty() {
+        return None;
+    }
+    if !g.is_empty() && !g.starts_with('{') {
+        return None;
+    }
+    if !c.is_empty() && !c.starts_with('{') {
+        return None;
+    }
+    let blob = if g.is_empty() {
+        c.to_string()
+    } else if c.is_empty() {
+        g.to_string()
+    } else {
+        format!("{g}\n{c}")
+    };
+    let lower = blob.to_ascii_lowercase();
+    if lower.contains("peer_count")
+        || lower.contains("player_count")
+        || lower.contains("\"combat\"")
+        || lower.contains("+str")
+        || lower.contains("0.0.0.0")
+    {
+        return None;
+    }
+    Some(blob)
+}
+
+/// Title / Settings Online stub must never write `POWRUSH_NET=on`.
+pub fn title_never_sets_powrush_net_on() -> bool {
+    parse_powrush_net_from(Some("on")) == PowrushNet::Off && !PowrushNet::Off.title_online_enabled()
+}
+
 /// Hello session reply for one inbound hello envelope.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -440,5 +516,47 @@ mod tests {
         assert!(listen_loopback_enabled());
         assert!(!PowrushNet::Off.opens_listen_socket());
         assert!(!PowrushNet::Localhost.opens_listen_socket());
+    }
+
+    #[test]
+    fn settings_lan_off_no_listen_no_outbound_title_grey() {
+        assert!(title_never_sets_powrush_net_on());
+        assert_eq!(resolve_powrush_net("off", None), PowrushNet::Off);
+        assert_eq!(resolve_powrush_net("on", Some("on")), PowrushNet::Off);
+        assert!(!settings_lan_may_outbound("off"));
+        assert!(settings_lan_listen_bind("off").is_err());
+        assert!(settings_lan_listen_bind("0.0.0.0").is_err());
+        assert!(settings_lan_listen_bind("on").is_err());
+        // Env localhost still the existing F8 outbound door when LAN is off (today).
+        assert_eq!(
+            resolve_powrush_net("off", Some("localhost")),
+            PowrushNet::Localhost
+        );
+        assert!(!PowrushNet::Localhost.title_online_enabled());
+    }
+
+    #[test]
+    fn settings_lan_loopback_bind_is_127_only_and_may_send_l0_climate() {
+        let addr = settings_lan_listen_bind("loopback").expect("loopback");
+        assert_eq!(addr.ip(), IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_eq!(addr.port(), 7788);
+        assert_eq!(addr.to_string(), DEFAULT_LOCALHOST_LISTEN);
+        assert!(validate_listen_bind("0.0.0.0:7788").is_err());
+        assert!(settings_lan_may_outbound("loopback"));
+        assert_eq!(resolve_powrush_net("loopback", None), PowrushNet::Localhost);
+        assert_eq!(resolve_powrush_net("loopback", Some("off")), PowrushNet::Localhost);
+        // Never a public bind, never Title Online, never POWRUSH_NET=on.
+        assert!(!PowrushNet::Localhost.title_online_enabled());
+        assert!(!PowrushNet::Localhost.opens_listen_socket());
+        assert!(title_never_sets_powrush_net_on());
+        let line = r#"{"v":1,"house":"Yard","hex":"local-hex","epoch":1,"seed_u64":7,"climate_digest":"aa","dress":"Seal · Grove"}"#;
+        let climate = r#"{"hex_id":"local-hex","harmony":0.55,"stress":0.15}"#;
+        let payload = loopback_share_payload(line, climate).unwrap();
+        assert!(payload.contains("seed_u64"));
+        assert!(payload.contains("harmony"));
+        assert!(!payload.contains("peer_count"));
+        assert!(!payload.contains("0.0.0.0"));
+        assert!(loopback_share_payload("", "").is_none());
+        assert!(loopback_share_payload(line, r#"{"peer_count":2}"#).is_none());
     }
 }

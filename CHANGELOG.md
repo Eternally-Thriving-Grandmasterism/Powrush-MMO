@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.69] — 2026-09-08 — P3: Settings LAN off / loopback
+
+Settings plate **LAN · off|loopback** persists beside Grove in `data/powrush_settings.json` (default **off**; missing/unknown/`on` → off). Loopback reuses the existing F8 localhost door: listen/bind **127.0.0.1** only (`127.0.0.1:7788`), never `0.0.0.0`, never a public bind, never `POWRUSH_NET=on` from Title. Title Online stays grey and does not bind; Settings Online stub hard-refuse stays. LAN off boots exactly as today — no listen, no outbound. Loopback may send the existing L0 GenShare line + climate only. No fake peers, no player counts, no combat, no birds, no default Grove, no Depths mesh, no XP, no second Camera3d. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
+
 ## [23.2.68] — 2026-09-08 — E4: preview tag 11c577e + welcome-back breath (minutes blank)
 
 Docs only: `playable-preview` stays walked SHA `11c577e` (no retag); tip `3fc46c9` welcome-back is the same slab breathing once, then rest — first boot quiet, no XP. Floor stays `2163551`. Online grey; no public bind; no sockets / LAN (P3 next) / birds / default Grove / combat. Minutes / OS / GPU / Time left blank for the human. Workspace stays 21.88.0.

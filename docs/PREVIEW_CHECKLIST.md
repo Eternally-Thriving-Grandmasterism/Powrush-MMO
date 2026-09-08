@@ -9,7 +9,9 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 
 **Wave P (2026-09-07):** steward preview **yes**. Annotated tag `playable-preview` = walked SHA **`11c577e`** (human-cut; tag object `e37ed6e`; **not** the glow commit). Play/stranger floor remains `2163551` (G0). Online grey; no public bind. Tag alone does not turn on GenShare sockets, birds, or default Grove. Do not retag `playable-preview`.
 
-**E4 (2026-09-08):** comfort after the tag is extra, not a second launch. Current tip may be `3fc46c9` (Hour-two welcome-back glow #292). Welcome-back: *same slab breathes once*, then rests. First boot quiet. No XP. Play floor stays `2163551`. Online grey; no public bind. No sockets, no LAN (P3 is next), no birds, no default Grove, no combat. **Minutes / OS / GPU / Time** (`docs/HOUR_TWO_PLAYTEST.md` report) are **not a bot field** — leave blank for the human.
+**E4 (2026-09-08):** comfort after the tag is extra, not a second launch. Current tip may be `3fc46c9` (Hour-two welcome-back glow #292). Welcome-back: *same slab breathes once*, then rests. First boot quiet. No XP. Play floor stays `2163551`. Online grey; no public bind. No sockets, no birds, no default Grove, no combat. **Minutes / OS / GPU / Time** (`docs/HOUR_TWO_PLAYTEST.md` report) are **not a bot field** — leave blank for the human.
+
+**P3 LAN (Settings loopback lab):** Settings **LAN · off|loopback** persists beside Grove (default **off**; unknown → off). Loopback is **127.0.0.1** only — not a Peace Online tick, not Title Online. Title Online stays **grey** and does not bind. LAN off = today's boot (no listen, no outbound). Do not retag `playable-preview` (`11c577e`). Leave `HOUR_TWO_PLAYTEST` minutes blank.
 
 **Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door stays `cargo run -p powrush-client`. Online grey; not a launch candidate.
 
@@ -24,7 +26,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 - [ ] **House name skippable** — Skip (or quit path) → Unnamed House; progress kept; no name wall on first Play
 - [ ] **Esc → pause** — Esc in yard opens opaque pause *the yard is waiting* → Resume / Title / Quit (Quit ≠ Esc; Title keeps house JSON + lived persist)
 - [ ] **Use / Pause / sticks** — Use is **E** / gamepad **South** / on-screen **Use**; pause is **Esc** / **Start** / overlay **Pause**; on-screen sticks **cull on plates** (Title/pause/Settings/L/Q/I); Settings **Sticks · auto** keeps mouse Title clean. See `INPUT_CANON` (I0 wired).
-- [ ] **Settings persist** — Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · **Grove off|light** on Title/pause Settings plate; persists in `data/powrush_settings.json` (default **off**); survives quit/rerun; **env not required** — Settings alone enables light path; Title opaque contrast stays law
+- [ ] **Settings persist** — Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · **Grove off|light** · **LAN off|loopback** on Title/pause Settings plate; persists in `data/powrush_settings.json` (Grove and LAN default **off**); survives quit/rerun; **env not required** — Settings alone enables light path; LAN loopback is a 127.0.0.1 lab only (Title Online stays grey); Title opaque contrast stays law
 - [ ] **Seals / heritage (after Settled)** — Well / Grove / Ember skippable (cosmetic only); heritage string only (`none|human|cydruid|quellorian|draek|ambrosian`); Q shows Seal · … when dressed; **no combat stats** / +take / +STR
 - [ ] **Book** — Hour three path reaches *the book is yours* (fabricator → Embassy seat) without a login wall
 - [ ] **Climate** — slab + `data/` climate truth survive quit/rerun (harmony / stress / tired / circulating)
