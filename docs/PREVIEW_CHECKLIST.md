@@ -7,7 +7,9 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 
 **Steward law:** ticking every box here makes a stranger pass *possible* and keeps the repo honest. It does **not** cut a `playable-preview` git tag. A human says the preview tag when it sings — Proceed ≠ playable-preview tag. Checklist ticks still ≠ tag even after Wave P.
 
-**Wave P (2026-09-07):** steward preview **yes**. Annotated tag `playable-preview` now exists on tip `11c577e` (human-cut; tag object `e37ed6e`). Play/stranger floor remains `2163551` (G0). Online grey; no public bind. Tag alone does not turn on GenShare sockets, birds, or default Grove.
+**Wave P (2026-09-07):** steward preview **yes**. Annotated tag `playable-preview` = walked SHA **`11c577e`** (human-cut; tag object `e37ed6e`; **not** the glow commit). Play/stranger floor remains `2163551` (G0). Online grey; no public bind. Tag alone does not turn on GenShare sockets, birds, or default Grove. Do not retag `playable-preview`.
+
+**E4 (2026-09-08):** comfort after the tag is extra, not a second launch. Current tip may be `3fc46c9` (Hour-two welcome-back glow #292). Welcome-back: *same slab breathes once*, then rests. First boot quiet. No XP. Play floor stays `2163551`. Online grey; no public bind. No sockets, no LAN (P3 is next), no birds, no default Grove, no combat. **Minutes / OS / GPU / Time** (`docs/HOUR_TWO_PLAYTEST.md` report) are **not a bot field** — leave blank for the human.
 
 **Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door stays `cargo run -p powrush-client`. Online grey; not a launch candidate.
 
@@ -35,7 +37,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 - [ ] **Lethal quiet** — Peace boot has no lethal UI; Ledger **3** only after book; never default E
 - [ ] **Quit / rerun remembers** — house / climate / standing / book / settings JSON intact after Esc quit and relaunch
 - [ ] **Pause / Ledger face** — I or L shows House (or Unnamed House) + week tons+restored; Seal · … when dressed; no fake online tally
-- [ ] **Stranger loop** — `docs/STRANGER_LOOP.md` minutes match what the binary does (Title → yard → pause → House → seals → book)
+- [ ] **Stranger loop** — `docs/STRANGER_LOOP.md` minutes match what the binary does (Title → yard → pause → House → seals → book). Playtest **minutes / OS / GPU / Time** are not a bot field — do not fill `HOUR_TWO_PLAYTEST` for the human
 
 ## Explicit refuse (do not tick these into existence)
 

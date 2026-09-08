@@ -1,5 +1,17 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — E4: preview tag 11c577e + welcome-back breath (minutes blank)
+
+```
+slice: E4 preview tag 11c577e + welcome-back breath (minutes blank)
+idea: playable-preview stays walked SHA 11c577e (tag object e37ed6e; not the glow commit; no retag); current tip 3fc46c9 (Hour-two welcome-back glow #292) is comfort after the tag, not a second launch; welcome-back: same slab breathes once, then rests; first boot quiet; no XP; play/stranger floor stays 2163551; Online grey; no public bind; minutes/OS/GPU/Time not a bot field (HOUR_TWO_PLAYTEST left blank); no sockets; no LAN (P3 next); no birds; no default Grove; no combat; docs only; no client/shared/Cargo; contact info@Rathor.ai; workspace 21.88.0
+joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
+verdict: SHIP
+receipt: pending-merge
+```
+
+
+
 ## 2026-09-08 — Hour-two welcome-back reward glow (existing slab)
 
 ```

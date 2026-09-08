@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.68] — 2026-09-08 — E4: preview tag 11c577e + welcome-back breath (minutes blank)
+
+Docs only: `playable-preview` stays walked SHA `11c577e` (no retag); tip `3fc46c9` welcome-back is the same slab breathing once, then rest — first boot quiet, no XP. Floor stays `2163551`. Online grey; no public bind; no sockets / LAN (P3 next) / birds / default Grove / combat. Minutes / OS / GPU / Time left blank for the human. Workspace stays 21.88.0.
+
 ## [23.2.67] — 2026-09-08 — Hour-two: welcome-back reward glow (existing slab)
 
 Returning after Hour two held: the existing Welcome slab border breathes once (well/bench glow decay), then rests. First boot stays quiet — no glow without the held pack. No new HUD, verbs, or XP. Peace keys unchanged. Workspace stays 21.88.0.
