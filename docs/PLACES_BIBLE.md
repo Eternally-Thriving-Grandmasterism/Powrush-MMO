@@ -2,7 +2,7 @@
 
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick, not a Cargo bump.  
-**Law:** Docs now, mesh after preview. Sanctuary Prime = **yard only for now**. No Heartwood / spiral / market / Brood Spire / race select in the yard until after preview.
+**Law:** Heartwood Lip dress stays on Heartwood. Sanctuary Prime = **yard only**. No Heartwood / spiral / market / Brood Spire / race select in the Sanctuary yard.
 
 ## Three surfaces / RBE identity
 
@@ -17,18 +17,18 @@ Week score = **tons + restored** (not kills / XP).
 
 Deeper map of surfaces + physics layers: `PHYSICS_GRAPHICS_CANON.md`.
 
-## Heartwood rings (later places — not yard mesh yet)
+## Heartwood rings
 
 Outward from the living core:
 
 1. **Lamp** — quiet center; teaching light; no lethal UI. U3 spatial: no buildings in the lamp disk; no buildings in water. Embassy lamp cue stays house display-only.
-2. **Lip** — first working rim; wells and paths the stranger already feels as yard rhyme.
+2. **Lip** — first working rim; U6 places two walkway capsules and hanging roof ribs outside the lamp disk. The pond remains water; its drop is a bath back to dry Lip ground.
 3. **Wards** — house / charter concern; standing and seals dress here later.
 4. **Teeth** — edged places; scarcity and choice get sharp.
 5. **Threshold** — door between peace teaching and declared context.
 6. **Spiral** — long arc; mythic / fleet / peoples set-pieces — lore first.
 
-Docs stamp only. No spiral mesh in Sanctuary Prime until after preview.
+No Heartwood or spiral mesh in Sanctuary Prime.
 
 ## Market
 
@@ -59,7 +59,7 @@ Same house + hex + climate epoch → same light-gen scatter when Grove / `POWRUS
 ## Sanctuary Prime (now)
 
 - **Yard only** — wells, climate fog, opaque Title / pause / Settings / Ledger plates, Peace keys.
-- **Not in yard until after preview:** Heartwood full rings, Spiral, Market tooth mesh, Brood Spire, race / class select at Title.
+- **Not in the Sanctuary yard:** Heartwood Lip/rings, Spiral, Market tooth mesh, Brood Spire, race / class select at Title.
 - G0 light gen stays **opt-in** (Settings Grove · light or `POWRUSH_GEN=light`; default off). Cull scatter when plates open.
 - Crownstone / Brood Spire stay Witness-only / never-in-Sanctuary per `PHYSICS_GRAPHICS_CANON`.
 

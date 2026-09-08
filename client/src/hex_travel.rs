@@ -648,7 +648,7 @@ mod tests {
         );
         assert!(!embassy_lamp_is_spatial_gate());
         assert!(!heartwood_mesh_on_sanctuary());
-        assert!(!hanging_mesh_shipped());
+        assert!(hanging_mesh_shipped());
         assert_eq!(PlaceId::Heartwood.peace_hex(), HexFlag::Peace);
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(!default_client_listens());
