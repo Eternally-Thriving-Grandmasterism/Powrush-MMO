@@ -459,6 +459,8 @@ mod tests {
         assert!(bind.allocate(AllocKind::Flow));
         assert!(!bind.standing.declared_lethal);
         assert!(!bind.standing.declare_lethal(false));
+        assert!(!bind.standing.confirm_hex_sign(false, true));
+        assert!(!bind.standing.confirm_hex_sign(true, false));
         assert!(bind.standing.declare_lethal(true));
         bind.climate.reserve_pool = 1;
         let paid = bind.climate.on_lethal_declare();

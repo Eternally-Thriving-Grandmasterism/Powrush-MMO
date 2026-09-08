@@ -7,7 +7,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::hex_protocol::{
-    reject_copy_without_consent, reject_declare_lethal_before_book, reject_rev_mismatch,
+    reject_copy_without_consent, reject_declare_lethal_before_book,
+    reject_declare_lethal_before_settled, reject_rev_mismatch,
     reject_take_on_tired, BookFlags, Envelope, HelloBody, Presence, RejectCode, ShardKind,
     Snapshot, SnapshotClimate, WellFace, PROTOCOL_ID, PROTOCOL_REV,
 };
@@ -210,6 +211,11 @@ mod tests {
             Err(RejectCode::NoBook)
         );
         assert_eq!(reject_declare_lethal_before_book(true), Ok(()));
+        assert_eq!(
+            reject_declare_lethal_before_settled(false),
+            Err(RejectCode::NotCharter)
+        );
+        assert_eq!(reject_declare_lethal_before_settled(true), Ok(()));
     }
 
     #[test]

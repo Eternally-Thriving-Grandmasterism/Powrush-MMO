@@ -11,6 +11,7 @@
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
+//! L1: this hex admits harm · off confirm (Settings / Q / Ledger) after Settled + book;
 //! Q/Pause face shows Seal · … when dressed (heritage string only).
 //! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
 //! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
@@ -42,6 +43,7 @@ use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
 use shared::local_settings::{
     refuse_online_socket_toggle, LocalSettings, SETTINGS_PATH,
 };
+use shared::pause_ledger_face::lethal_sign_row;
 
 // --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
 // Soft GPU / Mesa must read Play · Continue · Online · Settings before the yard.
@@ -206,6 +208,10 @@ struct SettingsLanBtn;
 #[derive(Component)]
 struct SettingsLanLabel;
 #[derive(Component)]
+struct SettingsLethalBtn;
+#[derive(Component)]
+struct SettingsLethalLabel;
+#[derive(Component)]
 struct SettingsSticksBtn;
 #[derive(Component)]
 struct SettingsSticksLabel;
@@ -288,7 +294,9 @@ impl Plugin for TitleScreenPlugin {
                     pause_plate_clicks,
                     refresh_local_settings_labels,
                     refresh_controls_settings_labels,
+                    refresh_lethal_sign_label,
                     local_settings_clicks,
+                    lethal_sign_settings_clicks,
                 ),
             )
             .add_systems(Update, esc_yard_pause.after(InputMapSet));
@@ -491,6 +499,13 @@ fn spawn_settings_stub(mut commands: Commands) {
                 "LAN · off",
                 SettingsLanBtn,
                 SettingsLanLabel,
+            );
+            // L1 hex sign — standing flag, not a settings persist. Default off.
+            spawn_settings_row(
+                p,
+                "this hex admits harm · off",
+                SettingsLethalBtn,
+                SettingsLethalLabel,
             );
             // I0 Controls essentials (persist beside Grove).
             spawn_settings_row(
@@ -1067,6 +1082,16 @@ pub fn lan_btn_label(s: &LocalSettings) -> String {
     format!("LAN · {}", s.lan_label())
 }
 
+/// L1 Settings confirm row. Standing hex sign — not a LocalSettings persist field.
+pub fn lethal_sign_btn_label(
+    settled: bool,
+    book_held: bool,
+    charter_live: bool,
+    declared: bool,
+) -> &'static str {
+    lethal_sign_row(settled, book_held, charter_live, declared)
+}
+
 pub fn sticks_btn_label(s: &LocalSettings) -> String {
     format!("Sticks · {}", s.on_screen_sticks)
 }
@@ -1257,6 +1282,82 @@ fn local_settings_clicks(
     if changed {
         settings.mark_and_persist();
     }
+}
+
+fn refresh_lethal_sign_label(
+    label: Res<HouseLabel>,
+    hour: Option<Res<HourSacred>>,
+    bind: Option<Res<LivedHourBind>>,
+    mut texts: Query<&mut Text, With<SettingsLethalLabel>>,
+    settings: Res<LocalSettingsState>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    // hour.complete is the Settled pack flag — no LedgerYard import (avoids a module cycle).
+    let settled = hour.as_ref().map(|h| h.complete).unwrap_or(false);
+    let book = hour
+        .as_ref()
+        .map(|h| h.hour_three_complete)
+        .unwrap_or(false);
+    let charter = hour
+        .as_ref()
+        .map(|h| h.charter_skin_live())
+        .unwrap_or(false);
+    let declared = bind
+        .as_ref()
+        .map(|b| b.standing.declared_lethal)
+        .unwrap_or(false);
+    let line = lethal_sign_btn_label(settled, book, charter, declared);
+    let font = (15.0 * settings.inner.text_scale).clamp(11.0, 22.0);
+    for mut text in &mut texts {
+        set_btn_section_text(&mut text, line);
+        set_btn_section_font(&mut text, font);
+    }
+}
+
+fn lethal_sign_settings_clicks(
+    label: Res<HouseLabel>,
+    hour: Option<Res<HourSacred>>,
+    mut bind: Option<ResMut<LivedHourBind>>,
+    lethal: Query<&Interaction, (Changed<Interaction>, With<SettingsLethalBtn>)>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let Some(hour) = hour else {
+        return;
+    };
+    let Some(bind) = bind.as_mut() else {
+        return;
+    };
+    let mut pressed = false;
+    for i in &lethal {
+        if *i == Interaction::Pressed {
+            pressed = true;
+        }
+    }
+    if !pressed {
+        return;
+    }
+    let settled = hour.complete;
+    if bind.standing.declared_lethal {
+        if bind.standing.clear_lethal() {
+            bind.refresh_climate_slab();
+            bind.persist();
+        }
+        return;
+    }
+    if !bind
+        .standing
+        .confirm_hex_sign(settled, hour.hour_three_complete)
+    {
+        // Book / Settled missing — row already shows wait / not your charter.
+        return;
+    }
+    let _paid = bind.climate.on_lethal_declare();
+    bind.refresh_climate_slab();
+    bind.persist();
 }
 
 fn refresh_controls_settings_labels(
@@ -1839,6 +1940,50 @@ mod tests {
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         s.cycle_lan();
         assert_eq!(lan_btn_label(&s), "LAN · off");
+    }
+
+    #[test]
+    fn l1_hex_sign_row_default_off_online_grey_lan_untouched() {
+        use shared::pause_ledger_face::{HEX_ADMITS_HARM, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER};
+        use shared::shard_climate::ShardClimate;
+        use shared::shard_standing::ShardStanding;
+        let s = LocalSettings::peace_defaults();
+        assert_eq!(lan_btn_label(&s), "LAN · off");
+        assert!(!s.lan_is_loopback());
+        assert_eq!(
+            lethal_sign_btn_label(false, false, false, false),
+            NOT_YOUR_CHARTER
+        );
+        assert_eq!(
+            lethal_sign_btn_label(true, false, true, false),
+            LEDGER_WAITS
+        );
+        assert_eq!(
+            lethal_sign_btn_label(true, true, true, false),
+            HEX_ADMITS_HARM_OFF
+        );
+        assert_eq!(
+            lethal_sign_btn_label(true, true, true, true),
+            HEX_ADMITS_HARM
+        );
+        let mut standing = ShardStanding::default();
+        let mut climate = ShardClimate::default();
+        climate.tons_moved = 2;
+        assert!(!standing.confirm_hex_sign(false, false));
+        assert!(!standing.declared_lethal);
+        assert!(standing.confirm_hex_sign(true, true));
+        let _ = climate.on_lethal_declare();
+        assert_eq!(climate.tons_moved, 2);
+        assert!(standing.declared_lethal);
+        // Confirm is not Title Online and does not flip LAN.
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(refuse_online_socket_toggle(true));
+        assert_eq!(s.lan, "off");
+        assert_eq!(soft_play_bindings_e_is_use(), true);
+    }
+
+    fn soft_play_bindings_e_is_use() -> bool {
+        crate::soft_play_bindings::INTERACT == bevy::prelude::KeyCode::KeyE
     }
 
     #[test]

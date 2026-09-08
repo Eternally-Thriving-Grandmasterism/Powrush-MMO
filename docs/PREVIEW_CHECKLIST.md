@@ -13,6 +13,8 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 
 **P3 LAN (Settings loopback lab):** Settings **LAN · off|loopback** persists beside Grove (default **off**; unknown → off). Loopback is **127.0.0.1** only — not a Peace Online tick, not Title Online. Title Online stays **grey** and does not bind. LAN off = today's boot (no listen, no outbound). Do not retag `playable-preview` (`11c577e`). Leave `HOUR_TWO_PLAYTEST` minutes blank.
 
+**L1 hex sign:** After Settled + book, Settings / Q / Ledger may confirm **this hex admits harm** (default **off**; missing/unknown → off). Reuses standing `declare_lethal`. Confirm without book does nothing. No ton mint. Sanctuary E unchanged. Do not retag `playable-preview`.
+
 **Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door stays `cargo run -p powrush-client`. Online grey; not a launch candidate.
 
 ## Tick (~15)
@@ -36,7 +38,7 @@ One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No
 - [ ] **Title contrast** — Play/Continue/Online/Settings readable (opaque high-contrast plate)
 - [ ] **Lavapipe click-clean** — soft GPU first-class walk proof per `docs/LAVAPIPE_CLICK_CLEAN.md` (readable · hits UI not world · labeled action fires · overlay culled · no 2nd Camera3d); not a unit-test name; not screenshot-only
 - [ ] **House file** — after Settled or quit-to-title, `data/powrush_house.json` exists even if name skipped (Continue: *Unnamed House · the yard remembers*)
-- [ ] **Lethal quiet** — Peace boot has no lethal UI; Ledger **3** only after book; never default E
+- [ ] **Lethal quiet** — Peace boot has no lethal UI; Settings / Q / Ledger confirm **this hex admits harm** only after Settled + book (default **off**); never default E
 - [ ] **Quit / rerun remembers** — house / climate / standing / book / settings JSON intact after Esc quit and relaunch
 - [ ] **Pause / Ledger face** — I or L shows House (or Unnamed House) + week tons+restored; Seal · … when dressed; no fake online tally
 - [ ] **Stranger loop** — `docs/STRANGER_LOOP.md` minutes match what the binary does (Title → yard → pause → House → seals → book). Playtest **minutes / OS / GPU / Time** are not a bot field — do not fill `HOUR_TWO_PLAYTEST` for the human

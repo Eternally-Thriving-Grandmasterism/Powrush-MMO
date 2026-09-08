@@ -9,10 +9,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::hex_protocol::{
-    default_client_listens, reject_declare_lethal_before_book, reject_stale_seq,
-    reject_take_on_tired, BookFlags, Envelope, Op, Presence, RejectCode, Snapshot,
-    SnapshotClimate, SnapshotHouse, SnapshotStanding, SnapshotWeek, WellFace,
-    PROTOCOL_ID, PROTOCOL_REV,
+    default_client_listens, reject_declare_lethal_before_book,
+    reject_declare_lethal_before_settled, reject_stale_seq, reject_take_on_tired, BookFlags,
+    Envelope, Op, Presence, RejectCode, Snapshot, SnapshotClimate, SnapshotHouse,
+    SnapshotStanding, SnapshotWeek, WellFace, PROTOCOL_ID, PROTOCOL_REV,
 };
 
 /// Soft cap on seated Houses per hex shard (steward law; not a hard crash).
@@ -165,6 +165,18 @@ pub fn apply_verb(
                     reason: Some("book not held".into()),
                 };
             }
+            if let Err(code) =
+                reject_declare_lethal_before_settled(ledger.snapshot.book.hour_two_held)
+            {
+                return ApplyOutcome::Rejected {
+                    code,
+                    reason: Some("not your charter".into()),
+                };
+            }
+            // Hex sign only — tariff may dent this hex climate. Week stays tons + restored.
+            let c = &mut ledger.snapshot.climate;
+            c.stress = (c.stress + 0.14).min(1.0);
+            c.harmony = (c.harmony - 0.16).max(0.0);
             ledger.snapshot.standing.declared_lethal = true;
             finish_apply(ledger, seq, house, op)
         }
@@ -435,6 +447,25 @@ mod tests {
         assert!(!ledger.snapshot.standing.declared_lethal);
 
         ledger.snapshot.book.hour_three_held = true;
+        let no_settle = apply_verb(
+            &mut ledger,
+            Op::DeclareLethal,
+            1,
+            "h-fixture",
+            &Value::Null,
+        );
+        assert_eq!(
+            no_settle,
+            ApplyOutcome::Rejected {
+                code: RejectCode::NotCharter,
+                reason: Some("not your charter".into()),
+            }
+        );
+        assert!(!ledger.snapshot.standing.declared_lethal);
+
+        ledger.snapshot.book.hour_two_held = true;
+        let tons_before = ledger.snapshot.climate.tons_moved;
+        let week_tons_before = ledger.snapshot.week.tons_moved;
         let ok = apply_verb(
             &mut ledger,
             Op::DeclareLethal,
@@ -444,6 +475,10 @@ mod tests {
         );
         assert!(matches!(ok, ApplyOutcome::Applied { .. }));
         assert!(ledger.snapshot.standing.declared_lethal);
+        assert_eq!(ledger.snapshot.climate.tons_moved, tons_before);
+        assert_eq!(ledger.snapshot.week.tons_moved, week_tons_before);
+        assert!(ledger.snapshot.climate.stress > 0.15);
+        assert!(ledger.snapshot.climate.harmony < 0.55);
     }
 
     #[test]

@@ -1,7 +1,7 @@
 //! Lived-hour Ledger — Slice 6 + S3 face + stranger wait line (v23.2.61)
 //!
-//! L opens the board. E Bind then escort. Digit3 opts DeclaredLethal (tariff)
-//! Soft cue after book: sash may append "· 3 optional". Never Peace boot.
+//! L opens the board. E Bind then escort. Digit3 / Settings confirm the hex sign.
+//! Soft cue after book: sash may append "this hex admits harm · off". Never Peace boot.
 //! only after Hour three held. Default win is Bind. No F-key. Peace silent.
 //! L2 face when Settled: House · week tons+restored · lethal only if declared.
 //! Bind-only / pre-Settled: *Not your charter* / *the ledger waits* — never blank.
@@ -13,7 +13,7 @@ use bevy::prelude::*;
 
 use shared::hour_two::HourTwoPack;
 use shared::ledger_bind::{ContractState, LedgerBoard};
-use shared::pause_ledger_face::ledger_sash_body;
+use shared::pause_ledger_face::{ledger_sash_body, lethal_sign_row, HEX_ADMITS_HARM_OFF};
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
@@ -141,29 +141,30 @@ fn handle_ledger(
     if !yard.sash_open {
         return;
     }
-    // Ledger 3 / Digit3 — DeclaredLethal only after the book. Peace hour never reaches here.
+    // L1 hex sign / Digit3 — confirm only after Settled + book. Reuses standing.
+    // Peace hour never reaches here. No new Peace key. Sanctuary E unchanged.
     if keyboard.just_pressed(KeyCode::Digit3) {
+        let settled = yard
+            .board
+            .open()
+            .map(|c| c.state == ContractState::Settled)
+            .unwrap_or(false)
+            || hour.complete;
         if bind.standing.declared_lethal {
-            let step = yard.board.clear_lethal_local();
-            if step == "cleared" {
-                bind.standing.clear_lethal();
+            if bind.standing.clear_lethal() {
                 bind.refresh_climate_slab();
                 bind.persist();
             }
             return;
         }
-        if !hour.hour_three_complete {
-            // Resume without book cannot declare.
+        if !bind.standing.confirm_hex_sign(settled, hour.hour_three_complete) {
+            // Book / Settled missing — plate already shows wait / not your charter.
             return;
         }
-        let step = yard.board.opt_lethal_local();
-        if step == "lethal" {
-            hour.session.warrant.x = hour.session.warrant.x.max(10.0);
-            let _paid = bind.climate.on_lethal_declare();
-            bind.standing.declare_lethal(true);
-            bind.refresh_climate_slab();
-            bind.persist();
-        }
+        hour.session.warrant.x = hour.session.warrant.x.max(10.0);
+        let _paid = bind.climate.on_lethal_declare();
+        bind.refresh_climate_slab();
+        bind.persist();
         return;
     }
     let go = keyboard.just_pressed(soft_play_bindings::INTERACT)
@@ -199,7 +200,7 @@ fn stamp_complete(mut hour: ResMut<HourSacred>, evidence: Res<EvidenceYard>, yar
 /// Quiet Ledger hint after Hour three. Empty string before the book.
 pub fn lethal_soft_clause(hour_three_held: bool, already_lethal: bool) -> &'static str {
     if hour_three_held && !already_lethal {
-        " · 3 optional"
+        " · this hex admits harm · off"
     } else {
         ""
     }
@@ -251,11 +252,17 @@ fn update_ledger_slab(
     } else {
         // Soft discoverability only after the book.
         let mut sash = yard.board.sash_line();
+        let sign = lethal_sign_row(
+            true,
+            hour.hour_three_complete,
+            true,
+            bind.standing.declared_lethal,
+        );
         let clause = lethal_soft_clause(hour.hour_three_complete, bind.standing.declared_lethal);
-        if !clause.is_empty() && !sash.contains("3 optional") {
+        if !clause.is_empty() && !sash.contains("this hex admits harm") {
             sash = format!("{sash}{clause}");
         }
-        format!("{face}\n{sash}")
+        format!("{face}\n{sign}\n{sash}")
     };
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
@@ -300,10 +307,11 @@ mod tests {
     #[test]
     fn lethal_soft_clause_only_after_book() {
         assert_eq!(lethal_soft_clause(false, false), "");
-        assert_eq!(lethal_soft_clause(true, false), " · 3 optional");
+        assert_eq!(lethal_soft_clause(true, false), " · this hex admits harm · off");
         assert_eq!(lethal_soft_clause(true, true), "");
         assert!(!lethal_soft_clause(true, false).to_lowercase().contains("combat"));
         assert!(!lethal_soft_clause(true, false).contains("kill"));
+        assert!(lethal_soft_clause(true, false).contains(HEX_ADMITS_HARM_OFF));
     }
 
     #[test]
@@ -366,5 +374,28 @@ mod tests {
         let settled0 = ledger_sash_body(true, true, &house, &week, false);
         assert!(settled0.contains("Unnamed House"));
         assert!(!settled0.contains("lethal"));
+    }
+
+    #[test]
+    fn l1_confirm_requires_settled_and_book_no_ton_mint() {
+        use shared::pause_ledger_face::{lethal_sign_row, HEX_ADMITS_HARM, LEDGER_WAITS};
+        use shared::shard_standing::ShardStanding;
+        use shared::shard_climate::ShardClimate;
+        let mut standing = ShardStanding::default();
+        let mut climate = ShardClimate::default();
+        climate.tons_moved = 4;
+        climate.reserve_pool = 2;
+        assert!(!standing.confirm_hex_sign(false, true));
+        assert!(!standing.confirm_hex_sign(true, false));
+        assert_eq!(lethal_sign_row(true, false, true, false), LEDGER_WAITS);
+        assert!(standing.confirm_hex_sign(true, true));
+        let paid = climate.on_lethal_declare();
+        assert_eq!(paid, 1);
+        assert_eq!(climate.tons_moved, 4);
+        assert!(standing.declared_lethal);
+        assert_eq!(lethal_sign_row(true, true, true, true), HEX_ADMITS_HARM);
+        // Sanctuary Use stays E — confirm is Digit3 / Settings row, not default Use.
+        assert_eq!(soft_play_bindings::INTERACT, KeyCode::KeyE);
+        assert_ne!(KeyCode::Digit3, soft_play_bindings::INTERACT);
     }
 }

@@ -1,7 +1,7 @@
 //! Phase R — local hex faction standing (v23.2.37)
 //!
 //! Standing beside climate. Same verbs write both.
-//! declared_lethal flips only via Ledger 3 after Hour three held (opt-in).
+//! declared_lethal flips only via L1 hex sign / Ledger 3 after Settled + Hour three (opt-in).
 //! No race select. No second HUD. Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,8 @@ pub struct ShardStanding {
     pub steward: f32,
     /// Reserved for hybrid heat; starts at 0
     pub human_hybrid_heat: f32,
-    /// Opt-in via Ledger 3 after the book. Never default E.
+    /// Opt-in hex sign after Settled + book. Never default E. Missing/unknown → off.
+    #[serde(default)]
     pub declared_lethal: bool,
     /// Blood tariff units paid this week (not refunded on clear).
     #[serde(default)]
@@ -118,6 +119,15 @@ impl ShardStanding {
         self.tariff_paid = self.tariff_paid.saturating_add(1);
         self.touch();
         true
+    }
+
+    /// L1 sign confirm on THIS hex only. Reuses `declare_lethal` — no second flag.
+    /// Settled + book required. Otherwise false (caller shows wait / not your charter).
+    pub fn confirm_hex_sign(&mut self, settled: bool, book_held: bool) -> bool {
+        if !settled || !book_held {
+            return false;
+        }
+        self.declare_lethal(true)
     }
 
     /// Mercy / second L clears the flag. Tariff already paid stays.
@@ -241,5 +251,25 @@ mod tests {
         let loaded = ShardStanding::from_json(&raw).unwrap();
         assert_eq!(loaded.updated_at, s.updated_at);
         assert!(!loaded.declared_lethal);
+    }
+
+    #[test]
+    fn missing_declared_lethal_is_off() {
+        let raw = r#"{"hex_id":"local-hex","peace":0.72,"harmony":0.55,"consumption":0.12,"steward":0.40,"human_hybrid_heat":0.0,"updated_at":0}"#;
+        let loaded = ShardStanding::from_json(raw).unwrap();
+        assert!(!loaded.declared_lethal);
+        assert_eq!(loaded.tariff_paid, 0);
+    }
+
+    #[test]
+    fn confirm_hex_sign_requires_settled_and_book() {
+        let mut s = ShardStanding::default();
+        assert!(!s.confirm_hex_sign(false, false));
+        assert!(!s.confirm_hex_sign(true, false));
+        assert!(!s.confirm_hex_sign(false, true));
+        assert!(!s.declared_lethal);
+        assert!(s.confirm_hex_sign(true, true));
+        assert!(s.declared_lethal);
+        assert!(!s.confirm_hex_sign(true, true));
     }
 }
