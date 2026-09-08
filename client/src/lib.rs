@@ -11,6 +11,7 @@ pub mod hour_sacred;
 pub mod hour_two_resume;
 pub mod ui_above_world;
 pub mod title_screen;
+pub mod hex_travel;
 pub mod local_settings;
 pub mod vertical_factory;
 pub mod coop_voice;
@@ -102,6 +103,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(compass::CompassPlugin);
         app.add_plugins(skirmish_well::SkirmishWellPlugin);
         app.add_plugins(LivedHourEconomyPlugin);
+        app.add_plugins(hex_travel::HexTravelPlugin);
         app.add_plugins(local_settings::LocalSettingsPlugin);
         app.add_plugins(InputPlugin);
         app.add_plugins(touch_controls::TouchControlsPlugin);

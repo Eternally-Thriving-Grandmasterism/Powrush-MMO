@@ -12,6 +12,8 @@
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
 //! L1: this hex admits harm · off confirm (Settings / Q / Ledger) after Settled + book;
+//! U2: Places list (Sanctuary / Heartwood) after Settled + book — dedicated plate,
+//! not extra Settings rows (Title / pause / Settings stay above world);
 //! Q/Pause face shows Seal · … when dressed (heritage string only).
 //! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
 //! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
@@ -31,9 +33,14 @@ use shared::house_name::{
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::embassy::EmbassyYard;
+use crate::hex_travel::{
+    apply_title_boot, settings_visible_with_places, HexTravelState, PlacesPlate,
+};
 use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
 use crate::net_mode::SessionNetMode;
 use crate::lived_hour_bind::LivedHourBind;
+use shared::hex_travel::BootKind;
 use crate::local_settings::LocalSettingsState;
 use crate::input::{InputMapSet, PlayerInput};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
@@ -111,6 +118,7 @@ pub struct HouseLabel {
     pub house: HouseName,
     pub persist_present: bool,
     pub hour_two_held: bool,
+    pub book_held: bool,
     pub settings_open: bool,
     pub draft: String,
     /// Offer naming once after Settled / Escape.
@@ -122,12 +130,18 @@ pub struct HouseLabel {
 impl Default for HouseLabel {
     fn default() -> Self {
         let house = HouseName::load_or_default();
-        let hour_two_held = shared::user_persist::named_exists(HOUR_TWO_PATH)
-            && shared::user_persist::read_named(HOUR_TWO_PATH)
-                .ok()
-                .and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok())
-                .and_then(|v| v.get("complete").and_then(|c| c.as_bool()))
-                .unwrap_or(false);
+        let hour_two_json = shared::user_persist::named_exists(HOUR_TWO_PATH)
+            .then(|| shared::user_persist::read_named(HOUR_TWO_PATH).ok())
+            .flatten()
+            .and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok());
+        let hour_two_held = hour_two_json
+            .as_ref()
+            .and_then(|v| v.get("complete").and_then(|c| c.as_bool()))
+            .unwrap_or(false);
+        let book_held = hour_two_json
+            .as_ref()
+            .and_then(|v| v.get("hour_three_complete").and_then(|c| c.as_bool()))
+            .unwrap_or(false);
         let persist_present = local_persist_present(
             shared::user_persist::named_exists(HOUR_TWO_PATH),
             shared::user_persist::named_exists(SHARD_CLIMATE_PATH),
@@ -139,6 +153,7 @@ impl Default for HouseLabel {
             house,
             persist_present,
             hour_two_held,
+            book_held,
             settings_open: false,
             draft: String::new(),
             naming_offered: false,
@@ -764,6 +779,10 @@ fn enter_yard(door: &mut LaunchDoor, label: &mut HouseLabel) {
 fn title_button_clicks(
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    mut travel: Option<ResMut<HexTravelState>>,
+    mut bind: Option<ResMut<LivedHourBind>>,
+    hour: Option<Res<HourSacred>>,
+    mut embassy: Option<ResMut<EmbassyYard>>,
     play: Query<&Interaction, (Changed<Interaction>, With<TitlePlayBtn>)>,
     cont: Query<&Interaction, (Changed<Interaction>, With<TitleContinueBtn>)>,
     settings: Query<&Interaction, (Changed<Interaction>, With<TitleSettingsBtn>)>,
@@ -773,6 +792,17 @@ fn title_button_clicks(
     }
     for i in &play {
         if *i == Interaction::Pressed {
+            if let (Some(travel), Some(bind), Some(hour)) =
+                (travel.as_mut(), bind.as_mut(), hour.as_ref())
+            {
+                apply_title_boot(
+                    BootKind::Play,
+                    travel,
+                    bind,
+                    hour,
+                    embassy.as_deref_mut(),
+                );
+            }
             enter_yard(&mut door, &mut label);
             return;
         }
@@ -780,6 +810,17 @@ fn title_button_clicks(
     for i in &cont {
         if *i == Interaction::Pressed {
             if label.persist_present {
+                if let (Some(travel), Some(bind), Some(hour)) =
+                    (travel.as_mut(), bind.as_mut(), hour.as_ref())
+                {
+                    apply_title_boot(
+                        BootKind::Continue,
+                        travel,
+                        bind,
+                        hour,
+                        embassy.as_deref_mut(),
+                    );
+                }
                 enter_yard(&mut door, &mut label);
             }
             return;
@@ -797,13 +838,39 @@ fn title_keyboard_shortcuts(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    mut travel: Option<ResMut<HexTravelState>>,
+    mut bind: Option<ResMut<LivedHourBind>>,
+    hour: Option<Res<HourSacred>>,
+    mut embassy: Option<ResMut<EmbassyYard>>,
 ) {
     match *door {
         LaunchDoor::Title => {
             if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Enter) {
+                if let (Some(travel), Some(bind), Some(hour)) =
+                    (travel.as_mut(), bind.as_mut(), hour.as_ref())
+                {
+                    apply_title_boot(
+                        BootKind::Play,
+                        travel,
+                        bind,
+                        hour,
+                        embassy.as_deref_mut(),
+                    );
+                }
                 enter_yard(&mut door, &mut label);
             } else if keyboard.just_pressed(KeyCode::Digit2) {
                 if label.persist_present {
+                    if let (Some(travel), Some(bind), Some(hour)) =
+                        (travel.as_mut(), bind.as_mut(), hour.as_ref())
+                    {
+                        apply_title_boot(
+                            BootKind::Continue,
+                            travel,
+                            bind,
+                            hour,
+                            embassy.as_deref_mut(),
+                        );
+                    }
                     enter_yard(&mut door, &mut label);
                 }
             } else if keyboard.just_pressed(KeyCode::Digit3) {
@@ -855,9 +922,11 @@ fn sync_title_visibility(
 fn sync_settings_stub(
     label: Res<HouseLabel>,
     door: Res<LaunchDoor>,
+    places: Option<Res<PlacesPlate>>,
     mut q: Query<&mut Visibility, With<SettingsStubRoot>>,
 ) {
-    let show = label.settings_open
+    let places_open = places.map(|p| p.open).unwrap_or(false);
+    let show = settings_visible_with_places(label.settings_open, places_open)
         && *door != LaunchDoor::NameHouse
         && *door != LaunchDoor::HouseDress;
     for mut vis in &mut q {
@@ -908,6 +977,7 @@ fn esc_yard_pause(
     player_input: Res<PlayerInput>,
     door: Res<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    mut places: Option<ResMut<PlacesPlate>>,
 ) {
     if *door != LaunchDoor::InYard {
         return;
@@ -917,6 +987,14 @@ fn esc_yard_pause(
     let start = player_input.pause_toggle;
     if !esc && !start {
         return;
+    }
+    if let Some(places) = places.as_mut() {
+        if places.open {
+            places.open = false;
+            places.selected = None;
+            places.confirm_pending = false;
+            return;
+        }
     }
     // Esc / Start opens pause when closed; closes when open (Resume).
     // Never LaunchDoor::Title / never AppExit from Esc/Start.
@@ -955,6 +1033,7 @@ fn pause_plate_clicks(
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
     bind: Option<Res<LivedHourBind>>,
+    mut places: Option<ResMut<PlacesPlate>>,
     mut exit: EventWriter<AppExit>,
     resume: Query<&Interaction, (Changed<Interaction>, With<PauseResumeBtn>)>,
     title: Query<&Interaction, (Changed<Interaction>, With<PauseTitleBtn>)>,
@@ -966,11 +1045,17 @@ fn pause_plate_clicks(
     for i in &resume {
         if *i == Interaction::Pressed {
             label.settings_open = false;
+            if let Some(places) = places.as_mut() {
+                places.open = false;
+            }
             return;
         }
     }
     for i in &title {
         if *i == Interaction::Pressed {
+            if let Some(places) = places.as_mut() {
+                places.open = false;
+            }
             return_yard_to_title(&mut door, &mut label, bind.as_ref());
             return;
         }
@@ -979,6 +1064,9 @@ fn pause_plate_clicks(
         if *i == Interaction::Pressed {
             // Same window-close / Settings quit path — not Esc.
             label.settings_open = false;
+            if let Some(places) = places.as_mut() {
+                places.open = false;
+            }
             exit.send(AppExit::Success);
             return;
         }
@@ -1835,6 +1923,7 @@ mod tests {
             house: HouseName::default(),
             persist_present: false,
             hour_two_held: false,
+            book_held: false,
             settings_open: false,
             draft: String::new(),
             naming_offered: false,
@@ -1986,6 +2075,24 @@ mod tests {
         assert_eq!(soft_play_bindings_e_is_use(), true);
     }
 
+    #[test]
+    fn u2_play_and_no_book_continue_stay_sanctuary_places_hidden() {
+        use shared::hex_travel::{boot_place, places_row_label, BootKind, PlaceId};
+        assert_eq!(
+            boot_place(BootKind::Play, true, Some(PlaceId::Heartwood)),
+            PlaceId::Sanctuary
+        );
+        assert_eq!(
+            boot_place(BootKind::Continue, false, Some(PlaceId::Heartwood)),
+            PlaceId::Sanctuary
+        );
+        assert_eq!(places_row_label(false, false), None);
+        assert!(settings_visible_with_places(true, false));
+        assert!(!settings_visible_with_places(true, true));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(soft_play_bindings_e_is_use(), true);
+    }
+
     fn soft_play_bindings_e_is_use() -> bool {
         crate::soft_play_bindings::INTERACT == bevy::prelude::KeyCode::KeyE
     }
@@ -2093,6 +2200,7 @@ mod tests {
             house: HouseName::default(),
             persist_present: true,
             hour_two_held: false,
+            book_held: false,
             settings_open: false,
             draft: String::new(),
             naming_offered: true,

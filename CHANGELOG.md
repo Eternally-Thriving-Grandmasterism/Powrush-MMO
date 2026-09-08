@@ -1,6 +1,10 @@
 # CHANGELOG.md — Powrush-MMO
 
 
+## [23.2.75] — 2026-09-08 — U2: local hex travel (disk only)
+
+After Settled + book, Places (Sanctuary / Heartwood) can confirm leave, write `powrush_hex_<id>.json` into the U1 user dir, and load the other place. Play always boots Sanctuary Prime. Continue without the book still boots Sanctuary. Heartwood is a stub (lamp empty, same Peace E, no hanging mesh). Isolation gamma = 0. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
+
 ## [23.2.74] — 2026-09-08 — U1: writable user-dir saves
 
 House, settings, GenShare, and the other client `powrush_*` JSON land in a writable OS user-data dir: Linux `$XDG_DATA_HOME/powrush` or `~/.local/share/powrush`; Windows `%LOCALAPPDATA%\Powrush`; macOS `~/Library/Application Support/Powrush`. Lab / lavapipe: `POWRUSH_USER_DIR` (directory that holds the files). Cwd `data/` is adopted only when that user dir is empty of `powrush_*` files. Fresh first boot writes a new house there — not the F-book fixture. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.

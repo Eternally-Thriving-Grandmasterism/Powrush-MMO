@@ -107,11 +107,21 @@ fn handle_embassy(
     fab: Res<FabricatorYard>,
     voice: Res<VoiceYard>,
     ledger: Res<LedgerYard>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut yard: ResMut<EmbassyYard>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
     if !hour.complete || !hour.charter_skin_live() {
+        return;
+    }
+    // Heartwood stub: lamp disk stays empty. Same Peace E (tend), not Embassy seat.
+    if travel
+        .as_ref()
+        .map(|t| t.current == shared::hex_travel::PlaceId::Heartwood)
+        .unwrap_or(false)
+    {
+        yard.embassy.lamp_live = false;
         return;
     }
     yard.embassy.ensure_lamp(&fab.fab.pack);

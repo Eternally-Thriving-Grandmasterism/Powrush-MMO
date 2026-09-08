@@ -16,6 +16,7 @@ pub mod week_audit;
 pub mod stranger_loop_proof;
 pub mod f_book_fixture;
 pub mod user_persist;
+pub mod hex_travel;
 pub mod house_name;
 pub mod local_settings;
 pub mod title_house_proof;
@@ -70,6 +71,9 @@ pub mod prelude {
     pub use crate::shard_standing::ShardStanding;
     pub use crate::week_audit::WeekAudit;
     pub use crate::user_persist::{persist_dir, persist_path, USER_DIR_OVERRIDE_ENV};
+    pub use crate::hex_travel::{
+        boot_place, confirm_leave, places_eligible, BootKind, PlaceId, ISOLATION_GAMMA,
+    };
     pub use crate::house_name::{HouseName, HOUSE_PATH, UNNAMED};
     pub use crate::local_settings::{LocalSettings, SETTINGS_PATH};
     pub use crate::pause_ledger_face::{face_from, face_lines, ledger_sash_body, bind_only_before_settled_body, wait_line_before_settled, lethal_sign_eligible, lethal_sign_row, q_plate_seal_line, LETHAL_DECLARED_LINE, HEX_ADMITS_HARM, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER};
@@ -306,6 +310,23 @@ mod tests {
         let s = shard_standing::ShardStanding::default();
         assert!(!s.declared_lethal);
         assert_eq!(s.human_hybrid_heat, 0.0);
+    }
+
+    #[test]
+    fn u2_hex_travel_disk_only_gamma_zero_play_sanctuary() {
+        assert_eq!(hex_travel::ISOLATION_GAMMA, 0.0);
+        assert!(!hex_travel::leak_tick_enabled());
+        assert_eq!(
+            hex_travel::boot_place(
+                hex_travel::BootKind::Play,
+                true,
+                Some(hex_travel::PlaceId::Heartwood)
+            ),
+            hex_travel::PlaceId::Sanctuary
+        );
+        assert!(!hex_travel::may_enter(hex_travel::PlaceId::Heartwood, false));
+        assert!(hex_travel::travel_is_disk_only());
+        assert!(!hex_protocol::default_client_listens());
     }
 
     #[test]
