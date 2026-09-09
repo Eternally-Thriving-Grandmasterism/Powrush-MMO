@@ -23,8 +23,8 @@ use crate::embassy::EmbassyYard;
 use crate::hour_sacred::HourSacred;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::title_screen::{
-    HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_FG, TITLE_PLATE_BG,
-    TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY,
+    yard_after_travel, HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_FG,
+    TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY,
 };
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE};
 
@@ -435,6 +435,7 @@ fn pause_places_row_clicks(
 fn places_plate_clicks(
     hour: Option<Res<HourSacred>>,
     mut plate: ResMut<PlacesPlate>,
+    mut label: ResMut<HouseLabel>,
     mut travel: ResMut<HexTravelState>,
     mut bind: Option<ResMut<LivedHourBind>>,
     mut embassy: Option<ResMut<EmbassyYard>>,
@@ -503,7 +504,11 @@ fn places_plate_clicks(
                         }
                         // Heartwood: leave the house embassy seated. Stub lamp is hex climate.
                     }
-                    plate.open = false;
+                    // Land in the new hex's yard: no plate carried over, so Esc
+                    // there opens pause instead of closing the plate from before.
+                    let landed = yard_after_travel();
+                    label.settings_open = landed.pause_open;
+                    plate.open = landed.places_open;
                     plate.selected = None;
                     plate.confirm_pending = false;
                 }
@@ -544,15 +549,247 @@ pub fn settings_visible_with_places(settings_open: bool, places_open: bool) -> b
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::input::keyboard::{Key, KeyboardInput};
+    use bevy::input::ButtonState;
+    use bevy::input::InputPlugin as BevyInputPlugin;
+    use bevy::MinimalPlugins;
     use shared::f_book_fixture::fixture_is_not_default_door;
     use shared::hex_listen::PowrushNet;
     use shared::hex_protocol::default_client_listens;
     use shared::hex_travel::{
         heartwood_stub_embassy, hex_file_name, new_game_writes_heartwood, places_row_or_inert,
-        travel_is_disk_only, CURRENT_HEX_FILE, ISOLATION_GAMMA,
+        travel_is_disk_only, CURRENT_HEX_FILE, ISOLATION_GAMMA, LOCAL_HEXES,
     };
+    use shared::house_name::HouseName;
     use shared::space_law::HexFlag;
     use shared::user_persist::is_f_book_fixture_dir;
+
+    use crate::title_screen::TitleScreenPlugin;
+
+    /// Yard on `place` with Settled + book, pause and Places both closed.
+    /// Same door the walk reaches after Continue; no disk write.
+    fn yard_app(place: PlaceId) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_plugins(BevyInputPlugin);
+        app.add_event::<bevy::window::ReceivedCharacter>();
+        let mut house = HouseName::default();
+        house.skip();
+        house.skip_seals();
+        house.skip_heritage();
+        app.insert_resource(HexTravelState { current: place });
+        app.insert_resource(HourSacred {
+            session: Default::default(),
+            complete: true,
+            hour_three_complete: true,
+        });
+        app.insert_resource(LaunchDoor::InYard);
+        app.insert_resource(HouseLabel {
+            house,
+            persist_present: true,
+            hour_two_held: true,
+            book_held: true,
+            settings_open: false,
+            draft: String::new(),
+            naming_offered: true,
+            seals_offered: true,
+        });
+        app.insert_resource(PlacesPlate::default());
+        app.add_plugins(crate::net_mode::NetModePlugin);
+        app.add_plugins(crate::input::InputPlugin);
+        app.add_plugins(TitleScreenPlugin);
+        app.add_plugins(HexTravelPlugin);
+        app.update();
+        app
+    }
+
+    /// One real key edge: winit press event, frame, release event, frame.
+    fn tap_key(app: &mut App, code: KeyCode, key: Key) {
+        let window = Entity::PLACEHOLDER;
+        app.world_mut().send_event(KeyboardInput {
+            key_code: code,
+            logical_key: key.clone(),
+            state: ButtonState::Pressed,
+            window,
+        });
+        app.update();
+        app.world_mut().send_event(KeyboardInput {
+            key_code: code,
+            logical_key: key,
+            state: ButtonState::Released,
+            window,
+        });
+        app.update();
+    }
+
+    fn tap_escape(app: &mut App) {
+        tap_key(app, KeyCode::Escape, Key::Escape);
+    }
+
+    fn pause_is_open(app: &App) -> bool {
+        app.world().resource::<HouseLabel>().settings_open
+    }
+
+    /// Places row is laid out (not `Display::None`) on the open pause plate.
+    fn places_row_live(app: &mut App) -> bool {
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<(&Style, &Visibility), With<PausePlacesBtn>>();
+        q.iter(world)
+            .any(|(style, vis)| style.display == Display::Flex && *vis == Visibility::Visible)
+    }
+
+    #[test]
+    fn esc_opens_pause_on_every_local_hex() {
+        for place in LOCAL_HEXES {
+            let mut app = yard_app(place);
+            assert!(
+                !pause_is_open(&app),
+                "{place:?}: yard starts without the pause plate"
+            );
+            tap_escape(&mut app);
+            assert!(
+                pause_is_open(&app),
+                "{place:?}: Esc from the yard must open pause"
+            );
+            assert_eq!(
+                *app.world().resource::<LaunchDoor>(),
+                LaunchDoor::InYard,
+                "{place:?}: Esc never walks to Title"
+            );
+            assert_eq!(
+                crate::title_screen::pause_plate_line(LaunchDoor::InYard),
+                Some(crate::title_screen::YARD_WAITING)
+            );
+            assert!(
+                places_row_live(&mut app),
+                "{place:?}: Places stays on the pause plate after Settled + book"
+            );
+            // Esc again is Resume — still the yard, never Title.
+            tap_escape(&mut app);
+            assert!(!pause_is_open(&app), "{place:?}: Esc closes pause again");
+            assert_eq!(*app.world().resource::<LaunchDoor>(), LaunchDoor::InYard);
+        }
+    }
+
+    #[test]
+    fn esc_and_key_three_agree_on_every_local_hex() {
+        for place in LOCAL_HEXES {
+            let mut app = yard_app(place);
+            tap_key(&mut app, KeyCode::Digit3, Key::Character("3".into()));
+            assert!(pause_is_open(&app), "{place:?}: key 3 opens pause");
+            tap_key(&mut app, KeyCode::Digit3, Key::Character("3".into()));
+            assert!(!pause_is_open(&app), "{place:?}: key 3 closes pause");
+            tap_escape(&mut app);
+            assert!(pause_is_open(&app), "{place:?}: Esc opens the same plate");
+        }
+    }
+
+    /// An open Places plate must not eat the Esc edge — it walks back to pause.
+    #[test]
+    fn esc_from_places_returns_to_the_pause_plate() {
+        for place in LOCAL_HEXES {
+            let mut app = yard_app(place);
+            tap_escape(&mut app);
+            app.world_mut().resource_mut::<PlacesPlate>().open = true;
+            app.update();
+            tap_escape(&mut app);
+            assert!(
+                !app.world().resource::<PlacesPlate>().open,
+                "{place:?}: Esc closes Places"
+            );
+            assert!(
+                pause_is_open(&app),
+                "{place:?}: and lands back on the pause plate"
+            );
+            assert!(places_row_live(&mut app));
+        }
+    }
+
+    /// The walk that failed: Places → other hex → Esc there opens pause.
+    #[test]
+    fn leave_this_hex_lands_in_the_yard_and_esc_opens_pause_there() {
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-hex-walk-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+
+        let mut app = yard_app(PlaceId::Sanctuary);
+        app.insert_resource(LivedHourBind::default());
+        app.update();
+
+        // Esc opens pause, the Places row opens the plate, Heartwood is picked.
+        tap_escape(&mut app);
+        assert!(pause_is_open(&app));
+        {
+            let mut plate = app.world_mut().resource_mut::<PlacesPlate>();
+            plate.open = true;
+            select_dest(&mut plate, PlaceId::Sanctuary, PlaceId::Heartwood);
+        }
+        app.update();
+        assert!(app.world().resource::<PlacesPlate>().confirm_pending);
+
+        // Leave this hex.
+        let mut confirm_q = app
+            .world_mut()
+            .query_filtered::<Entity, With<PlacesConfirmBtn>>();
+        let confirm = confirm_q
+            .iter(app.world())
+            .next()
+            .expect("confirm button");
+        *app.world_mut().get_mut::<Interaction>(confirm).unwrap() = Interaction::Pressed;
+        app.update();
+        *app.world_mut().get_mut::<Interaction>(confirm).unwrap() = Interaction::None;
+        app.update();
+
+        assert_eq!(
+            app.world().resource::<HexTravelState>().current,
+            PlaceId::Heartwood,
+            "Leave this hex seats Heartwood"
+        );
+        assert!(
+            !app.world().resource::<PlacesPlate>().open,
+            "Places closes on arrival"
+        );
+        assert!(
+            !pause_is_open(&app),
+            "arrival lands in the yard — no plate held over from Sanctuary"
+        );
+
+        // The fail: Esc on Heartwood needed a click or key 3. Now it opens pause.
+        tap_escape(&mut app);
+        assert!(pause_is_open(&app), "Esc on Heartwood opens pause");
+        assert!(
+            places_row_live(&mut app),
+            "Places stays eligible on the Heartwood pause plate"
+        );
+
+        // And Places → Sanctuary → Leave this hex still walks home.
+        {
+            let mut plate = app.world_mut().resource_mut::<PlacesPlate>();
+            plate.open = true;
+            select_dest(&mut plate, PlaceId::Heartwood, PlaceId::Sanctuary);
+        }
+        app.update();
+        *app.world_mut().get_mut::<Interaction>(confirm).unwrap() = Interaction::Pressed;
+        app.update();
+        *app.world_mut().get_mut::<Interaction>(confirm).unwrap() = Interaction::None;
+        app.update();
+        assert_eq!(
+            app.world().resource::<HexTravelState>().current,
+            PlaceId::Sanctuary
+        );
+        assert!(!pause_is_open(&app));
+        tap_escape(&mut app);
+        assert!(pause_is_open(&app), "Esc on Sanctuary opens pause");
+
+        // Book stayed seated through the walk — Online never woke.
+        let hour = app.world().resource::<HourSacred>();
+        assert!(hour.complete && hour.hour_three_complete);
+        assert!(!default_client_listens());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn play_and_no_book_continue_stay_sanctuary() {

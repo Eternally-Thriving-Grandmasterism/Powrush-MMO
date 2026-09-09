@@ -871,6 +871,7 @@ fn title_keyboard_shortcuts(
     mut bind: Option<ResMut<LivedHourBind>>,
     hour: Option<Res<HourSacred>>,
     mut embassy: Option<ResMut<EmbassyYard>>,
+    mut places: Option<ResMut<PlacesPlate>>,
 ) {
     match *door {
         LaunchDoor::Title => {
@@ -911,9 +912,9 @@ fn title_keyboard_shortcuts(
         }
         LaunchDoor::InYard => {
             // Esc opens/closes D1 pause (esc_yard_pause) — never Title / never quit.
-            // Digit3 also toggles D1 pause plate (Settings path in yard).
+            // Digit3 walks the same verb, so both keys land the same plate.
             if keyboard.just_pressed(KeyCode::Digit3) {
-                label.settings_open = !label.settings_open;
+                apply_yard_pause_press(LaunchDoor::InYard, &mut label, places.as_deref_mut());
             }
         }
         LaunchDoor::NameHouse | LaunchDoor::HouseDress => {}
@@ -999,6 +1000,7 @@ fn watch_settled_for_naming(
 
 /// Esc while InYard toggles D1 pause plate (stranger-pass / E1 + Wave H).
 /// Pause closed → open (*the yard is waiting*); pause open → close (Resume).
+/// Same plate on every local hex — the door gates this, the hex never does.
 /// Does **not** set Title and does **not** quit-to-desktop — Title button /
 /// `return_yard_to_title` still writes house JSON + lived persist; Quit = AppExit.
 fn esc_yard_pause(
@@ -1008,26 +1010,40 @@ fn esc_yard_pause(
     mut label: ResMut<HouseLabel>,
     mut places: Option<ResMut<PlacesPlate>>,
 ) {
-    if *door != LaunchDoor::InYard {
-        return;
-    }
     let esc = keyboard.just_pressed(KeyCode::Escape);
     // Start/Options = same pause toggle as Esc (INPUT_CANON).
     let start = player_input.pause_toggle;
     if !esc && !start {
         return;
     }
-    if let Some(places) = places.as_mut() {
-        if places.open {
-            places.open = false;
+    // Never LaunchDoor::Title / never AppExit from Esc/Start.
+    apply_yard_pause_press(*door, &mut label, places.as_deref_mut());
+}
+
+/// Run one yard pause press (Esc / Start / key 3 / touch chip) through the
+/// single verb, so every entry point agrees on every local hex.
+pub(crate) fn apply_yard_pause_press(
+    door: LaunchDoor,
+    label: &mut HouseLabel,
+    places: Option<&mut PlacesPlate>,
+) -> bool {
+    let places_was_open = places.as_ref().map(|p| p.open).unwrap_or(false);
+    let Some(step) = yard_pause_step(door, label.settings_open, places_was_open) else {
+        return false;
+    };
+    apply_yard_pause(step, label, places);
+    true
+}
+
+fn apply_yard_pause(step: YardPause, label: &mut HouseLabel, places: Option<&mut PlacesPlate>) {
+    label.settings_open = step.pause_open;
+    if let Some(places) = places {
+        if places.open != step.places_open {
+            places.open = step.places_open;
             places.selected = None;
             places.confirm_pending = false;
-            return;
         }
     }
-    // Esc / Start opens pause when closed; closes when open (Resume).
-    // Never LaunchDoor::Title / never AppExit from Esc/Start.
-    label.settings_open = !label.settings_open;
 }
 
 /// After Settled or quit-to-title: house JSON exists (name may be null / Unnamed).
@@ -1527,6 +1543,48 @@ pub fn esc_from_inyard_toggles_pause(from: LaunchDoor, pause_was_open: bool) -> 
     }
 }
 
+/// Pause plate state after one yard pause press.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct YardPause {
+    pub pause_open: bool,
+    pub places_open: bool,
+}
+
+/// One yard pause verb for Esc, pad Start, key 3, and the touch pause chip.
+///
+/// The door decides, never the hex: Sanctuary, Heartwood, and any later local
+/// hex reach the same plate. Places is a leaf of that plate, so a press with
+/// Places open walks back to pause instead of eating the press and leaving the
+/// walker on a bare yard.
+pub fn yard_pause_step(
+    door: LaunchDoor,
+    pause_was_open: bool,
+    places_was_open: bool,
+) -> Option<YardPause> {
+    if door != LaunchDoor::InYard {
+        return None;
+    }
+    if places_was_open {
+        return Some(YardPause {
+            pause_open: true,
+            places_open: false,
+        });
+    }
+    Some(YardPause {
+        pause_open: !pause_was_open,
+        places_open: false,
+    })
+}
+
+/// A confirmed leave lands the walker in the new hex's yard — no plate held
+/// over from the hex before, so the next Esc there opens pause.
+pub const fn yard_after_travel() -> YardPause {
+    YardPause {
+        pause_open: false,
+        places_open: false,
+    }
+}
+
 /// Pure helper: Title button from pause / InYard yields Title (house JSON path).
 pub fn title_from_pause_returns_title(from: LaunchDoor) -> LaunchDoor {
     match from {
@@ -1937,6 +1995,65 @@ mod tests {
         assert_eq!(
             super::esc_from_inyard_toggles_pause(LaunchDoor::HouseDress, false),
             (LaunchDoor::HouseDress, false)
+        );
+    }
+
+    #[test]
+    fn yard_pause_verb_is_the_same_on_every_local_hex() {
+        // The verb reads the door, never the hex — one plate for all of them.
+        assert_eq!(
+            super::yard_pause_step(LaunchDoor::InYard, false, false),
+            Some(YardPause {
+                pause_open: true,
+                places_open: false
+            })
+        );
+        assert_eq!(
+            super::yard_pause_step(LaunchDoor::InYard, true, false),
+            Some(YardPause {
+                pause_open: false,
+                places_open: false
+            })
+        );
+        // Places is a leaf of the pause plate: the press walks back, never eats.
+        assert_eq!(
+            super::yard_pause_step(LaunchDoor::InYard, true, true),
+            Some(YardPause {
+                pause_open: true,
+                places_open: false
+            })
+        );
+        assert_eq!(
+            super::yard_pause_step(LaunchDoor::InYard, false, true),
+            Some(YardPause {
+                pause_open: true,
+                places_open: false
+            })
+        );
+        // Off the yard the verb is silent — Title / naming / dress keep their keys.
+        assert_eq!(super::yard_pause_step(LaunchDoor::Title, false, false), None);
+        assert_eq!(
+            super::yard_pause_step(LaunchDoor::NameHouse, true, false),
+            None
+        );
+        assert_eq!(
+            super::yard_pause_step(LaunchDoor::HouseDress, false, true),
+            None
+        );
+    }
+
+    #[test]
+    fn confirmed_leave_lands_on_a_bare_yard() {
+        let landed = super::yard_after_travel();
+        assert!(!landed.pause_open, "no plate carried into the new hex");
+        assert!(!landed.places_open);
+        // So the next press on the new hex opens pause instead of closing.
+        assert_eq!(
+            super::yard_pause_step(LaunchDoor::InYard, landed.pause_open, landed.places_open),
+            Some(YardPause {
+                pause_open: true,
+                places_open: false
+            })
         );
     }
 

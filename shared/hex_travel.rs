@@ -53,6 +53,10 @@ pub enum PlaceId {
     Heartwood,
 }
 
+/// Every local hex the yard can stand on. A later local hex joins this list,
+/// and the pause plate must reach the same door on each one.
+pub const LOCAL_HEXES: [PlaceId; 2] = [PlaceId::Sanctuary, PlaceId::Heartwood];
+
 impl PlaceId {
     pub const fn as_str(self) -> &'static str {
         match self {
