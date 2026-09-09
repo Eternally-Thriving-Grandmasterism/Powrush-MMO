@@ -22,6 +22,11 @@ pub const HEX_ADMITS_HARM_OFF: &str = "this hex admits harm · off";
 /// Pre-charter L press — honest refuse, never blank.
 pub const NOT_YOUR_CHARTER: &str = "Not your charter";
 
+/// House bill prefix on the Ledger plate. Deliberately not the "this week"
+/// wording: a reader must be able to tell the summed House bill from the
+/// single yard they are standing in.
+pub const HOUSE_WEEK_PREFIX: &str = "House week";
+
 /// Bind-only / pre-Settled L press — ledger not yours yet.
 pub const LEDGER_WAITS: &str = "the ledger waits";
 
@@ -62,6 +67,15 @@ pub fn face_from(house: &HouseName, week: &WeekAudit, declared_lethal: bool) -> 
         out.push_str(LETHAL_DECLARED_LINE);
     }
     out
+}
+
+/// One House bill: tons and restored added across the rooms that persist a
+/// week. Speech only — summing never writes a hex.
+pub fn house_week_line(week: &WeekAudit) -> String {
+    format!(
+        "{HOUSE_WEEK_PREFIX} · {} tons · {} restored",
+        week.tons_moved, week.restored_count
+    )
 }
 
 /// Seal caption for the Q founding plate (same dress line as Pause face).
@@ -256,6 +270,25 @@ mod tests {
         let settled = ledger_sash_body(true, true, &house, &week(0, 0), false);
         assert!(settled.contains(UNNAMED));
         assert!(!settled.contains("lethal"));
+    }
+
+    /// The walked fail: a bill that reads exactly like the yard proves nothing.
+    #[test]
+    fn house_week_line_is_distinct_from_the_single_yard_week() {
+        let yard = week(1, 1);
+        let house = week(3, 2);
+
+        let yard_line = yard.slab_line();
+        let house_line = house_week_line(&house);
+
+        assert_eq!(house_line, "House week · 3 tons · 2 restored");
+        assert!(house_line.starts_with(HOUSE_WEEK_PREFIX));
+        assert!(!house_line.contains("this week"));
+        assert_ne!(house_line, yard_line);
+        // Same numbers must still read as two different claims.
+        assert_ne!(house_week_line(&yard), yard_line);
+        assert!(face_is_steward_honest(&house_line));
+        assert!(!house_line.to_lowercase().contains("market"));
     }
 
     #[test]

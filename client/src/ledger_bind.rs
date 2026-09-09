@@ -12,7 +12,9 @@ use bevy::prelude::*;
 use shared::hex_travel::{house_week_footer, read_hex_named, PlaceId, LOCAL_HEXES};
 use shared::hour_two::HourTwoPack;
 use shared::ledger_bind::{ContractState, LedgerBoard};
-use shared::pause_ledger_face::{ledger_sash_body, lethal_sign_row, HEX_ADMITS_HARM_OFF};
+use shared::pause_ledger_face::{
+    house_week_line, ledger_sash_body, lethal_sign_row, HEX_ADMITS_HARM_OFF,
+};
 use shared::shard_climate::ShardClimate;
 use shared::week_audit::WeekAudit;
 
@@ -48,6 +50,22 @@ impl Default for LedgerYard {
     }
 }
 
+/// The House bill the Ledger plate speaks: the live room summed with the other
+/// Offline rooms that persist a week. Threshold rides the Heartwood file, so
+/// there is no fourth room to read. Read-only — summing never writes a hex, so
+/// isolation stays 0.
+#[derive(Resource, Debug, Clone, Default)]
+pub struct HouseWeekBill {
+    pub week: WeekAudit,
+}
+
+impl HouseWeekBill {
+    /// `House week · Σtons · Σrestored` — not the single-yard week wording.
+    pub fn line(&self) -> String {
+        house_week_line(&self.week)
+    }
+}
+
 #[derive(Component)]
 struct LedgerSlabRoot;
 #[derive(Component)]
@@ -58,8 +76,9 @@ pub struct LedgerBindPlugin;
 impl Plugin for LedgerBindPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LedgerYard>()
+            .init_resource::<HouseWeekBill>()
             .add_systems(Startup, spawn_ledger_slab)
-            .add_systems(PreUpdate, mark_ledger_bind)
+            .add_systems(PreUpdate, (mark_ledger_bind, refresh_house_week_bill))
             .add_systems(
                 Update,
                 (handle_ledger, stamp_complete, update_ledger_slab).after(InputMapSet),
@@ -214,11 +233,30 @@ pub fn lethal_soft_clause(hour_three_held: bool, already_lethal: bool) -> &'stat
     }
 }
 
+/// Re-read the room files only when the live room or the yard moved.
+fn refresh_house_week_bill(
+    bind: Res<LivedHourBind>,
+    travel: Option<Res<HexTravelState>>,
+    mut bill: ResMut<HouseWeekBill>,
+) {
+    let travel_moved = travel.as_ref().map(|t| t.is_changed()).unwrap_or(false);
+    if !bill.is_added() && !bind.is_changed() && !travel_moved {
+        return;
+    }
+    let week = match travel.as_ref() {
+        Some(travel) => house_week_from_rooms(travel.current, &bind.climate, read_hex_named),
+        None => bind.week.clone(),
+    };
+    if bill.week != week {
+        bill.week = week;
+    }
+}
+
 fn update_ledger_slab(
     hour: Res<HourSacred>,
     yard: Res<LedgerYard>,
     bind: Res<LivedHourBind>,
-    travel: Option<Res<HexTravelState>>,
+    bill: Res<HouseWeekBill>,
     house_label: Res<HouseLabel>,
     mut root: Query<&mut Visibility, With<LedgerSlabRoot>>,
     mut text_q: Query<&mut Text, With<LedgerSlabText>>,
@@ -242,14 +280,12 @@ fn update_ledger_slab(
         .unwrap_or(false)
         || hour.complete;
     let charter = hour.charter_skin_live();
-    let house_week = travel
-        .map(|travel| house_week_from_rooms(travel.current, &bind.climate, read_hex_named))
-        .unwrap_or_else(|| bind.week.clone());
+    // The face speaks the yard the body stands in. The House bill is its own line.
     let face = ledger_sash_body(
         charter,
         settled,
         &house_label.house,
-        &house_week,
+        &yard_week(&bind.climate),
         bind.standing.declared_lethal,
     );
     let line = if !charter {
@@ -259,9 +295,11 @@ fn update_ledger_slab(
         // Bind-only before Settled: wait line + Bind sash (still never blank).
         use shared::pause_ledger_face::wait_line_before_settled;
         let wait = wait_line_before_settled(true);
+        let face = with_house_week(&face, &bill);
         let sash = yard.board.sash_line();
         format!("{wait}\n{face}\n{sash}")
     } else {
+        let face = with_house_week(&face, &bill);
         // Soft discoverability only after the book.
         let mut sash = yard.board.sash_line();
         let sign = lethal_sign_row(
@@ -283,6 +321,18 @@ fn update_ledger_slab(
             }
         }
     }
+}
+
+/// Week for the yard underfoot only — never the House bill.
+fn yard_week(climate: &ShardClimate) -> WeekAudit {
+    let mut week = WeekAudit::default();
+    week.sync_from_climate(climate.tons_moved, climate.restored_count);
+    week
+}
+
+/// Yard face, then the summed House bill on its own line.
+fn with_house_week(face: &str, bill: &HouseWeekBill) -> String {
+    format!("{face}\n{}", bill.line())
 }
 
 fn house_week_from_rooms(
@@ -307,6 +357,92 @@ fn house_week_from_rooms(
 mod tests {
     use super::*;
     use shared::space_law::HexFlag;
+
+    /// L sash open on Sanctuary with the book, painted by the real system.
+    fn painted_ledger_plate(yard_climate: ShardClimate, bill: HouseWeekBill) -> String {
+        use bevy::MinimalPlugins;
+        use shared::house_name::HouseName;
+        use shared::space_law::{CharterKind, SpaceSession};
+
+        let mut house = HouseName::default();
+        house.skip();
+        house.skip_seals();
+        house.skip_heritage();
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(HourSacred {
+            session: SpaceSession {
+                charter_id: Some("house-local".into()),
+                hex: HexFlag::Frontier,
+                kind: CharterKind::House,
+                ..Default::default()
+            },
+            complete: true,
+            hour_three_complete: true,
+        });
+        app.insert_resource(LedgerYard {
+            board: LedgerBoard::default(),
+            sash_open: true,
+        });
+        app.insert_resource(LivedHourBind {
+            hour: shared::climate_node::LivedHour::new_demo(),
+            climate: yard_climate,
+            standing: shared::shard_standing::ShardStanding::default(),
+            week: WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        });
+        app.insert_resource(bill);
+        app.insert_resource(HouseLabel {
+            house,
+            persist_present: true,
+            hour_two_held: true,
+            book_held: true,
+            settings_open: false,
+            draft: String::new(),
+            naming_offered: true,
+            seals_offered: true,
+        });
+        app.add_systems(Startup, spawn_ledger_slab);
+        app.add_systems(Update, update_ledger_slab);
+        app.update();
+
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<&Text, With<LedgerSlabText>>();
+        q.iter(world)
+            .next()
+            .and_then(|t| t.sections.first())
+            .map(|s| s.value.clone())
+            .expect("ledger slab text")
+    }
+
+    /// End of the failed walk, on the plate: Sanctuary 1/1 underfoot while the
+    /// House bill adds Heartwood in. L must speak both, and they must differ.
+    #[test]
+    fn sanctuary_l_paints_house_line_that_outgrows_the_yard() {
+        let mut sanctuary = shared::hex_travel::sanctuary_fresh_climate();
+        sanctuary.tons_moved = 1;
+        sanctuary.restored_count = 1;
+
+        let mut summed = WeekAudit::default();
+        summed.sync_from_climate(3, 2);
+
+        let plate = painted_ledger_plate(sanctuary, HouseWeekBill { week: summed });
+
+        assert!(
+            plate.contains("this week · 1 tons · 1 restored"),
+            "yard week stays honest: {plate}"
+        );
+        assert!(
+            plate.contains("House week · 3 tons · 2 restored"),
+            "L speaks the summed House bill: {plate}"
+        );
+        assert!(!plate.to_lowercase().contains("market"));
+        assert!(!plate.to_lowercase().contains("online"));
+    }
 
     #[test]
     fn digit3_needs_hour_three_flag() {
@@ -367,6 +503,48 @@ mod tests {
         assert!(!face.to_lowercase().contains("peer"));
     }
 
+    /// The walked fail: Heartwood 0/0, Sanctuary 1/1, and L said "1 tons ·
+    /// 1 restored" — the yard, indistinguishable from a sum. After a Tend in
+    /// both rooms the House line must add them and read differently.
+    #[test]
+    fn sanctuary_house_line_adds_two_tended_rooms_and_is_not_the_yard() {
+        use shared::hex_travel::stub_hex_file;
+
+        let mut sanctuary = stub_hex_file(PlaceId::Sanctuary).climate;
+        sanctuary.tons_moved = 1;
+        sanctuary.restored_count = 1;
+
+        let mut heartwood = stub_hex_file(PlaceId::Heartwood);
+        heartwood.climate.tons_moved = 2;
+        heartwood.climate.restored_count = 1;
+
+        // Standing on Sanctuary, Depths never visited (no file on disk).
+        let bill = HouseWeekBill {
+            week: house_week_from_rooms(PlaceId::Sanctuary, &sanctuary, |place| {
+                (place == PlaceId::Heartwood).then(|| heartwood.clone())
+            }),
+        };
+
+        assert_eq!(bill.week.tons_moved, 3, "1 Sanctuary + 2 Heartwood");
+        assert_eq!(bill.week.restored_count, 2, "1 Sanctuary + 1 Heartwood");
+        assert_eq!(bill.line(), "House week · 3 tons · 2 restored");
+
+        let yard = yard_week(&sanctuary);
+        assert_eq!(yard.slab_line(), "this week · 1 tons · 1 restored");
+        assert_ne!(
+            bill.line(),
+            yard.slab_line(),
+            "the House line must not be a clone of the yard"
+        );
+
+        // Both lines land on the plate, and the House bill is its own line.
+        let plate = with_house_week(&yard.slab_line(), &bill);
+        assert!(plate.contains("this week · 1 tons · 1 restored"));
+        assert!(plate.contains("House week · 3 tons · 2 restored"));
+        assert!(plate.lines().count() >= 2);
+        assert!(!plate.to_lowercase().contains("market"));
+    }
+
     #[test]
     fn sanctuary_ledger_footer_sums_persisted_offline_rooms() {
         use shared::hex_travel::stub_hex_file;
@@ -393,6 +571,42 @@ mod tests {
         assert_eq!(week.restored_count, 11);
         assert_eq!(week.slab_line(), "this week · 10 tons · 11 restored");
         assert_eq!(LOCAL_HEXES.len(), 3, "Threshold persists on Heartwood");
+    }
+
+    /// Depths counts once it persists a week; no fourth room is ever read.
+    #[test]
+    fn three_offline_rooms_add_and_no_fifth_place_is_invented() {
+        use shared::hex_travel::stub_hex_file;
+
+        let mut sanctuary = stub_hex_file(PlaceId::Sanctuary).climate;
+        sanctuary.tons_moved = 1;
+        sanctuary.restored_count = 1;
+
+        let mut heartwood = stub_hex_file(PlaceId::Heartwood);
+        heartwood.climate.tons_moved = 2;
+        heartwood.climate.restored_count = 1;
+
+        let mut depths = stub_hex_file(PlaceId::Depths);
+        depths.climate.tons_moved = 4;
+        depths.climate.restored_count = 3;
+
+        let mut asked = Vec::new();
+        let week = house_week_from_rooms(PlaceId::Sanctuary, &sanctuary, |place| {
+            asked.push(place);
+            match place {
+                PlaceId::Heartwood => Some(heartwood.clone()),
+                PlaceId::Depths => Some(depths.clone()),
+                PlaceId::Sanctuary => None,
+            }
+        });
+
+        assert_eq!(week.tons_moved, 7);
+        assert_eq!(week.restored_count, 5);
+        assert_eq!(
+            asked,
+            vec![PlaceId::Heartwood, PlaceId::Depths],
+            "only the rooms that persist a week are read"
+        );
     }
 
     #[test]
