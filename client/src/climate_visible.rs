@@ -11,6 +11,7 @@ use shared::climate_node::NodeState;
 
 use crate::climate_script::TeachingClaim;
 use crate::heartwood_lip::ThresholdShelfSession;
+use crate::heartwood_wards::WardSession;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 
@@ -143,6 +144,7 @@ fn update_climate_state_slab(
     nearby: Res<NearbyMercyNode>,
     bind: Res<LivedHourBind>,
     threshold: Option<Res<ThresholdShelfSession>>,
+    wards: Option<Res<WardSession>>,
     claim: Option<Res<TeachingClaim>>,
     week_glow: Res<WeekFeelGlow>,
     nodes: Query<&MercyHarvestNode>,
@@ -154,7 +156,13 @@ fn update_climate_state_slab(
 ) {
     // Hide slabs respects LivedHourBind.guidance_hidden (D2 hide_slabs / H).
     let threshold_line = threshold_speech_if_near(threshold.as_deref());
-    let show = (nearby.in_range || threshold_line.is_some()) && !bind.guidance_hidden;
+    let wards_line = if threshold_line.is_none() {
+        wards_speech_if_near(wards.as_deref())
+    } else {
+        None
+    };
+    let show =
+        (nearby.in_range || threshold_line.is_some() || wards_line.is_some()) && !bind.guidance_hidden;
     let glow = week_glow.glow;
     let week_live = bind
         .climate_slab
@@ -193,7 +201,7 @@ fn update_climate_state_slab(
     if !show {
         return;
     }
-    let line = threshold_line.unwrap_or_else(|| {
+    let line = threshold_line.or(wards_line).unwrap_or_else(|| {
         nearby
             .entity
             .and_then(|e| nodes.get(e).ok())
@@ -238,6 +246,12 @@ fn threshold_speech_if_near(threshold: Option<&ThresholdShelfSession>) -> Option
         .map(|session| session.node.speech())
 }
 
+fn wards_speech_if_near(wards: Option<&WardSession>) -> Option<String> {
+    wards
+        .filter(|session| session.near)
+        .map(|session| session.dress.speech().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,5 +283,17 @@ mod tests {
         session.near = true;
         let line = threshold_speech_if_near(Some(&session)).expect("Threshold speech");
         assert!(THRESHOLD_PEACE_VERBS.iter().all(|verb| line.contains(verb)));
+    }
+
+    #[test]
+    fn wards_use_the_existing_speech_slab() {
+        let mut session = WardSession::default();
+        assert_eq!(wards_speech_if_near(Some(&session)), None);
+        session.near = true;
+        let line = wards_speech_if_near(Some(&session)).expect("Wards speech");
+        assert!(line.contains("E tend"));
+        assert!(line.contains("Well"));
+        assert!(line.contains("Grove"));
+        assert!(line.contains("Ember"));
     }
 }

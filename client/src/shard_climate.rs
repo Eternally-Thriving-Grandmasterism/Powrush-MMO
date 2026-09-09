@@ -49,9 +49,10 @@ fn hold_e_care_tend(
 ) {
     // At the Threshold pipe the Use belongs to the session node — it must not
     // reach the hex climate ledger or the week file.
-    let at_threshold = epiphany.map(|e| e.threshold_near).unwrap_or(false);
+    let at_threshold = epiphany.as_ref().map(|e| e.threshold_near).unwrap_or(false);
+    let at_wards = epiphany.as_ref().map(|e| e.wards_near).unwrap_or(false);
     let pressing = keyboard.pressed(soft_play_bindings::INTERACT);
-    if at_threshold || !pressing || !nearby.in_range {
+    if at_threshold || at_wards || !pressing || !nearby.in_range {
         hold.seconds = 0.0;
         hold.fired = false;
         return;

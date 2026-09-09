@@ -59,6 +59,8 @@ pub struct FirstHarvestEpiphany {
     pub well_near: bool,
     /// At the Heartwood Threshold pipe. E Tends the node; do not harvest.
     pub threshold_near: bool,
+    /// At Heartwood Wards seal posts. E tends dress; do not harvest.
+    pub wards_near: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -83,6 +85,7 @@ impl Default for FirstHarvestEpiphany {
             hybrid_near: false,
             well_near: false,
             threshold_near: false,
+            wards_near: false,
         }
     }
 }
@@ -356,6 +359,11 @@ fn handle_interact_harvest(
     // U10: at the Threshold pipe the Use is a Tend. The harvest tap must not
     // swallow it, so no Take, no thriving-moment harvest line, no stock drop.
     if state.threshold_near {
+        return;
+    }
+
+    // Seal posts: Use is look/tend dress on the existing Peace E — not a Take.
+    if state.wards_near {
         return;
     }
 

@@ -38,16 +38,25 @@ pub struct WardDress {
 }
 
 impl WardDress {
+    /// One line for the existing climate slab. No second HUD.
+    pub fn speech(&self) -> &'static str {
+        if self.tends > 0 {
+            "Wards held · seals are dress"
+        } else {
+            "Wards · E tend · Well · Grove · Ember"
+        }
+    }
+
     pub fn apply(&mut self, verb: WardVerb) -> &'static str {
         match verb {
             WardVerb::Look => {
                 self.looked = true;
-                "Wards · Well · Grove · Ember"
+                self.speech()
             }
             WardVerb::Tend => {
                 self.looked = true;
                 self.tends = self.tends.saturating_add(1);
-                "Wards held · seals are dress"
+                self.speech()
             }
         }
     }
@@ -110,6 +119,18 @@ mod tests {
         assert!(!wards_are_market());
         assert!(!wards_are_socket_or_public_bind());
         assert!(!wards_mesh_on_sanctuary());
+    }
+
+    #[test]
+    fn look_line_teaches_e_tend_without_writing_book() {
+        let house = hour_three_held_fixture();
+        let before = house.clone();
+        let mut dress = WardDress::default();
+        assert!(dress.speech().contains("E tend"));
+        assert!(dress.speech().contains("Well"));
+        let looked = visit_wards(&mut dress, WardVerb::Look, &house);
+        assert!(looked.line.contains("E tend"));
+        assert_eq!(house, before, "Wards must not write the house book");
     }
 
     #[test]
