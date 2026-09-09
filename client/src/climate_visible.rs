@@ -152,9 +152,13 @@ fn update_climate_state_slab(
     >,
     mut text_q: Query<&mut Text, With<ClimateStateText>>,
 ) {
-    // Hide slabs respects LivedHourBind.guidance_hidden (D2 hide_slabs / H).
     let threshold_line = threshold_speech_if_near(threshold.as_deref());
-    let show = (nearby.in_range || threshold_line.is_some()) && !bind.guidance_hidden;
+    // H hides guidance, but an in-range well keeps its state sentence on this slab.
+    let show = climate_slab_should_show(
+        nearby.in_range,
+        threshold_line.is_some(),
+        bind.guidance_hidden,
+    );
     let glow = week_glow.glow;
     let week_live = bind
         .climate_slab
@@ -193,11 +197,10 @@ fn update_climate_state_slab(
     if !show {
         return;
     }
-    let line = threshold_line.unwrap_or_else(|| {
-        nearby
-            .entity
-            .and_then(|e| nodes.get(e).ok())
-            .map(|n| {
+    let well_line = nearby
+        .in_range
+        .then(|| {
+            nearby.entity.and_then(|e| nodes.get(e).ok()).map(|n| {
                 let state = bind
                     .hour
                     .nodes
@@ -205,6 +208,9 @@ fn update_climate_state_slab(
                     .find(|c| c.id == n.climate_id)
                     .map(|c| c.state)
                     .unwrap_or(NodeState::Idle);
+                if bind.guidance_hidden {
+                    return well_state_sentence(n.name, state);
+                }
                 let hint = claim
                     .as_ref()
                     .and_then(|c| c.sentence_for(n.climate_id))
@@ -215,14 +221,17 @@ fn update_climate_state_slab(
                 }
                 line
             })
-            .unwrap_or_else(|| match bind.climate_slab.as_deref() {
-                Some(slab) if !bind.last_line.is_empty() => {
-                    format!("{} · {}", bind.last_line, slab)
-                }
-                Some(slab) => slab.to_string(),
-                None => bind.last_line.clone(),
-            })
-    });
+        })
+        .flatten();
+    let line = well_line
+        .or(threshold_line)
+        .unwrap_or_else(|| match bind.climate_slab.as_deref() {
+            Some(slab) if !bind.last_line.is_empty() => {
+                format!("{} · {}", bind.last_line, slab)
+            }
+            Some(slab) => slab.to_string(),
+            None => bind.last_line.clone(),
+        });
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -230,6 +239,18 @@ fn update_climate_state_slab(
             }
         }
     }
+}
+
+fn climate_slab_should_show(
+    well_in_range: bool,
+    threshold_near: bool,
+    guidance_hidden: bool,
+) -> bool {
+    well_in_range || (threshold_near && !guidance_hidden)
+}
+
+fn well_state_sentence(name: &str, state: NodeState) -> String {
+    format!("{name} is {}.", state.label())
 }
 
 fn threshold_speech_if_near(threshold: Option<&ThresholdShelfSession>) -> Option<String> {
@@ -269,5 +290,28 @@ mod tests {
         session.near = true;
         let line = threshold_speech_if_near(Some(&session)).expect("Threshold speech");
         assert!(THRESHOLD_PEACE_VERBS.iter().all(|verb| line.contains(verb)));
+    }
+
+    #[test]
+    fn hidden_guidance_keeps_each_well_state_sentence_visible() {
+        for (state, label) in [
+            (NodeState::Idle, "Idle"),
+            (NodeState::Glowing, "Glowing"),
+            (NodeState::Tended, "Tended"),
+            (NodeState::Resting, "Resting"),
+            (NodeState::Stressed, "Stressed"),
+        ] {
+            assert!(climate_slab_should_show(true, false, true));
+            assert_eq!(
+                well_state_sentence("North Well", state),
+                format!("North Well is {label}.")
+            );
+        }
+    }
+
+    #[test]
+    fn hidden_guidance_does_not_keep_threshold_speech_open() {
+        assert!(!climate_slab_should_show(false, true, true));
+        assert!(climate_slab_should_show(false, true, false));
     }
 }
