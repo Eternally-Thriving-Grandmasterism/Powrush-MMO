@@ -267,16 +267,15 @@ fn update_climate_state_slab(
             })
         })
         .flatten();
-    let line = wards_line
-        .or(well_line)
-        .or(threshold_line)
-        .unwrap_or_else(|| match bind.climate_slab.as_deref() {
-            Some(slab) if !bind.last_line.is_empty() => {
-                format!("{} · {}", bind.last_line, slab)
-            }
-            Some(slab) => slab.to_string(),
-            None => bind.last_line.clone(),
-        });
+    let fallback = match bind.climate_slab.as_deref() {
+        Some(slab) if !bind.last_line.is_empty() => {
+            format!("{} · {}", bind.last_line, slab)
+        }
+        Some(slab) => slab.to_string(),
+        None => bind.last_line.clone(),
+    };
+    // P2: when a well and Wards posts overlap, keep both on one slab — well first.
+    let line = compose_climate_slab_line(well_line, wards_line, threshold_line, fallback);
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -315,6 +314,21 @@ fn well_state_token(state: NodeState) -> &'static str {
 
 fn well_state_sentence(name: &str, state: NodeState) -> String {
     format!("{name} is {}", well_state_caption(state))
+}
+
+
+fn compose_climate_slab_line(
+    well: Option<String>,
+    wards: Option<String>,
+    threshold: Option<String>,
+    fallback: String,
+) -> String {
+    match (well, wards) {
+        (Some(well), Some(wards)) => format!("{well} · {wards}"),
+        (Some(well), None) => well,
+        (None, Some(wards)) => wards,
+        (None, None) => threshold.unwrap_or(fallback),
+    }
 }
 
 fn threshold_speech_if_near(threshold: Option<&ThresholdShelfSession>) -> Option<String> {
@@ -428,4 +442,26 @@ mod tests {
             Some(WARDS_NOTICE)
         );
     }
+    #[test]
+    fn well_stays_ahead_of_wards_when_both_are_near() {
+        let well = well_state_sentence("Sanctuary ember", NodeState::Glowing);
+        let line = compose_climate_slab_line(
+            Some(well.clone()),
+            Some(WARDS_NOTICE.to_string()),
+            None,
+            "fallback".into(),
+        );
+        assert!(line.starts_with(&well), "well sentence must remain first");
+        assert!(line.contains(WARDS_NOTICE), "Wards notice stays on the same slab");
+        assert_eq!(line, format!("{well} · {WARDS_NOTICE}"));
+        assert_eq!(
+            compose_climate_slab_line(Some(well.clone()), None, None, "fallback".into()),
+            well
+        );
+        assert_eq!(
+            compose_climate_slab_line(None, Some(WARDS_NOTICE.to_string()), None, "fallback".into()),
+            WARDS_NOTICE
+        );
+    }
+
 }
