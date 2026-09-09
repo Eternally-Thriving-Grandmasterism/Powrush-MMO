@@ -19,6 +19,7 @@ pub mod user_persist;
 pub mod hex_travel;
 pub mod heartwood_lamp;
 pub mod threshold_shelf;
+pub mod heartwood_wards;
 pub mod house_name;
 pub mod local_settings;
 pub mod peace_audio;
@@ -79,6 +80,7 @@ pub mod prelude {
     };
     pub use crate::heartwood_lamp::{try_place_building, BuildRefuse, HeartwoodYard};
     pub use crate::threshold_shelf::{visit_threshold, ThresholdShelfState, ThresholdVerb, THRESHOLD_SHELF_CENTER};
+    pub use crate::heartwood_wards::{visit_wards, WardDress, WardVerb, WARD_POST_CENTERS};
     pub use crate::house_name::{HouseName, HOUSE_PATH, UNNAMED};
     pub use crate::local_settings::{LocalSettings, SETTINGS_PATH};
     pub use crate::peace_audio::{audio_output_safe, PeaceVoice};
