@@ -1423,9 +1423,16 @@ fn bound_peace_action(
     key: PeaceKey,
     except: PeaceAction,
 ) -> Option<PeaceAction> {
-    PEACE_ACTIONS
-        .into_iter()
-        .find(|action| *action != except && action.key(settings) == key)
+    PEACE_ACTIONS.into_iter().find(|action| {
+        if *action == except {
+            return false;
+        }
+        let bound = action.key(settings);
+        bound == key
+            || (*action == PeaceAction::Sprint
+                && bound == PeaceKey::LeftShift
+                && key == PeaceKey::RightShift)
+    })
 }
 
 fn try_peace_rebind(
@@ -2624,6 +2631,11 @@ mod tests {
             Err(PeaceAction::MoveUp)
         );
         assert_eq!(s.key_use, PeaceKey::E);
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Use, PeaceKey::RightShift),
+            Err(PeaceAction::Sprint),
+            "default sprint claims either Shift"
+        );
 
         assert_eq!(
             try_peace_rebind(&mut s, PeaceAction::Use, PeaceKey::F),
