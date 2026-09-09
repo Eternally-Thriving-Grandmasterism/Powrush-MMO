@@ -281,8 +281,11 @@ mod tests {
     use crate::first_session_guidance::FirstSessionGuidance;
     use crate::harvest_feel::SoftRbePool;
     use crate::hour_sacred::HourSacred;
+    use crate::lived_hour_support::RbeUiSync;
+    use crate::living_practice_loop::{LivingPracticeLoop, SoftPlayerRealm};
     use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
-    use crate::thriving_moments::ThrivingMoments;
+    use crate::soft_play_bindings;
+    use crate::thriving_moments::{ThrivingKind, ThrivingMoments};
     use crate::world_answer::WorldAnswer;
     use shared::heartwood_lamp::{
         heartwood_lip_is_valid, in_heartwood_lamp_disk, in_heartwood_water, HeartwoodLipKind,
@@ -320,6 +323,8 @@ mod tests {
         app.init_resource::<AbundanceJourneyEcho>();
         app.init_resource::<SoftRbePool>();
         app.init_resource::<WorldAnswer>();
+        app.init_resource::<RbeUiSync>();
+        app.init_resource::<SoftPlayerRealm>();
         app.add_event::<GamepadRumbleRequest>();
 
         let node = app
@@ -342,15 +347,43 @@ mod tests {
         });
 
         app.add_plugins(crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin);
+        // A seated book leaves the practice strip live, and it credits a mercy
+        // harvest straight off the E key, so the Use edge is contested twice.
+        app.add_plugins(crate::living_practice_loop::LivingPracticeLoopPlugin);
+        app.insert_resource(LivingPracticeLoop {
+            active: true,
+            ..default()
+        });
         app.add_systems(PreUpdate, mark_threshold_near);
         app.add_systems(Update, use_threshold_shelf);
         app
     }
 
+    /// One real E: the key edge and the derived `PlayerInput` edge together,
+    /// the way `input::sync_player_input` hands them to the frame.
     fn press_use_once(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(soft_play_bindings::INTERACT);
         app.world_mut().resource_mut::<PlayerInput>().interact = true;
         app.update();
         app.world_mut().resource_mut::<PlayerInput>().interact = false;
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(soft_play_bindings::INTERACT);
+        keys.clear();
+    }
+
+    fn harvest_voice_spoke(app: &App) -> bool {
+        app.world()
+            .resource::<ThrivingMoments>()
+            .fired
+            .contains(&ThrivingKind::FirstMercyHarvest)
+    }
+
+    /// Practice harvests counted so far, across any surface it has cleared.
+    fn practice_credits(app: &App) -> u32 {
+        let practice = app.world().resource::<LivingPracticeLoop>();
+        practice.surfaces_cleared * practice.harvests_needed + practice.mercy_harvests_on_surface
     }
 
     fn spoken_line(app: &App) -> String {
@@ -402,6 +435,18 @@ mod tests {
             epiphany.pulse_line
         );
 
+        // No harvest voice anywhere on that press — not from the harvest tap,
+        // and not from the practice strip listening to the same key.
+        assert!(
+            !harvest_voice_spoke(&app),
+            "the harvest-taken line must not show for a Tend"
+        );
+        assert_eq!(
+            practice_credits(&app),
+            0,
+            "a Tend at the pipe is not practice harvest credit"
+        );
+
         // Stock did not drop as if Taken.
         let pool = app.world().resource::<SoftRbePool>();
         assert_eq!(pool.harvests, 0, "Tend must not credit a harvest");
@@ -417,6 +462,51 @@ mod tests {
             app.world().resource::<ThresholdShelfSession>().node.tends,
             1
         );
+    }
+
+    /// The harvest voice has more than one mouth: the harvest tap speaks it,
+    /// and the practice strip speaks it straight off the E key. Standing at the
+    /// pipe and pressing again must not open either of them.
+    #[test]
+    fn repeated_e_at_the_pipe_never_speaks_the_harvest_voice() {
+        let mut app = pipe_app(
+            PlaceId::Heartwood,
+            THRESHOLD_SHELF_CENTER[0],
+            THRESHOLD_SHELF_CENTER[2],
+        );
+        app.update();
+
+        for press in 1..=5 {
+            press_use_once(&mut app);
+            let line = spoken_line(&app);
+            assert!(!line.contains("Idle"), "press {press} read Idle: {line}");
+            assert!(
+                !line.contains("Take") && !line.contains("harvest"),
+                "press {press} spoke a Take: {line}"
+            );
+            assert!(
+                !harvest_voice_spoke(&app),
+                "press {press} let the harvest-taken line through"
+            );
+            assert_eq!(practice_credits(&app), 0, "press {press} credited a harvest");
+            assert_eq!(
+                app.world().resource::<SoftRbePool>().harvests,
+                0,
+                "press {press} moved stock"
+            );
+            assert_eq!(
+                app.world()
+                    .resource::<FirstHarvestEpiphany>()
+                    .harvests_this_session,
+                0,
+                "press {press} took"
+            );
+            assert_eq!(
+                app.world().resource::<ThresholdShelfSession>().node.tends,
+                press,
+                "every press is one Tend"
+            );
+        }
     }
 
     /// Away from the pipe the Use is released, so the global Take still lives.
@@ -460,6 +550,14 @@ mod tests {
                 "{place:?}: the global harvest Take still owns this Use"
             );
             assert_eq!(app.world().resource::<SoftRbePool>().harvests, 1);
+            assert!(
+                harvest_voice_spoke(&app),
+                "{place:?}: the harvest voice still belongs to Take out here"
+            );
+            assert!(
+                practice_credits(&app) >= 1,
+                "{place:?}: practice credit still rides the ordinary Take"
+            );
         }
     }
 
