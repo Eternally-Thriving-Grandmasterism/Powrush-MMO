@@ -16,7 +16,7 @@ use crate::lived_hour_bind::LivedHourBind;
 
 const DEPTHS_NODE_CENTER: Vec3 = Vec3::new(0.0, 0.52, 0.0);
 const DEPTHS_NODE_RADIUS: f32 = 0.34;
-const DEPTHS_USE_RADIUS: f32 = 1.35;
+const DEPTHS_USE_RADIUS: f32 = 2.4;
 
 #[derive(Component)]
 struct DepthsLanding;
@@ -46,6 +46,7 @@ fn sync_depths_landing(
     mut commands: Commands,
     travel: Res<HexTravelState>,
     mut tend: ResMut<DepthsPeaceTend>,
+    mut presence: ResMut<SoftPresence>,
     existing: Query<Entity, Or<(With<DepthsLanding>, With<DepthsPeaceNode>)>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -63,6 +64,9 @@ fn sync_depths_landing(
     if !existing.is_empty() {
         return;
     }
+    // Seat the body on the Peace disk so Use meets the node, not leftover yard harvest.
+    presence.position = Vec3::new(0.0, 0.9, 1.1);
+    presence.velocity = Vec3::ZERO;
     debug_assert!(depths_is_one_turn());
     debug_assert!(!depths_is_market());
     debug_assert!(!depths_mesh_on_sanctuary());
@@ -104,12 +108,14 @@ fn mark_depths_node_near(
     mut tend: ResMut<DepthsPeaceTend>,
     epiphany: Option<ResMut<FirstHarvestEpiphany>>,
 ) {
+    let on_depths = travel.current == PlaceId::Depths;
     let body = Vec2::new(presence.position.x, presence.position.z);
     let center = Vec2::new(DEPTHS_NODE_CENTER.x, DEPTHS_NODE_CENTER.z);
-    let near = travel.current == PlaceId::Depths && body.distance(center) <= DEPTHS_USE_RADIUS;
+    let near = on_depths && body.distance(center) <= DEPTHS_USE_RADIUS;
     tend.near = near;
     if let Some(mut epiphany) = epiphany {
-        epiphany.depths_near = near;
+        // Depths is a Peace landing: Use is never a Take while standing on this hex.
+        epiphany.depths_near = on_depths;
     }
 }
 
@@ -224,6 +230,30 @@ mod tests {
 
         assert!(!restore_depths_hex(&mut bind).unwrap());
         assert_eq!(bind.climate, before, "hex_id guard held");
+    }
+
+    #[test]
+    fn depths_hex_blocks_take_even_when_far_from_peace_node() {
+        let mut app = App::new();
+        app.insert_resource(HexTravelState {
+            current: PlaceId::Depths,
+        });
+        app.insert_resource(SoftPresence {
+            position: Vec3::new(20.0, 0.9, 20.0),
+            velocity: Vec3::ZERO,
+            grounded: true,
+        });
+        app.init_resource::<DepthsPeaceTend>();
+        app.init_resource::<FirstHarvestEpiphany>();
+        app.add_systems(PreUpdate, mark_depths_node_near);
+        app.update();
+        assert!(!app.world().resource::<DepthsPeaceTend>().near);
+        assert!(
+            app.world()
+                .resource::<FirstHarvestEpiphany>()
+                .harvest_use_is_claimed(),
+            "Peace hex must not harvest Take anywhere on Depths"
+        );
     }
 
     #[test]
