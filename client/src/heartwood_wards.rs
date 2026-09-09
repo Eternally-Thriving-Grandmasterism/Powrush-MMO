@@ -17,6 +17,7 @@ struct WardPost;
 pub struct WardSession {
     pub dress: WardDress,
     pub last_line: String,
+    pub near: bool,
 }
 
 pub struct HeartwoodWardsPlugin;
@@ -80,14 +81,21 @@ fn use_heartwood_wards(
     input: Res<PlayerInput>,
     presence: Res<SoftPresence>,
     mut session: ResMut<WardSession>,
+    mut epiphany: Option<ResMut<crate::first_harvest_epiphany::FirstHarvestEpiphany>>,
 ) {
     if travel.current != PlaceId::Heartwood {
+        session.near = false;
+        if let Some(epiphany) = epiphany.as_deref_mut() {
+            epiphany.wards_near = false;
+        }
         return;
     }
     let body = Vec2::new(presence.position.x, presence.position.z);
-    let near = WARD_POST_CENTERS.iter().any(|c| {
-        body.distance(Vec2::new(c[0], c[2])) <= WARD_USE_RADIUS
-    });
+    let near = near_ward_post(body);
+    session.near = near;
+    if let Some(epiphany) = epiphany.as_deref_mut() {
+        epiphany.wards_near = near;
+    }
     if !near {
         return;
     }
@@ -99,5 +107,23 @@ fn use_heartwood_wards(
     if input.interact {
         session.last_line = session.dress.apply(WardVerb::Tend).into();
         info!(target: "powrush::wards", "{}", session.last_line);
+    }
+}
+
+fn near_ward_post(body: Vec2) -> bool {
+    WARD_POST_CENTERS
+        .iter()
+        .any(|c| body.distance(Vec2::new(c[0], c[2])) <= WARD_USE_RADIUS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn use_radius_belongs_to_posts_only() {
+        let post = WARD_POST_CENTERS[0];
+        assert!(near_ward_post(Vec2::new(post[0], post[2])));
+        assert!(!near_ward_post(Vec2::ZERO));
     }
 }
