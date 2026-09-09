@@ -171,6 +171,7 @@ impl FirstSessionGuidance {
     }
 
     /// Quit/rerun: do not re-teach WASD if the pack already holds the yard.
+    /// Same-session Settled keeps HourTwoHeld so the card can breathe before Hour three.
     pub fn resume_from_pack(&mut self) {
         if self.dismissed {
             return;
@@ -184,9 +185,21 @@ impl FirstSessionGuidance {
                 self.objective = GuidanceObjective::HourThreeHeld;
             } else if self.proof_pack {
                 self.objective = GuidanceObjective::EmbassySeat;
-            } else {
+            } else if matches!(
+                self.objective,
+                GuidanceObjective::MoveAround
+                    | GuidanceObjective::ApproachGlowingNode
+                    | GuidanceObjective::HarvestWithInteract
+                    | GuidanceObjective::OpenInventory
+                    | GuidanceObjective::ShareAbundance
+                    | GuidanceObjective::StepCharter
+                    | GuidanceObjective::PlantHouse
+                    | GuidanceObjective::OpenLedger
+            ) {
+                // Cold Continue / quit-rerun only — skip walk→allocate when the pack is held.
                 self.objective = GuidanceObjective::PlantFabricator;
             }
+            // BindEscort / HourTwoHeld / PlantFabricator+: leave the live card alone.
             return;
         }
         if self.house_live {
@@ -499,6 +512,9 @@ mod tests {
         assert_eq!(g.objective, GuidanceObjective::BindEscort);
         g.hour_two_held = true;
         g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
+        // Same-session: resume must not skip the Hour-two held card.
+        g.resume_from_pack();
         assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::HourTwoHeld);
