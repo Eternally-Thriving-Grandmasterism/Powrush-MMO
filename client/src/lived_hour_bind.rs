@@ -12,10 +12,10 @@
 
 use bevy::prelude::*;
 use shared::climate_node::{AllocKind, LivedHour, NodeState, TendResult};
+use shared::lived_tick_ingest::{self, LivedTickIngest};
 use shared::shard_climate::ShardClimate;
 use shared::shard_standing::ShardStanding;
 use shared::week_audit::WeekAudit;
-use shared::lived_tick_ingest::{self, LivedTickIngest};
 
 pub const LIVED_TICK_PATH: &str = "data/powrush_lived_tick.json";
 pub const SHARD_CLIMATE_PATH: &str = "data/powrush_shard_climate.json";
@@ -210,9 +210,7 @@ impl LivedHourBind {
     pub fn tend_nearest(&mut self) -> TendResult {
         match self.focus_id.or_else(|| self.nearest_glow_id()) {
             Some(id) => self.tend(id),
-            None => TendResult::NoTake {
-                reason: "no glow",
-            },
+            None => TendResult::NoTake { reason: "no glow" },
         }
     }
 
@@ -240,6 +238,16 @@ impl LivedHourBind {
         }
         self.persist();
         ok
+    }
+
+    /// Tend at a room's own node (the Threshold pipe). Leaves restored ink on
+    /// this room's climate so the room's hex file is not blank when the House
+    /// bill adds it up. Not a take: satchel and pools are untouched.
+    pub fn room_tend(&mut self) {
+        self.climate.on_room_tend();
+        self.standing.on_care_tend();
+        self.refresh_climate_slab();
+        self.persist();
     }
 
     /// Hold-E care tend (ledger only — does not rewrite harvest_feel take).
@@ -345,10 +353,7 @@ mod tests {
     #[test]
     fn json_roundtrip_path_constant() {
         assert_eq!(LIVED_TICK_PATH, "data/powrush_lived_tick.json");
-        assert_eq!(
-            lived_tick_ingest::LIVED_TICK_INGEST_PATH,
-            LIVED_TICK_PATH
-        );
+        assert_eq!(lived_tick_ingest::LIVED_TICK_INGEST_PATH, LIVED_TICK_PATH);
         assert_eq!(SHARD_CLIMATE_PATH, "data/powrush_shard_climate.json");
         assert_eq!(SHARD_STANDING_PATH, "data/powrush_shard_standing.json");
         assert_eq!(WEEK_AUDIT_PATH, "data/powrush_week_audit.json");
