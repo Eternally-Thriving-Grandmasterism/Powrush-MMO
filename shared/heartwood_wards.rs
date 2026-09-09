@@ -15,10 +15,11 @@ use crate::hour_two::HourTwoPack;
 pub const WARD_SEALS: [&str; 3] = ["Well", "Grove", "Ember"];
 
 /// Ground posts outside the empty lamp disk and the water bath.
+/// Ring the Lip pond at footprint-clear distance (pond center 8,0 r=2).
 pub const WARD_POST_CENTERS: [[f32; 3]; 3] = [
-    [8.4, 0.95, 1.6],
-    [8.8, 0.95, -1.2],
-    [7.6, 0.95, 3.4],
+    [8.0, 0.95, 4.0],
+    [11.0, 0.95, 0.0],
+    [8.0, 0.95, -4.0],
 ];
 pub const WARD_POST_SIZE: [f32; 3] = [0.28, 1.4, 0.28];
 pub const WARD_FOOTPRINT_RADIUS: f32 = 0.22;
