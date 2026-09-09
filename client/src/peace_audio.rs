@@ -3,7 +3,8 @@
 //! Mixer lives in `shared::peace_audio`. This plugin:
 //! - seeds mute from the existing Settings / pause Mute row
 //! - loops the quiet bed while `LaunchDoor::InYard`
-//! - plays the well sting when SoftRbePool harvests / tends rise (existing Use)
+//! - plays a soft one-shot on the first successful E (A1)
+//! - plays the well sting on later SoftRbePool harvests / tends (existing Use)
 //! - never spawns output when muted or when `audio_output_safe` is false
 //!
 //! No second mute. No F-row. No listen. Contact: info@Rathor.ai
@@ -39,13 +40,22 @@ struct PeaceYardBed;
 #[derive(Component)]
 struct PeaceWellSting;
 
+#[derive(Component)]
+struct PeaceFirstEOneShot;
+
 pub struct PeaceAudioPlugin;
 
 impl Plugin for PeaceAudioPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PeaceAudioState>().add_systems(
             Update,
-            (sync_voice_from_settings, sync_peace_bed, sync_well_sting).chain(),
+            (
+                sync_voice_from_settings,
+                sync_peace_bed,
+                sync_first_e_oneshot,
+                sync_well_sting,
+            )
+                .chain(),
         );
     }
 }
@@ -107,13 +117,33 @@ fn sync_peace_bed(
     }
 }
 
-fn sync_well_sting(
+fn sync_first_e_oneshot(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut state: ResMut<PeaceAudioState>,
     pool: Res<SoftRbePool>,
 ) {
+    // note_well_use once per frame before either emit path.
     state.voice.note_well_use(pool.harvests, pool.tends);
+    let gain = state.voice.take_first_e_oneshot();
+    if gain <= 0.0 || !state.voice.device_ok {
+        return;
+    }
+    commands.spawn((
+        AudioBundle {
+            source: asset_server.load(STING_ASSET),
+            settings: PlaybackSettings::DESPAWN.with_volume(Volume::new(gain)),
+            ..default()
+        },
+        PeaceFirstEOneShot,
+    ));
+}
+
+fn sync_well_sting(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut state: ResMut<PeaceAudioState>,
+) {
     let gain = state.voice.take_sting();
     if gain <= 0.0 || !state.voice.device_ok {
         return;
@@ -156,6 +186,7 @@ mod tests {
         assert!((bed_gain(true) - 0.0).abs() < f32::EPSILON);
         assert!((sting_gain(true) - 0.0).abs() < f32::EPSILON);
         assert!(voice.note_well_use(1, 1));
+        assert!((voice.take_first_e_oneshot() - 0.0).abs() < f32::EPSILON);
         assert!((voice.take_sting() - 0.0).abs() < f32::EPSILON);
         assert!(!should_emit_bed(true, true, true));
         assert!(!should_emit_sting(true, true, true));
@@ -170,6 +201,9 @@ mod tests {
         voice.set_mute(false);
         assert!(voice.should_play_bed());
         assert!(voice.note_well_use(1, 0));
+        assert!(voice.take_first_e_oneshot() > 0.0);
+        assert_eq!(voice.take_sting(), 0.0);
+        assert!(voice.note_well_use(2, 0));
         assert!(voice.take_sting() > 0.0);
         assert!(!voice.opens_socket());
         assert!(!peace_audio_opens_socket(&voice));
@@ -186,5 +220,19 @@ mod tests {
     fn plugin_is_a_plugin() {
         let _ = PeaceAudioPlugin;
         let _ = audio_output_safe();
+    }
+
+    #[test]
+    fn first_e_oneshot_respects_mute_and_fires_once() {
+        use shared::peace_audio::FIRST_E_GAIN_OPEN;
+        let mut voice = PeaceVoice::new(false, true);
+        voice.set_in_yard(true);
+        assert!(voice.note_well_use(1, 0));
+        assert!((voice.take_first_e_oneshot() - FIRST_E_GAIN_OPEN).abs() < f32::EPSILON);
+        assert_eq!(voice.take_first_e_oneshot(), 0.0);
+        let mut muted = PeaceVoice::new(true, true);
+        muted.set_in_yard(true);
+        assert!(muted.note_well_use(1, 0));
+        assert_eq!(muted.take_first_e_oneshot(), 0.0);
     }
 }

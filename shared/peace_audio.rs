@@ -1,9 +1,10 @@
 //! U4 — Peace yard audio bed + well sting
 //!
 //! Quiet bed while the Peace yard is live. Well sting on the existing well
-//! Use (E take / hold-E tend — SoftRbePool harvests / tends). Mute is the
-//! existing pause/Settings flag (`LocalSettings.mute` / MasterMute). No
-//! second mute, no F-row, no new settings plate.
+//! Use (E take / hold-E tend — SoftRbePool harvests / tends). A1: soft
+//! one-shot on the first successful E only. Mute is the existing
+//! pause/Settings flag (`LocalSettings.mute` / MasterMute). No second mute,
+//! no F-row, no new settings plate.
 //!
 //! Mute silences bed and sting. Unmute does not open a socket. No ALSA
 //! card: boot must not hang (lavapipe) — probe is filesystem only, never
@@ -29,6 +30,8 @@ pub const STING_ASSET: &str = "audio/peace_well_sting.ogg";
 pub const BED_GAIN_OPEN: f32 = 0.12;
 /// Soft well sting — confirmation, not a fanfare.
 pub const STING_GAIN_OPEN: f32 = 0.28;
+/// Softer than the repeat sting — first successful E only (A1).
+pub const FIRST_E_GAIN_OPEN: f32 = 0.18;
 
 /// Lab override: `POWRUSH_AUDIO=off` never opens an output. `on` trusts the box.
 pub const AUDIO_ENV: &str = "POWRUSH_AUDIO";
@@ -42,6 +45,10 @@ pub struct PeaceVoice {
     harvests_seen: u32,
     tends_seen: u32,
     sting_armed: bool,
+    /// A1 — first successful E soft one-shot armed this frame.
+    first_e_armed: bool,
+    /// A1 — spent for this voice life (session).
+    first_e_spent: bool,
 }
 
 impl Default for PeaceVoice {
@@ -59,6 +66,8 @@ impl PeaceVoice {
             harvests_seen: 0,
             tends_seen: 0,
             sting_armed: false,
+            first_e_armed: false,
+            first_e_spent: false,
         }
     }
 
@@ -102,17 +111,35 @@ impl PeaceVoice {
 
     /// Existing well Use hook: harvests (tap E take) and tends (hold E).
     /// Returns true when a Use was noticed this call.
+    /// First harvest (0 → ≥1) arms the A1 soft one-shot instead of the repeat sting.
     pub fn note_well_use(&mut self, harvests: u32, tends: u32) -> bool {
+        let first_take = harvests > self.harvests_seen && self.harvests_seen == 0 && !self.first_e_spent;
         let used = harvests > self.harvests_seen || tends > self.tends_seen;
         self.harvests_seen = harvests;
         self.tends_seen = tends;
-        if used {
+        if first_take {
+            self.first_e_armed = true;
+        } else if used {
             self.sting_armed = true;
         }
         used
     }
 
-    /// Consume a pending sting. 0 when muted, no device, or nothing armed.
+    /// A1 — soft one-shot on first successful E. 0 when muted, no device, or spent.
+    pub fn take_first_e_oneshot(&mut self) -> f32 {
+        if !self.first_e_armed {
+            return 0.0;
+        }
+        self.first_e_armed = false;
+        self.first_e_spent = true;
+        if self.device_ok && !self.mute {
+            FIRST_E_GAIN_OPEN
+        } else {
+            0.0
+        }
+    }
+
+    /// Consume a pending repeat sting. 0 when muted, no device, or nothing armed.
     pub fn take_sting(&mut self) -> f32 {
         if !self.sting_armed {
             return 0.0;
@@ -142,6 +169,10 @@ pub fn bed_gain(mute: bool) -> f32 {
 
 pub fn sting_gain(mute: bool) -> f32 {
     STING_GAIN_OPEN * voice_gain(mute)
+}
+
+pub fn first_e_gain(mute: bool) -> f32 {
+    FIRST_E_GAIN_OPEN * voice_gain(mute)
 }
 
 pub fn should_emit_bed(mute: bool, device_ok: bool, in_yard: bool) -> bool {
@@ -249,6 +280,28 @@ mod tests {
     }
 
     #[test]
+    fn first_successful_e_oneshot_is_soft_and_once() {
+        let mut voice = PeaceVoice::new(false, true);
+        voice.set_in_yard(true);
+        assert!(voice.note_well_use(1, 0));
+        let g = voice.take_first_e_oneshot();
+        assert!((g - FIRST_E_GAIN_OPEN).abs() < f32::EPSILON);
+        assert_eq!(voice.take_sting(), 0.0, "first E is the soft one-shot, not the repeat sting");
+        assert_eq!(voice.take_first_e_oneshot(), 0.0, "one-shot spent");
+        assert!(voice.note_well_use(2, 0));
+        assert!((voice.take_sting() - STING_GAIN_OPEN).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn mute_silences_first_e_oneshot() {
+        let mut voice = PeaceVoice::new(true, true);
+        voice.set_in_yard(true);
+        assert!(voice.note_well_use(1, 0));
+        assert_eq!(voice.take_first_e_oneshot(), 0.0);
+        assert!((first_e_gain(true) - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
     fn unmute_does_not_open_a_socket() {
         let mut settings = LocalSettings::peace_defaults();
         assert!(!settings.mute);
@@ -262,6 +315,9 @@ mod tests {
         assert!(voice.should_play_bed());
         assert!((voice.bed_gain() - BED_GAIN_OPEN).abs() < f32::EPSILON);
         assert!(voice.note_well_use(1, 1));
+        assert!((voice.take_first_e_oneshot() - FIRST_E_GAIN_OPEN).abs() < f32::EPSILON);
+        assert_eq!(voice.take_sting(), 0.0);
+        assert!(voice.note_well_use(2, 1));
         assert!((voice.take_sting() - STING_GAIN_OPEN).abs() < f32::EPSILON);
         assert!(!voice.opens_socket());
         assert!(!peace_audio_opens_socket(&voice));
@@ -278,6 +334,7 @@ mod tests {
         assert!(!voice.should_play_bed());
         assert!((voice.bed_gain() - 0.0).abs() < f32::EPSILON);
         assert!(voice.note_well_use(2, 1));
+        assert_eq!(voice.take_first_e_oneshot(), 0.0);
         assert!((voice.take_sting() - 0.0).abs() < f32::EPSILON);
         assert!(!should_emit_bed(false, false, true));
         assert!(!should_emit_sting(false, false, true));
@@ -301,7 +358,8 @@ mod tests {
         assert!(!voice.note_well_use(0, 0));
         assert!((voice.take_sting() - 0.0).abs() < f32::EPSILON);
         assert!(voice.note_well_use(1, 0));
-        assert!((voice.take_sting() - STING_GAIN_OPEN).abs() < f32::EPSILON);
+        assert!((voice.take_first_e_oneshot() - FIRST_E_GAIN_OPEN).abs() < f32::EPSILON);
+        assert_eq!(voice.take_sting(), 0.0);
         assert!(!voice.note_well_use(1, 0));
         assert!(voice.note_well_use(1, 1));
         assert!((voice.take_sting() - STING_GAIN_OPEN).abs() < f32::EPSILON);
