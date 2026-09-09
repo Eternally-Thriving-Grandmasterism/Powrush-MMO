@@ -9,6 +9,7 @@
 
 use bevy::prelude::*;
 
+use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
 use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
@@ -325,6 +326,7 @@ fn apply_practice_credit(
 /// Soft demo harvest — **E** interact (never Space; Space is jump).
 fn soft_interact_harvest_credit(
     keyboard: Res<ButtonInput<KeyCode>>,
+    epiphany: Option<Res<FirstHarvestEpiphany>>,
     mut practice: ResMut<LivingPracticeLoop>,
     mut moments: ResMut<ThrivingMoments>,
     soft_realm: Res<SoftPlayerRealm>,
@@ -334,6 +336,11 @@ fn soft_interact_harvest_credit(
         return;
     }
     if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
+        return;
+    }
+    // A door already claimed this Use, so it took nothing — crediting it here
+    // would speak the harvest line over someone else's verb.
+    if epiphany.is_some_and(|e| e.harvest_use_is_claimed()) {
         return;
     }
 
