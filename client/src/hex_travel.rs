@@ -510,6 +510,16 @@ fn places_plate_clicks(
             };
             match confirm_leave(settled, book, travel.current, to) {
                 Ok(_) => {
+                    // Depths save-on-exit: Peace restore ink must hit disk before
+                    // the body sits Sanctuary, or House week stays Sanctuary-only.
+                    if travel.current == PlaceId::Depths {
+                        let file = shared::hex_travel::HexClimateFile::from_parts(
+                            PlaceId::Depths,
+                            bind.climate.clone(),
+                            bind.standing.clone(),
+                        );
+                        let _ = shared::hex_travel::write_hex_named(&file);
+                    }
                     if let Ok(loaded) = apply_travel_named(
                         settled,
                         book,

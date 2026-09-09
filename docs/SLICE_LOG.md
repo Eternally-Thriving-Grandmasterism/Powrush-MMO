@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-09 — P4: Depths in House week sum
+
+`slice: P4 Depths in House week | one concern sum; Sanctuary+Heartwood+Depths persisted files; Threshold rides Heartwood unless own file; Market never in sum; this week on L = current hex; House week on L = the add; Depths restore writes U_w>=1; leave Depths flush-on-exit; Sanctuary L House restored increases; Q recipes; Peace E Depths stays Tend/restore (P3); no Take; no P5; Title Online grey; no listen; playable-preview 11c577e; floor 2163551; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`
+
 ## 2026-09-09 — B2.5: standing docs match main (docs only)
 
 `slice: B2.5 standing docs match main | docs only; not a sim; A0 closed #316 stays closed; B1 landed #322 / c4529542 reduced_motion + rumble; B2 landed #323 / 0e4b89db well captions as words; next B3 colorblind well tokens then B4 remaps then B5 Practice≠Verb stamp then Wave C Wards from current main then B7 Depths Peace tend; do not start B3 here; do not revive #316; do not open Ra-Thor; Hour-two minutes blank; Title Online grey; no Market; no listen; no public bind; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; core: shared 311 + rsil-identity 5; powrush-client --lib 185; verdict: AUTO`
