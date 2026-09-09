@@ -13,10 +13,12 @@ use shared::heartwood_lamp::{
 };
 use shared::hex_travel::PlaceId;
 use shared::threshold_shelf::{
-    ThresholdShelfState, ThresholdVerb, THRESHOLD_SHELF_CENTER, THRESHOLD_SHELF_SIZE,
-    THRESHOLD_SHELF_USE_RADIUS,
+    resolve_threshold_use, threshold_use_in_reach, ThresholdPeaceNode, ThresholdShelfState,
+    ThresholdUse, ThresholdVerb, THRESHOLD_NODE_CENTER, THRESHOLD_NODE_RADIUS,
+    THRESHOLD_SHELF_CENTER, THRESHOLD_SHELF_SIZE,
 };
 
+use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
 use crate::input::PlayerInput;
@@ -32,6 +34,9 @@ struct HeartwoodWater;
 #[derive(Component)]
 struct ThresholdShelf;
 
+#[derive(Component)]
+struct ThresholdPeaceOrb;
+
 #[derive(Resource, Debug, Default)]
 struct HeartwoodLipState {
     active: bool,
@@ -40,6 +45,8 @@ struct HeartwoodLipState {
 #[derive(Resource, Debug, Default)]
 pub struct ThresholdShelfSession {
     pub shelf: ThresholdShelfState,
+    pub node: ThresholdPeaceNode,
+    pub near: bool,
     pub last_line: String,
 }
 
@@ -49,6 +56,9 @@ impl Plugin for HeartwoodLipPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HeartwoodLipState>()
             .init_resource::<ThresholdShelfSession>()
+            // Claim the Use before the harvest tap reads it (same PreUpdate
+            // seat the well / crownstone / embassy doors already use).
+            .add_systems(PreUpdate, mark_threshold_near)
             .add_systems(
                 Update,
                 (
@@ -73,6 +83,7 @@ fn sync_heartwood_lip(
             With<HeartwoodLipProp>,
             With<HeartwoodWater>,
             With<ThresholdShelf>,
+            With<ThresholdPeaceOrb>,
         )>,
     >,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -88,6 +99,8 @@ fn sync_heartwood_lip(
     }
     state.active = heartwood;
     threshold.shelf = ThresholdShelfState::default();
+    threshold.node = ThresholdPeaceNode::default();
+    threshold.near = false;
     threshold.last_line.clear();
     if !heartwood {
         return;
@@ -159,6 +172,22 @@ fn sync_heartwood_lip(
 
     commands.spawn((
         PbrBundle {
+            mesh: meshes.add(Sphere::new(THRESHOLD_NODE_RADIUS)),
+            material: materials.add(StandardMaterial {
+                base_color: Color::srgb(0.58, 0.82, 0.64),
+                emissive: LinearRgba::new(0.12, 0.26, 0.14, 1.0),
+                perceptual_roughness: 0.42,
+                ..default()
+            }),
+            transform: Transform::from_translation(Vec3::from_array(THRESHOLD_NODE_CENTER)),
+            ..default()
+        },
+        ThresholdPeaceOrb,
+        Name::new("ThresholdPeaceNode"),
+    ));
+
+    commands.spawn((
+        PbrBundle {
             mesh: meshes.add(Cylinder::new(WATER_POND_RADIUS, 0.04)),
             material: materials.add(StandardMaterial {
                 base_color: Color::srgba(0.10, 0.36, 0.40, 0.82),
@@ -203,33 +232,58 @@ fn apply_heartwood_water_bath(travel: Res<HexTravelState>, mut presence: ResMut<
     let _ = apply_bath_to_presence(travel.current, &mut presence);
 }
 
-fn use_threshold_shelf(
+/// Reach test plus the harvest hand-off. Runs in PreUpdate so
+/// `handle_interact_harvest` sees `threshold_near` on the same Use edge and
+/// returns before any Take, thriving line, or stock credit.
+fn mark_threshold_near(
     travel: Res<HexTravelState>,
-    input: Res<PlayerInput>,
     presence: Res<SoftPresence>,
     mut session: ResMut<ThresholdShelfSession>,
+    epiphany: Option<ResMut<FirstHarvestEpiphany>>,
 ) {
-    if travel.current != PlaceId::Heartwood {
-        return;
+    let in_reach = threshold_use_in_reach(travel.current, presence.position.x, presence.position.z);
+    session.near = in_reach;
+    if let Some(mut epiphany) = epiphany {
+        if epiphany.threshold_near != in_reach {
+            epiphany.threshold_near = in_reach;
+        }
     }
-    let shelf_xz = Vec2::new(THRESHOLD_SHELF_CENTER[0], THRESHOLD_SHELF_CENTER[2]);
-    let body_xz = Vec2::new(presence.position.x, presence.position.z);
-    if body_xz.distance(shelf_xz) > THRESHOLD_SHELF_USE_RADIUS {
+}
+
+fn use_threshold_shelf(input: Res<PlayerInput>, mut session: ResMut<ThresholdShelfSession>) {
+    if !session.near {
         return;
     }
     if !session.shelf.looked {
-        session.last_line = session.shelf.apply(ThresholdVerb::Look).into();
+        let _ = session.shelf.apply(ThresholdVerb::Look);
+        session.last_line = session.node.speech();
         info!(target: "powrush::threshold", "{}", session.last_line);
     }
-    if input.interact {
-        session.last_line = session.shelf.apply(ThresholdVerb::Tend).into();
-        info!(target: "powrush::threshold", "{}", session.last_line);
+    if !input.interact {
+        return;
     }
+    // At the pipe the Peace Use is a Tend, never a harvest Take.
+    if resolve_threshold_use(session.near) != ThresholdUse::Tend {
+        return;
+    }
+    let _ = session.shelf.apply(ThresholdVerb::Tend);
+    session.last_line = session.node.tend();
+    info!(target: "powrush::threshold", "{}", session.last_line);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::input::gamepad::GamepadRumbleRequest;
+    use bevy::MinimalPlugins;
+
+    use crate::abundance_journey_echo::AbundanceJourneyEcho;
+    use crate::first_session_guidance::FirstSessionGuidance;
+    use crate::harvest_feel::SoftRbePool;
+    use crate::hour_sacred::HourSacred;
+    use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
+    use crate::thriving_moments::ThrivingMoments;
+    use crate::world_answer::WorldAnswer;
     use shared::heartwood_lamp::{
         heartwood_lip_is_valid, in_heartwood_lamp_disk, in_heartwood_water, HeartwoodLipKind,
         HEARTWOOD_BATH_RETURN,
@@ -237,8 +291,177 @@ mod tests {
     use shared::hex_travel::{confirm_leave, places_eligible};
     use shared::stranger_loop_proof::hour_three_held_fixture;
     use shared::threshold_shelf::{
-        threshold_shelf_is_valid, visit_threshold, ThresholdShelfState, ThresholdVerb,
+        threshold_node_is_valid, threshold_shelf_is_valid, visit_threshold, ThresholdPeaceNode,
+        ThresholdShelfState, ThresholdVerb, THRESHOLD_PEACE_VERBS, THRESHOLD_SHELF_CENTER,
     };
+
+    /// Body standing at the existing shelf with the real harvest loop live and
+    /// a glowing node in reach, so the Use edge is genuinely contested.
+    fn pipe_app(place: PlaceId, x: f32, z: f32) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(HexTravelState { current: place });
+        app.insert_resource(SoftPresence {
+            position: Vec3::new(x, STAND_HEIGHT, z),
+            velocity: Vec3::ZERO,
+            grounded: true,
+        });
+        app.insert_resource(HourSacred {
+            session: Default::default(),
+            complete: true,
+            hour_three_complete: true,
+        });
+        app.init_resource::<PlayerInput>();
+        app.init_resource::<ThresholdShelfSession>();
+        app.init_resource::<ButtonInput<KeyCode>>();
+        app.init_resource::<Gamepads>();
+        app.init_resource::<FirstSessionGuidance>();
+        app.init_resource::<ThrivingMoments>();
+        app.init_resource::<AbundanceJourneyEcho>();
+        app.init_resource::<SoftRbePool>();
+        app.init_resource::<WorldAnswer>();
+        app.add_event::<GamepadRumbleRequest>();
+
+        let node = app
+            .world_mut()
+            .spawn(MercyHarvestNode {
+                name: "Verdant well",
+                climate_id: 2,
+                vitality: 1.0,
+                harvests: 0,
+                pulse: 0.0,
+            })
+            .id();
+        app.insert_resource(NearbyMercyNode {
+            entity: Some(node),
+            name: Some("Verdant well"),
+            distance: 0.5,
+            in_range: true,
+            nodes_exist: true,
+            last_harvested: None,
+        });
+
+        app.add_plugins(crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin);
+        app.add_systems(PreUpdate, mark_threshold_near);
+        app.add_systems(Update, use_threshold_shelf);
+        app
+    }
+
+    fn press_use_once(app: &mut App) {
+        app.world_mut().resource_mut::<PlayerInput>().interact = true;
+        app.update();
+        app.world_mut().resource_mut::<PlayerInput>().interact = false;
+    }
+
+    fn spoken_line(app: &App) -> String {
+        app.world()
+            .resource::<ThresholdShelfSession>()
+            .last_line
+            .clone()
+    }
+
+    /// The steward walk: face the node, one E, the line leaves Idle.
+    #[test]
+    fn one_e_at_the_pipe_leaves_idle_and_does_not_take() {
+        let mut app = pipe_app(
+            PlaceId::Heartwood,
+            THRESHOLD_SHELF_CENTER[0],
+            THRESHOLD_SHELF_CENTER[2],
+        );
+        app.update();
+
+        let looked = spoken_line(&app);
+        assert!(looked.contains("Idle"), "look line reads Idle: {looked}");
+        assert!(
+            app.world()
+                .resource::<FirstHarvestEpiphany>()
+                .threshold_near,
+            "the pipe claims the Use before the harvest tap reads it"
+        );
+
+        press_use_once(&mut app);
+
+        let tended = spoken_line(&app);
+        assert_ne!(tended, looked, "one E must change the spoken line");
+        assert!(
+            !tended.contains("Idle"),
+            "Idle after one E is a fail: {tended}"
+        );
+        assert!(tended.contains("Tended"));
+        for verb in THRESHOLD_PEACE_VERBS {
+            assert!(tended.contains(verb));
+        }
+
+        // That E was a Tend: the harvest tap did not swallow it.
+        let epiphany = app.world().resource::<FirstHarvestEpiphany>();
+        assert_eq!(epiphany.harvests_this_session, 0, "E must not Take");
+        assert!(!epiphany.first_harvest_lived);
+        assert!(
+            !epiphany.pulse_line.contains("Take"),
+            "no harvest voice on this E: {}",
+            epiphany.pulse_line
+        );
+
+        // Stock did not drop as if Taken.
+        let pool = app.world().resource::<SoftRbePool>();
+        assert_eq!(pool.harvests, 0, "Tend must not credit a harvest");
+        assert_eq!(pool.vitality, 0.0);
+        assert!(
+            app.world()
+                .resource::<NearbyMercyNode>()
+                .last_harvested
+                .is_none(),
+            "no node was harvested"
+        );
+        assert_eq!(
+            app.world().resource::<ThresholdShelfSession>().node.tends,
+            1
+        );
+    }
+
+    /// Away from the pipe the Use is released, so the global Take still lives.
+    #[test]
+    fn away_from_the_pipe_the_harvest_keeps_the_use() {
+        for (place, x, z) in [
+            (
+                PlaceId::Sanctuary,
+                THRESHOLD_SHELF_CENTER[0],
+                THRESHOLD_SHELF_CENTER[2],
+            ),
+            (
+                PlaceId::Heartwood,
+                THRESHOLD_SHELF_CENTER[0],
+                THRESHOLD_SHELF_CENTER[2] - 9.0,
+            ),
+        ] {
+            let mut app = pipe_app(place, x, z);
+            app.update();
+            press_use_once(&mut app);
+            assert!(
+                !app.world()
+                    .resource::<FirstHarvestEpiphany>()
+                    .threshold_near,
+                "{place:?}: the pipe must not claim the Use from here"
+            );
+            assert!(
+                spoken_line(&app).is_empty(),
+                "{place:?}: no Threshold speech away from the shelf"
+            );
+            assert_eq!(
+                app.world().resource::<ThresholdShelfSession>().node.tends,
+                0
+            );
+            // Take is still the choice out here — the guard is the only change.
+            assert_eq!(
+                app.world()
+                    .resource::<FirstHarvestEpiphany>()
+                    .harvests_this_session,
+                1,
+                "{place:?}: the global harvest Take still owns this Use"
+            );
+            assert_eq!(app.world().resource::<SoftRbePool>().harvests, 1);
+        }
+    }
 
     #[test]
     fn lip_has_two_capsules_and_no_instance_reaches_lamp() {
@@ -306,11 +529,17 @@ mod tests {
     #[test]
     fn threshold_roof_look_tend_keeps_house_and_places() {
         assert!(threshold_shelf_is_valid());
+        assert!(threshold_node_is_valid());
         let house = hour_three_held_fixture();
         let before = house.clone();
         let mut shelf = ThresholdShelfState::default();
+        let mut node = ThresholdPeaceNode::default();
         let _ = visit_threshold(&mut shelf, ThresholdVerb::Look, &house);
         let receipt = visit_threshold(&mut shelf, ThresholdVerb::Tend, &house);
+        let speech = node.tend();
+        assert!(THRESHOLD_PEACE_VERBS
+            .iter()
+            .all(|verb| speech.contains(verb)));
         assert!(receipt.hour_three_complete);
         assert!(receipt.embassy_seated);
         assert_eq!(house, before);

@@ -10,6 +10,7 @@ use bevy::prelude::*;
 use shared::climate_node::NodeState;
 
 use crate::climate_script::TeachingClaim;
+use crate::heartwood_lip::ThresholdShelfSession;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 
@@ -31,10 +32,7 @@ impl Plugin for ClimateVisiblePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WeekFeelGlow>()
             .add_systems(Startup, spawn_climate_state_slab)
-            .add_systems(
-                PreUpdate,
-                focus_lived_hour_on_nearby,
-            )
+            .add_systems(PreUpdate, focus_lived_hour_on_nearby)
             .add_systems(
                 Update,
                 (
@@ -63,7 +61,11 @@ fn focus_lived_hour_on_nearby(
 fn paint_nodes_from_hour(
     bind: Res<LivedHourBind>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    nodes: Query<(&MercyHarvestNode, &Handle<StandardMaterial>, Option<&Children>)>,
+    nodes: Query<(
+        &MercyHarvestNode,
+        &Handle<StandardMaterial>,
+        Option<&Children>,
+    )>,
     mut lights: Query<&mut PointLight>,
 ) {
     for (node, handle, children) in &nodes {
@@ -89,12 +91,7 @@ fn paint_nodes_from_hour(
     }
 }
 
-
-fn tick_week_feel_glow(
-    bind: Res<LivedHourBind>,
-    time: Res<Time>,
-    mut glow: ResMut<WeekFeelGlow>,
-) {
+fn tick_week_feel_glow(bind: Res<LivedHourBind>, time: Res<Time>, mut glow: ResMut<WeekFeelGlow>) {
     if bind.week.updated_at != glow.last_updated {
         glow.last_updated = bind.week.updated_at;
         if bind.week.tons_moved > 0 || bind.week.restored_count > 0 {
@@ -145,6 +142,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
 fn update_climate_state_slab(
     nearby: Res<NearbyMercyNode>,
     bind: Res<LivedHourBind>,
+    threshold: Option<Res<ThresholdShelfSession>>,
     claim: Option<Res<TeachingClaim>>,
     week_glow: Res<WeekFeelGlow>,
     nodes: Query<&MercyHarvestNode>,
@@ -155,7 +153,8 @@ fn update_climate_state_slab(
     mut text_q: Query<&mut Text, With<ClimateStateText>>,
 ) {
     // Hide slabs respects LivedHourBind.guidance_hidden (D2 hide_slabs / H).
-    let show = nearby.in_range && !bind.guidance_hidden;
+    let threshold_line = threshold_speech_if_near(threshold.as_deref());
+    let show = (nearby.in_range || threshold_line.is_some()) && !bind.guidance_hidden;
     let glow = week_glow.glow;
     let week_live = bind
         .climate_slab
@@ -169,7 +168,11 @@ fn update_climate_state_slab(
             Visibility::Hidden
         };
         if show {
-            let pulse = if week_live { 0.12 + glow * 0.38 } else { glow * 0.25 };
+            let pulse = if week_live {
+                0.12 + glow * 0.38
+            } else {
+                glow * 0.25
+            };
             let a = 0.42 + pulse;
             *border = Color::srgba(
                 0.48 + glow * 0.10,
@@ -190,36 +193,36 @@ fn update_climate_state_slab(
     if !show {
         return;
     }
-    let line = nearby
-        .entity
-        .and_then(|e| nodes.get(e).ok())
-        .map(|n| {
-            let state = bind
-                .hour
-                .nodes
-                .iter()
-                .find(|c| c.id == n.climate_id)
-                .map(|c| c.state)
-                .unwrap_or(NodeState::Idle);
-            let hint = claim
-                .as_ref()
-                .and_then(|c| c.sentence_for(n.climate_id))
-                .unwrap_or(state.hand_hint());
-            let mut line = format!("{} · {} · {}", n.name, state.label(), hint);
-            if let Some(slab) = bind.climate_slab.as_deref() {
-                line = format!("{line} · {slab}");
-            }
-            line
-        })
-        .unwrap_or_else(|| {
-            match bind.climate_slab.as_deref() {
+    let line = threshold_line.unwrap_or_else(|| {
+        nearby
+            .entity
+            .and_then(|e| nodes.get(e).ok())
+            .map(|n| {
+                let state = bind
+                    .hour
+                    .nodes
+                    .iter()
+                    .find(|c| c.id == n.climate_id)
+                    .map(|c| c.state)
+                    .unwrap_or(NodeState::Idle);
+                let hint = claim
+                    .as_ref()
+                    .and_then(|c| c.sentence_for(n.climate_id))
+                    .unwrap_or(state.hand_hint());
+                let mut line = format!("{} · {} · {}", n.name, state.label(), hint);
+                if let Some(slab) = bind.climate_slab.as_deref() {
+                    line = format!("{line} · {slab}");
+                }
+                line
+            })
+            .unwrap_or_else(|| match bind.climate_slab.as_deref() {
                 Some(slab) if !bind.last_line.is_empty() => {
                     format!("{} · {}", bind.last_line, slab)
                 }
                 Some(slab) => slab.to_string(),
                 None => bind.last_line.clone(),
-            }
-        });
+            })
+    });
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -229,10 +232,17 @@ fn update_climate_state_slab(
     }
 }
 
+fn threshold_speech_if_near(threshold: Option<&ThresholdShelfSession>) -> Option<String> {
+    threshold
+        .filter(|session| session.near)
+        .map(|session| session.node.speech())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use shared::climate_node::LivedHour;
+    use shared::threshold_shelf::THRESHOLD_PEACE_VERBS;
 
     #[test]
     fn demo_nodes_map_to_three_wells() {
@@ -250,5 +260,14 @@ mod tests {
         assert!(NodeState::Tended.glow_mul() > NodeState::Resting.glow_mul());
         assert!(NodeState::Resting.glow_mul() > NodeState::Stressed.glow_mul());
         assert!(NodeState::Stressed.glow_mul() > 0.0);
+    }
+
+    #[test]
+    fn threshold_uses_the_existing_speech_slab() {
+        let mut session = ThresholdShelfSession::default();
+        assert_eq!(threshold_speech_if_near(Some(&session)), None);
+        session.near = true;
+        let line = threshold_speech_if_near(Some(&session)).expect("Threshold speech");
+        assert!(THRESHOLD_PEACE_VERBS.iter().all(|verb| line.contains(verb)));
     }
 }
