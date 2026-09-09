@@ -23,7 +23,7 @@ Outward from the living core:
 
 1. **Lamp** — quiet center; teaching light; no lethal UI. U3 spatial: no buildings in the lamp disk; no buildings in water. Embassy lamp cue stays house display-only.
 2. **Lip** — first working rim; U6 places two walkway capsules and hanging roof ribs outside the lamp disk. The pond remains water; its drop is a bath back to dry Lip ground.
-3. **Wards** — house / charter concern; standing and seals dress here later.
+3. **Wards** — house / charter concern. U8 places Well · Grove · Ember seal posts outside the lamp disk and water. Dress only. Look and tend do not write the house book.
 4. **Teeth** — edged places; scarcity and choice get sharp.
 5. **Threshold** — door between peace teaching and declared context.
 6. **Spiral** — long arc; mythic / fleet / peoples set-pieces — lore first.
