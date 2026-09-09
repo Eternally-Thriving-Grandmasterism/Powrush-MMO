@@ -35,6 +35,65 @@ pub const TEXT_SCALE_MIN: f32 = 0.85;
 pub const TEXT_SCALE_MAX: f32 = 1.35;
 pub const TEXT_SCALE_STEP: f32 = 0.05;
 
+/// Persisted keyboard keys for INPUT_CANON's remappable Peace actions.
+///
+/// This intentionally stays independent of Bevy so the shared settings file remains the
+/// single bind source. The client converts these values to `KeyCode` at the input boundary.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PeaceKey {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+    Digit0,
+    Digit1,
+    Digit2,
+    Digit3,
+    Digit4,
+    Digit5,
+    Digit6,
+    Digit7,
+    Digit8,
+    Digit9,
+    ArrowUp,
+    ArrowDown,
+    ArrowLeft,
+    ArrowRight,
+    Space,
+    LeftShift,
+    RightShift,
+    LeftControl,
+    RightControl,
+    LeftAlt,
+    RightAlt,
+    Tab,
+    Enter,
+    Backspace,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LocalSettings {
     pub schema: String,
@@ -60,6 +119,27 @@ pub struct LocalSettings {
     /// Same path as env `POWRUSH_GEN=light` (OR at the door — not a second gen system).
     #[serde(default = "default_grove")]
     pub grove: String,
+    /// INPUT_CANON keyboard remaps. Missing fields preserve the Peace keyboard PASS.
+    #[serde(default = "default_key_move_up")]
+    pub key_move_up: PeaceKey,
+    #[serde(default = "default_key_move_down")]
+    pub key_move_down: PeaceKey,
+    #[serde(default = "default_key_move_left")]
+    pub key_move_left: PeaceKey,
+    #[serde(default = "default_key_move_right")]
+    pub key_move_right: PeaceKey,
+    #[serde(default = "default_key_jump")]
+    pub key_jump: PeaceKey,
+    #[serde(default = "default_key_sprint")]
+    pub key_sprint: PeaceKey,
+    #[serde(default = "default_key_use")]
+    pub key_use: PeaceKey,
+    #[serde(default = "default_key_satchel")]
+    pub key_satchel: PeaceKey,
+    #[serde(default = "default_key_hide")]
+    pub key_hide: PeaceKey,
+    #[serde(default = "default_key_allocate")]
+    pub key_allocate: PeaceKey,
     /// Accessibility: remove camera punch and force rumble off. Default false.
     #[serde(default)]
     pub reduced_motion: bool,
@@ -107,6 +187,46 @@ fn default_grove() -> String {
     "off".into()
 }
 
+fn default_key_move_up() -> PeaceKey {
+    PeaceKey::W
+}
+
+fn default_key_move_down() -> PeaceKey {
+    PeaceKey::S
+}
+
+fn default_key_move_left() -> PeaceKey {
+    PeaceKey::A
+}
+
+fn default_key_move_right() -> PeaceKey {
+    PeaceKey::D
+}
+
+fn default_key_jump() -> PeaceKey {
+    PeaceKey::Space
+}
+
+fn default_key_sprint() -> PeaceKey {
+    PeaceKey::LeftShift
+}
+
+fn default_key_use() -> PeaceKey {
+    PeaceKey::E
+}
+
+fn default_key_satchel() -> PeaceKey {
+    PeaceKey::I
+}
+
+fn default_key_hide() -> PeaceKey {
+    PeaceKey::H
+}
+
+fn default_key_allocate() -> PeaceKey {
+    PeaceKey::R
+}
+
 fn default_lan() -> String {
     "off".into()
 }
@@ -138,6 +258,16 @@ impl Default for LocalSettings {
             brightness: DEFAULT_BRIGHTNESS,
             text_scale: DEFAULT_TEXT_SCALE,
             grove: default_grove(),
+            key_move_up: default_key_move_up(),
+            key_move_down: default_key_move_down(),
+            key_move_left: default_key_move_left(),
+            key_move_right: default_key_move_right(),
+            key_jump: default_key_jump(),
+            key_sprint: default_key_sprint(),
+            key_use: default_key_use(),
+            key_satchel: default_key_satchel(),
+            key_hide: default_key_hide(),
+            key_allocate: default_key_allocate(),
             reduced_motion: false,
             rumble: true,
             lan: default_lan(),
@@ -156,13 +286,25 @@ impl LocalSettings {
         Self::default()
     }
 
+    /// True for a stranger/legacy settings file that has never opted into a remap.
+    pub fn peace_keys_are_default(&self) -> bool {
+        self.key_move_up == default_key_move_up()
+            && self.key_move_down == default_key_move_down()
+            && self.key_move_left == default_key_move_left()
+            && self.key_move_right == default_key_move_right()
+            && self.key_jump == default_key_jump()
+            && self.key_sprint == default_key_sprint()
+            && self.key_use == default_key_use()
+            && self.key_satchel == default_key_satchel()
+            && self.key_hide == default_key_hide()
+            && self.key_allocate == default_key_allocate()
+    }
+
     pub fn clamp_look(&mut self) {
         if !self.look_sensitivity.is_finite() {
             self.look_sensitivity = DEFAULT_LOOK_SENSITIVITY;
         }
-        self.look_sensitivity = self
-            .look_sensitivity
-            .clamp(LOOK_SENS_MIN, LOOK_SENS_MAX);
+        self.look_sensitivity = self.look_sensitivity.clamp(LOOK_SENS_MIN, LOOK_SENS_MAX);
     }
 
     pub fn clamp_brightness(&mut self) {
@@ -499,6 +641,17 @@ mod tests {
         assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
         assert_eq!(s.grove, "off");
         assert!(!s.grove_is_light());
+        assert_eq!(s.key_move_up, PeaceKey::W);
+        assert_eq!(s.key_move_down, PeaceKey::S);
+        assert_eq!(s.key_move_left, PeaceKey::A);
+        assert_eq!(s.key_move_right, PeaceKey::D);
+        assert_eq!(s.key_jump, PeaceKey::Space);
+        assert_eq!(s.key_sprint, PeaceKey::LeftShift);
+        assert_eq!(s.key_use, PeaceKey::E);
+        assert_eq!(s.key_satchel, PeaceKey::I);
+        assert_eq!(s.key_hide, PeaceKey::H);
+        assert_eq!(s.key_allocate, PeaceKey::R);
+        assert!(s.peace_keys_are_default());
         assert!(!s.reduced_motion);
         assert!(s.rumble);
         assert!(s.rumble_enabled());
@@ -527,6 +680,13 @@ mod tests {
         s.brightness = 1.25;
         s.text_scale = 1.10;
         s.grove = "light".into();
+        s.key_move_up = PeaceKey::ArrowUp;
+        s.key_jump = PeaceKey::J;
+        s.key_sprint = PeaceKey::LeftControl;
+        s.key_use = PeaceKey::F;
+        s.key_satchel = PeaceKey::B;
+        s.key_hide = PeaceKey::V;
+        s.key_allocate = PeaceKey::N;
         s.reduced_motion = true;
         s.rumble = false;
         s.lan = "loopback".into();
@@ -542,6 +702,9 @@ mod tests {
         assert!(raw.contains("brightness"));
         assert!(raw.contains("text_scale"));
         assert!(raw.contains("grove") && raw.contains("light"));
+        assert!(raw.contains("\"key_move_up\": \"arrow_up\""));
+        assert!(raw.contains("\"key_use\": \"f\""));
+        assert!(raw.contains("\"key_satchel\": \"b\""));
         assert!(raw.contains("\"reduced_motion\": true"));
         assert!(raw.contains("\"rumble\": false"));
         assert!(raw.contains("\"lan\"") && raw.contains("loopback"));
@@ -550,6 +713,12 @@ mod tests {
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(back, s);
         assert!(back.grove_is_light());
+        assert!(!back.peace_keys_are_default());
+        assert_eq!(back.key_move_up, PeaceKey::ArrowUp);
+        assert_eq!(back.key_use, PeaceKey::F);
+        assert_eq!(back.key_satchel, PeaceKey::B);
+        assert_eq!(back.key_hide, PeaceKey::V);
+        assert_eq!(back.key_allocate, PeaceKey::N);
         assert!(back.reduced_motion);
         assert!(!back.rumble_enabled());
         assert_eq!(back.camera_punch_scale(), 0.0);
@@ -627,7 +796,6 @@ mod tests {
         assert!((back.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
     }
 
-
     #[test]
     fn grove_defaults_off_and_normalizes_unknown() {
         let s = LocalSettings::peace_defaults();
@@ -693,7 +861,16 @@ mod tests {
         assert_eq!(back.lan, "off");
         assert!(!back.lan_is_loopback());
         // Unknown / "on" / public bind spellings → off. Never Title Online.
-        for junk_lan in ["on", "ON", "true", "0.0.0.0", "localhost", "127.0.0.1", "birds", "public"] {
+        for junk_lan in [
+            "on",
+            "ON",
+            "true",
+            "0.0.0.0",
+            "localhost",
+            "127.0.0.1",
+            "birds",
+            "public",
+        ] {
             let junk = format!(
                 r#"{{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"grove":"off","lan":"{}"}}"#,
                 junk_lan
@@ -735,6 +912,7 @@ mod tests {
         assert_eq!(back.nintendo_face, "auto");
         assert_eq!(back.sprint_mode, "key");
         assert!(back.show_use_prompt);
+        assert!(back.peace_keys_are_default());
         // Unknown normalizes
         let junk = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"grove":"off","on_screen_sticks":"birds","nintendo_face":"pro","sprint_mode":"turbo"}"#;
         let junked = LocalSettings::from_json(junk).unwrap();
