@@ -48,4 +48,4 @@ Do not widen this list. Do not enable Title Online. No public listen. Do not unp
 - **Ra-Thor Cursor** does lattice only; may read `data/powrush_lived_tick.json`; does not drive keys, WASD, or Title Online.
 - **Grok Bots** design/review; they do not push `main`.
 
-See `AGENTS.md` for slice order and the README Agent landing (walked U0–U7, hold #308 — do not rebuild those).
+See `AGENTS.md` for slice order and the README Agent landing (walked U0–U8 — do not rebuild those).

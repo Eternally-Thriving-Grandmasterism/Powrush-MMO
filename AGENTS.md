@@ -6,7 +6,7 @@ Independent of xAI. No certification or warranty claims. Do not email anyone fro
 
 Law for anyone coding, reviewing, or steering this tree. Point: [`docs/PATSAGI_MERGE_COURT.md`](docs/PATSAGI_MERGE_COURT.md). Fill the PR ballot in [`.github/pull_request_template.md`](.github/pull_request_template.md).
 
-README **Agent landing** is canon for walked slices: U0–U7 (and related stamps listed there), hold **#308**, do not rebuild those. Do not continue HOLD PRs.
+README **Agent landing** is canon for walked slices: U0–U8 (and related stamps listed there), do not rebuild those. Do not continue HOLD PRs.
 
 ## Seats
 
@@ -45,7 +45,7 @@ Feature branch. Fill the ballot. Label `patsgi-auto` only when the court verdict
 
 ## Do not
 
-- Continue HOLD PRs (including #308).
+- Continue HOLD PRs.
 - Freelance a new product.
 - Enable Title Online. Add a listen or public bind.
 - Widen the deny-list or auto-merge HOLD paths.
