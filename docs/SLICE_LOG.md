@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-08 — U8: Heartwood Wards
+
+`slice: U8 Heartwood Wards | Heartwood-local Well/Grove/Ember seal posts outside lamp disk and water; look + tend session dress on existing Peace Use; cannot write the house book; hour_three_complete, embassy seat, Places eligibility, and Sanctuary return held; not a Places row; no Market/socket/listen/public bind/Title Online/0.0.0.0; LAN off; isolation gamma 0; harm row off; no Heartwood mesh on Sanctuary; no Depths boot; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`
+
 ## 2026-09-08 — U7: Threshold shelf
 
 `slice: U7 Threshold shelf | Heartwood-local roof shelf with look + tend only on existing Peace Use; complete footprint outside empty lamp disk and water bath; session-only hook cannot persist the Heartwood stub over the house book, preserving hour_three_complete, embassy seat, Places eligibility, and Sanctuary return; no Market/socket/listen/public bind/Title Online/0.0.0.0; LAN off; same seed hash; isolation gamma 0 with no tons/seeds/declared_lethal coupling; harm row remains off; no Heartwood mesh on Sanctuary; no Depths boot; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`

@@ -13,6 +13,7 @@ pub mod ui_above_world;
 pub mod title_screen;
 pub mod hex_travel;
 pub mod heartwood_lip;
+pub mod heartwood_wards;
 pub mod local_settings;
 pub mod vertical_factory;
 pub mod coop_voice;
@@ -144,6 +145,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(mercy_transporters::MercyTransportersPlugin);
         app.add_plugins(human_presence::HumanPresencePlugin);
         app.add_plugins(heartwood_lip::HeartwoodLipPlugin);
+        app.add_plugins(heartwood_wards::HeartwoodWardsPlugin);
         app.add_plugins(flow_weather::FlowWeatherPlugin);
         app.add_plugins(local_human_sim::LocalHumanSimPlugin);
         app.add_plugins(player_lineage::PlayerLineagePlugin);
