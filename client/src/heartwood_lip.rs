@@ -13,7 +13,8 @@ use shared::heartwood_lamp::{
 };
 use shared::hex_travel::PlaceId;
 use shared::threshold_shelf::{
-    ThresholdShelfState, ThresholdVerb, THRESHOLD_SHELF_CENTER, THRESHOLD_SHELF_SIZE,
+    ThresholdPeaceNode, ThresholdShelfState, ThresholdVerb, THRESHOLD_NODE_CENTER,
+    THRESHOLD_NODE_RADIUS, THRESHOLD_SHELF_CENTER, THRESHOLD_SHELF_SIZE,
     THRESHOLD_SHELF_USE_RADIUS,
 };
 
@@ -32,6 +33,9 @@ struct HeartwoodWater;
 #[derive(Component)]
 struct ThresholdShelf;
 
+#[derive(Component)]
+struct ThresholdPeaceOrb;
+
 #[derive(Resource, Debug, Default)]
 struct HeartwoodLipState {
     active: bool,
@@ -40,6 +44,8 @@ struct HeartwoodLipState {
 #[derive(Resource, Debug, Default)]
 pub struct ThresholdShelfSession {
     pub shelf: ThresholdShelfState,
+    pub node: ThresholdPeaceNode,
+    pub near: bool,
     pub last_line: String,
 }
 
@@ -73,6 +79,7 @@ fn sync_heartwood_lip(
             With<HeartwoodLipProp>,
             With<HeartwoodWater>,
             With<ThresholdShelf>,
+            With<ThresholdPeaceOrb>,
         )>,
     >,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -88,6 +95,8 @@ fn sync_heartwood_lip(
     }
     state.active = heartwood;
     threshold.shelf = ThresholdShelfState::default();
+    threshold.node = ThresholdPeaceNode::default();
+    threshold.near = false;
     threshold.last_line.clear();
     if !heartwood {
         return;
@@ -159,6 +168,22 @@ fn sync_heartwood_lip(
 
     commands.spawn((
         PbrBundle {
+            mesh: meshes.add(Sphere::new(THRESHOLD_NODE_RADIUS)),
+            material: materials.add(StandardMaterial {
+                base_color: Color::srgb(0.58, 0.82, 0.64),
+                emissive: LinearRgba::new(0.12, 0.26, 0.14, 1.0),
+                perceptual_roughness: 0.42,
+                ..default()
+            }),
+            transform: Transform::from_translation(Vec3::from_array(THRESHOLD_NODE_CENTER)),
+            ..default()
+        },
+        ThresholdPeaceOrb,
+        Name::new("ThresholdPeaceNode"),
+    ));
+
+    commands.spawn((
+        PbrBundle {
             mesh: meshes.add(Cylinder::new(WATER_POND_RADIUS, 0.04)),
             material: materials.add(StandardMaterial {
                 base_color: Color::srgba(0.10, 0.36, 0.40, 0.82),
@@ -214,15 +239,18 @@ fn use_threshold_shelf(
     }
     let shelf_xz = Vec2::new(THRESHOLD_SHELF_CENTER[0], THRESHOLD_SHELF_CENTER[2]);
     let body_xz = Vec2::new(presence.position.x, presence.position.z);
-    if body_xz.distance(shelf_xz) > THRESHOLD_SHELF_USE_RADIUS {
+    session.near = body_xz.distance(shelf_xz) <= THRESHOLD_SHELF_USE_RADIUS;
+    if !session.near {
         return;
     }
     if !session.shelf.looked {
-        session.last_line = session.shelf.apply(ThresholdVerb::Look).into();
+        let _ = session.shelf.apply(ThresholdVerb::Look);
+        session.last_line = session.node.speech();
         info!(target: "powrush::threshold", "{}", session.last_line);
     }
     if input.interact {
-        session.last_line = session.shelf.apply(ThresholdVerb::Tend).into();
+        let _ = session.shelf.apply(ThresholdVerb::Tend);
+        session.last_line = session.node.tend();
         info!(target: "powrush::threshold", "{}", session.last_line);
     }
 }
@@ -237,7 +265,8 @@ mod tests {
     use shared::hex_travel::{confirm_leave, places_eligible};
     use shared::stranger_loop_proof::hour_three_held_fixture;
     use shared::threshold_shelf::{
-        threshold_shelf_is_valid, visit_threshold, ThresholdShelfState, ThresholdVerb,
+        threshold_node_is_valid, threshold_shelf_is_valid, visit_threshold, ThresholdPeaceNode,
+        ThresholdShelfState, ThresholdVerb, THRESHOLD_PEACE_VERBS,
     };
 
     #[test]
@@ -306,11 +335,17 @@ mod tests {
     #[test]
     fn threshold_roof_look_tend_keeps_house_and_places() {
         assert!(threshold_shelf_is_valid());
+        assert!(threshold_node_is_valid());
         let house = hour_three_held_fixture();
         let before = house.clone();
         let mut shelf = ThresholdShelfState::default();
+        let mut node = ThresholdPeaceNode::default();
         let _ = visit_threshold(&mut shelf, ThresholdVerb::Look, &house);
         let receipt = visit_threshold(&mut shelf, ThresholdVerb::Tend, &house);
+        let speech = node.tend();
+        assert!(THRESHOLD_PEACE_VERBS
+            .iter()
+            .all(|verb| speech.contains(verb)));
         assert!(receipt.hour_three_complete);
         assert!(receipt.embassy_seated);
         assert_eq!(house, before);
