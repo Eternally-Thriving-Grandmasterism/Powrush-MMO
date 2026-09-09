@@ -88,6 +88,14 @@ impl Default for FirstHarvestEpiphany {
 }
 
 impl FirstHarvestEpiphany {
+    /// A door already owns this Use edge, so nothing may speak or credit a
+    /// harvest from it — not the harvest tap, not the practice strip, not the
+    /// climate ledger. The Threshold pipe is that door; Take stays the choice
+    /// everywhere else.
+    pub fn harvest_use_is_claimed(&self) -> bool {
+        self.threshold_near
+    }
+
     pub fn prompt_visible(&self, now: f64, guidance: &FirstSessionGuidance) -> bool {
         if self.first_harvest_lived && now > self.prompt_until {
             return false;
@@ -355,7 +363,7 @@ fn handle_interact_harvest(
 
     // U10: at the Threshold pipe the Use is a Tend. The harvest tap must not
     // swallow it, so no Take, no thriving-moment harvest line, no stock drop.
-    if state.threshold_near {
+    if state.harvest_use_is_claimed() {
         return;
     }
 
