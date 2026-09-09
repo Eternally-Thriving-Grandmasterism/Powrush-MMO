@@ -1,10 +1,11 @@
-//! Client net mode resource — default Offline (v23.2.57 / F8)
+//! Client net mode resource — default Offline (v23.2.60 / F8)
 //!
+//! shared::NetMode: Offline (default) | LoopbackDev | Online (grey, never lit).
 //! Outbound WS only when POWRUSH_NET=localhost **or** Settings LAN · loopback.
 //! Title Online stays grey and does not bind. Never POWRUSH_NET=on from Title.
 //! LAN off (default): no listen, no outbound — boot exactly as today.
 //! Loopback: existing F8 door, 127.0.0.1 only; may carry L0 GenShare + climate.
-//! Never invent peer counts. No second net stack. Contact: info@Rathor.ai
+//! Never invent peer counts. No second net stack. No listen server. Contact: info@Rathor.ai
 
 use std::net::SocketAddr;
 
@@ -50,9 +51,10 @@ impl SessionNetMode {
     /// Build from an explicit net flag — tests must not race on process env.
     pub fn from_powrush_net(powrush_net: PowrushNet) -> Self {
         let outbound_ws = powrush_net.may_outbound_ws();
-        // HonestShard label only when localhost door is open; still no peer count / no Online light.
+        // LoopbackDev when localhost door is open; still no peer count / no Online light.
+        // Online variant exists in shared for Title grey label — never selected by default boot.
         let mode = if outbound_ws {
-            NetMode::HonestShard
+            NetMode::LoopbackDev
         } else {
             NetMode::Offline
         };
@@ -190,8 +192,10 @@ mod tests {
         assert!(s.powrush_net.may_outbound_ws());
         assert!(!s.opens_listen_socket());
         assert!(!s.title_online_enabled());
-        assert_eq!(s.mode, NetMode::HonestShard);
+        assert_eq!(s.mode, NetMode::LoopbackDev);
         assert!(s.mode.peer_count_for_peace_boot().is_none());
+        assert!(!s.mode.title_online_enabled());
+        assert!(!NetMode::Online.title_online_enabled());
         // Title Online row remains honest grey — Settings/env is the door.
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(!online_row_is_honest_disabled(ONLINE_STUB_LABEL, true));
