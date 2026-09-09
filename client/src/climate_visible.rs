@@ -10,6 +10,7 @@ use bevy::prelude::*;
 use shared::climate_node::NodeState;
 
 use crate::climate_script::TeachingClaim;
+use crate::first_session_guidance::FirstSessionGuidance;
 use crate::heartwood_lip::ThresholdShelfSession;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
@@ -144,6 +145,7 @@ fn update_climate_state_slab(
     bind: Res<LivedHourBind>,
     threshold: Option<Res<ThresholdShelfSession>>,
     claim: Option<Res<TeachingClaim>>,
+    guidance: Option<Res<FirstSessionGuidance>>,
     week_glow: Res<WeekFeelGlow>,
     nodes: Query<&MercyHarvestNode>,
     mut root: Query<
@@ -153,12 +155,12 @@ fn update_climate_state_slab(
     mut text_q: Query<&mut Text, With<ClimateStateText>>,
 ) {
     let threshold_line = threshold_speech_if_near(threshold.as_deref());
-    // H hides guidance, but an in-range well keeps its state sentence on this slab.
-    let show = climate_slab_should_show(
-        nearby.in_range,
-        threshold_line.is_some(),
+    let guidance_hidden = climate_caption_guidance_hidden(
         bind.guidance_hidden,
+        guidance.as_ref().map(|g| g.dismissed).unwrap_or(false),
     );
+    // H hides guidance, but an in-range well keeps its state sentence on this slab.
+    let show = climate_slab_should_show(nearby.in_range, threshold_line.is_some(), guidance_hidden);
     let glow = week_glow.glow;
     let week_live = bind
         .climate_slab
@@ -208,7 +210,7 @@ fn update_climate_state_slab(
                     .find(|c| c.id == n.climate_id)
                     .map(|c| c.state)
                     .unwrap_or(NodeState::Idle);
-                if bind.guidance_hidden {
+                if guidance_hidden {
                     return well_state_sentence(n.name, state);
                 }
                 let hint = claim
@@ -239,6 +241,10 @@ fn update_climate_state_slab(
             }
         }
     }
+}
+
+fn climate_caption_guidance_hidden(bind_hidden: bool, session_dismissed: bool) -> bool {
+    bind_hidden || session_dismissed
 }
 
 fn climate_slab_should_show(
@@ -313,5 +319,12 @@ mod tests {
     fn hidden_guidance_does_not_keep_threshold_speech_open() {
         assert!(!climate_slab_should_show(false, true, true));
         assert!(climate_slab_should_show(false, true, false));
+    }
+
+    #[test]
+    fn dismissed_session_guidance_hides_climate_hints() {
+        assert!(climate_caption_guidance_hidden(false, true));
+        assert!(climate_caption_guidance_hidden(true, false));
+        assert!(!climate_caption_guidance_hidden(false, false));
     }
 }
