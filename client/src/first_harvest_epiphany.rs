@@ -57,6 +57,8 @@ pub struct FirstHarvestEpiphany {
     pub hybrid_near: bool,
     /// At the first well, traveler holds or dawn. E Contest / Rise; do not harvest.
     pub well_near: bool,
+    /// At the Heartwood Threshold pipe. E Tends the node; do not harvest.
+    pub threshold_near: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -80,6 +82,7 @@ impl Default for FirstHarvestEpiphany {
             redemption_near: false,
             hybrid_near: false,
             well_near: false,
+            threshold_near: false,
         }
     }
 }
@@ -347,6 +350,12 @@ fn handle_interact_harvest(
     }
 
     if state.well_near {
+        return;
+    }
+
+    // U10: at the Threshold pipe the Use is a Tend. The harvest tap must not
+    // swallow it, so no Take, no thriving-moment harvest line, no stock drop.
+    if state.threshold_near {
         return;
     }
 

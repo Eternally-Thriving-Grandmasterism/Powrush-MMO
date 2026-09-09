@@ -42,12 +42,16 @@ impl Plugin for ShardClimatePlugin {
 fn hold_e_care_tend(
     keyboard: Res<ButtonInput<KeyCode>>,
     nearby: Res<NearbyMercyNode>,
+    epiphany: Option<Res<crate::first_harvest_epiphany::FirstHarvestEpiphany>>,
     mut bind: ResMut<LivedHourBind>,
     mut hold: ResMut<CareTendHold>,
     time: Res<Time>,
 ) {
+    // At the Threshold pipe the Use belongs to the session node — it must not
+    // reach the hex climate ledger or the week file.
+    let at_threshold = epiphany.map(|e| e.threshold_near).unwrap_or(false);
     let pressing = keyboard.pressed(soft_play_bindings::INTERACT);
-    if !pressing || !nearby.in_range {
+    if at_threshold || !pressing || !nearby.in_range {
         hold.seconds = 0.0;
         hold.fired = false;
         return;
