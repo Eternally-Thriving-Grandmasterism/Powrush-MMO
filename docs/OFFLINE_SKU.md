@@ -6,6 +6,8 @@ Workspace `21.88.0`. Design tick, not a Cargo bump.
 **`playable-preview` stays** walked SHA **`11c577e`** (tag object `e37ed6e`; not the glow commit). Do not retag until a human names a Steam retag.  
 **Independent of xAI.** No certification / AGSi warranty / legal-product claims.
 
+**Agent landing:** walked slices, hold #308, Core gate, and do-not list live in README (dated section after Floor). This file is SKU law; do not reopen it or freelance a new product.
+
 **Slice:** U0 — docs only. No `client/` / `shared/` / Cargo. Do not run lavapipe. Do not fill `HOUR_TWO_PLAYTEST` minutes / OS / GPU / Time. Bot does not create a Steam partner account.
 
 ---
