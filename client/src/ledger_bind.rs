@@ -9,19 +9,23 @@
 
 use bevy::prelude::*;
 
+use shared::hex_travel::{house_week_footer, read_hex_named, PlaceId, LOCAL_HEXES};
 use shared::hour_two::HourTwoPack;
 use shared::ledger_bind::{ContractState, LedgerBoard};
 use shared::pause_ledger_face::{ledger_sash_body, lethal_sign_row, HEX_ADMITS_HARM_OFF};
+use shared::shard_climate::ShardClimate;
+use shared::week_audit::WeekAudit;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::hex_travel::HexTravelState;
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
+use crate::infra_spill::EvidenceYard;
+use crate::input::{InputMapSet, PlayerInput};
 use crate::lived_hour_bind::LivedHourBind;
+use crate::soft_play_bindings;
+use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
-use crate::infra_spill::EvidenceYard;
-use crate::soft_play_bindings;
-use crate::input::{InputMapSet, PlayerInput};
-use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
 #[derive(Resource, Debug, Clone)]
 pub struct LedgerYard {
@@ -155,7 +159,10 @@ fn handle_ledger(
             }
             return;
         }
-        if !bind.standing.confirm_hex_sign(settled, hour.hour_three_complete) {
+        if !bind
+            .standing
+            .confirm_hex_sign(settled, hour.hour_three_complete)
+        {
             // Book / Settled missing — plate already shows wait / not your charter.
             return;
         }
@@ -180,7 +187,11 @@ fn handle_ledger(
     }
 }
 
-fn stamp_complete(mut hour: ResMut<HourSacred>, evidence: Res<EvidenceYard>, yard: Res<LedgerYard>) {
+fn stamp_complete(
+    mut hour: ResMut<HourSacred>,
+    evidence: Res<EvidenceYard>,
+    yard: Res<LedgerYard>,
+) {
     if hour.complete {
         return;
     }
@@ -193,7 +204,6 @@ fn stamp_complete(mut hour: ResMut<HourSacred>, evidence: Res<EvidenceYard>, yar
         hour.complete = true;
     }
 }
-
 
 /// Quiet Ledger hint after Hour three. Empty string before the book.
 pub fn lethal_soft_clause(hour_three_held: bool, already_lethal: bool) -> &'static str {
@@ -208,6 +218,7 @@ fn update_ledger_slab(
     hour: Res<HourSacred>,
     yard: Res<LedgerYard>,
     bind: Res<LivedHourBind>,
+    travel: Option<Res<HexTravelState>>,
     house_label: Res<HouseLabel>,
     mut root: Query<&mut Visibility, With<LedgerSlabRoot>>,
     mut text_q: Query<&mut Text, With<LedgerSlabText>>,
@@ -231,11 +242,14 @@ fn update_ledger_slab(
         .unwrap_or(false)
         || hour.complete;
     let charter = hour.charter_skin_live();
+    let house_week = travel
+        .map(|travel| house_week_from_rooms(travel.current, &bind.climate, read_hex_named))
+        .unwrap_or_else(|| bind.week.clone());
     let face = ledger_sash_body(
         charter,
         settled,
         &house_label.house,
-        &bind.week,
+        &house_week,
         bind.standing.declared_lethal,
     );
     let line = if !charter {
@@ -269,6 +283,24 @@ fn update_ledger_slab(
             }
         }
     }
+}
+
+fn house_week_from_rooms(
+    current_place: PlaceId,
+    current_climate: &ShardClimate,
+    mut load_room: impl FnMut(PlaceId) -> Option<shared::hex_travel::HexClimateFile>,
+) -> WeekAudit {
+    let climates: Vec<_> = LOCAL_HEXES
+        .into_iter()
+        .filter_map(|place| {
+            if place == current_place {
+                Some(current_climate.clone())
+            } else {
+                load_room(place).map(|file| file.climate)
+            }
+        })
+        .collect();
+    house_week_footer(&climates)
 }
 
 #[cfg(test)]
@@ -305,9 +337,14 @@ mod tests {
     #[test]
     fn lethal_soft_clause_only_after_book() {
         assert_eq!(lethal_soft_clause(false, false), "");
-        assert_eq!(lethal_soft_clause(true, false), " · this hex admits harm · off");
+        assert_eq!(
+            lethal_soft_clause(true, false),
+            " · this hex admits harm · off"
+        );
         assert_eq!(lethal_soft_clause(true, true), "");
-        assert!(!lethal_soft_clause(true, false).to_lowercase().contains("combat"));
+        assert!(!lethal_soft_clause(true, false)
+            .to_lowercase()
+            .contains("combat"));
         assert!(!lethal_soft_clause(true, false).contains("kill"));
         assert!(lethal_soft_clause(true, false).contains(HEX_ADMITS_HARM_OFF));
     }
@@ -328,6 +365,54 @@ mod tests {
         assert!(!face.contains("lethal"));
         assert!(face_is_steward_honest(&face));
         assert!(!face.to_lowercase().contains("peer"));
+    }
+
+    #[test]
+    fn sanctuary_ledger_footer_sums_persisted_offline_rooms() {
+        use shared::hex_travel::stub_hex_file;
+
+        let mut sanctuary = stub_hex_file(PlaceId::Sanctuary).climate;
+        sanctuary.tons_moved = 2;
+        sanctuary.restored_count = 1;
+
+        let mut heartwood = stub_hex_file(PlaceId::Heartwood);
+        heartwood.climate.tons_moved = 3;
+        heartwood.climate.restored_count = 4;
+
+        let mut depths = stub_hex_file(PlaceId::Depths);
+        depths.climate.tons_moved = 5;
+        depths.climate.restored_count = 6;
+
+        let week = house_week_from_rooms(PlaceId::Sanctuary, &sanctuary, |place| match place {
+            PlaceId::Sanctuary => None,
+            PlaceId::Heartwood => Some(heartwood.clone()),
+            PlaceId::Depths => Some(depths.clone()),
+        });
+
+        assert_eq!(week.tons_moved, 10);
+        assert_eq!(week.restored_count, 11);
+        assert_eq!(week.slab_line(), "this week · 10 tons · 11 restored");
+        assert_eq!(LOCAL_HEXES.len(), 3, "Threshold persists on Heartwood");
+    }
+
+    #[test]
+    fn house_footer_uses_live_room_instead_of_stale_disk_copy() {
+        use shared::hex_travel::stub_hex_file;
+
+        let mut live_heartwood = stub_hex_file(PlaceId::Heartwood).climate;
+        live_heartwood.tons_moved = 7;
+        live_heartwood.restored_count = 2;
+
+        let mut stale_heartwood = stub_hex_file(PlaceId::Heartwood);
+        stale_heartwood.climate.tons_moved = 99;
+        stale_heartwood.climate.restored_count = 99;
+
+        let week = house_week_from_rooms(PlaceId::Heartwood, &live_heartwood, |place| {
+            (place == PlaceId::Heartwood).then(|| stale_heartwood.clone())
+        });
+
+        assert_eq!(week.tons_moved, 7);
+        assert_eq!(week.restored_count, 2);
     }
 
     #[test]
@@ -361,7 +446,10 @@ mod tests {
         let early = ledger_sash_body(false, false, &house, &week, false);
         assert_eq!(early, NOT_YOUR_CHARTER);
         assert!(!early.is_empty());
-        assert_eq!(bind_only_before_settled_body(true, false), Some(LEDGER_WAITS));
+        assert_eq!(
+            bind_only_before_settled_body(true, false),
+            Some(LEDGER_WAITS)
+        );
         assert_eq!(wait_line_before_settled(false), NOT_YOUR_CHARTER);
         // Charter live keeps L2 face (Unnamed + week 0/0); lethal absent.
         let face = ledger_sash_body(true, false, &house, &week, false);
@@ -377,8 +465,8 @@ mod tests {
     #[test]
     fn l1_confirm_requires_settled_and_book_no_ton_mint() {
         use shared::pause_ledger_face::{lethal_sign_row, HEX_ADMITS_HARM, LEDGER_WAITS};
-        use shared::shard_standing::ShardStanding;
         use shared::shard_climate::ShardClimate;
+        use shared::shard_standing::ShardStanding;
         let mut standing = ShardStanding::default();
         let mut climate = ShardClimate::default();
         climate.tons_moved = 4;
