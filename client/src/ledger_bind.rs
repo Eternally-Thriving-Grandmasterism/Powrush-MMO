@@ -244,7 +244,7 @@ fn refresh_house_week_bill(
         return;
     }
     let week = match travel.as_ref() {
-        Some(travel) => house_week_from_rooms(travel.current, &bind.climate, read_hex_named),
+        Some(travel) => house_week_bill_from_disk(travel.current, &bind.climate),
         None => bind.week.clone(),
     };
     if bill.week != week {
@@ -333,6 +333,13 @@ fn yard_week(climate: &ShardClimate) -> WeekAudit {
 /// Yard face, then the summed House bill on its own line.
 fn with_house_week(face: &str, bill: &HouseWeekBill) -> String {
     format!("{face}\n{}", bill.line())
+}
+
+/// The House bill as the plate computes it: the live room plus whichever other
+/// room files are on disk. A room with no file, or one still at 0/0, adds
+/// nothing — two nonzero rooms are enough.
+pub fn house_week_bill_from_disk(current: PlaceId, current_climate: &ShardClimate) -> WeekAudit {
+    house_week_from_rooms(current, current_climate, read_hex_named)
 }
 
 fn house_week_from_rooms(

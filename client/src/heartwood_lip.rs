@@ -11,7 +11,7 @@ use shared::heartwood_lamp::{
     heartwood_bath_return, HeartwoodLipKind, HEARTWOOD_LIP_INSTANCES, WATER_POND_CENTER,
     WATER_POND_RADIUS,
 };
-use shared::hex_travel::PlaceId;
+use shared::hex_travel::{write_hex_named, HexClimateFile, PlaceId};
 use shared::threshold_shelf::{
     resolve_threshold_use, threshold_use_in_reach, ThresholdPeaceNode, ThresholdShelfState,
     ThresholdUse, ThresholdVerb, THRESHOLD_NODE_CENTER, THRESHOLD_NODE_RADIUS,
@@ -22,6 +22,7 @@ use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
 use crate::input::PlayerInput;
+use crate::lived_hour_bind::LivedHourBind;
 
 const STAND_HEIGHT: f32 = 0.90;
 
@@ -250,7 +251,12 @@ fn mark_threshold_near(
     }
 }
 
-fn use_threshold_shelf(input: Res<PlayerInput>, mut session: ResMut<ThresholdShelfSession>) {
+fn use_threshold_shelf(
+    input: Res<PlayerInput>,
+    travel: Res<HexTravelState>,
+    mut session: ResMut<ThresholdShelfSession>,
+    mut bind: Option<ResMut<LivedHourBind>>,
+) {
     if !session.near {
         return;
     }
@@ -268,7 +274,22 @@ fn use_threshold_shelf(input: Res<PlayerInput>, mut session: ResMut<ThresholdShe
     }
     let _ = session.shelf.apply(ThresholdVerb::Tend);
     session.last_line = session.node.tend();
+    if let Some(bind) = bind.as_deref_mut() {
+        ink_room_tend(travel.current, bind);
+    }
     info!(target: "powrush::threshold", "{}", session.last_line);
+}
+
+/// The pipe Tend leaves restored ink on the room it happened in, then writes
+/// that room's own hex file so the ink survives without waiting for a leave.
+/// The hex_id guard means one room's numbers can never land in another's file.
+pub fn ink_room_tend(place: PlaceId, bind: &mut LivedHourBind) {
+    if bind.climate.hex_id != place.as_str() {
+        return;
+    }
+    bind.room_tend();
+    let file = HexClimateFile::from_parts(place, bind.climate.clone(), bind.standing.clone());
+    let _ = write_hex_named(&file);
 }
 
 #[cfg(test)]
@@ -393,6 +414,68 @@ mod tests {
             .clone()
     }
 
+    /// The re-walk fail: the pipe Tend spoke, but Heartwood's climate stayed
+    /// 0/0, so the file written on leave was blank and the House bill could
+    /// never see the second well. One E must leave restored ink on this room.
+    #[test]
+    fn one_e_at_the_pipe_inks_the_heartwood_room_climate() {
+        let mut app = pipe_app(
+            PlaceId::Heartwood,
+            THRESHOLD_SHELF_CENTER[0],
+            THRESHOLD_SHELF_CENTER[2],
+        );
+        let mut heartwood = shared::hex_travel::heartwood_stub_climate();
+        heartwood.hex_id = PlaceId::Heartwood.as_str().into();
+        app.insert_resource(LivedHourBind {
+            hour: shared::climate_node::LivedHour::new_demo(),
+            climate: heartwood,
+            standing: shared::hex_travel::heartwood_stub_standing(),
+            week: shared::week_audit::WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        });
+        app.update();
+
+        let before = app.world().resource::<LivedHourBind>().climate.clone();
+        let satchel_before = app.world().resource::<LivedHourBind>().satchel_count();
+        assert_eq!(before.restored_count, 0, "Heartwood starts blank");
+
+        press_use_once(&mut app);
+
+        let bind = app.world().resource::<LivedHourBind>();
+        assert_eq!(bind.climate.restored_count, 1, "the tend inked this room");
+        assert_eq!(bind.climate.tons_moved, 0, "a Tend is still not a haul");
+        assert_eq!(bind.climate.hex_id, PlaceId::Heartwood.as_str());
+        assert_eq!(
+            bind.satchel_count(),
+            satchel_before,
+            "a Tend is not a Take: no stock moved"
+        );
+    }
+
+    /// One room's numbers must never be stamped into another room's file.
+    #[test]
+    fn ink_refuses_a_room_whose_climate_is_not_loaded() {
+        let mut bind = LivedHourBind {
+            hour: shared::climate_node::LivedHour::new_demo(),
+            climate: shared::hex_travel::sanctuary_fresh_climate(),
+            standing: shared::hex_travel::sanctuary_fresh_standing(),
+            week: shared::week_audit::WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        };
+
+        // Standing "on Heartwood" while Sanctuary climate is loaded: refuse.
+        ink_room_tend(PlaceId::Heartwood, &mut bind);
+
+        assert_eq!(bind.climate.restored_count, 0);
+        assert_eq!(bind.climate.hex_id, PlaceId::Sanctuary.as_str());
+    }
+
     /// The steward walk: face the node, one E, the line leaves Idle.
     #[test]
     fn one_e_at_the_pipe_leaves_idle_and_does_not_take() {
@@ -488,7 +571,11 @@ mod tests {
                 !harvest_voice_spoke(&app),
                 "press {press} let the harvest-taken line through"
             );
-            assert_eq!(practice_credits(&app), 0, "press {press} credited a harvest");
+            assert_eq!(
+                practice_credits(&app),
+                0,
+                "press {press} credited a harvest"
+            );
             assert_eq!(
                 app.world().resource::<SoftRbePool>().harvests,
                 0,

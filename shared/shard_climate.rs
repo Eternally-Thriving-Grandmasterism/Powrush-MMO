@@ -71,6 +71,15 @@ impl ShardClimate {
         self.touch();
     }
 
+    /// Tend at a room's own node (the Threshold pipe). The care-tend feel plus
+    /// the restored↑ the shard's `tend` op already records for the week, so the
+    /// room keeps ink a House bill can read. Not a take: no tons, no satchel,
+    /// no pool.
+    pub fn on_room_tend(&mut self) {
+        self.restored_count = self.restored_count.saturating_add(1);
+        self.on_care_tend();
+    }
+
     /// Tap E on Glowing: satchel already filled; stress ↑ small
     pub fn on_glowing_take(&mut self) {
         self.stress = (self.stress + 0.06).clamp(0.0, 1.0);
@@ -156,7 +165,6 @@ impl ShardClimate {
 mod tests {
     use super::*;
 
-
     #[test]
     fn optional_genshare_fields_default_on_legacy_json() {
         let raw = r#"{"hex_id":"local-hex","harmony":0.55,"stress":0.15,"regen":0.08,"reserve_pool":0,"restored_count":0,"tons_moved":0,"updated_at":1}"#;
@@ -166,7 +174,7 @@ mod tests {
         assert_eq!(c.hex_id, "local-hex");
     }
 
-        #[test]
+    #[test]
     fn tend_save_load_keeps_stress() {
         let mut c = ShardClimate::default();
         let before = c.stress;
@@ -177,6 +185,21 @@ mod tests {
         let loaded = ShardClimate::from_json(&raw).unwrap();
         assert!((loaded.stress - stress).abs() < 1e-6);
         assert_eq!(loaded.hex_id, "local-hex");
+    }
+
+    /// The second well must leave ink, or a House bill can never see it.
+    #[test]
+    fn room_tend_restores_without_taking() {
+        let mut c = ShardClimate::default();
+        let before = c.clone();
+
+        c.on_room_tend();
+
+        assert_eq!(c.restored_count, 1, "a tend leaves restored ink");
+        assert_eq!(c.tons_moved, before.tons_moved, "a tend is not a haul");
+        assert_eq!(c.reserve_pool, before.reserve_pool, "no pool moved");
+        assert!(c.stress < before.stress, "it still feels like a care tend");
+        assert!(c.harmony > before.harmony);
     }
 
     #[test]
