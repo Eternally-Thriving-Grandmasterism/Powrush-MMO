@@ -51,17 +51,20 @@ pub const PLACES_ROW: &str = "Places";
 pub enum PlaceId {
     Sanctuary,
     Heartwood,
+    /// One Peace landing. Own hex file. Not Market. Not a listen.
+    Depths,
 }
 
 /// Every local hex the yard can stand on. A later local hex joins this list,
 /// and the pause plate must reach the same door on each one.
-pub const LOCAL_HEXES: [PlaceId; 2] = [PlaceId::Sanctuary, PlaceId::Heartwood];
+pub const LOCAL_HEXES: [PlaceId; 3] = [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths];
 
 impl PlaceId {
     pub const fn as_str(self) -> &'static str {
         match self {
             PlaceId::Sanctuary => "sanctuary",
             PlaceId::Heartwood => "heartwood",
+            PlaceId::Depths => "depths",
         }
     }
 
@@ -69,6 +72,7 @@ impl PlaceId {
         match self {
             PlaceId::Sanctuary => "Sanctuary",
             PlaceId::Heartwood => "Heartwood",
+            PlaceId::Depths => "Depths",
         }
     }
 
@@ -77,6 +81,7 @@ impl PlaceId {
         match self {
             PlaceId::Sanctuary => "Sanctuary Prime",
             PlaceId::Heartwood => "Heartwood",
+            PlaceId::Depths => "Depths",
         }
     }
 
@@ -86,6 +91,7 @@ impl PlaceId {
                 Some(PlaceId::Sanctuary)
             }
             "heartwood" => Some(PlaceId::Heartwood),
+            "depths" => Some(PlaceId::Depths),
             _ => None,
         }
     }
@@ -272,7 +278,55 @@ pub fn stub_hex_file(place: PlaceId) -> HexClimateFile {
             file.lamp_empty = true;
             file
         }
+        PlaceId::Depths => depths_stub_file(),
     }
+}
+
+/// Depths landing climate. Empty stock. Peace. Not a Sanctuary copy. Not Market.
+pub fn depths_stub_climate() -> ShardClimate {
+    ShardClimate {
+        hex_id: PlaceId::Depths.as_str().into(),
+        tons_moved: 0,
+        restored_count: 0,
+        reserve_pool: 0,
+        seed_u64: None,
+        gen_epoch: None,
+        ..ShardClimate::default()
+    }
+}
+
+pub fn depths_stub_standing() -> ShardStanding {
+    ShardStanding {
+        hex_id: PlaceId::Depths.as_str().into(),
+        declared_lethal: false,
+        tariff_paid: 0,
+        ..ShardStanding::default()
+    }
+}
+
+pub fn depths_stub_file() -> HexClimateFile {
+    HexClimateFile::from_parts(
+        PlaceId::Depths,
+        depths_stub_climate(),
+        depths_stub_standing(),
+    )
+}
+
+/// One Peace turn. Not Market. Not a listen. Not a boot hex.
+pub fn depths_is_one_turn() -> bool {
+    true
+}
+
+pub fn depths_is_market() -> bool {
+    false
+}
+
+pub fn depths_mesh_on_sanctuary() -> bool {
+    false
+}
+
+pub fn new_game_writes_depths() -> bool {
+    false
 }
 
 /// Dest climate for travel: existing disk, else stub. Never a copy of `from`.
@@ -358,6 +412,8 @@ pub fn may_enter(place: PlaceId, book_held: bool) -> bool {
     match place {
         PlaceId::Sanctuary => true,
         PlaceId::Heartwood => book_held,
+        // One turn, after the book. Not a first-hour door.
+        PlaceId::Depths => book_held,
     }
 }
 
@@ -374,6 +430,10 @@ pub fn confirm_leave(
     if from == to {
         return Err(TravelRefuse::SamePlace);
     }
+    // Depths is one Peace landing. Leave only walks back to Sanctuary.
+    if from == PlaceId::Depths && to != PlaceId::Sanctuary {
+        return Err(TravelRefuse::NotYourCharter);
+    }
     Ok(to)
 }
 
@@ -387,6 +447,7 @@ pub fn boot_place(kind: BootKind, book_held: bool, last: Option<PlaceId>) -> Pla
             } else {
                 match last {
                     Some(PlaceId::Heartwood) if book_held => PlaceId::Heartwood,
+                    Some(PlaceId::Depths) if book_held => PlaceId::Depths,
                     Some(p) => p,
                     None => PlaceId::Sanctuary,
                 }
@@ -438,6 +499,13 @@ pub fn plan_travel(
         load_to.climate.seed_u64 = None;
         load_to.standing.declared_lethal = false;
         load_to.lamp_empty = true;
+    }
+    if dest == PlaceId::Depths && dest_was_missing {
+        load_to.climate.tons_moved = 0;
+        load_to.climate.restored_count = 0;
+        load_to.climate.seed_u64 = None;
+        load_to.standing.declared_lethal = false;
+        load_to.lamp_empty = false;
     }
     Ok((write_from, load_to))
 }
@@ -761,6 +829,81 @@ mod tests {
             confirm_leave(true, true, PlaceId::Sanctuary, PlaceId::Sanctuary),
             Err(TravelRefuse::SamePlace)
         );
+    }
+
+    #[test]
+    fn depths_is_one_peace_landing_not_market_or_listen() {
+        assert!(depths_is_one_turn());
+        assert!(!depths_is_market());
+        assert!(!depths_mesh_on_sanctuary());
+        assert!(!new_game_writes_depths());
+        assert_eq!(PlaceId::Depths.peace_hex(), HexFlag::Peace);
+        assert_eq!(hex_file_name(PlaceId::Depths), "powrush_hex_depths.json");
+        assert!(!may_enter(PlaceId::Depths, false));
+        assert_eq!(
+            confirm_leave(true, false, PlaceId::Sanctuary, PlaceId::Depths),
+            Err(TravelRefuse::NotYourCharter)
+        );
+        assert_eq!(
+            confirm_leave(true, true, PlaceId::Sanctuary, PlaceId::Depths),
+            Ok(PlaceId::Depths)
+        );
+        assert_eq!(
+            confirm_leave(true, true, PlaceId::Depths, PlaceId::Heartwood),
+            Err(TravelRefuse::NotYourCharter)
+        );
+        assert_eq!(
+            confirm_leave(true, true, PlaceId::Depths, PlaceId::Sanctuary),
+            Ok(PlaceId::Sanctuary)
+        );
+        assert_eq!(
+            boot_place(BootKind::Play, true, Some(PlaceId::Depths)),
+            PlaceId::Sanctuary
+        );
+        let stub = depths_stub_file();
+        assert_eq!(stub.climate.tons_moved, 0);
+        assert!(!stub.standing.declared_lethal);
+        assert!(travel_is_disk_only());
+        assert_eq!(ISOLATION_GAMMA, 0.0);
+    }
+
+    #[test]
+    fn depths_landing_does_not_copy_stock_or_drop_a_new_game_file() {
+        let dir = scratch("depths");
+        let mut climate = sanctuary_fresh_climate();
+        climate.tons_moved = 7;
+        climate.seed_u64 = Some(3);
+        let mut standing = sanctuary_fresh_standing();
+        standing.declared_lethal = true;
+        let loaded = apply_travel_at(
+            &dir,
+            true,
+            true,
+            PlaceId::Sanctuary,
+            PlaceId::Depths,
+            &climate,
+            &standing,
+        )
+        .expect("depths");
+        assert_eq!(loaded.climate.hex_id, "depths");
+        assert_eq!(loaded.climate.tons_moved, 0);
+        assert!(loaded.climate.seed_u64.is_none());
+        assert!(!loaded.standing.declared_lethal);
+        assert_eq!(read_current_at(&dir), Some(PlaceId::Depths));
+        let back = apply_travel_at(
+            &dir,
+            true,
+            true,
+            PlaceId::Depths,
+            PlaceId::Sanctuary,
+            &loaded.climate,
+            &loaded.standing,
+        )
+        .expect("home");
+        assert_eq!(back.hex_id, "sanctuary");
+        assert!(!new_game_writes_depths());
+        assert!(read_hex_at(&dir, PlaceId::Depths).is_some());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -63,6 +63,8 @@ struct PlacesSanctuaryBtn;
 #[derive(Component)]
 struct PlacesHeartwoodBtn;
 #[derive(Component)]
+struct PlacesDepthsBtn;
+#[derive(Component)]
 struct PlacesConfirmBtn;
 #[derive(Component)]
 struct PlacesBackBtn;
@@ -114,7 +116,7 @@ fn apply_place(
     dest: PlaceId,
     book: bool,
 ) {
-    if dest == PlaceId::Heartwood && !book {
+    if (dest == PlaceId::Heartwood || dest == PlaceId::Depths) && !book {
         travel.current = PlaceId::Sanctuary;
         load_sanctuary_into(bind);
         return;
@@ -133,6 +135,13 @@ fn apply_place(
             bind.refresh_climate_slab_keep_week();
             // Hex lamp_empty is climate. Leave the house EmbassyYard seated.
         }
+        PlaceId::Depths => {
+            let file = read_hex_named(PlaceId::Depths)
+                .unwrap_or_else(|| shared::hex_travel::stub_hex_file(PlaceId::Depths));
+            bind.climate = file.climate;
+            bind.standing = file.standing;
+            bind.refresh_climate_slab_keep_week();
+        }
     }
     maybe_sum_house_week(bind);
 }
@@ -150,7 +159,9 @@ fn load_sanctuary_into(bind: &mut LivedHourBind) {
     if let Some(file) = read_hex_named(PlaceId::Sanctuary) {
         bind.climate = file.climate;
         bind.standing = file.standing;
-    } else if bind.climate.hex_id == PlaceId::Heartwood.as_str() {
+    } else if bind.climate.hex_id == PlaceId::Heartwood.as_str()
+        || bind.climate.hex_id == PlaceId::Depths.as_str()
+    {
         bind.climate = sanctuary_fresh_climate();
         bind.standing = shared::hex_travel::sanctuary_fresh_standing();
     } else if bind.climate.hex_id.is_empty() || bind.climate.hex_id == "local-hex" {
@@ -167,6 +178,9 @@ fn maybe_sum_house_week(bind: &mut LivedHourBind) {
     }
     if let Some(h) = read_hex_named(PlaceId::Heartwood) {
         climates.push(h.climate);
+    }
+    if let Some(d) = read_hex_named(PlaceId::Depths) {
+        climates.push(d.climate);
     }
     if climates.is_empty() {
         return;
@@ -192,8 +206,10 @@ fn boot_guard_no_book_stays_sanctuary(
     if hour.hour_three_complete {
         return;
     }
-    if travel.current != PlaceId::Heartwood && bind.as_ref().map(|b| b.climate.hex_id.as_str())
-        != Some(PlaceId::Heartwood.as_str())
+    if travel.current != PlaceId::Heartwood
+        && travel.current != PlaceId::Depths
+        && bind.as_ref().map(|b| b.climate.hex_id.as_str()) != Some(PlaceId::Heartwood.as_str())
+        && bind.as_ref().map(|b| b.climate.hex_id.as_str()) != Some(PlaceId::Depths.as_str())
     {
         if travel.current != PlaceId::Sanctuary && *door == LaunchDoor::Title {
             travel.current = PlaceId::Sanctuary;
@@ -265,6 +281,7 @@ fn spawn_places_plate(mut commands: Commands) {
             ));
             spawn_places_btn(p, "Sanctuary", PlacesSanctuaryBtn);
             spawn_places_btn(p, "Heartwood", PlacesHeartwoodBtn);
+            spawn_places_btn(p, "Depths", PlacesDepthsBtn);
             spawn_places_btn(p, LEAVE_CONFIRM, PlacesConfirmBtn);
             spawn_places_btn(p, "Back", PlacesBackBtn);
         });
@@ -395,6 +412,7 @@ fn refresh_places_labels(
         match plate.selected {
             Some(PlaceId::Heartwood) => "Leave this hex · Heartwood?",
             Some(PlaceId::Sanctuary) => "Leave this hex · Sanctuary?",
+            Some(PlaceId::Depths) => "Leave this hex · Depths?",
             None => LEAVE_CONFIRM,
         }
     } else {
@@ -441,6 +459,7 @@ fn places_plate_clicks(
     mut embassy: Option<ResMut<EmbassyYard>>,
     sanctuary: Query<&Interaction, (Changed<Interaction>, With<PlacesSanctuaryBtn>)>,
     heartwood: Query<&Interaction, (Changed<Interaction>, With<PlacesHeartwoodBtn>)>,
+    depths: Query<&Interaction, (Changed<Interaction>, With<PlacesDepthsBtn>)>,
     confirm: Query<&Interaction, (Changed<Interaction>, With<PlacesConfirmBtn>)>,
     back: Query<&Interaction, (Changed<Interaction>, With<PlacesBackBtn>)>,
 ) {
@@ -469,6 +488,12 @@ fn places_plate_clicks(
     for i in &heartwood {
         if *i == Interaction::Pressed {
             select_dest(&mut plate, travel.current, PlaceId::Heartwood);
+            return;
+        }
+    }
+    for i in &depths {
+        if *i == Interaction::Pressed {
+            select_dest(&mut plate, travel.current, PlaceId::Depths);
             return;
         }
     }

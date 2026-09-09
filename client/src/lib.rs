@@ -12,6 +12,7 @@ pub mod hour_two_resume;
 pub mod ui_above_world;
 pub mod title_screen;
 pub mod hex_travel;
+pub mod depths_landing;
 pub mod heartwood_lip;
 pub mod heartwood_wards;
 pub mod local_settings;
@@ -107,6 +108,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(skirmish_well::SkirmishWellPlugin);
         app.add_plugins(LivedHourEconomyPlugin);
         app.add_plugins(hex_travel::HexTravelPlugin);
+        app.add_plugins(depths_landing::DepthsLandingPlugin);
         app.add_plugins(local_settings::LocalSettingsPlugin);
         app.add_plugins(InputPlugin);
         app.add_plugins(touch_controls::TouchControlsPlugin);

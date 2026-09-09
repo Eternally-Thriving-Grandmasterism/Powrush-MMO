@@ -123,6 +123,7 @@ pub fn in_water(place: PlaceId, x: f32, z: f32) -> bool {
     match place {
         PlaceId::Heartwood => in_heartwood_water(x, z),
         PlaceId::Sanctuary => false,
+        PlaceId::Depths => false,
     }
 }
 
