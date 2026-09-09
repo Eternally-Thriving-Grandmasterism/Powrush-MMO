@@ -4,9 +4,11 @@
 //! Apply hide_slabs → guidance_hidden; look/invert → LocalLookFeel;
 //! mute → MasterMuteGain (thin audio hook — pause Mute uses same flag);
 //! brightness / text_scale → LocalUiFeel (Title plate contrast stays law).
+//! reduced motion / rumble → LocalFeedbackFeel (camera punch scale + rumble gate).
 //! No Online socket toggle. LAN off (default) opens nothing; loopback is 127.0.0.1 only.
 //! Contact: info@Rathor.ai
 
+use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
 use bevy::prelude::*;
 
 use shared::local_settings::LocalSettings;
@@ -122,6 +124,28 @@ impl LocalUiFeel {
     }
 }
 
+/// Runtime accessibility feel read by camera and rumble paths.
+#[derive(Resource, Debug, Clone, Copy, PartialEq)]
+pub struct LocalFeedbackFeel {
+    pub camera_punch_scale: f32,
+    pub rumble_enabled: bool,
+}
+
+impl Default for LocalFeedbackFeel {
+    fn default() -> Self {
+        Self::from_settings(&LocalSettings::peace_defaults())
+    }
+}
+
+impl LocalFeedbackFeel {
+    pub fn from_settings(s: &LocalSettings) -> Self {
+        Self {
+            camera_punch_scale: s.camera_punch_scale(),
+            rumble_enabled: s.rumble_enabled(),
+        }
+    }
+}
+
 pub struct LocalSettingsPlugin;
 
 impl Plugin for LocalSettingsPlugin {
@@ -130,8 +154,12 @@ impl Plugin for LocalSettingsPlugin {
             .init_resource::<LocalLookFeel>()
             .init_resource::<MasterMuteGain>()
             .init_resource::<LocalUiFeel>()
+            .init_resource::<LocalFeedbackFeel>()
             .add_systems(Startup, seed_runtime_from_settings)
-            .add_systems(Update, (apply_local_settings_runtime, persist_dirty_settings));
+            .add_systems(Update, (apply_local_settings_runtime, persist_dirty_settings))
+            // Harvest producers stay unchanged; disabled accessibility feel removes their
+            // requests before Bevy's next input pass can apply them.
+            .add_systems(Last, suppress_disabled_rumble);
     }
 }
 
@@ -140,12 +168,14 @@ fn seed_runtime_from_settings(
     mut look: ResMut<LocalLookFeel>,
     mut mute: ResMut<MasterMuteGain>,
     mut ui: ResMut<LocalUiFeel>,
+    mut feedback: ResMut<LocalFeedbackFeel>,
     mut bind: ResMut<LivedHourBind>,
 ) {
     *look = LocalLookFeel::from_settings(&settings.inner);
     mute.muted = settings.inner.mute;
     mute.gain = settings.inner.master_gain();
     *ui = LocalUiFeel::from_settings(&settings.inner);
+    *feedback = LocalFeedbackFeel::from_settings(&settings.inner);
     // Persist default for Hide slabs — H still works in session after this.
     bind.guidance_hidden = settings.inner.hide_slabs;
 }
@@ -155,6 +185,7 @@ fn apply_local_settings_runtime(
     mut look: ResMut<LocalLookFeel>,
     mut mute: ResMut<MasterMuteGain>,
     mut ui: ResMut<LocalUiFeel>,
+    mut feedback: ResMut<LocalFeedbackFeel>,
     mut bind: ResMut<LivedHourBind>,
 ) {
     if !settings.is_changed() {
@@ -164,12 +195,32 @@ fn apply_local_settings_runtime(
     mute.muted = settings.inner.mute;
     mute.gain = settings.inner.master_gain();
     *ui = LocalUiFeel::from_settings(&settings.inner);
+    *feedback = LocalFeedbackFeel::from_settings(&settings.inner);
     // Only when settings change (UI) — H session toggles are not overwritten every frame.
     bind.guidance_hidden = settings.inner.hide_slabs;
 }
 
 fn persist_dirty_settings(mut settings: ResMut<LocalSettingsState>) {
     settings.persist_if_dirty();
+}
+
+fn suppress_disabled_rumble(
+    feedback: Res<LocalFeedbackFeel>,
+    gamepads: Res<Gamepads>,
+    mut requests: ResMut<Events<GamepadRumbleRequest>>,
+    mut was_enabled: Local<Option<bool>>,
+) {
+    let previously_enabled = was_enabled.replace(feedback.rumble_enabled) == Some(true);
+    if feedback.rumble_enabled {
+        return;
+    }
+
+    requests.clear();
+    if previously_enabled {
+        for gamepad in gamepads.iter() {
+            requests.send(GamepadRumbleRequest::Stop { gamepad });
+        }
+    }
 }
 
 #[cfg(test)]
@@ -232,5 +283,24 @@ mod tests {
         g.muted = s.mute;
         g.gain = s.master_gain();
         assert!(g.muted && g.gain == 0.0);
+    }
+
+    #[test]
+    fn feedback_feel_reads_motion_and_rumble_precedence() {
+        let mut s = LocalSettings::peace_defaults();
+        let feel = LocalFeedbackFeel::from_settings(&s);
+        assert_eq!(feel.camera_punch_scale, 1.0);
+        assert!(feel.rumble_enabled);
+
+        s.reduced_motion = true;
+        let feel = LocalFeedbackFeel::from_settings(&s);
+        assert_eq!(feel.camera_punch_scale, 0.0);
+        assert!(!feel.rumble_enabled);
+
+        s.reduced_motion = false;
+        s.rumble = false;
+        let feel = LocalFeedbackFeel::from_settings(&s);
+        assert_eq!(feel.camera_punch_scale, 1.0);
+        assert!(!feel.rumble_enabled);
     }
 }

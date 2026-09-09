@@ -236,6 +236,14 @@ struct SettingsGroveBtn;
 #[derive(Component)]
 struct SettingsGroveLabel;
 #[derive(Component)]
+struct SettingsReducedMotionBtn;
+#[derive(Component)]
+struct SettingsReducedMotionLabel;
+#[derive(Component)]
+struct SettingsRumbleBtn;
+#[derive(Component)]
+struct SettingsRumbleLabel;
+#[derive(Component)]
 struct SettingsLanBtn;
 #[derive(Component)]
 struct SettingsLanLabel;
@@ -329,6 +337,13 @@ impl Plugin for TitleScreenPlugin {
                     refresh_lethal_sign_label,
                     local_settings_clicks,
                     lethal_sign_settings_clicks,
+                ),
+            )
+            .add_systems(
+                Update,
+                (
+                    refresh_accessibility_settings_labels,
+                    accessibility_settings_clicks,
                 ),
             )
             .add_systems(Update, esc_yard_pause.after(InputMapSet));
@@ -533,6 +548,18 @@ fn spawn_settings_stub(mut commands: Commands) {
                 "Grove · off",
                 SettingsGroveBtn,
                 SettingsGroveLabel,
+            );
+            spawn_settings_row(
+                p,
+                "Reduced motion · off",
+                SettingsReducedMotionBtn,
+                SettingsReducedMotionLabel,
+            );
+            spawn_settings_row(
+                p,
+                "Rumble · on",
+                SettingsRumbleBtn,
+                SettingsRumbleLabel,
             );
             // P3 LAN lab — separate row from the Online stub. Default off. Loopback only.
             spawn_settings_row(
@@ -1208,6 +1235,14 @@ pub fn grove_btn_label(s: &LocalSettings) -> String {
     format!("Grove · {g}")
 }
 
+pub fn reduced_motion_btn_label(s: &LocalSettings) -> String {
+    format!("Reduced motion · {}", on_off(s.reduced_motion))
+}
+
+pub fn rumble_btn_label(s: &LocalSettings) -> String {
+    format!("Rumble · {}", on_off(s.rumble))
+}
+
 pub fn lan_btn_label(s: &LocalSettings) -> String {
     format!("LAN · {}", s.lan_label())
 }
@@ -1311,6 +1346,29 @@ fn refresh_local_settings_labels(
     }
 }
 
+fn refresh_accessibility_settings_labels(
+    label: Res<HouseLabel>,
+    settings: Res<LocalSettingsState>,
+    mut reduced_motion: Query<&mut Text, With<SettingsReducedMotionLabel>>,
+    mut rumble: Query<&mut Text, (With<SettingsRumbleLabel>, Without<SettingsReducedMotionLabel>)>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let s = &settings.inner;
+    let reduced_motion_label = reduced_motion_btn_label(s);
+    let rumble_label = rumble_btn_label(s);
+    let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
+    for mut text in &mut reduced_motion {
+        set_btn_section_text(&mut text, &reduced_motion_label);
+        set_btn_section_font(&mut text, font);
+    }
+    for mut text in &mut rumble {
+        set_btn_section_text(&mut text, &rumble_label);
+        set_btn_section_font(&mut text, font);
+    }
+}
+
 fn local_settings_clicks(
     label: Res<HouseLabel>,
     mut settings: ResMut<LocalSettingsState>,
@@ -1407,6 +1465,43 @@ fn local_settings_clicks(
             let _refused = refuse_online_socket_toggle(true);
             debug_assert!(_refused);
             debug_assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        }
+    }
+    if changed {
+        settings.mark_and_persist();
+    }
+}
+
+fn accessibility_settings_clicks(
+    label: Res<HouseLabel>,
+    mut settings: ResMut<LocalSettingsState>,
+    reduced_motion: Query<
+        &Interaction,
+        (Changed<Interaction>, With<SettingsReducedMotionBtn>),
+    >,
+    rumble: Query<
+        &Interaction,
+        (
+            Changed<Interaction>,
+            With<SettingsRumbleBtn>,
+            Without<SettingsReducedMotionBtn>,
+        ),
+    >,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let mut changed = false;
+    for i in &reduced_motion {
+        if *i == Interaction::Pressed {
+            settings.inner.toggle_reduced_motion();
+            changed = true;
+        }
+    }
+    for i in &rumble {
+        if *i == Interaction::Pressed {
+            settings.inner.toggle_rumble();
+            changed = true;
         }
     }
     if changed {
@@ -2143,6 +2238,8 @@ mod tests {
         assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00");
         assert_eq!(grove_btn_label(&s), "Grove · off");
         assert_eq!(s.grove, "off");
+        assert_eq!(reduced_motion_btn_label(&s), "Reduced motion · off");
+        assert_eq!(rumble_btn_label(&s), "Rumble · on");
         assert_eq!(lan_btn_label(&s), "LAN · off");
         assert_eq!(s.lan, "off");
         assert_eq!(SETTINGS_PATH, "data/powrush_settings.json");
@@ -2165,6 +2262,8 @@ mod tests {
         s.brightness = 1.25;
         s.text_scale = 1.10;
         s.grove = "light".into();
+        s.reduced_motion = true;
+        s.rumble = false;
         s.lan = "loopback".into();
         let raw = s.to_json().unwrap();
         let back = LocalSettings::from_json(&raw).unwrap();
@@ -2175,6 +2274,8 @@ mod tests {
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
         assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10");
         assert_eq!(grove_btn_label(&back), "Grove · light");
+        assert_eq!(reduced_motion_btn_label(&back), "Reduced motion · on");
+        assert_eq!(rumble_btn_label(&back), "Rumble · off");
         assert_eq!(lan_btn_label(&back), "LAN · loopback");
     }
 

@@ -11,6 +11,7 @@ use crate::companion_bond::CompanionBond;
 use crate::input::PlayerInput;
 use crate::harvest_feel::SoftRbePool;
 use crate::living_body::LivingBody;
+use crate::local_settings::LocalFeedbackFeel;
 
 const STAND: f32 = 0.90;
 const WALK: f32 = 3.4;
@@ -137,9 +138,10 @@ fn sync_body(
 fn follow_camera(
     presence: Res<SoftPresence>,
     pool: Option<Res<SoftRbePool>>,
+    feedback: Res<LocalFeedbackFeel>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
 ) {
-    let punch = pool.map(|p| p.kick).unwrap_or(0.0);
+    let punch = pool.map(|p| p.kick).unwrap_or(0.0) * feedback.camera_punch_scale;
     let desired = presence.position + Vec3::new(0.0, CAM_UP + punch * 0.22, CAM_BACK - punch * 0.35);
     let look = presence.position + Vec3::Y * (0.45 + punch * 0.08);
     for mut cam in &mut cams {
