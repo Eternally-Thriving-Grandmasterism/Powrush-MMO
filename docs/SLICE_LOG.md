@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-09 — U11: Depths landing
+
+`slice: U11 Depths landing | one Peace turn after Settled+book; own hex file powrush_hex_depths.json; Places leave from Depths only to Sanctuary; Play still Sanctuary; no-book cannot enter; does not copy tons/seeds/declared_lethal; not Market; not a listen; not 0.0.0.0; Title Online grey; no Depths mesh on Sanctuary; does not touch the Threshold pipe; book stays seated; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`
+
 ## 2026-09-09 — U8.1: pause-on-all-hexes
 
 `slice: U8.1 pause-on-all-hexes | one yard pause verb behind Esc, pad Start, key 3, and the touch pause chip; the verb reads LaunchDoor::InYard only and never the hex, so Sanctuary, Heartwood, and any later local hex reach the same plate; an open Places plate walks back to pause instead of eating the key edge; a confirmed Leave this hex lands on a bare yard so Esc on the new hex opens pause; Places stays eligible on that plate after Settled + book; no second HUD; no new settings row; no Market/socket/listen/public bind/Title Online/0.0.0.0; LAN off; isolation gamma 0; harm row off; empty lamp disk untouched; no Heartwood mesh on Sanctuary; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
