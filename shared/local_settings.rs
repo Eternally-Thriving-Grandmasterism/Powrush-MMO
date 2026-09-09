@@ -94,6 +94,64 @@ pub enum PeaceKey {
     Backspace,
 }
 
+impl PeaceKey {
+    /// Short Settings-plate label for a persisted physical key.
+    pub const fn display_label(self) -> &'static str {
+        match self {
+            Self::A => "A",
+            Self::B => "B",
+            Self::C => "C",
+            Self::D => "D",
+            Self::E => "E",
+            Self::F => "F",
+            Self::G => "G",
+            Self::H => "H",
+            Self::I => "I",
+            Self::J => "J",
+            Self::K => "K",
+            Self::L => "L",
+            Self::M => "M",
+            Self::N => "N",
+            Self::O => "O",
+            Self::P => "P",
+            Self::Q => "Q",
+            Self::R => "R",
+            Self::S => "S",
+            Self::T => "T",
+            Self::U => "U",
+            Self::V => "V",
+            Self::W => "W",
+            Self::X => "X",
+            Self::Y => "Y",
+            Self::Z => "Z",
+            Self::Digit0 => "0",
+            Self::Digit1 => "1",
+            Self::Digit2 => "2",
+            Self::Digit3 => "3",
+            Self::Digit4 => "4",
+            Self::Digit5 => "5",
+            Self::Digit6 => "6",
+            Self::Digit7 => "7",
+            Self::Digit8 => "8",
+            Self::Digit9 => "9",
+            Self::ArrowUp => "Up",
+            Self::ArrowDown => "Down",
+            Self::ArrowLeft => "Left",
+            Self::ArrowRight => "Right",
+            Self::Space => "Space",
+            Self::LeftShift => "Left Shift",
+            Self::RightShift => "Right Shift",
+            Self::LeftControl => "Left Ctrl",
+            Self::RightControl => "Right Ctrl",
+            Self::LeftAlt => "Left Alt",
+            Self::RightAlt => "Right Alt",
+            Self::Tab => "Tab",
+            Self::Enter => "Enter",
+            Self::Backspace => "Backspace",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LocalSettings {
     pub schema: String,
