@@ -11,10 +11,12 @@
 //! Contact: info@Rathor.ai · Yoi ⚡
 
 use bevy::input::gamepad::{GamepadAxis, GamepadAxisType, GamepadButton, GamepadButtonType};
+use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::MouseButtonInput;
 use bevy::input::touch::TouchInput;
-use bevy::input::InputSystem;
+use bevy::input::{ButtonState, InputSystem};
 use bevy::prelude::*;
+use std::collections::HashSet;
 
 use crate::local_settings::LocalSettingsState;
 use crate::soft_play_bindings;
@@ -53,20 +55,56 @@ pub enum LastPointerKind {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InputMapSet;
 
+/// Physical keyboard state retained before custom source keys are consumed.
+#[derive(Resource, Default)]
+struct PhysicalKeyboard {
+    pressed: HashSet<KeyCode>,
+    just_pressed: HashSet<KeyCode>,
+    just_released: HashSet<KeyCode>,
+}
+
 pub struct InputPlugin;
 
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(PlayerInput::default())
             .insert_resource(LastPointerKind::default())
+            .init_resource::<PhysicalKeyboard>()
             .configure_sets(Update, InputMapSet)
-            .add_systems(PreUpdate, remap_peace_keyboard.after(InputSystem))
+            .add_systems(
+                PreUpdate,
+                (capture_physical_keyboard, remap_peace_keyboard)
+                    .chain()
+                    .after(InputSystem),
+            )
             .add_systems(
                 Update,
                 (track_last_pointer_kind, handle_player_input)
                     .chain()
                     .in_set(InputMapSet),
             );
+    }
+}
+
+fn capture_physical_keyboard(
+    mut events: EventReader<KeyboardInput>,
+    mut physical: ResMut<PhysicalKeyboard>,
+) {
+    physical.just_pressed.clear();
+    physical.just_released.clear();
+    for event in events.read() {
+        match event.state {
+            ButtonState::Pressed => {
+                if physical.pressed.insert(event.key_code) {
+                    physical.just_pressed.insert(event.key_code);
+                }
+            }
+            ButtonState::Released => {
+                if physical.pressed.remove(&event.key_code) {
+                    physical.just_released.insert(event.key_code);
+                }
+            }
+        }
     }
 }
 
@@ -77,15 +115,15 @@ struct KeyState {
     just_released: bool,
 }
 
-fn key_state(keyboard: &ButtonInput<KeyCode>, key: KeyCode) -> KeyState {
+fn key_state(keyboard: &PhysicalKeyboard, key: KeyCode) -> KeyState {
     KeyState {
-        pressed: keyboard.pressed(key),
-        just_pressed: keyboard.just_pressed(key),
-        just_released: keyboard.just_released(key),
+        pressed: keyboard.pressed.contains(&key),
+        just_pressed: keyboard.just_pressed.contains(&key),
+        just_released: keyboard.just_released.contains(&key),
     }
 }
 
-fn either_key_state(keyboard: &ButtonInput<KeyCode>, left: KeyCode, right: KeyCode) -> KeyState {
+fn either_key_state(keyboard: &PhysicalKeyboard, left: KeyCode, right: KeyCode) -> KeyState {
     let left = key_state(keyboard, left);
     let right = key_state(keyboard, right);
     KeyState {
@@ -118,12 +156,17 @@ fn write_key_state(keyboard: &mut ButtonInput<KeyCode>, key: KeyCode, state: Key
 /// fixed bindings.
 fn remap_peace_keyboard(
     settings: Res<LocalSettingsState>,
+    physical: Res<PhysicalKeyboard>,
     mut keyboard: ResMut<ButtonInput<KeyCode>>,
 ) {
-    apply_peace_keyboard(&settings.inner, &mut keyboard);
+    apply_peace_keyboard(&settings.inner, &physical, &mut keyboard);
 }
 
-fn apply_peace_keyboard(cfg: &LocalSettings, keyboard: &mut ButtonInput<KeyCode>) {
+fn apply_peace_keyboard(
+    cfg: &LocalSettings,
+    physical: &PhysicalKeyboard,
+    keyboard: &mut ButtonInput<KeyCode>,
+) {
     if cfg.peace_keys_are_default() {
         return;
     }
@@ -132,12 +175,12 @@ fn apply_peace_keyboard(cfg: &LocalSettings, keyboard: &mut ButtonInput<KeyCode>
     let sprint_state = if cfg.key_sprint == shared::local_settings::PeaceKey::LeftShift {
         // An unrelated remap must not remove the existing either-Shift default.
         either_key_state(
-            &keyboard,
+            physical,
             soft_play_bindings::SPRINT_LEFT,
             soft_play_bindings::SPRINT_RIGHT,
         )
     } else {
-        key_state(&keyboard, sprint_source)
+        key_state(physical, sprint_source)
     };
 
     let bindings = [
@@ -145,7 +188,7 @@ fn apply_peace_keyboard(cfg: &LocalSettings, keyboard: &mut ButtonInput<KeyCode>
             soft_play_bindings::MOVE_UP,
             soft_play_bindings::peace_key_code(cfg.key_move_up),
             key_state(
-                &keyboard,
+                physical,
                 soft_play_bindings::peace_key_code(cfg.key_move_up),
             ),
         ),
@@ -153,7 +196,7 @@ fn apply_peace_keyboard(cfg: &LocalSettings, keyboard: &mut ButtonInput<KeyCode>
             soft_play_bindings::MOVE_DOWN,
             soft_play_bindings::peace_key_code(cfg.key_move_down),
             key_state(
-                &keyboard,
+                physical,
                 soft_play_bindings::peace_key_code(cfg.key_move_down),
             ),
         ),
@@ -161,7 +204,7 @@ fn apply_peace_keyboard(cfg: &LocalSettings, keyboard: &mut ButtonInput<KeyCode>
             soft_play_bindings::MOVE_LEFT,
             soft_play_bindings::peace_key_code(cfg.key_move_left),
             key_state(
-                &keyboard,
+                physical,
                 soft_play_bindings::peace_key_code(cfg.key_move_left),
             ),
         ),
@@ -169,39 +212,39 @@ fn apply_peace_keyboard(cfg: &LocalSettings, keyboard: &mut ButtonInput<KeyCode>
             soft_play_bindings::MOVE_RIGHT,
             soft_play_bindings::peace_key_code(cfg.key_move_right),
             key_state(
-                &keyboard,
+                physical,
                 soft_play_bindings::peace_key_code(cfg.key_move_right),
             ),
         ),
         (
             soft_play_bindings::JUMP,
             soft_play_bindings::peace_key_code(cfg.key_jump),
-            key_state(&keyboard, soft_play_bindings::peace_key_code(cfg.key_jump)),
+            key_state(physical, soft_play_bindings::peace_key_code(cfg.key_jump)),
         ),
         (soft_play_bindings::SPRINT_LEFT, sprint_source, sprint_state),
         (
             soft_play_bindings::INTERACT,
             soft_play_bindings::peace_key_code(cfg.key_use),
-            key_state(&keyboard, soft_play_bindings::peace_key_code(cfg.key_use)),
+            key_state(physical, soft_play_bindings::peace_key_code(cfg.key_use)),
         ),
         (
             soft_play_bindings::INVENTORY,
             soft_play_bindings::peace_key_code(cfg.key_satchel),
             key_state(
-                &keyboard,
+                physical,
                 soft_play_bindings::peace_key_code(cfg.key_satchel),
             ),
         ),
         (
             soft_play_bindings::HIDE_GUIDANCE,
             soft_play_bindings::peace_key_code(cfg.key_hide),
-            key_state(&keyboard, soft_play_bindings::peace_key_code(cfg.key_hide)),
+            key_state(physical, soft_play_bindings::peace_key_code(cfg.key_hide)),
         ),
         (
             soft_play_bindings::ALLOCATE,
             soft_play_bindings::peace_key_code(cfg.key_allocate),
             key_state(
-                &keyboard,
+                physical,
                 soft_play_bindings::peace_key_code(cfg.key_allocate),
             ),
         ),
@@ -475,7 +518,7 @@ mod tests {
         keyboard.press(KeyCode::KeyE);
         keyboard.press(KeyCode::ShiftRight);
 
-        apply_peace_keyboard(&settings, &mut keyboard);
+        apply_peace_keyboard(&settings, &PhysicalKeyboard::default(), &mut keyboard);
 
         assert!(keyboard.just_pressed(KeyCode::KeyE));
         assert!(keyboard.pressed(KeyCode::ShiftRight));
@@ -507,8 +550,22 @@ mod tests {
         // Old defaults are physical presses too, but a custom map replaces them.
         keyboard.press(KeyCode::KeyE);
         keyboard.press(KeyCode::Space);
+        let remapped_sources = [
+            KeyCode::ArrowUp,
+            KeyCode::KeyJ,
+            KeyCode::ControlLeft,
+            KeyCode::KeyF,
+            KeyCode::KeyB,
+            KeyCode::KeyV,
+            KeyCode::KeyN,
+        ];
+        let physical = PhysicalKeyboard {
+            pressed: remapped_sources.into_iter().collect(),
+            just_pressed: remapped_sources.into_iter().collect(),
+            just_released: HashSet::new(),
+        };
 
-        apply_peace_keyboard(&settings, &mut keyboard);
+        apply_peace_keyboard(&settings, &physical, &mut keyboard);
 
         for canonical in [
             KeyCode::KeyW,
@@ -549,11 +606,41 @@ mod tests {
         keyboard.press(KeyCode::KeyF);
         keyboard.clear();
         keyboard.release(KeyCode::KeyF);
+        let physical = PhysicalKeyboard {
+            pressed: HashSet::new(),
+            just_pressed: HashSet::new(),
+            just_released: [KeyCode::KeyF].into_iter().collect(),
+        };
 
-        apply_peace_keyboard(&settings, &mut keyboard);
+        apply_peace_keyboard(&settings, &physical, &mut keyboard);
 
         assert!(!keyboard.pressed(KeyCode::KeyE));
         assert!(keyboard.just_released(KeyCode::KeyE));
         assert!(!keyboard.just_released(KeyCode::KeyF));
+    }
+
+    #[test]
+    fn remapped_hold_survives_after_source_is_consumed() {
+        let mut settings = LocalSettings::peace_defaults();
+        settings.key_move_up = PeaceKey::ArrowUp;
+        let mut physical = PhysicalKeyboard {
+            pressed: [KeyCode::ArrowUp].into_iter().collect(),
+            just_pressed: [KeyCode::ArrowUp].into_iter().collect(),
+            just_released: HashSet::new(),
+        };
+        let mut keyboard = ButtonInput::default();
+        keyboard.press(KeyCode::ArrowUp);
+
+        apply_peace_keyboard(&settings, &physical, &mut keyboard);
+        assert!(keyboard.pressed(KeyCode::KeyW));
+        assert!(keyboard.just_pressed(KeyCode::KeyW));
+        assert!(!keyboard.pressed(KeyCode::ArrowUp));
+
+        physical.just_pressed.clear();
+        keyboard.clear();
+        apply_peace_keyboard(&settings, &physical, &mut keyboard);
+        assert!(keyboard.pressed(KeyCode::KeyW));
+        assert!(!keyboard.just_pressed(KeyCode::KeyW));
+        assert!(!keyboard.pressed(KeyCode::ArrowUp));
     }
 }
