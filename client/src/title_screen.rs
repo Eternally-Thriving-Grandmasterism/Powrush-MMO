@@ -24,6 +24,8 @@
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //! Contact: info@Rathor.ai
 
+use bevy::input::keyboard::KeyboardInput;
+use bevy::input::ButtonState;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
 
@@ -33,21 +35,19 @@ use shared::house_name::{
 };
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
-use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::embassy::EmbassyYard;
 use crate::hex_travel::{
     apply_title_boot, settings_visible_with_places, HexTravelState, PlacesPlate,
 };
-use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
-use crate::net_mode::SessionNetMode;
-use crate::lived_hour_bind::LivedHourBind;
-use shared::hex_travel::BootKind;
-use crate::local_settings::LocalSettingsState;
+use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::input::{InputMapSet, PlayerInput};
+use crate::lived_hour_bind::LivedHourBind;
+use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
+use crate::local_settings::LocalSettingsState;
+use crate::net_mode::SessionNetMode;
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
-use shared::local_settings::{
-    refuse_online_socket_toggle, LocalSettings, SETTINGS_PATH,
-};
+use shared::hex_travel::BootKind;
+use shared::local_settings::{refuse_online_socket_toggle, LocalSettings, PeaceKey, SETTINGS_PATH};
 use shared::pause_ledger_face::lethal_sign_row;
 
 // --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
@@ -266,6 +266,12 @@ struct SettingsSprintLabel;
 #[derive(Component)]
 struct SettingsOnlineStubBtn;
 #[derive(Component)]
+struct SettingsPeaceBindBtn(PeaceAction);
+#[derive(Component)]
+struct SettingsPeaceBindLabel(PeaceAction);
+#[derive(Component)]
+struct SettingsPeaceResetBtn;
+#[derive(Component)]
 struct NameHouseRoot;
 #[derive(Component)]
 struct NameDraftText;
@@ -298,6 +304,40 @@ struct DressConfirmBtn;
 #[derive(Component)]
 struct DressSkipBtn;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PeaceAction {
+    MoveUp,
+    MoveDown,
+    MoveLeft,
+    MoveRight,
+    Jump,
+    Sprint,
+    Use,
+    Satchel,
+    Hide,
+    Allocate,
+}
+
+const PEACE_ACTIONS: [PeaceAction; 10] = [
+    PeaceAction::MoveUp,
+    PeaceAction::MoveDown,
+    PeaceAction::MoveLeft,
+    PeaceAction::MoveRight,
+    PeaceAction::Jump,
+    PeaceAction::Sprint,
+    PeaceAction::Use,
+    PeaceAction::Satchel,
+    PeaceAction::Hide,
+    PeaceAction::Allocate,
+];
+
+#[derive(Resource, Debug, Default)]
+struct PeaceRebindState {
+    waiting: Option<PeaceAction>,
+    notice: Option<String>,
+    suppress_shortcuts: bool,
+}
+
 pub struct TitleScreenPlugin;
 
 impl Plugin for TitleScreenPlugin {
@@ -305,6 +345,7 @@ impl Plugin for TitleScreenPlugin {
         app.init_resource::<LaunchDoor>()
             .init_resource::<HouseLabel>()
             .init_resource::<LocalSettingsState>()
+            .init_resource::<PeaceRebindState>()
             .add_systems(
                 Startup,
                 (
@@ -345,6 +386,17 @@ impl Plugin for TitleScreenPlugin {
                     refresh_accessibility_settings_labels,
                     accessibility_settings_clicks,
                 ),
+            )
+            .add_systems(Update, peace_rebind_clicks.before(capture_peace_rebind))
+            .add_systems(
+                Update,
+                capture_peace_rebind
+                    .before(title_keyboard_shortcuts)
+                    .before(esc_yard_pause),
+            )
+            .add_systems(
+                Update,
+                refresh_peace_rebind_labels.after(capture_peace_rebind),
             )
             .add_systems(Update, esc_yard_pause.after(InputMapSet));
     }
@@ -443,14 +495,17 @@ fn spawn_title_screen(mut commands: Commands) {
         });
 }
 
-fn spawn_menu_btn<C: Component>(
-    p: &mut ChildBuilder,
-    label: &str,
-    marker: C,
-    enabled: bool,
-) {
-    let bg = if enabled { TITLE_BTN_BG } else { TITLE_BTN_DISABLED_BG };
-    let fg = if enabled { TITLE_BTN_FG } else { TITLE_BTN_DISABLED_FG };
+fn spawn_menu_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C, enabled: bool) {
+    let bg = if enabled {
+        TITLE_BTN_BG
+    } else {
+        TITLE_BTN_DISABLED_BG
+    };
+    let fg = if enabled {
+        TITLE_BTN_FG
+    } else {
+        TITLE_BTN_DISABLED_FG
+    };
     p.spawn((
         ButtonBundle {
             style: Style {
@@ -484,13 +539,13 @@ fn spawn_settings_stub(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    // Tight so LAN row + Resume/Title/Quit stay on a 720p plate.
-                    top: Val::Percent(4.0),
+                    // Two columns keep the Settings plate readable at 720p without a second HUD.
+                    top: Val::Percent(1.0),
                     left: Val::Percent(50.0),
-                    width: Val::Px(400.0),
-                    max_height: Val::Percent(92.0),
+                    width: Val::Px(760.0),
+                    max_height: Val::Percent(98.0),
                     margin: UiRect {
-                        left: Val::Px(-200.0),
+                        left: Val::Px(-380.0),
                         ..default()
                     },
                     padding: UiRect::all(Val::Px(10.0)),
@@ -521,79 +576,112 @@ fn spawn_settings_stub(mut commands: Commands) {
                 ),
                 PauseCueText,
             ));
-            // D2 local settings rows (persist beside house JSON).
-            spawn_settings_row(p, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
-            spawn_settings_row(p, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
-            spawn_settings_row(p, "Invert-Y · off", SettingsInvertBtn, SettingsInvertLabel);
-            spawn_settings_row(
-                p,
-                "Hide slabs · off",
-                SettingsHideSlabsBtn,
-                SettingsHideLabel,
-            );
-            spawn_settings_row(
-                p,
-                "Brightness · 1.00",
-                SettingsBrightnessBtn,
-                SettingsBrightnessLabel,
-            );
-            spawn_settings_row(
-                p,
-                "Text scale · 1.00",
-                SettingsTextScaleBtn,
-                SettingsTextScaleLabel,
-            );
-            spawn_settings_row(
-                p,
-                "Grove · off",
-                SettingsGroveBtn,
-                SettingsGroveLabel,
-            );
-            spawn_settings_row(
-                p,
-                "Reduced motion · off",
-                SettingsReducedMotionBtn,
-                SettingsReducedMotionLabel,
-            );
-            spawn_settings_row(
-                p,
-                "Rumble · on",
-                SettingsRumbleBtn,
-                SettingsRumbleLabel,
-            );
-            // P3 LAN lab — separate row from the Online stub. Default off. Loopback only.
-            spawn_settings_row(
-                p,
-                "LAN · off",
-                SettingsLanBtn,
-                SettingsLanLabel,
-            );
-            // L1 hex sign — standing flag, not a settings persist. Default off.
-            spawn_settings_row(
-                p,
-                "this hex admits harm · off",
-                SettingsLethalBtn,
-                SettingsLethalLabel,
-            );
-            // I0 Controls essentials (persist beside Grove).
-            spawn_settings_row(
-                p,
-                "Sticks · auto",
-                SettingsSticksBtn,
-                SettingsSticksLabel,
-            );
-            spawn_settings_row(
-                p,
-                "Tap-to-Use · off",
-                SettingsTapUseBtn,
-                SettingsTapUseLabel,
-            );
-            spawn_settings_row(
-                p,
-                "Sprint · key",
-                SettingsSprintBtn,
-                SettingsSprintLabel,
-            );
+            p.spawn(NodeBundle {
+                style: Style {
+                    width: Val::Percent(100.0),
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(8.0),
+                    align_items: AlignItems::FlexStart,
+                    ..default()
+                },
+                ..default()
+            })
+            .with_children(|columns| {
+                columns
+                    .spawn(settings_column_bundle())
+                    .with_children(|left| {
+                        // Existing local settings remain on this one Settings plate.
+                        spawn_settings_row(left, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
+                        spawn_settings_row(left, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
+                        spawn_settings_row(
+                            left,
+                            "Invert-Y · off",
+                            SettingsInvertBtn,
+                            SettingsInvertLabel,
+                        );
+                        spawn_settings_row(
+                            left,
+                            "Hide slabs · off",
+                            SettingsHideSlabsBtn,
+                            SettingsHideLabel,
+                        );
+                        spawn_settings_row(
+                            left,
+                            "Brightness · 1.00",
+                            SettingsBrightnessBtn,
+                            SettingsBrightnessLabel,
+                        );
+                        spawn_settings_row(
+                            left,
+                            "Text scale · 1.00",
+                            SettingsTextScaleBtn,
+                            SettingsTextScaleLabel,
+                        );
+                        spawn_settings_row(
+                            left,
+                            "Grove · off",
+                            SettingsGroveBtn,
+                            SettingsGroveLabel,
+                        );
+                        spawn_settings_row(
+                            left,
+                            "Reduced motion · off",
+                            SettingsReducedMotionBtn,
+                            SettingsReducedMotionLabel,
+                        );
+                        spawn_settings_row(
+                            left,
+                            "Rumble · on",
+                            SettingsRumbleBtn,
+                            SettingsRumbleLabel,
+                        );
+                        // Loopback lab remains separate from disabled Title Online.
+                        spawn_settings_row(left, "LAN · off", SettingsLanBtn, SettingsLanLabel);
+                        spawn_settings_row(
+                            left,
+                            "this hex admits harm · off",
+                            SettingsLethalBtn,
+                            SettingsLethalLabel,
+                        );
+                    });
+                columns
+                    .spawn(settings_column_bundle())
+                    .with_children(|right| {
+                        // I0 controls and B4 Peace bindings persist beside Grove.
+                        spawn_settings_row(
+                            right,
+                            "Sticks · auto",
+                            SettingsSticksBtn,
+                            SettingsSticksLabel,
+                        );
+                        spawn_settings_row(
+                            right,
+                            "Tap-to-Use · off",
+                            SettingsTapUseBtn,
+                            SettingsTapUseLabel,
+                        );
+                        spawn_settings_row(
+                            right,
+                            "Sprint · key",
+                            SettingsSprintBtn,
+                            SettingsSprintLabel,
+                        );
+                        for action in PEACE_ACTIONS {
+                            spawn_settings_row(
+                                right,
+                                &peace_binding_label(action, &LocalSettings::peace_defaults()),
+                                SettingsPeaceBindBtn(action),
+                                SettingsPeaceBindLabel(action),
+                            );
+                        }
+                        spawn_settings_row(
+                            right,
+                            "Reset-to-Peace",
+                            SettingsPeaceResetBtn,
+                            SettingsPeaceResetBtn,
+                        );
+                    });
+            });
             // Online stays grey — never binds a socket from this plate.
             spawn_menu_btn(p, ONLINE_STUB_LABEL, SettingsOnlineStubBtn, false);
             spawn_menu_btn(p, "Resume", PauseResumeBtn, true);
@@ -669,7 +757,6 @@ fn spawn_name_house_panel(mut commands: Commands) {
             });
         });
 }
-
 
 fn spawn_house_dress_panel(mut commands: Commands) {
     commands
@@ -812,10 +899,7 @@ fn breath_title_border(
     }
 }
 
-fn refresh_title_cue(
-    label: Res<HouseLabel>,
-    mut q: Query<&mut Text, With<TitleCueText>>,
-) {
+fn refresh_title_cue(label: Res<HouseLabel>, mut q: Query<&mut Text, With<TitleCueText>>) {
     let cue = continue_cue_when_persist(label.persist_present, &label.house)
         .unwrap_or_else(|| "Play opens the yard · no account wall".into());
     for mut text in &mut q {
@@ -851,13 +935,7 @@ fn title_button_clicks(
             if let (Some(travel), Some(bind), Some(hour)) =
                 (travel.as_mut(), bind.as_mut(), hour.as_ref())
             {
-                apply_title_boot(
-                    BootKind::Play,
-                    travel,
-                    bind,
-                    hour,
-                    embassy.as_deref_mut(),
-                );
+                apply_title_boot(BootKind::Play, travel, bind, hour, embassy.as_deref_mut());
             }
             enter_yard(&mut door, &mut label);
             return;
@@ -892,6 +970,7 @@ fn title_button_clicks(
 
 fn title_keyboard_shortcuts(
     keyboard: Res<ButtonInput<KeyCode>>,
+    rebind: Res<PeaceRebindState>,
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
     mut travel: Option<ResMut<HexTravelState>>,
@@ -900,19 +979,16 @@ fn title_keyboard_shortcuts(
     mut embassy: Option<ResMut<EmbassyYard>>,
     mut places: Option<ResMut<PlacesPlate>>,
 ) {
+    if rebind.waiting.is_some() || rebind.suppress_shortcuts {
+        return;
+    }
     match *door {
         LaunchDoor::Title => {
             if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Enter) {
                 if let (Some(travel), Some(bind), Some(hour)) =
                     (travel.as_mut(), bind.as_mut(), hour.as_ref())
                 {
-                    apply_title_boot(
-                        BootKind::Play,
-                        travel,
-                        bind,
-                        hour,
-                        embassy.as_deref_mut(),
-                    );
+                    apply_title_boot(BootKind::Play, travel, bind, hour, embassy.as_deref_mut());
                 }
                 enter_yard(&mut door, &mut label);
             } else if keyboard.just_pressed(KeyCode::Digit2) {
@@ -1033,10 +1109,14 @@ fn watch_settled_for_naming(
 fn esc_yard_pause(
     keyboard: Res<ButtonInput<KeyCode>>,
     player_input: Res<PlayerInput>,
+    rebind: Res<PeaceRebindState>,
     door: Res<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
     mut places: Option<ResMut<PlacesPlate>>,
 ) {
+    if rebind.waiting.is_some() || rebind.suppress_shortcuts {
+        return;
+    }
     let esc = keyboard.just_pressed(KeyCode::Escape);
     // Start/Options = same pause toggle as Esc (INPUT_CANON).
     let start = player_input.pause_toggle;
@@ -1162,6 +1242,18 @@ fn return_yard_to_title(
     *door = LaunchDoor::Title;
 }
 
+fn settings_column_bundle() -> NodeBundle {
+    NodeBundle {
+        style: Style {
+            width: Val::Percent(50.0),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(4.0),
+            ..default()
+        },
+        ..default()
+    }
+}
+
 fn spawn_settings_row<B: Component, L: Component>(
     p: &mut ChildBuilder,
     label: &str,
@@ -1171,7 +1263,7 @@ fn spawn_settings_row<B: Component, L: Component>(
     p.spawn((
         ButtonBundle {
             style: Style {
-                padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
+                padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
                 width: Val::Percent(100.0),
@@ -1269,6 +1361,243 @@ pub fn sprint_btn_label(s: &LocalSettings) -> String {
     format!("Sprint · {}", s.sprint_mode)
 }
 
+impl PeaceAction {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::MoveUp => "Move up",
+            Self::MoveDown => "Move down",
+            Self::MoveLeft => "Move left",
+            Self::MoveRight => "Move right",
+            Self::Jump => "Jump",
+            Self::Sprint => "Sprint",
+            Self::Use => "Use",
+            Self::Satchel => "Satchel",
+            Self::Hide => "Hide",
+            Self::Allocate => "Allocate",
+        }
+    }
+
+    fn key(self, settings: &LocalSettings) -> PeaceKey {
+        match self {
+            Self::MoveUp => settings.key_move_up,
+            Self::MoveDown => settings.key_move_down,
+            Self::MoveLeft => settings.key_move_left,
+            Self::MoveRight => settings.key_move_right,
+            Self::Jump => settings.key_jump,
+            Self::Sprint => settings.key_sprint,
+            Self::Use => settings.key_use,
+            Self::Satchel => settings.key_satchel,
+            Self::Hide => settings.key_hide,
+            Self::Allocate => settings.key_allocate,
+        }
+    }
+
+    fn set_key(self, settings: &mut LocalSettings, key: PeaceKey) {
+        match self {
+            Self::MoveUp => settings.key_move_up = key,
+            Self::MoveDown => settings.key_move_down = key,
+            Self::MoveLeft => settings.key_move_left = key,
+            Self::MoveRight => settings.key_move_right = key,
+            Self::Jump => settings.key_jump = key,
+            Self::Sprint => settings.key_sprint = key,
+            Self::Use => settings.key_use = key,
+            Self::Satchel => settings.key_satchel = key,
+            Self::Hide => settings.key_hide = key,
+            Self::Allocate => settings.key_allocate = key,
+        }
+    }
+}
+
+fn peace_binding_label(action: PeaceAction, settings: &LocalSettings) -> String {
+    let key = action.key(settings);
+    let key_label = if action == PeaceAction::Sprint && key == PeaceKey::LeftShift {
+        "either Shift"
+    } else {
+        key.display_label()
+    };
+    format!("{} · {key_label}", action.label())
+}
+
+fn bound_peace_action(
+    settings: &LocalSettings,
+    key: PeaceKey,
+    except: PeaceAction,
+) -> Option<PeaceAction> {
+    PEACE_ACTIONS
+        .into_iter()
+        .find(|action| *action != except && action.key(settings) == key)
+}
+
+fn try_peace_rebind(
+    settings: &mut LocalSettings,
+    action: PeaceAction,
+    key: PeaceKey,
+) -> Result<(), PeaceAction> {
+    if let Some(bound) = bound_peace_action(settings, key, action) {
+        return Err(bound);
+    }
+    action.set_key(settings, key);
+    Ok(())
+}
+
+fn reset_peace_bindings(settings: &mut LocalSettings) {
+    let defaults = LocalSettings::peace_defaults();
+    for action in PEACE_ACTIONS {
+        action.set_key(settings, action.key(&defaults));
+    }
+}
+
+fn peace_key_from_key_code(key: KeyCode) -> Option<PeaceKey> {
+    Some(match key {
+        KeyCode::KeyA => PeaceKey::A,
+        KeyCode::KeyB => PeaceKey::B,
+        KeyCode::KeyC => PeaceKey::C,
+        KeyCode::KeyD => PeaceKey::D,
+        KeyCode::KeyE => PeaceKey::E,
+        KeyCode::KeyF => PeaceKey::F,
+        KeyCode::KeyG => PeaceKey::G,
+        KeyCode::KeyH => PeaceKey::H,
+        KeyCode::KeyI => PeaceKey::I,
+        KeyCode::KeyJ => PeaceKey::J,
+        KeyCode::KeyK => PeaceKey::K,
+        KeyCode::KeyL => PeaceKey::L,
+        KeyCode::KeyM => PeaceKey::M,
+        KeyCode::KeyN => PeaceKey::N,
+        KeyCode::KeyO => PeaceKey::O,
+        KeyCode::KeyP => PeaceKey::P,
+        KeyCode::KeyQ => PeaceKey::Q,
+        KeyCode::KeyR => PeaceKey::R,
+        KeyCode::KeyS => PeaceKey::S,
+        KeyCode::KeyT => PeaceKey::T,
+        KeyCode::KeyU => PeaceKey::U,
+        KeyCode::KeyV => PeaceKey::V,
+        KeyCode::KeyW => PeaceKey::W,
+        KeyCode::KeyX => PeaceKey::X,
+        KeyCode::KeyY => PeaceKey::Y,
+        KeyCode::KeyZ => PeaceKey::Z,
+        KeyCode::Digit0 => PeaceKey::Digit0,
+        KeyCode::Digit1 => PeaceKey::Digit1,
+        KeyCode::Digit2 => PeaceKey::Digit2,
+        KeyCode::Digit3 => PeaceKey::Digit3,
+        KeyCode::Digit4 => PeaceKey::Digit4,
+        KeyCode::Digit5 => PeaceKey::Digit5,
+        KeyCode::Digit6 => PeaceKey::Digit6,
+        KeyCode::Digit7 => PeaceKey::Digit7,
+        KeyCode::Digit8 => PeaceKey::Digit8,
+        KeyCode::Digit9 => PeaceKey::Digit9,
+        KeyCode::ArrowUp => PeaceKey::ArrowUp,
+        KeyCode::ArrowDown => PeaceKey::ArrowDown,
+        KeyCode::ArrowLeft => PeaceKey::ArrowLeft,
+        KeyCode::ArrowRight => PeaceKey::ArrowRight,
+        KeyCode::Space => PeaceKey::Space,
+        KeyCode::ShiftLeft => PeaceKey::LeftShift,
+        KeyCode::ShiftRight => PeaceKey::RightShift,
+        KeyCode::ControlLeft => PeaceKey::LeftControl,
+        KeyCode::ControlRight => PeaceKey::RightControl,
+        KeyCode::AltLeft => PeaceKey::LeftAlt,
+        KeyCode::AltRight => PeaceKey::RightAlt,
+        KeyCode::Tab => PeaceKey::Tab,
+        KeyCode::Enter => PeaceKey::Enter,
+        KeyCode::Backspace => PeaceKey::Backspace,
+        _ => return None,
+    })
+}
+
+fn peace_rebind_clicks(
+    label: Res<HouseLabel>,
+    mut state: ResMut<PeaceRebindState>,
+    mut settings: ResMut<LocalSettingsState>,
+    binds: Query<(&Interaction, &SettingsPeaceBindBtn), Changed<Interaction>>,
+    reset: Query<&Interaction, (Changed<Interaction>, With<SettingsPeaceResetBtn>)>,
+) {
+    if !label.settings_open {
+        state.waiting = None;
+        state.notice = None;
+        return;
+    }
+    for (interaction, bind) in &binds {
+        if *interaction == Interaction::Pressed {
+            state.waiting = Some(bind.0);
+            state.notice = None;
+            return;
+        }
+    }
+    for interaction in &reset {
+        if *interaction == Interaction::Pressed {
+            reset_peace_bindings(&mut settings.inner);
+            settings.mark_and_persist();
+            state.waiting = None;
+            state.notice = None;
+            return;
+        }
+    }
+}
+
+fn capture_peace_rebind(
+    label: Res<HouseLabel>,
+    mut state: ResMut<PeaceRebindState>,
+    mut settings: ResMut<LocalSettingsState>,
+    mut keys: EventReader<KeyboardInput>,
+) {
+    state.suppress_shortcuts = false;
+    if !label.settings_open || state.waiting.is_none() {
+        for _ in keys.read() {}
+        return;
+    }
+    for event in keys.read() {
+        if event.state != ButtonState::Pressed {
+            continue;
+        }
+        state.suppress_shortcuts = true;
+        if event.key_code == KeyCode::Escape {
+            state.waiting = None;
+            state.notice = None;
+            return;
+        }
+        let Some(key) = peace_key_from_key_code(event.key_code) else {
+            state.notice = Some("unsupported key".into());
+            return;
+        };
+        let action = state.waiting.expect("checked above");
+        match try_peace_rebind(&mut settings.inner, action, key) {
+            Ok(()) => {
+                settings.mark_and_persist();
+                state.waiting = None;
+                state.notice = None;
+            }
+            Err(bound) => {
+                state.notice = Some(format!("taken by {}", bound.label()));
+            }
+        }
+        return;
+    }
+}
+
+fn refresh_peace_rebind_labels(
+    label: Res<HouseLabel>,
+    settings: Res<LocalSettingsState>,
+    state: Res<PeaceRebindState>,
+    mut texts: Query<(&SettingsPeaceBindLabel, &mut Text)>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let font = (15.0 * settings.inner.text_scale).clamp(11.0, 22.0);
+    for (marker, mut text) in &mut texts {
+        let value = if state.waiting == Some(marker.0) {
+            format!(
+                "{} · {}",
+                marker.0.label(),
+                state.notice.as_deref().unwrap_or("press a key")
+            )
+        } else {
+            peace_binding_label(marker.0, &settings.inner)
+        };
+        set_btn_section_text(&mut text, &value);
+        set_btn_section_font(&mut text, font);
+    }
+}
+
 fn set_btn_section_text(text: &mut Text, value: &str) {
     if let Some(s) = text.sections.get_mut(0) {
         if s.value != value {
@@ -1350,7 +1679,13 @@ fn refresh_accessibility_settings_labels(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
     mut reduced_motion: Query<&mut Text, With<SettingsReducedMotionLabel>>,
-    mut rumble: Query<&mut Text, (With<SettingsRumbleLabel>, Without<SettingsReducedMotionLabel>)>,
+    mut rumble: Query<
+        &mut Text,
+        (
+            With<SettingsRumbleLabel>,
+            Without<SettingsReducedMotionLabel>,
+        ),
+    >,
 ) {
     if !label.settings_open {
         return;
@@ -1475,10 +1810,7 @@ fn local_settings_clicks(
 fn accessibility_settings_clicks(
     label: Res<HouseLabel>,
     mut settings: ResMut<LocalSettingsState>,
-    reduced_motion: Query<
-        &Interaction,
-        (Changed<Interaction>, With<SettingsReducedMotionBtn>),
-    >,
+    reduced_motion: Query<&Interaction, (Changed<Interaction>, With<SettingsReducedMotionBtn>)>,
     rumble: Query<
         &Interaction,
         (
@@ -1706,7 +2038,8 @@ fn name_house_text_input(
             if c.is_control() {
                 continue;
             }
-            if (c.is_alphanumeric() || c == ' ' || c == '-' || c == '\'') && label.draft.len() < 32 {
+            if (c.is_alphanumeric() || c == ' ' || c == '-' || c == '\'') && label.draft.len() < 32
+            {
                 label.draft.push(c);
             }
         }
@@ -2027,11 +2360,20 @@ mod tests {
 
     #[test]
     fn title_contrast_light_on_opaque_dark() {
-        assert!(title_contrast_is_high(), "primary text must out-luminance plate");
+        assert!(
+            title_contrast_is_high(),
+            "primary text must out-luminance plate"
+        );
         let a = title_alpha(TITLE_PLATE_BG);
-        assert!((a - 1.0).abs() < 0.01, "plate must be opaque, got alpha={a}");
+        assert!(
+            (a - 1.0).abs() < 0.01,
+            "plate must be opaque, got alpha={a}"
+        );
         let a2 = title_alpha(TITLE_DIM_BG);
-        assert!((a2 - 1.0).abs() < 0.01, "dimmer must be opaque, got alpha={a2}");
+        assert!(
+            (a2 - 1.0).abs() < 0.01,
+            "dimmer must be opaque, got alpha={a2}"
+        );
         assert!(title_luminance(TITLE_TEXT_PRIMARY) > title_luminance(TITLE_PLATE_BG));
         assert!(title_luminance(TITLE_BTN_FG) > title_luminance(TITLE_BTN_BG));
     }
@@ -2126,7 +2468,10 @@ mod tests {
             })
         );
         // Off the yard the verb is silent — Title / naming / dress keep their keys.
-        assert_eq!(super::yard_pause_step(LaunchDoor::Title, false, false), None);
+        assert_eq!(
+            super::yard_pause_step(LaunchDoor::Title, false, false),
+            None
+        );
         assert_eq!(
             super::yard_pause_step(LaunchDoor::NameHouse, true, false),
             None
@@ -2154,7 +2499,10 @@ mod tests {
 
     #[test]
     fn d1_pause_plate_yard_waiting_line() {
-        assert_eq!(super::pause_plate_line(LaunchDoor::InYard), Some(YARD_WAITING));
+        assert_eq!(
+            super::pause_plate_line(LaunchDoor::InYard),
+            Some(YARD_WAITING)
+        );
         assert_eq!(super::pause_plate_line(LaunchDoor::Title), None);
         assert_eq!(super::pause_plate_line(LaunchDoor::NameHouse), None);
         assert_eq!(super::pause_plate_line(LaunchDoor::HouseDress), None);
@@ -2163,7 +2511,10 @@ mod tests {
 
     #[test]
     fn d1_resume_keeps_inyard() {
-        assert_eq!(super::resume_keeps_door(LaunchDoor::InYard), LaunchDoor::InYard);
+        assert_eq!(
+            super::resume_keeps_door(LaunchDoor::InYard),
+            LaunchDoor::InYard
+        );
         // Esc close-pause path is Resume-equivalent (stays InYard).
         assert_eq!(
             super::esc_from_inyard_toggles_pause(LaunchDoor::InYard, true),
@@ -2216,7 +2567,10 @@ mod tests {
         let cue = continue_cue_when_persist(true, &label.house).unwrap();
         assert_eq!(cue, "Unnamed House · the yard remembers");
         // Title-from-pause helper still maps InYard → Title (house JSON path).
-        assert_eq!(super::title_from_pause_returns_title(LaunchDoor::InYard), LaunchDoor::Title);
+        assert_eq!(
+            super::title_from_pause_returns_title(LaunchDoor::InYard),
+            LaunchDoor::Title
+        );
         // Esc itself only toggles pause — never Title.
         assert_eq!(
             super::esc_from_inyard_toggles_pause(LaunchDoor::InYard, false),
@@ -2243,6 +2597,91 @@ mod tests {
         assert_eq!(lan_btn_label(&s), "LAN · off");
         assert_eq!(s.lan, "off");
         assert_eq!(SETTINGS_PATH, "data/powrush_settings.json");
+    }
+
+    #[test]
+    fn b4_settings_rows_show_current_peace_bindings() {
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(peace_binding_label(PeaceAction::MoveUp, &s), "Move up · W");
+        assert_eq!(peace_binding_label(PeaceAction::Jump, &s), "Jump · Space");
+        assert_eq!(
+            peace_binding_label(PeaceAction::Sprint, &s),
+            "Sprint · either Shift"
+        );
+        assert_eq!(peace_binding_label(PeaceAction::Use, &s), "Use · E");
+
+        s.key_move_up = PeaceKey::ArrowUp;
+        s.key_use = PeaceKey::F;
+        assert_eq!(peace_binding_label(PeaceAction::MoveUp, &s), "Move up · Up");
+        assert_eq!(peace_binding_label(PeaceAction::Use, &s), "Use · F");
+    }
+
+    #[test]
+    fn b4_settings_rebind_rejects_a_taken_peace_key() {
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Use, PeaceKey::W),
+            Err(PeaceAction::MoveUp)
+        );
+        assert_eq!(s.key_use, PeaceKey::E);
+
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Use, PeaceKey::F),
+            Ok(())
+        );
+        assert_eq!(s.key_use, PeaceKey::F);
+        let round_trip = LocalSettings::from_json(&s.to_json().unwrap()).unwrap();
+        assert_eq!(round_trip.key_use, PeaceKey::F);
+    }
+
+    #[test]
+    fn b4_reset_to_peace_restores_all_bindings_only() {
+        let mut s = LocalSettings::peace_defaults();
+        s.grove = "light".into();
+        s.key_move_up = PeaceKey::ArrowUp;
+        s.key_move_down = PeaceKey::ArrowDown;
+        s.key_move_left = PeaceKey::ArrowLeft;
+        s.key_move_right = PeaceKey::ArrowRight;
+        s.key_jump = PeaceKey::J;
+        s.key_sprint = PeaceKey::RightControl;
+        s.key_use = PeaceKey::F;
+        s.key_satchel = PeaceKey::B;
+        s.key_hide = PeaceKey::V;
+        s.key_allocate = PeaceKey::N;
+
+        reset_peace_bindings(&mut s);
+
+        assert!(s.peace_keys_are_default());
+        assert_eq!(s.grove, "light");
+        assert_eq!(
+            PEACE_ACTIONS.map(|action| action.key(&s)),
+            [
+                PeaceKey::W,
+                PeaceKey::S,
+                PeaceKey::A,
+                PeaceKey::D,
+                PeaceKey::Space,
+                PeaceKey::LeftShift,
+                PeaceKey::E,
+                PeaceKey::I,
+                PeaceKey::H,
+                PeaceKey::R,
+            ]
+        );
+    }
+
+    #[test]
+    fn b4_supported_physical_keys_map_to_persisted_keys() {
+        assert_eq!(peace_key_from_key_code(KeyCode::KeyQ), Some(PeaceKey::Q));
+        assert_eq!(
+            peace_key_from_key_code(KeyCode::ShiftRight),
+            Some(PeaceKey::RightShift)
+        );
+        assert_eq!(
+            peace_key_from_key_code(KeyCode::ControlLeft),
+            Some(PeaceKey::LeftControl)
+        );
+        assert_eq!(peace_key_from_key_code(KeyCode::F1), None);
     }
 
     #[test]
@@ -2307,7 +2746,9 @@ mod tests {
 
     #[test]
     fn l1_hex_sign_row_default_off_online_grey_lan_untouched() {
-        use shared::pause_ledger_face::{HEX_ADMITS_HARM, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER};
+        use shared::pause_ledger_face::{
+            HEX_ADMITS_HARM, HEX_ADMITS_HARM_OFF, LEDGER_WAITS, NOT_YOUR_CHARTER,
+        };
         use shared::shard_climate::ShardClimate;
         use shared::shard_standing::ShardStanding;
         let s = LocalSettings::peace_defaults();
@@ -2484,7 +2925,10 @@ mod tests {
             seals_offered: false,
         };
         label.house.skip();
-        assert_eq!(super::advance_after_naming(&mut label), LaunchDoor::HouseDress);
+        assert_eq!(
+            super::advance_after_naming(&mut label),
+            LaunchDoor::HouseDress
+        );
         assert!(label.seals_offered);
         label.house.confirm_seals();
         assert_eq!(super::advance_after_naming(&mut label), LaunchDoor::InYard);
