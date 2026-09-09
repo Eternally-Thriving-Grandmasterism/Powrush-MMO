@@ -44,9 +44,9 @@ pub struct HeartwoodLipInstance {
     pub footprint_radius: f32,
 }
 
-/// Two dry walkway capsules and three overhead ribs on the Lip. These are
+/// Two dry walkway capsules and five overhead seed ribs on the Lip. These are
 /// deterministic fixed dress and do not consume or alter the grove seed.
-pub const HEARTWOOD_LIP_INSTANCES: [HeartwoodLipInstance; 5] = [
+pub const HEARTWOOD_LIP_INSTANCES: [HeartwoodLipInstance; 7] = [
     HeartwoodLipInstance {
         kind: HeartwoodLipKind::WalkwayCapsule,
         center: [-1.35, 0.30, 5.20],
@@ -70,6 +70,16 @@ pub const HEARTWOOD_LIP_INSTANCES: [HeartwoodLipInstance; 5] = [
     HeartwoodLipInstance {
         kind: HeartwoodLipKind::HangingRib,
         center: [2.40, 2.80, 5.20],
+        footprint_radius: 1.55,
+    },
+    HeartwoodLipInstance {
+        kind: HeartwoodLipKind::HangingRib,
+        center: [-4.65, 2.65, 5.35],
+        footprint_radius: 1.55,
+    },
+    HeartwoodLipInstance {
+        kind: HeartwoodLipKind::HangingRib,
+        center: [4.65, 2.65, 5.35],
         footprint_radius: 1.55,
     },
 ];
@@ -155,14 +165,30 @@ pub fn lip_instance_outside_lamp(instance: &HeartwoodLipInstance) -> bool {
         > LAMP_DISK_RADIUS
 }
 
+pub fn lip_instance_outside_water(instance: &HeartwoodLipInstance) -> bool {
+    dist_xz(
+        instance.center[0],
+        instance.center[2],
+        WATER_POND_CENTER[0],
+        WATER_POND_CENTER[1],
+    ) - instance.footprint_radius
+        > WATER_POND_RADIUS
+}
+
 pub fn heartwood_lip_is_valid() -> bool {
     HEARTWOOD_LIP_INSTANCES
         .iter()
         .filter(|instance| instance.kind == HeartwoodLipKind::WalkwayCapsule)
         .count()
         == 2
+        && HEARTWOOD_LIP_INSTANCES
+            .iter()
+            .filter(|instance| instance.kind == HeartwoodLipKind::HangingRib)
+            .count()
+            == 5
         && HEARTWOOD_LIP_INSTANCES.iter().all(|instance| {
             lip_instance_outside_lamp(instance)
+                && lip_instance_outside_water(instance)
                 && try_place_building(
                     PlaceId::Heartwood,
                     instance.center[0],
@@ -336,6 +362,7 @@ mod tests {
         );
         for instance in HEARTWOOD_LIP_INSTANCES {
             assert!(lip_instance_outside_lamp(&instance));
+            assert!(lip_instance_outside_water(&instance));
             assert_eq!(
                 try_place_building(
                     PlaceId::Heartwood,
@@ -369,6 +396,22 @@ mod tests {
             HEARTWOOD_BATH_RETURN[0],
             HEARTWOOD_BATH_RETURN[1]
         ));
+    }
+
+    #[test]
+    fn more_seed_ribs_stay_clear_and_keep_wards_valid() {
+        let ribs: Vec<_> = HEARTWOOD_LIP_INSTANCES
+            .iter()
+            .filter(|instance| instance.kind == HeartwoodLipKind::HangingRib)
+            .collect();
+        assert_eq!(ribs.len(), 5, "U9 adds two fixed seed ribs");
+        assert!(ribs
+            .iter()
+            .all(|instance| lip_instance_outside_lamp(instance)));
+        assert!(ribs
+            .iter()
+            .all(|instance| lip_instance_outside_water(instance)));
+        assert!(crate::heartwood_wards::wards_are_valid());
     }
 
     #[test]
