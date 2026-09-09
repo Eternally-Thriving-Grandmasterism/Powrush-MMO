@@ -59,6 +59,8 @@ pub struct FirstHarvestEpiphany {
     pub well_near: bool,
     /// At the Heartwood Threshold pipe. E Tends the node; do not harvest.
     pub threshold_near: bool,
+    /// At the Heartwood Wards posts. E tends session dress; do not harvest.
+    pub wards_near: bool,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -83,6 +85,7 @@ impl Default for FirstHarvestEpiphany {
             hybrid_near: false,
             well_near: false,
             threshold_near: false,
+            wards_near: false,
         }
     }
 }
@@ -90,10 +93,10 @@ impl Default for FirstHarvestEpiphany {
 impl FirstHarvestEpiphany {
     /// A door already owns this Use edge, so nothing may speak or credit a
     /// harvest from it — not the harvest tap, not the practice strip, not the
-    /// climate ledger. The Threshold pipe is that door; Take stays the choice
-    /// everywhere else.
+    /// climate ledger. The Threshold pipe and Wards posts are those doors;
+    /// Take stays the choice everywhere else.
     pub fn harvest_use_is_claimed(&self) -> bool {
-        self.threshold_near
+        self.threshold_near || self.wards_near
     }
 
     pub fn prompt_visible(&self, now: f64, guidance: &FirstSessionGuidance) -> bool {
@@ -674,5 +677,13 @@ mod tests {
         assert!(!s.welcome_shown);
         assert_eq!(s.welcome_glow, 0.0);
         assert!(!crate::hour_two_resume::hour_two_welcome_reward(None));
+    }
+
+    #[test]
+    fn wards_claim_use_as_dress_not_take() {
+        let mut s = FirstHarvestEpiphany::default();
+        s.wards_near = true;
+        assert!(s.harvest_use_is_claimed());
+        assert!(!s.threshold_near);
     }
 }

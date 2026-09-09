@@ -8,10 +8,12 @@
 use bevy::prelude::*;
 
 use shared::climate_node::NodeState;
+use shared::heartwood_wards::WARDS_NOTICE;
 
 use crate::climate_script::TeachingClaim;
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::heartwood_lip::ThresholdShelfSession;
+use crate::heartwood_wards::WardSession;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 
@@ -27,11 +29,19 @@ struct WeekFeelGlow {
     last_updated: u64,
 }
 
+#[derive(Resource, Default)]
+struct WardsNoticeGlow {
+    glow: f32,
+    last_near: bool,
+    last_tends: u32,
+}
+
 pub struct ClimateVisiblePlugin;
 
 impl Plugin for ClimateVisiblePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WeekFeelGlow>()
+            .init_resource::<WardsNoticeGlow>()
             .add_systems(Startup, spawn_climate_state_slab)
             .add_systems(PreUpdate, focus_lived_hour_on_nearby)
             .add_systems(
@@ -39,6 +49,7 @@ impl Plugin for ClimateVisiblePlugin {
                 (
                     paint_nodes_from_hour,
                     tick_week_feel_glow,
+                    tick_wards_notice_glow,
                     update_climate_state_slab,
                 ),
             );
@@ -104,6 +115,25 @@ fn tick_week_feel_glow(bind: Res<LivedHourBind>, time: Res<Time>, mut glow: ResM
     }
 }
 
+fn tick_wards_notice_glow(
+    wards: Option<Res<WardSession>>,
+    time: Res<Time>,
+    mut glow: ResMut<WardsNoticeGlow>,
+) {
+    let (near, tends) = wards
+        .as_deref()
+        .map(|session| (session.near, session.dress.tends))
+        .unwrap_or((false, 0));
+    if (near && !glow.last_near) || tends != glow.last_tends {
+        glow.glow = 1.0;
+    }
+    glow.last_near = near;
+    glow.last_tends = tends;
+    if glow.glow > 0.0 {
+        glow.glow = (glow.glow - time.delta_seconds() * 0.55).max(0.0);
+    }
+}
+
 fn spawn_climate_state_slab(mut commands: Commands) {
     commands
         .spawn((
@@ -144,9 +174,11 @@ fn update_climate_state_slab(
     nearby: Res<NearbyMercyNode>,
     bind: Res<LivedHourBind>,
     threshold: Option<Res<ThresholdShelfSession>>,
+    wards: Option<Res<WardSession>>,
     claim: Option<Res<TeachingClaim>>,
     guidance: Option<Res<FirstSessionGuidance>>,
     week_glow: Res<WeekFeelGlow>,
+    wards_glow: Res<WardsNoticeGlow>,
     nodes: Query<&MercyHarvestNode>,
     mut root: Query<
         (&mut Visibility, &mut BorderColor, &mut BackgroundColor),
@@ -155,13 +187,23 @@ fn update_climate_state_slab(
     mut text_q: Query<&mut Text, With<ClimateStateText>>,
 ) {
     let threshold_line = threshold_speech_if_near(threshold.as_deref());
+    let wards_line = wards_notice_if_near(wards.as_deref());
     let guidance_hidden = climate_caption_guidance_hidden(
         bind.guidance_hidden,
         guidance.as_ref().map(|g| g.dismissed).unwrap_or(false),
     );
     // H hides guidance, but an in-range well keeps its state sentence on this slab.
-    let show = climate_slab_should_show(nearby.in_range, threshold_line.is_some(), guidance_hidden);
-    let glow = week_glow.glow;
+    let show = climate_slab_should_show(
+        nearby.in_range,
+        threshold_line.is_some(),
+        wards_line.is_some(),
+        guidance_hidden,
+    );
+    let glow = week_glow.glow.max(if wards_line.is_some() {
+        wards_glow.glow
+    } else {
+        0.0
+    });
     let week_live = bind
         .climate_slab
         .as_deref()
@@ -225,7 +267,8 @@ fn update_climate_state_slab(
             })
         })
         .flatten();
-    let line = well_line
+    let line = wards_line
+        .or(well_line)
         .or(threshold_line)
         .unwrap_or_else(|| match bind.climate_slab.as_deref() {
             Some(slab) if !bind.last_line.is_empty() => {
@@ -250,9 +293,10 @@ fn climate_caption_guidance_hidden(bind_hidden: bool, session_dismissed: bool) -
 fn climate_slab_should_show(
     well_in_range: bool,
     threshold_near: bool,
+    wards_near: bool,
     guidance_hidden: bool,
 ) -> bool {
-    well_in_range || (threshold_near && !guidance_hidden)
+    well_in_range || wards_near || (threshold_near && !guidance_hidden)
 }
 
 fn well_state_caption(state: NodeState) -> String {
@@ -277,6 +321,12 @@ fn threshold_speech_if_near(threshold: Option<&ThresholdShelfSession>) -> Option
     threshold
         .filter(|session| session.near)
         .map(|session| session.node.speech())
+}
+
+fn wards_notice_if_near(wards: Option<&WardSession>) -> Option<String> {
+    wards
+        .filter(|session| session.near)
+        .map(|_| WARDS_NOTICE.to_string())
 }
 
 #[cfg(test)]
@@ -343,7 +393,7 @@ mod tests {
             (NodeState::Resting, "Resting", "—"),
             (NodeState::Stressed, "Stressed", "!"),
         ] {
-            assert!(climate_slab_should_show(true, false, true));
+            assert!(climate_slab_should_show(true, false, false, true));
             assert_eq!(
                 well_state_sentence("North Well", state),
                 format!("North Well is {label} · {token}")
@@ -357,8 +407,8 @@ mod tests {
 
     #[test]
     fn hidden_guidance_does_not_keep_threshold_speech_open() {
-        assert!(!climate_slab_should_show(false, true, true));
-        assert!(climate_slab_should_show(false, true, false));
+        assert!(!climate_slab_should_show(false, true, false, true));
+        assert!(climate_slab_should_show(false, true, false, false));
     }
 
     #[test]
@@ -366,5 +416,16 @@ mod tests {
         assert!(climate_caption_guidance_hidden(false, true));
         assert!(climate_caption_guidance_hidden(true, false));
         assert!(!climate_caption_guidance_hidden(false, false));
+    }
+
+    #[test]
+    fn wards_use_the_existing_slab_even_when_guidance_is_hidden() {
+        let mut wards = WardSession::default();
+        wards.near = true;
+        assert!(climate_slab_should_show(false, false, true, true));
+        assert_eq!(
+            wards_notice_if_near(Some(&wards)).as_deref(),
+            Some(WARDS_NOTICE)
+        );
     }
 }

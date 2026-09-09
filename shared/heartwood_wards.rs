@@ -13,6 +13,7 @@ use crate::hour_two::HourTwoPack;
 
 /// Well · Grove · Ember. Cosmetic strings only. No combat stats.
 pub const WARD_SEALS: [&str; 3] = ["Well", "Grove", "Ember"];
+pub const WARDS_NOTICE: &str = "Wards · E tend · Well · Grove · Ember";
 
 /// Ground posts outside the empty lamp disk and the water bath.
 /// Ring the Lip pond at footprint-clear distance (pond center 8,0 r=2).
@@ -42,12 +43,12 @@ impl WardDress {
         match verb {
             WardVerb::Look => {
                 self.looked = true;
-                "Wards · Well · Grove · Ember"
+                WARDS_NOTICE
             }
             WardVerb::Tend => {
                 self.looked = true;
                 self.tends = self.tends.saturating_add(1);
-                "Wards held · seals are dress"
+                WARDS_NOTICE
             }
         }
     }
@@ -119,6 +120,8 @@ mod tests {
         let mut dress = WardDress::default();
         let looked = visit_wards(&mut dress, WardVerb::Look, &house);
         let tended = visit_wards(&mut dress, WardVerb::Tend, &house);
+        assert_eq!(looked.line, WARDS_NOTICE);
+        assert_eq!(tended.line, WARDS_NOTICE);
         assert!(dress.looked);
         assert_eq!(dress.tends, 1);
         assert!(looked.hour_three_complete && tended.hour_three_complete);
