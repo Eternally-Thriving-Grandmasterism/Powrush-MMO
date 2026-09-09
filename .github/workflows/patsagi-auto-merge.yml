@@ -1,0 +1,132 @@
+name: PATSAGi auto-merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+concurrency:
+  group: patsgi-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  court:
+    name: PATSAGi merge court
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Label gate and deny-list
+        id: gate
+        run: |
+          set -euo pipefail
+          LABELS=$(gh pr view "$PR" --json labels --jq '.labels[].name')
+          if ! printf '%s\n' "$LABELS" | grep -qx 'patsgi-auto'; then
+            echo "No patsgi-auto label; skip (missing label = no auto-merge)."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
+          FILES=$(git diff --name-only "${BASE_SHA}...${HEAD_SHA}")
+          echo "Changed files:"
+          printf '%s\n' "$FILES"
+
+          hold_reasons=()
+
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            base=$(basename "$f")
+            case "$f" in
+              LICENSE|server/*|payments/*|k8s/*)
+                hold_reasons+=("$f")
+                ;;
+            esac
+            case "$base" in
+              COMMERCIAL*)
+                hold_reasons+=("$f")
+                ;;
+            esac
+          done <<EOF
+          $FILES
+          EOF
+
+          if printf '%s\n' "$FILES" | grep -qx 'Cargo.toml'; then
+            old=$(git show "${BASE_SHA}:Cargo.toml")
+            new=$(git show "${HEAD_SHA}:Cargo.toml")
+            old_members=$(printf '%s\n' "$old" | awk '/^members = \[/,/^]/')
+            new_members=$(printf '%s\n' "$new" | awk '/^members = \[/,/^]/')
+            old_defaults=$(printf '%s\n' "$old" | grep -E '^(default-members|default-run)' || true)
+            new_defaults=$(printf '%s\n' "$new" | grep -E '^(default-members|default-run)' || true)
+            if [ "$old_members" != "$new_members" ] || [ "$old_defaults" != "$new_defaults" ]; then
+              hold_reasons+=("Cargo.toml workspace members/default bins")
+            fi
+            if printf '%s\n' "$new_members" | grep -Eq 'simulation/|host/' \
+              && ! printf '%s\n' "$old_members" | grep -Eq 'simulation/|host/'; then
+              hold_reasons+=("unparking simulation/host as default play")
+            fi
+          fi
+
+          if printf '%s\n' "$FILES" | grep -qx 'client/src/title_screen.rs'; then
+            plus=$(git diff "${BASE_SHA}...${HEAD_SHA}" -- client/src/title_screen.rs | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+            code_plus=$(printf '%s\n' "$plus" | grep -vE '^\+[[:space:]]*//' || true)
+            if printf '%s\n' "$code_plus" | grep -Eq 'TitleOnlineBtn,[[:space:]]*true|title_online_enabled[[:space:]]*=[[:space:]]*true|title_online_enabled\([^)]*\)[[:space:]]*\{[[:space:]]*true|mode[[:space:]]*=[[:space:]]*NetMode::Online'; then
+              hold_reasons+=("client/src/title_screen.rs when enabling Online")
+            fi
+          fi
+
+          if [ "${#hold_reasons[@]}" -gt 0 ]; then
+            uniq=$(printf '%s\n' "${hold_reasons[@]}" | awk 'NF && !seen[$0]++')
+            body=$(printf 'PATSAGi merge court: **HOLD**. Deny-list path changed (steward only). Removed `patsgi-auto`. Do not auto-merge.\n\n%s\n' "$uniq")
+            gh pr comment "$PR" --body "$body"
+            gh pr edit "$PR" --remove-label patsgi-auto
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "HOLD — deny-list; not merging."
+            exit 0
+          fi
+
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        if: steps.gate.outputs.proceed == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        if: steps.gate.outputs.proceed == 'true'
+        uses: Swatinem/rust-cache@v2
+
+      - name: Bevy Linux deps (alsa, udev, x11)
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libasound2-dev \
+            libudev-dev \
+            libx11-dev \
+            libxkbcommon-x11-dev
+
+      - name: Core tests (shared + identity)
+        if: steps.gate.outputs.proceed == 'true'
+        run: cargo test -p shared -p rsil-identity
+
+      - name: Lived-hour client library
+        if: steps.gate.outputs.proceed == 'true'
+        run: cargo test -p powrush-client --lib
+
+      - name: Squash auto-merge (waits on required checks)
+        if: steps.gate.outputs.proceed == 'true'
+        run: gh pr merge "$PR" --squash --auto
