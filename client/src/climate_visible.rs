@@ -217,7 +217,7 @@ fn update_climate_state_slab(
                     .as_ref()
                     .and_then(|c| c.sentence_for(n.climate_id))
                     .unwrap_or(state.hand_hint());
-                let mut line = format!("{} · {} · {}", n.name, state.label(), hint);
+                let mut line = format!("{} · {} · {}", n.name, well_state_caption(state), hint);
                 if let Some(slab) = bind.climate_slab.as_deref() {
                     line = format!("{line} · {slab}");
                 }
@@ -255,8 +255,22 @@ fn climate_slab_should_show(
     well_in_range || (threshold_near && !guidance_hidden)
 }
 
+fn well_state_caption(state: NodeState) -> String {
+    format!("{} · {}", state.label(), well_state_token(state))
+}
+
+fn well_state_token(state: NodeState) -> &'static str {
+    match state {
+        NodeState::Idle => "•",
+        NodeState::Glowing => "○",
+        NodeState::Tended => "✓",
+        NodeState::Resting => "—",
+        NodeState::Stressed => "!",
+    }
+}
+
 fn well_state_sentence(name: &str, state: NodeState) -> String {
-    format!("{name} is {}.", state.label())
+    format!("{name} is {}", well_state_caption(state))
 }
 
 fn threshold_speech_if_near(threshold: Option<&ThresholdShelfSession>) -> Option<String> {
@@ -299,20 +313,46 @@ mod tests {
     }
 
     #[test]
+    fn each_well_mood_keeps_its_word_and_distinct_shape() {
+        let moods = [
+            (NodeState::Idle, "Idle", "•"),
+            (NodeState::Glowing, "Glowing", "○"),
+            (NodeState::Tended, "Tended", "✓"),
+            (NodeState::Resting, "Resting", "—"),
+            (NodeState::Stressed, "Stressed", "!"),
+        ];
+        for (state, label, token) in moods {
+            assert_eq!(well_state_caption(state), format!("{label} · {token}"));
+        }
+
+        let mut tokens: Vec<_> = moods
+            .iter()
+            .map(|(state, _, _)| well_state_token(*state))
+            .collect();
+        tokens.sort_unstable();
+        tokens.dedup();
+        assert_eq!(tokens.len(), moods.len());
+    }
+
+    #[test]
     fn hidden_guidance_keeps_each_well_state_sentence_visible() {
-        for (state, label) in [
-            (NodeState::Idle, "Idle"),
-            (NodeState::Glowing, "Glowing"),
-            (NodeState::Tended, "Tended"),
-            (NodeState::Resting, "Resting"),
-            (NodeState::Stressed, "Stressed"),
+        for (state, label, token) in [
+            (NodeState::Idle, "Idle", "•"),
+            (NodeState::Glowing, "Glowing", "○"),
+            (NodeState::Tended, "Tended", "✓"),
+            (NodeState::Resting, "Resting", "—"),
+            (NodeState::Stressed, "Stressed", "!"),
         ] {
             assert!(climate_slab_should_show(true, false, true));
             assert_eq!(
                 well_state_sentence("North Well", state),
-                format!("North Well is {label}.")
+                format!("North Well is {label} · {token}")
             );
         }
+        assert_eq!(
+            well_state_sentence("Sanctuary ember", NodeState::Glowing),
+            "Sanctuary ember is Glowing · ○"
+        );
     }
 
     #[test]
