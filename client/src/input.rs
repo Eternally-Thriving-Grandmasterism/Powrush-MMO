@@ -215,7 +215,7 @@ fn apply_peace_keyboard(cfg: &LocalSettings, keyboard: &mut ButtonInput<KeyCode>
     keyboard.reset(soft_play_bindings::SPRINT_RIGHT);
 
     for (canonical, _, state) in bindings {
-        write_key_state(&mut keyboard, canonical, state);
+        write_key_state(keyboard, canonical, state);
     }
 }
 
