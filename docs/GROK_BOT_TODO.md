@@ -4,12 +4,18 @@ Tip 23.2.83 + U13 (`71aebc60`). Design tick, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)
 
+## Closed / landed (do not rebuild)
+
+- **A0** — Closed. #316 stays closed. Do not revive. Do not merge dirty.
+- **B1** — Landed #322 / `c4529542`. Persist `reduced_motion` + `rumble` beside Grove.
+- **B2** — Landed #323 / `0e4b89db`. Well captions as words (Idle / Glowing / Tended / Resting / Stressed) even when H hid the card.
+
 ## Next (ordered)
 
-1. **A0** — Rebase or close dirty #316. Do not merge dirty.
-2. **B1** — Persist `reduced_motion` + `rumble` beside Grove. Do not rewrite `harvest_feel`.
-3. **B2** — Well captions as words (Idle / Glowing / Tended / Resting / Stressed) even when H hid the card.
+1. **B3** — Colorblind well tokens (shapes + word). Do not rewrite `harvest_feel`.
+2. **B4** — Remaps live (INPUT_CANON fields; keyboard PASS).
+3. **B5** — Practice ≠ Verb stamp. Hands stay species-agnostic; see [`PRACTICE_NOT_VERB.md`](PRACTICE_NOT_VERB.md). No Title race select.
+4. **Wave C** — Wards from **current `main`**, not a revived #316. Later. Not this PR.
+5. **B7** — Depths Peace tend (restore, not Take).
 
-Then B3 colorblind well shapes → B4 remaps → B7 Depths Peace tend.
-
-Hour-two minutes stay blank for the human. Title Online stays grey. Floor `2163551`. Tag `11c577e`.
+Do not start B3 in a docs-honesty slice. Hour-two minutes stay blank for the human. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.

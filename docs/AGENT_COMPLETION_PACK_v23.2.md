@@ -11,6 +11,8 @@
 
 Independent of xAI. No certification, AGSi warranty, or legal-product claims. Human override on every output.
 
+**Landed 2026-09-09 (B1 + B2 only):** A0 closed — #316 stays closed; do not revive. B1 landed #322 / `c4529542` (`reduced_motion` + `rumble` persist beside Grove). B2 landed #323 / `0e4b89db` (well captions as words on the climate slab). Next ordered work is B3 colorblind well tokens — not this note. Wave C later from current `main`. Hour-two minutes stay blank. Title Online stays grey. Tag `11c577e`. Floor `2163551`. Workspace `21.88.0`.
+
 ---
 
 ## 0. How to use this pack

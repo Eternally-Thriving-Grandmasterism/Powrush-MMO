@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.83] — 2026-09-09 — B2.5: standing docs match main
+
+Docs only. Honesty, not a Cargo bump: A0 closed (#316 stays closed). B1 landed #322 / `c4529542`. B2 landed #323 / `0e4b89db`. Next ordered: B3 colorblind well tokens → B4 remaps → B5 Practice≠Verb stamp → Wave C Wards from current `main` → B7 Depths Peace tend. Hour-two minutes stay blank. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0. No Market. No listen. No B3 in this slice.
+
 ## [23.2.83] — 2026-09-09 — U11: Depths landing
 
 After Settled + book, Places can leave to one Peace Depths landing and walk back to Sanctuary. Depths is its own hex file. It does not copy tons, seeds, or lethal. Play still boots Sanctuary. Not Market. Not a listen. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0.
