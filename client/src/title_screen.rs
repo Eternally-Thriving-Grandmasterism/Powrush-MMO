@@ -339,6 +339,13 @@ impl Plugin for TitleScreenPlugin {
                     lethal_sign_settings_clicks,
                 ),
             )
+            .add_systems(
+                Update,
+                (
+                    refresh_accessibility_settings_labels,
+                    accessibility_settings_clicks,
+                ),
+            )
             .add_systems(Update, esc_yard_pause.after(InputMapSet));
     }
 }
@@ -1289,8 +1296,6 @@ fn refresh_local_settings_labels(
         Query<&mut Text, With<SettingsBrightnessLabel>>,
         Query<&mut Text, With<SettingsTextScaleLabel>>,
         Query<&mut Text, With<SettingsGroveLabel>>,
-        Query<&mut Text, With<SettingsReducedMotionLabel>>,
-        Query<&mut Text, With<SettingsRumbleLabel>>,
         Query<&mut Text, With<SettingsLanLabel>>,
     )>,
 ) {
@@ -1305,8 +1310,6 @@ fn refresh_local_settings_labels(
     let bright = brightness_btn_label(s);
     let scale = text_scale_btn_label(s);
     let grove = grove_btn_label(s);
-    let reduced_motion = reduced_motion_btn_label(s);
-    let rumble = rumble_btn_label(s);
     let lan = lan_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
     for mut text in &mut texts.p0() {
@@ -1338,15 +1341,30 @@ fn refresh_local_settings_labels(
         set_btn_section_font(&mut text, font);
     }
     for mut text in &mut texts.p7() {
-        set_btn_section_text(&mut text, &reduced_motion);
-        set_btn_section_font(&mut text, font);
-    }
-    for mut text in &mut texts.p8() {
-        set_btn_section_text(&mut text, &rumble);
-        set_btn_section_font(&mut text, font);
-    }
-    for mut text in &mut texts.p9() {
         set_btn_section_text(&mut text, &lan);
+        set_btn_section_font(&mut text, font);
+    }
+}
+
+fn refresh_accessibility_settings_labels(
+    label: Res<HouseLabel>,
+    settings: Res<LocalSettingsState>,
+    mut reduced_motion: Query<&mut Text, With<SettingsReducedMotionLabel>>,
+    mut rumble: Query<&mut Text, (With<SettingsRumbleLabel>, Without<SettingsReducedMotionLabel>)>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let s = &settings.inner;
+    let reduced_motion_label = reduced_motion_btn_label(s);
+    let rumble_label = rumble_btn_label(s);
+    let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
+    for mut text in &mut reduced_motion {
+        set_btn_section_text(&mut text, &reduced_motion_label);
+        set_btn_section_font(&mut text, font);
+    }
+    for mut text in &mut rumble {
+        set_btn_section_text(&mut text, &rumble_label);
         set_btn_section_font(&mut text, font);
     }
 }
@@ -1361,8 +1379,6 @@ fn local_settings_clicks(
     bright: Query<&Interaction, (Changed<Interaction>, With<SettingsBrightnessBtn>)>,
     scale: Query<&Interaction, (Changed<Interaction>, With<SettingsTextScaleBtn>)>,
     grove: Query<&Interaction, (Changed<Interaction>, With<SettingsGroveBtn>)>,
-    reduced_motion: Query<&Interaction, (Changed<Interaction>, With<SettingsReducedMotionBtn>)>,
-    rumble: Query<&Interaction, (Changed<Interaction>, With<SettingsRumbleBtn>)>,
     lan: Query<&Interaction, (Changed<Interaction>, With<SettingsLanBtn>)>,
     sticks: Query<&Interaction, (Changed<Interaction>, With<SettingsSticksBtn>)>,
     tap_use: Query<&Interaction, (Changed<Interaction>, With<SettingsTapUseBtn>)>,
@@ -1417,18 +1433,6 @@ fn local_settings_clicks(
             changed = true;
         }
     }
-    for i in &reduced_motion {
-        if *i == Interaction::Pressed {
-            settings.inner.toggle_reduced_motion();
-            changed = true;
-        }
-    }
-    for i in &rumble {
-        if *i == Interaction::Pressed {
-            settings.inner.toggle_rumble();
-            changed = true;
-        }
-    }
     for i in &lan {
         if *i == Interaction::Pressed {
             // P3 — off ↔ loopback. Does not touch Title Online or POWRUSH_NET=on.
@@ -1461,6 +1465,43 @@ fn local_settings_clicks(
             let _refused = refuse_online_socket_toggle(true);
             debug_assert!(_refused);
             debug_assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        }
+    }
+    if changed {
+        settings.mark_and_persist();
+    }
+}
+
+fn accessibility_settings_clicks(
+    label: Res<HouseLabel>,
+    mut settings: ResMut<LocalSettingsState>,
+    reduced_motion: Query<
+        &Interaction,
+        (Changed<Interaction>, With<SettingsReducedMotionBtn>),
+    >,
+    rumble: Query<
+        &Interaction,
+        (
+            Changed<Interaction>,
+            With<SettingsRumbleBtn>,
+            Without<SettingsReducedMotionBtn>,
+        ),
+    >,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let mut changed = false;
+    for i in &reduced_motion {
+        if *i == Interaction::Pressed {
+            settings.inner.toggle_reduced_motion();
+            changed = true;
+        }
+    }
+    for i in &rumble {
+        if *i == Interaction::Pressed {
+            settings.inner.toggle_rumble();
+            changed = true;
         }
     }
     if changed {
