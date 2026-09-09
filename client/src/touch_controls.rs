@@ -262,6 +262,7 @@ fn touch_overlay_button_clicks(
     mut player_input: ResMut<PlayerInput>,
     mut house: ResMut<HouseLabel>,
     door: Res<LaunchDoor>,
+    mut places: Option<ResMut<crate::hex_travel::PlacesPlate>>,
     use_q: Query<&Interaction, (Changed<Interaction>, With<TouchUseBtn>)>,
     pause_q: Query<&Interaction, (Changed<Interaction>, With<TouchPauseBtn>)>,
     q_q: Query<&Interaction, (Changed<Interaction>, With<TouchQBtn>)>,
@@ -276,7 +277,14 @@ fn touch_overlay_button_clicks(
     for i in &pause_q {
         if *i == Interaction::Pressed {
             // Same as Esc / Start when InYard; on Title also toggles settings plate.
-            if *door == LaunchDoor::InYard || *door == LaunchDoor::Title {
+            if crate::title_screen::apply_yard_pause_press(
+                *door,
+                &mut house,
+                places.as_deref_mut(),
+            ) {
+                continue;
+            }
+            if *door == LaunchDoor::Title {
                 house.settings_open = !house.settings_open;
             }
         }
