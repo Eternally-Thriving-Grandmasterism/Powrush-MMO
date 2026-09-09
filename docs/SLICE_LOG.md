@@ -2,7 +2,7 @@
 
 ## 2026-09-09 — B2.5: standing docs match main (docs only)
 
-`slice: B2.5 standing docs match main | docs only; not a sim; A0 closed #316 stays closed; B1 landed #322 / c4529542 reduced_motion + rumble; B2 landed #323 / 0e4b89db well captions as words; next B3 colorblind well tokens then B4 remaps then B5 Practice≠Verb stamp then Wave C Wards from current main then B7 Depths Peace tend; do not start B3 here; do not revive #316; do not open Ra-Thor; Hour-two minutes blank; Title Online grey; no Market; no listen; no public bind; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: STEER until core gate recorded`
+`slice: B2.5 standing docs match main | docs only; not a sim; A0 closed #316 stays closed; B1 landed #322 / c4529542 reduced_motion + rumble; B2 landed #323 / 0e4b89db well captions as words; next B3 colorblind well tokens then B4 remaps then B5 Practice≠Verb stamp then Wave C Wards from current main then B7 Depths Peace tend; do not start B3 here; do not revive #316; do not open Ra-Thor; Hour-two minutes blank; Title Online grey; no Market; no listen; no public bind; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; core: shared 311 + rsil-identity 5; powrush-client --lib 185; verdict: AUTO`
 
 ## 2026-09-09 — U13: stamp Offline SKU content list (docs only)
 
