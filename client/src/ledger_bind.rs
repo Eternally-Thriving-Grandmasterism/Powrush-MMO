@@ -543,6 +543,18 @@ mod tests {
         assert!(plate.contains("House week · 3 tons · 2 restored"));
         assert!(plate.lines().count() >= 2);
         assert!(!plate.to_lowercase().contains("market"));
+
+        // A quiet third room is not a gate: an untended Depths file adds 0 and
+        // the same A+B stands. Two nonzero rooms are enough to prove the sum.
+        let quiet_depths = stub_hex_file(PlaceId::Depths);
+        assert_eq!(quiet_depths.climate.tons_moved, 0);
+        let with_quiet_depths =
+            house_week_from_rooms(PlaceId::Sanctuary, &sanctuary, |place| match place {
+                PlaceId::Heartwood => Some(heartwood.clone()),
+                PlaceId::Depths => Some(quiet_depths.clone()),
+                PlaceId::Sanctuary => None,
+            });
+        assert_eq!(with_quiet_depths, bill.week);
     }
 
     #[test]
