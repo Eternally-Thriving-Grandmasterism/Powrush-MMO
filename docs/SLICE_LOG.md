@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-09 — U13: stamp Offline SKU content list (docs only)
+
+`slice: U13 stamp Offline SKU content list | docs only; not a sim; stamps what is already on main into OFFLINE_SKU; Steam Offline 1.0 rooms Sanctuary / Heartwood / Threshold / Depths; user-dir saves; Esc pause + Places on every hex; Threshold pipe Tend is not harvest (d7bcb61c); House week on L is the House moral bill across persisted hex files not the standing hex; file counts after write (verb or flush-on-leave); Threshold may share Heartwood file; Market not in the sum; this week = this disk; House week = sum T_w / U_w over files (Sanctuary, Heartwood, Depths; Threshold only if own file); accepted #319 / b76b7646 Sanctuary 1/1 Heartwood 0/1 House 1/2; L shows this week · 1 tons · 1 restored (yard) and House week · 1 tons · 2 restored (sum); Q recipes L ledger; not in sum: unflushed RAM, γ leak (still 0), Market/lethal, other Houses, shards, peers; Title Online grey; Market HOLD; no listen; no fifth place; no new sim; comfort later Places fat-tap + Depths tend node; no lavapipe walk claimed; Hour-two minutes blank; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: STEER`
+
 ## 2026-09-09 — U11: Depths landing
 
 `slice: U11 Depths landing | one Peace turn after Settled+book; own hex file powrush_hex_depths.json; Places leave from Depths only to Sanctuary; Play still Sanctuary; no-book cannot enter; does not copy tons/seeds/declared_lethal; not Market; not a listen; not 0.0.0.0; Title Online grey; no Depths mesh on Sanctuary; does not touch the Threshold pipe; book stays seated; playable-preview 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`
