@@ -16,6 +16,7 @@ use crate::heartwood_lip::ThresholdShelfSession;
 use crate::heartwood_wards::WardSession;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
+use crate::depths_landing::DepthsPeaceTend;
 
 #[derive(Component)]
 struct ClimateStateRoot;
@@ -175,6 +176,7 @@ fn update_climate_state_slab(
     bind: Res<LivedHourBind>,
     threshold: Option<Res<ThresholdShelfSession>>,
     wards: Option<Res<WardSession>>,
+    depths: Option<Res<DepthsPeaceTend>>,
     claim: Option<Res<TeachingClaim>>,
     guidance: Option<Res<FirstSessionGuidance>>,
     week_glow: Res<WeekFeelGlow>,
@@ -188,6 +190,7 @@ fn update_climate_state_slab(
 ) {
     let threshold_line = threshold_speech_if_near(threshold.as_deref());
     let wards_line = wards_notice_if_near(wards.as_deref());
+    let depths_line = depths_restore_line(depths.as_deref());
     let guidance_hidden = climate_caption_guidance_hidden(
         bind.guidance_hidden,
         guidance.as_ref().map(|g| g.dismissed).unwrap_or(false),
@@ -197,6 +200,7 @@ fn update_climate_state_slab(
         nearby.in_range,
         threshold_line.is_some(),
         wards_line.is_some(),
+        depths_line.is_some(),
         guidance_hidden,
     );
     let glow = week_glow.glow.max(if wards_line.is_some() {
@@ -275,7 +279,14 @@ fn update_climate_state_slab(
         None => bind.last_line.clone(),
     };
     // P2: when a well and Wards posts overlap, keep both on one slab — well first.
-    let line = compose_climate_slab_line(well_line, wards_line, threshold_line, fallback);
+    // P3: after a Depths Peace restore, show that line on this same slab.
+    let line = compose_climate_slab_line(
+        well_line,
+        wards_line,
+        depths_line,
+        threshold_line,
+        fallback,
+    );
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -293,9 +304,13 @@ fn climate_slab_should_show(
     well_in_range: bool,
     threshold_near: bool,
     wards_near: bool,
+    depths_restore: bool,
     guidance_hidden: bool,
 ) -> bool {
-    well_in_range || wards_near || (threshold_near && !guidance_hidden)
+    well_in_range
+        || wards_near
+        || depths_restore
+        || (threshold_near && !guidance_hidden)
 }
 
 fn well_state_caption(state: NodeState) -> String {
@@ -317,9 +332,17 @@ fn well_state_sentence(name: &str, state: NodeState) -> String {
 }
 
 
+fn depths_restore_line(depths: Option<&DepthsPeaceTend>) -> Option<String> {
+    depths
+        .map(|session| session.last_line.trim())
+        .filter(|line| !line.is_empty())
+        .map(|line| line.to_string())
+}
+
 fn compose_climate_slab_line(
     well: Option<String>,
     wards: Option<String>,
+    depths: Option<String>,
     threshold: Option<String>,
     fallback: String,
 ) -> String {
@@ -327,7 +350,7 @@ fn compose_climate_slab_line(
         (Some(well), Some(wards)) => format!("{well} · {wards}"),
         (Some(well), None) => well,
         (None, Some(wards)) => wards,
-        (None, None) => threshold.unwrap_or(fallback),
+        (None, None) => depths.or(threshold).unwrap_or(fallback),
     }
 }
 
@@ -407,7 +430,7 @@ mod tests {
             (NodeState::Resting, "Resting", "—"),
             (NodeState::Stressed, "Stressed", "!"),
         ] {
-            assert!(climate_slab_should_show(true, false, false, true));
+            assert!(climate_slab_should_show(true, false, false, false, true));
             assert_eq!(
                 well_state_sentence("North Well", state),
                 format!("North Well is {label} · {token}")
@@ -421,8 +444,8 @@ mod tests {
 
     #[test]
     fn hidden_guidance_does_not_keep_threshold_speech_open() {
-        assert!(!climate_slab_should_show(false, true, false, true));
-        assert!(climate_slab_should_show(false, true, false, false));
+        assert!(!climate_slab_should_show(false, true, false, false, true));
+        assert!(climate_slab_should_show(false, true, false, false, false));
     }
 
     #[test]
@@ -436,7 +459,7 @@ mod tests {
     fn wards_use_the_existing_slab_even_when_guidance_is_hidden() {
         let mut wards = WardSession::default();
         wards.near = true;
-        assert!(climate_slab_should_show(false, false, true, true));
+        assert!(climate_slab_should_show(false, false, true, false, true));
         assert_eq!(
             wards_notice_if_near(Some(&wards)).as_deref(),
             Some(WARDS_NOTICE)
@@ -449,18 +472,42 @@ mod tests {
             Some(well.clone()),
             Some(WARDS_NOTICE.to_string()),
             None,
+            None,
             "fallback".into(),
         );
         assert!(line.starts_with(&well), "well sentence must remain first");
         assert!(line.contains(WARDS_NOTICE), "Wards notice stays on the same slab");
         assert_eq!(line, format!("{well} · {WARDS_NOTICE}"));
         assert_eq!(
-            compose_climate_slab_line(Some(well.clone()), None, None, "fallback".into()),
+            compose_climate_slab_line(Some(well.clone()), None, None, None, "fallback".into()),
             well
         );
         assert_eq!(
-            compose_climate_slab_line(None, Some(WARDS_NOTICE.to_string()), None, "fallback".into()),
+            compose_climate_slab_line(None, Some(WARDS_NOTICE.to_string()), None, None, "fallback".into()),
             WARDS_NOTICE
+        );
+    }
+
+    #[test]
+    fn depths_restore_line_shows_on_existing_slab() {
+        let mut tend = DepthsPeaceTend::default();
+        assert_eq!(depths_restore_line(Some(&tend)), None);
+        assert!(!climate_slab_should_show(false, false, false, false, true));
+        tend.last_line = "Depths Peace · restored".into();
+        assert_eq!(
+            depths_restore_line(Some(&tend)).as_deref(),
+            Some("Depths Peace · restored")
+        );
+        assert!(climate_slab_should_show(false, false, false, true, true));
+        assert_eq!(
+            compose_climate_slab_line(
+                None,
+                None,
+                Some("Depths Peace · restored".into()),
+                None,
+                "fallback".into(),
+            ),
+            "Depths Peace · restored"
         );
     }
 
