@@ -2,7 +2,8 @@
 //!
 //! `powrush_settings.json` next to house JSON in the OS user-data dir
 //! (or `POWRUSH_USER_DIR`). Cwd `data/powrush_settings.json` is adopt-only.
-//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove · LAN · Controls (I0).
+//! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove ·
+//! Reduced motion · Rumble · LAN · Controls (I0).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
@@ -59,6 +60,12 @@ pub struct LocalSettings {
     /// Same path as env `POWRUSH_GEN=light` (OR at the door — not a second gen system).
     #[serde(default = "default_grove")]
     pub grove: String,
+    /// Accessibility: remove camera punch and force rumble off. Default false.
+    #[serde(default)]
+    pub reduced_motion: bool,
+    /// Accessibility: allow gamepad rumble when reduced motion is off. Default true.
+    #[serde(default = "default_true")]
+    pub rumble: bool,
     /// P3 LAN lab: "off" | "loopback". Default **off**. Unknown → off.
     /// Separate from Title Online / Settings Online stub. Never writes POWRUSH_NET=on.
     /// Loopback unlocks the existing F8 door on 127.0.0.1 only.
@@ -131,6 +138,8 @@ impl Default for LocalSettings {
             brightness: DEFAULT_BRIGHTNESS,
             text_scale: DEFAULT_TEXT_SCALE,
             grove: default_grove(),
+            reduced_motion: false,
+            rumble: true,
             lan: default_lan(),
             on_screen_sticks: default_on_screen_sticks(),
             tap_to_use: false,
@@ -199,6 +208,28 @@ impl LocalSettings {
             self.grove = "off".into();
         } else {
             self.grove = "light".into();
+        }
+    }
+
+    pub fn toggle_reduced_motion(&mut self) {
+        self.reduced_motion = !self.reduced_motion;
+    }
+
+    pub fn toggle_rumble(&mut self) {
+        self.rumble = !self.rumble;
+    }
+
+    /// Rumble is always suppressed while reduced motion is enabled.
+    pub fn rumble_enabled(&self) -> bool {
+        self.rumble && !self.reduced_motion
+    }
+
+    /// Camera consumers read this scale instead of changing harvest feel.
+    pub fn camera_punch_scale(&self) -> f32 {
+        if self.reduced_motion {
+            0.0
+        } else {
+            1.0
         }
     }
 
@@ -468,6 +499,10 @@ mod tests {
         assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
         assert_eq!(s.grove, "off");
         assert!(!s.grove_is_light());
+        assert!(!s.reduced_motion);
+        assert!(s.rumble);
+        assert!(s.rumble_enabled());
+        assert_eq!(s.camera_punch_scale(), 1.0);
         assert_eq!(s.lan, "off");
         assert!(!s.lan_is_loopback());
         assert_eq!(s.on_screen_sticks, "auto");
@@ -492,6 +527,8 @@ mod tests {
         s.brightness = 1.25;
         s.text_scale = 1.10;
         s.grove = "light".into();
+        s.reduced_motion = true;
+        s.rumble = false;
         s.lan = "loopback".into();
         s.on_screen_sticks = "on".into();
         s.tap_to_use = true;
@@ -505,12 +542,17 @@ mod tests {
         assert!(raw.contains("brightness"));
         assert!(raw.contains("text_scale"));
         assert!(raw.contains("grove") && raw.contains("light"));
+        assert!(raw.contains("\"reduced_motion\": true"));
+        assert!(raw.contains("\"rumble\": false"));
         assert!(raw.contains("\"lan\"") && raw.contains("loopback"));
         assert!(raw.contains("on_screen_sticks"));
         assert!(raw.contains("sprint_mode") && raw.contains("stick"));
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(back, s);
         assert!(back.grove_is_light());
+        assert!(back.reduced_motion);
+        assert!(!back.rumble_enabled());
+        assert_eq!(back.camera_punch_scale(), 0.0);
         assert!(back.lan_is_loopback());
         assert!((back.master_gain() - 0.0).abs() < f32::EPSILON);
         let (dx, dy) = back.apply_look_delta(2.0, 4.0);
@@ -611,6 +653,32 @@ mod tests {
         cyc.cycle_grove();
         assert!(!cyc.grove_is_light());
         assert_eq!(cyc.grove, "off");
+    }
+
+    #[test]
+    fn motion_and_rumble_defaults_legacy_and_precedence() {
+        let mut s = LocalSettings::peace_defaults();
+        assert!(!s.reduced_motion);
+        assert!(s.rumble_enabled());
+        assert_eq!(s.camera_punch_scale(), 1.0);
+
+        s.toggle_reduced_motion();
+        assert!(s.reduced_motion);
+        assert!(!s.rumble_enabled());
+        assert_eq!(s.camera_punch_scale(), 0.0);
+
+        s.toggle_reduced_motion();
+        s.toggle_rumble();
+        assert!(!s.reduced_motion);
+        assert!(!s.rumble);
+        assert!(!s.rumble_enabled());
+        assert_eq!(s.camera_punch_scale(), 1.0);
+
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"grove":"light"}"#;
+        let back = LocalSettings::from_json(legacy).unwrap();
+        assert!(!back.reduced_motion);
+        assert!(back.rumble);
+        assert!(back.rumble_enabled());
     }
 
     #[test]
