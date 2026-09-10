@@ -100,6 +100,9 @@ Viewers want a **verb that answers**. That is already on main:
 
 ---
 
+
+**B1 already:** South=Use, Places click. No code. (comfort audit on tip `6708b71`)
+
 ## Related
 
 `GDD_ADAPTATION` · `OFFLINE_SKU` · `LOCAL_COURT` · `AAA_FEEL_WORKPACK` · `SLICE_LOG`

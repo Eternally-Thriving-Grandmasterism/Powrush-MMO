@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-10 — B1 audit: South=Use + Places click already
+
+`slice: B1 comfort audit | gap N; South already Peace Use (gamepad_south_use default true, INPUT_CANON); Places plate + pause Places row already Interaction::Pressed; docs stamp only; no client/**; tip 6708b71; tag 11c577e; no A2; no Online; no POWRUSH_NET; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
+
 ## 2026-09-09 — Tape truth: YouTube is pitch memory
 
 `slice: TAPE_TRUTH docs stamp | two tapes only (Pre-Alpha Demo 2025-07-04 + City Hall 2019); keep hands/play-to-learn/peoples-later/wars-as-later-weather; never crypto/NFT/2M-P2P/ads/complete-while-Online-grey/Unreal-not-cargo/race-lobby/second-HUD; trailer Four rooms one House bill Offline; peoples after House; enjoyment = A1+feel-move+Places; tip family f8ae3ed; tag 11c577e; no client; no comfort in this PR; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
