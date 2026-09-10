@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-09 — Feel-move: Fixed 60 Hz + Use buffer
+
+`slice: feel-move SC2 contract | FixedUpdate @ 60 for locomotion; accel toward wish + stop-on-release (no ice-skate); one Use buffer ≤120 ms when entering range; folds into PlayerInput.interact so Peace verbs unchanged; A1 audio untouched; no Title Online; no A4; no rooms; playable-preview stays 11c577e; floor 2163551; info@Rathor.ai; independent of xAI; no certification or warranty claims; core: shared+rsil-identity + powrush-client --lib; verdict: AUTO`
+
 ## 2026-09-09 — A1: first successful Peace E one-shot
 
 `slice: A1 first successful Peace E | soft audio one-shot once; Mute off required to hear; Mute on silences; later Uses keep well sting; no second HUD; no Title Online; no A4; tip 0336b81 / #336; playable-preview stays 11c577e; floor 2163551; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: SHIP`
