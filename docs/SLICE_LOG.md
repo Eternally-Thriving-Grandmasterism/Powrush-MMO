@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-10 — net-offline-contract
+
+`slice: net-offline-contract | Phase C1 docs only; Title grey until online yes; POWRUSH_NET off; body local F; small C later; hello before peers; 127.0.0.1; no freeze Sanctuary; postcard names only; no Market/wars; Ra-Thor read-only; tip play aabecfb law 3f80946; tag 11c577e; no client; no sockets; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
+
 ## 2026-09-10 — sim-and-hand-canon
 
 `slice: sim-and-hand-canon | docs only; hand ack vs deterministic F; three stacked games Yard/Climates/Sky; lockstep parked; tip aabecfb; feel 8311ac26; bill 42a32ae; tag 11c577e; Title Online grey; no client; no POWRUSH_NET; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
