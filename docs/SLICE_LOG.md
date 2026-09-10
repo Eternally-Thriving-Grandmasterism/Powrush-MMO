@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-10 — PLACE_CLARITY_WALK human shot checklist
+
+`slice: PLACE_CLARITY_WALK docs | what #349 should show; lore Places dress the well; fail→feel only on Core shots; no client; tip c734739; tag 11c577e; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
+
 ## 2026-09-10 — H-2026-09-10-1 place clarity on climate slab
 
 `slice: H-2026-09-10-1 | climate_visible only; place name Sanctuary/Heartwood/Threshold/Depths + well Idle/Glowing/Tended/Resting/Stressed survive H; no new meshes/verbs/HUD; YELLOW for Core; tip from 0013656; tag 11c577e; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: STEER`
