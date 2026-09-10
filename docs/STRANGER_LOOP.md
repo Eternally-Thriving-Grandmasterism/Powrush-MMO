@@ -1,33 +1,52 @@
-# STRANGER_LOOP.md — one cold stranger, keys only (v23.2.62)
+# STRANGER_LOOP.md — one cold stranger, keys only (Offline 1.0 sync)
 
 **Contact:** info@Rathor.ai  
-Workspace `21.88.0`. Design tick. Same binary. No second HUD. No server required.
+Workspace `21.88.0`. Design tick. Same binary. No second HUD. No server required.  
+**Independent of xAI.** No certification / AGSi warranty / legal-product claims.
 
-Stand-alone proof script. Match L1 title truth + playable loop. Deeper maps: `LAUNCH_UX` · `INPUT_CANON` · `PLACES_BIBLE` · `GENSHARE` · `LAVAPIPE_CLICK_CLEAN` · `PHASE_PLAYABLE_LOOP` · `HOUR_TWO` · `HOUR_THREE` · `PHASE_Q`/`R`/`S` · `PHASE_LETHAL` · `PREVIEW_CHECKLIST`.
+Stand-alone proof script. Deeper maps: `PREVIEW_CHECKLIST` · `LAPTOP_OFFLINE_PLAY` · `OFFLINE_SKU` · `INPUT_CANON` · `LAUNCH_UX`.
 
-**Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door: `cargo run -p powrush-client`. Online grey; not a launch candidate. **Wave P:** `playable-preview` @ walked SHA `11c577e` (steward-cut; this loop alone still does not cut a tag). **E4:** glow on later tip (`3fc46c9`); *same slab breathes once*, then rests — comfort after the tag, not a second launch.
+---
 
-Minute-by-minute. Keys only. Online stays grey. L3 ingest absent on first hour.
+## Floor tips (walked — do not retag)
+
+| Role | SHA |
+|---|---|
+| Feel / play tip | `8311ac26` |
+| House week bill | `42a32ae` |
+| Laptop play doc | `a131cb1` |
+| Offline door scripts | `1eb63fb` |
+| Preview tag (stays) | `11c577e` |
+| Stranger floor stamp | `2163551` |
+
+**Door:** `./scripts/play-offline.sh` / `./scripts/play-offline.ps1` **or** `cargo run -p powrush-client` (`POWRUSH_NET` unset/`off`).  
+Title Online stays **grey**. Minutes / OS / GPU / Time stay blank for the human.
+
+---
+
+## Minute map (keys only)
 
 | Min | Hands | Must see |
 | --- | --- | --- |
-| 0 | `cargo run -p powrush-client` | Title: Play / Continue / Settings; Online grey *off (no listen)*; climate breathing; no peer count |
-| 0–1 | Play (first run) or Continue | First run → Hands, no name wall. Continue → House name **or** exactly *Unnamed House* + *the yard remembers* when persist exists |
-| 1–10 | WASD, E tend/take, I, H, R 1/2 | one card; well speech Idle/Glowing/Tended/Resting/Stressed; tired / circulating |
-| pause | Esc (or Settings) | opaque *the yard is waiting* → Resume / Title / Quit; Settings: Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove off|light (`powrush_settings.json` survives quit/rerun) |
-| 10–25 | Tab → Q → L Bind | Settled; *Hour two held · the yard remembers*; quit/rerun welcome slab |
-| after Settled | seals / heritage | Well / Grove / Ember skippable (cosmetic); heritage string only; Q shows Seal · … when dressed; **no combat stats** |
-| 25–40 | Q fabricator (MendSpool + LaneCrate) → Embassy E seat | *Hour three held · the book is yours* |
-| 40–50 | same E / R; I or L sash | climate file + slab true; week *this week · N tons · M restored* (not kills); Seal · … on Pause/Ledger when dressed |
-| after book | Settings / L / Digit3 only if choosing | **this hex admits harm** opt-in (default off); Peace boot still silent; never default E |
-| always | — | `POWRUSH_NET` default off = zero sockets; `POWRUSH_INGEST` default off = L3 absent on first hour; House name skippable → Unnamed House; **G0 opt-in** — default boot no extra scatter (G0 off); Settings Grove · light alone (**no env required**) or `POWRUSH_GEN=light` (OR) same hex seed each run, plates still click, fog behind UI |
+| 0 | play-offline or `cargo run -p powrush-client` | Title: **Play / Continue / Settings**; Online grey *off (no listen)*; Mute in Settings; no peer count |
+| 0–1 | Play or Continue | First run → Hands, no name wall. Continue → House name or *Unnamed House* + *the yard remembers* |
+| 1–10 | WASD, Space, Shift; Sanctuary E; I; H; R | Walk stop-on-release (feel-move); well Take/tend feedback; optional **A1** soft one-shot once (**Mute kills it**); satchel; allocate |
+| pause | Esc on **any** local hex | Same opaque pause → Resume / Title / Quit; Settings Mute / Grove / LAN off |
+| 10–25 | Tab → Q → L Bind | Settled; *Hour two held · the yard remembers* |
+| 25–40 | Q fabricator → Embassy E seat | *the book is yours* |
+| after book | Esc → Places | **Sanctuary · Heartwood · Threshold · Depths** only |
+| after book | Heartwood / Threshold / Depths | Pipe E = Tend (not harvest); Depths E = restore (not Take); Wards dress claims Use |
+| after book | L on Sanctuary | *this week* (disk) vs **House week** sum over persisted hex files (`42a32ae` law) |
+| always | — | `POWRUSH_NET=off`; no `0.0.0.0`; tag stays `11c577e`; no Market Place |
+
+---
 
 ## Quiet law
 
-- Peace keys WASD / E I H R unchanged. No F-row. No fake peers. No XP / starve / NFT.
-- Lethal never default E. Week score = tons + restored only.
-- Seals cosmetic only; heritage is a string — refuse +take / +STR / combat mods. No race select at Title.
-- Soft cues only if a beat is mute. `server/` parked. No public launch speak.
-- Title Online stays grey. No Steam copy. No lighting Online. G0 stays opt-in (`POWRUSH_GEN` never default on). No GenShare sockets. No fog/birds as preview juice. No `playable-preview` tag from this loop alone.
+- Peace keys WASD / E I H R + Esc Q L. No F-row. No fake peers. No XP / starve / NFT.
+- Pipe + Depths Peace E = Tend / restore, **not** harvest.
+- Lethal never default E. Week score = tons + restored only (House week = sum).
+- Title Online stays grey. No Steam copy. No lighting Online. No retag from this loop.
+- Ra-Thor may read ticks; never drives WASD.
 
 **Thunder locked in.** Yoi ⚡

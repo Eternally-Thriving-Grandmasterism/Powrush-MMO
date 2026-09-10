@@ -1,57 +1,65 @@
-# PREVIEW_CHECKLIST.md — human tick boxes (v23.2.62)
+# PREVIEW_CHECKLIST.md — human tick boxes (Offline 1.0 sync)
 
 **Contact:** info@Rathor.ai  
-Workspace `21.88.0`. Design tick, not a Cargo bump.
+Workspace `21.88.0`. Design tick, not a Cargo bump.  
+**Independent of xAI.** No certification / AGSi warranty / legal-product claims.
 
-One cold stranger. Same binary: `cargo run -p powrush-client`. No second HUD. No server required.
+One cold stranger. No second HUD. No server required.
 
-**Steward law:** ticking every box here makes a stranger pass *possible* and keeps the repo honest. It does **not** cut a `playable-preview` git tag. A human says the preview tag when it sings — Proceed ≠ playable-preview tag. Checklist ticks still ≠ tag even after Wave P.
+**Steward law:** ticking every box here makes a stranger pass *possible* and keeps the repo honest. It does **not** cut or move `playable-preview`. Tag stays **`11c577e`**. Minutes / OS / GPU / Time are **not a bot field**.
 
-**Wave P (2026-09-07):** steward preview **yes**. Annotated tag `playable-preview` = walked SHA **`11c577e`** (human-cut; tag object `e37ed6e`; **not** the glow commit). Play/stranger floor remains `2163551` (G0). Online grey; no public bind. Tag alone does not turn on GenShare sockets, birds, or default Grove. Do not retag `playable-preview`.
+---
 
-**E4 (2026-09-08):** comfort after the tag is extra, not a second launch. Current tip may be `3fc46c9` (Hour-two welcome-back glow #292). Welcome-back: *same slab breathes once*, then rests. First boot quiet. No XP. Play floor stays `2163551`. Online grey; no public bind. No sockets, no birds, no default Grove, no combat. **Minutes / OS / GPU / Time** (`docs/HOUR_TWO_PLAYTEST.md` report) are **not a bot field** — leave blank for the human.
+## Floor tips (walked — do not retag)
 
-**P3 LAN (Settings loopback lab):** Settings **LAN · off|loopback** persists beside Grove (default **off**; unknown → off). Loopback is **127.0.0.1** only — not a Peace Online tick, not Title Online. Title Online stays **grey** and does not bind. LAN off = today's boot (no listen, no outbound). Do not retag `playable-preview` (`11c577e`). Leave `HOUR_TWO_PLAYTEST` minutes blank.
+| Role | SHA |
+|---|---|
+| Feel / play tip | `8311ac26` (feel-move 60 Hz + Use buffer ≤120 ms) |
+| House week bill (Depths in sum) | `42a32ae` |
+| Laptop play doc | `a131cb1` |
+| Offline door scripts (A0) | `1eb63fb` |
+| Preview tag (do **not** move) | `11c577e` |
+| Stranger floor stamp | `2163551` |
 
-**L1 hex sign:** After Settled + book, Settings / Q / Ledger may confirm **this hex admits harm** (default **off**; missing/unknown → off). Reuses standing `declare_lethal`. Confirm without book does nothing. No ton mint. Sanctuary E unchanged. Do not retag `playable-preview`.
+**Door (preferred):** `./scripts/play-offline.sh` or `./scripts/play-offline.ps1` (forces `POWRUSH_NET=off`).  
+**Bare door:** `cargo run -p powrush-client` with `POWRUSH_NET` unset or `off`.  
+Human pack: `docs/LAPTOP_OFFLINE_PLAY.md`.
 
-**E5 (2026-09-08):** L1 is on main **`7ea48328`** (#295). First hour / no book the harm row **must not arm** — hidden, or *Not your charter* / *the ledger waits* / disabled, is PASS. Lavapipe lethal-off walk: Title readable; Online grey *off (no listen)*; Play → Esc pause (*the yard is waiting*); Settings row *Not your charter* (inert, unclicked); Grove off; LAN off; no listen; nothing on `0.0.0.0`. After Settled + book the row may appear, default **off**. Do not flip it in CI. Do not retag `playable-preview` (`11c577e`). Floor stays `2163551`. **Minutes / OS / GPU / Time** stay blank.
+Title Online stays **grey**. Do not set `POWRUSH_NET=on`. Do not bind `0.0.0.0`.
 
-**Stranger floor:** `2163551` (G0 floor stamp; #279 merge; Settled Esc/Q/L click-clean on lavapipe with `POWRUSH_GEN=light`; G0 default OFF; comfort/canons). Door stays `cargo run -p powrush-client`. Online grey; not a launch candidate.
+---
 
-## Tick (~15)
+## Tick (Offline 1.0)
 
-- [ ] **Boot** — `cargo run -p powrush-client` opens Title (Play / Continue / Settings); climate readable; no account wall
-- [ ] **Online grey** — title Online row visible+disabled; honest *off (no listen)*; no peer count / fake presence
-- [ ] **net-off = no socket** — default `POWRUSH_NET=off` opens zero sockets (no outbound, no listen)
-- [ ] **E** — first tend/take: glow + feedback; well speech Idle / Glowing / Tended / Resting / Stressed
-- [ ] **Peace keys** — WASD / E / I / H / R still the first-hour hands; no new default verbs
-- [ ] **Continue / Unnamed House** — with local persist, Continue shows House name **or** exactly *Unnamed House* + *the yard remembers*
-- [ ] **House name skippable** — Skip (or quit path) → Unnamed House; progress kept; no name wall on first Play
-- [ ] **Esc → pause** — Esc in yard opens opaque pause *the yard is waiting* → Resume / Title / Quit (Quit ≠ Esc; Title keeps house JSON + lived persist)
-- [ ] **Use / Pause / sticks** — Use is **E** / gamepad **South** / on-screen **Use**; pause is **Esc** / **Start** / overlay **Pause**; on-screen sticks **cull on plates** (Title/pause/Settings/L/Q/I); Settings **Sticks · auto** keeps mouse Title clean. See `INPUT_CANON` (I0 wired).
-- [ ] **Settings persist** — Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · **Grove off|light** · **LAN off|loopback** on Title/pause Settings plate; persists in `data/powrush_settings.json` (Grove and LAN default **off**); survives quit/rerun; **env not required** — Settings alone enables light path; LAN loopback is a 127.0.0.1 lab only (Title Online stays grey); Title opaque contrast stays law
-- [ ] **Seals / heritage (after Settled)** — Well / Grove / Ember skippable (cosmetic only); heritage string only (`none|human|cydruid|quellorian|draek|ambrosian`); Q shows Seal · … when dressed; **no combat stats** / +take / +STR
-- [ ] **Book** — Hour three path reaches *the book is yours* (fabricator → Embassy seat) without a login wall
-- [ ] **Climate** — slab + `data/` climate truth survive quit/rerun (harmony / stress / tired / circulating)
-- [ ] **Week tons+restored** — week line is *this week · N tons · M restored* (not kills / XP)
-- [ ] **L3 absent on first hour** — default `POWRUSH_INGEST=off`; no **ingest overlay** on Peace boot. Note: `data/powrush_lived_tick.json` may still exist as **session persist** (Mode B resume) — that is not Ra-Thor ingest. Checklist “no tick” = no ingest overlay; do not delete the blob
-- [ ] **G0 opt-in** — default boot: no extra scatter (Grove/G0 **off**). Steward check: Settings Grove · light alone enables light path (**no env required**); `POWRUSH_GEN=light` still OR-equivalent. Same hex seed each run; Title/pause/Settings/Ledger plates still click; fog behind UI only. Never default gen on; no birds; no GenShare sockets
-- [ ] **Title contrast** — Play/Continue/Online/Settings readable (opaque high-contrast plate)
-- [ ] **Lavapipe click-clean** — soft GPU first-class walk proof per `docs/LAVAPIPE_CLICK_CLEAN.md` (readable · hits UI not world · labeled action fires · overlay culled · no 2nd Camera3d); not a unit-test name; not screenshot-only
-- [ ] **House file** — after Settled or quit-to-title, `data/powrush_house.json` exists even if name skipped (Continue: *Unnamed House · the yard remembers*)
-- [ ] **Lethal quiet** — Peace boot has no lethal UI; Settings / Q / Ledger confirm **this hex admits harm** only after Settled + book (default **off**); never default E
-- [ ] **Quit / rerun remembers** — house / climate / standing / book / settings JSON intact after Esc quit and relaunch
-- [ ] **Pause / Ledger face** — I or L shows House (or Unnamed House) + week tons+restored; Seal · … when dressed; no fake online tally
-- [ ] **Stranger loop** — `docs/STRANGER_LOOP.md` minutes match what the binary does (Title → yard → pause → House → seals → book). Playtest **minutes / OS / GPU / Time** are not a bot field — do not fill `HOUR_TWO_PLAYTEST` for the human
+- [ ] **Boot** — play-offline script or `cargo run -p powrush-client` opens Title (**Play / Continue / Settings**); climate readable; no account wall
+- [ ] **Online grey** — Online row visible+disabled; honest *off (no listen)*; no peer count / fake presence
+- [ ] **Mute** — Settings Mute present; survives quit/rerun with other settings
+- [ ] **net-off = no socket** — default / scripted `POWRUSH_NET=off` opens zero sockets
+- [ ] **Peace keys** — WASD / E / I / H / R; Esc pause; Q recipes; L ledger
+- [ ] **Esc pause on every hex** — Sanctuary and later local hexes open the same opaque pause (*the yard is waiting* → Resume / Title / Quit)
+- [ ] **Sanctuary E** — well in range may Take / tend; glow + feedback; well speech Idle / Glowing / Tended / Resting / Stressed
+- [ ] **A1 one-shot** — first successful Peace E may soft-sting once; **Mute kills it**; later Uses keep well sting path
+- [ ] **Pipe + Depths Use** — Threshold pipe and Depths Peace node: E is **Tend / restore**, **not** harvest Take
+- [ ] **Places (after Settled + book)** — lists **Sanctuary · Heartwood · Threshold · Depths** only (Market HOLD)
+- [ ] **L: this week vs House week** — *this week* = current disk hex; **House week** = sum tons + restored over persisted Sanctuary / Heartwood / Depths files (Threshold rides Heartwood unless own file; Market never in sum)
+- [ ] **Continue / Unnamed House** — local persist → House name **or** *Unnamed House* + *the yard remembers*
+- [ ] **Settings persist** — Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove off|light · LAN off|loopback (defaults off); LAN loopback = `127.0.0.1` lab only
+- [ ] **Book** — Hour three path reaches *the book is yours* without a login wall
+- [ ] **Quit / rerun** — user-dir (or `data/` fallback) house / climate / standing / book / settings intact
+- [ ] **Title contrast** — Play / Continue / Settings / Online readable
+- [ ] **Lethal quiet** — first hour / no book: harm row inert; never default E
+- [ ] **Stranger loop** — `docs/STRANGER_LOOP.md` matches this binary
 
-## Explicit refuse (do not tick these into existence)
+Historical comfort notes (E4 glow, L1 hex sign, Grove opt-in, lavapipe click-clean) remain law; see `SLICE_LOG` / `OFFLINE_SKU`. Do not invent Hour-two minutes here.
 
-- `POWRUSH_NET=on` as default · bind `0.0.0.0` · lighting title Online · Steam store copy · fake presence · new Peace verbs · combat stats on seals/heritage · `POWRUSH_GEN` default on · GenShare sockets · fog/birds as preview juice · cutting `playable-preview` from this checklist alone
-- **GenShare is not a Peace tick** — recipe law lives in `docs/GENSHARE.md`; do not invent a Peace-hour GenShare checkbox or claim sockets shipped. L0 file may exist offline (`data/powrush_genshare.jsonl`); not a Peace Online tick.
+---
+
+## Explicit refuse
+
+- `POWRUSH_NET=on` as default · bind `0.0.0.0` · lighting Title Online · Steam store copy · fake presence · Market as a Place · retag `11c577e` · Ra-Thor driving WASD · A2–A4 freelance · Phase B/C/D from this checklist · GenShare sockets as a Peace tick · F9 as store Online
 
 ## Related
 
-`STRANGER_LOOP` · `INPUT_CANON` · `PLACES_BIBLE` · `LAVAPIPE_CLICK_CLEAN` · `GENSHARE` · `LAUNCH_UX` · `FIRST_HOUR_PLAYTEST` · `PHASE_PLAYABLE_LOOP` · Dev recipe `F9_TWO_CLIENT_LOCALHOST` (not a title feature).
+`STRANGER_LOOP` · `LAPTOP_OFFLINE_PLAY` · `OFFLINE_SKU` · `LOCAL_COURT` · `AAA_FEEL_WORKPACK` · `INPUT_CANON` · `FIRST_HOUR_PLAYTEST` · Dev recipe `F9_TWO_CLIENT_LOCALHOST` (not a title feature).
 
 **Thunder locked in.** Yoi ⚡

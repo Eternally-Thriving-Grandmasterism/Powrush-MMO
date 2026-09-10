@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-09 — Phase A5: stranger checklist Offline 1.0 sync
+
+`slice: Phase A5 PREVIEW_CHECKLIST + STRANGER_LOOP sync | docs only; Title Online grey; Play/Continue/Settings/Mute; Esc pause every hex; pipe+Depths E=Tend/restore not harvest; Places four rooms; L this week vs House week; A1 Mute kills; door play-offline.sh|.ps1 or cargo run; tips feel 8311ac26 bill 42a32ae play a131cb1/1eb63fb; tag stays 11c577e; no client; no A2–A4; no B/C/D; no POWRUSH_NET=on; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
+
 ## 2026-09-09 — Phase A0: play-offline scripts
 
 `slice: Phase A0 play-offline scripts | scripts/play-offline.sh + .ps1 force POWRUSH_NET=off then cargo run -p powrush-client; LAPTOP_OFFLINE_PLAY door aligned; no client; no Title Online; no A5 in this PR; play tip still 8311ac26; tag 11c577e untouched; floor 2163551; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
