@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-09 — Tape truth: YouTube is pitch memory
+
+`slice: TAPE_TRUTH docs stamp | two tapes only (Pre-Alpha Demo 2025-07-04 + City Hall 2019); keep hands/play-to-learn/peoples-later/wars-as-later-weather; never crypto/NFT/2M-P2P/ads/complete-while-Online-grey/Unreal-not-cargo/race-lobby/second-HUD; trailer Four rooms one House bill Offline; peoples after House; enjoyment = A1+feel-move+Places; tip family f8ae3ed; tag 11c577e; no client; no comfort in this PR; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
+
 ## 2026-09-09 — Phase A5: stranger checklist Offline 1.0 sync
 
 `slice: Phase A5 PREVIEW_CHECKLIST + STRANGER_LOOP sync | docs only; Title Online grey; Play/Continue/Settings/Mute; Esc pause every hex; pipe+Depths E=Tend/restore not harvest; Places four rooms; L this week vs House week; A1 Mute kills; door play-offline.sh|.ps1 or cargo run; tips feel 8311ac26 bill 42a32ae play a131cb1/1eb63fb; tag stays 11c577e; no client; no A2–A4; no B/C/D; no POWRUSH_NET=on; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
