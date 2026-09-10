@@ -22,17 +22,26 @@ This pack is for a **human** on a real laptop. It is **not** a lavapipe agent wa
 
 ## Door
 
+Feel / play content tip remains **`8311ac26`** (feel-move). Prefer current `main` for this pack’s scripts once Phase A0 is on main.
+
 ```bash
 git clone https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO.git
 cd Powrush-MMO
-git checkout 8311ac26
+git checkout 8311ac26   # or main after A0 scripts land
 # optional Core ballot (same as local court):
 cargo test -p shared -p rsil-identity
 cargo test -p powrush-client --lib
-cargo run -p powrush-client
 ```
 
-Leave `POWRUSH_NET` **unset** (or `off`). Do **not** set `POWRUSH_NET=on`.
+**Preferred Offline door** (forces `POWRUSH_NET=off`, never lights Title Online):
+
+```bash
+./scripts/play-offline.sh
+# Windows PowerShell:
+#   ./scripts/play-offline.ps1
+```
+
+Equivalent bare door: `cargo run -p powrush-client` with `POWRUSH_NET` **unset** or `off`. Do **not** set `POWRUSH_NET=on`.
 
 ---
 

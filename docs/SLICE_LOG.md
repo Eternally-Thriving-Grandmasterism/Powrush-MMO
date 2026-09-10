@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-09 — Phase A0: play-offline scripts
+
+`slice: Phase A0 play-offline scripts | scripts/play-offline.sh + .ps1 force POWRUSH_NET=off then cargo run -p powrush-client; LAPTOP_OFFLINE_PLAY door aligned; no client; no Title Online; no A5 in this PR; play tip still 8311ac26; tag 11c577e untouched; floor 2163551; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
+
 ## 2026-09-09 — Feel-move: Fixed 60 Hz + Use buffer
 
 `slice: feel-move SC2 contract | FixedUpdate @ 60 for locomotion; accel toward wish + stop-on-release (no ice-skate); one Use buffer ≤120 ms when entering range; folds into PlayerInput.interact so Peace verbs unchanged; A1 audio untouched; no Title Online; no A4; no rooms; playable-preview stays 11c577e; floor 2163551; info@Rathor.ai; independent of xAI; no certification or warranty claims; core: shared+rsil-identity + powrush-client --lib; verdict: AUTO`
