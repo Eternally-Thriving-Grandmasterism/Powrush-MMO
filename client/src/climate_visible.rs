@@ -13,6 +13,8 @@ use shared::heartwood_wards::WARDS_NOTICE;
 use crate::climate_script::TeachingClaim;
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::heartwood_lip::ThresholdShelfSession;
+use crate::hex_travel::HexTravelState;
+use shared::hex_travel::PlaceId;
 use crate::heartwood_wards::WardSession;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
@@ -174,6 +176,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
 fn update_climate_state_slab(
     nearby: Res<NearbyMercyNode>,
     bind: Res<LivedHourBind>,
+    travel: Res<HexTravelState>,
     threshold: Option<Res<ThresholdShelfSession>>,
     wards: Option<Res<WardSession>>,
     depths: Option<Res<DepthsPeaceTend>>,
@@ -195,7 +198,8 @@ fn update_climate_state_slab(
         bind.guidance_hidden,
         guidance.as_ref().map(|g| g.dismissed).unwrap_or(false),
     );
-    // H hides guidance, but an in-range well keeps its state sentence on this slab.
+    let place = place_clarity_label(travel.current, threshold_line.is_some());
+    // H-2026-09-10-1: place + well mood stay on this one slab even when H hid the card.
     let show = climate_slab_should_show(
         nearby.in_range,
         threshold_line.is_some(),
@@ -280,13 +284,14 @@ fn update_climate_state_slab(
     };
     // P2: when a well and Wards posts overlap, keep both on one slab — well first.
     // P3: after a Depths Peace restore, show that line on this same slab.
-    let line = compose_climate_slab_line(
+    let body = compose_climate_slab_line(
         well_line,
         wards_line,
         depths_line,
         threshold_line,
         fallback,
     );
+    let line = place_clarity_line(place, body);
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -307,10 +312,31 @@ fn climate_slab_should_show(
     depths_restore: bool,
     guidance_hidden: bool,
 ) -> bool {
-    well_in_range
-        || wards_near
-        || depths_restore
-        || (threshold_near && !guidance_hidden)
+    let _ = (well_in_range, threshold_near, wards_near, depths_restore, guidance_hidden);
+    // H-2026-09-10-1: one climate slab always carries the place name; well mood
+    // and near-speech still compose on top. H hides the guidance card, not this line.
+    true
+}
+
+/// Hour place name on the one climate slab (four rooms, not a second HUD).
+fn place_clarity_label(current: PlaceId, threshold_near: bool) -> &'static str {
+    match current {
+        PlaceId::Sanctuary => "Sanctuary",
+        PlaceId::Depths => "Depths",
+        PlaceId::Heartwood if threshold_near => "Threshold",
+        PlaceId::Heartwood => "Heartwood",
+    }
+}
+
+fn place_clarity_line(place: &str, body: String) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        place.to_string()
+    } else if body.starts_with(place) {
+        body.to_string()
+    } else {
+        format!("{place} · {body}")
+    }
 }
 
 fn well_state_caption(state: NodeState) -> String {
@@ -443,9 +469,24 @@ mod tests {
     }
 
     #[test]
-    fn hidden_guidance_does_not_keep_threshold_speech_open() {
-        assert!(!climate_slab_should_show(false, true, false, false, true));
+    fn hidden_guidance_keeps_threshold_place_readable() {
+        // H-2026-09-10-1: Threshold room name/speech survives H on this slab.
+        assert!(climate_slab_should_show(false, true, false, false, true));
         assert!(climate_slab_should_show(false, true, false, false, false));
+    }
+
+    #[test]
+    fn place_clarity_prefixes_well_mood_when_h_hid() {
+        let line = place_clarity_line(
+            "Sanctuary",
+            well_state_sentence("North Well", NodeState::Idle),
+        );
+        assert_eq!(line, "Sanctuary · North Well is Idle · •");
+        assert!(line.contains("Idle"));
+        let heart = place_clarity_label(PlaceId::Heartwood, false);
+        assert_eq!(heart, "Heartwood");
+        assert_eq!(place_clarity_label(PlaceId::Heartwood, true), "Threshold");
+        assert_eq!(place_clarity_label(PlaceId::Depths, false), "Depths");
     }
 
     #[test]
@@ -492,7 +533,8 @@ mod tests {
     fn depths_restore_line_shows_on_existing_slab() {
         let mut tend = DepthsPeaceTend::default();
         assert_eq!(depths_restore_line(Some(&tend)), None);
-        assert!(!climate_slab_should_show(false, false, false, false, true));
+        // Place clarity: slab stays up with the place name even with no near speech.
+        assert!(climate_slab_should_show(false, false, false, false, true));
         tend.last_line = "Depths Peace · restored".into();
         assert_eq!(
             depths_restore_line(Some(&tend)).as_deref(),
