@@ -25,6 +25,8 @@ One cold stranger. No second HUD. No server required.
 **Bare door:** `cargo run -p powrush-client` with `POWRUSH_NET` unset or `off`.  
 Human pack: `docs/LAPTOP_OFFLINE_PLAY.md`.
 
+**B1 already (audit `6708b71`):** South = Use (`gamepad_south_use` default true). Places plate + pause Places row receive click/tap. No code.
+
 Title Online stays **grey**. Do not set `POWRUSH_NET=on`. Do not bind `0.0.0.0`.
 
 ---
