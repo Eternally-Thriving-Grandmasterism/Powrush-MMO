@@ -66,6 +66,8 @@ pub struct SteamAbundanceMirror {
     pub last_note: Option<String>,
     pub force_pending: bool,
     pub exports: u32,
+    /// Missing-source stage errors log once (no every-tick spam).
+    pub missing_source_logged: bool,
 }
 
 impl Default for SteamAbundanceMirror {
@@ -78,6 +80,7 @@ impl Default for SteamAbundanceMirror {
             last_note: None,
             force_pending: false,
             exports: 0,
+            missing_source_logged: false,
         }
     }
 }
@@ -87,7 +90,10 @@ pub struct SteamAbundanceMirrorPlugin;
 impl Plugin for SteamAbundanceMirrorPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SteamAbundanceMirror>()
-            .add_systems(Startup, ensure_abundance_stage_dirs)
+            .add_systems(
+                Startup,
+                (ensure_abundance_stage_dirs, ensure_local_lattice_stub).chain(),
+            )
             .add_systems(
                 Update,
                 (
@@ -108,6 +114,29 @@ fn ensure_abundance_stage_dirs(mirror: Res<SteamAbundanceMirror>) {
         portable = ABUNDANCE_SUBDIR,
         "Abundance Auto-Cloud stage directories ready"
     );
+}
+
+/// Seed an empty lattice share once so Auto-Cloud copy does not spam os error 2.
+fn ensure_local_lattice_stub() {
+    let path = shared::user_persist::persist_path(LOCAL_LATTICE);
+    if path.exists() {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    match fs::write(&path, b"{}") {
+        Ok(()) => info!(
+            target: "powrush::steam_autocloud",
+            path = %path.display(),
+            "seeded empty powrush_lattice_flow_share.json"
+        ),
+        Err(e) => warn!(
+            target: "powrush::steam_autocloud",
+            path = %path.display(),
+            "could not seed lattice stub: {e}"
+        ),
+    }
 }
 
 fn atomic_stage_copy(src: impl AsRef<Path>, dest: &Path) -> Result<(), String> {
@@ -150,7 +179,11 @@ fn stage_all(mirror: &mut SteamAbundanceMirror) {
             }
             Err(e) => {
                 notes.push(format!("{label}·"));
-                info!(target: "powrush::steam_autocloud", "{e}");
+                // NotFound (os error 2) and other source misses: log once, not every tick.
+                if !mirror.missing_source_logged {
+                    mirror.missing_source_logged = true;
+                    info!(target: "powrush::steam_autocloud", "{e}");
+                }
             }
         }
     }
@@ -193,9 +226,11 @@ fn auto_cloud_trigger_on_progress(
     }
 
     stage_all(&mut mirror);
-    if allocate.choices_made > 0 {
-        mirror.last_staged_choices = allocate.choices_made.max(lattice.last_exported_choices);
-    }
+    // Always advance the watermark so a missing source cannot re-fire every frame.
+    mirror.last_staged_choices = allocate
+        .choices_made
+        .max(lattice.last_exported_choices)
+        .max(mirror.last_staged_choices);
 }
 
 fn force_flush_key(
@@ -228,5 +263,10 @@ mod tests {
     fn remote_names_stable() {
         assert_eq!(REMOTE_JOURNEY, "powrush_abundance_journey.json");
         assert_eq!(REMOTE_LATTICE, "powrush_lattice_flow_share.json");
+    }
+
+    #[test]
+    fn local_lattice_path_is_data_share() {
+        assert_eq!(LOCAL_LATTICE, "data/powrush_lattice_flow_share.json");
     }
 }
