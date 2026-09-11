@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-11 — post-#360 SETTLED_DOOR_CLARITY (rung C)
+
+`slice: GREEN-DOCS post-#360 rung C | SETTLED_DOOR_CLARITY door bible for GDD_IMMERSION_REVISION §3 rung C only; Settled+book as door not list-row teleport; four Places disk rooms; Other Place blocked without charter expected; candidates hex_travel/ledger_bind/world_answer/title_screen pause Places; confirm-before-build until Core names YELLOW SLICE; no mesh/Online/Market/fifth Place/camera rewrite/WelcomeBack blank; Title Online grey; no client/shared/server/Cargo/sockets/assets; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
+
 ## 2026-09-11 — Core Confirmed `"2 B proceed"` → PERSON_READ_SPEC
 
 `slice: GREEN-DOCS Core Confirmed 2 B proceed | PERSON_READ_SPEC presentation bible for GDD_IMMERSION_REVISION §3 rung B only; still-frame person + Peace E action; candidates living_body/human_presence/local_player/harvest_feel/feel_move; no mesh/anim freestyle; Codex C-## stay Imagine; WelcomeBack blank parked; confirm-before-build until Core names YELLOW SLICE with exact paths; Title Online grey; no client/shared/server/Cargo/sockets/assets/meshes; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`

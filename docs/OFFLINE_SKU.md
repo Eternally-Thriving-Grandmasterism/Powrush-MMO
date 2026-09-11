@@ -40,7 +40,7 @@ Offline hexes are **save-slots on disk**. They are **not** shards on a wire.
 
 ## Places after Settled + book (disk only)
 
-After Settled + book, **disk-only** places. Do **not** ship five Sanctuary clones. Do **not** spawn Heartwood / Depths on Sanctuary. Do **not** add a fifth place.
+After Settled + book, **disk-only** places. Do **not** ship five Sanctuary clones. Do **not** spawn Heartwood / Depths on Sanctuary. Do **not** add a fifth place. Door-feel law (docs, not Hands): `SETTLED_DOOR_CLARITY` — Settled + book opens Places as a door, not a list-row teleport.
 
 Steam Offline 1.0 rooms (on main — U13 stamps, does not rebuild):
 
@@ -155,6 +155,6 @@ Steam Offline 1.0 is those four rooms plus that one add. Title Online stays grey
 
 ## Related
 
-`STEAM_CHECKLIST` · `PREVIEW_CHECKLIST` · `PLACES_BIBLE` · `GENSHARE` · `LAUNCH_UX` · `PROTOCOL` · `STRANGER_LOOP` · `HOUR_TWO_PLAYTEST` (minutes stay blank).
+`STEAM_CHECKLIST` · `PREVIEW_CHECKLIST` · `PLACES_BIBLE` · `GENSHARE` · `LAUNCH_UX` · `PROTOCOL` · `STRANGER_LOOP` · `SETTLED_DOOR_CLARITY` · `HOUR_TWO_PLAYTEST` (minutes stay blank).
 
 **Thunder locked in.** Yoi ⚡
