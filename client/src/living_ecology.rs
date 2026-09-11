@@ -1,14 +1,20 @@
 /*!
- * Living Ecology — v22.8.0
+ * Living Ecology — v22.8.0 + Place-mood dress / work-loop rhyme (H-2026-09-11-E2)
  *
  * PersistentWeb.thread_strength remembers mercy across local sessions
  * (abyssal JSON: persistent_thread_strength + 0.15 decay on return).
  *
- * PATSAGi v22.4 | Contact: info@Rathor.ai | Yoi ⚡
+ * Ecology props dress Place climate the greet may rhyme with — they are
+ * NOT persons, NOT owned inventory, NOT a fence. Work-loop feel is the
+ * same Tend / Mend care at Place posts (NPC_SCHEDULE_SPEC). Hour finishes
+ * if every person is removed. Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
 
+use crate::living_day::{
+    greet_by_place_mood, schedule_copy_is_honest, SacredVerb, SchedulePlace, WellMood,
+};
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::world_answer::{AnswerKind, WorldAnswer};
 
@@ -58,7 +64,10 @@ impl Default for EcologyState {
 #[derive(Resource, Debug)]
 pub struct BiomeFeel {
     pub regen_mul: f32,
+    /// Place-honest climate label the greet may rhyme with.
     pub name: &'static str,
+    /// Four Places — dress posts schedules / greets prefer.
+    pub place: SchedulePlace,
 }
 
 impl Default for BiomeFeel {
@@ -66,6 +75,7 @@ impl Default for BiomeFeel {
         Self {
             regen_mul: 1.0,
             name: "Sanctuary",
+            place: SchedulePlace::Sanctuary,
         }
     }
 }
@@ -89,6 +99,67 @@ impl PersistentWeb {
         // JSON: cross_session_resonance_decay = 0.15
         self.thread_strength = (self.thread_strength * 0.85).clamp(0.05, 1.0);
     }
+}
+
+/// SoftPlayerRealm id → Place the ecology dress rhymes with.
+pub fn place_for_realm(realm: Option<u8>) -> SchedulePlace {
+    match realm.unwrap_or(0) {
+        2 => SchedulePlace::Heartwood,
+        4 | 1 => SchedulePlace::Threshold,
+        3 => SchedulePlace::Depths,
+        _ => SchedulePlace::Sanctuary,
+    }
+}
+
+/// Place-honest BiomeFeel name (greet / climate slab rhyme).
+pub fn place_dress_name(place: SchedulePlace) -> &'static str {
+    place.name()
+}
+
+/// Ecology care work-loop at a Place post: Tend / Mend only (never Take-as-theft).
+/// Threshold Tend-not-Take; Depths restore-not-Take (Mend).
+pub fn ecology_care_verb(place: SchedulePlace) -> SacredVerb {
+    match place {
+        SchedulePlace::Sanctuary | SchedulePlace::Heartwood | SchedulePlace::Threshold => {
+            SacredVerb::Tend
+        }
+        SchedulePlace::Depths => SacredVerb::Mend,
+    }
+}
+
+/// Still-frame ecology work-loop line: post · Tend/Mend (props dress, not persons).
+pub fn ecology_work_loop_line(place: SchedulePlace) -> String {
+    format!("{} · {}", place.post(), ecology_care_verb(place).name())
+}
+
+/// Greet rhyme: Place + well mood on the one HUD (reuses day helper — ecology dress only).
+pub fn ecology_greet_rhyme(place: SchedulePlace, mood: WellMood) -> &'static str {
+    greet_by_place_mood(place, mood)
+}
+
+/// Ecology props are presentation dress — never persons.
+pub fn ecology_props_are_persons() -> bool {
+    false
+}
+
+/// Ecology props are not owned inventory.
+pub fn ecology_props_are_owned_inventory() -> bool {
+    false
+}
+
+/// Ecology props are not a fence / ownership economy.
+pub fn ecology_props_are_fence() -> bool {
+    false
+}
+
+/// Hour-finish bar: ecology dress never strands the hour when persons are removed.
+pub fn hour_finishes_without_persons() -> bool {
+    true
+}
+
+/// Ecology / greet copy refuses crime · ownership · theft · fence · gold · Market · Online.
+pub fn ecology_copy_is_honest(s: &str) -> bool {
+    schedule_copy_is_honest(s)
 }
 
 pub struct LivingEcologyPlugin;
@@ -280,8 +351,12 @@ fn remember_care(
     }
     eco.last_kind = answer.kind;
     match answer.kind {
+        // Tend / Flow care the web; Reserve banks repair-rights for later Mend.
         AnswerKind::Tend | AnswerKind::Flow => {
             web.thread_strength = (web.thread_strength + 0.08).min(1.0);
+        }
+        AnswerKind::Reserve => {
+            web.thread_strength = (web.thread_strength + 0.04).min(1.0);
         }
         AnswerKind::Take => {
             web.thread_strength = (web.thread_strength - 0.05).max(0.0);
@@ -296,12 +371,9 @@ fn dress_for_climate(
     mut q: Query<(&EcologyProp, &mut Visibility)>,
 ) {
     let id = realm.current.unwrap_or(0);
-    feel.name = match id {
-        2 => "Verdant Heartwood",
-        4 | 1 => "Crystal Spires",
-        3 => "Abyssal Depths",
-        _ => "Sanctuary",
-    };
+    let place = place_for_realm(realm.current);
+    feel.place = place;
+    feel.name = place_dress_name(place);
     feel.regen_mul = match id {
         4 | 1 => 1.6,
         3 => 1.9,
@@ -329,8 +401,9 @@ fn move_deer(
     time: Res<Time>,
     mut q: Query<&mut Transform, With<ResonantDeer>>,
 ) {
+    // Care (Tend / Flow / Reserve→Mend bank) draws the deer near; Take keeps it far.
     let target = match eco.last_kind {
-        AnswerKind::Tend | AnswerKind::Flow => DEER_NEAR,
+        AnswerKind::Tend | AnswerKind::Flow | AnswerKind::Reserve => DEER_NEAR,
         AnswerKind::Take => DEER_FAR,
         _ => Vec3::new(5.2, 0.55, 3.6),
     };
@@ -345,7 +418,10 @@ fn sing_or_silence_spires(
     mut materials: ResMut<Assets<StandardMaterial>>,
     q: Query<&CrystalGlow>,
 ) {
-    let peak = matches!(eco.last_kind, AnswerKind::Tend | AnswerKind::Flow);
+    let peak = matches!(
+        eco.last_kind,
+        AnswerKind::Tend | AnswerKind::Flow | AnswerKind::Reserve
+    );
     let silent = matches!(eco.last_kind, AnswerKind::Take);
     let e = if peak {
         LinearRgba::new(0.55, 0.85, 1.2, 1.0)
@@ -368,7 +444,10 @@ fn pulse_mycelium(
     q: Query<&MyceliumGlow>,
 ) {
     let s = web.thread_strength;
-    let surge = matches!(eco.last_kind, AnswerKind::Tend | AnswerKind::Flow);
+    let surge = matches!(
+        eco.last_kind,
+        AnswerKind::Tend | AnswerKind::Flow | AnswerKind::Reserve
+    );
     let night = matches!(eco.last_kind, AnswerKind::Take);
     let e = if surge {
         LinearRgba::new(0.12 + s * 0.20, 0.45 + s * 0.70, 0.28 + s * 0.40, 1.0)
@@ -381,5 +460,130 @@ fn pulse_mycelium(
         if let Some(mat) = materials.get_mut(&glow.handle) {
             mat.emissive = e;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn place_mood_dress_maps_realm_to_four_places() {
+        assert_eq!(place_for_realm(Some(0)), SchedulePlace::Sanctuary);
+        assert_eq!(place_for_realm(None), SchedulePlace::Sanctuary);
+        assert_eq!(place_for_realm(Some(2)), SchedulePlace::Heartwood);
+        assert_eq!(place_for_realm(Some(1)), SchedulePlace::Threshold);
+        assert_eq!(place_for_realm(Some(4)), SchedulePlace::Threshold);
+        assert_eq!(place_for_realm(Some(3)), SchedulePlace::Depths);
+        assert_eq!(place_dress_name(SchedulePlace::Heartwood), "Heartwood");
+        assert_eq!(place_dress_name(SchedulePlace::Depths), "Depths");
+        let feel = BiomeFeel::default();
+        assert_eq!(feel.place, SchedulePlace::Sanctuary);
+        assert_eq!(feel.name, "Sanctuary");
+    }
+
+    #[test]
+    fn ecology_work_loop_tend_mend_place_honest() {
+        assert_eq!(
+            ecology_care_verb(SchedulePlace::Sanctuary),
+            SacredVerb::Tend
+        );
+        assert_eq!(
+            ecology_care_verb(SchedulePlace::Heartwood),
+            SacredVerb::Tend
+        );
+        assert_eq!(
+            ecology_care_verb(SchedulePlace::Threshold),
+            SacredVerb::Tend
+        );
+        assert_eq!(ecology_care_verb(SchedulePlace::Depths), SacredVerb::Mend);
+        // Never Take as ecology care work.
+        for place in [
+            SchedulePlace::Sanctuary,
+            SchedulePlace::Heartwood,
+            SchedulePlace::Threshold,
+            SchedulePlace::Depths,
+        ] {
+            assert_ne!(ecology_care_verb(place), SacredVerb::Take);
+            let line = ecology_work_loop_line(place);
+            assert!(line.contains(place.post()), "{line}");
+            assert!(
+                line.contains("Tend") || line.contains("Mend"),
+                "{line}"
+            );
+            assert!(ecology_copy_is_honest(&line), "{line}");
+        }
+        assert_eq!(
+            ecology_work_loop_line(SchedulePlace::Threshold),
+            "Threshold pipe · Tend"
+        );
+        assert_eq!(
+            ecology_work_loop_line(SchedulePlace::Depths),
+            "Depths landing · Mend"
+        );
+    }
+
+    #[test]
+    fn greet_rhyme_honest_with_place_mood_dress() {
+        for place in [
+            SchedulePlace::Sanctuary,
+            SchedulePlace::Heartwood,
+            SchedulePlace::Threshold,
+            SchedulePlace::Depths,
+        ] {
+            for mood in [
+                WellMood::Idle,
+                WellMood::Glowing,
+                WellMood::Tended,
+                WellMood::Resting,
+                WellMood::Stressed,
+            ] {
+                let greet = ecology_greet_rhyme(place, mood);
+                assert_eq!(greet, greet_by_place_mood(place, mood));
+                assert!(ecology_copy_is_honest(greet), "{greet}");
+            }
+        }
+    }
+
+    #[test]
+    fn ecology_props_not_persons_owned_or_fence_hour_finishes() {
+        assert!(!ecology_props_are_persons());
+        assert!(!ecology_props_are_owned_inventory());
+        assert!(!ecology_props_are_fence());
+        assert!(hour_finishes_without_persons());
+        // Prop kinds exist as dress only — removing persons cannot strand these flags.
+        let _ = [
+            PropKind::Tree,
+            PropKind::Stone,
+            PropKind::Deer,
+            PropKind::Crystal,
+            PropKind::Mycelium,
+        ];
+        assert!(hour_finishes_without_persons());
+    }
+
+    #[test]
+    fn refuse_crime_gold_market_online_copy() {
+        assert!(!ecology_copy_is_honest("sell gold on Market"));
+        assert!(!ecology_copy_is_honest("crime meter Online"));
+        assert!(!ecology_copy_is_honest("theft and fence ownership"));
+        assert!(!ecology_copy_is_honest("pickpocket the stall"));
+        assert!(ecology_copy_is_honest("Heartwood Wards · Tend"));
+        assert!(ecology_copy_is_honest("Depths landing · Mend"));
+        assert!(ecology_copy_is_honest(
+            "Threshold pipe — Tend, not Take."
+        ));
+    }
+
+    #[test]
+    fn persistent_web_decay_stays_clamped() {
+        let mut web = PersistentWeb {
+            thread_strength: 1.0,
+        };
+        web.apply_decay_on_return();
+        assert!((web.thread_strength - 0.85).abs() < 1e-5);
+        web.thread_strength = 0.05;
+        web.apply_decay_on_return();
+        assert!(web.thread_strength >= 0.05);
     }
 }
