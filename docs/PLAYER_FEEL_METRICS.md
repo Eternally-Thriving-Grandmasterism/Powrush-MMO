@@ -46,7 +46,7 @@ Do not turn this into telemetry theatre. A human note with a direct quote and th
 
 ## 3. Fun gap and order
 
-The first fun gap is not “more MMO.” It is **immersion ladder A**: the climate slab / **#355** read—Place + well mood, readable on the one surface and surviving **H**. The next gap is **B: person-read**—a person and their action legible in a still.
+The first fun gap is not “more MMO.” It is **immersion ladder A**: the climate slab / **#355** read—Place + well mood, readable on the one surface and surviving **H**. The next gap is **B: person-read**—a person and their action legible in a still (`PERSON_READ_SPEC`; Core Confirmed `"2 B proceed"` = rung B only).
 
 Order stays:
 
@@ -74,6 +74,6 @@ Codex spectacle cannot skip A or B. A beautiful fleet does not repair an unreada
 
 ## Related
 
-`FUN_WITHOUT_WOW` · `BLIZZARD_CRAFT_UX` · `GDD_IMMERSION_REVISION` · `STUDIO_ARCHITECTURE_ORDER` · `OFFLINE_SKU` · `RBE_FIRST_HOUR` · `PLACES_BIBLE` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `MECHANICS_INTERACTION_BIBLE` · `PRACTICE_NOT_VERB` · `NET_OFFLINE_CONTRACT`.
+`FUN_WITHOUT_WOW` · `BLIZZARD_CRAFT_UX` · `GDD_IMMERSION_REVISION` · `STUDIO_ARCHITECTURE_ORDER` · `OFFLINE_SKU` · `RBE_FIRST_HOUR` · `PLACES_BIBLE` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `MECHANICS_INTERACTION_BIBLE` · `PERSON_READ_SPEC` · `PRACTICE_NOT_VERB` · `NET_OFFLINE_CONTRACT`.
 
 **Thunder locked in.** Yoi ⚡

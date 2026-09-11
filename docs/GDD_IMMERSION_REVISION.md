@@ -110,6 +110,7 @@ Ordered rungs. **Each rung waits on the previous rung being confirmed and, where
 **Gate:** Core posts the shots. A fail row in `PLACE_CLARITY_WALK` §4 is the only thing that earns the next feel.
 
 ### Rung B — Person-shaped bodies + action reads (the CO gift)
+**Rung B law:** `docs/PERSON_READ_SPEC.md` (Core Confirmed `"2 B proceed"` — this rung only; Hands still wait on a named YELLOW SLICE).  
 **Status:** **not law.** Proposal. YELLOW Hands **later**, after A's shots.  
 **Ask:** a stranger names *a person standing in a room* and can read the action being performed, from a still frame, at Sanctuary's default camera distance. Breath / carry / heavy already exist in sim — make them visible on the body.  
 **Scope guard:** one player body read plus the Peace **E** action read. **No art-pack freestyle** — no new mesh set, no texture pack, no animation library, no character creator, no silhouette that implies a class kit or a weapon.  
@@ -206,6 +207,6 @@ Core (steward) writes one of **CONFIRMED / STEER / HOLD** against each row. A ro
 
 ## Related
 
-`GDD_ADAPTATION` · `FUN_WITHOUT_WOW` · `OFFLINE_SKU` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `FIRST_LAUNCH_UI_SCALE` · `LAUNCH_UX` · `INPUT_CANON` · `PLACES_BIBLE` · `RBE_FIRST_HOUR` · `SIM_AND_HAND_CANON` · `STRANGER_LOOP` · `PATSAGI_MERGE_COURT`.
+`GDD_ADAPTATION` · `FUN_WITHOUT_WOW` · `OFFLINE_SKU` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `FIRST_LAUNCH_UI_SCALE` · `LAUNCH_UX` · `INPUT_CANON` · `PLACES_BIBLE` · `RBE_FIRST_HOUR` · `SIM_AND_HAND_CANON` · `STRANGER_LOOP` · `PERSON_READ_SPEC` · `PATSAGI_MERGE_COURT`.
 
 **Thunder locked in.** Yoi ⚡

@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-11 — Core Confirmed `"2 B proceed"` → PERSON_READ_SPEC
+
+`slice: GREEN-DOCS Core Confirmed 2 B proceed | PERSON_READ_SPEC presentation bible for GDD_IMMERSION_REVISION §3 rung B only; still-frame person + Peace E action; candidates living_body/human_presence/local_player/harvest_feel/feel_move; no mesh/anim freestyle; Codex C-## stay Imagine; WelcomeBack blank parked; confirm-before-build until Core names YELLOW SLICE with exact paths; Title Online grey; no client/shared/server/Cargo/sockets/assets/meshes; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
+
 ## 2026-09-11 — Play-ball Confirmed mechanics + player-feel docs pack
 
 `slice: GREEN-DOCS Play-ball Confirmed | MECHANICS_INTERACTION_BIBLE + PLAYER_FEEL_METRICS; thin Quellorian ART_BIBLE rhyme; IMAGINE_TRAILER_PACK C-12..C-16 steward-reference Codex still IDs; one teacher matrix for Tend/Take/Flow/Reserve/Mend × four Places × five well moods; Offline hands before lore; Codex/Imagine not Sanctuary cargo; all Hands follow-ons confirm-before-build; Title Online grey; no client/shared/server/Cargo/sockets/assets/meshes; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
