@@ -119,6 +119,7 @@ Ordered rungs. **Each rung waits on the previous rung being confirmed and, where
 **Gate:** Core confirms §3 rung B **and** names the asset budget. Any mesh or texture add is its own named art slice with its own ballot.
 
 ### Rung C — Settled + book Other Place door clarity
+**Rung C law:** `docs/SETTLED_DOOR_CLARITY.md` (post-`#360` next step — this rung only; Hands still wait on a named YELLOW SLICE).  
 **Status:** not law. Proposal.  
 **Ask:** the **Settled + book** turn reads as a door being opened, and the Places plate reads as *four rooms on your disk* — not a menu of teleports. Arriving in another room should land as arrival.  
 **Constraints:** four rooms and only four. Play still always boots Sanctuary; Continue loads last hex (`OFFLINE_SKU`). Places stays the one dedicated plate above the world; no second HUD, no fifth row, no Market row.  
@@ -207,6 +208,6 @@ Core (steward) writes one of **CONFIRMED / STEER / HOLD** against each row. A ro
 
 ## Related
 
-`GDD_ADAPTATION` · `FUN_WITHOUT_WOW` · `OFFLINE_SKU` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `FIRST_LAUNCH_UI_SCALE` · `LAUNCH_UX` · `INPUT_CANON` · `PLACES_BIBLE` · `RBE_FIRST_HOUR` · `SIM_AND_HAND_CANON` · `STRANGER_LOOP` · `PERSON_READ_SPEC` · `PATSAGI_MERGE_COURT`.
+`GDD_ADAPTATION` · `FUN_WITHOUT_WOW` · `OFFLINE_SKU` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `FIRST_LAUNCH_UI_SCALE` · `LAUNCH_UX` · `INPUT_CANON` · `PLACES_BIBLE` · `RBE_FIRST_HOUR` · `SIM_AND_HAND_CANON` · `STRANGER_LOOP` · `PERSON_READ_SPEC` · `SETTLED_DOOR_CLARITY` · `PATSAGI_MERGE_COURT`.
 
 **Thunder locked in.** Yoi ⚡
