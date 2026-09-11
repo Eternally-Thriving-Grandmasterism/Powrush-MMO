@@ -17,6 +17,7 @@ use crate::hex_travel::HexTravelState;
 use shared::hex_travel::PlaceId;
 use crate::heartwood_wards::WardSession;
 use crate::lived_hour_bind::LivedHourBind;
+use crate::local_settings::LocalColorblindWells;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 use crate::depths_landing::DepthsPeaceTend;
 
@@ -178,6 +179,7 @@ fn update_climate_state_slab(
     guidance: Option<Res<FirstSessionGuidance>>,
     week_glow: Res<WeekFeelGlow>,
     wards_glow: Res<WardsNoticeGlow>,
+    colorblind: Res<LocalColorblindWells>,
     nodes: Query<&MercyHarvestNode>,
     mut root: Query<
         (&mut Visibility, &mut BorderColor, &mut BackgroundColor),
@@ -244,19 +246,25 @@ fn update_climate_state_slab(
         return;
     }
     let nearest = nearby.entity.and_then(|e| nodes.get(e).ok());
+    let shapes = colorblind.show_shapes;
     let well_line = nearby
         .in_range
         .then(|| {
             nearest.map(|n| {
                 let state = well_state_in_hour(&bind.hour.nodes, n.climate_id);
                 if guidance_hidden {
-                    return well_state_sentence(n.name, state);
+                    return well_state_sentence(n.name, state, shapes);
                 }
                 let hint = claim
                     .as_ref()
                     .and_then(|c| c.sentence_for(n.climate_id))
                     .unwrap_or(state.hand_hint());
-                let mut line = format!("{} · {} · {}", n.name, well_state_caption(state), hint);
+                let mut line = format!(
+                    "{} · {} · {}",
+                    n.name,
+                    well_state_caption(state, shapes),
+                    hint
+                );
                 if let Some(slab) = bind.climate_slab.as_deref() {
                     line = format!("{line} · {slab}");
                 }
@@ -266,8 +274,13 @@ fn update_climate_state_slab(
         .flatten();
     // H-2026-09-10-2: the nearest well's mood rides the slab even out of arm's reach,
     // so the room never reads as a bare teaching hint. Reach only buys the hand hint.
-    let mood = nearest
-        .map(|n| well_state_sentence(n.name, well_state_in_hour(&bind.hour.nodes, n.climate_id)));
+    let mood = nearest.map(|n| {
+        well_state_sentence(
+            n.name,
+            well_state_in_hour(&bind.hour.nodes, n.climate_id),
+            shapes,
+        )
+    });
     let fallback = climate_slab_fallback(
         mood,
         bind.climate_slab.as_deref(),
@@ -368,22 +381,27 @@ fn well_state_in_hour(nodes: &[ClimateNode], climate_id: u32) -> NodeState {
         .unwrap_or(NodeState::Idle)
 }
 
-fn well_state_caption(state: NodeState) -> String {
-    format!("{} · {}", state.label(), well_state_token(state))
-}
-
-fn well_state_token(state: NodeState) -> &'static str {
-    match state {
-        NodeState::Idle => "•",
-        NodeState::Glowing => "○",
-        NodeState::Tended => "✓",
-        NodeState::Resting => "—",
-        NodeState::Stressed => "!",
+fn well_state_caption(state: NodeState, shapes: bool) -> String {
+    if shapes {
+        format!("{} · {}", state.label(), well_state_token(state))
+    } else {
+        state.label().to_string()
     }
 }
 
-fn well_state_sentence(name: &str, state: NodeState) -> String {
-    format!("{name} is {}", well_state_caption(state))
+/// B3 colorblind tokens — nameable without hue alone (AGENT pack shapes).
+fn well_state_token(state: NodeState) -> &'static str {
+    match state {
+        NodeState::Idle => "ring",
+        NodeState::Glowing => "pip",
+        NodeState::Tended => "notch",
+        NodeState::Resting => "rest-bar",
+        NodeState::Stressed => "crack",
+    }
+}
+
+fn well_state_sentence(name: &str, state: NodeState, shapes: bool) -> String {
+    format!("{name} is {}", well_state_caption(state, shapes))
 }
 
 
@@ -457,14 +475,15 @@ mod tests {
     #[test]
     fn each_well_mood_keeps_its_word_and_distinct_shape() {
         let moods = [
-            (NodeState::Idle, "Idle", "•"),
-            (NodeState::Glowing, "Glowing", "○"),
-            (NodeState::Tended, "Tended", "✓"),
-            (NodeState::Resting, "Resting", "—"),
-            (NodeState::Stressed, "Stressed", "!"),
+            (NodeState::Idle, "Idle", "ring"),
+            (NodeState::Glowing, "Glowing", "pip"),
+            (NodeState::Tended, "Tended", "notch"),
+            (NodeState::Resting, "Resting", "rest-bar"),
+            (NodeState::Stressed, "Stressed", "crack"),
         ];
         for (state, label, token) in moods {
-            assert_eq!(well_state_caption(state), format!("{label} · {token}"));
+            assert_eq!(well_state_caption(state, true), format!("{label} · {token}"));
+            assert_eq!(well_state_caption(state, false), label);
         }
 
         let mut tokens: Vec<_> = moods
@@ -479,21 +498,26 @@ mod tests {
     #[test]
     fn hidden_guidance_keeps_each_well_state_sentence_visible() {
         for (state, label, token) in [
-            (NodeState::Idle, "Idle", "•"),
-            (NodeState::Glowing, "Glowing", "○"),
-            (NodeState::Tended, "Tended", "✓"),
-            (NodeState::Resting, "Resting", "—"),
-            (NodeState::Stressed, "Stressed", "!"),
+            (NodeState::Idle, "Idle", "ring"),
+            (NodeState::Glowing, "Glowing", "pip"),
+            (NodeState::Tended, "Tended", "notch"),
+            (NodeState::Resting, "Resting", "rest-bar"),
+            (NodeState::Stressed, "Stressed", "crack"),
         ] {
             assert!(climate_slab_should_show(true, false, false, false, true));
             assert_eq!(
-                well_state_sentence("North Well", state),
+                well_state_sentence("North Well", state, true),
                 format!("North Well is {label} · {token}")
+            );
+            // B2 captions stay when colorblind_wells is off (shapes gated).
+            assert_eq!(
+                well_state_sentence("North Well", state, false),
+                format!("North Well is {label}")
             );
         }
         assert_eq!(
-            well_state_sentence("Sanctuary ember", NodeState::Glowing),
-            "Sanctuary ember is Glowing · ○"
+            well_state_sentence("Sanctuary ember", NodeState::Glowing, true),
+            "Sanctuary ember is Glowing · pip"
         );
     }
 
@@ -508,9 +532,9 @@ mod tests {
     fn place_clarity_prefixes_well_mood_when_h_hid() {
         let line = place_clarity_line(
             "Sanctuary",
-            well_state_sentence("North Well", NodeState::Idle),
+            well_state_sentence("North Well", NodeState::Idle, true),
         );
-        assert_eq!(line, "Sanctuary · North Well is Idle · •");
+        assert_eq!(line, "Sanctuary · North Well is Idle · ring");
         assert!(line.contains("Idle"));
         let heart = place_clarity_label(PlaceId::Heartwood, false);
         assert_eq!(heart, "Heartwood");
@@ -523,9 +547,9 @@ mod tests {
         // H-2026-09-10-2: "Sanctuary ember" is not the "Sanctuary" clause.
         let line = place_clarity_line(
             "Sanctuary",
-            well_state_sentence("Sanctuary ember", NodeState::Glowing),
+            well_state_sentence("Sanctuary ember", NodeState::Glowing, true),
         );
-        assert_eq!(line, "Sanctuary · Sanctuary ember is Glowing · ○");
+        assert_eq!(line, "Sanctuary · Sanctuary ember is Glowing · pip");
         // A real leading place clause still de-duplicates.
         assert_eq!(
             place_clarity_line("Sanctuary", "Sanctuary · the yard holds peace".into()),
@@ -542,7 +566,7 @@ mod tests {
     fn out_of_reach_still_reads_place_and_mood() {
         // H-2026-09-10-2: was blank of mood until the body stood on the well.
         let hour = LivedHour::new_demo();
-        let mood = well_state_sentence("North Well", well_state_in_hour(&hour.nodes, 3));
+        let mood = well_state_sentence("North Well", well_state_in_hour(&hour.nodes, 3), true);
         let body = compose_climate_slab_line(
             None,
             None,
@@ -558,7 +582,7 @@ mod tests {
         let line = place_clarity_line("Sanctuary", body);
         assert_eq!(
             line,
-            "Sanctuary · North Well is Idle · • · the yard holds peace"
+            "Sanctuary · North Well is Idle · ring · the yard holds peace"
         );
         assert!(
             !line.contains("walk to a glow"),
@@ -568,7 +592,7 @@ mod tests {
 
     #[test]
     fn hidden_guidance_leaves_place_and_mood_alone_on_the_slab() {
-        let mood = well_state_sentence("North Well", NodeState::Idle);
+        let mood = well_state_sentence("North Well", NodeState::Idle, true);
         let body = compose_climate_slab_line(
             None,
             None,
@@ -583,7 +607,7 @@ mod tests {
         );
         assert_eq!(
             place_clarity_line("Sanctuary", body),
-            "Sanctuary · North Well is Idle · •"
+            "Sanctuary · North Well is Idle · ring"
         );
     }
 
@@ -600,7 +624,7 @@ mod tests {
                     NodeState::Stressed,
                 ] {
                     let fallback = climate_slab_fallback(
-                        Some(well_state_sentence("North Well", state)),
+                        Some(well_state_sentence("North Well", state, true)),
                         None,
                         "",
                         true,
@@ -644,7 +668,7 @@ mod tests {
 
     #[test]
     fn near_speech_still_outranks_the_out_of_reach_mood() {
-        let mood = well_state_sentence("North Well", NodeState::Idle);
+        let mood = well_state_sentence("North Well", NodeState::Idle, true);
         let fallback = climate_slab_fallback(Some(mood), None, "", false);
         assert_eq!(
             compose_climate_slab_line(
@@ -696,7 +720,7 @@ mod tests {
     }
     #[test]
     fn well_stays_ahead_of_wards_when_both_are_near() {
-        let well = well_state_sentence("Sanctuary ember", NodeState::Glowing);
+        let well = well_state_sentence("Sanctuary ember", NodeState::Glowing, true);
         let line = compose_climate_slab_line(
             Some(well.clone()),
             Some(WARDS_NOTICE.to_string()),

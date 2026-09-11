@@ -5,6 +5,7 @@
 //! mute → MasterMuteGain (thin audio hook — pause Mute uses same flag);
 //! brightness / text_scale → LocalUiFeel (Title plate contrast stays law).
 //! reduced motion / rumble → LocalFeedbackFeel (camera punch scale + rumble gate).
+//! colorblind_wells → LocalColorblindWells (shape tokens beside B2 word captions).
 //! No Online socket toggle. LAN off (default) opens nothing; loopback is 127.0.0.1 only.
 //! Contact: info@Rathor.ai
 
@@ -146,6 +147,26 @@ impl LocalFeedbackFeel {
     }
 }
 
+/// Runtime B3 colorblind-well flag read by the climate slab (shapes beside words).
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LocalColorblindWells {
+    pub show_shapes: bool,
+}
+
+impl Default for LocalColorblindWells {
+    fn default() -> Self {
+        Self::from_settings(&LocalSettings::peace_defaults())
+    }
+}
+
+impl LocalColorblindWells {
+    pub fn from_settings(s: &LocalSettings) -> Self {
+        Self {
+            show_shapes: s.colorblind_wells_shapes(),
+        }
+    }
+}
+
 pub struct LocalSettingsPlugin;
 
 impl Plugin for LocalSettingsPlugin {
@@ -155,6 +176,7 @@ impl Plugin for LocalSettingsPlugin {
             .init_resource::<MasterMuteGain>()
             .init_resource::<LocalUiFeel>()
             .init_resource::<LocalFeedbackFeel>()
+            .init_resource::<LocalColorblindWells>()
             .add_systems(Startup, seed_runtime_from_settings)
             .add_systems(Update, (apply_local_settings_runtime, persist_dirty_settings))
             // Harvest producers stay unchanged; disabled accessibility feel removes their
@@ -169,6 +191,7 @@ fn seed_runtime_from_settings(
     mut mute: ResMut<MasterMuteGain>,
     mut ui: ResMut<LocalUiFeel>,
     mut feedback: ResMut<LocalFeedbackFeel>,
+    mut colorblind: ResMut<LocalColorblindWells>,
     mut bind: ResMut<LivedHourBind>,
 ) {
     *look = LocalLookFeel::from_settings(&settings.inner);
@@ -176,6 +199,7 @@ fn seed_runtime_from_settings(
     mute.gain = settings.inner.master_gain();
     *ui = LocalUiFeel::from_settings(&settings.inner);
     *feedback = LocalFeedbackFeel::from_settings(&settings.inner);
+    *colorblind = LocalColorblindWells::from_settings(&settings.inner);
     // Persist default for Hide slabs — H still works in session after this.
     bind.guidance_hidden = settings.inner.hide_slabs;
 }
@@ -186,6 +210,7 @@ fn apply_local_settings_runtime(
     mut mute: ResMut<MasterMuteGain>,
     mut ui: ResMut<LocalUiFeel>,
     mut feedback: ResMut<LocalFeedbackFeel>,
+    mut colorblind: ResMut<LocalColorblindWells>,
     mut bind: ResMut<LivedHourBind>,
 ) {
     if !settings.is_changed() {
@@ -196,6 +221,7 @@ fn apply_local_settings_runtime(
     mute.gain = settings.inner.master_gain();
     *ui = LocalUiFeel::from_settings(&settings.inner);
     *feedback = LocalFeedbackFeel::from_settings(&settings.inner);
+    *colorblind = LocalColorblindWells::from_settings(&settings.inner);
     // Only when settings change (UI) — H session toggles are not overwritten every frame.
     bind.guidance_hidden = settings.inner.hide_slabs;
 }
@@ -302,5 +328,26 @@ mod tests {
         let feel = LocalFeedbackFeel::from_settings(&s);
         assert_eq!(feel.camera_punch_scale, 1.0);
         assert!(!feel.rumble_enabled);
+    }
+
+    #[test]
+    fn colorblind_wells_feel_follows_persist_modes() {
+        let mut s = LocalSettings::peace_defaults();
+        let feel = LocalColorblindWells::from_settings(&s);
+        assert!(!feel.show_shapes);
+
+        s.colorblind_wells = "shape_only".into();
+        let feel = LocalColorblindWells::from_settings(&s);
+        assert!(feel.show_shapes);
+
+        s.colorblind_wells = "deuteranopia".into();
+        assert!(LocalColorblindWells::from_settings(&s).show_shapes);
+
+        s.cycle_colorblind_wells(); // deuteranopia → protanopia
+        assert_eq!(s.colorblind_wells, "protanopia");
+        assert!(LocalColorblindWells::from_settings(&s).show_shapes);
+
+        s.colorblind_wells = "off".into();
+        assert!(!LocalColorblindWells::from_settings(&s).show_shapes);
     }
 }

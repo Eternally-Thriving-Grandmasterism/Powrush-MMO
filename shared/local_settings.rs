@@ -3,7 +3,7 @@
 //! `powrush_settings.json` next to house JSON in the OS user-data dir
 //! (or `POWRUSH_USER_DIR`). Cwd `data/powrush_settings.json` is adopt-only.
 //! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove ·
-//! Reduced motion · Rumble · LAN · Controls (I0).
+//! Reduced motion · Rumble · Colorblind wells · LAN · Controls (I0).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
@@ -204,6 +204,12 @@ pub struct LocalSettings {
     /// Accessibility: allow gamepad rumble when reduced motion is off. Default true.
     #[serde(default = "default_true")]
     pub rumble: bool,
+    /// B3 colorblind well tokens:
+    /// "off" | "deuteranopia" | "protanopia" | "tritanopia" | "shape_only".
+    /// Default **off** (B2 word captions alone). Unknown → off.
+    /// Non-off adds ring / pip / notch / rest-bar / crack.
+    #[serde(default = "default_colorblind_wells")]
+    pub colorblind_wells: String,
     /// P3 LAN lab: "off" | "loopback". Default **off**. Unknown → off.
     /// Separate from Title Online / Settings Online stub. Never writes POWRUSH_NET=on.
     /// Loopback unlocks the existing F8 door on 127.0.0.1 only.
@@ -297,6 +303,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_colorblind_wells() -> String {
+    "off".into()
+}
+
 fn default_nintendo_face() -> String {
     "auto".into()
 }
@@ -328,6 +338,7 @@ impl Default for LocalSettings {
             key_allocate: default_key_allocate(),
             reduced_motion: false,
             rumble: true,
+            colorblind_wells: default_colorblind_wells(),
             lan: default_lan(),
             on_screen_sticks: default_on_screen_sticks(),
             tap_to_use: false,
@@ -384,6 +395,7 @@ impl LocalSettings {
         self.clamp_brightness();
         self.clamp_text_scale();
         self.normalize_grove();
+        self.normalize_colorblind_wells();
         self.normalize_lan();
         self.normalize_controls();
     }
@@ -431,6 +443,46 @@ impl LocalSettings {
         } else {
             1.0
         }
+    }
+
+    /// Clamp colorblind_wells to the five AGENT-pack modes. Missing/unknown → off.
+    pub fn normalize_colorblind_wells(&mut self) {
+        let t = self.colorblind_wells.trim().to_ascii_lowercase();
+        self.colorblind_wells = match t.as_str() {
+            "deuteranopia" => "deuteranopia".into(),
+            "protanopia" => "protanopia".into(),
+            "tritanopia" => "tritanopia".into(),
+            "shape_only" => "shape_only".into(),
+            _ => "off".into(),
+        };
+    }
+
+    /// True when climate slab should append ring/pip/notch/rest-bar/crack beside the word.
+    pub fn colorblind_wells_shapes(&self) -> bool {
+        !self.colorblind_wells.eq_ignore_ascii_case("off")
+    }
+
+    /// Settings row face. Unknown already normalized to off.
+    pub fn colorblind_wells_label(&self) -> &str {
+        match self.colorblind_wells.as_str() {
+            "deuteranopia" => "deuteranopia",
+            "protanopia" => "protanopia",
+            "tritanopia" => "tritanopia",
+            "shape_only" => "shape_only",
+            _ => "off",
+        }
+    }
+
+    /// Cycle off → deuteranopia → protanopia → tritanopia → shape_only → off.
+    pub fn cycle_colorblind_wells(&mut self) {
+        self.normalize_colorblind_wells();
+        self.colorblind_wells = match self.colorblind_wells.as_str() {
+            "off" => "deuteranopia".into(),
+            "deuteranopia" => "protanopia".into(),
+            "protanopia" => "tritanopia".into(),
+            "tritanopia" => "shape_only".into(),
+            _ => "off".into(),
+        };
     }
 
     /// Clamp LAN to "off" | "loopback". Missing/unknown/`on`/public → off.
@@ -714,6 +766,8 @@ mod tests {
         assert!(s.rumble);
         assert!(s.rumble_enabled());
         assert_eq!(s.camera_punch_scale(), 1.0);
+        assert_eq!(s.colorblind_wells, "off");
+        assert!(!s.colorblind_wells_shapes());
         assert_eq!(s.lan, "off");
         assert!(!s.lan_is_loopback());
         assert_eq!(s.on_screen_sticks, "auto");
@@ -747,6 +801,7 @@ mod tests {
         s.key_allocate = PeaceKey::N;
         s.reduced_motion = true;
         s.rumble = false;
+        s.colorblind_wells = "shape_only".into();
         s.lan = "loopback".into();
         s.on_screen_sticks = "on".into();
         s.tap_to_use = true;
@@ -780,6 +835,8 @@ mod tests {
         assert!(back.reduced_motion);
         assert!(!back.rumble_enabled());
         assert_eq!(back.camera_punch_scale(), 0.0);
+        assert_eq!(back.colorblind_wells, "shape_only");
+        assert!(back.colorblind_wells_shapes());
         assert!(back.lan_is_loopback());
         assert!((back.master_gain() - 0.0).abs() < f32::EPSILON);
         let (dx, dy) = back.apply_look_delta(2.0, 4.0);
@@ -905,6 +962,52 @@ mod tests {
         assert!(!back.reduced_motion);
         assert!(back.rumble);
         assert!(back.rumble_enabled());
+    }
+
+    #[test]
+    fn colorblind_wells_defaults_off_normalizes_and_cycles() {
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(s.colorblind_wells, "off");
+        assert!(!s.colorblind_wells_shapes());
+        assert_eq!(s.colorblind_wells_label(), "off");
+
+        // Missing field in old JSON → off (same persist path as Grove / B1).
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"grove":"off"}"#;
+        let back = LocalSettings::from_json(legacy).unwrap();
+        assert_eq!(back.colorblind_wells, "off");
+        assert!(!back.colorblind_wells_shapes());
+
+        for junk in ["birds", "on", "true", "deuter", "shapes"] {
+            let raw = format!(
+                r#"{{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"grove":"off","colorblind_wells":"{junk}"}}"#
+            );
+            let junked = LocalSettings::from_json(&raw).unwrap();
+            assert_eq!(junked.colorblind_wells, "off", "unknown {junk} must be off");
+        }
+
+        for mode in ["deuteranopia", "protanopia", "tritanopia", "shape_only"] {
+            let raw = format!(
+                r#"{{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"grove":"off","colorblind_wells":"{mode}"}}"#
+            );
+            let ok = LocalSettings::from_json(&raw).unwrap();
+            assert_eq!(ok.colorblind_wells, mode);
+            assert!(ok.colorblind_wells_shapes());
+            assert_eq!(ok.colorblind_wells_label(), mode);
+        }
+
+        let mut cyc = LocalSettings::default();
+        assert_eq!(cyc.colorblind_wells_label(), "off");
+        cyc.cycle_colorblind_wells();
+        assert_eq!(cyc.colorblind_wells, "deuteranopia");
+        cyc.cycle_colorblind_wells();
+        assert_eq!(cyc.colorblind_wells, "protanopia");
+        cyc.cycle_colorblind_wells();
+        assert_eq!(cyc.colorblind_wells, "tritanopia");
+        cyc.cycle_colorblind_wells();
+        assert_eq!(cyc.colorblind_wells, "shape_only");
+        cyc.cycle_colorblind_wells();
+        assert_eq!(cyc.colorblind_wells, "off");
+        assert!(!cyc.colorblind_wells_shapes());
     }
 
     #[test]
