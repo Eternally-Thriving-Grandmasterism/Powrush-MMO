@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-11 — Play-ball Confirmed mechanics + player-feel docs pack
+
+`slice: GREEN-DOCS Play-ball Confirmed | MECHANICS_INTERACTION_BIBLE + PLAYER_FEEL_METRICS; thin Quellorian ART_BIBLE rhyme; IMAGINE_TRAILER_PACK C-12..C-16 steward-reference Codex still IDs; one teacher matrix for Tend/Take/Flow/Reserve/Mend × four Places × five well moods; Offline hands before lore; Codex/Imagine not Sanctuary cargo; all Hands follow-ons confirm-before-build; Title Online grey; no client/shared/server/Cargo/sockets/assets/meshes; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
+
 ## 2026-09-10 — PLACE_CLARITY_WALK human shot checklist
 
 `slice: PLACE_CLARITY_WALK docs | what #349 should show; lore Places dress the well; fail→feel only on Core shots; no client; tip c734739; tag 11c577e; info@Rathor.ai; independent of xAI; no certification or warranty claims; verdict: AUTO`
