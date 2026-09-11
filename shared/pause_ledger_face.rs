@@ -43,7 +43,7 @@ pub fn face_lines(house_display: &str, week: &WeekAudit, declared_lethal: bool) 
     let mut out = String::new();
     out.push_str(house);
     out.push('\n');
-    out.push_str(&week.slab_line());
+    out.push_str(&house_week_line(week));
     if declared_lethal {
         out.push('\n');
         out.push_str(LETHAL_DECLARED_LINE);
@@ -53,6 +53,7 @@ pub fn face_lines(house_display: &str, week: &WeekAudit, declared_lethal: bool) 
 
 /// Face from persisted HouseName + week audit + lethal flag.
 /// When seals resolved, inserts Seal · … (heritage string) under the house name.
+/// Week line is the House bill ("House week"), not the yard slab ("this week").
 pub fn face_from(house: &HouseName, week: &WeekAudit, declared_lethal: bool) -> String {
     let mut out = String::new();
     out.push_str(house.display_name());
@@ -61,7 +62,7 @@ pub fn face_from(house: &HouseName, week: &WeekAudit, declared_lethal: bool) -> 
         out.push_str(&dress);
     }
     out.push('\n');
-    out.push_str(&week.slab_line());
+    out.push_str(&house_week_line(week));
     if declared_lethal {
         out.push('\n');
         out.push_str(LETHAL_DECLARED_LINE);
@@ -71,11 +72,10 @@ pub fn face_from(house: &HouseName, week: &WeekAudit, declared_lethal: bool) -> 
 
 /// One House bill: tons and restored added across the rooms that persist a
 /// week. Speech only — summing never writes a hex.
+/// Prefix is House week so a stranger can tell bill from yard slab.
 pub fn house_week_line(week: &WeekAudit) -> String {
-    format!(
-        "{HOUSE_WEEK_PREFIX} · {} tons · {} restored",
-        week.tons_moved, week.restored_count
-    )
+    let (tons, restored) = week.tons_and_restored();
+    format!("{HOUSE_WEEK_PREFIX} · {tons} tons · {restored} restored")
 }
 
 /// Seal caption for the Q founding plate (same dress line as Pause face).
@@ -142,7 +142,8 @@ pub fn bind_only_before_settled_body(charter_live: bool, settled: bool) -> Optio
     }
 }
 
-/// Steward-honest: no peer / online / talent / kill chrome.
+/// Steward-honest: no peer / online / talent / kill / gold / Market chrome.
+/// Credit ≠ gold; Market HOLD — bill face is tons + restored only.
 pub fn face_is_steward_honest(face: &str) -> bool {
     let low = face.to_lowercase();
     !low.contains("peer")
@@ -151,6 +152,11 @@ pub fn face_is_steward_honest(face: &str) -> bool {
         && !low.contains("talent")
         && !low.contains("kill")
         && !low.contains("dps")
+        && !low.contains("gold")
+        && !low.contains("market")
+        && !low.contains("price")
+        && !low.contains("sell")
+        && !low.contains("ticker")
 }
 
 #[cfg(test)]
@@ -173,7 +179,8 @@ mod tests {
         assert!(face.contains("Keep Yard"), "got {face}");
         assert!(face.contains("3 tons"), "got {face}");
         assert!(face.contains("2 restored"), "got {face}");
-        assert!(face.contains("this week"), "got {face}");
+        assert!(face.contains(HOUSE_WEEK_PREFIX), "got {face}");
+        assert!(!face.contains("this week"), "House bill must not read as yard slab: {face}");
         assert!(!face.contains(LETHAL_DECLARED_LINE));
         assert!(face_is_steward_honest(&face));
     }
@@ -289,6 +296,31 @@ mod tests {
         assert_ne!(house_week_line(&yard), yard_line);
         assert!(face_is_steward_honest(&house_line));
         assert!(!house_line.to_lowercase().contains("market"));
+    }
+
+    /// L face is the House bill — tons + restored, never kill / gold / Market.
+    #[test]
+    fn house_bill_face_refuses_kill_gold_market() {
+        let mut house = HouseName::default();
+        house.confirm("Keep Yard");
+        let face = face_from(&house, &week(5, 3), false);
+        let lines = face_lines("Keep Yard", &week(5, 3), false);
+        for sample in [&face, &lines, &house_week_line(&week(5, 3))] {
+            assert!(sample.contains(HOUSE_WEEK_PREFIX), "got {sample}");
+            assert!(sample.contains("5 tons"), "got {sample}");
+            assert!(sample.contains("3 restored"), "got {sample}");
+            assert!(!sample.contains("this week"), "got {sample}");
+            let low = sample.to_lowercase();
+            assert!(!low.contains("kill"), "got {sample}");
+            assert!(!low.contains("gold"), "got {sample}");
+            assert!(!low.contains("market"), "got {sample}");
+            assert!(!low.contains("price"), "got {sample}");
+            assert!(!low.contains("sell"), "got {sample}");
+            assert!(!low.contains("ticker"), "got {sample}");
+            assert!(face_is_steward_honest(sample), "got {sample}");
+        }
+        // Yard slab stays distinct wording for the single room.
+        assert!(week(5, 3).slab_line().starts_with("this week"));
     }
 
     #[test]

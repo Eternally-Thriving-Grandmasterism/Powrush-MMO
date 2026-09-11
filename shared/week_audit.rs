@@ -33,12 +33,17 @@ impl WeekAudit {
         self.updated_at = self.updated_at.saturating_add(1);
     }
 
-    /// One honest slab. Not a war HUD.
+    /// One honest yard slab. Not a war HUD.
+    /// Deliberately "this week" — the House bill face lives in pause_ledger_face
+    /// as "House week" so a stranger can tell bill from yard.
     pub fn slab_line(&self) -> String {
-        format!(
-            "this week · {} tons · {} restored",
-            self.tons_moved, self.restored_count
-        )
+        let (tons, restored) = self.tons_and_restored();
+        format!("this week · {tons} tons · {restored} restored")
+    }
+
+    /// Score legs only — tons + restored. Never kills, gold, or Market.
+    pub fn tons_and_restored(&self) -> (u32, u32) {
+        (self.tons_moved, self.restored_count)
     }
 
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
@@ -61,7 +66,14 @@ mod tests {
         let line = w.slab_line();
         assert!(line.contains("3 tons"));
         assert!(line.contains("2 restored"));
-        assert!(!line.to_lowercase().contains("kill"));
+        assert!(line.starts_with("this week"));
+        assert_eq!(w.tons_and_restored(), (3, 2));
+        let low = line.to_lowercase();
+        assert!(!low.contains("kill"));
+        assert!(!low.contains("gold"));
+        assert!(!low.contains("market"));
+        assert!(!low.contains("price"));
+        assert!(!low.contains("sell"));
     }
 
     #[test]
