@@ -7,7 +7,7 @@
 
 use bevy::prelude::*;
 
-use shared::climate_node::NodeState;
+use shared::climate_node::{ClimateNode, NodeState};
 use shared::heartwood_wards::WARDS_NOTICE;
 
 use crate::climate_script::TeachingClaim;
@@ -84,13 +84,7 @@ fn paint_nodes_from_hour(
     mut lights: Query<&mut PointLight>,
 ) {
     for (node, handle, children) in &nodes {
-        let state = bind
-            .hour
-            .nodes
-            .iter()
-            .find(|n| n.id == node.climate_id)
-            .map(|n| n.state)
-            .unwrap_or(NodeState::Idle);
+        let state = well_state_in_hour(&bind.hour.nodes, node.climate_id);
         let mul = state.glow_mul();
         if let Some(mat) = materials.get_mut(handle) {
             mat.emissive = LinearRgba::from(mat.base_color) * (2.4 * mul);
@@ -249,17 +243,12 @@ fn update_climate_state_slab(
     if !show {
         return;
     }
+    let nearest = nearby.entity.and_then(|e| nodes.get(e).ok());
     let well_line = nearby
         .in_range
         .then(|| {
-            nearby.entity.and_then(|e| nodes.get(e).ok()).map(|n| {
-                let state = bind
-                    .hour
-                    .nodes
-                    .iter()
-                    .find(|c| c.id == n.climate_id)
-                    .map(|c| c.state)
-                    .unwrap_or(NodeState::Idle);
+            nearest.map(|n| {
+                let state = well_state_in_hour(&bind.hour.nodes, n.climate_id);
                 if guidance_hidden {
                     return well_state_sentence(n.name, state);
                 }
@@ -275,13 +264,17 @@ fn update_climate_state_slab(
             })
         })
         .flatten();
-    let fallback = match bind.climate_slab.as_deref() {
-        Some(slab) if !bind.last_line.is_empty() => {
-            format!("{} · {}", bind.last_line, slab)
-        }
-        Some(slab) => slab.to_string(),
-        None => bind.last_line.clone(),
-    };
+    // H-2026-09-10-2: the nearest well's mood rides the slab even out of arm's reach,
+    // so the room never reads as a bare teaching hint. Reach only buys the hand hint.
+    let mood = nearest.map(|n| {
+        well_state_sentence(n.name, well_state_in_hour(&bind.hour.nodes, n.climate_id))
+    });
+    let fallback = climate_slab_fallback(
+        mood,
+        bind.climate_slab.as_deref(),
+        &bind.last_line,
+        guidance_hidden,
+    );
     // P2: when a well and Wards posts overlap, keep both on one slab — well first.
     // P3: after a Depths Peace restore, show that line on this same slab.
     let body = compose_climate_slab_line(
@@ -332,11 +325,45 @@ fn place_clarity_line(place: &str, body: String) -> String {
     let body = body.trim();
     if body.is_empty() {
         place.to_string()
-    } else if body.starts_with(place) {
+    } else if place_already_named(place, body) {
         body.to_string()
     } else {
         format!("{place} · {body}")
     }
+}
+
+/// Only a whole leading clause counts as the place. A well called
+/// "Sanctuary ember" must not swallow the "Sanctuary" room name.
+fn place_already_named(place: &str, body: &str) -> bool {
+    body == place || body.strip_prefix(place).is_some_and(|rest| rest.starts_with(" · "))
+}
+
+/// Slab news when nothing is within arm's reach: the nearest well's mood leads,
+/// and the teaching/standing clause hushes with H like the rest of the guidance.
+fn climate_slab_fallback(
+    mood: Option<String>,
+    slab: Option<&str>,
+    last_line: &str,
+    guidance_hidden: bool,
+) -> String {
+    let clause = if guidance_hidden { None } else { slab };
+    match (mood, clause) {
+        (Some(mood), Some(slab)) => format!("{mood} · {slab}"),
+        (Some(mood), None) => mood,
+        // No well seeded in this room — keep the older teaching + clause shape.
+        (None, Some(slab)) if !last_line.is_empty() => format!("{last_line} · {slab}"),
+        (None, Some(slab)) => slab.to_string(),
+        (None, None) if guidance_hidden => String::new(),
+        (None, None) => last_line.to_string(),
+    }
+}
+
+fn well_state_in_hour(nodes: &[ClimateNode], climate_id: u32) -> NodeState {
+    nodes
+        .iter()
+        .find(|c| c.id == climate_id)
+        .map(|c| c.state)
+        .unwrap_or(NodeState::Idle)
 }
 
 fn well_state_caption(state: NodeState) -> String {
@@ -487,6 +514,163 @@ mod tests {
         assert_eq!(heart, "Heartwood");
         assert_eq!(place_clarity_label(PlaceId::Heartwood, true), "Threshold");
         assert_eq!(place_clarity_label(PlaceId::Depths, false), "Depths");
+    }
+
+    #[test]
+    fn a_well_named_after_the_room_keeps_the_room_name() {
+        // H-2026-09-10-2: "Sanctuary ember" is not the "Sanctuary" clause.
+        let line = place_clarity_line(
+            "Sanctuary",
+            well_state_sentence("Sanctuary ember", NodeState::Glowing),
+        );
+        assert_eq!(line, "Sanctuary · Sanctuary ember is Glowing · ○");
+        // A real leading place clause still de-duplicates.
+        assert_eq!(
+            place_clarity_line("Sanctuary", "Sanctuary · the yard holds peace".into()),
+            "Sanctuary · the yard holds peace"
+        );
+        assert_eq!(
+            place_clarity_line("Sanctuary", "Sanctuary".into()),
+            "Sanctuary"
+        );
+        assert_eq!(place_clarity_line("Depths", "  ".into()), "Depths");
+    }
+
+    #[test]
+    fn out_of_reach_still_reads_place_and_mood() {
+        // H-2026-09-10-2: was blank of mood until the body stood on the well.
+        let hour = LivedHour::new_demo();
+        let mood = well_state_sentence("North Well", well_state_in_hour(&hour.nodes, 3));
+        let body = compose_climate_slab_line(
+            None,
+            None,
+            None,
+            None,
+            climate_slab_fallback(
+                Some(mood.clone()),
+                Some("the yard holds peace"),
+                "walk to a glow",
+                false,
+            ),
+        );
+        let line = place_clarity_line("Sanctuary", body);
+        assert_eq!(
+            line,
+            "Sanctuary · North Well is Idle · • · the yard holds peace"
+        );
+        assert!(!line.contains("walk to a glow"), "mood replaces the stand-in");
+    }
+
+    #[test]
+    fn hidden_guidance_leaves_place_and_mood_alone_on_the_slab() {
+        let mood = well_state_sentence("North Well", NodeState::Idle);
+        let body = compose_climate_slab_line(
+            None,
+            None,
+            None,
+            None,
+            climate_slab_fallback(
+                Some(mood),
+                Some("the yard holds peace"),
+                "walk to a glow",
+                true,
+            ),
+        );
+        assert_eq!(
+            place_clarity_line("Sanctuary", body),
+            "Sanctuary · North Well is Idle · •"
+        );
+    }
+
+    #[test]
+    fn every_mood_reads_out_of_reach_in_every_place() {
+        for place in [
+            PlaceId::Sanctuary,
+            PlaceId::Heartwood,
+            PlaceId::Depths,
+        ] {
+            for threshold_near in [false, true] {
+                let label = place_clarity_label(place, threshold_near);
+                for state in [
+                    NodeState::Idle,
+                    NodeState::Glowing,
+                    NodeState::Tended,
+                    NodeState::Resting,
+                    NodeState::Stressed,
+                ] {
+                    let fallback = climate_slab_fallback(
+                        Some(well_state_sentence("North Well", state)),
+                        None,
+                        "",
+                        true,
+                    );
+                    let line = place_clarity_line(label, fallback);
+                    assert!(line.starts_with(label), "{line} must name the place");
+                    assert!(line.contains(state.label()), "{line} must name the mood");
+                    assert!(
+                        line.contains(well_state_token(state)),
+                        "{line} must carry the mood token"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn no_well_in_the_room_keeps_the_older_teaching_shape() {
+        assert_eq!(
+            climate_slab_fallback(None, Some("the yard holds peace"), "walk to a glow", false),
+            "walk to a glow · the yard holds peace"
+        );
+        assert_eq!(
+            climate_slab_fallback(None, Some("the yard holds peace"), "", false),
+            "the yard holds peace"
+        );
+        assert_eq!(
+            climate_slab_fallback(None, None, "walk to a glow", false),
+            "walk to a glow"
+        );
+        // H hushes the teaching stand-in; the place alone still paints the slab.
+        assert_eq!(climate_slab_fallback(None, None, "walk to a glow", true), "");
+        assert_eq!(
+            place_clarity_line("Sanctuary", climate_slab_fallback(None, None, "", true)),
+            "Sanctuary"
+        );
+    }
+
+    #[test]
+    fn near_speech_still_outranks_the_out_of_reach_mood() {
+        let mood = well_state_sentence("North Well", NodeState::Idle);
+        let fallback = climate_slab_fallback(Some(mood), None, "", false);
+        assert_eq!(
+            compose_climate_slab_line(
+                None,
+                Some(WARDS_NOTICE.to_string()),
+                None,
+                None,
+                fallback.clone(),
+            ),
+            WARDS_NOTICE
+        );
+        assert_eq!(
+            compose_climate_slab_line(
+                None,
+                None,
+                Some("Depths Peace · restored".into()),
+                None,
+                fallback,
+            ),
+            "Depths Peace · restored"
+        );
+    }
+
+    #[test]
+    fn hour_lookup_falls_back_to_idle_for_an_unseeded_well() {
+        let hour = LivedHour::new_demo();
+        assert_eq!(well_state_in_hour(&hour.nodes, 1), NodeState::Glowing);
+        assert_eq!(well_state_in_hour(&hour.nodes, 3), NodeState::Idle);
+        assert_eq!(well_state_in_hour(&hour.nodes, 99), NodeState::Idle);
+        assert_eq!(well_state_in_hour(&[], 1), NodeState::Idle);
     }
 
     #[test]
