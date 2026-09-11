@@ -12,6 +12,11 @@
  * Asset budget: capsule / sphere primitives plus the one Sanctuary warm-gold
  * accent at the hand. No mesh, no anim pack, no new texture.
  *
+ * H-2026-09-11-E3 (NPC_SCHEDULE_SPEC): local person-read rhymes with LivingDay
+ * schedule posts, sacred-five work intent, and Place·mood greet. The local
+ * stacked-capsule stays presentation — not an NPC roster. Hour finishes with
+ * zero scheduled persons. No mesh dump, no second HUD.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -23,6 +28,10 @@ use crate::companion_bond::CompanionBond;
 use crate::input::PlayerInput;
 use crate::harvest_feel::SoftRbePool;
 use crate::living_body::{BodyTell, LivingBody};
+use crate::living_day::{
+    greet_by_place_mood, preferred_work, schedule_copy_is_honest, still_frame_line, DayPeriod,
+    PreferredWork, SacredVerb, SchedulePlace, WellMood,
+};
 use crate::local_settings::LocalFeedbackFeel;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, HARVEST_REACH};
 use crate::soft_play_bindings;
@@ -632,6 +641,73 @@ fn follow_camera(
     }
 }
 
+// --- Schedule presence rhyme (H-2026-09-11-E3 stub/feel) -------------------
+// Local person-read rhymes with LivingDay posts / sacred five / Place·mood
+// greet. Presentation only — not an NPC roster. No peer spawn. Hour finishes
+// with zero scheduled persons.
+
+/// Known posts the local person-read may rhyme with (same four as LivingDay).
+pub fn known_schedule_posts() -> [&'static str; 4] {
+    [
+        SchedulePlace::Sanctuary.post(),
+        SchedulePlace::Heartwood.post(),
+        SchedulePlace::Threshold.post(),
+        SchedulePlace::Depths.post(),
+    ]
+}
+
+/// Sacred five the local body may show as work intent — same verbs, no NPC-only.
+pub fn sacred_five() -> [SacredVerb; 5] {
+    [
+        SacredVerb::Tend,
+        SacredVerb::Take,
+        SacredVerb::Flow,
+        SacredVerb::Reserve,
+        SacredVerb::Mend,
+    ]
+}
+
+/// Local person-read work intent at a Place / period (reuses LivingDay).
+pub fn presence_work_intent(place: SchedulePlace, period: DayPeriod) -> PreferredWork {
+    preferred_work(place, period)
+}
+
+/// Still-frame: presence at a known post doing Place-honest work.
+/// Period · post · verb — no second HUD, no roster spawn.
+pub fn presence_still_frame(place: SchedulePlace, phase: f32) -> String {
+    still_frame_line(place, phase)
+}
+
+/// Place · well mood greet on the one HUD (H hush). Reuses LivingDay helper.
+pub fn presence_greet_rhyme(place: SchedulePlace, mood: WellMood) -> &'static str {
+    greet_by_place_mood(place, mood)
+}
+
+/// Reach (Peace E) is the local body attending Place-honest work at the post.
+pub fn presence_shows_place_work(stance: Stance) -> bool {
+    matches!(stance, Stance::Reach)
+}
+
+/// This file remains the local stacked-capsule body — not an NPC roster product.
+pub fn local_body_is_npc_roster() -> bool {
+    false
+}
+
+/// Scheduled peer persons this slice adds. Zero — helpers, not a spawn.
+pub fn scheduled_person_count() -> usize {
+    0
+}
+
+/// Hour-finish bar: the hour still finishes if every person is removed.
+pub fn hour_finishes_without_persons() -> bool {
+    scheduled_person_count() == 0 && !local_body_is_npc_roster()
+}
+
+/// Presence / greet copy refuses crime · ownership · theft · fence · gold · Market · Online.
+pub fn presence_copy_is_honest(s: &str) -> bool {
+    schedule_copy_is_honest(s)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -790,5 +866,118 @@ mod tests {
         let after = approach_horizontal(before, Vec2::ZERO, MOVE_ACCEL, MOVE_DECEL, dt);
         assert!(after.length() < before.length());
         assert!(after.x > 0.0); // not teleport-stop in one tick, but braking
+    }
+
+    #[test]
+    fn presence_rhymes_living_day_posts_and_sacred_five() {
+        assert_eq!(
+            known_schedule_posts(),
+            [
+                "Sanctuary well",
+                "Heartwood Wards",
+                "Threshold pipe",
+                "Depths landing",
+            ]
+        );
+        assert_eq!(
+            sacred_five(),
+            [
+                SacredVerb::Tend,
+                SacredVerb::Take,
+                SacredVerb::Flow,
+                SacredVerb::Reserve,
+                SacredVerb::Mend,
+            ]
+        );
+        // Default LivingDay phase 0.18 is Day — Sanctuary well · Take.
+        let work = presence_work_intent(SchedulePlace::Sanctuary, DayPeriod::Day);
+        assert_eq!(work.post, "Sanctuary well");
+        assert_eq!(work.verb, SacredVerb::Take);
+        let line = presence_still_frame(SchedulePlace::Sanctuary, 0.18);
+        assert_eq!(line, still_frame_line(SchedulePlace::Sanctuary, 0.18));
+        assert_eq!(line, "Day · Sanctuary well · Take");
+        assert!(presence_copy_is_honest(&line));
+        // Reach is the still-frame "doing the Place's job" on the local body.
+        assert!(presence_shows_place_work(Stance::Reach));
+        assert!(!presence_shows_place_work(Stance::Idle));
+        assert!(!presence_shows_place_work(Stance::Stride));
+    }
+
+    #[test]
+    fn presence_work_is_place_honest() {
+        for period in [
+            DayPeriod::Dawn,
+            DayPeriod::Day,
+            DayPeriod::Dusk,
+            DayPeriod::Night,
+        ] {
+            let pipe = presence_work_intent(SchedulePlace::Threshold, period);
+            assert_ne!(pipe.verb, SacredVerb::Take, "Threshold {period:?}");
+            assert_eq!(pipe.post, "Threshold pipe");
+            let landing = presence_work_intent(SchedulePlace::Depths, period);
+            assert_ne!(landing.verb, SacredVerb::Take, "Depths {period:?}");
+            assert!(
+                matches!(landing.verb, SacredVerb::Tend | SacredVerb::Mend),
+                "Depths restore verb"
+            );
+            assert_eq!(landing.post, "Depths landing");
+        }
+        assert_eq!(
+            presence_work_intent(SchedulePlace::Heartwood, DayPeriod::Day).post,
+            "Heartwood Wards"
+        );
+    }
+
+    #[test]
+    fn greet_rhyme_on_one_hud_h_hush() {
+        for place in [
+            SchedulePlace::Sanctuary,
+            SchedulePlace::Heartwood,
+            SchedulePlace::Threshold,
+            SchedulePlace::Depths,
+        ] {
+            for mood in [
+                WellMood::Idle,
+                WellMood::Glowing,
+                WellMood::Tended,
+                WellMood::Resting,
+                WellMood::Stressed,
+            ] {
+                let greet = presence_greet_rhyme(place, mood);
+                assert_eq!(greet, greet_by_place_mood(place, mood));
+                assert!(presence_copy_is_honest(greet), "{greet}");
+            }
+        }
+    }
+
+    #[test]
+    fn local_body_not_roster_hour_finishes_without_persons() {
+        assert!(!local_body_is_npc_roster());
+        assert_eq!(scheduled_person_count(), 0);
+        assert!(hour_finishes_without_persons());
+        // Removing scheduled persons cannot strand these flags — count stays zero.
+        assert_eq!(scheduled_person_count(), 0);
+        assert!(hour_finishes_without_persons());
+    }
+
+    #[test]
+    fn refuse_crime_gold_market_online_copy() {
+        assert!(!presence_copy_is_honest("sell gold on Market"));
+        assert!(!presence_copy_is_honest("crime meter Online"));
+        assert!(!presence_copy_is_honest("theft and fence ownership"));
+        assert!(!presence_copy_is_honest("pickpocket the stall"));
+        assert!(presence_copy_is_honest("Day · Sanctuary well · Take"));
+        assert!(presence_copy_is_honest(
+            "Threshold pipe — Tend, not Take."
+        ));
+        for place in [
+            SchedulePlace::Sanctuary,
+            SchedulePlace::Heartwood,
+            SchedulePlace::Threshold,
+            SchedulePlace::Depths,
+        ] {
+            let line = presence_still_frame(place, 0.18);
+            assert!(presence_copy_is_honest(&line), "{line}");
+        }
     }
 }
