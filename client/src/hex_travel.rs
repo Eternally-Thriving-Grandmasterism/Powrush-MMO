@@ -1,20 +1,20 @@
 //! U2 — local hex travel (disk only) + Places plate
 //!
-//! Places list (Sanctuary / Heartwood) after Settled + book. Confirm leave
-//! writes `powrush_hex_<id>.json` via the U1 user dir and loads the other
-//! place. Heartwood is a stub: lamp disk empty, same Peace E, no hanging mesh.
-//! U3 spatial refuse (water / lamp disk) is shared/heartwood_lamp, not this plate.
-//! Play always boots Sanctuary. Continue without the book boots Sanctuary.
-//! Dedicated Places plate (LivedUiPlate / Camera2d) — not extra Settings rows,
-//! so Title / pause / Settings stay above the world. Sticks cull when open.
-//! Contact: info@Rathor.ai
+//! Settled + book opens Places as a **door**, not a list-row teleport
+//! (`SETTLED_DOOR_CLARITY` rung C). Four disk rooms: Sanctuary / Heartwood /
+//! Threshold / Depths. Threshold rides Heartwood's hex file (no fifth PlaceId).
+//! Confirm is leave-this-hex / enter-that-room. Without the book the pause row
+//! stays hidden (or *Not your charter*). Heartwood stub: lamp disk empty, same
+//! Peace E. Play always boots Sanctuary. Continue without the book boots
+//! Sanctuary. Dedicated Places plate (LivedUiPlate / Camera2d) — not extra
+//! Settings rows; sticks cull when open. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
 use shared::hex_travel::{
     apply_travel_named, boot_place, confirm_leave, house_embassy_on_place, house_week_footer,
     places_eligible, places_row_label, read_current_named, read_hex_named, sanctuary_fresh_climate,
-    BootKind, PlaceId, TravelRefuse, LEAVE_CONFIRM, PLACES_ROW, PLACES_TITLE,
+    BootKind, PlaceId, TravelRefuse, PLACES_ROW, PLACES_TITLE,
 };
 use shared::pause_ledger_face::NOT_YOUR_CHARTER;
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
@@ -47,11 +47,53 @@ impl HexTravelState {
     }
 }
 
+/// Confirm button — threshold language, not a teleport tap.
+const DOOR_CONFIRM_BTN: &str = "Leave · enter";
+/// Idle cue on the open Places plate (no dest chosen yet).
+const DOOR_IDLE_CUE: &str = "Leave this hex · enter that room";
+
+/// One of the four Offline rooms named on the Places door.
+/// Threshold shares Heartwood's disk file (`OFFLINE_SKU`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlacesRoom {
+    Sanctuary,
+    Heartwood,
+    Threshold,
+    Depths,
+}
+
+impl PlacesRoom {
+    const fn display_name(self) -> &'static str {
+        match self {
+            PlacesRoom::Sanctuary => "Sanctuary",
+            PlacesRoom::Heartwood => "Heartwood",
+            PlacesRoom::Threshold => "Threshold",
+            PlacesRoom::Depths => "Depths",
+        }
+    }
+
+    /// Disk hex this room loads. Threshold → Heartwood file.
+    const fn place_id(self) -> PlaceId {
+        match self {
+            PlacesRoom::Sanctuary => PlaceId::Sanctuary,
+            PlacesRoom::Heartwood | PlacesRoom::Threshold => PlaceId::Heartwood,
+            PlacesRoom::Depths => PlaceId::Depths,
+        }
+    }
+}
+
+/// Leave / enter confirm copy for a chosen room.
+fn door_confirm_cue(room: PlacesRoom) -> String {
+    format!("Leave this hex · enter {}?", room.display_name())
+}
+
 #[derive(Resource, Debug, Default, Clone)]
 pub struct PlacesPlate {
     pub open: bool,
     pub selected: Option<PlaceId>,
     pub confirm_pending: bool,
+    /// Door name for cue (Threshold may share Heartwood's PlaceId).
+    selected_room: Option<&'static str>,
 }
 
 #[derive(Component)]
@@ -62,6 +104,8 @@ struct PlacesCueText;
 struct PlacesSanctuaryBtn;
 #[derive(Component)]
 struct PlacesHeartwoodBtn;
+#[derive(Component)]
+struct PlacesThresholdBtn;
 #[derive(Component)]
 struct PlacesDepthsBtn;
 #[derive(Component)]
@@ -281,8 +325,9 @@ fn spawn_places_plate(mut commands: Commands) {
             ));
             spawn_places_btn(p, "Sanctuary", PlacesSanctuaryBtn);
             spawn_places_btn(p, "Heartwood", PlacesHeartwoodBtn);
+            spawn_places_btn(p, "Threshold", PlacesThresholdBtn);
             spawn_places_btn(p, "Depths", PlacesDepthsBtn);
-            spawn_places_btn(p, LEAVE_CONFIRM, PlacesConfirmBtn);
+            spawn_places_btn(p, DOOR_CONFIRM_BTN, PlacesConfirmBtn);
             spawn_places_btn(p, "Back", PlacesBackBtn);
         });
 }
@@ -402,26 +447,25 @@ fn refresh_pause_places_row(
 
 fn refresh_places_labels(
     plate: Res<PlacesPlate>,
-    travel: Res<HexTravelState>,
     mut cue: Query<&mut Text, With<PlacesCueText>>,
 ) {
     if !plate.open {
         return;
     }
+    // Door threshold copy — not a roster chip / teleport toast.
+    // Arrival names the room on the climate slab (PLACE_CLARITY), not a second HUD.
     let line = if plate.confirm_pending {
-        match plate.selected {
-            Some(PlaceId::Heartwood) => "Leave this hex · Heartwood?",
-            Some(PlaceId::Sanctuary) => "Leave this hex · Sanctuary?",
-            Some(PlaceId::Depths) => "Leave this hex · Depths?",
-            None => LEAVE_CONFIRM,
+        match plate.selected_room {
+            Some(name) => format!("Leave this hex · enter {name}?"),
+            None => DOOR_CONFIRM_BTN.to_string(),
         }
     } else {
-        travel.current.chip_name()
+        DOOR_IDLE_CUE.to_string()
     };
     for mut text in &mut cue {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
-                s.value = line.to_string();
+                s.value = line.clone();
             }
         }
     }
@@ -444,6 +488,7 @@ fn pause_places_row_clicks(
         if *i == Interaction::Pressed {
             plate.open = true;
             plate.selected = None;
+            plate.selected_room = None;
             plate.confirm_pending = false;
             return;
         }
@@ -459,6 +504,7 @@ fn places_plate_clicks(
     mut embassy: Option<ResMut<EmbassyYard>>,
     sanctuary: Query<&Interaction, (Changed<Interaction>, With<PlacesSanctuaryBtn>)>,
     heartwood: Query<&Interaction, (Changed<Interaction>, With<PlacesHeartwoodBtn>)>,
+    threshold: Query<&Interaction, (Changed<Interaction>, With<PlacesThresholdBtn>)>,
     depths: Query<&Interaction, (Changed<Interaction>, With<PlacesDepthsBtn>)>,
     confirm: Query<&Interaction, (Changed<Interaction>, With<PlacesConfirmBtn>)>,
     back: Query<&Interaction, (Changed<Interaction>, With<PlacesBackBtn>)>,
@@ -470,6 +516,7 @@ fn places_plate_clicks(
         if *i == Interaction::Pressed {
             plate.open = false;
             plate.selected = None;
+            plate.selected_room = None;
             plate.confirm_pending = false;
             return;
         }
@@ -481,19 +528,25 @@ fn places_plate_clicks(
     }
     for i in &sanctuary {
         if *i == Interaction::Pressed {
-            select_dest(&mut plate, travel.current, PlaceId::Sanctuary);
+            select_room(&mut plate, travel.current, PlacesRoom::Sanctuary);
             return;
         }
     }
     for i in &heartwood {
         if *i == Interaction::Pressed {
-            select_dest(&mut plate, travel.current, PlaceId::Heartwood);
+            select_room(&mut plate, travel.current, PlacesRoom::Heartwood);
+            return;
+        }
+    }
+    for i in &threshold {
+        if *i == Interaction::Pressed {
+            select_room(&mut plate, travel.current, PlacesRoom::Threshold);
             return;
         }
     }
     for i in &depths {
         if *i == Interaction::Pressed {
-            select_dest(&mut plate, travel.current, PlaceId::Depths);
+            select_room(&mut plate, travel.current, PlacesRoom::Depths);
             return;
         }
     }
@@ -545,11 +598,13 @@ fn places_plate_clicks(
                     label.settings_open = landed.pause_open;
                     plate.open = landed.places_open;
                     plate.selected = None;
+                    plate.selected_room = None;
                     plate.confirm_pending = false;
                 }
                 Err(TravelRefuse::NotYourCharter) | Err(TravelRefuse::SamePlace) => {
                     plate.confirm_pending = false;
                     plate.selected = None;
+                    plate.selected_room = None;
                 }
             }
             return;
@@ -557,14 +612,27 @@ fn places_plate_clicks(
     }
 }
 
-fn select_dest(plate: &mut PlacesPlate, current: PlaceId, dest: PlaceId) {
+fn select_room(plate: &mut PlacesPlate, current: PlaceId, room: PlacesRoom) {
+    let dest = room.place_id();
     if dest == current {
         plate.selected = None;
+        plate.selected_room = None;
         plate.confirm_pending = false;
         return;
     }
     plate.selected = Some(dest);
+    plate.selected_room = Some(room.display_name());
     plate.confirm_pending = true;
+}
+
+/// Test / walk helper: pick a disk PlaceId under its own room name.
+fn select_dest(plate: &mut PlacesPlate, current: PlaceId, dest: PlaceId) {
+    let room = match dest {
+        PlaceId::Sanctuary => PlacesRoom::Sanctuary,
+        PlaceId::Heartwood => PlacesRoom::Heartwood,
+        PlaceId::Depths => PlacesRoom::Depths,
+    };
+    select_room(plate, current, room);
 }
 
 /// Sticks / grove cull when the Places plate is open (same spirit as pause).
@@ -924,5 +992,79 @@ mod tests {
         assert_eq!(PlaceId::Heartwood.peace_hex(), HexFlag::Peace);
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(!default_client_listens());
+    }
+
+    /// Rung C: confirm cue is leave / enter, not a list-row teleport.
+    #[test]
+    fn door_confirm_cue_reads_leave_enter() {
+        assert_eq!(
+            door_confirm_cue(PlacesRoom::Sanctuary),
+            "Leave this hex · enter Sanctuary?"
+        );
+        assert_eq!(
+            door_confirm_cue(PlacesRoom::Heartwood),
+            "Leave this hex · enter Heartwood?"
+        );
+        assert_eq!(
+            door_confirm_cue(PlacesRoom::Threshold),
+            "Leave this hex · enter Threshold?"
+        );
+        assert_eq!(
+            door_confirm_cue(PlacesRoom::Depths),
+            "Leave this hex · enter Depths?"
+        );
+        assert_eq!(DOOR_IDLE_CUE, "Leave this hex · enter that room");
+        assert_eq!(DOOR_CONFIRM_BTN, "Leave · enter");
+    }
+
+    /// Four Offline rooms on the door; Threshold shares Heartwood's file.
+    #[test]
+    fn four_disk_rooms_threshold_shares_heartwood() {
+        assert_eq!(PlacesRoom::Sanctuary.place_id(), PlaceId::Sanctuary);
+        assert_eq!(PlacesRoom::Heartwood.place_id(), PlaceId::Heartwood);
+        assert_eq!(PlacesRoom::Threshold.place_id(), PlaceId::Heartwood);
+        assert_eq!(PlacesRoom::Depths.place_id(), PlaceId::Depths);
+        assert_eq!(PlacesRoom::Threshold.display_name(), "Threshold");
+        // No Market / fifth PlaceId on this plate.
+        assert_eq!(LOCAL_HEXES.len(), 3, "disk hexes stay three; Threshold rides Heartwood");
+    }
+
+    #[test]
+    fn select_threshold_pending_names_threshold_door() {
+        let mut plate = PlacesPlate::default();
+        select_room(&mut plate, PlaceId::Sanctuary, PlacesRoom::Threshold);
+        assert!(plate.confirm_pending);
+        assert_eq!(plate.selected, Some(PlaceId::Heartwood));
+        assert_eq!(plate.selected_room, Some("Threshold"));
+        // Already on Heartwood: Threshold is same disk room — no confirm teleport.
+        select_room(&mut plate, PlaceId::Heartwood, PlacesRoom::Threshold);
+        assert!(!plate.confirm_pending);
+        assert!(plate.selected.is_none());
+    }
+
+    #[test]
+    fn places_plate_spawns_four_room_buttons() {
+        let mut app = yard_app(PlaceId::Sanctuary);
+        let world = app.world_mut();
+        let sanctuary = world
+            .query_filtered::<(), With<PlacesSanctuaryBtn>>()
+            .iter(world)
+            .count();
+        let heartwood = world
+            .query_filtered::<(), With<PlacesHeartwoodBtn>>()
+            .iter(world)
+            .count();
+        let threshold = world
+            .query_filtered::<(), With<PlacesThresholdBtn>>()
+            .iter(world)
+            .count();
+        let depths = world
+            .query_filtered::<(), With<PlacesDepthsBtn>>()
+            .iter(world)
+            .count();
+        assert_eq!(sanctuary, 1);
+        assert_eq!(heartwood, 1);
+        assert_eq!(threshold, 1, "Threshold must sit on the Places door");
+        assert_eq!(depths, 1);
     }
 }

@@ -5,6 +5,8 @@
 //! only after Hour three held. Default win is Bind. No F-key. Peace silent.
 //! L2 face when Settled: House · week tons+restored · lethal only if declared.
 //! Bind-only / pre-Settled: *Not your charter* / *the ledger waits* — never blank.
+//! Settled + book is the Places door (`SETTLED_DOOR_CLARITY`); without charter the
+//! other rooms stay refused — this sash stays honest, never a soft-unlock.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -693,6 +695,20 @@ mod tests {
         let settled0 = ledger_sash_body(true, true, &house, &week, false);
         assert!(settled0.contains("Unnamed House"));
         assert!(!settled0.contains("lethal"));
+    }
+
+    /// Places door stays refused without charter — sash copy matches travel inert.
+    #[test]
+    fn places_door_without_charter_stays_not_your_charter() {
+        use shared::hex_travel::places_row_or_inert;
+        use shared::pause_ledger_face::NOT_YOUR_CHARTER;
+        assert_eq!(
+            places_row_or_inert(false, false, false),
+            NOT_YOUR_CHARTER,
+            "no Settled+book → Places inert is Not your charter"
+        );
+        assert_eq!(places_row_or_inert(true, false, false), NOT_YOUR_CHARTER);
+        assert_eq!(places_row_or_inert(false, true, false), NOT_YOUR_CHARTER);
     }
 
     #[test]
