@@ -1,14 +1,14 @@
 /*!
- * Soft RBE Allocate Choice — human playability depth (v21.93.0)
+ * Soft RBE Allocate Choice — credit face (CREDIT_RESERVE · H-2026-09-11-D4)
  *
  * After meaningful surplus, invite a voluntary allocation:
- *   • Flow outward — share into the living lattice
- *   • Steward reserve — hold for future thriving
+ *   • Flow — field restore / share credit into the lattice
+ *   • Reserve — repair-rights steward hold for later mend
  *
- * No scarcity language. No punishment for either path.
- * Both are abundance-aligned; the difference is timing and direction.
+ * Credit ≠ gold. Neither path is sell / price / ticker / Market.
+ * Still-frame names logistics, not currency.
  *
- * Controls: **R** toggles panel when eligible · **1** flow · **2** reserve · Esc / R closes
+ * Controls: **R** toggles panel when eligible · **1** Flow · **2** Reserve · Esc / R closes
  *
  * PATSAGi + TOLC 8 | AG-SML v1.0 | Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
@@ -34,21 +34,33 @@ pub enum AllocatePath {
 impl AllocatePath {
     pub fn title(self) -> &'static str {
         match self {
-            AllocatePath::FlowOutward => "Flow outward",
-            AllocatePath::StewardReserve => "Steward reserve",
+            AllocatePath::FlowOutward => "Flow · field restore",
+            AllocatePath::StewardReserve => "Reserve · repair-rights",
         }
     }
 
     pub fn line(self) -> &'static str {
         match self {
             AllocatePath::FlowOutward => {
-                "Share surplus into the lattice — others may thrive now"
+                "Share credit into the lattice — restore shared field"
             }
             AllocatePath::StewardReserve => {
-                "Hold surplus with care — future thriving stays possible"
+                "Hold repair-rights credit — steward for later mend"
             }
         }
     }
+}
+
+/// Allocate-face copy stays credit logistics — never gold / Market / sell / price.
+pub fn allocate_copy_is_honest(s: &str) -> bool {
+    let low = s.to_lowercase();
+    !low.contains("gold")
+        && !low.contains("market")
+        && !low.contains("price")
+        && !low.contains("sell")
+        && !low.contains("ticker")
+        && !low.contains("currency")
+        && !low.contains("auction")
 }
 
 #[derive(Resource, Debug)]
@@ -165,7 +177,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
         .with_children(|p| {
             p.spawn((
                 TextBundle::from_section(
-                    "Abundance choice · surplus is ready",
+                    "Allocate credit · Flow or Reserve",
                     TextStyle {
                         font_size: 15.0,
                         color: Color::srgb(0.85, 0.98, 0.90),
@@ -201,7 +213,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
                 ))
                 .with_children(|b| {
                     b.spawn(TextBundle::from_section(
-                        "Flow outward",
+                        "Flow · field restore",
                         TextStyle {
                             font_size: 14.0,
                             color: Color::srgb(0.90, 1.0, 0.95),
@@ -225,7 +237,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
                 ))
                 .with_children(|b| {
                     b.spawn(TextBundle::from_section(
-                        "Steward reserve",
+                        "Reserve · repair-rights",
                         TextStyle {
                             font_size: 14.0,
                             color: Color::srgb(0.90, 0.95, 1.0),
@@ -236,7 +248,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
             });
 
             p.spawn(TextBundle::from_section(
-                "1 flow outward · 2 steward reserve · R close · both paths thrive",
+                "1 Flow · 2 Reserve · R close · credit logistics",
                 TextStyle {
                     font_size: 12.0,
                     color: Color::srgb(0.65, 0.80, 0.75),
@@ -316,7 +328,7 @@ fn update_allocate_body(
         return;
     }
     let body = format!(
-        "Abundance choice · surplus {:.1}  ·  flowed {:.1}  ·  reserved {:.1}\nBoth paths thrive — pick a direction",
+        "Allocate credit · ready {:.1}  ·  flowed {:.1}  ·  reserved {:.1}\nFlow restores field · Reserve holds repair-rights",
         allocate.surplus_signal, allocate.flow_total, allocate.reserve_total
     );
     for mut text in &mut q {
@@ -422,7 +434,25 @@ mod tests {
 
     #[test]
     fn digit_labels_are_flow_then_reserve() {
-        assert_eq!(AllocatePath::FlowOutward.title(), "Flow outward");
-        assert_eq!(AllocatePath::StewardReserve.title(), "Steward reserve");
+        assert_eq!(AllocatePath::FlowOutward.title(), "Flow · field restore");
+        assert_eq!(AllocatePath::StewardReserve.title(), "Reserve · repair-rights");
+    }
+
+    #[test]
+    fn allocate_face_names_credit_not_gold() {
+        for path in [AllocatePath::FlowOutward, AllocatePath::StewardReserve] {
+            assert!(allocate_copy_is_honest(path.title()), "{}", path.title());
+            assert!(allocate_copy_is_honest(path.line()), "{}", path.line());
+        }
+        assert!(AllocatePath::FlowOutward.line().contains("field"));
+        assert!(AllocatePath::StewardReserve.line().contains("repair-rights"));
+        assert!(allocate_copy_is_honest(
+            "Allocate credit · Flow or Reserve"
+        ));
+        assert!(allocate_copy_is_honest(
+            "1 Flow · 2 Reserve · R close · credit logistics"
+        ));
+        assert!(!allocate_copy_is_honest("sell gold on Market"));
+        assert!(!allocate_copy_is_honest("price ticker"));
     }
 }
