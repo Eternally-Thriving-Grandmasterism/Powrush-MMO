@@ -266,9 +266,8 @@ fn update_climate_state_slab(
         .flatten();
     // H-2026-09-10-2: the nearest well's mood rides the slab even out of arm's reach,
     // so the room never reads as a bare teaching hint. Reach only buys the hand hint.
-    let mood = nearest.map(|n| {
-        well_state_sentence(n.name, well_state_in_hour(&bind.hour.nodes, n.climate_id))
-    });
+    let mood = nearest
+        .map(|n| well_state_sentence(n.name, well_state_in_hour(&bind.hour.nodes, n.climate_id)));
     let fallback = climate_slab_fallback(
         mood,
         bind.climate_slab.as_deref(),
@@ -335,7 +334,10 @@ fn place_clarity_line(place: &str, body: String) -> String {
 /// Only a whole leading clause counts as the place. A well called
 /// "Sanctuary ember" must not swallow the "Sanctuary" room name.
 fn place_already_named(place: &str, body: &str) -> bool {
-    body == place || body.strip_prefix(place).is_some_and(|rest| rest.starts_with(" · "))
+    body == place
+        || body
+            .strip_prefix(place)
+            .is_some_and(|rest| rest.starts_with(" · "))
 }
 
 /// Slab news when nothing is within arm's reach: the nearest well's mood leads,
@@ -558,7 +560,10 @@ mod tests {
             line,
             "Sanctuary · North Well is Idle · • · the yard holds peace"
         );
-        assert!(!line.contains("walk to a glow"), "mood replaces the stand-in");
+        assert!(
+            !line.contains("walk to a glow"),
+            "mood replaces the stand-in"
+        );
     }
 
     #[test]
@@ -584,11 +589,7 @@ mod tests {
 
     #[test]
     fn every_mood_reads_out_of_reach_in_every_place() {
-        for place in [
-            PlaceId::Sanctuary,
-            PlaceId::Heartwood,
-            PlaceId::Depths,
-        ] {
+        for place in [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths] {
             for threshold_near in [false, true] {
                 let label = place_clarity_label(place, threshold_near);
                 for state in [
@@ -631,7 +632,10 @@ mod tests {
             "walk to a glow"
         );
         // H hushes the teaching stand-in; the place alone still paints the slab.
-        assert_eq!(climate_slab_fallback(None, None, "walk to a glow", true), "");
+        assert_eq!(
+            climate_slab_fallback(None, None, "walk to a glow", true),
+            ""
+        );
         assert_eq!(
             place_clarity_line("Sanctuary", climate_slab_fallback(None, None, "", true)),
             "Sanctuary"
