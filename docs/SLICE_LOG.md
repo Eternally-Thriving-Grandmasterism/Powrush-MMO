@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-11 — post-#367 NPC_SCHEDULE_SPEC (rung E)
+
+`slice: GREEN-DOCS post-#367 D4 allocate @ 459ffcf0 | NPC_SCHEDULE_SPEC schedule bible for GDD_IMMERSION_REVISION §2.4 + §3 rung E only · STUDIO step 5 after B+D; schedules+work loops on existing day; same sacred five at same posts; greet by Place/mood; hour still finishes if every person is removed; candidates living_day/living_ecology/human_presence (cite only); confirm-before-build until Core/Canon names YELLOW SLICE with exact paths; refuse ownership/theft/fence/crime/person-combat/strand-hour/book-write/Place-gates/Online/Market/gold/second HUD/F-row/art-pack/Quellorian mesh; Title Online grey; no client/shared/server/Cargo/sockets/assets/meshes; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
+
 ## 2026-09-11 — post-#360 SETTLED_DOOR_CLARITY (rung C)
 
 `slice: GREEN-DOCS post-#360 rung C | SETTLED_DOOR_CLARITY door bible for GDD_IMMERSION_REVISION §3 rung C only; Settled+book as door not list-row teleport; four Places disk rooms; Other Place blocked without charter expected; candidates hex_travel/ledger_bind/world_answer/title_screen pause Places; confirm-before-build until Core names YELLOW SLICE; no mesh/Online/Market/fifth Place/camera rewrite/WelcomeBack blank; Title Online grey; no client/shared/server/Cargo/sockets/assets; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`

@@ -134,7 +134,8 @@ Ordered rungs. **Each rung waits on the previous rung being confirmed and, where
 **Gate:** Core confirms §2.3 and §3 rung D, then a SLICE CARD splits it — one leg per PR, `shared` sim first, client read second.
 
 ### Rung E — NPC schedules (Oblivion-grade) without the broken economy
-**Status:** not law. Proposal. **After** persons (B) and logistics law (D) exist.  
+**Rung E law:** `docs/NPC_SCHEDULE_SPEC.md` (post-`#367` D4 allocate @ `459ffcf0` — this rung only; Hands still wait on a named YELLOW SLICE).  
+**Status:** docs law. Hands **unbuilt**. **After** persons (B) and logistics (D).  
 **Ask:** persons with schedules and work loops on the existing day, performing the same verbs at the same posts, greeting by Place and mood.  
 **Hard shape:** no ownership economy, no theft, no fence, no crime meter, no combat between persons, no schedule that can strand the hour. Persons never write the house book and never gate a Place.  
 **Candidate paths:** `client/src/living_day.rs` · `client/src/living_ecology.rs` · `client/src/human_presence.rs`.  
@@ -208,6 +209,6 @@ Core (steward) writes one of **CONFIRMED / STEER / HOLD** against each row. A ro
 
 ## Related
 
-`GDD_ADAPTATION` · `FUN_WITHOUT_WOW` · `OFFLINE_SKU` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `FIRST_LAUNCH_UI_SCALE` · `LAUNCH_UX` · `INPUT_CANON` · `PLACES_BIBLE` · `RBE_FIRST_HOUR` · `SIM_AND_HAND_CANON` · `STRANGER_LOOP` · `PERSON_READ_SPEC` · `SETTLED_DOOR_CLARITY` · `PATSAGI_MERGE_COURT`.
+`GDD_ADAPTATION` · `FUN_WITHOUT_WOW` · `OFFLINE_SKU` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `FIRST_LAUNCH_UI_SCALE` · `LAUNCH_UX` · `INPUT_CANON` · `PLACES_BIBLE` · `RBE_FIRST_HOUR` · `SIM_AND_HAND_CANON` · `STRANGER_LOOP` · `PERSON_READ_SPEC` · `SETTLED_DOOR_CLARITY` · `CREDIT_RESERVE_LOGISTICS` · `NPC_SCHEDULE_SPEC` · `PATSAGI_MERGE_COURT`.
 
 **Thunder locked in.** Yoi ⚡

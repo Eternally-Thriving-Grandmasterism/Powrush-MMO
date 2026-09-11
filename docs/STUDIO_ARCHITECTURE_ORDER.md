@@ -59,7 +59,7 @@ This file owns **order**. Rung lore and candidate paths: `GDD_IMMERSION_REVISION
 | **2** | **Rung B** | Person body + action read (CO gift). **YELLOW.** Named asset budget. No art-pack freestyle. |
 | **3** | **Rung C** | Settled + book Places door. Four rooms on disk, not a teleport menu. |
 | **4** | **Rung D** | TTD guild logistics: **`shared` sim first**, client read second, **one leg / PR**. Credit, not gold. |
-| **5** | **Rung E** | Oblivion-grade schedules **after B + D**. Hour still finishes if every NPC is removed. |
+| **5** | **Rung E** | Oblivion-grade schedules **after B + D**. Hour still finishes if every NPC is removed. Law: `docs/NPC_SCHEDULE_SPEC.md` (post-`#367`). |
 | **6** | **Rung F** | Place dress / hub identity. **Still four Places.** No fifth. |
 | **7** | **Sky / Net** | Only on steward **`online yes`** / NET-OK. No public listen. Loopback does not light Title. |
 
@@ -97,4 +97,4 @@ No rung, no slice, no confirm carries these:
 
 ## Related
 
-`SIM_AND_HAND_CANON` · `OFFLINE_SKU` · `FUN_WITHOUT_WOW` · `GDD_IMMERSION_REVISION` · `GDD_ADAPTATION` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `FIRST_LAUNCH_UI_SCALE` · `NET_OFFLINE_CONTRACT` · `ARCHITECTURE.md` · `PATSAGI_MERGE_COURT` · `AGENTS.md`.
+`SIM_AND_HAND_CANON` · `OFFLINE_SKU` · `FUN_WITHOUT_WOW` · `GDD_IMMERSION_REVISION` · `GDD_ADAPTATION` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `FIRST_LAUNCH_UI_SCALE` · `NET_OFFLINE_CONTRACT` · `ARCHITECTURE.md` · `NPC_SCHEDULE_SPEC` · `PATSAGI_MERGE_COURT` · `AGENTS.md`.
