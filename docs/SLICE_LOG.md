@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-11 — F-2026-09-11 PLACE_DRESS_SPEC (GREEN-DOCS)
+
+`slice: GREEN-DOCS F-2026-09-11-PLACE_DRESS | PLACE_DRESS_SPEC presentation bible for GDD_IMMERSION_REVISION §3 rung F only; four Places; one material each; Sanctuary greybox dress debt first; ART_BIBLE / DRIVE_LORE / Imagine refs only — no binary mesh/texture pack; confirm-before-build until Core names YELLOW SLICE with exact paths; Title Online grey; no client/shared/server/Cargo/sockets/assets; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
+
 ## 2026-09-11 — P0 MERCY_PERSONA_CREATION (SPEC ONLY)
 
 `slice: GREEN-DOCS P0 MERCY_PERSONA_CREATION | persona/people/story spec-only; mechanical race unchanged (HUMAN_HYBRID_PROTOCOL_CODE); after E2 HOLD for Hands P1–P5; no living_ecology / E2–E3–F / persona.rs / client/** / Cargo; Title Online grey; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`

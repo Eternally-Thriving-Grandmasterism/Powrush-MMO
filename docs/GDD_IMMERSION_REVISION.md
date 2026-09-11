@@ -142,7 +142,7 @@ Ordered rungs. **Each rung waits on the previous rung being confirmed and, where
 **Gate:** Core confirms; acceptance must include *the hour still finishes if every person is removed*.
 
 ### Rung F — Vanilla / TBC hub identity as Place dress
-**Status:** not law. Proposal. Last rung, on purpose — dress is cheapest to change once the bodies, doors and loops read.  
+**Status:** SPEC landed in `PLACE_DRESS_SPEC` (docs-only). Hands HOLD until Core names a YELLOW SLICE with exact paths. Last rung, on purpose — dress is cheapest to change once the bodies, doors and loops read.  
 **Ask:** each Place's palette, material and mood say its name before any slab does, at zone-identity strength.  
 **Hard shape:** **still four Places. No fifth. No race select.** No hub vendor strip, no auction corner, no flight-master node, no instance portal. One material per Place — a room needing two materials is a failed read, not an argument for a room.  
 **Gate:** Core confirms; any new asset is a named art slice after a playtest note.
