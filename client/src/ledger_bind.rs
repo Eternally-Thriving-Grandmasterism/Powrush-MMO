@@ -282,12 +282,14 @@ fn update_ledger_slab(
         .unwrap_or(false)
         || hour.complete;
     let charter = hour.charter_skin_live();
-    // The face speaks the yard the body stands in. The House bill is its own line.
+    let underfoot = yard_week(&bind.climate);
+    // L face speaks the House bill ("House week"). Yard slab ("this week") is
+    // its own line so a stranger can tell bill from the room underfoot.
     let face = ledger_sash_body(
         charter,
         settled,
         &house_label.house,
-        &yard_week(&bind.climate),
+        &bill.week,
         bind.standing.declared_lethal,
     );
     let line = if !charter {
@@ -297,11 +299,11 @@ fn update_ledger_slab(
         // Bind-only before Settled: wait line + Bind sash (still never blank).
         use shared::pause_ledger_face::wait_line_before_settled;
         let wait = wait_line_before_settled(true);
-        let face = with_house_week(&face, &bill);
+        let face = with_yard_slab_on_house_face(&face, &underfoot);
         let sash = yard.board.sash_line();
         format!("{wait}\n{face}\n{sash}")
     } else {
-        let face = with_house_week(&face, &bill);
+        let face = with_yard_slab_on_house_face(&face, &underfoot);
         // Soft discoverability only after the book.
         let mut sash = yard.board.sash_line();
         let sign = lethal_sign_row(
@@ -332,9 +334,26 @@ fn yard_week(climate: &ShardClimate) -> WeekAudit {
     week
 }
 
-/// Yard face, then the summed House bill on its own line.
+/// Yard slab face, then the summed House bill on its own line.
 fn with_house_week(face: &str, bill: &HouseWeekBill) -> String {
     format!("{face}\n{}", bill.line())
+}
+
+/// Insert the yard slab ("this week") immediately before the House week line
+/// already present on an L face built from the House bill.
+fn with_yard_slab_on_house_face(face: &str, yard: &WeekAudit) -> String {
+    use shared::pause_ledger_face::HOUSE_WEEK_PREFIX;
+    let yard_line = yard.slab_line();
+    if let Some(pos) = face.find(HOUSE_WEEK_PREFIX) {
+        let mut out = String::with_capacity(face.len() + yard_line.len() + 1);
+        out.push_str(&face[..pos]);
+        out.push_str(&yard_line);
+        out.push('\n');
+        out.push_str(&face[pos..]);
+        out
+    } else {
+        format!("{face}\n{yard_line}")
+    }
 }
 
 /// The House bill as the plate computes it: the live room plus whichever other
