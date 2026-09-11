@@ -85,6 +85,7 @@ Start here if you want to complete the game:
 - `docs/PHYSICS_GRAPHICS_CANON.md` — Sanctuary surfaces, physics layers, Crownstone Witness-only
 - `docs/GDD_ADAPTATION.md` — GDD 1.5–2.0 name map / keep·transform·refuse
 - `docs/MERCY_PERSONA_CREATION.md` — Persona/people/story is spec-only; mechanical race unchanged
+- `docs/PLACE_DRESS_SPEC.md` — Place dress (rung F); four Places; one material each; Sanctuary greybox first
 - `docs/archive/README.md` — historical. README is canonical.
 
 ### Dev
