@@ -52,7 +52,7 @@ Order stays:
 
 1. **A — climate slab / #355.** Prove the world answers.
 2. **B — person-read.** Only after A's human shots and a named asset budget.
-3. **C — Settled-door** (`SETTLED_DOOR_CLARITY`) then logistics, schedules, Place dress in `STUDIO_ARCHITECTURE_ORDER`.
+3. **C — Settled-door** (`SETTLED_DOOR_CLARITY`) then **D logistics** (`CREDIT_RESERVE_LOGISTICS`) then **E schedules** (`NPC_SCHEDULE_SPEC`, after B+D; hour still finishes if every person is removed) then Place dress in `STUDIO_ARCHITECTURE_ORDER`.
 4. Presentation camera only as its own later **CONFIRMED** slice.
 5. Net only after steward **`online yes`**.
 
@@ -74,6 +74,6 @@ Codex spectacle cannot skip A or B. A beautiful fleet does not repair an unreada
 
 ## Related
 
-`FUN_WITHOUT_WOW` · `BLIZZARD_CRAFT_UX` · `GDD_IMMERSION_REVISION` · `STUDIO_ARCHITECTURE_ORDER` · `OFFLINE_SKU` · `RBE_FIRST_HOUR` · `PLACES_BIBLE` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `MECHANICS_INTERACTION_BIBLE` · `PERSON_READ_SPEC` · `SETTLED_DOOR_CLARITY` · `PRACTICE_NOT_VERB` · `NET_OFFLINE_CONTRACT`.
+`FUN_WITHOUT_WOW` · `BLIZZARD_CRAFT_UX` · `GDD_IMMERSION_REVISION` · `STUDIO_ARCHITECTURE_ORDER` · `OFFLINE_SKU` · `RBE_FIRST_HOUR` · `PLACES_BIBLE` · `PLACE_CLARITY_HOUR` · `PLACE_CLARITY_WALK` · `MECHANICS_INTERACTION_BIBLE` · `PERSON_READ_SPEC` · `SETTLED_DOOR_CLARITY` · `CREDIT_RESERVE_LOGISTICS` · `NPC_SCHEDULE_SPEC` · `PRACTICE_NOT_VERB` · `NET_OFFLINE_CONTRACT`.
 
 **Thunder locked in.** Yoi ⚡
