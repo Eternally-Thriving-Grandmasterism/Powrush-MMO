@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-11 — P0 MERCY_PERSONA_CREATION (SPEC ONLY)
+
+`slice: GREEN-DOCS P0 MERCY_PERSONA_CREATION | persona/people/story spec-only; mechanical race unchanged (HUMAN_HYBRID_PROTOCOL_CODE); after E2 HOLD for Hands P1–P5; no living_ecology / E2–E3–F / persona.rs / client/** / Cargo; Title Online grey; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
+
 ## 2026-09-11 — post-#367 NPC_SCHEDULE_SPEC (rung E)
 
 `slice: GREEN-DOCS post-#367 D4 allocate @ 459ffcf0 | NPC_SCHEDULE_SPEC schedule bible for GDD_IMMERSION_REVISION §2.4 + §3 rung E only · STUDIO step 5 after B+D; schedules+work loops on existing day; same sacred five at same posts; greet by Place/mood; hour still finishes if every person is removed; candidates living_day/living_ecology/human_presence (cite only); confirm-before-build until Core/Canon names YELLOW SLICE with exact paths; refuse ownership/theft/fence/crime/person-combat/strand-hour/book-write/Place-gates/Online/Market/gold/second HUD/F-row/art-pack/Quellorian mesh; Title Online grey; no client/shared/server/Cargo/sockets/assets/meshes; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
