@@ -1,6 +1,7 @@
 # ART_BIBLE.md — Powrush visual constitution
 
 **Contact:** info@Rathor.ai
+**Independent of xAI.** No certification / AGSi warranty / legal-product claims.
 **Law:** Glow is the Use target. Fog is weather. The week is the bill. Art that hides the bill is vetoed.
 See also: PHYSICS_GRAPHICS_CANON.md, AUDIO_DIRECTION.md, IMAGINE_TRAILER_PACK.md, DRIVE_LORE_ADAPTATION.md.
 
@@ -36,10 +37,22 @@ No Title race select. Visual only:
 | Human | warm grey-gold | Sanctuary |
 | Draek | dry red / bronze | later shard / Threshold |
 | Cydruid | teal / leaf-metal | Depths |
-| Quellorian | pale gold | Heartwood / Wards |
+| Quellorian | iridescent violet / pink · pale gold | Heartwood / Wards; pale-gold structure rhymes with steward Codex stills |
 | Ambrosian | prism cool | mythic / portal ring |
 
 Not STR/AGI. Not default-E change. No sixth people.
+
+### Quellorian Codex still rhyme
+
+References only—no binary asset enters this repository. Sources remain the steward Imagine pack / room attachments. These are **Codex paintings**, not HANDS shots, shipped meshes, or Sanctuary cargo.
+
+| Imagine ID | Steward still | Thin rhyme carried forward |
+|---|---|---|
+| `C-12` | *Then, they find Earth.* — mothership over Earth | Dark hull makes iridescent violet / pink + pale-gold light feel rare; no bay, no playable-space claim. |
+| `C-13` | Quellorian council around a galaxy hologram | Radial counsel, pale-gold structure, violet / pink bodies; practice remains dress, not command class. |
+| `C-14` | Quellorian couple on a terrace | Cloth-light and person-scale tenderness; no loadout silhouette. |
+| `C-15` | Bridge overlooking Earth / nebula | Pale-gold frame around cosmic violet; bridge is Codex architecture, not Title Online chrome. |
+| `C-16` | Waterfall crystalline city | Luminous vertical city rhythm; Heartwood / Wards borrow only the restrained colour rhyme, never the city mesh. |
 
 ## Type / comforts
 
