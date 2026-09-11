@@ -1,6 +1,6 @@
 # PLAYER_FEEL_METRICS.md — measure the stranger, not the feature list
 
-**Contact:** info@Rathor.ai  
+**Contact:** info@Rathor.ai
 **Independent of xAI.** No certification / AGSi warranty / legal-product claims.
 
 **Docs-only. GREEN-DOCS. Play-ball Confirmed.** This is an Offline player-feel map, not a WoW checklist, a Hands order, an art order, or a Net unlock. **Title Online stays grey.**

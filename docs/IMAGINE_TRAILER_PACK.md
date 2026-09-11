@@ -1,6 +1,6 @@
 # IMAGINE_TRAILER_PACK.md — stills → 90s cut
 
-**Contact:** info@Rathor.ai  
+**Contact:** info@Rathor.ai
 **Independent of xAI.** No certification / AGSi warranty / legal-product claims.
 
 Hands first. Tableau last. Grey Online in frame 1 and frame 12.

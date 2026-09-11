@@ -1,6 +1,6 @@
 # MECHANICS_INTERACTION_BIBLE.md — one hand, four Places, one bill
 
-**Contact:** info@Rathor.ai  
+**Contact:** info@Rathor.ai
 **Independent of xAI.** No certification / AGSi warranty / legal-product claims.
 
 **Docs-only. GREEN-DOCS. Play-ball Confirmed.** This file stamps the teachers already on the floor. It adds no verb, Place, key, HUD, sim, asset, socket, or Online claim. **Title Online stays grey.**
