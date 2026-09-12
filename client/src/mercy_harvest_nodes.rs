@@ -8,13 +8,21 @@
  * Zero persons OK. Dismiss always valid. Never blocks WASD / E.
  * No second HUD — transient one-card strip only while the offer is live.
  *
+ * T5 (H-2026-09-11-T5): Distill Shell Ward on Stressed→Idle (Digit2).
+ * Seats WardKind::Shell in an empty Lumen; harvest stress *= 0.7.
+ * Climate Pick / Mend Spindle / Harmony Loom stay later. Online grey.
+ *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use bevy::prelude::*;
 
+use shared::temper::{seat_ward, TemperError, TemperedItem, WardKind};
+
+use crate::fabricator::FabricatorYard;
 use crate::human_presence::SoftPresence;
 use crate::living_ecology::BiomeFeel;
 use crate::living_practice_loop::SoftPlayerRealm;
@@ -34,6 +42,23 @@ const TEND_PULSE_HI: f32 = 0.60;
 pub const IDLE_VITALITY: f32 = 1.0;
 /// Pre-tend vitality below this ⇒ Shell Ward path on the offer.
 pub const STRESSED_VITALITY: f32 = 0.55;
+/// T5 Shell Ward: turtle −30% well-stress (not PvP). `stress_inflicted *= 0.7`.
+pub const SHELL_STRESS_FACTOR: f32 = 0.7;
+/// Baseline vitality keep-fraction on harvest (stress fraction = 1 − keep).
+const HARVEST_VITALITY_KEEP: f32 = 0.92;
+/// Floor after harvest — Hook + Shell still cannot force below this alone.
+const HARVEST_VITALITY_FLOOR: f32 = 0.45;
+
+/// Live Shell Ward seat flag so `apply_node_harvest` can apply 0.7 without a second HUD file.
+static SHELL_WARD_SEATED: AtomicBool = AtomicBool::new(false);
+
+pub fn shell_ward_is_seated() -> bool {
+    SHELL_WARD_SEATED.load(Ordering::Relaxed)
+}
+
+fn mark_shell_ward_seated(seated: bool) {
+    SHELL_WARD_SEATED.store(seated, Ordering::Relaxed);
+}
 
 #[derive(Component, Debug)]
 pub struct MercyHarvestNode {
@@ -163,6 +188,34 @@ pub fn vitality_before_tend(vitality_after: f32) -> f32 {
     } else {
         (vitality_after - 0.14).max(0.0)
     }
+}
+
+/// Harvest stress multiplier: Shell Ward seats turtle mitigation at 0.7.
+pub fn harvest_stress_factor(shell_ward_seated: bool) -> f32 {
+    if shell_ward_seated {
+        SHELL_STRESS_FACTOR
+    } else {
+        1.0
+    }
+}
+
+/// Vitality after one harvest take. Shell multiplies inflicted stress by 0.7.
+pub fn vitality_after_harvest(vitality: f32, shell_ward_seated: bool) -> f32 {
+    let stress_frac = (1.0 - HARVEST_VITALITY_KEEP) * harvest_stress_factor(shell_ward_seated);
+    (vitality * (1.0 - stress_frac)).max(HARVEST_VITALITY_FLOOR)
+}
+
+/// T5 Distill Shell Ward — seat `WardKind::Shell` in the first empty Lumen.
+pub fn distill_shell_ward(item: &mut TemperedItem) -> Result<(), TemperError> {
+    seat_ward(item, WardKind::Shell)
+}
+
+pub fn item_has_empty_lumen(item: &TemperedItem) -> bool {
+    item.lumens.iter().any(|l| l.ward.is_none())
+}
+
+pub fn item_has_shell_ward(item: &TemperedItem) -> bool {
+    item.lumens.iter().any(|l| l.ward == Some(WardKind::Shell))
 }
 
 pub fn sting_path_for_realm(realm: Option<u8>) -> &'static str {
@@ -451,6 +504,7 @@ fn watch_idle_after_tend(
 fn handle_care_cycle_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut offer: ResMut<CareCycleOffer>,
+    mut yard: ResMut<FabricatorYard>,
 ) {
     if !offer.active {
         return;
@@ -464,6 +518,38 @@ fn handle_care_cycle_input(
         return;
     }
     if keyboard.just_pressed(KeyCode::Digit2) {
+        // T5: Stressed→Idle Digit2 is real Distill Shell Ward (seat empty Lumen).
+        if offer.offer_shell {
+            match yard.fab.last_tempered.as_mut() {
+                Some(item) => match distill_shell_ward(item) {
+                    Ok(()) => {
+                        mark_shell_ward_seated(true);
+                        info!(
+                            target: "powrush::temper",
+                            "Distill Shell Ward seated on empty Lumen (stress×{SHELL_STRESS_FACTOR})"
+                        );
+                    }
+                    Err(TemperError::NoEmptyLumen) => {
+                        info!(
+                            target: "powrush::temper",
+                            "Distill Shell Ward refused — no empty Lumen"
+                        );
+                    }
+                    Err(other) => {
+                        info!(
+                            target: "powrush::temper",
+                            "Distill Shell Ward refused — {other:?}"
+                        );
+                    }
+                },
+                None => {
+                    info!(
+                        target: "powrush::temper",
+                        "Distill Shell Ward waiting — no tempered tool in satchel"
+                    );
+                }
+            }
+        }
         offer.choose(CareCycleChoice::DistillWard);
     }
 }
@@ -500,7 +586,8 @@ fn update_care_cycle_strip(
 
 pub fn apply_node_harvest(node: &mut MercyHarvestNode) {
     node.harvests = node.harvests.saturating_add(1);
-    node.vitality = (node.vitality * 0.92).max(0.45);
+    // T5: when Shell Ward is seated, inflicted stress *= 0.7.
+    node.vitality = vitality_after_harvest(node.vitality, shell_ward_is_seated());
     node.pulse = 1.0;
 }
 
@@ -556,6 +643,7 @@ mod tests {
 
     #[test]
     fn harvest_leaves_node_alive() {
+        mark_shell_ward_seated(false);
         let mut n = MercyHarvestNode {
             name: "test",
             climate_id: 1,
@@ -565,6 +653,7 @@ mod tests {
         };
         apply_node_harvest(&mut n);
         assert!(n.vitality < 1.0 && n.vitality >= 0.45);
+        assert!((n.vitality - 0.92).abs() < 1e-5);
         assert_eq!(n.harvests, 1);
     }
 
@@ -684,5 +773,82 @@ mod tests {
         apply_node_tend(&mut n);
         let approx = vitality_before_tend(n.vitality);
         assert!(approx < STRESSED_VITALITY || before < STRESSED_VITALITY);
+    }
+
+    fn hook_with_empty_lumen(temper: u8) -> TemperedItem {
+        let mut item = TemperedItem::hands(11, "stranger");
+        item.tier = shared::temper::ToolTier::TendHook;
+        item.temper = temper;
+        let want = shared::temper::lumen_slots(temper) as usize;
+        item.lumens = (0..want)
+            .map(|i| shared::temper::Lumen {
+                index: i as u8,
+                ward: None,
+            })
+            .collect();
+        item
+    }
+
+    #[test]
+    fn distill_shell_ward_seats_empty_lumen() {
+        let mut item = hook_with_empty_lumen(3);
+        assert!(item_has_empty_lumen(&item));
+        distill_shell_ward(&mut item).expect("empty lumen");
+        assert!(item_has_shell_ward(&item));
+        assert!(!item_has_empty_lumen(&item));
+        assert_eq!(
+            distill_shell_ward(&mut item),
+            Err(TemperError::NoEmptyLumen)
+        );
+    }
+
+    #[test]
+    fn distill_shell_ward_needs_lumen_slot() {
+        let mut bare = hook_with_empty_lumen(0);
+        assert!(bare.lumens.is_empty());
+        assert_eq!(
+            distill_shell_ward(&mut bare),
+            Err(TemperError::NoEmptyLumen)
+        );
+    }
+
+    #[test]
+    fn shell_stress_factor_is_point_seven() {
+        assert!((harvest_stress_factor(false) - 1.0).abs() < f32::EPSILON);
+        assert!((harvest_stress_factor(true) - SHELL_STRESS_FACTOR).abs() < f32::EPSILON);
+        assert!((SHELL_STRESS_FACTOR - 0.7).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn harvest_with_shell_inflicts_less_stress() {
+        mark_shell_ward_seated(false);
+        let v = 1.0_f32;
+        let plain = vitality_after_harvest(v, false);
+        let shelled = vitality_after_harvest(v, true);
+        // Shell keeps more vitality (less stress inflicted).
+        assert!(shelled > plain);
+        assert!((plain - 0.92).abs() < 1e-5);
+        let expected_shelled = 1.0 - (1.0 - 0.92) * 0.7;
+        assert!((shelled - expected_shelled).abs() < 1e-5);
+        assert!(shelled >= HARVEST_VITALITY_FLOOR);
+
+        let mut n = MercyHarvestNode {
+            name: "test",
+            climate_id: 1,
+            vitality: 1.0,
+            harvests: 0,
+            pulse: 0.0,
+        };
+        mark_shell_ward_seated(true);
+        apply_node_harvest(&mut n);
+        assert!((n.vitality - expected_shelled).abs() < 1e-5);
+        mark_shell_ward_seated(false);
+    }
+
+    #[test]
+    fn care_cycle_shell_copy_stays_honest() {
+        let line = care_cycle_card_line(true);
+        assert!(line.contains("Shell Ward"));
+        assert!(temper_copy_is_honest(line), "{line}");
     }
 }
