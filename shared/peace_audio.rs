@@ -1,15 +1,16 @@
 //! U4 — Peace yard audio bed + well sting
 //!
-//! Quiet bed while the Peace yard is live. Well sting on the existing well
+//! Quiet bed while the Peace yard is live. Depths (PlaceId::Depths) reuses
+//! the same bed asset at a quieter gain. Well sting on the existing well
 //! Use (E take / hold-E tend — SoftRbePool harvests / tends). A1: soft
 //! one-shot on the first successful E only. Mute is the existing
 //! pause/Settings flag (`LocalSettings.mute` / MasterMute). No second mute,
 //! no F-row, no new settings plate.
 //!
-//! Mute silences bed and sting. Unmute does not open a socket. No ALSA
-//! card: boot must not hang (lavapipe) — probe is filesystem only, never
-//! cpal/rodio. Title Online stays grey. Isolation gamma stays 0. Do not
-//! couple tons, seeds, or declared_lethal across hexes.
+//! Mute silences bed and sting (including Depths). Unmute does not open a
+//! socket. No ALSA card: boot must not hang (lavapipe) — probe is filesystem
+//! only, never cpal/rodio. Title Online stays grey. Isolation gamma stays 0.
+//! Do not couple tons, seeds, or declared_lethal across hexes.
 //!
 //! Contact: info@Rathor.ai. Independent of xAI. No certification / warranty.
 //! Ra-Thor does not drive WASD.
@@ -28,6 +29,8 @@ pub const STING_ASSET: &str = "audio/peace_well_sting.ogg";
 
 /// Quiet yard bed — never a blast.
 pub const BED_GAIN_OPEN: f32 = 0.12;
+/// Depths bed — same asset, quieter than the yard bed (wet-stone hush).
+pub const BED_GAIN_DEPTHS: f32 = 0.06;
 /// Soft well sting — confirmation, not a fanfare.
 pub const STING_GAIN_OPEN: f32 = 0.28;
 /// Softer than the repeat sting — first successful E only (A1).
@@ -42,6 +45,8 @@ pub struct PeaceVoice {
     pub mute: bool,
     pub device_ok: bool,
     pub in_yard: bool,
+    /// True while current place is PlaceId::Depths (Esc→Places→Depths).
+    pub in_depths: bool,
     harvests_seen: u32,
     tends_seen: u32,
     sting_armed: bool,
@@ -63,6 +68,7 @@ impl PeaceVoice {
             mute,
             device_ok,
             in_yard: false,
+            in_depths: false,
             harvests_seen: 0,
             tends_seen: 0,
             sting_armed: false,
@@ -85,9 +91,17 @@ impl PeaceVoice {
         self.in_yard = in_yard;
     }
 
+    pub fn set_in_depths(&mut self, in_depths: bool) {
+        self.in_depths = in_depths;
+    }
+
     pub fn bed_gain(&self) -> f32 {
         if self.should_play_bed() {
-            BED_GAIN_OPEN
+            if self.in_depths {
+                BED_GAIN_DEPTHS
+            } else {
+                BED_GAIN_OPEN
+            }
         } else {
             0.0
         }
@@ -164,7 +178,17 @@ pub fn voice_gain(mute: bool) -> f32 {
 }
 
 pub fn bed_gain(mute: bool) -> f32 {
-    BED_GAIN_OPEN * voice_gain(mute)
+    bed_gain_at(mute, false)
+}
+
+/// Yard vs Depths open gain after mute. Depths reuses the yard bed asset quieter.
+pub fn bed_gain_at(mute: bool, in_depths: bool) -> f32 {
+    let open = if in_depths {
+        BED_GAIN_DEPTHS
+    } else {
+        BED_GAIN_OPEN
+    };
+    open * voice_gain(mute)
 }
 
 pub fn sting_gain(mute: bool) -> f32 {
@@ -401,5 +425,44 @@ mod tests {
         assert_eq!(PlaceId::default(), PlaceId::Sanctuary);
         assert!(!loud.opens_socket());
         assert!(title_online_stays_grey());
+    }
+
+    #[test]
+    fn depths_bed_is_quieter_than_yard() {
+        assert!(BED_GAIN_DEPTHS < BED_GAIN_OPEN);
+        assert!(BED_GAIN_DEPTHS > 0.0);
+        let mut yard = PeaceVoice::new(false, true);
+        yard.set_in_yard(true);
+        yard.set_in_depths(false);
+        let mut depths = PeaceVoice::new(false, true);
+        depths.set_in_yard(true);
+        depths.set_in_depths(true);
+        assert!((yard.bed_gain() - BED_GAIN_OPEN).abs() < f32::EPSILON);
+        assert!((depths.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert!(depths.bed_gain() < yard.bed_gain());
+        assert!((bed_gain_at(false, true) - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert!((bed_gain_at(false, false) - BED_GAIN_OPEN).abs() < f32::EPSILON);
+        // Same asset path — Depths only changes gain.
+        assert_eq!(BED_ASSET, "audio/peace_yard_bed.ogg");
+        assert_eq!(PlaceId::Depths.as_str(), "depths");
+    }
+
+    #[test]
+    fn mute_kills_depths_bed() {
+        let mut voice = PeaceVoice::new(true, true);
+        voice.set_in_yard(true);
+        voice.set_in_depths(true);
+        assert!(!voice.should_play_bed());
+        assert!((voice.bed_gain() - 0.0).abs() < f32::EPSILON);
+        assert!((bed_gain_at(true, true) - 0.0).abs() < f32::EPSILON);
+        assert!(!should_emit_bed(true, true, true));
+        // Unmute restores Depths quiet gain, still no socket / no ALSA open.
+        voice.set_mute(false);
+        assert!(voice.should_play_bed());
+        assert!((voice.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert!(!voice.opens_socket());
+        assert!(!peace_audio_opens_socket(&voice));
+        // Probe stays filesystem-only (no cpal hang in tests).
+        let _ = audio_output_safe();
     }
 }
