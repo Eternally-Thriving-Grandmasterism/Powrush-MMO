@@ -9,6 +9,8 @@
 //! Sanctuary. Dedicated Places plate (LivedUiPlate / Camera2d) — not extra
 //! Settings rows. After PAUSE-TABS the Settled+book **Places** door sits on the
 //! Esc pause plate (Comfort · Controls · Guide kept); sticks cull when open.
+//! H-2026-09-12-PLACES-CLICK: Places row Pressed must open the four-room plate
+//! above Comfort (z+2) and keep pause armed — not Comfort/settings linger.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -29,6 +31,13 @@ use crate::title_screen::{
     TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY,
 };
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE};
+
+/// Soft-GPU stack: four-room Places door draws above pause Comfort (+ banner at +1).
+pub const PLACES_PLATE_Z: i32 = LIVED_UI_Z_PAUSE + 2;
+
+/// Click → open_door runs before pause/settings visibility sync (same frame).
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PlacesDoorClickSet;
 
 #[derive(Resource, Debug, Clone)]
 pub struct HexTravelState {
@@ -147,11 +156,11 @@ impl Plugin for HexTravelPlugin {
                 Update,
                 (
                     boot_guard_no_book_stays_sanctuary,
-                    sync_places_visibility,
-                    refresh_places_labels,
-                    refresh_pause_places_row,
+                    pause_places_row_clicks.in_set(PlacesDoorClickSet),
                     places_plate_clicks,
-                    pause_places_row_clicks,
+                    sync_places_visibility.after(PlacesDoorClickSet),
+                    refresh_places_labels.after(PlacesDoorClickSet),
+                    refresh_pause_places_row.after(PlacesDoorClickSet),
                 ),
             );
     }
@@ -315,7 +324,9 @@ fn spawn_places_plate(mut commands: Commands) {
                 background_color: TITLE_PLATE_BG.into(),
                 border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(LIVED_UI_Z_PAUSE),
+                // Above pause Comfort (130) and Comfort graphics banner (131).
+                z_index: ZIndex::Global(PLACES_PLATE_Z),
+                focus_policy: bevy::ui::FocusPolicy::Block,
                 ..default()
             },
             PlacesRoot,
@@ -459,6 +470,8 @@ fn pause_places_row_clicks(
     clicks: Query<&Interaction, (Changed<Interaction>, With<PausePlacesBtn>)>,
 ) {
     // Places is a leaf of the open pause plate — never dismiss pause here.
+    // Pressed opens the four-room door; Comfort chrome hides via
+    // settings_visible_with_places + sync after PlacesDoorClickSet.
     if !label.settings_open || plate.open {
         return;
     }
@@ -717,6 +730,17 @@ mod tests {
             .any(|(style, vis)| style.display == Display::Flex && *vis == Visibility::Visible)
     }
 
+    fn settings_stub_showing(app: &mut App) -> bool {
+        use crate::title_screen::settings_stub_is_showing;
+        settings_stub_is_showing(app.world_mut())
+    }
+
+    fn places_plate_showing(app: &mut App) -> bool {
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<&Visibility, With<PlacesRoot>>();
+        q.iter(world).any(|vis| *vis == Visibility::Visible)
+    }
+
     #[test]
     fn esc_opens_pause_on_every_local_hex() {
         for place in LOCAL_HEXES {
@@ -921,6 +945,8 @@ mod tests {
         assert!(!settings_visible_with_places(true, true));
         assert!(settings_visible_with_places(true, false));
         assert_eq!(LIVED_UI_Z_PAUSE, 130);
+        assert_eq!(PLACES_PLATE_Z, LIVED_UI_Z_PAUSE + 2);
+        assert!(PLACES_PLATE_Z > LIVED_UI_Z_PAUSE + 1, "Places above Comfort banner");
     }
 
     #[test]
@@ -971,7 +997,8 @@ mod tests {
         assert!(!default_client_listens());
     }
 
-    /// Esc pause Places row opens the four-room door — does not dismiss pause.
+    /// Esc pause Places row opens the four-room door — does not dismiss pause
+    /// and must clear Comfort/settings chrome (not linger over Sanctuary·…).
     #[test]
     fn pause_places_row_click_opens_four_room_plate() {
         for place in LOCAL_HEXES {
@@ -980,6 +1007,10 @@ mod tests {
             assert!(pause_is_open(&app), "{place:?}: pause open");
             assert!(places_row_live(&mut app), "{place:?}: Places door on pause plate");
             assert!(!app.world().resource::<PlacesPlate>().open);
+            assert!(
+                settings_stub_showing(&mut app),
+                "{place:?}: Comfort pause chrome visible before Places click"
+            );
 
             let mut q = app
                 .world_mut()
@@ -1005,6 +1036,18 @@ mod tests {
                 !places_row_live(&mut app),
                 "{place:?}: Places row hides while the door plate is open"
             );
+            assert!(
+                !settings_visible_with_places(true, true),
+                "{place:?}: Comfort chrome hide rule while places_open"
+            );
+            assert!(
+                !settings_stub_showing(&mut app),
+                "{place:?}: SettingsStubRoot must hide (Display::None) — no Comfort linger"
+            );
+            assert!(
+                places_plate_showing(&mut app),
+                "{place:?}: PlacesRoot four-room plate must be Visible"
+            );
             let world = app.world_mut();
             assert_eq!(
                 world
@@ -1016,6 +1059,20 @@ mod tests {
             assert_eq!(
                 world
                     .query_filtered::<(), With<PlacesThresholdBtn>>()
+                    .iter(world)
+                    .count(),
+                1
+            );
+            assert_eq!(
+                world
+                    .query_filtered::<(), With<PlacesHeartwoodBtn>>()
+                    .iter(world)
+                    .count(),
+                1
+            );
+            assert_eq!(
+                world
+                    .query_filtered::<(), With<PlacesDepthsBtn>>()
                     .iter(world)
                     .count(),
                 1
