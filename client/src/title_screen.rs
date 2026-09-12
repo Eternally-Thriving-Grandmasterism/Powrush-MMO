@@ -18,6 +18,8 @@
 //! Comfort banner ("Graphics can go Higher… Esc → Comfort"); Online grey.
 //! H-2026-09-12-PLACES-OVERLAY: Esc Places opens four-room plate after Settled+book;
 //! Comfort overlay / graphics banner must not linger over that Places door.
+//! H-2026-09-12-PLACES-CLICK: Places row Pressed opens four-room plate; Comfort
+//! SettingsStubRoot uses Display::None while places_open (soft-GPU linger fix).
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
@@ -63,7 +65,8 @@ use shared::persona::{
 
 use crate::embassy::EmbassyYard;
 use crate::hex_travel::{
-    apply_title_boot, settings_visible_with_places, HexTravelState, PausePlacesBtn, PlacesPlate,
+    apply_title_boot, settings_visible_with_places, HexTravelState, PausePlacesBtn, PlacesDoorClickSet,
+    PlacesPlate,
 };
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::input::{InputMapSet, PlayerInput};
@@ -911,7 +914,6 @@ impl Plugin for TitleScreenPlugin {
                     house_dress_buttons,
                     refresh_house_dress_labels,
                     sync_house_dress_visibility,
-                    sync_settings_stub,
                     refresh_pause_cue,
                     pause_plate_clicks,
                     refresh_local_settings_labels,
@@ -920,6 +922,11 @@ impl Plugin for TitleScreenPlugin {
                     local_settings_clicks,
                     lethal_sign_settings_clicks,
                 ),
+            )
+            // Same-frame as Places row Pressed: hide Comfort before soft-GPU composites.
+            .add_systems(
+                Update,
+                sync_settings_stub.after(PlacesDoorClickSet),
             )
             .add_systems(
                 Update,
@@ -944,7 +951,7 @@ impl Plugin for TitleScreenPlugin {
             .add_systems(
                 Update,
                 (
-                    sync_comfort_graphics_banner,
+                    sync_comfort_graphics_banner.after(PlacesDoorClickSet),
                     comfort_graphics_banner_dismiss_clicks,
                 ),
             )
@@ -1989,20 +1996,34 @@ fn sync_settings_stub(
     door: Res<LaunchDoor>,
     persona: Res<PersonaCreatorState>,
     places: Option<Res<PlacesPlate>>,
-    mut q: Query<&mut Visibility, With<SettingsStubRoot>>,
+    mut q: Query<(&mut Visibility, &mut Style), With<SettingsStubRoot>>,
 ) {
     let places_open = places.map(|p| p.open).unwrap_or(false);
     let show = settings_visible_with_places(label.settings_open, places_open)
         && *door != LaunchDoor::NameHouse
         && *door != LaunchDoor::HouseDress
         && !persona.open;
-    for mut vis in &mut q {
+    // Display::None (not only Hidden): soft-GPU / same-z Comfort must not linger
+    // over the four-room Places plate after Places row Pressed (PLACES-CLICK).
+    for (mut vis, mut style) in &mut q {
+        style.display = if show {
+            Display::Flex
+        } else {
+            Display::None
+        };
         *vis = if show {
             Visibility::Visible
         } else {
             Visibility::Hidden
         };
     }
+}
+
+/// Test/helper: Comfort pause chrome is laid out (not Display::None).
+pub(crate) fn settings_stub_is_showing(world: &mut bevy::prelude::World) -> bool {
+    let mut q = world.query_filtered::<(&Style, &Visibility), With<SettingsStubRoot>>();
+    q.iter(world)
+        .any(|(style, vis)| style.display == Display::Flex && *vis == Visibility::Visible)
 }
 
 fn watch_settled_for_naming(
@@ -4285,6 +4306,9 @@ mod tests {
             !settings_visible_with_places(true, true),
             "Comfort pause plate also hides under Places"
         );
+        // Pause armed + Places closed ⇒ Comfort chrome may show; Places open ⇒ hide.
+        assert!(settings_visible_with_places(true, false));
+        assert!(!settings_visible_with_places(false, true));
         assert_eq!(PLACES_ROW, "Places");
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(refuse_online_socket_toggle(true));
