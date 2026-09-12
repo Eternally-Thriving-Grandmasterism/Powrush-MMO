@@ -16,6 +16,44 @@ use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
 const HOLD_SECS: f64 = 6.0;
 
+/// PATSAGi well-slab breath. One pulse, then rest. Not a second HUD.
+pub const WELL_GLOW_DECAY: f32 = 0.55;
+
+/// Soft rim + fill lift on top of the caller's rest colors.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WellGlowPulse {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+    pub bg_r: f32,
+    pub bg_g: f32,
+    pub bg_b: f32,
+}
+
+/// Tick a glow toward rest. Climate WeekFeelGlow / WardsNoticeGlow reuse this.
+pub fn tick_well_glow_breath(glow: f32, dt: f32) -> f32 {
+    if glow > 0.0 {
+        (glow - dt * WELL_GLOW_DECAY).max(0.0)
+    } else {
+        0.0
+    }
+}
+
+/// Same ~0.55-decay rim lift the skirmish well uses on contest win.
+pub fn well_glow_pulse(glow: f32) -> WellGlowPulse {
+    let glow = glow.clamp(0.0, 1.0);
+    WellGlowPulse {
+        r: glow * 0.20,
+        g: glow * 0.16,
+        b: glow * 0.12,
+        a: glow * 0.40,
+        bg_r: glow * 0.08,
+        bg_g: glow * 0.10,
+        bg_b: glow * 0.06,
+    }
+}
+
 #[derive(Resource, Debug, Clone)]
 pub struct WellYard {
     pub well: SkirmishWell,
@@ -151,9 +189,7 @@ fn handle_well(
 }
 
 fn tick_well_glow(time: Res<Time>, mut yard: ResMut<WellYard>) {
-    if yard.well_glow > 0.0 {
-        yard.well_glow = (yard.well_glow - time.delta_seconds() * 0.55).max(0.0);
-    }
+    yard.well_glow = tick_well_glow_breath(yard.well_glow, time.delta_seconds());
 }
 
 fn update_well_slab(
@@ -174,11 +210,21 @@ fn update_well_slab(
             Visibility::Hidden
         };
         if show {
-            let a = 0.50 + glow * 0.40;
-            *border = Color::srgba(0.55 + glow * 0.20, 0.78 + glow * 0.16, 0.62 + glow * 0.12, a)
-                .into();
-            *bg = Color::srgba(0.07 + glow * 0.08, 0.09 + glow * 0.10, 0.08 + glow * 0.06, 0.92)
-                .into();
+            let pulse = well_glow_pulse(glow);
+            *border = Color::srgba(
+                0.55 + pulse.r,
+                0.78 + pulse.g,
+                0.62 + pulse.b,
+                0.50 + pulse.a,
+            )
+            .into();
+            *bg = Color::srgba(
+                0.07 + pulse.bg_r,
+                0.09 + pulse.bg_g,
+                0.08 + pulse.bg_b,
+                0.92,
+            )
+            .into();
         }
     }
     if !show {
@@ -202,5 +248,27 @@ mod tests {
     fn far_from_spawn_is_not_near() {
         let p = SoftPresence::default();
         assert!(!near_first_well(&p));
+    }
+
+    #[test]
+    fn well_glow_breath_decays_at_patsagi_rate() {
+        assert_eq!(WELL_GLOW_DECAY, 0.55);
+        assert!((tick_well_glow_breath(1.0, 1.0) - 0.45).abs() < 1e-6);
+        assert_eq!(tick_well_glow_breath(0.10, 1.0), 0.0);
+        assert_eq!(tick_well_glow_breath(0.0, 0.5), 0.0);
+    }
+
+    #[test]
+    fn well_glow_pulse_is_soft_border_not_a_plate() {
+        let rest = well_glow_pulse(0.0);
+        assert_eq!(rest, WellGlowPulse { r: 0.0, g: 0.0, b: 0.0, a: 0.0, bg_r: 0.0, bg_g: 0.0, bg_b: 0.0 });
+        let peak = well_glow_pulse(1.0);
+        assert!((peak.a - 0.40).abs() < 1e-6);
+        assert!((peak.r - 0.20).abs() < 1e-6);
+        assert!((peak.g - 0.16).abs() < 1e-6);
+        assert!((peak.b - 0.12).abs() < 1e-6);
+        assert!((peak.bg_r - 0.08).abs() < 1e-6);
+        assert!((peak.bg_g - 0.10).abs() < 1e-6);
+        assert!((peak.bg_b - 0.06).abs() < 1e-6);
     }
 }
