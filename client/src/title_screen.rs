@@ -8,6 +8,8 @@
 //! with Resume / Title / Quit (Title = old Esc-to-title path; Quit = AppExit).
 //! D2: same plate hosts local Look / Mute / Invert-Y / Hide slabs; persist
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
+//! H-2026-09-12-PAUSE-TABS: Esc plate splits Comfort · Controls · Guide tabs
+//! (Guide = one-sentence Peace-key stranger loop; Online stays grey).
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
@@ -106,6 +108,10 @@ pub fn title_plate_fits_surface(surface: Vec2, plate: Vec2, safe_inset: f32) -> 
 
 /// D1 Pause honesty one-liner (opaque plate — soft GPU readable).
 pub const YARD_WAITING: &str = "the yard is waiting";
+
+/// Guide tab — one-sentence stranger loop (Peace keys only; no F-row).
+pub const PAUSE_GUIDE_LINE: &str =
+    "Walk the yard · E to use · I for satchel · R to allocate.";
 
 /// Relative luminance from linear-ish sRGB channels (Bevy 0.14 Color::Srgba).
 pub fn title_luminance(c: Color) -> f32 {
@@ -223,6 +229,33 @@ struct PauseResumeBtn;
 struct PauseTitleBtn;
 #[derive(Component)]
 struct PauseQuitBtn;
+
+/// Esc pause plate tabs — Comfort (default) · Controls · Guide.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PauseTab {
+    #[default]
+    Comfort,
+    Controls,
+    Guide,
+}
+
+impl PauseTab {
+    const ALL: [PauseTab; 3] = [PauseTab::Comfort, PauseTab::Controls, PauseTab::Guide];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Comfort => "Comfort",
+            Self::Controls => "Controls",
+            Self::Guide => "Guide",
+        }
+    }
+}
+
+#[derive(Component)]
+struct PauseTabBtn(PauseTab);
+#[derive(Component)]
+struct PauseTabPanel(PauseTab);
+
 #[derive(Component)]
 struct SettingsLookBtn;
 #[derive(Component)]
@@ -822,6 +855,7 @@ impl Plugin for TitleScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LaunchDoor>()
             .init_resource::<HouseLabel>()
+            .init_resource::<PauseTab>()
             .init_resource::<LocalSettingsState>()
             .init_resource::<PeaceRebindState>()
             .init_resource::<PersonaCreatorState>()
@@ -859,6 +893,10 @@ impl Plugin for TitleScreenPlugin {
                     local_settings_clicks,
                     lethal_sign_settings_clicks,
                 ),
+            )
+            .add_systems(
+                Update,
+                (pause_tab_clicks, pause_tab_keys, sync_pause_tabs),
             )
             .add_systems(
                 Update,
@@ -1028,19 +1066,19 @@ fn spawn_menu_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C, en
 }
 
 fn spawn_settings_stub(mut commands: Commands) {
-    // D1 Pause honesty + D2 local settings — one opaque plate (no second HUD).
+    // D1 Pause honesty + D2 local settings — Comfort · Controls · Guide tabs (no second HUD).
     commands
         .spawn((
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    // Two columns keep the Settings plate readable at 720p without a second HUD.
+                    // Single active tab keeps the Settings plate readable at 720p.
                     top: Val::Percent(1.0),
                     left: Val::Percent(50.0),
-                    width: Val::Px(760.0),
+                    width: Val::Px(420.0),
                     max_height: Val::Percent(98.0),
                     margin: UiRect {
-                        left: Val::Px(-380.0),
+                        left: Val::Px(-210.0),
                         ..default()
                     },
                     padding: UiRect::all(Val::Px(10.0)),
@@ -1071,117 +1109,140 @@ fn spawn_settings_stub(mut commands: Commands) {
                 ),
                 PauseCueText,
             ));
+            // Tab strip — click or Tab / [ ] while pause is open.
             p.spawn(NodeBundle {
                 style: Style {
                     width: Val::Percent(100.0),
                     flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(8.0),
-                    align_items: AlignItems::FlexStart,
+                    column_gap: Val::Px(6.0),
+                    justify_content: JustifyContent::Center,
                     ..default()
                 },
                 ..default()
             })
-            .with_children(|columns| {
-                columns
-                    .spawn(settings_column_bundle())
-                    .with_children(|left| {
-                        // Existing local settings remain on this one Settings plate.
-                        spawn_settings_row(left, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
-                        spawn_settings_row(left, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
-                        spawn_settings_row(
-                            left,
-                            "Invert-Y · off",
-                            SettingsInvertBtn,
-                            SettingsInvertLabel,
-                        );
-                        spawn_settings_row(
-                            left,
-                            "Hide slabs · off",
-                            SettingsHideSlabsBtn,
-                            SettingsHideLabel,
-                        );
-                        spawn_settings_row(
-                            left,
-                            "Brightness · 1.00",
-                            SettingsBrightnessBtn,
-                            SettingsBrightnessLabel,
-                        );
-                        spawn_settings_row(
-                            left,
-                            "Text scale · 1.00",
-                            SettingsTextScaleBtn,
-                            SettingsTextScaleLabel,
-                        );
-                        spawn_settings_row(
-                            left,
-                            "Grove · off",
-                            SettingsGroveBtn,
-                            SettingsGroveLabel,
-                        );
-                        spawn_settings_row(
-                            left,
-                            "Reduced motion · off",
-                            SettingsReducedMotionBtn,
-                            SettingsReducedMotionLabel,
-                        );
-                        spawn_settings_row(
-                            left,
-                            "Rumble · on",
-                            SettingsRumbleBtn,
-                            SettingsRumbleLabel,
-                        );
-                        spawn_settings_row(
-                            left,
-                            "Colorblind wells · off",
-                            SettingsColorblindWellsBtn,
-                            SettingsColorblindWellsLabel,
-                        );
-                        // Loopback lab remains separate from disabled Title Online.
-                        spawn_settings_row(left, "LAN · off", SettingsLanBtn, SettingsLanLabel);
-                        spawn_settings_row(
-                            left,
-                            "this hex admits harm · off",
-                            SettingsLethalBtn,
-                            SettingsLethalLabel,
-                        );
-                    });
-                columns
-                    .spawn(settings_column_bundle())
-                    .with_children(|right| {
-                        // I0 controls and B4 Peace bindings persist beside Grove.
-                        spawn_settings_row(
-                            right,
-                            "Sticks · auto",
-                            SettingsSticksBtn,
-                            SettingsSticksLabel,
-                        );
-                        spawn_settings_row(
-                            right,
-                            "Tap-to-Use · off",
-                            SettingsTapUseBtn,
-                            SettingsTapUseLabel,
-                        );
-                        spawn_settings_row(
-                            right,
-                            "Sprint · key",
-                            SettingsSprintBtn,
-                            SettingsSprintLabel,
-                        );
-                        for action in PEACE_ACTIONS {
-                            spawn_settings_row(
-                                right,
-                                &peace_binding_label(action, &LocalSettings::peace_defaults()),
-                                SettingsPeaceBindBtn(action),
-                                SettingsPeaceBindLabel(action),
-                            );
-                        }
-                        spawn_settings_row(
-                            right,
-                            "Reset-to-Peace",
-                            SettingsPeaceResetBtn,
-                            SettingsPeaceResetBtn,
-                        );
-                    });
+            .with_children(|tabs| {
+                for tab in PauseTab::ALL {
+                    spawn_pause_tab_btn(tabs, tab);
+                }
+            });
+            // Comfort tab (default visible).
+            p.spawn((
+                settings_tab_panel_bundle(true),
+                PauseTabPanel(PauseTab::Comfort),
+            ))
+            .with_children(|comfort| {
+                spawn_settings_row(comfort, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
+                spawn_settings_row(comfort, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
+                spawn_settings_row(
+                    comfort,
+                    "Invert-Y · off",
+                    SettingsInvertBtn,
+                    SettingsInvertLabel,
+                );
+                spawn_settings_row(
+                    comfort,
+                    "Hide slabs · off",
+                    SettingsHideSlabsBtn,
+                    SettingsHideLabel,
+                );
+                spawn_settings_row(
+                    comfort,
+                    "Brightness · 1.00",
+                    SettingsBrightnessBtn,
+                    SettingsBrightnessLabel,
+                );
+                spawn_settings_row(
+                    comfort,
+                    "Text scale · 1.00",
+                    SettingsTextScaleBtn,
+                    SettingsTextScaleLabel,
+                );
+                spawn_settings_row(
+                    comfort,
+                    "Grove · off",
+                    SettingsGroveBtn,
+                    SettingsGroveLabel,
+                );
+                spawn_settings_row(
+                    comfort,
+                    "Reduced motion · off",
+                    SettingsReducedMotionBtn,
+                    SettingsReducedMotionLabel,
+                );
+                spawn_settings_row(
+                    comfort,
+                    "Rumble · on",
+                    SettingsRumbleBtn,
+                    SettingsRumbleLabel,
+                );
+                spawn_settings_row(
+                    comfort,
+                    "Colorblind wells · off",
+                    SettingsColorblindWellsBtn,
+                    SettingsColorblindWellsLabel,
+                );
+                // Loopback lab remains separate from disabled Title Online.
+                spawn_settings_row(comfort, "LAN · off", SettingsLanBtn, SettingsLanLabel);
+                spawn_settings_row(
+                    comfort,
+                    "this hex admits harm · off",
+                    SettingsLethalBtn,
+                    SettingsLethalLabel,
+                );
+            });
+            // Controls tab — sticks + Peace remap + Reset-to-Peace.
+            p.spawn((
+                settings_tab_panel_bundle(false),
+                PauseTabPanel(PauseTab::Controls),
+            ))
+            .with_children(|controls| {
+                spawn_settings_row(
+                    controls,
+                    "Sticks · auto",
+                    SettingsSticksBtn,
+                    SettingsSticksLabel,
+                );
+                spawn_settings_row(
+                    controls,
+                    "Tap-to-Use · off",
+                    SettingsTapUseBtn,
+                    SettingsTapUseLabel,
+                );
+                spawn_settings_row(
+                    controls,
+                    "Sprint · key",
+                    SettingsSprintBtn,
+                    SettingsSprintLabel,
+                );
+                for action in PEACE_ACTIONS {
+                    spawn_settings_row(
+                        controls,
+                        &peace_binding_label(action, &LocalSettings::peace_defaults()),
+                        SettingsPeaceBindBtn(action),
+                        SettingsPeaceBindLabel(action),
+                    );
+                }
+                spawn_settings_row(
+                    controls,
+                    "Reset-to-Peace",
+                    SettingsPeaceResetBtn,
+                    SettingsPeaceResetBtn,
+                );
+            });
+            // Guide tab — one-sentence Peace-key stranger loop.
+            p.spawn((
+                settings_tab_panel_bundle(false),
+                PauseTabPanel(PauseTab::Guide),
+            ))
+            .with_children(|guide| {
+                guide.spawn(TextBundle::from_section(
+                    PAUSE_GUIDE_LINE,
+                    TextStyle {
+                        font_size: 14.0,
+                        color: TITLE_TEXT_SECONDARY,
+                        ..default()
+                    },
+                ));
             });
             // Online stays grey — never binds a socket from this plate.
             spawn_menu_btn(p, ONLINE_STUB_LABEL, SettingsOnlineStubBtn, false);
@@ -1944,15 +2005,135 @@ fn return_yard_to_title(
     *door = LaunchDoor::Title;
 }
 
-fn settings_column_bundle() -> NodeBundle {
+fn settings_tab_panel_bundle(visible: bool) -> NodeBundle {
     NodeBundle {
         style: Style {
-            width: Val::Percent(50.0),
+            width: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(4.0),
+            align_items: AlignItems::Stretch,
+            // Inactive tabs must leave the flex flow (Hidden still occupies space).
+            display: if visible {
+                Display::Flex
+            } else {
+                Display::None
+            },
             ..default()
         },
+        visibility: if visible {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        },
         ..default()
+    }
+}
+
+fn spawn_pause_tab_btn(p: &mut ChildBuilder, tab: PauseTab) {
+    p.spawn((
+        ButtonBundle {
+            style: Style {
+                padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(1.0)),
+                flex_grow: 1.0,
+                ..default()
+            },
+            background_color: TITLE_BTN_BG.into(),
+            border_color: TITLE_BORDER.into(),
+            ..default()
+        },
+        PauseTabBtn(tab),
+    ))
+    .with_children(|b| {
+        b.spawn(TextBundle::from_section(
+            tab.label(),
+            TextStyle {
+                font_size: 14.0,
+                color: TITLE_BTN_FG,
+                ..default()
+            },
+        ));
+    });
+}
+
+fn pause_tab_clicks(
+    label: Res<HouseLabel>,
+    mut tab: ResMut<PauseTab>,
+    q: Query<(&Interaction, &PauseTabBtn), Changed<Interaction>>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    for (interaction, btn) in &q {
+        if *interaction == Interaction::Pressed {
+            *tab = btn.0;
+        }
+    }
+}
+
+fn pause_tab_keys(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    label: Res<HouseLabel>,
+    rebind: Res<PeaceRebindState>,
+    mut tab: ResMut<PauseTab>,
+) {
+    if !label.settings_open || rebind.waiting.is_some() || rebind.suppress_shortcuts {
+        return;
+    }
+    // Digits stay Title Play/Continue/Settings and InYard Digit3 pause — use Tab / [].
+    let next = (keyboard.just_pressed(KeyCode::Tab)
+        && !keyboard.pressed(KeyCode::ShiftLeft)
+        && !keyboard.pressed(KeyCode::ShiftRight))
+        || keyboard.just_pressed(KeyCode::BracketRight);
+    let prev = (keyboard.just_pressed(KeyCode::Tab)
+        && (keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight)))
+        || keyboard.just_pressed(KeyCode::BracketLeft);
+    if next {
+        *tab = match *tab {
+            PauseTab::Comfort => PauseTab::Controls,
+            PauseTab::Controls => PauseTab::Guide,
+            PauseTab::Guide => PauseTab::Comfort,
+        };
+    } else if prev {
+        *tab = match *tab {
+            PauseTab::Comfort => PauseTab::Guide,
+            PauseTab::Controls => PauseTab::Comfort,
+            PauseTab::Guide => PauseTab::Controls,
+        };
+    }
+}
+
+fn sync_pause_tabs(
+    tab: Res<PauseTab>,
+    mut panels: Query<(&PauseTabPanel, &mut Visibility, &mut Style)>,
+    mut btns: Query<(&PauseTabBtn, &mut BackgroundColor, &mut BorderColor)>,
+) {
+    for (panel, mut vis, mut style) in &mut panels {
+        let active = panel.0 == *tab;
+        *vis = if active {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+        style.display = if active {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+    for (btn, mut bg, mut border) in &mut btns {
+        let active = btn.0 == *tab;
+        *bg = if active {
+            Color::srgb(0.16, 0.26, 0.20).into()
+        } else {
+            TITLE_BTN_BG.into()
+        };
+        *border = if active {
+            TITLE_BORDER.into()
+        } else {
+            Color::srgb(0.28, 0.40, 0.32).into()
+        };
     }
 }
 
@@ -3527,6 +3708,35 @@ mod tests {
         assert_eq!(super::pause_plate_line(LaunchDoor::NameHouse), None);
         assert_eq!(super::pause_plate_line(LaunchDoor::HouseDress), None);
         assert_eq!(YARD_WAITING, "the yard is waiting");
+    }
+
+    #[test]
+    fn pause_tab_defaults_to_comfort() {
+        assert_eq!(PauseTab::default(), PauseTab::Comfort);
+        assert_eq!(PauseTab::Comfort.label(), "Comfort");
+        assert_eq!(PauseTab::Controls.label(), "Controls");
+        assert_eq!(PauseTab::Guide.label(), "Guide");
+        assert_eq!(PauseTab::ALL.len(), 3);
+    }
+
+    #[test]
+    fn pause_guide_copy_is_peace_keys_stranger_loop() {
+        let line = PAUSE_GUIDE_LINE;
+        assert!(line.contains("Walk") || line.contains("walk"));
+        assert!(line.contains('E'));
+        assert!(line.contains('I'));
+        assert!(line.contains('R'));
+        assert!(line.to_ascii_lowercase().contains("allocate"));
+        // Peace keys only — no F-row verbs on the Guide card.
+        assert!(!line.to_ascii_lowercase().contains("f1"));
+        assert!(!line.to_ascii_lowercase().contains("f2"));
+        assert!(!line.to_ascii_lowercase().contains("f-row"));
+        assert_eq!(
+            line,
+            "Walk the yard · E to use · I for satchel · R to allocate."
+        );
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
     }
 
     #[test]
