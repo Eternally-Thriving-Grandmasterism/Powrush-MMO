@@ -11,6 +11,7 @@
 use bevy::prelude::*;
 
 use shared::pause_ledger_face::face_from;
+use shared::temper::{lumen_slots, TemperedItem, ToolTier, WardKind};
 
 use crate::companion_bond::CompanionBond;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
@@ -331,11 +332,51 @@ fn update_watch_strip(
     }
 }
 
+
+/// MERCY_TEMPER T3 — tool name on the existing I satchel face.
+fn tool_tier_satchel_name(tier: ToolTier) -> &'static str {
+    match tier {
+        ToolTier::Hands => "Hands",
+        ToolTier::TendHook => "Tend Hook",
+        ToolTier::LaneCrateMk1 => "Lane Crate Mk1",
+        ToolTier::ClimatePick => "Climate Pick",
+        ToolTier::MendSpindle => "Mend Spindle",
+        ToolTier::HarmonyLoom => "Harmony Loom",
+    }
+}
+
+fn ward_kind_satchel_name(ward: WardKind) -> &'static str {
+    match ward {
+        WardKind::Shell => "Shell",
+        WardKind::Current => "Current",
+        WardKind::Reserve => "Reserve",
+        WardKind::Dawn => "Dawn",
+        WardKind::Book => "Book",
+    }
+}
+
+/// Satchel temper line: `Tend Hook +N · Lumen a/b · Ward: Shell` (or resting).
+/// Hidden by caller when no tempered item is present — keeps Hour 1–3 clean.
+pub fn satchel_temper_display(item: &TemperedItem) -> String {
+    let name = tool_tier_satchel_name(item.tier);
+    if item.resting {
+        return format!("{name} +{} · resting", item.temper);
+    }
+    let slots = lumen_slots(item.temper);
+    let seated = item.lumens.iter().filter(|l| l.ward.is_some()).count();
+    let mut line = format!("{name} +{} · Lumen {}/{}", item.temper, seated, slots);
+    if let Some(ward) = item.lumens.iter().find_map(|l| l.ward) {
+        line.push_str(&format!(" · Ward: {}", ward_kind_satchel_name(ward)));
+    }
+    line
+}
+
 fn update_satchel(
     inv: Res<HumanInventory>,
     pool: Res<SoftRbePool>,
     bind: Res<LivedHourBind>,
     house_label: Res<HouseLabel>,
+    yard: Option<Res<crate::fabricator::FabricatorYard>>,
     mut root: Query<&mut Visibility, With<SatchelRoot>>,
     mut body: Query<&mut Text, With<SatchelBody>>,
 ) {
@@ -362,6 +403,12 @@ fn update_satchel(
         &bind.week,
         bind.standing.declared_lethal,
     );
+    // T3: one temper line on the existing I face when a tempered tool exists.
+    let temper_block = yard
+        .as_ref()
+        .and_then(|y| y.fab.last_tempered.as_ref())
+        .map(|item| format!("\n\n{}", satchel_temper_display(item)))
+        .unwrap_or_default();
     let body_line = format!(
         "{face}
 
@@ -371,7 +418,7 @@ abundance is held, not hoarded
 {} [2] Harmony    {:.1}
 {} [3] Joy        {:.1}
 
-Harvests {}",
+Harvests {}{temper_block}",
         mark(SatchelSlot::Vitality),
         pool.vitality,
         mark(SatchelSlot::Harmony),
@@ -420,6 +467,7 @@ mod tests {
     use super::*;
     use shared::house_name::HouseName;
     use shared::pause_ledger_face::{face_from, face_is_steward_honest, LETHAL_DECLARED_LINE};
+    use shared::temper::temper_copy_is_honest;
     use shared::week_audit::WeekAudit;
 
     #[test]
@@ -465,5 +513,51 @@ mod tests {
         assert!(face.contains("0 restored"));
         assert!(!face.contains(LETHAL_DECLARED_LINE));
         assert!(face_is_steward_honest(&face));
+    }
+
+    fn tend_hook(temper: u8, resting: bool, ward: Option<WardKind>) -> TemperedItem {
+        let mut item = TemperedItem::hands(7, "stranger");
+        item.tier = ToolTier::TendHook;
+        item.temper = temper;
+        item.resting = resting;
+        let want = lumen_slots(temper) as usize;
+        item.lumens = (0..want)
+            .map(|i| shared::temper::Lumen {
+                index: i as u8,
+                ward: if i == 0 { ward } else { None },
+            })
+            .collect();
+        item
+    }
+
+    #[test]
+    fn satchel_temper_display_plus_n_lumen_ward() {
+        let with_ward = tend_hook(3, false, Some(WardKind::Shell));
+        let line = satchel_temper_display(&with_ward);
+        assert_eq!(line, "Tend Hook +3 · Lumen 1/1 · Ward: Shell");
+        assert!(temper_copy_is_honest(&line));
+
+        let bare = tend_hook(1, false, None);
+        let bare_line = satchel_temper_display(&bare);
+        assert_eq!(bare_line, "Tend Hook +1 · Lumen 0/0");
+        assert!(temper_copy_is_honest(&bare_line));
+
+        let resting = tend_hook(4, true, None);
+        let rest_line = satchel_temper_display(&resting);
+        assert_eq!(rest_line, "Tend Hook +4 · resting");
+        assert!(temper_copy_is_honest(&rest_line));
+        assert!(!rest_line.to_lowercase().contains("gold"));
+        assert!(!rest_line.to_lowercase().contains("mall"));
+        assert!(!rest_line.to_lowercase().contains("p2w"));
+    }
+
+    #[test]
+    fn satchel_temper_display_absent_keeps_hour_clean() {
+        // No last_tempered → helper is simply not called; empty block stays empty.
+        let empty = Option::<&TemperedItem>::None;
+        let block = empty
+            .map(|item| format!("\n\n{}", satchel_temper_display(item)))
+            .unwrap_or_default();
+        assert!(block.is_empty());
     }
 }
