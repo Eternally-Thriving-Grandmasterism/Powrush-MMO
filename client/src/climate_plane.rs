@@ -1,6 +1,10 @@
 /*!
- * Climate Plane — v22.7.0
+ * Climate Plane — v22.7.0 + Sanctuary greybox dress (H-2026-09-11-F1)
  *
+ * PLACE_DRESS_SPEC: Sanctuary greybox dress debt first — one warm-yard
+ * material family + warm-gold well accent so Place reads before any slab.
+ * Four Places stay four. No mesh import · no second HUD · no Brood Spire
+ * on Sanctuary. Online grey. Tag 11c577e.
  * Z travel moves the place. Climate 3 = Abyssal Depths (night, close fog).
  * Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -16,6 +20,15 @@ const NODE_ANCHORS: [Vec3; 3] = [
     Vec3::new(-2.4, 0.55, 3.1),
     Vec3::new(1.2, 0.55, -3.4),
 ];
+
+/// ART_BIBLE HANDS Sanctuary accent — warm gold well (not currency gold).
+/// Rhymes with `human_presence::SANCTUARY_GOLD`; climate owns its copy so
+/// this file stays the only F1 edit path.
+const SANCTUARY_WELL_GOLD: Color = Color::srgb(0.86, 0.66, 0.29);
+
+/// Shared greybox roughness for Sanctuary yard ground + path stones
+/// (one material family — PLACE_DRESS_SPEC).
+const SANCTUARY_YARD_ROUGHNESS: f32 = 0.90;
 
 #[derive(Clone, Copy)]
 struct ClimateLook {
@@ -73,14 +86,18 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             fog_end: 16.0,
             ambient_bright: 90.0,
         },
+        // Sanctuary Prime — warm yard / teaching Peace (PLACE_DRESS_SPEC).
+        // One material family: warm grey-gold earth ground + path stones;
+        // well node is the single warm-gold accent. Not Heartwood green,
+        // not Brood Spire, not Market chrome.
         _ => ClimateLook {
             name: "Sanctuary Prime",
-            ground: Color::srgb(0.18, 0.22, 0.16),
-            sky: Color::srgb(0.62, 0.78, 0.72),
-            fog: Color::srgba(0.55, 0.72, 0.68, 1.0),
-            ambient: Color::srgb(0.70, 0.82, 0.74),
-            node: Color::srgb(0.35, 0.92, 0.62),
-            stone: Color::srgb(0.28, 0.30, 0.24),
+            ground: Color::srgb(0.22, 0.20, 0.16),
+            sky: Color::srgb(0.72, 0.68, 0.58),
+            fog: Color::srgba(0.62, 0.58, 0.48, 1.0),
+            ambient: Color::srgb(0.82, 0.76, 0.62),
+            node: SANCTUARY_WELL_GOLD,
+            stone: Color::srgb(0.30, 0.27, 0.22),
             fog_start: 10.0,
             fog_end: 42.0,
             ambient_bright: 280.0,
@@ -150,7 +167,7 @@ fn spawn_climate_place(
             mesh: ground,
             material: materials.add(StandardMaterial {
                 base_color: look.ground,
-                perceptual_roughness: 0.92,
+                perceptual_roughness: SANCTUARY_YARD_ROUGHNESS,
                 metallic: 0.0,
                 ..default()
             }),
@@ -162,9 +179,11 @@ fn spawn_climate_place(
     ));
 
     let stone_mesh = meshes.add(Cylinder::new(0.18, 0.08));
+    // Same roughness family as ground — greybox yard stones, not a second biome.
     let stone_mat = materials.add(StandardMaterial {
         base_color: look.stone,
-        perceptual_roughness: 0.88,
+        perceptual_roughness: SANCTUARY_YARD_ROUGHNESS,
+        metallic: 0.0,
         ..default()
     });
     for target in NODE_ANCHORS {
@@ -219,10 +238,12 @@ fn spawn_climate_place(
         });
     }
 
-    info!(target: "powrush::climate", "climate plane seeded — Sanctuary Prime");
+    info!(target: "powrush::climate", "climate plane seeded — Sanctuary Prime warm yard");
 }
 
 fn spawn_climate_chip(mut commands: Commands) {
+    // Existing place-name chip only — not a second HUD. Warm Sanctuary chrome
+    // so the boot yard reads warm-gold before any climate slab.
     commands
         .spawn((
             NodeBundle {
@@ -237,8 +258,8 @@ fn spawn_climate_chip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.04, 0.07, 0.08, 0.72).into(),
-                border_color: Color::srgba(0.55, 0.78, 0.70, 0.40).into(),
+                background_color: Color::srgba(0.08, 0.07, 0.05, 0.72).into(),
+                border_color: Color::srgba(0.86, 0.66, 0.29, 0.40).into(),
                 ..default()
             },
             ClimateNameRoot,
@@ -249,7 +270,7 @@ fn spawn_climate_chip(mut commands: Commands) {
                     "Sanctuary Prime",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.86, 0.96, 0.90),
+                        color: Color::srgb(0.94, 0.90, 0.78),
                         ..default()
                     },
                 ),
@@ -278,7 +299,6 @@ fn attach_fog_when_world_camera_arrives(
         });
     }
 }
-
 
 fn apply_climate_look(
     realm: Res<SoftPlayerRealm>,
@@ -347,6 +367,36 @@ fn update_climate_chip(
     }
 }
 
+/// Presentation-copy honesty for Place dress (refuse Brood / Market / Online /
+/// currency-gold / NFT). Warm-gold *color* is ART_BIBLE accent, not this copy.
+fn climate_dress_copy_is_honest(s: &str) -> bool {
+    let lower = s.to_ascii_lowercase();
+    !(lower.contains("brood")
+        || lower.contains("market")
+        || lower.contains("online")
+        || lower.contains("nft")
+        || lower.contains("auction")
+        || lower.contains("gold sink")
+        || lower.contains("currency"))
+}
+
+fn srgb3(c: Color) -> (f32, f32, f32) {
+    let s = c.to_srgba();
+    (s.red, s.green, s.blue)
+}
+
+/// Warm-yard earth: R ≥ G > B (desaturated warm grey-gold), not verdant green.
+fn is_warm_yard_earth(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    r + 0.02 >= g && g > b && r > b && (g - b) < 0.12
+}
+
+/// Warm-gold well accent: R > G > B with clear gold chroma (ART_BIBLE).
+fn is_warm_gold_well(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    r > g && g > b && r > 0.7 && (r - b) > 0.35
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,5 +414,103 @@ mod tests {
         assert_eq!(look_for(Some(0)).name, "Sanctuary Prime");
         assert_eq!(look_for(None).name, "Sanctuary Prime");
         assert_ne!(look_for(Some(0)).name, look_for(Some(2)).name);
+    }
+
+    #[test]
+    fn sanctuary_greybox_is_one_warm_yard_family() {
+        let s = look_for(Some(0));
+        assert!(
+            is_warm_yard_earth(s.ground),
+            "Sanctuary ground must read warm yard earth, got {:?}",
+            srgb3(s.ground)
+        );
+        assert!(
+            is_warm_yard_earth(s.stone),
+            "Sanctuary stones must share yard earth family, got {:?}",
+            srgb3(s.stone)
+        );
+        assert!(
+            is_warm_gold_well(s.node),
+            "Sanctuary well must be warm-gold accent, got {:?}",
+            srgb3(s.node)
+        );
+        // Ground + stone stay one family: same warm bias; path stones catch
+        // a touch more light so they read as yard dressing, not a second biome.
+        let (gr, gg, gb) = srgb3(s.ground);
+        let (sr, sg, sb) = srgb3(s.stone);
+        let g_lum = (gr + gg + gb) / 3.0;
+        let s_lum = (sr + sg + sb) / 3.0;
+        assert!(
+            s_lum > g_lum,
+            "path stones should sit slightly above ground luminance"
+        );
+        assert!(
+            (sr - gr).abs() < 0.12 && (sg - gg).abs() < 0.12 && (sb - gb).abs() < 0.12,
+            "stone drifted out of the yard earth family"
+        );
+        // Not Heartwood verdant (G dominates).
+        let h = look_for(Some(2));
+        let (_hr, hg, _hb) = srgb3(h.ground);
+        assert!(
+            hg > gg + 0.04,
+            "Heartwood ground must stay greener than Sanctuary yard"
+        );
+        assert_ne!(srgb3(s.ground), srgb3(h.ground));
+        assert_ne!(srgb3(s.node), srgb3(h.node));
+    }
+
+    #[test]
+    fn four_places_stay_four_material_moods() {
+        let sanctuary = look_for(Some(0));
+        let heartwood = look_for(Some(2));
+        let threshold = look_for(Some(1));
+        let depths = look_for(Some(3));
+        assert_eq!(sanctuary.name, "Sanctuary Prime");
+        assert_eq!(heartwood.name, "Verdant Heartwood");
+        assert_eq!(threshold.name, "Crystal Spires");
+        assert_eq!(depths.name, "Abyssal Depths");
+        // Threshold realm 4 shares Threshold dress (not a fifth Place).
+        assert_eq!(look_for(Some(4)).name, "Voidfarer Horizon");
+        assert_ne!(srgb3(sanctuary.ground), srgb3(heartwood.ground));
+        assert_ne!(srgb3(sanctuary.ground), srgb3(threshold.ground));
+        assert_ne!(srgb3(sanctuary.ground), srgb3(depths.ground));
+        assert_ne!(srgb3(heartwood.ground), srgb3(depths.ground));
+        assert_ne!(srgb3(threshold.ground), srgb3(depths.ground));
+    }
+
+    #[test]
+    fn sanctuary_well_accent_matches_art_bible_warm_gold() {
+        let node = look_for(Some(0)).node;
+        assert_eq!(srgb3(node), srgb3(SANCTUARY_WELL_GOLD));
+        assert!(is_warm_gold_well(node));
+        // Currency-gold refuse is about copy / Market — accent color is law.
+        assert!(climate_dress_copy_is_honest(look_for(Some(0)).name));
+    }
+
+    #[test]
+    fn climate_place_names_refuse_brood_market_online_gold() {
+        for id in [0_u8, 1, 2, 3, 4] {
+            let name = look_for(Some(id)).name;
+            assert!(
+                climate_dress_copy_is_honest(name),
+                "climate name not dress-honest: {name}"
+            );
+            let lower = name.to_ascii_lowercase();
+            assert!(!lower.contains("brood"));
+            assert!(!lower.contains("market"));
+            assert!(!lower.contains("online"));
+            assert!(!lower.contains("gold"));
+        }
+    }
+
+    #[test]
+    fn place_readable_from_sanctuary_dress_before_slab() {
+        // Nameable from presentation alone: warm yard + warm-gold well + name.
+        let s = look_for(Some(0));
+        assert_eq!(s.name, "Sanctuary Prime");
+        assert!(is_warm_yard_earth(s.ground));
+        assert!(is_warm_gold_well(s.node));
+        assert!(s.fog_end > s.fog_start);
+        assert!(climate_dress_copy_is_honest(s.name));
     }
 }
