@@ -12,6 +12,8 @@
 //! (Guide = one-sentence Peace-key stranger loop; Online stays grey).
 //! H-2026-09-12-PLACES-DOOR: Settled+book **Places** door on that plate opens the
 //! four-room Places plate — must not only dismiss pause.
+//! H-2026-09-12-COMFORT-PRESETS: Esc Comfort Graphics · Low|Medium(default)|High
+//! persists beside Grove; applies brightness/text scale/reduced motion/rumble.
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
@@ -68,6 +70,8 @@ use crate::net_mode::SessionNetMode;
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
 use shared::hex_travel::{BootKind, PLACES_ROW};
 use shared::local_settings::{refuse_online_socket_toggle, LocalSettings, PeaceKey, SETTINGS_PATH};
+#[cfg(test)]
+use shared::local_settings::GraphicsPreset;
 use shared::pause_ledger_face::lethal_sign_row;
 
 // --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
@@ -282,6 +286,10 @@ struct SettingsBrightnessLabel;
 struct SettingsTextScaleBtn;
 #[derive(Component)]
 struct SettingsTextScaleLabel;
+#[derive(Component)]
+struct SettingsGraphicsBtn;
+#[derive(Component)]
+struct SettingsGraphicsLabel;
 #[derive(Component)]
 struct SettingsGroveBtn;
 #[derive(Component)]
@@ -1135,6 +1143,12 @@ fn spawn_settings_stub(mut commands: Commands) {
                 PauseTabPanel(PauseTab::Comfort),
             ))
             .with_children(|comfort| {
+                spawn_settings_row(
+                    comfort,
+                    "Graphics · Medium",
+                    SettingsGraphicsBtn,
+                    SettingsGraphicsLabel,
+                );
                 spawn_settings_row(comfort, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
                 spawn_settings_row(comfort, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
                 spawn_settings_row(
@@ -2246,6 +2260,10 @@ pub fn text_scale_btn_label(s: &LocalSettings) -> String {
     format!("Text scale · {:.2}", s.text_scale)
 }
 
+pub fn graphics_preset_btn_label(s: &LocalSettings) -> String {
+    format!("Graphics · {}", s.graphics_preset.label())
+}
+
 pub fn grove_btn_label(s: &LocalSettings) -> String {
     let g = if s.grove_is_light() { "light" } else { "off" };
     format!("Grove · {g}")
@@ -2613,12 +2631,20 @@ fn refresh_local_settings_labels(
 fn refresh_accessibility_settings_labels(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
-    mut reduced_motion: Query<&mut Text, With<SettingsReducedMotionLabel>>,
+    mut graphics: Query<&mut Text, With<SettingsGraphicsLabel>>,
+    mut reduced_motion: Query<
+        &mut Text,
+        (
+            With<SettingsReducedMotionLabel>,
+            Without<SettingsGraphicsLabel>,
+        ),
+    >,
     mut rumble: Query<
         &mut Text,
         (
             With<SettingsRumbleLabel>,
             Without<SettingsReducedMotionLabel>,
+            Without<SettingsGraphicsLabel>,
         ),
     >,
     mut colorblind: Query<
@@ -2627,6 +2653,7 @@ fn refresh_accessibility_settings_labels(
             With<SettingsColorblindWellsLabel>,
             Without<SettingsReducedMotionLabel>,
             Without<SettingsRumbleLabel>,
+            Without<SettingsGraphicsLabel>,
         ),
     >,
 ) {
@@ -2634,10 +2661,15 @@ fn refresh_accessibility_settings_labels(
         return;
     }
     let s = &settings.inner;
+    let graphics_label = graphics_preset_btn_label(s);
     let reduced_motion_label = reduced_motion_btn_label(s);
     let rumble_label = rumble_btn_label(s);
     let colorblind_label = colorblind_wells_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
+    for mut text in &mut graphics {
+        set_btn_section_text(&mut text, &graphics_label);
+        set_btn_section_font(&mut text, font);
+    }
     for mut text in &mut reduced_motion {
         set_btn_section_text(&mut text, &reduced_motion_label);
         set_btn_section_font(&mut text, font);
@@ -2758,13 +2790,22 @@ fn local_settings_clicks(
 fn accessibility_settings_clicks(
     label: Res<HouseLabel>,
     mut settings: ResMut<LocalSettingsState>,
-    reduced_motion: Query<&Interaction, (Changed<Interaction>, With<SettingsReducedMotionBtn>)>,
+    graphics: Query<&Interaction, (Changed<Interaction>, With<SettingsGraphicsBtn>)>,
+    reduced_motion: Query<
+        &Interaction,
+        (
+            Changed<Interaction>,
+            With<SettingsReducedMotionBtn>,
+            Without<SettingsGraphicsBtn>,
+        ),
+    >,
     rumble: Query<
         &Interaction,
         (
             Changed<Interaction>,
             With<SettingsRumbleBtn>,
             Without<SettingsReducedMotionBtn>,
+            Without<SettingsGraphicsBtn>,
         ),
     >,
     colorblind: Query<
@@ -2774,6 +2815,7 @@ fn accessibility_settings_clicks(
             With<SettingsColorblindWellsBtn>,
             Without<SettingsReducedMotionBtn>,
             Without<SettingsRumbleBtn>,
+            Without<SettingsGraphicsBtn>,
         ),
     >,
 ) {
@@ -2781,6 +2823,13 @@ fn accessibility_settings_clicks(
         return;
     }
     let mut changed = false;
+    for i in &graphics {
+        if *i == Interaction::Pressed {
+            // Comfort graphics preset — Low|Medium|High beside Grove persist.
+            settings.inner.cycle_graphics_preset();
+            changed = true;
+        }
+    }
     for i in &reduced_motion {
         if *i == Interaction::Pressed {
             settings.inner.toggle_reduced_motion();
@@ -3869,6 +3918,8 @@ mod tests {
         assert_eq!(hide_slabs_btn_label(&s), "Hide slabs · off");
         assert_eq!(brightness_btn_label(&s), "Brightness · 1.00");
         assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00");
+        assert_eq!(graphics_preset_btn_label(&s), "Graphics · Medium");
+        assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
         assert_eq!(grove_btn_label(&s), "Grove · off");
         assert_eq!(s.grove, "off");
         assert_eq!(reduced_motion_btn_label(&s), "Reduced motion · off");
@@ -3985,6 +4036,7 @@ mod tests {
         s.look_sensitivity = 1.50;
         s.brightness = 1.25;
         s.text_scale = 1.10;
+        s.graphics_preset = GraphicsPreset::High;
         s.grove = "light".into();
         s.reduced_motion = true;
         s.rumble = false;
@@ -3998,6 +4050,7 @@ mod tests {
         assert_eq!(look_btn_label(&back), "Look · 1.50");
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
         assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10");
+        assert_eq!(graphics_preset_btn_label(&back), "Graphics · High");
         assert_eq!(grove_btn_label(&back), "Grove · light");
         assert_eq!(reduced_motion_btn_label(&back), "Reduced motion · on");
         assert_eq!(rumble_btn_label(&back), "Rumble · off");
@@ -4013,6 +4066,29 @@ mod tests {
         assert_eq!(grove_btn_label(&s), "Grove · light");
         s.cycle_grove();
         assert_eq!(grove_btn_label(&s), "Grove · off");
+    }
+
+    #[test]
+    fn comfort_graphics_presets_cycle_labels_medium_default() {
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
+        assert_eq!(graphics_preset_btn_label(&s), "Graphics · Medium");
+        s.cycle_graphics_preset();
+        assert_eq!(graphics_preset_btn_label(&s), "Graphics · High");
+        assert!((s.brightness - 1.25).abs() < 0.01);
+        assert!(!s.reduced_motion);
+        s.cycle_graphics_preset();
+        assert_eq!(graphics_preset_btn_label(&s), "Graphics · Low");
+        assert!(s.reduced_motion);
+        assert!(!s.rumble_enabled());
+        s.cycle_graphics_preset();
+        assert_eq!(graphics_preset_btn_label(&s), "Graphics · Medium");
+        // Online stays grey — presets never bind a socket.
+        assert!(refuse_online_socket_toggle(true));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        let raw = s.to_json().unwrap();
+        let back = LocalSettings::from_json(&raw).unwrap();
+        assert_eq!(graphics_preset_btn_label(&back), "Graphics · Medium");
     }
 
     #[test]
