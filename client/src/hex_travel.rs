@@ -11,6 +11,8 @@
 //! Esc pause plate (Comfort · Controls · Guide kept); sticks cull when open.
 //! H-2026-09-12-PLACES-CLICK: Places row Pressed must open the four-room plate
 //! above Comfort (z+2) and keep pause armed — not Comfort/settings linger.
+//! H-2026-09-12-PLACES-FAT: four-room + Confirm/Back hit targets ≥44 logical dp
+//! (fat-tap / lavapipe click-clean). Peace tone; no second HUD.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -34,6 +36,9 @@ use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE};
 
 /// Soft-GPU stack: four-room Places door draws above pause Comfort (+ banner at +1).
 pub const PLACES_PLATE_Z: i32 = LIVED_UI_Z_PAUSE + 2;
+
+/// Minimum Places deck / Confirm / Back hit target (logical px) — INPUT_CANON ≥44dp.
+pub const PLACES_HIT_MIN: f32 = 44.0;
 
 /// Click → open_door runs before pause/settings visibility sync (same frame).
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -366,8 +371,11 @@ fn spawn_places_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C) 
     p.spawn((
         ButtonBundle {
             style: Style {
-                padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
+                // Fat-tap ≥44dp (lavapipe click-clean); Peace tone, stretch width.
+                min_height: Val::Px(PLACES_HIT_MIN),
+                padding: UiRect::axes(Val::Px(14.0), Val::Px(12.0)),
                 justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
                 border: UiRect::all(Val::Px(1.0)),
                 ..default()
             },
@@ -1170,5 +1178,78 @@ mod tests {
         assert_eq!(heartwood, 1);
         assert_eq!(threshold, 1, "Threshold must sit on the Places door");
         assert_eq!(depths, 1);
+    }
+
+    /// Fat-tap / lavapipe: Places deck + Confirm/Back min hit ≥44 logical dp.
+    #[test]
+    fn places_deck_hit_targets_meet_44dp() {
+        assert!(PLACES_HIT_MIN >= 44.0);
+        let mut app = yard_app(PlaceId::Sanctuary);
+        let world = app.world_mut();
+        let mut heights: Vec<f32> = Vec::new();
+        for style in world
+            .query_filtered::<&Style, With<PlacesSanctuaryBtn>>()
+            .iter(world)
+        {
+            match style.min_height {
+                Val::Px(h) => heights.push(h),
+                other => panic!("Sanctuary btn min_height expected Px, got {other:?}"),
+            }
+        }
+        for style in world
+            .query_filtered::<&Style, With<PlacesHeartwoodBtn>>()
+            .iter(world)
+        {
+            match style.min_height {
+                Val::Px(h) => heights.push(h),
+                other => panic!("Heartwood btn min_height expected Px, got {other:?}"),
+            }
+        }
+        for style in world
+            .query_filtered::<&Style, With<PlacesThresholdBtn>>()
+            .iter(world)
+        {
+            match style.min_height {
+                Val::Px(h) => heights.push(h),
+                other => panic!("Threshold btn min_height expected Px, got {other:?}"),
+            }
+        }
+        for style in world
+            .query_filtered::<&Style, With<PlacesDepthsBtn>>()
+            .iter(world)
+        {
+            match style.min_height {
+                Val::Px(h) => heights.push(h),
+                other => panic!("Depths btn min_height expected Px, got {other:?}"),
+            }
+        }
+        for style in world
+            .query_filtered::<&Style, With<PlacesConfirmBtn>>()
+            .iter(world)
+        {
+            match style.min_height {
+                Val::Px(h) => heights.push(h),
+                other => panic!("Confirm btn min_height expected Px, got {other:?}"),
+            }
+        }
+        for style in world
+            .query_filtered::<&Style, With<PlacesBackBtn>>()
+            .iter(world)
+        {
+            match style.min_height {
+                Val::Px(h) => heights.push(h),
+                other => panic!("Back btn min_height expected Px, got {other:?}"),
+            }
+        }
+        assert_eq!(heights.len(), 6, "four rooms + Confirm + Back");
+        for h in heights {
+            assert!(
+                h >= 44.0,
+                "Places deck hit target min_height {h} < 44 logical dp"
+            );
+        }
+        // PLACES-CLICK stack intact — fat-tap does not lower z or add a HUD.
+        assert_eq!(PLACES_PLATE_Z, LIVED_UI_Z_PAUSE + 2);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 }
