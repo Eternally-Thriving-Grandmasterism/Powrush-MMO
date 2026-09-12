@@ -1,5 +1,6 @@
 /*!
- * Climate Plane — v22.7.0 + Depths deepen/wet-stone dress (H-2026-09-11-F4)
+ * Climate Plane — v22.7.0 + Depths dress (H-2026-09-11-F4) + EARTH-CLIMATE beds
+ * (H-2026-09-12-EARTH-CLIMATE)
  *
  * PLACE_DRESS_SPEC: Depths one way down / one way home — one deepen/wet-stone
  * material family + teal Peace accent so Place reads before any slab. F1
@@ -7,13 +8,22 @@
  * stay intact (do not freestyle-reopen). Four Places stay four. No mesh · no
  * fifth Place. Online grey. Tag 11c577e. Depths stay night in living_day.
  * Z travel moves the place. Climate 3 = Abyssal Depths (night, close fog).
+ *
+ * EARTH-CLIMATE: procedural weather beds from existing fog / tint / breath —
+ * Place moods (Sanctuary sky/yard · Heartwood canopy · Threshold pipe air ·
+ * Depths wet stone). FlowWeather band couples via WeatherBandCoupling.
+ * Comfort GraphicsPreset → WeatherFidelity gates intensity (Low gentler ·
+ * Medium default · High richer). No second HUD. No live Earth API / sockets.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::pbr::{FogFalloff, FogSettings};
 use bevy::prelude::*;
 
+use shared::local_settings::WeatherFidelity;
+
 use crate::living_practice_loop::SoftPlayerRealm;
+use crate::local_settings::LocalSettingsState;
 use crate::mercy_harvest_nodes::MercyHarvestNode;
 
 const NODE_ANCHORS: [Vec3; 3] = [
@@ -154,14 +164,158 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
     }
 }
 
+/// Place weather mood — expressed via existing fog / sky tint / ambient breath.
+/// Four Places stay four (PLACE_DRESS_SPEC). Not a fifth Place / HUD.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PlaceMood {
+    /// Sanctuary sky / warm yard air.
+    #[default]
+    SanctuarySkyYard,
+    /// Heartwood canopy shade / leaf-breath.
+    HeartwoodCanopy,
+    /// Threshold pipe air / edge draft.
+    ThresholdPipeAir,
+    /// Depths wet stone / close damp.
+    DepthsWetStone,
+}
+
+impl PlaceMood {
+    /// Short mood token for tests / logs — never a second HUD label.
+    pub const fn mood_label(self) -> &'static str {
+        match self {
+            Self::SanctuarySkyYard => "sky/yard",
+            Self::HeartwoodCanopy => "canopy",
+            Self::ThresholdPipeAir => "pipe air",
+            Self::DepthsWetStone => "wet stone",
+        }
+    }
+}
+
+/// Map SoftPlayerRealm id → Place mood (same realm table as [`look_for`]).
+pub fn place_mood_for(realm: Option<u8>) -> PlaceMood {
+    match realm {
+        Some(2) => PlaceMood::HeartwoodCanopy,
+        Some(4) | Some(1) => PlaceMood::ThresholdPipeAir,
+        Some(3) => PlaceMood::DepthsWetStone,
+        _ => PlaceMood::SanctuarySkyYard,
+    }
+}
+
+/// FlowWeather band token mirrored here so climate beds couple without a
+/// circular `flow_weather` import. Written by FlowWeather each tick.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum WeatherBandKind {
+    #[default]
+    Rise,
+    Flow,
+    Boredom,
+    Anxiety,
+}
+
+/// Shared coupling slot: FlowWeather writes band; climate beds read it.
+#[derive(Resource, Debug, Clone, Copy)]
+pub struct WeatherBandCoupling {
+    pub band: WeatherBandKind,
+}
+
+impl Default for WeatherBandCoupling {
+    fn default() -> Self {
+        Self {
+            band: WeatherBandKind::Rise,
+        }
+    }
+}
+
+/// Procedural weather bed — fog / tint / breath from ClimateLook + fidelity.
+/// No live Earth API. No binary weather pack. No second HUD.
+#[derive(Clone, Copy, Debug)]
+pub struct WeatherBed {
+    pub mood: PlaceMood,
+    pub fog: Color,
+    pub sky: Color,
+    pub ambient: Color,
+    pub fog_start: f32,
+    pub fog_end: f32,
+    pub ambient_bright: f32,
+    /// Soft breath rate (Hz-ish).
+    pub breath_hz: f32,
+    /// Breath amplitude already scaled by [`WeatherFidelity::intensity`].
+    pub breath_amp: f32,
+    /// Tint / emissive strength scale (fidelity).
+    pub tint_strength: f32,
+}
+
+/// Base breath profile per Place mood (before fidelity / band coupling).
+fn mood_breath_profile(mood: PlaceMood) -> (f32, f32) {
+    match mood {
+        // Sanctuary: slow warm sky/yard air.
+        PlaceMood::SanctuarySkyYard => (0.11, 0.040),
+        // Heartwood: slightly quicker canopy leaf-breath.
+        PlaceMood::HeartwoodCanopy => (0.15, 0.055),
+        // Threshold: thin pipe-air draft, lower amp.
+        PlaceMood::ThresholdPipeAir => (0.09, 0.032),
+        // Depths: slower wet-stone damp, closer fog breath.
+        PlaceMood::DepthsWetStone => (0.07, 0.070),
+    }
+}
+
+/// Build a procedural weather bed for a realm + Comfort weather fidelity.
+pub fn weather_bed_for(realm: Option<u8>, fidelity: WeatherFidelity) -> WeatherBed {
+    let look = look_for(realm);
+    let mood = place_mood_for(realm);
+    let (hz, amp0) = mood_breath_profile(mood);
+    let intensity = fidelity.intensity();
+    WeatherBed {
+        mood,
+        fog: look.fog,
+        sky: look.sky,
+        ambient: look.ambient,
+        fog_start: look.fog_start,
+        fog_end: look.fog_end,
+        ambient_bright: look.ambient_bright,
+        breath_hz: hz,
+        breath_amp: amp0 * intensity,
+        tint_strength: intensity,
+    }
+}
+
+/// Couple FlowWeather band → Place mood breath / glow multiplier.
+/// Flow lifts; Anxiety tightens; Boredom mutes; Rise is neutral.
+pub fn place_band_mul(mood: PlaceMood, band: WeatherBandKind) -> f32 {
+    let band_mul = match band {
+        WeatherBandKind::Rise => 1.0,
+        WeatherBandKind::Flow => 1.22,
+        WeatherBandKind::Boredom => 0.72,
+        WeatherBandKind::Anxiety => 0.85,
+    };
+    // Place-flavored nudge — canopy loves Flow; wet stone stays close under Anxiety.
+    let place_mul = match (mood, band) {
+        (PlaceMood::HeartwoodCanopy, WeatherBandKind::Flow) => 1.08,
+        (PlaceMood::DepthsWetStone, WeatherBandKind::Anxiety) => 1.10,
+        (PlaceMood::SanctuarySkyYard, WeatherBandKind::Rise) => 1.04,
+        (PlaceMood::ThresholdPipeAir, WeatherBandKind::Boredom) => 0.92,
+        _ => 1.0,
+    };
+    band_mul * place_mul
+}
+
+/// Effective breath amplitude after fidelity bed + band coupling.
+pub fn coupled_breath_amp(bed: &WeatherBed, band: WeatherBandKind) -> f32 {
+    bed.breath_amp * place_band_mul(bed.mood, band)
+}
+
 #[derive(Resource, Debug)]
 pub struct ClimatePlane {
     pub applied: Option<u8>,
+    pub mood: PlaceMood,
 }
 
 impl Default for ClimatePlane {
     fn default() -> Self {
-        Self { applied: None }
+        Self {
+            applied: None,
+            mood: PlaceMood::SanctuarySkyYard,
+        }
     }
 }
 
@@ -179,6 +333,7 @@ pub struct ClimatePlanePlugin;
 impl Plugin for ClimatePlanePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ClimatePlane>()
+            .init_resource::<WeatherBandCoupling>()
             .insert_resource(ClearColor(look_for(Some(0)).sky))
             .insert_resource(AmbientLight {
                 color: look_for(Some(0)).ambient,
@@ -190,6 +345,7 @@ impl Plugin for ClimatePlanePlugin {
                 (
                     attach_fog_when_world_camera_arrives,
                     apply_climate_look,
+                    breathe_weather_bed,
                     update_climate_chip,
                 ),
             );
@@ -365,6 +521,7 @@ fn apply_climate_look(
         return;
     }
     plane.applied = Some(id);
+    plane.mood = place_mood_for(Some(id));
     let look = look_for(Some(id));
     clear.0 = look.sky;
     ambient.color = look.ambient;
@@ -398,6 +555,36 @@ fn apply_climate_look(
         };
     }
     info!(target: "powrush::climate", climate = look.name, id, "place shifted");
+}
+
+/// Soft fog / ambient breath from Place weather bed + FlowWeather band coupling.
+/// Uses existing FogSettings / AmbientLight only — no second HUD, no sockets.
+fn breathe_weather_bed(
+    realm: Res<SoftPlayerRealm>,
+    settings: Option<Res<LocalSettingsState>>,
+    coupling: Res<WeatherBandCoupling>,
+    time: Res<Time>,
+    mut ambient: ResMut<AmbientLight>,
+    mut fogs: Query<&mut FogSettings>,
+) {
+    let fidelity = settings
+        .as_ref()
+        .map(|s| s.inner.weather_fidelity())
+        .unwrap_or(WeatherFidelity::Medium);
+    let bed = weather_bed_for(realm.current.or(Some(0)), fidelity);
+    let amp = coupled_breath_amp(&bed, coupling.band);
+    let pulse = (time.elapsed_seconds() * bed.breath_hz * std::f32::consts::TAU).sin() * amp;
+    // Fog distance breathes gently around the Place bed.
+    for mut fog in &mut fogs {
+        fog.color = bed.fog;
+        let start = (bed.fog_start * (1.0 - pulse * 0.35)).max(0.5);
+        let end = (bed.fog_end * (1.0 + pulse)).max(start + 1.0);
+        fog.falloff = FogFalloff::Linear { start, end };
+    }
+    // Ambient tint strength follows fidelity; color stays Place dress.
+    ambient.color = bed.ambient;
+    ambient.brightness = (bed.ambient_bright * (1.0 + pulse * 0.45 * bed.tint_strength))
+        .clamp(40.0, 520.0);
 }
 
 fn update_climate_chip(
@@ -954,5 +1141,115 @@ mod tests {
         assert_eq!(s.roughness, SANCTUARY_YARD_ROUGHNESS);
         assert_eq!(h.roughness, HEARTWOOD_WOOD_ROUGHNESS);
         assert_eq!(t.roughness, THRESHOLD_PIPE_ROUGHNESS);
+    }
+
+    #[test]
+    fn place_mood_maps_four_places() {
+        assert_eq!(place_mood_for(Some(0)), PlaceMood::SanctuarySkyYard);
+        assert_eq!(place_mood_for(None), PlaceMood::SanctuarySkyYard);
+        assert_eq!(place_mood_for(Some(2)), PlaceMood::HeartwoodCanopy);
+        assert_eq!(place_mood_for(Some(1)), PlaceMood::ThresholdPipeAir);
+        assert_eq!(place_mood_for(Some(4)), PlaceMood::ThresholdPipeAir);
+        assert_eq!(place_mood_for(Some(3)), PlaceMood::DepthsWetStone);
+        assert_eq!(PlaceMood::SanctuarySkyYard.mood_label(), "sky/yard");
+        assert_eq!(PlaceMood::HeartwoodCanopy.mood_label(), "canopy");
+        assert_eq!(PlaceMood::ThresholdPipeAir.mood_label(), "pipe air");
+        assert_eq!(PlaceMood::DepthsWetStone.mood_label(), "wet stone");
+        for mood in [
+            PlaceMood::SanctuarySkyYard,
+            PlaceMood::HeartwoodCanopy,
+            PlaceMood::ThresholdPipeAir,
+            PlaceMood::DepthsWetStone,
+        ] {
+            let label = mood.mood_label();
+            assert!(climate_dress_copy_is_honest(label));
+            assert!(!label.to_ascii_lowercase().contains("online"));
+            assert!(!label.to_ascii_lowercase().contains("market"));
+            assert!(!label.contains("http"));
+        }
+    }
+
+    #[test]
+    fn weather_bed_follows_place_and_fidelity() {
+        use shared::local_settings::GraphicsPreset;
+
+        let mid = weather_bed_for(Some(0), WeatherFidelity::Medium);
+        assert_eq!(mid.mood, PlaceMood::SanctuarySkyYard);
+        assert_eq!(srgb3(mid.fog), srgb3(look_for(Some(0)).fog));
+        assert_eq!(srgb3(mid.sky), srgb3(look_for(Some(0)).sky));
+
+        let canopy = weather_bed_for(Some(2), WeatherFidelity::Medium);
+        assert_eq!(canopy.mood, PlaceMood::HeartwoodCanopy);
+        assert_ne!(srgb3(mid.fog), srgb3(canopy.fog));
+
+        let pipe = weather_bed_for(Some(1), WeatherFidelity::Medium);
+        assert_eq!(pipe.mood, PlaceMood::ThresholdPipeAir);
+
+        let wet = weather_bed_for(Some(3), WeatherFidelity::Medium);
+        assert_eq!(wet.mood, PlaceMood::DepthsWetStone);
+        assert!(wet.fog_end <= 20.0);
+
+        let low = weather_bed_for(Some(0), WeatherFidelity::Low);
+        let high = weather_bed_for(Some(0), WeatherFidelity::High);
+        assert!(low.breath_amp < mid.breath_amp);
+        assert!(mid.breath_amp < high.breath_amp);
+        assert!(low.tint_strength < mid.tint_strength);
+        assert!(mid.tint_strength < high.tint_strength);
+        assert!(WeatherFidelity::Low.gentler());
+        assert!(WeatherFidelity::High.richer());
+
+        // GraphicsPreset gates fidelity 1:1 (Comfort).
+        assert_eq!(
+            GraphicsPreset::Low.weather_fidelity(),
+            WeatherFidelity::Low
+        );
+        assert_eq!(
+            GraphicsPreset::Medium.weather_fidelity(),
+            WeatherFidelity::Medium
+        );
+        assert_eq!(
+            GraphicsPreset::High.weather_fidelity(),
+            WeatherFidelity::High
+        );
+    }
+
+    #[test]
+    fn flow_band_couples_to_place_mood() {
+        let bed = weather_bed_for(Some(2), WeatherFidelity::Medium);
+        let rise = coupled_breath_amp(&bed, WeatherBandKind::Rise);
+        let flow = coupled_breath_amp(&bed, WeatherBandKind::Flow);
+        let bore = coupled_breath_amp(&bed, WeatherBandKind::Boredom);
+        assert!(flow > rise);
+        assert!(bore < rise);
+        // Depths + Anxiety tightens (higher mul on wet stone).
+        let depths = weather_bed_for(Some(3), WeatherFidelity::Medium);
+        let d_rise = place_band_mul(depths.mood, WeatherBandKind::Rise);
+        let d_anx = place_band_mul(depths.mood, WeatherBandKind::Anxiety);
+        assert!(d_anx > d_rise * 0.8);
+        assert!(place_band_mul(PlaceMood::HeartwoodCanopy, WeatherBandKind::Flow) > 1.2);
+    }
+
+    #[test]
+    fn weather_beds_refuse_live_earth_and_second_hud() {
+        // Honesty: mood / fidelity labels never imply Online, sockets, or live Earth API.
+        for fidelity in WeatherFidelity::ALL {
+            let feel = fidelity.feel_label();
+            let lower = feel.to_ascii_lowercase();
+            assert!(!lower.contains("online"));
+            assert!(!lower.contains("socket"));
+            assert!(!lower.contains("earth api"));
+            assert!(!feel.contains("http"));
+            assert!(!feel.contains("ws://"));
+        }
+        for realm in [None, Some(0), Some(1), Some(2), Some(3), Some(4)] {
+            let bed = weather_bed_for(realm, WeatherFidelity::Medium);
+            assert!(climate_dress_copy_is_honest(bed.mood.mood_label()));
+        }
+        // Default plane boots Sanctuary mood — Peace boot, no network door.
+        let plane = ClimatePlane::default();
+        assert_eq!(plane.mood, PlaceMood::SanctuarySkyYard);
+        assert!(plane.applied.is_none());
+        let coupling = WeatherBandCoupling::default();
+        assert_eq!(coupling.band, WeatherBandKind::Rise);
     }
 }

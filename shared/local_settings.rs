@@ -3,7 +3,7 @@
 //! `powrush_settings.json` next to house JSON in the OS user-data dir
 //! (or `POWRUSH_USER_DIR`). Cwd `data/powrush_settings.json` is adopt-only.
 //! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove ·
-//! Graphics preset · Mesh LOD · Comfort graphics banner · Reduced motion · Rumble ·
+//! Graphics preset · Mesh LOD · Weather fidelity (EARTH-CLIMATE) · Comfort graphics banner · Reduced motion · Rumble ·
 //! Colorblind wells · LAN · Controls (I0).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
@@ -242,6 +242,63 @@ impl GraphicsPreset {
             Self::High => MeshLod::High,
         }
     }
+
+    /// Map Comfort graphics preset → weather-bed fidelity (1:1). EARTH-CLIMATE.
+    pub const fn weather_fidelity(self) -> WeatherFidelity {
+        match self {
+            Self::Low => WeatherFidelity::Low,
+            Self::Medium => WeatherFidelity::Medium,
+            Self::High => WeatherFidelity::High,
+        }
+    }
+}
+
+/// Weather-bed fidelity tier driven by [`GraphicsPreset`] (EARTH-CLIMATE).
+/// Low = gentler fog/breath; Medium = Peace default; High = richer beds + fuller band.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum WeatherFidelity {
+    /// Gentler fog / soft breath (phones / weak GPU / reduced motion comfort).
+    Low,
+    /// Place weather Peace default (device-safe).
+    #[default]
+    Medium,
+    /// Richer beds · fuller FlowWeather band coupling.
+    High,
+}
+
+impl WeatherFidelity {
+    pub const ALL: [WeatherFidelity; 3] = [
+        WeatherFidelity::Low,
+        WeatherFidelity::Medium,
+        WeatherFidelity::High,
+    ];
+
+    /// Player-facing feel label — never an asset path or live-Earth API hint.
+    pub const fn feel_label(self) -> &'static str {
+        match self {
+            Self::Low => "Gentler fog · soft breath",
+            Self::Medium => "Place weather · Peace default",
+            Self::High => "Richer beds · fuller band",
+        }
+    }
+
+    /// Procedural intensity scale for fog breath / band glow (1.0 = Medium).
+    pub const fn intensity(self) -> f32 {
+        match self {
+            Self::Low => 0.55,
+            Self::Medium => 1.0,
+            Self::High => 1.35,
+        }
+    }
+
+    pub const fn gentler(self) -> bool {
+        matches!(self, Self::Low)
+    }
+
+    pub const fn richer(self) -> bool {
+        matches!(self, Self::High)
+    }
 }
 
 /// First-launch Comfort graphics banner copy (MESH_QUALITY_BUDGET).
@@ -272,7 +329,7 @@ pub struct LocalSettings {
     pub text_scale: f32,
     /// Esc Comfort graphics preset. Default **Medium** (device-safe).
     /// Applies brightness / text scale / reduced motion / rumble as a bundle.
-    /// Also drives mesh LOD (MESH-LOD / MESH_QUALITY_BUDGET).
+    /// Also drives mesh LOD (MESH-LOD) and weather-bed fidelity (EARTH-CLIMATE).
     #[serde(default)]
     pub graphics_preset: GraphicsPreset,
     /// First-launch Comfort graphics banner dismissed. Default false (show once).
@@ -558,6 +615,11 @@ impl LocalSettings {
     /// Mesh LOD tier for the current Comfort graphics preset.
     pub fn mesh_lod(&self) -> MeshLod {
         self.graphics_preset.mesh_lod()
+    }
+
+    /// Weather-bed fidelity for the current Comfort graphics preset (EARTH-CLIMATE).
+    pub fn weather_fidelity(&self) -> WeatherFidelity {
+        self.graphics_preset.weather_fidelity()
     }
 
     /// Show the first-launch Comfort graphics banner once (title / yard pause).
@@ -1381,6 +1443,46 @@ mod tests {
         assert!(s.mesh_lod().prefer_optional_glb());
         assert!(s.mesh_lod().persona_commit_dress());
         assert_eq!(s.mesh_lod().feel_label(), "Fuller dress · nicest hold");
+    }
+
+    #[test]
+    fn weather_fidelity_follows_graphics_preset() {
+        assert_eq!(GraphicsPreset::Low.weather_fidelity(), WeatherFidelity::Low);
+        assert_eq!(GraphicsPreset::Medium.weather_fidelity(), WeatherFidelity::Medium);
+        assert_eq!(GraphicsPreset::High.weather_fidelity(), WeatherFidelity::High);
+        assert_eq!(WeatherFidelity::default(), WeatherFidelity::Medium);
+
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(s.weather_fidelity(), WeatherFidelity::Medium);
+        assert!((s.weather_fidelity().intensity() - 1.0).abs() < f32::EPSILON);
+        assert!(!s.weather_fidelity().gentler());
+        assert!(!s.weather_fidelity().richer());
+        assert_eq!(s.weather_fidelity().feel_label(), "Place weather · Peace default");
+
+        for fidelity in WeatherFidelity::ALL {
+            let feel = fidelity.feel_label();
+            assert!(!feel.is_empty());
+            assert!(!feel.contains("assets/"));
+            assert!(!feel.contains("http"));
+            assert!(!feel.contains("socket"));
+            assert!(!feel.to_ascii_lowercase().contains("online"));
+            assert!(!feel.to_ascii_lowercase().contains("earth api"));
+        }
+
+        s.set_graphics_preset(GraphicsPreset::Low);
+        assert_eq!(s.weather_fidelity(), WeatherFidelity::Low);
+        assert!(s.weather_fidelity().gentler());
+        assert!(s.weather_fidelity().intensity() < 1.0);
+        assert_eq!(s.weather_fidelity().feel_label(), "Gentler fog · soft breath");
+
+        s.set_graphics_preset(GraphicsPreset::High);
+        assert_eq!(s.weather_fidelity(), WeatherFidelity::High);
+        assert!(s.weather_fidelity().richer());
+        assert!(s.weather_fidelity().intensity() > 1.0);
+        assert_eq!(s.weather_fidelity().feel_label(), "Richer beds · fuller band");
+
+        assert!(WeatherFidelity::Low.intensity() < WeatherFidelity::Medium.intensity());
+        assert!(WeatherFidelity::Medium.intensity() < WeatherFidelity::High.intensity());
     }
 
     #[test]
