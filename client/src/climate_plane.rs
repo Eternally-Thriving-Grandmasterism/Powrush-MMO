@@ -1,10 +1,10 @@
 /*!
- * Climate Plane — v22.7.0 + Sanctuary greybox dress (H-2026-09-11-F1)
+ * Climate Plane — v22.7.0 + Heartwood living-wood dress (H-2026-09-11-F2)
  *
- * PLACE_DRESS_SPEC: Sanctuary greybox dress debt first — one warm-yard
- * material family + warm-gold well accent so Place reads before any slab.
- * Four Places stay four. No mesh import · no second HUD · no Brood Spire
- * on Sanctuary. Online grey. Tag 11c577e.
+ * PLACE_DRESS_SPEC: Heartwood one living-wood / ring material family + amber
+ * lamp accent so Place reads before any slab. F1 Sanctuary warm-yard dress
+ * stays intact (do not freestyle-reopen Sanctuary). Four Places stay four.
+ * No mesh import · no second HUD · no fifth Place. Online grey. Tag 11c577e.
  * Z travel moves the place. Climate 3 = Abyssal Depths (night, close fog).
  * Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -30,6 +30,15 @@ const SANCTUARY_WELL_GOLD: Color = Color::srgb(0.86, 0.66, 0.29);
 /// (one material family — PLACE_DRESS_SPEC).
 const SANCTUARY_YARD_ROUGHNESS: f32 = 0.90;
 
+/// ART_BIBLE HANDS Heartwood accent — amber lamp (not Sanctuary warm-gold,
+/// not currency gold). Climate owns its copy so this file stays the only F2
+/// edit path.
+const HEARTWOOD_AMBER_LAMP: Color = Color::srgb(0.90, 0.52, 0.14);
+
+/// Shared living-wood roughness for Heartwood ground + ring path stones
+/// (one material family — PLACE_DRESS_SPEC).
+const HEARTWOOD_WOOD_ROUGHNESS: f32 = 0.82;
+
 #[derive(Clone, Copy)]
 struct ClimateLook {
     name: &'static str,
@@ -42,21 +51,28 @@ struct ClimateLook {
     fog_start: f32,
     fog_end: f32,
     ambient_bright: f32,
+    /// One roughness for ground + stone in this Place's material family.
+    roughness: f32,
 }
 
 fn look_for(realm: Option<u8>) -> ClimateLook {
     match realm {
+        // Verdant Heartwood — live / seal room (PLACE_DRESS_SPEC).
+        // One material family: living-wood bark ground + sapwood ring paths;
+        // well node is the single amber-lamp accent (ART_BIBLE). Not Sanctuary
+        // warm-gold carpet, not lawn green second biome, not Market chrome.
         Some(2) => ClimateLook {
             name: "Verdant Heartwood",
-            ground: Color::srgb(0.12, 0.28, 0.16),
-            sky: Color::srgb(0.42, 0.72, 0.58),
-            fog: Color::srgba(0.35, 0.62, 0.48, 1.0),
-            ambient: Color::srgb(0.55, 0.85, 0.62),
-            node: Color::srgb(0.40, 0.95, 0.62),
-            stone: Color::srgb(0.22, 0.38, 0.24),
+            ground: Color::srgb(0.20, 0.15, 0.07),
+            sky: Color::srgb(0.36, 0.55, 0.40),
+            fog: Color::srgba(0.28, 0.42, 0.30, 1.0),
+            ambient: Color::srgb(0.62, 0.58, 0.42),
+            node: HEARTWOOD_AMBER_LAMP,
+            stone: Color::srgb(0.30, 0.22, 0.11),
             fog_start: 10.0,
             fog_end: 42.0,
-            ambient_bright: 280.0,
+            ambient_bright: 260.0,
+            roughness: HEARTWOOD_WOOD_ROUGHNESS,
         },
         Some(4) | Some(1) => ClimateLook {
             name: if realm == Some(1) {
@@ -73,6 +89,7 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             fog_start: 12.0,
             fog_end: 40.0,
             ambient_bright: 220.0,
+            roughness: 0.88,
         },
         Some(3) => ClimateLook {
             name: "Abyssal Depths",
@@ -85,6 +102,7 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             fog_start: 3.5,
             fog_end: 16.0,
             ambient_bright: 90.0,
+            roughness: 0.92,
         },
         // Sanctuary Prime — warm yard / teaching Peace (PLACE_DRESS_SPEC).
         // One material family: warm grey-gold earth ground + path stones;
@@ -101,6 +119,7 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             fog_start: 10.0,
             fog_end: 42.0,
             ambient_bright: 280.0,
+            roughness: SANCTUARY_YARD_ROUGHNESS,
         },
     }
 }
@@ -324,11 +343,15 @@ fn apply_climate_look(
     for handle in &grounds {
         if let Some(mat) = materials.get_mut(handle) {
             mat.base_color = look.ground;
+            mat.perceptual_roughness = look.roughness;
+            mat.metallic = 0.0;
         }
     }
     for handle in &stones {
         if let Some(mat) = materials.get_mut(handle) {
             mat.base_color = look.stone;
+            mat.perceptual_roughness = look.roughness;
+            mat.metallic = 0.0;
         }
     }
     for handle in &nodes {
@@ -385,16 +408,39 @@ fn srgb3(c: Color) -> (f32, f32, f32) {
     (s.red, s.green, s.blue)
 }
 
-/// Warm-yard earth: R ≥ G > B (desaturated warm grey-gold), not verdant green.
+/// Warm-yard earth: desaturated warm grey-gold (R≈G > B), not bark and not lawn.
 fn is_warm_yard_earth(c: Color) -> bool {
     let (r, g, b) = srgb3(c);
-    r + 0.02 >= g && g > b && r > b && (g - b) < 0.12
+    r + 0.02 >= g
+        && g > b
+        && r > b
+        && (r - g) <= 0.045
+        && (g - b) < 0.12
+        && (r - b) < 0.10
 }
 
-/// Warm-gold well accent: R > G > B with clear gold chroma (ART_BIBLE).
+/// Warm-gold well accent: R > G > B with gold chroma (ART_BIBLE Sanctuary).
+/// Amber lamp is warmer/orange ((r-g) larger, G lower) and must not match.
 fn is_warm_gold_well(c: Color) -> bool {
     let (r, g, b) = srgb3(c);
-    r > g && g > b && r > 0.7 && (r - b) > 0.35
+    r > g && g > b && r > 0.7 && (r - b) > 0.35 && (r - g) <= 0.28 && g > 0.55
+}
+
+/// Living-wood / ring earth: warm bark–sapwood (R > G > B), not Sanctuary
+/// grey-gold yard and not lawn where G strongly dominates.
+fn is_living_wood_earth(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    r > g + 0.015
+        && g > b
+        && (r - b) > 0.08
+        && r >= 0.14
+        && !is_warm_yard_earth(c)
+}
+
+/// Amber lamp accent: warmer/orange than Sanctuary well gold (ART_BIBLE).
+fn is_amber_lamp(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    r > g && g > b && r > 0.75 && (r - g) > 0.28 && (r - b) > 0.50
 }
 
 #[cfg(test)]
@@ -448,15 +494,18 @@ mod tests {
             (sr - gr).abs() < 0.12 && (sg - gg).abs() < 0.12 && (sb - gb).abs() < 0.12,
             "stone drifted out of the yard earth family"
         );
-        // Not Heartwood verdant (G dominates).
+        // F1 Sanctuary stays warm-yard; F2 Heartwood is living-wood — not
+        // the same family, and Sanctuary must not wear Heartwood dress.
         let h = look_for(Some(2));
-        let (_hr, hg, _hb) = srgb3(h.ground);
         assert!(
-            hg > gg + 0.04,
-            "Heartwood ground must stay greener than Sanctuary yard"
+            is_living_wood_earth(h.ground),
+            "Heartwood must stay living-wood, got {:?}",
+            srgb3(h.ground)
         );
+        assert!(!is_living_wood_earth(s.ground));
         assert_ne!(srgb3(s.ground), srgb3(h.ground));
         assert_ne!(srgb3(s.node), srgb3(h.node));
+        assert!(!is_amber_lamp(s.node));
     }
 
     #[test]
@@ -511,6 +560,83 @@ mod tests {
         assert!(is_warm_yard_earth(s.ground));
         assert!(is_warm_gold_well(s.node));
         assert!(s.fog_end > s.fog_start);
+        assert!(climate_dress_copy_is_honest(s.name));
+    }
+
+    #[test]
+    fn heartwood_greybox_is_one_living_wood_family() {
+        let h = look_for(Some(2));
+        assert_eq!(h.name, "Verdant Heartwood");
+        assert!(
+            is_living_wood_earth(h.ground),
+            "Heartwood ground must read living-wood, got {:?}",
+            srgb3(h.ground)
+        );
+        assert!(
+            is_living_wood_earth(h.stone),
+            "Heartwood ring paths must share living-wood family, got {:?}",
+            srgb3(h.stone)
+        );
+        assert!(
+            is_amber_lamp(h.node),
+            "Heartwood well must be amber-lamp accent, got {:?}",
+            srgb3(h.node)
+        );
+        assert_eq!(srgb3(h.node), srgb3(HEARTWOOD_AMBER_LAMP));
+        assert_eq!(h.roughness, HEARTWOOD_WOOD_ROUGHNESS);
+        // Ground + stone stay one family: same wood bias; ring paths catch
+        // a touch more light so they read as seal-room dressing, not a second biome.
+        let (gr, gg, gb) = srgb3(h.ground);
+        let (sr, sg, sb) = srgb3(h.stone);
+        let g_lum = (gr + gg + gb) / 3.0;
+        let s_lum = (sr + sg + sb) / 3.0;
+        assert!(
+            s_lum > g_lum,
+            "ring paths should sit slightly above ground luminance"
+        );
+        assert!(
+            (sr - gr).abs() < 0.14 && (sg - gg).abs() < 0.14 && (sb - gb).abs() < 0.14,
+            "stone drifted out of the living-wood family"
+        );
+        // Not Sanctuary warm-yard carpet pasted over.
+        let s = look_for(Some(0));
+        assert!(!is_warm_yard_earth(h.ground));
+        assert!(!is_warm_gold_well(h.node));
+        assert_ne!(srgb3(h.ground), srgb3(s.ground));
+        assert_ne!(srgb3(h.node), srgb3(s.node));
+        assert_ne!(h.roughness, s.roughness);
+    }
+
+    #[test]
+    fn place_readable_from_heartwood_dress_before_slab() {
+        // Nameable from presentation alone: living-wood + amber lamp + name.
+        let h = look_for(Some(2));
+        assert_eq!(h.name, "Verdant Heartwood");
+        assert!(is_living_wood_earth(h.ground));
+        assert!(is_living_wood_earth(h.stone));
+        assert!(is_amber_lamp(h.node));
+        assert!(h.fog_end > h.fog_start);
+        assert!(climate_dress_copy_is_honest(h.name));
+        let lower = h.name.to_ascii_lowercase();
+        assert!(!lower.contains("brood"));
+        assert!(!lower.contains("market"));
+        assert!(!lower.contains("online"));
+        assert!(!lower.contains("gold"));
+        assert!(!lower.contains("sanctuary"));
+    }
+
+    #[test]
+    fn heartwood_amber_refuses_sanctuary_gold_carpet() {
+        let h = look_for(Some(2));
+        let s = look_for(Some(0));
+        assert_eq!(srgb3(h.node), srgb3(HEARTWOOD_AMBER_LAMP));
+        assert_eq!(srgb3(s.node), srgb3(SANCTUARY_WELL_GOLD));
+        assert_ne!(srgb3(HEARTWOOD_AMBER_LAMP), srgb3(SANCTUARY_WELL_GOLD));
+        assert!(is_amber_lamp(h.node));
+        assert!(is_warm_gold_well(s.node));
+        assert!(!is_amber_lamp(s.node));
+        assert!(!is_warm_gold_well(h.node));
+        assert!(climate_dress_copy_is_honest(h.name));
         assert!(climate_dress_copy_is_honest(s.name));
     }
 }
