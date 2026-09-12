@@ -1,22 +1,34 @@
-//! MERCY_PERSONA P1 — shared types + unit tests only (CARD H-2026-09-11-P1)
+//! MERCY_PERSONA — shared persona types + P4 PersonaCommit (CARD H-2026-09-11-P4)
 //!
-//! Spec: `docs/MERCY_PERSONA_CREATION.md` (design tick 23.2.P).
-//! Flat module (same pattern as `temper.rs` T1): data model for later P2–P5
-//! rungs without shipping client UI, Title race lobby, or LLM calls.
-//! Title Online stays grey. Persistence stores a *record about* the persona —
-//! never the soul (`docs/PERSISTENCE_ORIGINAL_OWNERSHIP.md`).
+//! Spec: `docs/MERCY_PERSONA_CREATION.md` §5 (design tick 23.2.P).
+//! Soft draft (P2 Keep) truncates with soft caps; **PersonaCommit** validates
+//! string caps / phenotype sliders / body_kit clamp / mechanical_race, then
+//! persists a *record about* the persona — never the soul
+//! (`docs/PERSISTENCE_ORIGINAL_OWNERSHIP.md`). Disk writes use `path_filter`
+//! (named persist dir + direct-child `powrush_persona.json` only).
+//! Title Online stays grey. No LLM, sockets, or Title race-lobby as power.
 //!
-//! Scope note: Capable · Bounded · Corrigible here means research-style framing
-//! for the module (later rungs possible; P1 bounded to types+tests; corrigible
-//! via Commit later) — not a product warranty, AGSi certification, or lobby SKU.
+//! Scope note: Capable · Bounded · Corrigible is research-style framing
+//! (P4 bounded to Commit+persist+tests; P5 online picker later) — not a
+//! product warranty, AGSi certification, or lobby SKU.
 //! Contact: info@Rathor.ai · Independent of xAI.
+
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// Feature gate for later slices (P2+ creator UI). Hour can finish without persons.
+/// Feature gate for creator UI (P2+). Hour can finish without persons.
+/// P4 Commit path works when the creator is used; flag semantics match P2.
 pub const PERSONA_CREATOR_ENABLED: bool = false;
 
-/// Soft caps validated more strictly at PersonaCommit (P4). P1 stores only.
+/// Persist path (cwd `data/` adopt source; OS user-dir write via `user_persist`).
+pub const PERSONA_PATH: &str = "data/powrush_persona.json";
+/// On-disk leaf name. `path_filter` allows only this direct child.
+pub const PERSONA_FILE_NAME: &str = "powrush_persona.json";
+pub const PERSONA_SCHEMA: &str = "powrush_persona_v1";
+
+/// Soft caps. Soft draft truncates; PersonaCommit re-validates after normalize.
 pub const GIVEN_NAME_MAX: usize = 64;
 pub const PRONOUNS_MAX: usize = 48;
 pub const PEOPLE_LABEL_MAX: usize = 96;
@@ -65,6 +77,52 @@ impl Default for BodyKit {
             height_band_max: 1.15,
             reach: 1.0,
         }
+    }
+}
+
+/// Objective body-kit floors/ceils (sim clamp). Outside → Commit refuses or clamps.
+pub const BODY_KIT_HEIGHT_FLOOR: f32 = 0.5;
+pub const BODY_KIT_HEIGHT_CEIL: f32 = 2.0;
+pub const BODY_KIT_REACH_FLOOR: f32 = 0.25;
+pub const BODY_KIT_REACH_CEIL: f32 = 3.0;
+
+impl BodyKit {
+    /// True when bands are finite, ordered, and within objective floors/ceils.
+    pub fn is_valid(self) -> bool {
+        self.height_band_min.is_finite()
+            && self.height_band_max.is_finite()
+            && self.reach.is_finite()
+            && self.height_band_min <= self.height_band_max
+            && self.height_band_min >= BODY_KIT_HEIGHT_FLOOR
+            && self.height_band_max <= BODY_KIT_HEIGHT_CEIL
+            && self.reach >= BODY_KIT_REACH_FLOOR
+            && self.reach <= BODY_KIT_REACH_CEIL
+    }
+
+    /// Clamp objective bounds into sim floors/ceils; swap inverted band.
+    pub fn clamp_objective(&mut self) {
+        if !self.height_band_min.is_finite() {
+            self.height_band_min = BODY_KIT_HEIGHT_FLOOR;
+        }
+        if !self.height_band_max.is_finite() {
+            self.height_band_max = BODY_KIT_HEIGHT_CEIL;
+        }
+        if !self.reach.is_finite() {
+            self.reach = 1.0;
+        }
+        if self.height_band_min > self.height_band_max {
+            std::mem::swap(&mut self.height_band_min, &mut self.height_band_max);
+        }
+        self.height_band_min = self
+            .height_band_min
+            .clamp(BODY_KIT_HEIGHT_FLOOR, BODY_KIT_HEIGHT_CEIL);
+        self.height_band_max = self
+            .height_band_max
+            .clamp(BODY_KIT_HEIGHT_FLOOR, BODY_KIT_HEIGHT_CEIL);
+        if self.height_band_min > self.height_band_max {
+            self.height_band_max = self.height_band_min;
+        }
+        self.reach = self.reach.clamp(BODY_KIT_REACH_FLOOR, BODY_KIT_REACH_CEIL);
     }
 }
 
@@ -305,6 +363,293 @@ pub fn persona_copy_is_honest(s: &str) -> bool {
         && !low.contains("agsi certified")
 }
 
+/// Why a soft draft failed PersonaCommit validation / persist.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommitError {
+    CapsExceeded,
+    SliderOutOfRange,
+    BodyKitInvalid,
+    MechanicalRaceInvalid,
+    DishonestCopy,
+    PathRefused,
+    PersistFailed,
+    Unreadable,
+    InvalidJson,
+    SchemaMismatch,
+}
+
+impl CommitError {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::CapsExceeded => "caps_exceeded",
+            Self::SliderOutOfRange => "slider_out_of_range",
+            Self::BodyKitInvalid => "body_kit_invalid",
+            Self::MechanicalRaceInvalid => "mechanical_race_invalid",
+            Self::DishonestCopy => "dishonest_copy",
+            Self::PathRefused => "path_refused",
+            Self::PersistFailed => "persist_failed",
+            Self::Unreadable => "unreadable",
+            Self::InvalidJson => "invalid_json",
+            Self::SchemaMismatch => "schema_mismatch",
+        }
+    }
+}
+
+/// Authoritative committed persona record (sim law). Soft draft is not this.
+/// Persistence stores a *record about* the persona — never the soul.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PersonaCommit {
+    pub schema: String,
+    pub persona: Persona,
+}
+
+impl PersonaCommit {
+    /// Validate + normalize a soft draft into a commit record (no disk write).
+    pub fn from_soft_draft(draft: &Persona) -> Result<Self, CommitError> {
+        let persona = validate_and_normalize(draft)?;
+        Ok(Self {
+            schema: PERSONA_SCHEMA.into(),
+            persona,
+        })
+    }
+
+    /// Commit soft draft and persist under the OS user-dir (or `POWRUSH_USER_DIR`).
+    pub fn commit_and_persist(draft: &Persona) -> Result<Self, CommitError> {
+        let committed = Self::from_soft_draft(draft)?;
+        committed.persist()?;
+        Ok(committed)
+    }
+
+    pub fn persist(&self) -> Result<(), CommitError> {
+        let json = serde_json::to_string_pretty(self).map_err(|_| CommitError::PersistFailed)?;
+        crate::user_persist::write_named(PERSONA_PATH, json).map_err(|_| CommitError::PersistFailed)
+    }
+
+    /// Persist into a named dir after `path_filter`. For unit tests / offline sim.
+    pub fn persist_at(&self, persist_dir: &Path) -> Result<PathBuf, CommitError> {
+        let path = persist_dir.join(PERSONA_FILE_NAME);
+        if !path_filter(persist_dir, &path) {
+            return Err(CommitError::PathRefused);
+        }
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|_| CommitError::PersistFailed)?;
+        }
+        let json = serde_json::to_string_pretty(self).map_err(|_| CommitError::PersistFailed)?;
+        fs::write(&path, json).map_err(|_| CommitError::PersistFailed)?;
+        Ok(path)
+    }
+
+    pub fn load_or_none() -> Option<Self> {
+        let raw = crate::user_persist::read_named(PERSONA_PATH).ok()?;
+        Self::from_json(&raw).ok()
+    }
+
+    pub fn load_at(persist_dir: &Path) -> Result<Self, CommitError> {
+        let path = persist_dir.join(PERSONA_FILE_NAME);
+        if !path_filter(persist_dir, &path) {
+            return Err(CommitError::PathRefused);
+        }
+        let text = fs::read_to_string(&path).map_err(|_| CommitError::Unreadable)?;
+        Self::from_json(&text)
+    }
+
+    pub fn from_json(raw: &str) -> Result<Self, CommitError> {
+        let commit: Self = serde_json::from_str(raw).map_err(|_| CommitError::InvalidJson)?;
+        if commit.schema != PERSONA_SCHEMA {
+            return Err(CommitError::SchemaMismatch);
+        }
+        // Re-validate loaded record so disk cannot smuggle invalid law fields.
+        let persona = validate_and_normalize(&commit.persona)?;
+        Ok(Self {
+            schema: PERSONA_SCHEMA.into(),
+            persona,
+        })
+    }
+
+    pub fn to_json(&self) -> Result<String, CommitError> {
+        serde_json::to_string_pretty(self).map_err(|_| CommitError::PersistFailed)
+    }
+}
+
+/// Soft draft → normalized Persona ready for Commit. Does not write disk.
+pub fn validate_and_normalize(draft: &Persona) -> Result<Persona, CommitError> {
+    let mut p = draft.clone();
+    // Soft caps first (truncate), then hard-check remaining length / honesty.
+    p.apply_soft_caps();
+    p.body_kit.clamp_objective();
+    if !p.body_kit.is_valid() {
+        return Err(CommitError::BodyKitInvalid);
+    }
+    p.presentation.phenotype.clamp_unit_interval();
+    if !phenotype_sliders_in_unit_interval(&p.presentation.phenotype) {
+        return Err(CommitError::SliderOutOfRange);
+    }
+    if let PeopleChoice::Custom(ref mut c) = p.presentation.people {
+        c.phenotype_seed.clamp_unit_interval();
+        if !phenotype_sliders_in_unit_interval(&c.phenotype_seed) {
+            return Err(CommitError::SliderOutOfRange);
+        }
+    }
+    if !mechanical_race_is_known(p.mechanical_race) {
+        return Err(CommitError::MechanicalRaceInvalid);
+    }
+    if !persona_fields_within_caps(&p) {
+        return Err(CommitError::CapsExceeded);
+    }
+    if !persona_record_is_honest(&p) {
+        return Err(CommitError::DishonestCopy);
+    }
+    Ok(p)
+}
+
+fn mechanical_race_is_known(race: MechanicalRace) -> bool {
+    matches!(
+        race,
+        MechanicalRace::Human
+            | MechanicalRace::Quellorian
+            | MechanicalRace::Draek
+            | MechanicalRace::Cydruid
+            | MechanicalRace::Ambrosian
+    )
+}
+
+fn phenotype_sliders_in_unit_interval(ph: &Phenotype) -> bool {
+    let vals = [
+        ph.skin_melanin,
+        ph.undertone,
+        ph.hair_curl,
+        ph.hair_density,
+        ph.hair_color,
+        ph.eye_fold,
+        ph.iris_color,
+        ph.nose_scale,
+        ph.lip_scale,
+        ph.jaw_scale,
+        ph.height_within_band,
+        ph.build_within_band,
+        ph.age_presentation,
+    ];
+    vals.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v))
+}
+
+fn persona_fields_within_caps(p: &Persona) -> bool {
+    if p.presentation.given_name.chars().count() > GIVEN_NAME_MAX {
+        return false;
+    }
+    if p.presentation.pronouns.chars().count() > PRONOUNS_MAX {
+        return false;
+    }
+    if p.presentation.story.player_text.chars().count() > STORY_TEXT_MAX {
+        return false;
+    }
+    if let Some(ref intent) = p.presentation.dress_intent {
+        if intent.chars().count() > DRESS_INTENT_MAX {
+            return false;
+        }
+    }
+    match &p.presentation.people {
+        PeopleChoice::Preset(x) => x.tag.chars().count() <= PEOPLE_LABEL_MAX,
+        PeopleChoice::Custom(c) => {
+            c.name.chars().count() <= PEOPLE_LABEL_MAX
+                && c.homelands.chars().count() <= HOMELANDS_MAX
+                && c.customs_note.chars().count() <= CUSTOMS_NOTE_MAX
+                && c.languages.len() <= MAX_LANGUAGES
+                && c.languages
+                    .iter()
+                    .all(|l| l.chars().count() <= LANGUAGE_ENTRY_MAX)
+        }
+        PeopleChoice::Mixed { parts } => {
+            parts.len() <= MAX_MIXED_PARTS
+                && parts
+                    .iter()
+                    .all(|s| s.chars().count() <= PEOPLE_LABEL_MAX)
+        }
+        PeopleChoice::Unset => true,
+    }
+}
+
+fn persona_record_is_honest(p: &Persona) -> bool {
+    let mut samples: Vec<&str> = vec![
+        p.presentation.given_name.as_str(),
+        p.presentation.pronouns.as_str(),
+        p.presentation.story.player_text.as_str(),
+        p.mechanical_race.as_str(),
+    ];
+    if let Some(ref intent) = p.presentation.dress_intent {
+        samples.push(intent.as_str());
+    }
+    if let Some(ref mid) = p.presentation.story.model_id {
+        samples.push(mid.as_str());
+    }
+    match &p.presentation.people {
+        PeopleChoice::Preset(x) => samples.push(x.tag.as_str()),
+        PeopleChoice::Custom(c) => {
+            samples.push(c.name.as_str());
+            samples.push(c.homelands.as_str());
+            samples.push(c.customs_note.as_str());
+            for lang in &c.languages {
+                samples.push(lang.as_str());
+            }
+        }
+        PeopleChoice::Mixed { parts } => {
+            for part in parts {
+                samples.push(part.as_str());
+            }
+        }
+        PeopleChoice::Unset => {}
+    }
+    samples.iter().all(|s| persona_copy_is_honest(s))
+}
+
+/// True when `persist_dir` is a named leaf we may write under.
+/// Refuses filesystem root, empty, and any `..` component.
+pub fn persist_dir_is_safe(persist_dir: &Path) -> bool {
+    if persist_dir.as_os_str().is_empty() {
+        return false;
+    }
+    if is_filesystem_root(persist_dir) {
+        return false;
+    }
+    if has_parent_dir_component(persist_dir) {
+        return false;
+    }
+    persist_dir.file_name().is_some()
+}
+
+/// Direct-child `powrush_persona.json` only. No `..`, no root, no nested walk.
+pub fn path_filter(persist_dir: &Path, candidate: &Path) -> bool {
+    if !persist_dir_is_safe(persist_dir) {
+        return false;
+    }
+    if has_parent_dir_component(candidate) {
+        return false;
+    }
+    if is_filesystem_root(candidate) {
+        return false;
+    }
+    let Some(name) = candidate.file_name().and_then(|s| s.to_str()) else {
+        return false;
+    };
+    if name != PERSONA_FILE_NAME {
+        return false;
+    }
+    if name.contains('/') || name.contains('\\') {
+        return false;
+    }
+    match candidate.parent() {
+        Some(parent) => parent == persist_dir,
+        None => false,
+    }
+}
+
+fn is_filesystem_root(p: &Path) -> bool {
+    p.parent().is_none() || p.file_name().is_none() || p == Path::new("/")
+}
+
+fn has_parent_dir_component(p: &Path) -> bool {
+    p.components().any(|c| matches!(c, Component::ParentDir))
+}
+
 /// Height visual resolved inside the objective body kit band.
 pub fn resolve_height(kit: &BodyKit, phenotype: &Phenotype) -> f32 {
     let t = clamp01(phenotype.height_within_band);
@@ -470,5 +815,149 @@ mod tests {
             assert!(!r.as_str().is_empty());
             assert!(persona_copy_is_honest(r.as_str()));
         }
+    }
+
+    // --- MERCY_PERSONA P4 PersonaCommit ------------------------------------
+
+    fn unique_persist_dir() -> PathBuf {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-p4-persona-{}-{}",
+            std::process::id(),
+            nanos
+        ));
+        fs::create_dir_all(&dir).expect("temp persist dir");
+        dir
+    }
+
+    #[test]
+    fn persona_commit_from_soft_draft_validates_and_normalizes() {
+        let mut draft = Persona::nameless_steward();
+        draft.mechanical_race = MechanicalRace::Ambrosian;
+        draft.presentation.given_name = "A".repeat(GIVEN_NAME_MAX + 12);
+        draft.presentation.phenotype.skin_melanin = 2.0;
+        draft.presentation.phenotype.height_within_band = -0.5;
+        draft.body_kit.height_band_min = 1.2;
+        draft.body_kit.height_band_max = 0.9; // inverted → clamp swaps
+        draft.presentation.people = PeopleChoice::Custom(CustomPeople {
+            name: "River folk".into(),
+            homelands: "delta".into(),
+            languages: vec!["river-sign".into()],
+            customs_note: "paint only".into(),
+            phenotype_seed: Phenotype::default(),
+            invented: true,
+        });
+        let commit = PersonaCommit::from_soft_draft(&draft).expect("commit");
+        assert_eq!(commit.schema, PERSONA_SCHEMA);
+        assert_eq!(commit.persona.mechanical_race, MechanicalRace::Ambrosian);
+        assert_eq!(
+            commit.persona.presentation.given_name.chars().count(),
+            GIVEN_NAME_MAX
+        );
+        assert_eq!(commit.persona.presentation.phenotype.skin_melanin, 1.0);
+        assert_eq!(commit.persona.presentation.phenotype.height_within_band, 0.0);
+        assert!(commit.persona.body_kit.is_valid());
+        assert!(commit.persona.body_kit.height_band_min <= commit.persona.body_kit.height_band_max);
+        // Soft draft must not become race-lobby power — people ≠ module.
+        if let PeopleChoice::Custom(c) = &commit.persona.presentation.people {
+            assert_ne!(c.name, commit.persona.mechanical_race.as_str());
+        } else {
+            panic!("expected custom people");
+        }
+    }
+
+    #[test]
+    fn persona_commit_refuses_dishonest_mall_p2w_copy() {
+        let mut draft = Persona::nameless_steward();
+        draft.presentation.story.player_text = "buy face pack at the mall with gold".into();
+        let err = PersonaCommit::from_soft_draft(&draft).unwrap_err();
+        assert_eq!(err, CommitError::DishonestCopy);
+    }
+
+    #[test]
+    fn persona_commit_persists_via_path_filter_round_trip() {
+        let dir = unique_persist_dir();
+        let mut draft = Persona::nameless_steward();
+        draft.presentation.given_name = "Mira".into();
+        draft.presentation.pronouns = "she/her".into();
+        draft.mechanical_race = MechanicalRace::Cydruid;
+        let commit = PersonaCommit::from_soft_draft(&draft).expect("commit");
+        let path = commit.persist_at(&dir).expect("persist");
+        assert!(path_filter(&dir, &path));
+        assert_eq!(
+            path.file_name().and_then(|s| s.to_str()),
+            Some(PERSONA_FILE_NAME)
+        );
+        let loaded = PersonaCommit::load_at(&dir).expect("load");
+        assert_eq!(loaded.persona.presentation.given_name, "Mira");
+        assert_eq!(loaded.persona.mechanical_race, MechanicalRace::Cydruid);
+        assert_eq!(loaded.schema, PERSONA_SCHEMA);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn path_filter_allows_direct_child_persona_json_only() {
+        let dir = unique_persist_dir();
+        let ok = dir.join(PERSONA_FILE_NAME);
+        assert!(path_filter(&dir, &ok));
+        assert!(!path_filter(&dir, &dir.join("notes.txt")));
+        assert!(!path_filter(&dir, &dir.join("powrush_house.json")));
+        assert!(!path_filter(&dir, &dir.join(".hidden.json")));
+        assert!(!path_filter(&dir, Path::new("/")));
+        assert!(!path_filter(Path::new("/"), &ok));
+        assert!(!path_filter(Path::new(""), &ok));
+        let escape = dir.join("..").join(PERSONA_FILE_NAME);
+        assert!(!path_filter(&dir, &escape));
+        let nested = dir.join("nested").join(PERSONA_FILE_NAME);
+        let _ = fs::create_dir_all(nested.parent().unwrap());
+        assert!(!path_filter(&dir, &nested));
+        // Refuse write when filter fails.
+        let commit = PersonaCommit::from_soft_draft(&Persona::nameless_steward()).unwrap();
+        assert_eq!(
+            commit.persist_at(Path::new("/")).unwrap_err(),
+            CommitError::PathRefused
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn soft_draft_to_commit_does_not_light_online_or_llm() {
+        let mut draft = Persona::nameless_steward();
+        draft.presentation.story.ai_assist_used = true;
+        draft.presentation.story.model_id = Some("local-template:quiet-steward".into());
+        draft.presentation.story.player_accepted = true;
+        draft.presentation.story.player_text = "I tend wells gently.".into();
+        let race_before = draft.mechanical_race;
+        let kit_before = draft.body_kit;
+        let commit = PersonaCommit::from_soft_draft(&draft).expect("commit");
+        // Commit persists presentation records; does not rewrite objective law
+        // beyond body_kit clamp, and never implies Online / live LLM.
+        assert_eq!(commit.persona.mechanical_race, race_before);
+        assert_eq!(commit.persona.body_kit, kit_before);
+        assert!(commit.persona.presentation.story.ai_assist_used);
+        assert_eq!(
+            commit.persona.presentation.story.model_id.as_deref(),
+            Some("local-template:quiet-steward")
+        );
+        assert!(!PERSONA_CREATOR_ENABLED);
+        assert_eq!(PERSONA_PATH, "data/powrush_persona.json");
+        assert!(persona_copy_is_honest("Title Online grey"));
+        assert!(!persona_copy_is_honest("Grok Online required"));
+    }
+
+    #[test]
+    fn body_kit_clamp_rejects_nan_after_normalize_attempt() {
+        let mut draft = Persona::nameless_steward();
+        // Finite but wildly inverted still clamps cleanly.
+        draft.body_kit.height_band_min = 9.0;
+        draft.body_kit.height_band_max = -3.0;
+        draft.body_kit.reach = 100.0;
+        let commit = PersonaCommit::from_soft_draft(&draft).expect("clamped");
+        assert!(commit.persona.body_kit.is_valid());
+        assert!(commit.persona.body_kit.reach <= BODY_KIT_REACH_CEIL);
     }
 }

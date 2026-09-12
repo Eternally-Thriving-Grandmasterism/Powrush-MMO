@@ -18,9 +18,11 @@
 //! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
 //! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
 //! rename allowed; persist seals+heritage on powrush_house.json; refuse +take/+STR.
-//! MERCY_PERSONA P2: gated persona creator UI on Title behind `PERSONA_CREATOR_ENABLED`
+//! MERCY_PERSONA P2/P4: gated persona creator UI on Title behind `PERSONA_CREATOR_ENABLED`
 //! (shared/persona.rs). Flag off → Hour 1 nameless Steward unchanged; no LLM; Online grey.
 //! MechanicalRace shown as lattice module only — never Title race-lobby as power.
+//! P4: Preview soft draft → **Commit** via `PersonaCommit` (validate+persist). Keep draft
+//! remains local soft-caps only. Skip = nameless Steward. Online stays grey.
 //! No race select at Title lobby. No new Peace keys. No Online socket. No preview tag.
 //! Fog/birds visual comfort PARKED (Title contrast law).
 //! Pause→Title + Settled write data/powrush_house.json even if name skipped.
@@ -38,8 +40,9 @@ use shared::house_name::{
 };
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 use shared::persona::{
-    persona_copy_is_honest, CustomPeople, MechanicalRace, PeopleChoice, PeoplePreset, Persona,
-    Phenotype, StoryShare, GIVEN_NAME_MAX, PERSONA_CREATOR_ENABLED, STORY_TEXT_MAX,
+    persona_copy_is_honest, CommitError, CustomPeople, MechanicalRace, PeopleChoice,
+    PeoplePreset, Persona, PersonaCommit, Phenotype, StoryShare, GIVEN_NAME_MAX,
+    PERSONA_CREATOR_ENABLED, PERSONA_PATH, STORY_TEXT_MAX,
 };
 
 use crate::embassy::EmbassyYard;
@@ -351,6 +354,8 @@ struct PersonaBackBtn;
 #[derive(Component)]
 struct PersonaKeepDraftBtn;
 #[derive(Component)]
+struct PersonaCommitBtn;
+#[derive(Component)]
 struct PersonaSkipNamelessBtn;
 #[derive(Component)]
 struct PersonaHideGuidanceBtn;
@@ -390,7 +395,7 @@ struct PeaceRebindState {
 }
 
 
-/// P2 creator wizard step. Commit to authoritative sim is P4 — Keep draft is local only.
+/// Creator wizard step. Keep draft = soft-caps local; Commit = P4 PersonaCommit persist.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PersonaCreatorStep {
     MechanicalModule,
@@ -407,7 +412,7 @@ impl PersonaCreatorStep {
             Self::People => "2 · People / ethnicity (presentation)",
             Self::Phenotype => "3 · Phenotype (appearance sliders)",
             Self::Story => "4 · Story (player text · AI records only)",
-            Self::Preview => "5 · Preview (local draft · no sim Commit)",
+            Self::Preview => "5 · Preview (Keep draft soft · Commit persists)",
         }
     }
 
@@ -465,6 +470,8 @@ pub struct PersonaCreatorState {
     pub name_draft: String,
     pub story_draft: String,
     pub kept_local: bool,
+    /// True after a successful P4 PersonaCommit persist.
+    pub committed: bool,
 }
 
 impl Default for PersonaCreatorState {
@@ -479,6 +486,7 @@ impl Default for PersonaCreatorState {
             name_draft: String::new(),
             story_draft: String::new(),
             kept_local: false,
+            committed: false,
         }
     }
 }
@@ -516,7 +524,7 @@ pub fn persona_step_guidance(step: PersonaCreatorStep) -> &'static str {
             "Write your own tale. AI fields stay records-only until a later P3/P5 card."
         }
         PersonaCreatorStep::Preview => {
-            "Keep draft stores locally with soft caps. Sim PersonaCommit is P4. Skip = nameless Steward."
+            "Keep draft = soft-caps local. Commit validates + persists PersonaCommit. Skip = nameless Steward."
         }
     }
 }
@@ -650,8 +658,8 @@ pub fn persona_preview_summary(p: &Persona) -> String {
     )
 }
 
-/// Apply soft caps and keep local draft. Does **not** PersonaCommit (P4).
-pub fn keep_persona_local_draft(state: &mut PersonaCreatorState) {
+/// Sync typed buffers into the soft draft (name / story). No LLM.
+pub fn sync_persona_soft_draft_buffers(state: &mut PersonaCreatorState) {
     if !state.name_draft.is_empty() {
         state.draft.presentation.given_name = state.name_draft.clone();
     }
@@ -659,12 +667,35 @@ pub fn keep_persona_local_draft(state: &mut PersonaCreatorState) {
         state.draft.presentation.story.player_text = state.story_draft.clone();
         state.draft.presentation.story.player_accepted = true;
     }
-    // P2: never mark AI assist used — no LLM calls.
+}
+
+/// Apply soft caps and keep local draft. Does **not** PersonaCommit (P4).
+pub fn keep_persona_local_draft(state: &mut PersonaCreatorState) {
+    sync_persona_soft_draft_buffers(state);
+    // Creator UI: never invent live LLM assist — records stay offline/local.
     state.draft.presentation.story.ai_assist_used = false;
     state.draft.presentation.story.model_id = None;
     state.draft.apply_soft_caps();
     state.kept_local = true;
+    state.committed = false;
     state.open = false;
+}
+
+/// Soft draft → PersonaCommit validate + persist. Title Online stays grey.
+pub fn commit_persona_from_soft_draft(
+    state: &mut PersonaCreatorState,
+) -> Result<PersonaCommit, CommitError> {
+    sync_persona_soft_draft_buffers(state);
+    // Commit path does not light an online LLM; clear live-assist invent.
+    state.draft.presentation.story.ai_assist_used = false;
+    state.draft.presentation.story.model_id = None;
+    state.draft.apply_soft_caps();
+    let committed = PersonaCommit::commit_and_persist(&state.draft)?;
+    state.draft = committed.persona.clone();
+    state.kept_local = true;
+    state.committed = true;
+    state.open = false;
+    Ok(committed)
 }
 
 /// Skip → Hour 1 nameless Steward path.
@@ -673,6 +704,7 @@ pub fn skip_persona_to_nameless(state: &mut PersonaCreatorState) {
     state.draft = Persona::nameless_steward();
     state.open = false;
     state.kept_local = false;
+    state.committed = false;
 }
 
 /// Try open from Title. Returns whether the plate opened.
@@ -706,7 +738,9 @@ pub fn persona_creator_ui_copy_is_honest() -> bool {
         persona_step_guidance(PersonaCreatorStep::People),
         "Skip · nameless Steward",
         "Keep draft · local only",
+        "Commit · validate + persist",
         "Lattice module · Human · not people · not matchmaking",
+        persona_step_guidance(PersonaCreatorStep::Preview),
     ];
     samples.iter().all(|s| persona_copy_is_honest(s))
 }
@@ -1422,6 +1456,7 @@ fn spawn_persona_creator_panel(mut commands: Commands) {
                 spawn_menu_btn(p, "Back", PersonaBackBtn, true);
                 spawn_menu_btn(p, "Next", PersonaNextBtn, true);
                 spawn_menu_btn(p, "Keep draft · local only", PersonaKeepDraftBtn, true);
+                spawn_menu_btn(p, "Commit · validate + persist", PersonaCommitBtn, true);
                 spawn_menu_btn(p, "Skip · nameless Steward", PersonaSkipNamelessBtn, true);
                 spawn_menu_btn(p, "H · hide guidance", PersonaHideGuidanceBtn, true);
                 p.spawn(TextBundle::from_section(
@@ -3033,6 +3068,7 @@ fn persona_creator_buttons(
     next: Query<&Interaction, (Changed<Interaction>, With<PersonaNextBtn>)>,
     back: Query<&Interaction, (Changed<Interaction>, With<PersonaBackBtn>)>,
     keep: Query<&Interaction, (Changed<Interaction>, With<PersonaKeepDraftBtn>)>,
+    commit_btn: Query<&Interaction, (Changed<Interaction>, With<PersonaCommitBtn>)>,
     skip_btn: Query<&Interaction, (Changed<Interaction>, With<PersonaSkipNamelessBtn>)>,
     hide: Query<&Interaction, (Changed<Interaction>, With<PersonaHideGuidanceBtn>)>,
 ) {
@@ -3073,6 +3109,7 @@ fn persona_creator_buttons(
     let mut do_next = false;
     let mut do_back = false;
     let mut do_keep = false;
+    let mut do_commit = false;
     let mut do_skip = keyboard.just_pressed(KeyCode::Escape);
     for i in &next {
         if *i == Interaction::Pressed {
@@ -3089,19 +3126,29 @@ fn persona_creator_buttons(
             do_keep = true;
         }
     }
+    for i in &commit_btn {
+        if *i == Interaction::Pressed {
+            do_commit = true;
+        }
+    }
     for i in &skip_btn {
         if *i == Interaction::Pressed {
             do_skip = true;
         }
     }
+    // Preview Enter = Commit (P4). Keep draft remains a separate soft path.
     if keyboard.just_pressed(KeyCode::Enter) && persona.step == PersonaCreatorStep::Preview {
-        do_keep = true;
+        do_commit = true;
     } else if keyboard.just_pressed(KeyCode::Enter) {
         do_next = true;
     }
 
     if do_skip {
         skip_persona_to_nameless(&mut persona);
+        return;
+    }
+    if do_commit {
+        let _ = commit_persona_from_soft_draft(&mut persona);
         return;
     }
     if do_keep {
@@ -3912,13 +3959,14 @@ mod tests {
         )));
         let refuse = "race lobby ranked gold mall";
         assert!(!persona_copy_is_honest(refuse));
-        // Step walk Preview stays local — no Commit claim as Online.
+        // Step walk Preview: soft Keep + Commit persist — never Online required.
         let mut step = PersonaCreatorStep::MechanicalModule;
         for _ in 0..4 {
             step = step.next();
         }
         assert_eq!(step, PersonaCreatorStep::Preview);
-        assert!(persona_step_guidance(step).contains("local"));
+        assert!(persona_step_guidance(step).contains("soft-caps local"));
+        assert!(persona_step_guidance(step).contains("PersonaCommit"));
         assert!(!persona_step_guidance(step).to_lowercase().contains("online required"));
     }
 
@@ -3935,6 +3983,65 @@ mod tests {
         assert_eq!(persona_title_btn_label(true), "Persona · optional");
         assert!(persona_copy_is_honest(persona_title_btn_label(true)));
         assert!(persona_copy_is_honest(persona_title_btn_label(false)));
+    }
+
+
+    // --- MERCY_PERSONA P4 ----------------------------------------------------
+
+    #[test]
+    fn mercy_persona_p4_soft_draft_commit_persists_when_flag_on() {
+        // Flag semantics match P2: creator gated off by default; Commit works
+        // when the creator path is exercised with the gate open.
+        assert!(!PERSONA_CREATOR_ENABLED);
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-p4-client-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp user dir");
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        let mut state = PersonaCreatorState::default();
+        assert!(try_open_persona_creator(&mut state, true));
+        state.name_draft = "Mira".into();
+        state.story_draft = "I tend wells gently.".into();
+        state.draft.mechanical_race = MechanicalRace::Quellorian;
+        bump_people_paint(&mut state);
+        let commit = commit_persona_from_soft_draft(&mut state).expect("commit");
+        assert!(state.committed);
+        assert!(state.kept_local);
+        assert!(!state.open);
+        assert_eq!(state.draft.presentation.given_name, "Mira");
+        assert_eq!(commit.persona.mechanical_race, MechanicalRace::Quellorian);
+        assert_eq!(commit.schema, shared::persona::PERSONA_SCHEMA);
+        assert_eq!(PERSONA_PATH, "data/powrush_persona.json");
+        assert!(dir.join(shared::persona::PERSONA_FILE_NAME).is_file());
+        // Soft Keep still available and does not claim Online.
+        let mut keep_state = PersonaCreatorState::default();
+        keep_state.name_draft = "Soft".into();
+        keep_persona_local_draft(&mut keep_state);
+        assert!(keep_state.kept_local);
+        assert!(!keep_state.committed);
+        skip_persona_to_nameless(&mut state);
+        assert!(!state.committed);
+        assert!(state.draft.presentation.given_name.is_empty());
+        std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn mercy_persona_p4_commit_refuses_dishonest_and_stays_offline() {
+        let mut state = PersonaCreatorState::default();
+        state.story_draft = "race lobby ranked gold mall".into();
+        let err = commit_persona_from_soft_draft(&mut state).unwrap_err();
+        assert_eq!(err, CommitError::DishonestCopy);
+        assert!(!state.committed);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(persona_creator_ui_copy_is_honest());
+        assert!(persona_copy_is_honest("Commit · validate + persist"));
+        assert!(!persona_copy_is_honest("Grok Online required"));
     }
 
 }
