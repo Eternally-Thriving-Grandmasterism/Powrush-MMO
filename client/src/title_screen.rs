@@ -14,6 +14,8 @@
 //! four-room Places plate — must not only dismiss pause.
 //! H-2026-09-12-COMFORT-PRESETS: Esc Comfort Graphics · Low|Medium(default)|High
 //! persists beside Grove; applies brightness/text scale/reduced motion/rumble.
+//! H-2026-09-12-MESH-LOD: GraphicsPreset → mesh LOD; first-launch dismissible
+//! Comfort banner ("Graphics can go Higher… Esc → Comfort"); Online grey.
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
@@ -69,10 +71,17 @@ use crate::local_settings::LocalSettingsState;
 use crate::net_mode::SessionNetMode;
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
 use shared::hex_travel::{BootKind, PLACES_ROW};
-use shared::local_settings::{refuse_online_socket_toggle, LocalSettings, PeaceKey, SETTINGS_PATH};
+use shared::local_settings::{
+    refuse_online_socket_toggle, LocalSettings, PeaceKey, SETTINGS_PATH,
+    COMFORT_GRAPHICS_BANNER_COPY,
+};
 #[cfg(test)]
 use shared::local_settings::GraphicsPreset;
 use shared::pause_ledger_face::lethal_sign_row;
+
+/// H-2026-09-12-MESH-LOD — GraphicsPreset → mesh LOD (PATHS-only compile via title_screen).
+#[path = "gltf_integration.rs"]
+pub mod gltf_integration;
 
 // --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
 // Soft GPU / Mesa must read Play · Continue · Online · Settings before the yard.
@@ -227,6 +236,11 @@ struct TitleSettingsBtn;
 struct TitleOnlineBtn;
 #[derive(Component)]
 struct SettingsStubRoot;
+/// First-launch Comfort graphics banner (MESH-LOD) — title / yard pause.
+#[derive(Component)]
+struct ComfortGraphicsBannerRoot;
+#[derive(Component)]
+struct ComfortGraphicsBannerDismissBtn;
 #[derive(Component)]
 struct PauseCueText;
 #[derive(Component)]
@@ -877,6 +891,7 @@ impl Plugin for TitleScreenPlugin {
                     spawn_house_dress_panel,
                     spawn_persona_creator_panel,
                     spawn_settings_stub,
+                    spawn_comfort_graphics_banner,
                 ),
             )
             .add_systems(
@@ -922,6 +937,13 @@ impl Plugin for TitleScreenPlugin {
                 (
                     refresh_accessibility_settings_labels,
                     accessibility_settings_clicks,
+                ),
+            )
+            .add_systems(
+                Update,
+                (
+                    sync_comfort_graphics_banner,
+                    comfort_graphics_banner_dismiss_clicks,
                 ),
             )
             .add_systems(Update, peace_rebind_clicks.before(capture_peace_rebind))
@@ -1036,6 +1058,119 @@ fn spawn_title_screen(mut commands: Commands) {
                 ));
             });
         });
+}
+
+
+fn spawn_comfort_graphics_banner(mut commands: Commands) {
+    // Top-of-screen strip — title / yard pause first-launch only. Online stays grey.
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    top: Val::Px(10.0),
+                    left: Val::Percent(50.0),
+                    width: Val::Px(520.0),
+                    margin: UiRect {
+                        left: Val::Px(-260.0),
+                        ..default()
+                    },
+                    padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(10.0),
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::SpaceBetween,
+                    border: UiRect::all(Val::Px(1.0)),
+                    ..default()
+                },
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
+                visibility: Visibility::Hidden,
+                z_index: ZIndex::Global(LIVED_UI_Z_PAUSE + 1),
+                focus_policy: FocusPolicy::Block,
+                ..default()
+            },
+            ComfortGraphicsBannerRoot,
+            LivedUiPlate,
+        ))
+        .with_children(|row| {
+            row.spawn(TextBundle::from_section(
+                COMFORT_GRAPHICS_BANNER_COPY,
+                TextStyle {
+                    font_size: 13.0,
+                    color: TITLE_TEXT_SECONDARY,
+                    ..default()
+                },
+            ));
+            row.spawn((
+                ButtonBundle {
+                    style: Style {
+                        padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
+                        justify_content: JustifyContent::Center,
+                        border: UiRect::all(Val::Px(1.0)),
+                        ..default()
+                    },
+                    background_color: TITLE_BTN_BG.into(),
+                    border_color: TITLE_BORDER.into(),
+                    ..default()
+                },
+                ComfortGraphicsBannerDismissBtn,
+            ))
+            .with_children(|b| {
+                b.spawn(TextBundle::from_section(
+                    "Dismiss",
+                    TextStyle {
+                        font_size: 12.0,
+                        color: TITLE_BTN_FG,
+                        ..default()
+                    },
+                ));
+            });
+        });
+}
+
+/// Visible on Title door or when Esc Comfort / Settings opens — once until dismissed.
+pub fn comfort_graphics_banner_should_show(
+    on_title: bool,
+    settings_open: bool,
+    dismissed: bool,
+) -> bool {
+    !dismissed && (on_title || settings_open)
+}
+
+fn sync_comfort_graphics_banner(
+    door: Res<LaunchDoor>,
+    label: Res<HouseLabel>,
+    settings: Res<LocalSettingsState>,
+    mut q: Query<&mut Visibility, With<ComfortGraphicsBannerRoot>>,
+) {
+    let on_title = *door == LaunchDoor::Title;
+    let show = comfort_graphics_banner_should_show(
+        on_title,
+        label.settings_open,
+        settings.inner.comfort_graphics_banner_dismissed,
+    );
+    for mut vis in &mut q {
+        *vis = if show {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+fn comfort_graphics_banner_dismiss_clicks(
+    mut settings: ResMut<LocalSettingsState>,
+    clicks: Query<&Interaction, (Changed<Interaction>, With<ComfortGraphicsBannerDismissBtn>)>,
+) {
+    for i in &clicks {
+        if *i == Interaction::Pressed {
+            if settings.inner.should_show_comfort_graphics_banner() {
+                settings.inner.dismiss_comfort_graphics_banner();
+                settings.mark_and_persist();
+            }
+        }
+    }
 }
 
 fn spawn_menu_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C, enabled: bool) {
@@ -4089,6 +4224,44 @@ mod tests {
         let raw = s.to_json().unwrap();
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(graphics_preset_btn_label(&back), "Graphics · Medium");
+    }
+
+    #[test]
+    fn mesh_lod_banner_copy_and_once_dismiss() {
+        assert_eq!(
+            COMFORT_GRAPHICS_BANNER_COPY,
+            "Graphics can go Higher on this machine — Esc → Comfort"
+        );
+        assert!(!COMFORT_GRAPHICS_BANNER_COPY.contains("assets/"));
+        assert!(!COMFORT_GRAPHICS_BANNER_COPY.contains(".glb"));
+
+        let mut s = LocalSettings::peace_defaults();
+        assert!(s.should_show_comfort_graphics_banner());
+        assert!(comfort_graphics_banner_should_show(true, false, false));
+        assert!(comfort_graphics_banner_should_show(false, true, false));
+        assert!(!comfort_graphics_banner_should_show(false, false, false));
+        assert!(!comfort_graphics_banner_should_show(true, true, true));
+
+        s.dismiss_comfort_graphics_banner();
+        assert!(!s.should_show_comfort_graphics_banner());
+        assert!(!comfort_graphics_banner_should_show(
+            true,
+            true,
+            s.comfort_graphics_banner_dismissed
+        ));
+        // Online stays grey — banner never lights a socket.
+        assert!(refuse_online_socket_toggle(true));
+    }
+
+    #[test]
+    fn mesh_lod_plan_from_comfort_graphics_preset() {
+        use gltf_integration::{mesh_lod_for_preset, plan_for_preset, MeshLod};
+        assert_eq!(mesh_lod_for_preset(GraphicsPreset::Medium), MeshLod::Medium);
+        let low = plan_for_preset(GraphicsPreset::Low);
+        assert!(low.primitives_only);
+        let high = plan_for_preset(GraphicsPreset::High);
+        assert!(high.persona_commit_dress);
+        assert!(refuse_online_socket_toggle(true));
     }
 
     #[test]
