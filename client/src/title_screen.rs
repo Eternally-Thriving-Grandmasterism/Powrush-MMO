@@ -3987,18 +3987,21 @@ mod tests {
     // --- MERCY_PERSONA P2 ----------------------------------------------------
 
     #[test]
-    fn mercy_persona_p2_flag_off_keeps_nameless_steward_default() {
-        assert!(!PERSONA_CREATOR_ENABLED);
-        assert!(!persona_creator_may_open(PERSONA_CREATOR_ENABLED));
+    fn mercy_persona_p2_flag_on_lights_optional_creator() {
+        assert!(PERSONA_CREATOR_ENABLED);
+        assert!(persona_creator_may_open(PERSONA_CREATOR_ENABLED));
         let mut state = PersonaCreatorState::default();
-        assert!(!try_open_persona_creator(&mut state, PERSONA_CREATOR_ENABLED));
-        assert!(!state.open);
+        assert!(try_open_persona_creator(&mut state, PERSONA_CREATOR_ENABLED));
+        assert!(state.open);
         let p = Persona::nameless_steward();
         assert!(p.presentation.given_name.is_empty());
         assert!(matches!(p.presentation.people, PeopleChoice::Unset));
         assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
-        // Play path does not require persona plate.
-        assert_eq!(persona_title_btn_label(false), "Persona · gated (Hour 1 nameless)");
+        // Play path does not require persona plate; Title Persona lights optional.
+        assert_eq!(
+            persona_title_btn_label(PERSONA_CREATOR_ENABLED),
+            "Persona · optional"
+        );
     }
 
     #[test]
@@ -4110,9 +4113,8 @@ mod tests {
 
     #[test]
     fn mercy_persona_p4_soft_draft_commit_persists_when_flag_on() {
-        // Flag semantics match P2: creator gated off by default; Commit works
-        // when the creator path is exercised with the gate open.
-        assert!(!PERSONA_CREATOR_ENABLED);
+        // Flag on: Commit works when the creator path is exercised.
+        assert!(PERSONA_CREATOR_ENABLED);
         let dir = std::env::temp_dir().join(format!(
             "powrush-p4-client-{}-{}",
             std::process::id(),
@@ -4178,9 +4180,9 @@ mod tests {
         assert_eq!(state.story_provider, StoryProvider::None);
         assert_eq!(state.story_provider, default_story_provider());
         assert!(!state.story_provider.is_online());
-        // Hour 1 nameless path unchanged when flags off.
-        assert!(!PERSONA_CREATOR_ENABLED);
-        assert!(!persona_creator_may_open(PERSONA_CREATOR_ENABLED));
+        // Creator lights; picker stays off. Hour 1 nameless still skip-able.
+        assert!(PERSONA_CREATOR_ENABLED);
+        assert!(persona_creator_may_open(PERSONA_CREATOR_ENABLED));
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 
