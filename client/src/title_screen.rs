@@ -18,11 +18,14 @@
 //! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
 //! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
 //! rename allowed; persist seals+heritage on powrush_house.json; refuse +take/+STR.
-//! MERCY_PERSONA P2/P4: gated persona creator UI on Title behind `PERSONA_CREATOR_ENABLED`
+//! MERCY_PERSONA P2/P4/P5: gated persona creator UI on Title behind `PERSONA_CREATOR_ENABLED`
 //! (shared/persona.rs). Flag off → Hour 1 nameless Steward unchanged; no LLM; Online grey.
 //! MechanicalRace shown as lattice module only — never Title race-lobby as power.
 //! P4: Preview soft draft → **Commit** via `PersonaCommit` (validate+persist). Keep draft
 //! remains local soft-caps only. Skip = nameless Steward. Online stays grey.
+//! P5: story-provider picker `None | LocalTemplate | RathorOfflineShard | (opt-in online)`
+//! behind `ONLINE_PICKER_ENABLED` (default false) + steward `online yes`. Never lights
+//! Title Online; GrokOnline/OpenAi never first-run default. No new HUD / sockets.
 //! No race select at Title lobby. No new Peace keys. No Online socket. No preview tag.
 //! Fog/birds visual comfort PARKED (Title contrast law).
 //! Pause→Title + Settled write data/powrush_house.json even if name skipped.
@@ -40,9 +43,12 @@ use shared::house_name::{
 };
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 use shared::persona::{
-    persona_copy_is_honest, CommitError, CustomPeople, MechanicalRace, PeopleChoice,
-    PeoplePreset, Persona, PersonaCommit, Phenotype, StoryShare, GIVEN_NAME_MAX,
-    PERSONA_CREATOR_ENABLED, PERSONA_PATH, STORY_TEXT_MAX,
+    cycle_story_provider, default_story_provider, online_picker_allows_online_rows,
+    persona_copy_is_honest, resolve_story_provider, story_provider_btn_label,
+    story_provider_may_select, CommitError, CustomPeople, MechanicalRace, PeopleChoice,
+    PeoplePreset, Persona, PersonaCommit, Phenotype, StoryProvider, StoryShare,
+    GIVEN_NAME_MAX, ONLINE_PICKER_ENABLED, PERSONA_CREATOR_ENABLED, PERSONA_PATH,
+    STEWARD_ONLINE_YES, STORY_TEXT_MAX,
 };
 
 use crate::embassy::EmbassyYard;
@@ -348,6 +354,10 @@ struct PersonaStoryShareLabel;
 #[derive(Component)]
 struct PersonaStoryAiStubBtn;
 #[derive(Component)]
+struct PersonaOnlinePickerBtn;
+#[derive(Component)]
+struct PersonaOnlinePickerLabel;
+#[derive(Component)]
 struct PersonaNextBtn;
 #[derive(Component)]
 struct PersonaBackBtn;
@@ -472,6 +482,9 @@ pub struct PersonaCreatorState {
     pub kept_local: bool,
     /// True after a successful P4 PersonaCommit persist.
     pub committed: bool,
+    /// P5 story-provider seat. Default `None` (records-only). Online seats
+    /// require `ONLINE_PICKER_ENABLED` + steward `online yes`.
+    pub story_provider: StoryProvider,
 }
 
 impl Default for PersonaCreatorState {
@@ -487,6 +500,7 @@ impl Default for PersonaCreatorState {
             story_draft: String::new(),
             kept_local: false,
             committed: false,
+            story_provider: default_story_provider(),
         }
     }
 }
@@ -508,6 +522,30 @@ pub fn persona_title_btn_label(flag: bool) -> &'static str {
 /// Story AI stub copy — records only; P2 never calls an LLM.
 pub const PERSONA_STORY_AI_STUB: &str = "Story AI · records only · no LLM this slice";
 
+/// P5 online picker UI enabled only when feature flag on **and** steward `online yes`.
+/// Even then Title Online stays grey — picker is draft-source only, not net.
+pub fn online_picker_ui_enabled(flag: bool, steward_online_yes: bool) -> bool {
+    online_picker_allows_online_rows(flag, steward_online_yes)
+}
+
+/// Apply picker seat under gates; never invents live LLM assist on commit/keep.
+pub fn apply_story_provider_seat(state: &mut PersonaCreatorState) {
+    state.story_provider = resolve_story_provider(
+        state.story_provider,
+        ONLINE_PICKER_ENABLED,
+        STEWARD_ONLINE_YES,
+    );
+    // Without an allowed online seat, keep records-only (no live assist invent).
+    if state.story_provider.is_offline() {
+        // LocalTemplate / RathorOfflineShard may mark assist as records later;
+        // P5 does not call sockets. Clear live invent when None.
+        if state.story_provider == StoryProvider::None {
+            state.draft.presentation.story.ai_assist_used = false;
+            state.draft.presentation.story.model_id = None;
+        }
+    }
+}
+
 /// Guidance lines for the open step (H hides).
 pub fn persona_step_guidance(step: PersonaCreatorStep) -> &'static str {
     match step {
@@ -521,7 +559,7 @@ pub fn persona_step_guidance(step: PersonaCreatorStep) -> &'static str {
             "Sliders are appearance only — never gather, Temper, or Hybrid cheats."
         }
         PersonaCreatorStep::Story => {
-            "Write your own tale. AI fields stay records-only until a later P3/P5 card."
+            "Write your own tale. Provider picker default-off · offline LocalTemplate/records-only · Online grey."
         }
         PersonaCreatorStep::Preview => {
             "Keep draft = soft-caps local. Commit validates + persists PersonaCommit. Skip = nameless Steward."
@@ -672,9 +710,28 @@ pub fn sync_persona_soft_draft_buffers(state: &mut PersonaCreatorState) {
 /// Apply soft caps and keep local draft. Does **not** PersonaCommit (P4).
 pub fn keep_persona_local_draft(state: &mut PersonaCreatorState) {
     sync_persona_soft_draft_buffers(state);
+    apply_story_provider_seat(state);
     // Creator UI: never invent live LLM assist — records stay offline/local.
-    state.draft.presentation.story.ai_assist_used = false;
-    state.draft.presentation.story.model_id = None;
+    // P5: online picker default-off; do not call GrokOnline/OpenAi.
+    if !story_provider_may_select(
+        state.story_provider,
+        ONLINE_PICKER_ENABLED,
+        STEWARD_ONLINE_YES,
+    ) || state.story_provider.is_offline()
+    {
+        if state.story_provider == StoryProvider::None {
+            state.draft.presentation.story.ai_assist_used = false;
+            state.draft.presentation.story.model_id = None;
+        }
+    }
+    // Hard refuse live invent while gates are off (compile-time defaults).
+    if !ONLINE_PICKER_ENABLED || !STEWARD_ONLINE_YES {
+        state.draft.presentation.story.ai_assist_used = false;
+        if state.story_provider.is_online() {
+            state.story_provider = StoryProvider::None;
+        }
+        state.draft.presentation.story.model_id = None;
+    }
     state.draft.apply_soft_caps();
     state.kept_local = true;
     state.committed = false;
@@ -686,9 +743,16 @@ pub fn commit_persona_from_soft_draft(
     state: &mut PersonaCreatorState,
 ) -> Result<PersonaCommit, CommitError> {
     sync_persona_soft_draft_buffers(state);
-    // Commit path does not light an online LLM; clear live-assist invent.
-    state.draft.presentation.story.ai_assist_used = false;
-    state.draft.presentation.story.model_id = None;
+    apply_story_provider_seat(state);
+    // PersonaCommit remains the law. Commit path does not light Online /
+    // sockets / live LLM — clear assist invent while P5 gates are default-off.
+    if !ONLINE_PICKER_ENABLED || !STEWARD_ONLINE_YES || state.story_provider.is_offline() {
+        state.draft.presentation.story.ai_assist_used = false;
+        state.draft.presentation.story.model_id = None;
+        if state.story_provider.is_online() {
+            state.story_provider = StoryProvider::None;
+        }
+    }
     state.draft.apply_soft_caps();
     let committed = PersonaCommit::commit_and_persist(&state.draft)?;
     state.draft = committed.persona.clone();
@@ -725,10 +789,16 @@ pub fn try_open_persona_creator(state: &mut PersonaCreatorState, flag: bool) -> 
 
 /// All P2 title creator strings must pass the honesty gate.
 pub fn persona_creator_ui_copy_is_honest() -> bool {
+    let picker_off = story_provider_btn_label(
+        StoryProvider::None,
+        ONLINE_PICKER_ENABLED,
+        STEWARD_ONLINE_YES,
+    );
     let samples = [
         persona_title_btn_label(true),
         persona_title_btn_label(false),
         PERSONA_STORY_AI_STUB,
+        picker_off.as_str(),
         PersonaCreatorStep::MechanicalModule.as_label(),
         PersonaCreatorStep::People.as_label(),
         PersonaCreatorStep::Phenotype.as_label(),
@@ -736,6 +806,7 @@ pub fn persona_creator_ui_copy_is_honest() -> bool {
         PersonaCreatorStep::Preview.as_label(),
         persona_step_guidance(PersonaCreatorStep::MechanicalModule),
         persona_step_guidance(PersonaCreatorStep::People),
+        persona_step_guidance(PersonaCreatorStep::Story),
         "Skip · nameless Steward",
         "Keep draft · local only",
         "Commit · validate + persist",
@@ -1453,6 +1524,29 @@ fn spawn_persona_creator_panel(mut commands: Commands) {
                 );
                 // Disabled stub — records only; never lights an LLM or Online.
                 spawn_menu_btn(p, PERSONA_STORY_AI_STUB, PersonaStoryAiStubBtn, false);
+                // P5 online picker — feature default off; Online stays grey.
+                {
+                    let label = story_provider_btn_label(
+                        default_story_provider(),
+                        ONLINE_PICKER_ENABLED,
+                        STEWARD_ONLINE_YES,
+                    );
+                    let enabled = online_picker_ui_enabled(
+                        ONLINE_PICKER_ENABLED,
+                        STEWARD_ONLINE_YES,
+                    );
+                    if enabled {
+                        spawn_persona_cycle_btn(
+                            p,
+                            &label,
+                            PersonaOnlinePickerBtn,
+                            PersonaOnlinePickerLabel,
+                        );
+                    } else {
+                        // Explicitly off / available-later — no online rows lit.
+                        spawn_menu_btn(p, &label, PersonaOnlinePickerBtn, false);
+                    }
+                }
                 spawn_menu_btn(p, "Back", PersonaBackBtn, true);
                 spawn_menu_btn(p, "Next", PersonaNextBtn, true);
                 spawn_menu_btn(p, "Keep draft · local only", PersonaKeepDraftBtn, true);
@@ -2950,6 +3044,7 @@ fn refresh_persona_creator_labels(
         Query<&mut Text, With<PersonaPeopleLabel>>,
         Query<&mut Text, With<PersonaPhenotypeLabel>>,
         Query<&mut Text, With<PersonaStoryShareLabel>>,
+        Query<&mut Text, With<PersonaOnlinePickerLabel>>,
     )>,
 ) {
     if !persona.open || !PERSONA_CREATOR_ENABLED {
@@ -2992,6 +3087,11 @@ fn refresh_persona_creator_labels(
     let people = people_choice_btn_label(&persona);
     let pheno = phenotype_btn_label(&persona.draft.presentation.phenotype);
     let share = story_share_btn_label(persona.draft.presentation.story.shared_in_world);
+    let picker = story_provider_btn_label(
+        persona.story_provider,
+        ONLINE_PICKER_ENABLED,
+        STEWARD_ONLINE_YES,
+    );
 
     for mut text in &mut texts.p0() {
         set_btn_section_text(&mut text, &step);
@@ -3013,6 +3113,9 @@ fn refresh_persona_creator_labels(
     }
     for mut text in &mut texts.p6() {
         set_btn_section_text(&mut text, &share);
+    }
+    for mut text in &mut texts.p7() {
+        set_btn_section_text(&mut text, &picker);
     }
 }
 
@@ -3065,6 +3168,7 @@ fn persona_creator_buttons(
     people: Query<&Interaction, (Changed<Interaction>, With<PersonaPeopleBtn>)>,
     pheno: Query<&Interaction, (Changed<Interaction>, With<PersonaPhenotypeBtn>)>,
     share: Query<&Interaction, (Changed<Interaction>, With<PersonaStoryShareBtn>)>,
+    picker: Query<&Interaction, (Changed<Interaction>, With<PersonaOnlinePickerBtn>)>,
     next: Query<&Interaction, (Changed<Interaction>, With<PersonaNextBtn>)>,
     back: Query<&Interaction, (Changed<Interaction>, With<PersonaBackBtn>)>,
     keep: Query<&Interaction, (Changed<Interaction>, With<PersonaKeepDraftBtn>)>,
@@ -3095,6 +3199,22 @@ fn persona_creator_buttons(
         if *i == Interaction::Pressed {
             persona.draft.presentation.story.shared_in_world =
                 cycle_story_share(persona.draft.presentation.story.shared_in_world);
+        }
+    }
+    for i in &picker {
+        if *i == Interaction::Pressed {
+            // Online rows only when flag + steward online yes; else offline cycle
+            // (or no-op when UI spawned disabled). Never lights Title Online.
+            if online_picker_ui_enabled(ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES)
+                || ONLINE_PICKER_ENABLED
+            {
+                persona.story_provider = cycle_story_provider(
+                    persona.story_provider,
+                    ONLINE_PICKER_ENABLED,
+                    STEWARD_ONLINE_YES,
+                );
+                apply_story_provider_seat(&mut persona);
+            }
         }
     }
     for i in &hide {
@@ -4042,6 +4162,112 @@ mod tests {
         assert!(persona_creator_ui_copy_is_honest());
         assert!(persona_copy_is_honest("Commit · validate + persist"));
         assert!(!persona_copy_is_honest("Grok Online required"));
+    }
+
+    // --- MERCY_PERSONA P5 online picker (default off) -----------------------
+
+    #[test]
+    fn mercy_persona_p5_online_picker_default_off_hour_unchanged() {
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!online_picker_ui_enabled(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        let state = PersonaCreatorState::default();
+        assert_eq!(state.story_provider, StoryProvider::None);
+        assert_eq!(state.story_provider, default_story_provider());
+        assert!(!state.story_provider.is_online());
+        // Hour 1 nameless path unchanged when flags off.
+        assert!(!PERSONA_CREATOR_ENABLED);
+        assert!(!persona_creator_may_open(PERSONA_CREATOR_ENABLED));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+    }
+
+    #[test]
+    fn mercy_persona_p5_picker_lists_offline_and_gates_online() {
+        // Offline seats listed; online opt-in only with flag + steward yes.
+        assert!(story_provider_may_select(
+            StoryProvider::None,
+            false,
+            false
+        ));
+        assert!(story_provider_may_select(
+            StoryProvider::LocalTemplate,
+            false,
+            false
+        ));
+        assert!(story_provider_may_select(
+            StoryProvider::RathorOfflineShard,
+            false,
+            false
+        ));
+        assert!(!story_provider_may_select(
+            StoryProvider::GrokOnline,
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert!(!story_provider_may_select(
+            StoryProvider::OpenAiCompatible,
+            true,
+            false
+        ));
+        assert!(story_provider_may_select(
+            StoryProvider::RathorOnline,
+            true,
+            true
+        ));
+        assert_eq!(
+            resolve_story_provider(
+                StoryProvider::GrokOnline,
+                ONLINE_PICKER_ENABLED,
+                STEWARD_ONLINE_YES
+            ),
+            StoryProvider::None
+        );
+        // Cycle under defaults never lands on online seats.
+        let mut p = StoryProvider::None;
+        for _ in 0..9 {
+            p = cycle_story_provider(p, ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES);
+            assert!(p.is_offline());
+        }
+    }
+
+    #[test]
+    fn mercy_persona_p5_labels_honest_online_grey_no_llm_product() {
+        let label = story_provider_btn_label(
+            StoryProvider::None,
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES,
+        );
+        assert!(label.contains("online picker off"));
+        assert!(persona_copy_is_honest(&label));
+        assert!(persona_creator_ui_copy_is_honest());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(persona_step_guidance(PersonaCreatorStep::Story).contains("Online grey"));
+        // Honesty refuses mall/P2W/gold/lobby/LLM-as-product; face≠class.
+        assert!(!persona_copy_is_honest("gold mall P2W"));
+        assert!(!persona_copy_is_honest("race lobby ranked"));
+        assert!(!persona_copy_is_honest("LLM product upsell"));
+        assert!(!persona_copy_is_honest("Grok Online required"));
+        let module = mechanical_module_btn_label(MechanicalRace::Human);
+        assert!(module.contains("not people"));
+        assert!(module.contains("not matchmaking"));
+    }
+
+    #[test]
+    fn mercy_persona_p5_commit_stays_law_no_online_default() {
+        let mut state = PersonaCreatorState::default();
+        state.story_provider = StoryProvider::GrokOnline; // attempted; gates refuse
+        state.story_draft = "I tend wells gently.".into();
+        state.name_draft = "Mira".into();
+        apply_story_provider_seat(&mut state);
+        assert_eq!(state.story_provider, StoryProvider::None);
+        keep_persona_local_draft(&mut state);
+        assert!(!state.draft.presentation.story.ai_assist_used);
+        assert_eq!(state.draft.presentation.story.model_id, None);
+        assert_eq!(state.story_provider, StoryProvider::None);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 
 }
