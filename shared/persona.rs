@@ -1,16 +1,20 @@
-//! MERCY_PERSONA — shared persona types + P4 PersonaCommit (CARD H-2026-09-11-P4)
+//! MERCY_PERSONA — shared persona types + P4 PersonaCommit + P5 online picker
+//! (CARD H-2026-09-11-P5)
 //!
-//! Spec: `docs/MERCY_PERSONA_CREATION.md` §5 (design tick 23.2.P).
+//! Spec: `docs/MERCY_PERSONA_CREATION.md` §4–§5 (design tick 23.2.P).
 //! Soft draft (P2 Keep) truncates with soft caps; **PersonaCommit** validates
 //! string caps / phenotype sliders / body_kit clamp / mechanical_race, then
 //! persists a *record about* the persona — never the soul
 //! (`docs/PERSISTENCE_ORIGINAL_OWNERSHIP.md`). Disk writes use `path_filter`
 //! (named persist dir + direct-child `powrush_persona.json` only).
-//! Title Online stays grey. No LLM, sockets, or Title race-lobby as power.
+//! P5: story-provider picker `None | LocalTemplate | RathorOfflineShard |
+//! (opt-in online)`. Feature flag default **false**. Online rows need steward
+//! `online yes`. Never first-run default online. Title Online stays grey.
+//! LLM drafts only — PersonaCommit remains the law. No sockets / race-lobby.
 //!
 //! Scope note: Capable · Bounded · Corrigible is research-style framing
-//! (P4 bounded to Commit+persist+tests; P5 online picker later) — not a
-//! product warranty, AGSi certification, or lobby SKU.
+//! (P5 bounded to default-off online picker + tests) — not a product warranty,
+//! AGSi certification, or lobby SKU.
 //! Contact: info@Rathor.ai · Independent of xAI.
 
 use std::fs;
@@ -21,6 +25,16 @@ use serde::{Deserialize, Serialize};
 /// Feature gate for creator UI (P2+). Hour can finish without persons.
 /// P4 Commit path works when the creator is used; flag semantics match P2.
 pub const PERSONA_CREATOR_ENABLED: bool = false;
+
+/// MERCY_PERSONA P5 — online story-provider picker feature flag.
+/// Default **false**: Hour 1–3 unchanged; offline LocalTemplate / records-only
+/// remain the path. Never lights Title Online. Never Always-allow.
+pub const ONLINE_PICKER_ENABLED: bool = false;
+
+/// Compile-time steward consent for opt-in online story providers.
+/// Must stay false unless steward writes exact `online yes`.
+/// Does **not** light Title Online / sockets even when true in tests.
+pub const STEWARD_ONLINE_YES: bool = false;
 
 /// Persist path (cwd `data/` adopt source; OS user-dir write via `user_persist`).
 pub const PERSONA_PATH: &str = "data/powrush_persona.json";
@@ -255,6 +269,152 @@ impl Default for StoryDraft {
             player_accepted: false,
             shared_in_world: StoryShare::Private,
         }
+    }
+}
+
+/// MERCY_PERSONA P5 story-provider picker (§4).
+/// Offline seats always listed: `None | LocalTemplate | RathorOfflineShard`.
+/// Online seats (`RathorOnline | GrokOnline | OpenAiCompatible`) are opt-in only
+/// after steward `online yes`. Default is `None` (records-only) — never
+/// GrokOnline/OpenAi on first run. Selecting a provider never lights Title Online.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum StoryProvider {
+    /// Records-only — player writes everything. Default.
+    #[default]
+    None,
+    /// Offline LocalTemplate packs (P3). Works with Title Online grey.
+    LocalTemplate,
+    /// Offline Rathor shard (local). Not a network seat.
+    RathorOfflineShard,
+    /// Opt-in online — requires steward `online yes`. Drafts only.
+    RathorOnline,
+    /// Opt-in online — requires steward `online yes`. Never first-run default.
+    GrokOnline,
+    /// Opt-in online — requires steward `online yes`. Never first-run default.
+    OpenAiCompatible,
+}
+
+impl StoryProvider {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::LocalTemplate => "LocalTemplate",
+            Self::RathorOfflineShard => "RathorOfflineShard",
+            Self::RathorOnline => "RathorOnline",
+            Self::GrokOnline => "GrokOnline",
+            Self::OpenAiCompatible => "OpenAiCompatible",
+        }
+    }
+
+    /// Network / live LLM seats. Offline seats return false.
+    pub fn is_online(self) -> bool {
+        matches!(
+            self,
+            Self::RathorOnline | Self::GrokOnline | Self::OpenAiCompatible
+        )
+    }
+
+    /// Offline seats that work while Title Online is grey.
+    pub fn is_offline(self) -> bool {
+        !self.is_online()
+    }
+
+    /// All listed providers (offline + opt-in online). UI filters via gates.
+    pub fn all() -> &'static [StoryProvider] {
+        &[
+            Self::None,
+            Self::LocalTemplate,
+            Self::RathorOfflineShard,
+            Self::RathorOnline,
+            Self::GrokOnline,
+            Self::OpenAiCompatible,
+        ]
+    }
+
+    pub fn offline_only() -> &'static [StoryProvider] {
+        &[Self::None, Self::LocalTemplate, Self::RathorOfflineShard]
+    }
+}
+
+/// First-run / flag-off default: records-only. Never GrokOnline/OpenAi.
+pub fn default_story_provider() -> StoryProvider {
+    StoryProvider::None
+}
+
+/// Online picker is usable only when the feature flag is on **and** steward
+/// wrote exact `online yes`. Flag off → Hour 1–3 unchanged.
+pub fn online_picker_allows_online_rows(flag: bool, steward_online_yes: bool) -> bool {
+    flag && steward_online_yes
+}
+
+/// Whether a requested provider may be selected under current gates.
+/// Offline rows always ok when the picker UI is shown; online rows need
+/// `online_picker_allows_online_rows`. Does not light Title Online.
+pub fn story_provider_may_select(
+    provider: StoryProvider,
+    flag: bool,
+    steward_online_yes: bool,
+) -> bool {
+    if provider.is_offline() {
+        return true;
+    }
+    online_picker_allows_online_rows(flag, steward_online_yes)
+}
+
+/// Resolve a requested provider under gates. Online without consent → `None`.
+/// PersonaCommit remains the law; this only picks a draft source seat.
+pub fn resolve_story_provider(
+    requested: StoryProvider,
+    flag: bool,
+    steward_online_yes: bool,
+) -> StoryProvider {
+    if story_provider_may_select(requested, flag, steward_online_yes) {
+        requested
+    } else {
+        StoryProvider::None
+    }
+}
+
+/// Cycle through selectable providers under gates. Never lands on online
+/// seats unless steward `online yes` and flag on.
+pub fn cycle_story_provider(
+    current: StoryProvider,
+    flag: bool,
+    steward_online_yes: bool,
+) -> StoryProvider {
+    let pool: &[StoryProvider] = if online_picker_allows_online_rows(flag, steward_online_yes) {
+        StoryProvider::all()
+    } else {
+        StoryProvider::offline_only()
+    };
+    let ix = pool.iter().position(|p| *p == current).unwrap_or(0);
+    pool[(ix + 1) % pool.len()]
+}
+
+/// Honest picker button label. Online seats named only as opt-in / gated.
+pub fn story_provider_btn_label(
+    provider: StoryProvider,
+    flag: bool,
+    steward_online_yes: bool,
+) -> String {
+    let resolved = resolve_story_provider(provider, flag, steward_online_yes);
+    if !flag {
+        format!(
+            "Story provider · {} · online picker off",
+            resolved.as_str()
+        )
+    } else if !steward_online_yes && provider.is_online() {
+        "Story provider · offline · online needs steward online yes".into()
+    } else if resolved.is_online() {
+        format!(
+            "Story provider · {} · opt-in · drafts only · Online grey",
+            resolved.as_str()
+        )
+    } else {
+        format!(
+            "Story provider · {} · offline · Online grey",
+            resolved.as_str()
+        )
     }
 }
 
@@ -959,5 +1119,132 @@ mod tests {
         let commit = PersonaCommit::from_soft_draft(&draft).expect("clamped");
         assert!(commit.persona.body_kit.is_valid());
         assert!(commit.persona.body_kit.reach <= BODY_KIT_REACH_CEIL);
+    }
+
+    // --- MERCY_PERSONA P5 online picker (default off) -----------------------
+
+    #[test]
+    fn online_picker_flag_defaults_off() {
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!online_picker_allows_online_rows(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert_eq!(default_story_provider(), StoryProvider::None);
+        assert!(!default_story_provider().is_online());
+    }
+
+    #[test]
+    fn story_provider_offline_rows_always_selectable() {
+        for p in StoryProvider::offline_only() {
+            assert!(p.is_offline());
+            assert!(story_provider_may_select(*p, false, false));
+            assert!(story_provider_may_select(*p, true, false));
+            assert!(persona_copy_is_honest(p.as_str()));
+        }
+        assert_eq!(
+            StoryProvider::offline_only(),
+            &[
+                StoryProvider::None,
+                StoryProvider::LocalTemplate,
+                StoryProvider::RathorOfflineShard,
+            ]
+        );
+    }
+
+    #[test]
+    fn online_rows_need_flag_and_steward_online_yes() {
+        for p in [
+            StoryProvider::RathorOnline,
+            StoryProvider::GrokOnline,
+            StoryProvider::OpenAiCompatible,
+        ] {
+            assert!(p.is_online());
+            assert!(!story_provider_may_select(p, false, false));
+            assert!(!story_provider_may_select(p, true, false));
+            assert!(!story_provider_may_select(p, false, true));
+            assert!(story_provider_may_select(p, true, true));
+            assert_eq!(
+                resolve_story_provider(p, false, false),
+                StoryProvider::None
+            );
+            assert_eq!(
+                resolve_story_provider(p, true, true),
+                p
+            );
+        }
+        // Never first-run default to Grok/OpenAi.
+        assert_ne!(default_story_provider(), StoryProvider::GrokOnline);
+        assert_ne!(default_story_provider(), StoryProvider::OpenAiCompatible);
+    }
+
+    #[test]
+    fn cycle_story_provider_stays_offline_without_consent() {
+        let mut p = StoryProvider::None;
+        let mut saw_online = false;
+        for _ in 0..12 {
+            p = cycle_story_provider(p, ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES);
+            if p.is_online() {
+                saw_online = true;
+            }
+        }
+        assert!(!saw_online);
+        // With flag+steward yes, online seats appear; still drafts-only seats.
+        let mut q = StoryProvider::None;
+        let mut saw = false;
+        for _ in 0..12 {
+            q = cycle_story_provider(q, true, true);
+            if q == StoryProvider::GrokOnline {
+                saw = true;
+            }
+        }
+        assert!(saw);
+        // Resolve without consent still refuses Grok as active seat.
+        assert_eq!(
+            resolve_story_provider(StoryProvider::GrokOnline, true, false),
+            StoryProvider::None
+        );
+    }
+
+    #[test]
+    fn story_provider_labels_honest_and_online_grey() {
+        let off = story_provider_btn_label(StoryProvider::None, false, false);
+        assert!(off.contains("online picker off"));
+        assert!(off.contains("None"));
+        assert!(persona_copy_is_honest(&off));
+        let local = story_provider_btn_label(StoryProvider::LocalTemplate, true, false);
+        assert!(local.contains("LocalTemplate"));
+        assert!(local.contains("Online grey"));
+        assert!(persona_copy_is_honest(&local));
+        let gated = story_provider_btn_label(StoryProvider::GrokOnline, true, false);
+        assert!(gated.to_lowercase().contains("online yes"));
+        assert!(persona_copy_is_honest(&gated));
+        let opt = story_provider_btn_label(StoryProvider::RathorOnline, true, true);
+        assert!(opt.contains("opt-in"));
+        assert!(opt.contains("drafts only"));
+        assert!(persona_copy_is_honest(&opt));
+        // Honesty still refuses mall/P2W/gold/lobby/LLM-as-product.
+        assert!(!persona_copy_is_honest("Grok Online required"));
+        assert!(!persona_copy_is_honest("LLM product upsell"));
+        assert!(!persona_copy_is_honest("race lobby ranked"));
+    }
+
+    #[test]
+    fn online_picker_does_not_rewrite_persona_commit_law() {
+        let mut draft = Persona::nameless_steward();
+        draft.presentation.story.player_text = "I tend wells gently.".into();
+        // Picker seat is orthogonal to Commit — Commit stays the law.
+        let provider = resolve_story_provider(
+            StoryProvider::GrokOnline,
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES,
+        );
+        assert_eq!(provider, StoryProvider::None);
+        let commit = PersonaCommit::from_soft_draft(&draft).expect("commit");
+        assert_eq!(commit.persona.mechanical_race, MechanicalRace::Human);
+        assert!(!commit.persona.presentation.story.ai_assist_used);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!PERSONA_CREATOR_ENABLED);
     }
 }
