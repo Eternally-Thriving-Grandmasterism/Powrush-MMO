@@ -3,7 +3,8 @@
 //! `powrush_settings.json` next to house JSON in the OS user-data dir
 //! (or `POWRUSH_USER_DIR`). Cwd `data/powrush_settings.json` is adopt-only.
 //! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove ·
-//! Graphics preset · Reduced motion · Rumble · Colorblind wells · LAN · Controls (I0).
+//! Graphics preset · Mesh LOD · Comfort graphics banner · Reduced motion · Rumble ·
+//! Colorblind wells · LAN · Controls (I0).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
@@ -190,6 +191,64 @@ impl GraphicsPreset {
     }
 }
 
+/// Mesh fidelity tier driven by [`GraphicsPreset`] (MESH_QUALITY_BUDGET / MESH-LOD).
+/// Low = primitives / capsule-safe; Medium = balanced; High = fuller PersonaCommit dress.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MeshLod {
+    /// Primitives / capsule-safe LOD · reduced detail (phones / weak GPU).
+    Low,
+    /// Balanced humanoid / Place props (device-safe default).
+    #[default]
+    Medium,
+    /// Fuller PersonaCommit dress when optional assets exist (gaming PC).
+    High,
+}
+
+impl MeshLod {
+    pub const ALL: [MeshLod; 3] = [MeshLod::Low, MeshLod::Medium, MeshLod::High];
+
+    /// Player-facing feel label — never an asset path.
+    pub const fn feel_label(self) -> &'static str {
+        match self {
+            Self::Low => "Capsule · reduced detail",
+            Self::Medium => "Balanced · Place props",
+            Self::High => "Fuller dress · nicest hold",
+        }
+    }
+
+    /// Low stays on primitives / capsule; Medium+ may prefer optional on-disk glb when present.
+    pub const fn primitives_only(self) -> bool {
+        matches!(self, Self::Low)
+    }
+
+    /// High unlocks fuller PersonaCommit dress when optional assets exist.
+    pub const fn persona_commit_dress(self) -> bool {
+        matches!(self, Self::High)
+    }
+
+    /// Medium/High may use optional `assets/models/*.glb` only if already present.
+    pub const fn prefer_optional_glb(self) -> bool {
+        !matches!(self, Self::Low)
+    }
+}
+
+impl GraphicsPreset {
+    /// Map Comfort graphics preset → mesh LOD tier (1:1).
+    pub const fn mesh_lod(self) -> MeshLod {
+        match self {
+            Self::Low => MeshLod::Low,
+            Self::Medium => MeshLod::Medium,
+            Self::High => MeshLod::High,
+        }
+    }
+}
+
+/// First-launch Comfort graphics banner copy (MESH_QUALITY_BUDGET).
+/// UI must never show placeholder asset paths.
+pub const COMFORT_GRAPHICS_BANNER_COPY: &str =
+    "Graphics can go Higher on this machine — Esc → Comfort";
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LocalSettings {
     pub schema: String,
@@ -213,8 +272,13 @@ pub struct LocalSettings {
     pub text_scale: f32,
     /// Esc Comfort graphics preset. Default **Medium** (device-safe).
     /// Applies brightness / text scale / reduced motion / rumble as a bundle.
+    /// Also drives mesh LOD (MESH-LOD / MESH_QUALITY_BUDGET).
     #[serde(default)]
     pub graphics_preset: GraphicsPreset,
+    /// First-launch Comfort graphics banner dismissed. Default false (show once).
+    /// Persisted so the banner does not spam title / yard pause.
+    #[serde(default)]
+    pub comfort_graphics_banner_dismissed: bool,
     /// G0.5 Grove light-gen: "off" | "light". Default **off**. Unknown → off.
     /// Same path as env `POWRUSH_GEN=light` (OR at the door — not a second gen system).
     #[serde(default = "default_grove")]
@@ -368,6 +432,7 @@ impl Default for LocalSettings {
             brightness: DEFAULT_BRIGHTNESS,
             text_scale: DEFAULT_TEXT_SCALE,
             graphics_preset: GraphicsPreset::Medium,
+            comfort_graphics_banner_dismissed: false,
             grove: default_grove(),
             key_move_up: default_key_move_up(),
             key_move_down: default_key_move_down(),
@@ -488,6 +553,21 @@ impl LocalSettings {
     pub fn set_graphics_preset(&mut self, preset: GraphicsPreset) {
         self.graphics_preset = preset;
         self.apply_graphics_preset();
+    }
+
+    /// Mesh LOD tier for the current Comfort graphics preset.
+    pub fn mesh_lod(&self) -> MeshLod {
+        self.graphics_preset.mesh_lod()
+    }
+
+    /// Show the first-launch Comfort graphics banner once (title / yard pause).
+    pub fn should_show_comfort_graphics_banner(&self) -> bool {
+        !self.comfort_graphics_banner_dismissed
+    }
+
+    /// Dismiss + persist flag so the banner does not spam.
+    pub fn dismiss_comfort_graphics_banner(&mut self) {
+        self.comfort_graphics_banner_dismissed = true;
     }
 
     /// Clamp grove to "off" | "light". Missing/unknown → off.
@@ -1266,6 +1346,71 @@ mod tests {
         assert!((legacy_back.brightness - 1.25).abs() < 0.01);
         // Loading alone must not rewrite comfort fields to Medium bundle.
         assert!(!legacy_back.reduced_motion);
+    }
+
+    #[test]
+    fn mesh_lod_follows_graphics_preset() {
+        assert_eq!(GraphicsPreset::Low.mesh_lod(), MeshLod::Low);
+        assert_eq!(GraphicsPreset::Medium.mesh_lod(), MeshLod::Medium);
+        assert_eq!(GraphicsPreset::High.mesh_lod(), MeshLod::High);
+        assert_eq!(MeshLod::default(), MeshLod::Medium);
+
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(s.mesh_lod(), MeshLod::Medium);
+        assert!(s.mesh_lod().prefer_optional_glb());
+        assert!(!s.mesh_lod().primitives_only());
+        assert!(!s.mesh_lod().persona_commit_dress());
+        assert_eq!(s.mesh_lod().feel_label(), "Balanced · Place props");
+        // Feel labels never contain asset path fragments.
+        for lod in MeshLod::ALL {
+            let feel = lod.feel_label();
+            assert!(!feel.contains("assets/"));
+            assert!(!feel.contains(".glb"));
+            assert!(!feel.contains("models/"));
+        }
+
+        s.set_graphics_preset(GraphicsPreset::Low);
+        assert_eq!(s.mesh_lod(), MeshLod::Low);
+        assert!(s.mesh_lod().primitives_only());
+        assert!(!s.mesh_lod().prefer_optional_glb());
+        assert!(!s.mesh_lod().persona_commit_dress());
+        assert_eq!(s.mesh_lod().feel_label(), "Capsule · reduced detail");
+
+        s.set_graphics_preset(GraphicsPreset::High);
+        assert_eq!(s.mesh_lod(), MeshLod::High);
+        assert!(s.mesh_lod().prefer_optional_glb());
+        assert!(s.mesh_lod().persona_commit_dress());
+        assert_eq!(s.mesh_lod().feel_label(), "Fuller dress · nicest hold");
+    }
+
+    #[test]
+    fn comfort_graphics_banner_once_dismiss_persist() {
+        let mut s = LocalSettings::peace_defaults();
+        assert!(!s.comfort_graphics_banner_dismissed);
+        assert!(s.should_show_comfort_graphics_banner());
+        assert!(COMFORT_GRAPHICS_BANNER_COPY.contains("Graphics can go Higher"));
+        assert!(COMFORT_GRAPHICS_BANNER_COPY.contains("Esc → Comfort"));
+        assert!(!COMFORT_GRAPHICS_BANNER_COPY.contains("assets/"));
+        assert!(!COMFORT_GRAPHICS_BANNER_COPY.contains(".glb"));
+
+        s.dismiss_comfort_graphics_banner();
+        assert!(s.comfort_graphics_banner_dismissed);
+        assert!(!s.should_show_comfort_graphics_banner());
+        // Second dismiss is idempotent — still no spam.
+        s.dismiss_comfort_graphics_banner();
+        assert!(!s.should_show_comfort_graphics_banner());
+
+        let raw = s.to_json().unwrap();
+        assert!(raw.contains("\"comfort_graphics_banner_dismissed\": true"));
+        let back = LocalSettings::from_json(&raw).unwrap();
+        assert!(back.comfort_graphics_banner_dismissed);
+        assert!(!back.should_show_comfort_graphics_banner());
+
+        // Legacy JSON without the field → show once (default false).
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"grove":"off"}"#;
+        let legacy_back = LocalSettings::from_json(legacy).unwrap();
+        assert!(!legacy_back.comfort_graphics_banner_dismissed);
+        assert!(legacy_back.should_show_comfort_graphics_banner());
     }
 
 }
