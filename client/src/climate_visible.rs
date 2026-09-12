@@ -11,6 +11,7 @@ use shared::climate_node::{ClimateNode, NodeState};
 use shared::heartwood_wards::WARDS_NOTICE;
 
 use crate::climate_script::TeachingClaim;
+use crate::skirmish_well::{tick_well_glow_breath, well_glow_pulse};
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::heartwood_lip::ThresholdShelfSession;
 use crate::hex_travel::HexTravelState;
@@ -26,11 +27,60 @@ struct ClimateStateRoot;
 #[derive(Component)]
 struct ClimateStateText;
 
-/// Soft pulse when week tons/restored answers on the existing slab (P2).
+/// Soft pulse when Take · Tend · week answers on the existing slab (P2 / C1).
+/// Reuses skirmish `well_glow` breath — not a second HUD.
 #[derive(Resource, Default)]
 struct WeekFeelGlow {
     glow: f32,
     last_updated: u64,
+    last_climate: u64,
+    last_line: String,
+    primed: bool,
+}
+
+impl WeekFeelGlow {
+    /// Prime on first sight (no boot breath). Fire on later Take · Tend · week.
+    fn note_bind(&mut self, week_updated: u64, climate_updated: u64, last_line: &str) {
+        if week_feel_should_breathe(
+            week_updated,
+            self.last_updated,
+            climate_updated,
+            self.last_climate,
+            last_line,
+            &self.last_line,
+            self.primed,
+        ) {
+            self.glow = 1.0;
+        }
+        self.last_updated = week_updated;
+        self.last_climate = climate_updated;
+        if self.last_line != last_line {
+            self.last_line = last_line.to_string();
+        }
+        self.primed = true;
+    }
+}
+
+/// Take writes "tended node N". Tend / week bump climate and week clocks.
+fn week_feel_should_breathe(
+    week_updated: u64,
+    last_week: u64,
+    climate_updated: u64,
+    last_climate: u64,
+    last_line: &str,
+    prev_line: &str,
+    primed: bool,
+) -> bool {
+    if !primed {
+        return false;
+    }
+    week_updated != last_week
+        || climate_updated != last_climate
+        || take_line_fired(last_line, prev_line)
+}
+
+fn take_line_fired(last_line: &str, prev_line: &str) -> bool {
+    last_line != prev_line && last_line.starts_with("tended node")
 }
 
 #[derive(Resource, Default)]
@@ -102,15 +152,12 @@ fn paint_nodes_from_hour(
 }
 
 fn tick_week_feel_glow(bind: Res<LivedHourBind>, time: Res<Time>, mut glow: ResMut<WeekFeelGlow>) {
-    if bind.week.updated_at != glow.last_updated {
-        glow.last_updated = bind.week.updated_at;
-        if bind.week.tons_moved > 0 || bind.week.restored_count > 0 {
-            glow.glow = 1.0;
-        }
-    }
-    if glow.glow > 0.0 {
-        glow.glow = (glow.glow - time.delta_seconds() * 0.55).max(0.0);
-    }
+    glow.note_bind(
+        bind.week.updated_at,
+        bind.climate.updated_at,
+        &bind.last_line,
+    );
+    glow.glow = tick_well_glow_breath(glow.glow, time.delta_seconds());
 }
 
 fn tick_wards_notice_glow(
@@ -127,9 +174,7 @@ fn tick_wards_notice_glow(
     }
     glow.last_near = near;
     glow.last_tends = tends;
-    if glow.glow > 0.0 {
-        glow.glow = (glow.glow - time.delta_seconds() * 0.55).max(0.0);
-    }
+    glow.glow = tick_well_glow_breath(glow.glow, time.delta_seconds());
 }
 
 fn spawn_climate_state_slab(mut commands: Commands) {
@@ -208,11 +253,6 @@ fn update_climate_state_slab(
     } else {
         0.0
     });
-    let week_live = bind
-        .climate_slab
-        .as_deref()
-        .map(|s| s.starts_with("this week"))
-        .unwrap_or(false);
     for (mut vis, mut border, mut bg) in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -220,23 +260,19 @@ fn update_climate_state_slab(
             Visibility::Hidden
         };
         if show {
-            let pulse = if week_live {
-                0.12 + glow * 0.38
-            } else {
-                glow * 0.25
-            };
-            let a = 0.42 + pulse;
+            // Same well_glow rim lift; Peace rest colors stay on this slab.
+            let pulse = well_glow_pulse(glow);
             *border = Color::srgba(
-                0.48 + glow * 0.10,
-                0.78 + glow * 0.14,
-                0.58 + glow * 0.08,
-                a,
+                0.48 + pulse.r,
+                0.78 + pulse.g,
+                0.58 + pulse.b,
+                0.42 + pulse.a,
             )
             .into();
             *bg = Color::srgba(
-                0.06 + glow * 0.06,
-                0.08 + glow * 0.08,
-                0.07 + glow * 0.05,
+                0.06 + pulse.bg_r,
+                0.08 + pulse.bg_g,
+                0.07 + pulse.bg_b,
                 0.88,
             )
             .into();
@@ -763,6 +799,61 @@ mod tests {
             ),
             "Depths Peace · restored"
         );
+    }
+
+    #[test]
+    fn week_feel_reuses_well_glow_breath() {
+        assert!((tick_well_glow_breath(1.0, 1.0) - 0.45).abs() < 1e-6);
+        let peak = well_glow_pulse(1.0);
+        assert!((peak.a - 0.40).abs() < 1e-6);
+        assert!((peak.r - 0.20).abs() < 1e-6);
+        // Peace rest alpha stays 0.42; lift matches the skirmish well.
+        assert!(((0.42 + peak.a) - 0.82).abs() < 1e-6);
+    }
+
+    #[test]
+    fn week_feel_breathes_on_take_tend_week() {
+        let mut g = WeekFeelGlow::default();
+        g.note_bind(1, 1, "walk to a glow");
+        assert_eq!(g.glow, 0.0, "prime is not a breath");
+
+        g.note_bind(1, 1, "tended node 1");
+        assert_eq!(g.glow, 1.0, "Take");
+        g.glow = tick_well_glow_breath(g.glow, 1.0);
+        assert!((g.glow - 0.45).abs() < 1e-5);
+
+        g.glow = 0.0;
+        g.note_bind(1, 2, "tended node 1");
+        assert_eq!(g.glow, 1.0, "Tend");
+
+        g.glow = 0.0;
+        g.note_bind(2, 2, "tended node 1");
+        assert_eq!(g.glow, 1.0, "week");
+
+        g.glow = 0.0;
+        g.note_bind(2, 2, "tended node 1");
+        assert_eq!(g.glow, 0.0, "idle");
+    }
+
+    #[test]
+    fn take_tend_week_do_not_need_tons_to_breathe() {
+        assert!(!week_feel_should_breathe(
+            1, 0, 1, 0, "tended node 1", "", false
+        ));
+        assert!(week_feel_should_breathe(
+            1, 1, 1, 1, "tended node 1", "walk to a glow", true
+        ));
+        assert!(week_feel_should_breathe(
+            1, 1, 2, 1, "walk to a glow", "walk to a glow", true
+        ));
+        assert!(week_feel_should_breathe(
+            2, 1, 1, 1, "this week · 0 tons · 0 restored", "walk to a glow", true
+        ));
+        assert!(!week_feel_should_breathe(
+            1, 1, 1, 1, "walk to a glow", "walk to a glow", true
+        ));
+        assert!(take_line_fired("tended node 3", "walk to a glow"));
+        assert!(!take_line_fired("walk to a glow", "walk to a glow"));
     }
 
 }
