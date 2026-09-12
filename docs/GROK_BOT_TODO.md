@@ -1,11 +1,11 @@
 # GROK_BOT_TODO.md
 
-Tip `c5c96e6` — TODO4 on main (#400). This PR lands **MESH-BUDGET**. Design tick, not a Cargo bump.
+Tip `a284cd0b` — EARTH-CLIMATE on main (#403). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
 
-Hands HOLD until MESH-LOD CARD named. One card in flight. Bot 1 Hands executes Hands. Canon vote-only on Hands. Title Online stays grey.
+Hands HOLD. One card in flight. Bot 1 Hands executes Hands. Canon vote-only on Hands. Title Online stays grey.
 
 ## Closed / landed (do not rebuild)
 
@@ -16,6 +16,7 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **B2** — Landed #323 / `0e4b89db`. Well captions as words (Idle / Glowing / Tended / Resting / Stressed) even when H hid the card.
 - **B3** — Landed #376 / `80962065`. Colorblind well tokens (shapes + word). Do not rewrite `harvest_feel`.
 - **B4** — Landed on tip (INPUT_CANON remaps + Settings rows). Do not re-litigate. B4 remaps remain landed.
+- **B5** — Landed/stamp. Practice≠Verb law already on main at [`docs/PRACTICE_NOT_VERB.md`](PRACTICE_NOT_VERB.md); `sprint_mode` live on Controls (stick|trigger|key) — no second Peace verb; E/I/H/R untouched. Do not invent Hands client paths for B5.
 - **B7** — Landed on tip. Depths Peace tend (restore, not Take). Do not re-litigate.
 - **Place dress** — F0 docs landed #374 / `ff97b505` (`PLACE_DRESS_SPEC`). F1–F4 Hands on `climate_plane.rs` landed #377–#380 (`f34c6e98` … `bfaa455e`).
 - **Temper** — T0 docs landed (#370). T1–T5 landed #381–#385 (`shared/temper` · fabricator · human_inventory · mercy_harvest_nodes).
@@ -27,21 +28,20 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **ECONOMY court** — docs [`OFFLINE_ECONOMY_COURT.md`](OFFLINE_ECONOMY_COURT.md) (H-2026-09-12-ECONOMY). Offline teacher banked. Market HOLD.
 - **PLACES-DOOR** — Landed H-2026-09-12 #398 / `417a4fa`. Esc Places on tabbed pause plate opens Sanctuary·Heartwood·Threshold·Depths after Settled+book (`hex_travel.rs` + `title_screen.rs`). Does not only dismiss pause. Online grey.
 - **COMFORT-PRESETS** — Landed H-2026-09-12 #399 / `b2b6e37`. Esc Comfort Graphics Low · Medium (default) · High; persist beside Grove (`title_screen.rs` + `shared/local_settings.rs`). Online grey.
-- **MESH-BUDGET** — docs [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) (H-2026-09-12-MESH-BUDGET). Low/Med/High mesh tiers + first-launch Comfort banner law. Hands MESH-LOD waits named PATHS after this greens.
+- **MESH-BUDGET** — docs [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) (H-2026-09-12-MESH-BUDGET). Low/Med/High mesh tiers + first-launch Comfort banner law.
+- **MESH-LOD** — Landed H-2026-09-12 #402 / `6b62721`. GraphicsPreset→mesh LOD + Comfort banner.
+- **EARTH-CLIMATE** — Landed H-2026-09-12 #403 / `a284cd0b`. PlaceMood weather beds + FlowWeather + WeatherFidelity. Hands QA bank (no PR) may run offline. Do not retag `playable-preview` `11c577e`.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
-**EARTH-CLIMATE** waits after MESH-LOD PATHS: Place weather from existing climate; no live Earth API on Peace boot.
-
 ## Next (ordered)
 
-1. **MESH-LOD** — Hands when Canon names exact PATHS (cite [`docs/MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md)). GraphicsPreset → mesh LOD. No Title race select. Practices stay post-House dress (`PRACTICE_NOT_VERB`).
-2. **EARTH-CLIMATE** — Place weather beds from existing climate; Comfort gates fidelity; no live Earth API/sockets on Peace boot (docs or Hands only when named).
-3. **B5** — Practice ≠ Verb candidate until Core names CARD (cite [`docs/PRACTICE_NOT_VERB.md`](PRACTICE_NOT_VERB.md)). Do not invent Hands paths.
-4. **Wave C** / Hour-two/Steam — Core/human. Wards later from current main.
+1. **Wave C feel-juice C1–C4** — only when Core/Canon names exact PATHS. Do not invent Wave C PATHS.
+2. **Hour-two / Steam** — Core/human. Minutes stay blank for the human.
+3. **MESH-PERSONA** — optional only with Core ASSET BUDGET.
 
-Hour-two minutes stay blank for the human. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
+Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
 ## Refuses this turn
 
-Online freestyle · Market ship · AH · gold · NFT · drones / robots as product · Quellorian mesh cargo dump · Cargo bump · sockets · Always-allow · invent screenshots · second card · Sky/Net until steward online yes · Title race select · sixth race · WoW quantity freestyle · binary mesh pack in this docs PR.
+Online freestyle · Market · AH · gold · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API.
