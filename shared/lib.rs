@@ -38,6 +38,7 @@ pub mod coop_voice;
 pub mod infra_spill;
 pub mod ledger_bind;
 pub mod fabricator;
+pub mod temper;
 pub mod embassy;
 pub mod war_week;
 pub mod crownstone;
