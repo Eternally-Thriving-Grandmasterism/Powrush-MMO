@@ -1,11 +1,11 @@
 # GROK_BOT_TODO.md
 
-Tip `b2b6e37` — COMFORT-PRESETS merged (#399). Design tick, not a Cargo bump.
+Tip `c5c96e6` — TODO4 on main (#400). This PR lands **MESH-BUDGET**. Design tick, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
 
-Hands HOLD until Core pastes MESH-PERSONA CARD with ASSET BUDGET + PATHS + REFUSE. One card in flight. Bot 1 Hands executes Hands. Canon vote-only on Hands. Title Online stays grey.
+Hands HOLD until MESH-LOD CARD named. One card in flight. Bot 1 Hands executes Hands. Canon vote-only on Hands. Title Online stays grey.
 
 ## Closed / landed (do not rebuild)
 
@@ -27,14 +27,15 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **ECONOMY court** — docs [`OFFLINE_ECONOMY_COURT.md`](OFFLINE_ECONOMY_COURT.md) (H-2026-09-12-ECONOMY). Offline teacher banked. Market HOLD.
 - **PLACES-DOOR** — Landed H-2026-09-12 #398 / `417a4fa`. Esc Places on tabbed pause plate opens Sanctuary·Heartwood·Threshold·Depths after Settled+book (`hex_travel.rs` + `title_screen.rs`). Does not only dismiss pause. Online grey.
 - **COMFORT-PRESETS** — Landed H-2026-09-12 #399 / `b2b6e37`. Esc Comfort Graphics Low · Medium (default) · High; persist beside Grove (`title_screen.rs` + `shared/local_settings.rs`). Online grey.
+- **MESH-BUDGET** — docs [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) (H-2026-09-12-MESH-BUDGET). Low/Med/High mesh tiers + first-launch Comfort banner law. Hands MESH-LOD waits named PATHS after this greens.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
-**EARTH-CLIMATE** is the next docs candidate after the MESH budget path: Place weather from existing climate; no live Earth API on Peace boot.
+**EARTH-CLIMATE** waits after MESH-LOD PATHS: Place weather from existing climate; no live Earth API on Peace boot.
 
 ## Next (ordered)
 
-1. **MESH-PERSONA** — player + entities leave capsule greybox toward PersonaCommit / Place dress. **Only with Core asset budget + exact PATHS.** No Title race select. Practices stay post-House dress (`PRACTICE_NOT_VERB`).
+1. **MESH-LOD** — Hands when Canon names exact PATHS (cite [`docs/MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md)). GraphicsPreset → mesh LOD. No Title race select. Practices stay post-House dress (`PRACTICE_NOT_VERB`).
 2. **EARTH-CLIMATE** — Place weather beds from existing climate; Comfort gates fidelity; no live Earth API/sockets on Peace boot (docs or Hands only when named).
 3. **B5** — Practice ≠ Verb candidate until Core names CARD (cite [`docs/PRACTICE_NOT_VERB.md`](PRACTICE_NOT_VERB.md)). Do not invent Hands paths.
 4. **Wave C** / Hour-two/Steam — Core/human. Wards later from current main.
@@ -43,4 +44,4 @@ Hour-two minutes stay blank for the human. Title Online stays grey. Floor `21635
 
 ## Refuses this turn
 
-Online freestyle · Market ship · AH · gold · NFT · drones / robots as product · Quellorian mesh without budget · Cargo bump · sockets · Always-allow · invent screenshots · second card · Sky/Net until steward online yes · Title race select · sixth race · WoW quantity freestyle.
+Online freestyle · Market ship · AH · gold · NFT · drones / robots as product · Quellorian mesh cargo dump · Cargo bump · sockets · Always-allow · invent screenshots · second card · Sky/Net until steward online yes · Title race select · sixth race · WoW quantity freestyle · binary mesh pack in this docs PR.
