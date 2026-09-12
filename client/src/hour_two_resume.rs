@@ -10,6 +10,16 @@ pub fn hour_two_welcome_reward(line: Option<&str>) -> bool {
     line.map(|s| s.contains("Hour two held")).unwrap_or(false)
 }
 
+/// Welcome-slab rim breath. First Play stays at 0 — no XP sparkle chrome
+/// unless [`hour_two_welcome_reward`] is true.
+pub fn welcome_glow_from_line(line: Option<&str>) -> f32 {
+    if hour_two_welcome_reward(line) {
+        1.0
+    } else {
+        0.0
+    }
+}
+
 /// Welcome slab copy. None = stay quiet (first boot, empty echo).
 pub fn welcome_line(
     hour_three_held: bool,
@@ -62,14 +72,22 @@ mod tests {
 
     #[test]
     fn first_boot_stays_quiet() {
+        // First Play: no held pack → no welcome line → no reward glow / XP sparkle.
         assert_eq!(welcome_line(false, false, false, None), None);
         assert!(!hour_two_welcome_reward(None));
+        assert_eq!(welcome_glow_from_line(None), 0.0);
+        assert_eq!(welcome_glow_from_line(Some("")), 0.0);
+        assert_eq!(
+            welcome_glow_from_line(Some("Welcome back · last echo: tend · J to open journey")),
+            0.0
+        );
     }
 
     #[test]
     fn hour_two_held_line_earns_reward_glow() {
         let line = welcome_line(false, true, false, None).unwrap();
         assert!(hour_two_welcome_reward(Some(line.as_str())));
+        assert_eq!(welcome_glow_from_line(Some(line.as_str())), 1.0);
         assert!(line.contains("Hour two held"));
         assert!(line.contains("the yard remembers"));
     }
@@ -78,10 +96,14 @@ mod tests {
     fn other_welcome_lines_stay_mute() {
         let three = welcome_line(true, true, false, None).unwrap();
         assert!(!hour_two_welcome_reward(Some(three.as_str())));
+        assert_eq!(welcome_glow_from_line(Some(three.as_str())), 0.0);
         let sealed = welcome_line(false, false, true, None).unwrap();
         assert!(!hour_two_welcome_reward(Some(sealed.as_str())));
+        assert_eq!(welcome_glow_from_line(Some(sealed.as_str())), 0.0);
         let echo = welcome_line(false, false, false, Some("tend")).unwrap();
         assert!(!hour_two_welcome_reward(Some(echo.as_str())));
+        assert_eq!(welcome_glow_from_line(Some(echo.as_str())), 0.0);
         assert!(!hour_two_welcome_reward(None));
+        assert_eq!(welcome_glow_from_line(None), 0.0);
     }
 }

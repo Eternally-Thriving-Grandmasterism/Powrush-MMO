@@ -33,7 +33,8 @@ pub struct FirstHarvestEpiphany {
     pub first_harvest_lived: bool,
     pub first_epiphany_lived: bool,
     pub welcome_shown: bool,
-    /// Soft border breath on Hour-two welcome-back. Rest at 0 (well/bench decay).
+    /// Soft border breath on Hour-two welcome-back only. Rest at 0 on first Play
+    /// (no XP sparkle) and after well/bench decay.
     pub welcome_glow: f32,
     pub prompt_until: f64,
     pub pulse_until: f64,
@@ -287,10 +288,8 @@ fn maybe_welcome_back(
         return;
     };
     state.welcome_shown = true;
-    // One beat on the existing slab — only when the line names Hour two held.
-    if crate::hour_two_resume::hour_two_welcome_reward(Some(line.as_str())) {
-        state.welcome_glow = 1.0;
-    }
+    // Soft rim only when Hour two held. First Play / other echoes stay at 0 — no XP sparkle.
+    state.welcome_glow = crate::hour_two_resume::welcome_glow_from_line(Some(line.as_str()));
     let now = time.elapsed_seconds_f64();
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
@@ -672,14 +671,49 @@ mod tests {
         assert!(crate::hour_two_resume::hour_two_welcome_reward(Some(
             line.as_str()
         )));
+        assert_eq!(
+            crate::hour_two_resume::welcome_glow_from_line(Some(line.as_str())),
+            1.0
+        );
     }
 
     #[test]
     fn first_boot_welcome_glow_stays_quiet() {
+        // First Play boot: default state + no held pack → glow stays 0 (no XP sparkle).
         let s = FirstHarvestEpiphany::default();
         assert!(!s.welcome_shown);
         assert_eq!(s.welcome_glow, 0.0);
         assert!(!crate::hour_two_resume::hour_two_welcome_reward(None));
+        assert_eq!(crate::hour_two_resume::welcome_glow_from_line(None), 0.0);
+        assert_eq!(
+            crate::hour_two_resume::welcome_line(false, false, false, None),
+            None
+        );
+    }
+
+    #[test]
+    fn welcome_glow_only_lights_for_hour_two_held() {
+        // Mirrors maybe_welcome_back's glow assignment without Bevy.
+        let mut lit = FirstHarvestEpiphany::default();
+        let hour_two = crate::hour_two_resume::welcome_line(false, true, false, None).unwrap();
+        lit.welcome_glow =
+            crate::hour_two_resume::welcome_glow_from_line(Some(hour_two.as_str()));
+        assert_eq!(lit.welcome_glow, 1.0);
+
+        let mut quiet = FirstHarvestEpiphany::default();
+        for (h3, h2, sealed, echo) in [
+            (true, true, false, None),
+            (false, false, true, None),
+            (false, false, false, Some("tend")),
+        ] {
+            let line = crate::hour_two_resume::welcome_line(h3, h2, sealed, echo).unwrap();
+            quiet.welcome_glow =
+                crate::hour_two_resume::welcome_glow_from_line(Some(line.as_str()));
+            assert_eq!(
+                quiet.welcome_glow, 0.0,
+                "non-hour-two welcome must not light glow: {line}"
+            );
+        }
     }
 
     #[test]
