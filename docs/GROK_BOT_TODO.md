@@ -1,11 +1,11 @@
 # GROK_BOT_TODO.md
 
-Tip `dc2c156` — PAUSE-TABS merged (#395). Design tick, not a Cargo bump.
+Tip `477da00` — TODO3 on main (#396). This PR lands **ECONOMY court**. Design tick, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
 
-Hands HOLD until Canon/Core names MESH-PERSONA with Core asset budget (or another exact CARD). One card in flight. Bot 1 Hands executes Hands. Canon vote-only on Hands. Title Online stays grey.
+Hands HOLD until Canon/Core names MESH-PERSONA with Core asset budget (MESH budget CARD). One card in flight. Bot 1 Hands executes Hands. Canon vote-only on Hands. Title Online stays grey.
 
 ## Closed / landed (do not rebuild)
 
@@ -24,6 +24,7 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **FLAG-PERSONA** — Landed H-2026-09-12 #393 / `c2dd402`. `PERSONA_CREATOR_ENABLED=true` on `shared/persona.rs` + `client/src/title_screen.rs`. `ONLINE_PICKER_ENABLED` and `STEWARD_ONLINE_YES` stay false. Title Online grey.
 - **REMAP** — Live on Controls tab (Peace rebind + conflict *taken by…*; `shared/local_settings` keys; soft_play/input). Do not rebuild as a separate Hands card. B4 remaps remain landed.
 - **PAUSE-TABS** — Landed H-2026-09-12 #395 / `dc2c156`. Esc pause → Comfort · Controls · Guide tabs on `client/src/title_screen.rs`. Guide one-sentence Peace stranger loop. Online grey.
+- **ECONOMY court** — docs [`OFFLINE_ECONOMY_COURT.md`](OFFLINE_ECONOMY_COURT.md) (H-2026-09-12-ECONOMY). Offline teacher banked. Market HOLD.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
@@ -38,4 +39,4 @@ Hour-two minutes stay blank for the human. Title Online stays grey. Floor `21635
 
 ## Refuses this turn
 
-Online freestyle · Market · gold · NFT · Quellorian mesh cargo without budget · Cargo bump · sockets · Always-allow · invent screenshots · second card · Sky/Net until steward online yes · Title race select · sixth race.
+Online freestyle · Market ship · AH · gold · NFT · drones / robots as product · Quellorian mesh cargo without budget · Cargo bump · sockets · Always-allow · invent screenshots · second card · Sky/Net until steward online yes · Title race select · sixth race.
