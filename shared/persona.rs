@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 
 /// Feature gate for creator UI (P2+). Hour can finish without persons.
 /// P4 Commit path works when the creator is used; flag semantics match P2.
-pub const PERSONA_CREATOR_ENABLED: bool = false;
+pub const PERSONA_CREATOR_ENABLED: bool = true;
 
 /// MERCY_PERSONA P5 — online story-provider picker feature flag.
 /// Default **false**: Hour 1–3 unchanged; offline LocalTemplate / records-only
@@ -828,7 +828,7 @@ mod tests {
         assert!(matches!(p.presentation.people, PeopleChoice::Unset));
         assert!(!p.presentation.story.ai_assist_used);
         assert_eq!(p.presentation.story.shared_in_world, StoryShare::Private);
-        assert!(!PERSONA_CREATOR_ENABLED);
+        assert!(PERSONA_CREATOR_ENABLED);
     }
 
     #[test]
@@ -925,8 +925,8 @@ mod tests {
     }
 
     #[test]
-    fn persona_creator_flag_defaults_off() {
-        assert!(!PERSONA_CREATOR_ENABLED);
+    fn persona_creator_flag_enabled() {
+        assert!(PERSONA_CREATOR_ENABLED);
     }
 
     #[test]
@@ -1103,7 +1103,7 @@ mod tests {
             commit.persona.presentation.story.model_id.as_deref(),
             Some("local-template:quiet-steward")
         );
-        assert!(!PERSONA_CREATOR_ENABLED);
+        assert!(PERSONA_CREATOR_ENABLED);
         assert_eq!(PERSONA_PATH, "data/powrush_persona.json");
         assert!(persona_copy_is_honest("Title Online grey"));
         assert!(!persona_copy_is_honest("Grok Online required"));
@@ -1245,6 +1245,6 @@ mod tests {
         assert_eq!(commit.persona.mechanical_race, MechanicalRace::Human);
         assert!(!commit.persona.presentation.story.ai_assist_used);
         assert!(!ONLINE_PICKER_ENABLED);
-        assert!(!PERSONA_CREATOR_ENABLED);
+        assert!(PERSONA_CREATOR_ENABLED);
     }
 }
