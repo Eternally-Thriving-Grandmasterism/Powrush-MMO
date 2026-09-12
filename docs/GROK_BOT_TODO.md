@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `b33c1a6` — PLACES-FAT on main (#407). This PR is a **design tick**, not a Cargo bump.
+Tip `70f14b3` — WAVE-C4 on main (#412). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -35,17 +35,21 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **PLACES-OVERLAY** — Landed H-2026-09-12 #405 / `01bfdba1`. Comfort banner hide while Places open.
 - **PLACES-CLICK** — Landed H-2026-09-12 #406 / `b555386`. Places row opens four-room plate (z+2 · SettingsStub hidden). Places×4 weather re-QA GREEN after PLACES-CLICK (no PR; Online grey; real frames).
 - **PLACES-FAT / B6** — Landed H-2026-09-12 #407 / `b33c1a6`. Places deck + Confirm/Back ≥44dp.
+- **TODO6** — Landed H-2026-09-12 #408 / `625632f`. Places×4 / Wave-B stamp before Wave C.
+- **WAVE-C1** — Landed H-2026-09-12 #409 / `92102b5`. Shared WELL_GLOW_DECAY 0.55 on Peace wells / WeekFeelGlow (`climate_visible.rs` · `skirmish_well.rs`). No harvest_feel rewrite.
+- **WAVE-C2** — Landed H-2026-09-12 #410 / `5dacdd3`. Depths quieter bed BED_GAIN_DEPTHS=0.06; Mute kills; no ALSA/cpal (`client/src/peace_audio.rs` · `shared/peace_audio.rs`).
+- **WAVE-C3** — Landed H-2026-09-12 #411 / `f319a24`. Heartwood lamp hush BED_GAIN_HEARTWOOD=0.04; Mute; no ALSA (same peace_audio PATHS).
+- **WAVE-C4** — Landed H-2026-09-12 #412 / `70f14b3`. First Play boot quiet: welcome_glow_from_line / welcome_glow 0 unless hour_two_welcome_reward; no XP sparkle; particles.rs not wired into lib (`hour_two_resume.rs` · `first_harvest_epiphany.rs`). Wave C C1–C4 closed.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
-1. **Wave C feel-juice C1–C4** — only when Core/Canon names exact PATHS. C1 reuse `well_glow` first. Do not invent Wave C PATHS.
-2. **Hour-two / Steam** — Core/human. Minutes stay blank for the human.
-3. **MESH-PERSONA** — optional only with Core ASSET BUDGET.
+1. **Hour-two / Steam** — Core/human. Minutes stay blank for the human.
+2. **MESH-PERSONA** — optional only with Core ASSET BUDGET.
 
 Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
 ## Refuses this turn
 
-Online freestyle · Market · AH · gold · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API · invent Wave C PATHS.
+Online freestyle · Market · AH · gold · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API · invent Hands PATHS / reopen Wave C.
