@@ -1,10 +1,11 @@
 /*!
- * Climate Plane — v22.7.0 + Heartwood living-wood dress (H-2026-09-11-F2)
+ * Climate Plane — v22.7.0 + Threshold pipe/edge dress (H-2026-09-11-F3)
  *
- * PLACE_DRESS_SPEC: Heartwood one living-wood / ring material family + amber
- * lamp accent so Place reads before any slab. F1 Sanctuary warm-yard dress
- * stays intact (do not freestyle-reopen Sanctuary). Four Places stay four.
- * No mesh import · no second HUD · no fifth Place. Online grey. Tag 11c577e.
+ * PLACE_DRESS_SPEC: Threshold look/tend/door — one pipe/edge iron material
+ * family + tend-seam accent so Place reads before any slab. F1 Sanctuary
+ * warm-yard and F2 Heartwood living-wood stay intact (do not freestyle-reopen).
+ * Four Places stay four. No mesh · no instance-portal chrome · no fifth Place.
+ * Online grey. Tag 11c577e.
  * Z travel moves the place. Climate 3 = Abyssal Depths (night, close fog).
  * Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -38,6 +39,15 @@ const HEARTWOOD_AMBER_LAMP: Color = Color::srgb(0.90, 0.52, 0.14);
 /// Shared living-wood roughness for Heartwood ground + ring path stones
 /// (one material family — PLACE_DRESS_SPEC).
 const HEARTWOOD_WOOD_ROUGHNESS: f32 = 0.82;
+
+/// ART_BIBLE HANDS Threshold accent — iron + tend seam (not Sanctuary
+/// warm-gold, not Heartwood amber, not currency gold). Climate owns its
+/// copy so this file stays the only F3 edit path.
+const THRESHOLD_TEND_SEAM: Color = Color::srgb(0.68, 0.36, 0.22);
+
+/// Shared pipe/edge iron roughness for Threshold ground + edge path stones
+/// (one material family — PLACE_DRESS_SPEC).
+const THRESHOLD_PIPE_ROUGHNESS: f32 = 0.70;
 
 #[derive(Clone, Copy)]
 struct ClimateLook {
@@ -74,22 +84,27 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             ambient_bright: 260.0,
             roughness: HEARTWOOD_WOOD_ROUGHNESS,
         },
+        // Threshold (Crystal Spires / Voidfarer Horizon) — look / tend / door
+        // (PLACE_DRESS_SPEC). One material family: cool pipe/edge iron ground +
+        // edge path stones; well node is the single tend-seam accent (ART_BIBLE
+        // iron + tend seam). Not Sanctuary warm-yard, not Heartwood living-wood,
+        // not instance-portal chrome, not Market / fifth Place.
         Some(4) | Some(1) => ClimateLook {
             name: if realm == Some(1) {
                 "Crystal Spires"
             } else {
                 "Voidfarer Horizon"
             },
-            ground: Color::srgb(0.10, 0.09, 0.14),
-            sky: Color::srgb(0.14, 0.16, 0.28),
-            fog: Color::srgba(0.12, 0.14, 0.24, 1.0),
-            ambient: Color::srgb(0.40, 0.48, 0.70),
-            node: Color::srgb(0.95, 0.82, 0.38),
-            stone: Color::srgb(0.22, 0.20, 0.28),
+            ground: Color::srgb(0.12, 0.12, 0.15),
+            sky: Color::srgb(0.16, 0.18, 0.24),
+            fog: Color::srgba(0.12, 0.14, 0.20, 1.0),
+            ambient: Color::srgb(0.45, 0.48, 0.58),
+            node: THRESHOLD_TEND_SEAM,
+            stone: Color::srgb(0.20, 0.20, 0.25),
             fog_start: 12.0,
             fog_end: 40.0,
-            ambient_bright: 220.0,
-            roughness: 0.88,
+            ambient_bright: 200.0,
+            roughness: THRESHOLD_PIPE_ROUGHNESS,
         },
         Some(3) => ClimateLook {
             name: "Abyssal Depths",
@@ -400,7 +415,9 @@ fn climate_dress_copy_is_honest(s: &str) -> bool {
         || lower.contains("nft")
         || lower.contains("auction")
         || lower.contains("gold sink")
-        || lower.contains("currency"))
+        || lower.contains("currency")
+        || lower.contains("portal")
+        || lower.contains("instance"))
 }
 
 fn srgb3(c: Color) -> (f32, f32, f32) {
@@ -441,6 +458,35 @@ fn is_living_wood_earth(c: Color) -> bool {
 fn is_amber_lamp(c: Color) -> bool {
     let (r, g, b) = srgb3(c);
     r > g && g > b && r > 0.75 && (r - g) > 0.28 && (r - b) > 0.50
+}
+
+/// Pipe / edge iron: cool near-neutral steel (B ≥ G), not warm yard and not
+/// living-wood bark. Says leave-enter door, not Sanctuary carpet.
+fn is_pipe_edge_iron(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    let chroma = r.max(g).max(b) - r.min(g).min(b);
+    chroma <= 0.08
+        && b + 0.005 >= g
+        && r >= 0.08
+        && r <= 0.32
+        && !is_warm_yard_earth(c)
+        && !is_living_wood_earth(c)
+}
+
+/// Tend-seam accent: dry bronze / iron-tend (ART_BIBLE). Not Sanctuary
+/// warm-gold (g lower), not Heartwood amber (r lower / less orange flare).
+fn is_tend_seam(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    r > g
+        && g > b
+        && r > 0.55
+        && r < 0.82
+        && (r - g) > 0.18
+        && (r - g) < 0.45
+        && (r - b) > 0.30
+        && g < 0.50
+        && !is_amber_lamp(c)
+        && !is_warm_gold_well(c)
 }
 
 #[cfg(test)]
@@ -638,5 +684,114 @@ mod tests {
         assert!(!is_warm_gold_well(h.node));
         assert!(climate_dress_copy_is_honest(h.name));
         assert!(climate_dress_copy_is_honest(s.name));
+    }
+
+    #[test]
+    fn threshold_greybox_is_one_pipe_edge_family() {
+        let t = look_for(Some(1));
+        assert_eq!(t.name, "Crystal Spires");
+        assert!(
+            is_pipe_edge_iron(t.ground),
+            "Threshold ground must read pipe/edge iron, got {:?}",
+            srgb3(t.ground)
+        );
+        assert!(
+            is_pipe_edge_iron(t.stone),
+            "Threshold edge paths must share pipe/edge iron family, got {:?}",
+            srgb3(t.stone)
+        );
+        assert!(
+            is_tend_seam(t.node),
+            "Threshold well must be tend-seam accent, got {:?}",
+            srgb3(t.node)
+        );
+        assert_eq!(srgb3(t.node), srgb3(THRESHOLD_TEND_SEAM));
+        assert_eq!(t.roughness, THRESHOLD_PIPE_ROUGHNESS);
+        // Ground + stone stay one family: same cool iron bias; edge paths catch
+        // a touch more light so they read as door dressing, not a second biome.
+        let (gr, gg, gb) = srgb3(t.ground);
+        let (sr, sg, sb) = srgb3(t.stone);
+        let g_lum = (gr + gg + gb) / 3.0;
+        let s_lum = (sr + sg + sb) / 3.0;
+        assert!(
+            s_lum > g_lum,
+            "edge paths should sit slightly above ground luminance"
+        );
+        assert!(
+            (sr - gr).abs() < 0.14 && (sg - gg).abs() < 0.14 && (sb - gb).abs() < 0.14,
+            "stone drifted out of the pipe/edge iron family"
+        );
+        // Realm 4 shares the same Threshold dress (not a fifth Place).
+        let v = look_for(Some(4));
+        assert_eq!(v.name, "Voidfarer Horizon");
+        assert_eq!(srgb3(v.ground), srgb3(t.ground));
+        assert_eq!(srgb3(v.stone), srgb3(t.stone));
+        assert_eq!(srgb3(v.node), srgb3(t.node));
+        assert_eq!(v.roughness, t.roughness);
+        // Not Sanctuary warm-yard or Heartwood living-wood carpet pasted over.
+        let s = look_for(Some(0));
+        let h = look_for(Some(2));
+        assert!(!is_warm_yard_earth(t.ground));
+        assert!(!is_living_wood_earth(t.ground));
+        assert!(!is_warm_gold_well(t.node));
+        assert!(!is_amber_lamp(t.node));
+        assert_ne!(srgb3(t.ground), srgb3(s.ground));
+        assert_ne!(srgb3(t.ground), srgb3(h.ground));
+        assert_ne!(srgb3(t.node), srgb3(s.node));
+        assert_ne!(srgb3(t.node), srgb3(h.node));
+        assert_ne!(t.roughness, s.roughness);
+        assert_ne!(t.roughness, h.roughness);
+    }
+
+    #[test]
+    fn place_readable_from_threshold_dress_before_slab() {
+        // Nameable from presentation alone: pipe/edge iron + tend seam + name.
+        let t = look_for(Some(1));
+        assert_eq!(t.name, "Crystal Spires");
+        assert!(is_pipe_edge_iron(t.ground));
+        assert!(is_pipe_edge_iron(t.stone));
+        assert!(is_tend_seam(t.node));
+        assert!(t.fog_end > t.fog_start);
+        assert!(climate_dress_copy_is_honest(t.name));
+        let lower = t.name.to_ascii_lowercase();
+        assert!(!lower.contains("brood"));
+        assert!(!lower.contains("market"));
+        assert!(!lower.contains("online"));
+        assert!(!lower.contains("gold"));
+        assert!(!lower.contains("portal"));
+        assert!(!lower.contains("instance"));
+        assert!(!lower.contains("sanctuary"));
+        assert!(!lower.contains("heartwood"));
+        let v = look_for(Some(4));
+        assert!(climate_dress_copy_is_honest(v.name));
+        let vlower = v.name.to_ascii_lowercase();
+        assert!(!vlower.contains("portal"));
+        assert!(!vlower.contains("instance"));
+        assert!(!vlower.contains("market"));
+    }
+
+    #[test]
+    fn threshold_tend_seam_refuses_sanctuary_and_heartwood_accents() {
+        let t = look_for(Some(1));
+        let s = look_for(Some(0));
+        let h = look_for(Some(2));
+        assert_eq!(srgb3(t.node), srgb3(THRESHOLD_TEND_SEAM));
+        assert_eq!(srgb3(s.node), srgb3(SANCTUARY_WELL_GOLD));
+        assert_eq!(srgb3(h.node), srgb3(HEARTWOOD_AMBER_LAMP));
+        assert_ne!(srgb3(THRESHOLD_TEND_SEAM), srgb3(SANCTUARY_WELL_GOLD));
+        assert_ne!(srgb3(THRESHOLD_TEND_SEAM), srgb3(HEARTWOOD_AMBER_LAMP));
+        assert!(is_tend_seam(t.node));
+        assert!(is_warm_gold_well(s.node));
+        assert!(is_amber_lamp(h.node));
+        assert!(!is_tend_seam(s.node));
+        assert!(!is_tend_seam(h.node));
+        assert!(!is_warm_gold_well(t.node));
+        assert!(!is_amber_lamp(t.node));
+        assert!(climate_dress_copy_is_honest(t.name));
+        // F1 / F2 dress stays intact under F3.
+        assert!(is_warm_yard_earth(s.ground));
+        assert!(is_living_wood_earth(h.ground));
+        assert_eq!(s.roughness, SANCTUARY_YARD_ROUGHNESS);
+        assert_eq!(h.roughness, HEARTWOOD_WOOD_ROUGHNESS);
     }
 }
