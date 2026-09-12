@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Feature gate for later slices (T2+). Hour 1–3 unchanged while false.
-pub const TEMPER_LOOP_ENABLED: bool = false;
+pub const TEMPER_LOOP_ENABLED: bool = true;
 
 pub const TEMPER_MAX: u8 = 9;
 pub const MERCY_VALENCE_FLOOR: f64 = 0.999;
@@ -275,8 +275,8 @@ mod tests {
     }
 
     #[test]
-    fn temper_loop_flag_defaults_off() {
-        assert!(!TEMPER_LOOP_ENABLED);
+    fn temper_loop_flag_enabled() {
+        assert!(TEMPER_LOOP_ENABLED);
     }
 
     #[test]

@@ -380,18 +380,19 @@ mod tests {
     }
 
     #[test]
-    fn tend_hook_hidden_while_temper_loop_off() {
-        assert!(!TEMPER_LOOP_ENABLED);
-        assert!(!tend_hook_recipe_visible());
+    fn tend_hook_visible_while_temper_loop_on() {
+        assert!(TEMPER_LOOP_ENABLED);
+        assert!(tend_hook_recipe_visible());
         let mut f = Fabricator::default();
         assert_eq!(f.plant(), "planted");
         assert_eq!(f.craft(Recipe::MendSpool), "crafted");
         assert_eq!(f.spool_stock, 1);
-        assert_eq!(f.craft_tend_hook(7, "stranger"), Err("hidden"));
-        assert_eq!(f.craft(Recipe::TendHook), "hidden");
-        assert_eq!(f.spool_stock, 1, "hidden recipe must not spend spool");
-        assert!(f.last_tempered.is_none());
-        assert!(f.last_line.contains("Temper loop grey"), "got {}", f.last_line);
+        assert_eq!(f.craft(Recipe::TendHook), "crafted");
+        assert_eq!(f.spool_stock, 0, "visible recipe spends spool");
+        assert!(f.last_tempered.is_some());
+        assert_eq!(f.last_tempered.as_ref().map(|i| i.id), Some(1));
+        assert_eq!(f.last_tempered.as_ref().map(|i| i.tier), Some(ToolTier::TendHook));
+        assert!(f.last_line.contains("Tend Hook"), "got {}", f.last_line);
         assert!(manufacture_copy_is_honest(&f.last_line));
         assert!(temper_copy_is_honest(&f.last_line));
         // Proof Pack path still intact
