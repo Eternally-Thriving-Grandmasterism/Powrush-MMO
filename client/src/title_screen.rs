@@ -244,6 +244,10 @@ struct SettingsRumbleBtn;
 #[derive(Component)]
 struct SettingsRumbleLabel;
 #[derive(Component)]
+struct SettingsColorblindWellsBtn;
+#[derive(Component)]
+struct SettingsColorblindWellsLabel;
+#[derive(Component)]
 struct SettingsLanBtn;
 #[derive(Component)]
 struct SettingsLanLabel;
@@ -634,6 +638,12 @@ fn spawn_settings_stub(mut commands: Commands) {
                             "Rumble · on",
                             SettingsRumbleBtn,
                             SettingsRumbleLabel,
+                        );
+                        spawn_settings_row(
+                            left,
+                            "Colorblind wells · off",
+                            SettingsColorblindWellsBtn,
+                            SettingsColorblindWellsLabel,
                         );
                         // Loopback lab remains separate from disabled Title Online.
                         spawn_settings_row(left, "LAN · off", SettingsLanBtn, SettingsLanLabel);
@@ -1335,6 +1345,10 @@ pub fn rumble_btn_label(s: &LocalSettings) -> String {
     format!("Rumble · {}", on_off(s.rumble))
 }
 
+pub fn colorblind_wells_btn_label(s: &LocalSettings) -> String {
+    format!("Colorblind wells · {}", s.colorblind_wells_label())
+}
+
 pub fn lan_btn_label(s: &LocalSettings) -> String {
     format!("LAN · {}", s.lan_label())
 }
@@ -1693,6 +1707,14 @@ fn refresh_accessibility_settings_labels(
             Without<SettingsReducedMotionLabel>,
         ),
     >,
+    mut colorblind: Query<
+        &mut Text,
+        (
+            With<SettingsColorblindWellsLabel>,
+            Without<SettingsReducedMotionLabel>,
+            Without<SettingsRumbleLabel>,
+        ),
+    >,
 ) {
     if !label.settings_open {
         return;
@@ -1700,6 +1722,7 @@ fn refresh_accessibility_settings_labels(
     let s = &settings.inner;
     let reduced_motion_label = reduced_motion_btn_label(s);
     let rumble_label = rumble_btn_label(s);
+    let colorblind_label = colorblind_wells_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
     for mut text in &mut reduced_motion {
         set_btn_section_text(&mut text, &reduced_motion_label);
@@ -1707,6 +1730,10 @@ fn refresh_accessibility_settings_labels(
     }
     for mut text in &mut rumble {
         set_btn_section_text(&mut text, &rumble_label);
+        set_btn_section_font(&mut text, font);
+    }
+    for mut text in &mut colorblind {
+        set_btn_section_text(&mut text, &colorblind_label);
         set_btn_section_font(&mut text, font);
     }
 }
@@ -1826,6 +1853,15 @@ fn accessibility_settings_clicks(
             Without<SettingsReducedMotionBtn>,
         ),
     >,
+    colorblind: Query<
+        &Interaction,
+        (
+            Changed<Interaction>,
+            With<SettingsColorblindWellsBtn>,
+            Without<SettingsReducedMotionBtn>,
+            Without<SettingsRumbleBtn>,
+        ),
+    >,
 ) {
     if !label.settings_open {
         return;
@@ -1840,6 +1876,12 @@ fn accessibility_settings_clicks(
     for i in &rumble {
         if *i == Interaction::Pressed {
             settings.inner.toggle_rumble();
+            changed = true;
+        }
+    }
+    for i in &colorblind {
+        if *i == Interaction::Pressed {
+            settings.inner.cycle_colorblind_wells();
             changed = true;
         }
     }
@@ -2601,6 +2643,7 @@ mod tests {
         assert_eq!(s.grove, "off");
         assert_eq!(reduced_motion_btn_label(&s), "Reduced motion · off");
         assert_eq!(rumble_btn_label(&s), "Rumble · on");
+        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · off");
         assert_eq!(lan_btn_label(&s), "LAN · off");
         assert_eq!(s.lan, "off");
         assert_eq!(SETTINGS_PATH, "data/powrush_settings.json");
@@ -2715,6 +2758,7 @@ mod tests {
         s.grove = "light".into();
         s.reduced_motion = true;
         s.rumble = false;
+        s.colorblind_wells = "shape_only".into();
         s.lan = "loopback".into();
         let raw = s.to_json().unwrap();
         let back = LocalSettings::from_json(&raw).unwrap();
@@ -2727,6 +2771,7 @@ mod tests {
         assert_eq!(grove_btn_label(&back), "Grove · light");
         assert_eq!(reduced_motion_btn_label(&back), "Reduced motion · on");
         assert_eq!(rumble_btn_label(&back), "Rumble · off");
+        assert_eq!(colorblind_wells_btn_label(&back), "Colorblind wells · shape_only");
         assert_eq!(lan_btn_label(&back), "LAN · loopback");
     }
 
@@ -2738,6 +2783,28 @@ mod tests {
         assert_eq!(grove_btn_label(&s), "Grove · light");
         s.cycle_grove();
         assert_eq!(grove_btn_label(&s), "Grove · off");
+    }
+
+    #[test]
+    fn b3_colorblind_wells_cycles_beside_grove_online_grey() {
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · off");
+        assert!(!s.colorblind_wells_shapes());
+        s.cycle_colorblind_wells();
+        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · deuteranopia");
+        assert!(s.colorblind_wells_shapes());
+        s.cycle_colorblind_wells();
+        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · protanopia");
+        s.cycle_colorblind_wells();
+        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · tritanopia");
+        s.cycle_colorblind_wells();
+        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · shape_only");
+        s.cycle_colorblind_wells();
+        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · off");
+        // Grove independent; Online stub still hard-refuses.
+        assert!(!s.grove_is_light());
+        assert!(refuse_online_socket_toggle(true));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 
     #[test]
