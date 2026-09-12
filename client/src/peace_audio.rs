@@ -4,6 +4,7 @@
 //! - seeds mute from the existing Settings / pause Mute row
 //! - loops the quiet bed while `LaunchDoor::InYard`
 //! - Depths (HexTravelState → PlaceId::Depths) reuses the same bed quieter
+//! - Heartwood (HexTravelState → PlaceId::Heartwood) reuses the same bed as lamp hush
 //! - plays a soft one-shot on the first successful E (A1)
 //! - plays the well sting on later SoftRbePool harvests / tends (existing Use)
 //! - never spawns output when muted or when `audio_output_safe` is false
@@ -74,11 +75,10 @@ fn sync_voice_from_settings(
     let muted = settings.inner.mute || mute.muted || mute.gain <= 0.0;
     state.voice.set_mute(muted);
     state.voice.set_in_yard(*door == LaunchDoor::InYard);
-    // Esc→Places→Depths: quieter bed gain on the same asset. Mute still zeros.
-    let in_depths = travel
-        .as_ref()
-        .is_some_and(|t| t.current == PlaceId::Depths);
-    state.voice.set_in_depths(in_depths);
+    // Esc→Places→Depths / Heartwood: hush-family gain on the same asset. Mute still zeros.
+    let current = travel.as_ref().map(|t| t.current);
+    state.voice.set_in_depths(current == Some(PlaceId::Depths));
+    state.voice.set_in_heartwood(current == Some(PlaceId::Heartwood));
 }
 
 fn sync_peace_bed(
@@ -176,8 +176,9 @@ mod tests {
     use shared::local_settings::{local_settings_opens_socket, LocalSettings};
     use shared::hex_travel::PlaceId;
     use shared::peace_audio::{
-        bed_gain, bed_gain_at, peace_audio_opens_socket, should_emit_bed, should_emit_sting,
-        sting_gain, title_online_stays_grey, BED_ASSET, BED_GAIN_DEPTHS, BED_GAIN_OPEN,
+        bed_gain, bed_gain_at, bed_gain_place, peace_audio_opens_socket, should_emit_bed,
+        should_emit_sting, sting_gain, title_online_stays_grey, BED_ASSET, BED_GAIN_DEPTHS,
+        BED_GAIN_HEARTWOOD, BED_GAIN_OPEN,
     };
     use shared::shard_standing::ShardStanding;
     use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
@@ -283,6 +284,51 @@ mod tests {
         assert!(!should_emit_bed(true, true, true));
         voice.set_mute(false);
         assert!((voice.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert!(!voice.opens_socket());
+    }
+
+    #[test]
+    fn heartwood_bed_gain_is_quieter_and_reuses_yard_asset() {
+        assert!(BED_GAIN_HEARTWOOD < BED_GAIN_OPEN);
+        assert_eq!(BED_ASSET, "audio/peace_yard_bed.ogg");
+        let mut voice = PeaceVoice::new(false, true);
+        voice.set_in_yard(true);
+        voice.set_in_heartwood(false);
+        let yard = voice.bed_gain();
+        voice.set_in_heartwood(true);
+        let heartwood = voice.bed_gain();
+        assert!((yard - BED_GAIN_OPEN).abs() < f32::EPSILON);
+        assert!((heartwood - BED_GAIN_HEARTWOOD).abs() < f32::EPSILON);
+        assert!(heartwood < yard);
+        assert!((bed_gain_place(false, false, true) - BED_GAIN_HEARTWOOD).abs() < f32::EPSILON);
+        // Depths path still works.
+        voice.set_in_heartwood(false);
+        voice.set_in_depths(true);
+        assert!((voice.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert!((bed_gain_at(false, true) - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        // PlaceId::Heartwood is the Esc→Places→Heartwood landing.
+        assert_eq!(PlaceId::Heartwood.display_name(), "Heartwood");
+        assert!(!peace_audio_opens_socket(&voice));
+        let _ = audio_output_safe(); // filesystem probe only — no cpal
+    }
+
+    #[test]
+    fn mute_kills_heartwood_bed() {
+        let mut settings = LocalSettings::peace_defaults();
+        settings.mute = true;
+        let mut voice = PeaceVoice::from_settings(&settings, true);
+        voice.set_in_yard(true);
+        voice.set_in_heartwood(true);
+        let mut g = MasterMuteGain::default();
+        g.muted = settings.mute;
+        g.gain = settings.master_gain();
+        assert!(g.muted && g.gain == 0.0);
+        assert!((voice.bed_gain() - 0.0).abs() < f32::EPSILON);
+        assert!((bed_gain_place(true, false, true) - 0.0).abs() < f32::EPSILON);
+        assert!((bed_gain(true) - 0.0).abs() < f32::EPSILON);
+        assert!(!should_emit_bed(true, true, true));
+        voice.set_mute(false);
+        assert!((voice.bed_gain() - BED_GAIN_HEARTWOOD).abs() < f32::EPSILON);
         assert!(!voice.opens_socket());
     }
 }

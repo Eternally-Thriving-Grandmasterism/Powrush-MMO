@@ -1,16 +1,18 @@
 //! U4 — Peace yard audio bed + well sting
 //!
-//! Quiet bed while the Peace yard is live. Depths (PlaceId::Depths) reuses
-//! the same bed asset at a quieter gain. Well sting on the existing well
+//! Quiet bed while the Peace yard is live. Depths (PlaceId::Depths) and
+//! Heartwood (PlaceId::Heartwood) reuse the same bed asset at quieter
+//! hush gains (wet-stone / lamp). Well sting on the existing well
 //! Use (E take / hold-E tend — SoftRbePool harvests / tends). A1: soft
 //! one-shot on the first successful E only. Mute is the existing
 //! pause/Settings flag (`LocalSettings.mute` / MasterMute). No second mute,
 //! no F-row, no new settings plate.
 //!
-//! Mute silences bed and sting (including Depths). Unmute does not open a
-//! socket. No ALSA card: boot must not hang (lavapipe) — probe is filesystem
-//! only, never cpal/rodio. Title Online stays grey. Isolation gamma stays 0.
-//! Do not couple tons, seeds, or declared_lethal across hexes.
+//! Mute silences bed and sting (including Depths and Heartwood). Unmute
+//! does not open a socket. No ALSA card: boot must not hang (lavapipe) —
+//! probe is filesystem only, never cpal/rodio. Title Online stays grey.
+//! Isolation gamma stays 0. Do not couple tons, seeds, or declared_lethal
+//! across hexes.
 //!
 //! Contact: info@Rathor.ai. Independent of xAI. No certification / warranty.
 //! Ra-Thor does not drive WASD.
@@ -31,6 +33,8 @@ pub const STING_ASSET: &str = "audio/peace_well_sting.ogg";
 pub const BED_GAIN_OPEN: f32 = 0.12;
 /// Depths bed — same asset, quieter than the yard bed (wet-stone hush).
 pub const BED_GAIN_DEPTHS: f32 = 0.06;
+/// Heartwood bed — same asset, lamp hush; quieter than the yard, same family as Depths.
+pub const BED_GAIN_HEARTWOOD: f32 = 0.04;
 /// Soft well sting — confirmation, not a fanfare.
 pub const STING_GAIN_OPEN: f32 = 0.28;
 /// Softer than the repeat sting — first successful E only (A1).
@@ -47,6 +51,8 @@ pub struct PeaceVoice {
     pub in_yard: bool,
     /// True while current place is PlaceId::Depths (Esc→Places→Depths).
     pub in_depths: bool,
+    /// True while current place is PlaceId::Heartwood (Esc→Places→Heartwood).
+    pub in_heartwood: bool,
     harvests_seen: u32,
     tends_seen: u32,
     sting_armed: bool,
@@ -69,6 +75,7 @@ impl PeaceVoice {
             device_ok,
             in_yard: false,
             in_depths: false,
+            in_heartwood: false,
             harvests_seen: 0,
             tends_seen: 0,
             sting_armed: false,
@@ -95,15 +102,26 @@ impl PeaceVoice {
         self.in_depths = in_depths;
     }
 
+    pub fn set_in_heartwood(&mut self, in_heartwood: bool) {
+        self.in_heartwood = in_heartwood;
+    }
+
     pub fn bed_gain(&self) -> f32 {
         if self.should_play_bed() {
-            if self.in_depths {
-                BED_GAIN_DEPTHS
-            } else {
-                BED_GAIN_OPEN
-            }
+            self.open_bed_gain()
         } else {
             0.0
+        }
+    }
+
+    /// Hush family: Heartwood lamp, then Depths wet-stone, else yard open.
+    fn open_bed_gain(&self) -> f32 {
+        if self.in_heartwood {
+            BED_GAIN_HEARTWOOD
+        } else if self.in_depths {
+            BED_GAIN_DEPTHS
+        } else {
+            BED_GAIN_OPEN
         }
     }
 
@@ -183,7 +201,14 @@ pub fn bed_gain(mute: bool) -> f32 {
 
 /// Yard vs Depths open gain after mute. Depths reuses the yard bed asset quieter.
 pub fn bed_gain_at(mute: bool, in_depths: bool) -> f32 {
-    let open = if in_depths {
+    bed_gain_place(mute, in_depths, false)
+}
+
+/// Yard / Depths / Heartwood open gain after mute. Same bed asset; hush family.
+pub fn bed_gain_place(mute: bool, in_depths: bool, in_heartwood: bool) -> f32 {
+    let open = if in_heartwood {
+        BED_GAIN_HEARTWOOD
+    } else if in_depths {
         BED_GAIN_DEPTHS
     } else {
         BED_GAIN_OPEN
@@ -460,6 +485,51 @@ mod tests {
         voice.set_mute(false);
         assert!(voice.should_play_bed());
         assert!((voice.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert!(!voice.opens_socket());
+        assert!(!peace_audio_opens_socket(&voice));
+        // Probe stays filesystem-only (no cpal hang in tests).
+        let _ = audio_output_safe();
+    }
+
+    #[test]
+    fn heartwood_bed_is_quieter_than_yard() {
+        assert!(BED_GAIN_HEARTWOOD < BED_GAIN_OPEN);
+        assert!(BED_GAIN_HEARTWOOD > 0.0);
+        // Same hush family as Depths (both quieter than the yard open bed).
+        assert!(BED_GAIN_DEPTHS < BED_GAIN_OPEN);
+        let mut yard = PeaceVoice::new(false, true);
+        yard.set_in_yard(true);
+        yard.set_in_heartwood(false);
+        let mut heartwood = PeaceVoice::new(false, true);
+        heartwood.set_in_yard(true);
+        heartwood.set_in_heartwood(true);
+        assert!((yard.bed_gain() - BED_GAIN_OPEN).abs() < f32::EPSILON);
+        assert!((heartwood.bed_gain() - BED_GAIN_HEARTWOOD).abs() < f32::EPSILON);
+        assert!(heartwood.bed_gain() < yard.bed_gain());
+        assert!((bed_gain_place(false, false, true) - BED_GAIN_HEARTWOOD).abs() < f32::EPSILON);
+        assert!((bed_gain_place(false, false, false) - BED_GAIN_OPEN).abs() < f32::EPSILON);
+        // Depths path still works beside Heartwood.
+        assert!((bed_gain_at(false, true) - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert!((bed_gain_place(false, true, false) - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        // Same asset path — Heartwood only changes gain.
+        assert_eq!(BED_ASSET, "audio/peace_yard_bed.ogg");
+        assert_eq!(PlaceId::Heartwood.as_str(), "heartwood");
+        assert_eq!(PlaceId::Heartwood.display_name(), "Heartwood");
+    }
+
+    #[test]
+    fn mute_kills_heartwood_bed() {
+        let mut voice = PeaceVoice::new(true, true);
+        voice.set_in_yard(true);
+        voice.set_in_heartwood(true);
+        assert!(!voice.should_play_bed());
+        assert!((voice.bed_gain() - 0.0).abs() < f32::EPSILON);
+        assert!((bed_gain_place(true, false, true) - 0.0).abs() < f32::EPSILON);
+        assert!(!should_emit_bed(true, true, true));
+        // Unmute restores Heartwood lamp hush, still no socket / no ALSA open.
+        voice.set_mute(false);
+        assert!(voice.should_play_bed());
+        assert!((voice.bed_gain() - BED_GAIN_HEARTWOOD).abs() < f32::EPSILON);
         assert!(!voice.opens_socket());
         assert!(!peace_audio_opens_socket(&voice));
         // Probe stays filesystem-only (no cpal hang in tests).
