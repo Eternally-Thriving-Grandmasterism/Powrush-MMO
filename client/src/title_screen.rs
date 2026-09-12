@@ -18,7 +18,10 @@
 //! D3: after Settled / skip-named — three skippable Peace-tone seals (Well · Grove ·
 //! Ember) + optional heritage caption (none|human|cydruid|quellorian|draek|ambrosian);
 //! rename allowed; persist seals+heritage on powrush_house.json; refuse +take/+STR.
-//! No race select at Title. No new Peace keys. No Online socket. No preview tag.
+//! MERCY_PERSONA P2: gated persona creator UI on Title behind `PERSONA_CREATOR_ENABLED`
+//! (shared/persona.rs). Flag off → Hour 1 nameless Steward unchanged; no LLM; Online grey.
+//! MechanicalRace shown as lattice module only — never Title race-lobby as power.
+//! No race select at Title lobby. No new Peace keys. No Online socket. No preview tag.
 //! Fog/birds visual comfort PARKED (Title contrast law).
 //! Pause→Title + Settled write data/powrush_house.json even if name skipped.
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
@@ -34,6 +37,10 @@ use shared::house_name::{
     SEAL_EMBER, SEAL_GROVE, SEAL_WELL, UNNAMED,
 };
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+use shared::persona::{
+    persona_copy_is_honest, CustomPeople, MechanicalRace, PeopleChoice, PeoplePreset, Persona,
+    Phenotype, StoryShare, GIVEN_NAME_MAX, PERSONA_CREATOR_ENABLED, STORY_TEXT_MAX,
+};
 
 use crate::embassy::EmbassyYard;
 use crate::hex_travel::{
@@ -308,6 +315,46 @@ struct DressConfirmBtn;
 #[derive(Component)]
 struct DressSkipBtn;
 
+// --- MERCY_PERSONA P2: gated title creator (PERSONA_CREATOR_ENABLED) ----------
+#[derive(Component)]
+struct TitlePersonaBtn;
+#[derive(Component)]
+struct PersonaCreatorRoot;
+#[derive(Component)]
+struct PersonaCreatorBodyText;
+#[derive(Component)]
+struct PersonaCreatorStepLabel;
+#[derive(Component)]
+struct PersonaCreatorGuidance;
+#[derive(Component)]
+struct PersonaModuleBtn;
+#[derive(Component)]
+struct PersonaModuleLabel;
+#[derive(Component)]
+struct PersonaPeopleBtn;
+#[derive(Component)]
+struct PersonaPeopleLabel;
+#[derive(Component)]
+struct PersonaPhenotypeBtn;
+#[derive(Component)]
+struct PersonaPhenotypeLabel;
+#[derive(Component)]
+struct PersonaStoryShareBtn;
+#[derive(Component)]
+struct PersonaStoryShareLabel;
+#[derive(Component)]
+struct PersonaStoryAiStubBtn;
+#[derive(Component)]
+struct PersonaNextBtn;
+#[derive(Component)]
+struct PersonaBackBtn;
+#[derive(Component)]
+struct PersonaKeepDraftBtn;
+#[derive(Component)]
+struct PersonaSkipNamelessBtn;
+#[derive(Component)]
+struct PersonaHideGuidanceBtn;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PeaceAction {
     MoveUp,
@@ -342,6 +389,328 @@ struct PeaceRebindState {
     suppress_shortcuts: bool,
 }
 
+
+/// P2 creator wizard step. Commit to authoritative sim is P4 — Keep draft is local only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PersonaCreatorStep {
+    MechanicalModule,
+    People,
+    Phenotype,
+    Story,
+    Preview,
+}
+
+impl PersonaCreatorStep {
+    pub fn as_label(self) -> &'static str {
+        match self {
+            Self::MechanicalModule => "1 · Lattice module (not people / not matchmaking)",
+            Self::People => "2 · People / ethnicity (presentation)",
+            Self::Phenotype => "3 · Phenotype (appearance sliders)",
+            Self::Story => "4 · Story (player text · AI records only)",
+            Self::Preview => "5 · Preview (local draft · no sim Commit)",
+        }
+    }
+
+    pub fn next(self) -> Self {
+        match self {
+            Self::MechanicalModule => Self::People,
+            Self::People => Self::Phenotype,
+            Self::Phenotype => Self::Story,
+            Self::Story => Self::Preview,
+            Self::Preview => Self::Preview,
+        }
+    }
+
+    pub fn back(self) -> Self {
+        match self {
+            Self::MechanicalModule => Self::MechanicalModule,
+            Self::People => Self::MechanicalModule,
+            Self::Phenotype => Self::People,
+            Self::Story => Self::Phenotype,
+            Self::Preview => Self::Story,
+        }
+    }
+}
+
+/// Optional starter people tags (non-exhaustive). Custom always available.
+pub const PERSONA_PEOPLE_PRESETS: &[&str] = &[
+    "West African",
+    "East African",
+    "Southern African",
+    "North African / Amazigh / Egyptian",
+    "Levantine / Arab",
+    "Persian / Kurdish / Armenian",
+    "South Asian",
+    "Southeast Asian",
+    "East Asian",
+    "Central Asian",
+    "Pacific",
+    "Indigenous Americas",
+    "European regional",
+    "African American / Afro-Caribbean / Afro-Latino",
+    "Latino / Mestizo / Indigenous-Latino",
+    "Jewish",
+    "Mixed / multi",
+];
+
+/// Title persona creator draft plate. Open only when `PERSONA_CREATOR_ENABLED`.
+#[derive(Resource, Debug, Clone)]
+pub struct PersonaCreatorState {
+    pub open: bool,
+    pub step: PersonaCreatorStep,
+    pub draft: Persona,
+    pub guidance_hidden: bool,
+    pub people_mode: u8, // 0 preset, 1 custom, 2 mixed, 3 unset
+    pub people_preset_ix: usize,
+    pub name_draft: String,
+    pub story_draft: String,
+    pub kept_local: bool,
+}
+
+impl Default for PersonaCreatorState {
+    fn default() -> Self {
+        Self {
+            open: false,
+            step: PersonaCreatorStep::MechanicalModule,
+            draft: Persona::nameless_steward(),
+            guidance_hidden: false,
+            people_mode: 3,
+            people_preset_ix: 0,
+            name_draft: String::new(),
+            story_draft: String::new(),
+            kept_local: false,
+        }
+    }
+}
+
+/// Gate: creator may open only when shared flag is on.
+pub fn persona_creator_may_open(flag: bool) -> bool {
+    flag
+}
+
+/// Honest title button label. Grey/disabled when gated off — never a race lobby SKU.
+pub fn persona_title_btn_label(flag: bool) -> &'static str {
+    if flag {
+        "Persona · optional"
+    } else {
+        "Persona · gated (Hour 1 nameless)"
+    }
+}
+
+/// Story AI stub copy — records only; P2 never calls an LLM.
+pub const PERSONA_STORY_AI_STUB: &str = "Story AI · records only · no LLM this slice";
+
+/// Guidance lines for the open step (H hides).
+pub fn persona_step_guidance(step: PersonaCreatorStep) -> &'static str {
+    match step {
+        PersonaCreatorStep::MechanicalModule => {
+            "Lattice module = how the sim works. Not ethnicity. Not Title matchmaking power."
+        }
+        PersonaCreatorStep::People => {
+            "People / ethnicity is presentation paint. Custom allowed. No faction buff."
+        }
+        PersonaCreatorStep::Phenotype => {
+            "Sliders are appearance only — never gather, Temper, or Hybrid cheats."
+        }
+        PersonaCreatorStep::Story => {
+            "Write your own tale. AI fields stay records-only until a later P3/P5 card."
+        }
+        PersonaCreatorStep::Preview => {
+            "Keep draft stores locally with soft caps. Sim PersonaCommit is P4. Skip = nameless Steward."
+        }
+    }
+}
+
+pub fn cycle_mechanical_module(race: MechanicalRace) -> MechanicalRace {
+    match race {
+        MechanicalRace::Human => MechanicalRace::Quellorian,
+        MechanicalRace::Quellorian => MechanicalRace::Draek,
+        MechanicalRace::Draek => MechanicalRace::Cydruid,
+        MechanicalRace::Cydruid => MechanicalRace::Ambrosian,
+        MechanicalRace::Ambrosian => MechanicalRace::Human,
+    }
+}
+
+pub fn mechanical_module_btn_label(race: MechanicalRace) -> String {
+    format!(
+        "Lattice module · {} · not people · not matchmaking",
+        race.as_str()
+    )
+}
+
+pub fn cycle_story_share(share: StoryShare) -> StoryShare {
+    match share {
+        StoryShare::Private => StoryShare::Spoken,
+        StoryShare::Spoken => StoryShare::Book,
+        StoryShare::Book => StoryShare::Private,
+    }
+}
+
+pub fn story_share_btn_label(share: StoryShare) -> String {
+    let s = match share {
+        StoryShare::Private => "Private",
+        StoryShare::Spoken => "Spoken",
+        StoryShare::Book => "Book",
+    };
+    format!("Story share · {s}")
+}
+
+/// Advance people paint without granting mechanical privilege.
+/// Cycles every preset, then custom, mixed, unset — never a race-lobby power.
+pub fn bump_people_paint(state: &mut PersonaCreatorState) {
+    let n = PERSONA_PEOPLE_PRESETS.len();
+    state.people_preset_ix = (state.people_preset_ix + 1) % (n + 3);
+    let ix = state.people_preset_ix;
+    if ix < n {
+        state.people_mode = 0;
+        state.draft.presentation.people = PeopleChoice::Preset(PeoplePreset {
+            tag: PERSONA_PEOPLE_PRESETS[ix].to_string(),
+        });
+    } else if ix == n {
+        state.people_mode = 1;
+        let name = if state.name_draft.is_empty() {
+            "Custom people".to_string()
+        } else {
+            state.name_draft.clone()
+        };
+        state.draft.presentation.people = PeopleChoice::Custom(CustomPeople {
+            name,
+            homelands: String::new(),
+            languages: vec![],
+            customs_note: String::new(),
+            phenotype_seed: Phenotype::default(),
+            invented: true,
+        });
+    } else if ix == n + 1 {
+        state.people_mode = 2;
+        state.draft.presentation.people = PeopleChoice::Mixed {
+            parts: vec!["multi".into()],
+        };
+    } else {
+        state.people_mode = 3;
+        state.draft.presentation.people = PeopleChoice::Unset;
+    }
+}
+
+pub fn people_choice_btn_label(state: &PersonaCreatorState) -> String {
+    match &state.draft.presentation.people {
+        PeopleChoice::Preset(p) => format!("People · preset · {}", p.tag),
+        PeopleChoice::Custom(c) => format!(
+            "People · custom · {}{}",
+            c.name,
+            if c.invented { " · invented" } else { "" }
+        ),
+        PeopleChoice::Mixed { parts } => format!("People · mixed · {}", parts.join("+")),
+        PeopleChoice::Unset => "People · unset (nameless ok)".into(),
+    }
+}
+
+/// Nudge a few phenotype knobs; clamps via soft caps later. No stats.
+pub fn nudge_phenotype_paint(ph: &mut Phenotype) {
+    ph.skin_melanin = (ph.skin_melanin + 0.1) % 1.0001;
+    if ph.skin_melanin > 1.0 {
+        ph.skin_melanin = 0.0;
+    }
+    ph.hair_curl = (ph.hair_curl + 0.15) % 1.0001;
+    if ph.hair_curl > 1.0 {
+        ph.hair_curl = 0.0;
+    }
+    ph.freckles = !ph.freckles;
+    ph.clamp_unit_interval();
+}
+
+pub fn phenotype_btn_label(ph: &Phenotype) -> String {
+    format!(
+        "Phenotype · melanin {:.2} · curl {:.2} · freckles {}",
+        ph.skin_melanin,
+        ph.hair_curl,
+        if ph.freckles { "on" } else { "off" }
+    )
+}
+
+pub fn persona_preview_summary(p: &Persona) -> String {
+    let people = match &p.presentation.people {
+        PeopleChoice::Preset(x) => format!("preset:{}", x.tag),
+        PeopleChoice::Custom(c) => format!("custom:{}", c.name),
+        PeopleChoice::Mixed { parts } => format!("mixed:{}", parts.join("+")),
+        PeopleChoice::Unset => "unset".into(),
+    };
+    format!(
+        "Preview · module {} · name '{}' · people {} · story {} chars · AI assist {} · share {:?}",
+        p.mechanical_race.as_str(),
+        if p.presentation.given_name.is_empty() {
+            "(nameless)"
+        } else {
+            p.presentation.given_name.as_str()
+        },
+        people,
+        p.presentation.story.player_text.chars().count(),
+        p.presentation.story.ai_assist_used,
+        p.presentation.story.shared_in_world,
+    )
+}
+
+/// Apply soft caps and keep local draft. Does **not** PersonaCommit (P4).
+pub fn keep_persona_local_draft(state: &mut PersonaCreatorState) {
+    if !state.name_draft.is_empty() {
+        state.draft.presentation.given_name = state.name_draft.clone();
+    }
+    if !state.story_draft.is_empty() {
+        state.draft.presentation.story.player_text = state.story_draft.clone();
+        state.draft.presentation.story.player_accepted = true;
+    }
+    // P2: never mark AI assist used — no LLM calls.
+    state.draft.presentation.story.ai_assist_used = false;
+    state.draft.presentation.story.model_id = None;
+    state.draft.apply_soft_caps();
+    state.kept_local = true;
+    state.open = false;
+}
+
+/// Skip → Hour 1 nameless Steward path.
+pub fn skip_persona_to_nameless(state: &mut PersonaCreatorState) {
+    *state = PersonaCreatorState::default();
+    state.draft = Persona::nameless_steward();
+    state.open = false;
+    state.kept_local = false;
+}
+
+/// Try open from Title. Returns whether the plate opened.
+pub fn try_open_persona_creator(state: &mut PersonaCreatorState, flag: bool) -> bool {
+    if !persona_creator_may_open(flag) {
+        state.open = false;
+        return false;
+    }
+    state.open = true;
+    state.step = PersonaCreatorStep::MechanicalModule;
+    if state.draft.presentation.given_name.is_empty()
+        && matches!(state.draft.presentation.people, PeopleChoice::Unset)
+    {
+        state.draft = Persona::nameless_steward();
+    }
+    true
+}
+
+/// All P2 title creator strings must pass the honesty gate.
+pub fn persona_creator_ui_copy_is_honest() -> bool {
+    let samples = [
+        persona_title_btn_label(true),
+        persona_title_btn_label(false),
+        PERSONA_STORY_AI_STUB,
+        PersonaCreatorStep::MechanicalModule.as_label(),
+        PersonaCreatorStep::People.as_label(),
+        PersonaCreatorStep::Phenotype.as_label(),
+        PersonaCreatorStep::Story.as_label(),
+        PersonaCreatorStep::Preview.as_label(),
+        persona_step_guidance(PersonaCreatorStep::MechanicalModule),
+        persona_step_guidance(PersonaCreatorStep::People),
+        "Skip · nameless Steward",
+        "Keep draft · local only",
+        "Lattice module · Human · not people · not matchmaking",
+    ];
+    samples.iter().all(|s| persona_copy_is_honest(s))
+}
+
 pub struct TitleScreenPlugin;
 
 impl Plugin for TitleScreenPlugin {
@@ -350,12 +719,14 @@ impl Plugin for TitleScreenPlugin {
             .init_resource::<HouseLabel>()
             .init_resource::<LocalSettingsState>()
             .init_resource::<PeaceRebindState>()
+            .init_resource::<PersonaCreatorState>()
             .add_systems(
                 Startup,
                 (
                     spawn_title_screen,
                     spawn_name_house_panel,
                     spawn_house_dress_panel,
+                    spawn_persona_creator_panel,
                     spawn_settings_stub,
                 ),
             )
@@ -382,6 +753,15 @@ impl Plugin for TitleScreenPlugin {
                     refresh_lethal_sign_label,
                     local_settings_clicks,
                     lethal_sign_settings_clicks,
+                ),
+            )
+            .add_systems(
+                Update,
+                (
+                    persona_creator_text_input.before(name_house_text_input),
+                    persona_creator_buttons,
+                    refresh_persona_creator_labels,
+                    sync_persona_creator_visibility,
                 ),
             )
             .add_systems(
@@ -486,6 +866,12 @@ fn spawn_title_screen(mut commands: Commands) {
                 spawn_menu_btn(p, "Play — first Hands", TitlePlayBtn, true);
                 spawn_menu_btn(p, "Continue", TitleContinueBtn, true);
                 spawn_menu_btn(p, "Settings", TitleSettingsBtn, true);
+                spawn_menu_btn(
+                    p,
+                    persona_title_btn_label(PERSONA_CREATOR_ENABLED),
+                    TitlePersonaBtn,
+                    PERSONA_CREATOR_ENABLED,
+                );
                 spawn_menu_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false);
                 p.spawn(TextBundle::from_section(
                     "1 Play · 2 Continue · 3 Settings · Esc from yard opens pause",
@@ -893,6 +1279,163 @@ fn spawn_dress_seal_row<B: Component, L: Component>(
     });
 }
 
+fn spawn_persona_cycle_btn<B: Component, L: Component>(
+    p: &mut ChildBuilder,
+    initial: &str,
+    btn: B,
+    text_marker: L,
+) {
+    p.spawn((
+        ButtonBundle {
+            style: Style {
+                padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(1.0)),
+                width: Val::Percent(100.0),
+                ..default()
+            },
+            background_color: TITLE_BTN_BG.into(),
+            border_color: TITLE_BORDER.into(),
+            ..default()
+        },
+        btn,
+    ))
+    .with_children(|b| {
+        b.spawn((
+            TextBundle::from_section(
+                initial.to_string(),
+                TextStyle {
+                    font_size: 14.0,
+                    color: TITLE_BTN_FG,
+                    ..default()
+                },
+            ),
+            text_marker,
+        ));
+    });
+}
+
+fn spawn_persona_creator_panel(mut commands: Commands) {
+    commands
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                background_color: TITLE_DIM_BG.into(),
+                visibility: Visibility::Hidden,
+                z_index: ZIndex::Global(142),
+                focus_policy: FocusPolicy::Block,
+                ..default()
+            },
+            PersonaCreatorRoot,
+            LivedUiPlate,
+        ))
+        .with_children(|root| {
+            root.spawn(NodeBundle {
+                style: Style {
+                    width: Val::Px(440.0),
+                    max_height: Val::Percent(92.0),
+                    padding: UiRect::all(Val::Px(18.0)),
+                    flex_direction: FlexDirection::Column,
+                    row_gap: Val::Px(8.0),
+                    border: UiRect::all(Val::Px(1.5)),
+                    ..default()
+                },
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
+                ..default()
+            })
+            .with_children(|p| {
+                p.spawn(TextBundle::from_section(
+                    "Persona creator · optional",
+                    TextStyle {
+                        font_size: 18.0,
+                        color: TITLE_TEXT_PRIMARY,
+                        ..default()
+                    },
+                ));
+                p.spawn((
+                    TextBundle::from_section(
+                        PersonaCreatorStep::MechanicalModule.as_label(),
+                        TextStyle {
+                            font_size: 13.0,
+                            color: TITLE_TEXT_SECONDARY,
+                            ..default()
+                        },
+                    ),
+                    PersonaCreatorStepLabel,
+                ));
+                p.spawn((
+                    TextBundle::from_section(
+                        persona_step_guidance(PersonaCreatorStep::MechanicalModule),
+                        TextStyle {
+                            font_size: 12.0,
+                            color: TITLE_TEXT_SECONDARY,
+                            ..default()
+                        },
+                    ),
+                    PersonaCreatorGuidance,
+                ));
+                p.spawn((
+                    TextBundle::from_section(
+                        "Name · (empty = nameless Steward)",
+                        TextStyle {
+                            font_size: 14.0,
+                            color: TITLE_TEXT_PRIMARY,
+                            ..default()
+                        },
+                    ),
+                    PersonaCreatorBodyText,
+                ));
+                spawn_persona_cycle_btn(
+                    p,
+                    &mechanical_module_btn_label(MechanicalRace::Human),
+                    PersonaModuleBtn,
+                    PersonaModuleLabel,
+                );
+                spawn_persona_cycle_btn(
+                    p,
+                    "People · unset (nameless ok)",
+                    PersonaPeopleBtn,
+                    PersonaPeopleLabel,
+                );
+                spawn_persona_cycle_btn(
+                    p,
+                    &phenotype_btn_label(&Phenotype::default()),
+                    PersonaPhenotypeBtn,
+                    PersonaPhenotypeLabel,
+                );
+                spawn_persona_cycle_btn(
+                    p,
+                    &story_share_btn_label(StoryShare::Private),
+                    PersonaStoryShareBtn,
+                    PersonaStoryShareLabel,
+                );
+                // Disabled stub — records only; never lights an LLM or Online.
+                spawn_menu_btn(p, PERSONA_STORY_AI_STUB, PersonaStoryAiStubBtn, false);
+                spawn_menu_btn(p, "Back", PersonaBackBtn, true);
+                spawn_menu_btn(p, "Next", PersonaNextBtn, true);
+                spawn_menu_btn(p, "Keep draft · local only", PersonaKeepDraftBtn, true);
+                spawn_menu_btn(p, "Skip · nameless Steward", PersonaSkipNamelessBtn, true);
+                spawn_menu_btn(p, "H · hide guidance", PersonaHideGuidanceBtn, true);
+                p.spawn(TextBundle::from_section(
+                    "Title Online stays grey · no matchmaking power · presentation only",
+                    TextStyle {
+                        font_size: 11.0,
+                        color: TITLE_TEXT_SECONDARY,
+                        ..default()
+                    },
+                ));
+            });
+        });
+}
+
 fn breath_title_border(
     time: Res<Time>,
     door: Res<LaunchDoor>,
@@ -929,6 +1472,7 @@ fn enter_yard(door: &mut LaunchDoor, label: &mut HouseLabel) {
 fn title_button_clicks(
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    mut persona: ResMut<PersonaCreatorState>,
     mut travel: Option<ResMut<HexTravelState>>,
     mut bind: Option<ResMut<LivedHourBind>>,
     hour: Option<Res<HourSacred>>,
@@ -936,8 +1480,12 @@ fn title_button_clicks(
     play: Query<&Interaction, (Changed<Interaction>, With<TitlePlayBtn>)>,
     cont: Query<&Interaction, (Changed<Interaction>, With<TitleContinueBtn>)>,
     settings: Query<&Interaction, (Changed<Interaction>, With<TitleSettingsBtn>)>,
+    persona_btn: Query<&Interaction, (Changed<Interaction>, With<TitlePersonaBtn>)>,
 ) {
     if *door != LaunchDoor::Title {
+        return;
+    }
+    if persona.open {
         return;
     }
     for i in &play {
@@ -976,6 +1524,14 @@ fn title_button_clicks(
             return;
         }
     }
+    for i in &persona_btn {
+        if *i == Interaction::Pressed {
+            if try_open_persona_creator(&mut persona, PERSONA_CREATOR_ENABLED) {
+                label.settings_open = false;
+            }
+            return;
+        }
+    }
 }
 
 fn title_keyboard_shortcuts(
@@ -983,6 +1539,7 @@ fn title_keyboard_shortcuts(
     rebind: Res<PeaceRebindState>,
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    persona: Res<PersonaCreatorState>,
     mut travel: Option<ResMut<HexTravelState>>,
     mut bind: Option<ResMut<LivedHourBind>>,
     hour: Option<Res<HourSacred>>,
@@ -990,6 +1547,9 @@ fn title_keyboard_shortcuts(
     mut places: Option<ResMut<PlacesPlate>>,
 ) {
     if rebind.waiting.is_some() || rebind.suppress_shortcuts {
+        return;
+    }
+    if persona.open {
         return;
     }
     match *door {
@@ -1019,8 +1579,9 @@ fn title_keyboard_shortcuts(
             } else if keyboard.just_pressed(KeyCode::Digit3) {
                 label.settings_open = !label.settings_open;
             } else if keyboard.just_pressed(KeyCode::Escape) {
-                // Esc-from-title: close settings only. Never wipe house/climate/standing/book.
+                // Esc-from-title: close settings / persona plate. Never wipe house/climate/standing/book.
                 label.settings_open = false;
+                // Persona Esc handled in persona_creator_buttons when open.
             }
         }
         LaunchDoor::InYard => {
@@ -1065,13 +1626,15 @@ fn sync_title_visibility(
 fn sync_settings_stub(
     label: Res<HouseLabel>,
     door: Res<LaunchDoor>,
+    persona: Res<PersonaCreatorState>,
     places: Option<Res<PlacesPlate>>,
     mut q: Query<&mut Visibility, With<SettingsStubRoot>>,
 ) {
     let places_open = places.map(|p| p.open).unwrap_or(false);
     let show = settings_visible_with_places(label.settings_open, places_open)
         && *door != LaunchDoor::NameHouse
-        && *door != LaunchDoor::HouseDress;
+        && *door != LaunchDoor::HouseDress
+        && !persona.open;
     for mut vis in &mut q {
         *vis = if show {
             Visibility::Visible
@@ -2072,13 +2635,17 @@ pub fn title_from_pause_returns_title(from: LaunchDoor) -> LaunchDoor {
 fn name_house_text_input(
     door: Res<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    persona: Res<PersonaCreatorState>,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut chars: EventReader<ReceivedCharacter>,
     mut draft_q: Query<&mut Text, With<NameDraftText>>,
 ) {
     if *door != LaunchDoor::NameHouse {
         // Drain SmolStr ReceivedCharacter so Continue/name does not flicker with stale input.
-        chars.clear();
+        // Leave the stream alone while the gated persona creator owns typing.
+        if !persona.open {
+            chars.clear();
+        }
         return;
     }
     // Bevy 0.14: ReceivedCharacter.char is SmolStr (deprecated API; still compiles).
@@ -2320,6 +2887,243 @@ fn sync_house_dress_visibility(
         } else {
             Visibility::Hidden
         };
+    }
+}
+
+
+fn sync_persona_creator_visibility(
+    persona: Res<PersonaCreatorState>,
+    mut q: Query<&mut Visibility, With<PersonaCreatorRoot>>,
+) {
+    let show = persona.open && PERSONA_CREATOR_ENABLED;
+    for mut vis in &mut q {
+        *vis = if show {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+    }
+}
+
+fn refresh_persona_creator_labels(
+    persona: Res<PersonaCreatorState>,
+    mut texts: ParamSet<(
+        Query<&mut Text, With<PersonaCreatorStepLabel>>,
+        Query<&mut Text, With<PersonaCreatorGuidance>>,
+        Query<&mut Text, With<PersonaCreatorBodyText>>,
+        Query<&mut Text, With<PersonaModuleLabel>>,
+        Query<&mut Text, With<PersonaPeopleLabel>>,
+        Query<&mut Text, With<PersonaPhenotypeLabel>>,
+        Query<&mut Text, With<PersonaStoryShareLabel>>,
+    )>,
+) {
+    if !persona.open || !PERSONA_CREATOR_ENABLED {
+        return;
+    }
+    let step = persona.step.as_label().to_string();
+    let guidance = if persona.guidance_hidden {
+        String::new()
+    } else {
+        persona_step_guidance(persona.step).to_string()
+    };
+    let body = match persona.step {
+        PersonaCreatorStep::Story | PersonaCreatorStep::Preview => {
+            let name = if persona.name_draft.is_empty() {
+                "(nameless Steward)".into()
+            } else {
+                persona.name_draft.clone()
+            };
+            let story = if persona.story_draft.is_empty() {
+                "(no story yet)".into()
+            } else {
+                let t: String = persona.story_draft.chars().take(80).collect();
+                format!("{t}…")
+            };
+            if persona.step == PersonaCreatorStep::Preview {
+                persona_preview_summary(&persona.draft)
+            } else {
+                format!("Name · {name} · Story · {story}")
+            }
+        }
+        _ => {
+            if persona.name_draft.is_empty() {
+                "Name · (type when on Story · empty = nameless Steward)".into()
+            } else {
+                format!("Name · {}", persona.name_draft)
+            }
+        }
+    };
+    let module = mechanical_module_btn_label(persona.draft.mechanical_race);
+    let people = people_choice_btn_label(&persona);
+    let pheno = phenotype_btn_label(&persona.draft.presentation.phenotype);
+    let share = story_share_btn_label(persona.draft.presentation.story.shared_in_world);
+
+    for mut text in &mut texts.p0() {
+        set_btn_section_text(&mut text, &step);
+    }
+    for mut text in &mut texts.p1() {
+        set_btn_section_text(&mut text, &guidance);
+    }
+    for mut text in &mut texts.p2() {
+        set_btn_section_text(&mut text, &body);
+    }
+    for mut text in &mut texts.p3() {
+        set_btn_section_text(&mut text, &module);
+    }
+    for mut text in &mut texts.p4() {
+        set_btn_section_text(&mut text, &people);
+    }
+    for mut text in &mut texts.p5() {
+        set_btn_section_text(&mut text, &pheno);
+    }
+    for mut text in &mut texts.p6() {
+        set_btn_section_text(&mut text, &share);
+    }
+}
+
+fn persona_creator_text_input(
+    mut persona: ResMut<PersonaCreatorState>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut chars: EventReader<ReceivedCharacter>,
+) {
+    if !persona.open || !PERSONA_CREATOR_ENABLED {
+        return;
+    }
+    // Type into name on early steps; story text on Story/Preview.
+    let into_story = matches!(
+        persona.step,
+        PersonaCreatorStep::Story | PersonaCreatorStep::Preview
+    );
+    for ev in chars.read() {
+        for c in ev.char.chars() {
+            if c.is_control() {
+                continue;
+            }
+            if into_story {
+                if persona.story_draft.chars().count() < STORY_TEXT_MAX
+                    && (c.is_alphanumeric()
+                        || c.is_whitespace()
+                        || matches!(c, '.' | ',' | '\'' | '-' | '!' | '?' | ';'))
+                {
+                    persona.story_draft.push(c);
+                }
+            } else if persona.name_draft.chars().count() < GIVEN_NAME_MAX
+                && (c.is_alphanumeric() || c == ' ' || c == '-' || c == '\'')
+            {
+                persona.name_draft.push(c);
+            }
+        }
+    }
+    if keyboard.just_pressed(KeyCode::Backspace) {
+        if into_story {
+            persona.story_draft.pop();
+        } else {
+            persona.name_draft.pop();
+        }
+    }
+}
+
+fn persona_creator_buttons(
+    mut persona: ResMut<PersonaCreatorState>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    module: Query<&Interaction, (Changed<Interaction>, With<PersonaModuleBtn>)>,
+    people: Query<&Interaction, (Changed<Interaction>, With<PersonaPeopleBtn>)>,
+    pheno: Query<&Interaction, (Changed<Interaction>, With<PersonaPhenotypeBtn>)>,
+    share: Query<&Interaction, (Changed<Interaction>, With<PersonaStoryShareBtn>)>,
+    next: Query<&Interaction, (Changed<Interaction>, With<PersonaNextBtn>)>,
+    back: Query<&Interaction, (Changed<Interaction>, With<PersonaBackBtn>)>,
+    keep: Query<&Interaction, (Changed<Interaction>, With<PersonaKeepDraftBtn>)>,
+    skip_btn: Query<&Interaction, (Changed<Interaction>, With<PersonaSkipNamelessBtn>)>,
+    hide: Query<&Interaction, (Changed<Interaction>, With<PersonaHideGuidanceBtn>)>,
+) {
+    if !persona.open || !PERSONA_CREATOR_ENABLED {
+        return;
+    }
+
+    for i in &module {
+        if *i == Interaction::Pressed {
+            persona.draft.mechanical_race = cycle_mechanical_module(persona.draft.mechanical_race);
+        }
+    }
+    for i in &people {
+        if *i == Interaction::Pressed {
+            bump_people_paint(&mut persona);
+        }
+    }
+    for i in &pheno {
+        if *i == Interaction::Pressed {
+            nudge_phenotype_paint(&mut persona.draft.presentation.phenotype);
+        }
+    }
+    for i in &share {
+        if *i == Interaction::Pressed {
+            persona.draft.presentation.story.shared_in_world =
+                cycle_story_share(persona.draft.presentation.story.shared_in_world);
+        }
+    }
+    for i in &hide {
+        if *i == Interaction::Pressed {
+            persona.guidance_hidden = !persona.guidance_hidden;
+        }
+    }
+    if keyboard.just_pressed(KeyCode::KeyH) {
+        persona.guidance_hidden = !persona.guidance_hidden;
+    }
+
+    let mut do_next = false;
+    let mut do_back = false;
+    let mut do_keep = false;
+    let mut do_skip = keyboard.just_pressed(KeyCode::Escape);
+    for i in &next {
+        if *i == Interaction::Pressed {
+            do_next = true;
+        }
+    }
+    for i in &back {
+        if *i == Interaction::Pressed {
+            do_back = true;
+        }
+    }
+    for i in &keep {
+        if *i == Interaction::Pressed {
+            do_keep = true;
+        }
+    }
+    for i in &skip_btn {
+        if *i == Interaction::Pressed {
+            do_skip = true;
+        }
+    }
+    if keyboard.just_pressed(KeyCode::Enter) && persona.step == PersonaCreatorStep::Preview {
+        do_keep = true;
+    } else if keyboard.just_pressed(KeyCode::Enter) {
+        do_next = true;
+    }
+
+    if do_skip {
+        skip_persona_to_nameless(&mut persona);
+        return;
+    }
+    if do_keep {
+        keep_persona_local_draft(&mut persona);
+        return;
+    }
+    if do_next {
+        // Sync typed buffers into draft before leaving Story.
+        if !persona.name_draft.is_empty() {
+            let mut n = persona.name_draft.clone();
+            if n.chars().count() > GIVEN_NAME_MAX {
+                n = n.chars().take(GIVEN_NAME_MAX).collect();
+            }
+            persona.draft.presentation.given_name = n;
+        }
+        if !persona.story_draft.is_empty() {
+            persona.draft.presentation.story.player_text = persona.story_draft.clone();
+            persona.draft.presentation.story.player_accepted = true;
+        }
+        persona.step = persona.step.next();
+    } else if do_back {
+        persona.step = persona.step.back();
     }
 }
 
@@ -3012,4 +3816,125 @@ mod tests {
         label.house.confirm_seals();
         assert_eq!(super::advance_after_naming(&mut label), LaunchDoor::InYard);
     }
+
+    // --- MERCY_PERSONA P2 ----------------------------------------------------
+
+    #[test]
+    fn mercy_persona_p2_flag_off_keeps_nameless_steward_default() {
+        assert!(!PERSONA_CREATOR_ENABLED);
+        assert!(!persona_creator_may_open(PERSONA_CREATOR_ENABLED));
+        let mut state = PersonaCreatorState::default();
+        assert!(!try_open_persona_creator(&mut state, PERSONA_CREATOR_ENABLED));
+        assert!(!state.open);
+        let p = Persona::nameless_steward();
+        assert!(p.presentation.given_name.is_empty());
+        assert!(matches!(p.presentation.people, PeopleChoice::Unset));
+        assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
+        // Play path does not require persona plate.
+        assert_eq!(persona_title_btn_label(false), "Persona · gated (Hour 1 nameless)");
+    }
+
+    #[test]
+    fn mercy_persona_p2_gate_on_opens_creator_without_online() {
+        let mut state = PersonaCreatorState::default();
+        assert!(try_open_persona_creator(&mut state, true));
+        assert!(state.open);
+        assert_eq!(state.step, PersonaCreatorStep::MechanicalModule);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!state.draft.presentation.story.ai_assist_used);
+        assert_eq!(state.draft.presentation.story.model_id, None);
+        assert_eq!(PERSONA_STORY_AI_STUB, "Story AI · records only · no LLM this slice");
+    }
+
+    #[test]
+    fn mercy_persona_p2_module_not_people_not_lobby_power() {
+        let mut race = MechanicalRace::Human;
+        race = cycle_mechanical_module(race);
+        assert_eq!(race, MechanicalRace::Quellorian);
+        let label = mechanical_module_btn_label(race);
+        assert!(label.contains("not people"));
+        assert!(label.contains("not matchmaking"));
+        assert!(persona_copy_is_honest(&label));
+        // People paint independent of module.
+        let mut state = PersonaCreatorState::default();
+        state.draft.mechanical_race = MechanicalRace::Quellorian;
+        bump_people_paint(&mut state);
+        assert_eq!(state.draft.mechanical_race, MechanicalRace::Quellorian);
+        assert!(matches!(
+            state.draft.presentation.people,
+            PeopleChoice::Preset(_)
+        ));
+        // From ix=1 preset, advance until custom (ix == preset_len).
+        let mut guard = 0;
+        while !matches!(state.draft.presentation.people, PeopleChoice::Custom(_)) {
+            bump_people_paint(&mut state);
+            guard += 1;
+            assert!(guard <= PERSONA_PEOPLE_PRESETS.len() + 2, "never reached custom");
+        }
+        if let PeopleChoice::Custom(c) = &state.draft.presentation.people {
+            assert!(c.invented);
+            assert_ne!(c.name, state.draft.mechanical_race.as_str());
+        } else {
+            panic!("expected custom after presets");
+        }
+    }
+
+    #[test]
+    fn mercy_persona_p2_phenotype_nudge_no_stats_story_records_only() {
+        let mut ph = Phenotype::default();
+        let before = ph.skin_melanin;
+        nudge_phenotype_paint(&mut ph);
+        assert!(ph.skin_melanin >= 0.0 && ph.skin_melanin <= 1.0);
+        assert_ne!(ph.skin_melanin, before);
+        let mut state = PersonaCreatorState::default();
+        state.story_draft = "I tend wells gently.".into();
+        state.name_draft = "Mira".into();
+        state.draft.mechanical_race = MechanicalRace::Cydruid;
+        bump_people_paint(&mut state);
+        keep_persona_local_draft(&mut state);
+        assert!(state.kept_local);
+        assert!(!state.open);
+        assert!(!state.draft.presentation.story.ai_assist_used);
+        assert_eq!(state.draft.presentation.story.model_id, None);
+        assert_eq!(state.draft.presentation.given_name, "Mira");
+        assert_eq!(state.draft.mechanical_race, MechanicalRace::Cydruid);
+        skip_persona_to_nameless(&mut state);
+        assert!(matches!(state.draft.presentation.people, PeopleChoice::Unset));
+        assert!(state.draft.presentation.given_name.is_empty());
+    }
+
+    #[test]
+    fn mercy_persona_p2_ui_copy_honest_and_online_grey() {
+        assert!(persona_creator_ui_copy_is_honest());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(persona_copy_is_honest(&persona_preview_summary(
+            &Persona::nameless_steward()
+        )));
+        let refuse = "race lobby ranked gold mall";
+        assert!(!persona_copy_is_honest(refuse));
+        // Step walk Preview stays local — no Commit claim as Online.
+        let mut step = PersonaCreatorStep::MechanicalModule;
+        for _ in 0..4 {
+            step = step.next();
+        }
+        assert_eq!(step, PersonaCreatorStep::Preview);
+        assert!(persona_step_guidance(step).contains("local"));
+        assert!(!persona_step_guidance(step).to_lowercase().contains("online required"));
+    }
+
+    #[test]
+    fn mercy_persona_p2_share_cycle_and_title_btn_labels() {
+        let mut s = StoryShare::Private;
+        s = cycle_story_share(s);
+        assert_eq!(s, StoryShare::Spoken);
+        s = cycle_story_share(s);
+        assert_eq!(s, StoryShare::Book);
+        s = cycle_story_share(s);
+        assert_eq!(s, StoryShare::Private);
+        assert!(story_share_btn_label(s).starts_with("Story share"));
+        assert_eq!(persona_title_btn_label(true), "Persona · optional");
+        assert!(persona_copy_is_honest(persona_title_btn_label(true)));
+        assert!(persona_copy_is_honest(persona_title_btn_label(false)));
+    }
+
 }
