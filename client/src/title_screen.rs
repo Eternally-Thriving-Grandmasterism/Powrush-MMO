@@ -16,6 +16,8 @@
 //! persists beside Grove; applies brightness/text scale/reduced motion/rumble.
 //! H-2026-09-12-MESH-LOD: GraphicsPreset → mesh LOD; first-launch dismissible
 //! Comfort banner ("Graphics can go Higher… Esc → Comfort"); Online grey.
+//! H-2026-09-12-PLACES-OVERLAY: Esc Places opens four-room plate after Settled+book;
+//! Comfort overlay / graphics banner must not linger over that Places door.
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
@@ -1129,26 +1131,39 @@ fn spawn_comfort_graphics_banner(mut commands: Commands) {
         });
 }
 
-/// Visible on Title door or when Esc Comfort / Settings opens — once until dismissed.
+/// Visible on Title door or when Esc Comfort plate is showing — once until dismissed.
+/// Places is a leaf of pause: while the four-room door is open, Comfort banner must
+/// clear (same rule as `settings_visible_with_places`) so it does not linger over Places.
 pub fn comfort_graphics_banner_should_show(
     on_title: bool,
     settings_open: bool,
     dismissed: bool,
+    places_open: bool,
 ) -> bool {
-    !dismissed && (on_title || settings_open)
+    if dismissed {
+        return false;
+    }
+    if on_title {
+        return true;
+    }
+    // Esc Comfort only — hide while Places four-room plate is open (PLACES-OVERLAY).
+    settings_visible_with_places(settings_open, places_open)
 }
 
 fn sync_comfort_graphics_banner(
     door: Res<LaunchDoor>,
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
+    places: Option<Res<PlacesPlate>>,
     mut q: Query<&mut Visibility, With<ComfortGraphicsBannerRoot>>,
 ) {
     let on_title = *door == LaunchDoor::Title;
+    let places_open = places.map(|p| p.open).unwrap_or(false);
     let show = comfort_graphics_banner_should_show(
         on_title,
         label.settings_open,
         settings.inner.comfort_graphics_banner_dismissed,
+        places_open,
     );
     for mut vis in &mut q {
         *vis = if show {
@@ -4237,19 +4252,41 @@ mod tests {
 
         let mut s = LocalSettings::peace_defaults();
         assert!(s.should_show_comfort_graphics_banner());
-        assert!(comfort_graphics_banner_should_show(true, false, false));
-        assert!(comfort_graphics_banner_should_show(false, true, false));
-        assert!(!comfort_graphics_banner_should_show(false, false, false));
-        assert!(!comfort_graphics_banner_should_show(true, true, true));
+        assert!(comfort_graphics_banner_should_show(true, false, false, false));
+        assert!(comfort_graphics_banner_should_show(false, true, false, false));
+        assert!(!comfort_graphics_banner_should_show(false, false, false, false));
+        assert!(!comfort_graphics_banner_should_show(true, true, true, false));
 
         s.dismiss_comfort_graphics_banner();
         assert!(!s.should_show_comfort_graphics_banner());
         assert!(!comfort_graphics_banner_should_show(
             true,
             true,
-            s.comfort_graphics_banner_dismissed
+            s.comfort_graphics_banner_dismissed,
+            false
         ));
         // Online stays grey — banner never lights a socket.
+        assert!(refuse_online_socket_toggle(true));
+    }
+
+    #[test]
+    fn places_open_clears_comfort_overlay_banner() {
+        // Pause stays armed (settings_open) while Places door is open — Comfort
+        // graphics banner must not linger over the four-room Places plate.
+        assert!(
+            !comfort_graphics_banner_should_show(false, true, false, true),
+            "Places open ⇒ Comfort banner off"
+        );
+        assert!(
+            comfort_graphics_banner_should_show(false, true, false, false),
+            "Esc Comfort with Places closed still shows banner"
+        );
+        assert!(
+            !settings_visible_with_places(true, true),
+            "Comfort pause plate also hides under Places"
+        );
+        assert_eq!(PLACES_ROW, "Places");
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(refuse_online_socket_toggle(true));
     }
 
