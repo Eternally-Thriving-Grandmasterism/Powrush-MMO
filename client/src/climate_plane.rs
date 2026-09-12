@@ -1,11 +1,11 @@
 /*!
- * Climate Plane — v22.7.0 + Threshold pipe/edge dress (H-2026-09-11-F3)
+ * Climate Plane — v22.7.0 + Depths deepen/wet-stone dress (H-2026-09-11-F4)
  *
- * PLACE_DRESS_SPEC: Threshold look/tend/door — one pipe/edge iron material
- * family + tend-seam accent so Place reads before any slab. F1 Sanctuary
- * warm-yard and F2 Heartwood living-wood stay intact (do not freestyle-reopen).
- * Four Places stay four. No mesh · no instance-portal chrome · no fifth Place.
- * Online grey. Tag 11c577e.
+ * PLACE_DRESS_SPEC: Depths one way down / one way home — one deepen/wet-stone
+ * material family + teal Peace accent so Place reads before any slab. F1
+ * Sanctuary warm-yard, F2 Heartwood living-wood, and F3 Threshold pipe/edge
+ * stay intact (do not freestyle-reopen). Four Places stay four. No mesh · no
+ * fifth Place. Online grey. Tag 11c577e. Depths stay night in living_day.
  * Z travel moves the place. Climate 3 = Abyssal Depths (night, close fog).
  * Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -48,6 +48,15 @@ const THRESHOLD_TEND_SEAM: Color = Color::srgb(0.68, 0.36, 0.22);
 /// Shared pipe/edge iron roughness for Threshold ground + edge path stones
 /// (one material family — PLACE_DRESS_SPEC).
 const THRESHOLD_PIPE_ROUGHNESS: f32 = 0.70;
+
+/// ART_BIBLE HANDS Depths accent — teal Peace (not Sanctuary warm-gold, not
+/// Heartwood amber, not Threshold tend-seam, not currency gold). Climate owns
+/// its copy so this file stays the only F4 edit path.
+const DEPTHS_TEAL_PEACE: Color = Color::srgb(0.22, 0.92, 0.68);
+
+/// Shared deepen/wet-stone roughness for Depths ground + path stones
+/// (one material family — PLACE_DRESS_SPEC). Slightly slicker than dry yard.
+const DEPTHS_WET_STONE_ROUGHNESS: f32 = 0.86;
 
 #[derive(Clone, Copy)]
 struct ClimateLook {
@@ -106,18 +115,24 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             ambient_bright: 200.0,
             roughness: THRESHOLD_PIPE_ROUGHNESS,
         },
+        // Abyssal Depths — one way down / one way home (PLACE_DRESS_SPEC).
+        // One material family: deepen wet-stone ground + path stones; well
+        // node is the single teal Peace accent (ART_BIBLE). Night close fog
+        // stays (living_day Depths night — do not fight). Not Sanctuary
+        // warm-yard, not Heartwood living-wood, not Threshold pipe/edge, not
+        // gold sink / Market / fifth Place.
         Some(3) => ClimateLook {
             name: "Abyssal Depths",
-            ground: Color::srgb(0.04, 0.07, 0.08),
+            ground: Color::srgb(0.04, 0.08, 0.09),
             sky: Color::srgb(0.04, 0.06, 0.09),
             fog: Color::srgba(0.03, 0.08, 0.09, 1.0),
             ambient: Color::srgb(0.18, 0.42, 0.38),
-            node: Color::srgb(0.22, 0.92, 0.68),
-            stone: Color::srgb(0.10, 0.16, 0.16),
+            node: DEPTHS_TEAL_PEACE,
+            stone: Color::srgb(0.08, 0.15, 0.17),
             fog_start: 3.5,
             fog_end: 16.0,
             ambient_bright: 90.0,
-            roughness: 0.92,
+            roughness: DEPTHS_WET_STONE_ROUGHNESS,
         },
         // Sanctuary Prime — warm yard / teaching Peace (PLACE_DRESS_SPEC).
         // One material family: warm grey-gold earth ground + path stones;
@@ -489,6 +504,37 @@ fn is_tend_seam(c: Color) -> bool {
         && !is_warm_gold_well(c)
 }
 
+/// Deepen / wet-stone earth: cool teal-dark stone (G and B above R, low lum).
+/// Not warm yard, not living-wood bark, not cool-neutral pipe/edge iron.
+fn is_wet_stone_earth(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    let chroma = r.max(g).max(b) - r.min(g).min(b);
+    g > r
+        && b > r
+        && r < 0.16
+        && g < 0.26
+        && b < 0.28
+        && (g - r) >= 0.02
+        && chroma >= 0.035
+        && !is_warm_yard_earth(c)
+        && !is_living_wood_earth(c)
+        && !is_pipe_edge_iron(c)
+}
+
+/// Teal Peace accent: G > B > R biolum teal (ART_BIBLE Depths). Not gold /
+/// amber / tend-seam warm accents.
+fn is_teal_peace(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    g > b
+        && b > r
+        && g > 0.70
+        && (g - r) > 0.40
+        && b > 0.50
+        && !is_warm_gold_well(c)
+        && !is_amber_lamp(c)
+        && !is_tend_seam(c)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -793,5 +839,120 @@ mod tests {
         assert!(is_living_wood_earth(h.ground));
         assert_eq!(s.roughness, SANCTUARY_YARD_ROUGHNESS);
         assert_eq!(h.roughness, HEARTWOOD_WOOD_ROUGHNESS);
+    }
+
+    #[test]
+    fn depths_greybox_is_one_deepen_wet_stone_family() {
+        let d = look_for(Some(3));
+        assert_eq!(d.name, "Abyssal Depths");
+        assert!(
+            is_wet_stone_earth(d.ground),
+            "Depths ground must read deepen wet-stone, got {:?}",
+            srgb3(d.ground)
+        );
+        assert!(
+            is_wet_stone_earth(d.stone),
+            "Depths path stones must share wet-stone family, got {:?}",
+            srgb3(d.stone)
+        );
+        assert!(
+            is_teal_peace(d.node),
+            "Depths well must be teal Peace accent, got {:?}",
+            srgb3(d.node)
+        );
+        assert_eq!(srgb3(d.node), srgb3(DEPTHS_TEAL_PEACE));
+        assert_eq!(d.roughness, DEPTHS_WET_STONE_ROUGHNESS);
+        // Ground + stone stay one family: same cool teal-dark bias; path stones
+        // catch a touch more light so they read as landing dress, not a second biome.
+        let (gr, gg, gb) = srgb3(d.ground);
+        let (sr, sg, sb) = srgb3(d.stone);
+        let g_lum = (gr + gg + gb) / 3.0;
+        let s_lum = (sr + sg + sb) / 3.0;
+        assert!(
+            s_lum > g_lum,
+            "wet-stone paths should sit slightly above ground luminance"
+        );
+        assert!(
+            (sr - gr).abs() < 0.14 && (sg - gg).abs() < 0.14 && (sb - gb).abs() < 0.14,
+            "stone drifted out of the wet-stone family"
+        );
+        // Night / close fog intact (living_day Depths stay night — do not fight).
+        assert!(d.fog_end > d.fog_start);
+        assert!(d.fog_end <= 20.0);
+        assert!(d.ambient_bright < 150.0);
+        // Not Sanctuary / Heartwood / Threshold carpet pasted over.
+        let s = look_for(Some(0));
+        let h = look_for(Some(2));
+        let t = look_for(Some(1));
+        assert!(!is_warm_yard_earth(d.ground));
+        assert!(!is_living_wood_earth(d.ground));
+        assert!(!is_pipe_edge_iron(d.ground));
+        assert!(!is_warm_gold_well(d.node));
+        assert!(!is_amber_lamp(d.node));
+        assert!(!is_tend_seam(d.node));
+        assert_ne!(srgb3(d.ground), srgb3(s.ground));
+        assert_ne!(srgb3(d.ground), srgb3(h.ground));
+        assert_ne!(srgb3(d.ground), srgb3(t.ground));
+        assert_ne!(srgb3(d.node), srgb3(s.node));
+        assert_ne!(srgb3(d.node), srgb3(h.node));
+        assert_ne!(srgb3(d.node), srgb3(t.node));
+        assert_ne!(d.roughness, s.roughness);
+        assert_ne!(d.roughness, h.roughness);
+        assert_ne!(d.roughness, t.roughness);
+    }
+
+    #[test]
+    fn place_readable_from_depths_dress_before_slab() {
+        // Nameable from presentation alone: wet-stone + teal Peace + name.
+        let d = look_for(Some(3));
+        assert_eq!(d.name, "Abyssal Depths");
+        assert!(is_wet_stone_earth(d.ground));
+        assert!(is_wet_stone_earth(d.stone));
+        assert!(is_teal_peace(d.node));
+        assert!(d.fog_end > d.fog_start);
+        assert!(climate_dress_copy_is_honest(d.name));
+        let lower = d.name.to_ascii_lowercase();
+        assert!(!lower.contains("brood"));
+        assert!(!lower.contains("market"));
+        assert!(!lower.contains("online"));
+        assert!(!lower.contains("gold"));
+        assert!(!lower.contains("portal"));
+        assert!(!lower.contains("instance"));
+        assert!(!lower.contains("sanctuary"));
+        assert!(!lower.contains("heartwood"));
+        assert!(!lower.contains("auction"));
+    }
+
+    #[test]
+    fn depths_teal_peace_refuses_prior_place_accents() {
+        let d = look_for(Some(3));
+        let s = look_for(Some(0));
+        let h = look_for(Some(2));
+        let t = look_for(Some(1));
+        assert_eq!(srgb3(d.node), srgb3(DEPTHS_TEAL_PEACE));
+        assert_eq!(srgb3(s.node), srgb3(SANCTUARY_WELL_GOLD));
+        assert_eq!(srgb3(h.node), srgb3(HEARTWOOD_AMBER_LAMP));
+        assert_eq!(srgb3(t.node), srgb3(THRESHOLD_TEND_SEAM));
+        assert_ne!(srgb3(DEPTHS_TEAL_PEACE), srgb3(SANCTUARY_WELL_GOLD));
+        assert_ne!(srgb3(DEPTHS_TEAL_PEACE), srgb3(HEARTWOOD_AMBER_LAMP));
+        assert_ne!(srgb3(DEPTHS_TEAL_PEACE), srgb3(THRESHOLD_TEND_SEAM));
+        assert!(is_teal_peace(d.node));
+        assert!(is_warm_gold_well(s.node));
+        assert!(is_amber_lamp(h.node));
+        assert!(is_tend_seam(t.node));
+        assert!(!is_teal_peace(s.node));
+        assert!(!is_teal_peace(h.node));
+        assert!(!is_teal_peace(t.node));
+        assert!(!is_warm_gold_well(d.node));
+        assert!(!is_amber_lamp(d.node));
+        assert!(!is_tend_seam(d.node));
+        assert!(climate_dress_copy_is_honest(d.name));
+        // F1 / F2 / F3 dress stays intact under F4.
+        assert!(is_warm_yard_earth(s.ground));
+        assert!(is_living_wood_earth(h.ground));
+        assert!(is_pipe_edge_iron(t.ground));
+        assert_eq!(s.roughness, SANCTUARY_YARD_ROUGHNESS);
+        assert_eq!(h.roughness, HEARTWOOD_WOOD_ROUGHNESS);
+        assert_eq!(t.roughness, THRESHOLD_PIPE_ROUGHNESS);
     }
 }
