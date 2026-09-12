@@ -7,14 +7,16 @@
 //! stays hidden (or *Not your charter*). Heartwood stub: lamp disk empty, same
 //! Peace E. Play always boots Sanctuary. Continue without the book boots
 //! Sanctuary. Dedicated Places plate (LivedUiPlate / Camera2d) — not extra
-//! Settings rows; sticks cull when open. Contact: info@Rathor.ai
+//! Settings rows. After PAUSE-TABS the Settled+book **Places** door sits on the
+//! Esc pause plate (Comfort · Controls · Guide kept); sticks cull when open.
+//! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
 use shared::hex_travel::{
     apply_travel_named, boot_place, confirm_leave, house_embassy_on_place, house_week_footer,
     places_eligible, places_row_label, read_current_named, read_hex_named, sanctuary_fresh_climate,
-    BootKind, PlaceId, TravelRefuse, PLACES_ROW, PLACES_TITLE,
+    BootKind, PlaceId, TravelRefuse, PLACES_TITLE,
 };
 use shared::pause_ledger_face::NOT_YOUR_CHARTER;
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
@@ -96,6 +98,24 @@ pub struct PlacesPlate {
     selected_room: Option<&'static str>,
 }
 
+impl PlacesPlate {
+    /// Open the four-room door from the Esc pause Places row — pause stays armed.
+    pub fn open_door(&mut self) {
+        self.open = true;
+        self.selected = None;
+        self.selected_room = None;
+        self.confirm_pending = false;
+    }
+
+    /// Close the Places door (Back / Esc leaf / Resume) without touching pause.
+    pub fn close_door(&mut self) {
+        self.open = false;
+        self.selected = None;
+        self.selected_room = None;
+        self.confirm_pending = false;
+    }
+}
+
 #[derive(Component)]
 struct PlacesRoot;
 #[derive(Component)]
@@ -112,10 +132,9 @@ struct PlacesDepthsBtn;
 struct PlacesConfirmBtn;
 #[derive(Component)]
 struct PlacesBackBtn;
+/// Pause-plate Places door (Settled+book). Spawned on the Esc plate after PAUSE-TABS.
 #[derive(Component)]
-struct PausePlacesBtn;
-#[derive(Component)]
-struct PausePlacesLabel;
+pub struct PausePlacesBtn;
 
 pub struct HexTravelPlugin;
 
@@ -123,7 +142,7 @@ impl Plugin for HexTravelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HexTravelState>()
             .init_resource::<PlacesPlate>()
-            .add_systems(Startup, (spawn_places_plate, spawn_pause_places_row_marker).chain())
+            .add_systems(Startup, spawn_places_plate)
             .add_systems(
                 Update,
                 (
@@ -359,47 +378,8 @@ fn spawn_places_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C) 
     });
 }
 
-/// Places row lives as its own LivedUiPlate chip under pause — not a Settings row.
-/// Hidden (no layout) without Settled+book so the 720p pause plate stays the same height.
-fn spawn_pause_places_row_marker(mut commands: Commands) {
-    commands
-        .spawn((
-            ButtonBundle {
-                style: Style {
-                    position_type: PositionType::Absolute,
-                    top: Val::Percent(4.0),
-                    left: Val::Px(16.0),
-                    width: Val::Px(140.0),
-                    padding: UiRect::axes(Val::Px(10.0), Val::Px(8.0)),
-                    justify_content: JustifyContent::Center,
-                    border: UiRect::all(Val::Px(1.0)),
-                    display: Display::None,
-                    ..default()
-                },
-                background_color: TITLE_BTN_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(LIVED_UI_Z_PAUSE),
-                ..default()
-            },
-            PausePlacesBtn,
-            LivedUiPlate,
-            Name::new("PausePlacesRow"),
-        ))
-        .with_children(|b| {
-            b.spawn((
-                TextBundle::from_section(
-                    PLACES_ROW,
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_BTN_FG,
-                        ..default()
-                    },
-                ),
-                PausePlacesLabel,
-            ));
-        });
-}
+/// Places door is spawned on the Esc pause plate in `title_screen::spawn_settings_stub`
+/// (PAUSE-TABS layout). This module owns clicks + Settled+book visibility only.
 
 fn book_flags(hour: Option<&HourSacred>) -> (bool, bool) {
     let settled = hour.map(|h| h.complete).unwrap_or(false);
@@ -430,6 +410,7 @@ fn refresh_pause_places_row(
     plate: Res<PlacesPlate>,
     mut q: Query<(&mut Style, &mut Visibility), With<PausePlacesBtn>>,
 ) {
+    // On-plate door: hidden without Settled+book so Comfort/Controls/Guide height holds.
     let (settled, book) = book_flags(hour.as_deref());
     let live = places_eligible(settled, book)
         && label.settings_open
@@ -477,7 +458,8 @@ fn pause_places_row_clicks(
     mut plate: ResMut<PlacesPlate>,
     clicks: Query<&Interaction, (Changed<Interaction>, With<PausePlacesBtn>)>,
 ) {
-    if !label.settings_open {
+    // Places is a leaf of the open pause plate — never dismiss pause here.
+    if !label.settings_open || plate.open {
         return;
     }
     let (settled, book) = book_flags(hour.as_deref());
@@ -486,10 +468,7 @@ fn pause_places_row_clicks(
     }
     for i in &clicks {
         if *i == Interaction::Pressed {
-            plate.open = true;
-            plate.selected = None;
-            plate.selected_room = None;
-            plate.confirm_pending = false;
+            plate.open_door();
             return;
         }
     }
@@ -514,16 +493,13 @@ fn places_plate_clicks(
     }
     for i in &back {
         if *i == Interaction::Pressed {
-            plate.open = false;
-            plate.selected = None;
-            plate.selected_room = None;
-            plate.confirm_pending = false;
+            plate.close_door();
             return;
         }
     }
     let (settled, book) = book_flags(hour.as_deref());
     if !places_eligible(settled, book) {
-        plate.open = false;
+        plate.close_door();
         return;
     }
     for i in &sanctuary {
@@ -596,15 +572,16 @@ fn places_plate_clicks(
                     // there opens pause instead of closing the plate from before.
                     let landed = yard_after_travel();
                     label.settings_open = landed.pause_open;
-                    plate.open = landed.places_open;
-                    plate.selected = None;
-                    plate.selected_room = None;
-                    plate.confirm_pending = false;
+                    if landed.places_open {
+                        plate.open_door();
+                    } else {
+                        plate.close_door();
+                    }
                 }
                 Err(TravelRefuse::NotYourCharter) | Err(TravelRefuse::SamePlace) => {
-                    plate.confirm_pending = false;
                     plate.selected = None;
                     plate.selected_room = None;
+                    plate.confirm_pending = false;
                 }
             }
             return;
@@ -992,6 +969,76 @@ mod tests {
         assert_eq!(PlaceId::Heartwood.peace_hex(), HexFlag::Peace);
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(!default_client_listens());
+    }
+
+    /// Esc pause Places row opens the four-room door — does not dismiss pause.
+    #[test]
+    fn pause_places_row_click_opens_four_room_plate() {
+        for place in LOCAL_HEXES {
+            let mut app = yard_app(place);
+            tap_escape(&mut app);
+            assert!(pause_is_open(&app), "{place:?}: pause open");
+            assert!(places_row_live(&mut app), "{place:?}: Places door on pause plate");
+            assert!(!app.world().resource::<PlacesPlate>().open);
+
+            let mut q = app
+                .world_mut()
+                .query_filtered::<Entity, With<PausePlacesBtn>>();
+            let btn = q
+                .iter(app.world())
+                .next()
+                .expect("PausePlacesBtn on pause plate");
+            *app.world_mut().get_mut::<Interaction>(btn).unwrap() = Interaction::Pressed;
+            app.update();
+            *app.world_mut().get_mut::<Interaction>(btn).unwrap() = Interaction::None;
+            app.update();
+
+            assert!(
+                app.world().resource::<PlacesPlate>().open,
+                "{place:?}: Places door must open the four-room plate"
+            );
+            assert!(
+                pause_is_open(&app),
+                "{place:?}: Places click must NOT dismiss/close pause (settings_open stays)"
+            );
+            assert!(
+                !places_row_live(&mut app),
+                "{place:?}: Places row hides while the door plate is open"
+            );
+            let world = app.world_mut();
+            assert_eq!(
+                world
+                    .query_filtered::<(), With<PlacesSanctuaryBtn>>()
+                    .iter(world)
+                    .count(),
+                1
+            );
+            assert_eq!(
+                world
+                    .query_filtered::<(), With<PlacesThresholdBtn>>()
+                    .iter(world)
+                    .count(),
+                1
+            );
+        }
+    }
+
+    #[test]
+    fn open_door_helper_keeps_threshold_clear() {
+        let mut plate = PlacesPlate::default();
+        plate.open_door();
+        assert!(plate.open);
+        assert!(plate.selected.is_none());
+        assert!(plate.selected_room.is_none());
+        assert!(!plate.confirm_pending);
+        plate.selected = Some(PlaceId::Depths);
+        plate.selected_room = Some("Depths");
+        plate.confirm_pending = true;
+        plate.close_door();
+        assert!(!plate.open);
+        assert!(plate.selected.is_none());
+        assert!(plate.selected_room.is_none());
+        assert!(!plate.confirm_pending);
     }
 
     /// Rung C: confirm cue is leave / enter, not a list-row teleport.

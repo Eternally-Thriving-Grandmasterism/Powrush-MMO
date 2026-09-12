@@ -10,6 +10,8 @@
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
 //! H-2026-09-12-PAUSE-TABS: Esc plate splits Comfort · Controls · Guide tabs
 //! (Guide = one-sentence Peace-key stranger loop; Online stays grey).
+//! H-2026-09-12-PLACES-DOOR: Settled+book **Places** door on that plate opens the
+//! four-room Places plate — must not only dismiss pause.
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
 //! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
@@ -55,7 +57,7 @@ use shared::persona::{
 
 use crate::embassy::EmbassyYard;
 use crate::hex_travel::{
-    apply_title_boot, settings_visible_with_places, HexTravelState, PlacesPlate,
+    apply_title_boot, settings_visible_with_places, HexTravelState, PausePlacesBtn, PlacesPlate,
 };
 use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
 use crate::input::{InputMapSet, PlayerInput};
@@ -64,7 +66,7 @@ use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
 use crate::local_settings::LocalSettingsState;
 use crate::net_mode::SessionNetMode;
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE};
-use shared::hex_travel::BootKind;
+use shared::hex_travel::{BootKind, PLACES_ROW};
 use shared::local_settings::{refuse_online_socket_toggle, LocalSettings, PeaceKey, SETTINGS_PATH};
 use shared::pause_ledger_face::lethal_sign_row;
 
@@ -1092,6 +1094,8 @@ fn spawn_settings_stub(mut commands: Commands) {
                 border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 z_index: ZIndex::Global(LIVED_UI_Z_PAUSE),
+                // Keep pause chrome hits on this plate (Places door + tabs + Resume).
+                focus_policy: FocusPolicy::Block,
                 ..default()
             },
             SettingsStubRoot,
@@ -1244,6 +1248,9 @@ fn spawn_settings_stub(mut commands: Commands) {
                     },
                 ));
             });
+            // Settled+book Places door — opens four-room plate; not a Settings row.
+            // Hidden until refresh_pause_places_row (hex_travel) after Settled+book.
+            spawn_pause_places_door(p);
             // Online stays grey — never binds a socket from this plate.
             spawn_menu_btn(p, ONLINE_STUB_LABEL, SettingsOnlineStubBtn, false);
             spawn_menu_btn(p, "Resume", PauseResumeBtn, true);
@@ -1909,9 +1916,11 @@ fn apply_yard_pause(step: YardPause, label: &mut HouseLabel, places: Option<&mut
     label.settings_open = step.pause_open;
     if let Some(places) = places {
         if places.open != step.places_open {
-            places.open = step.places_open;
-            places.selected = None;
-            places.confirm_pending = false;
+            if step.places_open {
+                places.open_door();
+            } else {
+                places.close_door();
+            }
         }
     }
 }
@@ -1961,7 +1970,7 @@ fn pause_plate_clicks(
         if *i == Interaction::Pressed {
             label.settings_open = false;
             if let Some(places) = places.as_mut() {
-                places.open = false;
+                places.close_door();
             }
             return;
         }
@@ -1969,7 +1978,7 @@ fn pause_plate_clicks(
     for i in &title {
         if *i == Interaction::Pressed {
             if let Some(places) = places.as_mut() {
-                places.open = false;
+                places.close_door();
             }
             return_yard_to_title(&mut door, &mut label, bind.as_ref());
             return;
@@ -1980,7 +1989,7 @@ fn pause_plate_clicks(
             // Same window-close / Settings quit path — not Esc.
             label.settings_open = false;
             if let Some(places) = places.as_mut() {
-                places.open = false;
+                places.close_door();
             }
             exit.send(AppExit::Success);
             return;
@@ -2027,6 +2036,38 @@ fn settings_tab_panel_bundle(visible: bool) -> NodeBundle {
         },
         ..default()
     }
+}
+
+fn spawn_pause_places_door(p: &mut ChildBuilder) {
+    p.spawn((
+        ButtonBundle {
+            style: Style {
+                width: Val::Percent(100.0),
+                padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(1.0)),
+                // Settled+book only — refresh_pause_places_row flips to Flex.
+                display: Display::None,
+                ..default()
+            },
+            background_color: TITLE_BTN_BG.into(),
+            border_color: TITLE_BORDER.into(),
+            visibility: Visibility::Hidden,
+            ..default()
+        },
+        PausePlacesBtn,
+        Name::new("PausePlacesRow"),
+    ))
+    .with_children(|b| {
+        b.spawn(TextBundle::from_section(
+            PLACES_ROW,
+            TextStyle {
+                font_size: 15.0,
+                color: TITLE_BTN_FG,
+                ..default()
+            },
+        ));
+    });
 }
 
 fn spawn_pause_tab_btn(p: &mut ChildBuilder, tab: PauseTab) {
@@ -3737,6 +3778,14 @@ mod tests {
         );
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+    }
+
+    #[test]
+    fn pause_plate_spawns_places_door_before_online() {
+        // Places door is on the tabbed pause plate (not a floating chip).
+        assert_eq!(PLACES_ROW, "Places");
+        assert_eq!(PauseTab::ALL.len(), 3, "Comfort · Controls · Guide preserved");
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 
     #[test]
