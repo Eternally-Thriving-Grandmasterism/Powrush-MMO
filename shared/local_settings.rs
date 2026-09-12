@@ -3,7 +3,7 @@
 //! `powrush_settings.json` next to house JSON in the OS user-data dir
 //! (or `POWRUSH_USER_DIR`). Cwd `data/powrush_settings.json` is adopt-only.
 //! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove ·
-//! Reduced motion · Rumble · Colorblind wells · LAN · Controls (I0).
+//! Graphics preset · Reduced motion · Rumble · Colorblind wells · LAN · Controls (I0).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
@@ -152,6 +152,44 @@ impl PeaceKey {
     }
 }
 
+
+/// Esc Comfort graphics fidelity preset. Device-safe default = Medium.
+/// Low = safer / lower fidelity; Medium = balanced Peace hour; High = nicest hold.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum GraphicsPreset {
+    Low,
+    #[default]
+    Medium,
+    High,
+}
+
+impl GraphicsPreset {
+    pub const ALL: [GraphicsPreset; 3] = [
+        GraphicsPreset::Low,
+        GraphicsPreset::Medium,
+        GraphicsPreset::High,
+    ];
+
+    /// Comfort-row label token (Low · Medium · High).
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Low => "Low",
+            Self::Medium => "Medium",
+            Self::High => "High",
+        }
+    }
+
+    /// Cycle Low → Medium → High → Low.
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Low => Self::Medium,
+            Self::Medium => Self::High,
+            Self::High => Self::Low,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LocalSettings {
     pub schema: String,
@@ -173,6 +211,10 @@ pub struct LocalSettings {
     /// UI text scale. Default 1.0. Title contrast palette stays opaque law.
     #[serde(default = "default_text_scale")]
     pub text_scale: f32,
+    /// Esc Comfort graphics preset. Default **Medium** (device-safe).
+    /// Applies brightness / text scale / reduced motion / rumble as a bundle.
+    #[serde(default)]
+    pub graphics_preset: GraphicsPreset,
     /// G0.5 Grove light-gen: "off" | "light". Default **off**. Unknown → off.
     /// Same path as env `POWRUSH_GEN=light` (OR at the door — not a second gen system).
     #[serde(default = "default_grove")]
@@ -325,6 +367,7 @@ impl Default for LocalSettings {
             hide_slabs: false,
             brightness: DEFAULT_BRIGHTNESS,
             text_scale: DEFAULT_TEXT_SCALE,
+            graphics_preset: GraphicsPreset::Medium,
             grove: default_grove(),
             key_move_up: default_key_move_up(),
             key_move_down: default_key_move_down(),
@@ -394,10 +437,57 @@ impl LocalSettings {
         self.clamp_look();
         self.clamp_brightness();
         self.clamp_text_scale();
+        self.normalize_graphics_preset();
         self.normalize_grove();
         self.normalize_colorblind_wells();
         self.normalize_lan();
         self.normalize_controls();
+    }
+
+
+    /// Legacy / unknown serde already lands on Medium via enum default.
+    pub fn normalize_graphics_preset(&mut self) {
+        // Enum is closed; keep for clamp_all symmetry with Grove / LAN.
+        let _ = self.graphics_preset;
+    }
+
+    /// Apply the selected graphics preset to comfort fidelity fields.
+    /// Low = safer/lower fidelity; Medium = Peace balanced; High = nicest hold.
+    pub fn apply_graphics_preset(&mut self) {
+        match self.graphics_preset {
+            GraphicsPreset::Low => {
+                self.brightness = 0.75;
+                self.text_scale = 1.10;
+                self.reduced_motion = true;
+                self.rumble = false;
+            }
+            GraphicsPreset::Medium => {
+                self.brightness = DEFAULT_BRIGHTNESS;
+                self.text_scale = DEFAULT_TEXT_SCALE;
+                self.reduced_motion = false;
+                self.rumble = true;
+            }
+            GraphicsPreset::High => {
+                self.brightness = 1.25;
+                self.text_scale = DEFAULT_TEXT_SCALE;
+                self.reduced_motion = false;
+                self.rumble = true;
+            }
+        }
+        self.clamp_brightness();
+        self.clamp_text_scale();
+    }
+
+    /// Cycle Graphics Low → Medium → High and apply the bundle.
+    pub fn cycle_graphics_preset(&mut self) {
+        self.graphics_preset = self.graphics_preset.next();
+        self.apply_graphics_preset();
+    }
+
+    /// Set a specific preset and apply its comfort bundle.
+    pub fn set_graphics_preset(&mut self, preset: GraphicsPreset) {
+        self.graphics_preset = preset;
+        self.apply_graphics_preset();
     }
 
     /// Clamp grove to "off" | "light". Missing/unknown → off.
@@ -749,6 +839,7 @@ mod tests {
         assert!(!s.hide_slabs);
         assert!((s.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
         assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
+        assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
         assert_eq!(s.grove, "off");
         assert!(!s.grove_is_light());
         assert_eq!(s.key_move_up, PeaceKey::W);
@@ -791,6 +882,7 @@ mod tests {
         s.hide_slabs = true;
         s.brightness = 1.25;
         s.text_scale = 1.10;
+        s.graphics_preset = GraphicsPreset::High;
         s.grove = "light".into();
         s.key_move_up = PeaceKey::ArrowUp;
         s.key_jump = PeaceKey::J;
@@ -814,6 +906,7 @@ mod tests {
         assert!(raw.contains("look_sensitivity"));
         assert!(raw.contains("brightness"));
         assert!(raw.contains("text_scale"));
+        assert!(raw.contains("graphics_preset") && raw.contains("high"));
         assert!(raw.contains("grove") && raw.contains("light"));
         assert!(raw.contains("\"key_move_up\": \"arrow_up\""));
         assert!(raw.contains("\"key_use\": \"f\""));
@@ -1109,4 +1202,70 @@ mod tests {
         assert!(s.mute);
         assert!((s.master_gain() - 0.0).abs() < f32::EPSILON);
     }
+
+    #[test]
+    fn graphics_preset_defaults_medium_and_applies() {
+        let s = LocalSettings::peace_defaults();
+        assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
+        assert_eq!(GraphicsPreset::default(), GraphicsPreset::Medium);
+        assert_eq!(s.graphics_preset.label(), "Medium");
+
+        let mut low = LocalSettings::peace_defaults();
+        low.set_graphics_preset(GraphicsPreset::Low);
+        assert_eq!(low.graphics_preset, GraphicsPreset::Low);
+        assert!((low.brightness - 0.75).abs() < 0.01);
+        assert!((low.text_scale - 1.10).abs() < 0.01);
+        assert!(low.reduced_motion);
+        assert!(!low.rumble);
+        assert!(!low.rumble_enabled());
+
+        let mut mid = LocalSettings::peace_defaults();
+        mid.brightness = 0.5;
+        mid.set_graphics_preset(GraphicsPreset::Medium);
+        assert_eq!(mid.graphics_preset, GraphicsPreset::Medium);
+        assert!((mid.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
+        assert!((mid.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
+        assert!(!mid.reduced_motion);
+        assert!(mid.rumble_enabled());
+
+        let mut high = LocalSettings::peace_defaults();
+        high.set_graphics_preset(GraphicsPreset::High);
+        assert_eq!(high.graphics_preset, GraphicsPreset::High);
+        assert!((high.brightness - 1.25).abs() < 0.01);
+        assert!((high.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
+        assert!(!high.reduced_motion);
+        assert!(high.rumble);
+    }
+
+    #[test]
+    fn graphics_preset_cycle_and_persist_roundtrip() {
+        let mut s = LocalSettings::peace_defaults();
+        assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
+        s.cycle_graphics_preset();
+        assert_eq!(s.graphics_preset, GraphicsPreset::High);
+        assert!((s.brightness - 1.25).abs() < 0.01);
+        s.cycle_graphics_preset();
+        assert_eq!(s.graphics_preset, GraphicsPreset::Low);
+        assert!(s.reduced_motion);
+        s.cycle_graphics_preset();
+        assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
+        assert!((s.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
+
+        s.set_graphics_preset(GraphicsPreset::Low);
+        let raw = s.to_json().unwrap();
+        assert!(raw.contains("\"graphics_preset\": \"low\""));
+        let back = LocalSettings::from_json(&raw).unwrap();
+        assert_eq!(back.graphics_preset, GraphicsPreset::Low);
+        assert!(back.reduced_motion);
+        assert!(!back.rumble);
+
+        // Legacy JSON without graphics_preset → Medium (device-safe), other fields intact.
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.25,"text_scale":1.0,"grove":"off"}"#;
+        let legacy_back = LocalSettings::from_json(legacy).unwrap();
+        assert_eq!(legacy_back.graphics_preset, GraphicsPreset::Medium);
+        assert!((legacy_back.brightness - 1.25).abs() < 0.01);
+        // Loading alone must not rewrite comfort fields to Medium bundle.
+        assert!(!legacy_back.reduced_motion);
+    }
+
 }
