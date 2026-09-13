@@ -1,10 +1,15 @@
 # OFFLINE_SKU.md — Steam Offline is the first product (U0)
 
+**CARD H-2026-09-13-WAVE-E-SEAL** · tip `cc26200` (main · UI-MODERNIZE #427) · design tick · not a Cargo bump  
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick, not a Cargo bump.  
 **Floor stays:** `2163551`.  
 **`playable-preview` stays** walked SHA **`11c577e`** (tag object `e37ed6e`; not the glow commit). Do not retag until a human names a Steam retag.  
 **Independent of xAI.** No certification / AGSi warranty / legal-product claims.
+
+**Wave E Offline 1.0 seal = human gate.** E1 human preview ticks (≠ retag `11c577e`). E2 Steam copy human — **bot does not create a Steam partner account**. E3 cloud = user-dir JSON later. E4 γ = 0 until named U3.5. Title Online stays grey.
+
+Cite only [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` — do not reopen.
 
 **Agent landing:** walked slices (U0–U12 on main, including U12 House week #319 `b76b7646`), Core gate, and do-not list live in README (dated section after Floor). This file is SKU law; do not reopen it or freelance a new product.
 
@@ -17,6 +22,8 @@ Workspace `21.88.0`. Design tick, not a Cargo bump.
 **SKU = Steam Offline.** Full MMO is a **second product**. Do not block the first on the second.
 
 This file is the Offline 1.0 product law. Later slices implement; they do not reopen these sentences.
+
+Wave E seal does not change the SKU. A human writes Steam copy and ticks preview. A bot does not become the Steam partner. Title Online stays grey.
 
 ## Title / Online / LAN
 
@@ -59,7 +66,7 @@ Esc opens pause with Places on every hex (U8.1). Comfort later, not this PR: Pla
 
 ## Climate isolation (Offline 1.0)
 
-- Isolation in Offline 1.0: **gamma = 0**.
+- Isolation in Offline 1.0: **gamma = 0**. Wave E E4: γ = 0 until named U3.5.
 - **Sanctuary forever isolated** unless a later **named** law.
 - **Leak tick is U3.5, not U0.** Do not implement leak here.
 - Never couple lethal flags, seeds, or tons across hexes.
@@ -69,7 +76,7 @@ Esc opens pause with Places on every hex (U8.1). Comfort later, not this PR: Pla
 House / settings / genshare / hex files **must** live in a **writable user dir**, not Program Files only.
 
 - Not a server.
-- Cloud save later = those JSON files.
+- Cloud save later = those JSON files. Wave E E3: cloud later — not this stamp.
 - **U1 shipped** the path. Each place keeps `powrush_hex_<id>.json` in that user dir.
 
 Today's cwd `data/` shapes stay the names:
@@ -149,7 +156,8 @@ Steam Offline 1.0 is those four rooms plus that one add. Title Online stays grey
 - Five Sanctuary clones. Heartwood / Depths spawned on Sanctuary. A fifth place. Market as shipped. Title Online on.
 - Coupling lethal / seeds / tons across hexes. Leak tick in U0.
 - Filling `HOUR_TWO_PLAYTEST` minutes / OS / GPU / Time.
-- Creating a Steam partner account from a bot.
+- Inventing preview ticks. Wave E E1 stays blank until a human ticks `PREVIEW_CHECKLIST`.
+- Creating a Steam partner account from a bot. Wave E E2 Steam copy is human.
 - Cutting or retagging `playable-preview` from this stamp.
 - Certification / AGSi warranty / legal-product claims. xAI endorsement.
 

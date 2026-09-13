@@ -1,12 +1,17 @@
 # PREVIEW_CHECKLIST.md — human tick boxes (Offline 1.0 sync)
 
+**CARD H-2026-09-13-WAVE-E-SEAL** · tip `cc26200` (main · UI-MODERNIZE #427) · design tick · not a Cargo bump  
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick, not a Cargo bump.  
 **Independent of xAI.** No certification / AGSi warranty / legal-product claims.
 
 One cold stranger. No second HUD. No server required.
 
-**Steward law:** ticking every box here makes a stranger pass *possible* and keeps the repo honest. It does **not** cut or move `playable-preview`. Tag stays **`11c577e`**. Minutes / OS / GPU / Time are **not a bot field**.
+**Wave E Offline 1.0 seal = human gate.** E1 ticks on this page stay **blank**. Agents do not invent ticks. **Ticking ≠ retag** `playable-preview` / `11c577e`.
+
+**Steward law:** ticking every box here makes a stranger pass *possible* and keeps the repo honest. It does **not** cut or move `playable-preview`. Tag stays **`11c577e`**. **Ticking ≠ retag.** Minutes / OS / GPU / Time are **not a bot field**. Human ticks stay **blank** on this stamp — do not invent ticks.
+
+Cite only [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` — do not reopen.
 
 ---
 
@@ -33,6 +38,8 @@ Title Online stays **grey**. Do not set `POWRUSH_NET=on`. Do not bind `0.0.0.0`.
 
 ## Tick (Offline 1.0)
 
+**Wave E E1:** these boxes stay **blank** until a human ticks them. Agents do not invent ticks. Ticking ≠ retag `playable-preview` / `11c577e`.
+
 - [ ] **Boot** — play-offline script or `cargo run -p powrush-client` opens Title (**Play / Continue / Settings**); climate readable; no account wall
 - [ ] **Online grey** — Online row visible+disabled; honest *off (no listen)*; no peer count / fake presence
 - [ ] **Mute** — Settings Mute present; survives quit/rerun with other settings
@@ -58,7 +65,7 @@ Historical comfort notes (E4 glow, L1 hex sign, Grove opt-in, lavapipe click-cle
 
 ## Explicit refuse
 
-- `POWRUSH_NET=on` as default · bind `0.0.0.0` · lighting Title Online · Steam store copy · fake presence · Market as a Place · retag `11c577e` · Ra-Thor driving WASD · A2–A4 freelance · Phase B/C/D from this checklist · GenShare sockets as a Peace tick · F9 as store Online
+- `POWRUSH_NET=on` as default · bind `0.0.0.0` · lighting Title Online · Steam store copy · fake presence · Market as a Place · retag `playable-preview` / `11c577e` · invent ticks / fill this list from a bot · Ra-Thor driving WASD · A2–A4 freelance · Phase B/C/D from this checklist · GenShare sockets as a Peace tick · F9 as store Online
 
 ## Related
 
