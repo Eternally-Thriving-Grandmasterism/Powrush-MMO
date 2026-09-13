@@ -41,7 +41,7 @@ VO: Face the glow. Tend. The week is the bill. The yard remembers.
 
 ## Codex still library — steward references
 
-Reference rows for alternate coda / room review; they do not lengthen the locked 90s cut until a steward names an edit. Source is the steward Imagine pack / attached room stills. **Do not paste binaries into this repository.**
+Reference rows for alternate coda / room review; they do not lengthen the locked 90s cut until a steward names an edit. Source is the steward Imagine pack / attached room stills. **Do not paste binaries into this repository.** Numbered 01–36 stills are the steward Imagine library expanding Codex refs; mapping to `P-##` remains steward-named edits only.
 
 | ID | Lane | Source still / beat | Guard |
 |---|---|---|---|
@@ -55,3 +55,16 @@ All five rows are **Codex**. If any crop introduces Title, Online is visibly **g
 
 Prompts live in the steward Imagine pack; do not invent eat-flesh or teleport-beam HANDS shots.
 Filename = SHOT_ID. Public description: Steam Offline / source playable. Codex tagged lore painting.
+
+## Steward Drive bank (2026-09-12/13)
+
+Folder: `PowRush MMO Trailer`  
+URL: <https://drive.google.com/drive/folders/1KF6ggG6NKuTibrZLsYO1TjbP_THy3I5L>
+
+Hands inventory (references only): 2 trailers `POWRUSH_Official_Trailer` + `_v2`; ~36 stills (01–36 lore beats · Quellorian/Draek · `19_Earth_Citadel_Game_UI` · `35` logo · `36` Play Now).
+
+**Law:** `ART_BIBLE` / this file — **references only**; do not paste binaries into the repository. Quellorian/Draek stills are Codex paintings, not HANDS cargo. `19_Earth_Citadel_Game_UI` may inform later Comfort plate opacity/contrast **only after a named Hands CARD with exact PATHS** — not a freestyle UI dump. Online grey in Title stills. No NFT / race lobby / XP.
+
+A separate UI asset Drive (folder `1F42-…`) remains unshared/dark until Core Viewer share. Do not invent its inventory.
+
+Refuses: Quellorian mesh cargo · binary dump · invent Hands PATHS · sockets · Market · Always-allow · retag `playable-preview`.
