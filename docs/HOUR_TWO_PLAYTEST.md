@@ -1,5 +1,12 @@
 # HOUR_TWO_PLAYTEST.md
 
+**CARD H-2026-09-13-HOUR-TWO-STEAM** · tip `bdf7af5` (main · RESERVE-CUE #425) · design tick · not a Cargo bump  
+**Core/human gate.** Minutes / OS / GPU / Time stay **blank**. Agents do not invent them. A human fills the Report on a real GPU walk.  
+**Floor** `2163551` · tag `playable-preview` `11c577e` · workspace `21.88.0` · **Title Online grey**  
+**Contact:** info@Rathor.ai · **Independent of xAI.** No certification / AGSi warranty / legal-product claims.
+
+Cite only [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` — do not reopen. No Hands mesh. No MESH-PERSONA. No Steam partner from this file.
+
 Run after the first-hour script. Same binary. No server.
 
 ## Build
@@ -33,7 +40,7 @@ Fail if Embassy / Crownstone is required to finish this script.
 
 ## Steward note
 
-Steward approved proceed 2026-09-05; human timing to be filled on next play. Hour-three Bevy may continue under this authorization. Do not fabricate OS / GPU / minutes.
+Steward approved proceed 2026-09-05; human timing stays **blank** on this stamp. Hour-three Bevy may continue under this authorization. Do not fabricate OS / GPU / minutes. This file is the Core/human gate — not a bot field.
 
 ## Report
 
