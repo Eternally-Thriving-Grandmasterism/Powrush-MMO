@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `221fcaf` — DRIVE-BANK on main (#417). This PR is a **design tick**, not a Cargo bump.
+Tip `11af6da` — TODO8 on main (#418). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -45,6 +45,8 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **TRAILER-BANK** — Landed H-2026-09-12 #415 / `0deee8d`. Imagine Trailer Drive inventory in IMAGINE_TRAILER_PACK (refs only).
 - **JOY-LAW** — Landed H-2026-09-12 #416 / `9385e94`. docs/JOY_WITHOUT_MALL.md rarity+social bank.
 - **DRIVE-BANK** — Landed H-2026-09-12 #417 / `221fcaf`. docs/DRIVE_POWRUSH_BANK.md Powrush Drive inventory (Buildings mesh-ref not cargo; UI Drive dark).
+- **TODO8** — Landed H-2026-09-12 #418 / `11af6da`. Tip stamp TODO7/PACK/TRAILER/JOY/DRIVE; Next Hour-two · MESH-PERSONA · Wave E.
+- **Phase B QA** — Banked H-2026-09-13 no-PR @ tip `221fcaf` (client same on main through TODO8). Stranger-loop offline: Title/Play Online grey · Walk/well · E Tend · I inspect · Places×4 · Places plate · Comfort L/M/H = GREEN; R Flow allocate = AMBER (surplus cue reachable; Reserve stayed 0.0 — no banked confirm). Roll-up AMBER · no RED · Hands code HOLD. Reserve-cue fix only on Core CARD (exact PATHS) — do not invent Hands PATHS.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
@@ -54,8 +56,10 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 2. **MESH-PERSONA** — optional only with Core ASSET BUDGET + exact PATHS (Buildings Astra Medium sheets are refs in DRIVE_POWRUSH_BANK).
 3. **Wave E Offline 1.0 seal** — human preview / Steam copy (≠ retag).
 
+Phase B AMBER Reserve cue = Core CARD only (not a Hands freestyle).
+
 Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
 ## Refuses this turn
 
-Online freestyle · Market · AH · gold · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API · invent Hands PATHS · binary Drive dump · reopen Wave C.
+Online freestyle · Market · AH · gold · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API · invent Hands PATHS · binary Drive dump · reopen Wave C · Reserve-cue freestyle.
