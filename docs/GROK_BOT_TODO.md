@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `85b461b` — DEMO-BANK on main (#421). This PR is a **design tick**, not a Cargo bump.
+Tip `5eff19c` — ASSET-BUDGET on main (#423). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -51,13 +51,15 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **Preview QA** — Banked H-2026-09-13 no-PR @ tip `db05095`. Stranger-loop offline + real frames: Title/Play Online grey · Walk/well · E Tend · I inspect · Places×4+plate · Comfort L/M/H = GREEN; R Flow+Reserve = AMBER (surplus/flow ok; Reserve stayed 0.0 after R+2). Roll-up AMBER · no RED · Hands code HOLD. Feel: clarity strong; AAA gap = Reserve banked confirm — Core CARD only (exact PATHS).
 - **TODO10** — Landed H-2026-09-13 #420 / `f9f8880`. Tip stamp TODO9 + Preview QA AMBER bank.
 - **DEMO-BANK** — Landed H-2026-09-13 #421 / `85b461b`. docs/DEMO_PREALPHA_BANK.md YouTube 68GY59nuf8M inventory + KEEP/REFUSE (Places plate · readable names · week-bill death · hub without fake crowd · craft-as-scene later; REFUSE gold/XP/second HUD/skill-tree/class lobby/Market/sockets/Link-in-Chat). Refs only; no binaries.
+- **TODO11** — Landed H-2026-09-13 #422 / `089be3b`. Tip stamp DEMO-BANK `85b461b` + DEMO KEEP/REFUSE court.
+- **ASSET-BUDGET** — Landed H-2026-09-13 #423 / `5eff19c`. docs/ASSET_BUDGET_COURT.md WoW/SC2-style Comfort L/M/H budget law (readable silhouette · one graphics plate · procedural first · offline fair). MESH-PERSONA still Core CARD+PATHS. Refs only; no binary cargo.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
 1. **Hour-two / Steam** — Core/human. Minutes stay blank for the human.
-2. **MESH-PERSONA** — optional only with Core ASSET BUDGET + exact PATHS (Buildings Astra Medium sheets are refs in DRIVE_POWRUSH_BANK).
+2. **MESH-PERSONA** — optional only with Core CARD + exact PATHS; banked budget law is [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) (Buildings Astra Medium sheets remain refs in DRIVE_POWRUSH_BANK).
 3. **Wave E Offline 1.0 seal** — human preview / Steam copy (≠ retag).
 
 Phase B/Preview AMBER Reserve = Core CARD only (not a Hands freestyle).
