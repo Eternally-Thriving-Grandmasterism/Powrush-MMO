@@ -1,9 +1,12 @@
 # STEAM_CHECKLIST.md — human tick boxes (Steam Offline SKU)
 
+**CARD H-2026-09-13-HOUR-TWO-STEAM** · tip `bdf7af5` (main · RESERVE-CUE #425) · design tick · not a Cargo bump  
 **Contact:** info@Rathor.ai  
 Workspace `21.88.0`. Design tick, not a Cargo bump.  
 **Floor stays:** `2163551`.  
 **`playable-preview` stays** walked SHA **`11c577e`**. Do not retag until a human names a Steam retag.
+
+**Core/human gate (this stamp):** Hour-two playtest + this Steam checklist are **human** work. Minutes / OS / GPU / Time stay blank. **Bot does not create a Steam partner account.** Ticking ≠ retag.
 
 **Steward law:** ticking every box here is a **human** store / ship readiness pass for the **Steam Offline** SKU (`docs/OFFLINE_SKU.md`). It does **not** retag `playable-preview`. **Ticking ≠ retag.**
 
@@ -36,6 +39,6 @@ Independent of xAI. No certification / AGSi warranty / legal-product claims.
 
 ## Related
 
-`OFFLINE_SKU` · `PREVIEW_CHECKLIST` (ticking ≠ preview tag) · `LAUNCH_UX` · `PLACES_BIBLE` · `LAVAPIPE_CLICK_CLEAN` (later) · `STEAM_DECK` (later) · `HOUR_TWO_PLAYTEST` (leave blank).
+`OFFLINE_SKU` · `PREVIEW_CHECKLIST` (ticking ≠ preview tag) · `LAUNCH_UX` · `PLACES_BIBLE` · `LAVAPIPE_CLICK_CLEAN` (later) · `STEAM_DECK` (later) · `HOUR_TWO_PLAYTEST` (leave blank). Cite only [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` — do not reopen.
 
 **Thunder locked in.** Yoi ⚡
