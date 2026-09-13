@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `11af6da` — TODO8 on main (#418). This PR is a **design tick**, not a Cargo bump.
+Tip `db05095` — TODO9 on main (#419). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -47,6 +47,8 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **DRIVE-BANK** — Landed H-2026-09-12 #417 / `221fcaf`. docs/DRIVE_POWRUSH_BANK.md Powrush Drive inventory (Buildings mesh-ref not cargo; UI Drive dark).
 - **TODO8** — Landed H-2026-09-12 #418 / `11af6da`. Tip stamp TODO7/PACK/TRAILER/JOY/DRIVE; Next Hour-two · MESH-PERSONA · Wave E.
 - **Phase B QA** — Banked H-2026-09-13 no-PR @ tip `221fcaf` (client same on main through TODO8). Stranger-loop offline: Title/Play Online grey · Walk/well · E Tend · I inspect · Places×4 · Places plate · Comfort L/M/H = GREEN; R Flow allocate = AMBER (surplus cue reachable; Reserve stayed 0.0 — no banked confirm). Roll-up AMBER · no RED · Hands code HOLD. Reserve-cue fix only on Core CARD (exact PATHS) — do not invent Hands PATHS.
+- **TODO9** — Landed H-2026-09-13 #419 / `db05095`. Tip stamp TODO8 `11af6da` + Phase B AMBER bank.
+- **Preview QA** — Banked H-2026-09-13 no-PR @ tip `db05095`. Stranger-loop offline + real frames: Title/Play Online grey · Walk/well · E Tend · I inspect · Places×4+plate · Comfort L/M/H = GREEN; R Flow+Reserve = AMBER (surplus/flow ok; Reserve stayed 0.0 after R+2). Roll-up AMBER · no RED · Hands code HOLD. Feel: clarity strong; AAA gap = Reserve banked confirm — Core CARD only (exact PATHS).
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
@@ -56,7 +58,7 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 2. **MESH-PERSONA** — optional only with Core ASSET BUDGET + exact PATHS (Buildings Astra Medium sheets are refs in DRIVE_POWRUSH_BANK).
 3. **Wave E Offline 1.0 seal** — human preview / Steam copy (≠ retag).
 
-Phase B AMBER Reserve cue = Core CARD only (not a Hands freestyle).
+Phase B/Preview AMBER Reserve = Core CARD only (not a Hands freestyle).
 
 Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
