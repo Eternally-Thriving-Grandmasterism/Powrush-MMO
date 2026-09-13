@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `70f14b3` — WAVE-C4 on main (#412). This PR is a **design tick**, not a Cargo bump.
+Tip `221fcaf` — DRIVE-BANK on main (#417). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -40,16 +40,22 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **WAVE-C2** — Landed H-2026-09-12 #410 / `5dacdd3`. Depths quieter bed BED_GAIN_DEPTHS=0.06; Mute kills; no ALSA/cpal (`client/src/peace_audio.rs` · `shared/peace_audio.rs`).
 - **WAVE-C3** — Landed H-2026-09-12 #411 / `f319a24`. Heartwood lamp hush BED_GAIN_HEARTWOOD=0.04; Mute; no ALSA (same peace_audio PATHS).
 - **WAVE-C4** — Landed H-2026-09-12 #412 / `70f14b3`. First Play boot quiet: welcome_glow_from_line / welcome_glow 0 unless hour_two_welcome_reward; no XP sparkle; particles.rs not wired into lib (`hour_two_resume.rs` · `first_harvest_epiphany.rs`). Wave C C1–C4 closed.
+- **TODO7** — Landed H-2026-09-12 #413 / `8961b29`. Wave C C1–C4 tip stamp.
+- **PACK-STAMP** — Landed H-2026-09-12 #414 / `4584afa`. AGENT_COMPLETION_PACK tip+§14 Next aligned.
+- **TRAILER-BANK** — Landed H-2026-09-12 #415 / `0deee8d`. Imagine Trailer Drive inventory in IMAGINE_TRAILER_PACK (refs only).
+- **JOY-LAW** — Landed H-2026-09-12 #416 / `9385e94`. docs/JOY_WITHOUT_MALL.md rarity+social bank.
+- **DRIVE-BANK** — Landed H-2026-09-12 #417 / `221fcaf`. docs/DRIVE_POWRUSH_BANK.md Powrush Drive inventory (Buildings mesh-ref not cargo; UI Drive dark).
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
 1. **Hour-two / Steam** — Core/human. Minutes stay blank for the human.
-2. **MESH-PERSONA** — optional only with Core ASSET BUDGET.
+2. **MESH-PERSONA** — optional only with Core ASSET BUDGET + exact PATHS (Buildings Astra Medium sheets are refs in DRIVE_POWRUSH_BANK).
+3. **Wave E Offline 1.0 seal** — human preview / Steam copy (≠ retag).
 
 Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
 ## Refuses this turn
 
-Online freestyle · Market · AH · gold · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API · invent Hands PATHS / reopen Wave C.
+Online freestyle · Market · AH · gold · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API · invent Hands PATHS · binary Drive dump · reopen Wave C.
