@@ -40,6 +40,7 @@ Nested Imagine Trailer folder `1KF6…` (`1KF6ggG6NKuTibrZLsYO1TjbP_THy3I5L`) is
 - **Lore / trailer heavy** — stills, mp4s, Kickstarter VO/script, Imagine 90s pack.
 - **Mesh-ref** = Buildings · Astra Medium sheets only (PNG sheets, not `.glb` cargo).
 - **UI = 0 in this Drive.** The UI Drive `1F42-…` remains dark until Core Viewer share. Do not invent its inventory.
+- **UI-MODERNIZE (H-2026-09-13):** later UI cites [`DEMO_PREALPHA_BANK.md`](DEMO_PREALPHA_BANK.md) KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later) until Core Viewer share. UI Drive stays dark. No invent inventory. No Hands UI freestyle. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). MESH-PERSONA remains SKIP (PATHS unknown).
 
 ---
 
@@ -47,16 +48,18 @@ Nested Imagine Trailer folder `1KF6…` (`1KF6ggG6NKuTibrZLsYO1TjbP_THy3I5L`) is
 
 [`ART_BIBLE.md`](ART_BIBLE.md) / [`DRIVE_LORE_ADAPTATION.md`](DRIVE_LORE_ADAPTATION.md) — **references only**; no binary dump into this repository.
 
-MESH-PERSONA / Buildings dress unlock **only** with a named Core CARD + ASSET BUDGET + exact PATHS (see [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) · [`PLACE_DRESS_SPEC.md`](PLACE_DRESS_SPEC.md)). Practices after House. Title Online grey. Steam Offline SKU ([`OFFLINE_SKU.md`](OFFLINE_SKU.md)). Joy without mall ([`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md)).
+MESH-PERSONA / Buildings dress unlock **only** with a named Core CARD + ASSET BUDGET + exact PATHS (see [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) · [`PLACE_DRESS_SPEC.md`](PLACE_DRESS_SPEC.md)). MESH-PERSONA remains **SKIP** (PATHS unknown). Practices after House. Title Online grey. Steam Offline SKU ([`OFFLINE_SKU.md`](OFFLINE_SKU.md)). Joy without mall ([`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md)).
+
+**UI-MODERNIZE:** later UI cites [`DEMO_PREALPHA_BANK.md`](DEMO_PREALPHA_BANK.md) KEEP only until Core Viewer share. UI Drive stays dark. Do not invent inventory. No Hands UI freestyle.
 
 ---
 
 ## Cross-links
 
-[`ART_BIBLE.md`](ART_BIBLE.md) · [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) · [`DRIVE_LORE_ADAPTATION.md`](DRIVE_LORE_ADAPTATION.md) · [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) · [`PLACE_DRESS_SPEC.md`](PLACE_DRESS_SPEC.md) · [`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md) · [`OFFLINE_SKU.md`](OFFLINE_SKU.md)
+[`ART_BIBLE.md`](ART_BIBLE.md) · [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) · [`DRIVE_LORE_ADAPTATION.md`](DRIVE_LORE_ADAPTATION.md) · [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) · [`PLACE_DRESS_SPEC.md`](PLACE_DRESS_SPEC.md) · [`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md) · [`OFFLINE_SKU.md`](OFFLINE_SKU.md) · [`DEMO_PREALPHA_BANK.md`](DEMO_PREALPHA_BANK.md) · [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (cite only; do not reopen)
 
 ---
 
 ## Refuses
 
-Binary dump into the repo · invent Hands PATHS · Quellorian mesh cargo · UI Drive freestyle · sockets · Title Online lit · Cargo bump / workspace member change · Always-allow · retag `playable-preview` · NFT · invent Hour-two minutes from VO · client / shared edits from this CARD.
+Binary dump into the repo · invent Hands PATHS · invent PATHS · Quellorian mesh cargo · UI Drive freestyle · Hands UI freestyle · Comfort Ultra · OFFER NEXT · reopen Wave C · sockets · Title Online lit · Cargo bump / workspace member change · Always-allow · retag `playable-preview` · NFT · invent Hour-two minutes from VO · invent inventory · gold / XP / second HUD · client / shared edits from this CARD.

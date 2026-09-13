@@ -54,9 +54,9 @@ Atmosphere + extra chrome on the same tape. Do not invent a fifth Place, beds, o
 
 ---
 
-## KEEP (feel only)
+## KEEP (feel only) — UI modernize bank
 
-Later Core CARD + exact PATHS. Court will not invent Hands PATHS from this bank.
+**H-2026-09-13-UI-MODERNIZE:** these KEEP lines are the UI modernize bank. Later UI cites this KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later). UI Drive stays dark until Core Viewer share. Hands dark until Core CARD + exact PATHS. Court will not invent Hands PATHS from this bank. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). MESH-PERSONA remains SKIP (PATHS unknown). Gold / XP / second HUD stay REFUSE.
 
 1. **Named Places with a travel plate.** WRAP GATES → our Places×4 plate: Sanctuary · Heartwood · Threshold · Depths. Place memory. Face ≠ class.
 2. **On-plate readable names for drops** (one glance) — rarity as Temper × Lumen × Ward two-number ([`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md)); trophy ≠ strongest. No gold pile.
@@ -74,7 +74,9 @@ Reserve honesty KEEP ≠ gold till (demo Gold counter stays REFUSE). **Reserve-c
 
 ## REFUSE (Hard)
 
-Gold · XP bar / sparkle · XP-on-death tax · skill-tree grind panel / NEW SKILL button · second HUD (health / mana globes + 1–9 hotbar + XP bar + minimap) · Market / AH · NFT / sockets · class-as-identity ladder (Blade Striker) · character-select lobby · race lobby · vendor Sell Value · gold stash (Data Vault) · Link-in-Chat · Dreake / Quellorian mesh cargo dump · fake crowd hub · Online lit · Cargo bump · invent Hands PATHS · binary demo dump into repo · reopen Wave C · Reserve-cue freestyle · fifth Place from Area-53/59 slop.
+**UI-MODERNIZE:** gold / XP / second HUD stay REFUSE. No Hands UI freestyle. No invent PATHS.
+
+Gold · XP bar / sparkle · XP-on-death tax · skill-tree grind panel / NEW SKILL button · second HUD (health / mana globes + 1–9 hotbar + XP bar + minimap) · Market / AH · NFT / sockets · class-as-identity ladder (Blade Striker) · character-select lobby · race lobby · vendor Sell Value · gold stash (Data Vault) · Link-in-Chat · Dreake / Quellorian mesh cargo dump · fake crowd hub · Online lit · Cargo bump · invent Hands PATHS · invent PATHS · binary demo dump into repo · reopen Wave C · Comfort Ultra · UI Drive freestyle · Hands UI freestyle · OFFER NEXT · Reserve-cue freestyle · fifth Place from Area-53/59 slop.
 
 ---
 
@@ -84,7 +86,8 @@ Gold · XP bar / sparkle · XP-on-death tax · skill-tree grind panel / NEW SKIL
 |---|---|
 | SKU | **Steam Offline 1.0 first.** Demo is proof-of-feel, not the SKU. |
 | Title | **Online grey** until steward writes `online yes` |
-| PATHS | This file only — `docs/DEMO_PREALPHA_BANK.md` · **no invent Hands PATHS** |
+| PATHS | This file only — `docs/DEMO_PREALPHA_BANK.md` · **no invent Hands PATHS** · **no invent PATHS** |
+| UI | Modernize cites **KEEP only**. UI Drive dark until Core Viewer share. No Hands UI freestyle. |
 | Art | Refs only (YouTube id `68GY59nuf8M`) — **no mp4 in repo** |
 | Scope | Inventory + KEEP / REFUSE. Hands dark until Core CARD. No `client/**` · `shared/**` · Cargo · deletes |
 
@@ -92,10 +95,10 @@ Gold · XP bar / sparkle · XP-on-death tax · skill-tree grind panel / NEW SKIL
 
 ## Cross-links (cite only)
 
-[`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md) · [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) · [`DRIVE_POWRUSH_BANK.md`](DRIVE_POWRUSH_BANK.md) · [`GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md) · [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) (**Reserve-cue** AMBER named there; still Core CARD for client fix)
+[`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md) · [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) · [`DRIVE_POWRUSH_BANK.md`](DRIVE_POWRUSH_BANK.md) · [`GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md) · [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) (**Reserve-cue** AMBER named there; still Core CARD for client fix) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (cite only; do not reopen)
 
 ---
 
 ## Refuses (repeat, short)
 
-`client/**` · `shared/**` · Cargo · Title Online light · invent Hands PATHS · binary demo dump · gold / XP / skill-tree as law · second HUD · globes / hotbar / XP sparkle · Market / AH / NFT / sockets · class ladder · character-select lobby · vendor Sell Value · gold stash · Link-in-Chat · race lobby · Dreake / Quellorian cargo · fake crowd · fifth Place · reopen Wave C · Reserve-cue freestyle · certification / AGSi warranty / legal-product claims · xAI endorsement.
+`client/**` · `shared/**` · Cargo · Title Online light · invent Hands PATHS · invent PATHS · binary demo dump · gold / XP / skill-tree as law · second HUD · globes / hotbar / XP sparkle · Market / AH / NFT / sockets · class ladder · character-select lobby · vendor Sell Value · gold stash · Link-in-Chat · race lobby · Dreake / Quellorian cargo · fake crowd · fifth Place · reopen Wave C · Comfort Ultra · UI Drive freestyle · Hands UI freestyle · OFFER NEXT · Reserve-cue freestyle · certification / AGSi warranty / legal-product claims · xAI endorsement.
