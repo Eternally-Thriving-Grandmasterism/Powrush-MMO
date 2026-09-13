@@ -27,7 +27,7 @@ Nested Imagine Trailer folder `1KF6…` (`1KF6ggG6NKuTibrZLsYO1TjbP_THy3I5L`) is
 
 | Bucket | What is there (refs only) | Court use |
 |---|---|---|
-| **Buildings · Astra Medium** | 8 PNG mesh/lore sheets: Humans / Quellorians / Druids / Draeks / Ambrosians Buildings · Environment Asset Sheet · Crystalwater Crossing · +1 | **Mesh refs only.** Not Hands cargo. **Not** a Quellorian dump into Sanctuary. MESH-PERSONA / Buildings dress unlock only with a Core CARD + ASSET BUDGET + exact PATHS. |
+| **Buildings · Astra Medium** | 8 PNG mesh/lore sheets: Humans / Quellorians / Druids / Draeks / Ambrosians Buildings · Environment Asset Sheet · Crystalwater Crossing · +1 | **Mesh refs only.** Not Hands cargo. **Not** a Quellorian dump into Sanctuary. Race-looks + Buildings = refs only (X @AlphaProMega race-look posts + this Drive `1Bqt2…` already banked). Hands dress unlock only with a Core CARD + [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md) + ASSET BUDGET + exact PATHS. |
 | **Trailer 6 Astra Medium** | ~30 PNG stills + `POWRUSH_trailer_30s.mp4` | Lore / trailer refs. |
 | **Imagine Pack PR357** | 1×90s mp4 + stills zip | Cite [`ART_BIBLE.md`](ART_BIBLE.md) / [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md). Codex vs Hands lanes stay unfused. |
 | **Kickstarter** | Campaign mp4s · VO mp3 · `SCRIPT_AND_SHOTLIST.md` · pack zip · `stills/` | Marketing refs only. **Do not invent Hour-two minutes from VO.** |
@@ -38,9 +38,10 @@ Nested Imagine Trailer folder `1KF6…` (`1KF6ggG6NKuTibrZLsYO1TjbP_THy3I5L`) is
 ## Buckets (read)
 
 - **Lore / trailer heavy** — stills, mp4s, Kickstarter VO/script, Imagine 90s pack.
-- **Mesh-ref** = Buildings · Astra Medium sheets only (PNG sheets, not `.glb` cargo).
+- **Mesh-ref** = Buildings · Astra Medium sheets only (PNG sheets, not `.glb` cargo). Race-looks (X @AlphaProMega posts) = refs only. Not Hands mesh this tick.
 - **UI = 0 in this Drive.** The UI Drive `1F42-…` remains dark until Core Viewer share. Do not invent its inventory.
-- **UI-MODERNIZE (H-2026-09-13):** later UI cites [`DEMO_PREALPHA_BANK.md`](DEMO_PREALPHA_BANK.md) KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later) until Core Viewer share. UI Drive stays dark. No invent inventory. No Hands UI freestyle. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). MESH-PERSONA remains SKIP (PATHS unknown).
+- **UI-MODERNIZE (H-2026-09-13):** later UI cites [`DEMO_PREALPHA_BANK.md`](DEMO_PREALPHA_BANK.md) KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later) until Core Viewer share. UI Drive stays dark. No invent inventory. No Hands UI freestyle. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
+- **MESH-PERSONA (H-2026-09-13):** **SKIP lifted** — court bank landed at [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md). Buildings / race-looks remain refs only. Hands mesh still Core CARD + exact PATHS. UI Drive still dark. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
 
 ---
 
@@ -48,7 +49,7 @@ Nested Imagine Trailer folder `1KF6…` (`1KF6ggG6NKuTibrZLsYO1TjbP_THy3I5L`) is
 
 [`ART_BIBLE.md`](ART_BIBLE.md) / [`DRIVE_LORE_ADAPTATION.md`](DRIVE_LORE_ADAPTATION.md) — **references only**; no binary dump into this repository.
 
-MESH-PERSONA / Buildings dress unlock **only** with a named Core CARD + ASSET BUDGET + exact PATHS (see [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) · [`PLACE_DRESS_SPEC.md`](PLACE_DRESS_SPEC.md)). MESH-PERSONA remains **SKIP** (PATHS unknown). Practices after House. Title Online grey. Steam Offline SKU ([`OFFLINE_SKU.md`](OFFLINE_SKU.md)). Joy without mall ([`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md)).
+MESH-PERSONA court bank landed ([`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md)). Hands mesh / Buildings dress unlock **only** with a named Core CARD + ASSET BUDGET + exact PATHS (see [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) · [`PLACE_DRESS_SPEC.md`](PLACE_DRESS_SPEC.md)). Buildings / race-looks = refs only. Practices after House. face ≠ class (no race lobby). Title Online grey. Steam Offline SKU ([`OFFLINE_SKU.md`](OFFLINE_SKU.md)). Joy without mall ([`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md)). UI Drive still dark.
 
 **UI-MODERNIZE:** later UI cites [`DEMO_PREALPHA_BANK.md`](DEMO_PREALPHA_BANK.md) KEEP only until Core Viewer share. UI Drive stays dark. Do not invent inventory. No Hands UI freestyle.
 
@@ -56,7 +57,7 @@ MESH-PERSONA / Buildings dress unlock **only** with a named Core CARD + ASSET BU
 
 ## Cross-links
 
-[`ART_BIBLE.md`](ART_BIBLE.md) · [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) · [`DRIVE_LORE_ADAPTATION.md`](DRIVE_LORE_ADAPTATION.md) · [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) · [`PLACE_DRESS_SPEC.md`](PLACE_DRESS_SPEC.md) · [`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md) · [`OFFLINE_SKU.md`](OFFLINE_SKU.md) · [`DEMO_PREALPHA_BANK.md`](DEMO_PREALPHA_BANK.md) · [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (cite only; do not reopen)
+[`ART_BIBLE.md`](ART_BIBLE.md) · [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) · [`DRIVE_LORE_ADAPTATION.md`](DRIVE_LORE_ADAPTATION.md) · [`MESH_QUALITY_BUDGET.md`](MESH_QUALITY_BUDGET.md) · [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md) · [`PLACE_DRESS_SPEC.md`](PLACE_DRESS_SPEC.md) · [`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md) · [`OFFLINE_SKU.md`](OFFLINE_SKU.md) · [`DEMO_PREALPHA_BANK.md`](DEMO_PREALPHA_BANK.md) · [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (cite only; do not reopen)
 
 ---
 
