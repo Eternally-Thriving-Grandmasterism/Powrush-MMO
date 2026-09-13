@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `5eff19c` — ASSET-BUDGET on main (#423). This PR is a **design tick**, not a Cargo bump.
+Tip `4183c8c` — TODO12 on main (#424). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -52,7 +52,9 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **TODO10** — Landed H-2026-09-13 #420 / `f9f8880`. Tip stamp TODO9 + Preview QA AMBER bank.
 - **DEMO-BANK** — Landed H-2026-09-13 #421 / `85b461b`. docs/DEMO_PREALPHA_BANK.md YouTube 68GY59nuf8M inventory + KEEP/REFUSE (Places plate · readable names · week-bill death · hub without fake crowd · craft-as-scene later; REFUSE gold/XP/second HUD/skill-tree/class lobby/Market/sockets/Link-in-Chat). Refs only; no binaries.
 - **TODO11** — Landed H-2026-09-13 #422 / `089be3b`. Tip stamp DEMO-BANK `85b461b` + DEMO KEEP/REFUSE court.
-- **ASSET-BUDGET** — Landed H-2026-09-13 #423 / `5eff19c`. docs/ASSET_BUDGET_COURT.md WoW/SC2-style Comfort L/M/H budget law (readable silhouette · one graphics plate · procedural first · offline fair). MESH-PERSONA still Core CARD+PATHS. Refs only; no binary cargo.
+- **ASSET-BUDGET** — Landed H-2026-09-13 #423 / `5eff19c`. docs/ASSET_BUDGET_COURT.md WoW/SC2-style Comfort L/M/H budget law (readable silhouette · one graphics plate · procedural first · offline fair). MESH-PERSONA still Core CARD+PATHS. Refs only; no binary cargo. Cite only this tick — do not reopen.
+- **TODO12** — Landed H-2026-09-13 #424 / `4183c8c`. Tip stamp ASSET-BUDGET `5eff19c` + ASSET-BUDGET court.
+- **RESERVE-CUE** — Stamped H-2026-09-13. Named Preview AMBER / Phase B AMBER honesty note: stranger-loop Reserve stayed 0.0 after R+2 (no banked confirm). Docs court stamp only. Fix remains Core CARD + exact PATHS. Hands HOLD. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
@@ -62,7 +64,7 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 2. **MESH-PERSONA** — optional only with Core CARD + exact PATHS; banked budget law is [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) (Buildings Astra Medium sheets remain refs in DRIVE_POWRUSH_BANK).
 3. **Wave E Offline 1.0 seal** — human preview / Steam copy (≠ retag).
 
-Phase B/Preview AMBER Reserve = Core CARD only (not a Hands freestyle).
+**Reserve-cue** — named Phase B / Preview AMBER gap. Stranger-loop Reserve stayed 0.0 after R+2 (no banked confirm). Fix remains Core CARD + exact PATHS. Hands HOLD. Not a Hands freestyle.
 UI modernize from DEMO-BANK KEEP only — Core CARD + PATHS; no invent Hands PATHS.
 
 Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
