@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `3e58c48` — HOUR-TWO-STEAM spent on main (#426). This PR is a **design tick**, not a Cargo bump.
+Tip `cc26200` — UI-MODERNIZE spent on main (#427). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -56,7 +56,8 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **TODO12** — Landed H-2026-09-13 #424 / `4183c8c`. Tip stamp ASSET-BUDGET `5eff19c` + ASSET-BUDGET court.
 - **RESERVE-CUE** — Landed H-2026-09-13 #425 / `bdf7af5`. Named Preview AMBER / Phase B AMBER honesty note: stranger-loop Reserve stayed 0.0 after R+2 (no banked confirm). Docs court stamp only. Fix remains Core CARD + exact PATHS. Hands HOLD. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
 - **HOUR-TWO-STEAM** — Landed H-2026-09-13 #426 / `3e58c48`. Hour-two / Steam = Core/human gate. Minutes / OS / GPU / Time stay blank. No invent minutes. No bot Steam partner. No retag. No Hands mesh. No MESH-PERSONA. Title Online grey. Hands HOLD.
-- **UI-MODERNIZE** — Stamped H-2026-09-13. UI modernize = DEMO-BANK KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later) as court law for later UI. UI Drive stays dark until Core Viewer share. No Hands UI freestyle. No MESH-PERSONA. No binary. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). MESH-PERSONA remains SKIP (PATHS unknown). Hands HOLD. Title Online grey.
+- **UI-MODERNIZE** — Landed H-2026-09-13 #427 / `cc26200`. UI modernize = DEMO-BANK KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later) as court law for later UI. UI Drive stays dark until Core Viewer share. No Hands UI freestyle. No MESH-PERSONA. No binary. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). MESH-PERSONA remains SKIP (PATHS unknown). Hands HOLD. Title Online grey.
+- **WAVE-E-SEAL** — Stamped H-2026-09-13. Wave E Offline 1.0 seal = **human** gate. E1 human preview ticks (≠ retag `11c577e`). E2 Steam copy human (no bot partner). E3 cloud later. E4 γ=0 until named U3.5. No invent ticks. No retag. No Hands mesh. No MESH-PERSONA. No UI Drive freestyle. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Hands HOLD. Title Online grey.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
@@ -64,7 +65,7 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 1. **MESH-PERSONA** — **SKIP**. PATHS unknown. Optional only with Core CARD + exact PATHS; banked budget law is [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Buildings Astra Medium sheets remain refs in DRIVE_POWRUSH_BANK. Do not invent PATHS.
 2. **Hour-two / Steam** — Core/human gate (stamp #426 spent). Minutes / OS / GPU / Time stay blank for the human. Bot does not fill Report. Bot does not create a Steam partner account.
-3. **Wave E Offline 1.0 seal** — human preview / Steam copy (≠ retag).
+3. **Wave E Offline 1.0 seal** — **human** gate (this stamp). E1 preview ticks stay blank (≠ retag `playable-preview` / `11c577e`). E2 Steam copy human (no bot partner). E3 cloud later. E4 γ=0 until named U3.5. Bot does not tick. Hands HOLD after merge.
 
 **Reserve-cue** — named Phase B / Preview AMBER gap. Stranger-loop Reserve stayed 0.0 after R+2 (no banked confirm). Fix remains Core CARD + exact PATHS. Hands HOLD. Not a Hands freestyle.
 **UI-MODERNIZE** court law: later UI cites DEMO-BANK KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later). UI Drive dark until Core Viewer share. Hands UI dark until Core CARD + exact PATHS. No Hands UI freestyle. No invent PATHS. MESH-PERSONA remains SKIP (PATHS unknown).
@@ -73,4 +74,4 @@ Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `1
 
 ## Refuses this turn
 
-Online freestyle · Market · AH · gold · XP/second HUD · skill-tree as law · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API · invent Hands PATHS · invent PATHS · OFFER NEXT · binary Drive/demo dump · reopen Wave C · Comfort Ultra · UI Drive freestyle · Hands UI freestyle · Reserve-cue freestyle · invent minutes · Steam partner from bot · retag · Hands mesh · MESH-PERSONA without Core CARD.
+Online freestyle · Market · AH · gold · XP/second HUD · skill-tree as law · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · Sky until online yes · live Earth API · invent Hands PATHS · invent PATHS · OFFER NEXT · binary Drive/demo dump · reopen Wave C · Comfort Ultra · UI Drive freestyle · Hands UI freestyle · Reserve-cue freestyle · invent minutes · invent ticks · Steam partner from bot · retag · Hands mesh · MESH-PERSONA without Core CARD.
