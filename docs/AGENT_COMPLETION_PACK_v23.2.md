@@ -5,13 +5,13 @@
 **For:** Powrush Cursor agents + Steward (Sherif)  
 **Contact:** info@Rathor.ai  
 **Workspace:** `21.88.0` (Cargo). This file is a **design tick**, not a Cargo bump.  
-**Tip at authorship:** `71aebc60` (U13 Offline SKU stamp merged).  
+**Tip at authorship:** `8961b29` (TODO7 / WAVE-C4 bank).  
 **Floor:** `2163551`. **`playable-preview`:** `11c577e` — do not retag.  
 **SKU:** Steam Offline is product 1. Full MMO is product 2. Never block 1 on 2.
 
 Independent of xAI. No certification, AGSi warranty, or legal-product claims. Human override on every output.
 
-**Landed 2026-09-09 (B1 + B2 only):** A0 closed — #316 stays closed; do not revive. B1 landed #322 / `c4529542` (`reduced_motion` + `rumble` persist beside Grove). B2 landed #323 / `0e4b89db` (well captions as words on the climate slab). Next ordered work is B3 colorblind well tokens — not this note. Wave C later from current `main`. Hour-two minutes stay blank. Title Online stays grey. Tag `11c577e`. Floor `2163551`. Workspace `21.88.0`.
+**Landed 2026-09-12 bank:** Wave B B1–B7 closed · Wave C C1–C4 closed (#409–#412 @ `70f14b3`) · TODO7 stamp #413 @ `8961b29` · Hands HOLD · Hour-two minutes stay blank for the human. Do not revive A0/#316. Title Online stays grey. Tag `11c577e`. Floor `2163551`. Workspace `21.88.0`.
 
 ---
 
@@ -253,6 +253,8 @@ Refuse: second Camera3d, brand SDK hard-require, combat faces in Peace.
 
 C1 reuse `well_glow`. C2 Depths quiet bed (Mute kills; no ALSA). C3 Heartwood lamp hush. C4 no XP sparkle on first boot.
 
+Landed 2026-09-12 #409–#412 · tip before TODO7 `70f14b3` · Wave C closed.
+
 ### Wave D — Hour 4 mythic (after book)
 
 Same E. No damage. No Sanctuary spawn of stone/boss/second body.
@@ -372,9 +374,9 @@ Slice one sentence. Files claimed. Core tests. Hour 1 unchanged. Title Online gr
 
 ## 14. Next three Cursor moves
 
-1. **A0** — Rebase #316 or close it.
-2. **B1** — `reduced_motion` / `rumble` persist beside Grove.
-3. **B2** — Well captions as words.
+1. **Hour-two / Steam** — Steward/Core human fills minutes · OS · GPU · Time. Agents leave blanks.
+2. **MESH-PERSONA** — optional only when Core pastes CARD + ASSET BUDGET + exact PATHS.
+3. **Wave E Offline 1.0 seal** — human preview tick (≠ retag) · Steam copy human · cloud later · γ=0 until named U3.5.
 
 Steward fills Hour-two minutes. Agents leave the blanks.
 
