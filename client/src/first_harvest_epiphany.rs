@@ -1,1 +1,1 @@
-PLACEHOLDER_LOAD_FROM_FILE
+LOAD_FROM_/tmp/mcp_create_args_v2.json
