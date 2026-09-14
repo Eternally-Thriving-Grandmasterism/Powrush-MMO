@@ -22,6 +22,7 @@ use shared::climate_node::AllocKind;
 use crate::first_session_guidance::{credit_share, FirstSessionGuidance};
 use crate::harvest_feel::rumble_mercy_harvest;
 use crate::lived_hour_bind::LivedHourBind;
+use crate::lived_sim_bridge::{emit_lived_event, LivedSimBridge};
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
@@ -345,19 +346,39 @@ fn commit_allocate(
     rumble: &mut EventWriter<GamepadRumbleRequest>,
     gamepads: &Gamepads,
     bind: &mut LivedHourBind,
+    bridge: Option<&LivedSimBridge>,
     path: AllocatePath,
     now: f64,
 ) {
     allocate.apply(path, 1.0);
-    rumble_mercy_harvest(rumble, gamepads);
-    fire_thriving(moments, ThrivingKind::FirstShare, now);
-    credit_share(guidance);
     let kind = match path {
         AllocatePath::FlowOutward => AllocKind::Flow,
         AllocatePath::StewardReserve => AllocKind::Reserve,
     };
-    let _ = bind.allocate(kind);
-    info!(target: "powrush::rbe", ?path, "Allocate committed");
+    let ok = bind.allocate(kind);
+    if ok {
+        rumble_mercy_harvest(rumble, gamepads);
+        fire_thriving(moments, ThrivingKind::FirstShare, now);
+        credit_share(guidance);
+    }
+    let action = match path {
+        AllocatePath::FlowOutward => "allocate_flow",
+        AllocatePath::StewardReserve => "allocate_reserve",
+    };
+    if let Some(bridge) = bridge {
+        emit_lived_event(
+            bridge.session_id,
+            now,
+            action,
+            bind.last_line.clone(),
+            None,
+        );
+    }
+    if ok {
+        info!(target: "powrush::rbe", ?path, line = %bind.last_line, "Allocate committed");
+    } else {
+        warn!(target: "powrush::rbe", ?path, line = %bind.last_line, "Allocate refused");
+    }
 }
 
 fn handle_allocate_buttons(
@@ -367,6 +388,7 @@ fn handle_allocate_buttons(
     mut rumble: EventWriter<GamepadRumbleRequest>,
     gamepads: Res<Gamepads>,
     mut bind: ResMut<LivedHourBind>,
+    bridge: Option<Res<LivedSimBridge>>,
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     flow_q: Query<&Interaction, (Changed<Interaction>, With<AllocateFlowButton>)>,
@@ -385,15 +407,30 @@ fn handle_allocate_buttons(
     };
     if let Some(path) = path {
         commit_allocate(
-            &mut allocate, &mut moments, &mut guidance, &mut rumble, &gamepads, &mut bind, path, now,
+            &mut allocate,
+            &mut moments,
+            &mut guidance,
+            &mut rumble,
+            &gamepads,
+            &mut bind,
+            bridge.as_deref(),
+            path,
+            now,
         );
         return;
     }
     for inter in &flow_q {
         if *inter == Interaction::Pressed {
             commit_allocate(
-                &mut allocate, &mut moments, &mut guidance, &mut rumble, &gamepads,
-                &mut bind, AllocatePath::FlowOutward, now,
+                &mut allocate,
+                &mut moments,
+                &mut guidance,
+                &mut rumble,
+                &gamepads,
+                &mut bind,
+                bridge.as_deref(),
+                AllocatePath::FlowOutward,
+                now,
             );
             return;
         }
@@ -401,8 +438,15 @@ fn handle_allocate_buttons(
     for inter in &reserve_q {
         if *inter == Interaction::Pressed {
             commit_allocate(
-                &mut allocate, &mut moments, &mut guidance, &mut rumble, &gamepads,
-                &mut bind, AllocatePath::StewardReserve, now,
+                &mut allocate,
+                &mut moments,
+                &mut guidance,
+                &mut rumble,
+                &gamepads,
+                &mut bind,
+                bridge.as_deref(),
+                AllocatePath::StewardReserve,
+                now,
             );
             return;
         }

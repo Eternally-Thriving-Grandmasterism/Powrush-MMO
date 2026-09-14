@@ -23,7 +23,11 @@ use bevy::prelude::*;
 use shared::temper::{seat_ward, TemperError, TemperedItem, WardKind};
 
 use crate::fabricator::FabricatorYard;
+use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::harvest_feel::SoftRbePool;
 use crate::human_presence::SoftPresence;
+use crate::lived_hour_bind::LivedHourBind;
+use crate::lived_sim_bridge::{sync_lived_hour_use, LivedSimBridge};
 use crate::living_ecology::BiomeFeel;
 use crate::living_practice_loop::SoftPlayerRealm;
 
@@ -249,6 +253,7 @@ impl Plugin for MercyHarvestNodesPlugin {
                     handle_care_cycle_input,
                     update_care_cycle_strip,
                     try_soft_harvest_sting,
+                    sync_lived_hour_from_peace_use,
                 ),
             );
     }
@@ -594,6 +599,50 @@ pub fn apply_node_harvest(node: &mut MercyHarvestNode) {
 pub fn apply_node_tend(node: &mut MercyHarvestNode) {
     node.vitality = (node.vitality + 0.14).min(1.0);
     node.pulse = TEND_PULSE;
+}
+
+/// Bridge embodied Peace E into lived-hour satchel + climate persist (stranger loop).
+fn sync_lived_hour_from_peace_use(
+    nearby: Res<NearbyMercyNode>,
+    pool: Res<SoftRbePool>,
+    harvest: Res<FirstHarvestEpiphany>,
+    time: Res<Time>,
+    mut bind: Option<ResMut<LivedHourBind>>,
+    bridge: Option<Res<LivedSimBridge>>,
+    mut last_harvests: Local<u32>,
+    mut last_tends: Local<u32>,
+) {
+    let h = harvest.harvests_this_session;
+    let t = harvest.tends_this_session;
+    if h <= *last_harvests && t <= *last_tends {
+        return;
+    }
+    if !nearby.in_range {
+        *last_harvests = h;
+        *last_tends = t;
+        return;
+    }
+    let now = time.elapsed_seconds_f64();
+    if h > *last_harvests {
+        sync_lived_hour_use(
+            bind.as_deref_mut(),
+            bridge.as_deref(),
+            now,
+            "take",
+            Some(pool.last_credit.max(0.0)),
+        );
+    }
+    if t > *last_tends {
+        sync_lived_hour_use(
+            bind.as_deref_mut(),
+            bridge.as_deref(),
+            now,
+            "tend",
+            Some(pool.last_credit.max(0.0)),
+        );
+    }
+    *last_harvests = h;
+    *last_tends = t;
 }
 
 fn try_soft_harvest_sting(

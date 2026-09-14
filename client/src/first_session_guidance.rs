@@ -19,6 +19,7 @@ use crate::hour_sacred::HourSacred;
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::NearbyMercyNode;
+use crate::title_screen::LaunchDoor;
 use shared::ledger_bind::ContractState;
 use shared::space_law::HexFlag;
 
@@ -303,10 +304,12 @@ fn card_line(prompt: &str) -> String {
 fn update_guidance_visibility(
     guidance: Res<FirstSessionGuidance>,
     bind: Option<Res<LivedHourBind>>,
+    door: Res<LaunchDoor>,
     mut query: Query<&mut Visibility, With<FirstSessionGuidanceStrip>>,
 ) {
     let hidden_by_bind = bind.map(|b| b.guidance_hidden).unwrap_or(false);
-    let show = guidance.active && !guidance.dismissed && !hidden_by_bind;
+    let in_yard = *door == LaunchDoor::InYard;
+    let show = in_yard && guidance.active && !guidance.dismissed && !hidden_by_bind;
     for mut vis in &mut query {
         *vis = if show {
             Visibility::Visible
