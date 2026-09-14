@@ -1,1 +1,1 @@
-LOAD_FROM:/workspace/powrush-patch/_epiphany_content.rs
+PLACEHOLDER_LOAD_FROM_FILE_/tmp/epiphany_plain.rs
