@@ -20,7 +20,7 @@ P2W · NFT as power · Online looking live while grey · invent PATHS/minutes/ti
 | Phase | Unlocks | Still HOLD |
 |---|---|---|
 | P0 lived yard | already | Online button |
-| P1 Reserve-cue client | CARD + existing allocate PATHS | invent names |
+| P1 Reserve-cue client | **landed** #436 / `20321cd8` (PATHS: `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`) | invent names · Reserve-cue freestyle |
 | P2 MESH-PERSONA Hands | CARD + exact mesh PATHS + ASSET_BUDGET @ 5eff19c | .glb Drive dump |
 | P3 Buildings LOD | Comfort L holds; ART_BIBLE | fifth Place |
 | P4 craft-as-scene | DEMO KEEP; no gold sink | vendor till |
