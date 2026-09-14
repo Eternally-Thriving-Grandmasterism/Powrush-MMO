@@ -70,6 +70,15 @@ pub fn fire_world_answer(answer: &mut WorldAnswer, kind: AnswerKind, now: f64, l
     answer.fire(kind, now, line);
 }
 
+/// R+2 confirm. Never "Reserve −0.0 harmony" — that was the named AMBER.
+pub fn reserve_world_line(banked: f32) -> String {
+    if banked > 0.05 {
+        format!("Reserve {banked:.1} · repair-rights held")
+    } else {
+        "Reserve not banked".to_string()
+    }
+}
+
 pub struct WorldAnswerPlugin;
 
 impl Plugin for WorldAnswerPlugin {
@@ -94,22 +103,24 @@ fn notice_allocate(
     let Some(path) = allocate.last_choice else {
         return;
     };
-    let spent = pool.spend_allocate(path, 1.0);
     match path {
-        AllocatePath::FlowOutward => fire_world_answer(
-            &mut answer,
-            AnswerKind::Flow,
-            now,
-            format!("Flow −{spent:.1} vitality — the climate brightens"),
-        ),
-        AllocatePath::StewardReserve => fire_world_answer(
-            &mut answer,
-            AnswerKind::Reserve,
-            now,
-            format!("Reserve −{spent:.1} harmony — the climate steadies"),
-        ),
+        AllocatePath::FlowOutward => {
+            let spent = pool.spend_allocate(path, 1.0);
+            fire_world_answer(
+                &mut answer,
+                AnswerKind::Flow,
+                now,
+                format!("Flow −{spent:.1} vitality — the climate brightens"),
+            );
+            info!(target: "powrush::answer", ?path, spent, "allocate spent into the climate");
+        }
+        AllocatePath::StewardReserve => {
+            let _ = pool.spend_allocate(path, 1.0);
+            let line = reserve_world_line(allocate.reserve_total);
+            fire_world_answer(&mut answer, AnswerKind::Reserve, now, line.clone());
+            info!(target: "powrush::answer", ?path, line, "allocate reserve banked");
+        }
     }
-    info!(target: "powrush::answer", ?path, spent, "allocate spent into the climate");
 }
 
 fn paint_world_answer(
@@ -157,4 +168,20 @@ fn paint_world_answer(
     } else {
         AnswerKind::Idle
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reserve_confirm_is_a_bank_not_zero_spend() {
+        let banked = reserve_world_line(1.0);
+        assert!(banked.contains("Reserve 1.0"));
+        assert!(banked.contains("repair-rights"));
+        assert!(!banked.contains("−"));
+        assert!(!banked.contains("-0.0"));
+        assert!(!banked.contains("0.0 harmony"));
+        assert_eq!(reserve_world_line(0.0), "Reserve not banked");
+    }
 }

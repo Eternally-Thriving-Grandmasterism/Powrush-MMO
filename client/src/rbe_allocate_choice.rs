@@ -105,6 +105,15 @@ impl RbeAllocateChoice {
         }
     }
 
+    /// E tend fills the lived-hour satchel. That take is surplus for R.
+    /// Without this, only RBE harvest strings opened the panel and R+2
+    /// could show reserved 0.0 with no banked confirm.
+    pub fn note_satchel_delta(&mut self, prev: usize, now: usize) {
+        if now > prev {
+            self.note_surplus((now - prev) as f32);
+        }
+    }
+
     pub fn apply(&mut self, path: AllocatePath, portion: f32) {
         let take = portion.clamp(0.1, self.surplus_signal.max(0.1));
         match path {
@@ -142,6 +151,7 @@ impl Plugin for RbeAllocateChoicePlugin {
             .add_systems(
                 Update,
                 (
+                    surplus_from_lived_satchel,
                     soft_surplus_from_rbe_feedback,
                     toggle_allocate_panel,
                     update_allocate_visibility,
@@ -259,6 +269,42 @@ fn spawn_allocate_panel(mut commands: Commands) {
         });
 }
 
+fn surplus_from_lived_satchel(
+    bind: Option<Res<LivedHourBind>>,
+    mut allocate: ResMut<RbeAllocateChoice>,
+    mut last: Local<usize>,
+) {
+    let Some(bind) = bind else {
+        return;
+    };
+    let now = bind.satchel_count();
+    allocate.note_satchel_delta(*last, now);
+    *last = now;
+}
+
+/// Digit2 is Reserve while the allocate panel is open — Distill Ward waits.
+pub fn allocate_owns_digit2(panel_open: bool) -> bool {
+    panel_open
+}
+
+/// Bind first. UI credit only when the satchel actually spent.
+/// Empty satchel must not paint reserved 0.0 as a successful bank.
+pub fn try_commit_allocate(
+    allocate: &mut RbeAllocateChoice,
+    bind: &mut LivedHourBind,
+    path: AllocatePath,
+) -> bool {
+    let kind = match path {
+        AllocatePath::FlowOutward => AllocKind::Flow,
+        AllocatePath::StewardReserve => AllocKind::Reserve,
+    };
+    let ok = bind.allocate(kind);
+    if ok {
+        allocate.apply(path, 1.0);
+    }
+    ok
+}
+
 fn soft_surplus_from_rbe_feedback(
     rbe_ui: Option<Res<crate::lived_hour_support::RbeUiSync>>,
     mut allocate: ResMut<RbeAllocateChoice>,
@@ -350,12 +396,7 @@ fn commit_allocate(
     path: AllocatePath,
     now: f64,
 ) {
-    allocate.apply(path, 1.0);
-    let kind = match path {
-        AllocatePath::FlowOutward => AllocKind::Flow,
-        AllocatePath::StewardReserve => AllocKind::Reserve,
-    };
-    let ok = bind.allocate(kind);
+    let ok = try_commit_allocate(allocate, bind, path);
     if ok {
         rumble_mercy_harvest(rumble, gamepads);
         fire_thriving(moments, ThrivingKind::FirstShare, now);
@@ -456,6 +497,7 @@ fn handle_allocate_buttons(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared::climate_node::{LivedHour, TendResult};
 
     #[test]
     fn surplus_unlocks_and_allocate_reduces() {
@@ -498,5 +540,70 @@ mod tests {
         ));
         assert!(!allocate_copy_is_honest("sell gold on Market"));
         assert!(!allocate_copy_is_honest("price ticker"));
+    }
+
+    fn test_bind() -> LivedHourBind {
+        LivedHourBind {
+            hour: LivedHour::new_demo(),
+            climate: shared::shard_climate::ShardClimate::default(),
+            standing: shared::shard_standing::ShardStanding::default(),
+            week: shared::week_audit::WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        }
+    }
+
+    #[test]
+    fn satchel_take_unlocks_r_panel() {
+        let mut a = RbeAllocateChoice::default();
+        assert!(!a.eligible);
+        a.note_satchel_delta(0, 1);
+        assert!(a.eligible);
+        assert!(a.surplus_signal >= 1.0);
+    }
+
+    #[test]
+    fn digit2_is_reserve_while_allocate_open() {
+        assert!(allocate_owns_digit2(true));
+        assert!(!allocate_owns_digit2(false));
+    }
+
+    #[test]
+    fn r_then_2_banks_reserve_from_satchel() {
+        let mut a = RbeAllocateChoice::default();
+        let mut bind = test_bind();
+        a.note_surplus(1.0);
+        assert!(matches!(bind.tend(1), TendResult::Taken { .. }));
+        assert!(try_commit_allocate(
+            &mut a,
+            &mut bind,
+            AllocatePath::StewardReserve
+        ));
+        assert_eq!(bind.hour.allocation.reserve, 1);
+        assert_eq!(bind.climate.reserve_pool, 1);
+        assert!(a.reserve_total >= 1.0);
+        let line = bind.hour.allocation.reserve_bank_line().expect("banked");
+        assert!(line.contains("Reserve 1"));
+        assert!(!line.contains("0.0"));
+        assert!(bind.last_line.contains("repair-rights"));
+    }
+
+    #[test]
+    fn empty_satchel_does_not_paint_a_zero_reserve_bank() {
+        let mut a = RbeAllocateChoice::default();
+        let mut bind = test_bind();
+        a.note_surplus(1.0);
+        assert!(!try_commit_allocate(
+            &mut a,
+            &mut bind,
+            AllocatePath::StewardReserve
+        ));
+        assert_eq!(a.reserve_total, 0.0);
+        assert_eq!(bind.hour.allocation.reserve, 0);
+        assert_eq!(bind.climate.reserve_pool, 0);
+        assert!(bind.hour.allocation.reserve_bank_line().is_none());
+        assert_eq!(bind.last_line, "satchel empty");
     }
 }

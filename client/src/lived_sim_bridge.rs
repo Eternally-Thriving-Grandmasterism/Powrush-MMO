@@ -230,6 +230,23 @@ mod tests {
     }
 
     #[test]
+    fn lived_hour_blob_resumes_banked_reserve() {
+        let mut hour = LivedHour::new_demo();
+        assert!(matches!(
+            hour.tend(1),
+            shared::climate_node::TendResult::Taken { .. }
+        ));
+        assert!(hour.allocate(shared::climate_node::AllocKind::Reserve));
+        let json = hour.to_json().unwrap();
+        let loaded = resumable_hour_from_tick_raw(&json).expect("hour blob");
+        assert_eq!(loaded.allocation.reserve, 1);
+        assert_eq!(loaded.satchel.count(), 0);
+        let line = loaded.allocation.reserve_bank_line().expect("banked");
+        assert!(line.contains("Reserve 1"));
+        assert!(!line.contains("0.0"));
+    }
+
+    #[test]
     fn sim_telemetry_is_not_resumable_and_would_drop_satchel() {
         let telemetry = sample_telemetry();
         assert!(

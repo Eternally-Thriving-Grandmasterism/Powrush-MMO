@@ -28,6 +28,7 @@ use crate::harvest_feel::SoftRbePool;
 use crate::human_presence::SoftPresence;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::lived_sim_bridge::{sync_lived_hour_use, LivedSimBridge};
+use crate::rbe_allocate_choice::{allocate_owns_digit2, RbeAllocateChoice};
 use crate::living_ecology::BiomeFeel;
 use crate::living_practice_loop::SoftPlayerRealm;
 
@@ -510,12 +511,21 @@ fn handle_care_cycle_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut offer: ResMut<CareCycleOffer>,
     mut yard: ResMut<FabricatorYard>,
+    allocate: Option<Res<RbeAllocateChoice>>,
 ) {
     if !offer.active {
         return;
     }
     if keyboard.just_pressed(KeyCode::Escape) || keyboard.just_pressed(KeyCode::Digit3) {
         offer.dismiss();
+        return;
+    }
+    // R+2 Reserve owns Digit2 while the allocate panel is open.
+    if allocate
+        .as_ref()
+        .map(|a| allocate_owns_digit2(a.panel_open))
+        .unwrap_or(false)
+    {
         return;
     }
     if keyboard.just_pressed(KeyCode::Digit1) {
@@ -899,5 +909,11 @@ mod tests {
         let line = care_cycle_card_line(true);
         assert!(line.contains("Shell Ward"));
         assert!(temper_copy_is_honest(line), "{line}");
+    }
+
+    #[test]
+    fn digit2_yields_to_allocate_panel() {
+        assert!(allocate_owns_digit2(true));
+        assert!(!allocate_owns_digit2(false));
     }
 }
