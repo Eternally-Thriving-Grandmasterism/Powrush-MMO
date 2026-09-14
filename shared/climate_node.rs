@@ -201,6 +201,16 @@ impl Allocation {
         self.reserve -= 1;
         true
     }
+
+    /// Honest banked confirm after R+2. None when Reserve did not land.
+    /// Never a "−0.0" spend-down — the stranger must see a held count.
+    pub fn reserve_bank_line(&self) -> Option<String> {
+        if self.reserve == 0 {
+            None
+        } else {
+            Some(format!("Reserve {} · repair-rights held", self.reserve))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -345,5 +355,33 @@ mod tests {
         assert_eq!(NodeState::Glowing.label(), "Glowing");
         assert!(NodeState::Stressed.hand_hint().contains("flow"));
         assert!(NodeState::Glowing.glow_mul() > NodeState::Idle.glow_mul());
+    }
+
+    #[test]
+    fn reserve_banks_repair_rights_and_roundtrips() {
+        let mut hour = LivedHour::new_demo();
+        assert!(hour.allocation.reserve_bank_line().is_none());
+        let _ = hour.tend(1);
+        assert!(hour.allocate(AllocKind::Reserve));
+        assert_eq!(hour.allocation.reserve, 1);
+        let line = hour.allocation.reserve_bank_line().expect("banked");
+        assert!(line.contains("Reserve 1"));
+        assert!(line.contains("repair-rights"));
+        assert!(!line.contains("0.0"));
+        let json = hour.to_json().unwrap();
+        let restored = LivedHour::from_json(&json).unwrap();
+        assert_eq!(restored.allocation.reserve, 1);
+        assert_eq!(
+            restored.allocation.reserve_bank_line(),
+            hour.allocation.reserve_bank_line()
+        );
+    }
+
+    #[test]
+    fn empty_satchel_refuses_reserve_bank() {
+        let mut hour = LivedHour::new_demo();
+        assert!(!hour.allocate(AllocKind::Reserve));
+        assert_eq!(hour.allocation.reserve, 0);
+        assert!(hour.allocation.reserve_bank_line().is_none());
     }
 }

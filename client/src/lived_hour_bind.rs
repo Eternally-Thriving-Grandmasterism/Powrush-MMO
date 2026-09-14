@@ -431,8 +431,13 @@ mod tests {
         };
         let _ = bind.tend(1);
         assert!(bind.allocate(AllocKind::Reserve));
+        assert_eq!(bind.hour.allocation.reserve, 1);
         assert_eq!(bind.climate.reserve_pool, 1);
         assert!(bind.standing.steward > 0.40);
+        let line = bind.hour.allocation.reserve_bank_line().expect("banked");
+        assert!(line.contains("Reserve 1"));
+        assert!(!line.contains("0.0"));
+        assert!(bind.last_line.contains("repair-rights"));
     }
 
     #[test]
