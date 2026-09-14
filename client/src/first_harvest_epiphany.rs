@@ -394,7 +394,7 @@ fn handle_interact_harvest(
 
     if hold.holding && e_down && !hold.tended && nearby.in_range && now - hold.started >= TEND_HOLD {
         resolve_tend(
-            now, &mut state, &mut nearby, &mut nodes, &mut pool,
+            now, &mut state, &mut guidance, &mut nearby, &mut nodes, &mut pool,
             &mut rumble, &gamepads, &mut answer,
         );
         hold.tended = true;
@@ -486,6 +486,7 @@ fn resolve_take(
 fn resolve_tend(
     now: f64,
     state: &mut FirstHarvestEpiphany,
+    guidance: &mut FirstSessionGuidance,
     nearby: &mut NearbyMercyNode,
     nodes: &mut Query<&mut MercyHarvestNode>,
     pool: &mut SoftRbePool,
@@ -510,6 +511,7 @@ fn resolve_tend(
         }
     }
     let credited = pool.credit_tend(node_vitality);
+    credit_harvest(guidance);
     rumble_mercy_harvest(rumble, gamepads);
     fire_world_answer(answer, AnswerKind::Tend, now, "tended — the node breathes");
 
