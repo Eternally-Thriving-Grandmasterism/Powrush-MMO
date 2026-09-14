@@ -68,7 +68,7 @@ Atmosphere + extra chrome on the same tape. Do not invent a fifth Place, beds, o
 
 §2 reminder (cite, do not restate as a new promise): a stranger boots Offline, walks a yard, presses **E**, the world answers *this tick*. If a slice does not make that paragraph truer, do not ship it.
 
-Reserve honesty KEEP ≠ gold till (demo Gold counter stays REFUSE). **Reserve-cue** AMBER is named in [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md): stranger-loop Reserve stayed 0.0 after R+2 (no banked confirm). Client fix remains Core CARD + exact PATHS. Hands HOLD.
+Reserve honesty KEEP ≠ gold till (demo Gold counter stays REFUSE). **Reserve-cue** AMBER **lifted** — Hands landed H-2026-09-14 #436 / `20321cd8`. After E tend, R+2 banks a non-zero confirm (`reserve_bank_line` / `reserve_world_line`). **PATHS:** `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Preview / Phase B AMBER stays historical in [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) #425.
 
 ---
 
@@ -95,7 +95,7 @@ Gold · XP bar / sparkle · XP-on-death tax · skill-tree grind panel / NEW SKIL
 
 ## Cross-links (cite only)
 
-[`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md) · [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) · [`DRIVE_POWRUSH_BANK.md`](DRIVE_POWRUSH_BANK.md) · [`GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md) · [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) (**Reserve-cue** AMBER named there; still Core CARD for client fix) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (cite only; do not reopen)
+[`JOY_WITHOUT_MALL.md`](JOY_WITHOUT_MALL.md) · [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) · [`DRIVE_POWRUSH_BANK.md`](DRIVE_POWRUSH_BANK.md) · [`GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md) · [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) (**Reserve-cue** AMBER lifted @ #436 / `20321cd8`) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (cite only; do not reopen)
 
 ---
 

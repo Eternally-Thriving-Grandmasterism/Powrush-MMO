@@ -1,6 +1,6 @@
 # AGENT_QA_ORACLE.md — fail-closed CARD schema
 
-**Stamp:** 2026-09-13 · tip `bb6a2a93` (MESH_PERSONA_COURT on main)
+**Stamp:** 2026-09-14 · tip `20321cd8` (#436 RESERVE-CUE Hands · AMBER lifted)
 **Contact:** info@Rathor.ai · Independent of xAI. Not certified.
 **Law:** Autonomy is an oracle + one CARD, not a new organism. Lattice never drives keys.
 
@@ -38,7 +38,7 @@ If a slice does not make this paragraph truer **or** open the next named phase w
 
 ## AMBER named (not freelance)
 
-- Reserve stayed 0.0 after R+2 (Phase B / Preview). Client fix = Core CARD + exact allocate PATHS.
+- Reserve stayed 0.0 after R+2 (Phase B / Preview) — **lifted** H-2026-09-14 #436 / `20321cd8`. **PATHS:** `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Do not rebuild.
 
 ## Roles
 

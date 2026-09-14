@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `600353a` — WAVE-E-SEAL spent on main (#428). This PR is a **design tick**, not a Cargo bump.
+Tip `20321cd8` — RESERVE-CUE Hands landed on main (#436). This PR is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -54,21 +54,22 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **TODO11** — Landed H-2026-09-13 #422 / `089be3b`. Tip stamp DEMO-BANK `85b461b` + DEMO KEEP/REFUSE court.
 - **ASSET-BUDGET** — Landed H-2026-09-13 #423 / `5eff19c`. docs/ASSET_BUDGET_COURT.md WoW/SC2-style Comfort L/M/H budget law (readable silhouette · one graphics plate · procedural first · offline fair). MESH-PERSONA still Core CARD+PATHS. Refs only; no binary cargo. Cite only this tick — do not reopen.
 - **TODO12** — Landed H-2026-09-13 #424 / `4183c8c`. Tip stamp ASSET-BUDGET `5eff19c` + ASSET-BUDGET court.
-- **RESERVE-CUE** — Landed H-2026-09-13 #425 / `bdf7af5`. Named Preview AMBER / Phase B AMBER honesty note: stranger-loop Reserve stayed 0.0 after R+2 (no banked confirm). Docs court stamp only. Fix remains Core CARD + exact PATHS. Hands HOLD. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
+- **RESERVE-CUE** — Landed H-2026-09-13 #425 / `bdf7af5`. Named Preview AMBER / Phase B AMBER honesty note: stranger-loop Reserve stayed 0.0 after R+2 (no banked confirm). Docs court stamp only. Hands later landed #436 / `20321cd8` (AMBER lifted). Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
 - **HOUR-TWO-STEAM** — Landed H-2026-09-13 #426 / `3e58c48`. Hour-two / Steam = Core/human gate. Minutes / OS / GPU / Time stay blank. No invent minutes. No bot Steam partner. No retag. No Hands mesh. No MESH-PERSONA. Title Online grey. Hands HOLD.
 - **UI-MODERNIZE** — Landed H-2026-09-13 #427 / `cc26200`. UI modernize = DEMO-BANK KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later) as court law for later UI. UI Drive stays dark until Core Viewer share. No Hands UI freestyle. No MESH-PERSONA. No binary. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). MESH-PERSONA remains SKIP (PATHS unknown). Hands HOLD. Title Online grey.
 - **WAVE-E-SEAL** — Landed H-2026-09-13 #428 / `600353a`. Wave E Offline 1.0 seal = **human** gate. E1 human preview ticks (≠ retag `11c577e`). E2 Steam copy human (no bot partner). E3 cloud later. E4 γ=0 until named U3.5. No invent ticks. No retag. No Hands mesh this stamp. No UI Drive freestyle. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Hands HOLD. Title Online grey.
 - **MESH-PERSONA** — Landed H-2026-09-13 court CREATE [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md). Comfort L/M/H dress under ASSET BUDGET · Practices after House · face≠class (no race lobby) · race-looks + Buildings Astra Medium = refs only (X @AlphaProMega race-look posts + Drive `1Bqt2…` already banked). **SKIP lifted** — court bank landed. Hands mesh still Core CARD + exact PATHS. No binary `.glb`. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Hands HOLD. Title Online grey.
+- **RESERVE-CUE Hands** — Landed H-2026-09-14 #436 / `20321cd8`. **AMBER lifted.** After E tend, R then 2 banks `allocation.reserve` + `climate.reserve_pool` and confirms a held count (never reserved 0.0 / −0.0 harmony). Digit2 yields to allocate while the panel is open. **PATHS:** `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Do not rebuild. Title Online grey. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
-1. **MESH-PERSONA Hands mesh** — court bank landed (this CREATE). Hands mesh still Core CARD + exact PATHS. Do not invent PATHS. Cite [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Buildings / race-looks remain refs only.
-2. **Hour-two / Steam** — Core/human gate (stamp #426 spent). Minutes / OS / GPU / Time stay blank for the human. Bot does not fill Report. Bot does not create a Steam partner account.
-3. **Wave E Offline 1.0 seal** — **human** gate (#428 spent). E1 preview ticks stay blank (≠ retag `playable-preview` / `11c577e`). E2 Steam copy human (no bot partner). E3 cloud later. E4 γ=0 until named U3.5. Bot does not tick. Hands HOLD after merge.
+1. **Hour 2 reachability without breaking Hour 1** — AGENTS slice 2. Do not rebuild U0–U8. Do not rebuild stranger-loop Hands #432 / persist #435 / Reserve-cue Hands #436. **STOP** if no failing Hour-1 test remains. Title Online grey.
+2. **MESH-PERSONA Hands mesh** — court bank landed. Hands mesh still Core CARD + exact PATHS. Do not invent PATHS. Cite [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Buildings / race-looks remain refs only.
+3. **Hour-two / Steam** — Core/human gate (stamp #426 spent). Minutes / OS / GPU / Time stay blank for the human. Bot does not fill Report. Bot does not create a Steam partner account.
 
-**Reserve-cue** — named Phase B / Preview AMBER gap. Stranger-loop Reserve stayed 0.0 after R+2 (no banked confirm). Fix remains Core CARD + exact PATHS. Hands HOLD. Not a Hands freestyle.
+**Reserve-cue** — **AMBER lifted.** Hands landed H-2026-09-14 #436 / `20321cd8`. **PATHS** (cite; do not rebuild): `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Preview / Phase B AMBER remains historical (#425). Not a Hands freestyle.
 **UI-MODERNIZE** court law: later UI cites DEMO-BANK KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later). UI Drive dark until Core Viewer share. Hands UI dark until Core CARD + exact PATHS. No Hands UI freestyle. No invent PATHS. MESH-PERSONA court bank landed (Hands mesh still Core CARD + exact PATHS).
 
 Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
