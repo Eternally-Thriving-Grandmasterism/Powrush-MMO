@@ -1,8 +1,11 @@
 /*!
  * Lived Sim Bridge — v23.1.0
  *
- * One JSON tick so simulation/ and Ra-Thor can see the human hour.
- * Discrete action lines append beside the aggregate tick.
+ * Discrete action lines append to `data/powrush_lived_events.jsonl`.
+ * Session persist (`LivedHour` / ingest overlay) owns
+ * `data/powrush_lived_tick.json` via LivedHourBind::persist.
+ * Do not 1Hz-dump a different telemetry schema onto that path —
+ * Continue cannot resume it.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -10,17 +13,14 @@ use bevy::prelude::*;
 use serde::Serialize;
 use std::io::Write;
 
-use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::flow_weather::{FlowBand, FlowWeather};
-use crate::harvest_feel::SoftRbePool;
-use crate::living_practice_loop::SoftPlayerRealm;
-use crate::local_human_sim::LocalHumanSim;
-use crate::player_lineage::{Lineage, PlayerLineage};
+use shared::climate_node::LivedHour;
+use shared::lived_tick_ingest::LivedTickIngest;
 
 const TICK_PATH: &str = "data/powrush_lived_tick.json";
 const EVENTS_PATH: &str = "data/powrush_lived_events.jsonl";
 const PERIOD: f32 = 1.0;
 
+#[cfg(test)]
 #[derive(Serialize)]
 struct LivedTick {
     schema: &'static str,
@@ -51,23 +51,21 @@ struct LivedEvent {
     valence: Option<f32>,
 }
 
-fn sim_alias(lineage: Lineage) -> &'static str {
-    match lineage {
-        Lineage::Human => "Terran",
-        Lineage::Cydruid => "Verdant",
-        Lineage::Quellorian => "Harmonic",
-        Lineage::Draek => "Voidfarer",
-        Lineage::Ambrosian => "Synthetic",
-    }
+/// Session persist owns `powrush_lived_tick.json`. A 1Hz sim dump is a
+/// different schema (`LivedTick` without `nodes`/`satchel`/`allocation`)
+/// and Continue falls back to `LivedHour::new_demo()`.
+pub fn sim_telemetry_may_overwrite_session_tick() -> bool {
+    false
 }
 
-fn band_name(band: FlowBand) -> &'static str {
-    match band {
-        FlowBand::Rise => "rise",
-        FlowBand::Flow => "flow",
-        FlowBand::Boredom => "boredom",
-        FlowBand::Anxiety => "anxiety",
+/// Resume path used by `LivedHourBind::load_or_demo` — hour blob or ingest overlay.
+pub fn resumable_hour_from_tick_raw(raw: &str) -> Option<LivedHour> {
+    if let Ok(tick) = LivedTickIngest::from_json(raw) {
+        if let Some(hour) = tick.hour {
+            return Some(hour);
+        }
     }
+    LivedHour::from_json(raw).ok()
 }
 
 #[derive(Resource, Debug)]
@@ -154,47 +152,44 @@ impl Plugin for LivedSimBridgePlugin {
     }
 }
 
-fn write_lived_tick(
-    time: Res<Time>,
-    mut bridge: ResMut<LivedSimBridge>,
-    pool: Res<SoftRbePool>,
-    lineage: Res<PlayerLineage>,
-    realm: Res<SoftPlayerRealm>,
-    weather: Res<FlowWeather>,
-    harvest: Res<FirstHarvestEpiphany>,
-    sim: Res<LocalHumanSim>,
-) {
+fn write_lived_tick(time: Res<Time>, mut bridge: ResMut<LivedSimBridge>) {
     bridge.accum += time.delta_seconds();
     if bridge.accum < PERIOD {
         return;
     }
     bridge.accum = 0.0;
-    let now = time.elapsed_seconds_f64();
-    let tick = LivedTick {
-        schema: "powrush_lived_tick_v1",
-        lineage_classic: lineage.current.name(),
-        lineage_sim: sim_alias(lineage.current),
-        vitality: pool.vitality,
-        harmony: pool.harmony,
-        joy: pool.joy,
-        harvests: harvest.harvests_this_session.max(pool.harvests),
-        tends: harvest.tends_this_session.max(pool.tends),
-        realm: realm.current,
-        flow_band: band_name(weather.band),
-        flow_chain: weather.chain,
-        inhaling: weather.inhaling(now),
-        pocket: sim.pocket,
-        first_harvest_lived: harvest.first_harvest_lived,
-        elapsed: now,
-    };
-    if let Ok(json) = serde_json::to_string_pretty(&tick) {
-        let _ = shared::user_persist::write_named(TICK_PATH, json);
+    // Continuity: LivedHourBind::persist owns TICK_PATH.
+    // Discrete take / tend / allocate already append EVENTS_PATH.
+    if sim_telemetry_may_overwrite_session_tick() {
+        return;
     }
+    let _ = TICK_PATH;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn sample_telemetry() -> String {
+        serde_json::to_string_pretty(&LivedTick {
+            schema: "powrush_lived_tick_v1",
+            lineage_classic: "Human",
+            lineage_sim: "Terran",
+            vitality: 1.2,
+            harmony: 0.4,
+            joy: 0.1,
+            harvests: 1,
+            tends: 1,
+            realm: Some(0),
+            flow_band: "flow",
+            flow_chain: 0.0,
+            inhaling: false,
+            pocket: 0,
+            first_harvest_lived: true,
+            elapsed: 12.0,
+        })
+        .unwrap()
+    }
 
     #[test]
     fn event_schema_carries_session_action_outcome_valence() {
@@ -211,5 +206,36 @@ mod tests {
         assert!(json.contains("\"action\":\"take\""));
         assert!(json.contains("\"outcome\":\"tended node 1\""));
         assert!(json.contains("\"valence\":1.2"));
+    }
+
+    #[test]
+    fn one_hz_sim_tick_must_not_clobber_session_persist() {
+        assert!(!sim_telemetry_may_overwrite_session_tick());
+        assert_eq!(TICK_PATH, crate::lived_hour_bind::LIVED_TICK_PATH);
+        assert_eq!(TICK_PATH, shared::lived_tick_ingest::LIVED_TICK_INGEST_PATH);
+    }
+
+    #[test]
+    fn lived_hour_blob_resumes_satchel() {
+        let mut hour = LivedHour::new_demo();
+        assert!(matches!(
+            hour.tend(1),
+            shared::climate_node::TendResult::Taken { .. }
+        ));
+        assert_eq!(hour.satchel.count(), 1);
+        let json = hour.to_json().unwrap();
+        let loaded = resumable_hour_from_tick_raw(&json).expect("hour blob");
+        assert_eq!(loaded.satchel.count(), 1);
+        assert_eq!(loaded.allocation.flow, 0);
+    }
+
+    #[test]
+    fn sim_telemetry_is_not_resumable_and_would_drop_satchel() {
+        let telemetry = sample_telemetry();
+        assert!(
+            resumable_hour_from_tick_raw(&telemetry).is_none(),
+            "1Hz LivedTick dump must not parse as Continuity"
+        );
+        assert!(LivedHour::from_json(&telemetry).is_err());
     }
 }
