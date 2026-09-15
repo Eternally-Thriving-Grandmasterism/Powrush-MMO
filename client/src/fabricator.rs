@@ -91,6 +91,21 @@ fn spawn_fab_slab(mut commands: Commands) {
         });
 }
 
+/// Q after Hour two held + crate arrival plants/crafts the Proof Pack. Peace no-op.
+pub fn try_craft_proof_pack(
+    hour: &HourSacred,
+    tutorial_complete: bool,
+    fab: &mut Fabricator,
+) -> Option<&'static str> {
+    if hour.hex() == HexFlag::Peace || !hour.charter_skin_live() || !hour.complete {
+        return None;
+    }
+    if !tutorial_complete {
+        return None;
+    }
+    Some(fab.craft_next())
+}
+
 fn handle_fab_q(
     keyboard: Res<ButtonInput<KeyCode>>,
     player_input: Res<PlayerInput>,
@@ -105,19 +120,11 @@ fn handle_fab_q(
     if !(keyboard.just_pressed(soft_play_bindings::BUILD_WHEEL) || player_input.sheet_q) {
         return;
     }
-    if hour.hex() == HexFlag::Peace || !hour.charter_skin_live() {
-        return;
-    }
-    // Hour three civic door: fabricator after Hour two held.
-    if !hour.complete {
-        return;
-    }
-    if !factory.factory.tutorial_complete() {
-        return;
-    }
     let had_repair = yard.fab.pack.repair;
     let had_logi = yard.fab.pack.logi;
-    let step = yard.fab.craft_next();
+    let Some(step) = try_craft_proof_pack(&hour, factory.factory.tutorial_complete(), &mut yard.fab) else {
+        return;
+    };
     if yard.fab.pack.repair && !had_repair {
         yard.bench_glow = 1.0;
         bind.climate.on_mend();
@@ -193,5 +200,47 @@ mod tests {
         assert_eq!(hour.hex(), HexFlag::Peace);
         let yard = FabricatorYard::default();
         assert!(!yard.fab.planted);
+        let mut fab = yard.fab.clone();
+        assert!(try_craft_proof_pack(&hour, true, &mut fab).is_none());
+        assert!(!fab.planted);
+    }
+
+    /// Playtest H3-FAB: after Hour two held + crate arrival, Q plants then Proof Pack.
+    #[test]
+    fn h3_fab_q_after_arrival_unlocks_proof_pack() {
+        use crate::hour_sacred::{try_mark_hour_two_held, try_plant_house, try_ridge_tab};
+        use shared::space_law::SpaceSession;
+        use shared::vertical_factory::VerticalFactory;
+
+        let mut hour = HourSacred {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        };
+        assert!(try_ridge_tab(&mut hour, true));
+        let mut factory = VerticalFactory::default();
+        assert!(try_plant_house(&mut hour, &mut factory));
+        assert!(try_mark_hour_two_held(&mut hour, true, true));
+
+        let mut fab = Fabricator::default();
+        assert!(
+            try_craft_proof_pack(&hour, false, &mut fab).is_none(),
+            "crate must arrive first"
+        );
+        while !factory.tutorial_complete() {
+            let step = factory.advance();
+            if step == "unfounded" {
+                break;
+            }
+        }
+        assert!(factory.tutorial_complete());
+        assert_eq!(try_craft_proof_pack(&hour, true, &mut fab), Some("planted"));
+        assert_eq!(try_craft_proof_pack(&hour, true, &mut fab), Some("crafted"));
+        assert_eq!(try_craft_proof_pack(&hour, true, &mut fab), Some("unlocked"));
+        assert!(fab.pack.unlocked());
+        let line = fab.pack.line();
+        assert!(line.contains("Proof Pack"));
+        assert!(!line.to_lowercase().contains("loot"));
+        assert!(!line.to_lowercase().contains("gold"));
     }
 }
