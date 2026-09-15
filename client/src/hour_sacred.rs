@@ -160,6 +160,18 @@ pub fn try_mark_hour_two_held(hour: &mut HourSacred, witness_seen: bool, settled
     false
 }
 
+/// Proof Pack + Embassy seat latches Hour three / the book.
+pub fn try_mark_hour_three_held(hour: &mut HourSacred, pack_unlocked: bool, seated: bool) -> bool {
+    if hour.hour_three_complete {
+        return false;
+    }
+    if pack_unlocked && seated {
+        hour.hour_three_complete = true;
+        return true;
+    }
+    false
+}
+
 /// Tab after allocate: Peace → Frontier visitor. Q still founds.
 fn take_ridge_door(
     keyboard: Res<ButtonInput<KeyCode>>,
