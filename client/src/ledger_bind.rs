@@ -18,6 +18,7 @@ use shared::pause_ledger_face::{
     house_week_line, ledger_sash_body, lethal_sign_row, HEX_ADMITS_HARM_OFF,
 };
 use shared::shard_climate::ShardClimate;
+use shared::space_law::HexFlag;
 use shared::week_audit::WeekAudit;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
@@ -135,6 +136,15 @@ fn mark_ledger_bind(
     epi.ledger_bind = hour.charter_skin_live() && yard.sash_open;
 }
 
+/// L off Peace toggles the Ledger sash. L in Peace is a no-op (does not open).
+pub fn try_toggle_ledger(hour: &HourSacred, sash_open: &mut bool) -> bool {
+    if hour.hex() == HexFlag::Peace {
+        return false;
+    }
+    *sash_open = !*sash_open;
+    true
+}
+
 fn handle_ledger(
     keyboard: Res<ButtonInput<KeyCode>>,
     player_input: Res<PlayerInput>,
@@ -145,9 +155,9 @@ fn handle_ledger(
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
-    // L / pad North always toggles sash — pre-Settled shows wait line (never blank panel).
+    // L / pad North — Peace stays closed; off Peace the sash may wait or Bind.
     if keyboard.just_pressed(soft_play_bindings::LEDGER) || player_input.sheet_l {
-        yard.sash_open = !yard.sash_open;
+        let _ = try_toggle_ledger(&hour, &mut yard.sash_open);
         return;
     }
     if !hour.charter_skin_live() {
@@ -213,17 +223,16 @@ fn stamp_complete(
     evidence: Res<EvidenceYard>,
     yard: Res<LedgerYard>,
 ) {
-    if hour.complete {
-        return;
-    }
     let settled = yard
         .board
         .open()
         .map(|c| c.state == ContractState::Settled)
         .unwrap_or(false);
-    if hour.charter_skin_live() && evidence.witness.seen && settled {
-        hour.complete = true;
-    }
+    let _ = crate::hour_sacred::try_mark_hour_two_held(
+        &mut hour,
+        evidence.witness.seen,
+        settled,
+    );
 }
 
 /// Quiet Ledger hint after Hour three. Empty string before the book.
@@ -490,12 +499,107 @@ mod tests {
             hour_three_complete: false,
         };
         assert_eq!(hour.hex(), HexFlag::Peace);
-        let yard = LedgerYard {
+        let mut yard = LedgerYard {
             board: LedgerBoard::default(),
             sash_open: false,
         };
+        assert!(!try_toggle_ledger(&hour, &mut yard.sash_open));
         assert!(!yard.sash_open);
         assert!(yard.board.contracts.is_empty());
+    }
+
+    /// Playtest H2-L: L in Peace does not open the Ledger.
+    #[test]
+    fn l_key_in_peace_does_not_open_ledger() {
+        use bevy::input::keyboard::{Key, KeyboardInput};
+        use bevy::input::ButtonState;
+        use bevy::input::InputPlugin as BevyInputPlugin;
+        use crate::input::PlayerInput;
+        use crate::infra_spill::EvidenceYard;
+        use crate::lived_hour_bind::LivedHourBind;
+        use crate::thriving_moments::ThrivingMoments;
+        use shared::infra_spill::InfraWitness;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(BevyInputPlugin);
+        app.insert_resource(HourSacred {
+            session: shared::space_law::SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        });
+        app.insert_resource(LedgerYard {
+            board: LedgerBoard::default(),
+            sash_open: false,
+        });
+        app.insert_resource(EvidenceYard {
+            witness: InfraWitness::default(),
+        });
+        app.insert_resource(LivedHourBind {
+            hour: shared::climate_node::LivedHour::new_demo(),
+            climate: Default::default(),
+            standing: Default::default(),
+            week: Default::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        });
+        app.insert_resource(PlayerInput::default());
+        app.insert_resource(ThrivingMoments::default());
+        app.add_systems(Update, handle_ledger);
+        app.update();
+
+        let window = Entity::PLACEHOLDER;
+        app.world_mut().send_event(KeyboardInput {
+            key_code: soft_play_bindings::LEDGER,
+            logical_key: Key::Character("l".into()),
+            state: ButtonState::Pressed,
+            window,
+        });
+        app.update();
+
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace);
+        assert!(!app.world().resource::<LedgerYard>().sash_open);
+    }
+
+    /// Playtest H2-L: L off Peace opens the sash; E Bind (not Digit3) Settles.
+    #[test]
+    fn l_off_peace_opens_and_e_bind_settles() {
+        use crate::hour_sacred::{try_plant_house, try_ridge_tab, try_mark_hour_two_held};
+        use shared::space_law::{CharterKind, SpaceSession};
+
+        let mut hour = HourSacred {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        };
+        assert!(try_ridge_tab(&mut hour, true));
+        let mut factory = shared::vertical_factory::VerticalFactory::default();
+        assert!(try_plant_house(&mut hour, &mut factory));
+        assert_eq!(hour.session.kind, CharterKind::House);
+
+        let mut sash = false;
+        assert!(try_toggle_ledger(&hour, &mut sash));
+        assert!(sash);
+
+        let mut board = LedgerBoard::default();
+        board.ensure_i2("local-i2");
+        let mut last = "idle";
+        for _ in 0..8 {
+            last = board.act_local();
+            if last == "settled" {
+                break;
+            }
+        }
+        assert_eq!(last, "settled");
+        assert_eq!(
+            board.open().map(|c| c.state),
+            Some(ContractState::Settled)
+        );
+        assert!(try_mark_hour_two_held(&mut hour, true, true));
+        assert!(hour.complete);
+        assert_ne!(soft_play_bindings::INTERACT, KeyCode::Digit3);
     }
 
     #[test]
