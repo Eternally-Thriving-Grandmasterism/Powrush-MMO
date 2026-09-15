@@ -80,18 +80,27 @@ fn spawn_spill_slab(mut commands: Commands) {
         });
 }
 
+/// After Q founds the House, I2 / Offline extractor spill is the witness.
+/// Peace and visitor-without-charter stay dark.
+pub fn try_witness_house_spill(hour: &HourSacred, yard: &mut EvidenceYard) -> bool {
+    if !hour.charter_skin_live() {
+        return false;
+    }
+    yard.witness.ensure_offline_extractor();
+    if yard.witness.seen {
+        return false;
+    }
+    yard.witness.seen = true;
+    true
+}
+
 fn witness_offline(
     hour: Res<HourSacred>,
     mut yard: ResMut<EvidenceYard>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
-    if !hour.charter_skin_live() {
-        return;
-    }
-    yard.witness.ensure_offline_extractor();
-    if !yard.witness.seen {
-        yard.witness.seen = true;
+    if try_witness_house_spill(&hour, &mut yard) {
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstSpillWitness,
@@ -145,5 +154,34 @@ mod tests {
         };
         yard.witness.ensure_offline_extractor();
         assert!(!yard.witness.visible_on(hour.hex()));
+        assert!(!try_witness_house_spill(&hour, &mut yard));
+    }
+
+    /// Playtest H2-Q: Q off Peace plants House then I2 / Offline extractor spill.
+    #[test]
+    fn q_off_peace_plants_house_and_i2_spill() {
+        let mut hour = HourSacred {
+            session: shared::space_law::SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        };
+        assert!(crate::hour_sacred::try_ridge_tab(&mut hour, true));
+        let mut factory = shared::vertical_factory::VerticalFactory::default();
+        assert!(crate::hour_sacred::try_plant_house(&mut hour, &mut factory));
+        assert!(hour.charter_skin_live());
+
+        let mut yard = EvidenceYard {
+            witness: InfraWitness::default(),
+        };
+        assert!(try_witness_house_spill(&hour, &mut yard));
+        assert!(yard.witness.seen);
+        let pack = yard.witness.pack.as_ref().expect("I2 pack");
+        assert_eq!(pack.code, shared::infra_spill::OffenseCode::I2);
+        assert!(pack.spill);
+        assert!(yard.witness.visible_on(hour.hex()));
+        let line = yard.witness.slab_line();
+        assert!(line.contains("Extractor"));
+        assert!(line.contains("I2") || line.contains("spill"));
+        assert!(!try_witness_house_spill(&hour, &mut yard), "spill is once");
     }
 }

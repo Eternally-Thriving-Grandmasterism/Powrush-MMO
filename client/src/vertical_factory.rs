@@ -7,7 +7,7 @@
 use bevy::prelude::*;
 
 use shared::hour_two::HourTwoPack;
-use shared::space_law::{CharterKind, HexFlag, SpaceSession};
+use shared::space_law::{HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
@@ -101,16 +101,10 @@ fn handle_factory_q(
     if !(keyboard.just_pressed(soft_play_bindings::BUILD_WHEEL) || player_input.sheet_q) {
         return;
     }
-    if hour.hex() == HexFlag::Peace {
+    if crate::hour_sacred::try_plant_house(&mut hour, &mut yard.factory) {
         return;
     }
-    if hour.session.charter_id.is_none() {
-        yard.factory.found_house();
-        hour.session.charter_id = Some("house-local".into());
-        hour.session.kind = CharterKind::House;
-        return;
-    }
-    if !hour.charter_skin_live() {
+    if hour.hex() == HexFlag::Peace || !hour.charter_skin_live() {
         return;
     }
     // Slice 7: after the crate arrives, Q is the fabricator wheel.
@@ -222,6 +216,89 @@ mod tests {
             factory: VerticalFactory::default(),
         };
         assert!(!yard.factory.founded);
+    }
+
+    /// Playtest H2-Q: the Q key in Peace is a no-op for founding.
+    #[test]
+    fn q_key_on_peace_does_not_found() {
+        use bevy::input::keyboard::{Key, KeyboardInput};
+        use bevy::input::ButtonState;
+        use bevy::input::InputPlugin as BevyInputPlugin;
+        use crate::input::PlayerInput;
+        use crate::thriving_moments::ThrivingMoments;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(BevyInputPlugin);
+        app.insert_resource(HourSacred {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        });
+        app.insert_resource(FactoryYard {
+            factory: VerticalFactory::default(),
+        });
+        app.insert_resource(PlayerInput::default());
+        app.insert_resource(ThrivingMoments::default());
+        app.add_systems(Update, handle_factory_q);
+        app.update();
+
+        let window = Entity::PLACEHOLDER;
+        app.world_mut().send_event(KeyboardInput {
+            key_code: soft_play_bindings::BUILD_WHEEL,
+            logical_key: Key::Character("q".into()),
+            state: ButtonState::Pressed,
+            window,
+        });
+        app.update();
+
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace);
+        assert!(!app.world().resource::<FactoryYard>().factory.founded);
+        assert!(!app.world().resource::<HourSacred>().charter_skin_live());
+    }
+
+    /// Playtest H2-Q: Q on the visitor ridge plants house-local.
+    #[test]
+    fn q_key_off_peace_plants_house() {
+        use bevy::input::keyboard::{Key, KeyboardInput};
+        use bevy::input::ButtonState;
+        use bevy::input::InputPlugin as BevyInputPlugin;
+        use crate::hour_sacred::try_ridge_tab;
+        use crate::input::PlayerInput;
+        use crate::thriving_moments::ThrivingMoments;
+
+        let mut hour = HourSacred {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        };
+        assert!(try_ridge_tab(&mut hour, true));
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(BevyInputPlugin);
+        app.insert_resource(hour);
+        app.insert_resource(FactoryYard {
+            factory: VerticalFactory::default(),
+        });
+        app.insert_resource(PlayerInput::default());
+        app.insert_resource(ThrivingMoments::default());
+        app.add_systems(Update, handle_factory_q);
+        app.update();
+
+        let window = Entity::PLACEHOLDER;
+        app.world_mut().send_event(KeyboardInput {
+            key_code: soft_play_bindings::BUILD_WHEEL,
+            logical_key: Key::Character("q".into()),
+            state: ButtonState::Pressed,
+            window,
+        });
+        app.update();
+
+        let hour = app.world().resource::<HourSacred>();
+        assert!(hour.charter_skin_live());
+        assert_eq!(hour.session.charter_id.as_deref(), Some("house-local"));
+        assert!(app.world().resource::<FactoryYard>().factory.founded);
     }
 
     #[test]
