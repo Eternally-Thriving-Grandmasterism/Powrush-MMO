@@ -122,15 +122,23 @@ impl Plugin for HourSacredPlugin {
     }
 }
 
+/// Tab after first-hour allocate. Peace → Frontier visitor. No-op without a bank.
+pub fn try_ridge_tab(hour: &mut HourSacred, door_ready: bool) -> bool {
+    if hour.hex() != HexFlag::Peace {
+        return false;
+    }
+    if !door_ready {
+        return false;
+    }
+    hour.session.take_frontier_ridge()
+}
+
 /// Tab after allocate: Peace → Frontier visitor. Q still founds.
 fn take_ridge_door(
     keyboard: Res<ButtonInput<KeyCode>>,
     bind: Option<Res<LivedHourBind>>,
     mut hour: ResMut<HourSacred>,
 ) {
-    if hour.hex() != HexFlag::Peace {
-        return;
-    }
     if !keyboard.just_pressed(soft_play_bindings::CHART) {
         return;
     }
@@ -139,10 +147,7 @@ fn take_ridge_door(
             SpaceSession::hour_two_door_ready(b.hour.allocation.flow, b.hour.allocation.reserve)
         })
         .unwrap_or(false);
-    if !ready {
-        return;
-    }
-    let _ = hour.session.take_frontier_ridge();
+    let _ = try_ridge_tab(&mut hour, ready);
 }
 
 /// Tab / G / L / Q exist. In Peace they must not open Charter UI.
@@ -237,6 +242,130 @@ mod tests {
         assert_eq!(h.hex(), HexFlag::Frontier);
         assert!(h.session.peace_visitor_on_frontier());
         assert!(!h.charter_skin_live());
+    }
+
+    fn peace_hour() -> HourSacred {
+        HourSacred {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        }
+    }
+
+    /// Playtest H2-TAB: Tab is a no-op until flow or reserve is banked.
+    #[test]
+    fn tab_without_allocate_stays_peace() {
+        let mut h = peace_hour();
+        assert!(!SpaceSession::hour_two_door_ready(0, 0));
+        assert!(!try_ridge_tab(&mut h, false));
+        assert_eq!(h.hex(), HexFlag::Peace);
+        assert!(!h.session.peace_visitor_on_frontier());
+    }
+
+    /// Playtest H2-TAB: after allocate, Tab leaves Peace as a visitor.
+    /// E on the ridge is *Not your charter*; Q still founds.
+    #[test]
+    fn tab_after_allocate_leaves_peace() {
+        let mut h = peace_hour();
+        assert!(SpaceSession::hour_two_door_ready(1, 0));
+        assert!(try_ridge_tab(&mut h, true));
+        assert_eq!(h.hex(), HexFlag::Frontier);
+        assert!(h.session.peace_visitor_on_frontier());
+        assert!(!h.charter_skin_live());
+        assert_eq!(
+            h.session.hour_two_line(true),
+            "Not your charter · Q plant a House stake"
+        );
+        assert!(!try_ridge_tab(&mut h, true), "second Tab is a no-op");
+        assert_eq!(h.hex(), HexFlag::Frontier);
+    }
+
+    /// Playtest H2-TAB: the Tab key after allocate is the door, not a direct call.
+    #[test]
+    fn tab_key_after_allocate_leaves_peace() {
+        use bevy::input::keyboard::{Key, KeyboardInput};
+        use bevy::input::ButtonState;
+        use bevy::input::InputPlugin as BevyInputPlugin;
+        use crate::lived_hour_bind::LivedHourBind;
+
+        let mut hour_lived = shared::climate_node::LivedHour::new_demo();
+        hour_lived.allocation.flow = 1;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(BevyInputPlugin);
+        app.insert_resource(peace_hour());
+        app.insert_resource(LivedHourBind {
+            hour: hour_lived,
+            climate: Default::default(),
+            standing: Default::default(),
+            week: Default::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        });
+        app.add_systems(Update, take_ridge_door);
+        app.update();
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace);
+
+        let window = Entity::PLACEHOLDER;
+        app.world_mut().send_event(KeyboardInput {
+            key_code: soft_play_bindings::CHART,
+            logical_key: Key::Tab,
+            state: ButtonState::Pressed,
+            window,
+        });
+        app.update();
+
+        let hour = app.world().resource::<HourSacred>();
+        assert_eq!(hour.hex(), HexFlag::Frontier);
+        assert!(hour.session.peace_visitor_on_frontier());
+        assert_eq!(
+            hour.session.hour_two_line(true),
+            "Not your charter · Q plant a House stake"
+        );
+    }
+
+    /// Playtest fail-closed: Tab before allocate must not leave Peace.
+    #[test]
+    fn tab_key_without_allocate_stays_peace() {
+        use bevy::input::keyboard::{Key, KeyboardInput};
+        use bevy::input::ButtonState;
+        use bevy::input::InputPlugin as BevyInputPlugin;
+        use crate::lived_hour_bind::LivedHourBind;
+
+        let mut hour_lived = shared::climate_node::LivedHour::new_demo();
+        hour_lived.allocation.flow = 0;
+        hour_lived.allocation.reserve = 0;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(BevyInputPlugin);
+        app.insert_resource(peace_hour());
+        app.insert_resource(LivedHourBind {
+            hour: hour_lived,
+            climate: Default::default(),
+            standing: Default::default(),
+            week: Default::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        });
+        app.add_systems(Update, take_ridge_door);
+        app.update();
+
+        let window = Entity::PLACEHOLDER;
+        app.world_mut().send_event(KeyboardInput {
+            key_code: soft_play_bindings::CHART,
+            logical_key: Key::Tab,
+            state: ButtonState::Pressed,
+            window,
+        });
+        app.update();
+
+        let hour = app.world().resource::<HourSacred>();
+        assert_eq!(hour.hex(), HexFlag::Peace);
+        assert!(!hour.session.peace_visitor_on_frontier());
     }
 
     #[test]

@@ -658,8 +658,9 @@ mod tests {
     use shared::hex_listen::PowrushNet;
     use shared::hex_protocol::default_client_listens;
     use shared::hex_travel::{
-        heartwood_stub_embassy, hex_file_name, new_game_writes_heartwood, places_row_or_inert,
-        travel_is_disk_only, CURRENT_HEX_FILE, ISOLATION_GAMMA, LOCAL_HEXES,
+        confirm_leave, heartwood_stub_embassy, hex_file_name, new_game_writes_heartwood,
+        places_row_or_inert, travel_is_disk_only, CURRENT_HEX_FILE, ISOLATION_GAMMA, LOCAL_HEXES,
+        TravelRefuse,
     };
     use shared::house_name::HouseName;
     use shared::space_law::HexFlag;
@@ -920,6 +921,21 @@ mod tests {
         assert_eq!(places_row_label(false, false), None);
         assert_eq!(places_row_or_inert(false, false, false), NOT_YOUR_CHARTER);
         assert!(!places_eligible(true, false));
+    }
+
+    /// Playtest H2-TAB: E on the visitor ridge is *Not your charter*, not harvest
+    /// and not a Places leave. Settled+book is Hour 3 — Embassy is not required.
+    #[test]
+    fn h2_tab_visitor_ridge_e_is_not_your_charter() {
+        assert_eq!(
+            confirm_leave(false, false, PlaceId::Sanctuary, PlaceId::Heartwood),
+            Err(TravelRefuse::NotYourCharter)
+        );
+        assert_eq!(
+            places_row_or_inert(false, false, false),
+            NOT_YOUR_CHARTER
+        );
+        assert!(!places_eligible(false, false));
     }
 
     #[test]
