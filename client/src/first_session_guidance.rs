@@ -500,6 +500,32 @@ mod tests {
         assert_eq!(g.objective, GuidanceObjective::StepCharter);
     }
 
+    /// Playtest H2-TAB: after allocate the card is *Tab the ridge*;
+    /// Tab (ridge_stepped) advances to *Q plant a House stake*.
+    #[test]
+    fn h2_tab_after_allocate_card_is_plant_house() {
+        let mut g = FirstSessionGuidance::default();
+        g.objective = GuidanceObjective::ShareAbundance;
+        g.shared_abundance = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::StepCharter);
+        assert_eq!(g.objective.prompt(), "Tab the ridge");
+        g.ridge_stepped = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::PlantHouse);
+        assert_eq!(g.objective.prompt(), "Q plant a House stake");
+    }
+
+    /// Playtest H2-TAB: quit mid-ridge still skips WASD and names PlantHouse.
+    #[test]
+    fn h2_tab_resume_from_ridge_is_plant_house() {
+        let mut g = FirstSessionGuidance::default();
+        assert_eq!(g.objective, GuidanceObjective::MoveAround);
+        g.ridge_stepped = true;
+        g.resume_from_pack();
+        assert_eq!(g.objective, GuidanceObjective::PlantHouse);
+    }
+
     #[test]
     fn hour_two_card_walks_to_held() {
         let mut g = FirstSessionGuidance::default();
