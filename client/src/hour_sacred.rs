@@ -148,6 +148,18 @@ pub fn try_plant_house(hour: &mut HourSacred, factory: &mut VerticalFactory) -> 
     true
 }
 
+/// House + spill seen + Bind Settled latches Hour two held.
+pub fn try_mark_hour_two_held(hour: &mut HourSacred, witness_seen: bool, settled: bool) -> bool {
+    if hour.complete {
+        return false;
+    }
+    if hour.charter_skin_live() && witness_seen && settled {
+        hour.complete = true;
+        return true;
+    }
+    false
+}
+
 /// Tab after allocate: Peace → Frontier visitor. Q still founds.
 fn take_ridge_door(
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -407,6 +419,20 @@ mod tests {
         assert!(h.charter_skin_live());
         assert!(!h.session.peace_visitor_on_frontier());
         assert!(!try_plant_house(&mut h, &mut factory), "second Q does not re-found");
+    }
+
+    /// Playtest H2-L: Bind (not Digit3) + spill seen latches Hour two held.
+    #[test]
+    fn bind_settled_marks_hour_two_held() {
+        let mut h = peace_hour();
+        assert!(try_ridge_tab(&mut h, true));
+        let mut factory = VerticalFactory::default();
+        assert!(try_plant_house(&mut h, &mut factory));
+        assert!(!try_mark_hour_two_held(&mut h, true, false));
+        assert!(!h.complete);
+        assert!(try_mark_hour_two_held(&mut h, true, true));
+        assert!(h.complete);
+        assert!(!try_mark_hour_two_held(&mut h, true, true), "latch once");
     }
 
     #[test]

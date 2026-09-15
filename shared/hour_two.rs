@@ -132,6 +132,33 @@ mod tests {
         assert_eq!(pack.line(true), "Hour two held · the yard remembers");
     }
 
+    /// Playtest H2-L: Settled is Bind/escort, not Digit3 / option 3 / lethal.
+    #[test]
+    fn bind_not_option_three_marks_settled() {
+        let mut pack = HourTwoPack::default();
+        assert!(pack.session.take_frontier_ridge());
+        pack.session.charter_id = Some("house-local".into());
+        pack.session.kind = CharterKind::House;
+        pack.factory.found_house();
+        pack.witness.ensure_offline_extractor();
+        pack.witness.seen = true;
+        pack.board.ensure_i2("local-i2");
+        assert_eq!(
+            pack.board.open().map(|c| c.win),
+            Some(crate::ledger_bind::WinCondition::BindEscort),
+            "default win is Bind, not option 3 / lethal"
+        );
+        assert_eq!(pack.act_until_settled(), "settled");
+        pack.mark_complete();
+        assert!(pack.complete);
+        assert!(pack.ledger_settled());
+        let json = serde_json::to_string(&pack).expect("pack json");
+        let loaded = HourTwoPack::from_json(&json);
+        assert!(loaded.complete);
+        assert!(loaded.ledger_settled());
+        assert_eq!(loaded.session.charter_id.as_deref(), Some("house-local"));
+    }
+
     #[test]
     fn proof_pack_and_seat_mark_hour_three() {
         let mut pack = HourTwoPack::default();
