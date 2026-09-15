@@ -15,6 +15,8 @@ use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
+use shared::fabricator::ProofPack;
+use shared::space_law::HexFlag;
 
 #[derive(Resource, Debug, Clone)]
 pub struct EmbassyYard {
@@ -113,6 +115,22 @@ fn mark_embassy_lamp(
         && !ledger.sash_open;
 }
 
+/// Embassy lamp after Proof Pack. E Request seat. Peace / no pack is a no-op.
+pub fn try_request_embassy_seat(
+    hour: &HourSacred,
+    pack: &ProofPack,
+    embassy: &mut Embassy,
+) -> Option<&'static str> {
+    if hour.hex() == HexFlag::Peace || !hour.complete || !hour.charter_skin_live() {
+        return None;
+    }
+    embassy.ensure_lamp(pack);
+    if !embassy.lamp_live || embassy.seated {
+        return None;
+    }
+    Some(embassy.request_seat())
+}
+
 fn handle_embassy(
     keyboard: Res<ButtonInput<KeyCode>>,
     hour: Res<HourSacred>,
@@ -124,18 +142,12 @@ fn handle_embassy(
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
 ) {
-    if !hour.complete || !hour.charter_skin_live() {
-        return;
-    }
-    // Heartwood stub: same Peace E (tend), not Embassy seat. Do not mutate the
-    // house EmbassyYard — persist_pack would then drop the book. Lamp disk
-    // buildings are refused in shared/heartwood_lamp, not here.
+    // Heartwood stub: same Peace E (tend), not Embassy seat.
     if on_heartwood_stub(travel.as_deref()) {
         return;
     }
-    yard.embassy.ensure_lamp(&fab.fab.pack);
-    if !yard.embassy.lamp_live {
-        return;
+    if hour.complete && hour.charter_skin_live() {
+        yard.embassy.ensure_lamp(&fab.fab.pack);
     }
     if voice.sash_open || ledger.sash_open {
         return;
@@ -143,10 +155,9 @@ fn handle_embassy(
     if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
         return;
     }
-    if yard.embassy.seated {
+    let Some(step) = try_request_embassy_seat(&hour, &fab.fab.pack, &mut yard.embassy) else {
         return;
-    }
-    let step = yard.embassy.request_seat();
+    };
     if step == "seated" {
         fire_thriving(
             &mut moments,
@@ -198,5 +209,53 @@ mod tests {
         assert_eq!(hour.hex(), HexFlag::Peace);
         let yard = EmbassyYard::default();
         assert!(!yard.embassy.lamp_live);
+        let mut embassy = yard.embassy.clone();
+        assert!(try_request_embassy_seat(&hour, &ProofPack::default(), &mut embassy).is_none());
+    }
+
+    /// Playtest H3-SEAT: lamp after Proof Pack, E Request seat, Hour three held.
+    #[test]
+    fn h3_seat_e_requests_book() {
+        use crate::hour_sacred::{
+            try_mark_hour_three_held, try_mark_hour_two_held, try_plant_house, try_ridge_tab,
+        };
+        use shared::fabricator::Fabricator;
+        use shared::space_law::SpaceSession;
+        use shared::vertical_factory::VerticalFactory;
+
+        let mut hour = HourSacred {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        };
+        assert!(try_ridge_tab(&mut hour, true));
+        let mut factory = VerticalFactory::default();
+        assert!(try_plant_house(&mut hour, &mut factory));
+        assert!(try_mark_hour_two_held(&mut hour, true, true));
+
+        let mut fab = Fabricator::default();
+        assert_eq!(fab.craft_next(), "planted");
+        assert_eq!(fab.craft_next(), "crafted");
+        assert_eq!(fab.craft_next(), "unlocked");
+        assert!(fab.pack.unlocked());
+
+        let mut embassy = Embassy::default();
+        assert_eq!(
+            try_request_embassy_seat(&hour, &fab.pack, &mut embassy),
+            Some("seated")
+        );
+        assert!(embassy.lamp_live);
+        assert!(embassy.seated);
+        assert!(try_mark_hour_three_held(&mut hour, fab.pack.unlocked(), embassy.seated));
+        assert!(hour.hour_three_complete);
+        assert_eq!(
+            shared::hour_two::HourTwoPack {
+                complete: true,
+                hour_three_complete: true,
+                ..Default::default()
+            }
+            .line(true),
+            "Hour three held · the book is yours"
+        );
     }
 }
