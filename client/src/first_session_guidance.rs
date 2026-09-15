@@ -610,6 +610,17 @@ mod tests {
         assert_eq!(g.objective, GuidanceObjective::HourThreeHeld);
     }
 
+    /// Playtest H2-RESUME: rerun does not re-teach WASD when Hour two is held.
+    #[test]
+    fn h2_resume_does_not_reteach_wasd() {
+        let mut g = FirstSessionGuidance::default();
+        assert!(g.objective.prompt().contains("WASD"));
+        g.hour_two_held = true;
+        g.resume_from_pack();
+        assert!(!g.objective.prompt().contains("WASD"));
+        assert_eq!(g.objective, GuidanceObjective::PlantFabricator);
+    }
+
     #[test]
     fn resume_house_skips_to_ledger() {
         let mut g = FirstSessionGuidance::default();

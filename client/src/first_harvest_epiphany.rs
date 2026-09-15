@@ -281,15 +281,18 @@ fn maybe_welcome_back(
         return;
     }
     let last = echo.lines.last().map(|l| l.text.as_str());
-    let Some(line) = crate::hour_two_resume::welcome_line(hour_three, held, echo.last_practice_sealed, last) else {
+    let Some(line) = apply_resume_welcome(
+        &mut state,
+        hour_three,
+        held,
+        echo.last_practice_sealed,
+        last,
+    ) else {
         if echo.loaded {
             state.welcome_shown = true;
         }
         return;
     };
-    state.welcome_shown = true;
-    // Soft rim only when Hour two held. First Play / other echoes stay at 0 — no XP sparkle.
-    state.welcome_glow = crate::hour_two_resume::welcome_glow_from_line(Some(line.as_str()));
     let now = time.elapsed_seconds_f64();
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
@@ -297,6 +300,26 @@ fn maybe_welcome_back(
         }
     }
     state.last_interact_at = -(now + WELCOME_SECS);
+}
+
+/// Quit/rerun welcome. First Play stays quiet (glow 0). Held pack names the yard.
+pub fn apply_resume_welcome(
+    state: &mut FirstHarvestEpiphany,
+    hour_three_held: bool,
+    hour_two_held: bool,
+    sealed: bool,
+    last_echo: Option<&str>,
+) -> Option<String> {
+    let line = crate::hour_two_resume::welcome_line(
+        hour_three_held,
+        hour_two_held,
+        sealed,
+        last_echo,
+    )?;
+    state.welcome_shown = true;
+    state.welcome_glow =
+        crate::hour_two_resume::welcome_glow_from_line(Some(line.as_str()));
+    Some(line)
 }
 
 fn welcome_visible(state: &FirstHarvestEpiphany, now: f64) -> bool {
@@ -716,6 +739,38 @@ mod tests {
                 "non-hour-two welcome must not light glow: {line}"
             );
         }
+    }
+
+    /// Playtest H2-RESUME: quit/rerun names the yard, skips WASD, First Play glow 0.
+    #[test]
+    fn h2_resume_welcome_skips_wasd_and_pack_survives() {
+        let mut first_play = FirstHarvestEpiphany::default();
+        assert!(apply_resume_welcome(&mut first_play, false, false, false, None).is_none());
+        assert!(!first_play.welcome_shown);
+        assert_eq!(first_play.welcome_glow, 0.0);
+
+        let mut held = FirstHarvestEpiphany::default();
+        let line = apply_resume_welcome(&mut held, false, true, false, None).unwrap();
+        assert!(line.contains("Welcome back"));
+        assert!(line.contains("Hour two held"));
+        assert!(line.contains("the yard remembers"));
+        assert!(held.welcome_shown);
+        assert_eq!(held.welcome_glow, 1.0);
+
+        let mut g = FirstSessionGuidance::default();
+        assert_eq!(g.objective, GuidanceObjective::MoveAround);
+        g.hour_two_held = true;
+        g.resume_from_pack();
+        assert_ne!(g.objective, GuidanceObjective::MoveAround);
+        assert_eq!(g.objective, GuidanceObjective::PlantFabricator);
+
+        let pack = shared::stranger_loop_proof::hour_two_held_fixture();
+        let json = serde_json::to_string(&pack).expect("pack");
+        let loaded = shared::hour_two::HourTwoPack::from_json(&json);
+        assert!(loaded.complete);
+        assert!(loaded.ledger_settled());
+        assert!(loaded.session.charter_skin_live());
+        assert_eq!(crate::hour_sacred::HOUR_TWO_PATH, "data/powrush_hour_two.json");
     }
 
     #[test]

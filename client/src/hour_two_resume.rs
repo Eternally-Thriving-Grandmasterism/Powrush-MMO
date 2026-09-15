@@ -92,6 +92,18 @@ mod tests {
         assert!(line.contains("the yard remembers"));
     }
 
+    /// Playtest H2-RESUME: the welcome sentence is the three-beat slab, not WASD.
+    #[test]
+    fn h2_resume_welcome_names_the_yard() {
+        let line = welcome_line(false, true, false, None).unwrap();
+        assert!(line.contains("Welcome back"));
+        assert!(line.contains("Hour two held"));
+        assert!(line.contains("the yard remembers"));
+        assert!(!line.to_lowercase().contains("wasd"));
+        assert_eq!(welcome_glow_from_line(Some(line.as_str())), 1.0);
+        assert_eq!(welcome_glow_from_line(None), 0.0);
+    }
+
     #[test]
     fn other_welcome_lines_stay_mute() {
         let three = welcome_line(true, true, false, None).unwrap();
