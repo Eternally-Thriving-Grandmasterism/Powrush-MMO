@@ -1,6 +1,6 @@
 # ROOM_LAW.md — Bot 6 Core · Bot 1 Hands · Bot 3 Clerk
 
-**Stamp:** 2026-09-14 · tip `20321cd8` (#436 RESERVE-CUE Hands · AMBER lifted)
+**Stamp:** 2026-09-15 · tip `3b197ed7` (#437 clerk · Hour 1 proven green · Hour 2 Hands STOP)
 **Contact:** info@Rathor.ai · Independent of xAI. Not certified.
 **Also read:** AGENT_QA_ORACLE.md · PHASE_LADDER.md · GROK_BOT_TODO.md · DEMO_PREALPHA_BANK.md
 
@@ -30,7 +30,7 @@ Wave C, B1–B7, Places, Comfort, Temper, Persona flags are closed. Do not rebui
 ## Standing orders — Bot 6 CORE
 
 You are Grok Bot 6 · CORE. Rathor.ai + PATSAGi every CARD.
-Tip: `20321cd8` (#436). Hands HOLD. Online grey. P1 Reserve-cue landed.
+Tip: `3b197ed7` (#437). Hands HOLD. Online grey. P1 Reserve-cue landed. Hour 1 green.
 
 REFUSE is three bins. You may MOVE an item from HOLD to a named phase.
 You may NEVER move NEVER-bin items.
@@ -43,9 +43,9 @@ P3 Buildings LOD · P4 craft-as-scene · P5 second verb · P6 human Steam ·
 P7 online yes · P8 shard weather same week math.
 
 This tick Next (GROK_BOT_TODO):
-1) Hour 2 reachability without breaking Hour 1 — or **STOP** if no failing Hour-1 test remains
+1) Hour 2 Hands **STOP** — Hour 1 green @ `3b197ed7`; pack/TODO named no PATHS
 2) MESH-PERSONA Hands — only if exact PATHS exist (search tree; else skip)
-Else GREEN-DOCS pointer only. No invent. Do not rebuild Reserve-cue PATHS.
+Else GREEN-DOCS pointer only. No invent. Do not rebuild Reserve-cue PATHS. No mesh. No Steam.
 
 CARD format: id · phase · PATHS · ASSET_BUDGET cite @ 5eff19c · bin · REFUSE · QA
 QA: stranger E still answers this tick.
