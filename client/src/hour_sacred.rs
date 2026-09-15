@@ -10,7 +10,8 @@ use std::path::PathBuf;
 use bevy::prelude::*;
 
 use shared::hour_two::HourTwoPack;
-use shared::space_law::{HexFlag, SpaceSession};
+use shared::space_law::{CharterKind, HexFlag, SpaceSession};
+use shared::vertical_factory::VerticalFactory;
 
 use crate::infra_spill::EvidenceYard;
 use crate::ledger_bind::LedgerYard;
@@ -131,6 +132,20 @@ pub fn try_ridge_tab(hour: &mut HourSacred, door_ready: bool) -> bool {
         return false;
     }
     hour.session.take_frontier_ridge()
+}
+
+/// Q off Peace plants `house-local`. Peace is a no-op for founding.
+pub fn try_plant_house(hour: &mut HourSacred, factory: &mut VerticalFactory) -> bool {
+    if hour.hex() == HexFlag::Peace {
+        return false;
+    }
+    if hour.session.charter_id.is_some() {
+        return false;
+    }
+    factory.found_house();
+    hour.session.charter_id = Some("house-local".into());
+    hour.session.kind = CharterKind::House;
+    true
 }
 
 /// Tab after allocate: Peace → Frontier visitor. Q still founds.
@@ -366,6 +381,32 @@ mod tests {
         let hour = app.world().resource::<HourSacred>();
         assert_eq!(hour.hex(), HexFlag::Peace);
         assert!(!hour.session.peace_visitor_on_frontier());
+    }
+
+    /// Playtest H2-Q: Q in Peace does not found a House.
+    #[test]
+    fn q_on_peace_does_not_found() {
+        let mut h = peace_hour();
+        let mut factory = VerticalFactory::default();
+        assert!(!try_plant_house(&mut h, &mut factory));
+        assert_eq!(h.hex(), HexFlag::Peace);
+        assert!(!factory.founded);
+        assert!(!h.charter_skin_live());
+    }
+
+    /// Playtest H2-Q: Q off Peace (visitor ridge) plants house-local.
+    #[test]
+    fn q_off_peace_plants_house() {
+        let mut h = peace_hour();
+        assert!(try_ridge_tab(&mut h, true));
+        assert!(h.session.peace_visitor_on_frontier());
+        let mut factory = VerticalFactory::default();
+        assert!(try_plant_house(&mut h, &mut factory));
+        assert!(factory.founded);
+        assert_eq!(h.session.charter_id.as_deref(), Some("house-local"));
+        assert!(h.charter_skin_live());
+        assert!(!h.session.peace_visitor_on_frontier());
+        assert!(!try_plant_house(&mut h, &mut factory), "second Q does not re-found");
     }
 
     #[test]
