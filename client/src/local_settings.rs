@@ -6,9 +6,10 @@
 //! brightness / text_scale → LocalUiFeel (Title plate contrast stays law).
 //! reduced motion / rumble → LocalFeedbackFeel (camera punch scale + rumble gate).
 //! colorblind_wells → LocalColorblindWells (shape tokens beside B2 word captions).
-//! Comfort Graphics L/M/H → LocalMeshLodFeel (MESH-PERSONA-HANDS; one plate).
+//! Comfort Graphics L/M/H → LocalMeshLodFeel (MESH-PERSONA-HANDS + PLACE-LOD; one plate).
 //! No Online socket toggle. LAN off (default) opens nothing; loopback is 127.0.0.1 only.
-//! Cite [`docs/MESH_PERSONA_COURT.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
+//! Cite [`docs/MESH_PERSONA_COURT.md`] · [`docs/PLACE_DRESS_SPEC.md`]
+//! · [`docs/ART_BIBLE.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
 //! Contact: info@Rathor.ai
 
 use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
@@ -170,7 +171,8 @@ impl LocalColorblindWells {
 }
 
 /// Runtime Comfort mesh LOD feel — one graphics plate, no second HUD.
-/// Lived stacked-capsule presence reads this → MeshLodPlan.
+/// Lived stacked-capsule presence **and** Place dress (climate_plane path
+/// stones) read this → MeshLodPlan. Four Places stay four. No Ultra till.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalMeshLodFeel {
     pub preset: GraphicsPreset,
@@ -201,6 +203,12 @@ impl LocalMeshLodFeel {
     /// High may ask for PersonaCommit dress — presence still gates on assets.
     pub fn persona_commit_dress(self) -> bool {
         self.mesh_lod().persona_commit_dress()
+    }
+
+    /// Place-dress LOD — same Comfort plate as stacked-capsule. Never Ultra.
+    /// Buildings / Astra Medium stay refs; this never dumps a `.glb`.
+    pub fn place_dress_lod(self) -> MeshLod {
+        self.mesh_lod()
     }
 }
 
@@ -407,14 +415,22 @@ mod tests {
         assert!(low.primitives_only());
         assert!(!low.persona_commit_dress());
         assert_eq!(low.mesh_lod(), MeshLod::Low);
+        assert_eq!(low.place_dress_lod(), MeshLod::Low);
 
         s.set_graphics_preset(GraphicsPreset::High);
         let high = LocalMeshLodFeel::from_settings(&s);
         assert!(!high.primitives_only());
         assert!(high.persona_commit_dress());
         assert_eq!(high.mesh_lod(), MeshLod::High);
+        assert_eq!(high.place_dress_lod(), MeshLod::High);
 
+        assert_eq!(feel.place_dress_lod(), MeshLod::Medium);
         assert_eq!(GraphicsPreset::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            let row = LocalMeshLodFeel { preset };
+            assert_eq!(row.place_dress_lod(), row.mesh_lod());
+            assert!(!preset.label().contains("Ultra"));
+        }
         assert!(!local_settings_opens_socket(&s));
         assert!(refuse_online_socket_toggle(true));
     }

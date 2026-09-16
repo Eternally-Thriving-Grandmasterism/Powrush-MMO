@@ -2,6 +2,8 @@
 //!
 //! CARD **H-2026-09-12-MESH-LOD** · law [`docs/MESH_QUALITY_BUDGET.md`]
 //! CARD **H-2026-09-16-MESH-PERSONA-HANDS** · cite [`docs/MESH_PERSONA_COURT.md`]
+//! CARD **H-2026-09-16-PLACE-LOD** · cite [`docs/PLACE_DRESS_SPEC.md`]
+//! · [`docs/MESH_PERSONA_COURT.md`] · [`docs/ART_BIBLE.md`]
 //! · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c` (do not edit).
 //!
 //! | Tier | Mesh / feel |
@@ -10,11 +12,13 @@
 //! | Medium (default) | balanced humanoid / Place props |
 //! | High | fuller PersonaCommit dress when optional assets exist |
 //!
-//! Lived stacked-capsule presence reads [`procedural_detail_scale`] from Comfort
-//! [`MeshLodPlan`]. Low stays primitives / capsule-readable. High may gate
-//! [`persona_commit_dress_active`] only when an authored glb is already on disk —
-//! **no `.glb` dump**. face ≠ class. Practices after House. No race lobby.
-//! No second HUD. Title Online stays grey.
+//! Lived stacked-capsule presence **and** Place dress (climate_plane path
+//! stones) read [`procedural_detail_scale`] from Comfort [`MeshLodPlan`].
+//! Low stays primitives / capsule-readable **and** Place-readable. High may
+//! gate [`persona_commit_dress_active`] only when an authored glb is already
+//! on disk — **no `.glb` dump**. Place dress never loads Buildings / Astra
+//! Medium cargo (refs stay refs). Four Places stay four. face ≠ class.
+//! Practices after House. No race lobby. No second HUD. Title Online stays grey.
 //!
 //! Prefer procedural / existing `assets/models/*.glb` only if already present.
 //! No new Quellorian art-pack. No binary dump in this PR.
@@ -92,6 +96,20 @@ pub fn procedural_detail_scale(lod: MeshLod) -> f32 {
 /// Low stays capsule-readable; High is fuller only as a scale, not a dump.
 pub fn lived_presence_detail_scale(plan: &MeshLodPlan) -> f32 {
     procedural_detail_scale(plan.lod)
+}
+
+/// Lived Place-dress scale from Comfort [`MeshLodPlan`].
+/// Path stones / greybox props only. Low stays readable Place identity.
+/// Buildings / Astra Medium stay REFS — no `.glb` dump. Four Places stay four.
+pub fn lived_place_dress_detail_scale(plan: &MeshLodPlan) -> f32 {
+    procedural_detail_scale(plan.lod)
+}
+
+/// Place dress never loads Buildings / Astra Medium cargo. Refs stay refs
+/// even on High, even if an authored glb is already on disk.
+pub fn place_dress_uses_authored_glb(plan: &MeshLodPlan) -> bool {
+    let _ = (plan, optional_authored_glb_present());
+    false
 }
 
 /// Optional on-disk authored glb presence. Read-only — never writes, never
@@ -200,6 +218,37 @@ mod tests {
         assert!(plan_for_preset(s.graphics_preset).primitives_only);
         s.set_graphics_preset(GraphicsPreset::High);
         assert!(plan_for_preset(s.graphics_preset).persona_commit_dress);
+    }
+
+    #[test]
+    fn comfort_plan_wires_place_dress_scale_without_glb_dump() {
+        let low = plan_for_preset(GraphicsPreset::Low);
+        let mid = plan_for_preset(GraphicsPreset::Medium);
+        let high = plan_for_preset(GraphicsPreset::High);
+
+        assert!((lived_place_dress_detail_scale(&low) - 0.65).abs() < f32::EPSILON);
+        assert!((lived_place_dress_detail_scale(&mid) - 1.0).abs() < f32::EPSILON);
+        assert!((lived_place_dress_detail_scale(&high) - 1.15).abs() < f32::EPSILON);
+        assert_eq!(
+            lived_place_dress_detail_scale(&low),
+            lived_presence_detail_scale(&low)
+        );
+        assert!(low.primitives_only);
+        assert!(!mid.primitives_only);
+        assert!(!high.primitives_only);
+
+        let before = optional_authored_glb_present();
+        assert!(!place_dress_uses_authored_glb(&low));
+        assert!(!place_dress_uses_authored_glb(&mid));
+        assert!(!place_dress_uses_authored_glb(&high));
+        assert_eq!(optional_authored_glb_present(), before);
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            let label = lod_feel_label(mesh_lod_for_preset(preset));
+            assert!(!label.contains(".glb"), "{label}");
+            assert!(!label.contains("Ultra"), "{label}");
+            assert!(!label.contains("fifth"), "{label}");
+        }
     }
 
     #[test]

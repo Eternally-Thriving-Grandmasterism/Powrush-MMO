@@ -1,6 +1,6 @@
 /*!
  * Climate Plane — v22.7.0 + Depths dress (H-2026-09-11-F4) + EARTH-CLIMATE beds
- * (H-2026-09-12-EARTH-CLIMATE)
+ * (H-2026-09-12-EARTH-CLIMATE) + PLACE-LOD (H-2026-09-16-PLACE-LOD)
  *
  * PLACE_DRESS_SPEC: Depths one way down / one way home — one deepen/wet-stone
  * material family + teal Peace accent so Place reads before any slab. F1
@@ -14,17 +14,29 @@
  * Depths wet stone). FlowWeather band couples via WeatherBandCoupling.
  * Comfort GraphicsPreset → WeatherFidelity gates intensity (Low gentler ·
  * Medium default · High richer). No second HUD. No live Earth API / sockets.
+ *
+ * H-2026-09-16-PLACE-LOD: Comfort L/M/H [`MeshLodPlan`] / LocalMeshLodFeel
+ * drives [`procedural_detail_scale`] on Place dress path stones. Low stays
+ * readable Place identity (palette + four Places hold). Buildings / Astra
+ * Medium stay REFS — no `.glb` dump. No fifth Place. No Comfort Ultra.
+ * Cite [`docs/PLACE_DRESS_SPEC.md`] · [`docs/MESH_PERSONA_COURT.md`]
+ * · [`docs/ART_BIBLE.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::pbr::{FogFalloff, FogSettings};
 use bevy::prelude::*;
 
-use shared::local_settings::WeatherFidelity;
+use shared::local_settings::{GraphicsPreset, WeatherFidelity};
 
 use crate::living_practice_loop::SoftPlayerRealm;
-use crate::local_settings::LocalSettingsState;
+use crate::local_settings::{LocalMeshLodFeel, LocalSettingsState};
 use crate::mercy_harvest_nodes::MercyHarvestNode;
+
+/// CARD H-2026-09-16-PLACE-LOD — Comfort MeshLodPlan (PATHS-only compile).
+#[path = "gltf_integration.rs"]
+mod mesh_lod;
 
 const NODE_ANCHORS: [Vec3; 3] = [
     Vec3::new(3.6, 0.55, 0.0),
@@ -201,6 +213,50 @@ pub fn place_mood_for(realm: Option<u8>) -> PlaceMood {
     }
 }
 
+/// Comfort MeshLodPlan → Place dress procedural scale (path stones).
+pub fn place_dress_lod_scale(preset: GraphicsPreset) -> f32 {
+    mesh_lod::lived_place_dress_detail_scale(&mesh_lod::plan_for_preset(preset))
+}
+
+/// Buildings / Astra Medium stay refs — Place dress never dumps a `.glb`.
+pub fn place_dress_dumps_glb(preset: GraphicsPreset) -> bool {
+    mesh_lod::place_dress_uses_authored_glb(&mesh_lod::plan_for_preset(preset))
+}
+
+/// Low Comfort Place dress stays nameable — palettes hold, scale stays on-plane.
+pub fn place_dress_low_stays_readable() -> bool {
+    let plan = mesh_lod::plan_for_preset(GraphicsPreset::Low);
+    let scale = mesh_lod::lived_place_dress_detail_scale(&plan);
+    plan.primitives_only
+        && !plan.persona_commit_dress
+        && !mesh_lod::place_dress_uses_authored_glb(&plan)
+        && place_dress_still_readable(scale)
+}
+
+/// Path-stone scale still leaves Place identity readable (palette + four Places).
+pub fn place_dress_still_readable(scale: f32) -> bool {
+    let s = look_for(Some(0));
+    let h = look_for(Some(2));
+    let t = look_for(Some(1));
+    let d = look_for(Some(3));
+    scale > 0.5
+        && scale <= 1.15 + f32::EPSILON
+        && is_warm_yard_earth(s.ground)
+        && is_warm_gold_well(s.node)
+        && is_living_wood_earth(h.ground)
+        && is_pipe_edge_iron(t.ground)
+        && is_wet_stone_earth(d.ground)
+        && s.name == "Sanctuary Prime"
+        && h.name == "Verdant Heartwood"
+        && t.name == "Crystal Spires"
+        && d.name == "Abyssal Depths"
+        && look_for(Some(4)).name == "Voidfarer Horizon"
+        && climate_dress_copy_is_honest(s.name)
+        && climate_dress_copy_is_honest(h.name)
+        && climate_dress_copy_is_honest(t.name)
+        && climate_dress_copy_is_honest(d.name)
+}
+
 /// FlowWeather band token mirrored here so climate beds couple without a
 /// circular `flow_weather` import. Written by FlowWeather each tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -323,6 +379,10 @@ impl Default for ClimatePlane {
 struct ClimateGround;
 #[derive(Component)]
 struct ClimateStone;
+/// Path-stone mesh whose local scale follows Comfort [`mesh_lod::procedural_detail_scale`].
+/// Ground plane stays unscaled so the yard still reads; Place identity holds on Low.
+#[derive(Component)]
+struct PlaceLodMesh;
 #[derive(Component)]
 struct ClimateNameRoot;
 #[derive(Component)]
@@ -345,6 +405,7 @@ impl Plugin for ClimatePlanePlugin {
                 (
                     attach_fog_when_world_camera_arrives,
                     apply_climate_look,
+                    apply_place_dress_mesh_lod,
                     breathe_weather_bed,
                     update_climate_chip,
                 ),
@@ -364,8 +425,13 @@ fn spawn_climate_place(
     mut materials: ResMut<Assets<StandardMaterial>>,
     cameras: Query<Entity, With<Camera3d>>,
     lights: Query<Entity, With<DirectionalLight>>,
+    feel: Option<Res<LocalMeshLodFeel>>,
 ) {
     let look = look_for(Some(0));
+    let preset = feel.map(|f| f.preset).unwrap_or(GraphicsPreset::Medium);
+    let plan = mesh_lod::plan_for_preset(preset);
+    let scale = mesh_lod::lived_place_dress_detail_scale(&plan);
+    let _no_dump = mesh_lod::place_dress_uses_authored_glb(&plan);
     let ground = meshes.add(Plane3d::default().mesh().size(56.0, 56.0));
     commands.spawn((
         PbrBundle {
@@ -401,10 +467,11 @@ fn spawn_climate_place(
                 PbrBundle {
                     mesh: stone_mesh.clone(),
                     material: stone_mat.clone(),
-                    transform: Transform::from_xyz(p.x, 0.04, p.z),
+                    transform: lod_stone_tf(p.x, 0.04, p.z, scale),
                     ..default()
                 },
                 ClimateStone,
+                PlaceLodMesh,
             ));
         }
     }
@@ -555,6 +622,30 @@ fn apply_climate_look(
         };
     }
     info!(target: "powrush::climate", climate = look.name, id, "place shifted");
+}
+
+/// Apply Comfort MeshLodPlan scale when Esc Graphics changes.
+/// Ground stays put; path stones thin/fill; palettes still name the Place.
+fn apply_place_dress_mesh_lod(
+    feel: Option<Res<LocalMeshLodFeel>>,
+    mut meshes: Query<&mut Transform, With<PlaceLodMesh>>,
+) {
+    let Some(feel) = feel else {
+        return;
+    };
+    if !feel.is_changed() {
+        return;
+    }
+    let plan = mesh_lod::plan_for_preset(feel.preset);
+    let scale = mesh_lod::lived_place_dress_detail_scale(&plan);
+    let _no_dump = mesh_lod::place_dress_uses_authored_glb(&plan);
+    for mut tf in &mut meshes {
+        tf.scale = Vec3::splat(scale);
+    }
+}
+
+fn lod_stone_tf(x: f32, y: f32, z: f32, scale: f32) -> Transform {
+    Transform::from_xyz(x, y, z).with_scale(Vec3::splat(scale))
 }
 
 /// Soft fog / ambient breath from Place weather bed + FlowWeather band coupling.
@@ -1251,5 +1342,58 @@ mod tests {
         assert!(plane.applied.is_none());
         let coupling = WeatherBandCoupling::default();
         assert_eq!(coupling.band, WeatherBandKind::Rise);
+    }
+
+    #[test]
+    fn comfort_mesh_lod_plan_scales_place_dress_low_stays_readable() {
+        assert!((place_dress_lod_scale(GraphicsPreset::Low) - 0.65).abs() < f32::EPSILON);
+        assert!((place_dress_lod_scale(GraphicsPreset::Medium) - 1.0).abs() < f32::EPSILON);
+        assert!((place_dress_lod_scale(GraphicsPreset::High) - 1.15).abs() < f32::EPSILON);
+        assert!(place_dress_low_stays_readable());
+        assert!(place_dress_still_readable(0.65));
+        assert!(place_dress_still_readable(1.0));
+        assert!(place_dress_still_readable(1.15));
+        assert!(!place_dress_still_readable(0.4));
+
+        let low = mesh_lod::plan_for_preset(GraphicsPreset::Low);
+        assert!(low.primitives_only);
+        assert!(!mesh_lod::place_dress_uses_authored_glb(&low));
+        assert!(!place_dress_dumps_glb(GraphicsPreset::Low));
+        assert!(!place_dress_dumps_glb(GraphicsPreset::Medium));
+        assert!(!place_dress_dumps_glb(GraphicsPreset::High));
+        assert_eq!(
+            place_dress_lod_scale(GraphicsPreset::Low),
+            mesh_lod::lived_presence_detail_scale(&low)
+        );
+        // Palettes (well glow) unchanged at every Comfort tier — E still finds the well.
+        for preset in GraphicsPreset::ALL {
+            assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
+            assert_eq!(srgb3(look_for(Some(0)).node), srgb3(SANCTUARY_WELL_GOLD));
+            assert_eq!(NODE_ANCHORS.len(), 3);
+        }
+    }
+
+    #[test]
+    fn comfort_place_lod_does_not_open_fifth_place_race_lobby_or_ultra() {
+        assert_eq!(look_for(Some(0)).name, "Sanctuary Prime");
+        assert_eq!(look_for(Some(2)).name, "Verdant Heartwood");
+        assert_eq!(look_for(Some(1)).name, "Crystal Spires");
+        assert_eq!(look_for(Some(3)).name, "Abyssal Depths");
+        assert_eq!(look_for(Some(4)).name, "Voidfarer Horizon");
+        assert_ne!(look_for(Some(4)).name, "Market");
+        assert!(mesh_lod::face_is_not_class());
+        assert!(mesh_lod::practices_after_house());
+        assert!(mesh_lod::race_lobby_closed());
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            let label = mesh_lod::lod_feel_label(mesh_lod::mesh_lod_for_preset(preset));
+            assert!(!label.contains(".glb"), "{label}");
+            assert!(!label.contains("Ultra"), "{label}");
+            assert!(!label.contains("race lobby"), "{label}");
+            assert!(!preset.label().contains("Ultra"));
+            assert!(climate_dress_copy_is_honest(look_for(Some(0)).name));
+            let feel = crate::local_settings::LocalMeshLodFeel { preset };
+            assert_eq!(feel.place_dress_lod(), mesh_lod::mesh_lod_for_preset(preset));
+        }
     }
 }
