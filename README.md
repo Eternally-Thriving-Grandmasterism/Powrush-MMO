@@ -69,7 +69,7 @@ See `CHANGELOG.md`, `docs/PATSAGI_v23.2_ARCHITECTURE.md`, `docs/HUMAN_PLAYABILIT
 Start here if you want to complete the game:
 
 - `docs/COMPLETION_BRIEF.md` — what “done” means
-- `docs/FIRST_HOUR_PLAYTEST.md` — 5-minute proof
+- `docs/FIRST_HOUR_PLAYTEST.md` — PLAYTEST-1 stranger hour note (keys, <20 min take → tend → allocate; minutes blank)
 - `docs/STRANGER_LOOP.md` — cold stranger, keys only (Title → Continue / Unnamed House → yard)
 - `docs/PREVIEW_CHECKLIST.md` — human tick boxes; ticking ≠ cutting a `playable-preview` tag
 - `docs/INPUT_CANON.md` — one Use verb; keyboard / touch / gamepad; Controls next to Grove

@@ -12,7 +12,7 @@ README **Agent landing** is canon for walked slices: U0–U8 (and related stamps
 
 Cursor / PATSAGi inner-loop agents start at [`docs/AGENT_RUN_BRIEF.md`](docs/AGENT_RUN_BRIEF.md).
 The outer loop does not write code. This seat codes one named slice on a feature branch.
-BRIEF-P1 locks walked Hour 2/3 fail verbs in `--lib` tests; a human fills OS / GPU / minutes.
+BRIEF-P1 locks walked Hour 2/3 fail verbs in `--lib` tests. PLAYTEST-1 locks the stranger hour note in [`docs/FIRST_HOUR_PLAYTEST.md`](docs/FIRST_HOUR_PLAYTEST.md). A human fills OS / GPU / minutes.
 Title Online stays grey. `playable-preview` stays `11c577e`. Floor `2163551`.
 Ra-Thor does not drive WASD. Powrush-MMO-Simulator is a third repo.
 Do not rebuild U0–U8 or H-2026-09-15-H2-TAB / Q / L / RESUME / H3-FAB / H3-SEAT.
