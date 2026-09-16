@@ -9,9 +9,104 @@ Cursor / PATSAGi inner-loop agents start here. Fetch the named tip. Fill every s
 
 ---
 
-## A. Worked example — BRIEF-P1 (this run)
+## A. Worked example — PLAYTEST-1 (this run)
 
-Seat: **BRIEF-P1**. Mode: **routine**. Tip: `edbdf513` (H-2026-09-15-H3-SEAT on `main`).
+Seat: **PLAYTEST-1**. Mode: **routine**. Tip: `03a0c6e0` (BRIEF-P1 #445 on `main`).
+
+### 1. Target repo + tip SHA
+
+- Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
+- Tip SHA (fetch first): `03a0c6e0a8e72a2ae2edf6facf13b7d59f8a2dc6` (short `03a0c6e0`, BRIEF-P1)
+- Workspace identity: **21.88.0** (Cargo.toml). Lived-hour design tick as README — not a Cargo bump.
+
+### 2. Job in one sentence
+
+Lock the lived hour for a stranger in the existing first-hour playtest note (extend, do not fork doctrine).
+
+### 3. FINISH LINE
+
+Observable:
+
+1. [`docs/FIRST_HOUR_PLAYTEST.md`](FIRST_HOUR_PLAYTEST.md) is the PLAYTEST-1 stranger hour note:
+   - One-block `cargo test` then `cargo run -p powrush-client`
+   - Hour 1 verbs: walk, breath, tap-E take vs hold-E tend, I satchel, R 1 flow vs R 2 reserve
+   - Hour 2 yard-remembers verify points at [`HOUR_TWO_PLAYTEST.md`](HOUR_TWO_PLAYTEST.md) (already shipped; do not rebuild)
+   - Report fields OS / GPU / commit / minutes / confusion stay **BLANK**
+   - Success: stranger take → tend → allocate in <20 min without a wiki
+2. No new currency, pockets, fake “players online”, CBDC-style lock, or kill-score.
+3. Core gate green (docs-only; cite, do not rebuild PATHS):
+   `cargo test -p shared -p rsil-identity`
+   `cargo test -p powrush-client --lib`
+
+States that hold: Title Online grey; `playable-preview` stays `11c577e`; floor `2163551`; Ra-Thor does not drive WASD; Powrush-MMO-Simulator is a third repo.
+
+Playtest: a human fills the Report on a real GPU. Agents do not invent minutes.
+
+### 4. Out of scope (explicit)
+
+- Do not rebuild U0–U8, H-2026-09-15-H2-TAB/Q/L/RESUME, H3-FAB, H3-SEAT, BRIEF-P1.
+- No Embassy / Crownstone / Hybrid / myth systems from this seat.
+- No Title Online · no listen · no public bind · no Steam retag.
+- No new currency · no pockets · no fake peers · no CBDC lock · no kill-score.
+- No cargo workspace member change · no `server/` unpark.
+- Do not clone or edit Ra-Thor. **Ra-Thor is a separate repo.**
+- Two agents, one file, same day → **STOP**.
+
+Walked PATHS (README Agent landing + Hour 2/3 stamps) — do not reopen: U0–U8, #309, HOUR1-GREEN, H2-TAB/Q/L/RESUME, H3-FAB, H3-SEAT `edbdf513`, BRIEF-P1 `03a0c6e0`.
+
+### 5. HOLD
+
+Copy unless the steward amends:
+
+- `AGENTS.md` · `docs/PATSAGI_MERGE_COURT.md` · `docs/OFFLINE_SKU.md`
+- `docs/HOUR_TWO.md` · `docs/HOUR_TWO_PLAYTEST.md` · `docs/HOUR_THREE.md`
+- Violence opt-in only. Purse = flow + repair-rights.
+- AG-SML: personal play free; org use licensed — do not invent in-world cash the software cannot pay.
+- Independent of xAI · inspect ≠ METR · RBE is design intent, not present fact
+- Default binary: `cargo run -p powrush-client`
+- Title Online stays grey · `playable-preview` stays `11c577e` · floor `2163551`
+- Workspace **21.88.0** (not a Cargo bump; design tick as README)
+- Contact: info@Rathor.ai
+- Ra-Thor does not drive WASD
+- Powrush-MMO-Simulator is a third repo
+
+### 6. Tools allowed
+
+- GitHub (read, branch, one PR).
+- `cargo` from root [`Cargo.toml`](../Cargo.toml) members only: `shared`, `crates/rsil-identity`, `client`.
+- HTML/JS/CSS as named: **none**.
+
+### 7. Permission rules
+
+- Never claim METR / xAI product / RBE-as-present-fact.
+- Never send email or publish.
+- Never enable Title Online, add a listen, or public-bind.
+- Never retag `playable-preview`. Never unpark `server/` as the default binary.
+- One slice per PR. Fill the ballot in [`.github/pull_request_template.md`](../.github/pull_request_template.md).
+
+### 8. Mode
+
+**routine** — execute this named slice. Not `chat`. Not a standing Hour-3 or Hour-4 agent.
+
+### 9. STOP / review gate
+
+Halt when the PR `docs(hour): PLAYTEST-1 stranger hour note` contains the stranger hour note in `docs/FIRST_HOUR_PLAYTEST.md`, Core green, blank Report fields, and the ballot.
+
+Do **not** start Hour 3 systems. Do **not** fill Report OS / GPU / minutes. Do **not** add Embassy / Crownstone / Hybrid / myth.
+
+Human review: PATSAGi merge court. Steward contact remains info@Rathor.ai.
+
+### 10. Audit note (what would retire this agent)
+
+PLAYTEST-1 retires at merge. Further work is a **new** brief, not this seat continuing. Hour 3 systems wait for a human Hour-two Report. A Title Online light, Steam retag, `server/` unpark, Ra-Thor edit, or Crownstone PATH would be a different agent — refuse it here.
+
+Capable · Bounded · Corrigible. Not METR. Thunder locked. yoi ⚡
+
+---
+
+## A0. Previous example — BRIEF-P1 (merged #445)
+
+Seat: **BRIEF-P1**. Mode: **routine**. Tip: `edbdf513` (H-2026-09-15-H3-SEAT on `main`). Merged `03a0c6e0`. Keep as the worked test-lock example; do not rebuild.
 
 ### 1. Target repo + tip SHA
 

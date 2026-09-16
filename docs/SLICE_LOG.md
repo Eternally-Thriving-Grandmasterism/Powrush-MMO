@@ -1,5 +1,9 @@
 # SLICE_LOG.md — Powrush-MMO
 
+## 2026-09-16 — PLAYTEST-1 stranger hour note
+
+`slice: PLAYTEST-1 | extend FIRST_HOUR_PLAYTEST (do not fork PLAYTEST.md); cargo run one block; Hour 1 walk/breath/tap-E take vs hold-E tend/I/R 1 flow vs 2 reserve; Hour 2 yard-remembers verify cites HOUR_TWO_PLAYTEST; Report OS/GPU/commit/minutes/confusion blank; success take→tend→allocate <20 min without wiki; no Embassy/Crownstone/Hybrid/currency/pockets/fake peers/CBDC/kill-score; Title Online grey; tag 11c577e; floor 2163551; workspace 21.88.0; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; verdict: AUTO`
+
 ## 2026-09-11 — F-2026-09-11 PLACE_DRESS_SPEC (GREEN-DOCS)
 
 `slice: GREEN-DOCS F-2026-09-11-PLACE_DRESS | PLACE_DRESS_SPEC presentation bible for GDD_IMMERSION_REVISION §3 rung F only; four Places; one material each; Sanctuary greybox dress debt first; ART_BIBLE / DRIVE_LORE / Imagine refs only — no binary mesh/texture pack; confirm-before-build until Core names YELLOW SLICE with exact paths; Title Online grey; no client/shared/server/Cargo/sockets/assets; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`

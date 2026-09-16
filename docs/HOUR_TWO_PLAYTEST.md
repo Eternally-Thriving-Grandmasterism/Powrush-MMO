@@ -1,6 +1,7 @@
 # HOUR_TWO_PLAYTEST.md
 
 **CARD H-2026-09-13-HOUR-TWO-STEAM** · tip `bdf7af5` (main · RESERVE-CUE #425) · design tick · not a Cargo bump  
+**PLAYTEST-1** cites this file for yard-remembers verify. Hour 1 take → tend → allocate lives in [`FIRST_HOUR_PLAYTEST.md`](FIRST_HOUR_PLAYTEST.md). Do not fork a second playtest doctrine.  
 **Core/human gate.** Minutes / OS / GPU / Time stay **blank**. Agents do not invent them. A human fills the Report on a real GPU walk.  
 **Floor** `2163551` · tag `playable-preview` `11c577e` · workspace `21.88.0` · **Title Online grey**  
 **Contact:** info@Rathor.ai · **Independent of xAI.** No certification / AGSi warranty / legal-product claims.
