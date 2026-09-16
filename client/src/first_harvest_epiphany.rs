@@ -3,6 +3,9 @@
  *
  * Tap E / pad West = take. Hold E ~0.42s = tend (node recovers).
  *
+ * H-2026-09-16-HOLD-E-TEND: after tap-E take, hold-E lands breathe/harmony
+ * (prompt still tap vs hold) before any Care-cycle Temper/Ward card.
+ *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -26,7 +29,8 @@ const PROMPT_LINGER: f64 = 2.4;
 const PULSE_SECS: f64 = 4.2;
 const WELCOME_SECS: f64 = 6.0;
 const REPEAT_COOLDOWN: f64 = 1.2;
-const TEND_HOLD: f64 = 0.42;
+/// Hold duration that distinguishes tap-E take from hold-E tend.
+pub const TEND_HOLD: f64 = 0.42;
 
 #[derive(Resource, Debug)]
 pub struct FirstHarvestEpiphany {
@@ -115,6 +119,70 @@ impl FirstHarvestEpiphany {
         ) || !self.first_harvest_lived
             || now < self.prompt_until
     }
+}
+
+/// Hold-E (not a second tap) after the ~0.42s threshold.
+pub fn is_hold_e_tend(hold_secs: f64) -> bool {
+    hold_secs >= TEND_HOLD
+}
+
+/// World-care line while in range. Hour 1 must keep tap vs hold readable.
+pub fn tap_vs_hold_prompt() -> &'static str {
+    "tap E take  ·  hold E tend"
+}
+
+pub fn tend_breathe_answer() -> &'static str {
+    "tended — the node breathes"
+}
+
+pub fn tend_harmony_pulse_line(node_name: &str, credited: f32) -> String {
+    format!("Tended {node_name} · +{credited:.1} harmony · vitality returns")
+}
+
+pub fn world_care_prompt_line(
+    in_range: bool,
+    nodes_exist: bool,
+    first_harvest_lived: bool,
+) -> &'static str {
+    if nodes_exist && in_range {
+        tap_vs_hold_prompt()
+    } else if nodes_exist {
+        "Walk toward the glowing node"
+    } else if first_harvest_lived {
+        "The node remembers your care"
+    } else {
+        tap_vs_hold_prompt()
+    }
+}
+
+/// After tap-E take, in-range still names tap vs hold (FIRST_HOUR line 4).
+pub fn world_care_prompt_visible(
+    in_range: bool,
+    nodes_exist: bool,
+    first_harvest_lived: bool,
+    dismissed: bool,
+    prompt_visible: bool,
+) -> bool {
+    if dismissed {
+        return false;
+    }
+    if nodes_exist && in_range {
+        return true;
+    }
+    prompt_visible || (nodes_exist && !first_harvest_lived)
+}
+
+/// After tap-E take, hold-E tend is a different verb — take cooldown must not eat it.
+pub fn hold_e_tend_blocked(
+    harvests_this_session: u32,
+    tends_this_session: u32,
+    last_interact_at: f64,
+    now: f64,
+) -> bool {
+    if harvests_this_session > tends_this_session {
+        return false;
+    }
+    last_interact_at > 0.0 && now - last_interact_at.abs() < REPEAT_COOLDOWN
 }
 
 #[derive(Default)]
@@ -416,11 +484,12 @@ fn handle_interact_harvest(
     }
 
     if hold.holding && e_down && !hold.tended && nearby.in_range && now - hold.started >= TEND_HOLD {
-        resolve_tend(
+        if resolve_tend(
             now, &mut state, &mut guidance, &mut nearby, &mut nodes, &mut pool,
             &mut rumble, &gamepads, &mut answer,
-        );
-        hold.tended = true;
+        ) {
+            hold.tended = true;
+        }
     }
 
     if e_up {
@@ -516,12 +585,17 @@ fn resolve_tend(
     rumble: &mut EventWriter<GamepadRumbleRequest>,
     gamepads: &Gamepads,
     answer: &mut WorldAnswer,
-) {
-    if now - state.last_interact_at.abs() < REPEAT_COOLDOWN && state.last_interact_at > 0.0 {
-        return;
+) -> bool {
+    if hold_e_tend_blocked(
+        state.harvests_this_session,
+        state.tends_this_session,
+        state.last_interact_at,
+        now,
+    ) {
+        return false;
     }
     if !nearby.in_range {
-        return;
+        return false;
     }
     state.last_interact_at = now;
     state.tends_this_session = state.tends_this_session.saturating_add(1);
@@ -536,12 +610,13 @@ fn resolve_tend(
     let credited = pool.credit_tend(node_vitality);
     credit_harvest(guidance);
     rumble_mercy_harvest(rumble, gamepads);
-    fire_world_answer(answer, AnswerKind::Tend, now, "tended — the node breathes");
+    fire_world_answer(answer, AnswerKind::Tend, now, tend_breathe_answer());
 
     state.pulse_until = now + PULSE_SECS;
     let node_name = nearby.name.unwrap_or("the node");
-    state.pulse_line = format!("Tended {node_name} · +{credited:.1} harmony · vitality returns");
+    state.pulse_line = tend_harmony_pulse_line(node_name, credited);
     info!(target: "powrush::epiphany", node = node_name, "hold-E tend");
+    true
 }
 
 fn update_world_care_prompt(
@@ -553,8 +628,13 @@ fn update_world_care_prompt(
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
 ) {
     let now = time.elapsed_seconds_f64();
-    let approaching = nearby.nodes_exist && !state.first_harvest_lived;
-    let show = (state.prompt_visible(now, &guidance) || approaching) && !guidance.dismissed;
+    let show = world_care_prompt_visible(
+        nearby.in_range,
+        nearby.nodes_exist,
+        state.first_harvest_lived,
+        guidance.dismissed,
+        state.prompt_visible(now, &guidance),
+    );
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -562,15 +642,11 @@ fn update_world_care_prompt(
             Visibility::Hidden
         };
     }
-    let line = if nearby.nodes_exist && nearby.in_range {
-        "tap E take  ·  hold E tend"
-    } else if nearby.nodes_exist {
-        "Walk toward the glowing node"
-    } else if state.first_harvest_lived {
-        "The node remembers your care"
-    } else {
-        "tap E take  ·  hold E tend"
-    };
+    let line = world_care_prompt_line(
+        nearby.in_range,
+        nearby.nodes_exist,
+        state.first_harvest_lived,
+    );
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -788,5 +864,69 @@ mod tests {
         assert!(s.harvest_use_is_claimed());
         assert!(!s.threshold_near);
         assert!(!s.wards_near);
+    }
+
+    #[test]
+    fn tap_e_and_hold_e_stay_distinct() {
+        assert!(!is_hold_e_tend(0.20));
+        assert!(!is_hold_e_tend(0.39));
+        assert!(is_hold_e_tend(TEND_HOLD));
+        assert!(is_hold_e_tend(0.50));
+        assert_eq!(tap_vs_hold_prompt(), "tap E take  ·  hold E tend");
+        assert_ne!(tap_vs_hold_prompt(), "E tend the glow");
+    }
+
+    /// PLAYTEST-1 line 4 / CARD H-2026-09-16-HOLD-E-TEND:
+    /// after tap-E take, hold-E tend yields breathe/harmony before Care cycle.
+    #[test]
+    fn after_take_hold_e_tend_lands_breathe_harmony_before_care_cycle() {
+        let harvests = 1u32;
+        let tends = 0u32;
+        let take_at = 10.0;
+        let hold_at = take_at + TEND_HOLD;
+        assert!(
+            !hold_e_tend_blocked(harvests, tends, take_at, hold_at),
+            "take cooldown must not eat hold-E tend"
+        );
+        assert!(is_hold_e_tend(hold_at - take_at));
+
+        let pulse = tend_harmony_pulse_line("Sanctuary ember", 0.4);
+        assert!(pulse.contains("harmony"));
+        assert!(pulse.contains("Tended"));
+        assert!(!pulse.contains("Care cycle"));
+        assert!(!pulse.contains("Temper"));
+        assert!(!pulse.contains("Distill Ward"));
+        assert_eq!(tend_breathe_answer(), "tended — the node breathes");
+        assert_eq!(
+            world_care_prompt_line(true, true, true),
+            tap_vs_hold_prompt()
+        );
+        assert!(world_care_prompt_visible(true, true, true, false, false));
+
+        let card = crate::mercy_harvest_nodes::care_cycle_card_line(false);
+        assert!(card.contains("Care cycle"));
+        assert!(card.contains("Temper"));
+        let breathe_until = hold_at + PULSE_SECS;
+        assert!(!crate::mercy_harvest_nodes::care_cycle_may_raise(
+            1,
+            hold_at + 0.5,
+            breathe_until,
+            &pulse,
+            true
+        ));
+        assert!(crate::mercy_harvest_nodes::care_cycle_may_raise(
+            1,
+            breathe_until + 0.1,
+            breathe_until,
+            &pulse,
+            true
+        ));
+    }
+
+    #[test]
+    fn unmatched_take_does_not_block_hold_e_tend() {
+        assert!(!hold_e_tend_blocked(1, 0, 10.0, 10.1));
+        assert!(hold_e_tend_blocked(1, 1, 10.0, 10.5));
+        assert!(!hold_e_tend_blocked(1, 1, 10.0, 11.3));
     }
 }

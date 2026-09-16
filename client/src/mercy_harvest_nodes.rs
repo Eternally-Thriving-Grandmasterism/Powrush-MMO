@@ -12,6 +12,9 @@
  * Seats WardKind::Shell in an empty Lumen; harvest stress *= 0.7.
  * Climate Pick / Mend Spindle / Harmony Loom stay later. Online grey.
  *
+ * H-2026-09-16-HOLD-E-TEND: Idle-after-tend Care cycle waits until hold-E
+ * tend has spoken breathe/harmony (prompt still tap vs hold). Persons=0 OK.
+ *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -175,6 +178,32 @@ pub fn care_cycle_card_line(offer_shell: bool) -> &'static str {
 /// Pure Idle-after-tend gate (pulse settled + full vitality + pending tend).
 pub fn is_idle_after_tend(pulse: f32, vitality: f32, pending: bool, already_emitted: bool) -> bool {
     pending && !already_emitted && pulse <= 0.0 && vitality >= IDLE_VITALITY
+}
+
+pub fn pulse_line_is_tend_breathe(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    (lower.contains("tended") && lower.contains("harmony"))
+        || lower.contains("breathes")
+        || lower.contains("vitality returns")
+}
+
+/// Tend breathe/harmony is still on the pulse strip — Temper/Ward must wait.
+pub fn tend_breathe_still_live(now: f64, pulse_until: f64, pulse_line: &str) -> bool {
+    now < pulse_until && pulse_line_is_tend_breathe(pulse_line)
+}
+
+/// Care-cycle Temper/Ward card waits until hold-E tend has spoken breathe/harmony.
+/// Persons are never consulted (solo / empty Place OK).
+pub fn care_cycle_may_raise(
+    tends_this_session: u32,
+    now: f64,
+    pulse_until: f64,
+    pulse_line: &str,
+    idle_after_tend: bool,
+) -> bool {
+    idle_after_tend
+        && tends_this_session >= 1
+        && !tend_breathe_still_live(now, pulse_until, pulse_line)
 }
 
 /// Tend signature written by `apply_node_tend` (not harvest's pulse=1.0).
@@ -442,12 +471,22 @@ fn pulse_harvested_nodes(
 }
 
 /// Observe tend → Idle. Person count is never consulted (solo / empty Place OK).
+/// Care cycle waits until hold-E tend has spoken breathe/harmony.
 fn watch_idle_after_tend(
     nodes: Query<(Entity, &MercyHarvestNode)>,
     mut offer: ResMut<CareCycleOffer>,
+    epiphany: Option<Res<FirstHarvestEpiphany>>,
+    time: Res<Time>,
 ) {
     // One live offer at a time — no loop spam while the card is up.
     let mut busy = offer.active;
+    let tends = epiphany.as_ref().map(|e| e.tends_this_session).unwrap_or(0);
+    let now = time.elapsed_seconds_f64();
+    let pulse_until = epiphany.as_ref().map(|e| e.pulse_until).unwrap_or(0.0);
+    let pulse_line = epiphany
+        .as_ref()
+        .map(|e| e.pulse_line.clone())
+        .unwrap_or_default();
 
     for (entity, node) in &nodes {
         let prev = offer.snapshots.get(&entity).copied();
@@ -480,19 +519,21 @@ fn watch_idle_after_tend(
                 )
             });
             if let Some((true, name, from_stressed)) = raise {
-                if let Some(pending) = offer.pending.get_mut(&entity) {
-                    pending.emitted = true;
+                if care_cycle_may_raise(tends, now, pulse_until, &pulse_line, true) {
+                    if let Some(pending) = offer.pending.get_mut(&entity) {
+                        pending.emitted = true;
+                    }
+                    offer.active = true;
+                    offer.node_entity = Some(entity);
+                    offer.node_name = Some(name);
+                    offer.offer_shell = from_stressed;
+                    offer.choice = None;
+                    busy = true;
+                    info!(
+                        target: "powrush::temper",
+                        "care-cycle offer after Idle-after-tend on {name} (shell={from_stressed})"
+                    );
                 }
-                offer.active = true;
-                offer.node_entity = Some(entity);
-                offer.node_name = Some(name);
-                offer.offer_shell = from_stressed;
-                offer.choice = None;
-                busy = true;
-                info!(
-                    target: "powrush::temper",
-                    "care-cycle offer after Idle-after-tend on {name} (shell={from_stressed})"
-                );
             }
         }
 
@@ -915,5 +956,67 @@ mod tests {
     fn digit2_yields_to_allocate_panel() {
         assert!(allocate_owns_digit2(true));
         assert!(!allocate_owns_digit2(false));
+    }
+
+    /// CARD H-2026-09-16-HOLD-E-TEND: after take, hold-E tend breathe/harmony
+    /// lands before any Care-cycle Temper/Ward UI. Persons=0 still valid.
+    #[test]
+    fn after_take_hold_e_tend_breathe_before_care_cycle() {
+        use crate::first_harvest_epiphany::{
+            hold_e_tend_blocked, is_hold_e_tend, tap_vs_hold_prompt, tend_breathe_answer,
+            tend_harmony_pulse_line, world_care_prompt_line, TEND_HOLD,
+        };
+
+        assert!(!hold_e_tend_blocked(1, 0, 10.0, 10.0 + TEND_HOLD));
+        assert!(is_hold_e_tend(TEND_HOLD));
+
+        let mut n = MercyHarvestNode {
+            name: "test",
+            climate_id: 1,
+            vitality: 0.92,
+            harvests: 1,
+            pulse: 0.0,
+        };
+        apply_node_tend(&mut n);
+        assert!((n.pulse - TEND_PULSE).abs() < f32::EPSILON);
+
+        let pulse = tend_harmony_pulse_line("Sanctuary ember", 0.4);
+        assert!(pulse_line_is_tend_breathe(&pulse));
+        assert!(tend_breathe_answer().contains("breathes"));
+        assert_eq!(world_care_prompt_line(true, true, true), tap_vs_hold_prompt());
+
+        let idle = is_idle_after_tend(0.0, 1.0, true, false);
+        assert!(idle);
+        // During the breathe window the Temper/Ward card stays down.
+        assert!(!care_cycle_may_raise(1, 10.5, 14.2, &pulse, idle));
+        assert!(tend_breathe_still_live(10.5, 14.2, &pulse));
+        // After breathe has been shown, Idle-after-tend may raise (persons=0).
+        assert!(care_cycle_may_raise(1, 14.3, 14.2, &pulse, idle));
+        // No tend yet — never raise (compost pulse / take-only).
+        assert!(!care_cycle_may_raise(0, 14.3, 0.0, "", idle));
+
+        let card = care_cycle_card_line(false);
+        assert!(card.contains("Care cycle"));
+        assert!(card.contains("Temper"));
+        assert!(card.contains("Distill Ward"));
+        assert!(!pulse.contains("Care cycle"));
+        assert!(!tap_vs_hold_prompt().contains("Care cycle"));
+    }
+
+    #[test]
+    fn care_cycle_still_works_with_zero_persons_after_tend_breathe() {
+        assert!(care_cycle_may_raise(
+            1,
+            5.0,
+            4.0,
+            "Tended well · +0.4 harmony · vitality returns",
+            true
+        ));
+        let mut offer = CareCycleOffer::default();
+        offer.active = true;
+        offer.node_name = Some("Sanctuary ember");
+        assert!(offer.is_active());
+        offer.dismiss();
+        assert!(!offer.is_active());
     }
 }

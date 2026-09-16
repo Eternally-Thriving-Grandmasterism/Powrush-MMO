@@ -1,7 +1,10 @@
 //! Phase Q + R+ — climate/standing feel (v23.2.38)
 //!
 //! Hold-E care tend. Fog / ambient / well pulse answer climate stress & harmony.
-//! No second HUD. Does not rewrite harvest_feel. Contact: info@Rathor.ai
+//! No second HUD. Does not rewrite harvest_feel.
+//! H-2026-09-16-HOLD-E-TEND: climate hold-E waits until harvest tend has
+//! spoken breathe/harmony (prompt still tap vs hold).
+//! Contact: info@Rathor.ai
 
 use bevy::pbr::FogSettings;
 use bevy::prelude::*;
@@ -50,8 +53,13 @@ fn hold_e_care_tend(
     // At the Threshold pipe or Wards posts the Use belongs to session dress —
     // it must not reach the hex climate ledger or the week file.
     let session_dress_claims_use = epiphany
+        .as_ref()
         .map(|e| e.harvest_use_is_claimed())
         .unwrap_or(false);
+    let harvest_tends = epiphany
+        .as_ref()
+        .map(|e| e.tends_this_session)
+        .unwrap_or(0);
     let pressing = keyboard.pressed(soft_play_bindings::INTERACT);
     if session_dress_claims_use || !pressing || !nearby.in_range {
         hold.seconds = 0.0;
@@ -64,10 +72,19 @@ fn hold_e_care_tend(
         return;
     }
     hold.seconds += time.delta_seconds();
+    // First-hour hold-E belongs to harvest tend breathe/harmony until that lands.
+    if !climate_hold_e_care_waits_for_harvest_tend(harvest_tends) {
+        return;
+    }
     if hold.seconds >= 0.45 && !hold.fired {
         bind.care_tend();
         hold.fired = true;
     }
+}
+
+/// Climate hold-E care tend waits until harvest hold-E tend has landed.
+pub fn climate_hold_e_care_waits_for_harvest_tend(tends_this_session: u32) -> bool {
+    tends_this_session >= 1
 }
 
 /// Fog closes when the hex is tired; ambient opens when harmony holds.
@@ -179,5 +196,31 @@ mod tests {
         assert!(fog_start < 10.0);
         assert!(fog_end < 40.0);
         assert!(fog_end > fog_start);
+    }
+
+    /// CARD H-2026-09-16-HOLD-E-TEND: climate care does not steal hold-E
+    /// before harvest tend speaks breathe/harmony (prompt still tap vs hold).
+    #[test]
+    fn climate_hold_e_waits_for_harvest_tend_breathe() {
+        use crate::first_harvest_epiphany::{
+            hold_e_tend_blocked, is_hold_e_tend, tap_vs_hold_prompt, tend_breathe_answer,
+            tend_harmony_pulse_line, TEND_HOLD,
+        };
+        use crate::mercy_harvest_nodes::{care_cycle_card_line, care_cycle_may_raise};
+
+        assert!(!super::climate_hold_e_care_waits_for_harvest_tend(0));
+        assert!(super::climate_hold_e_care_waits_for_harvest_tend(1));
+
+        assert!(!hold_e_tend_blocked(1, 0, 10.0, 10.0 + TEND_HOLD));
+        assert!(is_hold_e_tend(TEND_HOLD));
+        let pulse = tend_harmony_pulse_line("Verdant well", 0.4);
+        assert!(pulse.contains("harmony"));
+        assert!(tend_breathe_answer().contains("breathes"));
+        assert_eq!(tap_vs_hold_prompt(), "tap E take  ·  hold E tend");
+        assert!(!care_cycle_may_raise(1, 10.5, 14.2, &pulse, true));
+        assert!(care_cycle_may_raise(1, 14.3, 14.2, &pulse, true));
+        assert!(care_cycle_card_line(false).contains("Care cycle"));
+        assert!(!pulse.contains("Temper"));
+        assert!(!pulse.contains("Distill Ward"));
     }
 }
