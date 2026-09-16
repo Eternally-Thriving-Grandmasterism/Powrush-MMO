@@ -6,13 +6,15 @@
 //! brightness / text_scale → LocalUiFeel (Title plate contrast stays law).
 //! reduced motion / rumble → LocalFeedbackFeel (camera punch scale + rumble gate).
 //! colorblind_wells → LocalColorblindWells (shape tokens beside B2 word captions).
+//! Comfort Graphics L/M/H → LocalMeshLodFeel (MESH-PERSONA-HANDS; one plate).
 //! No Online socket toggle. LAN off (default) opens nothing; loopback is 127.0.0.1 only.
+//! Cite [`docs/MESH_PERSONA_COURT.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
 //! Contact: info@Rathor.ai
 
 use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
 use bevy::prelude::*;
 
-use shared::local_settings::LocalSettings;
+use shared::local_settings::{GraphicsPreset, LocalSettings, MeshLod};
 
 use crate::lived_hour_bind::LivedHourBind;
 
@@ -167,6 +169,41 @@ impl LocalColorblindWells {
     }
 }
 
+/// Runtime Comfort mesh LOD feel — one graphics plate, no second HUD.
+/// Lived stacked-capsule presence reads this → MeshLodPlan.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LocalMeshLodFeel {
+    pub preset: GraphicsPreset,
+}
+
+impl Default for LocalMeshLodFeel {
+    fn default() -> Self {
+        Self::from_settings(&LocalSettings::peace_defaults())
+    }
+}
+
+impl LocalMeshLodFeel {
+    pub fn from_settings(s: &LocalSettings) -> Self {
+        Self {
+            preset: s.graphics_preset,
+        }
+    }
+
+    pub fn mesh_lod(self) -> MeshLod {
+        self.preset.mesh_lod()
+    }
+
+    /// Low stays primitives / capsule-readable.
+    pub fn primitives_only(self) -> bool {
+        self.mesh_lod().primitives_only()
+    }
+
+    /// High may ask for PersonaCommit dress — presence still gates on assets.
+    pub fn persona_commit_dress(self) -> bool {
+        self.mesh_lod().persona_commit_dress()
+    }
+}
+
 pub struct LocalSettingsPlugin;
 
 impl Plugin for LocalSettingsPlugin {
@@ -177,6 +214,7 @@ impl Plugin for LocalSettingsPlugin {
             .init_resource::<LocalUiFeel>()
             .init_resource::<LocalFeedbackFeel>()
             .init_resource::<LocalColorblindWells>()
+            .init_resource::<LocalMeshLodFeel>()
             .add_systems(Startup, seed_runtime_from_settings)
             .add_systems(Update, (apply_local_settings_runtime, persist_dirty_settings))
             // Harvest producers stay unchanged; disabled accessibility feel removes their
@@ -192,6 +230,7 @@ fn seed_runtime_from_settings(
     mut ui: ResMut<LocalUiFeel>,
     mut feedback: ResMut<LocalFeedbackFeel>,
     mut colorblind: ResMut<LocalColorblindWells>,
+    mut mesh_lod: ResMut<LocalMeshLodFeel>,
     mut bind: ResMut<LivedHourBind>,
 ) {
     *look = LocalLookFeel::from_settings(&settings.inner);
@@ -200,6 +239,7 @@ fn seed_runtime_from_settings(
     *ui = LocalUiFeel::from_settings(&settings.inner);
     *feedback = LocalFeedbackFeel::from_settings(&settings.inner);
     *colorblind = LocalColorblindWells::from_settings(&settings.inner);
+    *mesh_lod = LocalMeshLodFeel::from_settings(&settings.inner);
     // Persist default for Hide slabs — H still works in session after this.
     bind.guidance_hidden = settings.inner.hide_slabs;
 }
@@ -211,6 +251,7 @@ fn apply_local_settings_runtime(
     mut ui: ResMut<LocalUiFeel>,
     mut feedback: ResMut<LocalFeedbackFeel>,
     mut colorblind: ResMut<LocalColorblindWells>,
+    mut mesh_lod: ResMut<LocalMeshLodFeel>,
     mut bind: ResMut<LivedHourBind>,
 ) {
     if !settings.is_changed() {
@@ -222,6 +263,7 @@ fn apply_local_settings_runtime(
     *ui = LocalUiFeel::from_settings(&settings.inner);
     *feedback = LocalFeedbackFeel::from_settings(&settings.inner);
     *colorblind = LocalColorblindWells::from_settings(&settings.inner);
+    *mesh_lod = LocalMeshLodFeel::from_settings(&settings.inner);
     // Only when settings change (UI) — H session toggles are not overwritten every frame.
     bind.guidance_hidden = settings.inner.hide_slabs;
 }
@@ -349,5 +391,31 @@ mod tests {
 
         s.colorblind_wells = "off".into();
         assert!(!LocalColorblindWells::from_settings(&s).show_shapes);
+    }
+
+    #[test]
+    fn comfort_mesh_lod_feel_follows_graphics_preset_no_ultra_no_socket() {
+        let mut s = LocalSettings::peace_defaults();
+        let feel = LocalMeshLodFeel::from_settings(&s);
+        assert_eq!(feel.preset, GraphicsPreset::Medium);
+        assert_eq!(feel.mesh_lod(), MeshLod::Medium);
+        assert!(!feel.primitives_only());
+        assert!(!feel.persona_commit_dress());
+
+        s.set_graphics_preset(GraphicsPreset::Low);
+        let low = LocalMeshLodFeel::from_settings(&s);
+        assert!(low.primitives_only());
+        assert!(!low.persona_commit_dress());
+        assert_eq!(low.mesh_lod(), MeshLod::Low);
+
+        s.set_graphics_preset(GraphicsPreset::High);
+        let high = LocalMeshLodFeel::from_settings(&s);
+        assert!(!high.primitives_only());
+        assert!(high.persona_commit_dress());
+        assert_eq!(high.mesh_lod(), MeshLod::High);
+
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert!(!local_settings_opens_socket(&s));
+        assert!(refuse_online_socket_toggle(true));
     }
 }
