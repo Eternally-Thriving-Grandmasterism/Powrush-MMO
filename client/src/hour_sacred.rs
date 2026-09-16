@@ -267,6 +267,23 @@ mod tests {
         assert!(!h.hour_three_complete);
         assert!(!h.session.peace_visitor_on_frontier());
         assert!(!h.charter_skin_live());
+
+        // CAPTURE persist (if present) loads only via load_or_peace — Default stays Peace.
+        if let Some(raw) = read_hour_two_json() {
+            let pack = HourTwoPack::from_json(&raw);
+            let loaded = HourSacred::load_or_peace();
+            assert_eq!(loaded.hex(), pack.session.hex);
+            assert_eq!(loaded.complete, pack.complete);
+            assert_eq!(loaded.hour_three_complete, pack.hour_three_complete);
+            if pack.session.hex != HexFlag::Peace || pack.complete {
+                assert_eq!(h.hex(), HexFlag::Peace);
+                assert!(!h.complete);
+                assert_ne!(
+                    loaded.complete, h.complete,
+                    "Default ignored live hour-two complete pack"
+                );
+            }
+        }
     }
 
     /// Plugin boot still loads persist. Default stays Peace even if disk is CAPTURE.
