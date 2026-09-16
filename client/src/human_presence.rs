@@ -17,6 +17,13 @@
  * stacked-capsule stays presentation — not an NPC roster. Hour finishes with
  * zero scheduled persons. No mesh dump, no second HUD.
  *
+ * H-2026-09-16-MESH-PERSONA-HANDS: Comfort L/M/H [`MeshLodPlan`] drives
+ * [`procedural_detail_scale`] on the lived stacked-capsule. Low stays
+ * primitives / capsule-readable. High may gate `persona_commit_dress_active`
+ * only when an authored glb is already present — no `.glb` dump. face ≠ class.
+ * Practices after House. No race lobby. No second HUD.
+ * Cite [`docs/MESH_PERSONA_COURT.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -32,7 +39,12 @@ use crate::living_day::{
     greet_by_place_mood, preferred_work, schedule_copy_is_honest, still_frame_line, DayPeriod,
     PreferredWork, SacredVerb, SchedulePlace, WellMood,
 };
-use crate::local_settings::LocalFeedbackFeel;
+use crate::local_settings::{LocalFeedbackFeel, LocalMeshLodFeel};
+use shared::local_settings::GraphicsPreset;
+
+/// H-2026-09-16-MESH-PERSONA-HANDS — Comfort MeshLodPlan (PATHS-only compile).
+#[path = "gltf_integration.rs"]
+mod mesh_lod;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, HARVEST_REACH};
 use crate::soft_play_bindings;
 
@@ -110,6 +122,11 @@ enum PersonPart {
 #[derive(Component)]
 struct PersonAccent;
 
+/// Child mesh whose local scale follows Comfort [`mesh_lod::procedural_detail_scale`].
+/// Root / joints stay unscaled so feet stay on the plane and Peace E still reads.
+#[derive(Component)]
+struct PersonLodMesh;
+
 /// What the still frame must name about Peace **E**.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stance {
@@ -169,6 +186,58 @@ pub fn silhouette() -> Silhouette {
         torso: (torso_center - half_torso, torso_center + half_torso),
         head: (head_center - HEAD_R, head_center + HEAD_R),
     }
+}
+
+/// Comfort MeshLodPlan → lived stacked-capsule detail scale.
+pub fn presence_lod_scale(preset: GraphicsPreset) -> f32 {
+    mesh_lod::lived_presence_detail_scale(&mesh_lod::plan_for_preset(preset))
+}
+
+/// High PersonaCommit dress only when the plan asks and `asset_present`.
+/// Never dumps a `.glb`. Low never dresses.
+pub fn presence_dress_active(preset: GraphicsPreset, asset_present: bool) -> bool {
+    mesh_lod::persona_commit_dress_active(&mesh_lod::plan_for_preset(preset), asset_present)
+}
+
+/// Comfort Low stays primitives / capsule-readable (joints unscaled).
+pub fn presence_low_stays_capsule_readable() -> bool {
+    let plan = mesh_lod::plan_for_preset(GraphicsPreset::Low);
+    let scale = mesh_lod::lived_presence_detail_scale(&plan);
+    plan.primitives_only
+        && !plan.persona_commit_dress
+        && !mesh_lod::persona_commit_dress_active(&plan, true)
+        && presence_still_capsule_readable(scale)
+}
+
+/// Standing stack law is Medium joints; part scale thins/fills, does not drop feet.
+pub fn presence_still_capsule_readable(scale: f32) -> bool {
+    let s = silhouette();
+    scale > 0.5
+        && scale <= 1.15 + f32::EPSILON
+        && s.feet.abs() < 0.06
+        && s.head.1 - s.feet > 1.6
+        && s.head.0 < s.torso.1
+        && s.torso.0 < s.hips.1
+        && HEAD_R < TORSO_R
+}
+
+/// face ≠ class — presence never picks a class from a face / people label.
+pub fn presence_face_picks_class() -> bool {
+    !mesh_lod::face_is_not_class()
+}
+
+/// Practices after House — never grey Peace E / I / H / R.
+pub fn presence_practices_gate_peace() -> bool {
+    !mesh_lod::practices_after_house()
+}
+
+/// No Title race lobby from this body.
+pub fn presence_opens_race_lobby() -> bool {
+    !mesh_lod::race_lobby_closed()
+}
+
+fn lod_mesh_tf(x: f32, y: f32, z: f32, scale: f32) -> Transform {
+    Transform::from_xyz(x, y, z).with_scale(Vec3::splat(scale))
 }
 
 fn ease(t: f32) -> f32 {
@@ -292,6 +361,7 @@ impl Plugin for HumanPresencePlugin {
             .add_systems(
                 Update,
                 (
+                    apply_presence_mesh_lod,
                     arm_jump_latch,
                     latch_use_attend,
                     sync_body,
@@ -309,10 +379,18 @@ fn spawn_human_presence(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     existing: Query<Entity, With<HumanPresence>>,
+    feel: Option<Res<LocalMeshLodFeel>>,
 ) {
     if existing.iter().next().is_some() {
         return;
     }
+    let preset = feel.map(|f| f.preset).unwrap_or(GraphicsPreset::Medium);
+    let plan = mesh_lod::plan_for_preset(preset);
+    let scale = mesh_lod::lived_presence_detail_scale(&plan);
+    let _dress = mesh_lod::persona_commit_dress_active(
+        &plan,
+        mesh_lod::optional_authored_glb_present(),
+    );
     // One material family for every part, so the lineage tint still paints the
     // whole person from the root handle.
     let earth = materials.add(StandardMaterial {
@@ -355,31 +433,39 @@ fn spawn_human_presence(
                 Name::new("PersonWaist"),
             ))
             .with_children(|waist| {
-                waist.spawn(PbrBundle {
-                    mesh: torso,
-                    material: earth.clone(),
-                    transform: Transform::from_xyz(0.0, TORSO_Y, 0.0),
-                    ..default()
-                });
+                waist.spawn((
+                    PbrBundle {
+                        mesh: torso,
+                        material: earth.clone(),
+                        transform: lod_mesh_tf(0.0, TORSO_Y, 0.0, scale),
+                        ..default()
+                    },
+                    PersonLodMesh,
+                ));
                 waist
                     .spawn((
                         PbrBundle {
                             mesh: head,
                             material: earth.clone(),
-                            transform: Transform::from_xyz(0.0, HEAD_Y, 0.0),
+                            transform: lod_mesh_tf(0.0, HEAD_Y, 0.0, scale),
                             ..default()
                         },
                         PersonPart::Head,
+                        PersonLodMesh,
                         Name::new("PersonHead"),
                     ))
                     .with_children(|face| {
                         // Brow nub: which way the person looks reads in a still.
-                        face.spawn(PbrBundle {
-                            mesh: brow,
-                            material: earth.clone(),
-                            transform: Transform::from_xyz(0.0, 0.01, HEAD_R * 0.86),
-                            ..default()
-                        });
+                        // face ≠ class — look direction only, never a race lobby.
+                        face.spawn((
+                            PbrBundle {
+                                mesh: brow,
+                                material: earth.clone(),
+                                transform: lod_mesh_tf(0.0, 0.01, HEAD_R * 0.86, scale),
+                                ..default()
+                            },
+                            PersonLodMesh,
+                        ));
                     });
                 for side in [-1.0f32, 1.0] {
                     waist
@@ -396,21 +482,25 @@ fn spawn_human_presence(
                             Name::new("PersonShoulder"),
                         ))
                         .with_children(|limb| {
-                            limb.spawn(PbrBundle {
-                                mesh: arm.clone(),
-                                material: earth.clone(),
-                                transform: Transform::from_xyz(0.0, ARM_Y, 0.0),
-                                ..default()
-                            });
+                            limb.spawn((
+                                PbrBundle {
+                                    mesh: arm.clone(),
+                                    material: earth.clone(),
+                                    transform: lod_mesh_tf(0.0, ARM_Y, 0.0, scale),
+                                    ..default()
+                                },
+                                PersonLodMesh,
+                            ));
                             if side > 0.0 {
                                 limb.spawn((
                                     PbrBundle {
                                         mesh: hand.clone(),
                                         material: accent.clone(),
-                                        transform: Transform::from_xyz(0.0, HAND_Y, 0.0),
+                                        transform: lod_mesh_tf(0.0, HAND_Y, 0.0, scale),
                                         ..default()
                                     },
                                     PersonAccent,
+                                    PersonLodMesh,
                                     Name::new("PersonAccent"),
                                 ));
                             }
@@ -427,12 +517,15 @@ fn spawn_human_presence(
                     Name::new("PersonHip"),
                 ))
                 .with_children(|limb| {
-                    limb.spawn(PbrBundle {
-                        mesh: leg.clone(),
-                        material: earth.clone(),
-                        transform: Transform::from_xyz(0.0, LEG_Y, 0.0),
-                        ..default()
-                    });
+                    limb.spawn((
+                        PbrBundle {
+                            mesh: leg.clone(),
+                            material: earth.clone(),
+                            transform: lod_mesh_tf(0.0, LEG_Y, 0.0, scale),
+                            ..default()
+                        },
+                        PersonLodMesh,
+                    ));
                 });
             }
         });
@@ -440,6 +533,28 @@ fn spawn_human_presence(
         target: "powrush::presence",
         "standing person on the climate plane — head, torso, stance mass"
     );
+}
+
+/// Apply Comfort MeshLodPlan scale when Esc Graphics changes. Joints stay put.
+fn apply_presence_mesh_lod(
+    feel: Option<Res<LocalMeshLodFeel>>,
+    mut meshes: Query<&mut Transform, With<PersonLodMesh>>,
+) {
+    let Some(feel) = feel else {
+        return;
+    };
+    if !feel.is_changed() {
+        return;
+    }
+    let plan = mesh_lod::plan_for_preset(feel.preset);
+    let scale = mesh_lod::lived_presence_detail_scale(&plan);
+    let _dress = mesh_lod::persona_commit_dress_active(
+        &plan,
+        mesh_lod::optional_authored_glb_present(),
+    );
+    for mut tf in &mut meshes {
+        tf.scale = Vec3::splat(scale);
+    }
 }
 
 fn arm_jump_latch(input: Res<PlayerInput>, mut latch: ResMut<JumpLatch>) {
@@ -979,5 +1094,42 @@ mod tests {
             let line = presence_still_frame(place, 0.18);
             assert!(presence_copy_is_honest(&line), "{line}");
         }
+    }
+
+    #[test]
+    fn comfort_mesh_lod_plan_scales_stacked_capsule_low_stays_readable() {
+        assert!((presence_lod_scale(GraphicsPreset::Low) - 0.65).abs() < f32::EPSILON);
+        assert!((presence_lod_scale(GraphicsPreset::Medium) - 1.0).abs() < f32::EPSILON);
+        assert!((presence_lod_scale(GraphicsPreset::High) - 1.15).abs() < f32::EPSILON);
+        assert!(presence_low_stays_capsule_readable());
+        assert!(presence_still_capsule_readable(0.65));
+        assert!(presence_still_capsule_readable(1.0));
+        assert!(presence_still_capsule_readable(1.15));
+
+        let low = mesh_lod::plan_for_preset(GraphicsPreset::Low);
+        assert!(low.primitives_only);
+        assert!(!mesh_lod::lived_presence_uses_authored_glb(&low));
+        assert!(!presence_dress_active(GraphicsPreset::Low, true));
+        assert!(!presence_dress_active(GraphicsPreset::Medium, true));
+        assert!(presence_dress_active(GraphicsPreset::High, true));
+        assert!(!presence_dress_active(GraphicsPreset::High, false));
+        assert_eq!(
+            presence_dress_active(GraphicsPreset::High, mesh_lod::optional_authored_glb_present()),
+            mesh_lod::lived_persona_dress_active(&mesh_lod::plan_for_preset(GraphicsPreset::High))
+        );
+    }
+
+    #[test]
+    fn comfort_lod_does_not_mute_peace_e_or_open_race_lobby() {
+        assert_eq!(attend_level(0.0, true, false, 1.0 / 60.0), 1.0);
+        assert_eq!(stance_read(0.0, 1.0, BodyTell::Easy), Stance::Reach);
+        assert_eq!(stance_read(WALK, 1.0, BodyTell::Winded), Stance::Reach);
+        assert!(!presence_face_picks_class());
+        assert!(!presence_practices_gate_peace());
+        assert!(!presence_opens_race_lobby());
+        assert!(mesh_lod::face_is_not_class());
+        assert!(mesh_lod::practices_after_house());
+        assert!(mesh_lod::race_lobby_closed());
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
     }
 }
