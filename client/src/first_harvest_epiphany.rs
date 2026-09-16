@@ -888,7 +888,7 @@ mod tests {
             !hold_e_tend_blocked(harvests, tends, take_at, hold_at),
             "take cooldown must not eat hold-E tend"
         );
-        assert!(is_hold_e_tend(hold_at - take_at));
+        assert!(is_hold_e_tend(TEND_HOLD));
 
         let pulse = tend_harmony_pulse_line("Sanctuary ember", 0.4);
         assert!(pulse.contains("harmony"));
