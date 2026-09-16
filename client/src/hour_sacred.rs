@@ -41,12 +41,20 @@ pub struct HourSacred {
 }
 
 impl Default for HourSacred {
+    /// Peace only. Must not read live user-dir hour-two — CAPTURE persist
+    /// poisons `--lib` Peace tests. Boot/plugin uses [`Self::load_or_peace`].
     fn default() -> Self {
-        Self::load_or_peace()
+        Self {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        }
     }
 }
 
 impl HourSacred {
+    /// Soft-load the user-dir pack. Boot / plugin only — not `Default`.
+    /// Does not wipe steward saves; missing or unreadable JSON stays Peace.
     pub fn load_or_peace() -> Self {
         if let Some(raw) = read_hour_two_json() {
             let pack = HourTwoPack::from_json(&raw);
@@ -56,11 +64,7 @@ impl HourSacred {
                 hour_three_complete: pack.hour_three_complete,
             };
         }
-        Self {
-            session: SpaceSession::default(),
-            complete: false,
-            hour_three_complete: false,
-        }
+        Self::default()
     }
 
     pub fn persist_pack(
@@ -112,7 +116,8 @@ pub struct HourSacredPlugin;
 
 impl Plugin for HourSacredPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<HourSacred>().add_systems(
+        // Persist is a boot path. `init_resource` would use Default (Peace).
+        app.insert_resource(HourSacred::load_or_peace()).add_systems(
             Update,
             (
                 take_ridge_door,
@@ -245,15 +250,53 @@ mod tests {
 
     #[test]
     fn default_hour_hides_charter_skin_and_w() {
-        let h = HourSacred {
-            session: SpaceSession::default(),
-            complete: false,
-            hour_three_complete: false,
-        };
+        let h = HourSacred::default();
         assert!(!h.charter_skin_live());
         assert_eq!(h.warrant_live(), 0.0);
         assert_eq!(h.hex(), HexFlag::Peace);
         assert!(!h.complete);
+        assert!(!h.hour_three_complete);
+    }
+
+    /// PLAYTEST/CI: live `powrush_hour_two.json` must not poison Default.
+    #[test]
+    fn default_is_peace_without_reading_hour_two() {
+        let h = HourSacred::default();
+        assert_eq!(h.hex(), HexFlag::Peace);
+        assert!(!h.complete);
+        assert!(!h.hour_three_complete);
+        assert!(!h.session.peace_visitor_on_frontier());
+        assert!(!h.charter_skin_live());
+
+        // CAPTURE persist (if present) loads only via load_or_peace — Default stays Peace.
+        if let Some(raw) = read_hour_two_json() {
+            let pack = HourTwoPack::from_json(&raw);
+            let loaded = HourSacred::load_or_peace();
+            assert_eq!(loaded.hex(), pack.session.hex);
+            assert_eq!(loaded.complete, pack.complete);
+            assert_eq!(loaded.hour_three_complete, pack.hour_three_complete);
+            if pack.session.hex != HexFlag::Peace || pack.complete {
+                assert_eq!(h.hex(), HexFlag::Peace);
+                assert!(!h.complete);
+                assert_ne!(
+                    loaded.complete, h.complete,
+                    "Default ignored live hour-two complete pack"
+                );
+            }
+        }
+    }
+
+    /// Plugin boot still loads persist. Default stays Peace even if disk is CAPTURE.
+    #[test]
+    fn plugin_boot_uses_load_or_peace() {
+        let mut app = App::new();
+        app.add_plugins(HourSacredPlugin);
+        let hour = app.world().resource::<HourSacred>();
+        let loaded = HourSacred::load_or_peace();
+        assert_eq!(hour.hex(), loaded.hex());
+        assert_eq!(hour.complete, loaded.complete);
+        assert_eq!(hour.hour_three_complete, loaded.hour_three_complete);
+        assert_eq!(HourSacred::default().hex(), HexFlag::Peace);
     }
 
     #[test]
@@ -284,11 +327,7 @@ mod tests {
     }
 
     fn peace_hour() -> HourSacred {
-        HourSacred {
-            session: SpaceSession::default(),
-            complete: false,
-            hour_three_complete: false,
-        }
+        HourSacred::default()
     }
 
     /// Playtest H2-TAB: Tab is a no-op until flow or reserve is banked.
