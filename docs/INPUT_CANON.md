@@ -5,7 +5,9 @@ Workspace `21.88.0`. Design tick, not a Cargo bump. Soft GPU first-class.
 **Proof floor:** lavapipe + keyboard still **PASS**. Stranger floor stays `2163551`.  
 **Law:** I0 may ship without a `playable-preview` tag. Docs now; wiring later. No client / shared / Cargo in this stamp.
 
-Ra-Thor does **not** drive keys. One **Use** verb. Peace hands stay WASD / E / I / H / R until a later wire.
+**CARD B4-REMAPS.** Settings already expose PeaceKey remaps. Defaults stay **WASD · E · I · H · R**. No new verbs. `soft_play` wire stays later — do not implement client `soft_play` here.
+
+Ra-Thor does **not** drive keys. One **Use** verb. Peace default hands stay WASD / E / I / H / R.
 
 ## Layers
 
@@ -37,7 +39,7 @@ No second Camera3d. No Online gesture. No combat buttons. No brand SDK.
 | Look | mouse |
 | UI click | LMB |
 
-Quiet law: Use is always **E** on keyboard. Pause is always **Esc**. Sheets stay I / L / Q. No F-row combat. No second HUD.
+Quiet law: Default Use is **E** on keyboard. Pause is always **Esc**. Default sheets stay I / L / Q. Remaps rebind the same verbs — they do not add a second Use, a fifth Place, or combat. No F-row. No second HUD.
 
 ## Touch layout
 
@@ -64,14 +66,38 @@ Soft GPU / phone / Deck: same layers; sticks only when `on_screen_sticks` resolv
 
 Quiet law: **South = Use**. **Start = Pause**. X/Y (or Nintendo-equivalent West/North) open sheets. No combat face buttons in Peace.
 
+## PeaceKey remaps (already on settings)
+
+`data/powrush_settings.json` already persists PeaceKey remaps beside Grove. Missing fields keep the Peace keyboard PASS. Defaults stay **WASD · E · I · H · R**. Remap is not a new verb.
+
+| Field | Default | Action (existing) |
+|---|---|---|
+| `key_move_up` | **W** | Move |
+| `key_move_down` | **S** | Move |
+| `key_move_left` | **A** | Move |
+| `key_move_right` | **D** | Move |
+| `key_use` | **E** | Use (one verb) |
+| `key_satchel` | **I** | Satchel |
+| `key_hide` | **H** | Hide guidance / slabs |
+| `key_allocate` | **R** | Allocate (then 1 flow · 2 reserve) |
+
+`key_jump` / `key_sprint` already sit beside them (defaults Space · LeftShift). They do not add verbs.
+
+`soft_play` wire stays later. This stamp does not implement `client/**` or `soft_play_bindings`. Keyboard PASS on lavapipe still uses the defaults above.
+
 ## Controls fields — `data/powrush_settings.json`
 
-Live next to Grove (same Settings plate / same JSON). Docs stamp only — wire later.
+Live next to Grove (same Settings plate / same JSON). Docs stamp only — `soft_play` wire later.
 
 | Field | Type / values | Default | Notes |
 |---|---|---|---|
 | `look_sens` | number | (existing Look) | mouse / stick look sensitivity |
 | `invert_y` | bool | (existing Invert-Y) | invert look pitch |
+| `key_move_up` / `key_move_down` / `key_move_left` / `key_move_right` | PeaceKey | **W / S / A / D** | already on settings; Move remaps |
+| `key_use` | PeaceKey | **E** | already on settings; one Use verb |
+| `key_satchel` | PeaceKey | **I** | already on settings; satchel |
+| `key_hide` | PeaceKey | **H** | already on settings; hide guidance / slabs |
+| `key_allocate` | PeaceKey | **R** | already on settings; then 1 flow · 2 reserve |
 | `on_screen_sticks` | `auto` \| `on` \| `off` | **`auto`** | auto = show on touch / no gamepad; cull on plates |
 | `tap_to_use` | bool | **`false`** | false = tap-focus then Use |
 | `gamepad_south_use` | bool | **`true`** | South face = Use |
@@ -86,15 +112,18 @@ Grove `off|light` already persists here; Controls fields sit beside it. Env not 
 1. Probe touch / gamepad / keyboard+mouse once at boot (and on device change).
 2. Resolve `on_screen_sticks`: **auto** → on when touch primary and no gamepad; off when keyboard+mouse or active gamepad.
 3. Apply `nintendo_face` / `gamepad_south_use` so South stays Use.
-4. Soft GPU (lavapipe) + keyboard remains a first-class PASS path — sticks stay off; E / Esc / I / L / Q unchanged.
+4. Soft GPU (lavapipe) + keyboard remains a first-class PASS path — sticks stay off; default E / Esc / I / L / Q unchanged.
 
 ## Refuse list
 
 - No **second Camera3d** (order-ambiguity bury).
 - No **Online gesture** (title Online stays grey; no peer flourish).
 - No **combat buttons** / F-row / brand “action” packs in Peace.
+- No **new verbs** (remap rebinds existing Peace actions only).
+- No client `soft_play` on this stamp (`soft_play` wire stays later).
 - No **brand SDK** hard-require (Steam Input / DualSense / NX SDK optional later; generic map first).
 - No Ra-Thor key drive. No GenShare sockets from input. No Wave P. No `playable-preview` from this doc alone.
+- No Title Online · no listen · no public bind · no fifth Place · no second HUD.
 
 ## Proof
 
