@@ -1,5 +1,9 @@
 # CHANGELOG.md — Powrush-MMO
 
+## [23.2.83] — 2026-09-17 — B5-PRACTICE-NEQ-VERB: Practice ≠ harvest/Use
+
+Docs only. CARD B5-PRACTICE-NEQ-VERB. Practice (P) is not a harvest verb and is not Use. P ≠ E. E remains the one Use verb (tap-E take / hold-E tend unchanged in meaning). Authority: this file's [23.2.83] B2.5 standing-docs entry (Practice≠Verb stamp named there). No new verbs, client wires, keybinds, or `soft_play`. ASSET BUDGET: 0 new meshes. Title Online stays grey. NetMode Offline default. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0. No listen. No public bind. No harvest=Practice.
+
 ## [23.2.83] — 2026-09-09 — B2.5: standing docs match main
 
 Docs only. Honesty, not a Cargo bump: A0 closed (#316 stays closed). B1 landed #322 / `c4529542`. B2 landed #323 / `0e4b89db`. Next ordered: B3 colorblind well tokens → B4 remaps → B5 Practice≠Verb stamp → Wave C Wards from current `main` → B7 Depths Peace tend. Hour-two minutes stay blank. Title Online stays grey. `playable-preview` stays `11c577e`. Floor stays `2163551`. Workspace stays 21.88.0. No Market. No listen. No B3 in this slice.
