@@ -1,12 +1,16 @@
-//! GenShare Method A — L0 disk recipe (offline, no socket)
+//! GenShare Method A + Method B — L0 disk recipe (offline, no socket)
 //!
 //! Persist grove seed story beside house/climate:
 //! `powrush_genshare.jsonl` in the OS user-data dir (or `POWRUSH_USER_DIR`).
 //! Cwd `data/powrush_genshare.jsonl` is adopt-only.
-//! Recipe = seed story so a peer (later Method B) can rebuild the same yard.
+//! Recipe = seed story so a peer can rebuild the same yard.
+//!
+//! Method B (paste / USB): human handoff of the same envelope. Applying a
+//! ledger/dress payload requires explicit confirm and must not fire mid-WASD.
+//! Cite `docs/GENSHARE.md` Method B. CARD F4-GENSHARE-ADOPT-CONSENT.
 //! Never stream glTF / mesh floods. Never bind / dial. Dress = seal+heritage
 //! caption only — no combat stats. Prefer with Method D (optional climate
-//! piggyback fields). Contact: info@Rathor.ai
+//! piggyback fields). Title Online stays grey. Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
@@ -208,6 +212,71 @@ pub fn load_genshare(hex: &str, house: Option<&str>) -> Option<GenShare> {
     load_genshare_at(&crate::user_persist::persist_path(GENSHARE_PATH), hex, house)
 }
 
+/// Method B handoff seat: paste buffer or USB file text. Offline. No socket.
+/// Cite `docs/GENSHARE.md` Method B.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MethodBHandoff {
+    Paste,
+    Usb,
+}
+
+/// Why Method B did not apply a ledger/dress payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MethodBRefuse {
+    /// Paste/USB text is not a GenShare recipe.
+    BadPayload,
+    /// Explicit confirm is required before applying ledger/dress.
+    NeedsConfirm,
+    /// Never adopt while the player is in active WASD locomotion.
+    MidWasd,
+}
+
+/// Parse paste/USB text into a GenShare recipe without applying it.
+/// JSON line or JSONL: last valid row wins (one seed, never merge).
+pub fn parse_method_b_payload(raw: &str) -> Result<GenShare, MethodBRefuse> {
+    parse_genshare_jsonl(raw)
+        .into_iter()
+        .next_back()
+        .ok_or(MethodBRefuse::BadPayload)
+}
+
+/// Method B adopt gate (`docs/GENSHARE.md` Method B).
+///
+/// Paste/USB payload applies only after **explicit confirm**, and **never**
+/// while the player is in active WASD locomotion. Staging a paste is not
+/// adopt. Does not bind, listen, or light Title Online.
+pub fn try_adopt_method_b(
+    handoff: MethodBHandoff,
+    raw: &str,
+    confirmed: bool,
+    mid_wasd: bool,
+) -> Result<GenShare, MethodBRefuse> {
+    let payload = match handoff {
+        MethodBHandoff::Paste | MethodBHandoff::Usb => parse_method_b_payload(raw)?,
+    };
+    if mid_wasd {
+        return Err(MethodBRefuse::MidWasd);
+    }
+    if !confirmed {
+        return Err(MethodBRefuse::NeedsConfirm);
+    }
+    Ok(payload)
+}
+
+/// Apply Method B to an L0 ledger path only after the adopt gate passes.
+/// Soft-fail append (same as Method A). Does not write on refuse.
+pub fn apply_method_b_at(
+    path: &Path,
+    handoff: MethodBHandoff,
+    raw: &str,
+    confirmed: bool,
+    mid_wasd: bool,
+) -> Result<GenShare, MethodBRefuse> {
+    let row = try_adopt_method_b(handoff, raw, confirmed, mid_wasd)?;
+    let _ = append_genshare_at(path, &row);
+    Ok(row)
+}
+
 /// Resolve seed for scatter: prefer persisted GenShare seed for house⊕hex,
 /// else compute local grove seed. Returns `(seed, from_disk)`.
 pub fn resolve_grove_seed(
@@ -352,5 +421,120 @@ mod tests {
         let g = GenShare::from_lived("Yard", "hx-1", 0.55, 0.15, "Seal · none");
         assert_eq!(g.seed_u64, grove_seed_from("Yard", "hx-1", 0.55, 0.15));
         assert_eq!(g.epoch, climate_epoch(0.55, 0.15));
+    }
+
+    fn method_b_line() -> (GenShare, String) {
+        let g = GenShare::build(
+            "Peace",
+            "hex-b",
+            3,
+            0xbeef,
+            0.5,
+            0.2,
+            "Seal · Grove",
+        );
+        let line = g.to_json_line().unwrap();
+        (g, line)
+    }
+
+    #[test]
+    fn method_b_paste_without_confirm_does_not_adopt() {
+        let (g, line) = method_b_line();
+        let err = try_adopt_method_b(MethodBHandoff::Paste, &line, false, false).unwrap_err();
+        assert_eq!(err, MethodBRefuse::NeedsConfirm);
+        // Staging a paste is not apply — seed must not leak as adopted.
+        assert_eq!(g.seed_u64, 0xbeef);
+    }
+
+    #[test]
+    fn method_b_usb_without_confirm_does_not_adopt() {
+        let (_g, line) = method_b_line();
+        let err = try_adopt_method_b(MethodBHandoff::Usb, &line, false, false).unwrap_err();
+        assert_eq!(err, MethodBRefuse::NeedsConfirm);
+    }
+
+    #[test]
+    fn method_b_confirm_adopts_when_not_mid_wasd() {
+        let (g, line) = method_b_line();
+        let adopted =
+            try_adopt_method_b(MethodBHandoff::Paste, &line, true, false).unwrap();
+        assert_eq!(adopted.seed_u64, g.seed_u64);
+        assert_eq!(adopted.dress, "Seal · Grove");
+        assert!(!adopted.dress.contains("+take"));
+        assert!(!adopted.dress.contains("+STR"));
+    }
+
+    #[test]
+    fn method_b_never_adopts_mid_wasd_even_with_confirm() {
+        let (_g, line) = method_b_line();
+        let err = try_adopt_method_b(MethodBHandoff::Usb, &line, true, true).unwrap_err();
+        assert_eq!(err, MethodBRefuse::MidWasd);
+        let err_paste =
+            try_adopt_method_b(MethodBHandoff::Paste, &line, true, true).unwrap_err();
+        assert_eq!(err_paste, MethodBRefuse::MidWasd);
+    }
+
+    #[test]
+    fn method_b_bad_payload_refuses_before_confirm() {
+        assert_eq!(
+            try_adopt_method_b(MethodBHandoff::Paste, "not-a-recipe", true, false),
+            Err(MethodBRefuse::BadPayload)
+        );
+        assert_eq!(
+            parse_method_b_payload("   \n"),
+            Err(MethodBRefuse::BadPayload)
+        );
+    }
+
+    #[test]
+    fn method_b_apply_writes_ledger_only_after_confirm_not_mid_wasd() {
+        let path = tmp_path("method_b");
+        let _ = fs::remove_file(&path);
+        let (g, line) = method_b_line();
+
+        assert_eq!(
+            apply_method_b_at(&path, MethodBHandoff::Usb, &line, false, false),
+            Err(MethodBRefuse::NeedsConfirm)
+        );
+        assert!(
+            !path.exists()
+                || fs::read_to_string(&path)
+                    .map(|s| s.trim().is_empty())
+                    .unwrap_or(true)
+        );
+
+        assert_eq!(
+            apply_method_b_at(&path, MethodBHandoff::Usb, &line, true, true),
+            Err(MethodBRefuse::MidWasd)
+        );
+        assert!(
+            !path.exists()
+                || fs::read_to_string(&path)
+                    .map(|s| s.trim().is_empty())
+                    .unwrap_or(true)
+        );
+
+        let applied =
+            apply_method_b_at(&path, MethodBHandoff::Usb, &line, true, false).unwrap();
+        assert_eq!(applied.seed_u64, g.seed_u64);
+        let loaded = load_genshare_at(&path, "hex-b", Some("Peace")).unwrap();
+        assert_eq!(loaded.seed_u64, 0xbeef);
+        assert_eq!(loaded.dress, "Seal · Grove");
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn method_b_adopt_keeps_title_online_grey() {
+        let (_g, line) = method_b_line();
+        let adopted =
+            try_adopt_method_b(MethodBHandoff::Paste, &line, true, false).unwrap();
+        assert_eq!(adopted.v, GENSHARE_V);
+        assert_eq!(
+            crate::net_mode::NetMode::default(),
+            crate::net_mode::NetMode::Offline
+        );
+        assert!(!crate::net_mode::NetMode::default().title_online_enabled());
+        assert!(!crate::net_mode::NetMode::Online.title_online_enabled());
+        assert!(!crate::net_mode::NetMode::Online.server_unparked());
     }
 }
