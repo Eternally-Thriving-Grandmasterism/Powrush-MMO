@@ -20,6 +20,9 @@ pub struct PlayerContribution {
     pub player_id: u64,
     pub samples: Vec<NevcSample>,
     pub last_result: Option<NevcResult>,
+    /// Last raw event alignment / RawSample valence. Display only.
+    #[serde(default)]
+    pub last_stewardship_quality: Option<f64>,
 }
 
 impl PlayerContribution {
@@ -28,6 +31,7 @@ impl PlayerContribution {
             player_id,
             samples: Vec::new(),
             last_result: None,
+            last_stewardship_quality: None,
         }
     }
 
@@ -103,7 +107,9 @@ impl ContributionLedger {
             .entry(player_id)
             .or_insert_with(|| PlayerContribution::new(player_id));
 
+        let raw_valence = sample.valence;
         entry.samples.push(sample);
+        entry.last_stewardship_quality = Some(raw_valence);
         entry.compact(max);
         let result = compute_nevc(&entry.samples, &self.config);
         entry.last_result = Some(result.clone());
@@ -120,7 +126,19 @@ impl ContributionLedger {
         let t = self.next_t;
         self.next_t = self.next_t.saturating_add(1);
         let sample = sample_from_rbe_action(abundance_alignment, waste_or_harm, t);
-        self.record_sample(player_id, sample)
+        let result = self.record_sample(player_id, sample);
+        if let Some(entry) = self.players.get_mut(&player_id) {
+            // Keep the event's raw `a`, not the floor-lifted sample valence.
+            entry.last_stewardship_quality = Some(abundance_alignment);
+        }
+        result
+    }
+
+    /// Display-only last raw alignment / craft. Does not feed class.
+    pub fn last_stewardship_quality(&self, player_id: u64) -> Option<f64> {
+        self.players
+            .get(&player_id)
+            .and_then(|p| p.last_stewardship_quality)
     }
 
     pub fn class_of(&self, player_id: u64) -> ContributionClass {
