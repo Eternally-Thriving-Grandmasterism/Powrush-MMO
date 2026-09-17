@@ -17,9 +17,10 @@ use crate::nevc_adapter::{ContributionClass, NevcResult};
 /// High-level contribution event that game / simulation systems can emit.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ContributionEvent {
-    /// Player performed an abundance-aligned RBE action.
-    /// abundance_alignment: 0.0 ..= 1.0
-    /// waste_or_harm: ≥ 0.0
+    /// Harvest teaching signal — not wages.
+    /// `RbeAction` lifts alignment onto the valence floor; grief (`waste_or_harm`)
+    /// decides NEVC class (Contributor / Zombie); Compassion-gate recovery stays Open.
+    /// `abundance_alignment` is not an abundance score.
     RbeAction {
         player_id: u64,
         abundance_alignment: f64,
@@ -92,6 +93,38 @@ mod tests {
         };
         let class = apply_event_class(&mut ledger, event);
         assert_eq!(class, ContributionClass::ZombiePartition);
+    }
+
+    /// NEVC-HONEST-1: floor-lift + grief-gate + Open recovery. Not wages.
+    #[test]
+    fn rbe_action_lifts_alignment_grief_decides_class_recovery_open() {
+        let mut floor = ContributionLedger::new();
+        let lifted = apply_event(
+            &mut floor,
+            ContributionEvent::RbeAction {
+                player_id: 13,
+                abundance_alignment: 0.0,
+                waste_or_harm: 0.0,
+            },
+        );
+        assert!(
+            lifted.is_contributor(),
+            "alignment 0 still sits on the floor when grief is 0; score={}",
+            lifted.score
+        );
+        assert!(lifted.recovery_open());
+
+        let mut griefed = ContributionLedger::new();
+        let gated = apply_event(
+            &mut griefed,
+            ContributionEvent::RbeAction {
+                player_id: 14,
+                abundance_alignment: 1.0,
+                waste_or_harm: 4.0,
+            },
+        );
+        assert_eq!(gated.class, ContributionClass::ZombiePartition);
+        assert!(gated.recovery_open());
     }
 
     #[test]

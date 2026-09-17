@@ -44,6 +44,8 @@ RBE oxygen demo (`simulation --bin rbe_oxygen_demo`) stays on disk. `simulation`
 
 Shared across repos: NEVC + telemetry JSON + policy hints only. Do not fold the player loop into Ra-Thor.
 
+**NEVC class (Contributor / Zombie).** `RbeAction` lifts alignment onto the valence floor; grief decides class — **Contributor** or **Zombie**; Compassion-gate recovery stays **Open**. This is a harvest teaching signal, not wages: it is not an abundance score and not in-world pay.
+
 ### Not in the first hour
 
 NFT / chain mint, k8s, payments, P2W, a second HUD, corpse-grey, fake presence, lighting title Online, public bind.

@@ -36,9 +36,10 @@ impl HorizonPreset {
 }
 
 /// Human-facing status line (label only from the binary partition).
+/// The numeric field is a stewardship / harm gate, not an abundance score / wages.
 pub fn status_line(summary: &NevcSummary) -> String {
     format!(
-        "NEVC: {} | score={:.3} | samples={} | valence={:.6} | grief={:.3}",
+        "NEVC: {} | stewardship / harm gate={:.3} | samples={} | valence={:.6} | grief={:.3}",
         summary.label, summary.score, summary.sample_count, summary.mean_valence, summary.total_grief
     )
 }
@@ -60,7 +61,7 @@ pub fn summary_from_result(result: &NevcResult) -> NevcSummary {
 pub fn panel_fields(summary: &NevcSummary) -> [(&'static str, String); 5] {
     [
         ("label", summary.label.to_string()),
-        ("score", format!("{:.3}", summary.score)),
+        ("stewardship / harm gate", format!("{:.3}", summary.score)),
         ("sample_count", summary.sample_count.to_string()),
         ("mean_valence", format!("{:.6}", summary.mean_valence)),
         ("total_grief", format!("{:.3}", summary.total_grief)),
@@ -79,6 +80,9 @@ mod tests {
         assert_eq!(s.label, "Active Eternal Contributor");
         assert_eq!(badge_text(s.class), "Contributor");
         assert!(status_line(&s).contains("Active Eternal Contributor"));
+        assert!(status_line(&s).contains("stewardship / harm gate"));
+        assert!(!status_line(&s).contains("abundance score"));
+        assert_eq!(panel_fields(&s)[1].0, "stewardship / harm gate");
     }
 
     #[test]
