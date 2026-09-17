@@ -13,7 +13,7 @@
 
 use crate::contribution_ledger::ContributionLedger;
 use crate::nevc_adapter::{ContributionClass, NevcResult, NevcSample, NevcSummary, sample_from_rbe_action};
-use crate::nevc_visibility::{badge_text, status_line};
+use crate::nevc_visibility::{badge_text, status_line, status_line_channels};
 
 /// Real-estate lattice action types for NEVC scoring.
 #[derive(Clone, Debug)]
@@ -119,7 +119,11 @@ impl RealEstateNevcLedger {
     }
 
     pub fn status_line_of(&self, agent_id: u64) -> Option<String> {
-        self.summary_of(agent_id).map(|s| status_line(&s))
+        let summary = self.summary_of(agent_id)?;
+        match self.inner.last_stewardship_quality(agent_id) {
+            Some(quality) => Some(status_line_channels(&summary, quality)),
+            None => Some(status_line(&summary)),
+        }
     }
 
     pub fn badge_of(&self, agent_id: u64) -> &'static str {
@@ -190,5 +194,18 @@ mod tests {
         });
         assert_eq!(r.class, ContributionClass::ZombiePartition);
         assert_eq!(ledger.badge_of(104), "Zombie");
+    }
+
+    #[test]
+    fn status_line_shows_stewardship_quality_channel() {
+        let mut ledger = RealEstateNevcLedger::new();
+        ledger.apply(RealEstateStewardshipEvent::Stewardship {
+            agent_id: 105,
+            alignment: 0.0,
+        });
+        let line = ledger.status_line_of(105).expect("line");
+        assert!(line.contains("stewardship / harm gate"));
+        assert!(line.contains("stewardship quality=0.000"));
+        assert!(ledger.is_contributor(105));
     }
 }

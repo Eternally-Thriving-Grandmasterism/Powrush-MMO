@@ -35,6 +35,22 @@ pub enum ContributionEvent {
     },
 }
 
+impl ContributionEvent {
+    /// Raw alignment / craft for display only.
+    ///
+    /// `RbeAction` → `abundance_alignment` (`a`). `RawSample` → `valence`.
+    /// Never feeds class or Compassion-gate recovery.
+    pub fn stewardship_quality(&self) -> f64 {
+        match self {
+            ContributionEvent::RbeAction {
+                abundance_alignment,
+                ..
+            } => *abundance_alignment,
+            ContributionEvent::RawSample { valence, .. } => *valence,
+        }
+    }
+}
+
 /// Apply a contribution event to the ledger and return the resulting score.
 pub fn apply_event(ledger: &mut ContributionLedger, event: ContributionEvent) -> NevcResult {
     match event {
@@ -137,5 +153,28 @@ mod tests {
         };
         let r = apply_event(&mut ledger, event);
         assert!(r.is_contributor());
+    }
+
+    /// VALENCE-HUD-2: raw craft is the event field; class / recovery stay event-scored.
+    #[test]
+    fn stewardship_quality_is_event_field_display_only() {
+        let rbe = ContributionEvent::RbeAction {
+            player_id: 30,
+            abundance_alignment: 0.25,
+            waste_or_harm: 0.0,
+        };
+        let raw = ContributionEvent::RawSample {
+            player_id: 31,
+            valence: 0.33,
+            grief_load: 0.0,
+        };
+        assert_eq!(rbe.stewardship_quality(), 0.25);
+        assert_eq!(raw.stewardship_quality(), 0.33);
+
+        let mut ledger = ContributionLedger::new();
+        let lifted = apply_event(&mut ledger, rbe);
+        assert!(lifted.is_contributor());
+        assert!(lifted.recovery_open());
+        assert_eq!(ledger.last_stewardship_quality(30), Some(0.25));
     }
 }

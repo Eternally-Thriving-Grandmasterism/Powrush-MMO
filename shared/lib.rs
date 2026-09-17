@@ -122,7 +122,10 @@ pub mod prelude {
     pub use crate::nevc_game_loop::{HarvestNevcInput, harvest_to_event, apply_harvest_to_ledger, apply_harvest_class, apply_harvest_summary};
     pub use crate::nevc_persistence::{NevcPlayerRecord, NevcPersistenceStore};
     pub use crate::nevc_bridge::{compute_nevc_bridged, score_instant_bridged, summary_bridged, active_mode};
-    pub use crate::nevc_visibility::{HorizonPreset, status_line, badge_text, summary_from_result, panel_fields};
+    pub use crate::nevc_visibility::{
+        HorizonPreset, status_line, status_line_channels, status_line_for_event, badge_text,
+        summary_from_result, panel_fields, panel_fields_channels, stewardship_quality,
+    };
 }
 
 #[cfg(test)]
