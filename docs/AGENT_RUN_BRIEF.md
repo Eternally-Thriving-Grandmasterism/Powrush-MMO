@@ -9,9 +9,95 @@ Cursor / PATSAGi inner-loop agents start here. Fetch the named tip. Fill every s
 
 ---
 
-## A. Worked example — NEVC-HONEST-1 (this run)
+## A. Worked example — VALENCE-HUD-2 (this run)
 
-Seat: **NEVC-HONEST-1**. Mode: **routine**. Tip: `8bc591d7` (TEST-PEACE-DEFAULT on `main`).
+Seat: **VALENCE-HUD-2**. Mode: **routine**. Tip: `6b7d1812` (F4-GENSHARE-ADOPT-CONSENT on `main`).
+
+### 1. Target repo + tip SHA
+
+- Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
+- Tip SHA (fetch first): `6b7d181292ffb414f1ce7047610539395444b6a8` (short `6b7d1812`)
+- Workspace identity: **21.88.0** (Cargo.toml). Lived-hour design tick as README — not a Cargo bump.
+
+### 2. Job in one sentence
+
+Add a second visible NEVC HUD channel: raw event alignment / craft labeled **stewardship quality**, display only. Do not retune the kernel.
+
+### 3. FINISH LINE
+
+Observable:
+
+1. Lived HUD helper (`nevc_visibility`) keeps **stewardship / harm gate** as the class score (`NevcSummary.score`).
+2. Same helper shows raw alignment / craft from the event (`RbeAction.abundance_alignment` or `RawSample.valence`) labeled **stewardship quality** — display only; it does not feed class or recovery.
+3. Class bit unchanged. Compassion-gate recovery stays Open on the existing floor-lift / grief-gate cases.
+4. Core gate green:
+   `cargo test -p shared -p rsil-identity`
+   `cargo test -p powrush-client --lib`
+5. Title Online grey; no gold; no Embassy; no Ra-Thor WASD; no `v_min` / `valence_floor` rewrite.
+
+States that hold: Title Online grey; `playable-preview` stays `11c577e`; floor `2163551`; Ra-Thor does not drive WASD; Powrush-MMO-Simulator is a third repo.
+
+### 4. Out of scope (explicit)
+
+- Do not retune `v_min` / `valence_floor`, `positive_weight`, or the harvest grief table.
+- Do not add gold, Title Online, Embassy, Wave C, `.glb`.
+- Do not rebuild U0–U8, H-2026-09-15-H2-TAB/Q/L/RESUME, H3-FAB, H3-SEAT, BRIEF-P1, PLAYTEST-1, NEVC-HONEST-1.
+- No Title Online · no listen · no public bind · no Steam retag.
+- Do not clone or edit Ra-Thor. **Ra-Thor is a separate repo.**
+- Two agents, one file, same day → **STOP**.
+
+### 5. HOLD
+
+Copy unless the steward amends:
+
+- `AGENTS.md` · `docs/PATSAGI_MERGE_COURT.md` · `docs/OFFLINE_SKU.md`
+- `docs/HOUR_TWO.md` · `docs/HOUR_TWO_PLAYTEST.md` · `docs/HOUR_THREE.md`
+- Violence opt-in only. Purse = flow + repair-rights.
+- Independent of xAI · inspect ≠ METR · RBE is design intent, not present fact
+- Default binary: `cargo run -p powrush-client`
+- Title Online stays grey · `playable-preview` stays `11c577e` · floor `2163551`
+- Workspace **21.88.0** (not a Cargo bump; design tick as README)
+- Contact: info@Rathor.ai
+- Ra-Thor does not drive WASD
+- Powrush-MMO-Simulator is a third repo
+
+### 6. Tools allowed
+
+- GitHub (read, branch, one PR).
+- `cargo` from root [`Cargo.toml`](../Cargo.toml) members only: `shared`, `crates/rsil-identity`, `client`.
+- HTML/JS/CSS as named: **none**.
+
+### 7. Permission rules
+
+- Never claim METR / xAI product / RBE-as-present-fact.
+- Never send email or publish.
+- Never enable Title Online, add a listen, or public-bind.
+- Never retag `playable-preview`. Never unpark `server/` as the default binary.
+- One slice per PR. Fill the ballot in [`.github/pull_request_template.md`](../.github/pull_request_template.md).
+
+### 8. Mode
+
+**routine** — execute this named slice. Not `chat`. Not a standing Hour-3 or Hour-4 agent.
+
+### 9. STOP / review gate
+
+Halt when the PR `feat(hud): VALENCE-HUD-2 stewardship quality channel` contains the second visible channel on the lived HUD helper, Core green, class/recovery unchanged, and the ballot.
+
+Do **not** retune the kernel. Do **not** add gold / Title Online / Embassy / Wave C / `.glb`.
+
+Human review: PATSAGi merge court. Steward contact remains info@Rathor.ai.
+
+### 10. Audit note (what would retire this agent)
+
+VALENCE-HUD-2 retires at merge. Further work is a **new** brief, not this seat continuing. A kernel retune, Title Online light, Steam retag, `server/` unpark, or Ra-Thor edit would be a different agent — refuse it here.
+
+Capable · Bounded · Corrigible. Not METR. Thunder locked. yoi ⚡
+
+---
+
+## A0. Previous example — NEVC-HONEST-1 (merged #451)
+
+Seat: **NEVC-HONEST-1**. Mode: **routine**. Tip: `8bc591d7` (TEST-PEACE-DEFAULT on `main`). Merged `1d3aa6d1`. Keep as the grief-gate copy example; do not rebuild.
 
 ### 1. Target repo + tip SHA
 
