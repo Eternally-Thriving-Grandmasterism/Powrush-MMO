@@ -7,7 +7,7 @@
 
 Cursor / PATSAGi inner-loop agents start here. Fetch the named tip. Fill every section. Then implement **one slice**. Do not interview. Do not clone or edit Ra-Thor. Do not start a lattice seat from this repo.
 
-**Tip (fetch first):** `f06ecd8f9cb04778453a6b03759617a8578c5a29` (short `f06ecd8`) — VALENCE-HUD-2 on `main` (#455).
+**Tip (fetch first):** `a767f05847211b77fd528ce55c20172e7540f27a` (short `a767f058`) — BRIEF-SYNC on `main` (#456).
 
 **Spent on tip** (do not rebuild):
 
@@ -16,8 +16,9 @@ Cursor / PATSAGi inner-loop agents start here. Fetch the named tip. Fill every s
 - #453 B5-PRACTICE
 - #454 F4-GENSHARE @ `6b7d181`
 - #455 VALENCE-HUD-2 @ `f06ecd8`
+- #456 BRIEF-SYNC @ `a767f058`
 
-**Next:** B3 after land. Do not cook B3 from this stamp.
+**Next:** human Hour-1 playtest of dual HUD. MESH-PERSONA Hands only when PATHS are named. ~~Next: B3 after land.~~ B3 remains landed #376.
 
 Title Online stays grey. Default NetMode Offline. `playable-preview` stays `11c577e`. Floor `2163551`. Ra-Thor does not drive WASD.
 
@@ -103,7 +104,7 @@ Human review: PATSAGi merge court. Steward contact remains info@Rathor.ai.
 
 ### 10. Audit note (what would retire this agent)
 
-VALENCE-HUD-2 retired at merge (#455 / `f06ecd8`). Further work is a **new** brief, not this seat continuing. Next is B3 after land — do not cook B3 from this stamp. A kernel retune, Title Online light, Steam retag, `server/` unpark, or Ra-Thor edit would be a different agent — refuse it here.
+VALENCE-HUD-2 retired at merge (#455 / `f06ecd8`). Further work is a **new** brief, not this seat continuing. Next is human Hour-1 playtest of dual HUD; MESH-PERSONA Hands only when PATHS are named. B3 already landed #376. A kernel retune, Title Online light, Steam retag, `server/` unpark, or Ra-Thor edit would be a different agent — refuse it here.
 
 Capable · Bounded · Corrigible. Not METR. Thunder locked. yoi ⚡
 

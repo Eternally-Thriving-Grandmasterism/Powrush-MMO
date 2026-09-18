@@ -38,6 +38,16 @@ One card. World sentences, not a wiki.
 
 Peace keys stay WASD / E / I / H / R. No F-row. No second HUD. No fake “players online.” No kill-score. No CBDC-style lock. No new currency. No pockets.
 
+## HUD dual channel (human tick)
+
+Lived NEVC line after VALENCE-HUD-2 (#455). Two fields on the existing helper — not a second overlay. Agents do not invent minutes.
+
+- [ ] class field reads **stewardship / harm gate**
+- [ ] second field reads **stewardship quality** (display only)
+- [ ] a blocked / grief-gated act does not print as wages or gold
+- [ ] tap-E take / hold-E tend / R allocate unchanged
+- [ ] OS / GPU / minutes stay **BLANK** for the agent
+
 ## Five-minute script
 
 1. Window opens. One card. Can you tell you are in a climate without reading a doc?
