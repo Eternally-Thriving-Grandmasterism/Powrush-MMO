@@ -66,6 +66,8 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 ## Next (ordered)
 
+BRIEF-SYNC “B3” is stale; B3 remains landed #376.
+
 1. **MESH-PERSONA Hands mesh** — court bank landed. Hands mesh still Core CARD + exact PATHS. Do not invent PATHS. Cite [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Buildings / race-looks remain refs only.
 2. **Hour-two / Steam** — Core/human gate (stamp #426 spent). Minutes / OS / GPU / Time stay blank for the human. Bot does not fill Report. Bot does not create a Steam partner account.
 
