@@ -49,6 +49,12 @@
 //! ART_BIBLE / PLAYABLE_RACES (Human — cite only). H hush still works.
 //! Comfort Low is mesh LOD + text_scale, not a text gate. 0 meshes · 0 new
 //! verbs · 0 Places. Title stays Play / Continue / Settings · Online grey.
+//!
+//! CARD L2 HOUSE-PEOPLE-GATES — Garden / boot hosts five God-plane doors
+//! (D0 @ 2afff36) after Q House. Four Place landings only. Doors ignite
+//! after one Tend. Crossing one-way this session. Skip House = stay light.
+//! Title stays Play / Continue / Settings · Online grey. No race portraits.
+//! 0 meshes · ASSET_BUDGET_COURT cite only. Not the #459 dress-token line.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::KeyboardInput;
@@ -78,7 +84,11 @@ use crate::hex_travel::{
     apply_title_boot, settings_visible_with_places, HexTravelState, PausePlacesBtn, PlacesDoorClickSet,
     PlacesPlate,
 };
-use crate::hour_sacred::{HourSacred, HOUR_TWO_PATH};
+use crate::hour_sacred::{
+    four_place_landings_only, god_plane_doors_ignited, offer_house_peoples, skip_house_stays_light,
+    try_cross_people_door, HousePeople, HourSacred, PeopleLanding, HOUSE_PEOPLES,
+    HOUR_TWO_PATH, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
+};
 use crate::input::{InputMapSet, PlayerInput};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
@@ -138,6 +148,53 @@ pub fn title_plate_fits_surface(surface: Vec2, plate: Vec2, safe_inset: f32) -> 
 
 /// D1 Pause honesty one-liner (opaque plate — soft GPU readable).
 pub const YARD_WAITING: &str = "the yard is waiting";
+
+/// CARD L2 — Title chrome contract. No People-door rows. No race portraits.
+pub const TITLE_CHROME_PLAY: &str = "Play — first Hands";
+pub const TITLE_CHROME_CONTINUE: &str = "Continue";
+pub const TITLE_CHROME_SETTINGS: &str = "Settings";
+
+/// CARD L2 — Garden / boot (walkable title · God-plane) hosts five People-doors.
+/// Law only — not Title chrome, not race portraits. Cite D0 EDEN-PLANE-LAW @ 2afff36.
+pub fn garden_boot_god_plane_doors() -> [HousePeople; 5] {
+    HOUSE_PEOPLES
+}
+
+/// Title stays Play / Continue / Settings · Online grey. 0 meshes. No portraits.
+pub fn l2_title_chrome_holds() -> bool {
+    online_row_is_honest_disabled(ONLINE_STUB_LABEL, false)
+        && LaunchDoor::default() == LaunchDoor::Title
+        && L2_MESH_BUDGET == 0
+        && L2_ASSET_BUDGET_CITE == "docs/ASSET_BUDGET_COURT.md"
+        && !title_has_race_portraits()
+        && four_place_landings_only()
+        && offer_house_peoples(false).is_none()
+        && skip_house_stays_light(false)
+        && garden_boot_god_plane_doors().len() == 5
+}
+
+/// Peoples are post-House God-plane doors, never Title portraits / lobby art.
+pub fn title_has_race_portraits() -> bool {
+    false
+}
+
+/// Garden door may be crossed only after House + one Tend, once this session.
+pub fn garden_door_may_cross(house_live: bool, tended_once: bool, already_crossed: bool) -> bool {
+    house_live && god_plane_doors_ignited(tended_once) && !already_crossed
+}
+
+/// Cross one Garden / God-plane door. One-way this session. Not Title chrome.
+pub fn garden_cross_landing(
+    house_live: bool,
+    tended_once: bool,
+    crossed: &mut Option<HousePeople>,
+    people: HousePeople,
+) -> Option<PeopleLanding> {
+    if !garden_door_may_cross(house_live, tended_once, crossed.is_some()) {
+        return None;
+    }
+    try_cross_people_door(house_live, tended_once, crossed, people)
+}
 
 /// Guide tab — one-sentence stranger loop (Peace keys only; no F-row).
 pub const PAUSE_GUIDE_LINE: &str =
@@ -1076,9 +1133,9 @@ fn spawn_title_screen(mut commands: Commands) {
                     ),
                     TitleCueText,
                 ));
-                spawn_menu_btn(p, "Play — first Hands", TitlePlayBtn, true);
-                spawn_menu_btn(p, "Continue", TitleContinueBtn, true);
-                spawn_menu_btn(p, "Settings", TitleSettingsBtn, true);
+                spawn_menu_btn(p, TITLE_CHROME_PLAY, TitlePlayBtn, true);
+                spawn_menu_btn(p, TITLE_CHROME_CONTINUE, TitleContinueBtn, true);
+                spawn_menu_btn(p, TITLE_CHROME_SETTINGS, TitleSettingsBtn, true);
                 spawn_menu_btn(
                     p,
                     persona_title_btn_label(PERSONA_CREATOR_ENABLED),
@@ -3940,6 +3997,105 @@ mod tests {
         assert!(low.text_scale >= 1.10);
         assert!(garden_boot_want_font_px(low.text_scale) >= garden_boot_want_font_px(1.0));
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+    }
+
+    /// CARD L2 HOUSE-PEOPLE-GATES — Title chrome holds; Garden hosts 5 doors.
+    /// Not a race lobby. Not the #459 dress-token prove-line. Online grey.
+    #[test]
+    fn l2_title_chrome_play_continue_settings_online_grey() {
+        assert!(l2_title_chrome_holds());
+        assert_eq!(TITLE_CHROME_PLAY, "Play — first Hands");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!title_has_race_portraits());
+        assert_eq!(garden_boot_god_plane_doors(), HOUSE_PEOPLES);
+        assert_eq!(garden_boot_god_plane_doors().len(), 5);
+        assert!(four_place_landings_only());
+        assert_eq!(HousePeople::Human.landing(), PeopleLanding::SanctuaryYard);
+        assert_eq!(HousePeople::Cydruid.landing(), PeopleLanding::Heartwood);
+        assert_eq!(HousePeople::Quellorian.landing(), PeopleLanding::Threshold);
+        assert_eq!(
+            HousePeople::Draek.landing(),
+            PeopleLanding::DepthsTealWayHome
+        );
+        assert_eq!(
+            HousePeople::Ambrosian.landing(),
+            PeopleLanding::SanctuaryWellFromAbove
+        );
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+        assert_eq!(L2_MESH_BUDGET, 0);
+        assert_eq!(L2_ASSET_BUDGET_CITE, "docs/ASSET_BUDGET_COURT.md");
+        // Refuse old #459 dress-token prove-line.
+        for people in HOUSE_PEOPLES {
+            assert!(!people.people_line().contains("Sanctuary tint"));
+            assert!(!people.people_line().contains("dress token"));
+        }
+
+        let mut app = App::new();
+        app.add_systems(Startup, spawn_title_screen);
+        app.update();
+        let world = app.world_mut();
+        assert_eq!(
+            world
+                .query_filtered::<(), With<TitlePlayBtn>>()
+                .iter(world)
+                .count(),
+            1
+        );
+        assert_eq!(
+            world
+                .query_filtered::<(), With<TitleContinueBtn>>()
+                .iter(world)
+                .count(),
+            1
+        );
+        assert_eq!(
+            world
+                .query_filtered::<(), With<TitleSettingsBtn>>()
+                .iter(world)
+                .count(),
+            1
+        );
+        assert_eq!(
+            world
+                .query_filtered::<(), With<TitleOnlineBtn>>()
+                .iter(world)
+                .count(),
+            1
+        );
+    }
+
+    /// CARD L2 — Garden doors stay dark until Tend; skip House stays light;
+    /// one-way cross this session. Ambrosian shares Sanctuary.
+    #[test]
+    fn l2_garden_doors_ignite_after_tend_one_way() {
+        assert!(skip_house_stays_light(false));
+        assert!(offer_house_peoples(false).is_none());
+        assert!(!garden_door_may_cross(false, true, false));
+        assert!(!garden_door_may_cross(true, false, false));
+        assert!(garden_door_may_cross(true, true, false));
+        assert!(!garden_door_may_cross(true, true, true));
+        let mut crossed = None;
+        assert!(garden_cross_landing(true, false, &mut crossed, HousePeople::Draek).is_none());
+        assert!(garden_cross_landing(false, true, &mut crossed, HousePeople::Draek).is_none());
+        let land = garden_cross_landing(true, true, &mut crossed, HousePeople::Draek)
+            .expect("House + Tend opens Draek door");
+        assert_eq!(land, PeopleLanding::DepthsTealWayHome);
+        assert_eq!(land.landing_line(), "Depths (teal way-home)");
+        assert!(garden_cross_landing(true, true, &mut crossed, HousePeople::Ambrosian).is_none());
+        assert_eq!(
+            HousePeople::Ambrosian.landing().place_name(),
+            HousePeople::Human.landing().place_name()
+        );
+        assert_eq!(
+            HousePeople::Ambrosian.landing().landing_line(),
+            "Sanctuary well-from-above"
+        );
+        assert!(l2_title_chrome_holds());
+        assert_eq!(L2_MESH_BUDGET, 0);
     }
 
     #[test]

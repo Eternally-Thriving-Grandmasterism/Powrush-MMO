@@ -21,6 +21,12 @@
  * H hush still works. Comfort Low is mesh LOD, not a text gate.
  * 0 meshes · 0 new verbs · 0 Places · Title stays Play / Continue / Settings · Online grey.
  *
+ * CARD L2 HOUSE-PEOPLE-GATES — Q House offers five Peoples as God-plane doors
+ * (Garden / boot · D0 @ 2afff36). Four Place landings only (PLAYABLE_RACES §1.1).
+ * Doors ignite after one Tend. Crossing one-way this session.
+ * Skip House = stay light / Peace default. C0 Cydruid = human-in-frame.
+ * 0 meshes · ASSET_BUDGET_COURT cite only. Not the #459 dress-token prove-line.
+ *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
@@ -28,7 +34,10 @@ use bevy::prelude::*;
 
 use crate::embassy::EmbassyYard;
 use crate::fabricator::FabricatorYard;
-use crate::hour_sacred::HourSacred;
+use crate::hour_sacred::{
+    god_plane_doors_ignited, offer_house_peoples, skip_house_stays_light, try_cross_people_door,
+    HousePeople, PeopleLanding, HourSacred, HOUSE_PEOPLES, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
+};
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::NearbyMercyNode;
@@ -201,6 +210,47 @@ impl FirstSessionGuidance {
     /// First minutes speak People + Want until H hushes the card.
     pub fn speaks_people_want(&self) -> bool {
         self.active && !self.dismissed && self.objective.is_first_minutes()
+    }
+
+    /// CARD L2 — Q House offers five Peoples. Skip House stays light / Peace.
+    pub fn offers_five_peoples(&self) -> bool {
+        self.house_live
+    }
+
+    /// Skip House: stay light-body / Peace default. No People offer.
+    pub fn stays_light_peace(&self) -> bool {
+        skip_house_stays_light(self.house_live)
+    }
+
+    /// Five God-plane doors ignite after one Tend (Hour-1 harvest).
+    pub fn god_plane_doors_ignited(&self) -> bool {
+        god_plane_doors_ignited(self.harvests_completed >= 1)
+    }
+
+    /// Five Peoples after House. None while the stranger is still light / Peace.
+    pub fn house_people_offer(&self) -> Option<[HousePeople; 5]> {
+        offer_house_peoples(self.house_live)
+    }
+
+    /// Cross one ignited God-plane door. One-way this session. Card stays Ledger.
+    pub fn try_cross_people_door(
+        &self,
+        crossed: &mut Option<HousePeople>,
+        people: HousePeople,
+    ) -> Option<PeopleLanding> {
+        try_cross_people_door(
+            self.house_live,
+            self.harvests_completed >= 1,
+            crossed,
+            people,
+        )
+    }
+
+    /// CARD L2 — 0 meshes · ASSET_BUDGET cite only. Five Peoples, not a dress token.
+    pub fn l2_asset_budget_holds(&self) -> bool {
+        L2_MESH_BUDGET == 0
+            && L2_ASSET_BUDGET_CITE == "docs/ASSET_BUDGET_COURT.md"
+            && HOUSE_PEOPLES.len() == 5
     }
 
     pub fn advance_if_ready(&mut self) {
@@ -802,6 +852,76 @@ mod tests {
             first_minutes_people_want_line(),
             "Human · the yard needs tending or the well goes quiet"
         );
+    }
+
+    /// CARD L2 HOUSE-PEOPLE-GATES — House offers five Peoples; card stays Ledger.
+    /// Not the #459 dress-token prove-line. Hour 2 walk unchanged.
+    #[test]
+    fn house_live_offers_five_peoples_card_stays_ledger() {
+        let mut g = FirstSessionGuidance::default();
+        assert!(g.stays_light_peace());
+        assert!(g.house_people_offer().is_none());
+        assert!(!g.offers_five_peoples());
+        g.house_live = true;
+        g.resume_from_pack();
+        assert_eq!(g.objective, GuidanceObjective::OpenLedger);
+        assert_eq!(g.objective.prompt(), "L opens the Ledger");
+        assert!(g.offers_five_peoples());
+        assert!(!g.stays_light_peace());
+        let offer = g.house_people_offer().expect("five Peoples after House");
+        assert_eq!(offer, HOUSE_PEOPLES);
+        assert_eq!(offer.len(), 5);
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+        assert!(!g.objective.prompt().to_lowercase().contains("race"));
+        assert!(!g.objective.prompt().to_lowercase().contains("lobby"));
+        for people in offer {
+            assert!(!people.people_line().contains("Sanctuary tint"));
+            assert!(!people.people_line().contains("dress token"));
+        }
+        assert_eq!(L2_MESH_BUDGET, 0);
+        assert_eq!(L2_ASSET_BUDGET_CITE, "docs/ASSET_BUDGET_COURT.md");
+    }
+
+    /// CARD L2 — skip House stays light / Peace; doors dark until one Tend;
+    /// crossing is one-way this session. Human → Sanctuary yard.
+    #[test]
+    fn skip_house_stays_light_doors_ignite_after_tend() {
+        let mut g = FirstSessionGuidance::default();
+        assert!(g.stays_light_peace());
+        assert!(!g.god_plane_doors_ignited());
+        let mut crossed = None;
+        assert!(g
+            .try_cross_people_door(&mut crossed, HousePeople::Human)
+            .is_none());
+        credit_harvest(&mut g);
+        assert!(g.god_plane_doors_ignited());
+        assert!(
+            g.try_cross_people_door(&mut crossed, HousePeople::Human)
+                .is_none(),
+            "Tend alone does not cross — skip House stays light"
+        );
+        g.house_live = true;
+        let land = g
+            .try_cross_people_door(&mut crossed, HousePeople::Human)
+            .expect("House + Tend opens one door");
+        assert_eq!(land, PeopleLanding::SanctuaryYard);
+        assert_eq!(land.landing_line(), "Sanctuary yard");
+        assert!(
+            g.try_cross_people_door(&mut crossed, HousePeople::Draek)
+                .is_none(),
+            "crossing is one-way this session"
+        );
+        assert_eq!(crossed, Some(HousePeople::Human));
+        assert_eq!(
+            HousePeople::Draek.landing().landing_line(),
+            "Depths (teal way-home)"
+        );
+        assert_eq!(
+            HousePeople::Ambrosian.landing().place_name(),
+            "Sanctuary"
+        );
+        assert_eq!(L2_MESH_BUDGET, 0);
     }
 
     /// Comfort Low is mesh LOD + larger text_scale — Garden Want stays words.
