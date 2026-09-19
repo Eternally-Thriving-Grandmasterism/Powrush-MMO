@@ -1,7 +1,7 @@
 # Playable Races of Powrush-MMO
 
 **Version:** 1.0  
-**Last Updated:** June 13, 2026 · door/landing law stamped 2026-09-19  
+**Last Updated:** June 13, 2026 · door/landing law stamped 2026-09-19 · C0 Cydruid-not-treant 2026-09-19  
 **Status:** Active Development  
 **PATSAGi Council + Ra-Thor Quantum Swarm Approved**
 
@@ -16,7 +16,7 @@ These five races form the foundation of player choice and faction alignment:
 1. **Quellorians (Aetherion Luminari)** — Elegant resonance masters of light and unity.
 2. **Draeks** — Hivemind biomechanical empire of consumption and domination.
 3. **Humans** — Adaptable, resilient survivors caught between two cosmic powers.
-4. **Cydruids** — Cyber-organic druidic symbiotes, masters of living technology and balance.
+4. **Cydruids** — Humans housed in a cyborg frame (Chakra: body kept, machine worn · Vessel: head/brain in robot body); nature is practice / attunement, not species.
 5. **Ambrosians** — Crystalline-organic resonance beings, living embodiments of harmonic attunement.
 
 Beyond these five, the Draek Dominion has enslaved **countless other species** as mind-controlled minions, broken-willed mercenaries, and cannon fodder. These enslaved races are not playable in their current state but serve as tragic narrative and mechanical elements (with potential future redemption or rebellion paths).
@@ -40,6 +40,8 @@ This document provides deep, immersive detail for each playable race — design,
 | **Ambrosian** | Sanctuary well-from-above | Sanctuary — **same Sanctuary Place as Human, not a 5th room** |
 
 Four Places remain: Sanctuary · Heartwood · Threshold · Depths. Market is not a Place. Do not invent a sixth People or a fifth Place. Title stays Play / Continue / Settings · **Online grey**. No race portraits on Title from this stamp.
+
+Cydruid lands Heartwood. Heartwood Place may stay living-wood; **the Cydruid is not a tree.** Cite steward C0 · this Cydruid block.
 
 Doors ignite after one Tend. Crossing a door is one-way this session. Peace recall = vision home, not a hub. This section does not authorize `client/**` work or L2 cook.
 
@@ -173,43 +175,59 @@ Humans are the most flexible playable race. They can fully commit to Quellorian 
 
 ## 5. Cydruids
 
-**Symbolism:** Balance between organic and synthetic, living technology, guardianship of life, patient evolution.
-**Core Theme:** "Life and machine in perfect symbiosis."
+**Cite:** steward C0 · D0 Eden @ `2afff36` · this Cydruid block · X status 1998585780420427986 (cite only; do not fetch binaries). **Budget:** 0 meshes.
+
+**Law:** A Cydruid is a **human housed in a cyborg frame** — not a treant, not a bark creature, not tree-people. Nature is **practice / attunement**, not species. Heartwood Place may stay living-wood; **the person is not a tree.**
+
+**STRIKE (do not draw / do not write as the People):** bark-skin · vines-as-body · heartwood-core-as-body · living-wood limbs as the People · treant-lean / tree-like species wording.
+
+**Symbolism:** Human body kept or housed; machine worn or walked; nature as practice; guardianship without becoming the grove.
+**Core Theme:** "The frame is worn. The grove is practiced. The person remains."
+
+### Two paths (same People)
+
+| Path | Body | Frame |
+|---|---|---|
+| **Chakra** | Human body kept | Machine worn (harness, plates, teal / leaf-metal trim) |
+| **Vessel** | Human head / brain housed | Robot body walked |
+
+Neither path grows bark, vines, or a heartwood-core-as-body. Teal / leaf-metal is **trim / metal accents**, not bark-skin (`ART_BIBLE`).
 
 ### Visual Design & Aesthetic
-- **Overall Form:** Humanoid with visible plant-like growths, wooden/crystalline limbs, and integrated technology that looks grown rather than bolted on. Some appear more tree-like, others more crystalline or vine-covered.
-- **Color Palette:** Deep forest greens, warm browns, soft golds, and bioluminescent accents (cyan or amber).
-- **Armor & Clothing:** Living armor made of bark, vines, and crystal lattices that can shift and repair itself. Technology is seamlessly integrated.
-- **Distinctive Features:** Glowing "heartwood" cores visible in chest or forehead. Vines and leaves that move subtly with emotion or resonance.
-- **Ships:** Organic-tech hybrid vessels that look like living trees or coral structures with technological veins.
+- **Overall Form:** Human proportions in a cyborg frame. Chakra path: visible human skin and posture, machine worn. Vessel path: human head / brain in a robot body. Not tree-like. Not vine-covered.
+- **Color Palette:** Human skin + metal greys; teal / leaf-metal **trim and accents only** (not bark-skin). Soft gold fasteners. Instrument lights (cyan or amber) on the frame — not a glowing chest-core-as-heartwood.
+- **Armor & Clothing:** Worn machine — plates, harness, mesh. Repair is mechanical / practiced, not bark that grows back. Technology is bolted, fitted, or worn; it does not grow wooden limbs.
+- **Distinctive Features:** Human face (Chakra) or human head in a neck-ring (Vessel). Frame seams and teal / leaf-metal trim. No vines, no leaves that move with emotion, no heartwood-core-as-body.
+- **Ships:** Frame-tech vessels with teal / leaf-metal trim. Not living-tree people. Heartwood Place may still read living-wood; the pilot is not the timber.
 
 ### Voice Acting Direction
-- **Vocal Quality:** Calm, deep, resonant, with a slight woody or crystalline reverb. Can sound ancient and wise or quietly powerful.
-- **Delivery Style:** Slow, deliberate, thoughtful. Speech often carries subtle natural sound design (soft rustling, gentle chimes).
-- **Emotional Range:** Serene, patient, occasionally deeply sorrowful (when witnessing ecological destruction) or quietly furious (when defending life).
+- **Vocal Quality:** Human voice, close-miked. Frame may add a slight metallic or filtered edge (more on Vessel). No woody reverb. No rustling-as-speech.
+- **Delivery Style:** Measured, practiced, human. Thoughtful without sounding ancient-as-oak.
+- **Emotional Range:** Human spectrum — patient, sorrowful at wasted places, sharp when defending a practiced grove. Not "the forest speaking."
 - **Example Lines:**
-  - "The old growth remembers. We will not let it be consumed."
-  - "Machine and root can sing the same song, if tuned correctly."
-  - "Your hivemind is a cancer. We are the cure that remembers balance."
-- **Technical Notes:** Voice gains richer natural reverb and subtle chimes when near strong Resonance fields. Becomes strained and dry when exposed to heavy Draek corruption.
+  - "I keep a human body. The machine is worn."
+  - "The Place may be living-wood. I am not the tree."
+  - "Attunement is a practice. It is not a species."
+- **Technical Notes:** Voice may take a light frame filter near heavy machine rooms. Strain stays human under Draek corruption — dry throat, not dry bark.
 
 ### Music & Audio Identity
-- **Theme:** Organic, ancient, hopeful yet grounded. Combination of tribal percussion, wooden flutes, soft choirs, and gentle electronic pulses that feel alive.
-- **Key Instruments:** Hand drums, wooden flutes, singing bowls, soft synth pads, and natural sound design (wind through leaves, flowing water, gentle chimes).
-- **In-Game Usage:** Peaceful exploration themes in forests or living ships. Powerful, rhythmic war drums during defensive battles.
+- **Theme:** Human pulse under practiced metal. Grounded, hopeful. Tribal percussion and flutes may mark **Heartwood Place** or nature-as-practice, not a tree-people anthem.
+- **Key Instruments:** Hand drums, wooden flutes (Place / practice), singing bowls, soft synth pads, metal ticks from the frame. Natural Place beds (wind, water) belong to the room, not the skin.
+- **In-Game Usage:** Heartwood exploration can stay living-wood ambient. The Cydruid theme is human + frame, not bark-choir.
 
 ### Unique Features & Attributes
-- **Living Technology:** Can repair ships and structures over time. Strong defensive and sustainability bonuses.
-- **Symbiosis Mastery:** Excellent at bridging Quellorian resonance and certain neutral technologies.
-- **Ecological Awareness:** Bonuses in natural or living environments. Can detect and counter certain Draek consumption effects.
-- **Vulnerability:** Slower to adapt to pure technological or pure hivemind environments.
+- **Frame technology:** Can mend ships and structures as practiced machine-work. Strong defensive and sustainability bonuses.
+- **Attunement mastery:** Nature as practice — excellent at bridging Quellorian resonance and certain neutral technologies without becoming a grove-species.
+- **Place awareness:** Bonuses in natural or living-wood **Places** (Heartwood may stay living-wood). The bonus is attunement, not bark-blood.
+- **Vulnerability:** Slower to adapt to pure hivemind environments; Vessel path can feel the frame more than the room.
 
 ### Playable Role
-Cydruids often act as mediators or defenders of balance. They can ally strongly with Quellorians (especially via Ambrosian attunement) or remain fiercely independent guardians.
+Cydruids often act as mediators or defenders of practiced balance. They can ally strongly with Quellorians (especially via Ambrosian attunement) or remain independent guardians. They are **humans in frames**, not a sixth vegetal species.
 
 ### Technical Implementation Notes
-- New resource/component: `LivingSymbiosisState`.
-- Strong integration potential with boarding (they can "heal" captured ships) and world simulation (ecological impact tracking).
+- Existing resource/component name `LivingSymbiosisState` (if kept) means practiced attunement + frame bond — **not** a tree-body.
+- Strong integration potential with boarding (they can mend captured ships) and world simulation (Place / ecological impact tracking).
+- This stamp does not authorize `client/**`, race lobby, or L2 cook.
 
 ---
 
@@ -293,3 +311,5 @@ Each race has clear mechanical asymmetry while remaining narratively and visuall
 *This document completes the core playable race foundation for Powrush-MMO. All future gameplay, narrative, audio, and visual systems should reference these five races symmetrically and with maximal immersion.*
 
 `stamp: D0-2026-09-19-EDEN-PLANE-LAW | 5 doors = 5 Peoples · landings = 4 Places only (Human Sanctuary yard · Cydruid Heartwood · Quellorian Threshold · Draek Depths teal way-home · Ambrosian Sanctuary well-from-above, same Place as Human); no sixth People; no fifth Place; 0 meshes; Title Online grey; cite steward 2026-09-19 God-plane + this Peoples list; Garden law in PLACE_DRESS_SPEC §2.1; no client/shared/L2`
+
+`stamp: C0-2026-09-19-CYDRUID-NOT-TREANT | Cydruid = human housed in a cyborg frame (Chakra: human body kept, machine worn · Vessel: human head/brain in robot body); nature = practice / attunement, not species; Heartwood Place may stay living-wood — the person is not a tree; STRIKE bark · vines · heartwood-core-as-body · living-wood limbs as the People · treant-lean / tree-like species; ART_BIBLE teal / leaf-metal = trim / metal accents, not bark-skin; 0 meshes; Title Online grey; cite steward C0 · D0 Eden @ 2afff36 · this Cydruid block · X status 1998585780420427986 (cite only); no client/shared/L2 / #459`
