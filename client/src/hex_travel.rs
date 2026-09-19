@@ -17,6 +17,9 @@
 //! CARD L3 PEOPLE-DOOR-LAND — try_cross success → apply_place / lived bind.
 //! PeopleLanding maps onto the three existing PlaceId variants. Threshold
 //! rides Heartwood disk. Cite L3_SPAWN_RESEARCH §3 · PLAYABLE_RACES §1.1.
+//! CARD L4 PLACE-DRESS-ON-LAND — after apply_people_landing, the same
+//! apply_place path Esc→Places uses turns on the authored Place dress
+//! (climate_plane look_for). 0 meshes. Cite PLACE_DRESS_SPEC · ART_BIBLE.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -218,6 +221,10 @@ pub fn apply_place(
 /// CARD L3 — try_cross success → apply_place / lived bind. House + Tend
 /// authorizes Heartwood / Depths (not Places book). One-way stays L2.
 /// Threshold disk is Heartwood (no fourth PlaceId).
+/// CARD L4 — same apply_place dress path Esc→Places uses for that PlaceId
+/// (climate swap + HexTravelState). climate_plane syncs look_for from
+/// travel.current — no second dresser. Ambrosian: no named well-from-above
+/// landmark transform on tip — Sanctuary boot wake + Sanctuary dress.
 pub fn apply_people_landing(
     travel: &mut HexTravelState,
     bind: &mut LivedHourBind,
@@ -1297,8 +1304,20 @@ mod tests {
         people: HousePeople,
         start: PlaceId,
     ) -> (Option<PeopleLanding>, PlaceId) {
+        land_people_climate(house, tend, people, start, None).0
+    }
+
+    /// CARD L4 — land plus climate hex_id (Esc→Places apply_place swap).
+    fn land_people_climate(
+        house: bool,
+        tend: bool,
+        people: HousePeople,
+        start: PlaceId,
+        mut presence: Option<&mut SoftPresence>,
+    ) -> ((Option<PeopleLanding>, PlaceId), String) {
         let mut travel = HexTravelState { current: start };
         let mut bind = demo_bind();
+        let hex_before = bind.climate.hex_id.clone();
         let mut crossed = None;
         let land = try_cross_people_door_land(
             house,
@@ -1308,9 +1327,13 @@ mod tests {
             &mut travel,
             &mut bind,
             None,
-            None,
+            presence.as_deref_mut(),
         );
-        (land, travel.current)
+        let hex_after = bind.climate.hex_id.clone();
+        if land.is_none() {
+            assert_eq!(hex_after, hex_before, "skip House must not swap climate");
+        }
+        ((land, travel.current), hex_after)
     }
 
     /// CARD L3 — skip House → no PlaceId change.
@@ -1392,5 +1415,117 @@ mod tests {
             HousePeople::Ambrosian.landing(),
             HousePeople::Human.landing()
         );
+    }
+
+    /// CARD L4 — skip House → climate / place unchanged.
+    #[test]
+    fn skip_house_climate_place_unchanged() {
+        use crate::climate_plane::dress_token_for_place;
+
+        let start = PlaceId::Sanctuary;
+        let ((land, now), hex) =
+            land_people_climate(false, true, HousePeople::Human, start, None);
+        assert!(land.is_none());
+        assert_eq!(now, start);
+        assert_eq!(hex, "local-hex");
+        assert_eq!(dress_token_for_place(now), dress_token_for_place(start));
+
+        let ((land, now), hex) =
+            land_people_climate(false, true, HousePeople::Draek, PlaceId::Sanctuary, None);
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(hex, "local-hex");
+    }
+
+    /// CARD L4 — Human land → Sanctuary dress token / PlaceId::Sanctuary.
+    #[test]
+    fn human_land_sanctuary_dress_token() {
+        use crate::climate_plane::{dress_token_for_landing, dress_token_for_place};
+
+        let ((land, now), hex) =
+            land_people_climate(true, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryYard));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(hex, PlaceId::Sanctuary.as_str());
+        assert_eq!(dress_token_for_place(now), "Sanctuary Prime");
+        assert_eq!(
+            dress_token_for_landing(land.expect("Human land")),
+            "Sanctuary Prime"
+        );
+    }
+
+    /// CARD L4 — Cydruid land → Heartwood dress. C0: person stays human-in-frame.
+    #[test]
+    fn cydruid_land_heartwood_dress() {
+        use crate::climate_plane::dress_token_for_place;
+
+        let ((land, now), hex) =
+            land_people_climate(true, true, HousePeople::Cydruid, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::Heartwood));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(hex, PlaceId::Heartwood.as_str());
+        assert_eq!(dress_token_for_place(now), "Verdant Heartwood");
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+    }
+
+    /// CARD L4 — Quellorian land → Heartwood PlaceId + Threshold shelf flag/reach.
+    #[test]
+    fn quellorian_land_heartwood_threshold_shelf_reach() {
+        use crate::climate_plane::dress_token_for_place;
+        use crate::human_presence::{people_landing_wake, SoftPresence};
+        use shared::threshold_shelf::threshold_use_in_reach;
+
+        let mut presence = SoftPresence::default();
+        let ((land, now), hex) = land_people_climate(
+            true,
+            true,
+            HousePeople::Quellorian,
+            PlaceId::Sanctuary,
+            Some(&mut presence),
+        );
+        assert_eq!(land, Some(PeopleLanding::Threshold));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(hex, PlaceId::Heartwood.as_str());
+        assert_eq!(dress_token_for_place(now), "Verdant Heartwood");
+        let wake = people_landing_wake(PeopleLanding::Threshold);
+        assert_eq!(presence.position, wake);
+        assert!(
+            threshold_use_in_reach(now, presence.position.x, presence.position.z),
+            "Quellorian wake must reach the existing Threshold shelf"
+        );
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+    }
+
+    /// CARD L4 — Draek land → Depths dress. DepthsPeaceTend restore-not-Take owns Use.
+    #[test]
+    fn draek_land_depths_dress() {
+        use crate::climate_plane::dress_token_for_place;
+
+        let ((land, now), hex) =
+            land_people_climate(true, true, HousePeople::Draek, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::DepthsTealWayHome));
+        assert_eq!(now, PlaceId::Depths);
+        assert_eq!(hex, PlaceId::Depths.as_str());
+        assert_eq!(dress_token_for_place(now), "Abyssal Depths");
+        // DepthsPeaceTend restore-not-Take already guards on this hex_id
+        // (`restore_depths_hex` in depths_landing — restore, not Take).
+        assert_eq!(hex, "depths");
+    }
+
+    /// CARD L4 — Ambrosian land → Sanctuary PlaceId (same as Human). No new hex.
+    #[test]
+    fn ambrosian_land_sanctuary_same_as_human() {
+        use crate::climate_plane::dress_token_for_landing;
+
+        let ((land, now), hex) =
+            land_people_climate(true, true, HousePeople::Ambrosian, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryWellFromAbove));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(hex, PlaceId::Sanctuary.as_str());
+        assert_eq!(
+            dress_token_for_landing(PeopleLanding::SanctuaryWellFromAbove),
+            dress_token_for_landing(PeopleLanding::SanctuaryYard)
+        );
+        assert_eq!(now, HousePeople::Human.landing().place_id());
     }
 }
