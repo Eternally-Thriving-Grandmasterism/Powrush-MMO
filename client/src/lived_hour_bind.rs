@@ -9,9 +9,15 @@
 //! blob whenever the client needs it. `POWRUSH_INGEST=on` soft-writes a versioned
 //! lattice overlay on the same path; checklist “no tick” means no ingest overlay.
 //! Do not delete the blob. Does not replace harvest_feel or rbe_allocate_choice.
+//!
+//! CARD L3 PEOPLE-DOOR-LAND — apply_place climate swap (Places + People-door).
+//! Cite L3_SPAWN_RESEARCH §3.
 
 use bevy::prelude::*;
 use shared::climate_node::{AllocKind, LivedHour, NodeState, TendResult};
+use shared::hex_travel::{
+    read_hex_named, sanctuary_fresh_climate, stub_hex_file, PlaceId,
+};
 use shared::lived_tick_ingest::{self, LivedTickIngest};
 use shared::shard_climate::ShardClimate;
 use shared::shard_standing::ShardStanding;
@@ -167,6 +173,36 @@ impl LivedHourBind {
     /// Keep House week footer (may sum hexes). Do not copy current-hex tons into week.
     pub fn refresh_climate_slab_keep_week(&mut self) {
         self.climate_slab = Self::compose_slab(&self.climate, &self.standing, &self.week);
+    }
+
+    /// CARD L3 — Places / People-door climate swap. Same hex files as title boot.
+    /// Does not persist. Week footer stays House-summed by the travel caller.
+    pub fn apply_place(&mut self, dest: PlaceId) {
+        match dest {
+            PlaceId::Sanctuary => self.load_sanctuary_climate(),
+            PlaceId::Heartwood | PlaceId::Depths => {
+                let file = read_hex_named(dest).unwrap_or_else(|| stub_hex_file(dest));
+                self.climate = file.climate;
+                self.standing = file.standing;
+                self.refresh_climate_slab_keep_week();
+            }
+        }
+    }
+
+    fn load_sanctuary_climate(&mut self) {
+        if let Some(file) = read_hex_named(PlaceId::Sanctuary) {
+            self.climate = file.climate;
+            self.standing = file.standing;
+        } else if self.climate.hex_id == PlaceId::Heartwood.as_str()
+            || self.climate.hex_id == PlaceId::Depths.as_str()
+        {
+            self.climate = sanctuary_fresh_climate();
+            self.standing = shared::hex_travel::sanctuary_fresh_standing();
+        } else if self.climate.hex_id.is_empty() || self.climate.hex_id == "local-hex" {
+            self.climate.hex_id = PlaceId::Sanctuary.as_str().into();
+            self.standing.hex_id = PlaceId::Sanctuary.as_str().into();
+        }
+        self.refresh_climate_slab_keep_week();
     }
 
     /// E on a node id (nearest glow is the client's job).

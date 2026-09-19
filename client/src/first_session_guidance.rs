@@ -27,6 +27,9 @@
  * Skip House = stay light / Peace default. C0 Cydruid = human-in-frame.
  * 0 meshes · ASSET_BUDGET_COURT cite only. Not the #459 dress-token prove-line.
  *
+ * CARD L3 PEOPLE-DOOR-LAND — garden wrappers call L2 try_cross then
+ * apply_place / lived bind. Call only. Cite L3_SPAWN_RESEARCH §3.
+ *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
@@ -34,10 +37,12 @@ use bevy::prelude::*;
 
 use crate::embassy::EmbassyYard;
 use crate::fabricator::FabricatorYard;
+use crate::hex_travel::{apply_people_landing, HexTravelState};
 use crate::hour_sacred::{
     god_plane_doors_ignited, offer_house_peoples, skip_house_stays_light, try_cross_people_door,
     HousePeople, PeopleLanding, HourSacred, HOUSE_PEOPLES, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
 };
+use crate::human_presence::SoftPresence;
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::NearbyMercyNode;
@@ -246,6 +251,28 @@ impl FirstSessionGuidance {
         )
     }
 
+    /// CARD L3 — Garden wrapper: L2 cross then apply_place / lived bind. Call only.
+    pub fn garden_cross_people_land(
+        &self,
+        crossed: &mut Option<HousePeople>,
+        people: HousePeople,
+        travel: &mut HexTravelState,
+        bind: &mut LivedHourBind,
+        embassy: Option<&mut EmbassyYard>,
+        presence: Option<&mut SoftPresence>,
+    ) -> Option<PeopleLanding> {
+        garden_cross_people_land(
+            self.house_live,
+            self.harvests_completed >= 1,
+            crossed,
+            people,
+            travel,
+            bind,
+            embassy,
+            presence,
+        )
+    }
+
     /// CARD L2 — 0 meshes · ASSET_BUDGET cite only. Five Peoples, not a dress token.
     pub fn l2_asset_budget_holds(&self) -> bool {
         L2_MESH_BUDGET == 0
@@ -343,6 +370,22 @@ impl FirstSessionGuidance {
             }
         }
     }
+}
+
+/// CARD L3 — Garden wrapper. Calls L2 try_cross then apply_people_landing.
+pub fn garden_cross_people_land(
+    house_live: bool,
+    tended_once: bool,
+    crossed: &mut Option<HousePeople>,
+    people: HousePeople,
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    embassy: Option<&mut EmbassyYard>,
+    presence: Option<&mut SoftPresence>,
+) -> Option<PeopleLanding> {
+    let landing = try_cross_people_door(house_live, tended_once, crossed, people)?;
+    apply_people_landing(travel, bind, embassy, landing, presence);
+    Some(landing)
 }
 
 #[derive(Component)]

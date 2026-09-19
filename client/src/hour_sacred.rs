@@ -11,11 +11,17 @@
 //! this session. Skip House = stay light / Peace default. C0 Cydruid =
 //! human-in-frame, not treant. 0 meshes · ASSET_BUDGET_COURT cite only.
 //! Not the #459 dress-token prove-line. Not a Title race lobby.
+//!
+//! CARD L3 PEOPLE-DOOR-LAND — try_cross success maps PeopleLanding → existing
+//! PlaceId (three disk variants) and apply_place / lived bind. Cite
+//! docs/L3_SPAWN_RESEARCH.md §3 · PLAYABLE_RACES §1.1 · C0 · D0 ·
+//! ACityGamesInc/status/2101247905218568248 (stills only). 0 meshes.
 
 use std::path::PathBuf;
 
 use bevy::prelude::*;
 
+use shared::hex_travel::PlaceId;
 use shared::hour_two::HourTwoPack;
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
@@ -84,6 +90,16 @@ impl PeopleLanding {
             Self::Threshold => "Threshold",
             Self::DepthsTealWayHome => "Depths (teal way-home)",
             Self::SanctuaryWellFromAbove => "Sanctuary well-from-above",
+        }
+    }
+
+    /// CARD L3 — disk PlaceId already used by Places travel / title boot.
+    /// Threshold rides Heartwood (no fourth variant). Ambrosian = Sanctuary.
+    pub const fn place_id(self) -> PlaceId {
+        match self {
+            Self::SanctuaryYard | Self::SanctuaryWellFromAbove => PlaceId::Sanctuary,
+            Self::Heartwood | Self::Threshold => PlaceId::Heartwood,
+            Self::DepthsTealWayHome => PlaceId::Depths,
         }
     }
 }
@@ -161,6 +177,7 @@ pub fn four_place_landings_only() -> bool {
 
 /// Cross one God-plane door. One-way this session. Needs House + one Tend.
 /// `crossed` is session-local — not written to the hour-two pack.
+/// CARD L3: success is PlaceId + apply_place / lived bind (hex_travel).
 pub fn try_cross_people_door(
     house_live: bool,
     tended_once: bool,
