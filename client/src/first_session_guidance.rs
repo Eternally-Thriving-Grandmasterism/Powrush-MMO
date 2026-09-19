@@ -8,6 +8,12 @@
  * H hides. World still teaches. Not a second HUD.
  * Does not rewrite harvest_feel or rbe_allocate_choice.
  *
+ * CARD L1 SANCTUARY-WANT — first minutes speak one People + one Want.
+ * People = Human. Cite ART_BIBLE: Human | warm grey-gold | Sanctuary — cite only, no pack.
+ * Want = the yard needs tending or the well goes quiet.
+ * Cite PLACE_DRESS Sanctuary yard · DRIVE_LORE practices-after-House — cite, no pack.
+ * H hush still works. 0 meshes · 0 new verbs · 0 Places.
+ *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
@@ -22,6 +28,19 @@ use crate::mercy_harvest_nodes::NearbyMercyNode;
 use crate::title_screen::LaunchDoor;
 use shared::ledger_bind::ContractState;
 use shared::space_law::HexFlag;
+
+/// CARD L1 SANCTUARY-WANT — first minutes: one People name.
+/// Cite ART_BIBLE: Human | warm grey-gold | Sanctuary — cite only, no pack import.
+pub const SANCTUARY_PEOPLE: &str = "Human";
+
+/// CARD L1 SANCTUARY-WANT — first minutes: one Want.
+/// Cite PLACE_DRESS Sanctuary yard · DRIVE_LORE practices-after-House — cite, no pack.
+pub const SANCTUARY_WANT: &str = "the yard needs tending or the well goes quiet";
+
+/// Spoken People + Want the stranger hears in the first minutes.
+pub fn first_minutes_people_want_line() -> String {
+    format!("{SANCTUARY_PEOPLE} · {SANCTUARY_WANT}")
+}
 
 /// Soft objective the player is gently invited to try next.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +84,17 @@ impl GuidanceObjective {
             GuidanceObjective::MeetCouncilWhisper => "The field answers",
             GuidanceObjective::FreeExploration => "this hex admits harm · optional",
         }
+    }
+
+    /// Walk · glow · first tend — the stranger-hour first minutes.
+    /// Not a new verb. WASD / E stay the hands.
+    pub fn is_first_minutes(&self) -> bool {
+        matches!(
+            self,
+            GuidanceObjective::MoveAround
+                | GuidanceObjective::ApproachGlowingNode
+                | GuidanceObjective::HarvestWithInteract
+        )
     }
 
     pub fn next(&self) -> Self {
@@ -140,6 +170,11 @@ impl FirstSessionGuidance {
     pub fn dismiss(&mut self) {
         self.dismissed = true;
         self.active = false;
+    }
+
+    /// First minutes speak People + Want until H hushes the card.
+    pub fn speaks_people_want(&self) -> bool {
+        self.active && !self.dismissed && self.objective.is_first_minutes()
     }
 
     pub fn advance_if_ready(&mut self) {
@@ -650,5 +685,50 @@ mod tests {
         let book = GuidanceObjective::HourThreeHeld.prompt();
         assert!(book.contains("book"));
         assert!(book.len() < 48);
+    }
+
+    /// CARD L1 SANCTUARY-WANT — prove-line: People + Want spoken in first minutes.
+    #[test]
+    fn first_minutes_speak_people_and_want() {
+        let mut g = FirstSessionGuidance::default();
+        assert!(g.objective.is_first_minutes());
+        assert!(g.speaks_people_want());
+        let line = first_minutes_people_want_line();
+        assert!(line.contains(SANCTUARY_PEOPLE));
+        assert!(line.contains(SANCTUARY_WANT));
+        assert_eq!(line, "Human · the yard needs tending or the well goes quiet");
+        // Hour 1 walk teaching stays on the card (0 new verbs).
+        assert!(g.objective.prompt().contains("WASD"));
+        g.moved_distance = 5.0;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::ApproachGlowingNode);
+        assert!(g.speaks_people_want());
+        g.near_glow = true;
+        g.advance_if_ready();
+        assert_eq!(g.objective, GuidanceObjective::HarvestWithInteract);
+        assert!(g.speaks_people_want());
+        credit_harvest(&mut g);
+        assert_eq!(g.objective, GuidanceObjective::OpenInventory);
+        assert!(!g.objective.is_first_minutes());
+        assert!(!g.speaks_people_want());
+    }
+
+    /// CARD L1 SANCTUARY-WANT — H hush still works after People + Want.
+    #[test]
+    fn h_hush_still_works_after_people_want() {
+        let mut g = FirstSessionGuidance::default();
+        assert!(g.speaks_people_want());
+        g.dismiss();
+        assert!(g.dismissed);
+        assert!(!g.active);
+        assert!(!g.speaks_people_want());
+        g.advance_if_ready();
+        assert!(g.dismissed);
+        assert!(!g.speaks_people_want());
+        // World still owns the Want line; the card just hushes.
+        assert_eq!(
+            first_minutes_people_want_line(),
+            "Human · the yard needs tending or the well goes quiet"
+        );
     }
 }
