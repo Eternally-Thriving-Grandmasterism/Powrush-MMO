@@ -11,7 +11,8 @@
 //! Do not delete the blob. Does not replace harvest_feel or rbe_allocate_choice.
 //!
 //! CARD L3 PEOPLE-DOOR-LAND — apply_place climate swap (Places + People-door).
-//! Cite L3_SPAWN_RESEARCH §3.
+//! CARD L4 PLACE-DRESS-ON-LAND — People-door dress reuses this same swap
+//! (no second dresser). Cite PLACE_DRESS_SPEC · ART_BIBLE accents.
 
 use bevy::prelude::*;
 use shared::climate_node::{AllocKind, LivedHour, NodeState, TendResult};
@@ -176,6 +177,7 @@ impl LivedHourBind {
     }
 
     /// CARD L3 — Places / People-door climate swap. Same hex files as title boot.
+    /// CARD L4 — this is the Esc→Places dress climate path; People-door calls it.
     /// Does not persist. Week footer stays House-summed by the travel caller.
     pub fn apply_place(&mut self, dest: PlaceId) {
         match dest {

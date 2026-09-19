@@ -30,6 +30,9 @@ use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, WeatherFidelity};
 
+use shared::hex_travel::PlaceId;
+
+use crate::hour_sacred::PeopleLanding;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::local_settings::{LocalMeshLodFeel, LocalSettingsState};
 use crate::mercy_harvest_nodes::MercyHarvestNode;
@@ -211,6 +214,35 @@ pub fn place_mood_for(realm: Option<u8>) -> PlaceMood {
         Some(3) => PlaceMood::DepthsWetStone,
         _ => PlaceMood::SanctuarySkyYard,
     }
+}
+
+/// CARD L4 — PlaceId → existing [`look_for`] realm. Same dresser Esc→Places
+/// uses once `HexTravelState.current` changes. Threshold is not a PlaceId;
+/// Quellorian rides Heartwood disk (realm 2) + shelf reach. 0 meshes.
+pub fn dress_realm_for_place(place: PlaceId) -> Option<u8> {
+    match place {
+        PlaceId::Sanctuary => Some(0),
+        PlaceId::Heartwood => Some(2),
+        PlaceId::Depths => Some(3),
+    }
+}
+
+/// Lived Place dress token (look name). Sanctuary Prime / Verdant Heartwood /
+/// Abyssal Depths — not a second dresser, not a fourth PlaceId.
+pub fn dress_token_for_place(place: PlaceId) -> &'static str {
+    look_for(dress_realm_for_place(place)).name
+}
+
+/// Place mood already authored for this disk PlaceId.
+pub fn dress_mood_for_place(place: PlaceId) -> PlaceMood {
+    place_mood_for(dress_realm_for_place(place))
+}
+
+/// People-door dress token. Same PlaceId dresser as Esc→Places.
+/// Ambrosian shares Sanctuary with Human. Quellorian = Heartwood token;
+/// Threshold shelf reach lives in `shared/threshold_shelf.rs`.
+pub fn dress_token_for_landing(landing: PeopleLanding) -> &'static str {
+    dress_token_for_place(landing.place_id())
 }
 
 /// Comfort MeshLodPlan → Place dress procedural scale (path stones).
@@ -404,6 +436,7 @@ impl Plugin for ClimatePlanePlugin {
                 Update,
                 (
                     attach_fog_when_world_camera_arrives,
+                    sync_place_dress_from_travel.before(apply_climate_look),
                     apply_climate_look,
                     apply_place_dress_mesh_lod,
                     breathe_weather_bed,
@@ -551,6 +584,24 @@ fn spawn_climate_chip(mut commands: Commands) {
         });
 }
 
+/// CARD L4 — People-door / Esc→Places `PlaceId` turns on the existing
+/// [`apply_climate_look`] dresser (fog / tint / path stones). No second table.
+fn sync_place_dress_from_travel(
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    mut realm: ResMut<SoftPlayerRealm>,
+) {
+    let Some(travel) = travel else {
+        return;
+    };
+    if !travel.is_changed() {
+        return;
+    }
+    let id = dress_realm_for_place(travel.current);
+    if realm.current != id {
+        realm.current = id;
+    }
+}
+
 fn attach_fog_when_world_camera_arrives(
     mut commands: Commands,
     cameras: Query<Entity, (With<Camera3d>, Without<FogSettings>)>,
@@ -683,8 +734,8 @@ fn update_climate_chip(
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut text_q: Query<&mut Text, With<ClimateNameText>>,
 ) {
-    // U2 Heartwood is a disk stub — do not switch SoftPlayerRealm to 2
-    // (that would dress Heartwood look onto the Sanctuary boot map).
+    // CARD L4 — chip follows HexTravelState. SoftPlayerRealm is synced from
+    // the same PlaceId so apply_climate_look (not a second dresser) turns on.
     let name = travel
         .as_ref()
         .map(|t| t.chip_name())
@@ -1395,5 +1446,119 @@ mod tests {
             let feel = crate::local_settings::LocalMeshLodFeel { preset };
             assert_eq!(feel.place_dress_lod(), mesh_lod::mesh_lod_for_preset(preset));
         }
+    }
+
+    /// CARD L4 — Human land → Sanctuary dress token / PlaceId::Sanctuary.
+    #[test]
+    fn human_land_sanctuary_dress_token() {
+        let land = PeopleLanding::SanctuaryYard;
+        assert_eq!(land.place_id(), PlaceId::Sanctuary);
+        assert_eq!(dress_token_for_landing(land), "Sanctuary Prime");
+        assert_eq!(dress_token_for_place(PlaceId::Sanctuary), "Sanctuary Prime");
+        assert_eq!(dress_mood_for_place(PlaceId::Sanctuary), PlaceMood::SanctuarySkyYard);
+        assert_eq!(dress_realm_for_place(PlaceId::Sanctuary), Some(0));
+        assert!(is_warm_gold_well(look_for(Some(0)).node));
+        assert_eq!(srgb3(look_for(Some(0)).node), srgb3(SANCTUARY_WELL_GOLD));
+    }
+
+    /// CARD L4 — Cydruid land → Heartwood dress (amber lamp). C0 person stays human-in-frame.
+    #[test]
+    fn cydruid_land_heartwood_dress_token() {
+        let land = PeopleLanding::Heartwood;
+        assert_eq!(land.place_id(), PlaceId::Heartwood);
+        assert_eq!(dress_token_for_landing(land), "Verdant Heartwood");
+        assert_eq!(dress_token_for_place(PlaceId::Heartwood), "Verdant Heartwood");
+        assert_eq!(dress_mood_for_place(PlaceId::Heartwood), PlaceMood::HeartwoodCanopy);
+        assert!(is_amber_lamp(look_for(Some(2)).node));
+        assert_eq!(
+            crate::hour_sacred::HousePeople::Cydruid.people_line(),
+            "Cydruid · human-in-frame"
+        );
+    }
+
+    /// CARD L4 — Quellorian land → Heartwood PlaceId + Threshold shelf dress/reach.
+    #[test]
+    fn quellorian_land_heartwood_place_and_threshold_shelf_reach() {
+        let land = PeopleLanding::Threshold;
+        assert_eq!(land.place_id(), PlaceId::Heartwood);
+        assert_eq!(
+            dress_token_for_landing(land),
+            dress_token_for_place(PlaceId::Heartwood)
+        );
+        let [x, _, z] = shared::threshold_shelf::THRESHOLD_SHELF_CENTER;
+        assert!(shared::threshold_shelf::threshold_use_in_reach(
+            PlaceId::Heartwood,
+            x,
+            z
+        ));
+        assert!(!shared::threshold_shelf::threshold_use_in_reach(
+            PlaceId::Sanctuary,
+            x,
+            z
+        ));
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+    }
+
+    /// CARD L4 — Draek land → Depths dress. DepthsPeaceTend restore-not-Take stays on Depths hex.
+    #[test]
+    fn draek_land_depths_dress_token() {
+        let land = PeopleLanding::DepthsTealWayHome;
+        assert_eq!(land.place_id(), PlaceId::Depths);
+        assert_eq!(dress_token_for_landing(land), "Abyssal Depths");
+        assert_eq!(dress_token_for_place(PlaceId::Depths), "Abyssal Depths");
+        assert_eq!(dress_mood_for_place(PlaceId::Depths), PlaceMood::DepthsWetStone);
+        assert!(is_teal_peace(look_for(Some(3)).node));
+        assert_eq!(srgb3(look_for(Some(3)).node), srgb3(DEPTHS_TEAL_PEACE));
+    }
+
+    /// CARD L4 — Ambrosian land → Sanctuary PlaceId (same as Human). No new hex.
+    #[test]
+    fn ambrosian_land_sanctuary_dress_token_same_as_human() {
+        let amb = PeopleLanding::SanctuaryWellFromAbove;
+        let human = PeopleLanding::SanctuaryYard;
+        assert_eq!(amb.place_id(), PlaceId::Sanctuary);
+        assert_eq!(amb.place_id(), human.place_id());
+        assert_eq!(dress_token_for_landing(amb), dress_token_for_landing(human));
+        assert_eq!(dress_token_for_landing(amb), "Sanctuary Prime");
+        assert_ne!(amb, human);
+    }
+
+    /// CARD L4 — HexTravelState PlaceId turns on the existing look_for realm.
+    #[test]
+    fn travel_place_id_turns_on_existing_place_dress_realm() {
+        use crate::hex_travel::HexTravelState;
+
+        let mut app = App::new();
+        app.init_resource::<SoftPlayerRealm>();
+        app.insert_resource(HexTravelState {
+            current: PlaceId::Sanctuary,
+        });
+        app.add_systems(Update, sync_place_dress_from_travel);
+        app.update();
+        assert_eq!(
+            app.world().resource::<SoftPlayerRealm>().current,
+            Some(0),
+            "Sanctuary dress realm"
+        );
+
+        app.world_mut()
+            .resource_mut::<HexTravelState>()
+            .current = PlaceId::Heartwood;
+        app.update();
+        assert_eq!(
+            app.world().resource::<SoftPlayerRealm>().current,
+            Some(2),
+            "Heartwood dress realm"
+        );
+
+        app.world_mut()
+            .resource_mut::<HexTravelState>()
+            .current = PlaceId::Depths;
+        app.update();
+        assert_eq!(
+            app.world().resource::<SoftPlayerRealm>().current,
+            Some(3),
+            "Depths dress realm"
+        );
     }
 }
