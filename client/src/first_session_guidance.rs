@@ -1061,7 +1061,7 @@ mod tests {
         let (land, now) = l5_first_session_land(false, true, HousePeople::Human, start, None);
         assert!(land.is_none());
         assert_eq!(now, start);
-        let mut g = FirstSessionGuidance::default();
+        let g = FirstSessionGuidance::default();
         assert!(g.stays_light_peace());
         let (land, now) = l5_first_session_land(true, false, HousePeople::Draek, start, None);
         assert!(land.is_none());
