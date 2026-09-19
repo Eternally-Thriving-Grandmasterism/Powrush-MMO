@@ -1,7 +1,7 @@
 # Playable Races of Powrush-MMO
 
 **Version:** 1.0  
-**Last Updated:** June 13, 2026  
+**Last Updated:** June 13, 2026 · door/landing law stamped 2026-09-19  
 **Status:** Active Development  
 **PATSAGi Council + Ra-Thor Quantum Swarm Approved**
 
@@ -22,6 +22,26 @@ These five races form the foundation of player choice and faction alignment:
 Beyond these five, the Draek Dominion has enslaved **countless other species** as mind-controlled minions, broken-willed mercenaries, and cannon fodder. These enslaved races are not playable in their current state but serve as tragic narrative and mechanical elements (with potential future redemption or rebellion paths).
 
 This document provides deep, immersive detail for each playable race — design, voice, music, symbolism, unique attributes, and technical integration notes — ensuring maximal believability and emotional resonance for all players.
+
+---
+
+## 1.1 Door → landing law (Eden plane)
+
+**Cite:** steward 2026-09-19 God-plane · this file's existing five Peoples list (sections 2–6). **Budget:** 0 meshes. Garden / Eden plane law lives in `PLACE_DRESS_SPEC` §2.1 — Garden is the walkable title / light-body plane, **not** a fifth Place and **not** a sixth People.
+
+**5 doors = 5 Peoples. Landings = 4 Places only.**
+
+| People (existing) | Door lands in | Place count |
+|---|---|---|
+| **Human** | Sanctuary yard | Sanctuary (same Place as Ambrosian) |
+| **Cydruid** | Heartwood | Heartwood |
+| **Quellorian** | Threshold | Threshold |
+| **Draek** | Depths (teal way-home) | Depths |
+| **Ambrosian** | Sanctuary well-from-above | Sanctuary — **same Sanctuary Place as Human, not a 5th room** |
+
+Four Places remain: Sanctuary · Heartwood · Threshold · Depths. Market is not a Place. Do not invent a sixth People or a fifth Place. Title stays Play / Continue / Settings · **Online grey**. No race portraits on Title from this stamp.
+
+Doors ignite after one Tend. Crossing a door is one-way this session. Peace recall = vision home, not a hub. This section does not authorize `client/**` work or L2 cook.
 
 ---
 
@@ -271,3 +291,5 @@ Each race has clear mechanical asymmetry while remaining narratively and visuall
 **End of Document**
 
 *This document completes the core playable race foundation for Powrush-MMO. All future gameplay, narrative, audio, and visual systems should reference these five races symmetrically and with maximal immersion.*
+
+`stamp: D0-2026-09-19-EDEN-PLANE-LAW | 5 doors = 5 Peoples · landings = 4 Places only (Human Sanctuary yard · Cydruid Heartwood · Quellorian Threshold · Draek Depths teal way-home · Ambrosian Sanctuary well-from-above, same Place as Human); no sixth People; no fifth Place; 0 meshes; Title Online grey; cite steward 2026-09-19 God-plane + this Peoples list; Garden law in PLACE_DRESS_SPEC §2.1; no client/shared/L2`

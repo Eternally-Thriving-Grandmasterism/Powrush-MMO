@@ -20,7 +20,7 @@ Each Place's **palette, material, and mood** must say its name **before any slab
 
 Rungs A–E already spent climate, person-read, Settled door, credit logistics, and scheduled presence. Rung F is **last on purpose**: dress is cheapest to change once bodies, doors, and loops already read (`GDD_IMMERSION_REVISION` §3 rung F).
 
-This is **Presentation** (`STUDIO_ARCHITECTURE_ORDER` layer 3). Presentation never writes the House book, never adds a fifth disk room, never lights Title Online.
+This is **Presentation** (`STUDIO_ARCHITECTURE_ORDER` layer 3). Presentation never writes the House book, never adds a fifth disk room, never lights Title Online. Garden / Eden is the walkable title / light-body plane only — cite steward **2026-09-19 God-plane** and the five Peoples list in `PLAYABLE_RACES`. **0 meshes** from this stamp.
 
 ---
 
@@ -28,12 +28,32 @@ This is **Presentation** (`STUDIO_ARCHITECTURE_ORDER` layer 3). Presentation nev
 
 | Law | Meaning |
 |---|---|
-| **Four Places only** | Sanctuary / Heartwood / Threshold / Depths. No fifth Place. Market is not a Place. |
+| **Four Places only** | Sanctuary / Heartwood / Threshold / Depths. No fifth Place. Market is not a Place. Garden / Eden is **not** a Place (see §2.1). |
 | **One material per Place** | A room that needs two materials is a **failed read**, not an argument for another room or a second biome on the same hex. |
 | **Sanctuary greybox dress debt first** | Sanctuary Prime is **yard only** (`PLACES_BIBLE` · `PLACE_CLARITY_WALK`). Close greybox debt on the teaching yard before fancy later-Place cargo. |
 | **No race select** | Peoples / Persona stay post-House dress (`MERCY_PERSONA_CREATION` · `LAUNCH_UX`). Never Title race lobby. |
 | **No hub strip** | No vendor strip, auction corner, flight-master node, or instance portal as Place identity. |
 | **Sacred five unchanged** | Tend / Take / Flow / Reserve / Mend at the same posts. Dress does not invent verbs. |
+| **Garden ≠ Place** | God-plane / light body / walkable title. Unreachable as a lived Place. Not Sanctuary dirt. |
+
+---
+
+## 2.1 Garden / Eden plane
+
+**Cite:** steward 2026-09-19 God-plane · existing `PLAYABLE_RACES` Peoples list (five Peoples, not a sixth). **Budget:** 0 meshes. This section is **law**, not a Hands work order. Do not cook L2 from these sentences.
+
+| Law | Meaning |
+|---|---|
+| **Garden = God-plane** | Light body / walkable title (ethereal boot plane). Not a disk room. |
+| **Garden ≠ Sanctuary dirt** | Not the teaching yard. Not Shattrath. Not a Title race lobby. **Not a fifth Place.** |
+| **Unreachable as a lived Place** | Walkable title / light-body plane only. No lived hex, no climate slab, no House book. |
+| **Doors ignite after one Tend** | Five People-doors stay dark until the stranger Tends once. |
+| **Crossing is one-way this session** | A door-cross lands the body in one of the four Places. No return through that door this session. |
+| **Peace recall = vision home** | Recall is vision home, **not** a hub, **not** Garden-as-Shattrath, **not** a fifth room. |
+| **Title chrome** | Play / Continue / Settings · **Online grey**. No race portraits on Title. |
+| **Four Places remain** | Sanctuary · Heartwood · Threshold · Depths. Market is not a Place. |
+
+Door → landing (five Peoples, four Places) lives in `PLAYABLE_RACES` so this file does not restate a second Peoples bible.
 
 ---
 
@@ -99,7 +119,7 @@ Door: `./scripts/play-offline.sh` or `cargo run -p powrush-client` with `POWRUSH
 
 | Shot | Expect |
 |---|---|
-| **Title** | Play / Continue / Settings · Online grey. No race lobby. |
+| **Title** | Play / Continue / Settings · Online grey. No race lobby. Garden is this walkable title / light-body plane — not a fifth Place. |
 | **Sanctuary** | Place nameable from dress alone; yard-only; no Brood Spire. |
 | **Other Place** | Different material / mood family; still one of the four; no fifth room. |
 | **After H** | Guidance hushes; Place identity remains nameable without slab-only reliance. |
@@ -110,7 +130,7 @@ Door: `./scripts/play-offline.sh` or `cargo run -p powrush-client` with `POWRUSH
 |---|---|
 | **Place unreadable** | Stranger cannot name the Place from dress. |
 | **Two materials** | One room reads as two biomes / two kits. |
-| **Fifth Place / Market hub** | New disk room or shipped Market identity. |
+| **Fifth Place / Market hub** | New disk room or shipped Market identity. Garden shipped as a lived Place / Shattrath / race lobby counts as this fail. |
 | **Lane fusion** | Codex / Imagine / Drive still imported as play mesh pack. |
 | **Second HUD** | New plate papering over missing zone identity. |
 
@@ -129,6 +149,8 @@ Otherwise: **HOLD**. No OFFER NEXT for Hands F until Core names the YELLOW SLICE
 | Reopen `living_day` / `living_ecology` / `human_presence` | E spent |
 | Market · gold · NFT · Always-allow · bulk parallel Hands | Standing refuse |
 | Invented screenshots | Human Court only |
+| Garden as lived Place / L2 cook | D0 is docs law only; Clerk names L1 GARDEN-WANT after COMPLETE-FOR-CANON |
+| Meshes / race portraits on Title | 0 meshes from this stamp |
 
 ---
 
@@ -143,3 +165,5 @@ Otherwise: **HOLD**. No OFFER NEXT for Hands F until Core names the YELLOW SLICE
 ## 10. Stamp
 
 `slice: GREEN-DOCS F-2026-09-11-PLACE_DRESS | PLACE_DRESS_SPEC presentation bible for GDD_IMMERSION_REVISION §3 rung F only; four Places; one material each; Sanctuary greybox dress debt first; ART_BIBLE / DRIVE_LORE / Imagine refs only — no binary mesh/texture pack; confirm-before-build until Core names YELLOW SLICE with exact paths; Title Online grey; no client/shared/server/Cargo/sockets/assets; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: AUTO`
+
+`slice: GREEN-DOCS D0-2026-09-19-EDEN-PLANE-LAW | Garden = God-plane / light body / walkable title (ethereal boot plane), not Sanctuary dirt, not Shattrath, not Title race lobby, not a fifth Place; unreachable as a lived Place; doors ignite after one Tend; crossing one-way this session; Peace recall = vision home not a hub; Title Play / Continue / Settings · Online grey; four Places remain Sanctuary · Heartwood · Threshold · Depths; Market is not a Place; 0 meshes; cite steward 2026-09-19 God-plane + PLAYABLE_RACES Peoples; no client/shared/Cargo/sockets/L2; info@Rathor.ai; independent of xAI; no certification or AGSi warranty claims; ask: dual GREEN; verdict: HOLD (plane law)`
