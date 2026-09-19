@@ -4,6 +4,13 @@
 //! After a first-hour allocate, Tab steps the ridge. Q founds the House.
 //! Pack persist keeps factory + I2 + Ledger + fabricator + Embassy across quit.
 //! WASD / E / I / H / R stay the player door. Contact: info@Rathor.ai
+//!
+//! CARD L2 HOUSE-PEOPLE-GATES — Q House offers five Peoples as God-plane doors
+//! (Garden / boot · D0 EDEN-PLANE-LAW @ 2afff36). Four Place landings only
+//! (PLAYABLE_RACES §1.1). Doors ignite after one Tend. Crossing is one-way
+//! this session. Skip House = stay light / Peace default. C0 Cydruid =
+//! human-in-frame, not treant. 0 meshes · ASSET_BUDGET_COURT cite only.
+//! Not the #459 dress-token prove-line. Not a Title race lobby.
 
 use std::path::PathBuf;
 
@@ -22,6 +29,150 @@ use crate::fabricator::FabricatorYard;
 use crate::vertical_factory::FactoryYard;
 
 pub const HOUR_TWO_PATH: &str = "data/powrush_hour_two.json";
+
+/// CARD L2 — cite only. No mesh / pack cargo. [`docs/ASSET_BUDGET_COURT.md`].
+pub const L2_ASSET_BUDGET_CITE: &str = "docs/ASSET_BUDGET_COURT.md";
+/// CARD L2 mesh budget. Hands stay dark; 0 meshes this card.
+pub const L2_MESH_BUDGET: u32 = 0;
+
+/// CARD L2 HOUSE-PEOPLE-GATES — five Peoples after Q House.
+/// Cite PLAYABLE_RACES §1.1 · D0 EDEN-PLANE-LAW @ 2afff36 · C0 not-treant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HousePeople {
+    Human,
+    Cydruid,
+    Quellorian,
+    Draek,
+    Ambrosian,
+}
+
+/// Steward table order: Human · Cydruid · Quellorian · Draek · Ambrosian.
+pub const HOUSE_PEOPLES: [HousePeople; 5] = [
+    HousePeople::Human,
+    HousePeople::Cydruid,
+    HousePeople::Quellorian,
+    HousePeople::Draek,
+    HousePeople::Ambrosian,
+];
+
+/// Four Place landings only. Ambrosian shares Sanctuary (not a 5th room).
+/// Threshold is one of the four Places (rides Heartwood disk — no fifth PlaceId).
+/// Garden / boot is the God-plane door host, not a landing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeopleLanding {
+    SanctuaryYard,
+    Heartwood,
+    Threshold,
+    DepthsTealWayHome,
+    SanctuaryWellFromAbove,
+}
+
+impl PeopleLanding {
+    pub const fn place_name(self) -> &'static str {
+        match self {
+            Self::SanctuaryYard | Self::SanctuaryWellFromAbove => "Sanctuary",
+            Self::Heartwood => "Heartwood",
+            Self::Threshold => "Threshold",
+            Self::DepthsTealWayHome => "Depths",
+        }
+    }
+
+    pub const fn landing_line(self) -> &'static str {
+        match self {
+            Self::SanctuaryYard => "Sanctuary yard",
+            Self::Heartwood => "Heartwood",
+            Self::Threshold => "Threshold",
+            Self::DepthsTealWayHome => "Depths (teal way-home)",
+            Self::SanctuaryWellFromAbove => "Sanctuary well-from-above",
+        }
+    }
+}
+
+impl HousePeople {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Human => "Human",
+            Self::Cydruid => "Cydruid",
+            Self::Quellorian => "Quellorian",
+            Self::Draek => "Draek",
+            Self::Ambrosian => "Ambrosian",
+        }
+    }
+
+    /// C0: Cydruid is a human housed in a cyborg frame — not a treant.
+    pub const fn people_line(self) -> &'static str {
+        match self {
+            Self::Cydruid => "Cydruid · human-in-frame",
+            other => other.as_str(),
+        }
+    }
+
+    /// PLAYABLE_RACES §1.1 door → landing. Ambrosian = same Sanctuary Place.
+    pub const fn landing(self) -> PeopleLanding {
+        match self {
+            Self::Human => PeopleLanding::SanctuaryYard,
+            Self::Cydruid => PeopleLanding::Heartwood,
+            Self::Quellorian => PeopleLanding::Threshold,
+            Self::Draek => PeopleLanding::DepthsTealWayHome,
+            Self::Ambrosian => PeopleLanding::SanctuaryWellFromAbove,
+        }
+    }
+}
+
+/// Q House → offer the five Peoples. Skip House / ridge visitor → none.
+pub fn offer_house_peoples(house_live: bool) -> Option<[HousePeople; 5]> {
+    if house_live {
+        Some(HOUSE_PEOPLES)
+    } else {
+        None
+    }
+}
+
+/// Skip House = stay light-body / Peace default. No People offer. No landing.
+pub fn skip_house_stays_light(house_live: bool) -> bool {
+    !house_live
+}
+
+/// Five God-plane doors stay dark until the stranger Tends once.
+pub fn god_plane_doors_ignited(tended_once: bool) -> bool {
+    tended_once
+}
+
+/// Distinct Place names among the five landings — must be exactly four.
+/// Garden is not a landing. Market is not a Place.
+pub fn four_place_landings_only() -> bool {
+    let mut seen = [""; 5];
+    let mut n = 0;
+    for people in HOUSE_PEOPLES {
+        let name = people.landing().place_name();
+        if !seen[..n].contains(&name) {
+            seen[n] = name;
+            n += 1;
+        }
+    }
+    n == 4
+        && seen[..n].contains(&"Sanctuary")
+        && seen[..n].contains(&"Heartwood")
+        && seen[..n].contains(&"Threshold")
+        && seen[..n].contains(&"Depths")
+        && !seen[..n].contains(&"Garden")
+        && !seen[..n].contains(&"Market")
+}
+
+/// Cross one God-plane door. One-way this session. Needs House + one Tend.
+/// `crossed` is session-local — not written to the hour-two pack.
+pub fn try_cross_people_door(
+    house_live: bool,
+    tended_once: bool,
+    crossed: &mut Option<HousePeople>,
+    people: HousePeople,
+) -> Option<PeopleLanding> {
+    if !house_live || !tended_once || crossed.is_some() {
+        return None;
+    }
+    *crossed = Some(people);
+    Some(people.landing())
+}
 
 /// Resolved user-dir path for the hour-two / book pack.
 pub fn hour_two_disk() -> PathBuf {
@@ -109,6 +260,31 @@ impl HourSacred {
 
     pub fn hex(&self) -> HexFlag {
         self.session.hex
+    }
+
+    /// CARD L2 — Q House offers five Peoples. Skip House stays light / Peace.
+    pub fn offers_five_peoples(&self) -> bool {
+        self.charter_skin_live()
+    }
+
+    /// Skip House / ridge visitor: stay light-body / Peace default. No People offer.
+    pub fn stays_light_peace(&self) -> bool {
+        skip_house_stays_light(self.charter_skin_live())
+    }
+
+    /// Five Peoples after House. None while Peace / visitor (no Q).
+    pub fn house_people_offer(&self) -> Option<[HousePeople; 5]> {
+        offer_house_peoples(self.charter_skin_live())
+    }
+
+    /// Cross one ignited God-plane door. One-way this session. Not persisted.
+    pub fn try_cross_people_door(
+        &self,
+        tended_once: bool,
+        crossed: &mut Option<HousePeople>,
+        people: HousePeople,
+    ) -> Option<PeopleLanding> {
+        try_cross_people_door(self.charter_skin_live(), tended_once, crossed, people)
     }
 }
 
@@ -455,6 +631,129 @@ mod tests {
         assert_eq!(h.hex(), HexFlag::Peace);
         assert!(!factory.founded);
         assert!(!h.charter_skin_live());
+    }
+
+    /// CARD L2 HOUSE-PEOPLE-GATES — Q House offers five Peoples.
+    /// Not the #459 dress-token prove-line. C0 Cydruid = human-in-frame.
+    #[test]
+    fn q_house_offers_five_peoples() {
+        let mut h = peace_hour();
+        let mut factory = VerticalFactory::default();
+        assert!(h.stays_light_peace());
+        assert!(h.house_people_offer().is_none());
+        assert!(try_ridge_tab(&mut h, true));
+        assert!(h.stays_light_peace(), "ridge visitor is not House");
+        assert!(h.house_people_offer().is_none());
+        assert!(try_plant_house(&mut h, &mut factory));
+        assert!(h.offers_five_peoples());
+        assert!(!h.stays_light_peace());
+        let offer = h.house_people_offer().expect("five Peoples after Q House");
+        assert_eq!(offer, HOUSE_PEOPLES);
+        assert_eq!(offer.len(), 5);
+        assert_eq!(HousePeople::Human.landing(), PeopleLanding::SanctuaryYard);
+        assert_eq!(HousePeople::Cydruid.landing(), PeopleLanding::Heartwood);
+        assert_eq!(HousePeople::Quellorian.landing(), PeopleLanding::Threshold);
+        assert_eq!(
+            HousePeople::Draek.landing(),
+            PeopleLanding::DepthsTealWayHome
+        );
+        assert_eq!(
+            HousePeople::Ambrosian.landing(),
+            PeopleLanding::SanctuaryWellFromAbove
+        );
+        assert_eq!(
+            HousePeople::Draek.landing().landing_line(),
+            "Depths (teal way-home)"
+        );
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+        assert!(!HousePeople::Cydruid.people_line().contains("bark"));
+        // Refuse old #459 dress-token prove-line.
+        for people in offer {
+            assert!(!people.people_line().contains("Sanctuary tint"));
+            assert!(!people.people_line().contains("dress token"));
+        }
+        assert_eq!(L2_MESH_BUDGET, 0);
+        assert_eq!(L2_ASSET_BUDGET_CITE, "docs/ASSET_BUDGET_COURT.md");
+    }
+
+    /// CARD L2 — skip House / Peace / visitor stays light · Peace default.
+    #[test]
+    fn skip_house_stays_light_peace() {
+        let mut h = peace_hour();
+        assert_eq!(h.hex(), HexFlag::Peace);
+        assert!(h.stays_light_peace());
+        assert!(!h.offers_five_peoples());
+        assert!(skip_house_stays_light(false));
+        assert!(try_ridge_tab(&mut h, true));
+        assert_eq!(h.hex(), HexFlag::Frontier);
+        assert!(h.stays_light_peace());
+        assert!(h.house_people_offer().is_none());
+        let mut crossed = None;
+        assert!(h
+            .try_cross_people_door(true, &mut crossed, HousePeople::Human)
+            .is_none());
+        assert!(crossed.is_none());
+    }
+
+    /// CARD L2 — 5 God-plane doors · 4 Place landings only.
+    /// Garden ≠ Sanctuary. Ambrosian shares Sanctuary (not a 5th room).
+    #[test]
+    fn five_god_plane_doors_four_place_landings() {
+        assert_eq!(HOUSE_PEOPLES.len(), 5);
+        assert!(four_place_landings_only());
+        assert_eq!(
+            HousePeople::Human.landing().place_name(),
+            HousePeople::Ambrosian.landing().place_name()
+        );
+        assert_eq!(HousePeople::Human.landing().place_name(), "Sanctuary");
+        assert_ne!(
+            HousePeople::Human.landing(),
+            HousePeople::Ambrosian.landing()
+        );
+        assert_eq!(
+            HousePeople::Human.landing().landing_line(),
+            "Sanctuary yard"
+        );
+        assert_eq!(
+            HousePeople::Ambrosian.landing().landing_line(),
+            "Sanctuary well-from-above"
+        );
+        for people in HOUSE_PEOPLES {
+            assert_ne!(people.landing().place_name(), "Garden");
+            assert_ne!(people.landing().place_name(), "Eden");
+            assert_ne!(people.landing().place_name(), "Market");
+        }
+        assert_eq!(L2_MESH_BUDGET, 0);
+    }
+
+    /// CARD L2 — doors ignite after one Tend; crossing is one-way this session.
+    #[test]
+    fn doors_ignite_after_tend_cross_one_way() {
+        let mut h = peace_hour();
+        let mut factory = VerticalFactory::default();
+        assert!(try_ridge_tab(&mut h, true));
+        assert!(try_plant_house(&mut h, &mut factory));
+        assert!(!god_plane_doors_ignited(false));
+        let mut crossed = None;
+        assert!(
+            h.try_cross_people_door(false, &mut crossed, HousePeople::Quellorian)
+                .is_none(),
+            "doors stay dark until one Tend"
+        );
+        assert!(god_plane_doors_ignited(true));
+        let land = h
+            .try_cross_people_door(true, &mut crossed, HousePeople::Quellorian)
+            .expect("House + Tend opens one door");
+        assert_eq!(land, PeopleLanding::Threshold);
+        assert_eq!(crossed, Some(HousePeople::Quellorian));
+        assert!(
+            h.try_cross_people_door(true, &mut crossed, HousePeople::Draek)
+                .is_none(),
+            "crossing is one-way this session"
+        );
+        assert_eq!(crossed, Some(HousePeople::Quellorian));
+        assert_eq!(L2_MESH_BUDGET, 0);
     }
 
     /// Playtest H2-Q: Q off Peace (visitor ridge) plants house-local.
