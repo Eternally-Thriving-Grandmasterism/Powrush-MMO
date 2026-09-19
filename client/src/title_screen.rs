@@ -55,6 +55,10 @@
 //! after one Tend. Crossing one-way this session. Skip House = stay light.
 //! Title stays Play / Continue / Settings · Online grey. No race portraits.
 //! 0 meshes · ASSET_BUDGET_COURT cite only. Not the #459 dress-token line.
+//!
+//! CARD L5 TITLE-GARDEN-LAND — Garden door calls hex_travel::apply_people_landing
+//! (same L3/L4 wire Esc→Places uses). House + Tend → dressed Place. Skip House
+//! / no Tend → none, PlaceId unchanged, Peace light-body. No Title lobby.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::KeyboardInput;
@@ -81,9 +85,10 @@ use crate::first_session_guidance::{
     first_minutes_people_want_line, garden_boot_want_line, FirstSessionGuidance,
 };
 use crate::hex_travel::{
-    apply_title_boot, settings_visible_with_places, HexTravelState, PausePlacesBtn, PlacesDoorClickSet,
-    PlacesPlate,
+    apply_people_landing, apply_title_boot, settings_visible_with_places, HexTravelState,
+    PausePlacesBtn, PlacesDoorClickSet, PlacesPlate,
 };
+use crate::human_presence::SoftPresence;
 use crate::hour_sacred::{
     four_place_landings_only, god_plane_doors_ignited, offer_house_peoples, skip_house_stays_light,
     try_cross_people_door, HousePeople, HourSacred, PeopleLanding, HOUSE_PEOPLES,
@@ -184,16 +189,25 @@ pub fn garden_door_may_cross(house_live: bool, tended_once: bool, already_crosse
 }
 
 /// Cross one Garden / God-plane door. One-way this session. Not Title chrome.
+/// CARD L5 — House + Tend → [`apply_people_landing`] (L3/L4 dress). Skip / no
+/// Tend threads travel + bind the same way Esc→Places / title boot already do
+/// and returns none without a PlaceId write.
 pub fn garden_cross_landing(
     house_live: bool,
     tended_once: bool,
     crossed: &mut Option<HousePeople>,
     people: HousePeople,
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    embassy: Option<&mut EmbassyYard>,
+    presence: Option<&mut SoftPresence>,
 ) -> Option<PeopleLanding> {
     if !garden_door_may_cross(house_live, tended_once, crossed.is_some()) {
         return None;
     }
-    try_cross_people_door(house_live, tended_once, crossed, people)
+    let landing = try_cross_people_door(house_live, tended_once, crossed, people)?;
+    apply_people_landing(travel, bind, embassy, landing, presence);
+    Some(landing)
 }
 
 /// Guide tab — one-sentence stranger loop (Peace keys only; no F-row).
@@ -3859,6 +3873,7 @@ fn persona_creator_buttons(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared::hex_travel::PlaceId;
     use shared::house_name::{
         continue_cue, continue_cue_when_persist, esc_from_title_preserves_persist, YARD_REMEMBERS,
     };
@@ -4068,6 +4083,42 @@ mod tests {
         );
     }
 
+    fn demo_bind() -> LivedHourBind {
+        LivedHourBind {
+            hour: shared::climate_node::LivedHour::new_demo(),
+            climate: Default::default(),
+            standing: Default::default(),
+            week: Default::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        }
+    }
+
+    fn garden_land(
+        house: bool,
+        tend: bool,
+        people: HousePeople,
+        start: PlaceId,
+        mut presence: Option<&mut SoftPresence>,
+    ) -> (Option<PeopleLanding>, PlaceId) {
+        let mut travel = HexTravelState { current: start };
+        let mut bind = demo_bind();
+        let mut crossed = None;
+        let land = garden_cross_landing(
+            house,
+            tend,
+            &mut crossed,
+            people,
+            &mut travel,
+            &mut bind,
+            None,
+            presence.as_deref_mut(),
+        );
+        (land, travel.current)
+    }
+
     /// CARD L2 — Garden doors stay dark until Tend; skip House stays light;
     /// one-way cross this session. Ambrosian shares Sanctuary.
     #[test]
@@ -4078,14 +4129,61 @@ mod tests {
         assert!(!garden_door_may_cross(true, false, false));
         assert!(garden_door_may_cross(true, true, false));
         assert!(!garden_door_may_cross(true, true, true));
+        let mut travel = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        let mut bind = demo_bind();
         let mut crossed = None;
-        assert!(garden_cross_landing(true, false, &mut crossed, HousePeople::Draek).is_none());
-        assert!(garden_cross_landing(false, true, &mut crossed, HousePeople::Draek).is_none());
-        let land = garden_cross_landing(true, true, &mut crossed, HousePeople::Draek)
-            .expect("House + Tend opens Draek door");
+        assert!(garden_cross_landing(
+            true,
+            false,
+            &mut crossed,
+            HousePeople::Draek,
+            &mut travel,
+            &mut bind,
+            None,
+            None,
+        )
+        .is_none());
+        assert_eq!(travel.current, PlaceId::Sanctuary);
+        assert!(garden_cross_landing(
+            false,
+            true,
+            &mut crossed,
+            HousePeople::Draek,
+            &mut travel,
+            &mut bind,
+            None,
+            None,
+        )
+        .is_none());
+        assert_eq!(travel.current, PlaceId::Sanctuary);
+        let land = garden_cross_landing(
+            true,
+            true,
+            &mut crossed,
+            HousePeople::Draek,
+            &mut travel,
+            &mut bind,
+            None,
+            None,
+        )
+        .expect("House + Tend opens Draek door");
         assert_eq!(land, PeopleLanding::DepthsTealWayHome);
         assert_eq!(land.landing_line(), "Depths (teal way-home)");
-        assert!(garden_cross_landing(true, true, &mut crossed, HousePeople::Ambrosian).is_none());
+        assert_eq!(travel.current, PlaceId::Depths);
+        assert!(garden_cross_landing(
+            true,
+            true,
+            &mut crossed,
+            HousePeople::Ambrosian,
+            &mut travel,
+            &mut bind,
+            None,
+            None,
+        )
+        .is_none());
+        assert_eq!(travel.current, PlaceId::Depths);
         assert_eq!(
             HousePeople::Ambrosian.landing().place_name(),
             HousePeople::Human.landing().place_name()
@@ -4096,6 +4194,117 @@ mod tests {
         );
         assert!(l2_title_chrome_holds());
         assert_eq!(L2_MESH_BUDGET, 0);
+    }
+
+    /// CARD L5 — skip House garden cross → none, PlaceId unchanged, Peace light-body.
+    #[test]
+    fn l5_skip_house_garden_cross_none_place_unchanged() {
+        let start = PlaceId::Sanctuary;
+        let (land, now) = garden_land(false, true, HousePeople::Human, start, None);
+        assert!(land.is_none());
+        assert_eq!(now, start);
+        let (land, now) = garden_land(false, true, HousePeople::Draek, PlaceId::Sanctuary, None);
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+        let (land, now) = garden_land(true, false, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert!(skip_house_stays_light(false));
+    }
+
+    /// CARD L5 — Human garden cross after House+Tend → Sanctuary + Sanctuary Prime dress.
+    #[test]
+    fn l5_human_garden_cross_sanctuary_prime_dress() {
+        use crate::climate_plane::dress_token_for_place;
+
+        let (land, now) = garden_land(true, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryYard));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(dress_token_for_place(now), "Sanctuary Prime");
+    }
+
+    /// CARD L5 — Cydruid → Heartwood + Verdant Heartwood + people_line human-in-frame.
+    #[test]
+    fn l5_cydruid_garden_cross_heartwood_verdant_human_in_frame() {
+        use crate::climate_plane::dress_token_for_place;
+
+        let (land, now) = garden_land(true, true, HousePeople::Cydruid, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::Heartwood));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(dress_token_for_place(now), "Verdant Heartwood");
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+    }
+
+    /// CARD L5 — Quellorian → Heartwood + threshold_use_in_reach.
+    #[test]
+    fn l5_quellorian_garden_cross_heartwood_threshold_use_in_reach() {
+        use crate::human_presence::people_landing_wake;
+        use shared::threshold_shelf::threshold_use_in_reach;
+
+        let mut presence = SoftPresence::default();
+        let (land, now) = garden_land(
+            true,
+            true,
+            HousePeople::Quellorian,
+            PlaceId::Sanctuary,
+            Some(&mut presence),
+        );
+        assert_eq!(land, Some(PeopleLanding::Threshold));
+        assert_eq!(now, PlaceId::Heartwood);
+        let wake = people_landing_wake(PeopleLanding::Threshold);
+        assert_eq!(presence.position, wake);
+        assert!(threshold_use_in_reach(
+            now,
+            presence.position.x,
+            presence.position.z
+        ));
+    }
+
+    /// CARD L5 — Draek → Depths + Abyssal Depths.
+    #[test]
+    fn l5_draek_garden_cross_depths_abyssal() {
+        use crate::climate_plane::dress_token_for_place;
+
+        let (land, now) = garden_land(true, true, HousePeople::Draek, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::DepthsTealWayHome));
+        assert_eq!(now, PlaceId::Depths);
+        assert_eq!(dress_token_for_place(now), "Abyssal Depths");
+    }
+
+    /// CARD L5 — Ambrosian → Sanctuary PlaceId same as Human.
+    #[test]
+    fn l5_ambrosian_garden_cross_sanctuary_same_as_human() {
+        let (land, now) = garden_land(true, true, HousePeople::Ambrosian, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryWellFromAbove));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(now, HousePeople::Human.landing().place_id());
+        assert_eq!(
+            HousePeople::Ambrosian.landing().place_id(),
+            HousePeople::Human.landing().place_id()
+        );
+    }
+
+    /// CARD L5 — Title chrome strings still Play / Continue / Settings.
+    #[test]
+    fn l5_title_chrome_play_continue_settings() {
+        assert_eq!(TITLE_CHROME_PLAY, "Play — first Hands");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert!(TITLE_CHROME_PLAY.contains("Play"));
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert!(l2_title_chrome_holds());
+        assert!(!title_has_race_portraits());
+        assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
+    }
+
+    /// CARD L5 — STEWARD_ONLINE_YES stays false. Online grey.
+    #[test]
+    fn l5_steward_online_yes_stays_false() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(l2_title_chrome_holds());
     }
 
     #[test]

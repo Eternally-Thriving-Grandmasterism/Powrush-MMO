@@ -20,6 +20,8 @@
 //! CARD L4 PLACE-DRESS-ON-LAND — after apply_people_landing, the same
 //! apply_place path Esc→Places uses turns on the authored Place dress
 //! (climate_plane look_for). 0 meshes. Cite PLACE_DRESS_SPEC · ART_BIBLE.
+//! CARD L5 TITLE-GARDEN-LAND — Title garden / first-session People-door
+//! call apply_people_landing only. Do not remap PlaceId.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -225,6 +227,8 @@ pub fn apply_place(
 /// (climate swap + HexTravelState). climate_plane syncs look_for from
 /// travel.current — no second dresser. Ambrosian: no named well-from-above
 /// landmark transform on tip — Sanctuary boot wake + Sanctuary dress.
+/// CARD L5 — Title `garden_cross_landing` / first-session garden cross call
+/// this wire only. Do not remap PlaceId (shared disk stays THREE).
 pub fn apply_people_landing(
     travel: &mut HexTravelState,
     bind: &mut LivedHourBind,
