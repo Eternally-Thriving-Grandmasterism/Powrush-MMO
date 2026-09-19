@@ -12,6 +12,10 @@
 //! `online yes`. Never first-run default online. Title Online stays grey.
 //! LLM drafts only — PersonaCommit remains the law. No sockets / race-lobby.
 //!
+//! CARD L2 HOUSE-PERSONA-DRESS — after Q House only, one dress token /
+//! people tint lands on the existing `dress_intent` seat. Peace default
+//! (no token) if no House. Not a Title create / race lobby. 0 meshes.
+//!
 //! Scope note: Capable · Bounded · Corrigible is research-style framing
 //! (P5 bounded to default-off online picker + tests) — not a product warranty,
 //! AGSi certification, or lobby SKU.
@@ -41,6 +45,11 @@ pub const PERSONA_PATH: &str = "data/powrush_persona.json";
 /// On-disk leaf name. `path_filter` allows only this direct child.
 pub const PERSONA_FILE_NAME: &str = "powrush_persona.json";
 pub const PERSONA_SCHEMA: &str = "powrush_persona_v1";
+
+/// CARD L2 HOUSE-PERSONA-DRESS — one people tint after Q House only.
+/// Cite ART_BIBLE: Human | warm grey-gold | Sanctuary — cite only, no pack.
+/// Cite PLACE_DRESS · MERCY_PERSONA `dress_intent` seat already on tip.
+pub const HOUSE_PEOPLE_TINT: &str = "warm grey-gold";
 
 /// Soft caps. Soft draft truncates; PersonaCommit re-validates after normalize.
 pub const GIVEN_NAME_MAX: usize = 64;
@@ -816,6 +825,27 @@ pub fn resolve_height(kit: &BodyKit, phenotype: &Phenotype) -> f32 {
     kit.height_band_min + (kit.height_band_max - kit.height_band_min) * t
 }
 
+/// CARD L2 HOUSE-PERSONA-DRESS — one dress token / people tint after House.
+/// Peace (no House) keeps default: no token. Not a Title race lobby.
+pub fn house_dress_token(house_live: bool) -> Option<&'static str> {
+    if house_live {
+        Some(HOUSE_PEOPLE_TINT)
+    } else {
+        None
+    }
+}
+
+/// True when the stranger still wears Peace default dress (no House).
+pub fn is_peace_default_dress(house_live: bool) -> bool {
+    house_dress_token(house_live).is_none()
+}
+
+/// Land or withhold the dress token on `presentation.dress_intent`.
+/// Post-House only. Does not rewrite mechanical_race or people. 0 meshes.
+pub fn land_house_dress(persona: &mut Persona, house_live: bool) {
+    persona.presentation.dress_intent = house_dress_token(house_live).map(str::to_string);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1227,6 +1257,34 @@ mod tests {
         // Honesty still refuses mall/P2W/gold/lobby/LLM-as-product.
         assert!(!persona_copy_is_honest("Grok Online required"));
         assert!(!persona_copy_is_honest("LLM product upsell"));
+        assert!(!persona_copy_is_honest("race lobby ranked"));
+    }
+
+    // --- CARD L2 HOUSE-PERSONA-DRESS (post-House token only) ----------------
+
+    #[test]
+    fn no_house_keeps_peace_default_dress() {
+        let mut p = Persona::nameless_steward();
+        assert!(is_peace_default_dress(false));
+        assert!(house_dress_token(false).is_none());
+        land_house_dress(&mut p, false);
+        assert!(p.presentation.dress_intent.is_none());
+        assert_eq!(p.mechanical_race, MechanicalRace::Human);
+        assert!(matches!(p.presentation.people, PeopleChoice::Unset));
+        assert!(persona_copy_is_honest("Title Online grey"));
+    }
+
+    #[test]
+    fn house_lands_one_dress_token_people_tint() {
+        let mut p = Persona::nameless_steward();
+        land_house_dress(&mut p, true);
+        assert_eq!(house_dress_token(true), Some(HOUSE_PEOPLE_TINT));
+        assert_eq!(p.presentation.dress_intent.as_deref(), Some(HOUSE_PEOPLE_TINT));
+        assert!(!is_peace_default_dress(true));
+        // Not a race lobby — mechanical race + people stay Hour-1 defaults.
+        assert_eq!(p.mechanical_race, MechanicalRace::Human);
+        assert!(matches!(p.presentation.people, PeopleChoice::Unset));
+        assert!(persona_copy_is_honest(HOUSE_PEOPLE_TINT));
         assert!(!persona_copy_is_honest("race lobby ranked"));
     }
 
