@@ -4,6 +4,12 @@
 //! Teaching claim (23.2.25) may replace the hand hint with one sentence.
 //! Soft border breath when the week audit line answers (not a second HUD).
 //! Does not replace harvest_feel. Contact: info@Rathor.ai
+//!
+//! CARD L1 SANCTUARY-WANT — first minutes on the Sanctuary yard slab speak
+//! People + Want. Cite ART_BIBLE: Human | warm grey-gold | Sanctuary — cite only.
+//! Want = the yard needs tending or the well goes quiet.
+//! Cite PLACE_DRESS Sanctuary yard · DRIVE_LORE practices-after-House — cite, no pack.
+//! H hushes this clause; Place · well mood stay. Comfort Low is slab text, 0 meshes.
 
 use bevy::prelude::*;
 
@@ -12,7 +18,9 @@ use shared::heartwood_wards::WARDS_NOTICE;
 
 use crate::climate_script::TeachingClaim;
 use crate::skirmish_well::{tick_well_glow_breath, well_glow_pulse};
-use crate::first_session_guidance::FirstSessionGuidance;
+use crate::first_session_guidance::{
+    first_minutes_people_want_line, FirstSessionGuidance, SANCTUARY_PEOPLE, SANCTUARY_WANT,
+};
 use crate::heartwood_lip::ThresholdShelfSession;
 use crate::hex_travel::HexTravelState;
 use shared::hex_travel::PlaceId;
@@ -239,6 +247,10 @@ fn update_climate_state_slab(
         bind.guidance_hidden,
         guidance.as_ref().map(|g| g.dismissed).unwrap_or(false),
     );
+    let first_minutes = guidance
+        .as_ref()
+        .map(|g| g.objective.is_first_minutes())
+        .unwrap_or(true);
     let place = place_clarity_label(travel.current, threshold_line.is_some());
     // H-2026-09-10-1: place + well mood stay on this one slab even when H hid the card.
     let show = climate_slab_should_show(
@@ -332,7 +344,7 @@ fn update_climate_state_slab(
         threshold_line,
         fallback,
     );
-    let line = place_clarity_line(place, body);
+    let line = speak_first_minutes_people_want(place, body, first_minutes, guidance_hidden);
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -377,6 +389,29 @@ fn place_clarity_line(place: &str, body: String) -> String {
         body.to_string()
     } else {
         format!("{place} · {body}")
+    }
+}
+
+/// CARD L1 SANCTUARY-WANT — Sanctuary first minutes speak People + Want.
+/// H hushes the clause (guidance card + this teaching). Place · mood stay.
+/// Comfort Low is mesh LOD, not a text gate — this line stays words.
+fn speak_first_minutes_people_want(
+    place: &str,
+    body: String,
+    first_minutes: bool,
+    guidance_hidden: bool,
+) -> String {
+    let base = place_clarity_line(place, body);
+    if place != "Sanctuary" || !first_minutes || guidance_hidden {
+        return base;
+    }
+    let want = first_minutes_people_want_line();
+    if base.contains(SANCTUARY_PEOPLE) && base.contains(SANCTUARY_WANT) {
+        base
+    } else if base.is_empty() {
+        want
+    } else {
+        format!("{base} · {want}")
     }
 }
 
@@ -854,6 +889,72 @@ mod tests {
         ));
         assert!(take_line_fired("tended node 3", "walk to a glow"));
         assert!(!take_line_fired("walk to a glow", "walk to a glow"));
+    }
+
+    /// CARD L1 SANCTUARY-WANT — prove-line: People + Want on the Sanctuary slab.
+    #[test]
+    fn first_minutes_sanctuary_speaks_people_and_want() {
+        let mood = well_state_sentence("North Well", NodeState::Idle, true);
+        let line = speak_first_minutes_people_want("Sanctuary", mood, true, false);
+        assert!(line.contains("Sanctuary"));
+        assert!(line.contains(SANCTUARY_PEOPLE));
+        assert!(line.contains(SANCTUARY_WANT));
+        assert!(line.contains("Human"));
+        assert!(line.contains("the yard needs tending or the well goes quiet"));
+        assert_eq!(
+            first_minutes_people_want_line(),
+            "Human · the yard needs tending or the well goes quiet"
+        );
+        // Other Places do not pick up this Want (0 Places).
+        let heart = speak_first_minutes_people_want(
+            "Heartwood",
+            well_state_sentence("North Well", NodeState::Idle, true),
+            true,
+            false,
+        );
+        assert!(!heart.contains(SANCTUARY_WANT));
+    }
+
+    /// CARD L1 SANCTUARY-WANT — H hush drops People+Want; Place · mood stay.
+    #[test]
+    fn h_hush_drops_people_want_keeps_place_mood() {
+        let mood = well_state_sentence("North Well", NodeState::Idle, true);
+        let spoken = speak_first_minutes_people_want("Sanctuary", mood.clone(), true, false);
+        let hushed = speak_first_minutes_people_want("Sanctuary", mood, true, true);
+        assert!(spoken.contains(SANCTUARY_WANT));
+        assert!(!hushed.contains(SANCTUARY_WANT));
+        assert!(!hushed.contains("the yard needs tending or the well goes quiet"));
+        assert_eq!(hushed, "Sanctuary · North Well is Idle · ring");
+        assert!(hushed.contains("Sanctuary"));
+        assert!(hushed.contains("Idle"));
+    }
+
+    /// Comfort Low is mesh LOD — this Want is slab text, readable at every preset.
+    #[test]
+    fn comfort_low_keeps_people_want_readable() {
+        use shared::local_settings::GraphicsPreset;
+        let spoken = speak_first_minutes_people_want(
+            "Sanctuary",
+            well_state_sentence("North Well", NodeState::Idle, true),
+            true,
+            false,
+        );
+        assert!(spoken.contains("Human"));
+        assert!(spoken.contains("the yard needs tending or the well goes quiet"));
+        assert!(spoken.contains("Sanctuary"));
+        for _preset in GraphicsPreset::ALL {
+            assert_eq!(
+                speak_first_minutes_people_want(
+                    "Sanctuary",
+                    well_state_sentence("North Well", NodeState::Idle, true),
+                    true,
+                    false,
+                ),
+                spoken
+            );
+        }
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::Low));
     }
 
 }
