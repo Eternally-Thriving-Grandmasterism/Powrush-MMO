@@ -24,6 +24,10 @@
  * Practices after House. No race lobby. No second HUD.
  * Cite [`docs/MESH_PERSONA_COURT.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
  *
+ * CARD L3 PEOPLE-DOOR-LAND — reuse spawn_human_presence. Wake maps
+ * PeopleLanding onto existing Place boot / Threshold shelf transform.
+ * Do not rewrite the stacked-capsule mesh. 0 meshes.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -32,6 +36,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 
 use crate::companion_bond::CompanionBond;
+use crate::hour_sacred::PeopleLanding;
 use crate::input::PlayerInput;
 use crate::harvest_feel::SoftRbePool;
 use crate::living_body::{BodyTell, LivingBody};
@@ -341,6 +346,28 @@ impl Default for SoftPresence {
             grounded: true,
         }
     }
+}
+
+/// CARD L3 — People-door wake. Reuse spawn_human_presence mesh.
+/// Named shelf transform when present; else Place boot (Sanctuary / apply_place origin).
+/// Ambrosian: no named well-from-above Vec3 on tip — Sanctuary boot (same hex as Human).
+pub fn people_landing_wake(landing: PeopleLanding) -> Vec3 {
+    match landing {
+        PeopleLanding::Threshold => {
+            Vec3::from_array(shared::threshold_shelf::THRESHOLD_SHELF_CENTER)
+        }
+        PeopleLanding::SanctuaryYard
+        | PeopleLanding::SanctuaryWellFromAbove
+        | PeopleLanding::Heartwood
+        | PeopleLanding::DepthsTealWayHome => Vec3::new(0.0, STAND, 0.0),
+    }
+}
+
+/// Seat SoftPresence at the People-door wake. Mesh spawn stays spawn_human_presence.
+pub fn wake_people_landing(presence: &mut SoftPresence, landing: PeopleLanding) {
+    presence.position = people_landing_wake(landing);
+    presence.velocity = Vec3::ZERO;
+    presence.grounded = true;
 }
 
 /// Latch jump from Update input so FixedUpdate never multi-fires or misses the edge.

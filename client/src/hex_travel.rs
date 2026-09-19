@@ -13,20 +13,27 @@
 //! above Comfort (z+2) and keep pause armed — not Comfort/settings linger.
 //! H-2026-09-12-PLACES-FAT: four-room + Confirm/Back hit targets ≥44 logical dp
 //! (fat-tap / lavapipe click-clean). Peace tone; no second HUD.
+//!
+//! CARD L3 PEOPLE-DOOR-LAND — try_cross success → apply_place / lived bind.
+//! PeopleLanding maps onto the three existing PlaceId variants. Threshold
+//! rides Heartwood disk. Cite L3_SPAWN_RESEARCH §3 · PLAYABLE_RACES §1.1.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
 use shared::hex_travel::{
     apply_travel_named, boot_place, confirm_leave, house_embassy_on_place, house_week_footer,
-    places_eligible, places_row_label, read_current_named, read_hex_named, sanctuary_fresh_climate,
+    places_eligible, places_row_label, read_current_named, read_hex_named,
     BootKind, PlaceId, TravelRefuse, PLACES_TITLE,
 };
 use shared::pause_ledger_face::NOT_YOUR_CHARTER;
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
 use crate::embassy::EmbassyYard;
-use crate::hour_sacred::HourSacred;
+use crate::hour_sacred::{
+    try_cross_people_door, HousePeople, HourSacred, PeopleLanding,
+};
+use crate::human_presence::{wake_people_landing, SoftPresence};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::title_screen::{
     yard_after_travel, HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_FG,
@@ -186,7 +193,9 @@ pub fn apply_title_boot(
     apply_place(travel, bind, embassy, dest, book);
 }
 
-fn apply_place(
+/// Places / title-boot climate + hex. Heartwood / Depths still need the book
+/// on this path. People-door land uses [`apply_people_landing`] (House + Tend).
+pub fn apply_place(
     travel: &mut HexTravelState,
     bind: &mut LivedHourBind,
     mut embassy: Option<&mut EmbassyYard>,
@@ -195,32 +204,48 @@ fn apply_place(
 ) {
     if (dest == PlaceId::Heartwood || dest == PlaceId::Depths) && !book {
         travel.current = PlaceId::Sanctuary;
-        load_sanctuary_into(bind);
+        bind.apply_place(PlaceId::Sanctuary);
         return;
     }
     travel.current = dest;
-    match dest {
-        PlaceId::Sanctuary => {
-            load_sanctuary_into(bind);
-            restore_house_embassy(embassy.as_deref_mut());
-        }
-        PlaceId::Heartwood => {
-            let file = read_hex_named(PlaceId::Heartwood)
-                .unwrap_or_else(|| shared::hex_travel::stub_hex_file(PlaceId::Heartwood));
-            bind.climate = file.climate;
-            bind.standing = file.standing;
-            bind.refresh_climate_slab_keep_week();
-            // Hex lamp_empty is climate. Leave the house EmbassyYard seated.
-        }
-        PlaceId::Depths => {
-            let file = read_hex_named(PlaceId::Depths)
-                .unwrap_or_else(|| shared::hex_travel::stub_hex_file(PlaceId::Depths));
-            bind.climate = file.climate;
-            bind.standing = file.standing;
-            bind.refresh_climate_slab_keep_week();
-        }
+    bind.apply_place(dest);
+    if dest == PlaceId::Sanctuary {
+        restore_house_embassy(embassy.as_deref_mut());
     }
     maybe_sum_house_week(bind);
+}
+
+/// CARD L3 — try_cross success → apply_place / lived bind. House + Tend
+/// authorizes Heartwood / Depths (not Places book). One-way stays L2.
+/// Threshold disk is Heartwood (no fourth PlaceId).
+pub fn apply_people_landing(
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    embassy: Option<&mut EmbassyYard>,
+    landing: PeopleLanding,
+    presence: Option<&mut SoftPresence>,
+) {
+    let dest = landing.place_id();
+    apply_place(travel, bind, embassy, dest, true);
+    if let Some(p) = presence {
+        wake_people_landing(p, landing);
+    }
+}
+
+/// CARD L3 — L2 door then land. Skip House / no Tend / already crossed = no move.
+pub fn try_cross_people_door_land(
+    house_live: bool,
+    tended_once: bool,
+    crossed: &mut Option<HousePeople>,
+    people: HousePeople,
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    embassy: Option<&mut EmbassyYard>,
+    presence: Option<&mut SoftPresence>,
+) -> Option<PeopleLanding> {
+    let landing = try_cross_people_door(house_live, tended_once, crossed, people)?;
+    apply_people_landing(travel, bind, embassy, landing, presence);
+    Some(landing)
 }
 
 fn restore_house_embassy(embassy: Option<&mut EmbassyYard>) {
@@ -230,22 +255,6 @@ fn restore_house_embassy(embassy: Option<&mut EmbassyYard>) {
             yard.embassy = house_embassy_on_place(&pack.embassy, PlaceId::Sanctuary);
         }
     }
-}
-
-fn load_sanctuary_into(bind: &mut LivedHourBind) {
-    if let Some(file) = read_hex_named(PlaceId::Sanctuary) {
-        bind.climate = file.climate;
-        bind.standing = file.standing;
-    } else if bind.climate.hex_id == PlaceId::Heartwood.as_str()
-        || bind.climate.hex_id == PlaceId::Depths.as_str()
-    {
-        bind.climate = sanctuary_fresh_climate();
-        bind.standing = shared::hex_travel::sanctuary_fresh_standing();
-    } else if bind.climate.hex_id.is_empty() || bind.climate.hex_id == "local-hex" {
-        bind.climate.hex_id = PlaceId::Sanctuary.as_str().into();
-        bind.standing.hex_id = PlaceId::Sanctuary.as_str().into();
-    }
-    bind.refresh_climate_slab_keep_week();
 }
 
 fn maybe_sum_house_week(bind: &mut LivedHourBind) {
@@ -1267,5 +1276,121 @@ mod tests {
         // PLACES-CLICK stack intact — fat-tap does not lower z or add a HUD.
         assert_eq!(PLACES_PLATE_Z, LIVED_UI_Z_PAUSE + 2);
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+    }
+
+    fn demo_bind() -> LivedHourBind {
+        LivedHourBind {
+            hour: shared::climate_node::LivedHour::new_demo(),
+            climate: Default::default(),
+            standing: Default::default(),
+            week: Default::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        }
+    }
+
+    fn land_people(
+        house: bool,
+        tend: bool,
+        people: HousePeople,
+        start: PlaceId,
+    ) -> (Option<PeopleLanding>, PlaceId) {
+        let mut travel = HexTravelState { current: start };
+        let mut bind = demo_bind();
+        let mut crossed = None;
+        let land = try_cross_people_door_land(
+            house,
+            tend,
+            &mut crossed,
+            people,
+            &mut travel,
+            &mut bind,
+            None,
+            None,
+        );
+        (land, travel.current)
+    }
+
+    /// CARD L3 — skip House → no PlaceId change.
+    #[test]
+    fn skip_house_no_place_id_change() {
+        let start = PlaceId::Sanctuary;
+        let (land, now) = land_people(false, true, HousePeople::Human, start);
+        assert!(land.is_none());
+        assert_eq!(now, start);
+        let (land, now) = land_people(false, true, HousePeople::Draek, PlaceId::Sanctuary);
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+    }
+
+    /// CARD L3 — Human door → Sanctuary.
+    #[test]
+    fn human_door_lands_sanctuary() {
+        let (land, now) = land_people(true, true, HousePeople::Human, PlaceId::Sanctuary);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryYard));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(PeopleLanding::SanctuaryYard.place_id(), PlaceId::Sanctuary);
+    }
+
+    /// CARD L3 — Cydruid door → Heartwood. C0: human-in-frame, no treant.
+    #[test]
+    fn cydruid_door_lands_heartwood() {
+        let (land, now) = land_people(true, true, HousePeople::Cydruid, PlaceId::Sanctuary);
+        assert_eq!(land, Some(PeopleLanding::Heartwood));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+        assert!(!HousePeople::Cydruid.people_line().contains("bark"));
+    }
+
+    /// CARD L3 — Quellorian door → Heartwood disk (no new PlaceId variant).
+    #[test]
+    fn quellorian_door_lands_heartwood_disk() {
+        let (land, now) = land_people(true, true, HousePeople::Quellorian, PlaceId::Sanctuary);
+        assert_eq!(land, Some(PeopleLanding::Threshold));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert_eq!(
+            LOCAL_HEXES.len(),
+            3,
+            "disk hexes stay three; Threshold rides Heartwood"
+        );
+        match now {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+    }
+
+    /// CARD L3 — Draek door → Depths.
+    #[test]
+    fn draek_door_lands_depths() {
+        let (land, now) = land_people(true, true, HousePeople::Draek, PlaceId::Sanctuary);
+        assert_eq!(land, Some(PeopleLanding::DepthsTealWayHome));
+        assert_eq!(now, PlaceId::Depths);
+        assert_eq!(
+            PeopleLanding::DepthsTealWayHome.place_id(),
+            PlaceId::Depths
+        );
+    }
+
+    /// CARD L3 — Ambrosian door → Sanctuary (same hex as Human, not a 5th room).
+    #[test]
+    fn ambrosian_door_lands_sanctuary() {
+        let (land, now) = land_people(true, true, HousePeople::Ambrosian, PlaceId::Sanctuary);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryWellFromAbove));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(
+            PeopleLanding::SanctuaryWellFromAbove.place_id(),
+            PlaceId::Sanctuary
+        );
+        assert_eq!(
+            HousePeople::Ambrosian.landing().place_id(),
+            HousePeople::Human.landing().place_id()
+        );
+        assert_ne!(
+            HousePeople::Ambrosian.landing(),
+            HousePeople::Human.landing()
+        );
     }
 }
