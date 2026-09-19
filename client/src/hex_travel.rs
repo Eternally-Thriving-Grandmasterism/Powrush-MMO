@@ -20,6 +20,8 @@
 //! CARD L4 PLACE-DRESS-ON-LAND — after apply_people_landing, the same
 //! apply_place path Esc→Places uses turns on the authored Place dress
 //! (climate_plane look_for). 0 meshes. Cite PLACE_DRESS_SPEC · ART_BIBLE.
+//! CARD L5 TITLE-GARDEN-LAND — Title garden_cross_landing and first-session
+//! People-door call [`apply_people_landing`] here. No PlaceId remap.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
