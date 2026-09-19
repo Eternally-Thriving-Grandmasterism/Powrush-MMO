@@ -14,6 +14,13 @@
  * Cite PLACE_DRESS Sanctuary yard · DRIVE_LORE practices-after-House — cite, no pack.
  * H hush still works. 0 meshes · 0 new verbs · 0 Places.
  *
+ * CARD L1 GARDEN-WANT — same People + Want retargeted onto the Garden / boot
+ * plane (walkable title · God-plane, D0 EDEN-PLANE-LAW @ 2afff36).
+ * Cite PLACE_DRESS Garden≠Sanctuary · ART_BIBLE / PLAYABLE_RACES (Human — cite only).
+ * Want lives on Title before Play; Sanctuary dirt is not required.
+ * H hush still works. Comfort Low is mesh LOD, not a text gate.
+ * 0 meshes · 0 new verbs · 0 Places · Title stays Play / Continue / Settings · Online grey.
+ *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
@@ -40,6 +47,25 @@ pub const SANCTUARY_WANT: &str = "the yard needs tending or the well goes quiet"
 /// Spoken People + Want the stranger hears in the first minutes.
 pub fn first_minutes_people_want_line() -> String {
     format!("{SANCTUARY_PEOPLE} · {SANCTUARY_WANT}")
+}
+
+/// CARD L1 GARDEN-WANT — retarget SANCTUARY-WANT People onto the Garden / boot plane.
+/// People stays Human. Cite ART_BIBLE / PLAYABLE_RACES — cite only, no pack, no Title race lobby.
+pub const GARDEN_PEOPLE: &str = SANCTUARY_PEOPLE;
+
+/// CARD L1 GARDEN-WANT — retarget SANCTUARY-WANT onto the Garden / boot plane.
+/// Same Want: tend or the well goes quiet. Cite PLACE_DRESS Garden≠Sanctuary · D0 EDEN-PLANE-LAW.
+pub const GARDEN_WANT: &str = SANCTUARY_WANT;
+
+/// CARD L1 GARDEN-WANT — Garden / walkable title · God-plane speaks People + Want.
+/// `on_garden_boot` is Title (LaunchDoor::Title), not Sanctuary dirt / InYard.
+/// H hush drops the line. Comfort Low does not gate these words.
+pub fn garden_boot_want_line(on_garden_boot: bool, hush: bool) -> Option<String> {
+    if !on_garden_boot || hush {
+        None
+    } else {
+        Some(first_minutes_people_want_line())
+    }
 }
 
 /// Soft objective the player is gently invited to try next.
@@ -730,5 +756,76 @@ mod tests {
             first_minutes_people_want_line(),
             "Human · the yard needs tending or the well goes quiet"
         );
+    }
+
+    /// CARD L1 GARDEN-WANT — prove-line: Want on Garden / boot plane, no Sanctuary dirt.
+    #[test]
+    fn garden_boot_speaks_want_without_sanctuary_dirt() {
+        let spoken = garden_boot_want_line(true, false).expect("Want on Garden boot");
+        assert_eq!(spoken, first_minutes_people_want_line());
+        assert_eq!(GARDEN_PEOPLE, SANCTUARY_PEOPLE);
+        assert_eq!(GARDEN_WANT, SANCTUARY_WANT);
+        assert!(spoken.contains(GARDEN_PEOPLE));
+        assert!(spoken.contains(GARDEN_WANT));
+        assert_eq!(spoken, "Human · the yard needs tending or the well goes quiet");
+        assert!(spoken.contains("tend"));
+        assert!(spoken.contains("the well goes quiet"));
+        // Cite only — People stays Human; no fifth Place named on the boot line.
+        assert!(!spoken.contains("Sanctuary"));
+        assert!(!spoken.contains("Heartwood"));
+        assert!(!spoken.contains("Market"));
+        // Not on the boot plane → Garden line stays silent (0 new Places / no dirt required).
+        assert!(garden_boot_want_line(false, false).is_none());
+        // 0 new verbs — WASD / E stay the hands; this line is Want speech only.
+        assert!(!spoken.contains("WASD"));
+        assert!(!spoken.contains("Tab"));
+        assert!(!spoken.contains("Q plant"));
+    }
+
+    /// CARD L1 GARDEN-WANT — H hush still works on the Garden / boot plane.
+    #[test]
+    fn garden_boot_h_hush_still_works() {
+        let mut g = FirstSessionGuidance::default();
+        assert!(g.speaks_people_want());
+        assert!(garden_boot_want_line(true, !g.speaks_people_want()).is_some());
+        g.dismiss();
+        assert!(g.dismissed);
+        assert!(!g.active);
+        assert!(!g.speaks_people_want());
+        assert!(garden_boot_want_line(true, !g.speaks_people_want()).is_none());
+        g.advance_if_ready();
+        assert!(g.dismissed);
+        assert!(garden_boot_want_line(true, !g.speaks_people_want()).is_none());
+        // Retargeted constants survive hush — the plane just stops speaking.
+        assert_eq!(GARDEN_WANT, SANCTUARY_WANT);
+        assert_eq!(
+            first_minutes_people_want_line(),
+            "Human · the yard needs tending or the well goes quiet"
+        );
+    }
+
+    /// Comfort Low is mesh LOD + larger text_scale — Garden Want stays words.
+    #[test]
+    fn garden_boot_comfort_low_keeps_want_readable() {
+        use shared::local_settings::{GraphicsPreset, LocalSettings};
+        let spoken = garden_boot_want_line(true, false).expect("Want on Garden boot");
+        assert!(spoken.contains("Human"));
+        assert!(spoken.contains("the yard needs tending or the well goes quiet"));
+        for _preset in GraphicsPreset::ALL {
+            assert_eq!(
+                garden_boot_want_line(true, false).expect("Want at every Comfort"),
+                spoken
+            );
+        }
+        let mut low = LocalSettings::peace_defaults();
+        low.set_graphics_preset(GraphicsPreset::Low);
+        assert_eq!(low.graphics_preset, GraphicsPreset::Low);
+        assert!(
+            low.text_scale >= 1.10,
+            "Comfort Low bumps text_scale so boot Want stays readable"
+        );
+        assert_eq!(garden_boot_want_line(true, false).expect("Want at Low"), spoken);
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::Low));
     }
 }

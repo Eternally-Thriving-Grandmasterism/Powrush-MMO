@@ -42,6 +42,13 @@
 //! Fog/birds visual comfort PARKED (Title contrast law).
 //! Pause→Title + Settled write data/powrush_house.json even if name skipped.
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
+//!
+//! CARD L1 GARDEN-WANT — Garden / boot plane (walkable title · God-plane, D0
+//! EDEN-PLANE-LAW @ 2afff36) speaks the retargeted L1 SANCTUARY-WANT line
+//! before Play lands in Sanctuary dirt. Cite PLACE_DRESS Garden≠Sanctuary ·
+//! ART_BIBLE / PLAYABLE_RACES (Human — cite only). H hush still works.
+//! Comfort Low is mesh LOD + text_scale, not a text gate. 0 meshes · 0 new
+//! verbs · 0 Places. Title stays Play / Continue / Settings · Online grey.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::KeyboardInput;
@@ -64,6 +71,9 @@ use shared::persona::{
 };
 
 use crate::embassy::EmbassyYard;
+use crate::first_session_guidance::{
+    first_minutes_people_want_line, garden_boot_want_line, FirstSessionGuidance,
+};
 use crate::hex_travel::{
     apply_title_boot, settings_visible_with_places, HexTravelState, PausePlacesBtn, PlacesDoorClickSet,
     PlacesPlate,
@@ -228,6 +238,9 @@ struct TitleRoot;
 struct TitlePlate;
 #[derive(Component)]
 struct TitleCueText;
+/// CARD L1 GARDEN-WANT — People + Want spoken on the walkable title / God-plane.
+#[derive(Component)]
+struct TitleGardenWantText;
 #[derive(Component)]
 struct TitleBreath;
 #[derive(Component)]
@@ -904,6 +917,7 @@ impl Plugin for TitleScreenPlugin {
                 (
                     breath_title_border,
                     refresh_title_cue,
+                    refresh_garden_boot_want,
                     title_button_clicks,
                     title_keyboard_shortcuts,
                     sync_title_visibility,
@@ -1035,6 +1049,21 @@ fn spawn_title_screen(mut commands: Commands) {
                         color: TITLE_TEXT_SECONDARY,
                         ..default()
                     },
+                ));
+                p.spawn((
+                    TextBundle::from_section(
+                        first_minutes_people_want_line(),
+                        TextStyle {
+                            font_size: garden_boot_want_font_px(1.0),
+                            color: TITLE_TEXT_PRIMARY,
+                            ..default()
+                        },
+                    )
+                    .with_style(Style {
+                        max_width: Val::Px(TITLE_PLATE_MAX_WIDTH - 44.0),
+                        ..default()
+                    }),
+                    TitleGardenWantText,
                 ));
                 p.spawn((
                     TextBundle::from_section(
@@ -1829,6 +1858,40 @@ fn refresh_title_cue(label: Res<HouseLabel>, mut q: Query<&mut Text, With<TitleC
                 s.value = cue.clone();
             }
         }
+    }
+}
+
+/// Comfort Low bumps `text_scale` to 1.10 — Garden Want stays words, not a mesh.
+pub fn garden_boot_want_font_px(text_scale: f32) -> f32 {
+    (14.0 * text_scale.clamp(1.0, 1.6)).clamp(13.0, 22.0)
+}
+
+/// CARD L1 GARDEN-WANT — Title / God-plane speaks People + Want until H hushes.
+/// Does not require LaunchDoor::InYard or Sanctuary dirt.
+fn refresh_garden_boot_want(
+    door: Res<LaunchDoor>,
+    guidance: Option<Res<FirstSessionGuidance>>,
+    settings: Res<LocalSettingsState>,
+    mut q: Query<(&mut Text, &mut Visibility), With<TitleGardenWantText>>,
+) {
+    let hush = guidance.map(|g| !g.speaks_people_want()).unwrap_or(false);
+    let spoken = garden_boot_want_line(*door == LaunchDoor::Title, hush);
+    let font = garden_boot_want_font_px(settings.inner.text_scale);
+    for (mut text, mut vis) in &mut q {
+        if let Some(s) = text.sections.get_mut(0) {
+            let value = spoken.clone().unwrap_or_default();
+            if s.value != value {
+                s.value = value;
+            }
+            if (s.style.font_size - font).abs() > 0.01 {
+                s.style.font_size = font;
+            }
+        }
+        *vis = if spoken.is_some() {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
     }
 }
 
@@ -3818,6 +3881,65 @@ mod tests {
     #[test]
     fn title_default_is_launch_door_title() {
         assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
+    }
+
+    /// CARD L1 GARDEN-WANT — stranger on Title / God-plane hears Want before Play.
+    #[test]
+    fn garden_boot_title_speaks_want_before_play() {
+        use crate::first_session_guidance::{
+            first_minutes_people_want_line, garden_boot_want_line, FirstSessionGuidance,
+            GARDEN_PEOPLE, GARDEN_WANT, SANCTUARY_WANT,
+        };
+        assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
+        let spoken = garden_boot_want_line(true, false).expect("Want on Garden boot");
+        assert_eq!(spoken, first_minutes_people_want_line());
+        assert!(spoken.contains(GARDEN_PEOPLE));
+        assert!(spoken.contains(GARDEN_WANT));
+        assert!(spoken.contains(SANCTUARY_WANT));
+        assert!(spoken.contains("tend"));
+        assert!(spoken.contains("the well goes quiet"));
+        // Sanctuary dirt / InYard is not required for the boot-plane line.
+        assert!(garden_boot_want_line(false, false).is_none());
+        let mut g = FirstSessionGuidance::default();
+        assert!(g.speaks_people_want());
+        g.dismiss();
+        assert!(garden_boot_want_line(true, !g.speaks_people_want()).is_none());
+        // Title chrome unchanged · Online grey · 0 Places.
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+    }
+
+    /// CARD L1 GARDEN-WANT — Title spawn speaks Want; Comfort Low stays readable.
+    #[test]
+    fn garden_boot_title_spawn_shows_want_comfort_low_readable() {
+        use crate::first_session_guidance::{GARDEN_WANT, SANCTUARY_PEOPLE};
+        let mut app = App::new();
+        app.add_systems(Startup, spawn_title_screen);
+        app.update();
+
+        let world = app.world_mut();
+        let text = world
+            .query_filtered::<&Text, With<TitleGardenWantText>>()
+            .single(world);
+        let line = &text.sections[0].value;
+        assert!(line.contains(SANCTUARY_PEOPLE));
+        assert!(line.contains(GARDEN_WANT));
+        assert!(line.contains("the yard needs tending or the well goes quiet"));
+        assert_eq!(
+            text.sections[0].style.color,
+            TITLE_TEXT_PRIMARY,
+            "Garden Want uses primary title text for Comfort Low"
+        );
+        assert!(
+            title_luminance(TITLE_TEXT_PRIMARY) > title_luminance(TITLE_PLATE_BG),
+            "Comfort Low readable: Want stays light-on-opaque-dark"
+        );
+        assert!(title_contrast_is_high());
+        let mut low = LocalSettings::peace_defaults();
+        low.set_graphics_preset(GraphicsPreset::Low);
+        assert!(low.text_scale >= 1.10);
+        assert!(garden_boot_want_font_px(low.text_scale) >= garden_boot_want_font_px(1.0));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 
     #[test]
