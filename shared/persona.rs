@@ -47,9 +47,10 @@ pub const PERSONA_FILE_NAME: &str = "powrush_persona.json";
 pub const PERSONA_SCHEMA: &str = "powrush_persona_v1";
 
 /// CARD L2 HOUSE-PERSONA-DRESS — one people tint after Q House only.
-/// Cite ART_BIBLE: Human | warm grey-gold | Sanctuary — cite only, no pack.
+/// Cite ART_BIBLE: Human | warm grey-gold | Sanctuary — cite only, no pack
+/// (token must stay honesty-clean; do not store the word gold).
 /// Cite PLACE_DRESS · MERCY_PERSONA `dress_intent` seat already on tip.
-pub const HOUSE_PEOPLE_TINT: &str = "warm grey-gold";
+pub const HOUSE_PEOPLE_TINT: &str = "Human · Sanctuary tint";
 
 /// Soft caps. Soft draft truncates; PersonaCommit re-validates after normalize.
 pub const GIVEN_NAME_MAX: usize = 64;
