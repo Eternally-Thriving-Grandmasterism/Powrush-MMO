@@ -11,7 +11,7 @@ Lived hands win every systems fight. Contact: info@Rathor.ai
 - Clinical harvest only: incapacitate → stealth ship or portable portal → Mothership bays. Never eat on-screen.
 - Earth nukes disabled first. WWIII = false flags + kinetic / sun-lance / earthquake bombs. Fracture, low-G.
 - Portal edition beats teleport-beam edition (metal ring + blue vortex; Ambrosian-tech hint).
-- Cydruids rise from the cracked heart → **Depths** dress.
+- Cydruids rise from the cracked heart → **Depths** dress. Cydruid = **human housed in a cyborg frame** (not a treant / bark creature / tree-people). Chakra path = human body kept, machine worn. Vessel path = human head/brain in robot body. Nature = practice / attunement, not species. Heartwood Place may stay living-wood; the person is not a tree. Teal / leaf-metal = trim / metal accents, not bark-skin. Cite steward C0 · D0 Eden @ `2afff36` · `PLAYABLE_RACES` Cydruid block · X status 1998585780420427986 (cite only).
 - Quellorians late mercy → **Heartwood / Wards**.
 - Tableau of four practices = CODEX painting after the book, not Title.
 

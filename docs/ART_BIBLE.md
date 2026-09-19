@@ -36,11 +36,13 @@ No Title race select. Visual only:
 |---|---|---|
 | Human | warm grey-gold | Sanctuary |
 | Draek | dry red / bronze | later shard / Threshold |
-| Cydruid | teal / leaf-metal | Depths |
+| Cydruid | teal / leaf-metal **trim / metal accents** (not bark-skin) | Depths |
 | Quellorian | iridescent violet / pink · pale gold | Heartwood / Wards; pale-gold structure rhymes with steward Codex stills |
 | Ambrosian | prism cool | mythic / portal ring |
 
 Not STR/AGI. Not default-E change. No sixth people.
+
+Cydruid dress: **human housed in a cyborg frame**. Teal / leaf-metal is **trim / metal accents**, not bark-skin, not vines, not a heartwood-core-as-body. Nature is practice / attunement, not species. Heartwood Place may stay living-wood; the person is not a tree. Cite steward C0 · D0 Eden @ `2afff36` · `PLAYABLE_RACES` Cydruid block · X status 1998585780420427986 (cite only; do not fetch binaries). **0 meshes.**
 
 ### Quellorian Codex still rhyme
 
