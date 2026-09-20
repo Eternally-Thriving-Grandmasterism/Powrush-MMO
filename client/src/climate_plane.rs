@@ -22,6 +22,13 @@
  * Cite [`docs/PLACE_DRESS_SPEC.md`] · [`docs/MESH_PERSONA_COURT.md`]
  * · [`docs/ART_BIBLE.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
  *
+ * CARD L7 ARRIVAL-BEAT — People-door land applies one FogSettings beat from
+ * existing look_for tokens. Human → SanctuarySkyYard / warm-gold well.
+ * Ambrosian → brighter / thinner high fog on the same Sanctuary disk
+ * (mothership-over-Earth PRESENTATION; no hull mesh). Cydruid amber canopy.
+ * Draek wet-stone / teal Peace. Quellorian keeps Heartwood fog (shelf is the
+ * culture). Garden title light yields — Sanctuary is the lived level. 0 meshes.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -245,6 +252,65 @@ pub fn dress_token_for_landing(landing: PeopleLanding) -> &'static str {
     dress_token_for_place(landing.place_id())
 }
 
+/// CARD L7 — existing FogSettings tokens for one arrival beat. No new mesh.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ArrivalFog {
+    pub color: Color,
+    pub start: f32,
+    pub end: f32,
+}
+
+fn look_fog(look: ClimateLook) -> ArrivalFog {
+    ArrivalFog {
+        color: look.fog,
+        start: look.fog_start,
+        end: look.fog_end,
+    }
+}
+
+/// CARD L7 — fog keyed by PeopleLanding from existing [`look_for`] only.
+/// Ambrosian keeps SanctuarySkyYard family, brighter / thinner (high).
+/// mothership-over-Earth PRESENTATION; no hull mesh.
+pub fn arrival_fog_for_landing(landing: PeopleLanding) -> ArrivalFog {
+    let look = look_for(dress_realm_for_place(landing.place_id()));
+    match landing {
+        PeopleLanding::SanctuaryWellFromAbove => {
+            let s = look.fog.to_srgba();
+            ArrivalFog {
+                color: Color::srgba(
+                    (s.red * 1.22).min(1.0),
+                    (s.green * 1.22).min(1.0),
+                    (s.blue * 1.16).min(1.0),
+                    s.alpha,
+                ),
+                start: look.fog_start + 6.0,
+                end: look.fog_end + 14.0,
+            }
+        }
+        PeopleLanding::SanctuaryYard
+        | PeopleLanding::Heartwood
+        | PeopleLanding::Threshold
+        | PeopleLanding::DepthsTealWayHome => look_fog(look),
+    }
+}
+
+/// Garden title light yields on People-door land — lived Place dress is the level.
+pub fn arrival_garden_title_light_yields(landing: PeopleLanding) -> bool {
+    dress_token_for_landing(landing) != "Garden"
+        && matches!(
+            landing.place_id(),
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths
+        )
+}
+
+/// Ambrosian high fog is thinner (starts later) and brighter than Human yard fog.
+pub fn arrival_fog_is_thinner_brighter(high: ArrivalFog, yard: ArrivalFog) -> bool {
+    high.start > yard.start
+        && high.end > yard.end
+        && srgb3(high.color).0 + srgb3(high.color).1 + srgb3(high.color).2
+            > srgb3(yard.color).0 + srgb3(yard.color).1 + srgb3(yard.color).2
+}
+
 /// Comfort MeshLodPlan → Place dress procedural scale (path stones).
 pub fn place_dress_lod_scale(preset: GraphicsPreset) -> f32 {
     mesh_lod::lived_place_dress_detail_scale(&mesh_lod::plan_for_preset(preset))
@@ -440,6 +506,7 @@ impl Plugin for ClimatePlanePlugin {
                     apply_climate_look,
                     apply_place_dress_mesh_lod,
                     breathe_weather_bed,
+                    apply_arrival_beat_fog.after(breathe_weather_bed),
                     update_climate_chip,
                 ),
             );
@@ -673,6 +740,35 @@ fn apply_climate_look(
         };
     }
     info!(target: "powrush::climate", climate = look.name, id, "place shifted");
+}
+
+/// CARD L7 — Ambrosian lift plays brighter / thinner high fog from existing
+/// FogSettings. Same Sanctuary PlaceId as Human. No new mesh / Camera3d.
+fn apply_arrival_beat_fog(
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    presence: Option<Res<crate::human_presence::SoftPresence>>,
+    mut fogs: Query<&mut FogSettings>,
+) {
+    let Some(presence) = presence else {
+        return;
+    };
+    let Some(travel) = travel else {
+        return;
+    };
+    if travel.current != PlaceId::Sanctuary {
+        return;
+    }
+    if !crate::human_presence::presence_reads_ambrosian_lift(presence.position) {
+        return;
+    }
+    let fog = arrival_fog_for_landing(PeopleLanding::SanctuaryWellFromAbove);
+    for mut settings in &mut fogs {
+        settings.color = fog.color;
+        settings.falloff = FogFalloff::Linear {
+            start: fog.start,
+            end: fog.end,
+        };
+    }
 }
 
 /// Apply Comfort MeshLodPlan scale when Esc Graphics changes.
@@ -1521,6 +1617,57 @@ mod tests {
         assert_eq!(dress_token_for_landing(amb), dress_token_for_landing(human));
         assert_eq!(dress_token_for_landing(amb), "Sanctuary Prime");
         assert_ne!(amb, human);
+    }
+
+    /// CARD L7 — Human beat uses SanctuarySkyYard / warm-gold well already on tip.
+    #[test]
+    fn l7_human_arrival_fog_is_sanctuary_sky_yard() {
+        let fog = arrival_fog_for_landing(PeopleLanding::SanctuaryYard);
+        let look = look_for(Some(0));
+        assert_eq!(fog.color, look.fog);
+        assert_eq!(fog.start, look.fog_start);
+        assert_eq!(fog.end, look.fog_end);
+        assert_eq!(dress_mood_for_place(PlaceId::Sanctuary), PlaceMood::SanctuarySkyYard);
+        assert!(is_warm_gold_well(look.node));
+        assert!(arrival_garden_title_light_yields(PeopleLanding::SanctuaryYard));
+        assert_eq!(dress_token_for_landing(PeopleLanding::SanctuaryYard), "Sanctuary Prime");
+    }
+
+    /// CARD L7 — Ambrosian high fog is thinner / brighter on the same Sanctuary disk.
+    #[test]
+    fn l7_ambrosian_arrival_fog_thinner_brighter_same_place() {
+        let human = arrival_fog_for_landing(PeopleLanding::SanctuaryYard);
+        let amb = arrival_fog_for_landing(PeopleLanding::SanctuaryWellFromAbove);
+        assert_eq!(
+            PeopleLanding::SanctuaryWellFromAbove.place_id(),
+            PeopleLanding::SanctuaryYard.place_id()
+        );
+        assert!(arrival_fog_is_thinner_brighter(amb, human));
+        assert!(arrival_garden_title_light_yields(
+            PeopleLanding::SanctuaryWellFromAbove
+        ));
+        assert_eq!(
+            dress_token_for_landing(PeopleLanding::SanctuaryWellFromAbove),
+            dress_token_for_landing(PeopleLanding::SanctuaryYard)
+        );
+    }
+
+    /// CARD L7 — Cydruid / Draek / Quellorian reuse existing Place fog tokens.
+    #[test]
+    fn l7_cydruid_draek_quellorian_existing_place_fog() {
+        let canopy = arrival_fog_for_landing(PeopleLanding::Heartwood);
+        let heart = look_for(Some(2));
+        assert_eq!(canopy.color, heart.fog);
+        assert!(is_amber_lamp(heart.node));
+        let depths = arrival_fog_for_landing(PeopleLanding::DepthsTealWayHome);
+        let wet = look_for(Some(3));
+        assert_eq!(depths.color, wet.fog);
+        assert!(is_teal_peace(wet.node));
+        assert_eq!(
+            arrival_fog_for_landing(PeopleLanding::Threshold).color,
+            heart.fog
+        );
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
     }
 
     /// CARD L4 — HexTravelState PlaceId turns on the existing look_for realm.
