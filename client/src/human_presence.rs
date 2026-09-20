@@ -28,6 +28,11 @@
  * PeopleLanding onto existing Place boot / Threshold shelf transform.
  * Do not rewrite the stacked-capsule mesh. 0 meshes.
  *
+ * CARD L7 ARRIVAL-BEAT — People-door land plays one short beat from
+ * existing fog / camera / SoftPresence. Keyed by PeopleLanding, not a
+ * new hex. Ambrosian = lift on Sanctuary disk (FORK A). mothership-over-Earth
+ * PRESENTATION; no hull mesh. 0 meshes.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -348,26 +353,94 @@ impl Default for SoftPresence {
     }
 }
 
-/// CARD L3 — People-door wake. Reuse spawn_human_presence mesh.
+/// CARD L7 — existing Sanctuary yard helper. Human camera eases DOWN onto this.
+pub fn sanctuary_yard_wake() -> Vec3 {
+    Vec3::new(0.0, STAND, 0.0)
+}
+
+/// Ambrosian well-from-above lift on the same Sanctuary disk (FORK A).
+/// mothership-over-Earth PRESENTATION; no hull mesh. Above a Peace jump apex
+/// so a short look-down beat can read without a new PlaceId.
+pub const AMBROSIAN_WELL_LIFT: f32 = 3.4;
+
+/// Y above the yard helper that still reads as the Ambrosian lift (not a jump).
+pub const AMBROSIAN_LIFT_DETECT: f32 = 2.0;
+
+/// CARD L7 — camera ease keyed by PeopleLanding. No new Camera3d.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArrivalCameraEase {
+    /// Human / SanctuaryYard — ease DOWN onto the existing Sanctuary wake.
+    Down,
+    /// Ambrosian — ease UP, look-down on the same yard/well. No hull mesh.
+    Up,
+    /// Quellorian shelf is the culture — no extra lift.
+    None,
+}
+
+/// CARD L3 / L7 — People-door wake. Reuse spawn_human_presence mesh.
 /// Named shelf transform when present; else Place boot (Sanctuary / apply_place origin).
-/// Ambrosian: no named well-from-above Vec3 on tip — Sanctuary boot (same hex as Human).
+/// Ambrosian: SAME PlaceId::Sanctuary as Human; wake Y is the well-from-above lift
+/// (FORK A — mothership-over-Earth PRESENTATION; no hull mesh). Not a planet hex.
 pub fn people_landing_wake(landing: PeopleLanding) -> Vec3 {
     match landing {
         PeopleLanding::Threshold => {
+            // Shelf is the culture — no extra lift.
             Vec3::from_array(shared::threshold_shelf::THRESHOLD_SHELF_CENTER)
         }
-        PeopleLanding::SanctuaryYard
-        | PeopleLanding::SanctuaryWellFromAbove
-        | PeopleLanding::Heartwood
-        | PeopleLanding::DepthsTealWayHome => Vec3::new(0.0, STAND, 0.0),
+        PeopleLanding::SanctuaryYard => sanctuary_yard_wake(),
+        PeopleLanding::SanctuaryWellFromAbove => {
+            sanctuary_yard_wake() + Vec3::Y * AMBROSIAN_WELL_LIFT
+        }
+        PeopleLanding::Heartwood | PeopleLanding::DepthsTealWayHome => sanctuary_yard_wake(),
     }
 }
 
+/// SoftPresence.y still reads as the Ambrosian Sanctuary lift (short beat).
+pub fn presence_reads_ambrosian_lift(position: Vec3) -> bool {
+    position.y > sanctuary_yard_wake().y + AMBROSIAN_LIFT_DETECT
+}
+
+/// CARD L7 — one arrival-beat camera ease. Quellorian stays None (shelf height).
+pub fn arrival_camera_ease(landing: PeopleLanding) -> ArrivalCameraEase {
+    match landing {
+        PeopleLanding::SanctuaryYard => ArrivalCameraEase::Down,
+        PeopleLanding::SanctuaryWellFromAbove => ArrivalCameraEase::Up,
+        PeopleLanding::Threshold => ArrivalCameraEase::None,
+        PeopleLanding::Heartwood | PeopleLanding::DepthsTealWayHome => ArrivalCameraEase::Down,
+    }
+}
+
+/// CARD L7 — skip House / no land → no beat flag. Land → one beat, no new mesh.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct ArrivalBeat {
+    pub armed: bool,
+    pub landing: Option<PeopleLanding>,
+}
+
+/// Beat flag after apply_people_landing. Skip House keeps this unarmed.
+pub fn arrival_beat_after_land(landing: Option<PeopleLanding>) -> ArrivalBeat {
+    match landing {
+        Some(land) => ArrivalBeat {
+            armed: true,
+            landing: Some(land),
+        },
+        None => ArrivalBeat::default(),
+    }
+}
+
+/// Run the presentation beat (camera / fog tokens already in ClimatePlanePlugin).
+/// 0 meshes. Garden title light yields — lived Place is the level.
+pub fn run_arrival_beat(landing: PeopleLanding) -> ArrivalBeat {
+    let _ease = arrival_camera_ease(landing);
+    arrival_beat_after_land(Some(landing))
+}
+
 /// Seat SoftPresence at the People-door wake. Mesh spawn stays spawn_human_presence.
+/// Ambrosian sits the lift Y so existing follow_camera / FogSettings can play the beat.
 pub fn wake_people_landing(presence: &mut SoftPresence, landing: PeopleLanding) {
     presence.position = people_landing_wake(landing);
     presence.velocity = Vec3::ZERO;
-    presence.grounded = true;
+    presence.grounded = !presence_reads_ambrosian_lift(presence.position);
 }
 
 /// Latch jump from Update input so FixedUpdate never multi-fires or misses the edge.
@@ -775,8 +848,19 @@ fn follow_camera(
     mut cams: Query<&mut Transform, With<Camera3d>>,
 ) {
     let punch = pool.map(|p| p.kick).unwrap_or(0.0) * feedback.camera_punch_scale;
-    let desired = presence.position + Vec3::new(0.0, CAM_UP + punch * 0.22, CAM_BACK - punch * 0.35);
-    let look = presence.position + Vec3::Y * (0.45 + punch * 0.08);
+    // CARD L7 — Ambrosian lift: ease UP and look-down on the existing yard/well.
+    // Same Camera3d / SoftPresence. No hull mesh. Human / other lands keep yard follow.
+    let look_down = presence_reads_ambrosian_lift(presence.position);
+    let desired = if look_down {
+        presence.position + Vec3::new(0.0, CAM_UP + 1.1, CAM_BACK - 1.4)
+    } else {
+        presence.position + Vec3::new(0.0, CAM_UP + punch * 0.22, CAM_BACK - punch * 0.35)
+    };
+    let look = if look_down {
+        Vec3::new(presence.position.x, 0.45, presence.position.z)
+    } else {
+        presence.position + Vec3::Y * (0.45 + punch * 0.08)
+    };
     for mut cam in &mut cams {
         cam.translation = cam.translation.lerp(desired, 0.12);
         cam.look_at(look, Vec3::Y);
@@ -1158,5 +1242,37 @@ mod tests {
         assert!(mesh_lod::practices_after_house());
         assert!(mesh_lod::race_lobby_closed());
         assert_eq!(GraphicsPreset::ALL.len(), 3);
+    }
+
+    /// CARD L7 — Human wake is the existing Sanctuary yard helper.
+    #[test]
+    fn l7_human_wake_is_sanctuary_yard_helper() {
+        let wake = people_landing_wake(PeopleLanding::SanctuaryYard);
+        assert_eq!(wake, sanctuary_yard_wake());
+        assert_eq!(arrival_camera_ease(PeopleLanding::SanctuaryYard), ArrivalCameraEase::Down);
+        assert!(!presence_reads_ambrosian_lift(wake));
+        let beat = run_arrival_beat(PeopleLanding::SanctuaryYard);
+        assert!(beat.armed);
+        assert_eq!(beat.landing, Some(PeopleLanding::SanctuaryYard));
+    }
+
+    /// CARD L7 — Ambrosian wake Y > Human. Same Sanctuary disk. No hull mesh.
+    #[test]
+    fn l7_ambrosian_wake_y_above_human() {
+        let human = people_landing_wake(PeopleLanding::SanctuaryYard);
+        let amb = people_landing_wake(PeopleLanding::SanctuaryWellFromAbove);
+        assert!(amb.y > human.y);
+        assert_eq!(amb.x, human.x);
+        assert_eq!(amb.z, human.z);
+        assert!(presence_reads_ambrosian_lift(amb));
+        assert_eq!(
+            arrival_camera_ease(PeopleLanding::SanctuaryWellFromAbove),
+            ArrivalCameraEase::Up
+        );
+        assert_eq!(
+            arrival_camera_ease(PeopleLanding::Threshold),
+            ArrivalCameraEase::None
+        );
+        assert!(!arrival_beat_after_land(None).armed);
     }
 }

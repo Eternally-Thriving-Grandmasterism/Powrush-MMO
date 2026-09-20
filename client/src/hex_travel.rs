@@ -22,6 +22,9 @@
 //! (climate_plane look_for). 0 meshes. Cite PLACE_DRESS_SPEC · ART_BIBLE.
 //! CARD L5 TITLE-GARDEN-LAND — Title garden_cross_landing and first-session
 //! People-door call [`apply_people_landing`] here. No PlaceId remap.
+//! CARD L7 ARRIVAL-BEAT — after apply_people_landing, one beat keyed by
+//! PeopleLanding (fog / camera / SoftPresence already on tip). No PlaceId remap.
+//! Skip House → no beat. Ambrosian = lift on Sanctuary disk (FORK A).
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -38,7 +41,7 @@ use crate::embassy::EmbassyYard;
 use crate::hour_sacred::{
     try_cross_people_door, HousePeople, HourSacred, PeopleLanding,
 };
-use crate::human_presence::{wake_people_landing, SoftPresence};
+use crate::human_presence::{run_arrival_beat, wake_people_landing, ArrivalBeat, SoftPresence};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::title_screen::{
     yard_after_travel, HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_FG,
@@ -225,8 +228,10 @@ pub fn apply_place(
 /// Threshold disk is Heartwood (no fourth PlaceId).
 /// CARD L4 — same apply_place dress path Esc→Places uses for that PlaceId
 /// (climate swap + HexTravelState). climate_plane syncs look_for from
-/// travel.current — no second dresser. Ambrosian: no named well-from-above
-/// landmark transform on tip — Sanctuary boot wake + Sanctuary dress.
+/// travel.current — no second dresser.
+/// CARD L7 — after land, one arrival beat keyed by PeopleLanding (not a new
+/// hex). Ambrosian = lift on Sanctuary disk (FORK A). mothership-over-Earth
+/// PRESENTATION; no hull mesh. Skip House never reaches here → no beat.
 pub fn apply_people_landing(
     travel: &mut HexTravelState,
     bind: &mut LivedHourBind,
@@ -239,6 +244,8 @@ pub fn apply_people_landing(
     if let Some(p) = presence {
         wake_people_landing(p, landing);
     }
+    // CARD L7 — primitives / fog / camera already in ClimatePlanePlugin only.
+    let _beat: ArrivalBeat = run_arrival_beat(landing);
 }
 
 /// CARD L3 — L2 door then land. Skip House / no Tend / already crossed = no move.
@@ -1529,5 +1536,221 @@ mod tests {
             dress_token_for_landing(PeopleLanding::SanctuaryYard)
         );
         assert_eq!(now, HousePeople::Human.landing().place_id());
+    }
+
+    /// CARD L7 — skip House → no PlaceId change · no beat flag.
+    #[test]
+    fn l7_skip_house_no_place_id_change_no_beat_flag() {
+        use crate::human_presence::{arrival_beat_after_land, SoftPresence};
+
+        let start = PlaceId::Sanctuary;
+        let mut presence = SoftPresence::default();
+        let ((land, now), _) =
+            land_people_climate(false, true, HousePeople::Human, start, Some(&mut presence));
+        assert!(land.is_none());
+        assert_eq!(now, start);
+        let beat = arrival_beat_after_land(land);
+        assert!(!beat.armed);
+        assert!(beat.landing.is_none());
+        assert_eq!(presence.position, SoftPresence::default().position);
+
+        let ((land, now), _) = land_people_climate(
+            false,
+            true,
+            HousePeople::Draek,
+            PlaceId::Sanctuary,
+            None,
+        );
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert!(!arrival_beat_after_land(land).armed);
+    }
+
+    /// CARD L7 — Human land → PlaceId::Sanctuary · wake == Sanctuary yard helper.
+    #[test]
+    fn l7_human_land_sanctuary_yard_wake() {
+        use crate::human_presence::{
+            arrival_beat_after_land, people_landing_wake, sanctuary_yard_wake, SoftPresence,
+        };
+
+        let mut presence = SoftPresence::default();
+        let ((land, now), hex) = land_people_climate(
+            true,
+            true,
+            HousePeople::Human,
+            PlaceId::Sanctuary,
+            Some(&mut presence),
+        );
+        assert_eq!(land, Some(PeopleLanding::SanctuaryYard));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(hex, PlaceId::Sanctuary.as_str());
+        let wake = people_landing_wake(PeopleLanding::SanctuaryYard);
+        assert_eq!(wake, sanctuary_yard_wake());
+        assert_eq!(presence.position, wake);
+        assert!(arrival_beat_after_land(land).armed);
+        assert!(crate::climate_plane::arrival_garden_title_light_yields(
+            PeopleLanding::SanctuaryYard
+        ));
+    }
+
+    /// CARD L7 — Ambrosian land → PlaceId::Sanctuary (eq Human) · wake Y > Human wake Y.
+    #[test]
+    fn l7_ambrosian_land_sanctuary_wake_y_above_human() {
+        use crate::first_session_guidance::SANCTUARY_WANT;
+        use crate::human_presence::{
+            arrival_beat_after_land, arrival_camera_ease, people_landing_wake, ArrivalCameraEase,
+            SoftPresence,
+        };
+
+        let mut human_p = SoftPresence::default();
+        let ((human_land, human_now), _) = land_people_climate(
+            true,
+            true,
+            HousePeople::Human,
+            PlaceId::Sanctuary,
+            Some(&mut human_p),
+        );
+        let mut amb_p = SoftPresence::default();
+        let ((amb_land, amb_now), _) = land_people_climate(
+            true,
+            true,
+            HousePeople::Ambrosian,
+            PlaceId::Sanctuary,
+            Some(&mut amb_p),
+        );
+        assert_eq!(amb_land, Some(PeopleLanding::SanctuaryWellFromAbove));
+        assert_eq!(amb_now, PlaceId::Sanctuary);
+        assert_eq!(amb_now, human_now);
+        assert_eq!(
+            HousePeople::Ambrosian.landing().place_id(),
+            HousePeople::Human.landing().place_id()
+        );
+        let human_wake = people_landing_wake(PeopleLanding::SanctuaryYard);
+        let amb_wake = people_landing_wake(PeopleLanding::SanctuaryWellFromAbove);
+        assert!(amb_wake.y > human_wake.y);
+        assert_eq!(amb_p.position.y, amb_wake.y);
+        assert!(amb_p.position.y > human_p.position.y);
+        assert_eq!(
+            arrival_camera_ease(PeopleLanding::SanctuaryWellFromAbove),
+            ArrivalCameraEase::Up
+        );
+        assert!(arrival_beat_after_land(amb_land).armed);
+        assert_eq!(
+            crate::first_session_guidance::want_after_people_landing(amb_land),
+            SANCTUARY_WANT
+        );
+        assert_eq!(human_land, Some(PeopleLanding::SanctuaryYard));
+    }
+
+    /// CARD L7 — Cydruid land → Heartwood · human-in-frame line (NOT treant).
+    #[test]
+    fn l7_cydruid_land_heartwood_human_in_frame() {
+        use crate::human_presence::{arrival_beat_after_land, people_landing_wake, SoftPresence};
+
+        let mut presence = SoftPresence::default();
+        let ((land, now), hex) = land_people_climate(
+            true,
+            true,
+            HousePeople::Cydruid,
+            PlaceId::Sanctuary,
+            Some(&mut presence),
+        );
+        assert_eq!(land, Some(PeopleLanding::Heartwood));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(hex, PlaceId::Heartwood.as_str());
+        assert_eq!(presence.position, people_landing_wake(PeopleLanding::Heartwood));
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+        assert!(!HousePeople::Cydruid.people_line().contains("bark"));
+        assert!(arrival_beat_after_land(land).armed);
+        assert_eq!(
+            crate::climate_plane::dress_mood_for_place(now),
+            crate::climate_plane::PlaceMood::HeartwoodCanopy
+        );
+    }
+
+    /// CARD L7 — Quellorian land → Heartwood · threshold_use_in_reach. No extra lift.
+    #[test]
+    fn l7_quellorian_land_heartwood_threshold_use_in_reach() {
+        use crate::human_presence::{
+            arrival_beat_after_land, arrival_camera_ease, people_landing_wake, ArrivalCameraEase,
+            SoftPresence,
+        };
+        use shared::threshold_shelf::threshold_use_in_reach;
+
+        let mut presence = SoftPresence::default();
+        let ((land, now), hex) = land_people_climate(
+            true,
+            true,
+            HousePeople::Quellorian,
+            PlaceId::Sanctuary,
+            Some(&mut presence),
+        );
+        assert_eq!(land, Some(PeopleLanding::Threshold));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(hex, PlaceId::Heartwood.as_str());
+        let wake = people_landing_wake(PeopleLanding::Threshold);
+        assert_eq!(presence.position, wake);
+        assert_eq!(
+            wake,
+            Vec3::from_array(shared::threshold_shelf::THRESHOLD_SHELF_CENTER)
+        );
+        assert!(
+            threshold_use_in_reach(now, presence.position.x, presence.position.z),
+            "Quellorian wake must reach the existing Threshold shelf"
+        );
+        assert_eq!(arrival_camera_ease(PeopleLanding::Threshold), ArrivalCameraEase::None);
+        assert!(arrival_beat_after_land(land).armed);
+    }
+
+    /// CARD L7 — Draek land → Depths. Existing wet-stone fog / teal Peace.
+    #[test]
+    fn l7_draek_land_depths() {
+        use crate::climate_plane::{dress_mood_for_place, dress_token_for_place, PlaceMood};
+        use crate::human_presence::{arrival_beat_after_land, SoftPresence};
+
+        let mut presence = SoftPresence::default();
+        let ((land, now), hex) = land_people_climate(
+            true,
+            true,
+            HousePeople::Draek,
+            PlaceId::Sanctuary,
+            Some(&mut presence),
+        );
+        assert_eq!(land, Some(PeopleLanding::DepthsTealWayHome));
+        assert_eq!(now, PlaceId::Depths);
+        assert_eq!(hex, PlaceId::Depths.as_str());
+        assert_eq!(dress_token_for_place(now), "Abyssal Depths");
+        assert_eq!(dress_mood_for_place(now), PlaceMood::DepthsWetStone);
+        assert!(arrival_beat_after_land(land).armed);
+    }
+
+    /// CARD L7 — disk hexes stay three. No fourth PlaceId.
+    #[test]
+    fn l7_local_hexes_stay_three() {
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(
+            PeopleLanding::Threshold.place_id(),
+            PlaceId::Heartwood
+        );
+        assert_eq!(
+            PeopleLanding::SanctuaryWellFromAbove.place_id(),
+            PlaceId::Sanctuary
+        );
+    }
+
+    /// CARD L7 — Title Online stays grey.
+    #[test]
+    fn l7_steward_online_yes_stays_false() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!shared::hex_protocol::default_client_listens());
+        assert!(!PowrushNet::Off.title_online_enabled());
     }
 }
