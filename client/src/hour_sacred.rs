@@ -16,6 +16,14 @@
 //! PlaceId (three disk variants) and apply_place / lived bind. Cite
 //! docs/L3_SPAWN_RESEARCH.md §3 · PLAYABLE_RACES §1.1 · C0 · D0 ·
 //! ACityGamesInc/status/2101247905218568248 (stills only). 0 meshes.
+//!
+//! CARD S2 GATE-SEAL — new soul is light on the God-plane (garden); doors
+//! stay unsealed until existing E/Q confirm at landing. Confirm writes
+//! People+Place onto the existing hour-two disk (`powrush_hour_two.json`)
+//! — extra keys, not a new schema file. Decline / wrong door returns to
+//! garden still light, PlaceId unchanged. Skip House stays light (L7).
+//! Peace recall = vision home, does not unseal. PlaceId stays 3. S1
+//! aftermath lines untouched. No new verb · no fifth Place · Online grey.
 
 use std::path::PathBuf;
 
@@ -23,6 +31,7 @@ use bevy::prelude::*;
 
 use shared::hex_travel::PlaceId;
 use shared::hour_two::HourTwoPack;
+use shared::local_settings::PeaceKey;
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
@@ -102,6 +111,28 @@ impl PeopleLanding {
             Self::DepthsTealWayHome => PlaceId::Depths,
         }
     }
+
+    /// CARD S2 — persist key on existing hour-two disk. Not a new PlaceId.
+    pub const fn persist_name(self) -> &'static str {
+        match self {
+            Self::SanctuaryYard => "sanctuary_yard",
+            Self::Heartwood => "heartwood",
+            Self::Threshold => "threshold",
+            Self::DepthsTealWayHome => "depths_teal_way_home",
+            Self::SanctuaryWellFromAbove => "sanctuary_well_from_above",
+        }
+    }
+
+    pub fn from_persist(raw: &str) -> Option<Self> {
+        match raw.trim() {
+            "sanctuary_yard" => Some(Self::SanctuaryYard),
+            "heartwood" => Some(Self::Heartwood),
+            "threshold" => Some(Self::Threshold),
+            "depths_teal_way_home" => Some(Self::DepthsTealWayHome),
+            "sanctuary_well_from_above" => Some(Self::SanctuaryWellFromAbove),
+            _ => None,
+        }
+    }
 }
 
 impl HousePeople {
@@ -131,6 +162,18 @@ impl HousePeople {
             Self::Quellorian => PeopleLanding::Threshold,
             Self::Draek => PeopleLanding::DepthsTealWayHome,
             Self::Ambrosian => PeopleLanding::SanctuaryWellFromAbove,
+        }
+    }
+
+    /// CARD S2 — persist key on existing hour-two disk. Same as [`Self::as_str`].
+    pub fn from_persist(raw: &str) -> Option<Self> {
+        match raw.trim() {
+            "Human" => Some(Self::Human),
+            "Cydruid" => Some(Self::Cydruid),
+            "Quellorian" => Some(Self::Quellorian),
+            "Draek" => Some(Self::Draek),
+            "Ambrosian" => Some(Self::Ambrosian),
+            _ => None,
         }
     }
 }
@@ -176,8 +219,9 @@ pub fn four_place_landings_only() -> bool {
 }
 
 /// Cross one God-plane door. One-way this session. Needs House + one Tend.
-/// `crossed` is session-local — not written to the hour-two pack.
-/// CARD L3: success is PlaceId + apply_place / lived bind (hex_travel).
+/// `crossed` is session-local until CARD S2 E/Q confirm writes People+Place
+/// onto the existing hour-two disk. CARD L3: success is PlaceId + apply_place
+/// / lived bind (hex_travel). Land is not a seal.
 pub fn try_cross_people_door(
     house_live: bool,
     tended_once: bool,
@@ -189,6 +233,108 @@ pub fn try_cross_people_door(
     }
     *crossed = Some(people);
     Some(people.landing())
+}
+
+/// CARD S2 — extra keys on existing `powrush_hour_two.json`. Not a new file.
+pub const SEALED_PEOPLE_KEY: &str = "sealed_people";
+pub const SEALED_LANDING_KEY: &str = "sealed_landing";
+
+/// CARD S2 — Peace recall is vision home, not a hub and not an unseal.
+pub const PEACE_RECALL_VISION_HOME: &str = "vision home";
+
+/// CARD S2 — new soul is light until People+Place are sealed.
+pub fn soul_is_light(sealed: Option<(HousePeople, PeopleLanding)>) -> bool {
+    sealed.is_none()
+}
+
+/// CARD S2 — God-plane doors stay unsealed until E/Q confirm at landing.
+pub fn doors_are_unsealed(sealed: Option<(HousePeople, PeopleLanding)>) -> bool {
+    sealed.is_none()
+}
+
+/// CARD S2 — existing E / Q only. No new verb.
+pub fn is_gate_seal_confirm_verb(key: PeaceKey) -> bool {
+    matches!(key, PeaceKey::E | PeaceKey::Q)
+}
+
+/// CARD S2 — confirm at landing with existing E/Q seals this People+Place.
+/// Other keys do nothing. Missing pending land does nothing.
+pub fn confirm_gate_seal(
+    key: PeaceKey,
+    pending: Option<(HousePeople, PeopleLanding)>,
+) -> Option<(HousePeople, PeopleLanding)> {
+    if !is_gate_seal_confirm_verb(key) {
+        return None;
+    }
+    pending
+}
+
+/// CARD S2 — decline / wrong door: still light, not tied. Clears session cross.
+/// Caller restores garden PlaceId (no net PlaceId change).
+pub fn decline_or_wrong_door(
+    crossed: &mut Option<HousePeople>,
+    pending_landing: &mut Option<PeopleLanding>,
+    sealed: Option<(HousePeople, PeopleLanding)>,
+) -> bool {
+    if sealed.is_some() {
+        return false;
+    }
+    *crossed = None;
+    *pending_landing = None;
+    true
+}
+
+/// CARD S2 — Peace recall = vision home. Seal stays.
+pub fn peace_recall(
+    sealed: Option<(HousePeople, PeopleLanding)>,
+) -> (Option<(HousePeople, PeopleLanding)>, &'static str) {
+    (sealed, PEACE_RECALL_VISION_HOME)
+}
+
+/// CARD S2 — read People+Place seal from existing hour-two JSON extra keys.
+pub fn gate_seal_from_hour_two_json(raw: &str) -> Option<(HousePeople, PeopleLanding)> {
+    let value = serde_json::from_str::<serde_json::Value>(raw).ok()?;
+    let people = value
+        .get(SEALED_PEOPLE_KEY)?
+        .as_str()
+        .and_then(HousePeople::from_persist)?;
+    let landing = value
+        .get(SEALED_LANDING_KEY)?
+        .as_str()
+        .and_then(PeopleLanding::from_persist)?;
+    Some((people, landing))
+}
+
+/// CARD S2 — write People+Place onto existing hour-two JSON. Extra keys only.
+pub fn merge_gate_seal_into_hour_two_json(
+    raw: &str,
+    people: HousePeople,
+    landing: PeopleLanding,
+) -> String {
+    let mut value = serde_json::from_str::<serde_json::Value>(raw)
+        .unwrap_or_else(|_| serde_json::json!({}));
+    if !value.is_object() {
+        value = serde_json::json!({});
+    }
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert(
+            SEALED_PEOPLE_KEY.to_string(),
+            serde_json::Value::String(people.as_str().to_string()),
+        );
+        obj.insert(
+            SEALED_LANDING_KEY.to_string(),
+            serde_json::Value::String(landing.persist_name().to_string()),
+        );
+    }
+    serde_json::to_string_pretty(&value).unwrap_or_else(|_| raw.to_string())
+}
+
+/// CARD S2 — keep extra seal keys when the hour-two pack is rewritten.
+pub fn preserve_gate_seal_in_hour_two_json(prior: &str, next: &str) -> String {
+    match gate_seal_from_hour_two_json(prior) {
+        Some((people, landing)) => merge_gate_seal_into_hour_two_json(next, people, landing),
+        None => next.to_string(),
+    }
 }
 
 /// Resolved user-dir path for the hour-two / book pack.
@@ -263,6 +409,10 @@ impl HourSacred {
         self.complete = pack.complete;
         self.hour_three_complete = pack.hour_three_complete;
         if let Ok(json) = serde_json::to_string_pretty(&pack) {
+            let json = match read_hour_two_json() {
+                Some(prior) => preserve_gate_seal_in_hour_two_json(&prior, &json),
+                None => json,
+            };
             let _ = shared::user_persist::write_named(HOUR_TWO_PATH, json);
         }
     }
@@ -854,5 +1004,92 @@ mod tests {
         assert!(pack.embassy.seated);
         assert_eq!(pack.embassy, prior.embassy);
         assert!(places_eligible(pack.complete, pack.hour_three_complete));
+    }
+
+    /// CARD S2 — new soul starts light · doors unsealed.
+    #[test]
+    fn s2_new_soul_starts_light_doors_unsealed() {
+        let h = HourSacred::default();
+        assert!(soul_is_light(None));
+        assert!(doors_are_unsealed(None));
+        assert!(h.stays_light_peace());
+        assert!(skip_house_stays_light(false));
+        assert!(gate_seal_from_hour_two_json("{}").is_none());
+        assert!(gate_seal_from_hour_two_json(r#"{"hex":"Peace"}"#).is_none());
+        let mut crossed = None;
+        assert!(h
+            .try_cross_people_door(true, &mut crossed, HousePeople::Human)
+            .is_none());
+        assert!(crossed.is_none(), "unsealed light soul is not tied");
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+    }
+
+    /// CARD S2 — confirm at landing with existing E/Q seals People+Place
+    /// onto the existing hour-two disk (extra keys, not a new schema).
+    #[test]
+    fn s2_confirm_at_landing_seals_people_place_persisted() {
+        let existing = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House","warrant":{"h":0.0,"i":0.0,"c":0.0,"f":0.0,"x":0.0,"repair":0.0,"return_cargo":0.0,"council":0.0,"tend_spill":0.0}}"#;
+        let pack = HourTwoPack::from_json(existing);
+        assert_eq!(pack.session.charter_id.as_deref(), Some("house-local"));
+        assert!(gate_seal_from_hour_two_json(existing).is_none());
+
+        let pending = Some((HousePeople::Cydruid, PeopleLanding::Heartwood));
+        assert!(confirm_gate_seal(PeaceKey::Digit1, pending).is_none());
+        assert!(soul_is_light(None));
+
+        let sealed = confirm_gate_seal(PeaceKey::E, pending).expect("E confirms");
+        assert_eq!(sealed, (HousePeople::Cydruid, PeopleLanding::Heartwood));
+        assert!(!soul_is_light(Some(sealed)));
+        assert!(!doors_are_unsealed(Some(sealed)));
+
+        let q_sealed = confirm_gate_seal(PeaceKey::Q, pending).expect("Q confirms");
+        assert_eq!(q_sealed, sealed);
+
+        let json = merge_gate_seal_into_hour_two_json(
+            existing,
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        assert_eq!(
+            gate_seal_from_hour_two_json(&json),
+            Some((HousePeople::Cydruid, PeopleLanding::Heartwood))
+        );
+        let loaded = HourTwoPack::from_json(&json);
+        assert_eq!(loaded.session.charter_id.as_deref(), Some("house-local"));
+        assert_eq!(loaded.session.hex, HexFlag::Frontier);
+        assert!(json.contains(SEALED_PEOPLE_KEY));
+        assert!(json.contains("Cydruid"));
+        assert!(json.contains("heartwood"));
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+    }
+
+    /// CARD S2 — Peace recall is vision home and does not clear the seal.
+    #[test]
+    fn s2_peace_recall_does_not_clear_seal() {
+        let sealed = Some((HousePeople::Draek, PeopleLanding::DepthsTealWayHome));
+        let json = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        let (after, line) = peace_recall(sealed);
+        assert_eq!(after, sealed);
+        assert_eq!(line, PEACE_RECALL_VISION_HOME);
+        assert_eq!(line, "vision home");
+        assert_eq!(
+            gate_seal_from_hour_two_json(&json),
+            Some((HousePeople::Draek, PeopleLanding::DepthsTealWayHome))
+        );
+        let rewritten = r#"{"complete":true,"hour_three_complete":false}"#;
+        let kept = preserve_gate_seal_in_hour_two_json(&json, rewritten);
+        assert_eq!(
+            gate_seal_from_hour_two_json(&kept),
+            Some((HousePeople::Draek, PeopleLanding::DepthsTealWayHome))
+        );
+        let mut crossed = Some(HousePeople::Draek);
+        let mut pending = Some(PeopleLanding::DepthsTealWayHome);
+        assert!(!decline_or_wrong_door(&mut crossed, &mut pending, sealed));
+        assert_eq!(crossed, Some(HousePeople::Draek));
+        assert_eq!(pending, Some(PeopleLanding::DepthsTealWayHome));
     }
 }
