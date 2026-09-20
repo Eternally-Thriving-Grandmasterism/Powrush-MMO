@@ -36,6 +36,14 @@
  * Title chrome stays Play / Continue / Settings · Online grey.
  * 0 meshes · 0 portraits. Cite #465 #466 · D0 · C0.
  *
+ * CARD L6 LANDING-WANT — after apply_people_landing, first-minutes Want
+ * follows PlaceId. Garden boot (no land) / skip House keep GARDEN_WANT.
+ * Copy already on tip (ART_BIBLE · PLACE_DRESS · Depths restore-not-Take).
+ * Ambrosian shares Sanctuary Want. Quellorian shares Heartwood Want.
+ * 0 meshes · 0 new verbs · no Title lobby · Online grey.
+ * Cite #465 #466 #467 · D0 · C0 · L1 GARDEN-WANT ·
+ * ACityGamesInc/status/2101247905218568248 stills only.
+ *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
@@ -48,6 +56,7 @@ use crate::hour_sacred::{
     god_plane_doors_ignited, offer_house_peoples, skip_house_stays_light, try_cross_people_door,
     HousePeople, PeopleLanding, HourSacred, HOUSE_PEOPLES, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
 };
+use shared::hex_travel::PlaceId;
 use crate::human_presence::SoftPresence;
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
@@ -80,12 +89,49 @@ pub const GARDEN_WANT: &str = SANCTUARY_WANT;
 /// CARD L1 GARDEN-WANT — Garden / walkable title · God-plane speaks People + Want.
 /// `on_garden_boot` is Title (LaunchDoor::Title), not Sanctuary dirt / InYard.
 /// H hush drops the line. Comfort Low does not gate these words.
+/// CARD L6 — Garden boot (no land) keeps this GARDEN_WANT line.
 pub fn garden_boot_want_line(on_garden_boot: bool, hush: bool) -> Option<String> {
     if !on_garden_boot || hush {
         None
     } else {
         Some(first_minutes_people_want_line())
     }
+}
+
+/// CARD L6 — Heartwood first-minutes Want. Existing tend line on tip
+/// (`living_ecology` honest copy). Cite ART_BIBLE amber lamp · PLACE_DRESS
+/// live/seal room. Cydruid + Quellorian share this PlaceId Want.
+pub const HEARTWOOD_WANT: &str = "Heartwood Wards · Tend";
+
+/// CARD L6 — Depths first-minutes Want. Existing Peace tend / restore-not-Take
+/// line on tip (`depths_landing` · ART_BIBLE teal Peace). Not Take.
+pub const DEPTHS_WANT: &str = "Depths Peace · restored";
+
+/// CARD L6 — Want follows PlaceId after People-door land.
+/// Sanctuary (Human + Ambrosian) keeps SANCTUARY_WANT.
+/// Heartwood (Cydruid + Quellorian) uses the existing Heartwood tend line.
+/// Depths (Draek) uses the existing restore-not-Take Peace tend line.
+pub fn want_for_place(place: PlaceId) -> &'static str {
+    match place {
+        PlaceId::Sanctuary => SANCTUARY_WANT,
+        PlaceId::Heartwood => HEARTWOOD_WANT,
+        PlaceId::Depths => DEPTHS_WANT,
+    }
+}
+
+/// CARD L6 — after apply_people_landing, Want is the landed PlaceId line.
+/// Skip House / no land keeps GARDEN_WANT (same words as SANCTUARY_WANT).
+pub fn want_after_people_landing(landing: Option<PeopleLanding>) -> &'static str {
+    match landing {
+        Some(land) => want_for_place(land.place_id()),
+        None => GARDEN_WANT,
+    }
+}
+
+/// Spoken People + Want after a People-door land. People prefix stays Human
+/// (ART_BIBLE cite). Want names the Place the body is in.
+pub fn first_minutes_people_want_line_for_place(place: PlaceId) -> String {
+    format!("{SANCTUARY_PEOPLE} · {}", want_for_place(place))
 }
 
 /// Soft objective the player is gently invited to try next.
@@ -387,7 +433,8 @@ impl FirstSessionGuidance {
     }
 }
 
-/// CARD L3 / L5 — Garden wrapper. Calls L2 try_cross then apply_people_landing.
+/// CARD L3 / L5 / L6 — Garden wrapper. Calls L2 try_cross then apply_people_landing.
+/// After land, Want follows `landing.place_id()` via [`want_after_people_landing`].
 pub fn garden_cross_people_land(
     house_live: bool,
     tended_once: bool,
@@ -1195,5 +1242,158 @@ mod tests {
         assert_eq!(garden_boot_want_line(true, false).expect("Want at Low"), spoken);
         assert_eq!(GraphicsPreset::ALL.len(), 3);
         assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::Low));
+    }
+
+    /// CARD L6 — skip House → SANCTUARY_WANT / GARDEN_WANT unchanged.
+    #[test]
+    fn l6_skip_house_sanctuary_garden_want_unchanged() {
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(GARDEN_WANT, SANCTUARY_WANT);
+        assert_eq!(want_after_people_landing(None), GARDEN_WANT);
+        assert_eq!(want_after_people_landing(None), SANCTUARY_WANT);
+        let spoken = garden_boot_want_line(true, false).expect("Want on Garden boot");
+        assert!(spoken.contains(GARDEN_WANT));
+        assert!(spoken.contains(SANCTUARY_WANT));
+        assert_eq!(spoken, first_minutes_people_want_line());
+
+        let (land, now) =
+            l5_first_session_land(false, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(want_after_people_landing(land), GARDEN_WANT);
+        assert_eq!(want_for_place(now), SANCTUARY_WANT);
+        let (land, now) =
+            l5_first_session_land(true, false, HousePeople::Draek, PlaceId::Sanctuary, None);
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(want_after_people_landing(land), SANCTUARY_WANT);
+    }
+
+    /// CARD L6 — Human land → Sanctuary Want.
+    #[test]
+    fn l6_human_land_sanctuary_want() {
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) =
+            l5_first_session_land(true, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryYard));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(want_after_people_landing(land), SANCTUARY_WANT);
+        assert_eq!(want_for_place(now), SANCTUARY_WANT);
+        assert_eq!(
+            first_minutes_people_want_line_for_place(now),
+            first_minutes_people_want_line()
+        );
+        assert!(want_after_people_landing(land).contains("the yard needs tending"));
+        assert!(want_after_people_landing(land).contains("the well goes quiet"));
+    }
+
+    /// CARD L6 — Ambrosian land → same Want as Human (same PlaceId).
+    #[test]
+    fn l6_ambrosian_land_same_want_as_human() {
+        use shared::hex_travel::PlaceId;
+
+        let (human, human_place) =
+            l5_first_session_land(true, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        let (ambrosian, ambrosian_place) =
+            l5_first_session_land(true, true, HousePeople::Ambrosian, PlaceId::Sanctuary, None);
+        assert_eq!(human_place, PlaceId::Sanctuary);
+        assert_eq!(ambrosian_place, PlaceId::Sanctuary);
+        assert_eq!(ambrosian_place, human_place);
+        assert_eq!(
+            want_after_people_landing(ambrosian),
+            want_after_people_landing(human)
+        );
+        assert_eq!(want_after_people_landing(ambrosian), SANCTUARY_WANT);
+        assert_eq!(want_for_place(ambrosian_place), want_for_place(human_place));
+    }
+
+    /// CARD L6 — Cydruid land → Heartwood Want · people_line still human-in-frame (NOT treant).
+    #[test]
+    fn l6_cydruid_land_heartwood_want_human_in_frame() {
+        use crate::climate_plane::dress_token_for_place;
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) =
+            l5_first_session_land(true, true, HousePeople::Cydruid, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::Heartwood));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(dress_token_for_place(now), "Verdant Heartwood");
+        assert_eq!(want_after_people_landing(land), HEARTWOOD_WANT);
+        assert_eq!(want_for_place(now), HEARTWOOD_WANT);
+        assert!(want_after_people_landing(land).contains("Heartwood"));
+        assert!(want_after_people_landing(land).contains("Tend"));
+        assert!(!want_after_people_landing(land).contains("the well goes quiet"));
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+        let spoken = first_minutes_people_want_line_for_place(now);
+        assert!(spoken.contains(HEARTWOOD_WANT));
+        assert!(!spoken.contains(SANCTUARY_WANT));
+    }
+
+    /// CARD L6 — Quellorian land → Heartwood Want (not Sanctuary well).
+    #[test]
+    fn l6_quellorian_land_heartwood_want_not_sanctuary_well() {
+        use crate::climate_plane::dress_token_for_place;
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) =
+            l5_first_session_land(true, true, HousePeople::Quellorian, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::Threshold));
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(dress_token_for_place(now), "Verdant Heartwood");
+        assert_eq!(want_after_people_landing(land), HEARTWOOD_WANT);
+        assert_eq!(want_for_place(now), HEARTWOOD_WANT);
+        assert_eq!(
+            want_after_people_landing(land),
+            want_for_place(HousePeople::Cydruid.landing().place_id())
+        );
+        assert!(!want_after_people_landing(land).contains("the well goes quiet"));
+        assert!(!want_after_people_landing(land).contains(SANCTUARY_WANT));
+        assert!(!first_minutes_people_want_line_for_place(now).contains("well"));
+    }
+
+    /// CARD L6 — Draek land → Depths Want (restore, not Take).
+    #[test]
+    fn l6_draek_land_depths_want_restore_not_take() {
+        use crate::climate_plane::dress_token_for_place;
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) =
+            l5_first_session_land(true, true, HousePeople::Draek, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::DepthsTealWayHome));
+        assert_eq!(now, PlaceId::Depths);
+        assert_eq!(dress_token_for_place(now), "Abyssal Depths");
+        assert_eq!(want_after_people_landing(land), DEPTHS_WANT);
+        assert_eq!(want_for_place(now), DEPTHS_WANT);
+        assert_eq!(DEPTHS_WANT, "Depths Peace · restored");
+        assert!(want_after_people_landing(land).contains("restored"));
+        assert!(!want_after_people_landing(land).contains("Take"));
+        assert!(!want_after_people_landing(land).contains(SANCTUARY_WANT));
+        let spoken = first_minutes_people_want_line_for_place(now);
+        assert!(spoken.contains("restored"));
+        assert!(!spoken.contains("Take"));
+    }
+
+    /// CARD L6 — TITLE_CHROME_PLAY / Continue / Settings unchanged.
+    #[test]
+    fn l6_title_chrome_play_continue_settings() {
+        use crate::title_screen::{
+            l2_title_chrome_holds, TITLE_CHROME_CONTINUE, TITLE_CHROME_PLAY, TITLE_CHROME_SETTINGS,
+        };
+        assert_eq!(TITLE_CHROME_PLAY, "Play — first Hands");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert!(l2_title_chrome_holds());
+    }
+
+    /// CARD L6 — STEWARD_ONLINE_YES stays false. Online grey.
+    #[test]
+    fn l6_steward_online_yes_stays_false() {
+        use shared::persona::STEWARD_ONLINE_YES;
+        use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 }

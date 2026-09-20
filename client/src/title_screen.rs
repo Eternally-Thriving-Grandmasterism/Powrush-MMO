@@ -62,6 +62,11 @@
 //! unchanged, Peace light-body. Title stays Play / Continue / Settings ·
 //! Online grey. 0 meshes · 0 portraits · no Title lobby. Cite #465 #466
 //! · D0 · C0 · PLACE_DRESS_SPEC · PLAYABLE_RACES §1.1.
+//!
+//! CARD L6 LANDING-WANT — Title still calls garden_boot_want_line.
+//! Garden boot (no land) keeps GARDEN_WANT. After land, Want follows
+//! PlaceId in first-session guidance (not Title chrome). Do not restyle
+//! Play / Continue / Settings · Online grey.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::KeyboardInput;
@@ -4319,6 +4324,118 @@ mod tests {
             ONLINE_PICKER_ENABLED,
             STEWARD_ONLINE_YES
         ));
+    }
+
+    /// CARD L6 — skip House / Garden boot keep GARDEN_WANT · SANCTUARY_WANT.
+    #[test]
+    fn l6_skip_house_garden_boot_want_unchanged() {
+        use crate::first_session_guidance::{
+            garden_boot_want_line, want_after_people_landing, GARDEN_WANT, SANCTUARY_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(GARDEN_WANT, SANCTUARY_WANT);
+        let spoken = garden_boot_want_line(true, false).expect("Want on Garden boot");
+        assert!(spoken.contains(GARDEN_WANT));
+        assert!(spoken.contains(SANCTUARY_WANT));
+        let (land, now) = l5_garden_land(false, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(want_after_people_landing(land), GARDEN_WANT);
+        assert_eq!(garden_boot_want_line(true, false).expect("still Garden"), spoken);
+    }
+
+    /// CARD L6 — Human land → Sanctuary Want. Title still calls garden_boot_want_line.
+    #[test]
+    fn l6_human_land_sanctuary_want() {
+        use crate::first_session_guidance::{
+            garden_boot_want_line, want_after_people_landing, SANCTUARY_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) = l5_garden_land(true, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryYard));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(want_after_people_landing(land), SANCTUARY_WANT);
+        assert!(garden_boot_want_line(true, false)
+            .expect("Garden boot unchanged")
+            .contains(SANCTUARY_WANT));
+    }
+
+    /// CARD L6 — Ambrosian land → same Want as Human.
+    #[test]
+    fn l6_ambrosian_land_same_want_as_human() {
+        use crate::first_session_guidance::want_after_people_landing;
+        use shared::hex_travel::PlaceId;
+
+        let (human, _) = l5_garden_land(true, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        let (ambrosian, now) =
+            l5_garden_land(true, true, HousePeople::Ambrosian, PlaceId::Sanctuary, None);
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(
+            want_after_people_landing(ambrosian),
+            want_after_people_landing(human)
+        );
+    }
+
+    /// CARD L6 — Cydruid land → Heartwood Want · people_line human-in-frame (NOT treant).
+    #[test]
+    fn l6_cydruid_land_heartwood_want_human_in_frame() {
+        use crate::first_session_guidance::{want_after_people_landing, HEARTWOOD_WANT};
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) = l5_garden_land(true, true, HousePeople::Cydruid, PlaceId::Sanctuary, None);
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(want_after_people_landing(land), HEARTWOOD_WANT);
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+    }
+
+    /// CARD L6 — Quellorian land → Heartwood Want (not Sanctuary well).
+    #[test]
+    fn l6_quellorian_land_heartwood_want_not_sanctuary_well() {
+        use crate::first_session_guidance::{
+            want_after_people_landing, HEARTWOOD_WANT, SANCTUARY_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) =
+            l5_garden_land(true, true, HousePeople::Quellorian, PlaceId::Sanctuary, None);
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(want_after_people_landing(land), HEARTWOOD_WANT);
+        assert_ne!(want_after_people_landing(land), SANCTUARY_WANT);
+        assert!(!want_after_people_landing(land).contains("the well goes quiet"));
+    }
+
+    /// CARD L6 — Draek land → Depths Want (restore, not Take).
+    #[test]
+    fn l6_draek_land_depths_want_restore_not_take() {
+        use crate::first_session_guidance::{want_after_people_landing, DEPTHS_WANT};
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) = l5_garden_land(true, true, HousePeople::Draek, PlaceId::Sanctuary, None);
+        assert_eq!(now, PlaceId::Depths);
+        assert_eq!(want_after_people_landing(land), DEPTHS_WANT);
+        assert!(want_after_people_landing(land).contains("restored"));
+        assert!(!want_after_people_landing(land).contains("Take"));
+    }
+
+    /// CARD L6 — TITLE_CHROME_PLAY / Continue / Settings unchanged.
+    #[test]
+    fn l6_title_chrome_play_continue_settings() {
+        assert_eq!(TITLE_CHROME_PLAY, "Play — first Hands");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert!(l2_title_chrome_holds());
+        assert!(!title_has_race_portraits());
+    }
+
+    /// CARD L6 — STEWARD_ONLINE_YES stays false. Online grey.
+    #[test]
+    fn l6_steward_online_yes_stays_false() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
     }
 
     #[test]
