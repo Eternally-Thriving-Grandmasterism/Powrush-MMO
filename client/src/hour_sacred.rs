@@ -38,6 +38,13 @@
 //! garden. Peace recall stays vision home and does not unseal. PlaceId
 //! stays 3. S1 aftermath / S2 seal / S3 roster WRITE unread. No fifth
 //! Place · no Title race lobby · Online grey.
+//!
+//! CARD F6 CONTINUE-IS-THE-BODY — Continue list is sealed souls as body
+//! (People dress + last Place). Light / unsealed is only the Play slot.
+//! Delete-soul / clear seal removes S2 extra keys on the existing
+//! hour-two disk; that slot returns to light (Play). Not a race-portrait
+//! lobby. PlaceId stays 3. S2 keys only — no new schema. S1 / S2 / S3 / F5
+//! WRITE unread. Online grey.
 
 use std::path::PathBuf;
 
@@ -441,6 +448,54 @@ pub fn continue_sealed_souls_from_hour_two_json(raw: &str) -> Vec<GardenRosterSo
 /// CARD S3 — Title garden roster is souls, never a race-portrait lobby.
 pub fn garden_roster_is_race_portrait_lobby() -> bool {
     false
+}
+
+/// CARD F6 — Continue is the sealed soul as body (People dress + last Place).
+/// Light / unsealed is Play, never a Continue body. Not a race portrait.
+pub fn continue_is_the_body(soul: GardenRosterSoul) -> bool {
+    matches!(soul, GardenRosterSoul::Sealed { .. })
+        && !soul.is_light()
+        && soul.last_place().is_some()
+        && !garden_roster_is_race_portrait_lobby()
+}
+
+/// CARD F6 — Continue bodies from S2 hour-two extra keys. Empty = Play (light).
+pub fn continue_bodies_from_hour_two_json(raw: &str) -> Vec<GardenRosterSoul> {
+    continue_sealed_souls_from_hour_two_json(raw)
+}
+
+/// CARD F6 — dress · last Place line for a Continue body. None for Play light.
+pub fn continue_body_line(soul: GardenRosterSoul) -> Option<String> {
+    if !continue_is_the_body(soul) {
+        return None;
+    }
+    Some(format!("{} · {}", soul.dress_line(), soul.last_place_name()))
+}
+
+/// CARD F6 — remove S2 extra keys from existing hour-two JSON. Not a new file.
+pub fn clear_gate_seal_from_hour_two_json(raw: &str) -> String {
+    let mut value = serde_json::from_str::<serde_json::Value>(raw)
+        .unwrap_or_else(|_| serde_json::json!({}));
+    if !value.is_object() {
+        value = serde_json::json!({});
+    }
+    if let Some(obj) = value.as_object_mut() {
+        obj.remove(SEALED_PEOPLE_KEY);
+        obj.remove(SEALED_LANDING_KEY);
+    }
+    serde_json::to_string_pretty(&value).unwrap_or_else(|_| raw.to_string())
+}
+
+/// CARD F6 — delete-soul / clear seal. That Continue body slot returns to light (Play).
+/// Reuses S2 extra keys on the existing hour-two disk. No new schema file.
+pub fn delete_soul_returns_light(raw: &str) -> (String, GardenRosterSoul) {
+    let cleared = clear_gate_seal_from_hour_two_json(raw);
+    (cleared, play_new_light_soul())
+}
+
+/// CARD F6 — Title is not a race / class lobby. S3 roster READ only.
+pub fn f6_title_is_race_lobby() -> bool {
+    garden_roster_is_race_portrait_lobby()
 }
 
 /// Resolved user-dir path for the hour-two / book pack.
@@ -1410,5 +1465,148 @@ mod tests {
             assert_ne!(place.as_str(), "garden");
             assert_ne!(place.as_str(), "market");
         }
+    }
+
+    /// CARD F6 — Continue shows sealed souls in People dress @ last Place.
+    #[test]
+    fn f6_continue_shows_sealed_souls_people_dress_last_place() {
+        assert!(continue_bodies_from_hour_two_json("{}").is_empty());
+        assert!(continue_body_line(play_new_light_soul()).is_none());
+        assert!(!continue_is_the_body(play_new_light_soul()));
+
+        let json = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let list = continue_bodies_from_hour_two_json(&json);
+        assert_eq!(list.len(), 1, "S2 keys are one sealed body, not a portraits grid");
+        assert_ne!(list.len(), HOUSE_PEOPLES.len());
+        let soul = list[0];
+        assert!(continue_is_the_body(soul));
+        assert!(!soul.is_light());
+        assert_eq!(soul.dress_line(), "Cydruid · human-in-frame");
+        assert!(!soul.dress_line().contains("treant"));
+        assert!(!soul.dress_line().contains("portrait"));
+        assert_eq!(soul.last_place(), Some(PlaceId::Heartwood));
+        assert_eq!(soul.last_place_name(), "Heartwood");
+        assert_eq!(
+            continue_body_line(soul).as_deref(),
+            Some("Cydruid · human-in-frame · Heartwood")
+        );
+        assert_eq!(
+            soul.sealed_pair(),
+            Some((HousePeople::Cydruid, PeopleLanding::Heartwood))
+        );
+
+        let draek = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        let list = continue_bodies_from_hour_two_json(&draek);
+        assert!(continue_is_the_body(list[0]));
+        assert_eq!(list[0].dress_line(), "Draek");
+        assert_eq!(list[0].last_place(), Some(PlaceId::Depths));
+        assert_eq!(
+            continue_body_line(list[0]).as_deref(),
+            Some("Draek · Depths")
+        );
+    }
+
+    /// CARD F6 — delete-soul / clear seal → that slot returns to light (Play).
+    #[test]
+    fn f6_delete_soul_clear_seal_slot_returns_light_play() {
+        let existing = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House"}"#;
+        let json = merge_gate_seal_into_hour_two_json(
+            existing,
+            HousePeople::Quellorian,
+            PeopleLanding::Threshold,
+        );
+        assert!(continue_is_the_body(
+            continue_bodies_from_hour_two_json(&json)[0]
+        ));
+        assert_eq!(
+            gate_seal_from_hour_two_json(&json),
+            Some((HousePeople::Quellorian, PeopleLanding::Threshold))
+        );
+
+        let (cleared, slot) = delete_soul_returns_light(&json);
+        assert_eq!(slot, GardenRosterSoul::LightUnsealed);
+        assert!(slot.is_light());
+        assert!(slot.is_unsealed());
+        assert_eq!(slot.dress_line(), "light");
+        assert!(slot.last_place().is_none());
+        assert_eq!(slot.last_place_name(), "Garden");
+        assert!(!continue_is_the_body(slot), "cleared slot is Play, not Continue");
+        assert!(continue_bodies_from_hour_two_json(&cleared).is_empty());
+        assert!(gate_seal_from_hour_two_json(&cleared).is_none());
+        assert!(!cleared.contains(SEALED_PEOPLE_KEY));
+        assert!(!cleared.contains(SEALED_LANDING_KEY));
+        assert!(cleared.contains("house-local"), "S2 pack fields stay; only seal keys leave");
+        let loaded = HourTwoPack::from_json(&cleared);
+        assert_eq!(loaded.session.charter_id.as_deref(), Some("house-local"));
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+
+        let twice = clear_gate_seal_from_hour_two_json(&cleared);
+        assert!(gate_seal_from_hour_two_json(&twice).is_none());
+        assert!(continue_bodies_from_hour_two_json(&twice).is_empty());
+    }
+
+    /// CARD F6 — no race-portrait lobby.
+    #[test]
+    fn f6_no_race_portrait_lobby() {
+        assert!(!f6_title_is_race_lobby());
+        assert!(!garden_roster_is_race_portrait_lobby());
+        assert!(!f5_title_is_race_lobby());
+        let light = play_new_light_soul();
+        assert!(light.is_light(), "new slot is light, not a race picker");
+        assert!(!light.dress_line().contains("portrait"));
+        assert!(!light.dress_line().contains("class"));
+        let empty = continue_bodies_from_hour_two_json("{}");
+        assert!(empty.is_empty());
+        assert_ne!(empty.len(), HOUSE_PEOPLES.len());
+        let json = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let list = continue_bodies_from_hour_two_json(&json);
+        assert_eq!(list.len(), 1, "sealed list is souls, not five portraits");
+        assert!(!list[0].dress_line().contains("Sanctuary tint"));
+        assert!(!list[0].dress_line().contains("dress token"));
+        assert!(!list[0].dress_line().contains("portrait"));
+    }
+
+    /// CARD F6 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f6_place_id_local_hexes_len_three() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert_eq!(
+            PeopleLanding::SanctuaryWellFromAbove.place_id(),
+            PlaceId::Sanctuary
+        );
+        assert!(four_place_landings_only());
+        let light = play_new_light_soul();
+        assert!(light.last_place().is_none());
+        assert_eq!(light.last_place_name(), "Garden");
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+        }
+    }
+
+    /// CARD F6 — STEWARD_ONLINE_YES false.
+    #[test]
+    fn f6_steward_online_yes_false() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!shared::hex_protocol::default_client_listens());
     }
 }
