@@ -31,6 +31,13 @@
 //! in People dress, resume at last sealed Place. Light form is only the
 //! new / unsealed slot — never a race-portrait lobby. PlaceId stays 3.
 //! Reads S2 helpers; does not invent schema. S2 WRITE untouched.
+//!
+//! CARD F5 WRONG-DOOR-BOUNCE — unsealed light may take a People-door and
+//! feel the existing L7 arrival beat. Land is not a seal (still unsealed
+//! until E/Q). Decline / wrong door returns to garden still light, PlaceId
+//! garden. Peace recall stays vision home and does not unseal. PlaceId
+//! stays 3. S1 aftermath / S2 seal / S3 roster WRITE unread. No fifth
+//! Place · no Title race lobby · Online grey.
 
 use std::path::PathBuf;
 
@@ -298,6 +305,26 @@ pub fn peace_recall(
     (sealed, PEACE_RECALL_VISION_HOME)
 }
 
+/// CARD F5 — unsealed light (House + Tend, no E/Q seal) may take a People-door.
+/// Skip House / already sealed / no Tend stay off the door. Land is not a seal.
+pub fn unsealed_light_may_take_people_door(
+    house_live: bool,
+    tended_once: bool,
+    sealed: Option<(HousePeople, PeopleLanding)>,
+) -> bool {
+    soul_is_light(sealed) && doors_are_unsealed(sealed) && house_live && tended_once
+}
+
+/// CARD F5 — after a People-door land the soul stays light until existing E/Q.
+pub fn still_unsealed_until_eq(sealed: Option<(HousePeople, PeopleLanding)>) -> bool {
+    soul_is_light(sealed) && doors_are_unsealed(sealed)
+}
+
+/// CARD F5 — Title is not a race / class lobby. S3 roster READ only.
+pub fn f5_title_is_race_lobby() -> bool {
+    garden_roster_is_race_portrait_lobby()
+}
+
 /// CARD S2 — read People+Place seal from existing hour-two JSON extra keys.
 pub fn gate_seal_from_hour_two_json(raw: &str) -> Option<(HousePeople, PeopleLanding)> {
     let value = serde_json::from_str::<serde_json::Value>(raw).ok()?;
@@ -531,6 +558,15 @@ impl HourSacred {
         people: HousePeople,
     ) -> Option<PeopleLanding> {
         try_cross_people_door(self.charter_skin_live(), tended_once, crossed, people)
+    }
+
+    /// CARD F5 — House + Tend + unsealed may take one People-door. Not a seal.
+    pub fn unsealed_light_may_take_people_door(
+        &self,
+        tended_once: bool,
+        sealed: Option<(HousePeople, PeopleLanding)>,
+    ) -> bool {
+        unsealed_light_may_take_people_door(self.charter_skin_live(), tended_once, sealed)
     }
 }
 
@@ -1269,6 +1305,110 @@ mod tests {
         assert_eq!(light.last_place_name(), "Garden");
         for place in shared::hex_travel::LOCAL_HEXES {
             assert_ne!(place.as_str(), "garden");
+        }
+    }
+
+    /// CARD F5 — unsealed light may cross a People-door · still unsealed until E/Q.
+    #[test]
+    fn f5_unsealed_light_may_cross_door_still_unsealed_until_eq() {
+        let mut h = peace_hour();
+        let mut factory = VerticalFactory::default();
+        assert!(!h.unsealed_light_may_take_people_door(true, None));
+        assert!(try_ridge_tab(&mut h, true));
+        assert!(try_plant_house(&mut h, &mut factory));
+        assert!(h.unsealed_light_may_take_people_door(true, None));
+        assert!(!h.unsealed_light_may_take_people_door(false, None));
+        let sealed = Some((HousePeople::Human, PeopleLanding::SanctuaryYard));
+        assert!(!h.unsealed_light_may_take_people_door(true, sealed));
+
+        let mut crossed = None;
+        let land = h
+            .try_cross_people_door(true, &mut crossed, HousePeople::Human)
+            .expect("unsealed light may take a People-door");
+        assert_eq!(land, PeopleLanding::SanctuaryYard);
+        assert_eq!(crossed, Some(HousePeople::Human));
+        assert!(still_unsealed_until_eq(None));
+        assert!(soul_is_light(None));
+        assert!(doors_are_unsealed(None));
+        assert!(confirm_gate_seal(PeaceKey::Digit1, Some((HousePeople::Human, land))).is_none());
+        let sealed = confirm_gate_seal(PeaceKey::E, Some((HousePeople::Human, land))).expect("E");
+        assert!(!still_unsealed_until_eq(Some(sealed)));
+        assert!(!soul_is_light(Some(sealed)));
+    }
+
+    /// CARD F5 — decline / wrong door → garden light · not sealed · PlaceId garden.
+    #[test]
+    fn f5_decline_wrong_door_garden_light_not_sealed_place_id_garden() {
+        let mut crossed = Some(HousePeople::Draek);
+        let mut pending = Some(PeopleLanding::DepthsTealWayHome);
+        assert!(decline_or_wrong_door(&mut crossed, &mut pending, None));
+        assert!(crossed.is_none());
+        assert!(pending.is_none());
+        assert!(soul_is_light(None));
+        assert!(doors_are_unsealed(None));
+        assert!(still_unsealed_until_eq(None));
+        assert_eq!(PeopleLanding::SanctuaryYard.place_id(), PlaceId::Sanctuary);
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+        }
+    }
+
+    /// CARD F5 — Peace recall does not clear seal (if sealed) / vision home for light.
+    #[test]
+    fn f5_peace_recall_does_not_clear_seal_vision_home_for_light() {
+        let sealed = Some((HousePeople::Cydruid, PeopleLanding::Heartwood));
+        let (after, line) = peace_recall(sealed);
+        assert_eq!(after, sealed);
+        assert_eq!(line, PEACE_RECALL_VISION_HOME);
+        assert_eq!(line, "vision home");
+        assert!(!soul_is_light(after));
+
+        let (light_after, light_line) = peace_recall(None);
+        assert!(light_after.is_none());
+        assert_eq!(light_line, PEACE_RECALL_VISION_HOME);
+        assert!(soul_is_light(light_after));
+        assert!(still_unsealed_until_eq(light_after));
+    }
+
+    /// CARD F5 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f5_place_id_local_hexes_len_three() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert_eq!(
+            PeopleLanding::SanctuaryWellFromAbove.place_id(),
+            PlaceId::Sanctuary
+        );
+        assert!(four_place_landings_only());
+    }
+
+    /// CARD F5 — STEWARD_ONLINE_YES false.
+    #[test]
+    fn f5_steward_online_yes_false() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!shared::hex_protocol::default_client_listens());
+    }
+
+    /// CARD F5 — no fifth Place · no Title race lobby.
+    #[test]
+    fn f5_no_fifth_place_no_title_race_lobby() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        assert!(four_place_landings_only());
+        assert!(!f5_title_is_race_lobby());
+        assert!(!garden_roster_is_race_portrait_lobby());
+        let light = play_new_light_soul();
+        assert!(light.last_place().is_none());
+        assert_eq!(light.last_place_name(), "Garden");
+        assert!(!light.dress_line().contains("portrait"));
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
         }
     }
 }

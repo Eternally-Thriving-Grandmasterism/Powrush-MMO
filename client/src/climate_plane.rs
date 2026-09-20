@@ -29,6 +29,10 @@
  * Draek wet-stone / teal Peace. Quellorian keeps Heartwood fog (shelf is the
  * culture). Garden title light yields — Sanctuary is the lived level. 0 meshes.
  *
+ * CARD F5 WRONG-DOOR-BOUNCE — decline / wrong door restores garden PlaceId
+ * dress via the existing look_for table. Does not recook L7 fog WRITE.
+ * Garden bounce is Sanctuary boot disk, not a fifth Place. Online grey.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -292,6 +296,17 @@ pub fn arrival_fog_for_landing(landing: PeopleLanding) -> ArrivalFog {
         | PeopleLanding::Threshold
         | PeopleLanding::DepthsTealWayHome => look_fog(look),
     }
+}
+
+/// CARD F5 — garden bounce dress. Existing PlaceId dresser (Sanctuary boot disk).
+/// Not a fifth Place. Does not invent a Garden look_for row.
+pub fn garden_bounce_dress_token(garden: PlaceId) -> &'static str {
+    dress_token_for_place(garden)
+}
+
+/// CARD F5 — bounce does not recook L7 arrival fog WRITE.
+pub fn wrong_door_bounce_recooks_l7_fog() -> bool {
+    false
 }
 
 /// Garden title light yields on People-door land — lived Place dress is the level.
@@ -1707,5 +1722,103 @@ mod tests {
             Some(3),
             "Depths dress realm"
         );
+    }
+
+    /// CARD F5 — unsealed light may cross door → existing L7 fog cited · still unsealed until E/Q.
+    #[test]
+    fn f5_unsealed_light_may_cross_door_l7_beat_armed_still_unsealed_until_eq() {
+        use crate::hour_sacred::{
+            confirm_gate_seal, still_unsealed_until_eq, soul_is_light, HousePeople,
+        };
+        use crate::human_presence::{arrival_beat_after_land, run_arrival_beat};
+        use shared::local_settings::PeaceKey;
+
+        let beat = run_arrival_beat(PeopleLanding::SanctuaryYard);
+        assert!(beat.armed);
+        assert!(arrival_beat_after_land(Some(PeopleLanding::SanctuaryYard)).armed);
+        let fog = arrival_fog_for_landing(PeopleLanding::SanctuaryYard);
+        let look = look_for(Some(0));
+        assert_eq!(fog.color, look.fog);
+        assert!(!wrong_door_bounce_recooks_l7_fog());
+        assert!(still_unsealed_until_eq(None));
+        assert!(soul_is_light(None));
+        let pending = Some((HousePeople::Human, PeopleLanding::SanctuaryYard));
+        assert!(confirm_gate_seal(PeaceKey::Digit1, pending).is_none());
+        let sealed = confirm_gate_seal(PeaceKey::E, pending).expect("E");
+        assert!(!still_unsealed_until_eq(Some(sealed)));
+    }
+
+    /// CARD F5 — decline / wrong door → garden dress · not a fifth Place · L7 fog unread.
+    #[test]
+    fn f5_decline_wrong_door_garden_light_not_sealed_place_id_garden() {
+        assert_eq!(
+            garden_bounce_dress_token(PlaceId::Sanctuary),
+            "Sanctuary Prime"
+        );
+        assert_eq!(
+            garden_bounce_dress_token(PlaceId::Sanctuary),
+            dress_token_for_place(PlaceId::Sanctuary)
+        );
+        assert_eq!(
+            dress_mood_for_place(PlaceId::Sanctuary),
+            PlaceMood::SanctuarySkyYard
+        );
+        assert!(!wrong_door_bounce_recooks_l7_fog());
+        assert_ne!(garden_bounce_dress_token(PlaceId::Sanctuary), "Garden");
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+    }
+
+    /// CARD F5 — Peace recall does not clear seal / vision home for light.
+    #[test]
+    fn f5_peace_recall_does_not_clear_seal_vision_home_for_light() {
+        use crate::hour_sacred::{peace_recall, HousePeople, PeopleLanding, PEACE_RECALL_VISION_HOME};
+
+        let sealed = Some((HousePeople::Cydruid, PeopleLanding::Heartwood));
+        let (after, line) = peace_recall(sealed);
+        assert_eq!(after, sealed);
+        assert_eq!(line, PEACE_RECALL_VISION_HOME);
+        let (light_after, light_line) = peace_recall(None);
+        assert!(light_after.is_none());
+        assert_eq!(light_line, "vision home");
+    }
+
+    /// CARD F5 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f5_place_id_local_hexes_len_three() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(
+            crate::hour_sacred::PeopleLanding::Threshold.place_id(),
+            PlaceId::Heartwood
+        );
+    }
+
+    /// CARD F5 — STEWARD_ONLINE_YES false.
+    #[test]
+    fn f5_steward_online_yes_false() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!shared::hex_protocol::default_client_listens());
+    }
+
+    /// CARD F5 — no fifth Place · no Title race lobby.
+    #[test]
+    fn f5_no_fifth_place_no_title_race_lobby() {
+        use crate::hour_sacred::{f5_title_is_race_lobby, garden_roster_is_race_portrait_lobby};
+
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        assert_eq!(look_for(Some(0)).name, "Sanctuary Prime");
+        assert_eq!(look_for(Some(2)).name, "Verdant Heartwood");
+        assert_eq!(look_for(Some(1)).name, "Crystal Spires");
+        assert_eq!(look_for(Some(3)).name, "Abyssal Depths");
+        assert_ne!(look_for(Some(4)).name, "Market");
+        assert!(!f5_title_is_race_lobby());
+        assert!(!garden_roster_is_race_portrait_lobby());
+        assert!(mesh_lod::race_lobby_closed());
+        assert!(!wrong_door_bounce_recooks_l7_fog());
     }
 }

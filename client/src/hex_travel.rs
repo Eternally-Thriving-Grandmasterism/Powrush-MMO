@@ -28,6 +28,10 @@
 //! CARD S2 GATE-SEAL — decline / wrong door restores garden PlaceId (no net
 //! change) and does not run the L7 beat. Confirm is existing E/Q in
 //! hour_sacred; this file only restores PlaceId. PlaceId stays 3.
+//! CARD F5 WRONG-DOOR-BOUNCE — unsealed light may take a People-door and
+//! feel the existing L7 beat (apply_people_landing already arms it). Land
+//! is not a seal. Decline / wrong door restores garden PlaceId + garden
+//! wake; no L7 beat on bounce. PlaceId stays 3. L7 fog WRITE unread.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -42,9 +46,13 @@ use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL
 
 use crate::embassy::EmbassyYard;
 use crate::hour_sacred::{
-    try_cross_people_door, HousePeople, HourSacred, PeopleLanding,
+    decline_or_wrong_door, try_cross_people_door, unsealed_light_may_take_people_door,
+    HousePeople, HourSacred, PeopleLanding,
 };
-use crate::human_presence::{run_arrival_beat, wake_people_landing, ArrivalBeat, SoftPresence};
+use crate::human_presence::{
+    arrival_beat_after_land, run_arrival_beat, wake_garden_bounce, wake_people_landing,
+    ArrivalBeat, SoftPresence,
+};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::title_screen::{
     yard_after_travel, HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_FG,
@@ -279,6 +287,63 @@ pub fn decline_people_door_land(
 ) {
     *crossed = None;
     apply_place(travel, bind, embassy, garden, true);
+}
+
+/// CARD F5 — unsealed light takes a People-door and feels the existing L7 beat.
+/// Land is not a seal. Skip House / sealed / no Tend / already crossed = none.
+/// Does not recook L7 fog — [`apply_people_landing`] already arms the beat.
+pub fn try_unsealed_light_people_door_land(
+    house_live: bool,
+    tended_once: bool,
+    sealed: Option<(HousePeople, PeopleLanding)>,
+    crossed: &mut Option<HousePeople>,
+    people: HousePeople,
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    embassy: Option<&mut EmbassyYard>,
+    presence: Option<&mut SoftPresence>,
+) -> Option<(PeopleLanding, ArrivalBeat)> {
+    if !unsealed_light_may_take_people_door(house_live, tended_once, sealed) {
+        return None;
+    }
+    let landing = try_cross_people_door_land(
+        house_live,
+        tended_once,
+        crossed,
+        people,
+        travel,
+        bind,
+        embassy,
+        presence,
+    )?;
+    Some((landing, arrival_beat_after_land(Some(landing))))
+}
+
+/// CARD F5 — decline / wrong door: garden PlaceId, still light, no L7 beat.
+/// Restores SoftPresence to the garden wake (Sanctuary yard helper), not a land.
+pub fn bounce_wrong_door_to_garden(
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    embassy: Option<&mut EmbassyYard>,
+    garden: PlaceId,
+    crossed: &mut Option<HousePeople>,
+    pending_landing: &mut Option<PeopleLanding>,
+    sealed: Option<(HousePeople, PeopleLanding)>,
+    presence: Option<&mut SoftPresence>,
+) -> bool {
+    if !decline_or_wrong_door(crossed, pending_landing, sealed) {
+        return false;
+    }
+    decline_people_door_land(travel, bind, embassy, garden, crossed);
+    if let Some(p) = presence {
+        wake_garden_bounce(p);
+    }
+    true
+}
+
+/// CARD F5 — bounce does not arm the L7 arrival beat.
+pub fn wrong_door_bounce_arrival_beat() -> ArrivalBeat {
+    arrival_beat_after_land(None)
 }
 
 fn restore_house_embassy(embassy: Option<&mut EmbassyYard>) {
@@ -1819,5 +1884,182 @@ mod tests {
         assert!(confirm_gate_seal(PeaceKey::E, None).is_none());
         assert!(confirm_gate_seal(PeaceKey::Q, None).is_none());
         assert_eq!(LOCAL_HEXES.len(), 3);
+    }
+
+    /// CARD F5 — unsealed light may cross door → L7 beat armed · still unsealed until E/Q.
+    #[test]
+    fn f5_unsealed_light_may_cross_door_l7_beat_armed_still_unsealed_until_eq() {
+        use crate::hour_sacred::{confirm_gate_seal, still_unsealed_until_eq, soul_is_light};
+        use crate::human_presence::SoftPresence;
+        use shared::local_settings::PeaceKey;
+
+        let mut travel = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        let mut bind = demo_bind();
+        let mut presence = SoftPresence::default();
+        let mut crossed = None;
+        let (land, beat) = try_unsealed_light_people_door_land(
+            true,
+            true,
+            None,
+            &mut crossed,
+            HousePeople::Draek,
+            &mut travel,
+            &mut bind,
+            None,
+            Some(&mut presence),
+        )
+        .expect("unsealed light may take a People-door");
+        assert_eq!(land, PeopleLanding::DepthsTealWayHome);
+        assert_eq!(travel.current, PlaceId::Depths);
+        assert!(beat.armed);
+        assert_eq!(beat.landing, Some(PeopleLanding::DepthsTealWayHome));
+        assert!(still_unsealed_until_eq(None));
+        assert!(soul_is_light(None));
+        assert!(confirm_gate_seal(PeaceKey::Digit1, Some((HousePeople::Draek, land))).is_none());
+        let sealed = confirm_gate_seal(PeaceKey::E, Some((HousePeople::Draek, land))).expect("E");
+        assert!(!still_unsealed_until_eq(Some(sealed)));
+        assert!(!soul_is_light(Some(sealed)));
+
+        let mut skip = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        let mut skip_bind = demo_bind();
+        let mut skip_cross = None;
+        assert!(try_unsealed_light_people_door_land(
+            false,
+            true,
+            None,
+            &mut skip_cross,
+            HousePeople::Human,
+            &mut skip,
+            &mut skip_bind,
+            None,
+            None,
+        )
+        .is_none());
+        assert_eq!(skip.current, PlaceId::Sanctuary);
+    }
+
+    /// CARD F5 — decline / wrong door → garden light · not sealed · PlaceId garden.
+    #[test]
+    fn f5_decline_wrong_door_garden_light_not_sealed_place_id_garden() {
+        use crate::hour_sacred::{still_unsealed_until_eq, soul_is_light};
+        use crate::human_presence::{garden_bounce_wake, SoftPresence};
+
+        let garden = PlaceId::Sanctuary;
+        let mut travel = HexTravelState { current: garden };
+        let mut bind = demo_bind();
+        let mut presence = SoftPresence::default();
+        let mut crossed = None;
+        let (land, beat) = try_unsealed_light_people_door_land(
+            true,
+            true,
+            None,
+            &mut crossed,
+            HousePeople::Ambrosian,
+            &mut travel,
+            &mut bind,
+            None,
+            Some(&mut presence),
+        )
+        .expect("land");
+        assert_eq!(land, PeopleLanding::SanctuaryWellFromAbove);
+        assert!(beat.armed);
+        assert!(presence.position.y > garden_bounce_wake().y);
+
+        let mut pending = Some(land);
+        assert!(bounce_wrong_door_to_garden(
+            &mut travel,
+            &mut bind,
+            None,
+            garden,
+            &mut crossed,
+            &mut pending,
+            None,
+            Some(&mut presence),
+        ));
+        assert!(crossed.is_none());
+        assert!(pending.is_none());
+        assert_eq!(travel.current, garden);
+        assert_eq!(travel.current, PlaceId::Sanctuary);
+        assert_eq!(presence.position, garden_bounce_wake());
+        assert!(!wrong_door_bounce_arrival_beat().armed);
+        assert!(soul_is_light(None));
+        assert!(still_unsealed_until_eq(None));
+    }
+
+    /// CARD F5 — Peace recall does not clear seal (if sealed) / vision home for light.
+    #[test]
+    fn f5_peace_recall_does_not_clear_seal_vision_home_for_light() {
+        use crate::hour_sacred::{peace_recall, PEACE_RECALL_VISION_HOME};
+
+        let sealed = Some((HousePeople::Quellorian, PeopleLanding::Threshold));
+        let (after, line) = peace_recall(sealed);
+        assert_eq!(after, sealed);
+        assert_eq!(line, PEACE_RECALL_VISION_HOME);
+
+        let garden = PlaceId::Sanctuary;
+        let mut travel = HexTravelState {
+            current: PlaceId::Heartwood,
+        };
+        let mut bind = demo_bind();
+        let mut crossed = Some(HousePeople::Quellorian);
+        let mut pending = Some(PeopleLanding::Threshold);
+        assert!(!bounce_wrong_door_to_garden(
+            &mut travel,
+            &mut bind,
+            None,
+            garden,
+            &mut crossed,
+            &mut pending,
+            sealed,
+            None,
+        ));
+        assert_eq!(travel.current, PlaceId::Heartwood);
+        assert_eq!(crossed, Some(HousePeople::Quellorian));
+
+        let (light_after, light_line) = peace_recall(None);
+        assert!(light_after.is_none());
+        assert_eq!(light_line, "vision home");
+    }
+
+    /// CARD F5 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f5_place_id_local_hexes_len_three() {
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+    }
+
+    /// CARD F5 — STEWARD_ONLINE_YES false.
+    #[test]
+    fn f5_steward_online_yes_false() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!default_client_listens());
+        assert!(!PowrushNet::Off.title_online_enabled());
+    }
+
+    /// CARD F5 — no fifth Place · no Title race lobby.
+    #[test]
+    fn f5_no_fifth_place_no_title_race_lobby() {
+        use crate::hour_sacred::{f5_title_is_race_lobby, garden_roster_is_race_portrait_lobby};
+        use crate::human_presence::presence_opens_race_lobby;
+
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        assert!(!f5_title_is_race_lobby());
+        assert!(!garden_roster_is_race_portrait_lobby());
+        assert!(!presence_opens_race_lobby());
+        for place in LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+        }
     }
 }
