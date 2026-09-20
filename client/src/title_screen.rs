@@ -5080,7 +5080,7 @@ mod tests {
         use shared::hex_travel::PlaceId;
         use shared::hour_two::HourTwoPack;
 
-        let existing = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House"}"#;
+        let existing = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House","warrant":{"h":0.0,"i":0.0,"c":0.0,"f":0.0,"x":0.0,"repair":0.0,"return_cargo":0.0,"council":0.0,"tend_spill":0.0}}"#;
         let json = merge_gate_seal_into_hour_two_json(
             existing,
             HousePeople::Ambrosian,
