@@ -67,6 +67,12 @@
 //! Garden boot (no land) keeps GARDEN_WANT. After land, Want follows
 //! PlaceId in first-session guidance (not Title chrome). Do not restyle
 //! Play / Continue / Settings · Online grey.
+//!
+//! CARD S1 AFTERMATH-EVIDENCE — Title garden guidance after land (or on
+//! Place Want) speaks Place-local aftermath via
+//! `garden_guidance_after_land`. Skip House keeps GARDEN_WANT. Not a
+//! trailer. Cite lore on tip. 0 meshes · 0 Imagine pack import.
+//! Play / Continue / Settings · Online grey unchanged. L7 beat untouched.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::KeyboardInput;
@@ -90,7 +96,7 @@ use shared::persona::{
 
 use crate::embassy::EmbassyYard;
 use crate::first_session_guidance::{
-    first_minutes_people_want_line, garden_boot_want_line, FirstSessionGuidance,
+    first_minutes_people_want_line, garden_guidance_after_land, FirstSessionGuidance,
 };
 use crate::hex_travel::{
     apply_title_boot, settings_visible_with_places, try_cross_people_door_land, HexTravelState,
@@ -1951,16 +1957,26 @@ pub fn garden_boot_want_font_px(text_scale: f32) -> f32 {
     (14.0 * text_scale.clamp(1.0, 1.6)).clamp(13.0, 22.0)
 }
 
-/// CARD L1 GARDEN-WANT — Title / God-plane speaks People + Want until H hushes.
-/// Does not require LaunchDoor::InYard or Sanctuary dirt.
+/// CARD L1 GARDEN-WANT / CARD S1 — Title / God-plane speaks People + Want
+/// until H hushes. After a sealed People-door land, the same plate speaks
+/// Place-local aftermath evidence (not a trailer). Skip House keeps
+/// GARDEN_WANT. Does not require LaunchDoor::InYard or Sanctuary dirt.
 fn refresh_garden_boot_want(
     door: Res<LaunchDoor>,
     guidance: Option<Res<FirstSessionGuidance>>,
     settings: Res<LocalSettingsState>,
     mut q: Query<(&mut Text, &mut Visibility), With<TitleGardenWantText>>,
 ) {
-    let hush = guidance.map(|g| !g.speaks_people_want()).unwrap_or(false);
-    let spoken = garden_boot_want_line(*door == LaunchDoor::Title, hush);
+    let hush = guidance
+        .as_ref()
+        .map(|g| !g.speaks_people_want())
+        .unwrap_or(false);
+    let landing = guidance.as_ref().and_then(|g| g.people_landing);
+    let spoken = if *door == LaunchDoor::Title {
+        garden_guidance_after_land(true, hush, landing)
+    } else {
+        None
+    };
     let font = garden_boot_want_font_px(settings.inner.text_scale);
     for (mut text, mut vis) in &mut q {
         if let Some(s) = text.sections.get_mut(0) {
@@ -4433,6 +4449,180 @@ mod tests {
     /// CARD L6 — STEWARD_ONLINE_YES stays false. Online grey.
     #[test]
     fn l6_steward_online_yes_stays_false() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+    }
+
+    /// CARD S1 — skip House Title garden keeps GARDEN_WANT / Sanctuary boot Want.
+    #[test]
+    fn s1_skip_house_title_garden_keeps_garden_sanctuary_boot_want() {
+        use crate::first_session_guidance::{
+            aftermath_after_people_landing, garden_guidance_after_land, want_after_people_landing,
+            GARDEN_WANT, SANCTUARY_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(GARDEN_WANT, SANCTUARY_WANT);
+        let spoken = garden_guidance_after_land(true, false, None).expect("Garden boot");
+        assert!(spoken.contains(GARDEN_WANT));
+        let (land, now) = l5_garden_land(false, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert!(land.is_none());
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(want_after_people_landing(land), GARDEN_WANT);
+        assert_eq!(aftermath_after_people_landing(land), GARDEN_WANT);
+        assert_eq!(
+            garden_guidance_after_land(true, false, land).expect("still Garden"),
+            spoken
+        );
+    }
+
+    /// CARD S1 — Human Title garden after land: yard teaching · war rumor at well.
+    /// Want stays Sanctuary. Chrome unchanged.
+    #[test]
+    fn s1_human_title_garden_aftermath_yard_teaching_war_rumor() {
+        use crate::first_session_guidance::{
+            aftermath_after_people_landing, first_minutes_aftermath_line, garden_boot_want_line,
+            garden_guidance_after_land, want_after_people_landing, HUMAN_AFTERMATH, SANCTUARY_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) = l5_garden_land(true, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        assert_eq!(land, Some(PeopleLanding::SanctuaryYard));
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(want_after_people_landing(land), SANCTUARY_WANT);
+        assert_eq!(aftermath_after_people_landing(land), HUMAN_AFTERMATH);
+        let spoken = garden_guidance_after_land(true, false, land).expect("after land");
+        assert_eq!(spoken, first_minutes_aftermath_line(land));
+        assert!(spoken.contains(SANCTUARY_WANT));
+        assert!(spoken.contains("yard still teaching"));
+        assert!(spoken.contains("war is rumor at the well"));
+        assert!(garden_boot_want_line(true, false)
+            .expect("boot Want unchanged")
+            .contains(SANCTUARY_WANT));
+    }
+
+    /// CARD S1 — Ambrosian Title garden: Want stays Sanctuary; aftermath is
+    /// same disk · thinner fog · no hull (Fork A). Differs from Human.
+    #[test]
+    fn s1_ambrosian_title_garden_aftermath_thinner_fog_no_hull() {
+        use crate::first_session_guidance::{
+            aftermath_after_people_landing, garden_guidance_after_land, want_after_people_landing,
+            AMBROSIAN_AFTERMATH, HUMAN_AFTERMATH, SANCTUARY_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let (human, _) = l5_garden_land(true, true, HousePeople::Human, PlaceId::Sanctuary, None);
+        let (ambrosian, now) =
+            l5_garden_land(true, true, HousePeople::Ambrosian, PlaceId::Sanctuary, None);
+        assert_eq!(now, PlaceId::Sanctuary);
+        assert_eq!(want_after_people_landing(ambrosian), SANCTUARY_WANT);
+        assert_eq!(
+            want_after_people_landing(ambrosian),
+            want_after_people_landing(human)
+        );
+        assert_eq!(aftermath_after_people_landing(ambrosian), AMBROSIAN_AFTERMATH);
+        assert_ne!(
+            aftermath_after_people_landing(ambrosian),
+            aftermath_after_people_landing(human)
+        );
+        let spoken = garden_guidance_after_land(true, false, ambrosian).expect("after land");
+        assert!(spoken.contains(SANCTUARY_WANT));
+        assert!(spoken.contains("same disk"));
+        assert!(spoken.contains("thinner fog"));
+        assert!(spoken.contains("no hull"));
+        assert!(!spoken.contains(HUMAN_AFTERMATH));
+    }
+
+    /// CARD S1 — Cydruid Title garden: human-in-frame · nature is practice.
+    /// Want stays Heartwood. NOT treant.
+    #[test]
+    fn s1_cydruid_title_garden_aftermath_human_in_frame_nature_is_practice() {
+        use crate::first_session_guidance::{
+            aftermath_after_people_landing, garden_guidance_after_land, want_after_people_landing,
+            CYDRUID_AFTERMATH, HEARTWOOD_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) = l5_garden_land(true, true, HousePeople::Cydruid, PlaceId::Sanctuary, None);
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(want_after_people_landing(land), HEARTWOOD_WANT);
+        assert_eq!(aftermath_after_people_landing(land), CYDRUID_AFTERMATH);
+        let spoken = garden_guidance_after_land(true, false, land).expect("after land");
+        assert!(spoken.contains(HEARTWOOD_WANT));
+        assert!(spoken.contains("human-in-frame"));
+        assert!(spoken.contains("nature is practice"));
+        assert!(!spoken.contains("treant"));
+        assert_eq!(HousePeople::Cydruid.people_line(), "Cydruid · human-in-frame");
+        assert!(!HousePeople::Cydruid.people_line().contains("treant"));
+    }
+
+    /// CARD S1 — Quellorian Title garden: seam remembers the leaving.
+    /// Want stays Heartwood. Aftermath differs from Cydruid.
+    #[test]
+    fn s1_quellorian_title_garden_aftermath_seam_remembers_the_leaving() {
+        use crate::first_session_guidance::{
+            aftermath_after_people_landing, garden_guidance_after_land, want_after_people_landing,
+            CYDRUID_AFTERMATH, HEARTWOOD_WANT, QUELLORIAN_AFTERMATH, SANCTUARY_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let (cydruid, _) =
+            l5_garden_land(true, true, HousePeople::Cydruid, PlaceId::Sanctuary, None);
+        let (land, now) =
+            l5_garden_land(true, true, HousePeople::Quellorian, PlaceId::Sanctuary, None);
+        assert_eq!(now, PlaceId::Heartwood);
+        assert_eq!(want_after_people_landing(land), HEARTWOOD_WANT);
+        assert_eq!(
+            want_after_people_landing(land),
+            want_after_people_landing(cydruid)
+        );
+        assert_eq!(aftermath_after_people_landing(land), QUELLORIAN_AFTERMATH);
+        assert_ne!(
+            aftermath_after_people_landing(land),
+            aftermath_after_people_landing(cydruid)
+        );
+        let spoken = garden_guidance_after_land(true, false, land).expect("after land");
+        assert!(spoken.contains("seam remembers the leaving"));
+        assert!(!spoken.contains(CYDRUID_AFTERMATH));
+        assert!(!spoken.contains(SANCTUARY_WANT));
+    }
+
+    /// CARD S1 — Draek Title garden: consume-scar · teal way-home.
+    /// Want stays Depths restore, not Take.
+    #[test]
+    fn s1_draek_title_garden_aftermath_consume_scar_teal_way_home() {
+        use crate::first_session_guidance::{
+            aftermath_after_people_landing, garden_guidance_after_land, want_after_people_landing,
+            DEPTHS_WANT, DRAEK_AFTERMATH,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let (land, now) = l5_garden_land(true, true, HousePeople::Draek, PlaceId::Sanctuary, None);
+        assert_eq!(now, PlaceId::Depths);
+        assert_eq!(want_after_people_landing(land), DEPTHS_WANT);
+        assert_eq!(aftermath_after_people_landing(land), DRAEK_AFTERMATH);
+        let spoken = garden_guidance_after_land(true, false, land).expect("after land");
+        assert!(spoken.contains(DEPTHS_WANT));
+        assert!(spoken.contains("consume-scar"));
+        assert!(spoken.contains("teal way-home"));
+        assert!(spoken.contains("restored"));
+        assert!(!spoken.contains("Take"));
+    }
+
+    /// CARD S1 — TITLE_CHROME_PLAY / Continue / Settings unchanged.
+    #[test]
+    fn s1_title_chrome_play_continue_settings() {
+        assert_eq!(TITLE_CHROME_PLAY, "Play — first Hands");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert!(l2_title_chrome_holds());
+        assert!(!title_has_race_portraits());
+    }
+
+    /// CARD S1 — STEWARD_ONLINE_YES stays false. Online grey.
+    #[test]
+    fn s1_steward_online_yes_stays_false() {
         assert!(!STEWARD_ONLINE_YES);
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
