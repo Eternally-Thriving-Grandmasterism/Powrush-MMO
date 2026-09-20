@@ -25,6 +25,9 @@
 //! CARD L7 ARRIVAL-BEAT — after apply_people_landing, one beat keyed by
 //! PeopleLanding (fog / camera / SoftPresence already on tip). No PlaceId remap.
 //! Skip House → no beat. Ambrosian = lift on Sanctuary disk (FORK A).
+//! CARD S2 GATE-SEAL — decline / wrong door restores garden PlaceId (no net
+//! change) and does not run the L7 beat. Confirm is existing E/Q in
+//! hour_sacred; this file only restores PlaceId. PlaceId stays 3.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -262,6 +265,20 @@ pub fn try_cross_people_door_land(
     let landing = try_cross_people_door(house_live, tended_once, crossed, people)?;
     apply_people_landing(travel, bind, embassy, landing, presence);
     Some(landing)
+}
+
+/// CARD S2 — decline / wrong door returns the body to garden. PlaceId is
+/// restored to `garden` (boot disk, not a fifth Place). No L7 arrival beat.
+/// Session cross is cleared. Does not unseal a confirmed soul — caller checks.
+pub fn decline_people_door_land(
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    embassy: Option<&mut EmbassyYard>,
+    garden: PlaceId,
+    crossed: &mut Option<HousePeople>,
+) {
+    *crossed = None;
+    apply_place(travel, bind, embassy, garden, true);
 }
 
 fn restore_house_embassy(embassy: Option<&mut EmbassyYard>) {
@@ -1752,5 +1769,55 @@ mod tests {
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(!shared::hex_protocol::default_client_listens());
         assert!(!PowrushNet::Off.title_online_enabled());
+    }
+
+    /// CARD S2 — decline / wrong door restores garden PlaceId · still light.
+    #[test]
+    fn s2_decline_wrong_door_restores_garden_place_id() {
+        use crate::hour_sacred::decline_or_wrong_door;
+
+        let start = PlaceId::Sanctuary;
+        let (land, now) = land_people(true, true, HousePeople::Draek, start);
+        assert_eq!(land, Some(PeopleLanding::DepthsTealWayHome));
+        assert_eq!(now, PlaceId::Depths);
+
+        let mut travel = HexTravelState { current: start };
+        let mut bind = demo_bind();
+        let mut crossed = None;
+        let land = try_cross_people_door_land(
+            true,
+            true,
+            &mut crossed,
+            HousePeople::Draek,
+            &mut travel,
+            &mut bind,
+            None,
+            None,
+        );
+        assert_eq!(land, Some(PeopleLanding::DepthsTealWayHome));
+        assert_eq!(travel.current, PlaceId::Depths);
+        let mut pending = land;
+        assert!(decline_or_wrong_door(&mut crossed, &mut pending, None));
+        decline_people_door_land(&mut travel, &mut bind, None, start, &mut crossed);
+        assert!(crossed.is_none());
+        assert!(pending.is_none());
+        assert_eq!(travel.current, start);
+        assert_eq!(travel.current, PlaceId::Sanctuary);
+    }
+
+    /// CARD S2 — Skip House → no PlaceId change · not sealed.
+    #[test]
+    fn s2_skip_house_place_id_unchanged_not_sealed() {
+        use crate::hour_sacred::{confirm_gate_seal, soul_is_light};
+        use shared::local_settings::PeaceKey;
+
+        let start = PlaceId::Sanctuary;
+        let (land, now) = land_people(false, true, HousePeople::Human, start);
+        assert!(land.is_none());
+        assert_eq!(now, start);
+        assert!(soul_is_light(None));
+        assert!(confirm_gate_seal(PeaceKey::E, None).is_none());
+        assert!(confirm_gate_seal(PeaceKey::Q, None).is_none());
+        assert_eq!(LOCAL_HEXES.len(), 3);
     }
 }

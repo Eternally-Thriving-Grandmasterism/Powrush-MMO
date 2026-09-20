@@ -55,6 +55,13 @@
  * 0 meshes · 0 new PlaceId · 0 Imagine pack import (cite only).
  * Title stays Play / Continue / Settings · Online grey.
  *
+ * CARD S2 GATE-SEAL — new soul is light on the God-plane (garden). Doors
+ * stay unsealed until existing E/Q confirm at landing seals People+Place
+ * onto the existing hour-two disk. Decline / wrong door returns to garden
+ * still light, not tied, PlaceId unchanged. Skip House stays light (L7).
+ * Peace recall = vision home, not an unseal. S1 aftermath lines untouched.
+ * PlaceId stays 3. Title chrome unchanged. Online grey.
+ *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
@@ -62,12 +69,14 @@ use bevy::prelude::*;
 
 use crate::embassy::EmbassyYard;
 use crate::fabricator::FabricatorYard;
-use crate::hex_travel::{apply_people_landing, HexTravelState};
+use crate::hex_travel::{apply_people_landing, decline_people_door_land, HexTravelState};
 use crate::hour_sacred::{
-    god_plane_doors_ignited, offer_house_peoples, skip_house_stays_light, try_cross_people_door,
+    confirm_gate_seal, doors_are_unsealed, god_plane_doors_ignited,
+    offer_house_peoples, skip_house_stays_light, soul_is_light, try_cross_people_door,
     HousePeople, PeopleLanding, HourSacred, HOUSE_PEOPLES, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
 };
 use shared::hex_travel::PlaceId;
+use shared::local_settings::PeaceKey;
 use crate::human_presence::SoftPresence;
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
@@ -323,9 +332,14 @@ pub struct FirstSessionGuidance {
     pub proof_pack: bool,
     pub embassy_seated: bool,
     pub hour_three_held: bool,
-    /// CARD S1 — sealed People-door land this session. None = skip House /
+    /// CARD S1 — People-door land this session. None = skip House /
     /// Garden boot. After land, Title garden + Place Want hear aftermath.
+    /// CARD S2 — land is not a seal; [`gate_sealed`] is the E/Q confirm.
     pub people_landing: Option<PeopleLanding>,
+    /// CARD S2 — E/Q confirm at landing ties this soul to People+Place.
+    pub gate_sealed: bool,
+    /// CARD S2 — sealed People after confirm. None while light / unsealed.
+    pub sealed_people: Option<HousePeople>,
 }
 
 impl Default for FirstSessionGuidance {
@@ -350,6 +364,8 @@ impl Default for FirstSessionGuidance {
             embassy_seated: false,
             hour_three_held: false,
             people_landing: None,
+            gate_sealed: false,
+            sealed_people: None,
         }
     }
 }
@@ -429,6 +445,68 @@ impl FirstSessionGuidance {
     /// Skip House keeps garden / Sanctuary boot Want.
     pub fn aftermath_evidence_line(&self) -> &'static str {
         aftermath_after_people_landing(self.people_landing)
+    }
+
+    /// CARD S2 — new soul / skip House / declined door stays light.
+    pub fn is_light(&self) -> bool {
+        !self.gate_sealed && soul_is_light(self.sealed_pair())
+    }
+
+    /// CARD S2 — doors stay unsealed until E/Q confirm.
+    pub fn doors_unsealed(&self) -> bool {
+        !self.gate_sealed && doors_are_unsealed(self.sealed_pair())
+    }
+
+    fn sealed_pair(&self) -> Option<(HousePeople, PeopleLanding)> {
+        match (self.sealed_people, self.people_landing) {
+            (Some(people), Some(landing)) if self.gate_sealed => Some((people, landing)),
+            _ => None,
+        }
+    }
+
+    /// CARD S2 — existing E/Q at landing seals this People+Place for the soul.
+    pub fn confirm_seal_at_landing(
+        &mut self,
+        key: PeaceKey,
+        crossed: Option<HousePeople>,
+    ) -> Option<(HousePeople, PeopleLanding)> {
+        let pending = match (crossed, self.people_landing) {
+            (Some(people), Some(landing)) => Some((people, landing)),
+            _ => None,
+        };
+        let sealed = confirm_gate_seal(key, pending)?;
+        self.gate_sealed = true;
+        self.sealed_people = Some(sealed.0);
+        Some(sealed)
+    }
+
+    /// CARD S2 — decline / wrong door: garden, still light, not tied.
+    /// Restores `garden` PlaceId. No-op after seal.
+    pub fn decline_or_wrong_door(
+        &mut self,
+        crossed: &mut Option<HousePeople>,
+        travel: &mut HexTravelState,
+        bind: &mut LivedHourBind,
+        embassy: Option<&mut EmbassyYard>,
+        garden: PlaceId,
+    ) -> bool {
+        if !crate::hour_sacred::decline_or_wrong_door(
+            crossed,
+            &mut self.people_landing,
+            self.sealed_pair(),
+        ) {
+            return false;
+        }
+        decline_people_door_land(travel, bind, embassy, garden, crossed);
+        self.gate_sealed = false;
+        self.sealed_people = None;
+        true
+    }
+
+    /// CARD S2 — Peace recall = vision home. Does not unseal.
+    pub fn peace_recall(&self) -> &'static str {
+        let (_, line) = crate::hour_sacred::peace_recall(self.sealed_pair());
+        line
     }
 
     /// CARD L2 — 0 meshes · ASSET_BUDGET cite only. Five Peoples, not a dress token.
@@ -1717,5 +1795,123 @@ mod tests {
         assert_eq!(g.aftermath_evidence_line(), HUMAN_AFTERMATH);
         g.dismiss();
         assert!(garden_guidance_after_land(true, !g.speaks_people_want(), land).is_none());
+    }
+
+    /// CARD S2 — decline / wrong door → garden light · not sealed.
+    #[test]
+    fn s2_decline_wrong_door_garden_light_not_sealed() {
+        use shared::hex_travel::PlaceId;
+
+        let start = PlaceId::Sanctuary;
+        let (land, now) =
+            l5_first_session_land(true, true, HousePeople::Cydruid, start, None);
+        assert_eq!(land, Some(PeopleLanding::Heartwood));
+        assert_eq!(now, PlaceId::Heartwood);
+
+        let mut g = FirstSessionGuidance::default();
+        g.house_live = true;
+        g.harvests_completed = 1;
+        let mut travel = HexTravelState { current: start };
+        let mut bind = l5_demo_bind();
+        let mut crossed = None;
+        let land = g
+            .try_cross_people_door(
+                &mut crossed,
+                HousePeople::Cydruid,
+                &mut travel,
+                &mut bind,
+                None,
+                None,
+            )
+            .expect("land");
+        assert_eq!(land, PeopleLanding::Heartwood);
+        assert_eq!(travel.current, PlaceId::Heartwood);
+        assert!(g.is_light());
+        assert!(g.doors_unsealed());
+        assert!(!g.gate_sealed);
+
+        assert!(g.decline_or_wrong_door(&mut crossed, &mut travel, &mut bind, None, start));
+        assert!(crossed.is_none());
+        assert!(g.people_landing.is_none());
+        assert_eq!(travel.current, start);
+        assert!(g.is_light());
+        assert!(g.doors_unsealed());
+        assert!(!g.gate_sealed);
+        assert_eq!(g.aftermath_evidence_line(), GARDEN_WANT);
+        assert_eq!(HUMAN_AFTERMATH, "yard still teaching · war is rumor at the well");
+
+        let land = g
+            .try_cross_people_door(
+                &mut crossed,
+                HousePeople::Human,
+                &mut travel,
+                &mut bind,
+                None,
+                None,
+            )
+            .expect("unsealed soul may try again");
+        assert_eq!(land, PeopleLanding::SanctuaryYard);
+        let sealed = g
+            .confirm_seal_at_landing(PeaceKey::E, crossed)
+            .expect("E seals");
+        assert_eq!(sealed, (HousePeople::Human, PeopleLanding::SanctuaryYard));
+        assert!(!g.is_light());
+        assert!(!g.doors_unsealed());
+        assert_eq!(g.peace_recall(), "vision home");
+        assert!(!g.decline_or_wrong_door(&mut crossed, &mut travel, &mut bind, None, start));
+        assert_eq!(g.sealed_people, Some(HousePeople::Human));
+        assert_eq!(travel.current, PlaceId::Sanctuary);
+    }
+
+    /// CARD S2 — Skip House → no PlaceId change · not sealed.
+    #[test]
+    fn s2_skip_house_no_place_id_change_not_sealed() {
+        use shared::hex_travel::PlaceId;
+
+        let start = PlaceId::Sanctuary;
+        let (land, now) = l5_first_session_land(false, true, HousePeople::Human, start, None);
+        assert!(land.is_none());
+        assert_eq!(now, start);
+        let g = FirstSessionGuidance::default();
+        assert!(g.stays_light_peace());
+        assert!(g.is_light());
+        assert!(g.doors_unsealed());
+        assert!(!g.gate_sealed);
+        assert!(g.confirm_seal_at_landing(PeaceKey::E, None).is_none());
+        assert_eq!(g.peace_recall(), "vision home");
+        assert_eq!(want_after_people_landing(land), GARDEN_WANT);
+        assert_eq!(now, PlaceId::Sanctuary);
+    }
+
+    /// CARD S2 — PlaceId stays 3 · STEWARD_ONLINE_YES false · Title chrome unchanged.
+    #[test]
+    fn s2_place_id_stays_three_steward_online_grey_title_chrome() {
+        use crate::title_screen::{
+            l2_title_chrome_holds, TITLE_CHROME_CONTINUE, TITLE_CHROME_PLAY, TITLE_CHROME_SETTINGS,
+        };
+        use shared::hex_travel::{PlaceId, LOCAL_HEXES};
+        use shared::persona::STEWARD_ONLINE_YES;
+        use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert_eq!(
+            PeopleLanding::SanctuaryWellFromAbove.place_id(),
+            PlaceId::Sanctuary
+        );
+        assert_eq!(TITLE_CHROME_PLAY, "Play — first Hands");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert!(l2_title_chrome_holds());
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(HUMAN_AFTERMATH, "yard still teaching · war is rumor at the well");
+        assert_eq!(AMBROSIAN_AFTERMATH, "same disk · thinner fog · no hull");
+        assert_eq!(CYDRUID_AFTERMATH, "human-in-frame · nature is practice");
+        assert_eq!(QUELLORIAN_AFTERMATH, "seam remembers the leaving");
+        assert_eq!(DRAEK_AFTERMATH, "consume-scar · teal way-home");
     }
 }
