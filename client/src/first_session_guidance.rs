@@ -1518,7 +1518,7 @@ mod tests {
         assert!(spoken.contains(GARDEN_WANT));
         assert!(garden_guidance_after_land(false, false, None).is_none());
 
-        let mut g = FirstSessionGuidance::default();
+        let g = FirstSessionGuidance::default();
         assert!(g.people_landing.is_none());
         assert_eq!(g.aftermath_evidence_line(), GARDEN_WANT);
         let (land, now) =

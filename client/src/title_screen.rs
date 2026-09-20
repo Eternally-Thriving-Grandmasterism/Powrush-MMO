@@ -4482,8 +4482,8 @@ mod tests {
     #[test]
     fn s1_human_title_garden_aftermath_yard_teaching_war_rumor() {
         use crate::first_session_guidance::{
-            aftermath_after_people_landing, first_minutes_aftermath_line, garden_guidance_after_land,
-            want_after_people_landing, HUMAN_AFTERMATH, SANCTUARY_WANT,
+            aftermath_after_people_landing, first_minutes_aftermath_line, garden_boot_want_line,
+            garden_guidance_after_land, want_after_people_landing, HUMAN_AFTERMATH, SANCTUARY_WANT,
         };
         use shared::hex_travel::PlaceId;
 
