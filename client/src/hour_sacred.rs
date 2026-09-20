@@ -24,6 +24,13 @@
 //! garden still light, PlaceId unchanged. Skip House stays light (L7).
 //! Peace recall = vision home, does not unseal. PlaceId stays 3. S1
 //! aftermath lines untouched. No new verb · no fifth Place · Online grey.
+//!
+//! CARD S3 GARDEN-ROSTER — Title Play is a new ungenerated light soul on
+//! the garden / God-plane (unsealed). Continue lists sealed souls from
+//! the S2 hour-two extra keys (`sealed_people` / `sealed_landing`), each
+//! in People dress, resume at last sealed Place. Light form is only the
+//! new / unsealed slot — never a race-portrait lobby. PlaceId stays 3.
+//! Reads S2 helpers; does not invent schema. S2 WRITE untouched.
 
 use std::path::PathBuf;
 
@@ -335,6 +342,78 @@ pub fn preserve_gate_seal_in_hour_two_json(prior: &str, next: &str) -> String {
         Some((people, landing)) => merge_gate_seal_into_hour_two_json(next, people, landing),
         None => next.to_string(),
     }
+}
+
+/// CARD S3 — Title garden roster row. In-memory view of S2 keys, not a schema.
+/// Light is only the Play / new / unsealed slot. Sealed rows wear People dress.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GardenRosterSoul {
+    /// Play — ungenerated light on the garden / God-plane. Doors unsealed.
+    LightUnsealed,
+    /// Continue — S2 sealed People+Place. Dress + last Place. Not a portrait.
+    Sealed {
+        people: HousePeople,
+        landing: PeopleLanding,
+    },
+}
+
+impl GardenRosterSoul {
+    pub const fn is_light(self) -> bool {
+        matches!(self, Self::LightUnsealed)
+    }
+
+    pub const fn is_unsealed(self) -> bool {
+        self.is_light()
+    }
+
+    /// People dress for sealed souls. Light form never wears a race portrait.
+    pub const fn dress_line(self) -> &'static str {
+        match self {
+            Self::LightUnsealed => "light",
+            Self::Sealed { people, .. } => people.people_line(),
+        }
+    }
+
+    /// Last sealed Place. Garden / God-plane is not a PlaceId landing.
+    pub const fn last_place(self) -> Option<PlaceId> {
+        match self {
+            Self::LightUnsealed => None,
+            Self::Sealed { landing, .. } => Some(landing.place_id()),
+        }
+    }
+
+    pub const fn last_place_name(self) -> &'static str {
+        match self {
+            Self::LightUnsealed => "Garden",
+            Self::Sealed { landing, .. } => landing.place_name(),
+        }
+    }
+
+    pub const fn sealed_pair(self) -> Option<(HousePeople, PeopleLanding)> {
+        match self {
+            Self::LightUnsealed => None,
+            Self::Sealed { people, landing } => Some((people, landing)),
+        }
+    }
+}
+
+/// CARD S3 — Play starts a new ungenerated light soul. Does not read the seal.
+pub fn play_new_light_soul() -> GardenRosterSoul {
+    GardenRosterSoul::LightUnsealed
+}
+
+/// CARD S3 — Continue lists sealed souls from S2 hour-two extra keys.
+/// One pair of keys → zero or one row. Not a five-portrait race lobby.
+pub fn continue_sealed_souls_from_hour_two_json(raw: &str) -> Vec<GardenRosterSoul> {
+    match gate_seal_from_hour_two_json(raw) {
+        Some((people, landing)) => vec![GardenRosterSoul::Sealed { people, landing }],
+        None => Vec::new(),
+    }
+}
+
+/// CARD S3 — Title garden roster is souls, never a race-portrait lobby.
+pub fn garden_roster_is_race_portrait_lobby() -> bool {
+    false
 }
 
 /// Resolved user-dir path for the hour-two / book pack.
@@ -1091,5 +1170,105 @@ mod tests {
         assert!(!decline_or_wrong_door(&mut crossed, &mut pending, sealed));
         assert_eq!(crossed, Some(HousePeople::Draek));
         assert_eq!(pending, Some(PeopleLanding::DepthsTealWayHome));
+    }
+
+    /// CARD S3 — Play starts a new ungenerated light soul (garden / God-plane).
+    #[test]
+    fn s3_play_starts_light_unsealed_soul() {
+        let soul = play_new_light_soul();
+        assert_eq!(soul, GardenRosterSoul::LightUnsealed);
+        assert!(soul.is_light());
+        assert!(soul.is_unsealed());
+        assert!(soul_is_light(soul.sealed_pair()));
+        assert!(doors_are_unsealed(soul.sealed_pair()));
+        assert_eq!(soul.dress_line(), "light");
+        assert!(soul.last_place().is_none(), "garden is not a Place landing");
+        assert_eq!(soul.last_place_name(), "Garden");
+        assert_ne!(soul.last_place_name(), "Sanctuary");
+        assert!(!soul.dress_line().contains("portrait"));
+        assert!(!garden_roster_is_race_portrait_lobby());
+    }
+
+    /// CARD S3 — Continue lists sealed souls from S2 keys · People dress · last Place.
+    #[test]
+    fn s3_continue_lists_sealed_souls_dress_last_place() {
+        assert!(continue_sealed_souls_from_hour_two_json("{}").is_empty());
+        assert!(continue_sealed_souls_from_hour_two_json(r#"{"hex":"Peace"}"#).is_empty());
+
+        let json = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let list = continue_sealed_souls_from_hour_two_json(&json);
+        assert_eq!(list.len(), 1, "S2 keys are one sealed soul, not a portraits grid");
+        assert_ne!(list.len(), HOUSE_PEOPLES.len());
+        let soul = list[0];
+        assert!(!soul.is_light());
+        assert_eq!(soul.dress_line(), "Cydruid · human-in-frame");
+        assert!(!soul.dress_line().contains("treant"));
+        assert!(!soul.dress_line().contains("portrait"));
+        assert_eq!(soul.last_place(), Some(PlaceId::Heartwood));
+        assert_eq!(soul.last_place_name(), "Heartwood");
+        assert_eq!(
+            soul.sealed_pair(),
+            Some((HousePeople::Cydruid, PeopleLanding::Heartwood))
+        );
+
+        let draek = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        let list = continue_sealed_souls_from_hour_two_json(&draek);
+        assert_eq!(list[0].dress_line(), "Draek");
+        assert_eq!(list[0].last_place(), Some(PlaceId::Depths));
+        assert_eq!(list[0].last_place_name(), "Depths");
+    }
+
+    /// CARD S3 — S2 seal keys still round-trip on the existing hour-two disk.
+    #[test]
+    fn s3_s2_seal_keys_still_round_trip() {
+        let existing = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House","warrant":{"h":0.0,"i":0.0,"c":0.0,"f":0.0,"x":0.0,"repair":0.0,"return_cargo":0.0,"council":0.0,"tend_spill":0.0}}"#;
+        let json = merge_gate_seal_into_hour_two_json(
+            existing,
+            HousePeople::Quellorian,
+            PeopleLanding::Threshold,
+        );
+        assert_eq!(
+            gate_seal_from_hour_two_json(&json),
+            Some((HousePeople::Quellorian, PeopleLanding::Threshold))
+        );
+        let loaded = HourTwoPack::from_json(&json);
+        assert_eq!(loaded.session.charter_id.as_deref(), Some("house-local"));
+        assert_eq!(loaded.session.hex, HexFlag::Frontier);
+        assert!(json.contains(SEALED_PEOPLE_KEY));
+        assert!(json.contains(SEALED_LANDING_KEY));
+        assert!(json.contains("Quellorian"));
+        assert!(json.contains("threshold"));
+        let rewritten = r#"{"complete":true,"hour_three_complete":false}"#;
+        let kept = preserve_gate_seal_in_hour_two_json(&json, rewritten);
+        assert_eq!(
+            gate_seal_from_hour_two_json(&kept),
+            Some((HousePeople::Quellorian, PeopleLanding::Threshold))
+        );
+        let roster = continue_sealed_souls_from_hour_two_json(&kept);
+        assert_eq!(roster.len(), 1);
+        assert_eq!(roster[0].dress_line(), "Quellorian");
+        assert_eq!(roster[0].last_place(), Some(PlaceId::Heartwood));
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+    }
+
+    /// CARD S3 — PlaceId / LOCAL_HEXES stay three. Garden is not a fifth Place.
+    #[test]
+    fn s3_place_id_local_hexes_len_three() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        assert!(four_place_landings_only());
+        let light = play_new_light_soul();
+        assert!(light.last_place().is_none());
+        assert_eq!(light.last_place_name(), "Garden");
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+        }
     }
 }

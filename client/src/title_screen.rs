@@ -73,6 +73,13 @@
 //! `garden_guidance_after_land`. Skip House keeps GARDEN_WANT. Not a
 //! trailer. Cite lore on tip. 0 meshes · 0 Imagine pack import.
 //! Play / Continue / Settings · Online grey unchanged. L7 beat untouched.
+//!
+//! CARD S3 GARDEN-ROSTER — Title chrome stays Play / Continue / Settings ·
+//! Online grey. Play = new ungenerated light soul (garden / God-plane),
+//! unsealed. Continue = sealed souls from S2 hour-two keys, each in
+//! People dress, resume at last sealed Place. Light form is only the
+//! new / unsealed slot. No Title race/class lobby · no portraits grid.
+//! PlaceId stays 3. Cite hour_sacred S2 helpers. No new persist schema.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::KeyboardInput;
@@ -99,13 +106,14 @@ use crate::first_session_guidance::{
     first_minutes_people_want_line, garden_guidance_after_land, FirstSessionGuidance,
 };
 use crate::hex_travel::{
-    apply_title_boot, settings_visible_with_places, try_cross_people_door_land, HexTravelState,
-    PausePlacesBtn, PlacesDoorClickSet, PlacesPlate,
+    apply_place, apply_title_boot, settings_visible_with_places, try_cross_people_door_land,
+    HexTravelState, PausePlacesBtn, PlacesDoorClickSet, PlacesPlate,
 };
 use crate::hour_sacred::{
-    four_place_landings_only, god_plane_doors_ignited, offer_house_peoples, skip_house_stays_light,
-    HousePeople, HourSacred, PeopleLanding, HOUSE_PEOPLES, HOUR_TWO_PATH, L2_ASSET_BUDGET_CITE,
-    L2_MESH_BUDGET,
+    continue_sealed_souls_from_hour_two_json, four_place_landings_only,
+    garden_roster_is_race_portrait_lobby, god_plane_doors_ignited, offer_house_peoples,
+    play_new_light_soul, read_hour_two_json, skip_house_stays_light, GardenRosterSoul, HousePeople,
+    HourSacred, PeopleLanding, HOUSE_PEOPLES, HOUR_TWO_PATH, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
 };
 use crate::human_presence::SoftPresence;
 use crate::input::{InputMapSet, PlayerInput};
@@ -195,6 +203,84 @@ pub fn l2_title_chrome_holds() -> bool {
 /// Peoples are post-House God-plane doors, never Title portraits / lobby art.
 pub fn title_has_race_portraits() -> bool {
     false
+}
+
+/// CARD S3 — Title is not a race / class lobby.
+pub fn title_has_race_class_lobby() -> bool {
+    false
+}
+
+/// CARD S3 — Continue is a sealed-soul list, never a portraits grid.
+pub fn title_has_portraits_grid() -> bool {
+    false
+}
+
+/// CARD S3 — Play / Continue / Settings chrome + Online grey + no lobby.
+pub fn s3_title_chrome_holds() -> bool {
+    TITLE_CHROME_PLAY == "Play — first Hands"
+        && TITLE_CHROME_CONTINUE == "Continue"
+        && TITLE_CHROME_SETTINGS == "Settings"
+        && l2_title_chrome_holds()
+        && !title_has_race_portraits()
+        && !title_has_race_class_lobby()
+        && !title_has_portraits_grid()
+        && !garden_roster_is_race_portrait_lobby()
+        && !STEWARD_ONLINE_YES
+        && shared::hex_travel::LOCAL_HEXES.len() == 3
+}
+
+/// CARD S3 — Continue roster line: People dress · last sealed Place.
+pub fn s3_continue_roster_line(soul: GardenRosterSoul) -> String {
+    format!("{} · {}", soul.dress_line(), soul.last_place_name())
+}
+
+/// CARD S3 — Cue text for sealed souls. Empty when the S2 keys are absent.
+pub fn s3_continue_roster_cue(raw: Option<&str>) -> Option<String> {
+    let raw = raw?;
+    let souls = continue_sealed_souls_from_hour_two_json(raw);
+    if souls.is_empty() {
+        return None;
+    }
+    Some(
+        souls
+            .iter()
+            .copied()
+            .map(s3_continue_roster_line)
+            .collect::<Vec<_>>()
+            .join(" · "),
+    )
+}
+
+/// CARD S3 — Play boots a new light unsealed soul. Does not apply the S2 seal.
+pub fn s3_play_boot(
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    hour: &HourSacred,
+    embassy: Option<&mut EmbassyYard>,
+) -> GardenRosterSoul {
+    let soul = play_new_light_soul();
+    apply_title_boot(BootKind::Play, travel, bind, hour, embassy);
+    soul
+}
+
+/// CARD S3 — Continue lists S2 sealed souls and resumes at last sealed Place.
+/// Missing seal keeps the existing house Continue boot.
+pub fn s3_continue_boot(
+    raw: Option<&str>,
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    hour: &HourSacred,
+    embassy: Option<&mut EmbassyYard>,
+) -> Vec<GardenRosterSoul> {
+    let roster = raw
+        .map(continue_sealed_souls_from_hour_two_json)
+        .unwrap_or_default();
+    if let Some(place) = roster.first().and_then(|soul| soul.last_place()) {
+        apply_place(travel, bind, embassy, place, true);
+        return roster;
+    }
+    apply_title_boot(BootKind::Continue, travel, bind, hour, embassy);
+    roster
 }
 
 /// Garden door may be crossed only after House + one Tend, once this session.
@@ -1941,8 +2027,13 @@ fn breath_title_border(
 }
 
 fn refresh_title_cue(label: Res<HouseLabel>, mut q: Query<&mut Text, With<TitleCueText>>) {
-    let cue = continue_cue_when_persist(label.persist_present, &label.house)
+    let house_cue = continue_cue_when_persist(label.persist_present, &label.house)
         .unwrap_or_else(|| "Play opens the yard · no account wall".into());
+    // CARD S3 — sealed souls shown as People dress · last Place. Not a portraits grid.
+    let cue = match s3_continue_roster_cue(read_hour_two_json().as_deref()) {
+        Some(roster) => format!("{house_cue} · {roster}"),
+        None => house_cue,
+    };
     for mut text in &mut q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != cue {
@@ -2025,7 +2116,7 @@ fn title_button_clicks(
             if let (Some(travel), Some(bind), Some(hour)) =
                 (travel.as_mut(), bind.as_mut(), hour.as_ref())
             {
-                apply_title_boot(BootKind::Play, travel, bind, hour, embassy.as_deref_mut());
+                let _ = s3_play_boot(travel, bind, hour, embassy.as_deref_mut());
             }
             enter_yard(&mut door, &mut label);
             return;
@@ -2037,8 +2128,9 @@ fn title_button_clicks(
                 if let (Some(travel), Some(bind), Some(hour)) =
                     (travel.as_mut(), bind.as_mut(), hour.as_ref())
                 {
-                    apply_title_boot(
-                        BootKind::Continue,
+                    let raw = read_hour_two_json();
+                    let _ = s3_continue_boot(
+                        raw.as_deref(),
                         travel,
                         bind,
                         hour,
@@ -2090,7 +2182,7 @@ fn title_keyboard_shortcuts(
                 if let (Some(travel), Some(bind), Some(hour)) =
                     (travel.as_mut(), bind.as_mut(), hour.as_ref())
                 {
-                    apply_title_boot(BootKind::Play, travel, bind, hour, embassy.as_deref_mut());
+                    let _ = s3_play_boot(travel, bind, hour, embassy.as_deref_mut());
                 }
                 enter_yard(&mut door, &mut label);
             } else if keyboard.just_pressed(KeyCode::Digit2) {
@@ -2098,8 +2190,9 @@ fn title_keyboard_shortcuts(
                     if let (Some(travel), Some(bind), Some(hour)) =
                         (travel.as_mut(), bind.as_mut(), hour.as_ref())
                     {
-                        apply_title_boot(
-                            BootKind::Continue,
+                        let raw = read_hour_two_json();
+                        let _ = s3_continue_boot(
+                            raw.as_deref(),
                             travel,
                             bind,
                             hour,
@@ -4626,6 +4719,230 @@ mod tests {
         assert!(!STEWARD_ONLINE_YES);
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+    }
+
+    /// CARD S3 — Title chrome Play / Continue / Settings unchanged.
+    #[test]
+    fn s3_title_chrome_play_continue_settings() {
+        assert_eq!(TITLE_CHROME_PLAY, "Play — first Hands");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert!(s3_title_chrome_holds());
+        assert!(l2_title_chrome_holds());
+        assert_eq!(LaunchDoor::default(), LaunchDoor::Title);
+    }
+
+    /// CARD S3 — Play starts a new ungenerated light unsealed soul (garden / God-plane).
+    #[test]
+    fn s3_play_starts_light_unsealed_soul() {
+        use crate::hour_sacred::{
+            doors_are_unsealed, gate_seal_from_hour_two_json, merge_gate_seal_into_hour_two_json,
+            soul_is_light,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        assert_eq!(
+            gate_seal_from_hour_two_json(&sealed),
+            Some((HousePeople::Cydruid, PeopleLanding::Heartwood))
+        );
+
+        let soul = play_new_light_soul();
+        assert_eq!(soul, GardenRosterSoul::LightUnsealed);
+        assert!(soul.is_light());
+        assert!(soul.is_unsealed());
+        assert!(soul_is_light(soul.sealed_pair()));
+        assert!(doors_are_unsealed(soul.sealed_pair()));
+        assert_eq!(soul.dress_line(), "light");
+        assert!(soul.last_place().is_none());
+        assert_eq!(soul.last_place_name(), "Garden");
+
+        let mut travel = HexTravelState {
+            current: PlaceId::Depths,
+        };
+        let mut bind = l5_demo_bind();
+        let hour = HourSacred::default();
+        let booted = s3_play_boot(&mut travel, &mut bind, &hour, None);
+        assert!(booted.is_light());
+        assert_eq!(travel.current, PlaceId::Sanctuary);
+        assert_ne!(
+            travel.current,
+            PlaceId::Heartwood,
+            "Play is a new light soul — does not resume the S2 seal"
+        );
+    }
+
+    /// CARD S3 — Continue lists sealed souls with People dress + last Place.
+    #[test]
+    fn s3_continue_lists_sealed_souls_dress_last_place() {
+        use crate::hour_sacred::merge_gate_seal_into_hour_two_json;
+        use shared::hex_travel::PlaceId;
+
+        assert!(s3_continue_roster_cue(None).is_none());
+        assert!(s3_continue_roster_cue(Some("{}")).is_none());
+        assert!(continue_sealed_souls_from_hour_two_json("{}").is_empty());
+
+        let json = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let list = continue_sealed_souls_from_hour_two_json(&json);
+        assert_eq!(list.len(), 1);
+        assert_eq!(s3_continue_roster_line(list[0]), "Cydruid · human-in-frame · Heartwood");
+        assert_eq!(
+            s3_continue_roster_cue(Some(&json)).as_deref(),
+            Some("Cydruid · human-in-frame · Heartwood")
+        );
+        assert!(!list[0].is_light());
+        assert_eq!(list[0].last_place(), Some(PlaceId::Heartwood));
+
+        let mut travel = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        let mut bind = l5_demo_bind();
+        let hour = HourSacred::default();
+        assert!(!hour.hour_three_complete, "seal resume is not the book boot");
+        let roster = s3_continue_boot(Some(&json), &mut travel, &mut bind, &hour, None);
+        assert_eq!(roster.len(), 1);
+        assert_eq!(travel.current, PlaceId::Heartwood);
+
+        let human = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Human,
+            PeopleLanding::SanctuaryYard,
+        );
+        assert_eq!(
+            s3_continue_roster_cue(Some(&human)).as_deref(),
+            Some("Human · Sanctuary")
+        );
+        let ambrosian = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Ambrosian,
+            PeopleLanding::SanctuaryWellFromAbove,
+        );
+        assert_eq!(
+            s3_continue_roster_cue(Some(&ambrosian)).as_deref(),
+            Some("Ambrosian · Sanctuary")
+        );
+        let draek = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        let mut travel = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        let roster = s3_continue_boot(Some(&draek), &mut travel, &mut bind, &hour, None);
+        assert_eq!(s3_continue_roster_line(roster[0]), "Draek · Depths");
+        assert_eq!(travel.current, PlaceId::Depths);
+    }
+
+    /// CARD S3 — no Title race/class lobby · no portraits grid.
+    #[test]
+    fn s3_no_race_portrait_lobby() {
+        use crate::hour_sacred::merge_gate_seal_into_hour_two_json;
+
+        assert!(!title_has_race_portraits());
+        assert!(!title_has_race_class_lobby());
+        assert!(!title_has_portraits_grid());
+        assert!(!garden_roster_is_race_portrait_lobby());
+        assert_ne!(TITLE_CHROME_PLAY, "Human");
+        assert_ne!(TITLE_CHROME_CONTINUE, "Race");
+        let play = play_new_light_soul();
+        assert!(play.is_light(), "new slot is light, not a race picker");
+        assert!(!play.dress_line().contains("portrait"));
+        assert!(!play.dress_line().contains("class"));
+        let empty = continue_sealed_souls_from_hour_two_json("{}");
+        assert!(empty.is_empty());
+        assert_ne!(empty.len(), HOUSE_PEOPLES.len());
+        let json = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let list = continue_sealed_souls_from_hour_two_json(&json);
+        assert_eq!(list.len(), 1, "sealed list is souls, not five portraits");
+        assert!(!list[0].dress_line().contains("Sanctuary tint"));
+        assert!(!list[0].dress_line().contains("dress token"));
+        assert!(!list[0].dress_line().contains("portrait"));
+        assert!(s3_title_chrome_holds());
+    }
+
+    /// CARD S3 — STEWARD_ONLINE_YES stays false. Title Online grey.
+    #[test]
+    fn s3_steward_online_yes_stays_false() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+        assert!(!online_picker_ui_enabled(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert!(s3_title_chrome_holds());
+    }
+
+    /// CARD S3 — PlaceId / LOCAL_HEXES len == 3. No fifth Place.
+    #[test]
+    fn s3_place_id_local_hexes_len_three() {
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        assert!(four_place_landings_only());
+        assert_eq!(PlaceId::Sanctuary.as_str(), "sanctuary");
+        assert_eq!(PlaceId::Heartwood.as_str(), "heartwood");
+        assert_eq!(PlaceId::Depths.as_str(), "depths");
+        let light = play_new_light_soul();
+        assert_eq!(light.last_place_name(), "Garden");
+        assert!(light.last_place().is_none());
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.display_name(), "Garden");
+        }
+    }
+
+    /// CARD S3 — S2 seal keys still round-trip; Continue reads the same pair.
+    #[test]
+    fn s3_s2_seal_keys_still_round_trip() {
+        use crate::hour_sacred::{
+            gate_seal_from_hour_two_json, merge_gate_seal_into_hour_two_json,
+            preserve_gate_seal_in_hour_two_json, SEALED_LANDING_KEY, SEALED_PEOPLE_KEY,
+        };
+        use shared::hex_travel::PlaceId;
+        use shared::hour_two::HourTwoPack;
+        use shared::space_law::HexFlag;
+
+        let existing = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House","warrant":{"h":0.0,"i":0.0,"c":0.0,"f":0.0,"x":0.0,"repair":0.0,"return_cargo":0.0,"council":0.0,"tend_spill":0.0}}"#;
+        let json = merge_gate_seal_into_hour_two_json(
+            existing,
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        assert_eq!(
+            gate_seal_from_hour_two_json(&json),
+            Some((HousePeople::Draek, PeopleLanding::DepthsTealWayHome))
+        );
+        let loaded = HourTwoPack::from_json(&json);
+        assert_eq!(loaded.session.charter_id.as_deref(), Some("house-local"));
+        assert_eq!(loaded.session.hex, HexFlag::Frontier);
+        assert!(json.contains(SEALED_PEOPLE_KEY));
+        assert!(json.contains(SEALED_LANDING_KEY));
+        let kept = preserve_gate_seal_in_hour_two_json(
+            &json,
+            r#"{"complete":true,"hour_three_complete":false}"#,
+        );
+        assert_eq!(
+            gate_seal_from_hour_two_json(&kept),
+            Some((HousePeople::Draek, PeopleLanding::DepthsTealWayHome))
+        );
+        let list = continue_sealed_souls_from_hour_two_json(&kept);
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].dress_line(), "Draek");
+        assert_eq!(list[0].last_place(), Some(PlaceId::Depths));
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
     }
 
     #[test]
