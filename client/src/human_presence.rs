@@ -33,6 +33,11 @@
  * new hex. Ambrosian = lift on Sanctuary disk (FORK A). mothership-over-Earth
  * PRESENTATION; no hull mesh. 0 meshes.
  *
+ * CARD F5 WRONG-DOOR-BOUNCE — unsealed light may take a People-door and
+ * feel that existing L7 beat. Decline / wrong door seats the garden wake
+ * (Sanctuary yard helper) and disarms the beat. No L7 fog / camera WRITE.
+ * No fifth Place · no Title race lobby.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -441,6 +446,24 @@ pub fn wake_people_landing(presence: &mut SoftPresence, landing: PeopleLanding) 
     presence.position = people_landing_wake(landing);
     presence.velocity = Vec3::ZERO;
     presence.grounded = !presence_reads_ambrosian_lift(presence.position);
+}
+
+/// CARD F5 — garden bounce wake. Existing Sanctuary yard helper. Not an L7 land.
+pub fn garden_bounce_wake() -> Vec3 {
+    sanctuary_yard_wake()
+}
+
+/// CARD F5 — decline / wrong door seats the garden wake. Drops Ambrosian lift.
+/// Does not run [`run_arrival_beat`].
+pub fn wake_garden_bounce(presence: &mut SoftPresence) {
+    presence.position = garden_bounce_wake();
+    presence.velocity = Vec3::ZERO;
+    presence.grounded = true;
+}
+
+/// CARD F5 — bounce does not arm the L7 arrival beat.
+pub fn wrong_door_bounce_disarms_arrival_beat() -> ArrivalBeat {
+    arrival_beat_after_land(None)
 }
 
 /// Latch jump from Update input so FixedUpdate never multi-fires or misses the edge.
@@ -1274,5 +1297,90 @@ mod tests {
             ArrivalCameraEase::None
         );
         assert!(!arrival_beat_after_land(None).armed);
+    }
+
+    /// CARD F5 — unsealed light may cross door → L7 beat armed · still unsealed until E/Q.
+    #[test]
+    fn f5_unsealed_light_may_cross_door_l7_beat_armed_still_unsealed_until_eq() {
+        use crate::hour_sacred::{
+            confirm_gate_seal, still_unsealed_until_eq, soul_is_light, HousePeople,
+        };
+        use shared::local_settings::PeaceKey;
+
+        let mut presence = SoftPresence::default();
+        wake_people_landing(&mut presence, PeopleLanding::SanctuaryYard);
+        let beat = run_arrival_beat(PeopleLanding::SanctuaryYard);
+        assert!(beat.armed);
+        assert_eq!(presence.position, sanctuary_yard_wake());
+        assert!(still_unsealed_until_eq(None));
+        assert!(soul_is_light(None));
+        let pending = Some((HousePeople::Human, PeopleLanding::SanctuaryYard));
+        assert!(confirm_gate_seal(PeaceKey::Digit1, pending).is_none());
+        let sealed = confirm_gate_seal(PeaceKey::E, pending).expect("E");
+        assert!(!still_unsealed_until_eq(Some(sealed)));
+    }
+
+    /// CARD F5 — decline / wrong door → garden wake · beat disarmed · not Ambrosian lift.
+    #[test]
+    fn f5_decline_wrong_door_garden_light_not_sealed_place_id_garden() {
+        let mut presence = SoftPresence::default();
+        wake_people_landing(&mut presence, PeopleLanding::SanctuaryWellFromAbove);
+        assert!(presence_reads_ambrosian_lift(presence.position));
+        assert!(run_arrival_beat(PeopleLanding::SanctuaryWellFromAbove).armed);
+
+        wake_garden_bounce(&mut presence);
+        assert_eq!(presence.position, garden_bounce_wake());
+        assert_eq!(presence.position, sanctuary_yard_wake());
+        assert!(!presence_reads_ambrosian_lift(presence.position));
+        assert!(!wrong_door_bounce_disarms_arrival_beat().armed);
+        assert!(presence.grounded);
+    }
+
+    /// CARD F5 — Peace recall does not clear seal / vision home for light.
+    #[test]
+    fn f5_peace_recall_does_not_clear_seal_vision_home_for_light() {
+        use crate::hour_sacred::{peace_recall, HousePeople, PEACE_RECALL_VISION_HOME};
+
+        let sealed = Some((HousePeople::Draek, PeopleLanding::DepthsTealWayHome));
+        let (after, line) = peace_recall(sealed);
+        assert_eq!(after, sealed);
+        assert_eq!(line, PEACE_RECALL_VISION_HOME);
+        let (light_after, light_line) = peace_recall(None);
+        assert!(light_after.is_none());
+        assert_eq!(light_line, "vision home");
+    }
+
+    /// CARD F5 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f5_place_id_local_hexes_len_three() {
+        use shared::hex_travel::{PlaceId, LOCAL_HEXES};
+
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+    }
+
+    /// CARD F5 — STEWARD_ONLINE_YES false.
+    #[test]
+    fn f5_steward_online_yes_false() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!shared::hex_protocol::default_client_listens());
+    }
+
+    /// CARD F5 — no fifth Place · no Title race lobby.
+    #[test]
+    fn f5_no_fifth_place_no_title_race_lobby() {
+        use crate::hour_sacred::{f5_title_is_race_lobby, garden_roster_is_race_portrait_lobby};
+        use shared::hex_travel::LOCAL_HEXES;
+
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        assert!(!presence_opens_race_lobby());
+        assert!(!f5_title_is_race_lobby());
+        assert!(!garden_roster_is_race_portrait_lobby());
+        assert!(mesh_lod::race_lobby_closed());
     }
 }
