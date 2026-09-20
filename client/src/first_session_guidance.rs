@@ -490,10 +490,11 @@ impl FirstSessionGuidance {
         embassy: Option<&mut EmbassyYard>,
         garden: PlaceId,
     ) -> bool {
+        let sealed = self.sealed_pair();
         if !crate::hour_sacred::decline_or_wrong_door(
             crossed,
             &mut self.people_landing,
-            self.sealed_pair(),
+            sealed,
         ) {
             return false;
         }
@@ -1872,7 +1873,7 @@ mod tests {
         let (land, now) = l5_first_session_land(false, true, HousePeople::Human, start, None);
         assert!(land.is_none());
         assert_eq!(now, start);
-        let g = FirstSessionGuidance::default();
+        let mut g = FirstSessionGuidance::default();
         assert!(g.stays_light_peace());
         assert!(g.is_light());
         assert!(g.doors_unsealed());
