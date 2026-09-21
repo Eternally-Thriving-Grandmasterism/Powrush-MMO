@@ -36,6 +36,84 @@ pub const ONLINE_PICKER_ENABLED: bool = false;
 /// Does **not** light Title Online / sockets even when true in tests.
 pub const STEWARD_ONLINE_YES: bool = false;
 
+/// CARD F1 STANCE-POLICY — sealed soul may pick one of four stances.
+/// Garden light has no stance and cannot trade. Offline simulated Peoples
+/// honor stance. Online humans are F10 only — do not implement here.
+/// Reuses seal disk / ledger_bind. Not a new persist schema file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SoulStance {
+    /// Open-trade — Offline simulated Peoples will trade.
+    OpenTrade,
+    /// Neutral — civil; no trade.
+    Neutral,
+    /// Closed — no trade.
+    Closed,
+    /// Hostile — Offline simulated Peoples treat the soul as hostile; no trade.
+    Hostile,
+}
+
+impl SoulStance {
+    pub const ALL: [SoulStance; 4] = [
+        Self::OpenTrade,
+        Self::Neutral,
+        Self::Closed,
+        Self::Hostile,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::OpenTrade => "Open-trade",
+            Self::Neutral => "Neutral",
+            Self::Closed => "Closed",
+            Self::Hostile => "Hostile",
+        }
+    }
+
+    /// Extra-key leaf on the existing hour-two disk. Not a new file.
+    pub const fn persist_name(self) -> &'static str {
+        match self {
+            Self::OpenTrade => "open_trade",
+            Self::Neutral => "neutral",
+            Self::Closed => "closed",
+            Self::Hostile => "hostile",
+        }
+    }
+
+    pub fn from_persist(raw: &str) -> Option<Self> {
+        match raw.trim() {
+            "open_trade" | "Open-trade" => Some(Self::OpenTrade),
+            "neutral" | "Neutral" => Some(Self::Neutral),
+            "closed" | "Closed" => Some(Self::Closed),
+            "hostile" | "Hostile" => Some(Self::Hostile),
+            _ => None,
+        }
+    }
+}
+
+/// Garden light: no stance.
+pub fn garden_light_stance() -> Option<SoulStance> {
+    None
+}
+
+/// Garden light cannot trade.
+pub fn garden_light_may_trade() -> bool {
+    false
+}
+
+/// Sealed soul may pick any of the four stances. Garden light cannot.
+pub fn sealed_soul_may_set_stance(sealed: bool, stance: SoulStance) -> Option<SoulStance> {
+    if sealed {
+        Some(stance)
+    } else {
+        None
+    }
+}
+
+/// Only Open-trade allows trade. Garden light / Neutral / Closed / Hostile do not.
+pub fn stance_allows_trade(stance: Option<SoulStance>) -> bool {
+    matches!(stance, Some(SoulStance::OpenTrade))
+}
+
 /// Persist path (cwd `data/` adopt source; OS user-dir write via `user_persist`).
 pub const PERSONA_PATH: &str = "data/powrush_persona.json";
 /// On-disk leaf name. `path_filter` allows only this direct child.
@@ -1246,5 +1324,73 @@ mod tests {
         assert!(!commit.persona.presentation.story.ai_assist_used);
         assert!(!ONLINE_PICKER_ENABLED);
         assert!(PERSONA_CREATOR_ENABLED);
+    }
+
+    // --- CARD F1 STANCE-POLICY ----------------------------------------------
+
+    #[test]
+    fn f1_sealed_soul_can_set_open_trade_neutral_closed_hostile() {
+        assert_eq!(SoulStance::ALL.len(), 4);
+        for stance in SoulStance::ALL {
+            let set = sealed_soul_may_set_stance(true, stance).expect("sealed may set");
+            assert_eq!(set, stance);
+            assert!(!set.as_str().is_empty());
+            assert!(SoulStance::from_persist(stance.persist_name()) == Some(stance));
+            assert!(persona_copy_is_honest(stance.as_str()));
+        }
+        assert_eq!(SoulStance::OpenTrade.as_str(), "Open-trade");
+        assert_eq!(SoulStance::Neutral.as_str(), "Neutral");
+        assert_eq!(SoulStance::Closed.as_str(), "Closed");
+        assert_eq!(SoulStance::Hostile.as_str(), "Hostile");
+        assert!(sealed_soul_may_set_stance(false, SoulStance::OpenTrade).is_none());
+    }
+
+    #[test]
+    fn f1_garden_light_has_no_stance_and_cannot_trade() {
+        assert!(garden_light_stance().is_none());
+        assert!(!garden_light_may_trade());
+        assert!(!stance_allows_trade(garden_light_stance()));
+        assert!(sealed_soul_may_set_stance(false, SoulStance::Neutral).is_none());
+        assert!(sealed_soul_may_set_stance(false, SoulStance::Closed).is_none());
+        assert!(sealed_soul_may_set_stance(false, SoulStance::Hostile).is_none());
+        assert!(!stance_allows_trade(Some(SoulStance::Neutral)));
+        assert!(!stance_allows_trade(Some(SoulStance::Closed)));
+        assert!(!stance_allows_trade(Some(SoulStance::Hostile)));
+        assert!(stance_allows_trade(Some(SoulStance::OpenTrade)));
+    }
+
+    #[test]
+    fn f1_steward_online_yes_false_online_grey() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!online_picker_allows_online_rows(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert!(persona_copy_is_honest("Title Online grey"));
+        assert!(!persona_copy_is_honest("Title lobby ranked"));
+    }
+
+    #[test]
+    fn f1_place_id_local_hexes_len_three() {
+        use crate::hex_travel::{PlaceId, LOCAL_HEXES};
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        for place in LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+        }
+    }
+
+    #[test]
+    fn f1_no_new_persist_schema_file() {
+        assert_eq!(PERSONA_PATH, "data/powrush_persona.json");
+        assert_eq!(PERSONA_FILE_NAME, "powrush_persona.json");
+        assert_eq!(PERSONA_SCHEMA, "powrush_persona_v1");
+        assert_ne!(PERSONA_FILE_NAME, "powrush_stance.json");
+        assert_ne!(PERSONA_SCHEMA, "powrush_stance_v1");
+        assert!(!PERSONA_PATH.contains("stance.json"));
     }
 }

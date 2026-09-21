@@ -45,6 +45,13 @@
 //! hour-two disk; that slot returns to light (Play). Not a race-portrait
 //! lobby. PlaceId stays 3. S2 keys only — no new schema. S1 / S2 / S3 / F5
 //! WRITE unread. Online grey.
+//!
+//! CARD F1 STANCE-POLICY — sealed soul may pick Open-trade / Neutral /
+//! Closed / Hostile. Garden light = no stance · no trade. Offline
+//! simulated Peoples honor stance (ledger_bind). Online humans are F10
+//! only — not implemented. Extra key `sealed_stance` on the existing
+//! hour-two disk (with S2 seal keys). No new persist schema file.
+//! S1 / S2 / S3 / F5 / F6 / F7 WRITE unread. PlaceId stays 3. Online grey.
 
 use std::path::PathBuf;
 
@@ -52,7 +59,9 @@ use bevy::prelude::*;
 
 use shared::hex_travel::PlaceId;
 use shared::hour_two::HourTwoPack;
+use shared::ledger_bind::offline_simulated_people_will_trade;
 use shared::local_settings::PeaceKey;
+use shared::persona::SoulStance;
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
@@ -498,6 +507,71 @@ pub fn f6_title_is_race_lobby() -> bool {
     garden_roster_is_race_portrait_lobby()
 }
 
+/// CARD F1 — extra key on existing `powrush_hour_two.json`. Not a new file.
+pub const SEALED_STANCE_KEY: &str = "sealed_stance";
+
+/// CARD F1 — raw extra-key read. Garden light still has no live stance.
+pub fn stance_key_from_hour_two_json(raw: &str) -> Option<SoulStance> {
+    let value = serde_json::from_str::<serde_json::Value>(raw).ok()?;
+    value
+        .get(SEALED_STANCE_KEY)?
+        .as_str()
+        .and_then(SoulStance::from_persist)
+}
+
+/// CARD F1 — stance is live only for a sealed soul. Garden light = none.
+pub fn sealed_soul_stance_from_hour_two_json(raw: &str) -> Option<SoulStance> {
+    gate_seal_from_hour_two_json(raw)?;
+    stance_key_from_hour_two_json(raw)
+}
+
+/// CARD F1 — write stance onto existing hour-two JSON. Extra key only.
+pub fn merge_stance_into_hour_two_json(raw: &str, stance: SoulStance) -> String {
+    let mut value = serde_json::from_str::<serde_json::Value>(raw)
+        .unwrap_or_else(|_| serde_json::json!({}));
+    if !value.is_object() {
+        value = serde_json::json!({});
+    }
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert(
+            SEALED_STANCE_KEY.to_string(),
+            serde_json::Value::String(stance.persist_name().to_string()),
+        );
+    }
+    serde_json::to_string_pretty(&value).unwrap_or_else(|_| raw.to_string())
+}
+
+/// CARD F1 — keep extra stance key when the hour-two pack is rewritten.
+pub fn preserve_stance_in_hour_two_json(prior: &str, next: &str) -> String {
+    match stance_key_from_hour_two_json(prior) {
+        Some(stance) => merge_stance_into_hour_two_json(next, stance),
+        None => next.to_string(),
+    }
+}
+
+/// CARD F1 — sealed soul may set Open-trade / Neutral / Closed / Hostile.
+/// Garden light / missing seal refuses. Reuses the existing hour-two disk.
+pub fn set_sealed_soul_stance(raw: &str, stance: SoulStance) -> Option<String> {
+    gate_seal_from_hour_two_json(raw)?;
+    Some(merge_stance_into_hour_two_json(raw, stance))
+}
+
+/// CARD F1 — garden light has no stance, even if a leftover key exists.
+pub fn garden_light_stance_from_hour_two_json(raw: &str) -> Option<SoulStance> {
+    if soul_is_light(gate_seal_from_hour_two_json(raw)) {
+        return None;
+    }
+    sealed_soul_stance_from_hour_two_json(raw)
+}
+
+/// CARD F1 — garden light cannot trade. Sealed Open-trade may.
+pub fn soul_may_trade_from_hour_two_json(raw: &str) -> bool {
+    if soul_is_light(gate_seal_from_hour_two_json(raw)) {
+        return false;
+    }
+    offline_simulated_people_will_trade(sealed_soul_stance_from_hour_two_json(raw))
+}
+
 /// Resolved user-dir path for the hour-two / book pack.
 pub fn hour_two_disk() -> PathBuf {
     shared::user_persist::persist_path(HOUR_TWO_PATH)
@@ -571,7 +645,10 @@ impl HourSacred {
         self.hour_three_complete = pack.hour_three_complete;
         if let Ok(json) = serde_json::to_string_pretty(&pack) {
             let json = match read_hour_two_json() {
-                Some(prior) => preserve_gate_seal_in_hour_two_json(&prior, &json),
+                Some(prior) => {
+                    let with_seal = preserve_gate_seal_in_hour_two_json(&prior, &json);
+                    preserve_stance_in_hour_two_json(&prior, &with_seal)
+                }
                 None => json,
             };
             let _ = shared::user_persist::write_named(HOUR_TWO_PATH, json);
@@ -1608,5 +1685,177 @@ mod tests {
         assert!(!STEWARD_ONLINE_YES);
         assert!(!ONLINE_PICKER_ENABLED);
         assert!(!shared::hex_protocol::default_client_listens());
+    }
+
+    /// CARD F1 — sealed soul can set Open-trade / Neutral / Closed / Hostile.
+    #[test]
+    fn f1_sealed_soul_can_set_open_trade_neutral_closed_hostile() {
+        let light = "{}";
+        assert!(set_sealed_soul_stance(light, SoulStance::OpenTrade).is_none());
+        assert!(sealed_soul_stance_from_hour_two_json(light).is_none());
+
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        assert_eq!(
+            gate_seal_from_hour_two_json(&sealed),
+            Some((HousePeople::Cydruid, PeopleLanding::Heartwood))
+        );
+        for stance in SoulStance::ALL {
+            let json = set_sealed_soul_stance(&sealed, stance).expect("sealed may set");
+            assert_eq!(sealed_soul_stance_from_hour_two_json(&json), Some(stance));
+            assert!(json.contains(SEALED_STANCE_KEY));
+            assert!(json.contains(stance.persist_name()));
+            assert!(json.contains(SEALED_PEOPLE_KEY));
+            assert!(json.contains("Cydruid"));
+        }
+        assert_eq!(SoulStance::OpenTrade.as_str(), "Open-trade");
+        assert_eq!(SoulStance::Neutral.as_str(), "Neutral");
+        assert_eq!(SoulStance::Closed.as_str(), "Closed");
+        assert_eq!(SoulStance::Hostile.as_str(), "Hostile");
+    }
+
+    /// CARD F1 — garden light has no stance and cannot trade.
+    #[test]
+    fn f1_garden_light_has_no_stance_and_cannot_trade() {
+        let light = "{}";
+        assert!(soul_is_light(gate_seal_from_hour_two_json(light)));
+        assert!(garden_light_stance_from_hour_two_json(light).is_none());
+        assert!(!soul_may_trade_from_hour_two_json(light));
+        assert!(set_sealed_soul_stance(light, SoulStance::OpenTrade).is_none());
+        assert!(set_sealed_soul_stance(light, SoulStance::Hostile).is_none());
+
+        let leftover = merge_stance_into_hour_two_json(light, SoulStance::OpenTrade);
+        assert!(
+            garden_light_stance_from_hour_two_json(&leftover).is_none(),
+            "leftover key is not a garden stance"
+        );
+        assert!(!soul_may_trade_from_hour_two_json(&leftover));
+
+        let play = play_new_light_soul();
+        assert!(play.is_light());
+        assert!(soul_is_light(play.sealed_pair()));
+        assert_eq!(play.last_place_name(), "Garden");
+    }
+
+    /// CARD F1 — Offline simulated Peoples honor stance.
+    #[test]
+    fn f1_offline_simulated_peoples_honor_stance() {
+        use shared::ledger_bind::{
+            offline_simulated_people_honor, SimulatedPeopleHonor,
+        };
+
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        let open = set_sealed_soul_stance(&sealed, SoulStance::OpenTrade).unwrap();
+        assert!(soul_may_trade_from_hour_two_json(&open));
+        assert_eq!(
+            offline_simulated_people_honor(sealed_soul_stance_from_hour_two_json(&open)),
+            SimulatedPeopleHonor::HonorTrade
+        );
+
+        let closed = set_sealed_soul_stance(&sealed, SoulStance::Closed).unwrap();
+        assert!(!soul_may_trade_from_hour_two_json(&closed));
+        assert_eq!(
+            offline_simulated_people_honor(sealed_soul_stance_from_hour_two_json(&closed)),
+            SimulatedPeopleHonor::HonorClosed
+        );
+
+        let hostile = set_sealed_soul_stance(&sealed, SoulStance::Hostile).unwrap();
+        assert!(!soul_may_trade_from_hour_two_json(&hostile));
+        assert_eq!(
+            offline_simulated_people_honor(sealed_soul_stance_from_hour_two_json(&hostile)),
+            SimulatedPeopleHonor::HonorHostile
+        );
+
+        let neutral = set_sealed_soul_stance(&sealed, SoulStance::Neutral).unwrap();
+        assert!(!soul_may_trade_from_hour_two_json(&neutral));
+        assert_eq!(
+            offline_simulated_people_honor(sealed_soul_stance_from_hour_two_json(&neutral)),
+            SimulatedPeopleHonor::HonorNeutral
+        );
+
+        let rewritten = r#"{"complete":true,"hour_three_complete":false}"#;
+        let kept_seal = preserve_gate_seal_in_hour_two_json(&open, rewritten);
+        let kept = preserve_stance_in_hour_two_json(&open, &kept_seal);
+        assert_eq!(
+            gate_seal_from_hour_two_json(&kept),
+            Some((HousePeople::Draek, PeopleLanding::DepthsTealWayHome))
+        );
+        assert_eq!(
+            sealed_soul_stance_from_hour_two_json(&kept),
+            Some(SoulStance::OpenTrade)
+        );
+        let loaded = HourTwoPack::from_json(&kept);
+        assert!(loaded.complete);
+    }
+
+    /// CARD F1 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f1_steward_online_yes_false_online_grey() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!shared::hex_protocol::default_client_listens());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!online_row_is_honest_disabled(ONLINE_STUB_LABEL, true));
+    }
+
+    /// CARD F1 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f1_place_id_local_hexes_len_three() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert_eq!(
+            PeopleLanding::SanctuaryWellFromAbove.place_id(),
+            PlaceId::Sanctuary
+        );
+        assert!(four_place_landings_only());
+        let light = play_new_light_soul();
+        assert!(light.last_place().is_none());
+        assert_eq!(light.last_place_name(), "Garden");
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+        }
+    }
+
+    /// CARD F1 — no new persist schema file invented.
+    #[test]
+    fn f1_no_new_persist_schema_file() {
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+        assert_eq!(shared::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_eq!(shared::persona::PERSONA_FILE_NAME, "powrush_persona.json");
+        assert_ne!(SEALED_STANCE_KEY, "powrush_stance.json");
+        assert!(!HOUR_TWO_PATH.contains("stance.json"));
+        assert!(!shared::persona::PERSONA_PATH.contains("stance.json"));
+
+        let existing = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House","warrant":{"h":0.0,"i":0.0,"c":0.0,"f":0.0,"x":0.0,"repair":0.0,"return_cargo":0.0,"council":0.0,"tend_spill":0.0}}"#;
+        let sealed = merge_gate_seal_into_hour_two_json(
+            existing,
+            HousePeople::Quellorian,
+            PeopleLanding::Threshold,
+        );
+        let json = set_sealed_soul_stance(&sealed, SoulStance::Closed).unwrap();
+        let loaded = HourTwoPack::from_json(&json);
+        assert_eq!(loaded.session.charter_id.as_deref(), Some("house-local"));
+        assert_eq!(loaded.session.hex, HexFlag::Frontier);
+        assert_eq!(
+            sealed_soul_stance_from_hour_two_json(&json),
+            Some(SoulStance::Closed)
+        );
+        assert!(json.contains(SEALED_STANCE_KEY));
+        assert!(json.contains(SEALED_PEOPLE_KEY));
+        assert!(json.contains(SEALED_LANDING_KEY));
     }
 }
