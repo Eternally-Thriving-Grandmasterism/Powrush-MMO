@@ -89,6 +89,8 @@
 //! CARD F7 PLACE-AFTERMATH-VARIANTS — Title garden Want plate after land
 //! is the existing S1 aftermath plus exactly one extra local-evidence
 //! lore line per People. Not a trailer. Skip House keeps GARDEN_WANT.
+//! Cite-only (Clerk exact): docs/DRIVE_LORE_ADAPTATION.md ·
+//! docs/PLAYABLE_RACES.md · docs/ART_BIBLE.md. Do not invent lore.
 //! PlaceId stays 3. 0 meshes. S2 / S3 / F5 / F6 WRITE unread.
 //! Play / Continue / Settings · Online grey unchanged.
 //! Contact: info@Rathor.ai

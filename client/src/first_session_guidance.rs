@@ -65,6 +65,8 @@
  * CARD F7 PLACE-AFTERMATH-VARIANTS — one extra local-evidence lore line
  * per People on the existing S1 aftermath plate (well / guidance Want).
  * S1 HUMAN/AMBROSIAN/CYDRUID/QUELLORIAN/DRAEK_AFTERMATH stay unread.
+ * Cite-only (Clerk exact): docs/DRIVE_LORE_ADAPTATION.md ·
+ * docs/PLAYABLE_RACES.md · docs/ART_BIBLE.md. Do not invent lore.
  * Not a trailer / cutscene / Imagine pack. PlaceId stays 3. 0 meshes.
  * S2 / S3 / F5 / F6 WRITE unread. Title chrome unchanged. Online grey.
  *
@@ -242,29 +244,35 @@ pub fn garden_guidance_after_land(
 }
 
 /// CARD F7 — Human extra aftermath variant. Local well evidence.
-/// Cite ART_BIBLE Sanctuary: warm gold well · one glow · readable plate.
+/// Cite-only `docs/ART_BIBLE.md` Sanctuary: warm gold well · one glow.
+/// Cite-only `docs/DRIVE_LORE_ADAPTATION.md` refuse weekly wars as Sanctuary.
 /// Not a trailer. Want stays [`SANCTUARY_WANT`]. S1 [`HUMAN_AFTERMATH`] unread.
 pub const HUMAN_AFTERMATH_VARIANT: &str = "warm gold well · one glow";
 
 /// CARD F7 — Ambrosian extra aftermath variant. Local well-from-above evidence.
-/// Cite PLAYABLE_RACES Sanctuary well-from-above · ART_BIBLE prism cool.
-/// Same Place as Human. Not a hull / fleet shot. S1 [`AMBROSIAN_AFTERMATH`] unread.
+/// Cite-only `docs/PLAYABLE_RACES.md` Sanctuary well-from-above.
+/// Cite-only `docs/ART_BIBLE.md` prism cool. Same Place as Human.
+/// Not a hull / fleet shot. S1 [`AMBROSIAN_AFTERMATH`] unread.
 pub const AMBROSIAN_AFTERMATH_VARIANT: &str = "well-from-above · prism cool";
 
 /// CARD F7 — Cydruid extra aftermath variant. Local Heartwood evidence.
-/// Cite ART_BIBLE amber lamp · PLAYABLE_RACES living-wood Place, person
-/// not the tree. C0 not-treant. Want stays [`HEARTWOOD_WANT`].
-/// S1 [`CYDRUID_AFTERMATH`] unread.
+/// Cite-only `docs/ART_BIBLE.md` amber lamp.
+/// Cite-only `docs/PLAYABLE_RACES.md` living-wood Place, person not the tree.
+/// Cite-only `docs/DRIVE_LORE_ADAPTATION.md` Cydruid = human-in-frame, not treant.
+/// Want stays [`HEARTWOOD_WANT`]. S1 [`CYDRUID_AFTERMATH`] unread.
 pub const CYDRUID_AFTERMATH_VARIANT: &str = "amber lamp · person not the tree";
 
 /// CARD F7 — Quellorian extra aftermath variant. Local Threshold evidence.
-/// Cite ART_BIBLE iron + tend seam · E Tends the pipe. Not a Codex city.
-/// S1 [`QUELLORIAN_AFTERMATH`] unread.
+/// Cite-only `docs/ART_BIBLE.md` iron + tend seam · E Tends the pipe.
+/// Cite-only `docs/DRIVE_LORE_ADAPTATION.md` late mercy → Heartwood / Wards.
+/// Not a Codex city. S1 [`QUELLORIAN_AFTERMATH`] unread.
 pub const QUELLORIAN_AFTERMATH_VARIANT: &str = "iron + tend seam";
 
 /// CARD F7 — Draek extra aftermath variant. Local Depths evidence.
-/// Cite ART_BIBLE teal Peace · Depths Peace plate. Restore, not Take
-/// (word stays off this line so S1 Take-refuse holds). S1 [`DRAEK_AFTERMATH`] unread.
+/// Cite-only `docs/ART_BIBLE.md` teal Peace · Depths Peace plate.
+/// Cite-only `docs/PLAYABLE_RACES.md` Depths (teal way-home).
+/// Restore, not Take (word stays off this line so S1 Take-refuse holds).
+/// S1 [`DRAEK_AFTERMATH`] unread.
 pub const DRAEK_AFTERMATH_VARIANT: &str = "teal Peace plate";
 
 /// CARD F7 — exactly one extra local-evidence line keyed by PeopleLanding.
