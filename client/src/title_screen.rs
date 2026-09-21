@@ -80,6 +80,11 @@
 //! People dress, resume at last sealed Place. Light form is only the
 //! new / unsealed slot. No Title race/class lobby · no portraits grid.
 //! PlaceId stays 3. Cite hour_sacred S2 helpers. No new persist schema.
+//!
+//! CARD F6 CONTINUE-IS-THE-BODY — Title Continue list IS the sealed soul
+//! as body (People dress + last Place). Delete-soul / clear seal returns
+//! that slot to light (Play). No race-portrait lobby. PlaceId stays 3.
+//! Online grey. S2 disk keys reuse. S3 roster helpers cited, not rewritten.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::KeyboardInput;
@@ -110,7 +115,8 @@ use crate::hex_travel::{
     HexTravelState, PausePlacesBtn, PlacesDoorClickSet, PlacesPlate,
 };
 use crate::hour_sacred::{
-    continue_sealed_souls_from_hour_two_json, four_place_landings_only,
+    continue_bodies_from_hour_two_json, continue_is_the_body, continue_sealed_souls_from_hour_two_json,
+    delete_soul_returns_light, f6_title_is_race_lobby, four_place_landings_only,
     garden_roster_is_race_portrait_lobby, god_plane_doors_ignited, offer_house_peoples,
     play_new_light_soul, read_hour_two_json, skip_house_stays_light, GardenRosterSoul, HousePeople,
     HourSacred, PeopleLanding, HOUSE_PEOPLES, HOUR_TWO_PATH, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
@@ -281,6 +287,60 @@ pub fn s3_continue_boot(
     }
     apply_title_boot(BootKind::Continue, travel, bind, hour, embassy);
     roster
+}
+
+/// CARD F6 — Play / Continue / Settings chrome + Online grey + no lobby.
+pub fn f6_title_chrome_holds() -> bool {
+    s3_title_chrome_holds()
+        && !title_has_race_portraits()
+        && !title_has_race_class_lobby()
+        && !title_has_portraits_grid()
+        && !f6_title_is_race_lobby()
+        && !STEWARD_ONLINE_YES
+        && shared::hex_travel::LOCAL_HEXES.len() == 3
+}
+
+/// CARD F6 — Continue list IS the sealed soul body. Empty = Play (light).
+pub fn f6_continue_bodies(raw: Option<&str>) -> Vec<GardenRosterSoul> {
+    raw.map(continue_bodies_from_hour_two_json).unwrap_or_default()
+}
+
+/// CARD F6 — People dress · last Place. None when the slot is light (Play).
+pub fn f6_continue_body_line(soul: GardenRosterSoul) -> Option<String> {
+    if !continue_is_the_body(soul) {
+        return None;
+    }
+    Some(s3_continue_roster_line(soul))
+}
+
+/// CARD F6 — Title cue for Continue bodies. Empty when S2 keys are absent.
+pub fn f6_continue_is_the_body_cue(raw: Option<&str>) -> Option<String> {
+    let bodies = f6_continue_bodies(raw);
+    if bodies.is_empty() {
+        return None;
+    }
+    let lines: Vec<String> = bodies.iter().copied().filter_map(f6_continue_body_line).collect();
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join(" · "))
+    }
+}
+
+/// CARD F6 — Continue boot is the sealed soul body at last Place. Cites S3.
+pub fn f6_continue_body_boot(
+    raw: Option<&str>,
+    travel: &mut HexTravelState,
+    bind: &mut LivedHourBind,
+    hour: &HourSacred,
+    embassy: Option<&mut EmbassyYard>,
+) -> Vec<GardenRosterSoul> {
+    s3_continue_boot(raw, travel, bind, hour, embassy)
+}
+
+/// CARD F6 — delete-soul / clear seal. That Continue slot returns to light (Play).
+pub fn f6_delete_soul_returns_play(raw: &str) -> (String, GardenRosterSoul) {
+    delete_soul_returns_light(raw)
 }
 
 /// Garden door may be crossed only after House + one Tend, once this session.
@@ -4943,6 +5003,185 @@ mod tests {
         assert_eq!(list[0].dress_line(), "Draek");
         assert_eq!(list[0].last_place(), Some(PlaceId::Depths));
         assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+    }
+
+    /// CARD F6 — Continue shows sealed souls in People dress @ last Place.
+    #[test]
+    fn f6_continue_shows_sealed_souls_people_dress_last_place() {
+        use crate::hour_sacred::merge_gate_seal_into_hour_two_json;
+        use shared::hex_travel::PlaceId;
+
+        assert!(f6_continue_is_the_body_cue(None).is_none());
+        assert!(f6_continue_is_the_body_cue(Some("{}")).is_none());
+        assert!(f6_continue_bodies(Some("{}")).is_empty());
+        assert!(f6_continue_body_line(play_new_light_soul()).is_none());
+
+        let json = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let list = f6_continue_bodies(Some(&json));
+        assert_eq!(list.len(), 1);
+        assert!(continue_is_the_body(list[0]));
+        assert_eq!(
+            f6_continue_body_line(list[0]).as_deref(),
+            Some("Cydruid · human-in-frame · Heartwood")
+        );
+        assert_eq!(
+            f6_continue_is_the_body_cue(Some(&json)).as_deref(),
+            Some("Cydruid · human-in-frame · Heartwood")
+        );
+        assert!(!list[0].is_light());
+        assert_eq!(list[0].last_place(), Some(PlaceId::Heartwood));
+
+        let mut travel = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        let mut bind = l5_demo_bind();
+        let hour = HourSacred::default();
+        let roster = f6_continue_body_boot(Some(&json), &mut travel, &mut bind, &hour, None);
+        assert_eq!(roster.len(), 1);
+        assert!(continue_is_the_body(roster[0]));
+        assert_eq!(travel.current, PlaceId::Heartwood);
+
+        let human = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Human,
+            PeopleLanding::SanctuaryYard,
+        );
+        assert_eq!(
+            f6_continue_is_the_body_cue(Some(&human)).as_deref(),
+            Some("Human · Sanctuary")
+        );
+        let draek = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        let mut travel = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        let roster = f6_continue_body_boot(Some(&draek), &mut travel, &mut bind, &hour, None);
+        assert_eq!(
+            f6_continue_body_line(roster[0]).as_deref(),
+            Some("Draek · Depths")
+        );
+        assert_eq!(travel.current, PlaceId::Depths);
+    }
+
+    /// CARD F6 — delete-soul / clear seal → that slot returns to light (Play).
+    #[test]
+    fn f6_delete_soul_clear_seal_slot_returns_light_play() {
+        use crate::hour_sacred::{
+            gate_seal_from_hour_two_json, merge_gate_seal_into_hour_two_json, SEALED_LANDING_KEY,
+            SEALED_PEOPLE_KEY,
+        };
+        use shared::hex_travel::PlaceId;
+        use shared::hour_two::HourTwoPack;
+
+        let existing = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House","warrant":{"h":0.0,"i":0.0,"c":0.0,"f":0.0,"x":0.0,"repair":0.0,"return_cargo":0.0,"council":0.0,"tend_spill":0.0}}"#;
+        let json = merge_gate_seal_into_hour_two_json(
+            existing,
+            HousePeople::Ambrosian,
+            PeopleLanding::SanctuaryWellFromAbove,
+        );
+        assert_eq!(
+            f6_continue_is_the_body_cue(Some(&json)).as_deref(),
+            Some("Ambrosian · Sanctuary")
+        );
+
+        let (cleared, slot) = f6_delete_soul_returns_play(&json);
+        assert_eq!(slot, GardenRosterSoul::LightUnsealed);
+        assert!(slot.is_light());
+        assert!(slot.is_unsealed());
+        assert_eq!(slot.dress_line(), "light");
+        assert!(slot.last_place().is_none());
+        assert_eq!(slot.last_place_name(), "Garden");
+        assert!(!continue_is_the_body(slot));
+        assert!(f6_continue_bodies(Some(&cleared)).is_empty());
+        assert!(f6_continue_is_the_body_cue(Some(&cleared)).is_none());
+        assert!(gate_seal_from_hour_two_json(&cleared).is_none());
+        assert!(!cleared.contains(SEALED_PEOPLE_KEY));
+        assert!(!cleared.contains(SEALED_LANDING_KEY));
+        let loaded = HourTwoPack::from_json(&cleared);
+        assert_eq!(loaded.session.charter_id.as_deref(), Some("house-local"));
+
+        let mut travel = HexTravelState {
+            current: PlaceId::Depths,
+        };
+        let mut bind = l5_demo_bind();
+        let hour = HourSacred::default();
+        let play = s3_play_boot(&mut travel, &mut bind, &hour, None);
+        assert!(play.is_light());
+        assert_eq!(travel.current, PlaceId::Sanctuary);
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+    }
+
+    /// CARD F6 — no race-portrait lobby.
+    #[test]
+    fn f6_no_race_portrait_lobby() {
+        use crate::hour_sacred::merge_gate_seal_into_hour_two_json;
+
+        assert!(!title_has_race_portraits());
+        assert!(!title_has_race_class_lobby());
+        assert!(!title_has_portraits_grid());
+        assert!(!garden_roster_is_race_portrait_lobby());
+        assert!(!f6_title_is_race_lobby());
+        assert_ne!(TITLE_CHROME_PLAY, "Human");
+        assert_ne!(TITLE_CHROME_CONTINUE, "Race");
+        let play = play_new_light_soul();
+        assert!(play.is_light(), "new slot is light, not a race picker");
+        assert!(f6_continue_body_line(play).is_none());
+        assert!(!play.dress_line().contains("portrait"));
+        assert!(!play.dress_line().contains("class"));
+        let empty = f6_continue_bodies(Some("{}"));
+        assert!(empty.is_empty());
+        assert_ne!(empty.len(), HOUSE_PEOPLES.len());
+        let json = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let list = f6_continue_bodies(Some(&json));
+        assert_eq!(list.len(), 1, "sealed list is souls, not five portraits");
+        assert!(!list[0].dress_line().contains("Sanctuary tint"));
+        assert!(!list[0].dress_line().contains("dress token"));
+        assert!(!list[0].dress_line().contains("portrait"));
+        assert!(f6_title_chrome_holds());
+    }
+
+    /// CARD F6 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f6_place_id_local_hexes_len_three() {
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        assert!(four_place_landings_only());
+        assert_eq!(PlaceId::Sanctuary.as_str(), "sanctuary");
+        assert_eq!(PlaceId::Heartwood.as_str(), "heartwood");
+        assert_eq!(PlaceId::Depths.as_str(), "depths");
+        let light = play_new_light_soul();
+        assert_eq!(light.last_place_name(), "Garden");
+        assert!(light.last_place().is_none());
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.display_name(), "Garden");
+            assert_ne!(place.as_str(), "market");
+        }
+        assert!(f6_title_chrome_holds());
+    }
+
+    /// CARD F6 — STEWARD_ONLINE_YES false.
+    #[test]
+    fn f6_steward_online_yes_false() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+        assert!(!online_picker_ui_enabled(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert!(f6_title_chrome_holds());
     }
 
     #[test]
