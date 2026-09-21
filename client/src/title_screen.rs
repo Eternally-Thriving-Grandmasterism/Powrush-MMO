@@ -85,6 +85,14 @@
 //! as body (People dress + last Place). Delete-soul / clear seal returns
 //! that slot to light (Play). No race-portrait lobby. PlaceId stays 3.
 //! Online grey. S2 disk keys reuse. S3 roster helpers cited, not rewritten.
+//!
+//! CARD F7 PLACE-AFTERMATH-VARIANTS — Title garden Want plate after land
+//! is the existing S1 aftermath plus exactly one extra local-evidence
+//! lore line per People. Not a trailer. Skip House keeps GARDEN_WANT.
+//! Cite-only (Clerk exact): docs/DRIVE_LORE_ADAPTATION.md ·
+//! docs/PLAYABLE_RACES.md · docs/ART_BIBLE.md. Do not invent lore.
+//! PlaceId stays 3. 0 meshes. S2 / S3 / F5 / F6 WRITE unread.
+//! Play / Continue / Settings · Online grey unchanged.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::KeyboardInput;
@@ -108,7 +116,7 @@ use shared::persona::{
 
 use crate::embassy::EmbassyYard;
 use crate::first_session_guidance::{
-    first_minutes_people_want_line, garden_guidance_after_land, FirstSessionGuidance,
+    f7_garden_guidance_after_land, first_minutes_people_want_line, FirstSessionGuidance,
 };
 use crate::hex_travel::{
     apply_place, apply_title_boot, settings_visible_with_places, try_cross_people_door_land,
@@ -341,6 +349,29 @@ pub fn f6_continue_body_boot(
 /// CARD F6 — delete-soul / clear seal. That Continue slot returns to light (Play).
 pub fn f6_delete_soul_returns_play(raw: &str) -> (String, GardenRosterSoul) {
     delete_soul_returns_light(raw)
+}
+
+/// CARD F7 — Play / Continue / Settings chrome + Online grey. Aftermath
+/// variants are Want-plate words only. 0 meshes. PlaceId stays 3.
+pub fn f7_title_chrome_holds() -> bool {
+    TITLE_CHROME_PLAY == "Play — first Hands"
+        && TITLE_CHROME_CONTINUE == "Continue"
+        && TITLE_CHROME_SETTINGS == "Settings"
+        && l2_title_chrome_holds()
+        && !title_has_race_portraits()
+        && !STEWARD_ONLINE_YES
+        && shared::hex_travel::LOCAL_HEXES.len() == 3
+        && L2_MESH_BUDGET == 0
+}
+
+/// CARD F7 — Title garden Want plate: existing S1 aftermath plus exactly
+/// one extra local-evidence line per People. Skip House keeps GARDEN_WANT.
+/// H hush drops the line. F6 Continue WRITE unread.
+pub fn f7_title_garden_want_plate(
+    hush: bool,
+    landing: Option<PeopleLanding>,
+) -> Option<String> {
+    f7_garden_guidance_after_land(true, hush, landing)
 }
 
 /// Garden door may be crossed only after House + one Tend, once this session.
@@ -2108,10 +2139,11 @@ pub fn garden_boot_want_font_px(text_scale: f32) -> f32 {
     (14.0 * text_scale.clamp(1.0, 1.6)).clamp(13.0, 22.0)
 }
 
-/// CARD L1 GARDEN-WANT / CARD S1 — Title / God-plane speaks People + Want
-/// until H hushes. After a sealed People-door land, the same plate speaks
-/// Place-local aftermath evidence (not a trailer). Skip House keeps
-/// GARDEN_WANT. Does not require LaunchDoor::InYard or Sanctuary dirt.
+/// CARD L1 GARDEN-WANT / CARD S1 / CARD F7 — Title / God-plane speaks
+/// People + Want until H hushes. After a sealed People-door land, the
+/// same plate speaks Place-local aftermath plus one F7 variant (not a
+/// trailer). Skip House keeps GARDEN_WANT. Does not require
+/// LaunchDoor::InYard or Sanctuary dirt.
 fn refresh_garden_boot_want(
     door: Res<LaunchDoor>,
     guidance: Option<Res<FirstSessionGuidance>>,
@@ -2124,7 +2156,7 @@ fn refresh_garden_boot_want(
         .unwrap_or(false);
     let landing = guidance.as_ref().and_then(|g| g.people_landing);
     let spoken = if *door == LaunchDoor::Title {
-        garden_guidance_after_land(true, hush, landing)
+        f7_title_garden_want_plate(hush, landing)
     } else {
         None
     };
@@ -5182,6 +5214,180 @@ mod tests {
             STEWARD_ONLINE_YES
         ));
         assert!(f6_title_chrome_holds());
+    }
+
+    /// CARD F7 — each People gets exactly one extra aftermath lore line
+    /// on the existing S1 Title garden Want plate.
+    #[test]
+    fn f7_each_people_exactly_one_extra_aftermath_lore_line() {
+        use crate::first_session_guidance::{
+            aftermath_after_people_landing, f7_aftermath_variant_for_landing,
+            f7_first_minutes_aftermath_line, first_minutes_aftermath_line, AMBROSIAN_AFTERMATH,
+            AMBROSIAN_AFTERMATH_VARIANT, CYDRUID_AFTERMATH, CYDRUID_AFTERMATH_VARIANT,
+            DRAEK_AFTERMATH, DRAEK_AFTERMATH_VARIANT, GARDEN_WANT, HEARTWOOD_WANT, HUMAN_AFTERMATH,
+            HUMAN_AFTERMATH_VARIANT, QUELLORIAN_AFTERMATH, QUELLORIAN_AFTERMATH_VARIANT,
+            SANCTUARY_WANT,
+        };
+        use shared::hex_travel::PlaceId;
+
+        let boot = f7_title_garden_want_plate(false, None).expect("Garden boot");
+        assert!(boot.contains(GARDEN_WANT));
+        assert_eq!(boot, first_minutes_aftermath_line(None));
+        assert!(f7_title_garden_want_plate(true, None).is_none());
+
+        let pairs = [
+            (
+                HousePeople::Human,
+                PeopleLanding::SanctuaryYard,
+                HUMAN_AFTERMATH,
+                HUMAN_AFTERMATH_VARIANT,
+                SANCTUARY_WANT,
+            ),
+            (
+                HousePeople::Ambrosian,
+                PeopleLanding::SanctuaryWellFromAbove,
+                AMBROSIAN_AFTERMATH,
+                AMBROSIAN_AFTERMATH_VARIANT,
+                SANCTUARY_WANT,
+            ),
+            (
+                HousePeople::Cydruid,
+                PeopleLanding::Heartwood,
+                CYDRUID_AFTERMATH,
+                CYDRUID_AFTERMATH_VARIANT,
+                HEARTWOOD_WANT,
+            ),
+            (
+                HousePeople::Quellorian,
+                PeopleLanding::Threshold,
+                QUELLORIAN_AFTERMATH,
+                QUELLORIAN_AFTERMATH_VARIANT,
+                HEARTWOOD_WANT,
+            ),
+            (
+                HousePeople::Draek,
+                PeopleLanding::DepthsTealWayHome,
+                DRAEK_AFTERMATH,
+                DRAEK_AFTERMATH_VARIANT,
+                crate::first_session_guidance::DEPTHS_WANT,
+            ),
+        ];
+        for (people, landing, s1, variant, want) in pairs {
+            let (land, now) = l5_garden_land(true, true, people, PlaceId::Sanctuary, None);
+            assert_eq!(land, Some(landing));
+            assert_eq!(aftermath_after_people_landing(land), s1);
+            assert_eq!(f7_aftermath_variant_for_landing(landing), variant);
+            let s1_plate = first_minutes_aftermath_line(land);
+            let spoken = f7_title_garden_want_plate(false, land).expect("after land");
+            assert_eq!(spoken, f7_first_minutes_aftermath_line(land));
+            assert_eq!(spoken, format!("{s1_plate} · {variant}"));
+            assert!(spoken.contains(want));
+            assert!(spoken.contains(s1));
+            assert_eq!(spoken.matches(variant).count(), 1);
+            assert!(!s1_plate.contains(variant));
+            assert_ne!(now.as_str(), "market");
+        }
+        assert_eq!(HOUSE_PEOPLES.len(), 5);
+        assert!(f7_title_chrome_holds());
+    }
+
+    /// CARD F7 — extra lines are local evidence, not a trailer / plot dump.
+    #[test]
+    fn f7_aftermath_variants_are_local_evidence_not_trailer() {
+        use crate::first_session_guidance::{
+            AMBROSIAN_AFTERMATH_VARIANT, CYDRUID_AFTERMATH_VARIANT, DRAEK_AFTERMATH_VARIANT,
+            HUMAN_AFTERMATH_VARIANT, QUELLORIAN_AFTERMATH_VARIANT,
+        };
+
+        let variants = [
+            HUMAN_AFTERMATH_VARIANT,
+            AMBROSIAN_AFTERMATH_VARIANT,
+            CYDRUID_AFTERMATH_VARIANT,
+            QUELLORIAN_AFTERMATH_VARIANT,
+            DRAEK_AFTERMATH_VARIANT,
+        ];
+        for variant in variants {
+            let lower = variant.to_lowercase();
+            assert!(variant.len() < 48, "{variant} is a manifesto");
+            assert!(!lower.contains("trailer"));
+            assert!(!lower.contains("cutscene"));
+            assert!(!lower.contains("imagine"));
+            assert!(!lower.contains("mothership"));
+            assert!(!lower.contains("crownstone"));
+            assert!(!lower.contains("plot dump"));
+            assert!(!variant.contains("Market"));
+            assert!(!variant.contains(".glb"));
+        }
+        assert!(HUMAN_AFTERMATH_VARIANT.contains("well"));
+        assert!(AMBROSIAN_AFTERMATH_VARIANT.contains("prism"));
+        assert!(CYDRUID_AFTERMATH_VARIANT.contains("amber lamp"));
+        assert!(!CYDRUID_AFTERMATH_VARIANT.contains("treant"));
+        assert!(QUELLORIAN_AFTERMATH_VARIANT.contains("tend seam"));
+        assert!(DRAEK_AFTERMATH_VARIANT.contains("teal Peace"));
+        assert!(!DRAEK_AFTERMATH_VARIANT.contains("Take"));
+        let hush = f7_title_garden_want_plate(true, Some(PeopleLanding::SanctuaryYard));
+        assert!(hush.is_none());
+    }
+
+    /// CARD F7 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f7_place_id_local_hexes_len_three() {
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        assert!(four_place_landings_only());
+        assert_eq!(PlaceId::Sanctuary.as_str(), "sanctuary");
+        assert_eq!(PlaceId::Heartwood.as_str(), "heartwood");
+        assert_eq!(PlaceId::Depths.as_str(), "depths");
+        let light = play_new_light_soul();
+        assert_eq!(light.last_place_name(), "Garden");
+        assert!(light.last_place().is_none());
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.display_name(), "Garden");
+            assert_ne!(place.as_str(), "market");
+        }
+        assert!(f7_title_chrome_holds());
+    }
+
+    /// CARD F7 — STEWARD_ONLINE_YES false.
+    #[test]
+    fn f7_steward_online_yes_false() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+        assert!(!online_picker_ui_enabled(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert!(f7_title_chrome_holds());
+    }
+
+    /// CARD F7 — no mesh / glb adds. Want plate stays words.
+    #[test]
+    fn f7_no_mesh_glb_adds() {
+        use crate::first_session_guidance::{
+            f7_first_minutes_aftermath_line, AMBROSIAN_AFTERMATH_VARIANT,
+            CYDRUID_AFTERMATH_VARIANT, DRAEK_AFTERMATH_VARIANT, HUMAN_AFTERMATH_VARIANT,
+            QUELLORIAN_AFTERMATH_VARIANT,
+        };
+
+        assert_eq!(L2_MESH_BUDGET, 0);
+        assert_eq!(L2_ASSET_BUDGET_CITE, "docs/ASSET_BUDGET_COURT.md");
+        assert!(f7_title_chrome_holds());
+        for variant in [
+            HUMAN_AFTERMATH_VARIANT,
+            AMBROSIAN_AFTERMATH_VARIANT,
+            CYDRUID_AFTERMATH_VARIANT,
+            QUELLORIAN_AFTERMATH_VARIANT,
+            DRAEK_AFTERMATH_VARIANT,
+        ] {
+            assert!(!variant.contains(".glb"));
+            assert!(!variant.contains(".gltf"));
+            assert!(!variant.to_lowercase().contains("mesh"));
+        }
+        let plate = f7_first_minutes_aftermath_line(Some(PeopleLanding::Heartwood));
+        assert!(!plate.contains(".glb"));
+        assert!(!plate.to_lowercase().contains("mesh"));
     }
 
     #[test]
