@@ -2,9 +2,16 @@
 //!
 //! Default win is Bind, not a corpse. Purse is flow + repair-rights, never pockets.
 //! DeclaredLethal is an opt-in clause + hunter blood tariff. Not a combat key.
+//!
+//! CARD F1 STANCE-POLICY — Offline simulated Peoples honor sealed-soul stance
+//! (Open-trade / Neutral / Closed / Hostile). Garden light = no stance · no trade.
+//! Online humans are F10 only — not implemented. Stance rides the existing
+//! hour-two board / seal disk. No new persist schema file.
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
+
+use crate::persona::SoulStance;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum WinCondition {
@@ -194,9 +201,68 @@ impl LedgerContract {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct LedgerBoard {
     pub contracts: Vec<LedgerContract>,
+    /// CARD F1 — sealed soul stance. None = garden light / no stance.
+    /// Rides the existing hour-two pack board. Not a new persist file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub soul_stance: Option<SoulStance>,
+}
+
+/// CARD F1 — how Offline simulated Peoples honor a soul stance.
+/// Online humans stay F10. This path never lights Title Online.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SimulatedPeopleHonor {
+    /// Open-trade: they will trade.
+    HonorTrade,
+    /// Neutral: civil; they will not open trade.
+    HonorNeutral,
+    /// Closed: they will not trade.
+    HonorClosed,
+    /// Hostile: they treat the soul as hostile and will not trade.
+    HonorHostile,
+    /// Garden light / no stance: no trade.
+    NoStanceNoTrade,
+}
+
+/// Offline simulated Peoples honor the sealed soul's stance.
+pub fn offline_simulated_people_honor(stance: Option<SoulStance>) -> SimulatedPeopleHonor {
+    match stance {
+        None => SimulatedPeopleHonor::NoStanceNoTrade,
+        Some(SoulStance::OpenTrade) => SimulatedPeopleHonor::HonorTrade,
+        Some(SoulStance::Neutral) => SimulatedPeopleHonor::HonorNeutral,
+        Some(SoulStance::Closed) => SimulatedPeopleHonor::HonorClosed,
+        Some(SoulStance::Hostile) => SimulatedPeopleHonor::HonorHostile,
+    }
+}
+
+/// Only Open-trade is honored as a trade. Garden light cannot trade.
+pub fn offline_simulated_people_will_trade(stance: Option<SoulStance>) -> bool {
+    matches!(
+        offline_simulated_people_honor(stance),
+        SimulatedPeopleHonor::HonorTrade
+    )
 }
 
 impl LedgerBoard {
+    /// CARD F1 — sealed soul may set stance on this board. Light cannot.
+    pub fn set_sealed_soul_stance(&mut self, sealed: bool, stance: SoulStance) -> Option<SoulStance> {
+        let set = crate::persona::sealed_soul_may_set_stance(sealed, stance)?;
+        self.soul_stance = Some(set);
+        Some(set)
+    }
+
+    /// Garden light / unsealed: clear stance. No trade.
+    pub fn clear_garden_light_stance(&mut self) {
+        self.soul_stance = None;
+    }
+
+    pub fn honored_offline(&self) -> SimulatedPeopleHonor {
+        offline_simulated_people_honor(self.soul_stance)
+    }
+
+    pub fn offline_people_will_trade(&self) -> bool {
+        offline_simulated_people_will_trade(self.soul_stance)
+    }
+
     pub fn ensure_i2(&mut self, hash: impl Into<String>) {
         if self.contracts.is_empty() {
             self.contracts.push(LedgerContract::from_i2(hash));
@@ -299,5 +365,102 @@ mod tests {
         b.ensure_i2("x");
         assert_eq!(b.open().unwrap().win, WinCondition::BindEscort);
         assert_eq!(b.act_local(), "bound");
+    }
+
+    #[test]
+    fn f1_sealed_soul_can_set_open_trade_neutral_closed_hostile() {
+        let mut b = LedgerBoard::default();
+        assert!(b.soul_stance.is_none());
+        for stance in SoulStance::ALL {
+            assert_eq!(b.set_sealed_soul_stance(true, stance), Some(stance));
+            assert_eq!(b.soul_stance, Some(stance));
+        }
+        assert!(b.set_sealed_soul_stance(false, SoulStance::OpenTrade).is_none());
+    }
+
+    #[test]
+    fn f1_garden_light_has_no_stance_and_cannot_trade() {
+        let mut b = LedgerBoard::default();
+        assert!(b.soul_stance.is_none());
+        assert_eq!(b.honored_offline(), SimulatedPeopleHonor::NoStanceNoTrade);
+        assert!(!b.offline_people_will_trade());
+        assert!(!offline_simulated_people_will_trade(None));
+        assert!(b.set_sealed_soul_stance(false, SoulStance::OpenTrade).is_none());
+        b.clear_garden_light_stance();
+        assert!(b.soul_stance.is_none());
+        assert!(!b.offline_people_will_trade());
+    }
+
+    #[test]
+    fn f1_offline_simulated_peoples_honor_stance() {
+        assert_eq!(
+            offline_simulated_people_honor(Some(SoulStance::OpenTrade)),
+            SimulatedPeopleHonor::HonorTrade
+        );
+        assert!(offline_simulated_people_will_trade(Some(SoulStance::OpenTrade)));
+        assert_eq!(
+            offline_simulated_people_honor(Some(SoulStance::Neutral)),
+            SimulatedPeopleHonor::HonorNeutral
+        );
+        assert!(!offline_simulated_people_will_trade(Some(SoulStance::Neutral)));
+        assert_eq!(
+            offline_simulated_people_honor(Some(SoulStance::Closed)),
+            SimulatedPeopleHonor::HonorClosed
+        );
+        assert!(!offline_simulated_people_will_trade(Some(SoulStance::Closed)));
+        assert_eq!(
+            offline_simulated_people_honor(Some(SoulStance::Hostile)),
+            SimulatedPeopleHonor::HonorHostile
+        );
+        assert!(!offline_simulated_people_will_trade(Some(SoulStance::Hostile)));
+        assert_eq!(
+            offline_simulated_people_honor(None),
+            SimulatedPeopleHonor::NoStanceNoTrade
+        );
+
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert_eq!(b.honored_offline(), SimulatedPeopleHonor::HonorTrade);
+        assert!(b.offline_people_will_trade());
+        b.set_sealed_soul_stance(true, SoulStance::Closed);
+        assert_eq!(b.honored_offline(), SimulatedPeopleHonor::HonorClosed);
+        assert!(!b.offline_people_will_trade());
+    }
+
+    #[test]
+    fn f1_steward_online_yes_false_online_grey() {
+        use crate::hex_listen::PowrushNet;
+        use crate::hex_protocol::default_client_listens;
+        use crate::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use crate::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!PowrushNet::Off.title_online_enabled());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!default_client_listens());
+    }
+
+    #[test]
+    fn f1_place_id_local_hexes_len_three() {
+        use crate::hex_travel::{PlaceId, LOCAL_HEXES};
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+    }
+
+    #[test]
+    fn f1_no_new_persist_schema_file() {
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::Neutral);
+        let json = serde_json::to_string(&b).expect("board json");
+        let back: LedgerBoard = serde_json::from_str(&json).expect("load");
+        assert_eq!(back.soul_stance, Some(SoulStance::Neutral));
+        assert!(!json.contains("powrush_stance.json"));
+        let empty = serde_json::to_string(&LedgerBoard::default()).expect("default");
+        assert!(!empty.contains("soul_stance"), "garden light omits stance key");
+        assert_eq!(crate::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_ne!(crate::persona::PERSONA_FILE_NAME, "powrush_stance.json");
     }
 }
