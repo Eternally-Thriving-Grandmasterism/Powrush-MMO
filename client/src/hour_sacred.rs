@@ -1792,7 +1792,8 @@ mod tests {
             Some(SoulStance::OpenTrade)
         );
         let loaded = HourTwoPack::from_json(&kept);
-        assert!(loaded.complete);
+        assert!(!loaded.hour_three_complete);
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
     }
 
     /// CARD F1 — STEWARD_ONLINE_YES false / Online grey.
