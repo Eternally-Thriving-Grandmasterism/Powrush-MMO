@@ -66,10 +66,33 @@ Machine-proved on tip (no human walk · no screenshot invent). Named `q0_*` in `
 
 Hands DARK. 0 meshes · 0 new PlaceId · 0 sockets. Do not invent PATHS. F10 bank until Online-yes.
 
+## CARD Q4 HOUR-TWO-TAPE (Hands cook · docs-only)
+
+Cite: [`NEXT_NAMED_CARDS.md`](NEXT_NAMED_CARDS.md) §1 · [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q4 · [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md) (Grok 4.7 High).
+
+```
+id: Q4
+phase: P0
+paths: [docs/HOUR_TWO_PLAYTEST.md, docs/AGENT_QA_ORACLE.md, docs/AGENT_QA_TAPE.md]
+bin: NEVER
+qa_ftue:
+  - title_online: grey
+  - e_answers: this_tick
+  - comfort_low: readable
+  - week_bill: tons+restored
+amber: []
+refuse: [invent PATHS, invent minutes, Online lit, Steam this CARD, .glb, reopen #459, OFFER NEXT, Always-allow, retag, Hour-3 systems, MESH without Core PATHS, client/** edits, extra new files beyond AGENT_QA_TAPE.md, STEAM_INTEGRATION.md]
+next: HOLD
+```
+
+**Do:** create [`AGENT_QA_TAPE.md`](AGENT_QA_TAPE.md) PASS/FAIL for tip `q0_*` · eight `q1_*` (#486) · Hour-2 `--lib` verbs (tab Peace · Q no House · L no Ledger · visitor E · resume skips WASD). Cite tape content from FIRST_HOUR_PLAYTEST · HOUR_TWO_PLAYTEST · `client/src/lib.rs` only. Keep Report OS / GPU / minutes **blank**.
+
+**Do not:** invent minutes · rebuild U0–U8 · cook STEAM-SHORT-DESC · touch `docs/STEAM_INTEGRATION.md` · edit `client/**`.
+
 ## AMBER named (not freelance)
 
 - Reserve stayed 0.0 after R+2 (Phase B / Preview) — **lifted** H-2026-09-14 #436 / `20321cd8`. **PATHS:** `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Do not rebuild.
-- Hour 1 — **green** H-2026-09-15 @ `3b197ed7` (E tend · R+2 non-zero reserve confirm · lived persist resume). Hour 2 Hands PATHS unknown — **STOP**. Do not invent PATHS.
+- Hour 1 — **green** H-2026-09-15 @ `3b197ed7` (E tend · R+2 non-zero reserve confirm · lived persist resume). Hour 2 machine verbs — **Q4 tape** in [`AGENT_QA_TAPE.md`](AGENT_QA_TAPE.md). Do not invent Hour-2 Hands PATHS. Felt OS / GPU / minutes stay human-blank.
 
 ## Roles
 
