@@ -1,5 +1,9 @@
 # HOUR_TWO_PLAYTEST.md
 
+Peak memory hour two must leave (cite [`docs/PEAK_MEMORY_LAW.md`](PEAK_MEMORY_LAW.md)):
+I came back. Continue was lit. The yard remembered.
+Not a shard. Not a LAN fake. Title Online grey.
+
 **CARD H-2026-09-13-HOUR-TWO-STEAM** · tip `bdf7af5` (main · RESERVE-CUE #425) · design tick · not a Cargo bump  
 **PLAYTEST-1** cites this file for yard-remembers verify. Hour 1 take → tend → allocate lives in [`FIRST_HOUR_PLAYTEST.md`](FIRST_HOUR_PLAYTEST.md). Do not fork a second playtest doctrine.  
 **Core/human gate.** Minutes / OS / GPU / Time stay **blank**. Agents do not invent them. A human fills the Report on a real GPU walk.  
