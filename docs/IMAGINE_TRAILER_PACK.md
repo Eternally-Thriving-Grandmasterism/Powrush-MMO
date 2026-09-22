@@ -39,6 +39,23 @@ Prefix: cinematic 16:9 still, Bevy-readable sanctuary language, no UI chrome exc
 
 VO: Face the glow. Tend. The week is the bill. The yard remembers.
 
+## TRAILER-GRAMMAR (8 / 20 / 10 / 5)
+
+Steam announce grammar. The 90s cut table above stays. This block does not delete `P-01`–`P-12` or `C-10`–`C-11`.
+
+Cite [`docs/TAPE_TRUTH.md`](TAPE_TRUTH.md): YouTube and the Drive folder are pitch memory; the binary is the well. Lived door: `scripts/play-offline.sh` (or `.ps1`) / `cargo run -p powrush-client`. Title Online stays grey.
+
+Drive folder already on this file — `PowRush MMO Trailer` / `1KF6ggG6NKuTibrZLsYO1TjbP_THy3I5L` — is **pitch memory only**. 0 mp4 in git. 0 Drive binary in git.
+
+| Beat | Lock |
+|---|---|
+| **8s** | Earth State B + two motherships (two mothership languages), **or** Cydruid wrist-light. Codex silhouette. No HANDS mothership bay. |
+| **20s** | Playable verb = **WASD + E tend** on a well. The binary, not lore stills. |
+| **10s** | Identity lock: Draek graphite / Quellorian pearl / Cydruid emerald-amber. No franchise copy. Not a Title race lobby. |
+| **5s** | Wishlist / window. No baked title in frame. |
+
+Four beats only. If a Title plate is in any other still on this page, Online is grey.
+
 ## Codex still library — steward references
 
 Reference rows for alternate coda / room review; they do not lengthen the locked 90s cut until a steward names an edit. Source is the steward Imagine pack / attached room stills. **Do not paste binaries into this repository.** Numbered 01–36 stills are the steward Imagine library expanding Codex refs; mapping to `P-##` remains steward-named edits only.
