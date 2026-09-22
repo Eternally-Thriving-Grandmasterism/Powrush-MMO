@@ -40,6 +40,11 @@ pub const STEWARD_ONLINE_YES: bool = false;
 /// Garden light has no stance and cannot trade. Offline simulated Peoples
 /// honor stance. Online humans are F10 only — do not implement here.
 /// Reuses seal disk / ledger_bind. Not a new persist schema file.
+///
+/// CARD F3 HOSTILE-PRACTICE — sealed Hostile may Take / refuse / embargo.
+/// NEVC labels display only (no wage invent). No lockout · soul stays
+/// playable. Open-trade Bind path unread (F9). F2 AH panel unread beyond
+/// the stance gate already on tip. 0 meshes · no new persist file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SoulStance {
     /// Open-trade — Offline simulated Peoples will trade.
@@ -112,6 +117,76 @@ pub fn sealed_soul_may_set_stance(sealed: bool, stance: SoulStance) -> Option<So
 /// Only Open-trade allows trade. Garden light / Neutral / Closed / Hostile do not.
 pub fn stance_allows_trade(stance: Option<SoulStance>) -> bool {
     matches!(stance, Some(SoulStance::OpenTrade))
+}
+
+/// CARD F3 HOSTILE-PRACTICE — sealed Hostile verbs. Practice only.
+/// Not Bind. Not wages. Not a lockout. Garden light / other stances cannot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum HostilePractice {
+    Take,
+    Refuse,
+    Embargo,
+}
+
+impl HostilePractice {
+    pub const ALL: [HostilePractice; 3] = [Self::Take, Self::Refuse, Self::Embargo];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Take => "Take",
+            Self::Refuse => "refuse",
+            Self::Embargo => "embargo",
+        }
+    }
+}
+
+/// CARD F3 mesh budget. Hands stay dark.
+pub const F3_MESH_BUDGET: u32 = 0;
+
+/// Hostile practice never lockouts the soul.
+pub const HOSTILE_LOCKOUT: bool = false;
+
+/// NEVC labels stay display-only. Hostile practice does not invent wages.
+pub const HOSTILE_PRACTICE_INVENTS_WAGES: bool = false;
+
+/// Sealed Hostile may run Take / refuse / embargo. Garden light / other stances cannot.
+pub fn sealed_hostile_may_practice(
+    sealed: bool,
+    stance: Option<SoulStance>,
+    verb: HostilePractice,
+) -> bool {
+    let _ = verb;
+    sealed && matches!(stance, Some(SoulStance::Hostile))
+}
+
+/// Sealed Hostile may Take.
+pub fn sealed_hostile_may_take(sealed: bool, stance: Option<SoulStance>) -> bool {
+    sealed_hostile_may_practice(sealed, stance, HostilePractice::Take)
+}
+
+/// Sealed Hostile may refuse.
+pub fn sealed_hostile_may_refuse(sealed: bool, stance: Option<SoulStance>) -> bool {
+    sealed_hostile_may_practice(sealed, stance, HostilePractice::Refuse)
+}
+
+/// Sealed Hostile may embargo.
+pub fn sealed_hostile_may_embargo(sealed: bool, stance: Option<SoulStance>) -> bool {
+    sealed_hostile_may_practice(sealed, stance, HostilePractice::Embargo)
+}
+
+/// Hostile never lockouts. Hour 1 walk / Take stay playable.
+pub fn soul_is_locked_out(_sealed: bool, _stance: Option<SoulStance>) -> bool {
+    HOSTILE_LOCKOUT
+}
+
+/// Soul stays playable under Hostile. Sealed Hostile may still Take; no lockout.
+pub fn soul_stays_playable_under_hostile(sealed: bool, stance: Option<SoulStance>) -> bool {
+    if matches!(stance, Some(SoulStance::Hostile)) {
+        return sealed
+            && !soul_is_locked_out(sealed, stance)
+            && sealed_hostile_may_take(sealed, stance);
+    }
+    !soul_is_locked_out(sealed, stance)
 }
 
 /// Persist path (cwd `data/` adopt source; OS user-dir write via `user_persist`).
@@ -1392,5 +1467,114 @@ mod tests {
         assert_ne!(PERSONA_FILE_NAME, "powrush_stance.json");
         assert_ne!(PERSONA_SCHEMA, "powrush_stance_v1");
         assert!(!PERSONA_PATH.contains("stance.json"));
+    }
+
+    // --- CARD F3 HOSTILE-PRACTICE ------------------------------------------
+
+    /// CARD F3 — sealed Hostile may Take / refuse / embargo.
+    #[test]
+    fn f3_sealed_hostile_may_take_refuse_embargo() {
+        assert_eq!(HostilePractice::ALL.len(), 3);
+        assert_eq!(HostilePractice::Take.as_str(), "Take");
+        assert_eq!(HostilePractice::Refuse.as_str(), "refuse");
+        assert_eq!(HostilePractice::Embargo.as_str(), "embargo");
+        let hostile = Some(SoulStance::Hostile);
+        for verb in HostilePractice::ALL {
+            assert!(sealed_hostile_may_practice(true, hostile, verb));
+        }
+        assert!(sealed_hostile_may_take(true, hostile));
+        assert!(sealed_hostile_may_refuse(true, hostile));
+        assert!(sealed_hostile_may_embargo(true, hostile));
+        assert!(!sealed_hostile_may_take(false, hostile));
+        assert!(!sealed_hostile_may_refuse(false, hostile));
+        assert!(!sealed_hostile_may_embargo(false, hostile));
+        for stance in [
+            SoulStance::OpenTrade,
+            SoulStance::Neutral,
+            SoulStance::Closed,
+        ] {
+            assert!(!sealed_hostile_may_practice(
+                true,
+                Some(stance),
+                HostilePractice::Take
+            ));
+        }
+        assert!(!sealed_hostile_may_practice(
+            true,
+            garden_light_stance(),
+            HostilePractice::Embargo
+        ));
+    }
+
+    /// CARD F3 — NEVC labels display only (no wage invent).
+    #[test]
+    fn f3_nevc_labels_display_only_no_wage_invent() {
+        assert!(!HOSTILE_PRACTICE_INVENTS_WAGES);
+        assert!(persona_copy_is_honest("NEVC labels display only"));
+        assert!(persona_copy_is_honest("stewardship / harm gate"));
+        assert!(!persona_copy_is_honest("gold for skin unlock"));
+        assert!(!persona_copy_is_honest("list on Market"));
+    }
+
+    /// CARD F3 — no lockout · soul stays playable under Hostile.
+    #[test]
+    fn f3_no_lockout_soul_stays_playable_under_hostile() {
+        assert!(!HOSTILE_LOCKOUT);
+        assert!(!soul_is_locked_out(true, Some(SoulStance::Hostile)));
+        assert!(soul_stays_playable_under_hostile(
+            true,
+            Some(SoulStance::Hostile)
+        ));
+        assert!(sealed_hostile_may_take(true, Some(SoulStance::Hostile)));
+        assert!(!soul_stays_playable_under_hostile(
+            false,
+            Some(SoulStance::Hostile)
+        ));
+        assert!(soul_stays_playable_under_hostile(false, garden_light_stance()));
+        assert!(soul_stays_playable_under_hostile(
+            true,
+            Some(SoulStance::OpenTrade)
+        ));
+    }
+
+    /// CARD F3 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f3_place_id_local_hexes_len_three() {
+        use crate::hex_travel::{PlaceId, LOCAL_HEXES};
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        for place in LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+            assert_ne!(place.as_str(), "auction");
+        }
+    }
+
+    /// CARD F3 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f3_steward_online_yes_false_online_grey() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!online_picker_allows_online_rows(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert!(persona_copy_is_honest("Title Online grey"));
+        assert!(!persona_copy_is_honest("Title lobby ranked"));
+    }
+
+    /// CARD F3 — 0 meshes · no auction_*.rs · no new persist file.
+    #[test]
+    fn f3_zero_meshes_no_auction_rs_no_new_persist_file() {
+        assert_eq!(F3_MESH_BUDGET, 0);
+        assert_eq!(PERSONA_PATH, "data/powrush_persona.json");
+        assert_eq!(PERSONA_FILE_NAME, "powrush_persona.json");
+        assert_ne!(PERSONA_FILE_NAME, "powrush_hostile.json");
+        assert_ne!(PERSONA_FILE_NAME, "powrush_auction.json");
+        assert!(!PERSONA_PATH.contains("auction"));
+        assert!(!PERSONA_PATH.contains("hostile.json"));
+        assert!(!PERSONA_PATH.contains("embargo"));
     }
 }

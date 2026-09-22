@@ -12,11 +12,16 @@
 //! Opens only if sealed stance == Open-trade. Garden light = no window.
 //! Offline lots = ghost rows on this board (F8 folded). Bind/Settle list/take.
 //! Window shuts if stance leaves Open-trade. 0 meshes · 0 new PlaceId.
+//!
+//! CARD F3 HOSTILE-PRACTICE — sealed Hostile may Take / refuse / embargo
+//! on this board without Bind. NEVC labels display only (no wage invent).
+//! No lockout. Open-trade Bind path unread (F9). F2 AH panel unread beyond
+//! the stance gate already on tip. 0 meshes · 0 new persist file.
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
 
-use crate::persona::SoulStance;
+use crate::persona::{HostilePractice, SoulStance};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum WinCondition {
@@ -228,6 +233,30 @@ impl GhostLot {
 pub const F2_MESH_BUDGET: u32 = 0;
 pub const F2_AH_IS_PLACE: bool = false;
 
+/// CARD F3 — Hostile practice mesh budget. Hands stay dark.
+pub const F3_MESH_BUDGET: u32 = crate::persona::F3_MESH_BUDGET;
+
+/// CARD F3 — Hostile practice outcome. Not Bind. Not a persist file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HostilePracticeOutcome {
+    Taken,
+    Refused,
+    Embargoed,
+    #[default]
+    Idle,
+}
+
+impl HostilePracticeOutcome {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Taken => "taken",
+            Self::Refused => "refused",
+            Self::Embargoed => "embargoed",
+            Self::Idle => "idle",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct LedgerBoard {
     pub contracts: Vec<LedgerContract>,
@@ -241,6 +270,12 @@ pub struct LedgerBoard {
     /// CARD F2 / F8 — Offline ghost lots as ledger rows. Not a Place.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ghost_lots: Vec<GhostLot>,
+    /// CARD F3 — session embargo. Not a persist file.
+    #[serde(default, skip)]
+    pub hostile_embargo: bool,
+    /// CARD F3 — last Hostile practice. Session only.
+    #[serde(default, skip)]
+    pub last_hostile_practice: Option<HostilePractice>,
 }
 
 /// CARD F1 — how Offline simulated Peoples honor a soul stance.
@@ -346,6 +381,36 @@ impl LedgerBoard {
             return "idle";
         }
         self.act_local()
+    }
+
+    /// CARD F3 — sealed Hostile may Take / refuse / embargo. Other stances idle.
+    pub fn hostile_practice_may(&self, sealed: bool, verb: HostilePractice) -> bool {
+        crate::persona::sealed_hostile_may_practice(sealed, self.soul_stance, verb)
+    }
+
+    /// CARD F3 — run Hostile practice. Does not bind. Does not open AH.
+    pub fn try_hostile_practice(
+        &mut self,
+        sealed: bool,
+        verb: HostilePractice,
+    ) -> HostilePracticeOutcome {
+        if !self.hostile_practice_may(sealed, verb) {
+            return HostilePracticeOutcome::Idle;
+        }
+        self.last_hostile_practice = Some(verb);
+        match verb {
+            HostilePractice::Take => HostilePracticeOutcome::Taken,
+            HostilePractice::Refuse => HostilePracticeOutcome::Refused,
+            HostilePractice::Embargo => {
+                self.hostile_embargo = true;
+                HostilePracticeOutcome::Embargoed
+            }
+        }
+    }
+
+    /// CARD F3 — Open-trade Bind path unread (F9). Hostile practice never binds.
+    pub fn hostile_practice_uses_open_trade_bind() -> bool {
+        false
     }
 
     pub fn honored_offline(&self) -> SimulatedPeopleHonor {
@@ -697,6 +762,134 @@ mod tests {
         b.try_open_ah_panel(true);
         let json = serde_json::to_string(&b).expect("board json");
         assert!(!json.contains("ah_window_open"), "panel is session, not a persist key");
+        assert!(!json.contains("powrush_auction.json"));
+    }
+
+    /// CARD F3 — sealed Hostile may Take / refuse / embargo. Not Bind.
+    #[test]
+    fn f3_sealed_hostile_may_take_refuse_embargo() {
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        assert_eq!(b.honored_offline(), SimulatedPeopleHonor::HonorHostile);
+        assert!(!b.offline_people_will_trade());
+        assert!(!b.ah_panel_may_open(true), "F2 AH gate unread beyond stance");
+        assert!(!b.try_open_ah_panel(true));
+        assert!(!b.ah_window_open);
+
+        b.ensure_i2("f3-hostile");
+        assert_eq!(b.open().unwrap().state, ContractState::Posted);
+        assert_eq!(
+            b.try_hostile_practice(true, HostilePractice::Take),
+            HostilePracticeOutcome::Taken
+        );
+        assert_eq!(
+            b.try_hostile_practice(true, HostilePractice::Refuse),
+            HostilePracticeOutcome::Refused
+        );
+        assert_eq!(
+            b.try_hostile_practice(true, HostilePractice::Embargo),
+            HostilePracticeOutcome::Embargoed
+        );
+        assert!(b.hostile_embargo);
+        assert_eq!(b.last_hostile_practice, Some(HostilePractice::Embargo));
+        assert_eq!(
+            b.open().unwrap().state,
+            ContractState::Posted,
+            "Hostile practice does not Bind"
+        );
+        assert!(!LedgerBoard::hostile_practice_uses_open_trade_bind());
+    }
+
+    /// CARD F3 — NEVC labels display only (no wage invent).
+    #[test]
+    fn f3_nevc_labels_display_only_no_wage_invent() {
+        assert!(!crate::persona::HOSTILE_PRACTICE_INVENTS_WAGES);
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        assert_eq!(
+            b.try_hostile_practice(true, HostilePractice::Take),
+            HostilePracticeOutcome::Taken
+        );
+        let purse = b.open().map(|c| c.purse.line()).unwrap_or_default();
+        assert!(!purse.contains("wage"));
+        assert!(!purse.contains("gold"));
+    }
+
+    /// CARD F3 — no lockout · soul stays playable under Hostile.
+    #[test]
+    fn f3_no_lockout_soul_stays_playable_under_hostile() {
+        use crate::persona::{soul_is_locked_out, soul_stays_playable_under_hostile, HOSTILE_LOCKOUT};
+
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        assert!(!HOSTILE_LOCKOUT);
+        assert!(!soul_is_locked_out(true, b.soul_stance));
+        assert!(soul_stays_playable_under_hostile(true, b.soul_stance));
+        assert_eq!(
+            b.try_hostile_practice(true, HostilePractice::Take),
+            HostilePracticeOutcome::Taken
+        );
+        for stance in [SoulStance::OpenTrade, SoulStance::Neutral, SoulStance::Closed] {
+            b.set_sealed_soul_stance(true, stance);
+            assert_eq!(
+                b.try_hostile_practice(true, HostilePractice::Take),
+                HostilePracticeOutcome::Idle
+            );
+        }
+        b.clear_garden_light_stance();
+        assert_eq!(
+            b.try_hostile_practice(false, HostilePractice::Embargo),
+            HostilePracticeOutcome::Idle
+        );
+    }
+
+    /// CARD F3 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f3_place_id_local_hexes_len_three() {
+        use crate::hex_travel::{PlaceId, LOCAL_HEXES};
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F3 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f3_steward_online_yes_false_online_grey() {
+        use crate::hex_listen::PowrushNet;
+        use crate::hex_protocol::default_client_listens;
+        use crate::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use crate::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!PowrushNet::Off.title_online_enabled());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!default_client_listens());
+    }
+
+    /// CARD F3 — 0 meshes · no auction_*.rs · no new persist file.
+    #[test]
+    fn f3_zero_meshes_no_auction_rs_no_new_persist_file() {
+        use std::path::Path;
+
+        assert_eq!(F3_MESH_BUDGET, 0);
+        assert_eq!(F2_MESH_BUDGET, 0);
+        let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!here.join("auction.rs").exists());
+        assert!(!here.join("auction_house.rs").exists());
+        assert!(!here.join("hostile_practice.rs").exists());
+        assert_eq!(crate::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_ne!(crate::persona::PERSONA_FILE_NAME, "powrush_hostile.json");
+
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        b.try_hostile_practice(true, HostilePractice::Embargo);
+        let json = serde_json::to_string(&b).expect("board json");
+        assert!(!json.contains("hostile_embargo"), "embargo is session, not a persist key");
+        assert!(!json.contains("last_hostile_practice"));
+        assert!(!json.contains("powrush_hostile.json"));
         assert!(!json.contains("powrush_auction.json"));
     }
 }
