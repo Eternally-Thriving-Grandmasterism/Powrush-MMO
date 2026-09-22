@@ -4,6 +4,15 @@
 
 **Ra-Thor Living Thunder + All 13+ PATSAGi Councils — Eternally Thriving Edition**
 
+## One sentence (2026-09-22)
+
+A dying alien empire left. Earth broke. Under the fissure something older than war woke. Powrush is the MMO of that hour.
+
+Contact: info@Rathor.ai only. Deprecated: any @acitygames.com (or other non-Rathor inbox).
+Steam Offline 1.0. Title Online grey. No App ID from this file.
+Trailer grammar: 8/20/10/5 in docs/IMAGINE_TRAILER_PACK.md (#491).
+Demo: docs/FIRST_HOUR_PLAYTEST.md + ./scripts/play-offline.sh.
+
 ## Key Features (v18.10+)
 
 - **Two New Living Sacred Biomes**: Crystal Spires (resonance crystals, seasonal harmonic audio seeds) & Abyssal Depths (persistent mycelium threads, web healing, legacy inheritance)
