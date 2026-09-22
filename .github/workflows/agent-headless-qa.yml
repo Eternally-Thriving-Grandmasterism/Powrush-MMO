@@ -1,0 +1,87 @@
+# CARD Q2 CAPTURE-IF-PATH — cite docs/Q2_CAPTURE_IF_PATH_CARD.md
+# Headless boot + one frame. PASS = process started AND /tmp/powrush-q2.png exists.
+# Do not compare pixels to a golden. Lavapipe is software Vulkan — not a
+# Steam Deck / real GPU claim. Title Online stays grey. POWRUSH_NET=off.
+# Core gates on this same workflow remain required product-green.
+name: Agent headless QA
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+env:
+  CARGO_TERM_COLOR: always
+  POWRUSH_NET: off
+
+jobs:
+  q2-capture:
+    name: Core + Q2 one-frame
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Xvfb + lavapipe + scrot + Bevy Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libasound2-dev \
+            libudev-dev \
+            libx11-dev \
+            libxkbcommon-x11-dev \
+            mesa-vulkan-drivers \
+            libvulkan1 \
+            libgl1-mesa-dri \
+            xvfb \
+            x11-utils \
+            scrot \
+            imagemagick
+
+      - name: Core tests (shared + identity)
+        run: cargo test -p shared -p rsil-identity
+
+      - name: Lived-hour client library
+        run: cargo test -p powrush-client --lib
+
+      - name: Build lived-hour binary (so the 45s boot timeout is not a compile)
+        run: cargo build -p powrush-client
+
+      - name: Headless boot + one Q2 frame
+        run: |
+          set -euo pipefail
+          export POWRUSH_NET=off
+          export POWRUSH_Q2_FRAME=/tmp/powrush-q2.png
+          rm -f "$POWRUSH_Q2_FRAME"
+          chmod +x .cursor/run-client-headless.sh
+          # Hang guard only. PASS = process started + frame exists.
+          # Do not compare pixels. Lavapipe ≠ Steam Deck / real GPU.
+          # Title Online grey. POWRUSH_NET=off (unset/off). No listen.
+          set +e
+          timeout --signal=TERM --kill-after=5s 45s \
+            .cursor/run-client-headless.sh
+          rc=$?
+          set -e
+          if [[ ! -s /tmp/powrush-q2.png ]]; then
+            echo "FAIL: window never appears / process died before the frame (runner exit $rc)"
+            exit 1
+          fi
+          echo "Q2 PASS: frame exists at /tmp/powrush-q2.png ($(wc -c < /tmp/powrush-q2.png) bytes). No golden compare."
+
+      - name: Upload Q2 frame
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: powrush-q2-frame
+          path: /tmp/powrush-q2.png
+          if-no-files-found: ignore
