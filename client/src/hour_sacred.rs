@@ -61,9 +61,15 @@
 //!
 //! CARD F3 HOSTILE-PRACTICE — sealed Hostile may Take / refuse / embargo.
 //! NEVC labels display only (no wage invent). No lockout · soul stays
-//! playable. Open-trade Bind path unread (F9). F2 AH panel unread beyond
-//! the stance gate already on tip. PlaceId stays 3 · Online grey.
+//! playable. Open-trade Bind path unread beyond the F9 wire. F2 AH panel
+//! unread beyond the stance gate already on tip. PlaceId stays 3 · Online grey.
 //! 0 meshes · 0 new persist file.
+//!
+//! CARD F9 NEVC-ON-STANCE — sealed Hostile Take writes a ledger row + NEVC
+//! display label (no wage). Sealed Open-trade Bind shows Reserve cue on the
+//! existing allocate path (no new verb). Garden light = neither. F3 practice
+//! unread beyond that Take wire. F2 AH unread beyond the Open-trade gate.
+//! PlaceId stays 3 · Online grey · no lockout. 0 meshes · 0 new persist file.
 
 use std::path::PathBuf;
 
@@ -80,6 +86,8 @@ pub const F2_MESH_BUDGET: u32 = shared::ledger_bind::F2_MESH_BUDGET;
 pub const F2_AH_IS_PLACE: bool = shared::ledger_bind::F2_AH_IS_PLACE;
 /// CARD F3 — Hostile practice mesh budget. Hands stay dark.
 pub const F3_MESH_BUDGET: u32 = shared::persona::F3_MESH_BUDGET;
+/// CARD F9 — NEVC-on-stance mesh budget. Hands stay dark.
+pub const F9_MESH_BUDGET: u32 = shared::persona::F9_MESH_BUDGET;
 use shared::local_settings::PeaceKey;
 use shared::persona::{HostilePractice, SoulStance};
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
@@ -678,9 +686,47 @@ pub fn soul_stays_playable_under_hostile_from_hour_two_json(raw: &str) -> bool {
     )
 }
 
-/// CARD F3 — Open-trade Bind path unread (F9). Hostile practice never binds.
+/// CARD F3 — Hostile practice never binds. Open-trade Bind is the existing verb (F9 cue).
 pub fn hostile_practice_uses_open_trade_bind() -> bool {
     LedgerBoard::hostile_practice_uses_open_trade_bind()
+}
+
+/// CARD F9 — sealed Hostile Take from hour-two extra keys writes a ledger row + NEVC label.
+/// F3 practice unread beyond this Take wire.
+pub fn try_hostile_take_ledger_from_hour_two_json(
+    raw: &str,
+    board: &mut LedgerBoard,
+) -> HostilePracticeOutcome {
+    try_hostile_practice_from_hour_two_json(raw, board, HostilePractice::Take)
+}
+
+/// CARD F9 — Hostile Take ledger rows on the existing board. Session display.
+pub fn hostile_take_ledger_rows_from_board(board: &LedgerBoard) -> Vec<String> {
+    board.hostile_take_ledger_rows()
+}
+
+/// CARD F9 — last NEVC display label from Hostile Take. Never wages.
+pub fn hostile_take_nevc_label_from_board(board: &LedgerBoard) -> Option<&str> {
+    board.last_nevc_label.as_deref()
+}
+
+/// CARD F9 — sealed Open-trade Bind shows Reserve cue on the existing allocate path.
+/// Uses existing Bind (`act_local`). No new verb. F2 AH unread beyond the Open-trade gate.
+pub fn open_trade_bind_reserve_cue_from_hour_two_json(
+    raw: &str,
+    board: &LedgerBoard,
+    allocation: &shared::climate_node::Allocation,
+) -> Option<String> {
+    let sealed = !soul_is_light(gate_seal_from_hour_two_json(raw));
+    board.open_trade_bind_reserve_cue(sealed, allocation)
+}
+
+/// CARD F9 — garden light gets neither Hostile Take ledger+NEVC nor Open-trade Reserve cue.
+pub fn garden_light_gets_nevc_on_stance_from_hour_two_json(raw: &str) -> bool {
+    if soul_is_light(gate_seal_from_hour_two_json(raw)) {
+        return shared::persona::garden_light_gets_nevc_on_stance();
+    }
+    false
 }
 
 /// Resolved user-dir path for the hour-two / book pack.
@@ -2289,5 +2335,178 @@ mod tests {
         assert_eq!(shared::persona::PERSONA_PATH, "data/powrush_persona.json");
         assert_ne!(shared::persona::PERSONA_FILE_NAME, "powrush_hostile.json");
         assert_eq!(SEALED_STANCE_KEY, "sealed_stance");
+    }
+
+    /// CARD F9 — sealed Hostile Take writes a ledger row + NEVC display label (no wage).
+    #[test]
+    fn f9_sealed_hostile_take_writes_ledger_row_nevc_label_no_wage() {
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let hostile = set_sealed_soul_stance(&sealed, SoulStance::Hostile).unwrap();
+        assert!(sealed_hostile_may_take_from_hour_two_json(&hostile));
+        assert!(!ah_window_may_open_from_hour_two_json(&hostile));
+        assert!(!hostile_practice_uses_open_trade_bind());
+
+        let mut board = LedgerBoard::default();
+        board.set_sealed_soul_stance(true, SoulStance::Hostile);
+        board.ensure_i2("f9-hostile-take");
+        assert_eq!(
+            try_hostile_take_ledger_from_hour_two_json(&hostile, &mut board),
+            HostilePracticeOutcome::Taken
+        );
+        let rows = hostile_take_ledger_rows_from_board(&board);
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].contains("Hostile Take"));
+        assert!(rows[0].contains("ledger row"));
+        assert!(rows[0].contains("not wages"));
+        let label = hostile_take_nevc_label_from_board(&board).expect("NEVC label");
+        assert!(label.contains("NEVC:"));
+        assert!(label.contains("display only"));
+        assert!(label.contains("not wages"));
+        assert!(!shared::nevc_visibility::nevc_line_invents_wages(label));
+        assert!(!shared::persona::HOSTILE_PRACTICE_INVENTS_WAGES);
+        assert_eq!(
+            board.open().unwrap().state,
+            shared::ledger_bind::ContractState::Posted
+        );
+        let mut open = false;
+        assert!(!try_open_ah_window_from_hour_two_json(&hostile, &mut open));
+        assert!(!open);
+    }
+
+    /// CARD F9 — sealed Open-trade Bind shows Reserve cue on existing allocate path.
+    #[test]
+    fn f9_sealed_open_trade_bind_shows_reserve_cue_on_allocate_path() {
+        use shared::climate_node::Allocation;
+
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        let open_trade = set_sealed_soul_stance(&sealed, SoulStance::OpenTrade).unwrap();
+        assert!(ah_window_may_open_from_hour_two_json(&open_trade));
+        assert!(!shared::persona::f9_invents_new_verb());
+
+        let mut board = LedgerBoard::default();
+        board.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        board.ensure_i2("f9-open-trade-bind");
+        assert_eq!(ah_list_or_take_on_board(&mut board), "bound");
+        let mut allocation = Allocation::default();
+        allocation.reserve = 1;
+        let cue = open_trade_bind_reserve_cue_from_hour_two_json(
+            &open_trade,
+            &board,
+            &allocation,
+        )
+        .expect("Reserve cue");
+        assert_eq!(cue, allocation.reserve_bank_line().expect("banked"));
+        assert!(cue.contains("Reserve"));
+        assert!(cue.contains("repair-rights"));
+        assert!(!shared::nevc_visibility::nevc_line_invents_wages(&cue));
+
+        let leftover = merge_stance_into_hour_two_json("{}", SoulStance::OpenTrade);
+        assert!(
+            open_trade_bind_reserve_cue_from_hour_two_json(&leftover, &board, &allocation)
+                .is_none(),
+            "leftover Open-trade key is not garden Bind"
+        );
+    }
+
+    /// CARD F9 — garden light gets neither.
+    #[test]
+    fn f9_garden_light_gets_neither() {
+        use shared::climate_node::Allocation;
+
+        let light = "{}";
+        assert!(soul_is_light(gate_seal_from_hour_two_json(light)));
+        assert!(!garden_light_gets_nevc_on_stance_from_hour_two_json(light));
+        assert!(!sealed_hostile_may_take_from_hour_two_json(light));
+        let mut board = LedgerBoard::default();
+        assert_eq!(
+            try_hostile_take_ledger_from_hour_two_json(light, &mut board),
+            HostilePracticeOutcome::Idle
+        );
+        assert!(hostile_take_ledger_rows_from_board(&board).is_empty());
+        assert!(hostile_take_nevc_label_from_board(&board).is_none());
+        board.ensure_i2("f9-garden");
+        assert_eq!(ah_list_or_take_on_board(&mut board), "bound");
+        let mut allocation = Allocation::default();
+        allocation.reserve = 1;
+        assert!(
+            open_trade_bind_reserve_cue_from_hour_two_json(light, &board, &allocation).is_none()
+        );
+        let play = play_new_light_soul();
+        assert!(play.is_light());
+        assert_eq!(play.last_place_name(), "Garden");
+    }
+
+    /// CARD F9 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f9_place_id_local_hexes_len_three() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert!(four_place_landings_only());
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+            assert_ne!(place.as_str(), "auction");
+            assert_ne!(place.as_str(), "ah");
+        }
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F9 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f9_steward_online_yes_false_online_grey() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!shared::hex_protocol::default_client_listens());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!online_row_is_honest_disabled(ONLINE_STUB_LABEL, true));
+    }
+
+    /// CARD F9 — no lockout · 0 meshes · no auction_*.rs · no new persist file.
+    #[test]
+    fn f9_no_lockout_zero_meshes_no_auction_rs_no_new_persist_file() {
+        use std::path::Path;
+
+        assert_eq!(F9_MESH_BUDGET, 0);
+        assert_eq!(F3_MESH_BUDGET, 0);
+        assert_eq!(L2_MESH_BUDGET, 0);
+        assert_eq!(F2_MESH_BUDGET, 0);
+        assert!(!shared::persona::HOSTILE_LOCKOUT);
+        assert!(!shared::persona::f9_invents_new_verb());
+        let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!here.join("src/auction.rs").exists());
+        assert!(!here.join("src/auction_house.rs").exists());
+        assert!(!here.join("src/nevc_stance.rs").exists());
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+        assert!(!HOUR_TWO_PATH.contains("nevc"));
+        assert!(!HOUR_TWO_PATH.contains("auction"));
+        assert_eq!(shared::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_ne!(shared::persona::PERSONA_FILE_NAME, "powrush_nevc_stance.json");
+        assert_eq!(SEALED_STANCE_KEY, "sealed_stance");
+
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Quellorian,
+            PeopleLanding::Threshold,
+        );
+        let hostile = set_sealed_soul_stance(&sealed, SoulStance::Hostile).unwrap();
+        assert!(soul_stays_playable_under_hostile_from_hour_two_json(&hostile));
+        assert!(!shared::persona::soul_is_locked_out(
+            true,
+            sealed_soul_stance_from_hour_two_json(&hostile)
+        ));
     }
 }
