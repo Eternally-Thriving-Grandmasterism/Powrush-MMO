@@ -2394,7 +2394,7 @@ mod tests {
         let mut board = LedgerBoard::default();
         board.set_sealed_soul_stance(true, SoulStance::OpenTrade);
         board.ensure_i2("f9-open-trade-bind");
-        assert_eq!(ah_list_or_take_on_board(&mut board), "bound");
+        assert_eq!(board.act_local(), "bound", "existing Bind verb — no new verb");
         let mut allocation = Allocation::default();
         allocation.reserve = 1;
         let cue = open_trade_bind_reserve_cue_from_hour_two_json(
@@ -2433,7 +2433,7 @@ mod tests {
         assert!(hostile_take_ledger_rows_from_board(&board).is_empty());
         assert!(hostile_take_nevc_label_from_board(&board).is_none());
         board.ensure_i2("f9-garden");
-        assert_eq!(ah_list_or_take_on_board(&mut board), "bound");
+        assert_eq!(board.act_local(), "bound");
         let mut allocation = Allocation::default();
         allocation.reserve = 1;
         assert!(
