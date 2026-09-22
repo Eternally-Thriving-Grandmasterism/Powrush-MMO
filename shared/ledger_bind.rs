@@ -7,6 +7,11 @@
 //! (Open-trade / Neutral / Closed / Hostile). Garden light = no stance · no trade.
 //! Online humans are F10 only — not implemented. Stance rides the existing
 //! hour-two board / seal disk. No new persist schema file.
+//!
+//! CARD F2 AH-WINDOW — AH is a ledger / inventory PANEL, not a Place.
+//! Opens only if sealed stance == Open-trade. Garden light = no window.
+//! Offline lots = ghost rows on this board (F8 folded). Bind/Settle list/take.
+//! Window shuts if stance leaves Open-trade. 0 meshes · 0 new PlaceId.
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -198,6 +203,31 @@ impl LedgerContract {
     }
 }
 
+/// CARD F2 / F8 — Offline ghost lot. A ledger row, not a Place.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GhostLot {
+    pub label: String,
+}
+
+impl GhostLot {
+    pub fn offline_row(label: impl Into<String>) -> Self {
+        Self { label: label.into() }
+    }
+
+    /// Ghost lots are rows on the ledger board. Never a PlaceId.
+    pub const fn is_place() -> bool {
+        false
+    }
+
+    pub fn line(&self) -> String {
+        format!("Ghost lot · {} · ledger row · not a Place", self.label)
+    }
+}
+
+/// CARD F2 — AH mesh / Place budget. Panel only.
+pub const F2_MESH_BUDGET: u32 = 0;
+pub const F2_AH_IS_PLACE: bool = false;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct LedgerBoard {
     pub contracts: Vec<LedgerContract>,
@@ -205,6 +235,12 @@ pub struct LedgerBoard {
     /// Rides the existing hour-two pack board. Not a new persist file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub soul_stance: Option<SoulStance>,
+    /// CARD F2 — session panel. Not a Place. Not a persist file.
+    #[serde(default, skip)]
+    pub ah_window_open: bool,
+    /// CARD F2 / F8 — Offline ghost lots as ledger rows. Not a Place.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ghost_lots: Vec<GhostLot>,
 }
 
 /// CARD F1 — how Offline simulated Peoples honor a soul stance.
@@ -242,17 +278,74 @@ pub fn offline_simulated_people_will_trade(stance: Option<SoulStance>) -> bool {
     )
 }
 
+/// CARD F2 — AH panel may open only when the soul is sealed Open-trade.
+pub fn ah_panel_may_open(sealed: bool, stance: Option<SoulStance>) -> bool {
+    sealed && offline_simulated_people_will_trade(stance)
+}
+
 impl LedgerBoard {
     /// CARD F1 — sealed soul may set stance on this board. Light cannot.
+    /// CARD F2 — stance leaving Open-trade shuts the AH window.
     pub fn set_sealed_soul_stance(&mut self, sealed: bool, stance: SoulStance) -> Option<SoulStance> {
         let set = crate::persona::sealed_soul_may_set_stance(sealed, stance)?;
         self.soul_stance = Some(set);
+        self.sync_ah_panel_to_stance(sealed);
         Some(set)
     }
 
-    /// Garden light / unsealed: clear stance. No trade.
+    /// Garden light / unsealed: clear stance. No trade. AH window shuts.
     pub fn clear_garden_light_stance(&mut self) {
         self.soul_stance = None;
+        self.sync_ah_panel_to_stance(false);
+    }
+
+    /// CARD F2 — sealed Open-trade only. Garden light / other stances refuse.
+    pub fn ah_panel_may_open(&self, sealed: bool) -> bool {
+        ah_panel_may_open(sealed, self.soul_stance)
+    }
+
+    /// CARD F2 — open the ledger/inventory AH panel. Not a Place.
+    pub fn try_open_ah_panel(&mut self, sealed: bool) -> bool {
+        if !self.ah_panel_may_open(sealed) {
+            self.ah_window_open = false;
+            return false;
+        }
+        self.ensure_offline_ghost_lots();
+        self.ah_window_open = true;
+        true
+    }
+
+    pub fn close_ah_panel(&mut self) {
+        self.ah_window_open = false;
+    }
+
+    /// Window shuts if stance leaves Open-trade (or garden light).
+    pub fn sync_ah_panel_to_stance(&mut self, sealed: bool) {
+        if !self.ah_panel_may_open(sealed) {
+            self.ah_window_open = false;
+        }
+    }
+
+    /// CARD F2 / F8 — Offline lots live as ledger rows, not a Place.
+    pub fn ensure_offline_ghost_lots(&mut self) {
+        if self.ghost_lots.is_empty() {
+            self.ghost_lots.push(GhostLot::offline_row("offline"));
+        }
+    }
+
+    /// Panel rows: existing contracts plus offline ghost lots.
+    pub fn ah_panel_rows(&self) -> Vec<String> {
+        let mut rows: Vec<String> = self.contracts.iter().map(|c| c.line()).collect();
+        rows.extend(self.ghost_lots.iter().map(|g| g.line()));
+        rows
+    }
+
+    /// Bind/Settle already list/take. No new AH verb.
+    pub fn ah_list_or_take(&mut self) -> &'static str {
+        if !self.ah_window_open {
+            return "idle";
+        }
+        self.act_local()
     }
 
     pub fn honored_offline(&self) -> SimulatedPeopleHonor {
@@ -462,5 +555,148 @@ mod tests {
         assert!(!empty.contains("soul_stance"), "garden light omits stance key");
         assert_eq!(crate::persona::PERSONA_PATH, "data/powrush_persona.json");
         assert_ne!(crate::persona::PERSONA_FILE_NAME, "powrush_stance.json");
+    }
+
+    /// CARD F2 — AH panel opens only when sealed stance is Open-trade.
+    #[test]
+    fn f2_ah_panel_opens_only_when_sealed_open_trade() {
+        let mut b = LedgerBoard::default();
+        assert!(!b.ah_window_open);
+        assert!(!b.try_open_ah_panel(false));
+        assert!(!b.ah_window_open);
+
+        b.set_sealed_soul_stance(true, SoulStance::Neutral);
+        assert!(!b.try_open_ah_panel(true));
+        assert!(!b.ah_window_open);
+        b.set_sealed_soul_stance(true, SoulStance::Closed);
+        assert!(!b.try_open_ah_panel(true));
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        assert!(!b.try_open_ah_panel(true));
+
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert!(b.ah_panel_may_open(true));
+        assert!(b.try_open_ah_panel(true));
+        assert!(b.ah_window_open);
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F2 — Garden light cannot open the AH window.
+    #[test]
+    fn f2_garden_light_cannot_open_ah_window() {
+        let mut b = LedgerBoard::default();
+        assert!(b.soul_stance.is_none());
+        assert!(!b.try_open_ah_panel(false));
+        assert!(!b.ah_window_open);
+        assert!(!ah_panel_may_open(false, None));
+        assert!(!ah_panel_may_open(false, Some(SoulStance::OpenTrade)));
+        b.clear_garden_light_stance();
+        assert!(!b.try_open_ah_panel(false));
+        assert!(!b.ah_window_open);
+    }
+
+    /// CARD F2 — Window closes when stance leaves Open-trade.
+    #[test]
+    fn f2_window_closes_when_stance_leaves_open_trade() {
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert!(b.try_open_ah_panel(true));
+        assert!(b.ah_window_open);
+
+        b.set_sealed_soul_stance(true, SoulStance::Neutral);
+        assert!(!b.ah_window_open);
+        assert!(b.try_open_ah_panel(true) == false);
+
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert!(b.try_open_ah_panel(true));
+        b.set_sealed_soul_stance(true, SoulStance::Closed);
+        assert!(!b.ah_window_open);
+
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert!(b.try_open_ah_panel(true));
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        assert!(!b.ah_window_open);
+
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert!(b.try_open_ah_panel(true));
+        b.clear_garden_light_stance();
+        assert!(!b.ah_window_open);
+    }
+
+    /// CARD F2 / F8 — Offline ghost lots live as ledger rows, not a Place.
+    #[test]
+    fn f2_offline_ghost_lots_live_as_ledger_rows_not_a_place() {
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert!(b.try_open_ah_panel(true));
+        assert!(!b.ghost_lots.is_empty());
+        assert!(!GhostLot::is_place());
+        assert!(!F2_AH_IS_PLACE);
+        let rows = b.ah_panel_rows();
+        assert!(rows.iter().any(|r| r.contains("Ghost lot") && r.contains("not a Place")));
+        for lot in &b.ghost_lots {
+            assert_ne!(lot.label, "Sanctuary");
+            assert_ne!(lot.label, "Heartwood");
+            assert_ne!(lot.label, "Depths");
+            assert!(!lot.line().contains("PlaceId"));
+        }
+        b.ensure_i2("local-i2");
+        assert_eq!(b.ah_list_or_take(), "bound");
+        assert_eq!(b.ah_list_or_take(), "escorting");
+        assert_eq!(crate::hex_travel::LOCAL_HEXES.len(), 3);
+    }
+
+    /// CARD F2 — PlaceId / LOCAL_HEXES len == 3. AH is not a Place.
+    #[test]
+    fn f2_place_id_local_hexes_len_three() {
+        use crate::hex_travel::{PlaceId, LOCAL_HEXES};
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        for place in LOCAL_HEXES {
+            assert_ne!(place.as_str(), "ah");
+            assert_ne!(place.as_str(), "auction");
+            assert_ne!(place.as_str(), "auction_house");
+            assert_ne!(place.as_str(), "market");
+        }
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F2 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f2_steward_online_yes_false_online_grey() {
+        use crate::hex_listen::PowrushNet;
+        use crate::hex_protocol::default_client_listens;
+        use crate::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use crate::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!PowrushNet::Off.title_online_enabled());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!default_client_listens());
+    }
+
+    /// CARD F2 — 0 meshes · no auction_*.rs · no new persist crate.
+    #[test]
+    fn f2_zero_meshes_no_auction_rs_no_new_persist_crate() {
+        use std::path::Path;
+
+        assert_eq!(F2_MESH_BUDGET, 0);
+        assert!(!F2_AH_IS_PLACE);
+        let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!here.join("auction.rs").exists());
+        assert!(!here.join("auction_house.rs").exists());
+        assert!(!here.join("auction_window.rs").exists());
+        assert_eq!(crate::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_ne!(crate::persona::PERSONA_FILE_NAME, "powrush_auction.json");
+        assert!(!crate::persona::PERSONA_PATH.contains("auction"));
+
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        b.try_open_ah_panel(true);
+        let json = serde_json::to_string(&b).expect("board json");
+        assert!(!json.contains("ah_window_open"), "panel is session, not a persist key");
+        assert!(!json.contains("powrush_auction.json"));
     }
 }

@@ -52,6 +52,12 @@
 //! only — not implemented. Extra key `sealed_stance` on the existing
 //! hour-two disk (with S2 seal keys). No new persist schema file.
 //! S1 / S2 / S3 / F5 / F6 / F7 WRITE unread. PlaceId stays 3. Online grey.
+//!
+//! CARD F2 AH-WINDOW — AH is a ledger / inventory PANEL, not a Place.
+//! Opens only if sealed stance == Open-trade (F1 SoulStance). Garden
+//! light = no window. Offline ghost lots live as ledger rows (F8 folded
+//! in ledger_bind). Bind/Settle list/take — no new verb. Window shuts
+//! if stance leaves Open-trade. 0 meshes · 0 new PlaceId. Online grey.
 
 use std::path::PathBuf;
 
@@ -59,7 +65,11 @@ use bevy::prelude::*;
 
 use shared::hex_travel::PlaceId;
 use shared::hour_two::HourTwoPack;
-use shared::ledger_bind::offline_simulated_people_will_trade;
+use shared::ledger_bind::{ah_panel_may_open, offline_simulated_people_will_trade, LedgerBoard};
+
+/// CARD F2 — AH mesh / Place budget. Panel only. 0 meshes · not a Place.
+pub const F2_MESH_BUDGET: u32 = shared::ledger_bind::F2_MESH_BUDGET;
+pub const F2_AH_IS_PLACE: bool = shared::ledger_bind::F2_AH_IS_PLACE;
 use shared::local_settings::PeaceKey;
 use shared::persona::SoulStance;
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
@@ -570,6 +580,45 @@ pub fn soul_may_trade_from_hour_two_json(raw: &str) -> bool {
         return false;
     }
     offline_simulated_people_will_trade(sealed_soul_stance_from_hour_two_json(raw))
+}
+
+/// CARD F2 — AH window may open only when sealed stance is Open-trade.
+pub fn ah_window_may_open_from_hour_two_json(raw: &str) -> bool {
+    ah_panel_may_open(
+        !soul_is_light(gate_seal_from_hour_two_json(raw)),
+        sealed_soul_stance_from_hour_two_json(raw),
+    )
+}
+
+/// CARD F2 — open the ledger/inventory AH panel. Not a Place.
+/// Garden light / non-Open-trade refuse and keep the window shut.
+pub fn try_open_ah_window_from_hour_two_json(raw: &str, window_open: &mut bool) -> bool {
+    if !ah_window_may_open_from_hour_two_json(raw) {
+        *window_open = false;
+        return false;
+    }
+    *window_open = true;
+    true
+}
+
+/// CARD F2 — window shuts if stance leaves Open-trade (or garden light).
+pub fn sync_ah_window_to_hour_two_json(raw: &str, window_open: &mut bool) {
+    if !ah_window_may_open_from_hour_two_json(raw) {
+        *window_open = false;
+    }
+}
+
+/// CARD F2 — garden light cannot open the AH window.
+pub fn garden_light_can_open_ah_window(raw: &str) -> bool {
+    if soul_is_light(gate_seal_from_hour_two_json(raw)) {
+        return false;
+    }
+    ah_window_may_open_from_hour_two_json(raw)
+}
+
+/// CARD F2 — Bind/Settle already list/take when the panel is open.
+pub fn ah_list_or_take_on_board(board: &mut LedgerBoard) -> &'static str {
+    board.ah_list_or_take()
 }
 
 /// Resolved user-dir path for the hour-two / book pack.
@@ -1858,5 +1907,159 @@ mod tests {
         assert!(json.contains(SEALED_STANCE_KEY));
         assert!(json.contains(SEALED_PEOPLE_KEY));
         assert!(json.contains(SEALED_LANDING_KEY));
+    }
+
+    /// CARD F2 — AH panel opens only when sealed stance is Open-trade.
+    #[test]
+    fn f2_ah_panel_opens_only_when_sealed_open_trade() {
+        let light = "{}";
+        let mut open = false;
+        assert!(!try_open_ah_window_from_hour_two_json(light, &mut open));
+        assert!(!open);
+
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        let mut open = false;
+        assert!(!try_open_ah_window_from_hour_two_json(&sealed, &mut open));
+        assert!(!open);
+
+        for stance in [SoulStance::Neutral, SoulStance::Closed, SoulStance::Hostile] {
+            let json = set_sealed_soul_stance(&sealed, stance).unwrap();
+            let mut open = false;
+            assert!(!ah_window_may_open_from_hour_two_json(&json));
+            assert!(!try_open_ah_window_from_hour_two_json(&json, &mut open));
+            assert!(!open);
+        }
+
+        let open_trade = set_sealed_soul_stance(&sealed, SoulStance::OpenTrade).unwrap();
+        let mut open = false;
+        assert!(ah_window_may_open_from_hour_two_json(&open_trade));
+        assert!(try_open_ah_window_from_hour_two_json(&open_trade, &mut open));
+        assert!(open);
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F2 — Garden light cannot open the AH window.
+    #[test]
+    fn f2_garden_light_cannot_open_ah_window() {
+        let light = "{}";
+        assert!(soul_is_light(gate_seal_from_hour_two_json(light)));
+        assert!(!garden_light_can_open_ah_window(light));
+        assert!(!ah_window_may_open_from_hour_two_json(light));
+        let leftover = merge_stance_into_hour_two_json(light, SoulStance::OpenTrade);
+        assert!(!garden_light_can_open_ah_window(&leftover));
+        let mut open = true;
+        assert!(!try_open_ah_window_from_hour_two_json(&leftover, &mut open));
+        assert!(!open);
+        let play = play_new_light_soul();
+        assert!(play.is_light());
+        assert_eq!(play.last_place_name(), "Garden");
+    }
+
+    /// CARD F2 — Window closes when stance leaves Open-trade.
+    #[test]
+    fn f2_window_closes_when_stance_leaves_open_trade() {
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        let open_trade = set_sealed_soul_stance(&sealed, SoulStance::OpenTrade).unwrap();
+        let mut open = false;
+        assert!(try_open_ah_window_from_hour_two_json(&open_trade, &mut open));
+        assert!(open);
+
+        let closed = set_sealed_soul_stance(&open_trade, SoulStance::Closed).unwrap();
+        sync_ah_window_to_hour_two_json(&closed, &mut open);
+        assert!(!open);
+        assert!(!ah_window_may_open_from_hour_two_json(&closed));
+
+        let mut open = true;
+        let neutral = set_sealed_soul_stance(&open_trade, SoulStance::Neutral).unwrap();
+        sync_ah_window_to_hour_two_json(&neutral, &mut open);
+        assert!(!open);
+
+        let mut open = true;
+        let hostile = set_sealed_soul_stance(&open_trade, SoulStance::Hostile).unwrap();
+        sync_ah_window_to_hour_two_json(&hostile, &mut open);
+        assert!(!open);
+
+        let mut open = true;
+        sync_ah_window_to_hour_two_json("{}", &mut open);
+        assert!(!open);
+    }
+
+    /// CARD F2 / F8 — Offline ghost lots live as ledger rows, not a Place.
+    #[test]
+    fn f2_offline_ghost_lots_live_as_ledger_rows_not_a_place() {
+        use shared::ledger_bind::GhostLot;
+
+        let mut board = LedgerBoard::default();
+        board.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert!(board.try_open_ah_panel(true));
+        assert!(!board.ghost_lots.is_empty());
+        assert!(!GhostLot::is_place());
+        assert!(!F2_AH_IS_PLACE);
+        let rows = board.ah_panel_rows();
+        assert!(rows.iter().any(|r| r.contains("Ghost lot") && r.contains("ledger row")));
+        board.ensure_i2("local-i2");
+        assert_eq!(ah_list_or_take_on_board(&mut board), "bound");
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "auction");
+            assert_ne!(place.as_str(), "ah");
+        }
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+    }
+
+    /// CARD F2 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f2_place_id_local_hexes_len_three() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert!(four_place_landings_only());
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+            assert_ne!(place.as_str(), "auction");
+            assert_ne!(place.as_str(), "ah");
+        }
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F2 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f2_steward_online_yes_false_online_grey() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!shared::hex_protocol::default_client_listens());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!online_row_is_honest_disabled(ONLINE_STUB_LABEL, true));
+    }
+
+    /// CARD F2 — 0 meshes · no auction_*.rs · no new persist crate.
+    #[test]
+    fn f2_zero_meshes_no_auction_rs_no_new_persist_crate() {
+        use std::path::Path;
+
+        assert_eq!(F2_MESH_BUDGET, 0);
+        assert_eq!(L2_MESH_BUDGET, 0);
+        assert!(!F2_AH_IS_PLACE);
+        let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!here.join("src/auction.rs").exists());
+        assert!(!here.join("src/auction_house.rs").exists());
+        assert!(!here.join("src/auction_window.rs").exists());
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+        assert!(!HOUR_TWO_PATH.contains("auction"));
+        assert_eq!(shared::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_ne!(shared::persona::PERSONA_FILE_NAME, "powrush_auction.json");
     }
 }
