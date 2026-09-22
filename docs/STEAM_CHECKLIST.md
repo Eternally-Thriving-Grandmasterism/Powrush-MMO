@@ -37,6 +37,23 @@ Independent of xAI. No certification / AGSi warranty / legal-product claims.
 - Blocking this SKU on a second-product full MMO
 - Certification / AGSi warranty / legal-product / xAI-endorsement claims
 
+## Coming Soon bank (bots may write; humans tick)
+
+Bots may write this bank. Humans tick **Tick (human)** above. This section does not tick those boxes. No App ID on this page. No ship month.
+
+Cite [`STEAM_WISHLIST_PATSAGI_BRIEF_2026-09-22.md`](STEAM_WISHLIST_PATSAGI_BRIEF_2026-09-22.md) · [`NEXT_NAMED_CARDS.md`](NEXT_NAMED_CARDS.md) §1 CARD STEAM-CHECKLIST-STORE · short desc already on [`STEAM_INTEGRATION.md`](STEAM_INTEGRATION.md) (#489).
+
+- **Short desc** — the line already on [`STEAM_INTEGRATION.md`](STEAM_INTEGRATION.md) (#489). Do not invent a new store line: *A dying alien empire left. Earth broke. Under the fissure something older than war woke. Powrush is the MMO of that hour.*
+- **Also true:** offline RBE sanctuary · no account · Online grey · not always-on shard
+- **Tags keep:** MMO, Multiplayer, Co-op, Open World, Sandbox, Atmospheric, Lore-Rich, Simulation, Indie
+- **Tags add if the shown build is true:** Sci-fi, Exploration, Base Building, Survival, Strategy
+- **Tags demote on the announce capsule:** Educational, Relaxing
+- **Capsule test:** wounded Earth + two motherships, or Cydruid wrist-light
+- **Trailer:** 8/20/10/5 on [`IMAGINE_TRAILER_PACK.md`](IMAGINE_TRAILER_PACK.md) (#491)
+- **Demo door:** [`FIRST_HOUR_PLAYTEST.md`](FIRST_HOUR_PLAYTEST.md) + `./scripts/play-offline.sh` (tip names this door; `scripts/play-offline.sh` and `docs/FIRST_HOUR_PLAYTEST.md` exist)
+- **Window date:** *(blank)* steward TBA
+- **Contact:** info@Rathor.ai only
+
 ## Related
 
 `OFFLINE_SKU` · `PREVIEW_CHECKLIST` (ticking ≠ preview tag) · `LAUNCH_UX` · `PLACES_BIBLE` · `LAVAPIPE_CLICK_CLEAN` (later) · `STEAM_DECK` (later) · `HOUR_TWO_PLAYTEST` (leave blank). Cite only [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` — do not reopen.
