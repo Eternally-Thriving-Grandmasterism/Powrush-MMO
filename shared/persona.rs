@@ -51,6 +51,12 @@ pub const STEWARD_ONLINE_YES: bool = false;
 /// existing allocate path (no new verb). Garden light = neither. F3 practice
 /// unread beyond that Take wire. F2 AH unread beyond the Open-trade gate.
 /// PlaceId stays 3 · Online grey · no lockout. 0 meshes · no new persist file.
+///
+/// CARD F4 DOUBLE-AGENT — sealed dress stays (no dress swap). Sealed soul
+/// may serve another well offline (simulated Peoples) without dress swap.
+/// Online human double-serve waits F10 / Online-yes — not implemented.
+/// F9 / F3 / F2 unread beyond existing wires. PlaceId stays 3 · Online grey
+/// · no lockout. 0 meshes · no new persist file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SoulStance {
     /// Open-trade — Offline simulated Peoples will trade.
@@ -218,6 +224,65 @@ pub fn sealed_open_trade_bind_shows_reserve_cue(sealed: bool, stance: Option<Sou
 /// CARD F9 — no new allocate / Bind verb. Reserve cue rides the existing path.
 pub fn f9_invents_new_verb() -> bool {
     false
+}
+
+/// CARD F4 DOUBLE-AGENT — mesh budget. Hands stay dark.
+pub const F4_MESH_BUDGET: u32 = 0;
+
+/// CARD F4 — sealed dress stays. No dress swap.
+pub const F4_DRESS_SWAP: bool = false;
+
+/// CARD F4 — Online human double-serve waits F10 / Online-yes. Not implemented.
+pub const F4_ONLINE_HUMAN_DOUBLE_SERVE: bool = false;
+
+/// CARD F4 — double-serve never lockouts the soul.
+pub const F4_LOCKOUT: bool = false;
+
+/// Sealed dress stays. Garden light has no sealed dress to keep.
+pub fn sealed_dress_stays(sealed: bool) -> bool {
+    sealed && !F4_DRESS_SWAP
+}
+
+/// Another well is not the sealed dress home well.
+pub fn is_another_well(sealed_dress: &str, well_of: &str) -> bool {
+    sealed_dress != well_of
+}
+
+/// Sealed soul may serve another well offline (simulated Peoples).
+/// Dress stays. Garden light cannot. Home well is not a double-serve.
+/// Online humans wait F10 / Online-yes.
+pub fn sealed_soul_may_serve_another_well_offline(
+    sealed: bool,
+    sealed_dress: &str,
+    well_of: &str,
+) -> bool {
+    sealed_dress_stays(sealed)
+        && is_another_well(sealed_dress, well_of)
+        && !online_human_double_serve_implemented()
+}
+
+/// Serving another well never rewrites sealed dress.
+pub fn sealed_dress_after_offline_double_serve<'a>(
+    sealed_dress: &'a str,
+    well_of: &str,
+) -> &'a str {
+    let _ = well_of;
+    sealed_dress
+}
+
+/// Online human double-serve waits F10 / steward `online yes`. Not implemented.
+pub fn online_human_double_serve_implemented() -> bool {
+    F4_ONLINE_HUMAN_DOUBLE_SERVE && STEWARD_ONLINE_YES
+}
+
+/// Online human double-serve is gated until Online-yes.
+pub fn online_human_double_serve_gated() -> bool {
+    !online_human_double_serve_implemented()
+}
+
+/// F4 never lockouts. Soul stays playable under offline double-serve.
+pub fn soul_stays_playable_under_double_serve(sealed: bool) -> bool {
+    !F4_LOCKOUT && !soul_is_locked_out(sealed, None)
 }
 
 /// Persist path (cwd `data/` adopt source; OS user-dir write via `user_persist`).
@@ -1711,5 +1776,130 @@ mod tests {
         assert!(!PERSONA_PATH.contains("auction"));
         assert!(!PERSONA_PATH.contains("nevc_stance"));
         assert!(!f9_invents_new_verb());
+    }
+
+    // --- CARD F4 DOUBLE-AGENT -----------------------------------------------
+
+    /// CARD F4 — sealed dress unchanged when soul serves another well offline.
+    #[test]
+    fn f4_sealed_dress_unchanged_when_serving_another_well_offline() {
+        let dress = MechanicalRace::Cydruid.as_str();
+        let other = MechanicalRace::Draek.as_str();
+        assert!(sealed_soul_may_serve_another_well_offline(true, dress, other));
+        assert_eq!(
+            sealed_dress_after_offline_double_serve(dress, other),
+            dress
+        );
+        assert!(sealed_dress_stays(true));
+        assert!(!F4_DRESS_SWAP);
+        assert!(!sealed_dress_stays(false));
+        let mut persona = Persona::nameless_steward();
+        persona.mechanical_race = MechanicalRace::Cydruid;
+        persona.presentation.dress_intent = Some("travel cloak intent".into());
+        let dress_before = persona.presentation.dress_intent.clone();
+        let race_before = persona.mechanical_race;
+        assert_eq!(
+            sealed_dress_after_offline_double_serve(race_before.as_str(), other),
+            race_before.as_str()
+        );
+        assert_eq!(persona.presentation.dress_intent, dress_before);
+        assert_eq!(persona.mechanical_race, race_before);
+        assert!(persona_copy_is_honest("sealed dress stays"));
+    }
+
+    /// CARD F4 — Offline double-serve works without dress swap.
+    #[test]
+    fn f4_offline_double_serve_works_without_dress_swap() {
+        let dress = MechanicalRace::Human.as_str();
+        assert!(sealed_soul_may_serve_another_well_offline(
+            true,
+            dress,
+            MechanicalRace::Quellorian.as_str()
+        ));
+        assert!(sealed_soul_may_serve_another_well_offline(
+            true,
+            dress,
+            MechanicalRace::Ambrosian.as_str()
+        ));
+        assert!(
+            !sealed_soul_may_serve_another_well_offline(true, dress, dress),
+            "home well is not a double-serve"
+        );
+        assert!(!sealed_soul_may_serve_another_well_offline(
+            false,
+            dress,
+            MechanicalRace::Draek.as_str()
+        ));
+        assert!(!F4_DRESS_SWAP);
+        assert_eq!(
+            sealed_dress_after_offline_double_serve(dress, MechanicalRace::Draek.as_str()),
+            dress
+        );
+        assert!(is_another_well(dress, MechanicalRace::Cydruid.as_str()));
+        assert!(!is_another_well(dress, dress));
+    }
+
+    /// CARD F4 — Online human double-serve NOT implemented / gated until Online-yes.
+    #[test]
+    fn f4_online_human_double_serve_not_implemented_gated_until_online_yes() {
+        assert!(!F4_ONLINE_HUMAN_DOUBLE_SERVE);
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!online_human_double_serve_implemented());
+        assert!(online_human_double_serve_gated());
+        assert!(!online_picker_allows_online_rows(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert!(persona_copy_is_honest("Title Online grey"));
+        assert!(!persona_copy_is_honest("Title lobby ranked"));
+    }
+
+    /// CARD F4 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f4_place_id_local_hexes_len_three() {
+        use crate::hex_travel::{PlaceId, LOCAL_HEXES};
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        for place in LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+            assert_ne!(place.as_str(), "auction");
+        }
+    }
+
+    /// CARD F4 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f4_steward_online_yes_false_online_grey() {
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!online_picker_allows_online_rows(
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES
+        ));
+        assert!(persona_copy_is_honest("Title Online grey"));
+        assert!(!persona_copy_is_honest("Title lobby ranked"));
+    }
+
+    /// CARD F4 — no lockout · 0 meshes · no auction_*.rs · no new persist file.
+    #[test]
+    fn f4_no_lockout_zero_meshes_no_auction_rs_no_new_persist_file() {
+        assert!(!F4_LOCKOUT);
+        assert!(!HOSTILE_LOCKOUT);
+        assert!(soul_stays_playable_under_double_serve(true));
+        assert!(soul_stays_playable_under_double_serve(false));
+        assert!(!soul_is_locked_out(true, Some(SoulStance::Hostile)));
+        assert_eq!(F4_MESH_BUDGET, 0);
+        assert_eq!(F9_MESH_BUDGET, 0);
+        assert_eq!(F3_MESH_BUDGET, 0);
+        assert_eq!(PERSONA_PATH, "data/powrush_persona.json");
+        assert_eq!(PERSONA_FILE_NAME, "powrush_persona.json");
+        assert_ne!(PERSONA_FILE_NAME, "powrush_double_agent.json");
+        assert_ne!(PERSONA_FILE_NAME, "powrush_auction.json");
+        assert!(!PERSONA_PATH.contains("auction"));
+        assert!(!PERSONA_PATH.contains("double_agent"));
+        assert!(!F4_DRESS_SWAP);
+        assert!(!online_human_double_serve_implemented());
     }
 }

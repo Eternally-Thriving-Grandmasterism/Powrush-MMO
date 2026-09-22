@@ -70,6 +70,12 @@
 //! existing allocate path (no new verb). Garden light = neither. F3 practice
 //! unread beyond that Take wire. F2 AH unread beyond the Open-trade gate.
 //! PlaceId stays 3 · Online grey · no lockout. 0 meshes · 0 new persist file.
+//!
+//! CARD F4 DOUBLE-AGENT — sealed dress stays (no dress swap). Sealed soul
+//! may serve another well offline (simulated Peoples) without dress swap.
+//! Online human double-serve waits F10 / Online-yes — not implemented.
+//! F9 / F3 / F2 unread beyond existing wires. PlaceId stays 3 · Online grey
+//! · no lockout. 0 meshes · 0 new persist file.
 
 use std::path::PathBuf;
 
@@ -88,6 +94,8 @@ pub const F2_AH_IS_PLACE: bool = shared::ledger_bind::F2_AH_IS_PLACE;
 pub const F3_MESH_BUDGET: u32 = shared::persona::F3_MESH_BUDGET;
 /// CARD F9 — NEVC-on-stance mesh budget. Hands stay dark.
 pub const F9_MESH_BUDGET: u32 = shared::persona::F9_MESH_BUDGET;
+/// CARD F4 — double-agent mesh budget. Hands stay dark.
+pub const F4_MESH_BUDGET: u32 = shared::persona::F4_MESH_BUDGET;
 use shared::local_settings::PeaceKey;
 use shared::persona::{HostilePractice, SoulStance};
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
@@ -727,6 +735,48 @@ pub fn garden_light_gets_nevc_on_stance_from_hour_two_json(raw: &str) -> bool {
         return shared::persona::garden_light_gets_nevc_on_stance();
     }
     false
+}
+
+/// CARD F4 — sealed People dress from S2 extra keys. Garden light has none.
+pub fn sealed_dress_from_hour_two_json(raw: &str) -> Option<HousePeople> {
+    gate_seal_from_hour_two_json(raw).map(|(people, _)| people)
+}
+
+/// CARD F4 — sealed soul may serve another People's well offline without dress swap.
+/// Home well / garden light refuse. Does not rewrite S2 dress keys.
+pub fn try_offline_double_serve_from_hour_two_json(
+    raw: &str,
+    well_of: HousePeople,
+    board: &mut LedgerBoard,
+) -> bool {
+    let Some(dress) = sealed_dress_from_hour_two_json(raw) else {
+        return false;
+    };
+    board.try_offline_double_serve(true, dress.as_str(), well_of.as_str())
+}
+
+/// CARD F4 — sealed dress is unchanged after an offline double-serve.
+/// S2 extra keys stay put. No dress swap.
+pub fn sealed_dress_unchanged_after_offline_double_serve(
+    raw: &str,
+    well_of: HousePeople,
+    board: &mut LedgerBoard,
+) -> bool {
+    let before = sealed_dress_from_hour_two_json(raw);
+    let served = try_offline_double_serve_from_hour_two_json(raw, well_of, board);
+    let after = sealed_dress_from_hour_two_json(raw);
+    served && before.is_some() && before == after && !shared::persona::F4_DRESS_SWAP
+}
+
+/// CARD F4 — Online human double-serve waits F10 / Online-yes. Not implemented.
+pub fn online_human_double_serve_from_hour_two_json(_raw: &str) -> bool {
+    shared::persona::online_human_double_serve_implemented()
+}
+
+/// CARD F4 — no lockout. Soul stays playable under offline double-serve.
+pub fn soul_stays_playable_under_double_serve_from_hour_two_json(raw: &str) -> bool {
+    let sealed = !soul_is_light(gate_seal_from_hour_two_json(raw));
+    shared::persona::soul_stays_playable_under_double_serve(sealed)
 }
 
 /// Resolved user-dir path for the hour-two / book pack.
@@ -2507,6 +2557,168 @@ mod tests {
         assert!(!shared::persona::soul_is_locked_out(
             true,
             sealed_soul_stance_from_hour_two_json(&hostile)
+        ));
+    }
+
+    /// CARD F4 — sealed dress unchanged when soul serves another well offline.
+    #[test]
+    fn f4_sealed_dress_unchanged_when_serving_another_well_offline() {
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Cydruid,
+            PeopleLanding::Heartwood,
+        );
+        assert_eq!(
+            sealed_dress_from_hour_two_json(&sealed),
+            Some(HousePeople::Cydruid)
+        );
+        let mut board = LedgerBoard::default();
+        assert!(sealed_dress_unchanged_after_offline_double_serve(
+            &sealed,
+            HousePeople::Draek,
+            &mut board
+        ));
+        assert_eq!(
+            sealed_dress_from_hour_two_json(&sealed),
+            Some(HousePeople::Cydruid)
+        );
+        assert_eq!(board.dress_after_offline_double_serve(), Some("Cydruid"));
+        assert_eq!(
+            gate_seal_from_hour_two_json(&sealed),
+            Some((HousePeople::Cydruid, PeopleLanding::Heartwood)),
+            "S2 dress + landing keys stay"
+        );
+        let soul = continue_sealed_souls_from_hour_two_json(&sealed)
+            .into_iter()
+            .next()
+            .expect("sealed body");
+        assert_eq!(soul.dress_line(), "Cydruid · human-in-frame");
+        assert!(!shared::persona::F4_DRESS_SWAP);
+        assert!(!board.ah_window_open, "F2 AH unread beyond existing wire");
+        assert!(board.last_hostile_take_row.is_none(), "F9 Take unread");
+    }
+
+    /// CARD F4 — Offline double-serve works without dress swap.
+    #[test]
+    fn f4_offline_double_serve_works_without_dress_swap() {
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Human,
+            PeopleLanding::SanctuaryYard,
+        );
+        let mut board = LedgerBoard::default();
+        assert!(try_offline_double_serve_from_hour_two_json(
+            &sealed,
+            HousePeople::Quellorian,
+            &mut board
+        ));
+        assert_eq!(
+            sealed_dress_from_hour_two_json(&sealed),
+            Some(HousePeople::Human)
+        );
+        assert!(
+            !try_offline_double_serve_from_hour_two_json(
+                &sealed,
+                HousePeople::Human,
+                &mut board
+            ),
+            "home well is not a double-serve"
+        );
+        assert_eq!(board.dress_after_offline_double_serve(), Some("Human"));
+        assert!(!try_offline_double_serve_from_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            &mut board
+        ));
+        assert!(!shared::persona::F4_DRESS_SWAP);
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F4 — Online human double-serve NOT implemented / gated until Online-yes.
+    #[test]
+    fn f4_online_human_double_serve_not_implemented_gated_until_online_yes() {
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Draek,
+            PeopleLanding::DepthsTealWayHome,
+        );
+        assert!(!online_human_double_serve_from_hour_two_json(&sealed));
+        assert!(!online_human_double_serve_from_hour_two_json("{}"));
+        assert!(!shared::persona::F4_ONLINE_HUMAN_DOUBLE_SERVE);
+        assert!(shared::persona::online_human_double_serve_gated());
+        assert!(!shared::persona::online_human_double_serve_implemented());
+    }
+
+    /// CARD F4 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f4_place_id_local_hexes_len_three() {
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert!(four_place_landings_only());
+        for place in shared::hex_travel::LOCAL_HEXES {
+            assert_ne!(place.as_str(), "garden");
+            assert_ne!(place.as_str(), "market");
+            assert_ne!(place.as_str(), "auction");
+            assert_ne!(place.as_str(), "ah");
+        }
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F4 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f4_steward_online_yes_false_online_grey() {
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!shared::hex_protocol::default_client_listens());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!online_row_is_honest_disabled(ONLINE_STUB_LABEL, true));
+    }
+
+    /// CARD F4 — no lockout · 0 meshes · no auction_*.rs · no new persist file.
+    #[test]
+    fn f4_no_lockout_zero_meshes_no_auction_rs_no_new_persist_file() {
+        use std::path::Path;
+
+        assert_eq!(F4_MESH_BUDGET, 0);
+        assert_eq!(F9_MESH_BUDGET, 0);
+        assert_eq!(F3_MESH_BUDGET, 0);
+        assert_eq!(L2_MESH_BUDGET, 0);
+        assert_eq!(F2_MESH_BUDGET, 0);
+        assert!(!shared::persona::F4_LOCKOUT);
+        assert!(!shared::persona::HOSTILE_LOCKOUT);
+        let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!here.join("src/auction.rs").exists());
+        assert!(!here.join("src/auction_house.rs").exists());
+        assert!(!here.join("src/double_agent.rs").exists());
+        assert_eq!(HOUR_TWO_PATH, "data/powrush_hour_two.json");
+        assert!(!HOUR_TWO_PATH.contains("double"));
+        assert!(!HOUR_TWO_PATH.contains("auction"));
+        assert_eq!(shared::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_ne!(
+            shared::persona::PERSONA_FILE_NAME,
+            "powrush_double_agent.json"
+        );
+        assert_eq!(SEALED_STANCE_KEY, "sealed_stance");
+        assert_eq!(SEALED_PEOPLE_KEY, "sealed_people");
+
+        let sealed = merge_gate_seal_into_hour_two_json(
+            "{}",
+            HousePeople::Quellorian,
+            PeopleLanding::Threshold,
+        );
+        assert!(soul_stays_playable_under_double_serve_from_hour_two_json(
+            &sealed
+        ));
+        assert!(soul_stays_playable_under_double_serve_from_hour_two_json("{}"));
+        assert!(!shared::persona::soul_is_locked_out(
+            true,
+            sealed_soul_stance_from_hour_two_json(&sealed)
         ));
     }
 }
