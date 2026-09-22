@@ -6,7 +6,19 @@
 
 **AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates**
 
+**Contact:** info@Rathor.ai only. Deprecated forever: any `@acitygames.com` (or other non-Rathor) inbox.
+
 **Thunder locked in. Yoi ⚡**
+
+---
+
+## Short description (wishlist / store)
+
+A dying alien empire left. Earth broke. Under the fissure something older than war woke. Powrush is the MMO of that hour.
+
+Default store line for Coming Soon / wishlist. Title Online stays grey. Do not lead the capsule with APAGI / Kardashev / TOLC.
+
+**This CARD (STEAM-SHORT-DESC):** short desc + contact only. No `steamworks` crate. No App ID. No Steam partner account. No retag. No Cargo deps. No `client/**`.
 
 ---
 
