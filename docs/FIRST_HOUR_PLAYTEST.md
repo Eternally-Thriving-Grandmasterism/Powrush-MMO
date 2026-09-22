@@ -38,6 +38,21 @@ One card. World sentences, not a wiki.
 
 Peace keys stay WASD / E / I / H / R. No F-row. No second HUD. No fake “players online.” No kill-score. No CBDC-style lock. No new currency. No pockets.
 
+## Machine beats (CARD Q0)
+
+`--lib` proves the listed beats without a human. Do not invent minutes, screenshots, or ffmpeg. Report fields below stay **blank**. Named tests in `client/src/lib.rs`:
+
+| Beat | Test |
+| --- | --- |
+| Title Play / Continue / Settings · Online grey | `q0_title_play_continue_settings_online_grey` |
+| new soul = light · sealed Continue = dress | `q0_new_soul_light_sealed_continue_dress` |
+| wrong door / decline = still light (S2) | `q0_wrong_door_decline_still_light` |
+| each People landing + S1/F7 aftermath line | `q0_each_people_landing_s1_f7_aftermath_line` |
+| F1 stance four values · garden = no stance | `q0_f1_stance_four_values_garden_no_stance` |
+| F2 window only if Open-trade · ghost lots offline | `q0_f2_window_only_if_open_trade_ghost_lots_offline` |
+| F3 Hostile Take allowed · F9 NEVC label · no lockout | `q0_f3_hostile_take_allowed_f9_nevc_label_no_lockout` |
+| F4 dress stays · serve other well offline | `q0_f4_dress_stays_serve_other_well_offline` |
+
 ## HUD dual channel (human tick)
 
 Lived NEVC line after VALENCE-HUD-2 (#455). Two fields on the existing helper — not a second overlay. Agents do not invent minutes.

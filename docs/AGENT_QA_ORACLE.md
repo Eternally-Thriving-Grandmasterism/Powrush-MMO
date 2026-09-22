@@ -36,6 +36,36 @@ Missing `paths` or `qa_ftue` = HOLD. Do not invent PATHS.
 
 If a slice does not make this paragraph truer **or** open the next named phase without lying, do not ship.
 
+## CARD Q0 MACHINE-BEATS (Hands cook · `--lib` only)
+
+```
+id: Q0
+phase: P0
+paths: [docs/AGENT_QA_ORACLE.md, docs/FIRST_HOUR_PLAYTEST.md, client/src/lib.rs]
+bin: NEVER
+qa_ftue:
+  - title_online: grey
+  - e_answers: this_tick
+  - comfort_low: readable
+  - week_bill: tons+restored
+amber: []
+refuse: [invent PATHS, Online lit, Always-allow, OFFER NEXT, reopen #459, Steam/Solana, Title lobby, fifth Place, LLM drives WASD, new persist schema, workspace member adds, invent screenshots, Imagine stills, ffmpeg movies]
+next: HOLD
+```
+
+Machine-proved on tip (no human walk · no screenshot invent). Named `q0_*` in `powrush-client --lib` (`client/src/lib.rs`):
+
+1. `q0_title_play_continue_settings_online_grey` — Play / Continue / Settings · Online grey
+2. `q0_new_soul_light_sealed_continue_dress` — new soul = light · sealed Continue = dress
+3. `q0_wrong_door_decline_still_light` — wrong door / decline = still light (S2)
+4. `q0_each_people_landing_s1_f7_aftermath_line` — each People landing + S1/F7 aftermath
+5. `q0_f1_stance_four_values_garden_no_stance` — F1 four stances · garden = no stance
+6. `q0_f2_window_only_if_open_trade_ghost_lots_offline` — F2 window only if Open-trade · ghost lots offline
+7. `q0_f3_hostile_take_allowed_f9_nevc_label_no_lockout` — F3 Hostile Take · F9 NEVC label · no lockout
+8. `q0_f4_dress_stays_serve_other_well_offline` — F4 dress stays · serve other well offline
+
+Hands DARK. 0 meshes · 0 new PlaceId · 0 sockets. Do not invent PATHS. F10 bank until Online-yes.
+
 ## AMBER named (not freelance)
 
 - Reserve stayed 0.0 after R+2 (Phase B / Preview) — **lifted** H-2026-09-14 #436 / `20321cd8`. **PATHS:** `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Do not rebuild.
