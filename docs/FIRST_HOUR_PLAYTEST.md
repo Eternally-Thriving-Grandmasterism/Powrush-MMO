@@ -1,5 +1,9 @@
 # FIRST_HOUR_PLAYTEST.md
 
+Peak memory this hour must leave (cite [`docs/PEAK_MEMORY_LAW.md`](PEAK_MEMORY_LAW.md)):
+I walked to a well. I tended it. The week was the bill. I quit. The yard remembered.
+Not a council catalog. Not a LAN fake. Title Online grey.
+
 **CARD PLAYTEST-1** · tip `03a0c6e0` (main · BRIEF-P1 #445) · design tick · not a Cargo bump  
 **Seat:** PLAYTEST-1 · **Mode:** routine · **Product:** lived stranger hour  
 **Core/human gate.** OS / GPU / commit / minutes / confusion stay **blank**. Agents do not invent a walk. A human fills the Report on a real GPU.  
