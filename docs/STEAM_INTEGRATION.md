@@ -86,17 +86,18 @@ Recommended initial achievements:
 
 ## Current Blockers
 
-- Steam App ID not yet registered (need to create Steamworks partner account / app if not already done).
-- No active `steamworks` crate dependency yet.
-- Need to decide on single shared crate vs separate client/server Steam handling.
+- **App ID / Steam partner account = steward only.** Bots do not register.
+- **HOLD** (wait steward `online yes` + App ID — not a bot next step):
+  - add `steamworks` crate
+  - initialize Steam API
+  - lobbies
 
 ## Next Concrete Steps
 
-1. Register Steam App ID (if not done).
-2. Add `steamworks` crate and basic initialization.
-3. Implement first 2–3 achievements tied to existing events.
-4. Wire persistence to Steam Cloud.
-5. Test rich presence and lobby integration.
+1. **Next for bots:** Coming Soon / wishlist uses the short description already on this file (see **Short description (wishlist / store)** above). Do not invent a new store line here.
+2. **Demo door:** [`docs/FIRST_HOUR_PLAYTEST.md`](FIRST_HOUR_PLAYTEST.md) + `./scripts/play-offline.sh`.
+3. Do **not** list adding the `steamworks` crate or initializing the Steam API as the next bot step — those stay under **Current Blockers** HOLD until steward `online yes` + App ID.
+4. After this CARD merges: Hands HOLD, then CARD **TRAILER-GRAMMAR** (bank) — not this PATH.
 
 ---
 
