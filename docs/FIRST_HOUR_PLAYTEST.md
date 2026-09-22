@@ -70,6 +70,18 @@ Door: `./scripts/play-offline.sh q1` or `./scripts/play-offline.sh --script-run`
 
 PASS/FAIL lines are appended only after that door runs. Agents do not invent OS / GPU / minutes.
 
+### CARD Q1 SCRIPT-RUN 2026-09-22
+
+Door: `./scripts/play-offline.sh --script-run` · `POWRUSH_NET=off` · no interactive walk · no WASD  
+Verified: `cargo test -p shared -p rsil-identity` (453 + 5 passed) && `cargo test -p powrush-client --lib` (588 passed; named `q0_*` landing proofs)
+
+Human / Sanctuary yard: PASS  
+Ambrosian / Sanctuary well-from-above: PASS  
+Cydruid / Heartwood: PASS  
+Quellorian / Threshold: PASS  
+Draek / Depths (teal way-home): PASS  
+Garden / light path: PASS
+
 ## HUD dual channel (human tick)
 
 Lived NEVC line after VALENCE-HUD-2 (#455). Two fields on the existing helper — not a second overlay. Agents do not invent minutes.
