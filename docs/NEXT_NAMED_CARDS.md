@@ -1,31 +1,28 @@
-# NEXT NAMED CARDS — steward 2026-09-22 (after #491)
+# NEXT NAMED CARDS — steward 2026-09-22 (after #492)
 
-Spent today: Q0 #482 · Q1 #483 · Q2 #484 · L2 #485 · Q1b #486 · Q3 #487 · Q4 #488 · STEAM-SHORT-DESC #489 · STEAM-HONEST-BLOCKERS #490 · TRAILER-GRAMMAR #491.
-Do not rebuild. MESH / P1 / F10 / Title Online / steamworks crate / App ID stay HOLD.
+Spent: #482–#492 inclusive. Do not rebuild. MESH / P1 / F10 / Title Online / steamworks / App ID stay HOLD.
 
 Fetch `origin/main`. One CARD. Grok 4.7 High. Then HOLD.
 
-## 1. CARD STEAM-CHECKLIST-STORE
+## 1. CARD PRESS-HOOK
 
-**PATH:** `docs/STEAM_CHECKLIST.md`
+**PATH:** `docs/PRESS_KIT_v18.10.md`
 
-Human tick boxes stay human. This CARD only **adds a Coming Soon / copy bank** so the page matches #489 + the wishlist brief. Do not tick the boxes. Do not invent a quarter/window date. Do not invent App ID.
+Do **not** rewrite the kit. Insert a short block **under the title**, before Key Features:
 
-Add after the refuse list (new section `## Coming Soon bank (bots may write; humans tick)`):
+```
+## One sentence (2026-09-22)
 
-- Short desc = the line already on `docs/STEAM_INTEGRATION.md` (#489).
-- Store also says: offline RBE sanctuary · no account required · Title Online grey · not always-on shard.
-- Tags keep: MMO, Multiplayer, Co-op, Open World, Sandbox, Atmospheric, Lore-Rich, Simulation, Indie.
-- Tags add if the *shown* build is true: Sci-fi, Exploration, Base Building, Survival, Strategy.
-- Tags demote on announce capsule: Educational, Relaxing.
-- Capsule test: wounded Earth + two mothership languages, or Cydruid wrist-light.
-- Trailer grammar: 8/20/10/5 on `docs/IMAGINE_TRAILER_PACK.md` (#491).
-- Demo door: `docs/FIRST_HOUR_PLAYTEST.md` + `./scripts/play-offline.sh`.
-- Window / calendar date = steward blank. TBA is honest. Do not write a fake month.
-- Contact: info@Rathor.ai only.
+A dying alien empire left. Earth broke. Under the fissure something older than war woke. Powrush is the MMO of that hour.
 
-Cite `docs/STEAM_WISHLIST_PATSAGI_BRIEF_2026-09-22.md`. No `client/**`. No crate.
+Contact: info@Rathor.ai only. Deprecated: any @acitygames.com.
+Steam Offline 1.0. Title Online grey. No App ID from this file.
+Trailer grammar: 8/20/10/5 in docs/IMAGINE_TRAILER_PACK.md.
+Demo: docs/FIRST_HOUR_PLAYTEST.md + ./scripts/play-offline.sh.
+```
 
-## After it merges
+Leave the rest of v18.10 intact. No client/**. No crate. No fake wishlist count. No friendslop rebrand.
 
-Hands DARK. Clerk one Drive/X CITE in chat (no PR). Offline 1.0 machine column is closed until steward plays or names App ID.
+## After merge
+
+Hands DARK. Clerk one Drive/X CITE in chat. Stop code.
