@@ -20,7 +20,7 @@ cargo test -p powrush-client --lib
 cargo run -p powrush-client
 ```
 
-Same door, Offline forced: `./scripts/play-offline.sh` (or `./scripts/play-offline.ps1`). `POWRUSH_NET` unset or `off`. Title Online stays grey. Do not set `POWRUSH_NET=on`.
+Same door, Offline forced: `./scripts/play-offline.sh` (or `./scripts/play-offline.ps1`). CARD Q1 six-landing machine pass (no interactive walk, no WASD): `./scripts/play-offline.sh q1` or `./scripts/play-offline.sh --script-run`. Windows twin stays the interactive Offline door — cite only; no new script. `POWRUSH_NET` unset or `off`. Title Online stays grey. Do not set `POWRUSH_NET=on`.
 
 ## Hour 1 verbs (keys only)
 
@@ -52,6 +52,35 @@ Peace keys stay WASD / E / I / H / R. No F-row. No second HUD. No fake “player
 | F2 window only if Open-trade · ghost lots offline | `q0_f2_window_only_if_open_trade_ghost_lots_offline` |
 | F3 Hostile Take allowed · F9 NEVC label · no lockout | `q0_f3_hostile_take_allowed_f9_nevc_label_no_lockout` |
 | F4 dress stays · serve other well offline | `q0_f4_dress_stays_serve_other_well_offline` |
+
+## Scripted pass (CARD Q1)
+
+Offline door `q1` / `--script-run` proves the six landings already named in the Q0 table without a human walk, WASD, `cargo run`, screenshot, or ffmpeg. Garden / light is the God-plane door host, **not** a PlaceId. Report fields below stay **blank**.
+
+Door: `./scripts/play-offline.sh q1` or `./scripts/play-offline.sh --script-run`. `POWRUSH_NET=off`. Named proofs stay the Q0 `--lib` tests in `client/src/lib.rs`.
+
+| Landing / beat | Proof |
+| --- | --- |
+| Human / Sanctuary yard | `q0_each_people_landing_s1_f7_aftermath_line` |
+| Ambrosian / Sanctuary well-from-above | `q0_each_people_landing_s1_f7_aftermath_line` |
+| Cydruid / Heartwood | `q0_each_people_landing_s1_f7_aftermath_line` |
+| Quellorian / Threshold | `q0_each_people_landing_s1_f7_aftermath_line` |
+| Draek / Depths (teal way-home) | `q0_each_people_landing_s1_f7_aftermath_line` |
+| Garden / light path (not a PlaceId) | `q0_new_soul_light_sealed_continue_dress` · `q0_f1_stance_four_values_garden_no_stance` · garden aftermath in the People test |
+
+PASS/FAIL lines are appended only after that door runs. Agents do not invent OS / GPU / minutes.
+
+### CARD Q1 SCRIPT-RUN 2026-09-22
+
+Door: `./scripts/play-offline.sh --script-run` · `POWRUSH_NET=off` · no interactive walk · no WASD  
+Verified: `cargo test -p shared -p rsil-identity` (453 + 5 passed) && `cargo test -p powrush-client --lib` (588 passed; named `q0_*` landing proofs)
+
+Human / Sanctuary yard: PASS  
+Ambrosian / Sanctuary well-from-above: PASS  
+Cydruid / Heartwood: PASS  
+Quellorian / Threshold: PASS  
+Draek / Depths (teal way-home): PASS  
+Garden / light path: PASS
 
 ## HUD dual channel (human tick)
 
