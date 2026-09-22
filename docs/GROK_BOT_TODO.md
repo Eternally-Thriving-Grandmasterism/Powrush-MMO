@@ -1,11 +1,11 @@
 # GROK_BOT_TODO.md
 
-Tip `3b197ed7` — clerk #437 after RESERVE-CUE Hands `20321cd8` / #436. Hour 1 proven green this stamp. This PR is a **design tick**, not a Cargo bump.
+Tip `e3a6b48` (`e3a6b483d23d4d6b08185ca8a168580436ab52bf`) — CARD Q1b STRANGER-HOUR-LIB (#486) on `main`. Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
 
-Hands HOLD. One card in flight. Bot 1 Hands executes Hands. Canon vote-only on Hands. Title Online stays grey.
+**Grok Hands cook only** (Grok 4.7 High / 4.6 High). No Codex / GPT / Claude / Auto / Composer / Grok Fast footer. Grok Bots may open **one** feature-branch PR; never push `main` directly. One card in flight. Title Online stays grey.
 
 ## Closed / landed (do not rebuild)
 
@@ -61,6 +61,7 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **MESH-PERSONA** — Landed H-2026-09-13 court CREATE [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md). Comfort L/M/H dress under ASSET BUDGET · Practices after House · face≠class (no race lobby) · race-looks + Buildings Astra Medium = refs only (X @AlphaProMega race-look posts + Drive `1Bqt2…` already banked). **SKIP lifted** — court bank landed. Hands mesh still Core CARD + exact PATHS. No binary `.glb`. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Hands HOLD. Title Online grey.
 - **RESERVE-CUE Hands** — Landed H-2026-09-14 #436 / `20321cd8`. **AMBER lifted.** After E tend, R then 2 banks `allocation.reserve` + `climate.reserve_pool` and confirms a held count (never reserved 0.0 / −0.0 harmony). Digit2 yields to allocate while the panel is open. **PATHS:** `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Do not rebuild. Title Online grey. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
 - **HOUR1-GREEN** — Proven H-2026-09-15 @ tip `3b197ed7` (#437). Core gate green: `shared` 375 + `rsil-identity` 5 + `powrush-client --lib` 341, 0 failed. E tend, R+2 non-zero reserve confirm, lived persist resume. Hour 2 Hands **STOP** — pack/TODO named no PATHS; no failing Hour-1 test. Do not rebuild #432 / #435 / #436. No mesh. No Steam. Title Online grey.
+- **Q1b STRANGER-HOUR-LIB** — Landed H-2026-09-22 #486 / `e3a6b48`. Spent on tip. Do not rebuild. Cite autonomy court Q1; Title Online grey.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
@@ -68,16 +69,18 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 BRIEF-SYNC “B3” is stale; B3 remains landed #376.
 
-1. **MESH-PERSONA Hands mesh** — court bank landed. Hands mesh still Core CARD + exact PATHS. Do not invent PATHS. Cite [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Buildings / race-looks remain refs only.
+**Standing runner (CARD Q3):** After this stamp merges, the inner loop may continue to the next named CARD below when that CARD already names exact PATHS — no new steward interview. If PATHS are unnamed, HOLD that card; do not invent PATHS. Two agents, one file → second reviews (does not STOP the first unless HOLD-deny).
+
+1. **MESH-PERSONA Hands mesh** — court bank landed. Hands mesh still Core CARD + exact PATHS. Do not invent PATHS. Cite [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Buildings / race-looks remain refs only. **HOLD** until Core names mesh files.
 2. **Hour-two / Steam** — Core/human gate (stamp #426 spent). Minutes / OS / GPU / Time stay blank for the human. Bot does not fill Report. Bot does not create a Steam partner account.
 
-**Hour 2 reachability** — **STOP.** Hour 1 green @ `3b197ed7`. Pack/TODO named no Hour-2 Hands PATHS. Do not rebuild U0–U8 / #432 / #435 / #436. Not a Hands card this tick.
+**Hour 2 reachability** — machine verbs already locked in `--lib` (BRIEF-P1). Felt Report stays human. Do not rebuild U0–U8 / #432 / #435 / #436. Continue only when Core names next card with exact PATHS.
 
 **Reserve-cue** — **AMBER lifted.** Hands landed H-2026-09-14 #436 / `20321cd8`. **PATHS** (cite; do not rebuild): `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Preview / Phase B AMBER remains historical (#425). Not a Hands freestyle.
 **UI-MODERNIZE** court law: later UI cites DEMO-BANK KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later). UI Drive dark until Core Viewer share. Hands UI dark until Core CARD + exact PATHS. No Hands UI freestyle. No invent PATHS. MESH-PERSONA court bank landed (Hands mesh still Core CARD + exact PATHS).
 
-Hands HOLD. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
+Grok Hands cook only. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
 ## Refuses this turn
 
-Online freestyle · Market · AH · gold · XP/second HUD · skill-tree as law · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · race lobby · Sky until online yes · live Earth API · invent Hands PATHS · invent PATHS · OFFER NEXT · binary Drive/demo dump · binary `.glb` dump · reopen Wave C · Comfort Ultra · UI Drive freestyle · Hands UI freestyle · Reserve-cue freestyle · invent minutes · invent ticks · Steam partner from bot · retag · Hands mesh without Core CARD + exact PATHS.
+Online freestyle · Market · AH · gold · XP/second HUD · skill-tree as law · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · race lobby · Sky until online yes · live Earth API · invent Hands PATHS · invent PATHS · OFFER NEXT · binary Drive/demo dump · binary `.glb` dump · reopen Wave C · Comfort Ultra · UI Drive freestyle · Hands UI freestyle · Reserve-cue freestyle · invent minutes · invent ticks · Steam partner from bot · retag · Hands mesh without Core CARD + exact PATHS · reopen #459 · `server/` unpark · MESH without Core PATHS · `client/**` outside Core-named CARD · Codex / GPT / Claude / Auto / Composer / Grok Fast Hands cook · direct push to `main`.

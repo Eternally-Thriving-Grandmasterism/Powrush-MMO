@@ -5,9 +5,9 @@
 **Contact:** info@Rathor.ai  
 **Pattern:** Ra-Thor `docs/AGENT_RUN_BRIEF.md` (merged #504 / `bf44300a`), adapted to this seat. The **outer loop does not write code**. This file is the inner-loop contract.
 
-Cursor / PATSAGi inner-loop agents start here. Fetch the named tip. Fill every section. Then implement **one slice**. Do not interview. Do not clone or edit Ra-Thor. Do not start a lattice seat from this repo.
+Cursor / PATSAGi inner-loop agents start here. **Fetch `origin/main` at the start of every seat**, then use that tip SHA. Fill every section. Then implement **one slice**. Do not interview for a new brief when [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) Next already names exact PATHS. Do not clone or edit Ra-Thor. Do not start a lattice seat from this repo. **Grok Hands cook only** — cite [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md); no Codex/GPT/Claude/Auto/Composer/Grok Fast. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3.
 
-**Tip (fetch first):** `a767f05847211b77fd528ce55c20172e7540f27a` (short `a767f058`) — BRIEF-SYNC on `main` (#456).
+**Tip (fetch first):** `e3a6b483d23d4d6b08185ca8a168580436ab52bf` (short `e3a6b48`) — CARD Q1b STRANGER-HOUR-LIB on `main` (#486). Always `git fetch origin main` before branching.
 
 **Spent on tip** (do not rebuild):
 
@@ -17,8 +17,9 @@ Cursor / PATSAGi inner-loop agents start here. Fetch the named tip. Fill every s
 - #454 F4-GENSHARE @ `6b7d181`
 - #455 VALENCE-HUD-2 @ `f06ecd8`
 - #456 BRIEF-SYNC @ `a767f058`
+- #486 Q1b STRANGER-HOUR-LIB @ `e3a6b48`
 
-**Next:** human Hour-1 playtest of dual HUD. MESH-PERSONA Hands only when PATHS are named. ~~Next: B3 after land.~~ B3 remains landed #376.
+**Next:** may continue to the next named CARD on `GROK_BOT_TODO` Next after merge when that CARD already names exact PATHS — no new steward interview. MESH-PERSONA Hands only when Core names PATHS. Do not invent PATHS. ~~Next: B3 after land.~~ B3 remains landed #376. Felt Hour-1 blanks stay human-only.
 
 Title Online stays grey. Default NetMode Offline. `playable-preview` stays `11c577e`. Floor `2163551`. Ra-Thor does not drive WASD.
 
@@ -59,7 +60,7 @@ States that hold: Title Online grey; `playable-preview` stays `11c577e`; floor `
 - Do not rebuild U0–U8, H-2026-09-15-H2-TAB/Q/L/RESUME, H3-FAB, H3-SEAT, BRIEF-P1, PLAYTEST-1, NEVC-HONEST-1.
 - No Title Online · no listen · no public bind · no Steam retag.
 - Do not clone or edit Ra-Thor. **Ra-Thor is a separate repo.**
-- Two agents, one file, same day → **STOP**.
+- Two agents, one file, same day → second **reviews**; does not STOP the first unless HOLD-deny.
 
 ### 5. HOLD
 
@@ -89,10 +90,11 @@ Copy unless the steward amends:
 - Never enable Title Online, add a listen, or public-bind.
 - Never retag `playable-preview`. Never unpark `server/` as the default binary.
 - One slice per PR. Fill the ballot in [`.github/pull_request_template.md`](../.github/pull_request_template.md).
+- Grok Bots may open **one** feature-branch PR; never push `main` directly.
 
 ### 8. Mode
 
-**routine** — execute this named slice. Not `chat`. Not a standing Hour-3 or Hour-4 agent.
+**routine** — execute this named slice. Not `chat`. Standing inner-loop runner may continue to the next **named** CARD when Next already lists exact PATHS (CARD Q3).
 
 ### 9. STOP / review gate
 
@@ -104,7 +106,7 @@ Human review: PATSAGi merge court. Steward contact remains info@Rathor.ai.
 
 ### 10. Audit note (what would retire this agent)
 
-VALENCE-HUD-2 retired at merge (#455 / `f06ecd8`). Further work is a **new** brief, not this seat continuing. Next is human Hour-1 playtest of dual HUD; MESH-PERSONA Hands only when PATHS are named. B3 already landed #376. A kernel retune, Title Online light, Steam retag, `server/` unpark, or Ra-Thor edit would be a different agent — refuse it here.
+VALENCE-HUD-2 retired at merge (#455 / `f06ecd8`). Further work is a **new** brief **unless** `GROK_BOT_TODO` Next already names exact PATHS — then the standing runner may continue without a steward interview (CARD Q3). MESH-PERSONA Hands only when Core names PATHS. B3 already landed #376. A kernel retune, Title Online light, Steam retag, `server/` unpark, or Ra-Thor edit would be a different agent — refuse it here.
 
 Capable · Bounded · Corrigible. Not METR. Thunder locked. yoi ⚡
 
@@ -418,7 +420,8 @@ Paste a new “worked example” **above** this template (or replace section A).
 - 
 - Remember: **Ra-Thor is a separate repo.** Do not clone or edit it from this seat.
 - Remember: **Powrush-MMO-Simulator is a third repo.** Do not fold the player loop into either sibling.
-- Two agents, one file, same day → STOP.
+- Two agents, one file, same day → second **reviews**; does not STOP the first unless HOLD-deny (CARD Q3).
+- Fetch `origin/main` each seat. Grok Hands cook only. Continue Next only when PATHS are already named.
 
 ### 5. HOLD
 
