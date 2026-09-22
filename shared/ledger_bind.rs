@@ -22,6 +22,12 @@
 //! display label (no wage). Sealed Open-trade Bind shows Reserve cue on the
 //! existing allocate path (no new verb). Garden light = neither. F3 practice
 //! unread beyond that Take wire. F2 AH unread beyond the Open-trade gate.
+//!
+//! CARD F4 DOUBLE-AGENT — sealed dress stays (no dress swap). Sealed soul
+//! may serve another well offline (simulated Peoples) without dress swap.
+//! Online human double-serve waits F10 / Online-yes — not implemented.
+//! F9 / F3 / F2 unread beyond existing wires. PlaceId stays 3 · Online grey
+//! · no lockout. 0 meshes · no new persist file.
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -244,6 +250,9 @@ pub const F3_MESH_BUDGET: u32 = crate::persona::F3_MESH_BUDGET;
 /// CARD F9 — NEVC-on-stance mesh budget. Hands stay dark.
 pub const F9_MESH_BUDGET: u32 = crate::persona::F9_MESH_BUDGET;
 
+/// CARD F4 — double-agent mesh budget. Hands stay dark.
+pub const F4_MESH_BUDGET: u32 = crate::persona::F4_MESH_BUDGET;
+
 /// CARD F9 — existing allocate Reserve cue. Not a new verb. Not wages.
 pub const OPEN_TRADE_BIND_RESERVE_CUE: &str = crate::nevc_visibility::OPEN_TRADE_BIND_RESERVE_CUE;
 
@@ -275,6 +284,39 @@ impl HostileTakeLedgerRow {
     pub fn invents_wages(&self) -> bool {
         crate::nevc_visibility::nevc_line_invents_wages(&self.nevc_label)
             || crate::nevc_visibility::nevc_line_invents_wages(&self.line())
+    }
+}
+
+/// CARD F4 — Offline double-serve. Session honor, not a Place, not persist.
+/// Sealed dress stays. Simulated Peoples only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OfflineDoubleServe {
+    pub sealed_dress: String,
+    pub well_of: String,
+}
+
+impl OfflineDoubleServe {
+    pub fn try_serve(sealed: bool, sealed_dress: &str, well_of: &str) -> Option<Self> {
+        if !crate::persona::sealed_soul_may_serve_another_well_offline(
+            sealed,
+            sealed_dress,
+            well_of,
+        ) {
+            return None;
+        }
+        Some(Self {
+            sealed_dress: sealed_dress.to_string(),
+            well_of: well_of.to_string(),
+        })
+    }
+
+    pub fn dress_after(&self) -> &str {
+        crate::persona::sealed_dress_after_offline_double_serve(&self.sealed_dress, &self.well_of)
+    }
+
+    /// Double-serve lives on the ledger board. Never a PlaceId.
+    pub const fn is_place() -> bool {
+        false
     }
 }
 
@@ -324,6 +366,9 @@ pub struct LedgerBoard {
     /// CARD F9 — last NEVC display label. Session only. Not wages.
     #[serde(default, skip)]
     pub last_nevc_label: Option<String>,
+    /// CARD F4 — last offline double-serve. Session only. Not a persist file.
+    #[serde(default, skip)]
+    pub last_offline_double_serve: Option<OfflineDoubleServe>,
 }
 
 /// CARD F1 — how Offline simulated Peoples honor a soul stance.
@@ -508,6 +553,33 @@ impl LedgerBoard {
 
     pub fn honored_offline(&self) -> SimulatedPeopleHonor {
         offline_simulated_people_honor(self.soul_stance)
+    }
+
+    /// CARD F4 — sealed soul may serve another well offline. Dress stays.
+    /// Does not Bind. Does not open AH. Does not write Hostile Take / NEVC.
+    pub fn try_offline_double_serve(
+        &mut self,
+        sealed: bool,
+        sealed_dress: &str,
+        well_of: &str,
+    ) -> bool {
+        let Some(serve) = OfflineDoubleServe::try_serve(sealed, sealed_dress, well_of) else {
+            return false;
+        };
+        self.last_offline_double_serve = Some(serve);
+        true
+    }
+
+    /// CARD F4 — Online human double-serve waits F10 / Online-yes.
+    pub fn online_human_double_serve(&self) -> bool {
+        crate::persona::online_human_double_serve_implemented()
+    }
+
+    /// CARD F4 — dress after last offline double-serve. None if none ran.
+    pub fn dress_after_offline_double_serve(&self) -> Option<&str> {
+        self.last_offline_double_serve
+            .as_ref()
+            .map(|serve| serve.dress_after())
     }
 
     pub fn offline_people_will_trade(&self) -> bool {
@@ -1136,6 +1208,114 @@ mod tests {
         assert!(!json.contains("last_hostile_take_row"), "Take row is session, not a persist key");
         assert!(!json.contains("last_nevc_label"));
         assert!(!json.contains("powrush_nevc_stance.json"));
+        assert!(!json.contains("powrush_auction.json"));
+    }
+
+    /// CARD F4 — sealed dress unchanged when soul serves another well offline.
+    #[test]
+    fn f4_sealed_dress_unchanged_when_serving_another_well_offline() {
+        let mut b = LedgerBoard::default();
+        assert!(b.try_offline_double_serve(true, "Cydruid", "Draek"));
+        assert_eq!(b.dress_after_offline_double_serve(), Some("Cydruid"));
+        let serve = b.last_offline_double_serve.as_ref().expect("double-serve");
+        assert_eq!(serve.sealed_dress, "Cydruid");
+        assert_eq!(serve.well_of, "Draek");
+        assert_eq!(serve.dress_after(), "Cydruid");
+        assert!(!OfflineDoubleServe::is_place());
+        assert!(!crate::persona::F4_DRESS_SWAP);
+        assert!(!b.ah_window_open, "F2 AH unread beyond existing wire");
+        assert!(b.last_hostile_take_row.is_none(), "F9 Take unread");
+        assert!(b.last_nevc_label.is_none(), "F9 NEVC unread");
+    }
+
+    /// CARD F4 — Offline double-serve works without dress swap.
+    #[test]
+    fn f4_offline_double_serve_works_without_dress_swap() {
+        let mut b = LedgerBoard::default();
+        assert!(b.try_offline_double_serve(true, "Human", "Quellorian"));
+        assert_eq!(b.dress_after_offline_double_serve(), Some("Human"));
+        assert!(
+            !b.try_offline_double_serve(true, "Human", "Human"),
+            "home well is not a double-serve"
+        );
+        assert_eq!(
+            b.dress_after_offline_double_serve(),
+            Some("Human"),
+            "failed home-well serve does not swap dress"
+        );
+        assert!(!b.try_offline_double_serve(false, "Human", "Draek"));
+        assert!(!crate::persona::F4_DRESS_SWAP);
+        assert!(!F2_AH_IS_PLACE);
+    }
+
+    /// CARD F4 — Online human double-serve NOT implemented / gated until Online-yes.
+    #[test]
+    fn f4_online_human_double_serve_not_implemented_gated_until_online_yes() {
+        let b = LedgerBoard::default();
+        assert!(!crate::persona::F4_ONLINE_HUMAN_DOUBLE_SERVE);
+        assert!(!b.online_human_double_serve());
+        assert!(crate::persona::online_human_double_serve_gated());
+        assert!(!crate::persona::online_human_double_serve_implemented());
+    }
+
+    /// CARD F4 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f4_place_id_local_hexes_len_three() {
+        use crate::hex_travel::{PlaceId, LOCAL_HEXES};
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert!(!F2_AH_IS_PLACE);
+        assert!(!OfflineDoubleServe::is_place());
+        assert!(!HostileTakeLedgerRow::is_place());
+    }
+
+    /// CARD F4 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f4_steward_online_yes_false_online_grey() {
+        use crate::hex_listen::PowrushNet;
+        use crate::hex_protocol::default_client_listens;
+        use crate::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use crate::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!PowrushNet::Off.title_online_enabled());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!default_client_listens());
+    }
+
+    /// CARD F4 — no lockout · 0 meshes · no auction_*.rs · no new persist file.
+    #[test]
+    fn f4_no_lockout_zero_meshes_no_auction_rs_no_new_persist_file() {
+        use std::path::Path;
+
+        use crate::persona::{soul_is_locked_out, soul_stays_playable_under_double_serve, F4_LOCKOUT};
+
+        assert!(!F4_LOCKOUT);
+        assert!(soul_stays_playable_under_double_serve(true));
+        assert_eq!(F4_MESH_BUDGET, 0);
+        assert_eq!(F9_MESH_BUDGET, 0);
+        assert_eq!(F3_MESH_BUDGET, 0);
+        assert_eq!(F2_MESH_BUDGET, 0);
+        let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!here.join("auction.rs").exists());
+        assert!(!here.join("auction_house.rs").exists());
+        assert!(!here.join("double_agent.rs").exists());
+        assert_eq!(crate::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_ne!(crate::persona::PERSONA_FILE_NAME, "powrush_double_agent.json");
+
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        assert!(!soul_is_locked_out(true, b.soul_stance));
+        assert!(b.try_offline_double_serve(true, "Draek", "Ambrosian"));
+        let json = serde_json::to_string(&b).expect("board json");
+        assert!(
+            !json.contains("last_offline_double_serve"),
+            "double-serve is session, not a persist key"
+        );
+        assert!(!json.contains("powrush_double_agent.json"));
         assert!(!json.contains("powrush_auction.json"));
     }
 }
