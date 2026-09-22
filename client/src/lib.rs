@@ -607,4 +607,282 @@ mod tests {
         q0_online_stays_grey();
         q0_place_id_stays_three();
     }
+
+    // --- CARD Q1b STRANGER-HOUR-LIB ----------------------------------------
+    // Hands cook only. Compose existing pub helpers. 0 meshes · 0 new PlaceId
+    // · 0 new files · 0 AGENT_QA_TAPE. Title Online stays grey.
+    // Cite: docs/AGENT_AUTONOMY_COURT_2026-09-22.md §2/§3 · docs/CURSOR_GROK_MODEL_SEAT.md
+
+    fn q1_demo_bind() -> lived_hour_bind::LivedHourBind {
+        use shared::climate_node::LivedHour;
+        use shared::shard_climate::ShardClimate;
+        use shared::shard_standing::ShardStanding;
+        use shared::week_audit::WeekAudit;
+
+        lived_hour_bind::LivedHourBind {
+            hour: LivedHour::new_demo(),
+            climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
+            week: WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        }
+    }
+
+    /// CARD Q1 — tap-E take ≠ hold-E tend (distinct handlers / well speech).
+    #[test]
+    fn q1_tap_e_take_not_equal_hold_e_tend() {
+        use first_harvest_epiphany::{
+            hold_e_tend_blocked, is_hold_e_tend, tap_vs_hold_prompt, tend_breathe_answer,
+            tend_harmony_pulse_line, TEND_HOLD,
+        };
+        use mercy_harvest_nodes::{apply_node_harvest, apply_node_tend, looks_like_tend_pulse};
+
+        assert!(!is_hold_e_tend(0.20));
+        assert!(!is_hold_e_tend(0.39));
+        assert!(is_hold_e_tend(TEND_HOLD));
+        assert_eq!(tap_vs_hold_prompt(), "tap E take  ·  hold E tend");
+        assert_ne!(tap_vs_hold_prompt(), "E tend the glow");
+
+        let take_at = 10.0;
+        let hold_at = take_at + TEND_HOLD;
+        assert!(
+            !hold_e_tend_blocked(1, 0, take_at, hold_at),
+            "take cooldown must not eat hold-E tend"
+        );
+
+        let mut node = mercy_harvest_nodes::MercyHarvestNode {
+            name: "Sanctuary ember",
+            climate_id: 1,
+            vitality: 1.0,
+            harvests: 0,
+            pulse: 0.0,
+        };
+        let before_take = (node.pulse, node.vitality);
+        apply_node_harvest(&mut node);
+        let after_take = (node.pulse, node.vitality);
+        assert!(!looks_like_tend_pulse(
+            before_take.0,
+            after_take.0,
+            before_take.1,
+            after_take.1
+        ));
+
+        let mut tend_node = mercy_harvest_nodes::MercyHarvestNode {
+            name: "Sanctuary ember",
+            climate_id: 1,
+            vitality: 0.50,
+            harvests: 0,
+            pulse: 0.0,
+        };
+        let before_tend = (tend_node.pulse, tend_node.vitality);
+        apply_node_tend(&mut tend_node);
+        assert!(looks_like_tend_pulse(
+            before_tend.0,
+            tend_node.pulse,
+            before_tend.1,
+            tend_node.vitality
+        ));
+
+        let take_speech = "still glows · hold E to tend";
+        let tend_speech = tend_harmony_pulse_line("Sanctuary ember", 0.4);
+        assert!(tend_breathe_answer().contains("breathes"));
+        assert!(tend_speech.contains("Tended") || tend_speech.contains("harmony"));
+        assert_ne!(take_speech, tend_speech.as_str());
+        q0_online_stays_grey();
+    }
+
+    /// CARD Q1 — I satchel non-empty after a successful take.
+    #[test]
+    fn q1_satchel_nonempty_after_take() {
+        use shared::climate_node::TendResult;
+
+        let mut bind = q1_demo_bind();
+        assert_eq!(bind.satchel_count(), 0);
+        assert!(matches!(bind.tend(1), TendResult::Taken { .. }));
+        assert!(bind.satchel_count() > 0);
+        assert_eq!(bind.satchel_count(), 1);
+        q0_online_stays_grey();
+    }
+
+    /// CARD Q1 — R then 1 writes flow restore on a tired well.
+    #[test]
+    fn q1_r1_flow_restores_tired_well() {
+        use rbe_allocate_choice::{try_commit_allocate, AllocatePath, RbeAllocateChoice};
+        use shared::climate_node::{NodeState, TendResult};
+
+        let mut a = RbeAllocateChoice::default();
+        let mut bind = q1_demo_bind();
+        a.note_surplus(1.0);
+        assert!(matches!(bind.tend(1), TendResult::Taken { .. }));
+        // Second extract leaves the node Resting/Stressed (tired).
+        let second = bind.tend(1);
+        assert!(matches!(second, TendResult::NoTake { .. }));
+        assert!(matches!(
+            bind.hour.nodes[0].state,
+            NodeState::Resting | NodeState::Stressed
+        ));
+        let stress_before = bind.climate.stress;
+        assert!(try_commit_allocate(
+            &mut a,
+            &mut bind,
+            AllocatePath::FlowOutward
+        ));
+        assert_eq!(bind.hour.allocation.flow, 1);
+        assert_eq!(bind.satchel_count(), 0);
+        assert_eq!(bind.last_line, "flow restored the well");
+        assert!(
+            bind.climate.stress < stress_before,
+            "R1 flow must lower climate stress on a tired well"
+        );
+        assert!(matches!(
+            bind.hour.nodes[0].state,
+            NodeState::Glowing | NodeState::Resting
+        ));
+        assert_eq!(
+            AllocatePath::FlowOutward.title(),
+            "Flow · field restore"
+        );
+        q0_online_stays_grey();
+    }
+
+    /// CARD Q1 — R then 2 banks non-zero reserve (allocation + climate pool).
+    #[test]
+    fn q1_r2_reserve_nonzero_confirm() {
+        use rbe_allocate_choice::{try_commit_allocate, AllocatePath, RbeAllocateChoice};
+        use shared::climate_node::TendResult;
+
+        let mut a = RbeAllocateChoice::default();
+        let mut bind = q1_demo_bind();
+        a.note_surplus(1.0);
+        assert!(matches!(bind.tend(1), TendResult::Taken { .. }));
+        assert!(try_commit_allocate(
+            &mut a,
+            &mut bind,
+            AllocatePath::StewardReserve
+        ));
+        assert_ne!(bind.hour.allocation.reserve, 0);
+        assert_ne!(bind.climate.reserve_pool, 0);
+        assert_eq!(bind.hour.allocation.reserve, 1);
+        assert_eq!(bind.climate.reserve_pool, 1);
+        assert!(a.reserve_total >= 1.0);
+        let line = bind.hour.allocation.reserve_bank_line().expect("banked");
+        assert!(line.contains("Reserve 1"));
+        assert!(!line.contains("0.0"));
+        assert!(bind.last_line.contains("repair-rights"));
+        q0_online_stays_grey();
+    }
+
+    /// CARD Q1 — H hides guidance card; well words still exist.
+    #[test]
+    fn q1_h_hides_card_well_words_remain() {
+        use first_harvest_epiphany::tap_vs_hold_prompt;
+        use first_session_guidance::{
+            first_minutes_people_want_line, FirstSessionGuidance, GARDEN_WANT, SANCTUARY_WANT,
+        };
+
+        let mut g = FirstSessionGuidance::default();
+        assert!(g.active);
+        assert!(!g.dismissed);
+        g.dismiss();
+        assert!(g.dismissed, "H dismisses the guidance card");
+
+        let mut bind = q1_demo_bind();
+        assert!(!bind.guidance_hidden);
+        bind.toggle_guidance();
+        assert!(bind.guidance_hidden);
+
+        // World still owns well words — card hush does not erase them.
+        assert_eq!(GARDEN_WANT, SANCTUARY_WANT);
+        assert!(GARDEN_WANT.contains("well") || GARDEN_WANT.contains("tending"));
+        let spoken = first_minutes_people_want_line();
+        assert!(spoken.contains("well") || spoken.contains("tending"));
+        assert_eq!(tap_vs_hold_prompt(), "tap E take  ·  hold E tend");
+        q0_online_stays_grey();
+    }
+
+    /// CARD Q1 — quit/rerun lived tick round-trip (satchel + allocation).
+    #[test]
+    fn q1_lived_tick_roundtrip() {
+        use lived_hour_bind::LIVED_TICK_PATH;
+        use lived_sim_bridge::resumable_hour_from_tick_raw;
+        use shared::climate_node::{AllocKind, LivedHour, TendResult};
+
+        assert_eq!(LIVED_TICK_PATH, "data/powrush_lived_tick.json");
+
+        let mut hour = LivedHour::new_demo();
+        assert!(matches!(hour.tend(1), TendResult::Taken { .. }));
+        assert_eq!(hour.satchel.count(), 1);
+        let json = hour.to_json().expect("serialize");
+        let loaded = resumable_hour_from_tick_raw(&json).expect("hour blob");
+        assert_eq!(loaded.satchel.count(), 1);
+        assert_eq!(loaded.allocation.flow, 0);
+        assert_eq!(loaded.allocation.reserve, 0);
+
+        let mut hour2 = LivedHour::new_demo();
+        assert!(matches!(hour2.tend(1), TendResult::Taken { .. }));
+        assert!(hour2.allocate(AllocKind::Reserve));
+        let json2 = hour2.to_json().expect("serialize banked");
+        let loaded2 = resumable_hour_from_tick_raw(&json2).expect("banked blob");
+        assert_eq!(loaded2.allocation.reserve, 1);
+        assert_eq!(loaded2.satchel.count(), 0);
+        let line = loaded2.allocation.reserve_bank_line().expect("banked");
+        assert!(line.contains("Reserve 1"));
+
+        let again = LivedHour::from_json(&json2).expect("from_json");
+        assert_eq!(again.allocation.reserve, loaded2.allocation.reserve);
+        assert_eq!(again.satchel.count(), loaded2.satchel.count());
+        q0_online_stays_grey();
+    }
+
+    /// CARD Q1 — dual HUD labels: stewardship / harm gate + stewardship quality.
+    #[test]
+    fn q1_dual_hud_labels_gate_and_quality() {
+        use shared::contribution_events::{apply_event, ContributionEvent};
+        use shared::contribution_ledger::ContributionLedger;
+        use shared::nevc_visibility::{
+            nevc_line_invents_wages, panel_fields_channels, status_line_for_event,
+            stewardship_quality, summary_from_result,
+        };
+
+        let event = ContributionEvent::RbeAction {
+            player_id: 21,
+            abundance_alignment: 0.0,
+            waste_or_harm: 0.0,
+        };
+        let mut ledger = ContributionLedger::new();
+        let r = apply_event(&mut ledger, event.clone());
+        let s = summary_from_result(&r);
+        let line = status_line_for_event(&s, &event);
+        assert!(line.contains("stewardship / harm gate"));
+        assert!(line.contains("stewardship quality"));
+        assert!(!line.to_lowercase().contains("gold"));
+        assert!(!line.to_lowercase().contains("wages"));
+
+        let fields = panel_fields_channels(&s, stewardship_quality(&event));
+        assert_eq!(fields[1].0, "stewardship / harm gate");
+        assert_eq!(fields[2].0, "stewardship quality");
+        assert!(!nevc_line_invents_wages(&line));
+        q0_online_stays_grey();
+    }
+
+    /// CARD Q1 — Title Online stays grey.
+    #[test]
+    fn q1_title_online_still_grey() {
+        use title_screen::{
+            f6_title_chrome_holds, l2_title_chrome_holds, s3_title_chrome_holds,
+            TITLE_CHROME_CONTINUE, TITLE_CHROME_PLAY, TITLE_CHROME_SETTINGS,
+        };
+
+        assert_eq!(TITLE_CHROME_PLAY, "Play — first Hands");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert_eq!(TITLE_CHROME_SETTINGS, "Settings");
+        assert!(l2_title_chrome_holds());
+        assert!(s3_title_chrome_holds());
+        assert!(f6_title_chrome_holds());
+        q0_online_stays_grey();
+        q0_place_id_stays_three();
+    }
 }
