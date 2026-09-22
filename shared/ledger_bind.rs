@@ -15,8 +15,13 @@
 //!
 //! CARD F3 HOSTILE-PRACTICE — sealed Hostile may Take / refuse / embargo
 //! on this board without Bind. NEVC labels display only (no wage invent).
-//! No lockout. Open-trade Bind path unread (F9). F2 AH panel unread beyond
-//! the stance gate already on tip. 0 meshes · 0 new persist file.
+//! No lockout. Open-trade Bind path unread beyond the F9 wire. F2 AH panel
+//! unread beyond the stance gate already on tip. 0 meshes · 0 new persist file.
+//!
+//! CARD F9 NEVC-ON-STANCE — sealed Hostile Take writes a ledger row + NEVC
+//! display label (no wage). Sealed Open-trade Bind shows Reserve cue on the
+//! existing allocate path (no new verb). Garden light = neither. F3 practice
+//! unread beyond that Take wire. F2 AH unread beyond the Open-trade gate.
 //! Contact: info@Rathor.ai
 
 use serde::{Deserialize, Serialize};
@@ -236,6 +241,43 @@ pub const F2_AH_IS_PLACE: bool = false;
 /// CARD F3 — Hostile practice mesh budget. Hands stay dark.
 pub const F3_MESH_BUDGET: u32 = crate::persona::F3_MESH_BUDGET;
 
+/// CARD F9 — NEVC-on-stance mesh budget. Hands stay dark.
+pub const F9_MESH_BUDGET: u32 = crate::persona::F9_MESH_BUDGET;
+
+/// CARD F9 — existing allocate Reserve cue. Not a new verb. Not wages.
+pub const OPEN_TRADE_BIND_RESERVE_CUE: &str = crate::nevc_visibility::OPEN_TRADE_BIND_RESERVE_CUE;
+
+/// CARD F9 — Hostile Take ledger row. Session display. Not a persist file. Not wages.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HostileTakeLedgerRow {
+    pub nevc_label: String,
+}
+
+impl HostileTakeLedgerRow {
+    pub fn from_nevc_label(label: impl Into<String>) -> Self {
+        Self {
+            nevc_label: label.into(),
+        }
+    }
+
+    pub fn line(&self) -> String {
+        format!(
+            "Hostile Take · {} · ledger row · not wages",
+            self.nevc_label
+        )
+    }
+
+    /// Hostile Take rows live on the ledger board. Never a PlaceId.
+    pub const fn is_place() -> bool {
+        false
+    }
+
+    pub fn invents_wages(&self) -> bool {
+        crate::nevc_visibility::nevc_line_invents_wages(&self.nevc_label)
+            || crate::nevc_visibility::nevc_line_invents_wages(&self.line())
+    }
+}
+
 /// CARD F3 — Hostile practice outcome. Not Bind. Not a persist file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum HostilePracticeOutcome {
@@ -276,6 +318,12 @@ pub struct LedgerBoard {
     /// CARD F3 — last Hostile practice. Session only.
     #[serde(default, skip)]
     pub last_hostile_practice: Option<HostilePractice>,
+    /// CARD F9 — Hostile Take ledger row. Session only. Not a persist file.
+    #[serde(default, skip)]
+    pub last_hostile_take_row: Option<HostileTakeLedgerRow>,
+    /// CARD F9 — last NEVC display label. Session only. Not wages.
+    #[serde(default, skip)]
+    pub last_nevc_label: Option<String>,
 }
 
 /// CARD F1 — how Offline simulated Peoples honor a soul stance.
@@ -389,6 +437,7 @@ impl LedgerBoard {
     }
 
     /// CARD F3 — run Hostile practice. Does not bind. Does not open AH.
+    /// CARD F9 — Hostile Take writes a session ledger row + NEVC display label.
     pub fn try_hostile_practice(
         &mut self,
         sealed: bool,
@@ -399,7 +448,10 @@ impl LedgerBoard {
         }
         self.last_hostile_practice = Some(verb);
         match verb {
-            HostilePractice::Take => HostilePracticeOutcome::Taken,
+            HostilePractice::Take => {
+                self.write_hostile_take_ledger_row();
+                HostilePracticeOutcome::Taken
+            }
             HostilePractice::Refuse => HostilePracticeOutcome::Refused,
             HostilePractice::Embargo => {
                 self.hostile_embargo = true;
@@ -408,9 +460,50 @@ impl LedgerBoard {
         }
     }
 
-    /// CARD F3 — Open-trade Bind path unread (F9). Hostile practice never binds.
+    /// CARD F9 — write Hostile Take ledger row + NEVC display label. No wage.
+    pub fn write_hostile_take_ledger_row(&mut self) {
+        let label = crate::nevc_visibility::hostile_take_stance_nevc_label();
+        self.last_nevc_label = Some(label.clone());
+        self.last_hostile_take_row = Some(HostileTakeLedgerRow::from_nevc_label(label));
+    }
+
+    /// CARD F9 — Hostile Take ledger rows. Session display. Never a Place.
+    pub fn hostile_take_ledger_rows(&self) -> Vec<String> {
+        self.last_hostile_take_row
+            .as_ref()
+            .map(|row| vec![row.line()])
+            .unwrap_or_default()
+    }
+
+    /// CARD F3 — Hostile practice never binds. Open-trade Bind is the existing verb (F9 cue).
     pub fn hostile_practice_uses_open_trade_bind() -> bool {
         false
+    }
+
+    /// CARD F9 — existing Bind verb already listed the contract. No new verb.
+    pub fn is_bound(&self) -> bool {
+        self.open()
+            .map(|c| {
+                matches!(
+                    c.state,
+                    ContractState::Taken | ContractState::Escorting | ContractState::Settled
+                )
+            })
+            .unwrap_or(false)
+    }
+
+    /// CARD F9 — sealed Open-trade Bind shows Reserve cue on the existing allocate path.
+    /// F2 AH unread beyond the Open-trade gate. No new verb.
+    pub fn open_trade_bind_reserve_cue(
+        &self,
+        sealed: bool,
+        allocation: &crate::climate_node::Allocation,
+    ) -> Option<String> {
+        let may_show = sealed
+            && offline_simulated_people_will_trade(self.soul_stance)
+            && self.is_bound()
+            && !crate::persona::f9_invents_new_verb();
+        crate::nevc_visibility::open_trade_bind_reserve_cue(may_show, allocation)
     }
 
     pub fn honored_offline(&self) -> SimulatedPeopleHonor {
@@ -890,6 +983,159 @@ mod tests {
         assert!(!json.contains("hostile_embargo"), "embargo is session, not a persist key");
         assert!(!json.contains("last_hostile_practice"));
         assert!(!json.contains("powrush_hostile.json"));
+        assert!(!json.contains("powrush_auction.json"));
+    }
+
+    /// CARD F9 — sealed Hostile Take writes a ledger row + NEVC display label (no wage).
+    #[test]
+    fn f9_sealed_hostile_take_writes_ledger_row_nevc_label_no_wage() {
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        assert!(!b.offline_people_will_trade());
+        assert!(!b.ah_panel_may_open(true), "F2 AH unread beyond Open-trade gate");
+        assert!(!b.try_open_ah_panel(true));
+        b.ensure_i2("f9-hostile-take");
+        assert_eq!(
+            b.try_hostile_practice(true, HostilePractice::Take),
+            HostilePracticeOutcome::Taken
+        );
+        let row = b.last_hostile_take_row.as_ref().expect("ledger row");
+        assert!(row.line().contains("Hostile Take"));
+        assert!(row.line().contains("ledger row"));
+        assert!(row.line().contains("not wages"));
+        assert!(!row.invents_wages());
+        assert!(!HostileTakeLedgerRow::is_place());
+        let label = b.last_nevc_label.as_deref().expect("NEVC label");
+        assert!(label.contains("NEVC:"));
+        assert!(label.contains("display only"));
+        assert!(label.contains("not wages"));
+        assert!(!crate::nevc_visibility::nevc_line_invents_wages(label));
+        assert!(!crate::persona::HOSTILE_PRACTICE_INVENTS_WAGES);
+        assert_eq!(
+            b.open().unwrap().state,
+            ContractState::Posted,
+            "Hostile Take does not Bind"
+        );
+        assert!(!LedgerBoard::hostile_practice_uses_open_trade_bind());
+        let rows = b.hostile_take_ledger_rows();
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].contains("Hostile Take"));
+        let purse = b.open().unwrap().purse.line();
+        assert!(!purse.contains("wage"));
+        assert!(!purse.contains("gold"));
+    }
+
+    /// CARD F9 — sealed Open-trade Bind shows Reserve cue on existing allocate path.
+    #[test]
+    fn f9_sealed_open_trade_bind_shows_reserve_cue_on_allocate_path() {
+        use crate::climate_node::Allocation;
+
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::OpenTrade);
+        b.ensure_i2("f9-open-trade-bind");
+        assert_eq!(b.act_local(), "bound", "existing Bind verb — no new verb");
+        assert!(b.is_bound());
+        assert!(!crate::persona::f9_invents_new_verb());
+        let mut allocation = Allocation::default();
+        allocation.reserve = 1;
+        let cue = b
+            .open_trade_bind_reserve_cue(true, &allocation)
+            .expect("Reserve cue");
+        assert_eq!(cue, allocation.reserve_bank_line().expect("banked"));
+        assert!(cue.contains("Reserve"));
+        assert!(cue.contains("repair-rights"));
+        assert!(!crate::nevc_visibility::nevc_line_invents_wages(&cue));
+        assert_eq!(
+            b.open_trade_bind_reserve_cue(true, &Allocation::default())
+                .as_deref(),
+            Some(OPEN_TRADE_BIND_RESERVE_CUE)
+        );
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        assert!(b
+            .open_trade_bind_reserve_cue(true, &allocation)
+            .is_none());
+        assert!(!b.ah_panel_may_open(true), "F2 AH unread beyond Open-trade gate");
+    }
+
+    /// CARD F9 — garden light gets neither.
+    #[test]
+    fn f9_garden_light_gets_neither() {
+        use crate::climate_node::Allocation;
+
+        let mut b = LedgerBoard::default();
+        assert!(b.soul_stance.is_none());
+        assert!(!crate::persona::garden_light_gets_nevc_on_stance());
+        assert_eq!(
+            b.try_hostile_practice(false, HostilePractice::Take),
+            HostilePracticeOutcome::Idle
+        );
+        assert!(b.last_hostile_take_row.is_none());
+        assert!(b.last_nevc_label.is_none());
+        assert!(b.hostile_take_ledger_rows().is_empty());
+        b.ensure_i2("f9-garden");
+        assert_eq!(b.act_local(), "bound");
+        let mut allocation = Allocation::default();
+        allocation.reserve = 1;
+        assert!(b.open_trade_bind_reserve_cue(false, &allocation).is_none());
+        b.clear_garden_light_stance();
+        assert!(b.soul_stance.is_none());
+        assert!(b.open_trade_bind_reserve_cue(false, &allocation).is_none());
+    }
+
+    /// CARD F9 — PlaceId / LOCAL_HEXES len == 3.
+    #[test]
+    fn f9_place_id_local_hexes_len_three() {
+        use crate::hex_travel::{PlaceId, LOCAL_HEXES};
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert!(!F2_AH_IS_PLACE);
+        assert!(!HostileTakeLedgerRow::is_place());
+    }
+
+    /// CARD F9 — STEWARD_ONLINE_YES false / Online grey.
+    #[test]
+    fn f9_steward_online_yes_false_online_grey() {
+        use crate::hex_listen::PowrushNet;
+        use crate::hex_protocol::default_client_listens;
+        use crate::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+        use crate::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
+
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
+        assert!(!PowrushNet::Off.title_online_enabled());
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert!(!default_client_listens());
+    }
+
+    /// CARD F9 — no lockout · 0 meshes · no auction_*.rs · no new persist file.
+    #[test]
+    fn f9_no_lockout_zero_meshes_no_auction_rs_no_new_persist_file() {
+        use std::path::Path;
+
+        use crate::persona::{soul_is_locked_out, HOSTILE_LOCKOUT};
+
+        assert!(!HOSTILE_LOCKOUT);
+        assert_eq!(F9_MESH_BUDGET, 0);
+        assert_eq!(F3_MESH_BUDGET, 0);
+        assert_eq!(F2_MESH_BUDGET, 0);
+        assert!(!crate::persona::f9_invents_new_verb());
+        let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!here.join("auction.rs").exists());
+        assert!(!here.join("auction_house.rs").exists());
+        assert!(!here.join("nevc_stance.rs").exists());
+        assert_eq!(crate::persona::PERSONA_PATH, "data/powrush_persona.json");
+        assert_ne!(crate::persona::PERSONA_FILE_NAME, "powrush_nevc_stance.json");
+
+        let mut b = LedgerBoard::default();
+        b.set_sealed_soul_stance(true, SoulStance::Hostile);
+        assert!(!soul_is_locked_out(true, b.soul_stance));
+        b.try_hostile_practice(true, HostilePractice::Take);
+        let json = serde_json::to_string(&b).expect("board json");
+        assert!(!json.contains("last_hostile_take_row"), "Take row is session, not a persist key");
+        assert!(!json.contains("last_nevc_label"));
+        assert!(!json.contains("powrush_nevc_stance.json"));
         assert!(!json.contains("powrush_auction.json"));
     }
 }
