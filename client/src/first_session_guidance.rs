@@ -91,6 +91,7 @@ use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::NearbyMercyNode;
 use crate::title_screen::LaunchDoor;
 use shared::ledger_bind::ContractState;
+use shared::persona::{house_dress_token, is_peace_default_dress, HOUSE_PEOPLE_TINT};
 use shared::space_law::HexFlag;
 
 /// CARD L1 SANCTUARY-WANT — first minutes: one People name.
@@ -469,6 +470,16 @@ impl FirstSessionGuidance {
     /// First minutes speak People + Want until H hushes the card.
     pub fn speaks_people_want(&self) -> bool {
         self.active && !self.dismissed && self.objective.is_first_minutes()
+    }
+
+    /// CARD L2-REPLAY — dress token / people tint after House only.
+    pub fn house_dress_token(&self) -> Option<&'static str> {
+        house_dress_token(self.house_live)
+    }
+
+    /// True when the stranger still wears Peace default dress (no House).
+    pub fn wears_peace_default_dress(&self) -> bool {
+        is_peace_default_dress(self.house_live)
     }
 
     /// CARD L2 — Q House offers five Peoples. Skip House stays light / Peace.
@@ -1165,6 +1176,33 @@ mod tests {
         assert_eq!(g.objective, GuidanceObjective::OpenInventory);
         assert!(!g.objective.is_first_minutes());
         assert!(!g.speaks_people_want());
+    }
+
+    /// CARD L2-REPLAY — stranger without House stays Peace default.
+    #[test]
+    fn stranger_without_house_stays_peace_default_dress() {
+        let g = FirstSessionGuidance::default();
+        assert!(!g.house_live);
+        assert!(g.wears_peace_default_dress());
+        assert!(g.house_dress_token().is_none());
+        // First minutes still People+Want (L1); no race lobby / dress token yet.
+        assert!(g.speaks_people_want());
+        assert!(g.objective.prompt().contains("WASD"));
+    }
+
+    /// CARD L2-REPLAY — House live lands one dress token / people tint.
+    /// Card stays Ledger (not a Title create / race lobby).
+    #[test]
+    fn house_live_lands_one_dress_token() {
+        let mut g = FirstSessionGuidance::default();
+        g.house_live = true;
+        g.resume_from_pack();
+        assert_eq!(g.objective, GuidanceObjective::OpenLedger);
+        assert_eq!(g.house_dress_token(), Some(HOUSE_PEOPLE_TINT));
+        assert!(!g.wears_peace_default_dress());
+        assert_eq!(g.objective.prompt(), "L opens the Ledger");
+        assert!(!g.objective.prompt().to_lowercase().contains("race"));
+        assert!(!g.objective.prompt().to_lowercase().contains("lobby"));
     }
 
     /// CARD L1 SANCTUARY-WANT — H hush still works after People + Want.

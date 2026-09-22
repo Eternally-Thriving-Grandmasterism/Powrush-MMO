@@ -97,7 +97,10 @@ pub const F9_MESH_BUDGET: u32 = shared::persona::F9_MESH_BUDGET;
 /// CARD F4 — double-agent mesh budget. Hands stay dark.
 pub const F4_MESH_BUDGET: u32 = shared::persona::F4_MESH_BUDGET;
 use shared::local_settings::PeaceKey;
-use shared::persona::{HostilePractice, SoulStance};
+use shared::persona::{
+    house_dress_token, is_peace_default_dress, land_house_dress, HostilePractice, Persona,
+    SoulStance,
+};
 use shared::space_law::{CharterKind, HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
@@ -889,6 +892,17 @@ impl HourSacred {
         offer_house_peoples(self.charter_skin_live())
     }
 
+    /// CARD L2-REPLAY — one dress token / people tint after House (Q).
+    /// Peace / Tab without Q stays Peace default (no token).
+    pub fn house_dress_token(&self) -> Option<&'static str> {
+        house_dress_token(self.charter_skin_live())
+    }
+
+    /// True when no House — stranger still wears Peace default dress.
+    pub fn wears_peace_default_dress(&self) -> bool {
+        is_peace_default_dress(self.charter_skin_live())
+    }
+
     /// Cross one ignited God-plane door. One-way this session. Not persisted.
     pub fn try_cross_people_door(
         &self,
@@ -948,6 +962,14 @@ pub fn try_plant_house(hour: &mut HourSacred, factory: &mut VerticalFactory) -> 
     hour.session.charter_id = Some("house-local".into());
     hour.session.kind = CharterKind::House;
     true
+}
+
+/// After Q plants House, land one dress token. Peace Q is a no-op (default holds).
+/// Not a Title create / race lobby. Does not rewrite mechanical_race.
+pub fn try_land_house_dress(hour: &HourSacred, persona: &mut Persona) -> bool {
+    let live = hour.charter_skin_live();
+    land_house_dress(persona, live);
+    live
 }
 
 /// House + spill seen + Bind Settled latches Hour two held.
@@ -1252,6 +1274,49 @@ mod tests {
         assert_eq!(h.hex(), HexFlag::Peace);
         assert!(!factory.founded);
         assert!(!h.charter_skin_live());
+    }
+
+    /// CARD L2-REPLAY — Q in Peace does not land a dress token.
+    #[test]
+    fn q_on_peace_keeps_peace_default_dress() {
+        let mut h = peace_hour();
+        let mut factory = VerticalFactory::default();
+        assert!(!try_plant_house(&mut h, &mut factory));
+        assert!(h.wears_peace_default_dress());
+        assert!(h.house_dress_token().is_none());
+        let mut p = Persona::nameless_steward();
+        assert!(!try_land_house_dress(&h, &mut p));
+        assert!(p.presentation.dress_intent.is_none());
+        assert_eq!(p.mechanical_race, shared::persona::MechanicalRace::Human);
+        assert!(!shared::persona::F4_DRESS_SWAP);
+    }
+
+    /// CARD L2-REPLAY — Q House lands one dress token / people tint.
+    /// Ridge visitor (Tab, no Q) still wears Peace default. Not a race lobby.
+    #[test]
+    fn q_house_lands_one_dress_token() {
+        let mut h = peace_hour();
+        assert!(try_ridge_tab(&mut h, true));
+        assert!(h.wears_peace_default_dress());
+        assert!(h.house_dress_token().is_none());
+        let mut factory = VerticalFactory::default();
+        assert!(try_plant_house(&mut h, &mut factory));
+        assert_eq!(
+            h.house_dress_token(),
+            Some(shared::persona::HOUSE_PEOPLE_TINT)
+        );
+        assert!(!h.wears_peace_default_dress());
+        let mut p = Persona::nameless_steward();
+        assert!(try_land_house_dress(&h, &mut p));
+        assert_eq!(
+            p.presentation.dress_intent.as_deref(),
+            Some(shared::persona::HOUSE_PEOPLE_TINT)
+        );
+        assert!(matches!(
+            p.presentation.people,
+            shared::persona::PeopleChoice::Unset
+        ));
+        assert!(!shared::persona::F4_DRESS_SWAP);
     }
 
     /// CARD L2 HOUSE-PEOPLE-GATES — Q House offers five Peoples.
