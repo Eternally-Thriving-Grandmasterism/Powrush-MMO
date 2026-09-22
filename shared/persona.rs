@@ -291,6 +291,28 @@ pub const PERSONA_PATH: &str = "data/powrush_persona.json";
 pub const PERSONA_FILE_NAME: &str = "powrush_persona.json";
 pub const PERSONA_SCHEMA: &str = "powrush_persona_v1";
 
+/// CARD L2-REPLAY — one people tint after Q House only.
+/// Cite ART_BIBLE: Human | warm grey-gold | Sanctuary — cite only, no pack
+/// (token must stay honesty-clean; do not store the word gold).
+/// Cite PLACE_DRESS · MERCY_PERSONA `dress_intent` seat already on tip.
+pub const HOUSE_PEOPLE_TINT: &str = "Human · Sanctuary tint";
+
+pub fn house_dress_token(house_live: bool) -> Option<&'static str> {
+    if house_live {
+        Some(HOUSE_PEOPLE_TINT)
+    } else {
+        None
+    }
+}
+
+pub fn is_peace_default_dress(house_live: bool) -> bool {
+    house_dress_token(house_live).is_none()
+}
+
+pub fn land_house_dress(persona: &mut Persona, house_live: bool) {
+    persona.presentation.dress_intent = house_dress_token(house_live).map(str::to_string);
+}
+
 /// Soft caps. Soft draft truncates; PersonaCommit re-validates after normalize.
 pub const GIVEN_NAME_MAX: usize = 64;
 pub const PRONOUNS_MAX: usize = 48;
@@ -1563,6 +1585,36 @@ mod tests {
         assert_ne!(PERSONA_FILE_NAME, "powrush_stance.json");
         assert_ne!(PERSONA_SCHEMA, "powrush_stance_v1");
         assert!(!PERSONA_PATH.contains("stance.json"));
+    }
+
+    // --- CARD L2-REPLAY HOUSE-PERSONA-DRESS (post-House token only) --------
+
+    #[test]
+    fn no_house_keeps_peace_default_dress() {
+        let mut p = Persona::nameless_steward();
+        assert!(is_peace_default_dress(false));
+        assert!(house_dress_token(false).is_none());
+        land_house_dress(&mut p, false);
+        assert!(p.presentation.dress_intent.is_none());
+        assert_eq!(p.mechanical_race, MechanicalRace::Human);
+        assert!(matches!(p.presentation.people, PeopleChoice::Unset));
+        assert!(persona_copy_is_honest("Title Online grey"));
+        assert!(!F4_DRESS_SWAP);
+    }
+
+    #[test]
+    fn house_lands_one_dress_token_people_tint() {
+        let mut p = Persona::nameless_steward();
+        land_house_dress(&mut p, true);
+        assert_eq!(house_dress_token(true), Some(HOUSE_PEOPLE_TINT));
+        assert_eq!(p.presentation.dress_intent.as_deref(), Some(HOUSE_PEOPLE_TINT));
+        assert!(!is_peace_default_dress(true));
+        // Not a race lobby — mechanical race + people stay Hour-1 defaults.
+        assert_eq!(p.mechanical_race, MechanicalRace::Human);
+        assert!(matches!(p.presentation.people, PeopleChoice::Unset));
+        assert!(persona_copy_is_honest(HOUSE_PEOPLE_TINT));
+        assert!(!persona_copy_is_honest("race lobby ranked"));
+        assert!(!F4_DRESS_SWAP);
     }
 
     // --- CARD F3 HOSTILE-PRACTICE ------------------------------------------
