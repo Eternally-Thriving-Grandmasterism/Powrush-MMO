@@ -9,6 +9,10 @@
 //! - plays the well sting on later SoftRbePool harvests / tends (existing Use)
 //! - never spawns output when muted or when `audio_output_safe` is false
 //!
+//! CARD FLESH-HEARTWOOD-DRESS — lamp hush stays `BED_GAIN_HEARTWOOD` (banked).
+//! Living-wood fog dress lives in `climate_plane`. This hook does not retune
+//! the shared mixer and does not add an asset.
+//!
 //! No second mute. No F-row. No listen. No ALSA/cpal open. Contact: info@Rathor.ai
 
 use bevy::audio::{AudioSink, Volume};
@@ -76,6 +80,8 @@ fn sync_voice_from_settings(
     state.voice.set_mute(muted);
     state.voice.set_in_yard(*door == LaunchDoor::InYard);
     // Esc→Places→Depths / Heartwood: hush-family gain on the same asset. Mute still zeros.
+    // CARD FLESH-HEARTWOOD-DRESS — Heartwood lamp hush is the banked gain.
+    // Climate fog does not write this mixer.
     let current = travel.as_ref().map(|t| t.current);
     state.voice.set_in_depths(current == Some(PlaceId::Depths));
     state.voice.set_in_heartwood(current == Some(PlaceId::Heartwood));
@@ -329,6 +335,31 @@ mod tests {
         assert!(!should_emit_bed(true, true, true));
         voice.set_mute(false);
         assert!((voice.bed_gain() - BED_GAIN_HEARTWOOD).abs() < f32::EPSILON);
+        assert!(!voice.opens_socket());
+    }
+
+    /// CARD FLESH-HEARTWOOD-DRESS — lamp hush stays the banked gain on the yard asset.
+    /// Climate fog dress does not retune this mixer. No new asset. Online stays grey.
+    #[test]
+    fn flesh_heartwood_dress_keeps_banked_lamp_hush() {
+        assert!((BED_GAIN_HEARTWOOD - 0.04).abs() < f32::EPSILON);
+        assert!(BED_GAIN_HEARTWOOD < BED_GAIN_DEPTHS);
+        assert!(BED_GAIN_HEARTWOOD < BED_GAIN_OPEN);
+        assert!(BED_GAIN_HEARTWOOD > 0.0);
+        assert_eq!(BED_ASSET, "audio/peace_yard_bed.ogg");
+        let mut voice = PeaceVoice::new(false, true);
+        voice.set_in_yard(true);
+        voice.set_in_heartwood(true);
+        assert!((voice.bed_gain() - BED_GAIN_HEARTWOOD).abs() < f32::EPSILON);
+        voice.set_mute(true);
+        assert!((voice.bed_gain() - 0.0).abs() < f32::EPSILON);
+        voice.set_mute(false);
+        voice.set_in_heartwood(false);
+        voice.set_in_depths(true);
+        assert!((voice.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert_eq!(PlaceId::Heartwood.display_name(), "Heartwood");
+        assert!(title_online_stays_grey());
+        assert!(!peace_audio_opens_socket(&voice));
         assert!(!voice.opens_socket());
     }
 }
