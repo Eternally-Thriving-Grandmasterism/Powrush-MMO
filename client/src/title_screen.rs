@@ -12,6 +12,10 @@
 //! (Online stays grey).
 //! CARD FLESH-GUIDE-BREATH: Guide is one sentence of the locked peak memory
 //! (well · tend · week · the yard remembered). Not five stacked lines.
+//! CARD FLESH-CONTINUE-LINE: the existing Continue cue on this plate speaks
+//! that same peak (`yard remembered`). Shared still returns
+//! `the yard remembers`; this plate says `the yard remembered` in that one
+//! beat. No second HUD. No new verb.
 //! H-2026-09-12-PLACES-DOOR: Settled+book **Places** door on that plate opens the
 //! four-room Places plate — must not only dismiss pause.
 //! H-2026-09-12-COMFORT-PRESETS: Esc Comfort Graphics · Low|Medium(default)|High
@@ -414,6 +418,30 @@ pub fn garden_cross_landing(
 /// One text node (not five stacked lines). Online stays grey. No second HUD.
 pub const PAUSE_GUIDE_LINE: &str =
     "I walked to a well, tended it, the week was the bill, I quit, and the yard remembered.";
+
+/// Present-tense persist beat from shared (`the yard remembers`).
+/// The Continue plate speaks the Guide past in that same beat.
+const CONTINUE_PRESENT_YARD: &str = "the yard remembers";
+
+/// Guide peak already on [`PAUSE_GUIDE_LINE`]. One beat, not a second slogan.
+pub const CONTINUE_YARD_REMEMBERED: &str = "the yard remembered";
+
+/// CARD FLESH-CONTINUE-LINE — Continue copy already on the title plate.
+/// Shared still returns `the yard remembers`. This plate says `yard remembered`
+/// (the Guide peak) in that one beat. No persist → the Play cue is unchanged.
+/// No second HUD. No new verb.
+pub fn continue_yard_remembered_line(house_cue: &str) -> String {
+    match house_cue.split_once(CONTINUE_PRESENT_YARD) {
+        Some((head, tail)) => {
+            let mut line = String::with_capacity(house_cue.len() + 2);
+            line.push_str(head);
+            line.push_str(CONTINUE_YARD_REMEMBERED);
+            line.push_str(tail);
+            line
+        }
+        None => house_cue.to_string(),
+    }
+}
 
 /// Relative luminance from linear-ish sRGB channels (Bevy 0.14 Color::Srgba).
 pub fn title_luminance(c: Color) -> f32 {
@@ -2131,6 +2159,8 @@ fn breath_title_border(
 fn refresh_title_cue(label: Res<HouseLabel>, mut q: Query<&mut Text, With<TitleCueText>>) {
     let house_cue = continue_cue_when_persist(label.persist_present, &label.house)
         .unwrap_or_else(|| "Play opens the yard · no account wall".into());
+    // CARD FLESH-CONTINUE-LINE — same beat, Guide peak (`yard remembered`).
+    let house_cue = continue_yard_remembered_line(&house_cue);
     // CARD S3 — sealed souls shown as People dress · last Place. Not a portraits grid.
     let cue = match s3_continue_roster_cue(read_hour_two_json().as_deref()) {
         Some(roster) => format!("{house_cue} · {roster}"),
@@ -4122,10 +4152,47 @@ mod tests {
         assert_eq!(cue, "Unnamed House · the yard remembers");
         assert!(cue.contains(UNNAMED));
         assert!(cue.contains(YARD_REMEMBERS));
+        let spoken = continue_yard_remembered_line(&cue);
+        assert_eq!(spoken, "Unnamed House · the yard remembered");
+        assert!(spoken.contains("yard remembered"));
+        assert_eq!(CONTINUE_YARD_REMEMBERED, "the yard remembered");
         let mut named = HouseName::default();
         named.confirm("Yard");
         let cue2 = continue_cue(true, &named).unwrap();
         assert_eq!(cue2, "Yard · the yard remembers");
+        assert_eq!(
+            continue_yard_remembered_line(&cue2),
+            "Yard · the yard remembered"
+        );
+    }
+
+    /// CARD FLESH-CONTINUE-LINE — Continue speaks the Guide peak. One beat.
+    #[test]
+    fn flesh_continue_line_speaks_yard_remembered() {
+        let mut house = HouseName::default();
+        house.skip();
+        let cue = continue_cue_when_persist(true, &house).unwrap();
+        let spoken = continue_yard_remembered_line(&cue);
+        assert!(spoken.contains("yard remembered"));
+        assert_eq!(spoken, "Unnamed House · the yard remembered");
+        assert!(!spoken.contains("remembers"));
+        assert!(PAUSE_GUIDE_LINE.contains("yard remembered"));
+        assert!(PAUSE_GUIDE_LINE.contains(CONTINUE_YARD_REMEMBERED));
+        // Sealed roster stays on the same line — not a second plate.
+        let with_roster =
+            continue_yard_remembered_line("Unnamed House · the yard remembers · Human · Sanctuary");
+        assert_eq!(
+            with_roster,
+            "Unnamed House · the yard remembered · Human · Sanctuary"
+        );
+        assert!(with_roster.contains("yard remembered"));
+        // First-run Play cue does not grow the peak.
+        let play = "Play opens the yard · no account wall";
+        assert_eq!(continue_yard_remembered_line(play), play);
+        assert!(!continue_yard_remembered_line(play).contains("yard remembered"));
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
     }
 
     #[test]
@@ -5654,9 +5721,14 @@ mod tests {
         assert!(label.naming_offered);
         let raw = label.house.to_json().unwrap();
         assert!(raw.contains("powrush_house_v1"));
-        // name empty / Unnamed — Continue reads Unnamed House · the yard remembers
+        // Shared persist beat stays present tense. The plate speaks the Guide peak.
         let cue = continue_cue_when_persist(true, &label.house).unwrap();
         assert_eq!(cue, "Unnamed House · the yard remembers");
+        assert_eq!(
+            continue_yard_remembered_line(&cue),
+            "Unnamed House · the yard remembered"
+        );
+        assert!(continue_yard_remembered_line(&cue).contains("yard remembered"));
         // Title-from-pause helper still maps InYard → Title (house JSON path).
         assert_eq!(
             super::title_from_pause_returns_title(LaunchDoor::InYard),
