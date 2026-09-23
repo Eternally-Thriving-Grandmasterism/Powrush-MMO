@@ -32,6 +32,11 @@
 //! pipe-air (still Heartwood + near) · Depths teal Peace / wet-stone quiet.
 //! One slab. No new state verb. Peak memory stays the walked line; this
 //! caption does not grow a second slogan. 0 meshes · Online grey.
+//!
+//! CARD OPT-REDUCED-MOTION-PULSE — when reduced_motion is on (Comfort Low
+//! sets that same flag), the slab breath stays at rest. Place dress words
+//! still name Idle / Glowing / Tended / Resting / Stressed. One slab.
+//! No new state verb. No second HUD.
 
 use bevy::prelude::*;
 
@@ -49,7 +54,7 @@ use crate::hex_travel::HexTravelState;
 use shared::hex_travel::PlaceId;
 use crate::heartwood_wards::WardSession;
 use crate::lived_hour_bind::LivedHourBind;
-use crate::local_settings::LocalColorblindWells;
+use crate::local_settings::{LocalColorblindWells, LocalSettingsState};
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 use crate::depths_landing::DepthsPeaceTend;
 
@@ -112,6 +117,27 @@ fn week_feel_should_breathe(
 
 fn take_line_fired(last_line: &str, prev_line: &str) -> bool {
     last_line != prev_line && last_line.starts_with("tended node")
+}
+
+/// CARD OPT-REDUCED-MOTION-PULSE — ceiling on the glow fed to
+/// [`well_glow_pulse`] while reduced motion is on. Full Take/Tend breath
+/// is glow 1.0 (border alpha lift 0.40). This cap keeps that lift at rest
+/// so the words stay the read. Comfort Low sets `reduced_motion`.
+const REDUCED_MOTION_WELL_PULSE_CAP: f32 = 0.0;
+
+/// Slab rim + fill for one glow. Reduced motion holds the rest colors.
+fn well_slab_pulse(glow: f32, reduced_motion: bool) -> crate::skirmish_well::WellGlowPulse {
+    let glow = if glow.is_finite() {
+        glow.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let glow = if reduced_motion {
+        glow.min(REDUCED_MOTION_WELL_PULSE_CAP)
+    } else {
+        glow
+    };
+    well_glow_pulse(glow)
 }
 
 #[derive(Resource, Default)]
@@ -278,6 +304,7 @@ fn update_climate_state_slab(
     week_glow: Res<WeekFeelGlow>,
     wards_glow: Res<WardsNoticeGlow>,
     colorblind: Res<LocalColorblindWells>,
+    settings: Option<Res<LocalSettingsState>>,
     nodes: Query<&MercyHarvestNode>,
     mut root: Query<
         (&mut Visibility, &mut BorderColor, &mut BackgroundColor),
@@ -318,7 +345,12 @@ fn update_climate_state_slab(
         };
         if show {
             // Same well_glow rim lift; Peace rest colors stay on this slab.
-            let pulse = well_glow_pulse(glow);
+            // Reduced motion (Comfort Low sets the flag) holds that lift at rest.
+            let reduced_motion = settings
+                .as_ref()
+                .map(|s| s.inner.reduced_motion)
+                .unwrap_or(false);
+            let pulse = well_slab_pulse(glow, reduced_motion);
             *border = Color::srgba(
                 0.48 + pulse.r,
                 0.78 + pulse.g,
@@ -1309,6 +1341,72 @@ mod tests {
             ),
             "Depths · North Well is Resting · rest-bar · teal Peace · wet-stone quiet"
         );
+    }
+
+    /// CARD OPT-REDUCED-MOTION-PULSE — reduced motion (and Comfort Low, which
+    /// sets that flag) holds the slab breath at rest. Place dress words still
+    /// name Idle / Glowing / Tended / Resting / Stressed. One slab.
+    #[test]
+    fn reduced_motion_caps_well_pulse_place_words_still_speak() {
+        use shared::local_settings::{GraphicsPreset, LocalSettings};
+
+        let full = well_slab_pulse(1.0, false);
+        let quiet = well_slab_pulse(1.0, true);
+        let rest = well_glow_pulse(0.0);
+        assert!((full.a - 0.40).abs() < 1e-6, "full breath still lifts the rim");
+        assert!(full.r > quiet.r && full.a > quiet.a);
+        assert_eq!(quiet, rest, "reduced motion holds the slab at rest");
+        assert!(quiet.a <= REDUCED_MOTION_WELL_PULSE_CAP * 0.40 + 1e-6);
+        assert_eq!(well_slab_pulse(1.0, true), well_slab_pulse(0.4, true));
+        // A glow already under the cap is unchanged when motion is allowed.
+        assert_eq!(well_slab_pulse(0.0, false), rest);
+
+        let mut low = LocalSettings::peace_defaults();
+        assert!(!low.reduced_motion);
+        low.set_graphics_preset(GraphicsPreset::Low);
+        assert!(low.reduced_motion, "Comfort Low is reduced motion");
+        assert_eq!(well_slab_pulse(1.0, low.reduced_motion), quiet);
+
+        let mut toggled = LocalSettings::peace_defaults();
+        toggled.toggle_reduced_motion();
+        assert!(toggled.reduced_motion);
+        assert_eq!(well_slab_pulse(1.0, toggled.reduced_motion), quiet);
+
+        let mut mid = LocalSettings::peace_defaults();
+        mid.set_graphics_preset(GraphicsPreset::Medium);
+        assert!(!mid.reduced_motion);
+        assert_eq!(well_slab_pulse(1.0, mid.reduced_motion), full);
+
+        let words = [
+            (NodeState::Idle, "Idle", "ring"),
+            (NodeState::Glowing, "Glowing", "pip"),
+            (NodeState::Tended, "Tended", "notch"),
+            (NodeState::Resting, "Resting", "rest-bar"),
+            (NodeState::Stressed, "Stressed", "crack"),
+        ];
+        let dresses = [
+            ("Sanctuary", "warm-gold yard"),
+            ("Heartwood", "lamp hush"),
+            ("Threshold", "tend-seam · pipe-air"),
+            ("Depths", "teal Peace · wet-stone quiet"),
+        ];
+        for (state, word, token) in words {
+            for (place, dress) in dresses {
+                let colored = place_color_well_caption(state, true, place);
+                assert!(colored.starts_with(word), "{colored}");
+                assert!(colored.contains(dress), "{colored}");
+                assert!(slab_has_whole_token(&colored, token), "{colored}");
+                let line = place_clarity_line(
+                    place,
+                    well_state_sentence_in_place("North Well", state, true, place),
+                );
+                assert!(line.contains(word));
+                assert!(line.contains(dress));
+                assert!(!line.contains('\n'));
+            }
+        }
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert!(!GraphicsPreset::Low.label().contains("Ultra"));
     }
 
 }
