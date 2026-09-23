@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `999796d` (`999796de82c47f34638efedc2f0aeb8c9b7b686f`) — #495 HOUR-TWO-MEMORY-NOTE spent; stamp court closed. Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump.
+Tip `a1cf2ac` (`a1cf2ac862970e0b95affe0739d159a8cc300812`) — #495 spent; stamp court closed; BEVY climb banked. Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -68,9 +68,9 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 ## Next (ordered)
 
-1. **STANDING HEARTBEAT** (core gate PATHS already exist) — Hands may run anytime: `cargo test -p shared -p rsil-identity` and `cargo test -p powrush-client --lib`. Both green + 0 open PRs → chat only `HEARTBEAT GREEN @ <short SHA> · Hands DARK`. No PR. No interview. Either red → one Grok 4.7 High PR that RESTORES existing tests only; no new verbs; no mesh; no Online; then HOLD for Dual GREEN squash.
-2. **MESH-PERSONA HOLD** (no mesh files named) — do not invent mesh PATHS.
-3. **Steam partner / App ID / Title Online** = steward only.
+1. **STANDING HEARTBEAT** — `cargo test -p shared -p rsil-identity` and `cargo test -p powrush-client --lib`. Both green + 0 open PRs → chat only `HEARTBEAT GREEN @ <sha> · BEVY-CLIMB HOLD · pin 0.14 · Hands DARK`. Either red → one restore-only PR (no new verbs).
+2. **BEVY-CLIMB HOLD** until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (lived pin bevy 0.14; next minor is 0.20; do not bump Cargo; no Unreal/Unity/Godot).
+3. **MESH / Online / App ID / steamworks crate** = steward only.
 
 Grok Hands cook only. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
