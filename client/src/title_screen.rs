@@ -9,7 +9,9 @@
 //! D2: same plate hosts local Look / Mute / Invert-Y / Hide slabs; persist
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
 //! H-2026-09-12-PAUSE-TABS: Esc plate splits Comfort · Controls · Guide tabs
-//! (Guide = one-sentence Peace-key stranger loop; Online stays grey).
+//! (Online stays grey).
+//! CARD FLESH-GUIDE-BREATH: Guide is one sentence of the locked peak memory
+//! (well · tend · week · the yard remembered). Not five stacked lines.
 //! H-2026-09-12-PLACES-DOOR: Settled+book **Places** door on that plate opens the
 //! four-room Places plate — must not only dismiss pause.
 //! H-2026-09-12-COMFORT-PRESETS: Esc Comfort Graphics · Low|Medium(default)|High
@@ -407,9 +409,11 @@ pub fn garden_cross_landing(
     )
 }
 
-/// Guide tab — one-sentence stranger loop (Peace keys only; no F-row).
+/// Guide tab — one sentence of the locked peak memory.
+/// Well · tend · the week was the bill · quit · the yard remembered.
+/// One text node (not five stacked lines). Online stays grey. No second HUD.
 pub const PAUSE_GUIDE_LINE: &str =
-    "Walk the yard · E to use · I for satchel · R to allocate.";
+    "I walked to a well, tended it, the week was the bill, I quit, and the yard remembered.";
 
 /// Relative luminance from linear-ish sRGB channels (Bevy 0.14 Color::Srgba).
 pub fn title_luminance(c: Color) -> f32 {
@@ -1701,20 +1705,27 @@ fn spawn_settings_stub(mut commands: Commands) {
                     SettingsPeaceResetBtn,
                 );
             });
-            // Guide tab — one-sentence Peace-key stranger loop.
+            // Guide tab — one peak-memory sentence, wrapped in this plate.
             p.spawn((
                 settings_tab_panel_bundle(false),
                 PauseTabPanel(PauseTab::Guide),
             ))
             .with_children(|guide| {
-                guide.spawn(TextBundle::from_section(
-                    PAUSE_GUIDE_LINE,
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_SECONDARY,
+                guide.spawn(
+                    TextBundle::from_section(
+                        PAUSE_GUIDE_LINE,
+                        TextStyle {
+                            font_size: 14.0,
+                            color: TITLE_TEXT_SECONDARY,
+                            ..default()
+                        },
+                    )
+                    .with_text_justify(JustifyText::Center)
+                    .with_style(Style {
+                        width: Val::Percent(100.0),
                         ..default()
-                    },
-                ));
+                    }),
+                );
             });
             // Settled+book Places door — opens four-room plate; not a Settings row.
             // Hidden until refresh_pause_places_row (hex_travel) after Settled+book.
@@ -5551,23 +5562,34 @@ mod tests {
     }
 
     #[test]
-    fn pause_guide_copy_is_peace_keys_stranger_loop() {
+    fn pause_guide_breathes_peak_memory_one_sentence() {
         let line = PAUSE_GUIDE_LINE;
-        assert!(line.contains("Walk") || line.contains("walk"));
-        assert!(line.contains('E'));
-        assert!(line.contains('I'));
-        assert!(line.contains('R'));
-        assert!(line.to_ascii_lowercase().contains("allocate"));
-        // Peace keys only — no F-row verbs on the Guide card.
-        assert!(!line.to_ascii_lowercase().contains("f1"));
-        assert!(!line.to_ascii_lowercase().contains("f2"));
-        assert!(!line.to_ascii_lowercase().contains("f-row"));
+        let lower = line.to_ascii_lowercase();
+        // Locked peak memory: well · tend · week · the yard remembered.
+        assert!(lower.contains("well"));
+        assert!(lower.contains("tend"));
+        assert!(lower.contains("week"));
+        assert!(lower.contains("yard remembered"));
+        // One readable sentence — not five stacked Guide lines.
+        assert!(!line.contains('\n'));
+        assert_eq!(line.chars().filter(|c| *c == '.').count(), 1);
+        assert!(line.ends_with('.'));
         assert_eq!(
             line,
-            "Walk the yard · E to use · I for satchel · R to allocate."
+            "I walked to a well, tended it, the week was the bill, I quit, and the yard remembered."
         );
+        // No new chrome on this card.
+        assert!(!lower.contains("online"));
+        assert!(!lower.contains("market"));
+        assert!(!lower.contains("socket"));
+        assert!(!lower.contains("ultra"));
+        assert!(!lower.contains("0.0.0.0"));
+        assert!(!lower.contains("f1"));
+        assert!(!lower.contains("f2"));
+        assert!(!lower.contains("f-row"));
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+        assert_eq!(PauseTab::ALL.len(), 3, "Comfort · Controls · Guide preserved");
     }
 
     #[test]
