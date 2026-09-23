@@ -20,6 +20,11 @@
 //! glow stays readable on graphite-warm earth. Other Places keep the shared
 //! scale. Comfort L/M/H. No Ultra. Cite PEAK_MEMORY_LAW: walked to a well ·
 //! tended it · week was the bill · yard remembered. 0 meshes · Online grey.
+//!
+//! CARD FLESH-THRESHOLD-DRESS — pipe-air iron fog lives on the Threshold
+//! climate look. The shelf is still Heartwood plus `threshold_near` (no
+//! PlaceId). This slab keeps the name "Threshold" and the shared well glow
+//! so the tend-seam accent stays readable. No second HUD. No new verbs.
 
 use bevy::prelude::*;
 
@@ -600,6 +605,68 @@ mod tests {
         assert!(well_point_range(sanctuary, glow) > well_point_range(depths, glow));
         assert!((well_point_intensity(heartwood, glow) - (80.0 + 420.0)).abs() < f32::EPSILON);
         assert!((well_point_range(depths, glow) - (3.0 + 4.0)).abs() < f32::EPSILON);
+    }
+
+    /// CARD FLESH-THRESHOLD-DRESS — shelf is Heartwood + near, not a PlaceId.
+    /// Pipe-air fog is the climate look. This slab still names Threshold.
+    /// Shared well glow keeps the tend-seam disk readable. No second HUD.
+    #[test]
+    fn flesh_threshold_dress_shelf_names_threshold_tend_seam_stays_readable() {
+        use crate::climate_plane::{PlaceMood, PLACE_WELL_GLOW_SCALE, weather_bed_for};
+        use shared::local_settings::WeatherFidelity;
+
+        assert_eq!(place_clarity_label(PlaceId::Heartwood, true), "Threshold");
+        assert_eq!(place_clarity_label(PlaceId::Heartwood, false), "Heartwood");
+        assert_eq!(place_clarity_label(PlaceId::Sanctuary, true), "Sanctuary");
+        assert_eq!(place_clarity_label(PlaceId::Depths, true), "Depths");
+        let line = place_clarity_line(
+            "Threshold",
+            well_state_sentence("North Well", NodeState::Glowing, true),
+        );
+        assert_eq!(line, "Threshold · North Well is Glowing · pip");
+        assert!(climate_slab_should_show(false, true, false, false, true));
+        // Heartwood disk shares the greybox lamp. Fog carries the shelf, not a second glow.
+        let heart = crate::climate_plane::well_glow_scale_for_place(PlaceId::Heartwood);
+        assert_eq!(heart, PLACE_WELL_GLOW_SCALE);
+        assert_eq!(
+            heart,
+            crate::climate_plane::well_glow_scale_for_place(PlaceId::Depths)
+        );
+        assert!(crate::climate_plane::well_glow_scale_for_place(PlaceId::Sanctuary) > heart);
+        let glow = NodeState::Glowing.glow_mul();
+        let idle = NodeState::Idle.glow_mul();
+        assert!(glow > idle);
+        assert!(heart * glow > heart * idle);
+        assert!(
+            (well_point_intensity(PlaceId::Heartwood, glow) - (80.0 + 420.0)).abs() < f32::EPSILON
+        );
+        assert!((well_point_range(PlaceId::Heartwood, glow) - (3.0 + 4.0)).abs() < f32::EPSILON);
+        let pipe = weather_bed_for(Some(1), WeatherFidelity::Medium);
+        let horizon = weather_bed_for(Some(4), WeatherFidelity::Medium);
+        assert_eq!(pipe.mood, PlaceMood::ThresholdPipeAir);
+        assert_eq!(horizon.mood, pipe.mood);
+        assert_eq!(horizon.fog, pipe.fog);
+        assert_eq!(horizon.sky, pipe.sky);
+        let yard = weather_bed_for(Some(0), WeatherFidelity::Medium);
+        let wood = weather_bed_for(Some(2), WeatherFidelity::Medium);
+        let wet = weather_bed_for(Some(3), WeatherFidelity::Medium);
+        assert_ne!(pipe.fog, yard.fog);
+        assert_ne!(pipe.fog, wood.fog);
+        assert_ne!(pipe.fog, wet.fog);
+        // Tend disk stays in the clear band. Pipe-air closes before the open yard.
+        assert!(pipe.fog_start >= 10.0);
+        assert!(pipe.fog_end > pipe.fog_start);
+        assert!(pipe.fog_end < yard.fog_end);
+        assert!(pipe.fog_end > wet.fog_end);
+        let mut session = ThresholdShelfSession::default();
+        assert_eq!(threshold_speech_if_near(Some(&session)), None);
+        session.near = true;
+        let speech = threshold_speech_if_near(Some(&session)).expect("Threshold speech");
+        assert!(THRESHOLD_PEACE_VERBS.iter().all(|verb| speech.contains(verb)));
+        assert!(speech.contains("Tend"));
+        let lower = speech.to_ascii_lowercase();
+        assert!(!lower.contains("portal"));
+        assert!(!lower.contains("market"));
     }
 
     #[test]
