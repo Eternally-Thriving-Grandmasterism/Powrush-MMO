@@ -27,6 +27,12 @@
  * L/M/H held (no Ultra). Cite PEAK_MEMORY_LAW: walked to a well · tended
  * it · week was the bill · yard remembered. No new Place. No `.glb`.
  *
+ * CARD FLESH-HEARTWOOD-DRESS — Heartwood fog is living-wood haze.
+ * The amber lamp stays the one accent. Lamp hush bed stays the banked
+ * BED_GAIN_HEARTWOOD (client peace_audio); this file does not retune the
+ * mixer. Comfort L/M/H held (no Ultra). Same peak memory. No new Place.
+ * No `.glb`.
+ *
  * CARD L7 ARRIVAL-BEAT — People-door land applies one FogSettings beat from
  * existing look_for tokens. Human → SanctuarySkyYard / warm-gold well.
  * Ambrosian → brighter / thinner high fog on the same Sanctuary disk
@@ -97,6 +103,17 @@ const HEARTWOOD_AMBER_LAMP: Color = Color::srgb(0.90, 0.52, 0.14);
 /// (one material family — PLACE_DRESS_SPEC).
 const HEARTWOOD_WOOD_ROUGHNESS: f32 = 0.82;
 
+/// CARD FLESH-HEARTWOOD-DRESS — living-wood haze (one family).
+/// Bark-warm canopy and fog so the amber lamp is the hush, not a lawn
+/// second biome. Cite PLACE_DRESS Heartwood live/seal · ART_BIBLE amber
+/// lamp · DRIVE_PLACE_CITE Heartwood amber lamp · PEAK_MEMORY_LAW.
+/// Not Sanctuary graphite yard. Not Depths night.
+const HEARTWOOD_WOOD_SKY: Color = Color::srgb(0.44, 0.32, 0.16);
+const HEARTWOOD_WOOD_FOG: Color = Color::srgba(0.36, 0.25, 0.12, 1.0);
+/// Lamp disk stays clear. Wood haze closes sooner than the open yard.
+const HEARTWOOD_FOG_START: f32 = 10.0;
+const HEARTWOOD_FOG_END: f32 = 36.0;
+
 /// ART_BIBLE HANDS Threshold accent — iron + tend seam (not Sanctuary
 /// warm-gold, not Heartwood amber, not currency gold). Climate owns its
 /// copy so this file stays the only F3 edit path.
@@ -135,18 +152,19 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
     match realm {
         // Verdant Heartwood — live / seal room (PLACE_DRESS_SPEC).
         // One material family: living-wood bark ground + sapwood ring paths;
-        // well node is the single amber-lamp accent (ART_BIBLE). Not Sanctuary
+        // sky and fog are the same bark haze (FLESH-HEARTWOOD-DRESS). Well
+        // node is the single amber-lamp accent (ART_BIBLE). Not Sanctuary
         // warm-gold carpet, not lawn green second biome, not Market chrome.
         Some(2) => ClimateLook {
             name: "Verdant Heartwood",
             ground: Color::srgb(0.20, 0.15, 0.07),
-            sky: Color::srgb(0.36, 0.55, 0.40),
-            fog: Color::srgba(0.28, 0.42, 0.30, 1.0),
+            sky: HEARTWOOD_WOOD_SKY,
+            fog: HEARTWOOD_WOOD_FOG,
             ambient: Color::srgb(0.62, 0.58, 0.42),
             node: HEARTWOOD_AMBER_LAMP,
             stone: Color::srgb(0.30, 0.22, 0.11),
-            fog_start: 10.0,
-            fog_end: 42.0,
+            fog_start: HEARTWOOD_FOG_START,
+            fog_end: HEARTWOOD_FOG_END,
             ambient_bright: 260.0,
             roughness: HEARTWOOD_WOOD_ROUGHNESS,
         },
@@ -1255,6 +1273,84 @@ mod tests {
         assert!(!lower.contains("online"));
         assert!(!lower.contains("gold"));
         assert!(!lower.contains("sanctuary"));
+    }
+
+    /// CARD FLESH-HEARTWOOD-DRESS — living-wood fog, amber lamp still the hush.
+    /// Ground and ring paths stay the walked F2 family. Comfort L/M/H. No Ultra.
+    /// Lamp-hush bed gain stays the banked constant (peace_audio). No mixer rewrite.
+    #[test]
+    fn flesh_heartwood_dress_is_living_wood_fog_with_lamp_hush() {
+        let h = look_for(Some(2));
+        let s = look_for(Some(0));
+        assert_eq!(h.name, "Verdant Heartwood");
+        assert_eq!(srgb3(h.sky), srgb3(HEARTWOOD_WOOD_SKY));
+        assert_eq!(srgb3(h.fog), srgb3(HEARTWOOD_WOOD_FOG));
+        assert!(
+            is_living_wood_earth(h.fog),
+            "Heartwood fog must read living-wood, got {:?}",
+            srgb3(h.fog)
+        );
+        assert!(
+            is_living_wood_earth(h.sky),
+            "Heartwood sky must stay in the living-wood family, got {:?}",
+            srgb3(h.sky)
+        );
+        assert!(is_living_wood_earth(h.ground));
+        assert!(is_living_wood_earth(h.stone));
+        assert!(is_living_wood_earth(h.ambient));
+        assert!(is_amber_lamp(h.node));
+        assert_eq!(srgb3(h.node), srgb3(HEARTWOOD_AMBER_LAMP));
+        assert_eq!(srgb3(h.ground), (0.20, 0.15, 0.07));
+        assert_eq!(srgb3(h.stone), (0.30, 0.22, 0.11));
+        assert_eq!(h.roughness, HEARTWOOD_WOOD_ROUGHNESS);
+        // Lawn green and Sanctuary graphite are other families.
+        assert!(!is_warm_yard_earth(h.fog));
+        assert!(!is_graphite_warm_earth(h.fog));
+        assert!(!is_warm_yard_earth(h.sky));
+        assert!(!is_wet_stone_earth(h.fog));
+        assert!(!is_pipe_edge_iron(h.fog));
+        assert_ne!(srgb3(h.fog), srgb3(s.fog));
+        assert_ne!(srgb3(h.sky), srgb3(s.sky));
+        assert!(!is_warm_gold_well(h.node));
+        let (fr, fg, fb) = srgb3(h.fog);
+        let (nr, ng, nb) = srgb3(h.node);
+        let fog_lum = (fr + fg + fb) / 3.0;
+        let lamp_lum = (nr + ng + nb) / 3.0;
+        assert!(
+            lamp_lum > fog_lum + 0.20,
+            "amber lamp must read above living-wood fog ({lamp_lum} vs {fog_lum})"
+        );
+        // Lamp disk stays clear. Haze closes sooner than the open yard, not Depths night.
+        assert!((h.fog_start - HEARTWOOD_FOG_START).abs() < f32::EPSILON);
+        assert!((h.fog_end - HEARTWOOD_FOG_END).abs() < f32::EPSILON);
+        assert!(h.fog_start >= 10.0);
+        assert!(h.fog_end > 20.0);
+        assert!(h.fog_end < s.fog_end);
+        let bed = weather_bed_for(Some(2), WeatherFidelity::Medium);
+        assert_eq!(bed.mood, PlaceMood::HeartwoodCanopy);
+        assert_eq!(srgb3(bed.fog), srgb3(h.fog));
+        assert_eq!(bed.fog_start, h.fog_start);
+        assert_eq!(bed.fog_end, h.fog_end);
+        assert_eq!(
+            arrival_fog_for_landing(PeopleLanding::Heartwood).color,
+            h.fog
+        );
+        // Banked lamp hush. Fog dress does not retune the mixer.
+        assert!(shared::peace_audio::BED_GAIN_HEARTWOOD > 0.0);
+        assert!(shared::peace_audio::BED_GAIN_HEARTWOOD < shared::peace_audio::BED_GAIN_OPEN);
+        assert!(shared::peace_audio::BED_GAIN_HEARTWOOD < shared::peace_audio::BED_GAIN_DEPTHS);
+        assert_eq!(
+            well_glow_scale_for_place(PlaceId::Heartwood),
+            PLACE_WELL_GLOW_SCALE
+        );
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            assert!(!preset.label().contains("Ultra"));
+            assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
+        }
+        assert!(!is_living_wood_earth(s.fog));
+        assert!(!is_living_wood_earth(look_for(Some(1)).fog));
+        assert!(!is_living_wood_earth(look_for(Some(3)).fog));
     }
 
     #[test]
