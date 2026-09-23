@@ -13,6 +13,10 @@
 //! Living-wood fog dress lives in `climate_plane`. This hook does not retune
 //! the shared mixer and does not add an asset.
 //!
+//! CARD FLESH-DEPTHS-DRESS — quieter bed stays `BED_GAIN_DEPTHS` (banked).
+//! Wet-stone fog dress lives in `climate_plane`. This hook does not retune
+//! the shared mixer and does not add an asset. Do not touch harvest_feel.
+//!
 //! No second mute. No F-row. No listen. No ALSA/cpal open. Contact: info@Rathor.ai
 
 use bevy::audio::{AudioSink, Volume};
@@ -83,6 +87,8 @@ fn sync_voice_from_settings(
     // CARD FLESH-HEARTWOOD-DRESS — Heartwood lamp hush is the banked gain.
     // Climate fog does not write this mixer.
     let current = travel.as_ref().map(|t| t.current);
+    // CARD FLESH-DEPTHS-DRESS — Depths wet-stone hush is the banked gain.
+    // Climate fog does not write this mixer.
     state.voice.set_in_depths(current == Some(PlaceId::Depths));
     state.voice.set_in_heartwood(current == Some(PlaceId::Heartwood));
 }
@@ -358,6 +364,29 @@ mod tests {
         voice.set_in_depths(true);
         assert!((voice.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
         assert_eq!(PlaceId::Heartwood.display_name(), "Heartwood");
+        assert!(title_online_stays_grey());
+        assert!(!peace_audio_opens_socket(&voice));
+        assert!(!voice.opens_socket());
+    }
+
+    /// CARD FLESH-DEPTHS-DRESS — wet-stone hush stays the banked gain on the yard asset.
+    /// Climate fog dress does not retune this mixer. No new asset. Online stays grey.
+    #[test]
+    fn flesh_depths_dress_keeps_banked_wet_stone_hush() {
+        assert!((BED_GAIN_DEPTHS - 0.06).abs() < f32::EPSILON);
+        assert!(BED_GAIN_DEPTHS < BED_GAIN_OPEN);
+        assert!(BED_GAIN_HEARTWOOD < BED_GAIN_DEPTHS);
+        assert!(BED_GAIN_DEPTHS > 0.0);
+        assert_eq!(BED_ASSET, "audio/peace_yard_bed.ogg");
+        let mut voice = PeaceVoice::new(false, true);
+        voice.set_in_yard(true);
+        voice.set_in_depths(true);
+        assert!((voice.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        voice.set_mute(true);
+        assert!((voice.bed_gain() - 0.0).abs() < f32::EPSILON);
+        voice.set_mute(false);
+        assert!((voice.bed_gain() - BED_GAIN_DEPTHS).abs() < f32::EPSILON);
+        assert_eq!(PlaceId::Depths.display_name(), "Depths");
         assert!(title_online_stays_grey());
         assert!(!peace_audio_opens_socket(&voice));
         assert!(!voice.opens_socket());
