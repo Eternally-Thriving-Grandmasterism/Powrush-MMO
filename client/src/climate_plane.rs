@@ -1811,9 +1811,14 @@ mod tests {
             assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
         }
         // F1 / F2 / F3 dress stays intact under F4 fog.
+        // Sanctuary graphite is the earth (ground + stone). Sky and fog stay
+        // the named warm-yard graphite family, brighter than that earth band.
         assert!(is_graphite_warm_earth(s.ground));
-        assert!(is_graphite_warm_earth(s.fog));
-        assert!(is_graphite_warm_earth(s.sky));
+        assert!(is_graphite_warm_earth(s.stone));
+        assert_eq!(srgb3(s.sky), srgb3(SANCTUARY_GRAPHITE_SKY));
+        assert_eq!(srgb3(s.fog), srgb3(SANCTUARY_GRAPHITE_FOG));
+        assert!(is_warm_yard_earth(s.fog));
+        assert!(is_warm_yard_earth(s.sky));
         assert!(is_living_wood_earth(h.ground));
         assert!(is_living_wood_earth(h.fog));
         assert!(is_living_wood_earth(h.sky));
