@@ -39,6 +39,12 @@
  * fifth PlaceId. Comfort L/M/H held (no Ultra). Same peak memory.
  * No `.glb`.
  *
+ * CARD FLESH-DEPTHS-DRESS — Depths fog is wet-stone night haze.
+ * Teal Peace stays the one accent. Quieter bed stays the banked
+ * BED_GAIN_DEPTHS (client peace_audio); this file does not retune the
+ * mixer. Comfort L/M/H held (no Ultra). Same peak memory. No new Place.
+ * No `.glb`.
+ *
  * CARD L7 ARRIVAL-BEAT — People-door land applies one FogSettings beat from
  * existing look_for tokens. Human → SanctuarySkyYard / warm-gold well.
  * Ambrosian → brighter / thinner high fog on the same Sanctuary disk
@@ -150,6 +156,18 @@ const DEPTHS_TEAL_PEACE: Color = Color::srgb(0.22, 0.92, 0.68);
 /// (one material family — PLACE_DRESS_SPEC). Slightly slicker than dry yard.
 const DEPTHS_WET_STONE_ROUGHNESS: f32 = 0.86;
 
+/// CARD FLESH-DEPTHS-DRESS — wet-stone night haze (one family).
+/// Cool teal-dark sky and fog so teal Peace is the one accent, not a
+/// second biome. Cite PLACE_DRESS Depths one way down/home · ART_BIBLE
+/// teal Peace · DRIVE_PLACE_CITE Depths teal Peace · PEAK_MEMORY_LAW.
+/// Not Sanctuary graphite. Not Heartwood living-wood. Not Threshold
+/// pipe-air iron.
+const DEPTHS_WET_SKY: Color = Color::srgb(0.05, 0.10, 0.12);
+const DEPTHS_WET_FOG: Color = Color::srgba(0.04, 0.09, 0.11, 1.0);
+/// Night close fog (living_day Depths night — do not open into yard distances).
+const DEPTHS_FOG_START: f32 = 3.5;
+const DEPTHS_FOG_END: f32 = 16.0;
+
 #[derive(Clone, Copy)]
 struct ClimateLook {
     name: &'static str,
@@ -211,7 +229,8 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             roughness: THRESHOLD_PIPE_ROUGHNESS,
         },
         // Abyssal Depths — one way down / one way home (PLACE_DRESS_SPEC).
-        // One material family: deepen wet-stone ground + path stones; well
+        // One material family: deepen wet-stone ground + path stones; sky and
+        // fog are the same wet-stone night haze (FLESH-DEPTHS-DRESS). Well
         // node is the single teal Peace accent (ART_BIBLE). Night close fog
         // stays (living_day Depths night — do not fight). Not Sanctuary
         // warm-yard, not Heartwood living-wood, not Threshold pipe/edge, not
@@ -219,13 +238,13 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
         Some(3) => ClimateLook {
             name: "Abyssal Depths",
             ground: Color::srgb(0.04, 0.08, 0.09),
-            sky: Color::srgb(0.04, 0.06, 0.09),
-            fog: Color::srgba(0.03, 0.08, 0.09, 1.0),
+            sky: DEPTHS_WET_SKY,
+            fog: DEPTHS_WET_FOG,
             ambient: Color::srgb(0.18, 0.42, 0.38),
             node: DEPTHS_TEAL_PEACE,
             stone: Color::srgb(0.08, 0.15, 0.17),
-            fog_start: 3.5,
-            fog_end: 16.0,
+            fog_start: DEPTHS_FOG_START,
+            fog_end: DEPTHS_FOG_END,
             ambient_bright: 90.0,
             roughness: DEPTHS_WET_STONE_ROUGHNESS,
         },
@@ -1701,6 +1720,109 @@ mod tests {
         assert!(!lower.contains("sanctuary"));
         assert!(!lower.contains("heartwood"));
         assert!(!lower.contains("auction"));
+    }
+
+    /// CARD FLESH-DEPTHS-DRESS — wet-stone night fog, teal Peace still the accent.
+    /// Ground and path stones stay the walked F4 family. Comfort L/M/H. No Ultra.
+    /// Quieter bed stays the banked constant (peace_audio). No mixer rewrite.
+    #[test]
+    fn flesh_depths_dress_is_wet_stone_fog_with_teal_peace() {
+        let d = look_for(Some(3));
+        let s = look_for(Some(0));
+        let h = look_for(Some(2));
+        let t = look_for(Some(1));
+        assert_eq!(d.name, "Abyssal Depths");
+        assert_eq!(srgb3(d.sky), srgb3(DEPTHS_WET_SKY));
+        assert_eq!(srgb3(d.fog), srgb3(DEPTHS_WET_FOG));
+        assert!(
+            is_wet_stone_earth(d.fog),
+            "Depths fog must read wet-stone, got {:?}",
+            srgb3(d.fog)
+        );
+        assert!(
+            is_wet_stone_earth(d.sky),
+            "Depths sky must stay in the wet-stone family, got {:?}",
+            srgb3(d.sky)
+        );
+        assert!(is_wet_stone_earth(d.ground));
+        assert!(is_wet_stone_earth(d.stone));
+        assert!(is_teal_peace(d.node));
+        assert_eq!(srgb3(d.node), srgb3(DEPTHS_TEAL_PEACE));
+        assert_eq!(srgb3(d.ground), (0.04, 0.08, 0.09));
+        assert_eq!(srgb3(d.stone), (0.08, 0.15, 0.17));
+        assert_eq!(srgb3(d.ambient), (0.18, 0.42, 0.38));
+        assert_eq!(d.roughness, DEPTHS_WET_STONE_ROUGHNESS);
+        // Graphite yard, living-wood, and pipe-air iron are other families.
+        assert!(!is_graphite_warm_earth(d.fog));
+        assert!(!is_graphite_warm_earth(d.sky));
+        assert!(!is_warm_yard_earth(d.fog));
+        assert!(!is_warm_yard_earth(d.sky));
+        assert!(!is_living_wood_earth(d.fog));
+        assert!(!is_living_wood_earth(d.sky));
+        assert!(!is_pipe_edge_iron(d.fog));
+        assert!(!is_pipe_edge_iron(d.sky));
+        assert_ne!(srgb3(d.fog), srgb3(s.fog));
+        assert_ne!(srgb3(d.fog), srgb3(h.fog));
+        assert_ne!(srgb3(d.fog), srgb3(t.fog));
+        assert_ne!(srgb3(d.sky), srgb3(s.sky));
+        assert_ne!(srgb3(d.sky), srgb3(h.sky));
+        assert_ne!(srgb3(d.sky), srgb3(t.sky));
+        assert!(!is_warm_gold_well(d.node));
+        assert!(!is_amber_lamp(d.node));
+        assert!(!is_tend_seam(d.node));
+        let (fr, fg, fb) = srgb3(d.fog);
+        let (nr, ng, nb) = srgb3(d.node);
+        let fog_lum = (fr + fg + fb) / 3.0;
+        let teal_lum = (nr + ng + nb) / 3.0;
+        assert!(
+            teal_lum > fog_lum + 0.20,
+            "teal Peace must read above wet-stone fog ({teal_lum} vs {fog_lum})"
+        );
+        // Night close fog stays named. Closer than the open yards — do not fight living_day.
+        assert!((d.fog_start - DEPTHS_FOG_START).abs() < f32::EPSILON);
+        assert!((d.fog_end - DEPTHS_FOG_END).abs() < f32::EPSILON);
+        assert!(d.fog_end <= 20.0);
+        assert!(d.fog_end < s.fog_end);
+        assert!(d.fog_end < h.fog_end);
+        assert!(d.fog_end < t.fog_end);
+        assert!(d.fog_start < s.fog_start);
+        assert!(d.fog_start < h.fog_start);
+        assert!(d.fog_start < t.fog_start);
+        let bed = weather_bed_for(Some(3), WeatherFidelity::Medium);
+        assert_eq!(bed.mood, PlaceMood::DepthsWetStone);
+        assert_eq!(srgb3(bed.fog), srgb3(d.fog));
+        assert_eq!(srgb3(bed.sky), srgb3(d.sky));
+        assert_eq!(bed.fog_start, d.fog_start);
+        assert_eq!(bed.fog_end, d.fog_end);
+        assert_eq!(
+            arrival_fog_for_landing(PeopleLanding::DepthsTealWayHome).color,
+            d.fog
+        );
+        // Banked quieter bed. Fog dress does not retune the mixer.
+        assert!(shared::peace_audio::BED_GAIN_DEPTHS > 0.0);
+        assert!(shared::peace_audio::BED_GAIN_DEPTHS < shared::peace_audio::BED_GAIN_OPEN);
+        assert_eq!(
+            well_glow_scale_for_place(PlaceId::Depths),
+            PLACE_WELL_GLOW_SCALE
+        );
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            assert!(!preset.label().contains("Ultra"));
+            assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
+        }
+        // F1 / F2 / F3 dress stays intact under F4 fog.
+        assert!(is_graphite_warm_earth(s.ground));
+        assert!(is_graphite_warm_earth(s.fog));
+        assert!(is_graphite_warm_earth(s.sky));
+        assert!(is_living_wood_earth(h.ground));
+        assert!(is_living_wood_earth(h.fog));
+        assert!(is_living_wood_earth(h.sky));
+        assert!(is_pipe_edge_iron(t.ground));
+        assert!(is_pipe_edge_iron(t.fog));
+        assert!(is_pipe_edge_iron(t.sky));
+        assert!(!is_wet_stone_earth(s.fog));
+        assert!(!is_wet_stone_earth(h.fog));
+        assert!(!is_wet_stone_earth(t.fog));
     }
 
     #[test]
