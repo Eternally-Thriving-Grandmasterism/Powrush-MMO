@@ -15,6 +15,11 @@
 //! clause follows PlaceId (Sanctuary / Heartwood / Depths). Garden boot
 //! (no land) stays on title `garden_boot_want_line` / GARDEN_WANT.
 //! Copy already on tip. 0 meshes · 0 new verbs · Online grey.
+//!
+//! CARD FLESH-SANCTUARY-DRESS — Sanctuary well emissive lifts so the warm-gold
+//! glow stays readable on graphite-warm earth. Other Places keep the shared
+//! scale. Comfort L/M/H. No Ultra. Cite PEAK_MEMORY_LAW: walked to a well ·
+//! tended it · week was the bill · yard remembered. 0 meshes · Online grey.
 
 use bevy::prelude::*;
 
@@ -140,6 +145,7 @@ fn focus_lived_hour_on_nearby(
 
 fn paint_nodes_from_hour(
     bind: Res<LivedHourBind>,
+    travel: Option<Res<HexTravelState>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     nodes: Query<(
         &MercyHarvestNode,
@@ -148,21 +154,42 @@ fn paint_nodes_from_hour(
     )>,
     mut lights: Query<&mut PointLight>,
 ) {
+    // Boot yard is Sanctuary when travel has not landed yet.
+    let place = travel.map(|t| t.current).unwrap_or(PlaceId::Sanctuary);
+    let scale = crate::climate_plane::well_glow_scale_for_place(place);
     for (node, handle, children) in &nodes {
         let state = well_state_in_hour(&bind.hour.nodes, node.climate_id);
         let mul = state.glow_mul();
         if let Some(mat) = materials.get_mut(handle) {
-            mat.emissive = LinearRgba::from(mat.base_color) * (2.4 * mul);
+            mat.emissive = LinearRgba::from(mat.base_color) * (scale * mul);
         }
         if let Some(children) = children {
             for child in children.iter() {
                 if let Ok(mut light) = lights.get_mut(*child) {
-                    light.intensity = 80.0 + 420.0 * mul;
-                    light.range = 3.0 + 4.0 * mul;
+                    light.intensity = well_point_intensity(place, mul);
+                    light.range = well_point_range(place, mul);
                 }
             }
         }
     }
+}
+
+/// Point-light strength for a well. Sanctuary reads on graphite-warm earth;
+/// Heartwood and Depths keep the shared greybox lamp.
+fn well_point_intensity(place: PlaceId, mul: f32) -> f32 {
+    let (base, span) = match place {
+        PlaceId::Sanctuary => (120.0, 540.0),
+        PlaceId::Heartwood | PlaceId::Depths => (80.0, 420.0),
+    };
+    base + span * mul
+}
+
+fn well_point_range(place: PlaceId, mul: f32) -> f32 {
+    let (base, span) = match place {
+        PlaceId::Sanctuary => (3.6, 4.4),
+        PlaceId::Heartwood | PlaceId::Depths => (3.0, 4.0),
+    };
+    base + span * mul
 }
 
 fn tick_week_feel_glow(bind: Res<LivedHourBind>, time: Res<Time>, mut glow: ResMut<WeekFeelGlow>) {
@@ -547,6 +574,32 @@ mod tests {
         assert!(NodeState::Tended.glow_mul() > NodeState::Resting.glow_mul());
         assert!(NodeState::Resting.glow_mul() > NodeState::Stressed.glow_mul());
         assert!(NodeState::Stressed.glow_mul() > 0.0);
+    }
+
+    /// CARD FLESH-SANCTUARY-DRESS — Sanctuary well glow reads above the shared scale.
+    /// State order holds: Glowing > Tended > Idle > Stressed. No new Place.
+    #[test]
+    fn flesh_sanctuary_well_glow_reads_above_shared_places() {
+        let glow = NodeState::Glowing.glow_mul();
+        let tended = NodeState::Tended.glow_mul();
+        let idle = NodeState::Idle.glow_mul();
+        let stressed = NodeState::Stressed.glow_mul();
+        let sanctuary = PlaceId::Sanctuary;
+        let heartwood = PlaceId::Heartwood;
+        let depths = PlaceId::Depths;
+        let s_scale = crate::climate_plane::well_glow_scale_for_place(sanctuary);
+        let shared = crate::climate_plane::well_glow_scale_for_place(heartwood);
+        assert!(s_scale > shared);
+        assert_eq!(shared, crate::climate_plane::well_glow_scale_for_place(depths));
+        assert!(s_scale * glow > s_scale * tended);
+        assert!(s_scale * tended > s_scale * idle);
+        assert!(s_scale * idle > s_scale * stressed);
+        assert!(well_point_intensity(sanctuary, glow) > well_point_intensity(heartwood, glow));
+        assert!(well_point_intensity(sanctuary, glow) > well_point_intensity(sanctuary, idle));
+        assert!(well_point_intensity(sanctuary, idle) > well_point_intensity(sanctuary, stressed));
+        assert!(well_point_range(sanctuary, glow) > well_point_range(depths, glow));
+        assert!((well_point_intensity(heartwood, glow) - (80.0 + 420.0)).abs() < f32::EPSILON);
+        assert!((well_point_range(depths, glow) - (3.0 + 4.0)).abs() < f32::EPSILON);
     }
 
     #[test]

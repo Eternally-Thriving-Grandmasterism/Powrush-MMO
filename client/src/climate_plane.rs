@@ -22,6 +22,11 @@
  * Cite [`docs/PLACE_DRESS_SPEC.md`] · [`docs/MESH_PERSONA_COURT.md`]
  * · [`docs/ART_BIBLE.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
  *
+ * CARD FLESH-SANCTUARY-DRESS — Sanctuary yard earth is graphite-warm.
+ * The warm-gold well stays the one readable glow on that earth. Comfort
+ * L/M/H held (no Ultra). Cite PEAK_MEMORY_LAW: walked to a well · tended
+ * it · week was the bill · yard remembered. No new Place. No `.glb`.
+ *
  * CARD L7 ARRIVAL-BEAT — People-door land applies one FogSettings beat from
  * existing look_for tokens. Human → SanctuarySkyYard / warm-gold well.
  * Ambrosian → brighter / thinner high fog on the same Sanctuary disk
@@ -62,6 +67,22 @@ const NODE_ANCHORS: [Vec3; 3] = [
 /// Rhymes with `human_presence::SANCTUARY_GOLD`; climate owns its copy so
 /// this file stays the only F1 edit path.
 const SANCTUARY_WELL_GOLD: Color = Color::srgb(0.86, 0.66, 0.29);
+
+/// CARD FLESH-SANCTUARY-DRESS — graphite-warm yard earth (one family).
+/// Warm grey-gold pulled toward graphite so the well stays the one glow.
+/// Cite PLACE_DRESS Sanctuary yard · ART_BIBLE Human warm grey-gold ·
+/// DRIVE_PLACE_CITE warm gold well. Not Draek graphite-crimson.
+const SANCTUARY_GRAPHITE_EARTH: Color = Color::srgb(0.20, 0.19, 0.17);
+const SANCTUARY_GRAPHITE_STONE: Color = Color::srgb(0.27, 0.26, 0.24);
+const SANCTUARY_GRAPHITE_SKY: Color = Color::srgb(0.58, 0.56, 0.52);
+const SANCTUARY_GRAPHITE_FOG: Color = Color::srgba(0.44, 0.42, 0.39, 1.0);
+const SANCTUARY_GRAPHITE_AMBIENT: Color = Color::srgb(0.70, 0.67, 0.62);
+
+/// Readable warm-gold well on graphite earth. Other Places keep the shared
+/// greybox paint scale. Comfort L/M/H do not retint this. No Ultra.
+pub const SANCTUARY_WELL_GLOW_SCALE: f32 = 3.2;
+/// Shared well paint scale (Heartwood / Depths). Sanctuary lifts above this.
+pub const PLACE_WELL_GLOW_SCALE: f32 = 2.4;
 
 /// Shared greybox roughness for Sanctuary yard ground + path stones
 /// (one material family — PLACE_DRESS_SPEC).
@@ -170,21 +191,22 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             ambient_bright: 90.0,
             roughness: DEPTHS_WET_STONE_ROUGHNESS,
         },
-        // Sanctuary Prime — warm yard / teaching Peace (PLACE_DRESS_SPEC).
-        // One material family: warm grey-gold earth ground + path stones;
-        // well node is the single warm-gold accent. Not Heartwood green,
-        // not Brood Spire, not Market chrome.
+        // Sanctuary Prime — graphite-warm yard / teaching Peace
+        // (PLACE_DRESS_SPEC · FLESH-SANCTUARY-DRESS). One material family:
+        // graphite-warm earth ground + path stones; well node is the single
+        // warm-gold accent, kept readable against that earth. Not Heartwood
+        // green, not Brood Spire, not Market chrome. Not Draek crimson.
         _ => ClimateLook {
             name: "Sanctuary Prime",
-            ground: Color::srgb(0.22, 0.20, 0.16),
-            sky: Color::srgb(0.72, 0.68, 0.58),
-            fog: Color::srgba(0.62, 0.58, 0.48, 1.0),
-            ambient: Color::srgb(0.82, 0.76, 0.62),
+            ground: SANCTUARY_GRAPHITE_EARTH,
+            sky: SANCTUARY_GRAPHITE_SKY,
+            fog: SANCTUARY_GRAPHITE_FOG,
+            ambient: SANCTUARY_GRAPHITE_AMBIENT,
             node: SANCTUARY_WELL_GOLD,
-            stone: Color::srgb(0.30, 0.27, 0.22),
-            fog_start: 10.0,
-            fog_end: 42.0,
-            ambient_bright: 280.0,
+            stone: SANCTUARY_GRAPHITE_STONE,
+            fog_start: 12.0,
+            fog_end: 40.0,
+            ambient_bright: 250.0,
             roughness: SANCTUARY_YARD_ROUGHNESS,
         },
     }
@@ -354,7 +376,8 @@ pub fn place_dress_still_readable(scale: f32) -> bool {
     let d = look_for(Some(3));
     scale > 0.5
         && scale <= 1.15 + f32::EPSILON
-        && is_warm_yard_earth(s.ground)
+        && is_graphite_warm_earth(s.ground)
+        && is_graphite_warm_earth(s.stone)
         && is_warm_gold_well(s.node)
         && is_living_wood_earth(h.ground)
         && is_pipe_edge_iron(t.ground)
@@ -723,6 +746,13 @@ fn apply_climate_look(
     plane.applied = Some(id);
     plane.mood = place_mood_for(Some(id));
     let look = look_for(Some(id));
+    // Sanctuary well glow lifts on graphite earth. Other realms keep 2.2;
+    // lived paint in climate_visible owns the per-tick scale after this.
+    let node_glow = if look.name == "Sanctuary Prime" {
+        SANCTUARY_WELL_GLOW_SCALE
+    } else {
+        2.2
+    };
     clear.0 = look.sky;
     ambient.color = look.ambient;
     ambient.brightness = look.ambient_bright;
@@ -744,7 +774,7 @@ fn apply_climate_look(
     for handle in &nodes {
         if let Some(mat) = materials.get_mut(handle) {
             mat.base_color = look.node;
-            mat.emissive = LinearRgba::from(look.node).with_alpha(1.0) * 2.2;
+            mat.emissive = LinearRgba::from(look.node).with_alpha(1.0) * node_glow;
         }
     }
     for mut fog in &mut fogs {
@@ -878,6 +908,23 @@ fn climate_dress_copy_is_honest(s: &str) -> bool {
 fn srgb3(c: Color) -> (f32, f32, f32) {
     let s = c.to_srgba();
     (s.red, s.green, s.blue)
+}
+
+/// Graphite-warm earth: warm grey-gold with tight chroma (FLESH-SANCTUARY-DRESS).
+/// Inside [`is_warm_yard_earth`], greyer than tan dirt, still warm (R≈G > B).
+fn is_graphite_warm_earth(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    is_warm_yard_earth(c) && (r - g) <= 0.025 && (r - b) <= 0.05 && (0.16..=0.32).contains(&r)
+}
+
+/// Emissive paint scale for a lived Place well. Sanctuary lifts so the
+/// warm-gold accent stays readable on graphite-warm earth (ART_BIBLE: one glow).
+/// Heartwood and Depths keep the shared scale. Comfort L/M/H do not retint.
+pub fn well_glow_scale_for_place(place: PlaceId) -> f32 {
+    match place {
+        PlaceId::Sanctuary => SANCTUARY_WELL_GLOW_SCALE,
+        PlaceId::Heartwood | PlaceId::Depths => PLACE_WELL_GLOW_SCALE,
+    }
 }
 
 /// Warm-yard earth: desaturated warm grey-gold (R≈G > B), not bark and not lawn.
@@ -1038,6 +1085,59 @@ mod tests {
         assert_ne!(srgb3(s.ground), srgb3(h.ground));
         assert_ne!(srgb3(s.node), srgb3(h.node));
         assert!(!is_amber_lamp(s.node));
+    }
+
+    /// CARD FLESH-SANCTUARY-DRESS — graphite-warm earth, readable warm-gold well.
+    /// Comfort stays Low / Medium / High. No Ultra. Other Places keep their dress.
+    #[test]
+    fn flesh_sanctuary_dress_is_graphite_warm_with_readable_well() {
+        let s = look_for(Some(0));
+        assert!(is_graphite_warm_earth(s.ground), "{:?}", srgb3(s.ground));
+        assert!(is_graphite_warm_earth(s.stone), "{:?}", srgb3(s.stone));
+        assert_eq!(srgb3(s.ground), srgb3(SANCTUARY_GRAPHITE_EARTH));
+        assert_eq!(srgb3(s.stone), srgb3(SANCTUARY_GRAPHITE_STONE));
+        assert_eq!(srgb3(s.sky), srgb3(SANCTUARY_GRAPHITE_SKY));
+        assert_eq!(srgb3(s.fog), srgb3(SANCTUARY_GRAPHITE_FOG));
+        assert_eq!(srgb3(s.ambient), srgb3(SANCTUARY_GRAPHITE_AMBIENT));
+        // Weather stays in the yard family so fog is not a second biome.
+        assert!(is_warm_yard_earth(s.fog));
+        assert!(is_warm_yard_earth(s.sky));
+        assert!(is_warm_yard_earth(s.ambient));
+        assert!(is_warm_gold_well(s.node));
+        let (gr, gg, gb) = srgb3(s.ground);
+        let (nr, ng, nb) = srgb3(s.node);
+        let earth = (gr + gg + gb) / 3.0;
+        let well = (nr + ng + nb) / 3.0;
+        assert!(
+            well > earth + 0.35,
+            "warm-gold well must read above graphite earth ({well} vs {earth})"
+        );
+        assert!(SANCTUARY_WELL_GLOW_SCALE > PLACE_WELL_GLOW_SCALE);
+        assert_eq!(
+            well_glow_scale_for_place(PlaceId::Sanctuary),
+            SANCTUARY_WELL_GLOW_SCALE
+        );
+        assert_eq!(
+            well_glow_scale_for_place(PlaceId::Heartwood),
+            PLACE_WELL_GLOW_SCALE
+        );
+        assert_eq!(
+            well_glow_scale_for_place(PlaceId::Depths),
+            PLACE_WELL_GLOW_SCALE
+        );
+        // Wells sit inside the clear band; horizon stays a yard, not Depths night.
+        assert!(s.fog_start >= 12.0);
+        assert!(s.fog_end > s.fog_start);
+        assert!(s.fog_end > 20.0);
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            assert!(!preset.label().contains("Ultra"));
+            assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
+        }
+        assert!(!is_graphite_warm_earth(look_for(Some(2)).ground));
+        assert!(!is_graphite_warm_earth(look_for(Some(1)).ground));
+        assert!(!is_graphite_warm_earth(look_for(Some(3)).ground));
+        assert!(!is_graphite_warm_earth(look_for(Some(4)).ground));
     }
 
     #[test]
