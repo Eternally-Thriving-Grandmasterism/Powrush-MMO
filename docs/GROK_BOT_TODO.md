@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `e3a6b48` (`e3a6b483d23d4d6b08185ca8a168580436ab52bf`) — CARD Q1b STRANGER-HOUR-LIB (#486) on `main`. Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump.
+Tip `999796d` (`999796de82c47f34638efedc2f0aeb8c9b7b686f`) — #495 HOUR-TWO-MEMORY-NOTE spent; stamp court closed. Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -62,22 +62,15 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **RESERVE-CUE Hands** — Landed H-2026-09-14 #436 / `20321cd8`. **AMBER lifted.** After E tend, R then 2 banks `allocation.reserve` + `climate.reserve_pool` and confirms a held count (never reserved 0.0 / −0.0 harmony). Digit2 yields to allocate while the panel is open. **PATHS:** `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Do not rebuild. Title Online grey. Cite [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen).
 - **HOUR1-GREEN** — Proven H-2026-09-15 @ tip `3b197ed7` (#437). Core gate green: `shared` 375 + `rsil-identity` 5 + `powrush-client --lib` 341, 0 failed. E tend, R+2 non-zero reserve confirm, lived persist resume. Hour 2 Hands **STOP** — pack/TODO named no PATHS; no failing Hour-1 test. Do not rebuild #432 / #435 / #436. No mesh. No Steam. Title Online grey.
 - **Q1b STRANGER-HOUR-LIB** — Landed H-2026-09-22 #486 / `e3a6b48`. Spent on tip. Do not rebuild. Cite autonomy court Q1; Title Online grey.
+- **#482–#495 pack** — Landed H-2026-09-22–23 #482–#495 / tip `999796d`. Q0–Q4, L2, Steam pack, trailer grammar, press hook, peak notes. Stamp court closed. Do not rebuild. Cite [`NEXT_NAMED_CARDS.md`](NEXT_NAMED_CARDS.md) · [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md). Title Online grey.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
-BRIEF-SYNC “B3” is stale; B3 remains landed #376.
-
-**Standing runner (CARD Q3):** After this stamp merges, the inner loop may continue to the next named CARD below when that CARD already names exact PATHS — no new steward interview. If PATHS are unnamed, HOLD that card; do not invent PATHS. Two agents, one file → second reviews (does not STOP the first unless HOLD-deny).
-
-1. **MESH-PERSONA Hands mesh** — court bank landed. Hands mesh still Core CARD + exact PATHS. Do not invent PATHS. Cite [`MESH_PERSONA_COURT.md`](MESH_PERSONA_COURT.md) · [`ASSET_BUDGET_COURT.md`](ASSET_BUDGET_COURT.md) @ `5eff19c` (do not reopen). Buildings / race-looks remain refs only. **HOLD** until Core names mesh files.
-2. **Hour-two / Steam** — Core/human gate (stamp #426 spent). Minutes / OS / GPU / Time stay blank for the human. Bot does not fill Report. Bot does not create a Steam partner account.
-
-**Hour 2 reachability** — machine verbs already locked in `--lib` (BRIEF-P1). Felt Report stays human. Do not rebuild U0–U8 / #432 / #435 / #436. Continue only when Core names next card with exact PATHS.
-
-**Reserve-cue** — **AMBER lifted.** Hands landed H-2026-09-14 #436 / `20321cd8`. **PATHS** (cite; do not rebuild): `shared/climate_node.rs` · `client/src/rbe_allocate_choice.rs` · `client/src/lived_hour_bind.rs` · `client/src/lived_sim_bridge.rs` · `client/src/world_answer.rs` · `client/src/mercy_harvest_nodes.rs`. Preview / Phase B AMBER remains historical (#425). Not a Hands freestyle.
-**UI-MODERNIZE** court law: later UI cites DEMO-BANK KEEP only (Places plate · readable names · week-bill · hub without fake crowd · craft-as-scene later). UI Drive dark until Core Viewer share. Hands UI dark until Core CARD + exact PATHS. No Hands UI freestyle. No invent PATHS. MESH-PERSONA court bank landed (Hands mesh still Core CARD + exact PATHS).
+1. **STANDING HEARTBEAT** (core gate PATHS already exist) — Hands may run anytime: `cargo test -p shared -p rsil-identity` and `cargo test -p powrush-client --lib`. Both green + 0 open PRs → chat only `HEARTBEAT GREEN @ <short SHA> · Hands DARK`. No PR. No interview. Either red → one Grok 4.7 High PR that RESTORES existing tests only; no new verbs; no mesh; no Online; then HOLD for Dual GREEN squash.
+2. **MESH-PERSONA HOLD** (no mesh files named) — do not invent mesh PATHS.
+3. **Steam partner / App ID / Title Online** = steward only.
 
 Grok Hands cook only. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
