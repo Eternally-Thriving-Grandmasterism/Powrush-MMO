@@ -38,6 +38,10 @@
  * (Sanctuary yard helper) and disarms the beat. No L7 fog / camera WRITE.
  * No fifth Place · no Title race lobby.
  *
+ * CARD OPT-REDUCED-MOTION-PULSE — camera punch and the hand-accent kick
+ * follow `camera_punch_scale`. Reduced motion (Comfort Low sets the flag)
+ * holds that punch at rest. No new verb. No second HUD.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -329,6 +333,29 @@ pub fn glow_proximity(distance: f32) -> f32 {
 pub fn accent_glow(attend: f32, near_glow: f32, kick: f32) -> f32 {
     let reach = ease(attend) * (0.45 + 0.55 * near_glow.clamp(0.0, 1.0));
     (0.25 + 0.85 * reach + kick.clamp(0.0, 1.0) * 0.35).clamp(0.25, 1.6)
+}
+
+/// CARD OPT-REDUCED-MOTION-PULSE — harvest kick times `camera_punch_scale`.
+/// Reduced motion (and Comfort Low) pass scale 0, so the punch is rest.
+pub fn scaled_presence_punch(kick: f32, punch_scale: f32) -> f32 {
+    let kick = if kick.is_finite() { kick.max(0.0) } else { 0.0 };
+    let scale = if punch_scale.is_finite() {
+        punch_scale.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    kick * scale
+}
+
+/// Camera nudge from a harvest punch. Y lifts, Z pulls in. Scale 0 is static.
+pub fn presence_punch_camera_delta(kick: f32, punch_scale: f32) -> Vec3 {
+    let punch = scaled_presence_punch(kick, punch_scale);
+    Vec3::new(0.0, punch * 0.22, -punch * 0.35)
+}
+
+/// Look-at lift that rides the same punch. Scale 0 stays on the rest aim.
+pub fn presence_punch_look_lift(kick: f32, punch_scale: f32) -> f32 {
+    scaled_presence_punch(kick, punch_scale) * 0.08
 }
 
 /// Yaw that points the rig front (+Z) at a target on the walk plane.
@@ -815,6 +842,7 @@ fn pose_person(
     presence: Res<SoftPresence>,
     body: Option<Res<LivingBody>>,
     pool: Option<Res<SoftRbePool>>,
+    feedback: Res<LocalFeedbackFeel>,
     attend: Res<PersonAttend>,
     mut rhythm: ResMut<PersonRhythm>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -826,7 +854,10 @@ fn pose_person(
     let tell = body.as_ref().map(|b| b.tell()).unwrap_or_default();
     let breath_rise = body.as_ref().map(|b| b.breath_rise()).unwrap_or(0.012);
     let breath_rate = body.as_ref().map(|b| b.breath_rate()).unwrap_or(0.95);
-    let kick = pool.map(|p| p.kick).unwrap_or(0.0);
+    let kick = scaled_presence_punch(
+        pool.map(|p| p.kick).unwrap_or(0.0),
+        feedback.camera_punch_scale,
+    );
 
     rhythm.stride = (rhythm.stride + dt * speed * 2.2) % (PI * 2.0);
     rhythm.breath = (rhythm.breath + dt * breath_rate * PI * 2.0) % (PI * 2.0);
@@ -870,19 +901,21 @@ fn follow_camera(
     feedback: Res<LocalFeedbackFeel>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
 ) {
-    let punch = pool.map(|p| p.kick).unwrap_or(0.0) * feedback.camera_punch_scale;
+    let kick = pool.map(|p| p.kick).unwrap_or(0.0);
+    let punch_delta = presence_punch_camera_delta(kick, feedback.camera_punch_scale);
+    let look_lift = presence_punch_look_lift(kick, feedback.camera_punch_scale);
     // CARD L7 — Ambrosian lift: ease UP and look-down on the existing yard/well.
     // Same Camera3d / SoftPresence. No hull mesh. Human / other lands keep yard follow.
     let look_down = presence_reads_ambrosian_lift(presence.position);
     let desired = if look_down {
         presence.position + Vec3::new(0.0, CAM_UP + 1.1, CAM_BACK - 1.4)
     } else {
-        presence.position + Vec3::new(0.0, CAM_UP + punch * 0.22, CAM_BACK - punch * 0.35)
+        presence.position + Vec3::new(0.0, CAM_UP, CAM_BACK) + punch_delta
     };
     let look = if look_down {
         Vec3::new(presence.position.x, 0.45, presence.position.z)
     } else {
-        presence.position + Vec3::Y * (0.45 + punch * 0.08)
+        presence.position + Vec3::Y * (0.45 + look_lift)
     };
     for mut cam in &mut cams {
         cam.translation = cam.translation.lerp(desired, 0.12);
@@ -1095,6 +1128,60 @@ mod tests {
         assert!(using <= 1.6, "accent blew past one accent: {using}");
         assert_eq!(glow_proximity(HARVEST_REACH), 1.0);
         assert_eq!(glow_proximity(HARVEST_REACH * 2.4), 0.0);
+    }
+
+    /// CARD OPT-REDUCED-MOTION-PULSE — reduced motion and Comfort Low hold
+    /// the harvest punch at rest. Full motion still takes the first-take kick.
+    #[test]
+    fn reduced_motion_caps_presence_punch() {
+        use shared::local_settings::LocalSettings;
+
+        let full_delta = presence_punch_camera_delta(1.0, 1.0);
+        let full_lift = presence_punch_look_lift(1.0, 1.0);
+        assert!((full_delta.y - 0.22).abs() < 1e-5);
+        assert!((full_delta.z - (-0.35)).abs() < 1e-5);
+        assert!((full_lift - 0.08).abs() < 1e-5);
+        assert!((scaled_presence_punch(0.42, 1.0) - 0.42).abs() < 1e-5);
+
+        let rest_delta = presence_punch_camera_delta(1.0, 0.0);
+        assert_eq!(rest_delta, Vec3::ZERO);
+        assert_eq!(presence_punch_look_lift(1.0, 0.0), 0.0);
+        assert_eq!(scaled_presence_punch(1.0, 0.0), 0.0);
+
+        let accent_full = accent_glow(1.0, 1.0, scaled_presence_punch(1.0, 1.0));
+        let accent_rest = accent_glow(1.0, 1.0, scaled_presence_punch(1.0, 0.0));
+        assert!(accent_full > accent_rest);
+        assert_eq!(accent_rest, accent_glow(1.0, 1.0, 0.0));
+
+        let mut low = LocalSettings::peace_defaults();
+        low.set_graphics_preset(GraphicsPreset::Low);
+        assert!(low.reduced_motion, "Comfort Low is reduced motion");
+        assert_eq!(low.camera_punch_scale(), 0.0);
+        assert_eq!(
+            presence_punch_camera_delta(1.0, low.camera_punch_scale()),
+            Vec3::ZERO
+        );
+        assert_eq!(
+            accent_glow(1.0, 1.0, scaled_presence_punch(1.0, low.camera_punch_scale())),
+            accent_rest
+        );
+
+        let mut toggled = LocalSettings::peace_defaults();
+        toggled.toggle_reduced_motion();
+        assert!(toggled.reduced_motion);
+        assert_eq!(
+            presence_punch_camera_delta(1.0, toggled.camera_punch_scale()),
+            Vec3::ZERO
+        );
+
+        let mut mid = LocalSettings::peace_defaults();
+        mid.set_graphics_preset(GraphicsPreset::Medium);
+        assert!(!mid.reduced_motion);
+        assert_eq!(mid.camera_punch_scale(), 1.0);
+        assert_eq!(
+            presence_punch_camera_delta(1.0, mid.camera_punch_scale()),
+            full_delta
+        );
     }
 
     #[test]
