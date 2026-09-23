@@ -1208,11 +1208,28 @@ mod tests {
         assert!(!line.contains(SANCTUARY_WANT));
     }
 
+    /// Whole slab token. Hyphenated dress stays one word: `pip` is not `pipe` or `pipe-air`.
+    fn slab_has_whole_token(line: &str, token: &str) -> bool {
+        line.split(|c: char| c.is_whitespace() || c == '·')
+            .any(|part| part == token)
+    }
+
     /// CARD FLESH-WELL-SPEECH — existing well words stay; Place dress phrases them.
     /// Threshold is still Heartwood + near. No new state verb. No second HUD.
     /// Peak memory is not a new caption on this slab.
     #[test]
     fn flesh_well_speech_place_colors_existing_captions() {
+        assert!(!slab_has_whole_token("pipe", "pip"));
+        assert!(!slab_has_whole_token("pipe-air", "pip"));
+        assert!(slab_has_whole_token("pip", "pip"));
+        assert!(slab_has_whole_token(
+            "Glowing · pip · tend-seam · pipe-air",
+            "pip"
+        ));
+        assert!(!slab_has_whole_token(
+            "Glowing · tend-seam · pipe-air",
+            "pip"
+        ));
         let states = [
             (NodeState::Idle, "Idle", "ring"),
             (NodeState::Glowing, "Glowing", "pip"),
@@ -1235,11 +1252,16 @@ mod tests {
                 let colored = place_color_well_caption(state, true, label);
                 assert_eq!(colored, format!("{bare} · {dress}"));
                 assert!(colored.starts_with(word));
-                assert!(colored.contains(token));
+                assert!(
+                    slab_has_whole_token(&colored, token),
+                    "{colored} must carry {token} as its own word"
+                );
                 let plain = place_color_well_caption(state, false, label);
                 assert_eq!(plain, format!("{word} · {dress}"));
-                // Shape token is its own clause. "pip" is not "pipe-air".
-                assert!(!plain.split(" · ").any(|part| part == token));
+                assert!(
+                    !slab_has_whole_token(&plain, token),
+                    "{plain} must not count dress letters as {token}"
+                );
                 let sentence = well_state_sentence_in_place("North Well", state, true, label);
                 assert_eq!(sentence, format!("North Well is {colored}"));
                 let line = place_clarity_line(label, sentence);
