@@ -25,6 +25,13 @@
 //! climate look. The shelf is still Heartwood plus `threshold_near` (no
 //! PlaceId). This slab keeps the name "Threshold" and the shared well glow
 //! so the tend-seam accent stays readable. No second HUD. No new verbs.
+//!
+//! CARD FLESH-WELL-SPEECH — the same well words (Idle / Glowing / Tended /
+//! Resting / Stressed) take the Place dress already named on these looks.
+//! Sanctuary warm-gold yard · Heartwood lamp hush · Threshold tend-seam /
+//! pipe-air (still Heartwood + near) · Depths teal Peace / wet-stone quiet.
+//! One slab. No new state verb. Peak memory stays the walked line; this
+//! caption does not grow a second slogan. 0 meshes · Online grey.
 
 use bevy::prelude::*;
 
@@ -339,7 +346,7 @@ fn update_climate_state_slab(
             nearest.map(|n| {
                 let state = well_state_in_hour(&bind.hour.nodes, n.climate_id);
                 if guidance_hidden {
-                    return well_state_sentence(n.name, state, shapes);
+                    return well_state_sentence_in_place(n.name, state, shapes, place);
                 }
                 let hint = claim
                     .as_ref()
@@ -348,7 +355,7 @@ fn update_climate_state_slab(
                 let mut line = format!(
                     "{} · {} · {}",
                     n.name,
-                    well_state_caption(state, shapes),
+                    place_color_well_caption(state, shapes, place),
                     hint
                 );
                 if let Some(slab) = bind.climate_slab.as_deref() {
@@ -361,10 +368,11 @@ fn update_climate_state_slab(
     // H-2026-09-10-2: the nearest well's mood rides the slab even out of arm's reach,
     // so the room never reads as a bare teaching hint. Reach only buys the hand hint.
     let mood = nearest.map(|n| {
-        well_state_sentence(
+        well_state_sentence_in_place(
             n.name,
             well_state_in_hour(&bind.hour.nodes, n.climate_id),
             shapes,
+            place,
         )
     });
     let fallback = climate_slab_fallback(
@@ -522,6 +530,39 @@ fn well_state_sentence(name: &str, state: NodeState, shapes: bool) -> String {
     format!("{name} is {}", well_state_caption(state, shapes))
 }
 
+/// CARD FLESH-WELL-SPEECH — dress already named on the FLESH climate looks.
+/// Phrases the existing well words. Not a new state. Not a second slab row.
+/// Threshold stays the Heartwood shelf label (`place_clarity_label`), not a PlaceId.
+fn well_place_dress(place_label: &str) -> &'static str {
+    match place_label {
+        "Heartwood" => "lamp hush",
+        "Threshold" => "tend-seam · pipe-air",
+        "Depths" => "teal Peace · wet-stone quiet",
+        // Sanctuary, including the boot yard before a named land.
+        _ => "warm-gold yard",
+    }
+}
+
+fn place_color_well_caption(state: NodeState, shapes: bool, place_label: &str) -> String {
+    format!(
+        "{} · {}",
+        well_state_caption(state, shapes),
+        well_place_dress(place_label)
+    )
+}
+
+fn well_state_sentence_in_place(
+    name: &str,
+    state: NodeState,
+    shapes: bool,
+    place_label: &str,
+) -> String {
+    format!(
+        "{} · {}",
+        well_state_sentence(name, state, shapes),
+        well_place_dress(place_label)
+    )
+}
 
 fn depths_restore_line(depths: Option<&DepthsPeaceTend>) -> Option<String> {
     depths
@@ -621,9 +662,15 @@ mod tests {
         assert_eq!(place_clarity_label(PlaceId::Depths, true), "Depths");
         let line = place_clarity_line(
             "Threshold",
-            well_state_sentence("North Well", NodeState::Glowing, true),
+            well_state_sentence_in_place("North Well", NodeState::Glowing, true, "Threshold"),
         );
-        assert_eq!(line, "Threshold · North Well is Glowing · pip");
+        assert_eq!(
+            line,
+            "Threshold · North Well is Glowing · pip · tend-seam · pipe-air"
+        );
+        assert!(line.contains("Glowing"));
+        assert!(line.contains("tend-seam"));
+        assert!(line.contains("pipe-air"));
         assert!(climate_slab_should_show(false, true, false, false, true));
         // Heartwood disk shares the greybox lamp. Fog carries the shelf, not a second glow.
         let heart = crate::climate_plane::well_glow_scale_for_place(PlaceId::Heartwood);
@@ -738,10 +785,14 @@ mod tests {
     fn place_clarity_prefixes_well_mood_when_h_hid() {
         let line = place_clarity_line(
             "Sanctuary",
-            well_state_sentence("North Well", NodeState::Idle, true),
+            well_state_sentence_in_place("North Well", NodeState::Idle, true, "Sanctuary"),
         );
-        assert_eq!(line, "Sanctuary · North Well is Idle · ring");
+        assert_eq!(
+            line,
+            "Sanctuary · North Well is Idle · ring · warm-gold yard"
+        );
         assert!(line.contains("Idle"));
+        assert!(line.contains("warm-gold yard"));
         let heart = place_clarity_label(PlaceId::Heartwood, false);
         assert_eq!(heart, "Heartwood");
         assert_eq!(place_clarity_label(PlaceId::Heartwood, true), "Threshold");
@@ -756,6 +807,19 @@ mod tests {
             well_state_sentence("Sanctuary ember", NodeState::Glowing, true),
         );
         assert_eq!(line, "Sanctuary · Sanctuary ember is Glowing · pip");
+        // Place dress does not let the well name swallow the room.
+        assert_eq!(
+            place_clarity_line(
+                "Sanctuary",
+                well_state_sentence_in_place(
+                    "Sanctuary ember",
+                    NodeState::Glowing,
+                    true,
+                    "Sanctuary",
+                ),
+            ),
+            "Sanctuary · Sanctuary ember is Glowing · pip · warm-gold yard"
+        );
         // A real leading place clause still de-duplicates.
         assert_eq!(
             place_clarity_line("Sanctuary", "Sanctuary · the yard holds peace".into()),
@@ -772,7 +836,12 @@ mod tests {
     fn out_of_reach_still_reads_place_and_mood() {
         // H-2026-09-10-2: was blank of mood until the body stood on the well.
         let hour = LivedHour::new_demo();
-        let mood = well_state_sentence("North Well", well_state_in_hour(&hour.nodes, 3), true);
+        let mood = well_state_sentence_in_place(
+            "North Well",
+            well_state_in_hour(&hour.nodes, 3),
+            true,
+            "Sanctuary",
+        );
         let body = compose_climate_slab_line(
             None,
             None,
@@ -788,7 +857,7 @@ mod tests {
         let line = place_clarity_line("Sanctuary", body);
         assert_eq!(
             line,
-            "Sanctuary · North Well is Idle · ring · the yard holds peace"
+            "Sanctuary · North Well is Idle · ring · warm-gold yard · the yard holds peace"
         );
         assert!(
             !line.contains("walk to a glow"),
@@ -798,7 +867,7 @@ mod tests {
 
     #[test]
     fn hidden_guidance_leaves_place_and_mood_alone_on_the_slab() {
-        let mood = well_state_sentence("North Well", NodeState::Idle, true);
+        let mood = well_state_sentence_in_place("North Well", NodeState::Idle, true, "Sanctuary");
         let body = compose_climate_slab_line(
             None,
             None,
@@ -813,7 +882,7 @@ mod tests {
         );
         assert_eq!(
             place_clarity_line("Sanctuary", body),
-            "Sanctuary · North Well is Idle · ring"
+            "Sanctuary · North Well is Idle · ring · warm-gold yard"
         );
     }
 
@@ -830,7 +899,7 @@ mod tests {
                     NodeState::Stressed,
                 ] {
                     let fallback = climate_slab_fallback(
-                        Some(well_state_sentence("North Well", state, true)),
+                        Some(well_state_sentence_in_place("North Well", state, true, label)),
                         None,
                         "",
                         true,
@@ -841,6 +910,10 @@ mod tests {
                     assert!(
                         line.contains(well_state_token(state)),
                         "{line} must carry the mood token"
+                    );
+                    assert!(
+                        line.contains(well_place_dress(label)),
+                        "{line} must speak the place dress"
                     );
                 }
             }
@@ -1062,7 +1135,7 @@ mod tests {
     /// CARD L1 SANCTUARY-WANT — H hush drops People+Want; Place · mood stay.
     #[test]
     fn h_hush_drops_people_want_keeps_place_mood() {
-        let mood = well_state_sentence("North Well", NodeState::Idle, true);
+        let mood = well_state_sentence_in_place("North Well", NodeState::Idle, true, "Sanctuary");
         let spoken = speak_first_minutes_people_want(
             "Sanctuary",
             PlaceId::Sanctuary,
@@ -1080,9 +1153,13 @@ mod tests {
         assert!(spoken.contains(SANCTUARY_WANT));
         assert!(!hushed.contains(SANCTUARY_WANT));
         assert!(!hushed.contains("the yard needs tending or the well goes quiet"));
-        assert_eq!(hushed, "Sanctuary · North Well is Idle · ring");
+        assert_eq!(
+            hushed,
+            "Sanctuary · North Well is Idle · ring · warm-gold yard"
+        );
         assert!(hushed.contains("Sanctuary"));
         assert!(hushed.contains("Idle"));
+        assert!(hushed.contains("warm-gold yard"));
     }
 
     /// Comfort Low is mesh LOD — this Want is slab text, readable at every preset.
@@ -1129,6 +1206,86 @@ mod tests {
         assert!(line.contains("restored"));
         assert!(!line.contains("Take"));
         assert!(!line.contains(SANCTUARY_WANT));
+    }
+
+    /// CARD FLESH-WELL-SPEECH — existing well words stay; Place dress phrases them.
+    /// Threshold is still Heartwood + near. No new state verb. No second HUD.
+    /// Peak memory is not a new caption on this slab.
+    #[test]
+    fn flesh_well_speech_place_colors_existing_captions() {
+        let states = [
+            (NodeState::Idle, "Idle", "ring"),
+            (NodeState::Glowing, "Glowing", "pip"),
+            (NodeState::Tended, "Tended", "notch"),
+            (NodeState::Resting, "Resting", "rest-bar"),
+            (NodeState::Stressed, "Stressed", "crack"),
+        ];
+        let places = [
+            (PlaceId::Sanctuary, false, "Sanctuary", "warm-gold yard"),
+            (PlaceId::Heartwood, false, "Heartwood", "lamp hush"),
+            (PlaceId::Heartwood, true, "Threshold", "tend-seam · pipe-air"),
+            (PlaceId::Depths, false, "Depths", "teal Peace · wet-stone quiet"),
+        ];
+        for (place_id, near, label, dress) in places {
+            assert_eq!(place_clarity_label(place_id, near), label);
+            assert_eq!(well_place_dress(label), dress);
+            for (state, word, token) in states {
+                let bare = well_state_caption(state, true);
+                assert_eq!(bare, format!("{word} · {token}"));
+                let colored = place_color_well_caption(state, true, label);
+                assert_eq!(colored, format!("{bare} · {dress}"));
+                assert!(colored.starts_with(word));
+                assert!(colored.contains(token));
+                let plain = place_color_well_caption(state, false, label);
+                assert_eq!(plain, format!("{word} · {dress}"));
+                assert!(!plain.contains(token));
+                let sentence = well_state_sentence_in_place("North Well", state, true, label);
+                assert_eq!(sentence, format!("North Well is {colored}"));
+                let line = place_clarity_line(label, sentence);
+                assert!(line.starts_with(label));
+                assert!(line.contains(word));
+                assert!(line.contains(dress));
+                assert!(!line.contains("week was the bill"));
+                let lower = line.to_ascii_lowercase();
+                assert!(!lower.contains("online"));
+                assert!(!lower.contains("portal"));
+                assert!(!lower.contains("market"));
+                // In-range slab still one line: name · colored words · existing hint.
+                let in_range = format!(
+                    "North Well · {} · {}",
+                    place_color_well_caption(state, true, label),
+                    state.hand_hint()
+                );
+                assert!(in_range.contains(word));
+                assert!(in_range.contains(dress));
+                assert!(!in_range.contains('\n'));
+            }
+        }
+        assert_ne!(
+            well_place_dress(place_clarity_label(PlaceId::Heartwood, true)),
+            well_place_dress(place_clarity_label(PlaceId::Heartwood, false))
+        );
+        assert_eq!(
+            place_clarity_line(
+                "Sanctuary",
+                well_state_sentence_in_place("North Well", NodeState::Idle, true, "Sanctuary"),
+            ),
+            "Sanctuary · North Well is Idle · ring · warm-gold yard"
+        );
+        assert_eq!(
+            place_clarity_line(
+                "Heartwood",
+                well_state_sentence_in_place("North Well", NodeState::Tended, false, "Heartwood"),
+            ),
+            "Heartwood · North Well is Tended · lamp hush"
+        );
+        assert_eq!(
+            place_clarity_line(
+                "Depths",
+                well_state_sentence_in_place("North Well", NodeState::Resting, true, "Depths"),
+            ),
+            "Depths · North Well is Resting · rest-bar · teal Peace · wet-stone quiet"
+        );
     }
 
 }
