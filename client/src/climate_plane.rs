@@ -45,6 +45,13 @@
  * mixer. Comfort L/M/H held (no Ultra). Same peak memory. No new Place.
  * No `.glb`.
  *
+ * CARD OPT-COMFORT-LOW — Comfort Low weather cap after FLESH dress.
+ * Place fog / sky tokens stay. Low opens the close FLESH ramps (gentler
+ * fog), slows breath (reduced motion), and caps amplitude so phones /
+ * weak GPU do not carry the High breath cost. Medium and High keep the
+ * dressed distances. No Ultra. Cite ASSET_BUDGET_COURT @ `5eff19c` ·
+ * MESH_QUALITY_BUDGET.
+ *
  * CARD L7 ARRIVAL-BEAT — People-door land applies one FogSettings beat from
  * existing look_for tokens. Human → SanctuarySkyYard / warm-gold well.
  * Ambrosian → brighter / thinner high fog on the same Sanctuary disk
@@ -508,22 +515,62 @@ fn mood_breath_profile(mood: PlaceMood) -> (f32, f32) {
     }
 }
 
+/// Comfort Low clear-distance floor (meters). FLESH dress starts close:
+/// Sanctuary 12, Heartwood 10, Threshold 11, Depths 3.5. Low never inherits
+/// that near ramp — phones / weak GPU stay readable (ASSET_BUDGET_COURT).
+const LOW_FOG_START_FLOOR: f32 = 16.0;
+/// Comfort Low full-fog horizon floor. Open yard dress ends at 40; Depths
+/// night ends at 16. Low stays past both.
+const LOW_FOG_END_FLOOR: f32 = 48.0;
+/// Reduced-motion breath rate cap (Hz). Slowest dressed mood is Depths 0.07.
+/// MESH_QUALITY_BUDGET Low = reduced motion.
+const LOW_BREATH_HZ_CAP: f32 = 0.05;
+/// Soft-breath amplitude cap. Quietest Medium mood is Threshold 0.032.
+/// Depths dressed amp is 0.070; 0.55 intensity still leaves a richer pulse
+/// than that quiet yard. Low must not carry that cost.
+const LOW_BREATH_AMP_CAP: f32 = 0.018;
+
+/// Low-only fog / breath cap. Medium and High return the dressed bed unchanged.
+fn comfort_low_weather(
+    fidelity: WeatherFidelity,
+    fog_start: f32,
+    fog_end: f32,
+    hz: f32,
+    amp0: f32,
+    intensity: f32,
+) -> (f32, f32, f32, f32) {
+    match fidelity {
+        WeatherFidelity::Low => {
+            let start = fog_start.max(LOW_FOG_START_FLOOR);
+            let end = fog_end.max(LOW_FOG_END_FLOOR).max(start + 8.0);
+            let breath_hz = hz.min(LOW_BREATH_HZ_CAP);
+            let breath_amp = (amp0 * intensity).min(LOW_BREATH_AMP_CAP);
+            (start, end, breath_hz, breath_amp)
+        }
+        WeatherFidelity::Medium | WeatherFidelity::High => {
+            (fog_start, fog_end, hz, amp0 * intensity)
+        }
+    }
+}
+
 /// Build a procedural weather bed for a realm + Comfort weather fidelity.
 pub fn weather_bed_for(realm: Option<u8>, fidelity: WeatherFidelity) -> WeatherBed {
     let look = look_for(realm);
     let mood = place_mood_for(realm);
     let (hz, amp0) = mood_breath_profile(mood);
     let intensity = fidelity.intensity();
+    let (fog_start, fog_end, breath_hz, breath_amp) =
+        comfort_low_weather(fidelity, look.fog_start, look.fog_end, hz, amp0, intensity);
     WeatherBed {
         mood,
         fog: look.fog,
         sky: look.sky,
         ambient: look.ambient,
-        fog_start: look.fog_start,
-        fog_end: look.fog_end,
+        fog_start,
+        fog_end,
         ambient_bright: look.ambient_bright,
-        breath_hz: hz,
-        breath_amp: amp0 * intensity,
+        breath_hz,
+        breath_amp,
         tint_strength: intensity,
     }
 }
@@ -899,6 +946,8 @@ fn lod_stone_tf(x: f32, y: f32, z: f32, scale: f32) -> Transform {
 
 /// Soft fog / ambient breath from Place weather bed + FlowWeather band coupling.
 /// Uses existing FogSettings / AmbientLight only — no second HUD, no sockets.
+/// Comfort Low beds are already capped in [`weather_bed_for`] (gentler fog,
+/// slower breath). Medium and High keep the dressed ramp.
 fn breathe_weather_bed(
     realm: Res<SoftPlayerRealm>,
     settings: Option<Res<LocalSettingsState>>,
@@ -1931,6 +1980,84 @@ mod tests {
             GraphicsPreset::High.weather_fidelity(),
             WeatherFidelity::High
         );
+    }
+
+    /// Same-Place Low bed is strictly gentler: later fog, farther horizon,
+    /// slower breath, smaller amplitude. Dress color token still matches.
+    fn low_bed_gentler_than_medium(low: &WeatherBed, mid: &WeatherBed) -> bool {
+        low.mood == mid.mood
+            && srgb3(low.fog) == srgb3(mid.fog)
+            && srgb3(low.sky) == srgb3(mid.sky)
+            && low.fog_start > mid.fog_start
+            && low.fog_end > mid.fog_end
+            && low.fog_end > low.fog_start
+            && low.breath_hz < mid.breath_hz
+            && low.breath_amp < mid.breath_amp
+            && low.tint_strength < mid.tint_strength
+            && low.tint_strength > 0.0
+    }
+
+    /// Medium and High keep the FLESH dress distances and fog token.
+    /// High breath stays richer than Medium. No fourth preset.
+    fn medium_high_hold_dressed_fog(realm: Option<u8>) -> bool {
+        let look = look_for(realm);
+        let mid = weather_bed_for(realm, WeatherFidelity::Medium);
+        let high = weather_bed_for(realm, WeatherFidelity::High);
+        mid.fog_start == look.fog_start
+            && mid.fog_end == look.fog_end
+            && high.fog_start == look.fog_start
+            && high.fog_end == look.fog_end
+            && mid.breath_hz == high.breath_hz
+            && mid.breath_amp < high.breath_amp
+            && mid.tint_strength < high.tint_strength
+            && srgb3(mid.fog) == srgb3(look.fog)
+            && srgb3(high.fog) == srgb3(look.fog)
+            && srgb3(high.sky) == srgb3(look.sky)
+    }
+
+    /// CARD OPT-COMFORT-LOW — GraphicsPreset::Low / WeatherFidelity::Low
+    /// fog and breath stay strictly gentler than Medium on dressed beds.
+    /// Depths is the closest FLESH night fog; Sanctuary is the open yard.
+    /// Medium / High identity holds. No Ultra.
+    #[test]
+    fn comfort_low_fog_breath_caps_gentler_than_medium_dress() {
+        let low = weather_bed_for(Some(3), GraphicsPreset::Low.weather_fidelity());
+        let mid = weather_bed_for(Some(3), WeatherFidelity::Medium);
+        let high = weather_bed_for(Some(3), WeatherFidelity::High);
+        assert_eq!(GraphicsPreset::Low.weather_fidelity(), WeatherFidelity::Low);
+        assert!(WeatherFidelity::Low.gentler());
+        assert!(low_bed_gentler_than_medium(&low, &mid));
+        assert!(low.breath_amp < high.breath_amp);
+        assert!(low.breath_hz < high.breath_hz);
+        assert!(low.fog_start > high.fog_start);
+        assert!(low.fog_end > high.fog_end);
+        assert!(is_wet_stone_earth(low.fog));
+        assert!(is_teal_peace(look_for(Some(3)).node));
+        // Dressed night stays close on Medium. Low opens past that ramp.
+        assert!(mid.fog_end <= 20.0);
+        assert!(low.fog_end > 20.0);
+        assert!(low.fog_start >= LOW_FOG_START_FLOOR);
+        assert!(low.fog_end >= LOW_FOG_END_FLOOR);
+        assert!(low.breath_hz <= LOW_BREATH_HZ_CAP);
+        assert!(low.breath_amp <= LOW_BREATH_AMP_CAP);
+        assert!(medium_high_hold_dressed_fog(Some(3)));
+
+        let yard_low = weather_bed_for(Some(0), GraphicsPreset::Low.weather_fidelity());
+        let yard_mid = weather_bed_for(Some(0), WeatherFidelity::Medium);
+        assert!(low_bed_gentler_than_medium(&yard_low, &yard_mid));
+        assert!(is_warm_yard_earth(yard_low.fog));
+        assert!(is_warm_gold_well(look_for(Some(0)).node));
+        assert!(medium_high_hold_dressed_fog(Some(0)));
+        assert!(medium_high_hold_dressed_fog(Some(2)));
+        assert!(medium_high_hold_dressed_fog(Some(1)));
+
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(WeatherFidelity::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            assert!(!preset.label().contains("Ultra"));
+            assert!(!preset.weather_fidelity().feel_label().contains("Ultra"));
+        }
+        assert!(!WeatherFidelity::Low.feel_label().contains("Ultra"));
     }
 
     #[test]
