@@ -33,6 +33,12 @@
  * mixer. Comfort L/M/H held (no Ultra). Same peak memory. No new Place.
  * No `.glb`.
  *
+ * CARD FLESH-THRESHOLD-DRESS — Threshold fog is pipe-air iron.
+ * The tend seam stays the one accent. Ground and edge stones stay the
+ * walked pipe tokens. Shelf stays on Heartwood via threshold_near; no
+ * fifth PlaceId. Comfort L/M/H held (no Ultra). Same peak memory.
+ * No `.glb`.
+ *
  * CARD L7 ARRIVAL-BEAT — People-door land applies one FogSettings beat from
  * existing look_for tokens. Human → SanctuarySkyYard / warm-gold well.
  * Ambrosian → brighter / thinner high fog on the same Sanctuary disk
@@ -123,6 +129,18 @@ const THRESHOLD_TEND_SEAM: Color = Color::srgb(0.68, 0.36, 0.22);
 /// (one material family — PLACE_DRESS_SPEC).
 const THRESHOLD_PIPE_ROUGHNESS: f32 = 0.70;
 
+/// CARD FLESH-THRESHOLD-DRESS — pipe-air iron haze (one family).
+/// Steel sky and fog keep ground's cool iron bias (R≈G, B only a touch
+/// above) so the tend seam is the door accent, not a generic blue sky.
+/// Cite PLACE_DRESS Threshold look/tend/door · ART_BIBLE iron + tend seam
+/// · DRIVE_PLACE_CITE · PEAK_MEMORY_LAW. Not Sanctuary graphite yard.
+/// Not Heartwood living-wood. Not Depths wet-stone night.
+const THRESHOLD_PIPE_SKY: Color = Color::srgb(0.24, 0.24, 0.28);
+const THRESHOLD_PIPE_FOG: Color = Color::srgba(0.16, 0.16, 0.19, 1.0);
+/// Tend disk stays clear. Pipe-air closes sooner than the open yard.
+const THRESHOLD_FOG_START: f32 = 11.0;
+const THRESHOLD_FOG_END: f32 = 34.0;
+
 /// ART_BIBLE HANDS Depths accent — teal Peace (not Sanctuary warm-gold, not
 /// Heartwood amber, not Threshold tend-seam, not currency gold). Climate owns
 /// its copy so this file stays the only F4 edit path.
@@ -170,9 +188,11 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
         },
         // Threshold (Crystal Spires / Voidfarer Horizon) — look / tend / door
         // (PLACE_DRESS_SPEC). One material family: cool pipe/edge iron ground +
-        // edge path stones; well node is the single tend-seam accent (ART_BIBLE
-        // iron + tend seam). Not Sanctuary warm-yard, not Heartwood living-wood,
-        // not instance-portal chrome, not Market / fifth Place.
+        // edge path stones; sky and fog are the same pipe-air iron
+        // (FLESH-THRESHOLD-DRESS). Well node is the single tend-seam accent
+        // (ART_BIBLE iron + tend seam). Not Sanctuary warm-yard, not Heartwood
+        // living-wood, not Depths wet-stone, not instance-portal chrome,
+        // not Market / fifth Place.
         Some(4) | Some(1) => ClimateLook {
             name: if realm == Some(1) {
                 "Crystal Spires"
@@ -180,13 +200,13 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
                 "Voidfarer Horizon"
             },
             ground: Color::srgb(0.12, 0.12, 0.15),
-            sky: Color::srgb(0.16, 0.18, 0.24),
-            fog: Color::srgba(0.12, 0.14, 0.20, 1.0),
+            sky: THRESHOLD_PIPE_SKY,
+            fog: THRESHOLD_PIPE_FOG,
             ambient: Color::srgb(0.45, 0.48, 0.58),
             node: THRESHOLD_TEND_SEAM,
             stone: Color::srgb(0.20, 0.20, 0.25),
-            fog_start: 12.0,
-            fog_end: 40.0,
+            fog_start: THRESHOLD_FOG_START,
+            fog_end: THRESHOLD_FOG_END,
             ambient_bright: 200.0,
             roughness: THRESHOLD_PIPE_ROUGHNESS,
         },
@@ -1450,6 +1470,130 @@ mod tests {
         assert!(!vlower.contains("portal"));
         assert!(!vlower.contains("instance"));
         assert!(!vlower.contains("market"));
+    }
+
+    /// CARD FLESH-THRESHOLD-DRESS — pipe-air iron fog, tend seam still the accent.
+    /// Ground and edge stones stay the walked F3 family. Comfort L/M/H. No Ultra.
+    /// Shelf arrival stays Heartwood fog (Quellorian culture). No fifth PlaceId.
+    #[test]
+    fn flesh_threshold_dress_is_pipe_air_iron_fog_with_tend_seam() {
+        let t = look_for(Some(1));
+        let v = look_for(Some(4));
+        let s = look_for(Some(0));
+        let h = look_for(Some(2));
+        let d = look_for(Some(3));
+        assert_eq!(t.name, "Crystal Spires");
+        assert_eq!(v.name, "Voidfarer Horizon");
+        assert_eq!(srgb3(t.sky), srgb3(THRESHOLD_PIPE_SKY));
+        assert_eq!(srgb3(t.fog), srgb3(THRESHOLD_PIPE_FOG));
+        assert_eq!(srgb3(v.sky), srgb3(t.sky));
+        assert_eq!(srgb3(v.fog), srgb3(t.fog));
+        assert_eq!(v.fog_start, t.fog_start);
+        assert_eq!(v.fog_end, t.fog_end);
+        assert!(
+            is_pipe_edge_iron(t.fog),
+            "Threshold fog must read pipe-air iron, got {:?}",
+            srgb3(t.fog)
+        );
+        assert!(
+            is_pipe_edge_iron(t.sky),
+            "Threshold sky must stay in the pipe-air iron family, got {:?}",
+            srgb3(t.sky)
+        );
+        assert!(is_pipe_edge_iron(t.ground));
+        assert!(is_pipe_edge_iron(t.stone));
+        assert!(is_tend_seam(t.node));
+        assert_eq!(srgb3(t.node), srgb3(THRESHOLD_TEND_SEAM));
+        assert_eq!(srgb3(v.node), srgb3(t.node));
+        // Walked F3 tokens. Sky/fog join them; ground and stone do not move.
+        assert_eq!(srgb3(t.ground), (0.12, 0.12, 0.15));
+        assert_eq!(srgb3(t.stone), (0.20, 0.20, 0.25));
+        assert_eq!(srgb3(v.ground), srgb3(t.ground));
+        assert_eq!(srgb3(v.stone), srgb3(t.stone));
+        assert_eq!(t.roughness, THRESHOLD_PIPE_ROUGHNESS);
+        assert_eq!(v.roughness, t.roughness);
+        assert_eq!(srgb3(t.ambient), (0.45, 0.48, 0.58));
+        // Iron bias: R≈G, blue only a touch above — not a generic cool-blue sky.
+        for (label, color) in [
+            ("ground", t.ground),
+            ("fog", t.fog),
+            ("sky", t.sky),
+            ("stone", t.stone),
+        ] {
+            let (r, g, b) = srgb3(color);
+            assert!(
+                (r - g).abs() <= 0.01,
+                "{label} left the iron R≈G family: {r} {g} {b}"
+            );
+            assert!(
+                b + f32::EPSILON >= g && (b - r) <= 0.06,
+                "{label} blue cast left the iron family: {r} {g} {b}"
+            );
+        }
+        assert!(!is_graphite_warm_earth(t.fog));
+        assert!(!is_graphite_warm_earth(t.sky));
+        assert!(!is_warm_yard_earth(t.fog));
+        assert!(!is_warm_yard_earth(t.sky));
+        assert!(!is_living_wood_earth(t.fog));
+        assert!(!is_living_wood_earth(t.sky));
+        assert!(!is_wet_stone_earth(t.fog));
+        assert!(!is_wet_stone_earth(t.sky));
+        assert!(!is_pipe_edge_iron(s.fog));
+        assert!(!is_pipe_edge_iron(h.fog));
+        assert!(!is_pipe_edge_iron(d.fog));
+        assert_ne!(srgb3(t.fog), srgb3(s.fog));
+        assert_ne!(srgb3(t.fog), srgb3(h.fog));
+        assert_ne!(srgb3(t.fog), srgb3(d.fog));
+        assert_ne!(srgb3(t.sky), srgb3(s.sky));
+        assert_ne!(srgb3(t.sky), srgb3(h.sky));
+        assert_ne!(srgb3(t.sky), srgb3(d.sky));
+        assert!(!is_warm_gold_well(t.node));
+        assert!(!is_amber_lamp(t.node));
+        assert!(!is_teal_peace(t.node));
+        let (fr, fg, fb) = srgb3(t.fog);
+        let (nr, ng, nb) = srgb3(t.node);
+        let fog_lum = (fr + fg + fb) / 3.0;
+        let seam_lum = (nr + ng + nb) / 3.0;
+        assert!(
+            seam_lum > fog_lum + 0.20,
+            "tend seam must read above pipe-air fog ({seam_lum} vs {fog_lum})"
+        );
+        // Tend disk stays clear. Pipe-air closes sooner than the open yard, not Depths night.
+        assert!((t.fog_start - THRESHOLD_FOG_START).abs() < f32::EPSILON);
+        assert!((t.fog_end - THRESHOLD_FOG_END).abs() < f32::EPSILON);
+        assert!(t.fog_start >= 10.0);
+        assert!(t.fog_end > 20.0);
+        assert!(t.fog_end < s.fog_end);
+        assert!(t.fog_end > d.fog_end);
+        let bed = weather_bed_for(Some(1), WeatherFidelity::Medium);
+        assert_eq!(bed.mood, PlaceMood::ThresholdPipeAir);
+        assert_eq!(srgb3(bed.fog), srgb3(t.fog));
+        assert_eq!(srgb3(bed.sky), srgb3(t.sky));
+        assert_eq!(bed.fog_start, t.fog_start);
+        assert_eq!(bed.fog_end, t.fog_end);
+        let horizon = weather_bed_for(Some(4), WeatherFidelity::Medium);
+        assert_eq!(horizon.mood, PlaceMood::ThresholdPipeAir);
+        assert_eq!(srgb3(horizon.fog), srgb3(t.fog));
+        // Quellorian shelf still rides Heartwood fog. Realm 1/4 is the pipe look.
+        assert_eq!(
+            arrival_fog_for_landing(PeopleLanding::Threshold).color,
+            h.fog
+        );
+        assert_ne!(
+            srgb3(arrival_fog_for_landing(PeopleLanding::Threshold).color),
+            srgb3(t.fog)
+        );
+        assert_eq!(dress_realm_for_place(PlaceId::Heartwood), Some(2));
+        assert_eq!(shared::hex_travel::LOCAL_HEXES.len(), 3);
+        assert_eq!(
+            well_glow_scale_for_place(PlaceId::Heartwood),
+            PLACE_WELL_GLOW_SCALE
+        );
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            assert!(!preset.label().contains("Ultra"));
+            assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
+        }
     }
 
     #[test]
