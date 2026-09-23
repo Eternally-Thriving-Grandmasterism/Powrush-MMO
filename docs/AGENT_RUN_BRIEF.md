@@ -7,7 +7,7 @@
 
 Cursor / PATSAGi inner-loop agents start here. **Fetch `origin/main` at the start of every seat**, then use that tip SHA. Fill every section. Then implement **one slice**. Do not interview for a new brief when [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) Next already names exact PATHS. Do not clone or edit Ra-Thor. Do not start a lattice seat from this repo. **Grok Hands cook only** — cite [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md); no Codex/GPT/Claude/Auto/Composer/Grok Fast. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3.
 
-**Tip (fetch first):** `e3a6b483d23d4d6b08185ca8a168580436ab52bf` (short `e3a6b48`) — CARD Q1b STRANGER-HOUR-LIB on `main` (#486). Always `git fetch origin main` before branching.
+**Tip (fetch first):** `022de354193eaf3dc626405a311672a6d56a3baa` (short `022de35`) — CARD TODO-SYNC on `main` (#496). Always `git fetch origin main` before branching.
 
 **Spent on tip** (do not rebuild):
 
