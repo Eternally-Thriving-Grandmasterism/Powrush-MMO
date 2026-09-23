@@ -1238,7 +1238,8 @@ mod tests {
                 assert!(colored.contains(token));
                 let plain = place_color_well_caption(state, false, label);
                 assert_eq!(plain, format!("{word} · {dress}"));
-                assert!(!plain.contains(token));
+                // Shape token is its own clause. "pip" is not "pipe-air".
+                assert!(!plain.split(" · ").any(|part| part == token));
                 let sentence = well_state_sentence_in_place("North Well", state, true, label);
                 assert_eq!(sentence, format!("North Well is {colored}"));
                 let line = place_clarity_line(label, sentence);
