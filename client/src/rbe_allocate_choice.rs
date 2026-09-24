@@ -10,6 +10,13 @@
  *
  * Controls: **R** toggles panel when eligible · **1** Flow · **2** Reserve · Esc / R closes
  *
+ * CARD FLESH-ALLOCATE-LINE — Flow / Reserve invite may name the Place already
+ * on LivedHourBind climate hex (`PlaceId::parse` / `display_name`).
+ * Flow stays field restore. Reserve stays repair-rights hold.
+ * `local-hex` is Sanctuary dirt. Unknown hex keeps this copy.
+ * Threshold-near is shelf reach, not a wake Place. No new PlaceId.
+ * Peak memory locked (cite only): walked · tended · week was the bill · yard remembered.
+ *
  * PATSAGi + TOLC 8 | AG-SML v1.0 | Contact: info@Rathor.ai
  * Thunder locked in. Yoi ⚡
  */
@@ -18,6 +25,7 @@ use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 
 use shared::climate_node::AllocKind;
+use shared::hex_travel::PlaceId;
 
 use crate::first_session_guidance::{credit_share, FirstSessionGuidance};
 use crate::harvest_feel::rumble_mercy_harvest;
@@ -50,6 +58,53 @@ impl AllocatePath {
             }
         }
     }
+}
+
+/// Climate hex on [`LivedHourBind`] → Place display name.
+/// `PlaceId::parse` maps `local-hex` to Sanctuary dirt. Unknown hex, including
+/// Threshold-near shelf reach, is not a wake Place.
+pub fn allocate_place_name(hex_id: &str) -> Option<&'static str> {
+    PlaceId::parse(hex_id).map(PlaceId::display_name)
+}
+
+fn dress_allocate_copy(base: &str, place: Option<&str>) -> String {
+    match place.map(str::trim).filter(|name| !name.is_empty()) {
+        Some(place) => format!("{place} · {base}"),
+        None => base.to_string(),
+    }
+}
+
+/// Invite the panel opens with. Known Place prefixes the existing credit line.
+pub fn allocate_invite_at_place(place: Option<&str>) -> String {
+    dress_allocate_copy("Allocate credit · Flow or Reserve", place)
+}
+
+/// Flow stays field restore. Reserve stays a repair-rights hold.
+/// Known Place dresses the pair. Unknown keeps the existing sentence.
+pub fn allocate_flow_reserve_at_place(place: Option<&str>) -> String {
+    dress_allocate_copy("Flow restores field · Reserve holds repair-rights", place)
+}
+
+/// One path line, dressed when the climate hex names a Place.
+pub fn allocate_path_line_at_place(path: AllocatePath, place: Option<&str>) -> String {
+    dress_allocate_copy(path.line(), place)
+}
+
+/// Live panel body. Unknown hex keeps the undressed credit counts.
+pub fn allocate_body_at_place(
+    ready: f32,
+    flowed: f32,
+    reserved: f32,
+    place: Option<&str>,
+) -> String {
+    let counts = format!(
+        "Allocate credit · ready {ready:.1}  ·  flowed {flowed:.1}  ·  reserved {reserved:.1}"
+    );
+    format!(
+        "{}\n{}",
+        dress_allocate_copy(&counts, place),
+        allocate_flow_reserve_at_place(place)
+    )
 }
 
 /// Allocate-face copy stays credit logistics — never gold / Market / sell / price.
@@ -369,14 +424,21 @@ fn update_allocate_visibility(
 
 fn update_allocate_body(
     allocate: Res<RbeAllocateChoice>,
+    bind: Option<Res<LivedHourBind>>,
     mut q: Query<&mut Text, With<AllocateBodyText>>,
 ) {
-    if !allocate.is_changed() {
+    let bind_changed = bind.as_ref().is_some_and(|hour| hour.is_changed());
+    if !allocate.is_changed() && !bind_changed {
         return;
     }
-    let body = format!(
-        "Allocate credit · ready {:.1}  ·  flowed {:.1}  ·  reserved {:.1}\nFlow restores field · Reserve holds repair-rights",
-        allocate.surplus_signal, allocate.flow_total, allocate.reserve_total
+    let place = bind
+        .as_ref()
+        .and_then(|hour| allocate_place_name(&hour.climate.hex_id));
+    let body = allocate_body_at_place(
+        allocate.surplus_signal,
+        allocate.flow_total,
+        allocate.reserve_total,
+        place,
     );
     for mut text in &mut q {
         if let Some(s) = text.sections.get_mut(0) {
@@ -540,6 +602,104 @@ mod tests {
         ));
         assert!(!allocate_copy_is_honest("sell gold on Market"));
         assert!(!allocate_copy_is_honest("price ticker"));
+    }
+
+    /// CARD FLESH-ALLOCATE-LINE — Place dress stays credit logistics.
+    /// Known climate hex names Sanctuary / Heartwood / Depths.
+    /// `local-hex` is Sanctuary dirt. Unknown and Threshold-near stay undressed.
+    #[test]
+    fn flesh_allocate_line_dresses_place_and_stays_honest() {
+        let bare_invite = "Allocate credit · Flow or Reserve";
+        let bare_pair = "Flow restores field · Reserve holds repair-rights";
+        assert_eq!(allocate_invite_at_place(None), bare_invite);
+        assert_eq!(allocate_flow_reserve_at_place(None), bare_pair);
+        assert_eq!(
+            allocate_path_line_at_place(AllocatePath::FlowOutward, None),
+            AllocatePath::FlowOutward.line()
+        );
+        assert_eq!(
+            allocate_path_line_at_place(AllocatePath::StewardReserve, None),
+            AllocatePath::StewardReserve.line()
+        );
+
+        let bare_body = allocate_body_at_place(1.0, 0.0, 0.0, None);
+        assert_eq!(
+            bare_body,
+            "Allocate credit · ready 1.0  ·  flowed 0.0  ·  reserved 0.0\nFlow restores field · Reserve holds repair-rights"
+        );
+        assert!(!bare_body.contains("Sanctuary"));
+        assert!(!bare_body.contains("Threshold"));
+
+        for unknown in ["", "nowhere", "threshold-near", "Threshold-near"] {
+            assert!(allocate_place_name(unknown).is_none(), "{unknown}");
+            assert_eq!(
+                allocate_invite_at_place(allocate_place_name(unknown)),
+                bare_invite
+            );
+            assert_eq!(
+                allocate_body_at_place(1.0, 0.0, 0.0, allocate_place_name(unknown)),
+                bare_body
+            );
+            assert_eq!(
+                allocate_path_line_at_place(
+                    AllocatePath::FlowOutward,
+                    allocate_place_name(unknown)
+                ),
+                AllocatePath::FlowOutward.line()
+            );
+        }
+
+        assert_eq!(allocate_place_name("local-hex"), Some("Sanctuary"));
+        assert_eq!(
+            allocate_place_name("sanctuary"),
+            Some(PlaceId::Sanctuary.display_name())
+        );
+        assert_eq!(allocate_place_name("heartwood"), Some("Heartwood"));
+        assert_eq!(allocate_place_name("depths"), Some("Depths"));
+        assert_ne!(allocate_place_name("heartwood"), Some("Threshold-near"));
+
+        for hex in ["local-hex", "sanctuary", "sanctuary-prime", "heartwood", "depths"] {
+            let place = allocate_place_name(hex).expect(hex);
+            let invite = allocate_invite_at_place(Some(place));
+            let pair = allocate_flow_reserve_at_place(Some(place));
+            let body = allocate_body_at_place(2.5, 1.0, 0.5, Some(place));
+            let flow = allocate_path_line_at_place(AllocatePath::FlowOutward, Some(place));
+            let reserve =
+                allocate_path_line_at_place(AllocatePath::StewardReserve, Some(place));
+
+            assert!(invite.starts_with(&format!("{place} · ")), "{invite}");
+            assert!(invite.contains("Allocate credit"));
+            assert!(invite.contains("Flow or Reserve"));
+            assert!(pair.starts_with(&format!("{place} · ")), "{pair}");
+            assert!(pair.contains("Flow restores field"));
+            assert!(pair.contains("Reserve holds repair-rights"));
+            assert!(body.contains(place), "{body}");
+            assert!(body.contains("ready 2.5"));
+            assert!(body.contains("field"));
+            assert!(body.contains("repair-rights"));
+            assert!(flow.contains(place) && flow.contains("field"), "{flow}");
+            assert!(
+                reserve.contains(place) && reserve.contains("repair-rights"),
+                "{reserve}"
+            );
+            assert!(!flow.contains("Threshold"));
+            assert!(!reserve.contains("Threshold"));
+
+            for line in [&invite, &pair, &body, &flow, &reserve] {
+                assert!(allocate_copy_is_honest(line), "{line}");
+                assert!(!line.contains("XP"), "{line}");
+                assert!(!line.to_lowercase().contains("gold"), "{line}");
+                assert!(!line.contains("Market"), "{line}");
+            }
+        }
+
+        let dirt = allocate_invite_at_place(allocate_place_name("local-hex"));
+        assert!(dirt.contains("Sanctuary"));
+        assert!(dirt.contains("Flow"));
+        assert!(dirt.contains("Reserve"));
+        let heart = allocate_body_at_place(1.0, 0.0, 0.0, allocate_place_name("heartwood"));
+        assert!(heart.contains("Heartwood"));
+        assert!(!heart.contains("Threshold"));
     }
 
     fn test_bind() -> LivedHourBind {
