@@ -1,9 +1,9 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #518 through #520. Bank #519–#520 after TODO-SYNC-514 #518. Tip `6d465f08` (`6d465f08b82f5007cd85d5de305c587ac5dd0b0d`).
-Keep earlier #499–#517 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW).
-Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT on this tip.
-Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, or the Places-door peak-memory line.
+Spent #521 through #522. Bank #522 after TODO-SYNC-518 #521. Tip `b6f46698` (`b6f46698de1d620752b73aa045dfaceaff4c217b`).
+Keep earlier #499–#520 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR).
+Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT on this tip.
+Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, or the Peace well slab_line (five words; soft well_glow unchanged; no second HUD).
 Peak memory locked: walked · tended · week was the bill · yard remembered.
 MESH Hands / Title Online / App ID / steamworks crate / `server/` stay banked (steward only).
 Online grey. No OFFER NEXT. Do not invent PATHS beyond the ordered queue below.
@@ -91,15 +91,33 @@ Landed `21b3136f` (`21b3136f2013a750832ee9112638dccdb7e9299b`). Existing planted
 
 Landed tip `6d465f08` (`6d465f08b82f5007cd85d5de305c587ac5dd0b0d`). Existing Places door / leave-this-hex confirm may speak peak memory (yard remembered · tend). Four rooms only. Threshold still Heartwood+near. No fifth PlaceId. No teleport list-row. Pause row stays book-gated. Spent.
 
+### #521 TODO-SYNC-518
+
+**PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
+
+Landed tip `3ee537f6` (`3ee537f62443f02d0e6fd0238df3d0d6de0251af`). Docs stamp for the #518–#520 bank. Cite only. Do not rebuild.
+
+### #522 FLESH-SKIRMISH-DAWN
+
+**PATH:** `client/src/skirmish_well.rs` (+131/−1)
+
+Landed tip `b6f46698` (`b6f46698de1d620752b73aa045dfaceaff4c217b`). (= bank FLESH-SKIRMISH-WELL). Peace. Five well words Idle / Glowing / Tended / Resting / Stressed on the existing slab_line. Soft well_glow unchanged. No second HUD. Spent.
+
 ### HEARTBEAT (prior)
 
-GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 1 below — do not open a heartbeat PR from this stamp.
+GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 2 below — do not open a heartbeat PR from this stamp.
 
 ## Next (ordered)
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. No OFFER NEXT.
 
-### 1. HEARTBEAT
+### 1. CARD FLESH-RESUME-PLACE
+
+**PATH:** `client/src/lived_hour_bind.rs`
+
+Mode B resume / Continuity may name the Place they wake in. L3/L4 land swap stays. Do not touch `harvest_feel` or `rbe_allocate_choice`. Do not delete the lived-hour blob. Online grey.
+
+### 2. HEARTBEAT
 
 ```
 cargo test -p shared -p rsil-identity
@@ -108,15 +126,9 @@ cargo test -p powrush-client --lib
 
 GREEN + 0 PRs → chat `HEARTBEAT GREEN @ <sha>` · BEVY-CLIMB HOLD · pin 0.14. RED → restore-only PR. Footer Codex / GPT / Claude / Fast → Dual RED.
 
-### 2. CARD FLESH-SKIRMISH-WELL
-
-**PATH:** `client/src/skirmish_well.rs`
-
-Caption gate. Five well words like #505 (Idle / Glowing / Tended / Resting / Stressed). SKIP if no string.
-
 ### 3. BEVY-CLIMB HOLD
 
-Pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Do not bump Cargo.
+Pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Bevy climb only at v0.20.0 STABLE. Do not bump Cargo.
 
 ## BANK (cite only · do not cook)
 
