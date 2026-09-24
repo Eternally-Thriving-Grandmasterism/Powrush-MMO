@@ -15,6 +15,13 @@
  * H-2026-09-16-HOLD-E-TEND: Idle-after-tend Care cycle waits until hold-E
  * tend has spoken breathe/harmony (prompt still tap vs hold). Persons=0 OK.
  *
+ * CARD FLESH-HARVEST-PLACE — the existing care-cycle offer may name the stood
+ * Place already kept on FirstHarvestEpiphany.stood_place (Sanctuary / Heartwood /
+ * Threshold-near / Depths). Threshold-near is Heartwood plus shelf/threshold_near
+ * from #512. None keeps the exact card. No new PlaceId. Same five well words.
+ * No second HUD. No new verb. No Title chrome. Online grey. Bevy pin 0.14.
+ * Peak memory locked (cite only): walked · tended · week was the bill · yard remembered.
+ *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -172,6 +179,17 @@ pub fn care_cycle_card_line(offer_shell: bool) -> &'static str {
         "Care cycle · 1 Temper · 2 Shell Ward · Esc dismiss"
     } else {
         "Care cycle · 1 Temper · 2 Distill Ward · Esc dismiss"
+    }
+}
+
+/// CARD FLESH-HARVEST-PLACE — the live care-cycle strip may prefix the stood Place.
+/// `None` returns the exact Distill / Shell line. Temper, Ward, and Esc dismiss stay.
+/// One string, one card. No second HUD and no new verb.
+pub fn care_cycle_card_at_place(offer_shell: bool, place: Option<&str>) -> String {
+    let line = care_cycle_card_line(offer_shell);
+    match place {
+        Some(place) => format!("{place} · {line}"),
+        None => line.to_string(),
     }
 }
 
@@ -612,12 +630,14 @@ fn handle_care_cycle_input(
 
 fn update_care_cycle_strip(
     offer: Res<CareCycleOffer>,
+    epiphany: Option<Res<FirstHarvestEpiphany>>,
     mut strips: Query<&mut Visibility, With<CareCycleStrip>>,
     mut texts: Query<&mut Text, With<CareCycleStripText>>,
 ) {
     let show = offer.active;
+    let place = epiphany.as_ref().and_then(|state| state.stood_place);
     let line = if show {
-        care_cycle_card_line(offer.offer_shell).to_string()
+        care_cycle_card_at_place(offer.offer_shell, place)
     } else {
         String::new()
     };
@@ -1018,5 +1038,88 @@ mod tests {
         assert!(offer.is_active());
         offer.dismiss();
         assert!(!offer.is_active());
+    }
+
+    /// CARD FLESH-HARVEST-PLACE — care-cycle may name the stood Place.
+    /// None keeps the exact card. Idle / Glowing / Tended / Resting / Stressed stay.
+    /// Threshold-near is a label, not a new PlaceId. Seeded nodes stay nodes.
+    #[test]
+    fn flesh_harvest_place_names_care_cycle_legacy_when_none() {
+        use shared::climate_node::NodeState;
+        use shared::hex_travel::PlaceId;
+        use shared::persona::STEWARD_ONLINE_YES;
+
+        let distill = care_cycle_card_line(false);
+        let shell = care_cycle_card_line(true);
+        assert_eq!(
+            distill,
+            "Care cycle · 1 Temper · 2 Distill Ward · Esc dismiss"
+        );
+        assert_eq!(shell, "Care cycle · 1 Temper · 2 Shell Ward · Esc dismiss");
+        assert_eq!(care_cycle_card_at_place(false, None), distill);
+        assert_eq!(care_cycle_card_at_place(true, None), shell);
+
+        let mut stood = FirstHarvestEpiphany::default();
+        assert!(stood.stood_place.is_none());
+        assert_eq!(
+            care_cycle_card_at_place(false, stood.stood_place),
+            distill
+        );
+        assert_eq!(care_cycle_card_at_place(true, stood.stood_place), shell);
+
+        for place in ["Sanctuary", "Heartwood", "Threshold-near", "Depths"] {
+            stood.stood_place = Some(place);
+            let d = care_cycle_card_at_place(false, stood.stood_place);
+            let s = care_cycle_card_at_place(true, stood.stood_place);
+            assert_eq!(d, format!("{place} · {distill}"));
+            assert_eq!(s, format!("{place} · {shell}"));
+            assert_eq!(d.matches("Care cycle").count(), 1);
+            assert!(d.contains("Temper"));
+            assert!(d.contains("Distill Ward"));
+            assert!(d.contains("dismiss"));
+            assert!(s.contains("Care cycle"));
+            assert!(s.contains("Temper"));
+            assert!(s.contains("Shell Ward"));
+            assert!(s.contains("dismiss"));
+            assert!(temper_copy_is_honest(&d), "{d}");
+            assert!(temper_copy_is_honest(&s), "{s}");
+        }
+
+        for (state, word) in [
+            (NodeState::Idle, "Idle"),
+            (NodeState::Glowing, "Glowing"),
+            (NodeState::Tended, "Tended"),
+            (NodeState::Resting, "Resting"),
+            (NodeState::Stressed, "Stressed"),
+        ] {
+            assert_eq!(state.label(), word);
+            assert_ne!(distill, word);
+            assert_ne!(shell, word);
+        }
+
+        for id in [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths] {
+            assert_ne!(id.display_name(), "Threshold-near");
+            let _ = match id {
+                PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => 1,
+            };
+        }
+        assert!(
+            care_cycle_card_at_place(false, Some("Threshold-near"))
+                .starts_with("Threshold-near · ")
+        );
+
+        for name in ["Sanctuary ember", "Verdant well", "Horizon seed"] {
+            assert_ne!(name, "Sanctuary");
+            assert_ne!(name, "Heartwood");
+            assert_ne!(name, "Threshold-near");
+            assert_ne!(name, "Depths");
+        }
+
+        assert!(!STEWARD_ONLINE_YES);
+        let mut offer = CareCycleOffer::default();
+        offer.active = true;
+        offer.dismiss();
+        assert!(!offer.is_active());
+        assert_eq!(offer.choice, Some(CareCycleChoice::Dismiss));
     }
 }
