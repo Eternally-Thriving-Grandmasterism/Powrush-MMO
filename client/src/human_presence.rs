@@ -42,6 +42,10 @@
  * follow `camera_punch_scale`. Reduced motion (Comfort Low sets the flag)
  * holds that punch at rest. No new verb. No second HUD.
  *
+ * CARD OPT-PUNCH-LOW — Graphics Low multiplies camera punch amplitude by a
+ * modest cap. Medium and High stay full. A punch scale of 0 (reduced motion)
+ * stays 0: reduced motion wins over the Low cap. No Ultra. No rumble rewrite.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -335,6 +339,10 @@ pub fn accent_glow(attend: f32, near_glow: f32, kick: f32) -> f32 {
     (0.25 + 0.85 * reach + kick.clamp(0.0, 1.0) * 0.35).clamp(0.25, 1.6)
 }
 
+/// CARD OPT-PUNCH-LOW — Graphics Low ceiling on camera punch amplitude.
+/// Modest. Medium and High leave the scale unchanged. No Ultra.
+const GRAPHICS_LOW_PUNCH_AMPLITUDE: f32 = 0.45;
+
 /// CARD OPT-REDUCED-MOTION-PULSE — harvest kick times `camera_punch_scale`.
 /// Reduced motion (and Comfort Low) pass scale 0, so the punch is rest.
 pub fn scaled_presence_punch(kick: f32, punch_scale: f32) -> f32 {
@@ -345,6 +353,23 @@ pub fn scaled_presence_punch(kick: f32, punch_scale: f32) -> f32 {
         0.0
     };
     kick * scale
+}
+
+/// CARD OPT-PUNCH-LOW — Graphics Low multiplies an already-scaled punch.
+/// Scale 0 stays 0, so reduced motion wins over this cap.
+pub fn punch_scale_for_graphics(punch_scale: f32, preset: GraphicsPreset) -> f32 {
+    let scale = if punch_scale.is_finite() {
+        punch_scale.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    if scale == 0.0 {
+        return 0.0;
+    }
+    match preset {
+        GraphicsPreset::Low => scale * GRAPHICS_LOW_PUNCH_AMPLITUDE,
+        GraphicsPreset::Medium | GraphicsPreset::High => scale,
+    }
 }
 
 /// Camera nudge from a harvest punch. Y lifts, Z pulls in. Scale 0 is static.
@@ -899,11 +924,16 @@ fn follow_camera(
     presence: Res<SoftPresence>,
     pool: Option<Res<SoftRbePool>>,
     feedback: Res<LocalFeedbackFeel>,
+    mesh_lod: Option<Res<LocalMeshLodFeel>>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
 ) {
     let kick = pool.map(|p| p.kick).unwrap_or(0.0);
-    let punch_delta = presence_punch_camera_delta(kick, feedback.camera_punch_scale);
-    let look_lift = presence_punch_look_lift(kick, feedback.camera_punch_scale);
+    let preset = mesh_lod
+        .map(|f| f.preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    let punch_scale = punch_scale_for_graphics(feedback.camera_punch_scale, preset);
+    let punch_delta = presence_punch_camera_delta(kick, punch_scale);
+    let look_lift = presence_punch_look_lift(kick, punch_scale);
     // CARD L7 — Ambrosian lift: ease UP and look-down on the existing yard/well.
     // Same Camera3d / SoftPresence. No hull mesh. Human / other lands keep yard follow.
     let look_down = presence_reads_ambrosian_lift(presence.position);
@@ -1182,6 +1212,72 @@ mod tests {
             presence_punch_camera_delta(1.0, mid.camera_punch_scale()),
             full_delta
         );
+    }
+
+    /// CARD OPT-PUNCH-LOW — Graphics Low caps camera punch. Reduced motion
+    /// (scale 0, including Comfort Low) stays at rest and wins over the cap.
+    #[test]
+    fn graphics_low_caps_camera_punch_reduced_motion_wins() {
+        use shared::local_settings::LocalSettings;
+
+        assert_eq!(punch_scale_for_graphics(0.0, GraphicsPreset::Low), 0.0);
+        assert_eq!(
+            presence_punch_camera_delta(
+                1.0,
+                punch_scale_for_graphics(0.0, GraphicsPreset::Low)
+            ),
+            Vec3::ZERO
+        );
+        assert_eq!(
+            presence_punch_look_lift(1.0, punch_scale_for_graphics(0.0, GraphicsPreset::Low)),
+            0.0
+        );
+
+        let mut comfort_low = LocalSettings::peace_defaults();
+        comfort_low.set_graphics_preset(GraphicsPreset::Low);
+        assert!(comfort_low.reduced_motion);
+        assert_eq!(comfort_low.camera_punch_scale(), 0.0);
+        let comfort_scale =
+            punch_scale_for_graphics(comfort_low.camera_punch_scale(), comfort_low.graphics_preset);
+        assert_eq!(comfort_scale, 0.0);
+        assert_eq!(presence_punch_camera_delta(1.0, comfort_scale), Vec3::ZERO);
+
+        let mut motion_off = LocalSettings::peace_defaults();
+        motion_off.set_graphics_preset(GraphicsPreset::Low);
+        motion_off.toggle_reduced_motion();
+        assert_eq!(motion_off.graphics_preset, GraphicsPreset::Low);
+        assert!(!motion_off.reduced_motion);
+        assert_eq!(motion_off.camera_punch_scale(), 1.0);
+        let low_scale =
+            punch_scale_for_graphics(motion_off.camera_punch_scale(), motion_off.graphics_preset);
+        assert!((low_scale - GRAPHICS_LOW_PUNCH_AMPLITUDE).abs() < 1e-5);
+        assert!(low_scale > 0.0 && low_scale < 1.0);
+
+        let full = presence_punch_camera_delta(1.0, 1.0);
+        let low_delta = presence_punch_camera_delta(1.0, low_scale);
+        let low_lift = presence_punch_look_lift(1.0, low_scale);
+        assert!(low_delta.length() > 0.0);
+        assert!(low_delta.length() < full.length());
+        assert!(low_lift > 0.0 && low_lift < presence_punch_look_lift(1.0, 1.0));
+
+        assert_eq!(punch_scale_for_graphics(1.0, GraphicsPreset::Medium), 1.0);
+        assert_eq!(punch_scale_for_graphics(1.0, GraphicsPreset::High), 1.0);
+        assert_eq!(
+            presence_punch_camera_delta(
+                1.0,
+                punch_scale_for_graphics(1.0, GraphicsPreset::Medium)
+            ),
+            full
+        );
+        assert_eq!(
+            presence_punch_camera_delta(
+                1.0,
+                punch_scale_for_graphics(1.0, GraphicsPreset::High)
+            ),
+            full
+        );
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert!(!GraphicsPreset::Low.label().contains("Ultra"));
     }
 
     #[test]
