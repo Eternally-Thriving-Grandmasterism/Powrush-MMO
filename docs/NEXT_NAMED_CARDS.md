@@ -1,37 +1,47 @@
-# NEXT NAMED CARDS — steward 2026-09-23
+# NEXT NAMED CARDS — steward 2026-09-24
 
-Spent through #495 HOUR-TWO-MEMORY-NOTE. Stamp court is closed.
-MESH / P1 / F10 / Title Online / steamworks / App ID HOLD.
+Spent #499 through #507. FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL ladder closed. Tip `c03bcd39`.
+Steward unlock 2026-09-24 ACK SPEECH LADDER SPENT 0 OPEN.
+Do not rebuild fog, captions, Continue, or pulse hush.
+Peak memory locked: walked · tended · week was the bill · yard remembered.
+MESH Hands / Title Online / App ID / steamworks crate / `server/` stay banked.
+Online grey. No OFFER NEXT. Bevy pin 0.14. BEVY-CLIMB HOLD until v0.20.0 STABLE ([`BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md)).
 
-Fetch `origin/main`. Grok 4.7 High. One CARD then heartbeat.
+Fetch `origin/main`. Grok 4.7 High / 4.6 High. One CARD then stop. No Fast / Codex / GPT / Claude Hands cook. No direct push to `main`. No `client/**` outside a named CARD.
 
-## 1. CARD TODO-SYNC
+## 1. CARD TODO-SYNC-FLESH (this stamp)
 
-**PATH:** `docs/GROK_BOT_TODO.md` only
+**PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
 
-Do not rebuild features. Align the file with tip:
+Docs only. Align the bank with tip `c03bcd39`. Do not edit `client/**`. Do not bump Cargo. Do not invent PATHS.
 
-- Tip line = current `origin/main` short SHA + “#495 spent; stamp court closed.”
-- Closed list: add one bullet covering #482–#495 (Q0–Q4, L2, Steam pack, trailer grammar, press hook, peak notes). Cite, do not narrate each PR.
-- **Next** becomes:
-  1. STANDING HEARTBEAT (see below) — PATHS already exist: core gate cmds.
-  2. MESH-PERSONA — still HOLD (no mesh file PATHS).
-  3. Steam partner / App ID / Title Online — steward only.
-- Remove any Next line that implies Hands should invent mesh or fill playtest minutes.
+## 2. OPT-AUDIO-COMFORT-LOW (after this PR merges)
 
-No `client/**`. No crate.
+**PATH:** `client/src/peace_audio.rs` (Steward-named)
 
-## 2. STANDING HEARTBEAT (after TODO-SYNC merges — no steward ping)
+Cap Heartwood / Depths / yard beds on Graphics Low only. Medium/High gains stay. No Ultra. `harvest_feel` untouched.
 
-Hands may run, without a new CARD name:
+## 3. FLESH-GUIDANCE-PLACE (after OPT-AUDIO-COMFORT-LOW)
+
+**PATH:** `client/src/first_session_guidance.rs`
+
+One existing guidance sentence may name the Place they stand in (Sanctuary / Heartwood / Threshold-near / Depths). Same tend · week-bill · Continue. No new card. No Title chrome.
+
+## 4. STANDING HEARTBEAT (after the two cooks — no steward ping)
 
 ```
 cargo test -p shared -p rsil-identity
 cargo test -p powrush-client --lib
 ```
 
-- Both green + 0 open PRs → chat `HEARTBEAT GREEN @ <short SHA>` · Hands DARK · no PR.
-- Either red → one Grok 4.7 High PR that **restores existing tests only**. No new verbs. No mesh. No Online.
-- Footer Codex/GPT/Claude → Dual RED.
+- Both green + 0 open PRs → chat `HEARTBEAT GREEN @ <short SHA> · BEVY-CLIMB HOLD · pin 0.14`. No PR.
+- Either red → one Grok 4.7 High PR that restores existing tests only. No new verbs. No mesh. No Online.
+- Footer Codex / GPT / Claude / Fast → Dual RED.
 
-Clerk/Core: vote only if a heartbeat-fix PR exists. Otherwise chat stays quiet.
+## 5. BEVY-CLIMB HOLD
+
+Pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (0.20.0 STABLE). Do not bump Cargo.
+
+## 6. MESH / Online / App ID / steamworks
+
+Steward only / banked. No Hands mesh. No invent PATHS. No playtest minutes. No OFFER NEXT.
