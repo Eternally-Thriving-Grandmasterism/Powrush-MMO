@@ -13,6 +13,12 @@
 //! CARD L3 PEOPLE-DOOR-LAND — apply_place climate swap (Places + People-door).
 //! CARD L4 PLACE-DRESS-ON-LAND — People-door dress reuses this same swap
 //! (no second dresser). Cite PLACE_DRESS_SPEC · ART_BIBLE accents.
+//!
+//! CARD FLESH-RESUME-PLACE — Mode B resume / Continuity names the Place
+//! already on the climate hex when the lived-hour blob wakes
+//! (Sanctuary / Heartwood / Depths). `local-hex` stays Sanctuary dirt.
+//! Threshold-near is shelf reach, not a wake hex. L3/L4 land swap stays.
+//! Do not delete the blob. One line. No second HUD.
 
 use bevy::prelude::*;
 use shared::climate_node::{AllocKind, LivedHour, NodeState, TendResult};
@@ -83,6 +89,7 @@ impl LivedHourBind {
         let mut week = Self::load_week();
         week.sync_from_climate(climate.tons_moved, climate.restored_count);
         let climate_slab = Self::compose_slab(&climate, &standing, &week);
+        let resume_line = Self::resume_place_line(&climate.hex_id);
         if let Ok(raw) = shared::user_persist::read_named(LIVED_TICK_PATH) {
             // L3 composite (ingest on) nests hour — Mode B resume still works.
             if let Ok(tick) = LivedTickIngest::from_json(&raw) {
@@ -92,7 +99,7 @@ impl LivedHourBind {
                         climate,
                         standing,
                         week,
-                        last_line: "resumed".to_string(),
+                        last_line: resume_line.clone(),
                         guidance_hidden: false,
                         focus_id: None,
                         climate_slab,
@@ -105,7 +112,7 @@ impl LivedHourBind {
                     climate,
                     standing,
                     week,
-                    last_line: "resumed".to_string(),
+                    last_line: resume_line.clone(),
                     guidance_hidden: false,
                     focus_id: None,
                     climate_slab,
@@ -121,6 +128,15 @@ impl LivedHourBind {
             guidance_hidden: false,
             focus_id: None,
             climate_slab,
+        }
+    }
+
+    /// CARD FLESH-RESUME-PLACE — dress the existing Continuity verb with the
+    /// wake Place. Unknown hex keeps `resumed`. Blob and land swap stay.
+    fn resume_place_line(hex_id: &str) -> String {
+        match PlaceId::parse(hex_id) {
+            Some(place) => format!("{} · resumed", place.display_name()),
+            None => "resumed".to_string(),
         }
     }
 
@@ -386,6 +402,40 @@ mod tests {
         assert!(matches!(bind.tend_nearest(), TendResult::Taken { .. }));
         assert_eq!(bind.hour.nodes[1].state, NodeState::Tended);
         assert_eq!(bind.hour.nodes[0].state, NodeState::Glowing);
+    }
+
+    /// CARD FLESH-RESUME-PLACE — Mode B resume names the climate hex.
+    /// `local-hex` is Sanctuary dirt. Threshold-near is not a wake PlaceId.
+    #[test]
+    fn resume_names_the_wake_place() {
+        assert_eq!(
+            LivedHourBind::resume_place_line("sanctuary"),
+            "Sanctuary · resumed"
+        );
+        assert_eq!(
+            LivedHourBind::resume_place_line("local-hex"),
+            "Sanctuary · resumed"
+        );
+        assert_eq!(
+            LivedHourBind::resume_place_line("heartwood"),
+            "Heartwood · resumed"
+        );
+        assert_eq!(
+            LivedHourBind::resume_place_line("depths"),
+            "Depths · resumed"
+        );
+        assert_eq!(LivedHourBind::resume_place_line("nowhere"), "resumed");
+        let dirt = LivedHourBind::resume_place_line("local-hex");
+        assert!(dirt.contains("resumed"));
+        assert!(dirt.contains("Sanctuary"));
+        assert!(!dirt.to_lowercase().contains("gold"));
+        assert!(!dirt.contains("Market"));
+        assert!(!dirt.contains("XP"));
+        assert_ne!(
+            LivedHourBind::resume_place_line("heartwood"),
+            "Threshold-near · resumed"
+        );
+        assert_eq!(LIVED_TICK_PATH, "data/powrush_lived_tick.json");
     }
 
     #[test]
