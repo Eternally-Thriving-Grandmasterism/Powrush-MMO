@@ -2,6 +2,11 @@
 //!
 //! E contests the first well. Dawn after loss. Soft slab pulse on win (not a HUD).
 //! Lives in Peace. Contact: info@Rathor.ai
+//!
+//! CARD FLESH-SKIRMISH-DAWN — the existing well slab line takes the same five
+//! well words (Idle / Glowing / Tended / Resting / Stressed) and the Peace
+//! dress already named here: dirt under the well. Lives in Peace. One slab.
+//! Soft pulse stays `well_glow` / `well_glow_pulse`. No second HUD. No new verb.
 
 use bevy::prelude::*;
 
@@ -192,6 +197,45 @@ fn tick_well_glow(time: Res<Time>, mut yard: ResMut<WellYard>) {
     yard.well_glow = tick_well_glow_breath(yard.well_glow, time.delta_seconds());
 }
 
+/// Peace is where this well already lives. Not a PlaceId. Not a second slab.
+const SKIRMISH_PLACE: &str = "Peace";
+
+/// Place dress for the first well — dirt under the well. Lives in Peace.
+const SKIRMISH_PLACE_DRESS: &str = "dirt under the well · Lives in Peace";
+
+/// Five well words from hold, loss count, and glow already on the yard.
+/// A contest-win pulse (`well_glow` > 0) is Glowing and outranks the hold.
+/// Human after the breath settles is Tended. Aftercare is the dawn seam:
+/// Resting. Traveler after a loss is Stressed. Traveler before any loss is Idle.
+fn skirmish_well_word(hold: WellHold, glow: f32, losses: u32) -> &'static str {
+    if glow.is_finite() && glow > 0.0 {
+        return "Glowing";
+    }
+    match hold {
+        WellHold::Human => "Tended",
+        WellHold::Aftercare => "Resting",
+        WellHold::Traveler if losses > 0 => "Stressed",
+        WellHold::Traveler => "Idle",
+    }
+}
+
+/// CARD FLESH-SKIRMISH-DAWN — place-color the existing slab line.
+/// `{Peace} · {word} · dirt under the well · Lives in Peace · {body}`.
+/// One string. The contest / dawn copy stays. No second HUD.
+fn dress_skirmish_slab_line(body: &str, hold: WellHold, glow: f32, losses: u32) -> String {
+    let word = skirmish_well_word(hold, glow, losses);
+    format!("{SKIRMISH_PLACE} · {word} · {SKIRMISH_PLACE_DRESS} · {body}")
+}
+
+fn dressed_well_slab_line(yard: &WellYard) -> String {
+    dress_skirmish_slab_line(
+        &yard.well.slab_line(),
+        yard.well.hold,
+        yard.well_glow,
+        yard.well.losses,
+    )
+}
+
 fn update_well_slab(
     presence: Res<SoftPresence>,
     yard: Res<WellYard>,
@@ -230,7 +274,7 @@ fn update_well_slab(
     if !show {
         return;
     }
-    let line = yard.well.slab_line();
+    let line = dressed_well_slab_line(&yard);
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -270,5 +314,91 @@ mod tests {
         assert!((peak.bg_r - 0.08).abs() < 1e-6);
         assert!((peak.bg_g - 0.10).abs() < 1e-6);
         assert!((peak.bg_b - 0.06).abs() < 1e-6);
+    }
+
+    fn whole_token(line: &str, token: &str) -> bool {
+        line.split(|c: char| c.is_whitespace() || c == '·')
+            .any(|part| part == token)
+    }
+
+    /// CARD FLESH-SKIRMISH-DAWN — five well words from hold / glow / loss.
+    /// Peace and dirt under the well dress the existing slab. One line.
+    #[test]
+    fn flesh_skirmish_dawn_place_colors_existing_slab() {
+        let words = ["Idle", "Glowing", "Tended", "Resting", "Stressed"];
+        let mut yard = WellYard::default();
+        assert_eq!(skirmish_well_word(yard.well.hold, yard.well_glow, yard.well.losses), "Idle");
+        let idle = dressed_well_slab_line(&yard);
+        assert_eq!(
+            idle,
+            "Peace · Idle · dirt under the well · Lives in Peace · Well · Mira holds · E Contest"
+        );
+        assert!(idle.contains("E Contest"));
+        assert!(whole_token(&idle, "Idle"));
+        assert!(!idle.contains('\n'));
+
+        assert_eq!(yard.well.contest(), "won");
+        yard.well_glow = 1.0;
+        assert_eq!(yard.well.hold, WellHold::Human);
+        assert_eq!(skirmish_well_word(yard.well.hold, yard.well_glow, yard.well.losses), "Glowing");
+        let glowing = dressed_well_slab_line(&yard);
+        assert_eq!(
+            glowing,
+            "Peace · Glowing · dirt under the well · Lives in Peace · The well is yours — Mira stepped back"
+        );
+        assert!(whole_token(&glowing, "Glowing"));
+
+        yard.well_glow = 0.0;
+        assert_eq!(skirmish_well_word(yard.well.hold, yard.well_glow, yard.well.losses), "Tended");
+        let tended = dressed_well_slab_line(&yard);
+        assert!(tended.contains("Tended"));
+        assert!(tended.contains("The well is yours"));
+        assert!(whole_token(&tended, "Tended"));
+
+        assert_eq!(yard.well.traveler_answers(), "lost");
+        assert_eq!(yard.well.hold, WellHold::Aftercare);
+        assert_eq!(yard.well_glow, 0.0);
+        assert_eq!(skirmish_well_word(yard.well.hold, yard.well_glow, yard.well.losses), "Resting");
+        let resting = dressed_well_slab_line(&yard);
+        assert_eq!(
+            resting,
+            "Peace · Resting · dirt under the well · Lives in Peace · Dawn after loss — you still walk · E Rise"
+        );
+        assert!(resting.contains("Dawn after loss"));
+        assert!(whole_token(&resting, "Resting"));
+
+        assert_eq!(yard.well.dawn(), "dawn");
+        assert_eq!(yard.well.hold, WellHold::Traveler);
+        assert!(yard.well.losses > 0);
+        assert_eq!(skirmish_well_word(yard.well.hold, yard.well_glow, yard.well.losses), "Stressed");
+        let stressed = dressed_well_slab_line(&yard);
+        assert_eq!(
+            stressed,
+            "Peace · Stressed · dirt under the well · Lives in Peace · Dawn — Mira holds the well again · E Contest"
+        );
+        assert!(whole_token(&stressed, "Stressed"));
+
+        for line in [&idle, &glowing, &tended, &resting, &stressed] {
+            assert!(line.starts_with("Peace · "));
+            assert!(line.contains("dirt under the well"));
+            assert!(line.contains("Lives in Peace"));
+            assert_eq!(line.matches('\n').count(), 0);
+            assert!(words.iter().any(|word| whole_token(line, word)));
+            let lower = line.to_ascii_lowercase();
+            assert!(!lower.contains("online"));
+            assert!(!lower.contains("market"));
+            assert!(!lower.contains("xp"));
+            assert!(!lower.contains("kill"));
+            assert!(!line.contains("week was the bill"));
+            assert!(!line.contains("0.0.0.0"));
+        }
+
+        // Pulse still outranks hold, including a dawn seam if glow is up.
+        assert_eq!(
+            skirmish_well_word(WellHold::Aftercare, 0.2, 1),
+            "Glowing"
+        );
+        assert_eq!(skirmish_well_word(WellHold::Human, f32::NAN, 0), "Tended");
+        assert_eq!(skirmish_well_word(WellHold::Traveler, 0.0, 0), "Idle");
     }
 }
