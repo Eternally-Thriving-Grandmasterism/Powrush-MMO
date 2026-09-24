@@ -1,6 +1,11 @@
 //! Lived-hour Embassy — Slice 8 (v23.2.12)
 //!
 //! After the Proof Pack, the lamp is live. E Request seat. Dies in Peace.
+//!
+//! CARD FLESH-EMBASSY-LINE — the existing lamp / E Request seat line may name
+//! Heartwood. Embassy already lives there. `None` keeps the exact `slab_line`.
+//! One string, one slab. Heartwood stub still hides this seat. No second seat.
+//! No Online lobby. Online grey. Bevy pin 0.14.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -92,6 +97,27 @@ fn on_heartwood_stub(travel: Option<&crate::hex_travel::HexTravelState>) -> bool
     travel
         .map(|t| t.current == shared::hex_travel::PlaceId::Heartwood)
         .unwrap_or(false)
+}
+
+/// CARD FLESH-EMBASSY-LINE — Heartwood is where this seat already lives.
+/// Named only while the lamp offer is open (lamp up, seat still empty).
+/// Seated copy and the Proof-Pack wait stay the exact `slab_line`.
+fn embassy_display_place(embassy: &Embassy) -> Option<&'static str> {
+    if embassy.lamp_live && !embassy.seated {
+        Some("Heartwood")
+    } else {
+        None
+    }
+}
+
+/// CARD FLESH-EMBASSY-LINE — the live lamp strip may prefix Heartwood.
+/// `None` returns the exact `slab_line`. One string, one slab. No second seat.
+pub fn embassy_slab_at_place(embassy: &Embassy, place: Option<&str>) -> String {
+    let line = embassy.slab_line();
+    match place {
+        Some(place) => format!("{place} · {line}"),
+        None => line,
+    }
 }
 
 fn mark_embassy_lamp(
@@ -188,7 +214,7 @@ fn update_embassy_slab(
     if !show {
         return;
     }
-    let line = yard.embassy.slab_line();
+    let line = embassy_slab_at_place(&yard.embassy, embassy_display_place(&yard.embassy));
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -257,5 +283,83 @@ mod tests {
             .line(true),
             "Hour three held · the book is yours"
         );
+    }
+
+    /// CARD FLESH-EMBASSY-LINE — lamp / E Request seat may name Heartwood.
+    /// None keeps the exact slab line. Heartwood stub still hides the seat.
+    /// One seat. No Online lobby. No new PlaceId.
+    #[test]
+    fn flesh_embassy_line_names_heartwood_legacy_when_none() {
+        use crate::hex_travel::HexTravelState;
+        use shared::embassy::embassy_copy_is_honest;
+        use shared::fabricator::Fabricator;
+        use shared::hex_travel::PlaceId;
+        use shared::persona::{ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES};
+
+        let mut waiting = Embassy::default();
+        let wait = waiting.slab_line();
+        assert_eq!(
+            wait,
+            "Embassy lamp waits on the Proof Pack · civic seat after manufacture"
+        );
+        assert!(embassy_display_place(&waiting).is_none());
+        assert_eq!(embassy_slab_at_place(&waiting, None), wait);
+        assert_eq!(
+            embassy_slab_at_place(&waiting, embassy_display_place(&waiting)),
+            wait
+        );
+
+        let mut fab = Fabricator::default();
+        assert_eq!(fab.craft_next(), "planted");
+        assert_eq!(fab.craft_next(), "crafted");
+        assert_eq!(fab.craft_next(), "unlocked");
+        waiting.ensure_lamp(&fab.pack);
+        let request = waiting.slab_line();
+        assert_eq!(
+            request,
+            "Embassy lamp · E Request seat · civic after manufacture proof"
+        );
+        assert_eq!(embassy_slab_at_place(&waiting, None), request);
+        assert_eq!(embassy_display_place(&waiting), Some("Heartwood"));
+        let named = embassy_slab_at_place(&waiting, embassy_display_place(&waiting));
+        assert_eq!(named, format!("Heartwood · {request}"));
+        assert_eq!(named.matches("Heartwood").count(), 1);
+        assert_eq!(named.matches("E Request seat").count(), 1);
+        assert_eq!(named.matches('\n').count(), 0);
+        assert!(embassy_copy_is_honest(&named));
+        assert!(!named.to_lowercase().contains("lobby"));
+        assert!(!named.to_lowercase().contains("online"));
+
+        assert_eq!(waiting.request_seat(), "seated");
+        assert!(waiting.seated);
+        let seated = waiting.slab_line();
+        assert!(embassy_display_place(&waiting).is_none());
+        assert_eq!(embassy_slab_at_place(&waiting, None), seated);
+        assert_eq!(
+            embassy_slab_at_place(&waiting, embassy_display_place(&waiting)),
+            seated
+        );
+        assert!(seated.contains("one embassy seat"));
+        assert_eq!(waiting.request_seat(), "idle", "one seat only");
+
+        assert!(on_heartwood_stub(Some(&HexTravelState {
+            current: PlaceId::Heartwood,
+        })));
+        assert!(!on_heartwood_stub(Some(&HexTravelState {
+            current: PlaceId::Sanctuary,
+        })));
+        assert!(!on_heartwood_stub(Some(&HexTravelState {
+            current: PlaceId::Depths,
+        })));
+        assert!(!on_heartwood_stub(None));
+
+        for id in [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths] {
+            let _ = match id {
+                PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => 1,
+            };
+        }
+        assert_eq!(PlaceId::Heartwood.display_name(), "Heartwood");
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!ONLINE_PICKER_ENABLED);
     }
 }
