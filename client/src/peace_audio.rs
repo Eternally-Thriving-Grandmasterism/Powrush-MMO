@@ -17,18 +17,47 @@
 //! Wet-stone fog dress lives in `climate_plane`. This hook does not retune
 //! the shared mixer and does not add an asset. Do not touch harvest_feel.
 //!
+//! CARD OPT-AUDIO-COMFORT-LOW — Graphics Low scales yard / Heartwood / Depths
+//! bed playback by `BED_GAIN_COMFORT_LOW_SCALE`. Medium and High stay banked.
+//! Mute still zeros. No Ultra. Shared mixer unchanged.
+//!
 //! No second mute. No F-row. No listen. No ALSA/cpal open. Contact: info@Rathor.ai
 
 use bevy::audio::{AudioSink, Volume};
 use bevy::prelude::*;
 
 use shared::hex_travel::PlaceId;
+use shared::local_settings::GraphicsPreset;
 use shared::peace_audio::{audio_output_safe, PeaceVoice, BED_ASSET, STING_ASSET};
 
 use crate::harvest_feel::SoftRbePool;
 use crate::hex_travel::HexTravelState;
-use crate::local_settings::{LocalSettingsState, MasterMuteGain};
+use crate::local_settings::{LocalMeshLodFeel, LocalSettingsState, MasterMuteGain};
 use crate::title_screen::LaunchDoor;
+
+/// CARD OPT-AUDIO-COMFORT-LOW — Comfort Low ceiling on peace bed playback.
+/// `0.55` matches Comfort Low gentler intensity. Medium and High return the
+/// banked gain (`BED_GAIN_OPEN` / `BED_GAIN_HEARTWOOD` / `BED_GAIN_DEPTHS`).
+const BED_GAIN_COMFORT_LOW_SCALE: f32 = 0.55;
+
+/// Playback gain for the yard / Heartwood / Depths bed already on this plugin.
+/// Low multiplies the banked hush. Medium and High leave it unchanged.
+/// A muted banked gain of 0 stays 0.
+fn bed_playback_gain(banked: f32, preset: GraphicsPreset) -> f32 {
+    match preset {
+        GraphicsPreset::Low => banked * BED_GAIN_COMFORT_LOW_SCALE,
+        GraphicsPreset::Medium | GraphicsPreset::High => banked,
+    }
+}
+
+/// Comfort plate: `LocalMeshLodFeel.preset`, else settings `graphics_preset`.
+/// Missing both stays Medium (banked beds). No Ultra till.
+fn comfort_preset_from(
+    feel: Option<GraphicsPreset>,
+    settings: Option<GraphicsPreset>,
+) -> GraphicsPreset {
+    feel.or(settings).unwrap_or(GraphicsPreset::Medium)
+}
 
 #[derive(Resource, Debug, Clone, PartialEq)]
 pub struct PeaceAudioState {
@@ -97,10 +126,19 @@ fn sync_peace_bed(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     state: Res<PeaceAudioState>,
+    feel: Option<Res<LocalMeshLodFeel>>,
+    settings: Option<Res<LocalSettingsState>>,
     beds: Query<(Entity, Option<&AudioSink>), With<PeaceYardBed>>,
 ) {
     let want = state.voice.should_play_bed();
-    let gain = state.voice.bed_gain();
+    // CARD OPT-AUDIO-COMFORT-LOW — cap bed AudioSink volume on Graphics Low only.
+    let gain = bed_playback_gain(
+        state.voice.bed_gain(),
+        comfort_preset_from(
+            feel.map(|f| f.preset),
+            settings.as_ref().map(|s| s.inner.graphics_preset),
+        ),
+    );
 
     if !state.voice.device_ok || !state.voice.in_yard {
         for (entity, sink) in &beds {
@@ -181,11 +219,12 @@ fn sync_well_sting(
 
 #[cfg(test)]
 mod tests {
+    use super::{BED_GAIN_COMFORT_LOW_SCALE, bed_playback_gain, comfort_preset_from};
     use super::*;
     use shared::hex_listen::PowrushNet;
     use shared::hex_protocol::default_client_listens;
     use shared::hex_travel::ISOLATION_GAMMA;
-    use shared::local_settings::{local_settings_opens_socket, LocalSettings};
+    use shared::local_settings::{local_settings_opens_socket, GraphicsPreset, LocalSettings};
     use shared::hex_travel::PlaceId;
     use shared::peace_audio::{
         bed_gain, bed_gain_at, bed_gain_place, peace_audio_opens_socket, should_emit_bed,
@@ -390,5 +429,79 @@ mod tests {
         assert!(title_online_stays_grey());
         assert!(!peace_audio_opens_socket(&voice));
         assert!(!voice.opens_socket());
+    }
+
+    /// CARD OPT-AUDIO-COMFORT-LOW — Low is quieter than Medium for the same place.
+    /// Medium and High stay the banked constants. Mute still zeros. No Ultra.
+    #[test]
+    fn comfort_low_caps_bed_quieter_than_medium_high_stay_banked() {
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        for preset in GraphicsPreset::ALL {
+            assert!(!preset.label().contains("Ultra"));
+        }
+        assert!((BED_GAIN_COMFORT_LOW_SCALE - 0.55).abs() < f32::EPSILON);
+        assert!(BED_GAIN_COMFORT_LOW_SCALE > 0.0 && BED_GAIN_COMFORT_LOW_SCALE < 1.0);
+
+        let defaults = LocalSettings::peace_defaults();
+        assert_eq!(defaults.graphics_preset, GraphicsPreset::Medium);
+        let feel = crate::local_settings::LocalMeshLodFeel::from_settings(&defaults);
+        assert_eq!(feel.preset, GraphicsPreset::Medium);
+        assert_eq!(
+            comfort_preset_from(Some(feel.preset), Some(defaults.graphics_preset)),
+            GraphicsPreset::Medium
+        );
+        assert_eq!(
+            comfort_preset_from(Some(GraphicsPreset::Low), Some(GraphicsPreset::High)),
+            GraphicsPreset::Low
+        );
+        assert_eq!(
+            comfort_preset_from(None, Some(GraphicsPreset::High)),
+            GraphicsPreset::High
+        );
+        assert_eq!(comfort_preset_from(None, None), GraphicsPreset::Medium);
+
+        let places = [
+            (false, false, BED_GAIN_OPEN),
+            (true, false, BED_GAIN_DEPTHS),
+            (false, true, BED_GAIN_HEARTWOOD),
+        ];
+        let mut low_gains = [0.0_f32; 3];
+        for (i, (in_depths, in_heartwood, banked)) in places.into_iter().enumerate() {
+            let mut voice = PeaceVoice::new(false, true);
+            voice.set_in_yard(true);
+            voice.set_in_depths(in_depths);
+            voice.set_in_heartwood(in_heartwood);
+            let banked_voice = voice.bed_gain();
+            assert!((banked_voice - banked).abs() < f32::EPSILON);
+
+            let low = bed_playback_gain(banked_voice, GraphicsPreset::Low);
+            let mid = bed_playback_gain(banked_voice, GraphicsPreset::Medium);
+            let high = bed_playback_gain(banked_voice, GraphicsPreset::High);
+            assert!(low < mid);
+            assert!(low > 0.0);
+            assert!((mid - banked).abs() < f32::EPSILON);
+            assert!((high - banked).abs() < f32::EPSILON);
+            assert!((low - banked * BED_GAIN_COMFORT_LOW_SCALE).abs() < f32::EPSILON);
+            low_gains[i] = low;
+
+            voice.set_mute(true);
+            assert!(
+                (bed_playback_gain(voice.bed_gain(), GraphicsPreset::Low) - 0.0).abs()
+                    < f32::EPSILON
+            );
+            assert!(!voice.opens_socket());
+        }
+        // Hush family stays ordered on Low: Heartwood < Depths < yard.
+        assert!(low_gains[2] < low_gains[1] && low_gains[1] < low_gains[0]);
+
+        let mut low_settings = LocalSettings::peace_defaults();
+        low_settings.set_graphics_preset(GraphicsPreset::Low);
+        assert_eq!(
+            crate::local_settings::LocalMeshLodFeel::from_settings(&low_settings).preset,
+            GraphicsPreset::Low
+        );
+        assert_eq!(BED_ASSET, "audio/peace_yard_bed.ogg");
+        assert!(title_online_stays_grey());
+        assert!(!peace_audio_opens_socket(&PeaceVoice::new(false, true)));
     }
 }
