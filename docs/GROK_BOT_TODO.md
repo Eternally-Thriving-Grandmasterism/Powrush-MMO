@@ -1,11 +1,11 @@
 # GROK_BOT_TODO.md
 
-Tip `014f9a81` (`014f9a8115b5599c405ae13821dff3cc588edce2`) — spent #499 through #510 (bank #508–#510 on the FLESH-WELL ladder; HEARTBEAT GREEN @ `014f9a81`). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK SPEECH LADDER SPENT 0 OPEN.
+Tip `db01dfc4` (`db01dfc4d6e05dd714caa5cdb3dff90b8ec6db2b`) — spent #511 through #513 (bank #512–#513 after TODO-SYNC #511). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT · 0 OPEN.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
 
-**Grok Hands cook only** (Grok 4.7 High / 4.6 High). No Codex / GPT / Claude / Auto / Composer / Grok Fast footer. Grok Bots may open **one** feature-branch PR; never push `main` directly. One card in flight. Title Online stays grey.
+**Grok Hands cook only** — Grok 4.7 Extra High (non-fast); fallback 4.7 High. Never Fast / Codex / GPT / Claude / Auto / Composer. Grok Bots may open **one** feature-branch PR; never push `main` directly. One card in flight. Title Online stays grey.
 
 ## Closed / landed (do not rebuild)
 
@@ -68,21 +68,28 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#508 TODO-SYNC-FLESH** — Landed #508. Docs bank after FLESH-WELL ladder (`docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`). Cite only. Do not rebuild.
 - **#509 OPT-AUDIO-COMFORT-LOW** — Landed #509. Peace audio cap on Graphics Low for Heartwood / Depths / yard beds (`client/src/peace_audio.rs`). Medium/High gains stay. No Ultra. Spent. Do not rebuild.
 - **#510 FLESH-GUIDANCE-PLACE** — Landed #510 / tip `014f9a81`. `client/src/first_session_guidance.rs` (+112/−2). Hour-two week-bill sentence may prefix stood Place (Sanctuary / Heartwood / Threshold-near / Depths). Threshold-near = Heartwood + existing shelf reach. No new PlaceId. Tend · week-bill · Continue unchanged. No new card. No Title chrome. Spent. Do not rebuild.
-- **HEARTBEAT** — GREEN @ `014f9a81`. Both core gates passed · 0 open PRs. Cite only. Do not open a heartbeat PR from this stamp.
+- **#511 TODO-SYNC** — Landed #511 / `773e17cf` (`773e17cfc6eaa5cdd685749d85a2aac79621111c`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Banked #508–#510 at tip `014f9a81`. Cite only. Do not rebuild.
+- **#512 FLESH-EPIPHANY-PLACE** — Landed #512 / `2cb7cf97` (`2cb7cf974592af34b07522b4fae5a1159aa4864e`). PATH exact `client/src/first_harvest_epiphany.rs`. One existing epiphany/tend line may name Place (Sanctuary / Heartwood / Threshold-near / Depths). Threshold-near = Heartwood + shelf/threshold_near. No new PlaceId. Same five well words. No second HUD / new verb / Title chrome. Spent. Do not rebuild.
+- **#513 OPT-PUNCH-LOW** — Landed #513 / tip `db01dfc4` (`db01dfc4d6e05dd714caa5cdb3dff90b8ec6db2b`). PATH exact `client/src/human_presence.rs`. Graphics Low punch ×0.45. Medium/High full. Scale 0 stays 0 so reduced_motion wins (#507). No Ultra. No rumble rewrite. Spent. Do not rebuild.
+- **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued after the three named CARDs below. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
-Cook queue cleared. OPT-AUDIO-COMFORT-LOW and FLESH-GUIDANCE-PLACE are spent (#509–#510). HEARTBEAT already GREEN @ `014f9a81`. Do not invent the next unlock. Hands DARK until Core names one CARD with exact PATHS. Online grey. No OFFER NEXT.
+Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT.
 
-1. **BEVY-CLIMB HOLD** — pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Do not bump Cargo.
+1. **CARD FLESH-HARVEST-PLACE** — PATH `client/src/mercy_harvest_nodes.rs`. Existing care-cycle / tend offer may name the Place. Same Idle/Glowing/Tended/Resting/Stressed. No new node type.
+2. **CARD FLESH-EMBASSY-LINE** — PATH `client/src/embassy.rs`. Existing lamp / E Request seat line may name Heartwood (Embassy already lives there). No second seat. No Online lobby. Prefer client; do not edit `shared/embassy.rs` unless a string already lives only there.
+3. **CARD OPT-WEATHER-FIDELITY-LOW** — PATHS `client/src/climate_plane.rs` · `shared/local_settings.rs` (read). WeatherFidelity Low already exists. Cap fog density / particle bed on Low only. Medium/High untouched. No Ultra.
+4. **HEARTBEAT** — `cargo test -p shared -p rsil-identity` ; `cargo test -p powrush-client --lib`. GREEN + 0 PRs → chat `HEARTBEAT GREEN @ <sha>` · BEVY-CLIMB HOLD · pin 0.14. RED → restore-only PR.
+5. **BEVY-CLIMB HOLD** — pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Do not bump Cargo.
 
-MESH / Title Online / App ID / steamworks / `server/` = steward only · banked. No Hands mesh. No invent PATHS. No playtest minutes.
+**BANK (cite only · do not cook):** MESH / Title Online / App ID / steamworks / `server/` = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. No playtest minutes.
 
-Standing heartbeat law (already GREEN on this tip — not a next cook): `cargo test -p shared -p rsil-identity` ; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → chat `HEARTBEAT GREEN @ <sha> · BEVY-CLIMB HOLD · pin 0.14`. Either red → one restore-only PR (no new verbs).
+NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.
 
-Grok Hands cook only. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
+Grok Hands cook Grok 4.7 Extra High (non-fast); fallback 4.7 High. Never Fast / Codex / GPT / Claude / Auto / Composer. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
 ## Refuses this turn
 
