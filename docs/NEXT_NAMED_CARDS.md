@@ -1,9 +1,9 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #514 through #517. Bank #515–#517 after TODO-SYNC-512 #514. Tip `efc0f17b` (`efc0f17bad5840d4e026257b9a9f6d507b01c4d4`).
-Keep earlier #499–#513 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW).
-Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT on this tip.
-Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, or the WeatherFidelity Low fog cap.
+Spent #518 through #520. Bank #519–#520 after TODO-SYNC-514 #518. Tip `6d465f08` (`6d465f08b82f5007cd85d5de305c587ac5dd0b0d`).
+Keep earlier #499–#517 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW).
+Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT on this tip.
+Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, or the Places-door peak-memory line.
 Peak memory locked: walked · tended · week was the bill · yard remembered.
 MESH Hands / Title Online / App ID / steamworks crate / `server/` stay banked (steward only).
 Online grey. No OFFER NEXT. Do not invent PATHS beyond the ordered queue below.
@@ -73,27 +73,33 @@ Landed `d3fafdcc` (`d3fafdcc12bc1bb9a476ccbaea93e72c86b708c3`). Existing lamp / 
 
 Landed tip `efc0f17b` (`efc0f17bad5840d4e026257b9a9f6d507b01c4d4`). WeatherFidelity Low already exists. Cap fog density / particle bed on Low only. Medium/High untouched. No Ultra. Spent.
 
+### #518 TODO-SYNC-514
+
+**PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
+
+Landed `c714aea6` (`c714aea6f46c071057d3983cd379c1846547d564`). Banked #514–#517 at tip `efc0f17b`. Cite only. Do not rebuild.
+
+### #519 FLESH-FABRICATOR-LINE
+
+**PATH:** `client/src/fabricator.rs` (+192/−1)
+
+Landed `21b3136f` (`21b3136f2013a750832ee9112638dccdb7e9299b`). Existing planted / Proof Pack / MendSpool / LaneCrate line may name the Place they stand in. Civic proof, not gear. No gold. No Market. Spent.
+
+### #520 FLESH-HEX-DOOR
+
+**PATH:** `client/src/hex_travel.rs` (+108/−20)
+
+Landed tip `6d465f08` (`6d465f08b82f5007cd85d5de305c587ac5dd0b0d`). Existing Places door / leave-this-hex confirm may speak peak memory (yard remembered · tend). Four rooms only. Threshold still Heartwood+near. No fifth PlaceId. No teleport list-row. Pause row stays book-gated. Spent.
+
 ### HEARTBEAT (prior)
 
-GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 3 below — do not open a heartbeat PR from this stamp.
+GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 1 below — do not open a heartbeat PR from this stamp.
 
 ## Next (ordered)
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. No OFFER NEXT.
 
-### 1. CARD FLESH-FABRICATOR-LINE
-
-**PATH:** `client/src/fabricator.rs`
-
-Existing planted / Proof Pack / MendSpool / LaneCrate line may name the Place they stand in. Civic proof, not gear. No gold. No Market. Do not edit `shared/fabricator.rs` unless the string lives only there.
-
-### 2. CARD FLESH-HEX-DOOR
-
-**PATH:** `client/src/hex_travel.rs`
-
-Existing Places door / leave-this-hex confirm may speak peak memory (yard remembered · tend). Four rooms only. Threshold still Heartwood+near. No fifth PlaceId. No teleport list-row. Pause row stays book-gated.
-
-### 3. HEARTBEAT
+### 1. HEARTBEAT
 
 ```
 cargo test -p shared -p rsil-identity
@@ -102,7 +108,13 @@ cargo test -p powrush-client --lib
 
 GREEN + 0 PRs → chat `HEARTBEAT GREEN @ <sha>` · BEVY-CLIMB HOLD · pin 0.14. RED → restore-only PR. Footer Codex / GPT / Claude / Fast → Dual RED.
 
-### 4. BEVY-CLIMB HOLD
+### 2. CARD FLESH-SKIRMISH-WELL
+
+**PATH:** `client/src/skirmish_well.rs`
+
+Caption gate. Five well words like #505 (Idle / Glowing / Tended / Resting / Stressed). SKIP if no string.
+
+### 3. BEVY-CLIMB HOLD
 
 Pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Do not bump Cargo.
 
