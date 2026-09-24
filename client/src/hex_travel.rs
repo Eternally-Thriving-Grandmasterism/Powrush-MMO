@@ -32,6 +32,12 @@
 //! feel the existing L7 beat (apply_people_landing already arms it). Land
 //! is not a seal. Decline / wrong door restores garden PlaceId + garden
 //! wake; no L7 beat on bounce. PlaceId stays 3. L7 fog WRITE unread.
+//! CARD FLESH-HEX-DOOR — the existing Places door / leave-this-hex confirm
+//! may speak the locked peak (walked · tended · week was the bill · yard
+//! remembered). Four rooms only: Sanctuary / Heartwood / Threshold-near /
+//! Depths. Threshold-near is Heartwood plus shelf reach, not a fifth PlaceId.
+//! Civic memory at the door, not a map and not loot. Pause row stays
+//! book-gated. No teleport list-row. Online grey. Bevy pin 0.14.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -91,8 +97,10 @@ impl HexTravelState {
 
 /// Confirm button — threshold language, not a teleport tap.
 const DOOR_CONFIRM_BTN: &str = "Leave · enter";
-/// Idle cue on the open Places plate (no dest chosen yet).
-const DOOR_IDLE_CUE: &str = "Leave this hex · enter that room";
+/// Idle stem on the open Places plate (no dest chosen yet).
+const DOOR_IDLE_STEM: &str = "Leave this hex · enter that room";
+/// Locked peak the door may speak. Civic memory, not a map and not loot.
+const DOOR_PEAK_MEMORY: &str = "walked · tended · week was the bill · yard remembered";
 
 /// One of the four Offline rooms named on the Places door.
 /// Threshold shares Heartwood's disk file (`OFFLINE_SKU`).
@@ -104,13 +112,23 @@ enum PlacesRoom {
     Depths,
 }
 
+/// Four spoken rooms. Threshold-near is Heartwood plus shelf reach, not a PlaceId.
+const fn door_room_name(place: PlaceId, threshold_near: bool) -> &'static str {
+    match (place, threshold_near) {
+        (PlaceId::Sanctuary, _) => "Sanctuary",
+        (PlaceId::Depths, _) => "Depths",
+        (PlaceId::Heartwood, true) => "Threshold-near",
+        (PlaceId::Heartwood, false) => "Heartwood",
+    }
+}
+
 impl PlacesRoom {
     const fn display_name(self) -> &'static str {
         match self {
-            PlacesRoom::Sanctuary => "Sanctuary",
-            PlacesRoom::Heartwood => "Heartwood",
-            PlacesRoom::Threshold => "Threshold",
-            PlacesRoom::Depths => "Depths",
+            PlacesRoom::Sanctuary => door_room_name(PlaceId::Sanctuary, false),
+            PlacesRoom::Heartwood => door_room_name(PlaceId::Heartwood, false),
+            PlacesRoom::Threshold => door_room_name(PlaceId::Heartwood, true),
+            PlacesRoom::Depths => door_room_name(PlaceId::Depths, false),
         }
     }
 
@@ -124,9 +142,19 @@ impl PlacesRoom {
     }
 }
 
+/// Leave-this-hex confirm. Same door sentence, then the locked peak.
+fn leave_hex_line(room_name: &str) -> String {
+    format!("Leave this hex · enter {room_name}? · {DOOR_PEAK_MEMORY}")
+}
+
 /// Leave / enter confirm copy for a chosen room.
 fn door_confirm_cue(room: PlacesRoom) -> String {
-    format!("Leave this hex · enter {}?", room.display_name())
+    leave_hex_line(room.display_name())
+}
+
+/// Open door, no room chosen yet — same leave stem, then the locked peak.
+fn door_idle_cue() -> String {
+    format!("{DOOR_IDLE_STEM} · {DOOR_PEAK_MEMORY}")
 }
 
 #[derive(Resource, Debug, Default, Clone)]
@@ -465,10 +493,10 @@ fn spawn_places_plate(mut commands: Commands) {
                 ),
                 PlacesCueText,
             ));
-            spawn_places_btn(p, "Sanctuary", PlacesSanctuaryBtn);
-            spawn_places_btn(p, "Heartwood", PlacesHeartwoodBtn);
-            spawn_places_btn(p, "Threshold", PlacesThresholdBtn);
-            spawn_places_btn(p, "Depths", PlacesDepthsBtn);
+            spawn_places_btn(p, PlacesRoom::Sanctuary.display_name(), PlacesSanctuaryBtn);
+            spawn_places_btn(p, PlacesRoom::Heartwood.display_name(), PlacesHeartwoodBtn);
+            spawn_places_btn(p, PlacesRoom::Threshold.display_name(), PlacesThresholdBtn);
+            spawn_places_btn(p, PlacesRoom::Depths.display_name(), PlacesDepthsBtn);
             spawn_places_btn(p, DOOR_CONFIRM_BTN, PlacesConfirmBtn);
             spawn_places_btn(p, "Back", PlacesBackBtn);
         });
@@ -563,11 +591,11 @@ fn refresh_places_labels(
     // Arrival names the room on the climate slab (PLACE_CLARITY), not a second HUD.
     let line = if plate.confirm_pending {
         match plate.selected_room {
-            Some(name) => format!("Leave this hex · enter {name}?"),
+            Some(name) => leave_hex_line(name),
             None => DOOR_CONFIRM_BTN.to_string(),
         }
     } else {
-        DOOR_IDLE_CUE.to_string()
+        door_idle_cue()
     };
     for mut text in &mut cue {
         if let Some(s) = text.sections.get_mut(0) {
@@ -1234,22 +1262,82 @@ mod tests {
     fn door_confirm_cue_reads_leave_enter() {
         assert_eq!(
             door_confirm_cue(PlacesRoom::Sanctuary),
-            "Leave this hex · enter Sanctuary?"
+            "Leave this hex · enter Sanctuary? · walked · tended · week was the bill · yard remembered"
         );
         assert_eq!(
             door_confirm_cue(PlacesRoom::Heartwood),
-            "Leave this hex · enter Heartwood?"
+            "Leave this hex · enter Heartwood? · walked · tended · week was the bill · yard remembered"
         );
         assert_eq!(
             door_confirm_cue(PlacesRoom::Threshold),
-            "Leave this hex · enter Threshold?"
+            "Leave this hex · enter Threshold-near? · walked · tended · week was the bill · yard remembered"
         );
         assert_eq!(
             door_confirm_cue(PlacesRoom::Depths),
-            "Leave this hex · enter Depths?"
+            "Leave this hex · enter Depths? · walked · tended · week was the bill · yard remembered"
         );
-        assert_eq!(DOOR_IDLE_CUE, "Leave this hex · enter that room");
+        assert_eq!(DOOR_IDLE_STEM, "Leave this hex · enter that room");
+        assert_eq!(
+            door_idle_cue(),
+            "Leave this hex · enter that room · walked · tended · week was the bill · yard remembered"
+        );
         assert_eq!(DOOR_CONFIRM_BTN, "Leave · enter");
+        assert!(!DOOR_CONFIRM_BTN.contains("teleport"));
+    }
+
+    /// CARD FLESH-HEX-DOOR — door / leave-this-hex speaks peak memory.
+    /// Four rooms. Threshold-near is Heartwood plus shelf reach.
+    #[test]
+    fn flesh_hex_door_speaks_peak_and_four_rooms() {
+        use shared::threshold_shelf::{threshold_use_in_reach, THRESHOLD_SHELF_CENTER};
+
+        let peak = "walked · tended · week was the bill · yard remembered";
+        assert_eq!(DOOR_PEAK_MEMORY, peak);
+        let idle = door_idle_cue();
+        assert!(idle.contains("yard remembered"));
+        assert!(idle.contains("tend"));
+        assert!(idle.starts_with(DOOR_IDLE_STEM));
+        for room in [
+            PlacesRoom::Sanctuary,
+            PlacesRoom::Heartwood,
+            PlacesRoom::Threshold,
+            PlacesRoom::Depths,
+        ] {
+            let line = door_confirm_cue(room);
+            assert!(line.starts_with("Leave this hex · enter "));
+            assert!(line.contains("yard remembered"));
+            assert!(line.contains("tend"));
+            assert!(line.contains(peak));
+            assert!(!line.to_ascii_lowercase().contains("gold"));
+            assert!(!line.to_ascii_lowercase().contains("market"));
+            assert!(!line.to_ascii_lowercase().contains("teleport"));
+        }
+        assert_eq!(door_room_name(PlaceId::Sanctuary, false), "Sanctuary");
+        assert_eq!(door_room_name(PlaceId::Sanctuary, true), "Sanctuary");
+        assert_eq!(door_room_name(PlaceId::Heartwood, false), "Heartwood");
+        assert_eq!(door_room_name(PlaceId::Heartwood, true), "Threshold-near");
+        assert_eq!(door_room_name(PlaceId::Depths, false), "Depths");
+        assert_eq!(door_room_name(PlaceId::Depths, true), "Depths");
+        let shelf_near = threshold_use_in_reach(
+            PlaceId::Heartwood,
+            THRESHOLD_SHELF_CENTER[0],
+            THRESHOLD_SHELF_CENTER[2],
+        );
+        assert!(shelf_near);
+        assert_eq!(
+            door_room_name(PlaceId::Heartwood, shelf_near),
+            "Threshold-near"
+        );
+        assert!(!threshold_use_in_reach(PlaceId::Sanctuary, 0.0, 0.0));
+        assert_eq!(PlacesRoom::Threshold.place_id(), PlaceId::Heartwood);
+        assert_eq!(PlacesRoom::Threshold.display_name(), "Threshold-near");
+        assert_ne!(PlacesRoom::Threshold.display_name(), "Threshold");
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        match PlaceId::Sanctuary {
+            PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => {}
+        }
+        assert!(!places_eligible(true, false));
+        assert!(places_eligible(true, true));
     }
 
     /// Four Offline rooms on the door; Threshold shares Heartwood's file.
@@ -1259,7 +1347,7 @@ mod tests {
         assert_eq!(PlacesRoom::Heartwood.place_id(), PlaceId::Heartwood);
         assert_eq!(PlacesRoom::Threshold.place_id(), PlaceId::Heartwood);
         assert_eq!(PlacesRoom::Depths.place_id(), PlaceId::Depths);
-        assert_eq!(PlacesRoom::Threshold.display_name(), "Threshold");
+        assert_eq!(PlacesRoom::Threshold.display_name(), "Threshold-near");
         // No Market / fifth PlaceId on this plate.
         assert_eq!(LOCAL_HEXES.len(), 3, "disk hexes stay three; Threshold rides Heartwood");
     }
@@ -1270,7 +1358,7 @@ mod tests {
         select_room(&mut plate, PlaceId::Sanctuary, PlacesRoom::Threshold);
         assert!(plate.confirm_pending);
         assert_eq!(plate.selected, Some(PlaceId::Heartwood));
-        assert_eq!(plate.selected_room, Some("Threshold"));
+        assert_eq!(plate.selected_room, Some("Threshold-near"));
         // Already on Heartwood: Threshold is same disk room — no confirm teleport.
         select_room(&mut plate, PlaceId::Heartwood, PlacesRoom::Threshold);
         assert!(!plate.confirm_pending);
