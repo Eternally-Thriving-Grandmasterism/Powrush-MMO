@@ -52,6 +52,13 @@
  * dressed distances. No Ultra. Cite ASSET_BUDGET_COURT @ `5eff19c` ·
  * MESH_QUALITY_BUDGET.
  *
+ * CARD OPT-WEATHER-FIDELITY-LOW — Comfort Low fog / mist bed density cap.
+ * Start/end floors already open the close FLESH ramps. Low still paid full
+ * extinction (fog alpha 1) on that opened bed. Bevy linear fog uses alpha as
+ * the max mix, so Low now thins the same haze. No particle emitter on this
+ * path — the weather bed is the mist bed. Medium and High keep alpha 1 and
+ * the dressed distances. No Ultra.
+ *
  * CARD L7 ARRIVAL-BEAT — People-door land applies one FogSettings beat from
  * existing look_for tokens. Human → SanctuarySkyYard / warm-gold well.
  * Ambrosian → brighter / thinner high fog on the same Sanctuary disk
@@ -499,6 +506,8 @@ pub struct WeatherBed {
     pub breath_amp: f32,
     /// Tint / emissive strength scale (fidelity).
     pub tint_strength: f32,
+    /// Mist-bed density. 1.0 = dressed Medium/High extinction. Low is capped.
+    pub bed_density: f32,
 }
 
 /// Base breath profile per Place mood (before fidelity / band coupling).
@@ -529,6 +538,25 @@ const LOW_BREATH_HZ_CAP: f32 = 0.05;
 /// Depths dressed amp is 0.070; 0.55 intensity still leaves a richer pulse
 /// than that quiet yard. Low must not carry that cost.
 const LOW_BREATH_AMP_CAP: f32 = 0.018;
+/// CARD OPT-WEATHER-FIDELITY-LOW — Comfort Low ceiling on fog / mist bed density.
+/// Dressed beds pay full extinction (alpha 1). Bevy linear fog multiplies that
+/// alpha into the mix, so 0.55 (Comfort Low intensity) thins the particle bed
+/// without a second emitter. Medium and High stay at 1.
+const LOW_BED_DENSITY_CAP: f32 = 0.55;
+
+/// Low-only fog / mist bed density. Medium and High keep full extinction.
+fn comfort_low_bed_density(fidelity: WeatherFidelity) -> f32 {
+    match fidelity {
+        WeatherFidelity::Low => LOW_BED_DENSITY_CAP,
+        WeatherFidelity::Medium | WeatherFidelity::High => 1.0,
+    }
+}
+
+/// Scale fog alpha by bed density. RGB stays the Place token.
+fn fog_at_bed_density(color: Color, density: f32) -> Color {
+    let s = color.to_srgba();
+    Color::srgba(s.red, s.green, s.blue, s.alpha * density)
+}
 
 /// Low-only fog / breath cap. Medium and High return the dressed bed unchanged.
 fn comfort_low_weather(
@@ -561,9 +589,15 @@ pub fn weather_bed_for(realm: Option<u8>, fidelity: WeatherFidelity) -> WeatherB
     let intensity = fidelity.intensity();
     let (fog_start, fog_end, breath_hz, breath_amp) =
         comfort_low_weather(fidelity, look.fog_start, look.fog_end, hz, amp0, intensity);
+    let bed_density = comfort_low_bed_density(fidelity);
+    // Medium/High keep the dressed Color, including alpha 1. Low thins alpha only.
+    let fog = match fidelity {
+        WeatherFidelity::Low => fog_at_bed_density(look.fog, bed_density),
+        WeatherFidelity::Medium | WeatherFidelity::High => look.fog,
+    };
     WeatherBed {
         mood,
-        fog: look.fog,
+        fog,
         sky: look.sky,
         ambient: look.ambient,
         fog_start,
@@ -572,6 +606,7 @@ pub fn weather_bed_for(realm: Option<u8>, fidelity: WeatherFidelity) -> WeatherB
         breath_hz,
         breath_amp,
         tint_strength: intensity,
+        bed_density,
     }
 }
 
@@ -896,6 +931,7 @@ fn apply_climate_look(
 fn apply_arrival_beat_fog(
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     presence: Option<Res<crate::human_presence::SoftPresence>>,
+    settings: Option<Res<LocalSettingsState>>,
     mut fogs: Query<&mut FogSettings>,
 ) {
     let Some(presence) = presence else {
@@ -911,9 +947,18 @@ fn apply_arrival_beat_fog(
         return;
     }
     let fog = arrival_fog_for_landing(PeopleLanding::SanctuaryWellFromAbove);
-    for mut settings in &mut fogs {
-        settings.color = fog.color;
-        settings.falloff = FogFalloff::Linear {
+    let fidelity = settings
+        .as_ref()
+        .map(|s| s.inner.weather_fidelity())
+        .unwrap_or(WeatherFidelity::Medium);
+    // Distances stay the L7 beat. Low only thins alpha; Medium/High color is exact.
+    let color = match fidelity {
+        WeatherFidelity::Low => fog_at_bed_density(fog.color, comfort_low_bed_density(fidelity)),
+        WeatherFidelity::Medium | WeatherFidelity::High => fog.color,
+    };
+    for mut fog_settings in &mut fogs {
+        fog_settings.color = color;
+        fog_settings.falloff = FogFalloff::Linear {
             start: fog.start,
             end: fog.end,
         };
@@ -947,7 +992,7 @@ fn lod_stone_tf(x: f32, y: f32, z: f32, scale: f32) -> Transform {
 /// Soft fog / ambient breath from Place weather bed + FlowWeather band coupling.
 /// Uses existing FogSettings / AmbientLight only — no second HUD, no sockets.
 /// Comfort Low beds are already capped in [`weather_bed_for`] (gentler fog,
-/// slower breath). Medium and High keep the dressed ramp.
+/// slower breath, thinner mist density). Medium and High keep the dressed ramp.
 fn breathe_weather_bed(
     realm: Res<SoftPlayerRealm>,
     settings: Option<Res<LocalSettingsState>>,
@@ -2010,8 +2055,10 @@ mod tests {
             && mid.breath_hz == high.breath_hz
             && mid.breath_amp < high.breath_amp
             && mid.tint_strength < high.tint_strength
-            && srgb3(mid.fog) == srgb3(look.fog)
-            && srgb3(high.fog) == srgb3(look.fog)
+            && mid.fog == look.fog
+            && high.fog == look.fog
+            && mid.bed_density == 1.0
+            && high.bed_density == 1.0
             && srgb3(high.sky) == srgb3(look.sky)
     }
 
@@ -2057,6 +2104,38 @@ mod tests {
             assert!(!preset.label().contains("Ultra"));
             assert!(!preset.weather_fidelity().feel_label().contains("Ultra"));
         }
+        assert!(!WeatherFidelity::Low.feel_label().contains("Ultra"));
+    }
+
+    /// CARD OPT-WEATHER-FIDELITY-LOW — Low mist-bed density is capped.
+    /// Medium and High keep dressed fog color (alpha included) and density 1.
+    /// Place RGB tokens stay. No particle emitter. No Ultra.
+    #[test]
+    fn comfort_low_bed_density_thins_mist_medium_high_stay_full() {
+        for realm in [Some(0), Some(1), Some(2), Some(3), Some(4)] {
+            let look = look_for(realm);
+            let low = weather_bed_for(realm, WeatherFidelity::Low);
+            let mid = weather_bed_for(realm, WeatherFidelity::Medium);
+            let high = weather_bed_for(realm, WeatherFidelity::High);
+            assert!((low.bed_density - LOW_BED_DENSITY_CAP).abs() < f32::EPSILON);
+            assert!((mid.bed_density - 1.0).abs() < f32::EPSILON);
+            assert!((high.bed_density - 1.0).abs() < f32::EPSILON);
+            assert!(low.bed_density < mid.bed_density);
+            assert_eq!(mid.bed_density, high.bed_density);
+            assert_eq!(mid.fog, look.fog);
+            assert_eq!(high.fog, look.fog);
+            assert_eq!(srgb3(low.fog), srgb3(look.fog));
+            let dressed_alpha = look.fog.to_srgba().alpha;
+            let low_alpha = low.fog.to_srgba().alpha;
+            assert!((low_alpha - dressed_alpha * LOW_BED_DENSITY_CAP).abs() < 1e-5);
+            assert!(low_alpha < mid.fog.to_srgba().alpha);
+            assert_eq!(mid.fog_start, look.fog_start);
+            assert_eq!(mid.fog_end, look.fog_end);
+            assert_eq!(high.fog_start, look.fog_start);
+            assert_eq!(high.fog_end, look.fog_end);
+        }
+        assert_eq!(WeatherFidelity::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 3);
         assert!(!WeatherFidelity::Low.feel_label().contains("Ultra"));
     }
 
