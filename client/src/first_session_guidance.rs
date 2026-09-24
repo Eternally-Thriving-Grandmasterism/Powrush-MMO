@@ -70,6 +70,12 @@
  * Not a trailer / cutscene / Imagine pack. PlaceId stays 3. 0 meshes.
  * S2 / S3 / F5 / F6 WRITE unread. Title chrome unchanged. Online grey.
  *
+ * CARD FLESH-GUIDANCE-PLACE — the Hour-two week-bill sentence may name the
+ * Place the player stands in (Sanctuary / Heartwood / Threshold-near / Depths).
+ * Threshold-near is Heartwood plus existing shelf reach. No new PlaceId.
+ * Same tend · week-bill · Continue. No new card. No Title chrome. Online grey.
+ * Peak memory stays: walked · tended · week was the bill · yard remembered.
+ *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
@@ -801,6 +807,45 @@ fn card_line(prompt: &str) -> String {
     format!("{prompt}  · H hides")
 }
 
+/// CARD FLESH-GUIDANCE-PLACE — spoken room while standing.
+/// Threshold-near is Heartwood plus existing shelf reach, not a PlaceId.
+fn stood_place_name(place: PlaceId, threshold_near: bool) -> &'static str {
+    match place {
+        PlaceId::Sanctuary => "Sanctuary",
+        PlaceId::Depths => "Depths",
+        PlaceId::Heartwood if threshold_near => "Threshold-near",
+        PlaceId::Heartwood => "Heartwood",
+    }
+}
+
+/// Place label when travel is already in the world. None until that state exists.
+fn stood_place_label(
+    travel: Option<&HexTravelState>,
+    presence: Option<&SoftPresence>,
+) -> Option<&'static str> {
+    let travel = travel?;
+    let near = presence.is_some_and(|body| {
+        shared::threshold_shelf::threshold_use_in_reach(
+            travel.current,
+            body.position.x,
+            body.position.z,
+        )
+    });
+    Some(stood_place_name(travel.current, near))
+}
+
+/// CARD FLESH-GUIDANCE-PLACE — one existing sentence (the week-bill card)
+/// may prefix the Place. Tend, week tons+restored, and Continue stay.
+fn spoken_guidance(objective: &GuidanceObjective, place: Option<&str>) -> String {
+    let prompt = objective.prompt();
+    if *objective == GuidanceObjective::HourTwoHeld {
+        if let Some(place) = place {
+            return format!("{place} · {prompt}");
+        }
+    }
+    prompt.to_string()
+}
+
 fn update_guidance_visibility(
     guidance: Res<FirstSessionGuidance>,
     bind: Option<Res<LivedHourBind>>,
@@ -821,15 +866,21 @@ fn update_guidance_visibility(
 
 fn update_guidance_text(
     guidance: Res<FirstSessionGuidance>,
+    travel: Option<Res<HexTravelState>>,
+    presence: Option<Res<SoftPresence>>,
+    mut last_place: Local<Option<&'static str>>,
     mut query: Query<&mut Text, With<FirstSessionGuidanceText>>,
 ) {
-    if !guidance.is_changed() {
+    let place = stood_place_label(travel.as_deref(), presence.as_deref());
+    let place_changed = *last_place != place;
+    if !guidance.is_changed() && !place_changed {
         return;
     }
+    *last_place = place;
     let prompt = if guidance.dismissed {
         String::new()
     } else {
-        card_line(guidance.objective.prompt())
+        card_line(&spoken_guidance(&guidance.objective, place))
     };
     for mut text in &mut query {
         if let Some(section) = text.sections.get_mut(0) {
@@ -2264,5 +2315,64 @@ mod tests {
         let plate = f7_first_minutes_aftermath_line(Some(PeopleLanding::Heartwood));
         assert!(!plate.contains(".glb"));
         assert!(!plate.to_lowercase().contains("mesh"));
+    }
+
+    /// CARD FLESH-GUIDANCE-PLACE — week-bill sentence may name the Place stood in.
+    /// Tend, week-bill, and Continue stay the same words. No new card.
+    #[test]
+    fn flesh_guidance_place_names_stood_place_week_bill_stays() {
+        use crate::title_screen::TITLE_CHROME_CONTINUE;
+        use shared::hex_travel::PlaceId;
+
+        let week = GuidanceObjective::HourTwoHeld.prompt();
+        assert_eq!(week, "climate on slab · week tons+restored");
+        assert!(week.contains("week"));
+        assert!(week.contains("tons"));
+
+        assert_eq!(stood_place_name(PlaceId::Sanctuary, false), "Sanctuary");
+        assert_eq!(stood_place_name(PlaceId::Heartwood, false), "Heartwood");
+        assert_eq!(stood_place_name(PlaceId::Heartwood, true), "Threshold-near");
+        assert_eq!(stood_place_name(PlaceId::Depths, false), "Depths");
+        assert_eq!(stood_place_name(PlaceId::Depths, true), "Depths");
+
+        let sanctuary = spoken_guidance(&GuidanceObjective::HourTwoHeld, Some("Sanctuary"));
+        assert!(sanctuary.contains("Sanctuary"));
+        assert!(sanctuary.contains(week));
+        assert!(sanctuary.contains("week"));
+
+        let near = spoken_guidance(
+            &GuidanceObjective::HourTwoHeld,
+            Some(stood_place_name(PlaceId::Heartwood, true)),
+        );
+        assert!(near.contains("Threshold-near"));
+        assert!(near.contains("week"));
+        assert!(near.contains("tons"));
+
+        assert_eq!(spoken_guidance(&GuidanceObjective::HourTwoHeld, None), week);
+        assert_eq!(
+            spoken_guidance(&GuidanceObjective::HarvestWithInteract, Some("Sanctuary")),
+            "E tend the glow"
+        );
+        assert!(GuidanceObjective::HarvestWithInteract
+            .prompt()
+            .contains("tend"));
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+
+        let travel = HexTravelState {
+            current: PlaceId::Heartwood,
+        };
+        let mut body = SoftPresence::default();
+        assert_eq!(
+            stood_place_label(Some(&travel), Some(&body)),
+            Some("Heartwood")
+        );
+        let shelf = shared::threshold_shelf::THRESHOLD_SHELF_CENTER;
+        body.position.x = shelf[0];
+        body.position.z = shelf[2];
+        assert_eq!(
+            stood_place_label(Some(&travel), Some(&body)),
+            Some("Threshold-near")
+        );
+        assert!(stood_place_label(None, Some(&body)).is_none());
     }
 }
