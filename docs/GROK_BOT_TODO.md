@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `db01dfc4` (`db01dfc4d6e05dd714caa5cdb3dff90b8ec6db2b`) — spent #511 through #513 (bank #512–#513 after TODO-SYNC #511). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT · 0 OPEN.
+Tip `efc0f17b` (`efc0f17bad5840d4e026257b9a9f6d507b01c4d4`) — spent #514 through #517 (bank #515–#517 after TODO-SYNC-512 #514). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -71,7 +71,11 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#511 TODO-SYNC** — Landed #511 / `773e17cf` (`773e17cfc6eaa5cdd685749d85a2aac79621111c`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Banked #508–#510 at tip `014f9a81`. Cite only. Do not rebuild.
 - **#512 FLESH-EPIPHANY-PLACE** — Landed #512 / `2cb7cf97` (`2cb7cf974592af34b07522b4fae5a1159aa4864e`). PATH exact `client/src/first_harvest_epiphany.rs`. One existing epiphany/tend line may name Place (Sanctuary / Heartwood / Threshold-near / Depths). Threshold-near = Heartwood + shelf/threshold_near. No new PlaceId. Same five well words. No second HUD / new verb / Title chrome. Spent. Do not rebuild.
 - **#513 OPT-PUNCH-LOW** — Landed #513 / tip `db01dfc4` (`db01dfc4d6e05dd714caa5cdb3dff90b8ec6db2b`). PATH exact `client/src/human_presence.rs`. Graphics Low punch ×0.45. Medium/High full. Scale 0 stays 0 so reduced_motion wins (#507). No Ultra. No rumble rewrite. Spent. Do not rebuild.
-- **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued after the three named CARDs below. Do not open a heartbeat PR from this stamp.
+- **#514 TODO-SYNC-512** — Landed #514 / `a048ffdb` (`a048ffdbda03b9441facf7d2518e06fc01d6edba`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Banked #512–#513 at tip `db01dfc4`. Cite only. Do not rebuild.
+- **#515 FLESH-HARVEST-PLACE** — Landed #515 / `5d5627b6` (`5d5627b6d23f08e1ab552154cb7950bd1d9d81a3`). PATH exact `client/src/mercy_harvest_nodes.rs` (+104/−1). Existing care-cycle / tend offer may name the Place. Same Idle/Glowing/Tended/Resting/Stressed. No new node type. Spent. Do not rebuild.
+- **#516 FLESH-EMBASSY-LINE** — Landed #516 / `d3fafdcc` (`d3fafdcc12bc1bb9a476ccbaea93e72c86b708c3`). PATH exact `client/src/embassy.rs` (+105/−1). Existing lamp / E Request seat line may name Heartwood (Embassy already lives there). No second seat. No Online lobby. Spent. Do not rebuild.
+- **#517 OPT-WEATHER-FIDELITY-LOW** — Landed #517 / tip `efc0f17b` (`efc0f17bad5840d4e026257b9a9f6d507b01c4d4`). PATH exact `client/src/climate_plane.rs` (+86/−7). WeatherFidelity Low already exists. Cap fog density / particle bed on Low only. Medium/High untouched. No Ultra. Spent. Do not rebuild.
+- **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued after the two named CARDs below. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
@@ -79,11 +83,10 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT.
 
-1. **CARD FLESH-HARVEST-PLACE** — PATH `client/src/mercy_harvest_nodes.rs`. Existing care-cycle / tend offer may name the Place. Same Idle/Glowing/Tended/Resting/Stressed. No new node type.
-2. **CARD FLESH-EMBASSY-LINE** — PATH `client/src/embassy.rs`. Existing lamp / E Request seat line may name Heartwood (Embassy already lives there). No second seat. No Online lobby. Prefer client; do not edit `shared/embassy.rs` unless a string already lives only there.
-3. **CARD OPT-WEATHER-FIDELITY-LOW** — PATHS `client/src/climate_plane.rs` · `shared/local_settings.rs` (read). WeatherFidelity Low already exists. Cap fog density / particle bed on Low only. Medium/High untouched. No Ultra.
-4. **HEARTBEAT** — `cargo test -p shared -p rsil-identity` ; `cargo test -p powrush-client --lib`. GREEN + 0 PRs → chat `HEARTBEAT GREEN @ <sha>` · BEVY-CLIMB HOLD · pin 0.14. RED → restore-only PR.
-5. **BEVY-CLIMB HOLD** — pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Do not bump Cargo.
+1. **CARD FLESH-FABRICATOR-LINE** — PATH `client/src/fabricator.rs`. Existing planted / Proof Pack / MendSpool / LaneCrate line may name the Place they stand in. Civic proof, not gear. No gold. No Market. Do not edit `shared/fabricator.rs` unless the string lives only there.
+2. **CARD FLESH-HEX-DOOR** — PATH `client/src/hex_travel.rs`. Existing Places door / leave-this-hex confirm may speak peak memory (yard remembered · tend). Four rooms only. Threshold still Heartwood+near. No fifth PlaceId. No teleport list-row. Pause row stays book-gated.
+3. **HEARTBEAT** — `cargo test -p shared -p rsil-identity` ; `cargo test -p powrush-client --lib`. GREEN + 0 PRs → chat `HEARTBEAT GREEN @ <sha>` · BEVY-CLIMB HOLD · pin 0.14. RED → restore-only PR.
+4. **BEVY-CLIMB HOLD** — pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Do not bump Cargo.
 
 **BANK (cite only · do not cook):** MESH / Title Online / App ID / steamworks / `server/` = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. No playtest minutes.
 
