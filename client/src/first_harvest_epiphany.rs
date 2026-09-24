@@ -7,6 +7,12 @@
  * (prompt still tap vs hold) before any Care-cycle Temper/Ward card.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
+ *
+ * CARD FLESH-EPIPHANY-PLACE — one existing tend-success pulse may name the
+ * Place the player stands in (Sanctuary / Heartwood / Threshold-near / Depths).
+ * Threshold-near is Heartwood plus existing shelf reach (`threshold_near` or
+ * shelf). Wards stay Heartwood. No new PlaceId. Same tend words. No second HUD.
+ * First tend still advances guidance. No Title chrome. Online grey.
  */
 
 use bevy::input::gamepad::GamepadRumbleRequest;
@@ -14,6 +20,9 @@ use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
+use crate::hex_travel::HexTravelState;
+use crate::human_presence::SoftPresence;
+use shared::hex_travel::PlaceId;
 use crate::harvest_feel::{credit_soft_and_global, rumble_harvest, rumble_mercy_harvest, SoftRbePool};
 use crate::hour_sacred::HourSacred;
 use crate::input::PlayerInput;
@@ -68,6 +77,8 @@ pub struct FirstHarvestEpiphany {
     pub wards_near: bool,
     /// At the Depths Peace node. E restores that hex file; do not harvest.
     pub depths_near: bool,
+    /// CARD FLESH-EPIPHANY-PLACE — stood Place for the tend pulse. None until travel exists.
+    pub stood_place: Option<&'static str>,
 }
 
 impl Default for FirstHarvestEpiphany {
@@ -94,6 +105,7 @@ impl Default for FirstHarvestEpiphany {
             threshold_near: false,
             wards_near: false,
             depths_near: false,
+            stood_place: None,
         }
     }
 }
@@ -137,6 +149,48 @@ pub fn tend_breathe_answer() -> &'static str {
 
 pub fn tend_harmony_pulse_line(node_name: &str, credited: f32) -> String {
     format!("Tended {node_name} · +{credited:.1} harmony · vitality returns")
+}
+
+/// CARD FLESH-EPIPHANY-PLACE — spoken room while standing.
+/// Threshold-near is Heartwood plus existing shelf reach, not a PlaceId.
+/// Wards posts stay Heartwood.
+fn epiphany_stood_place_name(place: PlaceId, threshold_near: bool) -> &'static str {
+    match place {
+        PlaceId::Sanctuary => "Sanctuary",
+        PlaceId::Depths => "Depths",
+        PlaceId::Heartwood if threshold_near => "Threshold-near",
+        PlaceId::Heartwood => "Heartwood",
+    }
+}
+
+/// Place label when travel is already in the world. None until that state exists.
+/// `threshold_near` or shelf reach names Threshold-near. `_wards_near` does not.
+fn epiphany_stood_place_label(
+    travel: Option<&HexTravelState>,
+    presence: Option<&SoftPresence>,
+    threshold_near: bool,
+    _wards_near: bool,
+) -> Option<&'static str> {
+    let travel = travel?;
+    let shelf = presence.is_some_and(|body| {
+        shared::threshold_shelf::threshold_use_in_reach(
+            travel.current,
+            body.position.x,
+            body.position.z,
+        )
+    });
+    let near = threshold_near || shelf;
+    Some(epiphany_stood_place_name(travel.current, near))
+}
+
+/// CARD FLESH-EPIPHANY-PLACE — the existing tend-success pulse may prefix Place.
+/// Harmony and vitality words stay. No place → the same sentence as before.
+pub fn tend_pulse_at_place(node_name: &str, credited: f32, place: Option<&str>) -> String {
+    let line = tend_harmony_pulse_line(node_name, credited);
+    match place {
+        Some(place) => format!("{place} · {line}"),
+        None => line,
+    }
 }
 
 pub fn world_care_prompt_line(
@@ -216,6 +270,7 @@ impl Plugin for FirstHarvestEpiphanyPlugin {
                 (
                     mark_peace_visitor,
                     maybe_welcome_back,
+                    mark_epiphany_place,
                     handle_interact_harvest,
                     update_world_care_prompt,
                     update_harvest_pulse,
@@ -398,6 +453,20 @@ fn mark_peace_visitor(hour: Res<HourSacred>, mut state: ResMut<FirstHarvestEpiph
     state.peace_visitor = hour.session.peace_visitor_on_frontier();
 }
 
+/// CARD FLESH-EPIPHANY-PLACE — refresh the stood Place before the tend pulse.
+fn mark_epiphany_place(
+    travel: Option<Res<HexTravelState>>,
+    presence: Option<Res<SoftPresence>>,
+    mut state: ResMut<FirstHarvestEpiphany>,
+) {
+    state.stood_place = epiphany_stood_place_label(
+        travel.as_deref(),
+        presence.as_deref(),
+        state.threshold_near,
+        state.wards_near,
+    );
+}
+
 fn handle_interact_harvest(
     keyboard: Res<ButtonInput<KeyCode>>,
     player_input: Res<PlayerInput>,
@@ -484,9 +553,10 @@ fn handle_interact_harvest(
     }
 
     if hold.holding && e_down && !hold.tended && nearby.in_range && now - hold.started >= TEND_HOLD {
+        let place = state.stood_place;
         if resolve_tend(
             now, &mut state, &mut guidance, &mut nearby, &mut nodes, &mut pool,
-            &mut rumble, &gamepads, &mut answer,
+            &mut rumble, &gamepads, &mut answer, place,
         ) {
             hold.tended = true;
         }
@@ -585,6 +655,7 @@ fn resolve_tend(
     rumble: &mut EventWriter<GamepadRumbleRequest>,
     gamepads: &Gamepads,
     answer: &mut WorldAnswer,
+    place: Option<&str>,
 ) -> bool {
     if hold_e_tend_blocked(
         state.harvests_this_session,
@@ -614,7 +685,7 @@ fn resolve_tend(
 
     state.pulse_until = now + PULSE_SECS;
     let node_name = nearby.name.unwrap_or("the node");
-    state.pulse_line = tend_harmony_pulse_line(node_name, credited);
+    state.pulse_line = tend_pulse_at_place(node_name, credited, place);
     info!(target: "powrush::epiphany", node = node_name, "hold-E tend");
     true
 }
@@ -928,5 +999,119 @@ mod tests {
         assert!(!hold_e_tend_blocked(1, 0, 10.0, 10.1));
         assert!(hold_e_tend_blocked(1, 1, 10.0, 10.5));
         assert!(!hold_e_tend_blocked(1, 1, 10.0, 11.3));
+    }
+
+    /// CARD FLESH-EPIPHANY-PLACE — tend pulse may name the Place stood in.
+    /// Tend words, breathe answer, and guidance advance stay. No new PlaceId.
+    #[test]
+    fn flesh_epiphany_place_names_stood_place_tend_line_stays() {
+        use crate::hex_travel::HexTravelState;
+        use crate::human_presence::SoftPresence;
+        use crate::title_screen::TITLE_CHROME_CONTINUE;
+        use shared::hex_travel::PlaceId;
+        use shared::persona::STEWARD_ONLINE_YES;
+
+        let bare = tend_harmony_pulse_line("Sanctuary ember", 0.4);
+        assert_eq!(
+            bare,
+            "Tended Sanctuary ember · +0.4 harmony · vitality returns"
+        );
+        assert_eq!(tend_pulse_at_place("Sanctuary ember", 0.4, None), bare);
+        assert!(bare.contains("Tended"));
+        assert!(bare.contains("harmony"));
+        assert!(bare.contains("vitality returns"));
+        assert!(!bare.contains("Care cycle"));
+
+        assert_eq!(epiphany_stood_place_name(PlaceId::Sanctuary, false), "Sanctuary");
+        assert_eq!(epiphany_stood_place_name(PlaceId::Heartwood, false), "Heartwood");
+        assert_eq!(
+            epiphany_stood_place_name(PlaceId::Heartwood, true),
+            "Threshold-near"
+        );
+        assert_eq!(epiphany_stood_place_name(PlaceId::Depths, false), "Depths");
+        assert_eq!(epiphany_stood_place_name(PlaceId::Depths, true), "Depths");
+        assert_eq!(
+            epiphany_stood_place_name(PlaceId::Sanctuary, true),
+            "Sanctuary"
+        );
+
+        let node_bare = tend_harmony_pulse_line("the node", 0.4);
+        for place in ["Sanctuary", "Heartwood", "Threshold-near", "Depths"] {
+            let line = tend_pulse_at_place("the node", 0.4, Some(place));
+            assert_eq!(line, format!("{place} · {node_bare}"));
+            assert!(line.contains("harmony"));
+            assert!(line.contains("vitality returns"));
+            assert!(line.contains("Tended"));
+        }
+
+        let near = tend_pulse_at_place(
+            "the node",
+            0.4,
+            Some(epiphany_stood_place_name(PlaceId::Heartwood, true)),
+        );
+        assert!(near.contains("Threshold-near"));
+        assert!(near.contains("harmony"));
+
+        assert_eq!(tend_breathe_answer(), "tended — the node breathes");
+        assert_eq!(tap_vs_hold_prompt(), "tap E take  ·  hold E tend");
+        assert_eq!(TITLE_CHROME_CONTINUE, "Continue");
+        assert!(!STEWARD_ONLINE_YES);
+
+        let mut g = FirstSessionGuidance::default();
+        g.objective = GuidanceObjective::HarvestWithInteract;
+        crate::first_session_guidance::credit_harvest(&mut g);
+        assert_eq!(g.objective, GuidanceObjective::OpenInventory);
+        assert!(GuidanceObjective::HarvestWithInteract
+            .prompt()
+            .contains("tend"));
+
+        let heart = HexTravelState {
+            current: PlaceId::Heartwood,
+        };
+        let mut body = SoftPresence::default();
+        assert_eq!(
+            epiphany_stood_place_label(Some(&heart), Some(&body), false, false),
+            Some("Heartwood")
+        );
+        assert_eq!(
+            epiphany_stood_place_label(Some(&heart), Some(&body), false, true),
+            Some("Heartwood"),
+            "wards stay Heartwood"
+        );
+        assert_eq!(
+            epiphany_stood_place_label(Some(&heart), Some(&body), true, false),
+            Some("Threshold-near")
+        );
+        let shelf = shared::threshold_shelf::THRESHOLD_SHELF_CENTER;
+        body.position.x = shelf[0];
+        body.position.z = shelf[2];
+        assert_eq!(
+            epiphany_stood_place_label(Some(&heart), Some(&body), false, false),
+            Some("Threshold-near")
+        );
+        assert_eq!(
+            epiphany_stood_place_label(Some(&heart), Some(&body), false, true),
+            Some("Threshold-near")
+        );
+
+        let sanctuary = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        assert_eq!(
+            epiphany_stood_place_label(Some(&sanctuary), Some(&body), false, false),
+            Some("Sanctuary")
+        );
+        let depths = HexTravelState {
+            current: PlaceId::Depths,
+        };
+        assert_eq!(
+            epiphany_stood_place_label(Some(&depths), Some(&body), true, false),
+            Some("Depths")
+        );
+        assert!(epiphany_stood_place_label(None, Some(&body), true, true).is_none());
+
+        let week = GuidanceObjective::HourTwoHeld.prompt();
+        assert!(week.contains("week"));
+        assert!(week.contains("tons"));
     }
 }
