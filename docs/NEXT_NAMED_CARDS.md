@@ -1,47 +1,57 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #499 through #507. FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL ladder closed. Tip `c03bcd39`.
+Spent #499 through #510. Bank #508–#510. Tip `014f9a81` (`014f9a8115b5599c405ae13821dff3cc588edce2`).
+Keep earlier #499–#507 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL ladder).
 Steward unlock 2026-09-24 ACK SPEECH LADDER SPENT 0 OPEN.
-Do not rebuild fog, captions, Continue, or pulse hush.
+Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, or the Place-prefix week-bill sentence.
 Peak memory locked: walked · tended · week was the bill · yard remembered.
-MESH Hands / Title Online / App ID / steamworks crate / `server/` stay banked.
-Online grey. No OFFER NEXT. Bevy pin 0.14. BEVY-CLIMB HOLD until v0.20.0 STABLE ([`BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md)).
+MESH Hands / Title Online / App ID / steamworks crate / `server/` stay banked (steward only).
+Online grey. No OFFER NEXT. Hands DARK until Core names one CARD with exact PATHS.
+Bevy pin 0.14. BEVY-CLIMB HOLD until v0.20.0 STABLE ([`BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md)). Do not bump Cargo.
 
-Fetch `origin/main`. Grok 4.7 High / 4.6 High. One CARD then stop. No Fast / Codex / GPT / Claude Hands cook. No direct push to `main`. No `client/**` outside a named CARD.
+Fetch `origin/main`. Grok 4.7 High / 4.6 High. One CARD then stop. No Fast / Codex / GPT / Claude Hands cook. No direct push to `main`. No `client/**` outside a named CARD. Do not invent PATHS. Do not invent playtest minutes. Do not invent the next unlock.
 
-## 1. CARD TODO-SYNC-FLESH (this stamp)
+## Spent cooks (do not rebuild)
+
+### #508 TODO-SYNC-FLESH
 
 **PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
 
-Docs only. Align the bank with tip `c03bcd39`. Do not edit `client/**`. Do not bump Cargo. Do not invent PATHS.
+Docs bank after FLESH-WELL ladder. Spent.
 
-## 2. OPT-AUDIO-COMFORT-LOW (after this PR merges)
+### #509 OPT-AUDIO-COMFORT-LOW
 
-**PATH:** `client/src/peace_audio.rs` (Steward-named)
+**PATH:** `client/src/peace_audio.rs`
 
-Cap Heartwood / Depths / yard beds on Graphics Low only. Medium/High gains stay. No Ultra. `harvest_feel` untouched.
+Peace audio cap on Graphics Low for Heartwood / Depths / yard beds. Spent. Medium/High gains stay. No Ultra.
 
-## 3. FLESH-GUIDANCE-PLACE (after OPT-AUDIO-COMFORT-LOW)
+### #510 FLESH-GUIDANCE-PLACE
 
-**PATH:** `client/src/first_session_guidance.rs`
+**PATH:** `client/src/first_session_guidance.rs` (+112/−2)
 
-One existing guidance sentence may name the Place they stand in (Sanctuary / Heartwood / Threshold-near / Depths). Same tend · week-bill · Continue. No new card. No Title chrome.
+Hour-two week-bill sentence may prefix stood Place (Sanctuary / Heartwood / Threshold-near / Depths). Threshold-near = Heartwood + existing shelf reach. No new PlaceId. Tend · week-bill · Continue unchanged. No new card. No Title chrome. Spent.
 
-## 4. STANDING HEARTBEAT (after the two cooks — no steward ping)
+### HEARTBEAT
+
+GREEN @ `014f9a81`. Both core gates passed. 0 open PRs. No heartbeat PR from this stamp.
+
+Standing law (already green on this tip):
 
 ```
 cargo test -p shared -p rsil-identity
 cargo test -p powrush-client --lib
 ```
 
-- Both green + 0 open PRs → chat `HEARTBEAT GREEN @ <short SHA> · BEVY-CLIMB HOLD · pin 0.14`. No PR.
-- Either red → one Grok 4.7 High PR that restores existing tests only. No new verbs. No mesh. No Online.
-- Footer Codex / GPT / Claude / Fast → Dual RED.
+Both green + 0 open PRs → chat `HEARTBEAT GREEN @ <short SHA> · BEVY-CLIMB HOLD · pin 0.14`. Either red → one restore-only PR (no new verbs). Footer Codex / GPT / Claude / Fast → Dual RED.
 
-## 5. BEVY-CLIMB HOLD
+## Next (ordered)
 
-Pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (0.20.0 STABLE). Do not bump Cargo.
+Hands DARK until Core names one CARD with exact PATHS. No OFFER NEXT.
 
-## 6. MESH / Online / App ID / steamworks
+### 1. BEVY-CLIMB HOLD
 
-Steward only / banked. No Hands mesh. No invent PATHS. No playtest minutes. No OFFER NEXT.
+Pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Do not bump Cargo.
+
+### MESH / Title Online / App ID / steamworks / `server/`
+
+Steward only · banked. No Hands mesh. No invent PATHS. No playtest minutes. Online grey.
