@@ -1103,7 +1103,10 @@ mod tests {
                 PlaceId::Sanctuary | PlaceId::Heartwood | PlaceId::Depths => 1,
             };
         }
-        assert!(care_cycle_card_at_place(false, Some("Threshold-near")).starts_with("Threshold-near · "));
+        assert!(
+            care_cycle_card_at_place(false, Some("Threshold-near"))
+                .starts_with("Threshold-near · ")
+        );
 
         for name in ["Sanctuary ember", "Verdant well", "Horizon seed"] {
             assert_ne!(name, "Sanctuary");
