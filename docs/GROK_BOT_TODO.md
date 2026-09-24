@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `a1cf2ac` (`a1cf2ac862970e0b95affe0739d159a8cc300812`) — #495 spent; stamp court closed; BEVY climb banked. Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump.
+Tip `c03bcd39` (`c03bcd3996227179e51ea2933dcd27741aab9b24`) — spent #499 through #507 (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL ladder closed). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK SPEECH LADDER SPENT 0 OPEN.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -63,14 +63,20 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **HOUR1-GREEN** — Proven H-2026-09-15 @ tip `3b197ed7` (#437). Core gate green: `shared` 375 + `rsil-identity` 5 + `powrush-client --lib` 341, 0 failed. E tend, R+2 non-zero reserve confirm, lived persist resume. Hour 2 Hands **STOP** — pack/TODO named no PATHS; no failing Hour-1 test. Do not rebuild #432 / #435 / #436. No mesh. No Steam. Title Online grey.
 - **Q1b STRANGER-HOUR-LIB** — Landed H-2026-09-22 #486 / `e3a6b48`. Spent on tip. Do not rebuild. Cite autonomy court Q1; Title Online grey.
 - **#482–#495 pack** — Landed H-2026-09-22–23 #482–#495 / tip `999796d`. Q0–Q4, L2, Steam pack, trailer grammar, press hook, peak notes. Stamp court closed. Do not rebuild. Cite [`NEXT_NAMED_CARDS.md`](NEXT_NAMED_CARDS.md) · [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md). Title Online grey.
+- **#496–#498** — Landed (TODO-SYNC #496 / `022de35` · heartbeat tip #497 · DRIVE-PLACE-CITE #498 / `a649196`). Cite only. Do not rebuild.
+- **#499–#507 FLESH dress / well ladder** — Landed H-2026-09-24 #499–#507 / tip `c03bcd39`. Sanctuary · Heartwood · Threshold · Depths dress, Guide breath, Comfort Low fog cap, well captions, Continue line, reduced-motion pulse hush. FLESH-WELL ladder closed. Do not rebuild fog, captions, Continue, or pulse hush. Peak memory locked: walked · tended · week was the bill · yard remembered. Cite, do not narrate. Title Online grey.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
-1. **STANDING HEARTBEAT** — `cargo test -p shared -p rsil-identity` and `cargo test -p powrush-client --lib`. Both green + 0 open PRs → chat only `HEARTBEAT GREEN @ <sha> · BEVY-CLIMB HOLD · pin 0.14 · Hands DARK`. Either red → one restore-only PR (no new verbs).
-2. **BEVY-CLIMB HOLD** until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (lived pin bevy 0.14; next minor is 0.20; do not bump Cargo; no Unreal/Unity/Godot).
-3. **MESH / Online / App ID / steamworks crate** = steward only.
+Bank only on this stamp. Do not edit `client/**` in TODO-SYNC-FLESH. Next cook after this PR merges: OPT-AUDIO-COMFORT-LOW, then FLESH-GUIDANCE-PLACE, then HEARTBEAT.
+
+1. **OPT-AUDIO-COMFORT-LOW** — PATH `client/src/peace_audio.rs` (Steward-named). Cap Heartwood / Depths / yard beds on Graphics Low only. Medium/High gains stay. No Ultra. `harvest_feel` untouched.
+2. **FLESH-GUIDANCE-PLACE** — PATH `client/src/first_session_guidance.rs`. One existing guidance sentence may name the Place they stand in (Sanctuary / Heartwood / Threshold-near / Depths). Same tend · week-bill · Continue. No new card. No Title chrome.
+3. **STANDING HEARTBEAT** — `cargo test -p shared -p rsil-identity` ; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → chat `HEARTBEAT GREEN @ <sha> · BEVY-CLIMB HOLD · pin 0.14`. Either red → one restore-only PR (no new verbs).
+4. **BEVY-CLIMB HOLD** — pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (0.20.0 STABLE). Do not bump Cargo.
+5. **MESH / Online / App ID / steamworks** — steward only / banked. MESH Hands · Title Online · App ID · steamworks crate · `server/` stay banked.
 
 Grok Hands cook only. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
