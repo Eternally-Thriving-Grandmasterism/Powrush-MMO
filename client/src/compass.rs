@@ -6,6 +6,7 @@ use bevy::prelude::*;
 
 use shared::compass;
 
+use crate::hex_travel::HexTravelState;
 use crate::hour_sacred::HourSacred;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 
@@ -84,8 +85,18 @@ fn update_compass(
     yard.last = line;
 }
 
+/// CARD FLESH-COMPASS-LINE — the compass tell may name the Place.
+/// Absent travel keeps the tell line byte for byte.
+fn compass_line(place: Option<&str>, line: &str) -> String {
+    match place {
+        Some(place) => format!("{place} · {line}"),
+        None => line.to_string(),
+    }
+}
+
 fn update_compass_slab(
     yard: Res<CompassYard>,
+    travel: Option<Res<HexTravelState>>,
     mut root: Query<&mut Visibility, With<CompassSlabRoot>>,
     mut text_q: Query<&mut Text, With<CompassSlabText>>,
 ) {
@@ -100,10 +111,11 @@ fn update_compass_slab(
     let Some(line) = yard.last else {
         return;
     };
+    let painted = compass_line(travel.as_ref().map(|state| state.chip_name()), line);
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.to_string();
+            if s.value != painted {
+                s.value = painted.clone();
             }
         }
     }
@@ -119,5 +131,22 @@ mod tests {
         let hour = HourSacred::default();
         assert_eq!(hour.hex(), HexFlag::Peace);
         assert_eq!(compass::tell(&hour.session.warrant, hour.hex()), None);
+    }
+
+    /// CARD FLESH-COMPASS-LINE — Place prefixes the tell; no place keeps the line.
+    #[test]
+    fn compass_line_names_place_or_keeps_line() {
+        let line = "Compass · 20 — a cited wind";
+        let dressed = compass_line(Some("Heartwood"), line);
+        assert_eq!(dressed, "Heartwood · Compass · 20 — a cited wind");
+        let bare = compass_line(None, line);
+        assert_eq!(bare, line);
+        for sample in [&dressed, &bare] {
+            let low = sample.to_lowercase();
+            assert!(!low.contains("threshold"));
+            assert!(!low.contains("gold"));
+            assert!(!low.contains("market"));
+            assert!(!low.contains("xp"));
+        }
     }
 }
