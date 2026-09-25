@@ -11,10 +11,20 @@
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::hex_travel::HexTravelState;
 use crate::local_session_persist::LocalSessionPersist;
 
 const LINE: &str = "What you nurture, nurtures all.";
 const HOLD_SECS: f64 = 5.2;
+
+/// CARD FLESH-WHISPER-PLACE — the one Lattice sentence may name the Place.
+/// Absent travel keeps `LINE` byte for byte. One sentence, then silence.
+fn whisper_line(place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("{place} · {LINE}"),
+        None => LINE.to_string(),
+    }
+}
 
 #[derive(Resource, Debug, Default)]
 struct WhisperClock {
@@ -79,6 +89,8 @@ fn maybe_speak(
     mut persist: ResMut<LocalSessionPersist>,
     mut clock: ResMut<WhisperClock>,
     time: Res<Time>,
+    travel: Option<Res<HexTravelState>>,
+    mut whisper: Query<&mut Text, With<WhisperText>>,
 ) {
     if persist.whisper_lived || clock.showing {
         return;
@@ -90,6 +102,12 @@ fn maybe_speak(
     persist.dirty = true;
     clock.showing = true;
     clock.until = time.elapsed_seconds_f64() + HOLD_SECS;
+    if let Some(state) = travel.as_ref() {
+        let dressed = whisper_line(Some(state.chip_name()));
+        for mut text in &mut whisper {
+            text.sections[0].value = dressed.clone();
+        }
+    }
     info!(target: "powrush::whisper", "one Lattice sentence — then silence");
 }
 
@@ -105,5 +123,30 @@ fn update_whisper(
         } else {
             Visibility::Hidden
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::hex_travel::PlaceId;
+
+    /// CARD FLESH-WHISPER-PLACE — Place prefixes the sentence; no travel keeps LINE.
+    #[test]
+    fn flesh_whisper_place_names_chip_or_keeps_line() {
+        assert_eq!(whisper_line(None), LINE);
+        assert_eq!(whisper_line(None), "What you nurture, nurtures all.");
+
+        let travel = HexTravelState {
+            current: PlaceId::Sanctuary,
+        };
+        let dressed = whisper_line(Some(travel.chip_name()));
+        assert_eq!(dressed, "Sanctuary Prime · What you nurture, nurtures all.");
+        assert!(dressed.ends_with(LINE));
+        let low = dressed.to_lowercase();
+        assert!(!low.contains("threshold"));
+        assert!(!low.contains("gold"));
+        assert!(!low.contains("market"));
+        assert!(!low.contains("xp"));
     }
 }
