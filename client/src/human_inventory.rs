@@ -16,6 +16,7 @@ use shared::temper::{lumen_slots, TemperedItem, ToolTier, WardKind};
 use crate::companion_bond::CompanionBond;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
+use crate::hex_travel::HexTravelState;
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_BORDER, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
@@ -258,20 +259,28 @@ fn slot_select_when_open(
     }
 }
 
+/// CARD FLESH-SATCHEL-LINE — the one pickup flash may name the Place stood in.
+/// Absent `HexTravelState` keeps the walked line word for word.
+fn satchel_grew_line(last_credit: f32, place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("+{:.1} vitality  ·  satchel grew in {place}", last_credit),
+        None => format!("+{:.1} vitality  ·  satchel grew", last_credit),
+    }
+}
+
 fn notice_pickup(
     pool: Res<SoftRbePool>,
     time: Res<Time>,
     mut inv: ResMut<HumanInventory>,
+    travel: Option<Res<HexTravelState>>,
 ) {
     if pool.harvests == inv.last_seen_harvests {
         return;
     }
     inv.last_seen_harvests = pool.harvests;
     inv.pickup_until = time.elapsed_seconds_f64() + 1.8;
-    inv.pickup_line = format!(
-        "+{:.1} vitality  ·  satchel grew",
-        pool.last_credit
-    );
+    let place = travel.as_ref().map(|state| state.chip_name());
+    inv.pickup_line = satchel_grew_line(pool.last_credit, place);
 }
 
 fn feed_allocate_surplus(
@@ -549,6 +558,38 @@ mod tests {
         assert!(!rest_line.to_lowercase().contains("gold"));
         assert!(!rest_line.to_lowercase().contains("mall"));
         assert!(!rest_line.to_lowercase().contains("p2w"));
+    }
+
+    /// CARD FLESH-SATCHEL-LINE — Place dresses the pickup line; no travel keeps it exact.
+    #[test]
+    fn flesh_satchel_line_names_chip_or_keeps_walked_line() {
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(
+            satchel_grew_line(1.2, None),
+            "+1.2 vitality  ·  satchel grew"
+        );
+
+        let cases = [
+            (PlaceId::Sanctuary, "Sanctuary Prime"),
+            (PlaceId::Heartwood, "Heartwood"),
+            (PlaceId::Depths, "Depths"),
+        ];
+        for (id, name) in cases {
+            let travel = HexTravelState { current: id };
+            assert_eq!(travel.chip_name(), name);
+            assert_eq!(
+                satchel_grew_line(1.2, Some(travel.chip_name())),
+                format!("+1.2 vitality  ·  satchel grew in {name}")
+            );
+        }
+
+        let dressed = satchel_grew_line(0.4, Some("Heartwood"));
+        let low = dressed.to_lowercase();
+        assert!(!low.contains("gold"));
+        assert!(!low.contains("market"));
+        assert!(!low.contains("xp"));
+        assert!(!dressed.contains("Threshold"));
     }
 
     #[test]
