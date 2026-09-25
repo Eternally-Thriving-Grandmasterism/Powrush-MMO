@@ -44,7 +44,23 @@ Tip `07490761`:
 
 capture: none on tip
 
-`scripts/` has no headless, screenshot, or tape capture script.
+headless Q1 script-run · stdout (no output file; temp log deleted) at tip 07490761
+
+```
+CARD Q1 SCRIPT-RUN 2026-09-25
+door: ./scripts/play-offline.sh --script-run · POWRUSH_NET=off · no cargo run · no WASD
+verified: cargo test -p shared -p rsil-identity && cargo test -p powrush-client --lib (named q0_* landing proofs)
+core shared+rsil-identity: PASS
+core powrush-client --lib: PASS
+Human / Sanctuary yard: PASS
+Ambrosian / Sanctuary well-from-above: PASS
+Cydruid / Heartwood: PASS
+Quellorian / Threshold: PASS
+Draek / Depths (teal way-home): PASS
+Garden / light path: PASS
+```
+
+No screenshot or tape capture on tip. Headless Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited above.
 
 MACHINE QA GREEN
 
