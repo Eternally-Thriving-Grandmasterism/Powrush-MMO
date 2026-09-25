@@ -110,13 +110,13 @@ fn sync_heartwood_lip(
     let walkway_mesh = meshes.add(Capsule3d::new(0.32, 2.0));
     let rib_mesh = meshes.add(Cuboid::new(0.16, 0.16, 3.0));
     let walkway_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.34, 0.20, 0.10),
-        perceptual_roughness: 0.88,
+        base_color: Color::srgb(0.26, 0.15, 0.07),
+        perceptual_roughness: 0.94,
         ..default()
     });
     let rib_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.22, 0.12, 0.07),
-        perceptual_roughness: 0.82,
+        base_color: Color::srgb(0.16, 0.09, 0.04),
+        perceptual_roughness: 0.95,
         ..default()
     });
 
@@ -159,9 +159,9 @@ fn sync_heartwood_lip(
                 THRESHOLD_SHELF_SIZE[2],
             )),
             material: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.40, 0.25, 0.11),
-                emissive: LinearRgba::new(0.025, 0.012, 0.003, 1.0),
-                perceptual_roughness: 0.86,
+                base_color: Color::srgb(0.30, 0.18, 0.08),
+                emissive: LinearRgba::new(0.016, 0.007, 0.002, 1.0),
+                perceptual_roughness: 0.93,
                 ..default()
             }),
             transform: Transform::from_translation(Vec3::from_array(THRESHOLD_SHELF_CENTER)),
@@ -175,9 +175,9 @@ fn sync_heartwood_lip(
         PbrBundle {
             mesh: meshes.add(Sphere::new(THRESHOLD_NODE_RADIUS)),
             material: materials.add(StandardMaterial {
-                base_color: Color::srgb(0.58, 0.82, 0.64),
-                emissive: LinearRgba::new(0.12, 0.26, 0.14, 1.0),
-                perceptual_roughness: 0.42,
+                base_color: Color::srgb(0.42, 0.60, 0.48),
+                emissive: LinearRgba::new(0.08, 0.18, 0.10, 1.0),
+                perceptual_roughness: 0.58,
                 ..default()
             }),
             transform: Transform::from_translation(Vec3::from_array(THRESHOLD_NODE_CENTER)),
@@ -191,9 +191,9 @@ fn sync_heartwood_lip(
         PbrBundle {
             mesh: meshes.add(Cylinder::new(WATER_POND_RADIUS, 0.04)),
             material: materials.add(StandardMaterial {
-                base_color: Color::srgba(0.10, 0.36, 0.40, 0.82),
-                perceptual_roughness: 0.24,
-                metallic: 0.05,
+                base_color: Color::srgba(0.06, 0.24, 0.28, 0.78),
+                perceptual_roughness: 0.48,
+                metallic: 0.02,
                 ..default()
             }),
             transform: Transform::from_xyz(WATER_POND_CENTER[0], 0.01, WATER_POND_CENTER[1]),
