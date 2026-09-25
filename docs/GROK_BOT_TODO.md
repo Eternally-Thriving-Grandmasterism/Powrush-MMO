@@ -104,7 +104,9 @@ Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / 
 
 After DARK, Dual may name ONE file only if `lib.rs` already has `pub mod` + plugin: `hands_memory.rs` · `shard_climate.rs` · `first_hour_camera.rs` · `world_answer.rs` · `human_soft_panels.rs` — no mod → SKIP.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs`.
+Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
+
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 703a380e.
 
 **Effective order (verified):** TODO-SYNC-531 → HEARTBEAT.
 
