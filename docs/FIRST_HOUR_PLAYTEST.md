@@ -26,6 +26,28 @@ cargo run -p powrush-client
 
 Same door, Offline forced: `./scripts/play-offline.sh` (or `./scripts/play-offline.ps1`). CARD Q1 six-landing machine pass (no interactive walk, no WASD): `./scripts/play-offline.sh q1` or `./scripts/play-offline.sh --script-run`. Windows twin stays the interactive Offline door — cite only; no new script. `POWRUSH_NET` unset or `off`. Title Online stays grey. Do not set `POWRUSH_NET=on`.
 
+## MACHINE QA
+
+Not Felt minutes. OS, GPU, and steward playtest minutes stay blank.
+
+```bash
+cargo test -p shared -p rsil-identity
+cargo test -p powrush-client --lib
+```
+
+CI job "Core + Q2 one-frame" is already the CI gate. Confirmed by CI on the PR.
+
+Tip `07490761`:
+
+- `cargo test -p shared -p rsil-identity`: PASS — shared 455 passed; rsil-identity 5 passed; 0 failed
+- `cargo test -p powrush-client --lib`: PASS — 625 passed; 0 failed
+
+capture: none on tip
+
+`scripts/` has no headless, screenshot, or tape capture script.
+
+MACHINE QA GREEN
+
 ## Hour 1 verbs (keys only)
 
 One card. World sentences, not a wiki.
