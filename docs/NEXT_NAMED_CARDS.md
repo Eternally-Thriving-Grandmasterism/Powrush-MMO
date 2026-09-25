@@ -1,11 +1,11 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #521 through #522. Bank #522 after TODO-SYNC-518 #521. Tip `b6f46698` (`b6f46698de1d620752b73aa045dfaceaff4c217b`).
-Keep earlier #499–#520 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR).
-Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT on this tip.
-Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, or the Peace well slab_line (five words; soft well_glow unchanged; no second HUD).
+Spent #523 through #525. Bank #524–#525 after TODO-SYNC-522 #523. Tip `caeaab91` (`caeaab9148437303e6b21fdc47b88530ffccb5e1`).
+Keep earlier #499–#522 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR / TODO-SYNC-518 / FLESH-SKIRMISH-DAWN).
+Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT on this tip.
+Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, the Peace well slab_line (five words; soft well_glow unchanged; no second HUD), the Mode B resume Place line (blob stays; no `harvest_feel`; no `rbe_allocate_choice`), or the Flow/Reserve Place invite (Flow = field restore; Reserve = repair-rights hold; never gold/price/Market/ticker/XP).
 Peak memory locked: walked · tended · week was the bill · yard remembered.
-MESH Hands / Title Online / App ID / steamworks crate / `server/` stay banked (steward only).
+Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes stay banked (steward only).
 Online grey. No OFFER NEXT. Do not invent PATHS beyond the ordered queue below.
 Bevy pin 0.14. BEVY-CLIMB HOLD until v0.20.0 STABLE ([`BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md)). Do not bump Cargo.
 
@@ -103,21 +103,33 @@ Landed tip `3ee537f6` (`3ee537f62443f02d0e6fd0238df3d0d6de0251af`). Docs stamp f
 
 Landed tip `b6f46698` (`b6f46698de1d620752b73aa045dfaceaff4c217b`). (= bank FLESH-SKIRMISH-WELL). Peace. Five well words Idle / Glowing / Tended / Resting / Stressed on the existing slab_line. Soft well_glow unchanged. No second HUD. Spent.
 
+### #523 TODO-SYNC-522
+
+**PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
+
+Landed tip `2a952c85` (`2a952c85ee364a1d6da321b1e5ac6e6a79aa20fd`). Docs stamp for the #521–#522 bank at tip `b6f46698`. Cite only. Do not rebuild.
+
+### #524 FLESH-RESUME-PLACE
+
+**PATH:** `client/src/lived_hour_bind.rs` (+52/−2)
+
+Landed tip `75e08a27` (`75e08a2761078b1698626bddf89f29f5093f6f8a`). Mode B resume / Continuity names the Place they wake in. Blob stays. No `harvest_feel`. No `rbe_allocate_choice`. Spent.
+
+### #525 FLESH-ALLOCATE-LINE
+
+**PATH:** `client/src/rbe_allocate_choice.rs` (+164/−4)
+
+Landed tip `caeaab91` (`caeaab9148437303e6b21fdc47b88530ffccb5e1`). Flow/Reserve invite may name Place. Flow = field restore. Reserve = repair-rights hold. NEVER gold/price/Market/ticker/XP. Spent.
+
 ### HEARTBEAT (prior)
 
-GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 2 below — do not open a heartbeat PR from this stamp.
+GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 1 below — do not open a heartbeat PR from this stamp.
 
 ## Next (ordered)
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. No OFFER NEXT.
 
-### 1. CARD FLESH-RESUME-PLACE
-
-**PATH:** `client/src/lived_hour_bind.rs`
-
-Mode B resume / Continuity may name the Place they wake in. L3/L4 land swap stays. Do not touch `harvest_feel` or `rbe_allocate_choice`. Do not delete the lived-hour blob. Online grey.
-
-### 2. HEARTBEAT
+### 1. HEARTBEAT
 
 ```
 cargo test -p shared -p rsil-identity
@@ -126,12 +138,12 @@ cargo test -p powrush-client --lib
 
 GREEN + 0 PRs → chat `HEARTBEAT GREEN @ <sha>` · BEVY-CLIMB HOLD · pin 0.14. RED → restore-only PR. Footer Codex / GPT / Claude / Fast → Dual RED.
 
-### 3. BEVY-CLIMB HOLD
+### 2. BEVY-CLIMB HOLD
 
 Pin 0.14 until [`docs/BEVY_CLIMB_PLAN.md`](BEVY_CLIMB_PLAN.md) gate (v0.20.0 STABLE). Bevy climb only at v0.20.0 STABLE. Do not bump Cargo.
 
 ## BANK (cite only · do not cook)
 
-MESH / Title Online / App ID / steamworks / `server/` = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. No playtest minutes. Online grey.
+Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. Online grey. No OFFER NEXT.
 
 NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.
