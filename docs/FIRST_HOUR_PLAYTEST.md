@@ -60,6 +60,18 @@ Draek / Depths (teal way-home): PASS
 Garden / light path: PASS
 ```
 
+### ODD-ZONE-NOTE (design note · not Felt minutes)
+
+Cite only `client/src/hex_travel.rs`. Spoken rooms: Sanctuary, Heartwood, Threshold-near, Depths. Disk ids stay `PlaceId::Sanctuary` (`sanctuary`), `PlaceId::Heartwood` (`heartwood`), `PlaceId::Depths` (`depths`). Threshold loads the Heartwood file. The Q1 line `Quellorian / Threshold` is a People landing on that shared disk, not a fifth room and not a PlaceId.
+
+Three odd zones, hush only. Peak memory may be cited: walked · tended · week was the bill · yard remembered.
+
+- Rare chapel — Sanctuary (`PlaceId::Sanctuary`). A seldom chapel in the yard hush. Not a new room.
+- Reused unused room — Heartwood · shelf reach (Threshold-near, not a PlaceId). An odd unused room already on that shelf, reused. Not a separate Place.
+- Rushed river — Depths (`PlaceId::Depths`). Water already on the teal way-home. Not a new hex.
+
+No fifth Place · no new PlaceId · reuses existing hex_travel Places only · design note, not Felt minutes · capture: none on tip
+
 No screenshot or tape capture on tip. Headless Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited above.
 
 MACHINE QA GREEN
