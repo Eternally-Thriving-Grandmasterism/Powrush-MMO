@@ -133,7 +133,7 @@ fn use_depths_peace_node(
     match restore_depths_hex(bind) {
         Ok(true) => {
             tend.tends = tend.tends.saturating_add(1);
-            tend.last_line = "Depths Peace · restored".into();
+            tend.last_line = "Depths Peace · teal · wet-stone · restored".into();
             info!(target: "powrush::depths", "{}", tend.last_line);
         }
         Ok(false) => {}
@@ -211,6 +211,13 @@ mod tests {
         assert_eq!(written.climate.restored_count, 1);
         assert_eq!(written.climate.tons_moved, tons_before, "not a haul");
         assert_eq!(bind.satchel_count(), satchel_before, "not a Take");
+        let line = &app.world().resource::<DepthsPeaceTend>().last_line;
+        assert_eq!(line, "Depths Peace · teal · wet-stone · restored");
+        let lower = line.to_lowercase();
+        assert!(!lower.contains("threshold"), "no threshold words");
+        assert!(!lower.contains("gold"), "no gold words");
+        assert!(!lower.contains("market"), "no market words");
+        assert!(!lower.contains("xp"), "no xp words");
         assert_eq!(app.world().resource::<DepthsPeaceTend>().tends, 1);
         assert!(!written.standing.declared_lethal, "Depths stays Peace");
         assert!(!depths_is_market());
