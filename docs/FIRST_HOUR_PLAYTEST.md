@@ -26,6 +26,44 @@ cargo run -p powrush-client
 
 Same door, Offline forced: `./scripts/play-offline.sh` (or `./scripts/play-offline.ps1`). CARD Q1 six-landing machine pass (no interactive walk, no WASD): `./scripts/play-offline.sh q1` or `./scripts/play-offline.sh --script-run`. Windows twin stays the interactive Offline door — cite only; no new script. `POWRUSH_NET` unset or `off`. Title Online stays grey. Do not set `POWRUSH_NET=on`.
 
+## MACHINE QA
+
+Not Felt minutes. OS, GPU, and steward playtest minutes stay blank.
+
+```bash
+cargo test -p shared -p rsil-identity
+cargo test -p powrush-client --lib
+```
+
+CI job "Core + Q2 one-frame" is already the CI gate. Confirmed by CI on the PR.
+
+Tip `07490761`:
+
+- `cargo test -p shared -p rsil-identity`: PASS — shared 455 passed; rsil-identity 5 passed; 0 failed
+- `cargo test -p powrush-client --lib`: PASS — 625 passed; 0 failed
+
+capture: none on tip
+
+headless Q1 script-run · stdout (no output file; temp log deleted) at tip 07490761
+
+```
+CARD Q1 SCRIPT-RUN 2026-09-25
+door: ./scripts/play-offline.sh --script-run · POWRUSH_NET=off · no cargo run · no WASD
+verified: cargo test -p shared -p rsil-identity && cargo test -p powrush-client --lib (named q0_* landing proofs)
+core shared+rsil-identity: PASS
+core powrush-client --lib: PASS
+Human / Sanctuary yard: PASS
+Ambrosian / Sanctuary well-from-above: PASS
+Cydruid / Heartwood: PASS
+Quellorian / Threshold: PASS
+Draek / Depths (teal way-home): PASS
+Garden / light path: PASS
+```
+
+No screenshot or tape capture on tip. Headless Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited above.
+
+MACHINE QA GREEN
+
 ## Hour 1 verbs (keys only)
 
 One card. World sentences, not a wiki.

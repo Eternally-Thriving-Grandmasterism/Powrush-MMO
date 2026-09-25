@@ -10,6 +10,28 @@ cargo test -p powrush-client --lib
 cargo run -p powrush-client
 ```
 
+## MACHINE QA
+
+Not Felt minutes. OS, GPU, and steward playtest minutes stay blank.
+
+```bash
+cargo test -p shared -p rsil-identity
+cargo test -p powrush-client --lib
+```
+
+CI job "Core + Q2 one-frame" is already the CI gate. Confirmed by CI on the PR.
+
+Tip `07490761`:
+
+- `cargo test -p shared -p rsil-identity`: PASS — shared 455 passed; rsil-identity 5 passed; 0 failed
+- `cargo test -p powrush-client --lib`: PASS — 625 passed; 0 failed
+
+capture: none on tip
+
+No screenshot or tape capture on tip. Headless Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited in `docs/FIRST_HOUR_PLAYTEST.md` MACHINE QA.
+
+MACHINE QA GREEN
+
 ## Script
 
 1. Resume with Hour two held. Welcome slab names the yard. Card skips WASD.
