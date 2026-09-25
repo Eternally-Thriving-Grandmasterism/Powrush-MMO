@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `a5a8f5ca` (`a5a8f5ca46736c8fbc43eabf0f37a8802631530b`) — spent #527 through #529 (bank #528–#529 after TODO-SYNC-523 #526). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT on this tip.
+Tip `703a380e` (`703a380e1688db8d3b70133818003f0ea9f2c70a`) — spent #530 through #533 (bank #531–#533 after TODO-SYNC-527 #530). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -87,7 +87,11 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#527 QA-MACHINE-HOUR** — Landed #527 / `f7c7b442` (`f7c7b4426d86df178d4a276e0c2a10e558a273ac`). STAGE 0. PATHS `docs/FIRST_HOUR_PLAYTEST.md` · `docs/HOUR_TWO_PLAYTEST.md` · `docs/HOUR_THREE_PLAYTEST.md` (+82). MACHINE QA section. capture: none on tip. Spent. Do not rebuild.
 - **#528 ODD-ZONE-NOTE** — Landed #528 / `2ef9c81a` (`2ef9c81ab24109a38d219b64d96c10eb83ece832`). STAGE 1. PATH `docs/FIRST_HOUR_PLAYTEST.md` (+12) MACHINE section. Chapel on Sanctuary. Reused unused room on Heartwood shelf reach (Threshold-near, not a PlaceId). River on Depths. `hex_travel.rs` cited only. Spent. Do not rebuild.
 - **#529 FLESH-SATCHEL-LINE** — Landed #529 / tip `a5a8f5ca` (`a5a8f5ca46736c8fbc43eabf0f37a8802631530b`). STAGE 2. PATH exact `client/src/human_inventory.rs` (+45/−4). Satchel pickup line names the Place via `HexTravelState::chip_name()` (Sanctuary Prime / Heartwood / Depths). Absent travel keeps the walked line. Spent. Do not rebuild.
-- **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued as item 6 below. Do not open a heartbeat PR from this stamp. Effective cook after this stamp skips JUNCTION holds: WHISPER → DEPTHS-LAND → HEARTWOOD-LIP → HEARTBEAT.
+- **#530 TODO-SYNC-527** — Landed #530 / `9e454555` (`9e4545555755984247482f8b83e62df03758d8ff`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Docs only. Docs stamp for the #527–#529 bank at tip `a5a8f5ca`. Spent. Cite only. Do not rebuild.
+- **#531 FLESH-WHISPER-PLACE** — Landed #531 / `e643593e` (`e643593ec9064414cb3f26990cd4bacee2c1e56a`). PATH exact `client/src/first_whisper.rs`. Whisper line prefixed with place chip name at speak time, bare LINE when travel state absent. Spent. Do not rebuild.
+- **#532 FLESH-DEPTHS-LAND** — Landed #532 / `3b5a9f4c` (`3b5a9f4ca50a0456ded728b0feb89019f717ec8f`). PATH exact `client/src/depths_landing.rs`. Depths Peace restore line now 'Depths Peace · teal · wet-stone · restored'. Spent. Do not rebuild.
+- **#533 FLESH-HEARTWOOD-LIP** — Landed #533 / tip `703a380e` (`703a380e1688db8d3b70133818003f0ea9f2c70a`). PATH exact `client/src/heartwood_lip.rs`. Heartwood hush: material numbers only in the five existing StandardMaterial blocks, dimmer/quieter, Peace node still brightest, pond alpha 0.78. Spent. Do not rebuild.
+- **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued as item 1 below. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
@@ -95,17 +99,16 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT.
 
-0. **CARD TODO-SYNC-527** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
-1. **CARD FLESH-WHISPER-PLACE** — PATH `client/src/first_whisper.rs`. Existing first-whisper line may name Place. No new HUD. Live: `pub mod first_whisper` (`client/src/lib.rs` line 54) and `FirstWhisperPlugin` (line 142).
-2. **CARD FLESH-ONBOARD-LINE** — PATH `client/src/onboarding.rs` (if strings live only in `onboarding_ui.rs`, Dual-name that file instead — still one file). Existing stranger onboarding sentence. Peak memory. No race lobby. **JUNCTION · HOLD until Dual names an exact live PATH (file not compiled into client crate at a5a8f5ca).** `client/src/onboarding.rs` and `client/src/onboarding_ui.rs` have no `mod` / `pub mod` in `client/src/lib.rs` or anywhere in the client crate.
-3. **CARD FLESH-DEPTHS-LAND** — PATH `client/src/depths_landing.rs`. Existing Depths land / arrival line. Wet-stone + teal Peace. No new PlaceId. Live: `pub mod depths_landing` (`client/src/lib.rs` line 15) and `DepthsLandingPlugin` (line 112).
-4. **CARD FLESH-HEARTWOOD-LIP** — PATH `client/src/heartwood_lip.rs`. Existing lip / lamp line. Heartwood hush. Threshold still near-shelf. Live: `pub mod heartwood_lip` (`client/src/lib.rs` line 16) and `HeartwoodLipPlugin` (line 151).
-5. **CARD OPT-PARTICLES-LOW** — PATH `client/src/particles.rs`. Cap particle count on Graphics Low only. Medium/High unchanged. No Ultra. **JUNCTION · HOLD until Dual names an exact live PATH (file not compiled into client crate at a5a8f5ca).** `client/src/particles.rs` has no `mod` / `pub mod` in `client/src/lib.rs` or anywhere in the client crate.
-6. **HEARTBEAT** — `cargo test -p shared -p rsil-identity` · `cargo test -p powrush-client --lib`. GREEN + 0 PRs → `HEARTBEAT GREEN @ <sha>` · Hands DARK.
+0. **CARD TODO-SYNC-531** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
+1. **HEARTBEAT** — `cargo test -p shared -p rsil-identity`; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → Hands DARK.
 
-Rule: a CARD needing a file not in 1–5 → JUNCTION · HOLD · Dual names PATH, which then becomes the next STAGE.
+After DARK, Dual may name ONE file only if `lib.rs` already has `pub mod` + plugin: `hands_memory.rs` · `shard_climate.rs` · `first_hour_camera.rs` · `world_answer.rs` · `human_soft_panels.rs` — no mod → SKIP.
 
-**Effective order (verified):** TODO-SYNC-527 → WHISPER → DEPTHS-LAND → HEARTWOOD-LIP → HEARTBEAT. Cards 2 and 5 held.
+Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
+
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 703a380e.
+
+**Effective order (verified):** TODO-SYNC-531 → HEARTBEAT.
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
