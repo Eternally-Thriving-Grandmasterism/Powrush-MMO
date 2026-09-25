@@ -1,9 +1,9 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #527 through #529. Bank #528–#529 after TODO-SYNC-523 #526. Tip `a5a8f5ca` (`a5a8f5ca46736c8fbc43eabf0f37a8802631530b`).
-Keep earlier #499–#526 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR / TODO-SYNC-518 / FLESH-SKIRMISH-DAWN / TODO-SYNC-522 / FLESH-RESUME-PLACE / FLESH-ALLOCATE-LINE / TODO-SYNC-523).
-Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT on this tip.
-Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, the Peace well slab_line (five words; soft well_glow unchanged; no second HUD), the Mode B resume Place line (blob stays; no `harvest_feel`; no `rbe_allocate_choice`), the Flow/Reserve Place invite (Flow = field restore; Reserve = repair-rights hold; never gold/price/Market/ticker/XP), the MACHINE QA stamps, the odd-zone note, or the satchel pickup line.
+Spent #530 through #533. Bank #531–#533 after TODO-SYNC-527 #530. Tip `703a380e` (`703a380e1688db8d3b70133818003f0ea9f2c70a`).
+Keep earlier #499–#529 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR / TODO-SYNC-518 / FLESH-SKIRMISH-DAWN / TODO-SYNC-522 / FLESH-RESUME-PLACE / FLESH-ALLOCATE-LINE / TODO-SYNC-523 / QA-MACHINE-HOUR / ODD-ZONE-NOTE / FLESH-SATCHEL-LINE).
+Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT on this tip.
+Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, the Peace well slab_line (five words; soft well_glow unchanged; no second HUD), the Mode B resume Place line (blob stays; no `harvest_feel`; no `rbe_allocate_choice`), the Flow/Reserve Place invite (Flow = field restore; Reserve = repair-rights hold; never gold/price/Market/ticker/XP), the MACHINE QA stamps, the odd-zone note, the satchel pickup line, the whisper place-chip prefix (bare LINE when travel state absent), the Depths Peace restore line ('Depths Peace · teal · wet-stone · restored'), or the Heartwood lip hush (material numbers only in the five existing StandardMaterial blocks; dimmer/quieter; Peace node still brightest; pond alpha 0.78).
 Peak memory locked: walked · tended · week was the bill · yard remembered.
 Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes stay banked (steward only).
 Online grey. No OFFER NEXT. Do not invent PATHS beyond the ordered queue below.
@@ -145,64 +145,56 @@ Landed `2ef9c81a` (`2ef9c81ab24109a38d219b64d96c10eb83ece832`). STAGE 1. MACHINE
 
 Landed tip `a5a8f5ca` (`a5a8f5ca46736c8fbc43eabf0f37a8802631530b`). STAGE 2. Satchel pickup line names the Place via `HexTravelState::chip_name()` (Sanctuary Prime / Heartwood / Depths). Absent travel keeps the walked line. Spent. Do not rebuild.
 
+### #530 TODO-SYNC-527
+
+**PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
+
+Landed `9e454555` (`9e4545555755984247482f8b83e62df03758d8ff`). Docs only. Docs stamp for the #527–#529 bank at tip `a5a8f5ca`. Spent. Cite only. Do not rebuild.
+
+### #531 FLESH-WHISPER-PLACE
+
+**PATH:** `client/src/first_whisper.rs`
+
+Landed `e643593e` (`e643593ec9064414cb3f26990cd4bacee2c1e56a`). Whisper line prefixed with place chip name at speak time, bare LINE when travel state absent. Spent. Do not rebuild.
+
+### #532 FLESH-DEPTHS-LAND
+
+**PATH:** `client/src/depths_landing.rs`
+
+Landed `3b5a9f4c` (`3b5a9f4ca50a0456ded728b0feb89019f717ec8f`). Depths Peace restore line now 'Depths Peace · teal · wet-stone · restored'. Spent. Do not rebuild.
+
+### #533 FLESH-HEARTWOOD-LIP
+
+**PATH:** `client/src/heartwood_lip.rs`
+
+Landed tip `703a380e` (`703a380e1688db8d3b70133818003f0ea9f2c70a`). Heartwood hush: material numbers only in the five existing StandardMaterial blocks, dimmer/quieter, Peace node still brightest, pond alpha 0.78. Spent. Do not rebuild.
+
 ### HEARTBEAT (prior)
 
-GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 6 below — do not open a heartbeat PR from this stamp. Effective cook after this stamp skips JUNCTION holds: WHISPER → DEPTHS-LAND → HEARTWOOD-LIP → HEARTBEAT.
+GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 1 below — do not open a heartbeat PR from this stamp.
 
 ## Next (ordered)
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. No OFFER NEXT.
 
-### 0. CARD TODO-SYNC-527 (this card)
+### 0. CARD TODO-SYNC-531 (this card)
 
 **PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
 
-### 1. CARD FLESH-WHISPER-PLACE
-
-**PATH:** `client/src/first_whisper.rs`
-
-Existing first-whisper line may name Place. No new HUD. Live: `pub mod first_whisper` (`client/src/lib.rs` line 54) and `FirstWhisperPlugin` (line 142).
-
-### 2. CARD FLESH-ONBOARD-LINE
-
-**PATH:** `client/src/onboarding.rs` (if strings live only in `onboarding_ui.rs`, Dual-name that file instead — still one file).
-
-Existing stranger onboarding sentence. Peak memory. No race lobby.
-
-**JUNCTION · HOLD until Dual names an exact live PATH (file not compiled into client crate at a5a8f5ca).** `client/src/onboarding.rs` and `client/src/onboarding_ui.rs` have no `mod` / `pub mod` in `client/src/lib.rs` or anywhere in the client crate.
-
-### 3. CARD FLESH-DEPTHS-LAND
-
-**PATH:** `client/src/depths_landing.rs`
-
-Existing Depths land / arrival line. Wet-stone + teal Peace. No new PlaceId. Live: `pub mod depths_landing` (`client/src/lib.rs` line 15) and `DepthsLandingPlugin` (line 112).
-
-### 4. CARD FLESH-HEARTWOOD-LIP
-
-**PATH:** `client/src/heartwood_lip.rs`
-
-Existing lip / lamp line. Heartwood hush. Threshold still near-shelf. Live: `pub mod heartwood_lip` (`client/src/lib.rs` line 16) and `HeartwoodLipPlugin` (line 151).
-
-### 5. CARD OPT-PARTICLES-LOW
-
-**PATH:** `client/src/particles.rs`
-
-Cap particle count on Graphics Low only. Medium/High unchanged. No Ultra.
-
-**JUNCTION · HOLD until Dual names an exact live PATH (file not compiled into client crate at a5a8f5ca).** `client/src/particles.rs` has no `mod` / `pub mod` in `client/src/lib.rs` or anywhere in the client crate.
-
-### 6. HEARTBEAT
+### 1. HEARTBEAT
 
 ```
 cargo test -p shared -p rsil-identity
 cargo test -p powrush-client --lib
 ```
 
-GREEN + 0 PRs → `HEARTBEAT GREEN @ <sha>` · Hands DARK. RED → restore-only PR. Footer Codex / GPT / Claude / Fast → Dual RED.
+GREEN + 0 open PRs → Hands DARK.
 
-Rule: a CARD needing a file not in 1–5 → JUNCTION · HOLD · Dual names PATH, which then becomes the next STAGE.
+After DARK, Dual may name ONE file only if `lib.rs` already has `pub mod` + plugin: `hands_memory.rs` · `shard_climate.rs` · `first_hour_camera.rs` · `world_answer.rs` · `human_soft_panels.rs` — no mod → SKIP.
 
-**Effective order (verified):** TODO-SYNC-527 → WHISPER → DEPTHS-LAND → HEARTWOOD-LIP → HEARTBEAT. Cards 2 and 5 held.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs`.
+
+**Effective order (verified):** TODO-SYNC-531 → HEARTBEAT.
 
 ## DO-NOT-FREESTYLE (parked)
 
