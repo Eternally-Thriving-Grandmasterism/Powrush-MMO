@@ -44,11 +44,39 @@ impl Plugin for LivingDayPlugin {
     }
 }
 
+/// Previous named period, and which period names already reached the Journey feed this session.
+#[derive(Default)]
+struct DayPeriodNoteMemory {
+    previous: Option<DayPeriod>,
+    seen: [bool; 4],
+}
+
+impl DayPeriodNoteMemory {
+    fn index(period: DayPeriod) -> usize {
+        match period {
+            DayPeriod::Dawn => 0,
+            DayPeriod::Day => 1,
+            DayPeriod::Dusk => 2,
+            DayPeriod::Night => 3,
+        }
+    }
+
+    fn seen(&self, period: DayPeriod) -> bool {
+        self.seen[Self::index(period)]
+    }
+
+    fn mark(&mut self, period: DayPeriod) {
+        self.seen[Self::index(period)] = true;
+    }
+}
+
 fn turn_the_clock(
     time: Res<Time>,
     realm: Res<SoftPlayerRealm>,
     mut day: ResMut<LivingDay>,
     mut ambient: ResMut<AmbientLight>,
+    mut echo: Option<ResMut<crate::abundance_journey_echo::AbundanceJourneyEcho>>,
+    mut period_notes: Local<DayPeriodNoteMemory>,
 ) {
     day.phase = (day.phase + time.delta_seconds() / DAY_SECS) % 1.0;
     let abyss = realm.current == Some(3);
@@ -59,6 +87,25 @@ fn turn_the_clock(
     } else {
         90.0 + 200.0 * light
     };
+
+    // First frame stores the period and pushes nothing. Depths update `previous`
+    // and push nothing, so the first frame back is not a stale change.
+    let period = day.period();
+    let first = period_notes.previous.is_none();
+    let changed = period_notes.previous != Some(period);
+    period_notes.previous = Some(period);
+    if first || abyss || !changed || period_notes.seen(period) {
+        return;
+    }
+    let Some(echo) = echo.as_mut() else {
+        return;
+    };
+    let text = period.name();
+    period_notes.mark(period);
+    if echo.lines.iter().any(|existing| existing.text == text) {
+        return;
+    }
+    echo.push(crate::abundance_journey_echo::JourneyKind::Note, text);
 }
 
 /// Ambient light factor for a phase. Depths (abyss) stay dim / night.
@@ -287,6 +334,9 @@ pub fn schedule_copy_is_honest(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
+    use bevy::time::TimeUpdateStrategy;
+    use std::time::Duration;
 
     #[test]
     fn schedules_ride_living_day_phase() {
@@ -422,5 +472,187 @@ mod tests {
         assert!((day.phase - 0.18).abs() < f32::EPSILON);
         assert_eq!(day.period(), DayPeriod::Day);
         assert!(!night_for(day.phase, false));
+    }
+
+    fn clock_app(with_echo: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
+        app.init_resource::<LivingDay>();
+        app.init_resource::<SoftPlayerRealm>();
+        app.init_resource::<AmbientLight>();
+        if with_echo {
+            app.init_resource::<AbundanceJourneyEcho>();
+        }
+        app.add_systems(Update, turn_the_clock);
+        app
+    }
+
+    fn set_phase(app: &mut App, phase: f32) {
+        app.world_mut().resource_mut::<LivingDay>().phase = phase;
+    }
+
+    fn note_texts(app: &App) -> Vec<String> {
+        app.world()
+            .resource::<AbundanceJourneyEcho>()
+            .lines
+            .iter()
+            .map(|line| line.text.clone())
+            .collect()
+    }
+
+    #[test]
+    fn first_frame_pushes_nothing() {
+        let mut app = clock_app(true);
+        app.update();
+        assert!(note_texts(&app).is_empty());
+        let day = app.world().resource::<LivingDay>();
+        assert!((day.phase - 0.18).abs() < f32::EPSILON);
+        assert_eq!(day.period(), DayPeriod::Day);
+        assert!(!day.night);
+        let light = ambient_light_factor(day.phase, false);
+        let brightness = app.world().resource::<AmbientLight>().brightness;
+        assert!((brightness - (90.0 + 200.0 * light)).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn one_period_change_pushes_the_new_period_name() {
+        let mut app = clock_app(true);
+        app.update();
+        assert!(note_texts(&app).is_empty());
+
+        set_phase(&mut app, 0.45);
+        app.update();
+        let echo = app.world().resource::<AbundanceJourneyEcho>();
+        assert_eq!(echo.lines.len(), 1);
+        assert_eq!(echo.lines[0].text, DayPeriod::Dusk.name());
+        assert_eq!(echo.lines[0].text, "Dusk");
+        assert_eq!(echo.lines[0].kind, JourneyKind::Note);
+
+        app.update();
+        assert_eq!(note_texts(&app), vec!["Dusk".to_string()]);
+
+        let day = app.world().resource::<LivingDay>();
+        assert_eq!(day.period(), DayPeriod::Dusk);
+        let light = ambient_light_factor(0.45, false);
+        let brightness = app.world().resource::<AmbientLight>().brightness;
+        assert!((brightness - (90.0 + 200.0 * light)).abs() < f32::EPSILON);
+        assert!(!day.night);
+    }
+
+    #[test]
+    fn full_loop_notes_each_period_once() {
+        let mut app = clock_app(true);
+        app.update();
+        assert!(note_texts(&app).is_empty());
+
+        for phase in [0.45, 0.70, 0.95, 0.18] {
+            set_phase(&mut app, phase);
+            app.update();
+        }
+        assert_eq!(
+            note_texts(&app),
+            vec![
+                "Dusk".to_string(),
+                "Night".to_string(),
+                "Dawn".to_string(),
+                "Day".to_string(),
+            ]
+        );
+        for line in &app.world().resource::<AbundanceJourneyEcho>().lines {
+            assert_eq!(line.kind, JourneyKind::Note);
+        }
+
+        for phase in [0.45, 0.70, 0.95, 0.18] {
+            set_phase(&mut app, phase);
+            app.update();
+        }
+        assert_eq!(note_texts(&app).len(), 4);
+        assert_eq!(
+            note_texts(&app),
+            vec![
+                "Dusk".to_string(),
+                "Night".to_string(),
+                "Dawn".to_string(),
+                "Day".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn depths_period_changes_push_nothing() {
+        let mut app = clock_app(true);
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(3);
+        app.update();
+        for phase in [0.45, 0.70, 0.95, 0.18, 0.45] {
+            set_phase(&mut app, phase);
+            app.update();
+        }
+        assert!(note_texts(&app).is_empty());
+        let day = app.world().resource::<LivingDay>();
+        assert!(day.night);
+        assert!((app.world().resource::<AmbientLight>().brightness - 90.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn missing_echo_does_not_panic() {
+        let mut app = clock_app(false);
+        app.update();
+        set_phase(&mut app, 0.45);
+        app.update();
+        set_phase(&mut app, 0.70);
+        app.update();
+        assert!(app.world().get_resource::<AbundanceJourneyEcho>().is_none());
+        assert_eq!(
+            app.world().resource::<LivingDay>().period(),
+            DayPeriod::Night
+        );
+    }
+
+    #[test]
+    fn leaving_depths_does_not_replay_the_period_crossed_inside() {
+        let mut app = clock_app(true);
+        app.update();
+        assert!(note_texts(&app).is_empty());
+
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(3);
+        app.update();
+        set_phase(&mut app, 0.45);
+        app.update();
+        assert!(note_texts(&app).is_empty());
+
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
+        app.update();
+        assert!(
+            note_texts(&app).is_empty(),
+            "first frame back must not push the period crossed in the Depths"
+        );
+
+        set_phase(&mut app, 0.70);
+        app.update();
+        assert_eq!(note_texts(&app), vec!["Night".to_string()]);
+        assert_eq!(
+            app.world().resource::<AbundanceJourneyEcho>().lines[0].kind,
+            JourneyKind::Note
+        );
+    }
+
+    #[test]
+    fn same_text_already_in_the_feed_skips() {
+        let mut app = clock_app(true);
+        app.world_mut()
+            .resource_mut::<AbundanceJourneyEcho>()
+            .push(JourneyKind::Note, DayPeriod::Dusk.name());
+        app.update();
+        set_phase(&mut app, 0.45);
+        app.update();
+        assert_eq!(note_texts(&app), vec!["Dusk".to_string()]);
+
+        set_phase(&mut app, 0.70);
+        app.update();
+        assert_eq!(
+            note_texts(&app),
+            vec!["Dusk".to_string(), "Night".to_string()]
+        );
     }
 }
