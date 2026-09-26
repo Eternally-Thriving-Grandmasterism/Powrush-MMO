@@ -84,7 +84,10 @@ pub struct WorldAnswerPlugin;
 impl Plugin for WorldAnswerPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<WorldAnswer>()
-            .add_systems(Update, (notice_allocate, paint_world_answer));
+            .add_systems(
+                Update,
+                ((notice_allocate, note_place_answers).chain(), paint_world_answer),
+            );
     }
 }
 
@@ -121,6 +124,47 @@ fn notice_allocate(
             info!(target: "powrush::answer", ?path, line, "allocate reserve banked");
         }
     }
+}
+
+/// `{place} · the climate brightens` on Flow, `{place} · repair-rights held` on Reserve.
+fn world_answer_place_line(kind: AnswerKind, place: &str) -> Option<String> {
+    match kind {
+        AnswerKind::Flow => Some(format!("{place} · the climate brightens")),
+        AnswerKind::Reserve => Some(format!("{place} · repair-rights held")),
+        AnswerKind::Tend | AnswerKind::Take | AnswerKind::Idle => None,
+    }
+}
+
+/// After allocate, name the Place once in the Abundance Journey feed.
+/// Tend, Take, Idle, and an unbanked reserve push nothing.
+/// No travel or no echo means no line.
+fn note_place_answers(
+    answer: Res<WorldAnswer>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    mut echo: Option<ResMut<crate::abundance_journey_echo::AbundanceJourneyEcho>>,
+) {
+    if !answer.is_changed() {
+        return;
+    }
+    if answer.kind != AnswerKind::Flow && answer.kind != AnswerKind::Reserve {
+        return;
+    }
+    if answer.kind == AnswerKind::Reserve && answer.last_line == reserve_world_line(0.0) {
+        return;
+    }
+    let Some(place) = travel.as_ref().map(|state| state.chip_name()) else {
+        return;
+    };
+    let Some(echo) = echo.as_mut() else {
+        return;
+    };
+    let Some(text) = world_answer_place_line(answer.kind, place) else {
+        return;
+    };
+    if echo.lines.iter().any(|existing| existing.text == text) {
+        return;
+    }
+    echo.push(crate::abundance_journey_echo::JourneyKind::Note, text);
 }
 
 fn paint_world_answer(
@@ -183,5 +227,45 @@ mod tests {
         assert!(!banked.contains("-0.0"));
         assert!(!banked.contains("0.0 harmony"));
         assert_eq!(reserve_world_line(0.0), "Reserve not banked");
+    }
+
+    #[test]
+    fn world_answer_place_line_names_the_place() {
+        assert_eq!(
+            world_answer_place_line(AnswerKind::Flow, "Heartwood"),
+            Some("Heartwood · the climate brightens".to_string())
+        );
+        assert_eq!(
+            world_answer_place_line(AnswerKind::Reserve, "Heartwood"),
+            Some("Heartwood · repair-rights held".to_string())
+        );
+    }
+
+    #[test]
+    fn world_answer_place_line_is_none_for_tend_take_idle() {
+        assert_eq!(world_answer_place_line(AnswerKind::Tend, "Heartwood"), None);
+        assert_eq!(world_answer_place_line(AnswerKind::Take, "Heartwood"), None);
+        assert_eq!(world_answer_place_line(AnswerKind::Idle, "Heartwood"), None);
+    }
+
+    #[test]
+    fn world_answer_place_copy_skips_digits_market_words_and_peace_well_words() {
+        for line in [
+            world_answer_place_line(AnswerKind::Flow, "Heartwood").expect("flow"),
+            world_answer_place_line(AnswerKind::Reserve, "Heartwood").expect("reserve"),
+        ] {
+            assert!(
+                !line.chars().any(|c| c.is_ascii_digit()),
+                "ascii digit in {line}"
+            );
+            let low = line.to_lowercase();
+            for banned in ["threshold", "gold", "market", "xp", "level"] {
+                assert!(!low.contains(banned), "{banned} in {line}");
+            }
+            // Peace well slab words (`skirmish_well_word`): Idle, Glowing, Tended, Resting, Stressed.
+            for well in ["Idle", "Glowing", "Tended", "Resting", "Stressed"] {
+                assert!(!low.contains(&well.to_lowercase()), "{well} in {line}");
+            }
+        }
     }
 }
