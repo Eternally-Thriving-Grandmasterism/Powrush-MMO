@@ -38,7 +38,8 @@ impl Plugin for ShardClimatePlugin {
                     paint_climate_feel,
                     persist_climate_on_escape,
                 ),
-            );
+            )
+            .add_systems(PostUpdate, lean_fog_toward_place);
     }
 }
 
@@ -157,6 +158,55 @@ fn persist_climate_on_escape(keyboard: Res<ButtonInput<KeyCode>>, bind: Res<Live
     }
 }
 
+/// Mirrors the ambient ease in paint_climate_feel.
+const PLACE_FOG_EASE: f32 = 0.08;
+
+/// Move each sRGBA channel from `current` toward `place` by [`PLACE_FOG_EASE`].
+/// Nudge, never a replacement of the color the Update writers painted.
+fn nudge_fog_toward(current: Color, place: Color) -> Color {
+    let c = current.to_srgba();
+    let p = place.to_srgba();
+    Color::srgba(
+        c.red + (p.red - c.red) * PLACE_FOG_EASE,
+        c.green + (p.green - c.green) * PLACE_FOG_EASE,
+        c.blue + (p.blue - c.blue) * PLACE_FOG_EASE,
+        c.alpha + (p.alpha - c.alpha) * PLACE_FOG_EASE,
+    )
+}
+
+/// Dressed Place fog from the existing weather bed. No new color constant.
+fn place_fog_color(
+    place: shared::hex_travel::PlaceId,
+    fidelity: shared::local_settings::WeatherFidelity,
+) -> Color {
+    crate::climate_plane::weather_bed_for(
+        crate::climate_plane::dress_realm_for_place(place),
+        fidelity,
+    )
+    .fog
+}
+
+/// CARD FLESH-SHARD-CLIMATE — after Update fog writers, lean `FogSettings.color`
+/// toward the current Place. Falloff, ambient, sky, lights, and nodes stay.
+/// No `HexTravelState` → write nothing.
+fn lean_fog_toward_place(
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    settings: Option<Res<crate::local_settings::LocalSettingsState>>,
+    mut fogs: Query<&mut FogSettings>,
+) {
+    let Some(travel) = travel else {
+        return;
+    };
+    let fidelity = settings
+        .as_ref()
+        .map(|s| s.inner.weather_fidelity())
+        .unwrap_or(shared::local_settings::WeatherFidelity::Medium);
+    let place = place_fog_color(travel.current, fidelity);
+    for mut fog in &mut fogs {
+        fog.color = nudge_fog_toward(fog.color, place);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use shared::hour_two::HourTwoPack;
@@ -222,5 +272,71 @@ mod tests {
         assert!(care_cycle_card_line(false).contains("Care cycle"));
         assert!(!pulse.contains("Temper"));
         assert!(!pulse.contains("Distill Ward"));
+    }
+
+    fn assert_srgba_near(got: bevy::prelude::Color, expect: bevy::prelude::Color, eps: f32) {
+        let g = got.to_srgba();
+        let e = expect.to_srgba();
+        assert!((g.red - e.red).abs() < eps, "red {} vs {}", g.red, e.red);
+        assert!(
+            (g.green - e.green).abs() < eps,
+            "green {} vs {}",
+            g.green,
+            e.green
+        );
+        assert!(
+            (g.blue - e.blue).abs() < eps,
+            "blue {} vs {}",
+            g.blue,
+            e.blue
+        );
+        assert!(
+            (g.alpha - e.alpha).abs() < eps,
+            "alpha {} vs {}",
+            g.alpha,
+            e.alpha
+        );
+    }
+
+    /// Exact 0.08 channel ease: black toward srgba(1, 0.5, 0.25, 1).
+    #[test]
+    fn nudge_fog_toward_eases_each_channel_by_point_zero_eight() {
+        let current = bevy::prelude::Color::srgba(0.0, 0.0, 0.0, 1.0);
+        let place = bevy::prelude::Color::srgba(1.0, 0.5, 0.25, 1.0);
+        let got = super::nudge_fog_toward(current, place);
+        let expect = bevy::prelude::Color::srgba(0.08, 0.04, 0.02, 1.0);
+        assert_srgba_near(got, expect, 1e-5);
+    }
+
+    /// Equal inputs stay put. Different inputs land on neither endpoint.
+    #[test]
+    fn nudge_fog_toward_keeps_equals_and_refuses_either_endpoint() {
+        let same = bevy::prelude::Color::srgba(0.44, 0.42, 0.39, 1.0);
+        assert_eq!(super::nudge_fog_toward(same, same), same);
+
+        let current = bevy::prelude::Color::srgba(0.0, 0.0, 0.0, 1.0);
+        let place = bevy::prelude::Color::srgba(1.0, 0.5, 0.25, 1.0);
+        let got = super::nudge_fog_toward(current, place);
+        assert_ne!(got, current);
+        assert_ne!(got, place);
+    }
+
+    /// Place source is the dressed weather-bed fog for each disk PlaceId.
+    #[test]
+    fn place_fog_color_matches_weather_bed_for_disk_places() {
+        use shared::hex_travel::PlaceId;
+        use shared::local_settings::WeatherFidelity;
+
+        for place in [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths] {
+            for fidelity in WeatherFidelity::ALL {
+                let got = super::place_fog_color(place, fidelity);
+                let expect = crate::climate_plane::weather_bed_for(
+                    crate::climate_plane::dress_realm_for_place(place),
+                    fidelity,
+                )
+                .fog;
+                assert_eq!(got, expect);
+            }
+        }
     }
 }
