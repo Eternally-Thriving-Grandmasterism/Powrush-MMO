@@ -1,9 +1,9 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #534 through #536. Bank #535–#536 after TODO-SYNC-531 #534. Tip `27bde246` (`27bde246c59d62130dd142cf3bb520fdd66ad23e`).
-Keep earlier #499–#533 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR / TODO-SYNC-518 / FLESH-SKIRMISH-DAWN / TODO-SYNC-522 / FLESH-RESUME-PLACE / FLESH-ALLOCATE-LINE / TODO-SYNC-523 / QA-MACHINE-HOUR / ODD-ZONE-NOTE / FLESH-SATCHEL-LINE / TODO-SYNC-527 / FLESH-WHISPER-PLACE / FLESH-DEPTHS-LAND / FLESH-HEARTWOOD-LIP).
-Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT on this tip.
-Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, the Peace well slab_line (five words; soft well_glow unchanged; no second HUD), the Mode B resume Place line (blob stays; no `harvest_feel`; no `rbe_allocate_choice`), the Flow/Reserve Place invite (Flow = field restore; Reserve = repair-rights hold; never gold/price/Market/ticker/XP), the MACHINE QA stamps, the odd-zone note, the satchel pickup line, the whisper place-chip prefix (bare LINE when travel state absent), the Depths Peace restore line ('Depths Peace · teal · wet-stone · restored'), the Heartwood lip hush (material numbers only in the five existing StandardMaterial blocks; dimmer/quieter; Peace node still brightest; pond alpha 0.78), the compass Place line ('{place} · {line}', falls back to the exact line), or the realm panel Place head ('{place} · 1–5 choose a climate', falls back to exactly '1–5 choose a climate').
+Spent #537 through #541. Bank #538–#541 after TODO-SYNC-534 #537. Tip `639e60f7` (`639e60f79168a9dc9402de562ceea759ccd32729`).
+Keep earlier #499–#536 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR / TODO-SYNC-518 / FLESH-SKIRMISH-DAWN / TODO-SYNC-522 / FLESH-RESUME-PLACE / FLESH-ALLOCATE-LINE / TODO-SYNC-523 / QA-MACHINE-HOUR / ODD-ZONE-NOTE / FLESH-SATCHEL-LINE / TODO-SYNC-527 / FLESH-WHISPER-PLACE / FLESH-DEPTHS-LAND / FLESH-HEARTWOOD-LIP / TODO-SYNC-531 / FLESH-COMPASS-LINE / FLESH-SOFT-PANEL).
+Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT on this tip.
+Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, the Peace well slab_line (five words; soft well_glow unchanged; no second HUD), the Mode B resume Place line (blob stays; no `harvest_feel`; no `rbe_allocate_choice`), the Flow/Reserve Place invite (Flow = field restore; Reserve = repair-rights hold; never gold/price/Market/ticker/XP), the MACHINE QA stamps, the odd-zone note, the satchel pickup line, the whisper place-chip prefix (bare LINE when travel state absent), the Depths Peace restore line ('Depths Peace · teal · wet-stone · restored'), the Heartwood lip hush (material numbers only in the five existing StandardMaterial blocks; dimmer/quieter; Peace node still brightest; pond alpha 0.78), the compass Place line ('{place} · {line}', falls back to the exact line), the realm panel Place head ('{place} · 1–5 choose a climate', falls back to exactly '1–5 choose a climate'), the hands-memory Place on the tend cap (existing echo feed), the world-answer Place note (one Note on the existing Abundance Journey feed after Flow or a banked Steward reserve; Tend, Take, Idle, and an unbanked reserve push nothing), the shard-climate fog lean (PostUpdate nudges FogSettings.color toward the dressed Place bed; Update writers stay unchanged), or the idle glance that follows the punch (PostUpdate before TransformPropagate; slerp scales by punch_scale_for_graphics; a missing feel or a punch scale of 0 returns before any camera write).
 Peak memory locked: walked · tended · week was the bill · yard remembered.
 Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes stay banked (steward only).
 Online grey. No OFFER NEXT. Do not invent PATHS beyond the ordered queue below.
@@ -187,6 +187,36 @@ Landed `fcabcc3f` (`fcabcc3fae7f016e16025d937a00e364378e9c95`). Compass slab rea
 
 Landed tip `27bde246` (`27bde246c59d62130dd142cf3bb520fdd66ad23e`). Z realm panel head reads '{place} · 1–5 choose a climate' and falls back to exactly '1–5 choose a climate'. Spent. Do not rebuild.
 
+### #537 TODO-SYNC-534
+
+**PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
+
+Landed `e62d072f` (`e62d072f79a8660ea9168311383836fd6053b7a8`). Docs only. Docs stamp for the #534–#536 bank at tip `27bde246`. Spent. Cite only. Do not rebuild.
+
+### #538 FLESH-HANDS-MEMORY
+
+**PATH:** `client/src/hands_memory.rs` (+81/−2)
+
+Landed `c312213b` (`c312213b35120c66cf480accaf823924206b2a5c`). Hands remember Place on the tend cap. Existing echo feed. Spent. Do not rebuild.
+
+### #539 FLESH-WORLD-ANSWER
+
+**PATH:** `client/src/world_answer.rs` (+85/−1)
+
+Landed `b209f6b3` (`b209f6b30abc9e303dcca049dc8aa3cdd7b990cb`). After Flow or a banked Steward reserve, one Note on the existing Abundance Journey feed names the Place. Tend, Take, Idle, and an unbanked reserve push nothing. Spent. Do not rebuild.
+
+### #540 FLESH-SHARD-CLIMATE
+
+**PATH:** `client/src/shard_climate.rs` (+117/−1)
+
+Landed `cc3c5e90` (`cc3c5e905dfac7f400a23fc63ed5fab6f129729b`). PostUpdate nudges FogSettings.color toward the dressed Place bed by the same 0.08 ease paint_climate_feel uses for ambient. Update writers stay unchanged. Spent. Do not rebuild.
+
+### #541 FLESH-CAMERA-PLACE
+
+**PATH:** `client/src/first_hour_camera.rs` (+92/−4)
+
+Landed tip `639e60f7` (`639e60f79168a9dc9402de562ceea759ccd32729`). Idle node glance moves to PostUpdate before TransformPropagate and the slerp scales by punch_scale_for_graphics. A missing feel or a punch scale of 0 returns before any camera write. Spent. Do not rebuild.
+
 ### HEARTBEAT (prior)
 
 GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 1 below — do not open a heartbeat PR from this stamp.
@@ -195,7 +225,7 @@ GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only.
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. No OFFER NEXT.
 
-### 0. CARD TODO-SYNC-534 (this card)
+### 0. CARD TODO-SYNC-541 (this card)
 
 **PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
 
@@ -209,18 +239,13 @@ cargo test -p powrush-client --lib
 GREEN + 0 open PRs → Hands DARK.
 RED → restore-only PR. Footer Codex / GPT / Claude / Fast → Dual RED.
 
-Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
-
-- **FLESH-HANDS-MEMORY** — SKIP. `client/src/hands_memory.rs` has no string; the Continuity line already names the Place in `client/src/lived_hour_bind.rs` (#524).
-- **FLESH-WORLD-ANSWER** — SKIP. Nothing reads `last_line` in `client/src/world_answer.rs`.
-- **FLESH-SHARD-CLIMATE** — JUNCTION. Three unordered `fog.color` writers (`shard_climate.rs`, `climate_plane.rs` `breathe_weather_bed`, `light_gen.rs` `paint_world_fog_from_climate`); needs `climate_plane.rs` named.
-- **FLESH-CAMERA-PLACE** — JUNCTION. `human_presence.rs` `follow_camera` calls `look_at` every frame, and the punch cap lives there and in `local_settings.rs`; needs `human_presence.rs` named.
+After DARK, Dual (Clerk and Core) names ONE more live file from `client/src/lib.rs` that still has undressed copy: `living_day.rs` · `flow_weather.rs` · `heartwood_wards.rs` — Dual to name, no PATH yet.
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 27bde246.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 639e60f7.
 
-**Effective order (verified):** TODO-SYNC-534 → HEARTBEAT.
+**Effective order (verified):** TODO-SYNC-541 → HEARTBEAT.
 
 ## DO-NOT-FREESTYLE (parked)
 
