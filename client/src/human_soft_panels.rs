@@ -9,6 +9,7 @@
 use bevy::prelude::*;
 
 use crate::abundance_journey_echo::AbundanceJourneyEcho;
+use crate::hex_travel::HexTravelState;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::soft_play_bindings;
 
@@ -229,9 +230,19 @@ fn update_soft_visibility(
     }
 }
 
+/// CARD FLESH-SOFT-PANEL — the realm body may name the Place.
+/// Absent travel keeps the first line byte for byte.
+fn realm_head(place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("{place} · 1–5 choose a climate"),
+        None => "1–5 choose a climate".to_string(),
+    }
+}
+
 fn update_soft_bodies(
     echo: Res<AbundanceJourneyEcho>,
     soft_realm: Res<SoftPlayerRealm>,
+    travel: Option<Res<HexTravelState>>,
     mut mercy: Query<&mut Text, (With<MercySoftBody>, Without<RealmSoftBody>)>,
     mut realm: Query<&mut Text, (With<RealmSoftBody>, Without<MercySoftBody>)>,
 ) {
@@ -255,7 +266,10 @@ fn update_soft_bodies(
     }
 
     let current = soft_realm.current.unwrap_or(0);
-    let mut realm_body = String::from("1–5 choose a climate\n");
+    let mut realm_body = format!(
+        "{}\n",
+        realm_head(travel.as_ref().map(|state| state.chip_name()))
+    );
     for (id, name) in REALMS {
         let mark = if id == current { ">" } else { " " };
         realm_body.push_str(&format!("{mark} [{id}] {name}\n"));
@@ -265,6 +279,27 @@ fn update_soft_bodies(
             if s.value != realm_body {
                 s.value = realm_body.clone();
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// CARD FLESH-SOFT-PANEL — Place prefixes the realm head; no place keeps the line.
+    #[test]
+    fn realm_head_names_place_or_keeps_line() {
+        let dressed = realm_head(Some("Heartwood"));
+        assert_eq!(dressed, "Heartwood · 1–5 choose a climate");
+        let bare = realm_head(None);
+        assert_eq!(bare, "1–5 choose a climate");
+        for sample in [&dressed, &bare] {
+            let low = sample.to_lowercase();
+            assert!(!low.contains("threshold"));
+            assert!(!low.contains("gold"));
+            assert!(!low.contains("market"));
+            assert!(!low.contains("xp"));
         }
     }
 }
