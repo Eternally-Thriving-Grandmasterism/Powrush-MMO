@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `27bde246` (`27bde246c59d62130dd142cf3bb520fdd66ad23e`) — spent #534 through #536 (bank #535–#536 after TODO-SYNC-531 #534). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT on this tip.
+Tip `639e60f7` (`639e60f79168a9dc9402de562ceea759ccd32729`) — spent #537 through #541 (bank #538–#541 after TODO-SYNC-534 #537). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -94,6 +94,11 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#534 TODO-SYNC-531** — Landed #534 / `c2734aee` (`c2734aee9e3c868301ec7135ea93a87761caab57`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Docs only. Docs stamp for the #530–#533 bank at tip `703a380e`. Spent. Cite only. Do not rebuild.
 - **#535 FLESH-COMPASS-LINE** — Landed #535 / `fcabcc3f` (`fcabcc3fae7f016e16025d937a00e364378e9c95`). PATH exact `client/src/compass.rs`. Compass slab reads '{place} · {line}' and falls back to the exact line. Spent. Do not rebuild.
 - **#536 FLESH-SOFT-PANEL** — Landed #536 / tip `27bde246` (`27bde246c59d62130dd142cf3bb520fdd66ad23e`). PATH exact `client/src/human_soft_panels.rs`. Z realm panel head reads '{place} · 1–5 choose a climate' and falls back to exactly '1–5 choose a climate'. Spent. Do not rebuild.
+- **#537 TODO-SYNC-534** — Landed #537 / `e62d072f` (`e62d072f79a8660ea9168311383836fd6053b7a8`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Docs only. Docs stamp for the #534–#536 bank at tip `27bde246`. Spent. Cite only. Do not rebuild.
+- **#538 FLESH-HANDS-MEMORY** — Landed #538 / `c312213b` (`c312213b35120c66cf480accaf823924206b2a5c`). PATH exact `client/src/hands_memory.rs` (+81/−2). Hands remember Place on the tend cap. Existing echo feed. Spent. Do not rebuild.
+- **#539 FLESH-WORLD-ANSWER** — Landed #539 / `b209f6b3` (`b209f6b30abc9e303dcca049dc8aa3cdd7b990cb`). PATH exact `client/src/world_answer.rs` (+85/−1). After Flow or a banked Steward reserve, one Note on the existing Abundance Journey feed names the Place. Tend, Take, Idle, and an unbanked reserve push nothing. Spent. Do not rebuild.
+- **#540 FLESH-SHARD-CLIMATE** — Landed #540 / `cc3c5e90` (`cc3c5e905dfac7f400a23fc63ed5fab6f129729b`). PATH exact `client/src/shard_climate.rs` (+117/−1). PostUpdate nudges FogSettings.color toward the dressed Place bed by the same 0.08 ease paint_climate_feel uses for ambient. Update writers stay unchanged. Spent. Do not rebuild.
+- **#541 FLESH-CAMERA-PLACE** — Landed #541 / tip `639e60f7` (`639e60f79168a9dc9402de562ceea759ccd32729`). PATH exact `client/src/first_hour_camera.rs` (+92/−4). Idle node glance moves to PostUpdate before TransformPropagate and the slerp scales by punch_scale_for_graphics. A missing feel or a punch scale of 0 returns before any camera write. Spent. Do not rebuild.
 - **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued as item 1 below. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
@@ -102,21 +107,16 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT.
 
-0. **CARD TODO-SYNC-534** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
+0. **CARD TODO-SYNC-541** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
 1. **HEARTBEAT** — `cargo test -p shared -p rsil-identity`; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → Hands DARK.
 
-Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
-
-- **FLESH-HANDS-MEMORY** — SKIP. `client/src/hands_memory.rs` has no string; the Continuity line already names the Place in `client/src/lived_hour_bind.rs` (#524).
-- **FLESH-WORLD-ANSWER** — SKIP. Nothing reads `last_line` in `client/src/world_answer.rs`.
-- **FLESH-SHARD-CLIMATE** — JUNCTION. Three unordered `fog.color` writers (`shard_climate.rs`, `climate_plane.rs` `breathe_weather_bed`, `light_gen.rs` `paint_world_fog_from_climate`); needs `climate_plane.rs` named.
-- **FLESH-CAMERA-PLACE** — JUNCTION. `human_presence.rs` `follow_camera` calls `look_at` every frame, and the punch cap lives there and in `local_settings.rs`; needs `human_presence.rs` named.
+After DARK, Dual (Clerk and Core) names ONE more live file from `client/src/lib.rs` that still has undressed copy: `living_day.rs` · `flow_weather.rs` · `heartwood_wards.rs` — Dual to name, no PATH yet.
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 27bde246.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 639e60f7.
 
-**Effective order (verified):** TODO-SYNC-534 → HEARTBEAT.
+**Effective order (verified):** TODO-SYNC-541 → HEARTBEAT.
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
