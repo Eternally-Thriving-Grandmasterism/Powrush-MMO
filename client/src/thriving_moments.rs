@@ -36,7 +36,7 @@ impl ThrivingKind {
     pub fn line(&self) -> &'static str {
         match self {
             ThrivingKind::FirstMercyHarvest => {
-                "Thriving moment · A harvest taken with restraint — the node still glows"
+                "Thriving moment · A harvest tended with restraint — the node still glows"
             }
             ThrivingKind::SurfaceCleared => {
                 "Thriving moment · One climate practiced — the principle travels with you"
@@ -45,13 +45,13 @@ impl ThrivingKind {
                 "Thriving moment · Caps Across Climates sealed — same truth, three faces"
             }
             ThrivingKind::CouncilInvite => {
-                "Invitation · A soft Council seat is open when you are ready (C to note)"
+                "Invitation · A soft Council seat is open when you are ready"
             }
             ThrivingKind::FirstInventoryOpen => {
                 "Thriving moment · Inventory open — abundance is held, not hoarded"
             }
             ThrivingKind::FirstShare => {
-                "Thriving moment · Surplus shared — others may thrive now"
+                "Thriving moment · Surplus shared — the yard remembered"
             }
             ThrivingKind::FirstArrival => {
                 "The machine exists — a crate arrived"
@@ -87,7 +87,7 @@ impl ThrivingKind {
                 "The air shifted — a cited wind"
             }
             ThrivingKind::FirstWell => {
-                "The well is yours — Mira stepped back"
+                "You walked to the well — Mira stepped back"
             }
         }
     }
@@ -137,12 +137,7 @@ impl Plugin for ThrivingMomentsPlugin {
             .add_systems(Startup, spawn_toast)
             .add_systems(
                 Update,
-                (
-                    tick_moments,
-                    update_toast_ui,
-                    soft_inventory_moment,
-                    soft_council_note,
-                ),
+                (tick_moments, update_toast_ui, soft_inventory_moment),
             );
     }
 }
@@ -221,16 +216,6 @@ fn soft_inventory_moment(
     }
 }
 
-fn soft_council_note(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    moments: Res<ThrivingMoments>,
-) {
-    if keyboard.just_pressed(KeyCode::KeyC) && moments.fired.contains(&ThrivingKind::CouncilInvite)
-    {
-        info!(target: "powrush::thrive", "Player noted Council invitation — voluntary");
-    }
-}
-
 /// Fire from practice loop / harvest paths.
 pub fn fire_thriving(moments: &mut ThrivingMoments, kind: ThrivingKind, now: f64) {
     moments.try_fire(kind, now);
@@ -247,5 +232,64 @@ mod tests {
         m.try_fire(ThrivingKind::FirstMercyHarvest, 2.0);
         assert_eq!(m.fired.len(), 1);
         assert_eq!(m.queue.len(), 1);
+    }
+
+    #[test]
+    fn council_invite_drops_c_hint_and_locked_lines_hold() {
+        let council = ThrivingKind::CouncilInvite.line();
+        assert!(!council.contains("(C"), "{council}");
+
+        let changed = [
+            ThrivingKind::CouncilInvite.line(),
+            ThrivingKind::FirstMercyHarvest.line(),
+            ThrivingKind::FirstShare.line(),
+            ThrivingKind::FirstWell.line(),
+        ];
+        for line in changed {
+            assert!(!line.contains("XP"), "{line}");
+            assert!(!line.chars().any(|c| c.is_ascii_digit()), "{line}");
+        }
+
+        assert_one_peak_phrase(ThrivingKind::FirstMercyHarvest.line(), "tended");
+        assert_one_peak_phrase(ThrivingKind::FirstShare.line(), "yard remembered");
+        assert_one_peak_phrase(ThrivingKind::FirstWell.line(), "walked");
+
+        assert_eq!(
+            ThrivingKind::FirstVoice.line(),
+            "The card carried — the yard voted"
+        );
+        assert_eq!(
+            ThrivingKind::FirstWarWeek.line(),
+            "Hex gone green — tons plus restored"
+        );
+        assert_eq!(
+            ThrivingKind::FirstCrownstone.line(),
+            "The stone is seen — path waits"
+        );
+        assert_eq!(
+            ThrivingKind::FirstRedemption.line(),
+            "A tend offered — the grove answers"
+        );
+        assert_eq!(
+            ThrivingKind::FirstHybrid.line(),
+            "Double vision — the ledger still holds"
+        );
+    }
+
+    fn assert_one_peak_phrase(line: &str, phrase: &str) {
+        const PHRASES: [&str; 4] = [
+            "walked",
+            "tended",
+            "week was the bill",
+            "yard remembered",
+        ];
+        assert!(line.contains(phrase), "{line}");
+        assert_eq!(line.matches(phrase).count(), 1, "{line}");
+        for other in PHRASES {
+            if other == phrase {
+                continue;
+            }
+            assert!(!line.contains(other), "{line} also cites {other}");
+        }
     }
 }
