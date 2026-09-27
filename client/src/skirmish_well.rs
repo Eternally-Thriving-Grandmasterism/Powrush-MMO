@@ -228,12 +228,12 @@ fn dress_skirmish_slab_line(body: &str, hold: WellHold, glow: f32, losses: u32) 
 }
 
 fn dressed_well_slab_line(yard: &WellYard) -> String {
-    dress_skirmish_slab_line(
-        &yard.well.slab_line(),
-        yard.well.hold,
-        yard.well_glow,
-        yard.well.losses,
-    )
+    let body = if yard.well.hold == WellHold::Human {
+        "The well is yours for now — Mira will answer".to_string()
+    } else {
+        yard.well.slab_line()
+    };
+    dress_skirmish_slab_line(&body, yard.well.hold, yard.well_glow, yard.well.losses)
 }
 
 fn update_well_slab(
@@ -344,15 +344,16 @@ mod tests {
         let glowing = dressed_well_slab_line(&yard);
         assert_eq!(
             glowing,
-            "Peace · Glowing · dirt under the well · Lives in Peace · The well is yours — Mira stepped back"
+            "Peace · Glowing · dirt under the well · Lives in Peace · The well is yours for now — Mira will answer"
         );
         assert!(whole_token(&glowing, "Glowing"));
+        assert!(!glowing.contains("Mira stepped back"));
 
         yard.well_glow = 0.0;
         assert_eq!(skirmish_well_word(yard.well.hold, yard.well_glow, yard.well.losses), "Tended");
         let tended = dressed_well_slab_line(&yard);
         assert!(tended.contains("Tended"));
-        assert!(tended.contains("The well is yours"));
+        assert!(tended.contains("The well is yours for now — Mira will answer"));
         assert!(whole_token(&tended, "Tended"));
 
         assert_eq!(yard.well.traveler_answers(), "lost");
