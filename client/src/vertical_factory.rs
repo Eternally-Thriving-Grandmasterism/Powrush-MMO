@@ -2,7 +2,14 @@
 //!
 //! Q on Frontier: found House, then extractor → depot → hauler → two stops → arrival.
 //! After-D3: Q plate shows Seal · … when house seals are dressed (heritage string only).
-//! Peace slab speaks Tab only after a first-hour allocate. Contact: info@Rathor.ai
+//! Peace slab speaks Tab only after a first-hour allocate.
+//!
+//! CARD FLESH-FACTORY-SLAB — the existing factory `slab_line` may name the Place
+//! (`HexTravelState::chip_name`). Absent travel keeps each slab byte for byte.
+//! No gold. No Market. No second HUD.
+//! Peak memory, cited: walked · tended · week was the bill · yard remembered.
+//!
+//! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
@@ -17,6 +24,15 @@ use crate::input::{InputMapSet, PlayerInput};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::title_screen::HouseLabel;
 use shared::pause_ledger_face::{lethal_sign_row, q_plate_seal_line, HEX_ADMITS_HARM};
+
+/// CARD FLESH-FACTORY-SLAB — `{place} · {slab}` when a chip is present.
+/// `None` returns the bare slab. One string. No second widget.
+fn factory_slab_line(bare: &str, place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("{place} · {bare}"),
+        None => bare.to_string(),
+    }
+}
 
 /// Client wrap. Shared `VerticalFactory` stays Bevy-free (same as HourSacred / SpaceSession).
 #[derive(Resource, Debug, Clone)]
@@ -128,6 +144,7 @@ fn update_factory_slab(
     ledger: Option<Res<crate::ledger_bind::LedgerYard>>,
     bind: Option<Res<LivedHourBind>>,
     house_label: Option<Res<HouseLabel>>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut root: Query<&mut Visibility, With<FactorySlabRoot>>,
     mut text_q: Query<&mut Text, With<FactorySlabText>>,
 ) {
@@ -174,7 +191,10 @@ fn update_factory_slab(
     {
         pack.line(ready).to_string()
     } else {
-        yard.factory.slab_line()
+        factory_slab_line(
+            &yard.factory.slab_line(),
+            travel.as_ref().map(|state| state.chip_name()),
+        )
     };
     // After-D3 comfort: show current seal on Q plate when dressed.
     if let Some(hl) = house_label.as_ref() {
@@ -325,5 +345,58 @@ mod tests {
             HEX_ADMITS_HARM_OFF
         );
         assert_eq!(lethal_sign_row(true, true, true, true), HEX_ADMITS_HARM);
+    }
+
+    /// CARD FLESH-FACTORY-SLAB — Place prefixes the Q slab; no travel keeps it exact.
+    #[test]
+    fn flesh_factory_slab_names_chip_or_keeps_slab() {
+        use shared::hex_travel::PlaceId;
+
+        let plant = "Q plant a House stake (Frontier)";
+        let unfounded = VerticalFactory::default();
+        assert_eq!(unfounded.slab_line(), plant);
+        assert_eq!(factory_slab_line(&unfounded.slab_line(), None), plant);
+
+        let mut founded = VerticalFactory::default();
+        founded.found_house();
+        let next = "Q next · reserve 3 · nodes 0 · stops 0";
+        assert_eq!(founded.slab_line(), next);
+        assert_eq!(factory_slab_line(&founded.slab_line(), None), next);
+
+        let cases = [
+            (PlaceId::Sanctuary, "Sanctuary Prime"),
+            (PlaceId::Heartwood, "Heartwood"),
+            (PlaceId::Depths, "Depths"),
+        ];
+        for (id, name) in cases {
+            assert_eq!(id.chip_name(), name);
+            let travel = crate::hex_travel::HexTravelState { current: id };
+            assert_eq!(travel.chip_name(), id.chip_name());
+            let chip = travel.chip_name();
+            assert_eq!(
+                factory_slab_line(plant, Some(chip)),
+                format!("{name} · {plant}")
+            );
+            assert_eq!(
+                factory_slab_line(next, Some(chip)),
+                format!("{name} · {next}")
+            );
+        }
+
+        for sample in [
+            factory_slab_line(plant, Some(PlaceId::Sanctuary.chip_name())),
+            factory_slab_line(next, Some(PlaceId::Heartwood.chip_name())),
+            factory_slab_line(plant, Some(PlaceId::Depths.chip_name())),
+            factory_slab_line(plant, None),
+            factory_slab_line(next, None),
+        ] {
+            let low = sample.to_lowercase();
+            assert!(!low.contains("gold"), "{sample}");
+            assert!(!low.contains("market"), "{sample}");
+            assert!(!low.contains("xp"), "{sample}");
+            assert!(!low.contains("hud"), "{sample}");
+            assert!(!low.contains("online"), "{sample}");
+            assert!(!sample.contains("Threshold"), "{sample}");
+        }
     }
 }
