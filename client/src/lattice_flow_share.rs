@@ -5,6 +5,11 @@
  * Chip appears only if a *peer* file exists. U without a peer is honest, not an ops ticket.
  *
  * TOLC 8 · Contact: info@Rathor.ai · Yoi ⚡
+ *
+ * CARD FLESH-LATTICE-SHARE — the existing share lines may name the Place
+ * (`HexTravelState::chip_name`). Absent travel keeps each bare line.
+ * No share HUD. No Online. No sockets.
+ * Peak memory, cited: walked · tended · week was the bill · yard remembered.
  */
 
 use bevy::prelude::*;
@@ -19,6 +24,20 @@ use crate::soft_play_bindings;
 const SHARE_PATH: &str = "data/powrush_lattice_flow_share.json";
 const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
 const AMBIENT_POLL: f32 = 4.0;
+const ALONE_LINE: &str = "This hour is yours alone — other travelers will appear here later";
+
+/// CARD FLESH-LATTICE-SHARE — `{place} · {bare}` when a chip is present.
+/// `None` returns `bare`. Same chip, same journey note. No second HUD.
+fn lattice_share_line(bare: &str, place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("{place} · {bare}"),
+        None => bare.to_string(),
+    }
+}
+
+fn stood_chip(travel: Option<&crate::hex_travel::HexTravelState>) -> Option<&'static str> {
+    travel.map(|state| state.chip_name())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LatticeFlowShareEnvelope {
@@ -171,27 +190,29 @@ fn ambient_peer_poll(mut share: ResMut<LatticeFlowShare>, time: Res<Time>) {
 
 fn soft_peer_ingest(
     keyboard: Res<ButtonInput<KeyCode>>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut share: ResMut<LatticeFlowShare>,
     mut echo: ResMut<AbundanceJourneyEcho>,
 ) {
     if !keyboard.just_pressed(soft_play_bindings::PEER_INGEST) {
         return;
     }
+    let place = stood_chip(travel.as_deref());
 
     match try_read_envelope(shared::user_persist::persist_path(PEER_PATH)) {
         Some(env) => {
-            let note = format!(
+            let bare = format!(
                 "A fellow traveler left flow {:.1} · reserve {:.1}",
                 env.flow_total, env.reserve_total
             );
+            let note = lattice_share_line(&bare, place);
             echo.push(JourneyKind::Note, note.clone());
             share.last_ingest_note = Some(note);
             share.last_peer = Some(env);
             share.chip_visible = true;
         }
         None => {
-            let note =
-                "This hour is yours alone — other travelers will appear here later".to_string();
+            let note = lattice_share_line(ALONE_LINE, place);
             echo.push(JourneyKind::Note, note.clone());
             share.last_ingest_note = Some(note);
         }
@@ -200,6 +221,7 @@ fn soft_peer_ingest(
 
 fn update_peer_presence_chip(
     share: Res<LatticeFlowShare>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut root: Query<&mut Visibility, With<PeerPresenceRoot>>,
     mut text_q: Query<&mut Text, With<PeerPresenceText>>,
 ) {
@@ -212,10 +234,11 @@ fn update_peer_presence_chip(
         };
     }
     if let Some(env) = &share.last_peer {
-        let line = format!(
+        let bare = format!(
             "A traveler shares flow {:.0} · U to remember",
             env.flow_total
         );
+        let line = lattice_share_line(&bare, stood_chip(travel.as_deref()));
         for mut text in &mut text_q {
             if let Some(s) = text.sections.get_mut(0) {
                 if s.value != line {
@@ -244,5 +267,63 @@ mod tests {
         let json = serde_json::to_string(&env).unwrap();
         let back: LatticeFlowShareEnvelope = serde_json::from_str(&json).unwrap();
         assert_eq!(back.flow_total, 3.0);
+    }
+
+    /// CARD FLESH-LATTICE-SHARE — Place prefixes the share lines; no travel keeps them exact.
+    #[test]
+    fn flesh_lattice_share_line_names_chip_or_keeps_bare_line() {
+        use shared::hex_travel::PlaceId;
+
+        let chip = format!("A traveler shares flow {:.0} · U to remember", 4.0);
+        let left = format!(
+            "A fellow traveler left flow {:.1} · reserve {:.1}",
+            3.0, 1.5
+        );
+        assert_eq!(
+            lattice_share_line(&chip, None),
+            "A traveler shares flow 4 · U to remember"
+        );
+        assert_eq!(
+            lattice_share_line(&left, None),
+            "A fellow traveler left flow 3.0 · reserve 1.5"
+        );
+        assert_eq!(lattice_share_line(ALONE_LINE, None), ALONE_LINE);
+
+        let cases = [
+            (PlaceId::Sanctuary, "Sanctuary Prime"),
+            (PlaceId::Heartwood, "Heartwood"),
+            (PlaceId::Depths, "Depths"),
+        ];
+        for (id, name) in cases {
+            assert_eq!(id.chip_name(), name);
+            let travel = crate::hex_travel::HexTravelState { current: id };
+            assert_eq!(stood_chip(Some(&travel)), Some(name));
+            assert_eq!(
+                lattice_share_line(&chip, stood_chip(Some(&travel))),
+                format!("{name} · A traveler shares flow 4 · U to remember")
+            );
+            assert_eq!(
+                lattice_share_line(&left, Some(id.chip_name())),
+                format!("{name} · A fellow traveler left flow 3.0 · reserve 1.5")
+            );
+            assert_eq!(
+                lattice_share_line(ALONE_LINE, Some(travel.chip_name())),
+                format!("{name} · {ALONE_LINE}")
+            );
+        }
+
+        for sample in [
+            lattice_share_line(&chip, Some(PlaceId::Heartwood.chip_name())),
+            lattice_share_line(ALONE_LINE, None),
+        ] {
+            let low = sample.to_lowercase();
+            assert!(!low.contains("online"), "{sample}");
+            assert!(!low.contains("socket"), "{sample}");
+            assert!(!low.contains("gold"), "{sample}");
+            assert!(!low.contains("market"), "{sample}");
+            assert!(!low.contains("xp"), "{sample}");
+            assert!(!low.contains("hud"), "{sample}");
+            assert!(!sample.contains("Threshold"), "{sample}");
+        }
     }
 }
