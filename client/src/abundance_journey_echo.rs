@@ -22,6 +22,7 @@ use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
 use crate::soft_play_bindings;
 
 const PERSIST_PATH: &str = "data/powrush_abundance_journey.json";
+const JOURNEY_ECHO_FOOTER: &str = "J to close · your journey is kept on this device";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JourneyLine {
@@ -217,7 +218,7 @@ fn spawn_echo_panel(mut commands: Commands) {
                 JourneyEchoBody,
             ));
             p.spawn(TextBundle::from_section(
-                "J toggle · soft durable memory · TOLC 8",
+                JOURNEY_ECHO_FOOTER,
                 TextStyle {
                     font_size: 11.0,
                     color: Color::srgb(0.55, 0.68, 0.75),
@@ -347,5 +348,40 @@ mod tests {
         let back: JourneyPersistBlob = serde_json::from_str(&json).unwrap();
         assert_eq!(back.choices_made, 3);
         assert!(back.practice_sealed);
+    }
+
+    #[test]
+    fn journey_echo_footer_is_plain_one_line() {
+        assert!(JOURNEY_ECHO_FOOTER.starts_with("J "));
+        assert!(!JOURNEY_ECHO_FOOTER.contains("TOLC"));
+        assert!(JOURNEY_ECHO_FOOTER.chars().count() <= 48);
+
+        let chars: Vec<char> = JOURNEY_ECHO_FOOTER.chars().collect();
+        assert!(
+            !chars
+                .windows(3)
+                .any(|w| w[0] == '(' && w[1].is_ascii_uppercase() && w[2] == ')'),
+            "footer names a parenthesised key"
+        );
+
+        let mut singles = Vec::new();
+        let mut token = String::new();
+        for c in chars {
+            if c.is_ascii_alphabetic() {
+                token.push(c);
+            } else if token.chars().count() == 1
+                && token.chars().next().is_some_and(|ch| ch.is_ascii_uppercase())
+            {
+                singles.push(std::mem::take(&mut token));
+            } else {
+                token.clear();
+            }
+        }
+        if token.chars().count() == 1
+            && token.chars().next().is_some_and(|ch| ch.is_ascii_uppercase())
+        {
+            singles.push(token);
+        }
+        assert_eq!(singles, vec!["J".to_string()]);
     }
 }
