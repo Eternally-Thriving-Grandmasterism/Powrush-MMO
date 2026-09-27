@@ -6,6 +6,11 @@
 //! covers Title / pause / Settings / L / Q. No birds (lavapipe-safe). No new
 //! Camera3d, no Avian/Rapier, no combat stats, no sockets.
 //! GenShare Method A: offline `data/powrush_genshare.jsonl` seed persist (no port).
+//!
+//! CARD FLESH-LIGHT-GEN — the existing gen logs may name the Place
+//! (`HexTravelState::chip_name`). Absent travel keeps each bare line.
+//! No light HUD. No Ultra. reduced_motion / Low stay outside this line.
+//! Peak memory, cited: walked · tended · week was the bill · yard remembered.
 //! Contact: info@Rathor.ai
 
 use bevy::pbr::{FogFalloff, FogSettings};
@@ -24,6 +29,28 @@ use crate::local_settings::LocalSettingsState;
 use crate::title_screen::{HouseLabel, LaunchDoor};
 use crate::ui_above_world::LivedUiCamera;
 use crate::vertical_factory::FactoryYard;
+
+/// Existing startup line when gen is on. Absent travel keeps this byte for byte.
+const GEN_ON_LINE: &str = "G0 light gen ON — Settings Grove light and/or POWRUSH_GEN=light";
+/// Existing startup line when gen is off. Absent travel keeps this byte for byte.
+const GEN_OFF_LINE: &str = "G0 light gen OFF (Settings Grove · light or POWRUSH_GEN=light)";
+/// Existing door-sync line. Absent travel keeps this byte for byte.
+const GEN_SYNC_LINE: &str = "G0.5 light gen door synced (settings OR env)";
+/// Existing scatter line. Absent travel keeps this byte for byte.
+const GEN_SCATTER_LINE: &str = "G0 grove scattered (GenShare L0; no physics, no birds, no socket)";
+
+/// CARD FLESH-LIGHT-GEN — `{place} · {bare}` when a chip is present.
+/// `None` returns `bare`. One string on the existing log. No second HUD.
+fn light_gen_line(bare: &str, place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("{place} · {bare}"),
+        None => bare.to_string(),
+    }
+}
+
+fn stood_chip(travel: Option<&crate::hex_travel::HexTravelState>) -> Option<&'static str> {
+    travel.map(|state| state.chip_name())
+}
 
 /// Runtime gen door — parsed once at plugin build / resource init.
 #[derive(Resource, Debug, Clone, Copy)]
@@ -86,19 +113,21 @@ pub struct LightGenPlugin;
 impl Plugin for LightGenPlugin {
     fn build(&self, app: &mut App) {
         let door = LightGenDoor::default();
-        if door.is_light() {
-            info!(
-                target: "powrush::gen",
-                mode = door.mode.as_str(),
-                "G0 light gen ON — Settings Grove light and/or POWRUSH_GEN=light"
-            );
+        let place = stood_chip(
+            app.world()
+                .get_resource::<crate::hex_travel::HexTravelState>(),
+        );
+        let bare = if door.is_light() {
+            GEN_ON_LINE
         } else {
-            info!(
-                target: "powrush::gen",
-                mode = door.mode.as_str(),
-                "G0 light gen OFF (Settings Grove · light or POWRUSH_GEN=light)"
-            );
-        }
+            GEN_OFF_LINE
+        };
+        let line = light_gen_line(bare, place);
+        info!(
+            target: "powrush::gen",
+            mode = door.mode.as_str(),
+            "{line}"
+        );
         app.insert_resource(door)
             .init_resource::<LightGenSpawned>()
             .add_systems(Startup, prepare_atlas)
@@ -119,16 +148,18 @@ impl Plugin for LightGenPlugin {
 /// Keep door = settings Grove light OR env POWRUSH_GEN=light.
 fn sync_light_gen_door(
     settings: Res<LocalSettingsState>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut door: ResMut<LightGenDoor>,
 ) {
     let want = LightGenDoor::from_settings_grove(Some(settings.inner.grove.as_str())).mode;
     if door.mode != want {
         door.mode = want;
+        let line = light_gen_line(GEN_SYNC_LINE, stood_chip(travel.as_deref()));
         info!(
             target: "powrush::gen",
             mode = door.mode.as_str(),
             grove = %settings.inner.grove,
-            "G0.5 light gen door synced (settings OR env)"
+            "{line}"
         );
     }
 }
@@ -202,6 +233,7 @@ fn sync_scatter(
     ledger: Res<LedgerYard>,
     factory: Res<FactoryYard>,
     places: Option<Res<crate::hex_travel::PlacesPlate>>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut spawned: ResMut<LightGenSpawned>,
     existing: Query<Entity, With<LightGenProp>>,
 ) {
@@ -329,6 +361,7 @@ fn sync_scatter(
 
     spawned.seed = Some(seed);
     spawned.pending_seed = None;
+    let line = light_gen_line(GEN_SCATTER_LINE, stood_chip(travel.as_deref()));
     info!(
         target: "powrush::gen",
         seed,
@@ -336,7 +369,7 @@ fn sync_scatter(
         hex = hex_id,
         from_disk,
         path = %shared::user_persist::persist_path(GENSHARE_PATH).display(),
-        "G0 grove scattered (GenShare L0; no physics, no birds, no socket)"
+        "{line}"
     );
 }
 
@@ -461,6 +494,63 @@ mod tests {
         // May still be light if process env is set — only assert Off when env off.
         if !light_gen_enabled_from(std::env::var("POWRUSH_GEN").ok().as_deref()) {
             assert!(!off.is_light());
+        }
+    }
+
+    /// CARD FLESH-LIGHT-GEN — Place prefixes the gen logs; no travel keeps them exact.
+    #[test]
+    fn flesh_light_gen_line_names_chip_or_keeps_bare_line() {
+        use shared::hex_travel::PlaceId;
+
+        let bares = [GEN_ON_LINE, GEN_OFF_LINE, GEN_SYNC_LINE, GEN_SCATTER_LINE];
+        for bare in bares {
+            assert_eq!(light_gen_line(bare, None), bare);
+        }
+        assert_eq!(
+            light_gen_line(GEN_ON_LINE, None),
+            "G0 light gen ON — Settings Grove light and/or POWRUSH_GEN=light"
+        );
+        assert_eq!(
+            light_gen_line(GEN_OFF_LINE, None),
+            "G0 light gen OFF (Settings Grove · light or POWRUSH_GEN=light)"
+        );
+        assert_eq!(
+            light_gen_line(GEN_SYNC_LINE, None),
+            "G0.5 light gen door synced (settings OR env)"
+        );
+        assert_eq!(
+            light_gen_line(GEN_SCATTER_LINE, None),
+            "G0 grove scattered (GenShare L0; no physics, no birds, no socket)"
+        );
+
+        let cases = [
+            (PlaceId::Sanctuary, "Sanctuary Prime"),
+            (PlaceId::Heartwood, "Heartwood"),
+            (PlaceId::Depths, "Depths"),
+        ];
+        for (id, name) in cases {
+            assert_eq!(id.chip_name(), name);
+            let travel = crate::hex_travel::HexTravelState { current: id };
+            assert_eq!(stood_chip(Some(&travel)), Some(name));
+            for bare in bares {
+                assert_eq!(
+                    light_gen_line(bare, stood_chip(Some(&travel))),
+                    format!("{name} · {bare}")
+                );
+            }
+        }
+
+        for sample in [
+            light_gen_line(GEN_SCATTER_LINE, Some(PlaceId::Heartwood.chip_name())),
+            light_gen_line(GEN_ON_LINE, None),
+        ] {
+            let low = sample.to_lowercase();
+            assert!(!low.contains("ultra"), "{sample}");
+            assert!(!low.contains("gold"), "{sample}");
+            assert!(!low.contains("market"), "{sample}");
+            assert!(!low.contains("xp"), "{sample}");
+            assert!(!low.contains("hud"), "{sample}");
+            assert!(!sample.contains("Threshold"), "{sample}");
         }
     }
 }
