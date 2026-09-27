@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `b98cbdfa` (`b98cbdfab56c701ba8bcb19c6d7c45f53c616b65`) — spent #554 through #557 (bank #555–#557 after TODO-SYNC-553 #554). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT on this tip.
+Tip `9c60e53a` (`9c60e53a4c4aa21a419de58ac1951ed66634a77a`) — spent #558 through #560 (bank #559–#560 after TODO-SYNC-557 #558). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -119,6 +119,9 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#557 FLESH-WATCH-WORDS** — Landed #557 / tip `b98cbdfa` (`b98cbdfab56c701ba8bcb19c6d7c45f53c616b65`). PATH exact `client/src/human_inventory.rs` (+2/−2). The watch strip reads "vitality … harmony … joy" on line 1 and "I satchel" or the companion word on line 2. Spent. Cite only. Do not rebuild.
 - **Note only, not a card** — The first watch-strip line fits up to two-digit values (38 chars) and would wrap only if all three values reach three digits.
 - **Card 5 FLESH-VISITOR-PULSE** — SKIPPED. It is the design string at `docs/SECOND_HOUR_CHARTER_FRONTIER.md` L32.
+- **#558 TODO-SYNC-557** — Landed #558 / `85047201` (`85047201157646cbff9a9cd4867aa438f7d64b81`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md` (+49/−9). Docs-only sync that recorded #554–#557. Spent. Cite only. Do not rebuild.
+- **#559 FLESH-COMPANION-LINE** — Landed #559 / `d0b97c48` (`d0b97c482c833d57f8f0c0f6cd8b3446afa48185`). PATH exact `client/src/companion_bond.rs` (+73/−2). Existing mount and feet lines may name Place via `chip_name` (Sanctuary Prime / Heartwood / Depths). Absent travel keeps `companion offered a ride` and `feet on the ground`. No pet HUD. No XP. No new widget. No `lib.rs` mod. Spent. Cite only. Do not rebuild.
+- **#560 FLESH-FLOW-WEATHER** — Landed #560 / tip `9c60e53a` (`9c60e53a4c4aa21a419de58ac1951ed66634a77a`). PATH exact `client/src/flow_weather.rs` (+57/−1). Existing inhale line may name Place via `chip_name`. Absent travel keeps `solo world inhale`. Low / reduced_motion caps unchanged. No weather HUD. Spent. Cite only. Do not rebuild.
 - **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued as item 1 below. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
@@ -127,7 +130,7 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT.
 
-0. **CARD TODO-SYNC-557** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
+0. **CARD TODO-SYNC-560** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
 1. **HEARTBEAT (Core's)** — `cargo test -p shared -p rsil-identity`; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → Hands DARK.
 
 Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
@@ -139,9 +142,9 @@ Named later (not ranked · needs Core bounds before anyone cooks · not fixed on
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at b98cbdfa.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 9c60e53a.
 
-**Effective order (verified):** TODO-SYNC-557 → HEARTBEAT (Core's).
+**Effective order (verified):** TODO-SYNC-560 → HEARTBEAT (Core's).
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
