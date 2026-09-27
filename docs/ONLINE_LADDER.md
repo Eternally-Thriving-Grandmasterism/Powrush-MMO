@@ -33,6 +33,7 @@ Climb in order. A higher rung does not light Title Online and does not turn the 
 - GenShare is a recipe. Methods C and E are not shipped (`shared/genshare.rs`, `docs/GENSHARE.md`).
 - R2 shared gate exists (`NeedsConfirm` / `MidWasd`). No client Method B slab. FLESH-GENSHARE-CONFIRM SKIP 2026-09-27. Confirm UI is JUNCTION until Steward names PATH.
 - Bevy climb and steamworks stay held (`docs/BEVY_CLIMB_PLAN.md`).
+- Pre-release process law is `docs/PRE_RELEASE_LAW.md`. Prototype ≠ ship. A verb that does nothing is a lie. No fake abundance. Cut rooms beat new acts. Guild is a file, not a lobby.
 
 ## Refuse
 
@@ -57,3 +58,4 @@ Climb in order. A higher rung does not light Title Online and does not turn the 
 - `client/src/local_sovereign_session.rs`
 - `docs/GENSHARE.md`
 - `docs/BEVY_CLIMB_PLAN.md`
+- `docs/PRE_RELEASE_LAW.md`
