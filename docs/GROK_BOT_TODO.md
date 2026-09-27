@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `639e60f7` (`639e60f79168a9dc9402de562ceea759ccd32729`) — spent #537 through #541 (bank #538–#541 after TODO-SYNC-534 #537). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT on this tip.
+Tip `ff08e861` (`ff08e861ca266b657d7f8f9cd7ed3b5dd8711844`) — spent #542 through #545 (bank #543–#545 after TODO-SYNC-541 #542). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -99,6 +99,10 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#539 FLESH-WORLD-ANSWER** — Landed #539 / `b209f6b3` (`b209f6b30abc9e303dcca049dc8aa3cdd7b990cb`). PATH exact `client/src/world_answer.rs` (+85/−1). After Flow or a banked Steward reserve, one Note on the existing Abundance Journey feed names the Place. Tend, Take, Idle, and an unbanked reserve push nothing. Spent. Do not rebuild.
 - **#540 FLESH-SHARD-CLIMATE** — Landed #540 / `cc3c5e90` (`cc3c5e905dfac7f400a23fc63ed5fab6f129729b`). PATH exact `client/src/shard_climate.rs` (+117/−1). PostUpdate nudges FogSettings.color toward the dressed Place bed by the same 0.08 ease paint_climate_feel uses for ambient. Update writers stay unchanged. Spent. Do not rebuild.
 - **#541 FLESH-CAMERA-PLACE** — Landed #541 / tip `639e60f7` (`639e60f79168a9dc9402de562ceea759ccd32729`). PATH exact `client/src/first_hour_camera.rs` (+92/−4). Idle node glance moves to PostUpdate before TransformPropagate and the slerp scales by punch_scale_for_graphics. A missing feel or a punch scale of 0 returns before any camera write. Spent. Do not rebuild.
+- **#542 TODO-SYNC-541** — Landed #542 / `667c8aa3` (`667c8aa3a7388d99e8d34da77fc034729a1d8fd0`). PATHS `docs/GROK_BOT_TODO.md` (+10/−10) · `docs/NEXT_NAMED_CARDS.md` (+38/−13). Docs only. Docs stamp for the #537–#541 bank at tip `639e60f7`. Spent. Cite only. Do not rebuild.
+- **#543 FLESH-HEARTWOOD-WARDS** — Landed #543 / `619ce9c2` (`619ce9c2b30bc81b172dd2135eea89ef9ec132b5`). PATH exact `client/src/heartwood_wards.rs` (+103/−9). A Heartwood ward Tend pushes one Abundance Journey Note from the place chip and the existing WARD_SEALS words. Look, leaving Heartwood, a missing echo, and a second Tend do not add another line. Spent. Cite only. Do not rebuild.
+- **#544 FLESH-LIVING-DAY** — Landed #544 / `b3ec5bef` (`b3ec5bef89c60dc71b0ec030c3444ce0d88aa5dd`). PATH exact `client/src/living_day.rs` (+232/−0). When the named day period changes, turn_the_clock pushes one Journey Note whose text is DayPeriod::name(). The first frame and the Depths push nothing. Each period is noted at most once per session. Spent. Cite only. Do not rebuild.
+- **#545 FLESH-THRIVING-MOMENT** — Landed #545 / tip `ff08e861` (`ff08e861ca266b657d7f8f9cd7ed3b5dd8711844`). PATH exact `client/src/thriving_moments.rs` (+64/−20). C cycles lineage, so the Council invite no longer names that key. Three fired toasts each cite one peak-memory phrase. Locked firsts stay byte-identical. Spent. Cite only. Do not rebuild.
 - **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued as item 1 below. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
@@ -107,16 +111,22 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT.
 
-0. **CARD TODO-SYNC-541** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
+0. **CARD TODO-SYNC-545** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
 1. **HEARTBEAT** — `cargo test -p shared -p rsil-identity`; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → Hands DARK.
 
-After DARK, Dual (Clerk and Core) names ONE more live file from `client/src/lib.rs` that still has undressed copy: `living_day.rs` · `flow_weather.rs` · `heartwood_wards.rs` — Dual to name, no PATH yet.
+Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
+
+- **FEEL-MOVE** — SKIP. `client/src/feel_move.rs` only holds the Use buffer (SIM_HZ 60, USE_BUFFER_SECS 0.120); retuning it would mean inventing numbers nobody named; any visible cue or reduced_motion rule would reach into `client/src/human_presence.rs`, making it a junction.
+
+Named later (not ranked · needs Core bounds before anyone cooks · not fixed on this card):
+
+- **FLESH-WELL-SLAB** — not ranked. PATH `client/src/skirmish_well.rs`. Line 347 still says 'The well is yours — Mira stepped back' while the #545 toast now says 'You walked to the well — Mira stepped back'. Needs Core bounds before anyone cooks it. Not fixed on this card.
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 639e60f7.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at ff08e861.
 
-**Effective order (verified):** TODO-SYNC-541 → HEARTBEAT.
+**Effective order (verified):** TODO-SYNC-545 → HEARTBEAT.
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
