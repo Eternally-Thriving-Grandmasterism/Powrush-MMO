@@ -1645,7 +1645,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                 );
                 spawn_settings_row(
                     comfort,
-                    "Hide slabs · off",
+                    "Hide guidance · off",
                     SettingsHideSlabsBtn,
                     SettingsHideLabel,
                 );
@@ -2810,7 +2810,7 @@ pub fn invert_btn_label(s: &LocalSettings) -> String {
 }
 
 pub fn hide_slabs_btn_label(s: &LocalSettings) -> String {
-    format!("Hide slabs · {}", on_off(s.hide_slabs))
+    format!("Hide guidance · {}", on_off(s.hide_slabs))
 }
 
 pub fn brightness_btn_label(s: &LocalSettings) -> String {
@@ -5750,7 +5750,7 @@ mod tests {
         assert_eq!(look_btn_label(&s), "Look · 1.00");
         assert_eq!(mute_btn_label(&s), "Mute · off");
         assert_eq!(invert_btn_label(&s), "Invert-Y · off");
-        assert_eq!(hide_slabs_btn_label(&s), "Hide slabs · off");
+        assert_eq!(hide_slabs_btn_label(&s), "Hide guidance · off");
         assert_eq!(brightness_btn_label(&s), "Brightness · 1.00");
         assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00");
         assert_eq!(graphics_preset_btn_label(&s), "Graphics · Medium");
@@ -5881,7 +5881,7 @@ mod tests {
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(mute_btn_label(&back), "Mute · on");
         assert_eq!(invert_btn_label(&back), "Invert-Y · on");
-        assert_eq!(hide_slabs_btn_label(&back), "Hide slabs · on");
+        assert_eq!(hide_slabs_btn_label(&back), "Hide guidance · on");
         assert_eq!(look_btn_label(&back), "Look · 1.50");
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
         assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10");
