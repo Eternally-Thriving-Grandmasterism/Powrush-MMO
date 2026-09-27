@@ -31,6 +31,7 @@ Climb in order. A higher rung does not light Title Online and does not turn the 
 - Sovereign hour completes without servers (`client/src/local_sovereign_session.rs`).
 - Lattice share is local. No Online. No sockets (`client/src/lattice_flow_share.rs`).
 - GenShare is a recipe. Methods C and E are not shipped (`shared/genshare.rs`, `docs/GENSHARE.md`).
+- R2 shared gate exists (`NeedsConfirm` / `MidWasd`). No client Method B slab. FLESH-GENSHARE-CONFIRM SKIP 2026-09-27. Confirm UI is JUNCTION until Steward names PATH.
 - Bevy climb and steamworks stay held (`docs/BEVY_CLIMB_PLAN.md`).
 
 ## Refuse
@@ -44,6 +45,7 @@ Climb in order. A higher rung does not light Title Online and does not turn the 
 - Inventing a Peace-hour peer count.
 - Streaming meshes, glTF, or combat stats as share.
 - Method B adopt without confirm, or mid-WASD.
+- A client Method B confirm slab. Confirm UI is JUNCTION until Steward names PATH. FLESH-GENSHARE-CONFIRM SKIP 2026-09-27.
 - Claiming GenShare Method C or Method E as shipped.
 
 ## Cite
