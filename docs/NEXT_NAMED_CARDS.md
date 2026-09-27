@@ -1,8 +1,8 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #546 through #550. Bank #547–#550 after TODO-SYNC-545 #546. Tip `2961a10a` (`2961a10aad2064e29f4d3b76ef2b746864e85193`).
+Spent #551 through #553. Bank #552–#553 after TODO-SYNC-550 #551. Tip `2bf19804` (`2bf19804ec25a0db218aa2c1c6ea32c2d50fe885`).
 Keep earlier #499–#541 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR / TODO-SYNC-518 / FLESH-SKIRMISH-DAWN / TODO-SYNC-522 / FLESH-RESUME-PLACE / FLESH-ALLOCATE-LINE / TODO-SYNC-523 / QA-MACHINE-HOUR / ODD-ZONE-NOTE / FLESH-SATCHEL-LINE / TODO-SYNC-527 / FLESH-WHISPER-PLACE / FLESH-DEPTHS-LAND / FLESH-HEARTWOOD-LIP / TODO-SYNC-531 / FLESH-COMPASS-LINE / FLESH-SOFT-PANEL / TODO-SYNC-534 / FLESH-HANDS-MEMORY / FLESH-WORLD-ANSWER / FLESH-SHARD-CLIMATE / FLESH-CAMERA-PLACE).
-Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT on this tip.
+Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT on this tip.
 Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, the Peace well slab_line (five words; soft well_glow unchanged; no second HUD), the Mode B resume Place line (blob stays; no `harvest_feel`; no `rbe_allocate_choice`), the Flow/Reserve Place invite (Flow = field restore; Reserve = repair-rights hold; never gold/price/Market/ticker/XP), the MACHINE QA stamps, the odd-zone note, the satchel pickup line, the whisper place-chip prefix (bare LINE when travel state absent), the Depths Peace restore line ('Depths Peace · teal · wet-stone · restored'), the Heartwood lip hush (material numbers only in the five existing StandardMaterial blocks; dimmer/quieter; Peace node still brightest; pond alpha 0.78), the compass Place line ('{place} · {line}', falls back to the exact line), the realm panel Place head ('{place} · 1–5 choose a climate', falls back to exactly '1–5 choose a climate'), the hands-memory Place on the tend cap (existing echo feed), the world-answer Place note (one Note on the existing Abundance Journey feed after Flow or a banked Steward reserve; Tend, Take, Idle, and an unbanked reserve push nothing), the shard-climate fog lean (PostUpdate nudges FogSettings.color toward the dressed Place bed; Update writers stay unchanged), the idle glance that follows the punch (PostUpdate before TransformPropagate; slerp scales by punch_scale_for_graphics; a missing feel or a punch scale of 0 returns before any camera write), the Heartwood ward Tend note (one Abundance Journey Note from the place chip and the existing WARD_SEALS words; Look, leaving Heartwood, a missing echo, and a second Tend add no other line), the living-day period note (when the named day period changes, turn_the_clock pushes one Journey Note whose text is DayPeriod::name(); the first frame and the Depths push nothing; each period is noted at most once per session), or the thriving-moment lines (the Council invite no longer names C; three fired toasts each cite one peak-memory phrase; locked firsts stay byte-identical).
 Peak memory locked: walked · tended · week was the bill · yard remembered.
 Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes stay banked (steward only).
@@ -271,6 +271,32 @@ Landed `ea0822a7` (`ea0822a77019dea91fdc30bbace8108640decc10`). The footer is th
 
 Landed tip `2961a10a` (`2961a10aad2064e29f4d3b76ef2b746864e85193`). Compost tends a node only when `nearby.in_range`; the pickup line names that node in range, otherwise 'vitality went home to the web' (no 'grove'). Spent. Cite only. Do not rebuild.
 
+### #551 TODO-SYNC-550
+
+**PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md` (+44/−13)
+
+Landed `c429d7fa` (`c429d7faa5130f74468e0b8d2dee37632c661386`). Docs-only sync that recorded #546–#550. Spent. Cite only. Do not rebuild.
+
+### #552 FLESH-HIDE-GUIDANCE-ROW
+
+**PATH:** `client/src/title_screen.rs` (+4/−4)
+
+Landed `bdc912f5` (`bdc912f54eac361aabca5a0ebe22c228890683e1`). The settings row went from "Hide slabs" to "Hide guidance". Spent. Cite only. Do not rebuild.
+
+### #553 FLESH-SETTINGS-WORDS
+
+**PATH:** `client/src/title_screen.rs` (+18/−12)
+
+Landed tip `2bf19804` (`2bf19804ec25a0db218aa2c1c6ea32c2d50fe885`). Display words only: the Controls reset row now reads "Reset keys"; the Grove row and grove_btn_label now read "Scenery · off" / "Scenery · on"; and the colorblind wells row shows the stored shape_only as "shapes only". The saved value "light", grove_is_light, reset_peace_bindings, SettingsPeaceResetBtn, the House seal "Grove", and the stored shape_only are unchanged. Spent. Cite only. Do not rebuild.
+
+### Card 5 FLESH-LEDGER-SIGN-TWIN — SKIPPED by Core
+
+The literal at `client/src/ledger_bind.rs` L241 already equals `HEX_ADMITS_HARM_OFF` with a " · " prefix, and the test at L617 already fails if they drift. Players would see no difference.
+
+### Lag (notes only)
+
+(a) "Hide slabs" still appears in six docs (PREVIEW_CHECKLIST, BLIZZARD_CRAFT_UX, SLICE_LOG, LAUNCH_UX, FIRST_LAUNCH_UI_SCALE, PLACE_CLARITY_HOUR), in the //! headers at `client/src/title_screen.rs` L9 and `shared/local_settings.rs` L5, and in the comment at `client/src/local_settings.rs` L251. (b) After #553, the old labels "Reset-to-Peace", "Grove · off|light" and shape_only still appear in PLACES_BIBLE, PLACE_CLARITY_HOUR, SLICE_LOG and AGENT_COMPLETION_PACK_v23.2, in the //! header at `client/src/title_screen.rs` L30, and in the `client/src/light_gen.rs` logs at L93 and L99. Notes only. Those files were not edited.
+
 ### HEARTBEAT (prior)
 
 GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 1 below — do not open a heartbeat PR from this stamp.
@@ -279,11 +305,11 @@ GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only.
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. No OFFER NEXT.
 
-### 0. CARD TODO-SYNC-550 (this card)
+### 0. CARD TODO-SYNC-553 (this card)
 
 **PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
 
-### 1. HEARTBEAT
+### 1. HEARTBEAT (Core's)
 
 ```
 cargo test -p shared -p rsil-identity
@@ -301,9 +327,9 @@ Named later (not ranked · needs Core bounds before anyone cooks · not fixed on
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2961a10a.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2bf19804.
 
-**Effective order (verified):** TODO-SYNC-550 → HEARTBEAT.
+**Effective order (verified):** TODO-SYNC-553 → HEARTBEAT (Core's).
 
 ## DO-NOT-FREESTYLE (parked)
 

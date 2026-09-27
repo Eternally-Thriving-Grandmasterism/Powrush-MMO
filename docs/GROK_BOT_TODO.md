@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `2961a10a` (`2961a10aad2064e29f4d3b76ef2b746864e85193`) — spent #546 through #550 (bank #547–#550 after TODO-SYNC-545 #546). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT on this tip.
+Tip `2bf19804` (`2bf19804ec25a0db218aa2c1c6ea32c2d50fe885`) — spent #551 through #553 (bank #552–#553 after TODO-SYNC-550 #551). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -108,6 +108,11 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#548 FLESH-PRACTICE-LINE** — Landed #548 / `2e4eb0f7` (`2e4eb0f77fd417630b4573d3c0212cb231874388`). PATH exact `client/src/living_practice_loop.rs` (+8/−1). The Verdant practice prompt now says '…take only what the node can spare (E)'; E stays because only INTERACT credits the count. Spent. Cite only. Do not rebuild.
 - **#549 FLESH-JOURNEY-ECHO** — Landed #549 / `ea0822a7` (`ea0822a77019dea91fdc30bbace8108640decc10`). PATH exact `client/src/abundance_journey_echo.rs` (+37/−1). The footer is the const `JOURNEY_ECHO_FOOTER` = 'J to close · your journey is kept on this device'. Spent. Cite only. Do not rebuild.
 - **#550 FLESH-FRESHNESS-LINE** — Landed #550 / tip `2961a10a` (`2961a10aad2064e29f4d3b76ef2b746864e85193`). PATH exact `client/src/living_freshness.rs` (+29/−2). Compost tends a node only when `nearby.in_range`; the pickup line names that node in range, otherwise 'vitality went home to the web' (no 'grove'). Spent. Cite only. Do not rebuild.
+- **#551 TODO-SYNC-550** — Landed #551 / `c429d7fa` (`c429d7faa5130f74468e0b8d2dee37632c661386`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md` (+44/−13). Docs-only sync that recorded #546–#550. Spent. Cite only. Do not rebuild.
+- **#552 FLESH-HIDE-GUIDANCE-ROW** — Landed #552 / `bdc912f5` (`bdc912f54eac361aabca5a0ebe22c228890683e1`). PATH exact `client/src/title_screen.rs` (+4/−4). The settings row went from "Hide slabs" to "Hide guidance". Spent. Cite only. Do not rebuild.
+- **#553 FLESH-SETTINGS-WORDS** — Landed #553 / tip `2bf19804` (`2bf19804ec25a0db218aa2c1c6ea32c2d50fe885`). PATH exact `client/src/title_screen.rs` (+18/−12). Display words only: the Controls reset row now reads "Reset keys"; the Grove row and grove_btn_label now read "Scenery · off" / "Scenery · on"; and the colorblind wells row shows the stored shape_only as "shapes only". The saved value "light", grove_is_light, reset_peace_bindings, SettingsPeaceResetBtn, the House seal "Grove", and the stored shape_only are unchanged. Spent. Cite only. Do not rebuild.
+- **Card 5 FLESH-LEDGER-SIGN-TWIN** — SKIPPED by Core. The literal at `client/src/ledger_bind.rs` L241 already equals `HEX_ADMITS_HARM_OFF` with a " · " prefix, and the test at L617 already fails if they drift. Players would see no difference.
+- **Lag (notes only)** — (a) "Hide slabs" still appears in six docs (PREVIEW_CHECKLIST, BLIZZARD_CRAFT_UX, SLICE_LOG, LAUNCH_UX, FIRST_LAUNCH_UI_SCALE, PLACE_CLARITY_HOUR), in the //! headers at `client/src/title_screen.rs` L9 and `shared/local_settings.rs` L5, and in the comment at `client/src/local_settings.rs` L251. (b) After #553, the old labels "Reset-to-Peace", "Grove · off|light" and shape_only still appear in PLACES_BIBLE, PLACE_CLARITY_HOUR, SLICE_LOG and AGENT_COMPLETION_PACK_v23.2, in the //! header at `client/src/title_screen.rs` L30, and in the `client/src/light_gen.rs` logs at L93 and L99. Notes only. Those files were not edited.
 - **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued as item 1 below. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
@@ -116,8 +121,8 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT.
 
-0. **CARD TODO-SYNC-550** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
-1. **HEARTBEAT** — `cargo test -p shared -p rsil-identity`; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → Hands DARK.
+0. **CARD TODO-SYNC-553** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`.
+1. **HEARTBEAT (Core's)** — `cargo test -p shared -p rsil-identity`; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → Hands DARK.
 
 Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
 
@@ -127,9 +132,9 @@ Named later (not ranked · needs Core bounds before anyone cooks · not fixed on
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2961a10a.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2bf19804.
 
-**Effective order (verified):** TODO-SYNC-550 → HEARTBEAT.
+**Effective order (verified):** TODO-SYNC-553 → HEARTBEAT (Core's).
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
