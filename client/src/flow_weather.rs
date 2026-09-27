@@ -8,6 +8,11 @@
  * EARTH-CLIMATE: band writes [`WeatherBandCoupling`] for climate fog/breath
  * beds; ribbon glow tints by Place mood; Comfort [`WeatherFidelity`] gates
  * bead scale / drop cadence (Low gentler · Medium default · High richer).
+ *
+ * CARD FLESH-FLOW-WEATHER — the existing inhale line may name the Place
+ * (`HexTravelState::chip_name`). Absent travel keeps `solo world inhale`.
+ * Low / reduced_motion caps stay as they are. No weather HUD.
+ * Peak memory, cited: walked · tended · week was the bill · yard remembered.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -30,6 +35,17 @@ const BEAD_LIFE: f32 = 0.72;
 const AWE_SECS: f32 = 5.2;
 const NECTAR_FROM: Vec3 = Vec3::new(-5.2, 1.15, -1.4);
 const NECTAR_TO: Vec3 = Vec3::new(4.6, 1.55, 2.8);
+/// Existing awe line. Absent travel keeps this byte for byte.
+const INHALE_LINE: &str = "solo world inhale";
+
+/// CARD FLESH-FLOW-WEATHER — `{place} · solo world inhale` when a chip is present.
+/// `None` returns the bare inhale line. Low fidelity and reduced motion stay put.
+fn flow_weather_line(place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("{place} · {INHALE_LINE}"),
+        None => INHALE_LINE.to_string(),
+    }
+}
 
 fn flow_band_to_coupling(band: FlowBand) -> WeatherBandKind {
     match band {
@@ -227,6 +243,7 @@ fn read_band(
 
 fn maybe_awe(
     harvest: Option<Res<FirstHarvestEpiphany>>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     time: Res<Time>,
     mut weather: ResMut<FlowWeather>,
 ) {
@@ -240,7 +257,8 @@ fn maybe_awe(
     weather.last_harvests = total;
     if weather.chain >= 2.4 || weather.band == FlowBand::Flow {
         weather.awe_until = time.elapsed_seconds_f64() + AWE_SECS as f64;
-        info!(target: "powrush::flow", "solo world inhale");
+        let line = flow_weather_line(travel.as_ref().map(|state| state.chip_name()));
+        info!(target: "powrush::flow", "{line}");
     }
 }
 
@@ -443,6 +461,44 @@ mod tests {
             assert!(!lower.contains("online"));
             assert!(!lower.contains("earth api"));
             assert!(!feel.contains("ws://"));
+        }
+    }
+
+    /// CARD FLESH-FLOW-WEATHER — Place prefixes the inhale line; no travel keeps it exact.
+    #[test]
+    fn flesh_flow_weather_line_names_chip_or_keeps_inhale() {
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(flow_weather_line(None), INHALE_LINE);
+        assert_eq!(flow_weather_line(None), "solo world inhale");
+
+        let cases = [
+            (PlaceId::Sanctuary, "Sanctuary Prime"),
+            (PlaceId::Heartwood, "Heartwood"),
+            (PlaceId::Depths, "Depths"),
+        ];
+        for (id, name) in cases {
+            assert_eq!(id.chip_name(), name);
+            let travel = crate::hex_travel::HexTravelState { current: id };
+            assert_eq!(travel.chip_name(), id.chip_name());
+            assert_eq!(
+                flow_weather_line(Some(travel.chip_name())),
+                format!("{name} · solo world inhale")
+            );
+        }
+
+        for sample in [
+            flow_weather_line(Some(PlaceId::Sanctuary.chip_name())),
+            flow_weather_line(Some(PlaceId::Heartwood.chip_name())),
+            flow_weather_line(None),
+        ] {
+            let low = sample.to_lowercase();
+            assert!(!low.contains("gold"), "{sample}");
+            assert!(!low.contains("market"), "{sample}");
+            assert!(!low.contains("xp"), "{sample}");
+            assert!(!low.contains("hud"), "{sample}");
+            assert!(!low.contains("online"), "{sample}");
+            assert!(!sample.contains("Threshold"), "{sample}");
         }
     }
 }
