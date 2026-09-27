@@ -45,7 +45,7 @@ impl PracticeSurface {
                 "Caps Across Climates · Sanctuary: harvest with restraint — leave the node thriving (E)"
             }
             PracticeSurface::VerdantSurge => {
-                "Caps Across Climates · Verdant: abundance is flooding — allocate without collapse (E)"
+                "Caps Across Climates · Verdant: abundance is flooding — take only what the node can spare (E)"
             }
             PracticeSurface::HorizonScarcity => {
                 "Caps Across Climates · Horizon: sparse yields — choose carefully under uncertainty (E)"
@@ -440,6 +440,13 @@ mod tests {
         assert!(loop_.credit_mercy_harvest(5.0));
         assert!(loop_.credit_mercy_harvest(6.0));
         assert!(loop_.principle_sealed);
+    }
+
+    #[test]
+    fn verdant_surge_prompt_ends_with_interact_and_not_allocate() {
+        let prompt = PracticeSurface::VerdantSurge.prompt();
+        assert!(prompt.ends_with("(E)"));
+        assert!(!prompt.contains("allocate"));
     }
 
     #[test]
