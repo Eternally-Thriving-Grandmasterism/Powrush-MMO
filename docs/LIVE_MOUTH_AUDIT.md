@@ -1,8 +1,8 @@
 # LIVE MOUTH AUDIT
 
-CARD CLERK-MOUTH-AUDIT. Tip `29249c5e` (`29249c5e3116c59dc962b9387e7807bac42c06d3`) after #565 TODO-SYNC-564.
+CARD CLERK-MOUTH-AUDIT. Tip `29249c5e` (`29249c5e3116c59dc962b9387e7807bac42c06d3`) after #565 TODO-SYNC-564. Stamped on TODO-SYNC-570 at `92f06972` (`92f0697212e16c083cbfcb8fbd8c30b22ff1638d`).
 
-Prefix era is closed. #559–#565 stay spent. This card lists mouths. It does not cook one.
+Prefix era is closed. #559–#570 stay spent where marked below. This card lists mouths. It does not cook one.
 
 A row is here when the file is a `pub mod` plugged into `PowrushClientBundle` in `client/src/lib.rs`, and a string from that file is written onto a `Text` section or emitted with `info!` / `warn!`.
 
@@ -12,23 +12,23 @@ Online grey. Peak memory: walked · tended · week was the bill · yard remember
 
 ## Twelve PATHS
 
-1. `client/src/local_sovereign_session.rs` — screen and log. The banner reads `This hour is yours alone · no servers · the nodes still answer`. One log: `local first session — offline, single human, complete without peers`.
+1. `client/src/local_sovereign_session.rs` — **SPENT** #567 `96e864de`. Screen and log. The banner reads `This hour is yours alone · no servers · the nodes still answer`. One log: `local first session — offline, single human, complete without peers`. Do not rebuild.
 
-2. `client/src/hour_two_resume.rs` — screen. `welcome_line` is the quit/rerun slab (`Welcome back · Hour two held · the yard remembers · climate on the slab`, and the hour-three, sealed, and last-echo sentences). `first_harvest_epiphany.rs` paints the slab and stays spent. WAVE-C4 already keeps first-play glow at 0.
+2. `client/src/hour_two_resume.rs` — **SPENT** #568 `c594c27d`. Screen. `welcome_line` is the quit/rerun slab (`Welcome back · Hour two held · the yard remembers · climate on the slab`, and the hour-three, sealed, and last-echo sentences). `first_harvest_epiphany.rs` paints the slab and stays spent. WAVE-C4 already keeps first-play glow at 0. Do not rebuild.
 
-3. `client/src/player_lineage.rs` — screen and log. C writes `lineage · {name}` onto the satchel pickup, which `human_inventory.rs` paints (that file stays spent). Log: `C cycled`.
+3. `client/src/player_lineage.rs` — **SKIP**. C walked. Screen and log. C writes `lineage · {name}` onto the satchel pickup, which `human_inventory.rs` paints (that file stays spent). Log: `C cycled`. Do not cook.
 
-4. `client/src/vertical_factory.rs` — screen. `FactorySlabText` takes `slab_line` (`Q plant a House stake (Frontier)` / `Q next · reserve …`), plus the seal and the settled hex sign when those already apply.
+4. `client/src/vertical_factory.rs` — **SPENT** #569 `aa2ca5c0`. Screen. `FactorySlabText` takes `slab_line` (`Q plant a House stake (Frontier)` / `Q next · reserve …`), plus the seal and the settled hex sign when those already apply. Do not rebuild.
 
-5. `client/src/infra_spill.rs` — screen. `SpillSlabText` takes `Extractor … · spill on the ground · …` while charter skin is live.
+5. `client/src/infra_spill.rs` — **SPENT** #570 `92f06972`. Screen. `SpillSlabText` takes `Extractor … · spill on the ground · …` while charter skin is live. Do not rebuild.
 
-6. `client/src/species_redemption.rs` — screen. `RedemptionSlabText` takes `Sylvaris grove · progress 0 · E Offer a tend` (then the tend sentence). The slab shows after `CrownstoneYard` is witnessed. `crownstone.rs` stays refused.
+6. `client/src/species_redemption.rs` — **HELD** (Crownstone). Screen. `RedemptionSlabText` takes `Sylvaris grove · progress 0 · E Offer a tend` (then the tend sentence). The slab shows after `CrownstoneYard` is witnessed. `crownstone.rs` stays refused.
 
-7. `client/src/hybrid_matrix.rs` — screen. `HybridSlabText` takes `Hybrid · stability 1 · E Attune (double vision)` (then `Double vision — the ledger still holds · stability 1`) after a redemption event, while charter skin is live.
+7. `client/src/hybrid_matrix.rs` — **HELD** (Crownstone). Screen. `HybridSlabText` takes `Hybrid · stability 1 · E Attune (double vision)` (then `Double vision — the ledger still holds · stability 1`) after a redemption event, while charter skin is live. `crownstone.rs` stays refused.
 
 8. `client/src/hour_sacred.rs` — screen. `dress_line` / `last_place_name` feed the Title cue (`{dress} · {place}`, Play word `light`) through `title_screen.rs`, which stays spent. Continue copy stays as landed.
 
-9. `client/src/touch_controls.rs` — screen. Overlay glyphs `⊕`, `Use`, `❚❚`, `Q`, `L`. The L glyph is the touch hit, not the L panel. The Use glyph is overlay chrome. TAP-USE-ROW stays HELD.
+9. `client/src/touch_controls.rs` — **SKIP**. Use / L glyphs. Overlay glyphs `⊕`, `Use`, `❚❚`, `Q`, `L`. The L glyph is the touch hit, not the L panel. The Use glyph is overlay chrome. TAP-USE-ROW stays HELD. Do not cook.
 
 10. `client/src/local_session_persist.rs` — log. `local session restored` on load, and `local session write failed: {e}` on a write error.
 
@@ -44,7 +44,7 @@ BANK / DO-NOT-COOK, still plugged in and still refused: `client/src/war_week.rs`
 
 Junction, no `pub mod` in `client/src/lib.rs`: `onboarding.rs`, `particles.rs`.
 
-Checked, no screen string and no log: `client/src/feel_move.rs` (Use buffer only). CARD FLESH-FEEL-MOVE stays a later choice for Dual, outside this list. Also quiet: `living_body.rs`, `harvest_feel.rs`, `input.rs`, `net_mode.rs`, `soft_play_bindings.rs`, `local_settings.rs`, `lived_hour_support.rs`. `lived_sim_bridge.rs` appends a JSON line to disk.
+Checked, no screen string and no log: `client/src/feel_move.rs` (Use buffer only). FEEL-MOVE stays HELD, outside this list. Also quiet: `living_body.rs`, `harvest_feel.rs`, `input.rs`, `net_mode.rs`, `soft_play_bindings.rs`, `local_settings.rs`, `lived_hour_support.rs`. `lived_sim_bridge.rs` appends a JSON line to disk.
 
 Past the cap of 12: `client/src/living_ecology.rs` logs `Heartwood + Spires + Abyssal threads seeded` at startup.
 
