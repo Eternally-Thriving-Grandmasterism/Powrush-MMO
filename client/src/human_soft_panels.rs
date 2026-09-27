@@ -272,7 +272,7 @@ fn update_soft_bodies(
     );
     for (id, name) in REALMS {
         let mark = if id == current { ">" } else { " " };
-        realm_body.push_str(&format!("{mark} [{id}] {name}\n"));
+        realm_body.push_str(&format!("{mark} [{}] {name}\n", id + 1));
     }
     for mut text in &mut realm {
         if let Some(s) = text.sections.get_mut(0) {
