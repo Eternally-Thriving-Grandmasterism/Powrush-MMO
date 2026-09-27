@@ -1,8 +1,8 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #551 through #553. Bank #552–#553 after TODO-SYNC-550 #551. Tip `2bf19804` (`2bf19804ec25a0db218aa2c1c6ea32c2d50fe885`).
+Spent #554 through #557. Bank #555–#557 after TODO-SYNC-553 #554. Tip `b98cbdfa` (`b98cbdfab56c701ba8bcb19c6d7c45f53c616b65`).
 Keep earlier #499–#541 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR / TODO-SYNC-518 / FLESH-SKIRMISH-DAWN / TODO-SYNC-522 / FLESH-RESUME-PLACE / FLESH-ALLOCATE-LINE / TODO-SYNC-523 / QA-MACHINE-HOUR / ODD-ZONE-NOTE / FLESH-SATCHEL-LINE / TODO-SYNC-527 / FLESH-WHISPER-PLACE / FLESH-DEPTHS-LAND / FLESH-HEARTWOOD-LIP / TODO-SYNC-531 / FLESH-COMPASS-LINE / FLESH-SOFT-PANEL / TODO-SYNC-534 / FLESH-HANDS-MEMORY / FLESH-WORLD-ANSWER / FLESH-SHARD-CLIMATE / FLESH-CAMERA-PLACE).
-Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT on this tip.
+Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT on this tip.
 Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, the Peace well slab_line (five words; soft well_glow unchanged; no second HUD), the Mode B resume Place line (blob stays; no `harvest_feel`; no `rbe_allocate_choice`), the Flow/Reserve Place invite (Flow = field restore; Reserve = repair-rights hold; never gold/price/Market/ticker/XP), the MACHINE QA stamps, the odd-zone note, the satchel pickup line, the whisper place-chip prefix (bare LINE when travel state absent), the Depths Peace restore line ('Depths Peace · teal · wet-stone · restored'), the Heartwood lip hush (material numbers only in the five existing StandardMaterial blocks; dimmer/quieter; Peace node still brightest; pond alpha 0.78), the compass Place line ('{place} · {line}', falls back to the exact line), the realm panel Place head ('{place} · 1–5 choose a climate', falls back to exactly '1–5 choose a climate'), the hands-memory Place on the tend cap (existing echo feed), the world-answer Place note (one Note on the existing Abundance Journey feed after Flow or a banked Steward reserve; Tend, Take, Idle, and an unbanked reserve push nothing), the shard-climate fog lean (PostUpdate nudges FogSettings.color toward the dressed Place bed; Update writers stay unchanged), the idle glance that follows the punch (PostUpdate before TransformPropagate; slerp scales by punch_scale_for_graphics; a missing feel or a punch scale of 0 returns before any camera write), the Heartwood ward Tend note (one Abundance Journey Note from the place chip and the existing WARD_SEALS words; Look, leaving Heartwood, a missing echo, and a second Tend add no other line), the living-day period note (when the named day period changes, turn_the_clock pushes one Journey Note whose text is DayPeriod::name(); the first frame and the Depths push nothing; each period is noted at most once per session), or the thriving-moment lines (the Council invite no longer names C; three fired toasts each cite one peak-memory phrase; locked firsts stay byte-identical).
 Peak memory locked: walked · tended · week was the bill · yard remembered.
 Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes stay banked (steward only).
@@ -297,6 +297,38 @@ The literal at `client/src/ledger_bind.rs` L241 already equals `HEX_ADMITS_HARM_
 
 (a) "Hide slabs" still appears in six docs (PREVIEW_CHECKLIST, BLIZZARD_CRAFT_UX, SLICE_LOG, LAUNCH_UX, FIRST_LAUNCH_UI_SCALE, PLACE_CLARITY_HOUR), in the //! headers at `client/src/title_screen.rs` L9 and `shared/local_settings.rs` L5, and in the comment at `client/src/local_settings.rs` L251. (b) After #553, the old labels "Reset-to-Peace", "Grove · off|light" and shape_only still appear in PLACES_BIBLE, PLACE_CLARITY_HOUR, SLICE_LOG and AGENT_COMPLETION_PACK_v23.2, in the //! header at `client/src/title_screen.rs` L30, and in the `client/src/light_gen.rs` logs at L93 and L99. Notes only. Those files were not edited.
 
+### #554 TODO-SYNC-553
+
+**PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md` (+42/−11)
+
+Landed `79a82f45` (`79a82f45d20e01254740dfa38ddd1f405d6aaf0f`). Docs-only sync that recorded #551–#553. Spent. Cite only. Do not rebuild.
+
+### #555 FLESH-REALM-NUMBERS
+
+**PATH:** `client/src/human_soft_panels.rs` (+1/−1)
+
+Landed `8a4c2d28` (`8a4c2d2859446ada5ec158a36e3d8cbbeeb0087c`). Realm rows print id + 1, reading [1]–[5]. Spent. Cite only. Do not rebuild.
+
+### #556 FLESH-CONTROLS-WORDS
+
+**PATH:** `client/src/title_screen.rs` (+9/−4)
+
+Landed `b73f04e4` (`b73f04e4c1448fd760246f416e8702d5b833153c`). The Controls tab reads "Touch sticks · {saved}" and "Pad sprint · stick click|trigger|off". Spent. Cite only. Do not rebuild.
+
+### #557 FLESH-WATCH-WORDS
+
+**PATH:** `client/src/human_inventory.rs` (+2/−2)
+
+Landed tip `b98cbdfa` (`b98cbdfab56c701ba8bcb19c6d7c45f53c616b65`). The watch strip reads "vitality … harmony … joy" on line 1 and "I satchel" or the companion word on line 2. Spent. Cite only. Do not rebuild.
+
+### Note only, not a card
+
+The first watch-strip line fits up to two-digit values (38 chars) and would wrap only if all three values reach three digits.
+
+### Card 5 FLESH-VISITOR-PULSE — SKIPPED
+
+It is the design string at `docs/SECOND_HOUR_CHARTER_FRONTIER.md` L32.
+
 ### HEARTBEAT (prior)
 
 GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only. The next HEARTBEAT is queue item 1 below — do not open a heartbeat PR from this stamp.
@@ -305,7 +337,7 @@ GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only.
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. No OFFER NEXT.
 
-### 0. CARD TODO-SYNC-553 (this card)
+### 0. CARD TODO-SYNC-557 (this card)
 
 **PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
 
@@ -322,14 +354,15 @@ RED → restore-only PR. Footer Codex / GPT / Claude / Fast → Dual RED.
 Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
 
 - **FEEL-MOVE** — SKIP. `client/src/feel_move.rs` only holds the Use buffer (SIM_HZ 60, USE_BUFFER_SECS 0.120); retuning it would mean inventing numbers nobody named; any visible cue or reduced_motion rule would reach into `client/src/human_presence.rs`, making it a junction.
+- **Card 4 FLESH-TAP-USE-ROW** — HELD. The row is wired into the banked tap-to-use feature (its structs, three queries and two system signatures), so removing it is more than a word change.
 
 Named later (not ranked · needs Core bounds before anyone cooks · not fixed on this card):
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2bf19804.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at b98cbdfa.
 
-**Effective order (verified):** TODO-SYNC-553 → HEARTBEAT (Core's).
+**Effective order (verified):** TODO-SYNC-557 → HEARTBEAT (Core's).
 
 ## DO-NOT-FREESTYLE (parked)
 
