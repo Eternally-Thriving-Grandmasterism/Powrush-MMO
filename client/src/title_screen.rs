@@ -1663,7 +1663,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                 );
                 spawn_settings_row(
                     comfort,
-                    "Grove · off",
+                    "Scenery · off",
                     SettingsGroveBtn,
                     SettingsGroveLabel,
                 );
@@ -1728,7 +1728,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                 }
                 spawn_settings_row(
                     controls,
-                    "Reset-to-Peace",
+                    "Reset keys",
                     SettingsPeaceResetBtn,
                     SettingsPeaceResetBtn,
                 );
@@ -2826,8 +2826,8 @@ pub fn graphics_preset_btn_label(s: &LocalSettings) -> String {
 }
 
 pub fn grove_btn_label(s: &LocalSettings) -> String {
-    let g = if s.grove_is_light() { "light" } else { "off" };
-    format!("Grove · {g}")
+    let g = if s.grove_is_light() { "on" } else { "off" };
+    format!("Scenery · {g}")
 }
 
 pub fn reduced_motion_btn_label(s: &LocalSettings) -> String {
@@ -2839,7 +2839,13 @@ pub fn rumble_btn_label(s: &LocalSettings) -> String {
 }
 
 pub fn colorblind_wells_btn_label(s: &LocalSettings) -> String {
-    format!("Colorblind wells · {}", s.colorblind_wells_label())
+    let face = s.colorblind_wells_label();
+    let face = if face == "shape_only" {
+        "shapes only"
+    } else {
+        face
+    };
+    format!("Colorblind wells · {face}")
 }
 
 pub fn lan_btn_label(s: &LocalSettings) -> String {
@@ -5755,7 +5761,7 @@ mod tests {
         assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00");
         assert_eq!(graphics_preset_btn_label(&s), "Graphics · Medium");
         assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
-        assert_eq!(grove_btn_label(&s), "Grove · off");
+        assert_eq!(grove_btn_label(&s), "Scenery · off");
         assert_eq!(s.grove, "off");
         assert_eq!(reduced_motion_btn_label(&s), "Reduced motion · off");
         assert_eq!(rumble_btn_label(&s), "Rumble · on");
@@ -5886,21 +5892,21 @@ mod tests {
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
         assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10");
         assert_eq!(graphics_preset_btn_label(&back), "Graphics · High");
-        assert_eq!(grove_btn_label(&back), "Grove · light");
+        assert_eq!(grove_btn_label(&back), "Scenery · on");
         assert_eq!(reduced_motion_btn_label(&back), "Reduced motion · on");
         assert_eq!(rumble_btn_label(&back), "Rumble · off");
-        assert_eq!(colorblind_wells_btn_label(&back), "Colorblind wells · shape_only");
+        assert_eq!(colorblind_wells_btn_label(&back), "Colorblind wells · shapes only");
         assert_eq!(lan_btn_label(&back), "LAN · loopback");
     }
 
     #[test]
     fn g05_grove_cycles_off_light() {
         let mut s = LocalSettings::peace_defaults();
-        assert_eq!(grove_btn_label(&s), "Grove · off");
+        assert_eq!(grove_btn_label(&s), "Scenery · off");
         s.cycle_grove();
-        assert_eq!(grove_btn_label(&s), "Grove · light");
+        assert_eq!(grove_btn_label(&s), "Scenery · on");
         s.cycle_grove();
-        assert_eq!(grove_btn_label(&s), "Grove · off");
+        assert_eq!(grove_btn_label(&s), "Scenery · off");
     }
 
     #[test]
@@ -6002,7 +6008,7 @@ mod tests {
         s.cycle_colorblind_wells();
         assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · tritanopia");
         s.cycle_colorblind_wells();
-        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · shape_only");
+        assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · shapes only");
         s.cycle_colorblind_wells();
         assert_eq!(colorblind_wells_btn_label(&s), "Colorblind wells · off");
         // Grove independent; Online stub still hard-refuses.
