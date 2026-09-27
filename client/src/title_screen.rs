@@ -1702,7 +1702,7 @@ fn spawn_settings_stub(mut commands: Commands) {
             .with_children(|controls| {
                 spawn_settings_row(
                     controls,
-                    "Sticks · auto",
+                    "Touch sticks · auto",
                     SettingsSticksBtn,
                     SettingsSticksLabel,
                 );
@@ -1714,7 +1714,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                 );
                 spawn_settings_row(
                     controls,
-                    "Sprint · key",
+                    "Pad sprint · off",
                     SettingsSprintBtn,
                     SettingsSprintLabel,
                 );
@@ -2863,7 +2863,7 @@ pub fn lethal_sign_btn_label(
 }
 
 pub fn sticks_btn_label(s: &LocalSettings) -> String {
-    format!("Sticks · {}", s.on_screen_sticks)
+    format!("Touch sticks · {}", s.on_screen_sticks)
 }
 
 pub fn tap_use_btn_label(s: &LocalSettings) -> String {
@@ -2871,7 +2871,12 @@ pub fn tap_use_btn_label(s: &LocalSettings) -> String {
 }
 
 pub fn sprint_btn_label(s: &LocalSettings) -> String {
-    format!("Sprint · {}", s.sprint_mode)
+    let face = match s.sprint_mode.as_str() {
+        "stick" => "stick click",
+        "trigger" => "trigger",
+        _ => "off",
+    };
+    format!("Pad sprint · {face}")
 }
 
 impl PeaceAction {
