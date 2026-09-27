@@ -1,7 +1,14 @@
 //! Lived-hour infra witness — Slice 5 (v23.2.9) + pack (v23.2.29)
 //!
 //! Offline extractor + spill as readable evidence. Dies in Peace.
-//! Does not teach attack. Contact: info@Rathor.ai
+//! Does not teach attack.
+//!
+//! CARD FLESH-INFRA-SPILL — the existing spill slab may name the Place
+//! (`HexTravelState::chip_name`) while charter skin is live. Absent travel
+//! keeps the slab byte for byte. No second HUD. No gold.
+//! Peak memory, cited: walked · tended · week was the bill · yard remembered.
+//!
+//! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
@@ -10,6 +17,15 @@ use shared::infra_spill::InfraWitness;
 
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
+
+/// CARD FLESH-INFRA-SPILL — `{place} · {slab}` when a chip is present.
+/// `None` returns the bare slab. One string. No second widget.
+fn spill_slab_line(bare: &str, place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("{place} · {bare}"),
+        None => bare.to_string(),
+    }
+}
 
 #[derive(Resource, Debug, Clone)]
 pub struct EvidenceYard {
@@ -112,6 +128,7 @@ fn witness_offline(
 fn update_spill_slab(
     hour: Res<HourSacred>,
     yard: Res<EvidenceYard>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut root: Query<&mut Visibility, With<SpillSlabRoot>>,
     mut text_q: Query<&mut Text, With<SpillSlabText>>,
 ) {
@@ -126,7 +143,8 @@ fn update_spill_slab(
     if !show {
         return;
     }
-    let line = yard.witness.slab_line();
+    let bare = yard.witness.slab_line();
+    let line = spill_slab_line(&bare, travel.as_ref().map(|state| state.chip_name()));
     for mut text in &mut text_q {
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
@@ -183,5 +201,61 @@ mod tests {
         assert!(line.contains("Extractor"));
         assert!(line.contains("I2") || line.contains("spill"));
         assert!(!try_witness_house_spill(&hour, &mut yard), "spill is once");
+    }
+
+    /// CARD FLESH-INFRA-SPILL — Place prefixes the spill slab; no travel keeps it exact.
+    #[test]
+    fn flesh_infra_spill_names_chip_or_keeps_slab() {
+        use shared::hex_travel::PlaceId;
+
+        let mut yard = EvidenceYard {
+            witness: InfraWitness::default(),
+        };
+        yard.witness.ensure_offline_extractor();
+        let bare = yard.witness.slab_line();
+        assert!(bare.starts_with("Extractor Offline · spill on the ground · "));
+        assert_eq!(spill_slab_line(&bare, None), bare);
+
+        let cases = [
+            (PlaceId::Sanctuary, "Sanctuary Prime"),
+            (PlaceId::Heartwood, "Heartwood"),
+            (PlaceId::Depths, "Depths"),
+        ];
+        for (id, name) in cases {
+            assert_eq!(id.chip_name(), name);
+            let travel = crate::hex_travel::HexTravelState { current: id };
+            assert_eq!(travel.chip_name(), id.chip_name());
+            assert_eq!(
+                spill_slab_line(&bare, Some(travel.chip_name())),
+                format!("{name} · {bare}")
+            );
+        }
+
+        let mut peace = HourSacred {
+            session: shared::space_law::SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        };
+        assert!(!peace.charter_skin_live());
+        assert!(crate::hour_sacred::try_ridge_tab(&mut peace, true));
+        assert!(crate::hour_sacred::try_plant_house(
+            &mut peace,
+            &mut shared::vertical_factory::VerticalFactory::default(),
+        ));
+        assert!(peace.charter_skin_live());
+
+        for sample in [
+            spill_slab_line(&bare, Some(PlaceId::Sanctuary.chip_name())),
+            spill_slab_line(&bare, Some(PlaceId::Heartwood.chip_name())),
+            spill_slab_line(&bare, Some(PlaceId::Depths.chip_name())),
+            spill_slab_line(&bare, None),
+        ] {
+            let low = sample.to_lowercase();
+            assert!(!low.contains("gold"), "{sample}");
+            assert!(!low.contains("market"), "{sample}");
+            assert!(!low.contains("hud"), "{sample}");
+            assert!(!low.contains("online"), "{sample}");
+            assert!(!sample.contains("Threshold"), "{sample}");
+        }
     }
 }
