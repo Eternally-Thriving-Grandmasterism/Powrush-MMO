@@ -323,12 +323,12 @@ fn update_watch_strip(
     };
     let line = if companion.is_empty() {
         format!(
-            "V {:.1}{}  H {:.1}  J {:.1}  · I",
+            "vitality {:.1}{}  harmony {:.1}  joy {:.1}\nI satchel",
             pool.vitality, vmark, pool.harmony, pool.joy
         )
     } else {
         format!(
-            "V {:.1}{}  H {:.1}  J {:.1}  · {}",
+            "vitality {:.1}{}  harmony {:.1}  joy {:.1}\n{}",
             pool.vitality, vmark, pool.harmony, pool.joy, companion
         )
     };
