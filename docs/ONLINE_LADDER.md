@@ -33,7 +33,7 @@ Climb in order. A higher rung does not light Title Online and does not turn the 
 - GenShare is a recipe. Methods C and E are not shipped (`shared/genshare.rs`, `docs/GENSHARE.md`).
 - R2 shared gate exists (`NeedsConfirm` / `MidWasd`). No client Method B slab. FLESH-GENSHARE-CONFIRM SKIP 2026-09-27. Confirm UI is JUNCTION until Steward names PATH.
 - Bevy climb and steamworks stay held (`docs/BEVY_CLIMB_PLAN.md`).
-- Pre-release process law is `docs/PRE_RELEASE_LAW.md`. Prototype ≠ ship. A verb that does nothing is a lie. No fake abundance. Cut rooms beat new acts. Guild is a file, not a lobby.
+- Pre-release process law is `docs/PRE_RELEASE_LAW.md`. Prototype ≠ ship. A verb that does nothing is a lie. No fake abundance. Cut rooms beat new acts. Guild is a file, not a lobby. Sim ≠ camera. A new lens re-aims verbs. Low keeps the readable lie. Client camera ≠ listen. Readable hour on a small machine.
 
 ## Refuse
 
@@ -48,6 +48,7 @@ Climb in order. A higher rung does not light Title Online and does not turn the 
 - Method B adopt without confirm, or mid-WASD.
 - A client Method B confirm slab. Confirm UI is JUNCTION until Steward names PATH. FLESH-GENSHARE-CONFIRM SKIP 2026-09-27.
 - Claiming GenShare Method C or Method E as shipped.
+- Changing the default Hour 1 lens to prove 3D.
 
 ## Cite
 
