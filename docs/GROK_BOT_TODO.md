@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `92f06972` (`92f0697212e16c083cbfcb8fbd8c30b22ff1638d`) — spent #565 through #570 (bank #566–#570 after TODO-SYNC-564 #565). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT on this tip.
+Tip `f96ac8b4` (`f96ac8b48551226e36b899c22c305eb412be15c0`) — spent #571 through #576 (bank #572–#576 after TODO-SYNC-570 #571). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -132,21 +132,28 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#568 FLESH-HOUR-TWO-RESUME** — Landed #568 / `c594c27d` (`c594c27d154752d33d1b3304776ec2a20e757310`). PATH exact `client/src/hour_two_resume.rs` (+136/−7). Audit row 2. Quit-rerun `welcome_line` may name the saved hex chip. Absent travel keeps each sentence. First Play stays quiet, so WAVE-C4 glow stays 0. `first_harvest_epiphany.rs` stays spent. Spent. Cite only. Do not rebuild.
 - **#569 FLESH-FACTORY-SLAB** — Landed #569 / `aa2ca5c0` (`aa2ca5c00c8db20ecab7fee6a938288a972680c8`). PATH exact `client/src/vertical_factory.rs` (+75/−2). Audit row 4. `Q plant a House stake (Frontier)` and `Q next · reserve …` may name Place via `chip_name`. Absent travel keeps each slab. No gold. No Market. Spent. Cite only. Do not rebuild.
 - **#570 FLESH-INFRA-SPILL** — Landed #570 / tip `92f06972` (`92f0697212e16c083cbfcb8fbd8c30b22ff1638d`). PATH exact `client/src/infra_spill.rs` (+76/−2). Audit row 5. `Extractor … · spill on the ground · …` may name Place via `chip_name` while charter skin is live. Absent travel keeps the slab. No second HUD. No gold. Spent. Cite only. Do not rebuild.
-- **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is queued as item 1 below. Do not open a heartbeat PR from this stamp.
+- **#571 TODO-SYNC-570** — Landed #571 / `386e4d9a` (`386e4d9a2899813f06651be84e92e1c4e32a5a01`). PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md` · `docs/LIVE_MOUTH_AUDIT.md` (+72/−24). Docs stamp for the #566–#570 bank. Rows 6–7 HELD. FEEL-MOVE HELD. No client. Spent. Cite only. Do not rebuild.
+- **#572 CLERK-ONLINE-LADDER** — Landed #572 / `5188ec62` (`5188ec628e815029f0125afdae3ee62056106d45`). PATH `docs/ONLINE_LADDER.md` (+57). R0–R7 law. Default NetMode Offline. `title_online_enabled` false. No listen. No client. Spent. Cite only. Do not rebuild.
+- **#573 CLERK-R2-JUNCTION** — Landed #573 / `90e7b7d4` (`90e7b7d48f4c0d29fc3c52d8cf46f10c165317b2`). PATH `docs/ONLINE_LADDER.md` (+2). R2 confirm UI JUNCTION. Method B client slab SKIP. Shared gate stays `NeedsConfirm` / `MidWasd`. No client. Spent. Cite only. Do not rebuild.
+- **#574 CLERK-PRE-RELEASE-LAW** — Landed #574 / `22e5aea4` (`22e5aea416a7f91e7ec21e8f3154df3f51f498ed`). PATHS `docs/ONLINE_LADDER.md` (+2) · `docs/PRE_RELEASE_LAW.md` (+33). Prototype ≠ ship. A verb that does nothing is a lie. No franchise strings. No client. Spent. Cite only. Do not rebuild.
+- **#575 CLERK-CAMERA-READ-LAW** — Landed #575 / `e8221255` (`e82212551002e7f2b4188b234fec6d682fdbedf9`). PATHS `docs/ONLINE_LADDER.md` (+2/−1) · `docs/PRE_RELEASE_LAW.md` (+12/−2). Sim ≠ camera. Readable hour on a small machine. Do not change the Hour 1 lens. No client. Spent. Cite only. Do not rebuild.
+- **#576 CLERK-BOT-RESET-QUEUE** — Landed #576 / tip `f96ac8b4` (`f96ac8b48551226e36b899c22c305eb412be15c0`). PATH `docs/BOT_RESET_QUEUE.md` (+44). 48h standing order. Standing Next after this stamp. No client. Spent. Cite only. Do not rebuild.
+- **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is named on [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md) after CLERK-LAG-LABELS. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
-Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT.
+Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT. Standing Next is [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md). Cook that file. Do not copy a second queue onto this page.
 
-0. **CARD TODO-SYNC-570** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md` · `docs/LIVE_MOUTH_AUDIT.md`.
-1. **HEARTBEAT (Core's)** — `cargo test -p shared -p rsil-identity`; `cargo test -p powrush-client --lib`. GREEN + 0 open PRs → Hands DARK.
+0. **CARD TODO-SYNC-575** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Stamp #571–#576 at `f96ac8b4`.
+1. **Standing Next** — [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md) after item 0 of that file. The file already names **CARD CLERK-LAG-LABELS**, then **HEARTBEAT**. Items 3–4 cook only if Dual marks LIVE. Do not invent PATHS.
 
 Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
 
 - **FEEL-MOVE** — HELD. `client/src/feel_move.rs` only holds the Use buffer (SIM_HZ 60, USE_BUFFER_SECS 0.120); retuning it would mean inventing numbers nobody named; any visible cue or reduced_motion rule would reach into `client/src/human_presence.rs`, making it a junction.
 - **Card 4 FLESH-TAP-USE-ROW** — HELD. The row is wired into the banked tap-to-use feature (its structs, three queries and two system signatures), so removing it is more than a word change.
+- **Method B confirm UI** — JUNCTION. Shared gate exists (`NeedsConfirm` / `MidWasd`). No client Method B slab. FLESH-GENSHARE-CONFIRM SKIP 2026-09-27. Steward names PATH.
 - **Audit rows 6–7** — HELD (Crownstone). `client/src/species_redemption.rs` · `client/src/hybrid_matrix.rs`. `crownstone.rs` stays refused.
 - **Audit row 3** — SKIP. C walked (`client/src/player_lineage.rs`).
 - **Audit row 9** — SKIP. Use / L glyphs (`client/src/touch_controls.rs`). TAP-USE-ROW stays HELD.
@@ -155,9 +162,9 @@ Named later (not ranked · needs Core bounds before anyone cooks · not fixed on
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 92f06972.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at f96ac8b4. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** TODO-SYNC-570 → HEARTBEAT (Core's).
+**Effective order (verified):** TODO-SYNC-575 → standing Next [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md).
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
