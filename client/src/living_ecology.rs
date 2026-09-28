@@ -7,7 +7,13 @@
  * Ecology props dress Place climate the greet may rhyme with — they are
  * NOT persons, NOT owned inventory, NOT a fence. Work-loop feel is the
  * same Tend / Mend care at Place posts (NPC_SCHEDULE_SPEC). Hour finishes
- * if every person is removed. Contact: info@Rathor.ai | Yoi ⚡
+ * if every person is removed.
+ *
+ * CARD FLESH-ECOLOGY-LOG — the existing startup log may name the Place
+ * (`HexTravelState::chip_name`). Absent travel keeps the bare line.
+ * No HUD. No Online.
+ * Peak memory, cited: walked · tended · week was the bill · yard remembered.
+ * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::prelude::*;
@@ -20,6 +26,22 @@ use crate::world_answer::{AnswerKind, WorldAnswer};
 
 const DEER_NEAR: Vec3 = Vec3::new(1.8, 0.55, 1.4);
 const DEER_FAR: Vec3 = Vec3::new(8.5, 0.55, 6.2);
+
+/// Existing startup log. Absent travel keeps this byte for byte.
+const ECOLOGY_SEED_LINE: &str = "Heartwood + Spires + Abyssal threads seeded";
+
+/// CARD FLESH-ECOLOGY-LOG — `{place} · {bare}` when a chip is present.
+/// `None` returns the bare line. One string on the existing log. No HUD.
+fn ecology_startup_line(place: Option<&str>) -> String {
+    match place {
+        Some(place) => format!("{place} · {ECOLOGY_SEED_LINE}"),
+        None => ECOLOGY_SEED_LINE.to_string(),
+    }
+}
+
+fn stood_chip(travel: Option<&crate::hex_travel::HexTravelState>) -> Option<&'static str> {
+    travel.map(|state| state.chip_name())
+}
 
 #[derive(Component)]
 struct EcologyProp {
@@ -187,6 +209,7 @@ fn spawn_ecology(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
 ) {
     let trunk = meshes.add(Cylinder::new(0.22, 2.4));
     let canopy = meshes.add(Sphere::new(0.85));
@@ -338,7 +361,8 @@ fn spawn_ecology(
         ));
     }
 
-    info!(target: "powrush::ecology", "Heartwood + Spires + Abyssal threads seeded");
+    let line = ecology_startup_line(stood_chip(travel.as_deref()));
+    info!(target: "powrush::ecology", "{line}");
 }
 
 fn remember_care(
@@ -573,6 +597,37 @@ mod tests {
         assert!(ecology_copy_is_honest(
             "Threshold pipe — Tend, not Take."
         ));
+    }
+
+    /// CARD FLESH-ECOLOGY-LOG — Place prefixes the startup log; no travel keeps it exact.
+    #[test]
+    fn flesh_ecology_log_names_chip_or_keeps_bare_line() {
+        use shared::hex_travel::PlaceId;
+
+        assert_eq!(ecology_startup_line(None), ECOLOGY_SEED_LINE);
+        assert_eq!(
+            ecology_startup_line(None),
+            "Heartwood + Spires + Abyssal threads seeded"
+        );
+
+        let cases = [
+            (PlaceId::Sanctuary, "Sanctuary Prime"),
+            (PlaceId::Heartwood, "Heartwood"),
+            (PlaceId::Depths, "Depths"),
+        ];
+        for (id, name) in cases {
+            assert_eq!(id.chip_name(), name);
+            let travel = crate::hex_travel::HexTravelState { current: id };
+            assert_eq!(stood_chip(Some(&travel)), Some(name));
+            let line = ecology_startup_line(stood_chip(Some(&travel)));
+            assert_eq!(line, format!("{name} · {ECOLOGY_SEED_LINE}"));
+            assert!(ecology_copy_is_honest(&line), "{line}");
+            let low = line.to_lowercase();
+            assert!(!low.contains("online"), "{line}");
+            assert!(!low.contains("hud"), "{line}");
+            assert!(!low.contains("gold"), "{line}");
+            assert!(!low.contains("market"), "{line}");
+        }
     }
 
     #[test]
