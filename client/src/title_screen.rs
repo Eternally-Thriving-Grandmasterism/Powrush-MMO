@@ -6,7 +6,7 @@
 //! still returns to Title with house JSON + lived persist.
 //! D1: when Settings/pause opens in yard — one-line plate "the yard is waiting"
 //! with Resume / Title / Quit (Title = old Esc-to-title path; Quit = AppExit).
-//! D2: same plate hosts local Look / Mute / Invert-Y / Hide slabs; persist
+//! D2: same plate hosts local Look / Mute / Invert-Y / Hide guidance; persist
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
 //! H-2026-09-12-PAUSE-TABS: Esc plate splits Comfort · Controls · Guide tabs
 //! (Online stays grey).
@@ -27,7 +27,7 @@
 //! H-2026-09-12-PLACES-CLICK: Places row Pressed opens four-room plate; Comfort
 //! SettingsStubRoot uses Display::None while places_open (soft-GPU linger fix).
 //! After-D3 comfort: Brightness · Text scale on same plate; Mute-from-pause = MasterMute;
-//! G0.5: Grove · off|light on same plate (persist; default off; OR with POWRUSH_GEN);
+//! G0.5: Scenery · off|on on same plate (saved grove stays off|light; default off; OR with POWRUSH_GEN);
 //! P3: LAN · off|loopback beside Grove (default off; 127.0.0.1 only; Title Online stays grey);
 //! L1: this hex admits harm · off confirm (Settings / Q / Ledger) after Settled + book;
 //! U2: Places list (Sanctuary / Heartwood) after Settled + book — dedicated plate,

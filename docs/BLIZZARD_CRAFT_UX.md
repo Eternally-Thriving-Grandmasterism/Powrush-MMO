@@ -59,7 +59,7 @@ Vanilla / TBC cited as **craft only**: readable plates, ranked type, one thing a
 
 | Panel | Rows it frames | Craft ask |
 |---|---|---|
-| **Look** | Brightness · Text / UI scale · Hide slabs | The size and contrast group. Reads first, because a stranger who cannot read the plate cannot fix anything else on it. |
+| **Look** | Brightness · Text / UI scale · Hide guidance | The size and contrast group. Reads first, because a stranger who cannot read the plate cannot fix anything else on it. |
 | **Comfort** | Mute / MasterMute · Invert-Y · look sensitivity | Body comfort. Second, because it is what a stranger reaches for after the words are legible. |
 | **Controls** | The named binds as a **read** — WASD · **E** · **I** · **H** · **R** (1 flow · 2 reserve) · Esc · **L** / **Q** | A reference panel, not a rebinder. No F-row row. Rebinding is not claimed by this file. |
 
@@ -81,7 +81,7 @@ Craft rules for the plate, short:
 - The stack becomes a **queue**: one card, one sentence, the next only after the first is answered or dismissed. If two tips want the same second, one of them is not a tip.
 - **No tip owns the yard.** A card that cannot be dismissed is a wall. Dismiss is the same quiet beat everywhere.
 - **H hushes tips — not world truth.** Guidance and slabs hush on **H** (`INPUT_CANON` · `PLACE_CLARITY_HOUR` §3). The world's answer survives the hush.
-- **The climate slab always shows Place · mood.** `Sanctuary · North Well is Idle · •`. With guidance hidden, with every tip gone, with Settings *Hide slabs* saved on — the place word and the well mood stay. That line is the world answering, not the game teaching.
+- **The climate slab always shows Place · mood.** `Sanctuary · North Well is Idle · •`. With guidance hidden, with every tip gone, with Settings *Hide guidance* saved on — the place word and the well mood stay. That line is the world answering, not the game teaching.
 - **Test in one line:** press **H**, and the room must still be nameable; the teaching chrome must still be gone.
 - **Progress reads without a panel.** When tons + restored move, the existing sash line may say so on the one HUD — one line, hideable by **H**, no new plate, no bar to fill, no XP bar, no kill board. If the read needs its own toggle, the read is wrong.
 - No login, no account wall, no peer count, no race select before the first **E** (`LAUNCH_UX` veto list).

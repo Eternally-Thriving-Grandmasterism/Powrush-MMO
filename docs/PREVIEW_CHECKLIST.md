@@ -52,7 +52,7 @@ Title Online stays **grey**. Do not set `POWRUSH_NET=on`. Do not bind `0.0.0.0`.
 - [ ] **Places (after Settled + book)** — lists **Sanctuary · Heartwood · Threshold · Depths** only (Market HOLD)
 - [ ] **L: this week vs House week** — *this week* = current disk hex; **House week** = sum tons + restored over persisted Sanctuary / Heartwood / Depths files (Threshold rides Heartwood unless own file; Market never in sum)
 - [ ] **Continue / Unnamed House** — local persist → House name **or** *Unnamed House* + *the yard remembers*
-- [ ] **Settings persist** — Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove off|light · LAN off|loopback (defaults off); LAN loopback = `127.0.0.1` lab only
+- [ ] **Settings persist** — Look · Mute · Invert-Y · Hide guidance · Brightness · Text scale · Scenery · off|on · LAN off|loopback (defaults off; saved grove stays off|light); LAN loopback = `127.0.0.1` lab only
 - [ ] **Book** — Hour three path reaches *the book is yours* without a login wall
 - [ ] **Quit / rerun** — user-dir (or `data/` fallback) house / climate / standing / book / settings intact
 - [ ] **Title contrast** — Play / Continue / Settings / Online readable

@@ -53,7 +53,7 @@ Scale **existing** plates and slabs: Title · pause / Settings · lived-hour car
 
 ## 3. H still hides — scaled chrome must hush
 
-**H wins.** Hide guidance / slabs stays **H** (`INPUT_CANON`, `LAUNCH_UX` D2, `PLACE_CLARITY_HOUR` §3). Settings *Hide slabs* remains the persisted default; **H** still toggles in the session.
+**H wins.** Hide guidance stays **H** (`INPUT_CANON`, `LAUNCH_UX` D2, `PLACE_CLARITY_HOUR` §3). Settings *Hide guidance* remains the persisted default; **H** still toggles in the session.
 
 Scaled type and padding do not earn a second hide row. If Comfort made a slab larger, **H still hushes the guidance/slabs**. The world's answer (place + well mood on the climate slab, per `PLACE_CLARITY_WALK`) still survives the hush — scale may not invent a caption that only exists when guidance is on.
 
@@ -66,7 +66,7 @@ Test in one line: **press H, and the room must still be nameable; the teaching c
 | Feel | Law |
 |---|---|
 | Title | Play / Continue / Settings remain the three named rows. Settings is reachable on first launch without an account wall. Online row stays visible+disabled — *off (no listen)*. |
-| Settings | UI/text scale (presets + optional slider) lives on the **same** plate as Look / Mute / Invert-Y / Hide slabs / Brightness / Text scale. No second settings door. |
+| Settings | UI/text scale (presets + optional slider) lives on the **same** plate as Look / Mute / Invert-Y / Hide guidance / Brightness / Text scale. No second settings door. |
 | Hands | WASD · **E** · **I** · **H** · **R** (then 1 flow · 2 reserve). Esc pause. L / Q sheets. No F-row. No second Camera3d. |
 | Offline | First run offline. Default binary `cargo run -p powrush-client`. `POWRUSH_NET` off. Zero sockets from this stamp. |
 

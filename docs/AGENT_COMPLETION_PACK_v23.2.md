@@ -216,7 +216,7 @@ Persist beside Grove in user-dir `powrush_settings.json`. Defaults keep lavapipe
 | `reduced_motion` | bool | false | Punch scale 0; no rumble |
 | `rumble` | bool | true | Off if reduced_motion |
 | `well_captions` | bool | true | Five words always |
-| `colorblind_wells` | off\|deuteranopia\|protanopia\|tritanopia\|shape_only | off | Shape + word |
+| `colorblind_wells` | off\|deuteranopia\|protanopia\|tritanopia\|shape_only | off | Shape + word; plate says shapes only |
 | `ui_scale` | number | 1.0 | Deck safe-area stays |
 | `high_contrast` | bool | false | Opaque plates |
 | `mute` | bool | existing | Bed + sting |
