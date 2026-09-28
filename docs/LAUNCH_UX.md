@@ -39,7 +39,7 @@ One field. Confirm. Skippable after Settled or on quit. *(shipped v0 · `data/po
 ### S3 — Pause / Ledger
 House name · week tons + restored · lethal only if declared. No kill board. No race chrome. *(shipped v0 · design tick 23.2.52 · I satchel + L Ledger sash)*  
 **D1 Pause honesty:** Settings/Digit3 in yard opens opaque plate *the yard is waiting* — Resume / Title / Quit. Esc still → Title. Quit = window close path (not Esc).
-**D2 Local settings:** same Settings plate — Look / Mute / Invert-Y / Hide slabs; persist `data/powrush_settings.json`; Online stays grey (no socket). H still hides guidance/slabs.
+**D2 Local settings:** same Settings plate — Look / Mute / Invert-Y / Hide guidance; persist `data/powrush_settings.json`; Online stays grey (no socket). H still hides guidance.
 **After-D3 comfort:** Brightness / Text scale on same plate (Title opaque contrast stays law); Mute-from-pause = MasterMute (D2 flag); Q plate + Pause/Ledger face show Seal · … when dressed (heritage string only). Fog/birds PARKED.
 
 ### S4 — Online door

@@ -53,7 +53,7 @@ What they mean **in the hour**:
 | Seal | Read in the hour | What it is not |
 |---|---|---|
 | **Well** | The taking the House has answered for — the yard's teaching well, said as a post you can stand at. | Not a stock, not a spawner, not a second ledger. |
-| **Grove** | The living side of the wood room — what came back. Shares its word with the opt-in light-gen setting; the post is dress either way. | Not a gate on `Grove · light`, not a scatter claim, not a biome unlock. |
+| **Grove** | The living side of the wood room — what came back. The House seal stays Grove; the plate says Scenery. The post is dress either way. | Not a gate on `Scenery · on`, not a scatter claim, not a biome unlock. |
 | **Ember** | Warmth carried, not lethal — the quiet end of the wood room. | Not a fire mechanic, not a harm row, not a lethal sign. |
 
 Standing law this file does **not** move:
@@ -77,7 +77,7 @@ What this file re-states and does not widen:
 - **One HUD.** Satchel (**I**), ledger sash (**L**), climate slab, one card. That is the chrome. **No second HUD**, no F-row, no XP bar, no peer count, no talent panel, no Living Practice overlay (`FUN_WITHOUT_WOW` §2.3, `STRANGER_LOOP` Quiet law, `INPUT_CANON` refuse list).
 - **The sentence survives the hush.** With guidance hidden, the well still speaks its state — Idle · Glowing · Tended · Resting · Stressed — as a short well line with its token. Hiding guidance hides **guidance**, not the world's answer (audited **PASS**, `docs/PLAYTEST_AUDIT_2026-09-09.md` row 2).
 - **A hideable line is a line, not a second surface.** Anything clarity adds for a room read must be **hideable by the same H** and must live on the one HUD. If a read needs its own toggle or its own panel, the read is wrong — fix the material, not the chrome.
-- **H is a session toggle over a persisted default.** Settings *Hide slabs* is the saved default; **H** still toggles inside the session. No second hide row, no second mute row, no F-row.
+- **H is a session toggle over a persisted default.** Settings *Hide guidance* is the saved default; **H** still toggles inside the session. No second hide row, no second mute row, no F-row.
 - **The hush is audio too.** Bed / sting / lamp hush are silenced by the existing **Mute**, and unmute never opens a socket (`FUN_WITHOUT_WOW` §2.2).
 
 The test for any later clarity change, in one line: **press H, and the room must still be nameable.** If a room only read because a caption was on screen, the material did not do its job.

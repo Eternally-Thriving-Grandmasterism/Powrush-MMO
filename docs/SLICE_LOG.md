@@ -317,7 +317,7 @@ receipt: pending-merge
 
 ```
 slice: E3 G0.5 Grove Settings receipt
-idea: PREVIEW_CHECKLIST + STRANGER_LOOP — Settings Grove off|light persist default off; no env required (lavapipe click PASS after #285 @ 98b1467); floor stays 2163551; Online grey; no F-slice/G1/birds/sockets/playable-preview; docs only; no client/shared/Cargo
+idea: PREVIEW_CHECKLIST + STRANGER_LOOP — Settings plate Scenery · off|on (saved grove stays off|light) persist default off; no env required (lavapipe click PASS after #285 @ 98b1467); floor stays 2163551; Online grey; no F-slice/G1/birds/sockets/playable-preview; docs only; no client/shared/Cargo
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
 receipt: pending-merge
@@ -329,7 +329,7 @@ receipt: pending-merge
 
 ```
 slice: G0.5 Settings Grove off/light
-idea: Settings plate Grove · off|light persists in powrush_settings.json (default off); OR with POWRUSH_GEN=light — same light-gen path; cull Title/pause/Settings/L/Q; no birds/sockets/Camera3d/Avian/GenShare; no preview tag; Peace keys untouched; workspace 21.88.0
+idea: Settings plate Scenery · off|on persists in powrush_settings.json (saved grove off|light; default off); OR with POWRUSH_GEN=light — same light-gen path; cull Title/pause/Settings/L/Q; no birds/sockets/Camera3d/Avian/GenShare; no preview tag; Peace keys untouched; workspace 21.88.0
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
 receipt: pending-merge
@@ -500,7 +500,7 @@ receipt: d620079c (#259)
 
 ```
 slice: D2 Local settings persist
-idea: Title/pause Settings plate — Look · Mute · Invert-Y · Hide slabs; persist data/powrush_settings.json beside house; defaults = Peace hour; Online grey no socket / no POWRUSH_NET=on; H still hides; no new Peace verbs
+idea: Title/pause Settings plate — Look · Mute · Invert-Y · Hide guidance; persist data/powrush_settings.json beside house; defaults = Peace hour; Online grey no socket / no POWRUSH_NET=on; H still hides; no new Peace verbs
 joy 0.98 | mercy 0.99 | sustain 0.97 | veto no
 verdict: SHIP
 receipt: 27a543f6 (#257)

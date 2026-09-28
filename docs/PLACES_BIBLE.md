@@ -60,7 +60,7 @@ Same house + hex + climate epoch → same light-gen scatter when Grove / `POWRUS
 
 - **Yard only** — wells, climate fog, opaque Title / pause / Settings / Ledger plates, Peace keys.
 - **Not in the Sanctuary yard:** Heartwood Lip/rings, Spiral, Market tooth mesh, Brood Spire, race / class select at Title.
-- G0 light gen stays **opt-in** (Settings Grove · light or `POWRUSH_GEN=light`; default off). Cull scatter when plates open.
+- G0 light gen stays **opt-in** (Settings Scenery · on or `POWRUSH_GEN=light`; saved grove stays off|light; default off). Cull scatter when plates open.
 - Crownstone / Brood Spire stay Witness-only / never-in-Sanctuary per `PHYSICS_GRAPHICS_CANON`.
 
 ## Refuse
