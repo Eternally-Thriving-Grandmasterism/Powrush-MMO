@@ -27,6 +27,18 @@ cargo run -p powrush-client
 
 Not Felt minutes. OS, GPU, and steward playtest minutes stay blank.
 
+**CARD CLERK-MACHINE-CAPTURE.** Tip `bc1a154` (`bc1a1548f0cc961bca5e6777dbee29a565c6dfd6`). Design tick, not a Cargo bump. Hour 1 gate is the same three lines in [`FIRST_HOUR_PLAYTEST.md`](FIRST_HOUR_PLAYTEST.md).
+
+The machine gate is these three. OS, GPU, Time, and steward minutes stay blank. `capture: none` stays honest. The Tab → Settled script below stays a human walk.
+
+```bash
+./scripts/play-offline.sh
+cargo test -p shared -p rsil-identity
+cargo test -p powrush-client --lib
+```
+
+`./scripts/play-offline.sh` forces `POWRUSH_NET=off`. With no args it is the Offline door (`cargo run -p powrush-client`). `q1` / `--script-run` is the headless door: those same two `cargo test` lines, then the named `q0_*` landings. No WASD. Title Online stays grey.
+
 ```bash
 cargo test -p shared -p rsil-identity
 cargo test -p powrush-client --lib
