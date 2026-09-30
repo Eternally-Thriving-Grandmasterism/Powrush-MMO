@@ -199,7 +199,7 @@ Listed, not queued.
 1. About 70 of 136 client modules are never compiled (not declared in the module tree). Gate: AUDIT, one Core ruling per file; any delete = HOLD. onboarding.rs and particles.rs stay DO-NOT-COOK; steam_integration.rs stays parked (no steamworks). Listed, not queued.
 2. No art or audio asset files in repo. Gate: SHERIF GATE; MESH parked.
 3. English only; client localization.rs is never compiled. Gate: JUNCTION pending the gap-1 audit.
-4. Roughly 34-41 TODO/placeholder markers in source (unverified). Gate: sweep-card candidate, compiled files only.
+4. 0 TODO markers in compiled modules at 61ae66fb; the markers found sit in uncompiled files. Gate: folded into the gap-1 audit, no separate sweep card.
 5. Name rite not visible in client. Gate: SKIP unless a screen already exists, per docs/NAME_RITE.md:44.
 6. Human gates open: playtest minutes, Steam App ID, Online R2, Bevy climb (pin 0.14). Gate: SHERIF GATE.
 7. CI runs cargo test on ubuntu only; no shippable build or artifact. Gate: candidate; needs Core bounds and Sherif's word before any .github/** change.
