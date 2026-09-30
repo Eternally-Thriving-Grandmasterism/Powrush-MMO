@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `045ea29f` (`045ea29f6335a6c51bb7edd971fdd0f50c94c97d`) — spent #585 through #586 (bank #586 after TODO-SYNC-584 #585). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT on this tip.
+Tip `61ae66fb` (`61ae66fbbdc7d522eec86154c8e232e198feda69`) — spent #587 through #588 (bank #588 after TODO-SYNC-585 #587). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -148,6 +148,8 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#584 CLERK-MONTAGE-CHANNEL** — Landed #584 / tip `ed3a075f` (`ed3a075f5b5ece1af538af6df268b206116d7941`). PATH `docs/MONTAGE_CHANNEL_LAW.md` (+30). A montage is an archive, not a backlog, and a clip is not a feature. No client. Spent. Cite only. Do not rebuild.
 - **#585 TODO-SYNC-584** — Landed #585 / `4d5d5b3e` (`4d5d5b3ef47b24d90a0a35319c0ff15b5d4d1b3b`). PATHS `docs/GROK_BOT_TODO.md` (+20/−6) · `docs/NEXT_NAMED_CARDS.md` (+64/−10). Docs only. Docs stamp for the #577–#584 bank at tip `ed3a075f`. Spent. Cite only. Do not rebuild.
 - **#586 SAVE-ATOMIC-LAST-GOOD** — Landed #586 / tip `045ea29f` (`045ea29f6335a6c51bb7edd971fdd0f50c94c97d`). PATH exact `client/src/local_session_persist.rs` (+134/−6). `save_blob` writes `.json.tmp`, keeps the last good live file as `.json.bak` only if it parses, then renames the tmp into place, and `load_blob` falls back to `.json.bak` before `None`. 3 unit tests. Spent. Cite only. Do not rebuild.
+- **#587 TODO-SYNC-585** — Landed #587 / `f4bbbf1a` (`f4bbbf1ae30b0d827ad249745ec48b0d41086374`). PATHS `docs/GROK_BOT_TODO.md` (+6/−4) · `docs/NEXT_NAMED_CARDS.md` (+18/−6). Docs only. Docs stamp for the #585–#586 bank at tip `045ea29f`. Spent. Cite only. Do not rebuild.
+- **#588 NAME-RITE-LIST** — Landed #588 / tip `61ae66fb` (`61ae66fbbdc7d522eec86154c8e232e198feda69`). PATHS `shared/house_name.rs` (+1) · `shared/house_name/name_rite.rs` (+112). Offline given/house word lists + pure offer/refuse/typed_is_refuse in `shared/house_name/name_rite.rs`. No client paint. Spent. Cite only. Do not rebuild.
 - **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is named on [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md) after CLERK-LAG-LABELS. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
@@ -156,12 +158,12 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Cook that file. Do not copy a second queue onto this page.
 
-0. **CARD TODO-SYNC-585** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Stamp #585 and #586 at `045ea29f`.
+0. **CARD TODO-SYNC-GAPS** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Stamp #587 and #588 at `61ae66fb`.
 1. **Standing Next** — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). CLERK-LAG-LABELS is spent (#578). Do not invent PATHS.
 
 Bounds (not cards):
 
-- Name rite is not LIVE (no word lists, no Title paint).
+- Name rite is LIVE as a pure function in shared/ only (not painted in client).
 - Montage channels are not a backlog and a clip is not a feature.
 - Method B UI is JUNCTION and R2 confirm is not a slab.
 
@@ -178,9 +180,9 @@ Named later (not ranked · needs Core bounds before anyone cooks · not fixed on
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 045ea29f. Method B confirm UI stays JUNCTION until Steward names PATH.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 61ae66fb. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** TODO-SYNC-585 → `docs/GODSPEED_PREP.md` (standing Next).
+**Effective order (verified):** TODO-SYNC-GAPS → `docs/GODSPEED_PREP.md` (standing Next).
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
@@ -189,6 +191,20 @@ Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/s
 NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.
 
 Grok Hands cook Grok 4.7 Extra High (non-fast); fallback 4.7 High. Never Fast / Codex / GPT / Claude / Auto / Composer. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
+
+## Gaps @ tip 61ae66fb
+
+Listed, not queued.
+
+1. About 70 of 136 client modules are never compiled (not declared in the module tree). Gate: AUDIT, one Core ruling per file; any delete = HOLD. onboarding.rs and particles.rs stay DO-NOT-COOK; steam_integration.rs stays parked (no steamworks). Listed, not queued.
+2. No art or audio asset files in repo. Gate: SHERIF GATE; MESH parked.
+3. English only; client localization.rs is never compiled. Gate: JUNCTION pending the gap-1 audit.
+4. Roughly 34-41 TODO/placeholder markers in source (unverified). Gate: sweep-card candidate, compiled files only.
+5. Name rite not visible in client. Gate: SKIP unless a screen already exists, per docs/NAME_RITE.md:44.
+6. Human gates open: playtest minutes, Steam App ID, Online R2, Bevy climb (pin 0.14). Gate: SHERIF GATE.
+7. CI runs cargo test on ubuntu only; no shippable build or artifact. Gate: candidate; needs Core bounds and Sherif's word before any .github/** change.
+8. No panic hook / crash log. Gate: candidate; local file only, no upload.
+9. name_rite given and house lists both have 12 words, so only 12 distinct offers, not 144. Gate: candidate fix (coprime list lengths).
 
 ## Refuses this turn
 
