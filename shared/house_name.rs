@@ -11,6 +11,7 @@
 //! Continue cue: House name or Unnamed House + *the yard remembers*.
 //! Contact: info@Rathor.ai
 
+pub mod name_rite;
 use serde::{Deserialize, Serialize};
 
 pub const HOUSE_PATH: &str = "data/powrush_house.json";
