@@ -8,7 +8,7 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::companion_bond::CompanionBond;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
@@ -76,19 +76,46 @@ fn persist_path() -> PathBuf {
 }
 
 fn load_blob() -> Option<SessionBlob> {
-    let bytes = fs::read(persist_path()).ok()?;
+    load_blob_at(&persist_path())
+}
+
+fn load_blob_at(path: &Path) -> Option<SessionBlob> {
+    if let Some(blob) = read_session_blob(path) {
+        return Some(blob);
+    }
+    read_session_blob(&path.with_extension("json.bak"))
+}
+
+fn read_session_blob(path: &Path) -> Option<SessionBlob> {
+    let bytes = fs::read(path).ok()?;
     serde_json::from_slice(&bytes).ok()
 }
 
 fn save_blob(blob: &SessionBlob) {
-    let path = persist_path();
+    save_blob_at(&persist_path(), blob);
+}
+
+fn save_blob_at(path: &Path, blob: &SessionBlob) {
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    if let Ok(json) = serde_json::to_string_pretty(blob) {
-        if let Err(e) = fs::write(&path, json) {
-            warn!(target: "powrush::session", "local session write failed: {e}");
+    let Ok(json) = serde_json::to_string_pretty(blob) else {
+        return;
+    };
+    let tmp = path.with_extension("json.tmp");
+    if let Err(e) = fs::write(&tmp, json) {
+        warn!(target: "powrush::session", "local session write failed: {e}");
+        return;
+    }
+    // A bad live file must not replace the last good `.bak`.
+    if path.exists() && read_session_blob(path).is_some() {
+        let bak = path.with_extension("json.bak");
+        if let Err(e) = fs::copy(path, &bak) {
+            warn!(target: "powrush::session", "local session backup failed: {e}");
         }
+    }
+    if let Err(e) = fs::rename(&tmp, path) {
+        warn!(target: "powrush::session", "local session write failed: {e}");
     }
 }
 
@@ -193,6 +220,7 @@ fn save_local_session(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     #[test]
     fn blob_keeps_trust() {
@@ -204,5 +232,105 @@ mod tests {
         let json = serde_json::to_string(&blob).unwrap();
         let back: SessionBlob = serde_json::from_str(&json).unwrap();
         assert!((back.companion_trust - 0.62).abs() < 0.01);
+    }
+
+    struct TempSession {
+        dir: PathBuf,
+        path: PathBuf,
+    }
+
+    impl TempSession {
+        fn new(label: &str) -> Self {
+            static SEQ: AtomicU64 = AtomicU64::new(0);
+            let n = SEQ.fetch_add(1, Ordering::Relaxed);
+            let dir = std::env::temp_dir().join(format!(
+                "powrush-save-atomic-{label}-{}-{n}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).expect("temp session dir");
+            let path = dir.join("powrush_local_session.json");
+            Self { dir, path }
+        }
+    }
+
+    impl Drop for TempSession {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    fn blob_with_trust(trust: f32) -> SessionBlob {
+        SessionBlob {
+            companion_trust: trust,
+            ..Default::default()
+        }
+    }
+
+    fn trust_near(blob: &SessionBlob, trust: f32) -> bool {
+        (blob.companion_trust - trust).abs() < 0.001
+    }
+
+    #[test]
+    fn corrupt_main_loads_last_good_bak() {
+        let temp = TempSession::new("recover");
+        let blob = blob_with_trust(0.62);
+        save_blob_at(&temp.path, &blob);
+        let bak = temp.path.with_extension("json.bak");
+        let tmp = temp.path.with_extension("json.tmp");
+        assert!(!bak.exists(), "first save has no prior good file to snapshot");
+        assert!(!tmp.exists());
+        // Second save copies the live good file to `.bak` before replacing it.
+        save_blob_at(&temp.path, &blob);
+        assert!(bak.is_file());
+        assert!(!tmp.exists());
+        fs::write(&temp.path, b"not-a-session").unwrap();
+        let loaded = load_blob_at(&temp.path).expect("last good bak");
+        assert!(trust_near(&loaded, 0.62));
+        let bak_blob: SessionBlob =
+            serde_json::from_slice(&fs::read(&bak).unwrap()).unwrap();
+        assert!(trust_near(&bak_blob, loaded.companion_trust));
+    }
+
+    #[test]
+    fn corrupt_main_is_never_promoted_to_bak() {
+        let fresh = TempSession::new("nopromote-fresh");
+        fs::write(&fresh.path, b"CORRUPT-MAIN").unwrap();
+        save_blob_at(&fresh.path, &blob_with_trust(0.41));
+        assert!(
+            !fresh.path.with_extension("json.bak").exists(),
+            "corrupt main must not become .bak"
+        );
+        assert!(!fresh.path.with_extension("json.tmp").exists());
+        let loaded = load_blob_at(&fresh.path).expect("new good main");
+        assert!(trust_near(&loaded, 0.41));
+
+        let kept = TempSession::new("nopromote-kept");
+        let good = blob_with_trust(0.62);
+        save_blob_at(&kept.path, &good);
+        save_blob_at(&kept.path, &good);
+        let bak = kept.path.with_extension("json.bak");
+        let bak_before = fs::read(&bak).unwrap();
+        fs::write(&kept.path, b"CORRUPT-MAIN").unwrap();
+        save_blob_at(&kept.path, &blob_with_trust(0.41));
+        let bak_after = fs::read(&bak).unwrap();
+        assert_eq!(bak_before, bak_after);
+        assert!(!bak_after.windows(b"CORRUPT-MAIN".len()).any(|w| w == b"CORRUPT-MAIN"));
+        let bak_blob: SessionBlob = serde_json::from_slice(&bak_after).unwrap();
+        assert!(trust_near(&bak_blob, 0.62));
+        let main_blob = load_blob_at(&kept.path).unwrap();
+        assert!(trust_near(&main_blob, 0.41));
+        assert!(!kept.path.with_extension("json.tmp").exists());
+    }
+
+    #[test]
+    fn good_save_leaves_no_json_tmp() {
+        let temp = TempSession::new("notmp");
+        save_blob_at(&temp.path, &blob_with_trust(0.5));
+        assert!(temp.path.is_file());
+        assert!(!temp.path.with_extension("json.tmp").exists());
+        save_blob_at(&temp.path, &blob_with_trust(0.77));
+        assert!(!temp.path.with_extension("json.tmp").exists());
+        let loaded = load_blob_at(&temp.path).unwrap();
+        assert!(trust_near(&loaded, 0.77));
     }
 }
