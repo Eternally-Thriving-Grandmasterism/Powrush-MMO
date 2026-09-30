@@ -2,6 +2,8 @@
 //!
 //! Persist: `powrush_house.json` in the OS user-data dir (or `POWRUSH_USER_DIR`).
 //! Cwd `data/powrush_house.json` is the adopt source when the user dir is empty.
+//! Schema stays `powrush_house_v1`. `seed` defaults to 0 on old blobs.
+//! Last-good save: `.tmp` rename over the live file; `.bak` only from a parseable house.
 //! Skip → Unnamed House. Never a wall before first E.
 //! D3 (after Settled / skip-named): three skippable Peace-tone seals
 //! (Well · Grove · Ember) — cosmetic silhouettes / labels only.
@@ -13,6 +15,8 @@
 
 pub mod name_rite;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub const HOUSE_PATH: &str = "data/powrush_house.json";
 pub const HOUSE_SCHEMA: &str = "powrush_house_v1";
@@ -56,6 +60,9 @@ pub struct HouseName {
     /// Heritage caption only — never grants stats. Default "none".
     #[serde(default = "default_heritage")]
     pub heritage: String,
+    /// Local name-rite seed. Old `powrush_house_v1` blobs omit it and load as 0.
+    #[serde(default)]
+    pub seed: u64,
 }
 
 fn default_heritage() -> String {
@@ -71,6 +78,7 @@ impl Default for HouseName {
             seals: Vec::new(),
             seals_resolved: false,
             heritage: HERITAGE_NONE.into(),
+            seed: 0,
         }
     }
 }
@@ -299,17 +307,135 @@ impl HouseName {
     }
 
     pub fn load_or_default() -> Self {
-        let Ok(raw) = crate::user_persist::read_named(HOUSE_PATH) else {
-            return Self::default();
-        };
-        Self::from_json(&raw).unwrap_or_default()
+        Self::load_from_path(&crate::user_persist::persist_path(HOUSE_PATH))
     }
 
+    /// Read the live house file. Missing or unparseable live bytes fall back to `.bak`.
+    fn load_from_path(path: &Path) -> Self {
+        if let Some(house) = read_valid_house(path) {
+            return house;
+        }
+        read_valid_house(&sibling_path(path, ".bak")).unwrap_or_default()
+    }
+
+    /// Save this house. `&self` stays so existing callers are unchanged.
+    ///
+    /// When `self.seed` is 0 the stored seed is reused in order: non-zero seed
+    /// on a parsed live file, else non-zero seed on `.bak` (corrupt or missing
+    /// live file included), else one new local mint. The mint is written into
+    /// the blob. A live file that does not parse is never copied over `.bak`.
     pub fn persist(&self) {
-        if let Ok(json) = self.to_json() {
-            let _ = crate::user_persist::write_named(HOUSE_PATH, json);
+        self.persist_to_path(&crate::user_persist::persist_path(HOUSE_PATH));
+    }
+
+    fn persist_to_path(&self, path: &Path) {
+        let mut saving = self.clone();
+        saving.seed = self.effective_seed(path);
+        let Ok(json) = saving.to_json() else {
+            return;
+        };
+        let _ = write_last_good(path, &json);
+    }
+
+    fn effective_seed(&self, path: &Path) -> u64 {
+        if self.seed != 0 {
+            return self.seed;
+        }
+        if let Some(seed) = nonzero_seed_on(path) {
+            return seed;
+        }
+        if let Some(seed) = nonzero_seed_on(&sibling_path(path, ".bak")) {
+            return seed;
+        }
+        mint_stable_local_seed(path)
+    }
+}
+
+fn sibling_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+fn read_valid_house(path: &Path) -> Option<HouseName> {
+    let raw = fs::read_to_string(path).ok()?;
+    HouseName::from_json(&raw).ok()
+}
+
+fn nonzero_seed_on(path: &Path) -> Option<u64> {
+    let house = read_valid_house(path)?;
+    if house.seed == 0 {
+        None
+    } else {
+        Some(house.seed)
+    }
+}
+
+/// `.tmp` then rename. Copy live → `.bak` only when live parses as `HouseName`.
+fn write_last_good(path: &Path, json: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
         }
     }
+    if read_valid_house(path).is_some() {
+        fs::copy(path, sibling_path(path, ".bak"))?;
+    }
+    let tmp = sibling_path(path, ".tmp");
+    fs::write(&tmp, json)?;
+    fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+fn mint_stable_local_seed(live: &Path) -> u64 {
+    use std::collections::hash_map::RandomState;
+    use std::hash::{BuildHasher, Hash, Hasher};
+    let disk = fnv1a64(&local_persist_bytes(live));
+    let mut hasher = RandomState::new().build_hasher();
+    disk.hash(&mut hasher);
+    nonzero_seed(hasher.finish() ^ disk)
+}
+
+fn nonzero_seed(raw: u64) -> u64 {
+    if raw == 0 {
+        1
+    } else {
+        raw
+    }
+}
+
+/// FNV-1a 64-bit. Inline so the house file stays std-only.
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    const OFFSET: u64 = 0xcbf29ce484222325;
+    const PRIME: u64 = 0x100000001b3;
+    let mut hash = OFFSET;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(PRIME);
+    }
+    hash
+}
+
+fn local_persist_bytes(live: &Path) -> Vec<u8> {
+    let mut out = Vec::new();
+    let Some(dir) = live.parent().filter(|p| !p.as_os_str().is_empty()) else {
+        return out;
+    };
+    let Ok(rd) = fs::read_dir(dir) else {
+        return out;
+    };
+    let mut files: Vec<PathBuf> = rd
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect();
+    files.sort();
+    for path in files {
+        if let Ok(bytes) = fs::read(&path) {
+            out.extend_from_slice(&bytes);
+        }
+    }
+    out
 }
 
 /// Format steward Continue cue: `{name} · the yard remembers`.
@@ -630,6 +756,7 @@ mod tests {
         assert!(h.seals.is_empty());
         assert!(!h.seals_resolved);
         assert_eq!(h.heritage, HERITAGE_NONE);
+        assert_eq!(h.seed, 0);
     }
 
     #[test]
@@ -642,5 +769,191 @@ mod tests {
             h.bump_heritage();
         }
         assert!(HERITAGE_CAPTIONS.contains(&h.heritage.as_str()));
+    }
+
+    fn scratch(tag: &str) -> std::path::PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static N: AtomicU64 = AtomicU64::new(0);
+        let n = N.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-name-rite-seed-{}-{}-{tag}",
+            std::process::id(),
+            n
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch");
+        dir
+    }
+
+    #[test]
+    fn old_v1_blob_without_seed_loads_zero() {
+        assert_eq!(HOUSE_SCHEMA, "powrush_house_v1");
+        assert_eq!(HouseName::default().seed, 0);
+        let legacy = r#"{"schema":"powrush_house_v1","name":"Legacy","resolved":true}"#;
+        let parsed = HouseName::from_json(legacy).unwrap();
+        assert_eq!(parsed.seed, 0);
+        assert_eq!(parsed.schema, HOUSE_SCHEMA);
+        assert_eq!(parsed.display_name(), "Legacy");
+        let raw = parsed.to_json().unwrap();
+        assert!(raw.contains("powrush_house_v1"));
+        assert!(!raw.contains("powrush_house_v2"));
+
+        let dir = scratch("legacy");
+        let path = dir.join("powrush_house.json");
+        std::fs::write(&path, legacy).unwrap();
+        let loaded = HouseName::load_from_path(&path);
+        assert_eq!(loaded.seed, 0);
+        assert_eq!(loaded.display_name(), "Legacy");
+        assert!(loaded.resolved);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn first_persist_mints_nonzero_seed_and_later_zero_keeps_it() {
+        let dir = scratch("keep");
+        let path = dir.join("powrush_house.json");
+        let mut house = HouseName::default();
+        house.skip();
+        assert_eq!(house.seed, 0);
+        house.persist_to_path(&path);
+        let first = HouseName::load_from_path(&path);
+        assert_ne!(first.seed, 0);
+        assert_eq!(first.schema, "powrush_house_v1");
+        assert_eq!(first.display_name(), UNNAMED);
+
+        let bak = super::sibling_path(&path, ".bak");
+        let mut decoy = first.clone();
+        decoy.seed = first.seed.wrapping_add(1).max(1);
+        if decoy.seed == first.seed {
+            decoy.seed = 3;
+        }
+        std::fs::write(&bak, decoy.to_json().unwrap()).unwrap();
+
+        let mut again = HouseName::default();
+        again.skip();
+        assert_eq!(again.seed, 0);
+        again.persist_to_path(&path);
+        let second = HouseName::load_from_path(&path);
+        assert_eq!(second.seed, first.seed);
+        assert_ne!(second.seed, decoy.seed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn corrupt_main_falls_back_to_bak_and_save_keeps_bak() {
+        let dir = scratch("corrupt");
+        let path = dir.join("powrush_house.json");
+        let mut good = HouseName::default();
+        good.confirm("Kept");
+        good.seed = 42;
+        let good_json = good.to_json().unwrap();
+        let bak = super::sibling_path(&path, ".bak");
+        std::fs::write(&bak, &good_json).unwrap();
+        let bad = b"{{this-is-not-a-house";
+        std::fs::write(&path, bad).unwrap();
+
+        let loaded = HouseName::load_from_path(&path);
+        assert_eq!(loaded.display_name(), "Kept");
+        assert_eq!(loaded.seed, 42);
+        assert_eq!(loaded.schema, HOUSE_SCHEMA);
+
+        loaded.persist_to_path(&path);
+
+        let bak_bytes = std::fs::read(&bak).unwrap();
+        assert_eq!(bak_bytes, good_json.as_bytes());
+        assert_ne!(bak_bytes, bad);
+        let main = std::fs::read(&path).unwrap();
+        assert_ne!(main, bad);
+        let main_house = HouseName::from_json(std::str::from_utf8(&main).unwrap()).unwrap();
+        assert_eq!(main_house.display_name(), "Kept");
+        assert_eq!(main_house.seed, 42);
+
+        let missing = dir.join("powrush_house_missing.json");
+        std::fs::write(super::sibling_path(&missing, ".bak"), &good_json).unwrap();
+        let from_missing = HouseName::load_from_path(&missing);
+        assert_eq!(from_missing.seed, 42);
+        assert_eq!(from_missing.display_name(), "Kept");
+        let mut fresh = HouseName::default();
+        fresh.skip();
+        assert_eq!(fresh.seed, 0);
+        fresh.persist_to_path(&missing);
+        assert_eq!(HouseName::load_from_path(&missing).seed, 42);
+        assert_eq!(
+            std::fs::read(super::sibling_path(&missing, ".bak")).unwrap(),
+            good_json.as_bytes()
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn minted_seed_is_never_zero() {
+        assert_eq!(super::nonzero_seed(0), 1);
+        assert_eq!(super::nonzero_seed(1), 1);
+        assert_eq!(super::nonzero_seed(u64::MAX), u64::MAX);
+        let dir = scratch("mint");
+        let path = dir.join("powrush_house.json");
+        for _ in 0..32 {
+            assert_ne!(super::mint_stable_local_seed(&path), 0);
+        }
+        let mut house = HouseName::default();
+        house.confirm("Mint House");
+        assert_eq!(house.seed, 0);
+        house.persist_to_path(&path);
+        let loaded = HouseName::load_from_path(&path);
+        assert_ne!(loaded.seed, 0);
+        assert_eq!(loaded.schema, HOUSE_SCHEMA);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn corrupt_main_load_and_persist_keep_bak_seed() {
+        let dir = scratch("bak-seed");
+        let path = dir.join("powrush_house.json");
+        const BAK_SEED: u64 = 0x00C0_FFEE;
+        let mut bak_house = HouseName::default();
+        bak_house.confirm("Bak House");
+        bak_house.seed = BAK_SEED;
+        let bak_json = bak_house.to_json().unwrap();
+        let bak = super::sibling_path(&path, ".bak");
+        std::fs::write(&bak, &bak_json).unwrap();
+        std::fs::write(&path, b"not-json-at-all").unwrap();
+
+        let loaded = HouseName::load_from_path(&path);
+        assert_eq!(loaded.seed, BAK_SEED);
+        assert_eq!(loaded.display_name(), "Bak House");
+
+        let mut fresh = HouseName::default();
+        fresh.confirm("Later Save");
+        assert_eq!(fresh.seed, 0);
+        fresh.persist_to_path(&path);
+
+        assert_eq!(std::fs::read(&bak).unwrap(), bak_json.as_bytes());
+        let again = HouseName::load_from_path(&path);
+        assert_eq!(again.seed, BAK_SEED);
+        assert_eq!(again.display_name(), "Later Save");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn parsed_main_seed_zero_reuses_bak_seed() {
+        let dir = scratch("main-zero");
+        let path = dir.join("powrush_house.json");
+        let mut live = HouseName::default();
+        live.confirm("Live");
+        assert_eq!(live.seed, 0);
+        std::fs::write(&path, live.to_json().unwrap()).unwrap();
+        let mut bak_house = HouseName::default();
+        bak_house.confirm("Backup");
+        bak_house.seed = 77;
+        std::fs::write(super::sibling_path(&path, ".bak"), bak_house.to_json().unwrap()).unwrap();
+
+        let mut fresh = HouseName::default();
+        fresh.confirm("Live");
+        assert_eq!(fresh.seed, 0);
+        fresh.persist_to_path(&path);
+        let loaded = HouseName::load_from_path(&path);
+        assert_eq!(loaded.seed, 77);
+        assert_eq!(loaded.display_name(), "Live");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
