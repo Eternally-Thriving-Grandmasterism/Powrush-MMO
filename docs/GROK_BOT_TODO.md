@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `f96ac8b4` (`f96ac8b48551226e36b899c22c305eb412be15c0`) — spent #571 through #576 (bank #572–#576 after TODO-SYNC-570 #571). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT on this tip.
+Tip `ed3a075f` (`ed3a075f5b5ece1af538af6df268b206116d7941`) — spent #577 through #584 (bank #578–#584 after TODO-SYNC-575 #577). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -138,16 +138,30 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#574 CLERK-PRE-RELEASE-LAW** — Landed #574 / `22e5aea4` (`22e5aea416a7f91e7ec21e8f3154df3f51f498ed`). PATHS `docs/ONLINE_LADDER.md` (+2) · `docs/PRE_RELEASE_LAW.md` (+33). Prototype ≠ ship. A verb that does nothing is a lie. No franchise strings. No client. Spent. Cite only. Do not rebuild.
 - **#575 CLERK-CAMERA-READ-LAW** — Landed #575 / `e8221255` (`e82212551002e7f2b4188b234fec6d682fdbedf9`). PATHS `docs/ONLINE_LADDER.md` (+2/−1) · `docs/PRE_RELEASE_LAW.md` (+12/−2). Sim ≠ camera. Readable hour on a small machine. Do not change the Hour 1 lens. No client. Spent. Cite only. Do not rebuild.
 - **#576 CLERK-BOT-RESET-QUEUE** — Landed #576 / tip `f96ac8b4` (`f96ac8b48551226e36b899c22c305eb412be15c0`). PATH `docs/BOT_RESET_QUEUE.md` (+44). 48h standing order. Standing Next after this stamp. No client. Spent. Cite only. Do not rebuild.
+- **#577 TODO-SYNC-575** — Landed #577 / `e839a24e` (`e839a24e6136b898aedd2ae353d28349ed37a2ab`). PATHS `docs/GROK_BOT_TODO.md` (+14/−7) · `docs/NEXT_NAMED_CARDS.md` (+50/−17). Docs stamp for the #571–#576 bank at `f96ac8b4`, with standing Next on `docs/BOT_RESET_QUEUE.md`. No client. Spent. Cite only. Do not rebuild.
+- **#578 CLERK-LAG-LABELS** — Landed #578 / `8ec81f50` (`8ec81f5035df0042068e4201296e5afd36fec3c5`). PATHS `client/src/title_screen.rs` (+2/−2) · `docs/AGENT_COMPLETION_PACK_v23.2.md` (+1/−1) · `docs/BLIZZARD_CRAFT_UX.md` (+2/−2) · `docs/FIRST_LAUNCH_UI_SCALE.md` (+2/−2) · `docs/LAUNCH_UX.md` (+1/−1) · `docs/PLACES_BIBLE.md` (+1/−1) · `docs/PLACE_CLARITY_HOUR.md` (+2/−2) · `docs/PREVIEW_CHECKLIST.md` (+1/−1) · `docs/SLICE_LOG.md` (+3/−3). Display words only: the title header and the #553 lag docs say Hide guidance and Scenery · off|on, and the saved grove value stays off|light. Spent. Cite only. Do not rebuild.
+- **#579 FLESH-ECOLOGY-LOG** — Landed #579 / `bc1a1548` (`bc1a1548f0cc961bca5e6777dbee29a565c6dfd6`). PATH exact `client/src/living_ecology.rs` (+57/−2). The existing ecology startup log may prefix Place via `chip_name`, and absent travel keeps `Heartwood + Spires + Abyssal threads seeded`. Spent. Cite only. Do not rebuild.
+- **#580 CLERK-MACHINE-CAPTURE** — Landed #580 / `ca9635ac` (`ca9635acd492eed3df499f500eb684d434945b98`). PATHS `docs/FIRST_HOUR_PLAYTEST.md` (+12) · `docs/HOUR_TWO_PLAYTEST.md` (+12). The machine gate is `./scripts/play-offline.sh` plus the two core `cargo test` lines, and `capture: none` stays. Spent. Cite only. Do not rebuild.
+- **#581 CLERK-NAME-DOOR-LAW** — Landed #581 / `4634befd` (`4634befd3617da2e9a1759a58a1a6fcd228ea192`). PATH `docs/NAME_DOOR_LAW.md` (+31). The name is local, filter over ban, and a guild is a file. No client. Spent. Cite only. Do not rebuild.
+- **#582 CLERK-GODSPEED-PREP** — Landed #582 / `1820cfef` (`1820cfef2ba8d191c1f18b436f5f5d6cac98e71e`). PATHS `docs/GODSPEED_PREP.md` (+68) · `docs/NAME_RITE.md` (+52). Pre-answered door, name rite, and elemental tetrad. No client. Spent. Cite only. Do not rebuild.
+- **#583 CLERK-RITE-DOS-BANK** — Landed #583 / `87517a8c` (`87517a8cac528243fa36e77ea0f8ca1f0a1667bd`). PATH `docs/RITE_DOS_BANK.md` (+46). What you practiced is what continues, and one readable verb on a small machine beats a catalogue copy. No client. Spent. Cite only. Do not rebuild.
+- **#584 CLERK-MONTAGE-CHANNEL** — Landed #584 / tip `ed3a075f` (`ed3a075f5b5ece1af538af6df268b206116d7941`). PATH `docs/MONTAGE_CHANNEL_LAW.md` (+30). A montage is an archive, not a backlog, and a clip is not a feature. No client. Spent. Cite only. Do not rebuild.
 - **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is named on [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md) after CLERK-LAG-LABELS. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
 
 ## Next (ordered)
 
-Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT. Standing Next is [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md). Cook that file. Do not copy a second queue onto this page.
+Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Cook that file. Do not copy a second queue onto this page.
 
-0. **CARD TODO-SYNC-575** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Stamp #571–#576 at `f96ac8b4`.
-1. **Standing Next** — [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md) after item 0 of that file. The file already names **CARD CLERK-LAG-LABELS**, then **HEARTBEAT**. Items 3–4 cook only if Dual marks LIVE. Do not invent PATHS.
+0. **CARD TODO-SYNC-584** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Stamp #577–#584 at `ed3a075f`.
+1. **Standing Next** — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). CLERK-LAG-LABELS is spent (#578). Do not invent PATHS.
+
+Bounds (not cards):
+
+- Name rite is not LIVE (no word lists, no Title paint).
+- Montage channels are not a backlog and a clip is not a feature.
+- Method B UI is JUNCTION and R2 confirm is not a slab.
 
 Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
 
@@ -162,9 +176,9 @@ Named later (not ranked · needs Core bounds before anyone cooks · not fixed on
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at f96ac8b4. Method B confirm UI stays JUNCTION until Steward names PATH.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at ed3a075f. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** TODO-SYNC-575 → standing Next [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md).
+**Effective order (verified):** TODO-SYNC-584 → `docs/GODSPEED_PREP.md` (standing Next).
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
