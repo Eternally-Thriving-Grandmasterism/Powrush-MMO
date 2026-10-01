@@ -503,10 +503,13 @@ pub struct HouseLabel {
     pub naming_offered: bool,
     /// Offer D3 seals/heritage once after name resolved.
     pub seals_offered: bool,
-    /// Name-rite sentence on the existing hint. Empty keeps the old line.
-    /// On the label so hint refresh sees the same write as plate open.
-    pub rite_line: String,
 }
+
+/// Offer sentence for the existing NameHouse hint. Empty keeps the old line.
+/// A resource, not a thread-local: plate open and hint refresh can run on
+/// different Bevy workers and still see the same write.
+#[derive(Resource, Default)]
+struct NameRiteLine(String);
 
 impl Default for HouseLabel {
     fn default() -> Self {
@@ -539,7 +542,6 @@ impl Default for HouseLabel {
             draft: String::new(),
             naming_offered: false,
             seals_offered,
-            rite_line: String::new(),
         }
     }
 }
@@ -1212,6 +1214,7 @@ impl Plugin for TitleScreenPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LaunchDoor>()
             .init_resource::<HouseLabel>()
+            .init_resource::<NameRiteLine>()
             .init_resource::<PauseTab>()
             .init_resource::<LocalSettingsState>()
             .init_resource::<PeaceRebindState>()
@@ -2444,6 +2447,7 @@ fn watch_settled_for_naming(
     hour: Option<Res<HourSacred>>,
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    mut rite: ResMut<NameRiteLine>,
 ) {
     if *door != LaunchDoor::InYard {
         return;
@@ -2463,7 +2467,7 @@ fn watch_settled_for_naming(
             // One mint while seed is 0 and the house is still unresolved.
             // persist() does not skip; memory seed stays 0 until arm copies disk.
             let _ = settled_mint_unresolved_zero_seed(&label.house);
-            let _ = arm_name_rite_offer(&mut label, true);
+            let _ = arm_name_rite_offer(&mut label, true, &mut rite);
         }
         // Soft-write Unnamed so Continue works even if they quit mid-name panel.
         ensure_house_file_written(&mut label);
@@ -2472,7 +2476,7 @@ fn watch_settled_for_naming(
     }
     if label.house.resolved && !label.house.seals_resolved && !label.seals_offered {
         label.seals_offered = true;
-        label.rite_line.clear();
+        rite.0.clear();
         ensure_house_file_written(&mut label);
         *door = LaunchDoor::HouseDress;
     }
@@ -2547,7 +2551,7 @@ fn apply_yard_pause(step: YardPause, label: &mut HouseLabel, places: Option<&mut
 }
 
 /// After Settled or quit-to-title: house JSON exists (name may be null / Unnamed).
-/// The soft-write `skip` resolves the house and does not clear `rite_line`.
+/// The soft-write `skip` resolves the house and does not clear `NameRiteLine`.
 fn ensure_house_file_written(label: &mut HouseLabel) {
     if !label.house.resolved {
         label.house.skip();
@@ -2578,6 +2582,7 @@ fn refresh_pause_cue(
 fn pause_plate_clicks(
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    mut rite: ResMut<NameRiteLine>,
     bind: Option<Res<LivedHourBind>>,
     mut places: Option<ResMut<PlacesPlate>>,
     mut exit: EventWriter<AppExit>,
@@ -2602,7 +2607,7 @@ fn pause_plate_clicks(
             if let Some(places) = places.as_mut() {
                 places.close_door();
             }
-            return_yard_to_title(&mut door, &mut label, bind.as_ref());
+            return_yard_to_title(&mut door, &mut label, &mut rite, bind.as_ref());
             return;
         }
     }
@@ -2623,6 +2628,7 @@ fn pause_plate_clicks(
 fn return_yard_to_title(
     door: &mut LaunchDoor,
     label: &mut HouseLabel,
+    rite: &mut NameRiteLine,
     bind: Option<&Res<LivedHourBind>>,
 ) {
     label.settings_open = false;
@@ -2633,7 +2639,7 @@ fn return_yard_to_title(
     if let Some(bind) = bind {
         bind.persist();
     }
-    label.rite_line.clear();
+    rite.0.clear();
     *door = LaunchDoor::Title;
 }
 
@@ -3667,7 +3673,7 @@ fn name_rite_hour1_persist(settled: bool, persist_present: bool) -> bool {
 }
 
 /// Soft-write `skip` sets `house.resolved` so Continue works mid-panel.
-/// That skip leaves `rite_line` so the open plate can paint it.
+/// That skip leaves `NameRiteLine` so the open plate can paint it.
 /// Rename and dress are the resolved branches that must not call `offer`.
 fn name_rite_resolved_branch(label: &HouseLabel) -> bool {
     label.house.seals_resolved || label.seals_offered
@@ -3710,22 +3716,32 @@ fn name_rite_offer_sentence(
     Some(name_house_calls_you_line(&name_rite_offer(seed)))
 }
 
-/// Paint `label.rite_line` on the existing hint. Does not call `offer`.
-fn name_house_hint_line(door: LaunchDoor, label: &HouseLabel) -> String {
+/// Paint `NameRiteLine` on the existing hint. Does not call `offer`.
+/// `None` is a test app that never registered the resource.
+fn name_house_hint_line(
+    door: LaunchDoor,
+    label: &HouseLabel,
+    rite: Option<&NameRiteLine>,
+) -> String {
+    let line = rite.map(|rite| rite.0.as_str()).unwrap_or("");
     if door != LaunchDoor::NameHouse
         || !label.persist_present
         || name_rite_resolved_branch(label)
-        || label.rite_line.is_empty()
+        || line.is_empty()
     {
         return NAME_HOUSE_HINT.to_string();
     }
-    label.rite_line.clone()
+    line.to_string()
 }
 
 /// Once, when the plate opens under the gate and memory seed is 0, copy the disk seed.
 /// A resolved house and a cold Title return before `offer`. Seed still 0 does too.
 /// A later frame must not call this.
-fn arm_name_rite_offer(label: &mut HouseLabel, hour1_persist: bool) -> Option<String> {
+fn arm_name_rite_offer(
+    label: &mut HouseLabel,
+    hour1_persist: bool,
+    rite: &mut NameRiteLine,
+) -> Option<String> {
     if !hour1_persist || label.house.resolved || name_rite_resolved_branch(label) {
         return None;
     }
@@ -3738,7 +3754,7 @@ fn arm_name_rite_offer(label: &mut HouseLabel, hour1_persist: bool) -> Option<St
     let offered = name_rite_offer(label.house.seed);
     label.draft = offered.clone();
     let line = name_house_calls_you_line(&offered);
-    label.rite_line = line.clone();
+    rite.0 = line.clone();
     Some(line)
 }
 
@@ -3836,6 +3852,7 @@ fn name_house_text_input(
 fn name_house_buttons(
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    mut rite: ResMut<NameRiteLine>,
     keyboard: Res<ButtonInput<KeyCode>>,
     confirm: Query<&Interaction, (Changed<Interaction>, With<NameConfirmBtn>)>,
     skip: Query<&Interaction, (Changed<Interaction>, With<NameSkipBtn>)>,
@@ -3869,7 +3886,7 @@ fn name_house_buttons(
         }
         label.house.persist();
         label.persist_present = true;
-        *door = advance_after_naming(&mut label);
+        *door = advance_after_naming(&mut label, &mut rite);
     } else if do_skip {
         match name_house_escape_act(
             label.house.resolved,
@@ -3878,19 +3895,19 @@ fn name_house_buttons(
         ) {
             // Rename cancel after dress — keep existing name, back to yard.
             NameHouseEscape::Yard => {
-                label.rite_line.clear();
+                rite.0.clear();
                 *door = LaunchDoor::InYard;
             }
             // Mid-dress rename cancel — keep name, return to seals panel.
             NameHouseEscape::Dress => {
-                label.rite_line.clear();
+                rite.0.clear();
                 *door = LaunchDoor::HouseDress;
             }
             NameHouseEscape::Skip => {
                 label.house.skip();
                 label.house.persist();
                 label.persist_present = true;
-                *door = advance_after_naming(&mut label);
+                *door = advance_after_naming(&mut label, &mut rite);
             }
         }
     }
@@ -3899,18 +3916,19 @@ fn name_house_buttons(
 fn refresh_name_house_hint(
     door: Res<LaunchDoor>,
     label: Res<HouseLabel>,
+    rite: Option<Res<NameRiteLine>>,
     mut hint: Query<&mut Text, With<NameHouseHintText>>,
 ) {
-    // Paint label.rite_line. Do not load the house file here.
-    let line = name_house_hint_line(*door, &label);
+    // Paint NameRiteLine. Do not load the house file here.
+    let line = name_house_hint_line(*door, &label, rite.as_deref());
     for mut text in &mut hint {
         set_btn_section_text(&mut text, &line);
     }
 }
 
 /// After naming: D3 dress if seals not yet resolved; else yard.
-fn advance_after_naming(label: &mut HouseLabel) -> LaunchDoor {
-    label.rite_line.clear();
+fn advance_after_naming(label: &mut HouseLabel, rite: &mut NameRiteLine) -> LaunchDoor {
+    rite.0.clear();
     if label.house.resolved && !label.house.seals_resolved {
         label.seals_offered = true;
         LaunchDoor::HouseDress
@@ -3981,6 +3999,7 @@ fn refresh_house_dress_labels(
 fn house_dress_buttons(
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
+    mut rite: ResMut<NameRiteLine>,
     keyboard: Res<ButtonInput<KeyCode>>,
     well: Query<&Interaction, (Changed<Interaction>, With<DressSealWellBtn>)>,
     grove: Query<&Interaction, (Changed<Interaction>, With<DressSealGroveBtn>)>,
@@ -4025,7 +4044,7 @@ fn house_dress_buttons(
             // with seals_resolved false would re-enter dress. Set seals_resolved
             // only on Confirm/Skip. For rename mid-dress, go to NameHouse and
             // come back via advance_after_naming.
-            label.rite_line.clear();
+            rite.0.clear();
             *door = LaunchDoor::NameHouse;
             return;
         }
@@ -5931,7 +5950,6 @@ mod tests {
             draft: String::new(),
             naming_offered: false,
             seals_offered: false,
-            rite_line: String::new(),
         };
         assert!(!label.house.resolved);
         if !label.house.resolved {
@@ -6430,16 +6448,19 @@ mod tests {
             draft: String::new(),
             naming_offered: true,
             seals_offered: false,
-            rite_line: String::new(),
         };
         label.house.skip();
+        let mut rite = super::NameRiteLine::default();
         assert_eq!(
-            super::advance_after_naming(&mut label),
+            super::advance_after_naming(&mut label, &mut rite),
             LaunchDoor::HouseDress
         );
         assert!(label.seals_offered);
         label.house.confirm_seals();
-        assert_eq!(super::advance_after_naming(&mut label), LaunchDoor::InYard);
+        assert_eq!(
+            super::advance_after_naming(&mut label, &mut rite),
+            LaunchDoor::InYard
+        );
     }
 
     // --- MERCY_PERSONA P2 ----------------------------------------------------
@@ -6740,7 +6761,6 @@ mod tests {
             draft: String::new(),
             naming_offered: false,
             seals_offered: false,
-            rite_line: String::new(),
         }
     }
 
@@ -6794,15 +6814,17 @@ mod tests {
 
         let mut cold = rite_label(HouseName::default(), false);
         cold.house.seed = 41;
+        let mut rite = super::NameRiteLine::default();
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::Title, &cold),
+            super::name_house_hint_line(LaunchDoor::Title, &cold, Some(&rite)),
             super::NAME_HOUSE_HINT
         );
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &cold),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &cold, None),
             super::NAME_HOUSE_HINT
         );
-        assert!(super::arm_name_rite_offer(&mut cold, false).is_none());
+        assert!(super::arm_name_rite_offer(&mut cold, false, &mut rite).is_none());
+        assert!(rite.0.is_empty());
         assert_eq!(cold.house.seed, 41);
         assert!(cold.draft.is_empty());
 
@@ -6812,11 +6834,12 @@ mod tests {
         resolved.seals_offered = true;
         assert!(super::name_rite_resolved_branch(&resolved));
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &resolved),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &resolved, Some(&rite)),
             super::NAME_HOUSE_HINT
         );
         let draft_before = resolved.draft.clone();
-        assert!(super::arm_name_rite_offer(&mut resolved, true).is_none());
+        assert!(super::arm_name_rite_offer(&mut resolved, true, &mut rite).is_none());
+        assert!(rite.0.is_empty());
         assert_eq!(resolved.draft, draft_before);
         assert_eq!(resolved.house.seed, 41);
     }
@@ -6835,17 +6858,20 @@ mod tests {
         let mut plate = rite_label(HouseName::default(), true);
         plate.house.seed = seed;
         assert!(!plate.house.resolved);
-        let armed = super::arm_name_rite_offer(&mut plate, true).unwrap();
+        let mut rite = super::NameRiteLine::default();
+        let armed = super::arm_name_rite_offer(&mut plate, true, &mut rite).unwrap();
         assert_eq!(armed, line);
+        assert_eq!(rite.0, line);
         assert_eq!(plate.draft, offered);
         plate.house.skip();
         assert!(plate.house.resolved);
         let painted = super::name_rite_offer_calls();
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &plate),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &plate, Some(&rite)),
             line
         );
-        assert!(super::arm_name_rite_offer(&mut plate, true).is_none());
+        assert!(super::arm_name_rite_offer(&mut plate, true, &mut rite).is_none());
+        assert_eq!(rite.0, line);
         assert_eq!(super::name_rite_offer_calls(), painted);
 
         assert!(matches!(
@@ -6935,17 +6961,19 @@ mod tests {
                 continue;
             }
             let mut label = rite_label(HouseName::default(), true);
+            let mut rite = super::NameRiteLine::default();
             std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
             let calls_before = super::name_rite_offer_calls();
-            let sentence = super::arm_name_rite_offer(&mut label, true);
+            let sentence = super::arm_name_rite_offer(&mut label, true, &mut rite);
             if !user_dir_is(&scratch.dir) || label.house.seed != 0 {
                 continue;
             }
             assert!(sentence.is_none());
+            assert!(rite.0.is_empty());
             assert_eq!(super::name_rite_offer_calls(), calls_before);
             assert!(label.draft.is_empty());
             assert_eq!(
-                super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+                super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
                 super::NAME_HOUSE_HINT
             );
             return;
@@ -6961,18 +6989,19 @@ mod tests {
         assert!(super::name_rite_offer_sentence(false, true, false, 7).is_none());
         let mut cold = rite_label(HouseName::default(), false);
         cold.house.seed = 41;
-        assert!(super::arm_name_rite_offer(&mut cold, false).is_none());
+        let mut rite = super::NameRiteLine::default();
+        assert!(super::arm_name_rite_offer(&mut cold, false, &mut rite).is_none());
+        assert!(rite.0.is_empty());
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::Title, &cold),
+            super::name_house_hint_line(LaunchDoor::Title, &cold, Some(&rite)),
             super::NAME_HOUSE_HINT
         );
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &cold),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &cold, None),
             super::NAME_HOUSE_HINT
         );
         assert_eq!(cold.house.seed, 41);
         assert!(cold.draft.is_empty());
-        assert!(cold.rite_line.is_empty());
         assert_eq!(super::name_rite_offer_calls(), before);
     }
 
@@ -6980,37 +7009,38 @@ mod tests {
     fn name_rite_hint_paints_from_label_rite_line() {
         let mut label = rite_label(HouseName::default(), true);
         label.house.seed = 41;
-        assert!(label.rite_line.is_empty());
+        let mut rite = super::NameRiteLine::default();
+        assert!(rite.0.is_empty());
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
             super::NAME_HOUSE_HINT
         );
         let line = super::name_house_calls_you_line(&shared::house_name::name_rite::offer(41));
-        label.rite_line = line.clone();
+        rite.0 = line.clone();
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
-            label.rite_line
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
+            rite.0
         );
-        label.rite_line.clear();
-        let armed = super::arm_name_rite_offer(&mut label, true).unwrap();
-        assert_eq!(armed, label.rite_line);
+        rite.0.clear();
+        let armed = super::arm_name_rite_offer(&mut label, true, &mut rite).unwrap();
+        assert_eq!(armed, rite.0);
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
-            label.rite_line
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
+            rite.0
         );
         label.house.skip();
         assert!(label.house.resolved);
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
-            label.rite_line
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
+            rite.0
         );
         assert_eq!(
-            super::advance_after_naming(&mut label),
+            super::advance_after_naming(&mut label, &mut rite),
             LaunchDoor::HouseDress
         );
-        assert!(label.rite_line.is_empty());
+        assert!(rite.0.is_empty());
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
             super::NAME_HOUSE_HINT
         );
     }
@@ -7023,29 +7053,32 @@ mod tests {
         named.house.confirm("Kept");
         named.house.seed = 41;
         named.seals_offered = true;
-        assert!(super::arm_name_rite_offer(&mut named, true).is_none());
+        let mut named_rite = super::NameRiteLine::default();
+        assert!(super::arm_name_rite_offer(&mut named, true, &mut named_rite).is_none());
+        assert!(named_rite.0.is_empty());
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &named),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &named, Some(&named_rite)),
             super::NAME_HOUSE_HINT
         );
         let mut skipped = rite_label(HouseName::default(), true);
         skipped.house.skip();
         skipped.house.seed = 41;
         assert!(skipped.house.resolved);
-        assert!(super::arm_name_rite_offer(&mut skipped, true).is_none());
+        let mut skipped_rite = super::NameRiteLine::default();
+        assert!(super::arm_name_rite_offer(&mut skipped, true, &mut skipped_rite).is_none());
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &skipped),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &skipped, Some(&skipped_rite)),
             super::NAME_HOUSE_HINT
         );
-        skipped.rite_line = "the house calls you Kept".into();
+        skipped_rite.0 = "the house calls you Kept".into();
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &skipped),
-            skipped.rite_line
+            super::name_house_hint_line(LaunchDoor::NameHouse, &skipped, Some(&skipped_rite)),
+            skipped_rite.0
         );
-        named.rite_line = skipped.rite_line.clone();
+        named_rite.0 = skipped_rite.0.clone();
         named.house.seed = 41;
         assert_eq!(
-            super::name_house_hint_line(LaunchDoor::NameHouse, &named),
+            super::name_house_hint_line(LaunchDoor::NameHouse, &named, Some(&named_rite)),
             super::NAME_HOUSE_HINT
         );
         assert_eq!(skipped.house.seed, 41);
@@ -7068,8 +7101,9 @@ mod tests {
                 continue;
             }
             let calls_before = super::name_rite_offer_calls();
+            let mut rite = super::NameRiteLine::default();
             std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            let Some(sentence) = super::arm_name_rite_offer(&mut label, true) else {
+            let Some(sentence) = super::arm_name_rite_offer(&mut label, true, &mut rite) else {
                 continue;
             };
             if !user_dir_is(&scratch.dir) || label.house.seed == 0 {
@@ -7090,22 +7124,24 @@ mod tests {
                 continue;
             }
             assert_eq!(sentence, super::name_house_calls_you_line(&from_plate));
+            assert_eq!(rite.0, sentence);
             label.house.skip();
             label.persist_present = true;
             assert!(label.house.resolved);
             let after_resolve = super::name_rite_offer_calls();
             assert_eq!(
-                super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+                super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
                 sentence
             );
-            assert!(super::arm_name_rite_offer(&mut label, true).is_none());
+            assert!(super::arm_name_rite_offer(&mut label, true, &mut rite).is_none());
+            assert_eq!(rite.0, sentence);
             assert_eq!(super::name_rite_offer_calls(), after_resolve);
             let carried = label.house.seed;
             label.draft.push('x');
             assert_eq!(label.house.seed, carried);
             assert!(label.draft.ends_with('x'));
             assert_eq!(
-                super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+                super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
                 sentence
             );
             return;
