@@ -10,6 +10,7 @@ pub const GIVEN: &[&str] = &[
 pub const HOUSE: &[&str] = &[
     "Ashfen", "Cormal", "Dunwel", "Fenlow", "Ithrel", "Jastel", "Ostlen", "Pellin", "Sennel",
     "Solwen", "Velden", "Wynholt",
+    "Vysholt",
 ];
 
 pub fn offer(seed: u64) -> String {
@@ -93,6 +94,27 @@ mod tests {
                 HOUSE[(u64::MAX % HOUSE.len() as u64) as usize]
             )
         );
+    }
+
+    #[test]
+    fn given_and_house_lengths_are_coprime() {
+        fn gcd(mut a: usize, mut b: usize) -> usize {
+            while b != 0 {
+                let t = a % b;
+                a = b;
+                b = t;
+            }
+            a
+        }
+        assert_eq!(gcd(GIVEN.len(), HOUSE.len()), 1);
+    }
+
+    #[test]
+    fn offer_span_yields_156_distinct_strings() {
+        use std::collections::HashSet;
+        let span = GIVEN.len() * HOUSE.len();
+        let offers: HashSet<String> = (0..span as u64).map(offer).collect();
+        assert_eq!(offers.len(), 156);
     }
 
     fn assert_word_list(words: &[&str]) {
