@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `a6f838da` (`a6f838da8721052eb68c9061dd576f5aa03cafb3`) — spent #589 through #591 (bank #590–#591 after TODO-SYNC-GAPS #589). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT on this tip.
+Tip `9fe03794` (`9fe03794f44d11107fb89aac541fd17e36613258`) — spent #592 through #595 (bank #593–#595 after TODO-SYNC-RITE #592; P3 CONTINUE-BAK-AWARE RETIRED, not cooked). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT (recorded on #592) · #592–#595 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -161,7 +161,7 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Cook that file. Do not copy a second queue onto this page.
 
-0. **CARD TODO-SYNC-RITE** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Stamp #589 through #591 at `a6f838da`.
+0. **CARD P5 TODO-SYNC** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. TODO-SYNC-RITE spent at #592 `2a7e90c0`. Stamp P1 NAME-RITE-DOC-SYNC #593 `29c4eb95`, P2 RITE-QUIT-SAFE #594 `0951567a`, P4 NAME-RITE-COPRIME #595 `9fe03794`. P3 CONTINUE-BAK-AWARE RETIRED, not cooked. Next: HEARTBEAT, then DARK. No new card named.
 1. **Standing Next** — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). CLERK-LAG-LABELS is spent (#578). Do not invent PATHS.
 
 Bounds (not cards):
@@ -183,9 +183,9 @@ Named later (not ranked · needs Core bounds before anyone cooks · not fixed on
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at a6f838da. Method B confirm UI stays JUNCTION until Steward names PATH.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 9fe03794. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** TODO-SYNC-RITE → `docs/GODSPEED_PREP.md` (standing Next).
+**Effective order (verified):** P5 TODO-SYNC → HEARTBEAT → DARK. No new card named.
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
@@ -195,7 +195,7 @@ NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.
 
 Grok Hands cook Grok 4.7 Extra High (non-fast); fallback 4.7 High. Never Fast / Codex / GPT / Claude / Auto / Composer. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
-## Gaps @ tip a6f838da
+## Gaps @ tip 9fe03794
 
 Listed, not queued.
 
@@ -207,9 +207,9 @@ Listed, not queued.
 6. Human gates open: playtest minutes, Steam App ID, Online R2, Bevy climb (pin 0.14). Gate: SHERIF GATE.
 7. CI runs cargo test on ubuntu only; no shippable build or artifact. Gate: candidate; needs Core bounds and Sherif's word before any .github/** change.
 8. No panic hook / crash log. Gate: candidate; local file only, no upload.
-9. name_rite given and house lists both have 12 words, so only 12 distinct offers, not 144. Gate: candidate fix (coprime list lengths).
-10. When only .bak survives, Continue's persist-present check still looks at the main file only. Banked for Sherif. No card named.
-11. The soft-write skip resolves the house on disk, so a player who quits while the naming plate is open never sees the rite again. Banked for Sherif. No card named.
+9. name_rite given and house lists were both 12 words. P4 NAME-RITE-COPRIME spent at #595, main `9fe03794`: HOUSE appended "Vysholt", lists now 12 GIVEN x 13 HOUSE, coprime, 156 distinct offers. Gate: spent.
+10. When only .bak survives, Continue checks the main file only. P3 CONTINUE-BAK-AWARE RETIRED: already covered by the `HouseName::load_from_path` `.bak` fallback from #590. Not cooked. Gate: retired.
+11. Quit with plate open. P2 RITE-QUIT-SAFE spent at #594, main `0951567a`. Gate: spent.
 
 ## Refuses this turn
 
