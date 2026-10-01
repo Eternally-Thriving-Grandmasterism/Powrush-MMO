@@ -503,6 +503,9 @@ pub struct HouseLabel {
     pub naming_offered: bool,
     /// Offer D3 seals/heritage once after name resolved.
     pub seals_offered: bool,
+    /// Name-rite sentence on the existing hint. Empty keeps the old line.
+    /// On the label so hint refresh sees the same write as plate open.
+    pub rite_line: String,
 }
 
 impl Default for HouseLabel {
@@ -536,6 +539,7 @@ impl Default for HouseLabel {
             draft: String::new(),
             naming_offered: false,
             seals_offered,
+            rite_line: String::new(),
         }
     }
 }
@@ -2456,11 +2460,9 @@ fn watch_settled_for_naming(
         label.naming_offered = true;
         label.draft.clear();
         if hour1 {
-            // Mint or reuse the disk seed while the house is still unresolved.
-            // persist() writes the mint and leaves this seed at 0.
-            if label.house.seed == 0 {
-                label.house.persist();
-            }
+            // One mint while seed is 0 and the house is still unresolved.
+            // persist() does not skip; memory seed stays 0 until arm copies disk.
+            let _ = settled_mint_unresolved_zero_seed(&label.house);
             let _ = arm_name_rite_offer(&mut label, true);
         }
         // Soft-write Unnamed so Continue works even if they quit mid-name panel.
@@ -2470,9 +2472,24 @@ fn watch_settled_for_naming(
     }
     if label.house.resolved && !label.house.seals_resolved && !label.seals_offered {
         label.seals_offered = true;
+        label.rite_line.clear();
         ensure_house_file_written(&mut label);
         *door = LaunchDoor::HouseDress;
     }
+}
+
+/// Settled mint. Fires at most once: memory seed still 0, house unresolved,
+/// and disk does not already hold a seed. Does not resolve or skip.
+/// Memory seed stays 0; this is the only new house-file write on the plate.
+fn settled_mint_unresolved_zero_seed(house: &HouseName) -> bool {
+    if house.seed != 0 || house.resolved {
+        return false;
+    }
+    if HouseName::load_or_default().seed != 0 {
+        return false;
+    }
+    house.persist();
+    true
 }
 
 /// Esc while InYard toggles D1 pause plate (stranger-pass / E1 + Wave H).
@@ -2530,6 +2547,7 @@ fn apply_yard_pause(step: YardPause, label: &mut HouseLabel, places: Option<&mut
 }
 
 /// After Settled or quit-to-title: house JSON exists (name may be null / Unnamed).
+/// The soft-write `skip` resolves the house and does not clear `rite_line`.
 fn ensure_house_file_written(label: &mut HouseLabel) {
     if !label.house.resolved {
         label.house.skip();
@@ -2615,6 +2633,7 @@ fn return_yard_to_title(
     if let Some(bind) = bind {
         bind.persist();
     }
+    label.rite_line.clear();
     *door = LaunchDoor::Title;
 }
 
@@ -3648,6 +3667,7 @@ fn name_rite_hour1_persist(settled: bool, persist_present: bool) -> bool {
 }
 
 /// Soft-write `skip` sets `house.resolved` so Continue works mid-panel.
+/// That skip leaves `rite_line` so the open plate can paint it.
 /// Rename and dress are the resolved branches that must not call `offer`.
 fn name_rite_resolved_branch(label: &HouseLabel) -> bool {
     label.house.seals_resolved || label.seals_offered
@@ -3658,27 +3678,20 @@ fn name_rite_gate_open(on_name_house: bool, hour1_persist: bool, resolved: bool,
     on_name_house && hour1_persist && !resolved && seed != 0
 }
 
+#[cfg(test)]
 std::thread_local! {
     static NAME_RITE_OFFER_CALLS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
-    static NAME_RITE_PAINT: std::cell::RefCell<(u64, String)> =
-        std::cell::RefCell::new((0, String::new()));
-}
-
-fn name_rite_store_paint(seed: u64, line: String) {
-    NAME_RITE_PAINT.with(|paint| *paint.borrow_mut() = (seed, line));
-}
-
-fn name_rite_clear_paint() {
-    name_rite_store_paint(0, String::new());
 }
 
 /// Every plate call to `name_rite::offer` goes through here.
 /// Cold Title and a resolved house return before this.
 fn name_rite_offer(seed: u64) -> String {
+    #[cfg(test)]
     NAME_RITE_OFFER_CALLS.with(|calls| calls.set(calls.get().saturating_add(1)));
     shared::house_name::name_rite::offer(seed)
 }
 
+#[cfg(test)]
 fn name_rite_offer_calls() -> u32 {
     NAME_RITE_OFFER_CALLS.with(|calls| calls.get())
 }
@@ -3697,22 +3710,16 @@ fn name_rite_offer_sentence(
     Some(name_house_calls_you_line(&name_rite_offer(seed)))
 }
 
-/// Paint the sentence cached at plate open. Does not call `offer`.
+/// Paint `label.rite_line` on the existing hint. Does not call `offer`.
 fn name_house_hint_line(door: LaunchDoor, label: &HouseLabel) -> String {
     if door != LaunchDoor::NameHouse
         || !label.persist_present
         || name_rite_resolved_branch(label)
+        || label.rite_line.is_empty()
     {
         return NAME_HOUSE_HINT.to_string();
     }
-    NAME_RITE_PAINT.with(|paint| {
-        let paint = paint.borrow();
-        if paint.0 == label.house.seed && label.house.seed != 0 {
-            paint.1.clone()
-        } else {
-            NAME_HOUSE_HINT.to_string()
-        }
-    })
+    label.rite_line.clone()
 }
 
 /// Once, when the plate opens under the gate and memory seed is 0, copy the disk seed.
@@ -3731,7 +3738,7 @@ fn arm_name_rite_offer(label: &mut HouseLabel, hour1_persist: bool) -> Option<St
     let offered = name_rite_offer(label.house.seed);
     label.draft = offered.clone();
     let line = name_house_calls_you_line(&offered);
-    name_rite_store_paint(label.house.seed, line.clone());
+    label.rite_line = line.clone();
     Some(line)
 }
 
@@ -3870,9 +3877,15 @@ fn name_house_buttons(
             label.seals_offered,
         ) {
             // Rename cancel after dress — keep existing name, back to yard.
-            NameHouseEscape::Yard => *door = LaunchDoor::InYard,
+            NameHouseEscape::Yard => {
+                label.rite_line.clear();
+                *door = LaunchDoor::InYard;
+            }
             // Mid-dress rename cancel — keep name, return to seals panel.
-            NameHouseEscape::Dress => *door = LaunchDoor::HouseDress,
+            NameHouseEscape::Dress => {
+                label.rite_line.clear();
+                *door = LaunchDoor::HouseDress;
+            }
             NameHouseEscape::Skip => {
                 label.house.skip();
                 label.house.persist();
@@ -3888,7 +3901,7 @@ fn refresh_name_house_hint(
     label: Res<HouseLabel>,
     mut hint: Query<&mut Text, With<NameHouseHintText>>,
 ) {
-    // Paint from the seed already on the label. Do not load the house file here.
+    // Paint label.rite_line. Do not load the house file here.
     let line = name_house_hint_line(*door, &label);
     for mut text in &mut hint {
         set_btn_section_text(&mut text, &line);
@@ -3897,6 +3910,7 @@ fn refresh_name_house_hint(
 
 /// After naming: D3 dress if seals not yet resolved; else yard.
 fn advance_after_naming(label: &mut HouseLabel) -> LaunchDoor {
+    label.rite_line.clear();
     if label.house.resolved && !label.house.seals_resolved {
         label.seals_offered = true;
         LaunchDoor::HouseDress
@@ -4011,6 +4025,7 @@ fn house_dress_buttons(
             // with seals_resolved false would re-enter dress. Set seals_resolved
             // only on Confirm/Skip. For rename mid-dress, go to NameHouse and
             // come back via advance_after_naming.
+            label.rite_line.clear();
             *door = LaunchDoor::NameHouse;
             return;
         }
@@ -5916,6 +5931,7 @@ mod tests {
             draft: String::new(),
             naming_offered: false,
             seals_offered: false,
+            rite_line: String::new(),
         };
         assert!(!label.house.resolved);
         if !label.house.resolved {
@@ -6414,6 +6430,7 @@ mod tests {
             draft: String::new(),
             naming_offered: true,
             seals_offered: false,
+            rite_line: String::new(),
         };
         label.house.skip();
         assert_eq!(
@@ -6723,6 +6740,7 @@ mod tests {
             draft: String::new(),
             naming_offered: false,
             seals_offered: false,
+            rite_line: String::new(),
         }
     }
 
@@ -6937,7 +6955,6 @@ mod tests {
 
     #[test]
     fn name_rite_cold_title_never_calls_offer() {
-        super::name_rite_clear_paint();
         let before = super::name_rite_offer_calls();
         assert!(super::name_rite_offer_sentence(false, false, false, 41).is_none());
         assert!(super::name_rite_offer_sentence(true, false, false, 99).is_none());
@@ -6955,12 +6972,51 @@ mod tests {
         );
         assert_eq!(cold.house.seed, 41);
         assert!(cold.draft.is_empty());
+        assert!(cold.rite_line.is_empty());
         assert_eq!(super::name_rite_offer_calls(), before);
     }
 
     #[test]
+    fn name_rite_hint_paints_from_label_rite_line() {
+        let mut label = rite_label(HouseName::default(), true);
+        label.house.seed = 41;
+        assert!(label.rite_line.is_empty());
+        assert_eq!(
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+            super::NAME_HOUSE_HINT
+        );
+        let line = super::name_house_calls_you_line(&shared::house_name::name_rite::offer(41));
+        label.rite_line = line.clone();
+        assert_eq!(
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+            label.rite_line
+        );
+        label.rite_line.clear();
+        let armed = super::arm_name_rite_offer(&mut label, true).unwrap();
+        assert_eq!(armed, label.rite_line);
+        assert_eq!(
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+            label.rite_line
+        );
+        label.house.skip();
+        assert!(label.house.resolved);
+        assert_eq!(
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+            label.rite_line
+        );
+        assert_eq!(
+            super::advance_after_naming(&mut label),
+            LaunchDoor::HouseDress
+        );
+        assert!(label.rite_line.is_empty());
+        assert_eq!(
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label),
+            super::NAME_HOUSE_HINT
+        );
+    }
+
+    #[test]
     fn name_rite_resolved_house_never_calls_offer() {
-        super::name_rite_clear_paint();
         let before = super::name_rite_offer_calls();
         assert!(super::name_rite_offer_sentence(true, true, true, 41).is_none());
         let mut named = rite_label(HouseName::default(), true);
@@ -6981,11 +7037,12 @@ mod tests {
             super::name_house_hint_line(LaunchDoor::NameHouse, &skipped),
             super::NAME_HOUSE_HINT
         );
-        super::name_rite_store_paint(41, "the house calls you Kept".into());
+        skipped.rite_line = "the house calls you Kept".into();
         assert_eq!(
             super::name_house_hint_line(LaunchDoor::NameHouse, &skipped),
-            "the house calls you Kept"
+            skipped.rite_line
         );
+        named.rite_line = skipped.rite_line.clone();
         named.house.seed = 41;
         assert_eq!(
             super::name_house_hint_line(LaunchDoor::NameHouse, &named),
@@ -7054,6 +7111,79 @@ mod tests {
             return;
         }
         panic!("POWRUSH_USER_DIR did not stay on the fresh Hour 1 house");
+    }
+
+    #[test]
+    fn settled_persist_once_leaves_resolved_and_skip_unchanged() {
+        let scratch = NameRiteUserDir::new("settled-persist");
+        let path = scratch.dir.join("powrush_house.json");
+        let skipped = |house: &HouseName| house.resolved && house.name.is_empty();
+        for _ in 0..32 {
+            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::remove_file(scratch.dir.join("powrush_house.json.bak"));
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
+            if !user_dir_is(&scratch.dir) {
+                continue;
+            }
+            let house = HouseName::default();
+            assert_eq!(house.seed, 0);
+            assert!(!house.resolved);
+            assert!(house.name.is_empty());
+            assert!(!skipped(&house));
+            let resolved = house.resolved;
+            let name = house.name.clone();
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
+            if !super::settled_mint_unresolved_zero_seed(&house) || !user_dir_is(&scratch.dir) {
+                continue;
+            }
+            assert_eq!(house.resolved, resolved);
+            assert_eq!(house.name, name);
+            assert_eq!(house.seed, 0);
+            assert!(!house.resolved);
+            assert!(!skipped(&house));
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
+            let saved = HouseName::load_or_default();
+            if !user_dir_is(&scratch.dir) || saved.seed == 0 || saved.resolved || !saved.name.is_empty()
+            {
+                continue;
+            }
+            let bytes = match std::fs::read(&path) {
+                Ok(bytes) => bytes,
+                Err(_) => continue,
+            };
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
+            if super::settled_mint_unresolved_zero_seed(&house) || !user_dir_is(&scratch.dir) {
+                continue;
+            }
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+            assert_eq!(house.resolved, resolved);
+            assert_eq!(house.name, name);
+
+            let mut resolved_house = house.clone();
+            resolved_house.skip();
+            resolved_house.seed = 0;
+            assert!(resolved_house.resolved);
+            assert!(skipped(&resolved_house));
+            let resolved_flag = resolved_house.resolved;
+            let resolved_name = resolved_house.name.clone();
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
+            assert!(!super::settled_mint_unresolved_zero_seed(&resolved_house));
+            assert_eq!(resolved_house.resolved, resolved_flag);
+            assert_eq!(resolved_house.name, resolved_name);
+            assert!(skipped(&resolved_house));
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+
+            let mut seeded = HouseName::default();
+            seeded.seed = 41;
+            assert!(!seeded.resolved);
+            assert!(!super::settled_mint_unresolved_zero_seed(&seeded));
+            assert!(!seeded.resolved);
+            assert!(seeded.name.is_empty());
+            assert_eq!(seeded.seed, 41);
+            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+            return;
+        }
+        panic!("POWRUSH_USER_DIR did not stay on the settled persist house");
     }
 
 }

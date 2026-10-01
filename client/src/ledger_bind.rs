@@ -442,6 +442,7 @@ mod tests {
             draft: String::new(),
             naming_offered: true,
             seals_offered: true,
+            rite_line: String::new(),
         });
         app.add_systems(Startup, spawn_ledger_slab);
         app.add_systems(Update, update_ledger_slab);

@@ -829,6 +829,7 @@ mod tests {
             draft: String::new(),
             naming_offered: true,
             seals_offered: true,
+            rite_line: String::new(),
         });
         app.insert_resource(PlacesPlate::default());
         app.add_plugins(crate::net_mode::NetModePlugin);
