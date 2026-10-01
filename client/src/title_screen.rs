@@ -46,7 +46,8 @@
 //! Title Online; GrokOnline/OpenAi never first-run default. No new HUD / sockets.
 //! No race select at Title lobby. No new Peace keys. No Online socket. No preview tag.
 //! Fog/birds visual comfort PARKED (Title contrast law).
-//! Pause→Title + Settled write data/powrush_house.json even if name skipped.
+//! Pause→Title writes data/powrush_house.json and skip resolves that path.
+//! The open name plate persists unresolved until Enter, Escape, or an empty draft.
 //! Continue Unnamed House + yard remembers; Online grey; SmolStr drain.
 //!
 //! CARD NAME-RITE-OFFER: the existing NameHouse hint may say
@@ -56,6 +57,10 @@
 //! disk seed once. Seed 0 stays quiet and never calls `offer`. Rename and
 //! dress keep the old hint. Offline list. `ai_assist_used` untouched.
 //! Online grey.
+//!
+//! CARD P2 RITE-QUIT-SAFE: quitting or closing with the name plate open
+//! persists the unresolved house and does not `skip`. The rite offers again
+//! on the next Settled. Enter, Escape, and an empty draft still resolve.
 //!
 //! CARD L1 GARDEN-WANT — Garden / boot plane (walkable title · God-plane, D0
 //! EDEN-PLANE-LAW @ 2afff36) speaks the retargeted L1 SANCTUARY-WANT line
@@ -2469,8 +2474,11 @@ fn watch_settled_for_naming(
             let _ = settled_mint_unresolved_zero_seed(&label.house);
             let _ = arm_name_rite_offer(&mut label, true, &mut rite);
         }
-        // Soft-write Unnamed so Continue works even if they quit mid-name panel.
-        ensure_house_file_written(&mut label);
+        // Plate is open. Same persist as the soft-write, without skip.
+        // Quit or close here must leave the house unresolved. Enter, Escape,
+        // and an empty draft still resolve on their own paths.
+        label.house.persist();
+        label.persist_present = true;
         *door = LaunchDoor::NameHouse;
         return;
     }
@@ -2550,8 +2558,9 @@ fn apply_yard_pause(step: YardPause, label: &mut HouseLabel, places: Option<&mut
     }
 }
 
-/// After Settled or quit-to-title: house JSON exists (name may be null / Unnamed).
-/// The soft-write `skip` resolves the house and does not clear `NameRiteLine`.
+/// Seals offer and Pause→Title: house JSON exists (name may be null / Unnamed).
+/// This soft-write `skip` resolves the house and does not clear `NameRiteLine`.
+/// The open name-rite plate does not call this; it persists unresolved.
 fn ensure_house_file_written(label: &mut HouseLabel) {
     if !label.house.resolved {
         label.house.skip();
@@ -3672,9 +3681,8 @@ fn name_rite_hour1_persist(settled: bool, persist_present: bool) -> bool {
     settled || persist_present
 }
 
-/// Soft-write `skip` sets `house.resolved` so Continue works mid-panel.
-/// That skip leaves `NameRiteLine` so the open plate can paint it.
 /// Rename and dress are the resolved branches that must not call `offer`.
+/// The open name plate stays unresolved until Enter, Escape, or an empty draft.
 fn name_rite_resolved_branch(label: &HouseLabel) -> bool {
     label.house.seals_resolved || label.seals_offered
 }
@@ -5943,6 +5951,8 @@ mod tests {
     #[test]
     fn ensure_house_written_on_skip_path() {
         // In-memory skip path (no disk write in unit test).
+        // Seals offer and Pause→Title still resolve through this skip.
+        // The open name plate does not; quit-with-plate stays unresolved.
         let mut label = HouseLabel {
             house: HouseName::default(),
             persist_present: false,
@@ -7171,6 +7181,202 @@ mod tests {
         assert!(seeded.name.is_empty());
         assert_eq!(seeded.seed, 41);
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
+    }
+
+    fn settled_naming_app(label: HouseLabel) -> App {
+        let mut hour = HourSacred::default();
+        hour.complete = true;
+        let mut app = App::new();
+        app.insert_resource(LaunchDoor::InYard)
+            .insert_resource(label)
+            .insert_resource(NameRiteLine::default())
+            .insert_resource(hour)
+            .insert_resource(ButtonInput::<KeyCode>::default())
+            .add_systems(
+                Update,
+                (super::watch_settled_for_naming, super::name_house_buttons).chain(),
+            );
+        app
+    }
+
+    fn press_name_key(app: &mut App, key: KeyCode) {
+        let mut keys = ButtonInput::<KeyCode>::default();
+        keys.press(key);
+        app.insert_resource(keys);
+    }
+
+    /// Quit with the plate open: offer armed, no Enter or Escape.
+    /// Reload from disk stands in for the next launch.
+    #[test]
+    fn rite_quit_plate_open_stays_unresolved_and_offers_again() {
+        let scratch = NameRiteUserDir::new("quit-plate");
+        std::fs::write(
+            scratch.dir.join("powrush_hour_two.json"),
+            r#"{"complete":true}"#,
+        )
+        .unwrap();
+        assert!(shared::user_persist::named_exists(HOUR_TWO_PATH));
+        assert!(!shared::user_persist::named_exists(SHARD_CLIMATE_PATH));
+        assert!(!shared::user_persist::named_exists(SHARD_STANDING_PATH));
+
+        let mut app = settled_naming_app(rite_label(HouseName::default(), false));
+        app.update();
+
+        let door = *app.world().resource::<LaunchDoor>();
+        let rite = app.world().resource::<NameRiteLine>().0.clone();
+        let (offered, memory_seed, naming_offered, persist_present, resolved, name_empty) = {
+            let label = app.world().resource::<HouseLabel>();
+            (
+                label.draft.clone(),
+                label.house.seed,
+                label.naming_offered,
+                label.persist_present,
+                label.house.resolved,
+                label.house.name.is_empty(),
+            )
+        };
+        assert_eq!(door, LaunchDoor::NameHouse);
+        assert!(naming_offered);
+        assert!(persist_present);
+        assert!(!resolved);
+        assert!(name_empty);
+        assert!(!offered.trim().is_empty());
+        assert!(rite.starts_with("the house calls you "));
+
+        let saved = HouseName::load_or_default();
+        assert!(!saved.resolved, "quit must not persist resolved");
+        assert!(saved.name.is_empty());
+        assert_ne!(saved.seed, 0);
+        assert_eq!(saved.seed, memory_seed);
+        assert_eq!(
+            rite,
+            super::name_house_calls_you_line(&shared::house_name::name_rite::offer(saved.seed))
+        );
+        assert_eq!(offered, shared::house_name::name_rite::offer(saved.seed));
+
+        // Next launch: hour-two file still offers Continue while the house is unresolved.
+        let restarted = HouseLabel::default();
+        assert!(!restarted.house.resolved);
+        assert!(restarted.hour_two_held);
+        assert!(!restarted.naming_offered);
+        assert!(
+            local_persist_present(
+                shared::user_persist::named_exists(HOUR_TWO_PATH),
+                shared::user_persist::named_exists(SHARD_CLIMATE_PATH),
+                shared::user_persist::named_exists(SHARD_STANDING_PATH),
+                restarted.house.resolved,
+            )
+        );
+        assert!(restarted.persist_present);
+        assert_eq!(
+            continue_cue_when_persist(restarted.persist_present, &restarted.house).as_deref(),
+            Some("Unnamed House · the yard remembers")
+        );
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+
+        let mut again = settled_naming_app(restarted);
+        again.update();
+        let door = *again.world().resource::<LaunchDoor>();
+        let rite_again = again.world().resource::<NameRiteLine>().0.clone();
+        let (draft_again, resolved_again) = {
+            let label = again.world().resource::<HouseLabel>();
+            (label.draft.clone(), label.house.resolved)
+        };
+        assert_eq!(door, LaunchDoor::NameHouse);
+        assert!(!resolved_again);
+        assert_eq!(draft_again, offered);
+        assert_eq!(rite_again, rite);
+        let reloaded = HouseName::load_or_default();
+        assert!(!reloaded.resolved);
+        assert_eq!(reloaded.seed, saved.seed);
+    }
+
+    /// Explicit Escape, empty-draft Enter, and a typed Enter still resolve and persist.
+    #[test]
+    fn rite_explicit_skip_or_enter_still_resolves_and_persists() {
+        {
+            let _scratch = NameRiteUserDir::new("escape-skip");
+            let mut app = settled_naming_app(rite_label(HouseName::default(), false));
+            app.update();
+            assert!(!app.world().resource::<HouseLabel>().house.resolved);
+            assert!(matches!(
+                super::name_house_escape_act(false, false, false),
+                super::NameHouseEscape::Skip
+            ));
+            press_name_key(&mut app, KeyCode::Escape);
+            app.update();
+            {
+                let label = app.world().resource::<HouseLabel>();
+                assert!(label.house.resolved);
+                assert!(label.persist_present);
+                assert_eq!(label.house.display_name(), UNNAMED);
+                assert!(label.house.name.is_empty());
+            }
+            let saved = HouseName::load_or_default();
+            assert!(saved.resolved);
+            assert!(saved.name.is_empty());
+            assert_ne!(saved.seed, 0);
+
+            let mut next = settled_naming_app(HouseLabel::default());
+            next.update();
+            assert!(next.world().resource::<HouseLabel>().house.resolved);
+            assert!(next.world().resource::<NameRiteLine>().0.is_empty());
+            assert_ne!(
+                *next.world().resource::<LaunchDoor>(),
+                LaunchDoor::NameHouse
+            );
+            assert!(HouseName::load_or_default().resolved);
+        }
+        {
+            let _scratch = NameRiteUserDir::new("empty-draft-skip");
+            let mut app = settled_naming_app(rite_label(HouseName::default(), false));
+            app.update();
+            {
+                let mut label = app.world_mut().resource_mut::<HouseLabel>();
+                assert!(!label.house.resolved);
+                assert!(!label.draft.trim().is_empty());
+                label.draft.clear();
+            }
+            assert!(matches!(
+                super::name_house_confirm_act(false, false, false, ""),
+                super::NameHouseConfirm::Skip
+            ));
+            press_name_key(&mut app, KeyCode::Enter);
+            app.update();
+            {
+                let label = app.world().resource::<HouseLabel>();
+                assert!(label.house.resolved);
+                assert!(label.persist_present);
+                assert_eq!(label.house.display_name(), UNNAMED);
+                assert!(label.house.name.is_empty());
+            }
+            let saved = HouseName::load_or_default();
+            assert!(saved.resolved);
+            assert!(saved.name.is_empty());
+        }
+        {
+            let _scratch = NameRiteUserDir::new("enter-confirm");
+            let mut app = settled_naming_app(rite_label(HouseName::default(), false));
+            app.update();
+            let draft = app.world().resource::<HouseLabel>().draft.clone();
+            assert!(!draft.trim().is_empty());
+            assert!(matches!(
+                super::name_house_confirm_act(false, false, false, &draft),
+                super::NameHouseConfirm::Confirm
+            ));
+            press_name_key(&mut app, KeyCode::Enter);
+            app.update();
+            {
+                let label = app.world().resource::<HouseLabel>();
+                assert!(label.house.resolved);
+                assert!(label.persist_present);
+                assert_eq!(label.house.display_name(), draft);
+                assert!(!label.house.name.is_empty());
+            }
+            let saved = HouseName::load_or_default();
+            assert!(saved.resolved);
+            assert_eq!(saved.display_name(), draft);
+        }
     }
 
 }
