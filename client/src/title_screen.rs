@@ -4370,6 +4370,8 @@ fn persona_creator_buttons(
 
 #[cfg(test)]
 mod tests {
+    static USER_DIR_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     use super::*;
     use shared::house_name::{
         continue_cue, continue_cue_when_persist, esc_from_title_preserves_persist, YARD_REMEMBERS,
@@ -6592,6 +6594,9 @@ mod tests {
 
     #[test]
     fn mercy_persona_p4_soft_draft_commit_persists_when_flag_on() {
+        let _user_dir = USER_DIR_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         // Flag on: Commit works when the creator path is exercised.
         assert!(PERSONA_CREATOR_ENABLED);
         let dir = std::env::temp_dir().join(format!(
@@ -6767,10 +6772,14 @@ mod tests {
     struct NameRiteUserDir {
         prev: Option<String>,
         dir: std::path::PathBuf,
+        _lock: std::sync::MutexGuard<'static, ()>,
     }
 
     impl NameRiteUserDir {
         fn new(tag: &str) -> Self {
+            let _lock = USER_DIR_ENV_LOCK
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
             let dir = std::env::temp_dir().join(format!(
                 "powrush-name-rite-offer-{}-{}-{tag}",
                 std::process::id(),
@@ -6783,7 +6792,7 @@ mod tests {
             std::fs::create_dir_all(&dir).expect("temp user dir");
             let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
             std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
-            Self { prev, dir }
+            Self { prev, dir, _lock }
         }
     }
 
@@ -6940,45 +6949,27 @@ mod tests {
         ));
     }
 
-    fn user_dir_is(dir: &std::path::Path) -> bool {
-        shared::user_persist::persist_dir() == dir
-    }
-
     #[test]
     fn name_rite_disk_seed_zero_shows_no_offer() {
         let scratch = NameRiteUserDir::new("seed-zero");
         let house = HouseName::default();
         assert_eq!(house.seed, 0);
         let raw = house.to_json().unwrap();
-        let path = scratch.dir.join("powrush_house.json");
-        for _ in 0..32 {
-            std::fs::write(&path, &raw).unwrap();
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            if !user_dir_is(&scratch.dir) {
-                continue;
-            }
-            if HouseName::load_or_default().seed != 0 || !user_dir_is(&scratch.dir) {
-                continue;
-            }
-            let mut label = rite_label(HouseName::default(), true);
-            let mut rite = super::NameRiteLine::default();
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            let calls_before = super::name_rite_offer_calls();
-            let sentence = super::arm_name_rite_offer(&mut label, true, &mut rite);
-            if !user_dir_is(&scratch.dir) || label.house.seed != 0 {
-                continue;
-            }
-            assert!(sentence.is_none());
-            assert!(rite.0.is_empty());
-            assert_eq!(super::name_rite_offer_calls(), calls_before);
-            assert!(label.draft.is_empty());
-            assert_eq!(
-                super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
-                super::NAME_HOUSE_HINT
-            );
-            return;
-        }
-        panic!("POWRUSH_USER_DIR did not stay on the seed-0 house");
+        std::fs::write(scratch.dir.join("powrush_house.json"), &raw).unwrap();
+        assert_eq!(HouseName::load_or_default().seed, 0);
+        let mut label = rite_label(HouseName::default(), true);
+        let mut rite = super::NameRiteLine::default();
+        let calls_before = super::name_rite_offer_calls();
+        let sentence = super::arm_name_rite_offer(&mut label, true, &mut rite);
+        assert_eq!(label.house.seed, 0);
+        assert!(sentence.is_none());
+        assert!(rite.0.is_empty());
+        assert_eq!(super::name_rite_offer_calls(), calls_before);
+        assert!(label.draft.is_empty());
+        assert_eq!(
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
+            super::NAME_HOUSE_HINT
+        );
     }
 
     #[test]
@@ -7087,66 +7078,48 @@ mod tests {
 
     #[test]
     fn name_rite_fresh_hour1_plate_open_matches_disk_seed() {
-        let scratch = NameRiteUserDir::new("fresh-hour1");
+        let _scratch = NameRiteUserDir::new("fresh-hour1");
         assert!(super::name_rite_hour1_persist(true, false));
-        for _ in 0..32 {
-            let _ = std::fs::remove_file(scratch.dir.join("powrush_house.json"));
-            let _ = std::fs::remove_file(scratch.dir.join("powrush_house.json.bak"));
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            let mut label = rite_label(HouseName::default(), false);
-            assert!(!label.house.resolved);
-            assert_eq!(label.house.seed, 0);
-            label.house.persist();
-            if !user_dir_is(&scratch.dir) || label.house.seed != 0 {
-                continue;
-            }
-            let calls_before = super::name_rite_offer_calls();
-            let mut rite = super::NameRiteLine::default();
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            let Some(sentence) = super::arm_name_rite_offer(&mut label, true, &mut rite) else {
-                continue;
-            };
-            if !user_dir_is(&scratch.dir) || label.house.seed == 0 {
-                continue;
-            }
-            if super::name_rite_offer_calls() != calls_before.saturating_add(1) {
-                continue;
-            }
-            let from_plate = label.draft.clone();
-            let from_memory = shared::house_name::name_rite::offer(label.house.seed);
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            let reloaded = HouseName::load_or_default();
-            if !user_dir_is(&scratch.dir) {
-                continue;
-            }
-            let from_disk = shared::house_name::name_rite::offer(reloaded.seed);
-            if from_plate != from_memory || from_memory != from_disk {
-                continue;
-            }
-            assert_eq!(sentence, super::name_house_calls_you_line(&from_plate));
-            assert_eq!(rite.0, sentence);
-            label.house.skip();
-            label.persist_present = true;
-            assert!(label.house.resolved);
-            let after_resolve = super::name_rite_offer_calls();
-            assert_eq!(
-                super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
-                sentence
-            );
-            assert!(super::arm_name_rite_offer(&mut label, true, &mut rite).is_none());
-            assert_eq!(rite.0, sentence);
-            assert_eq!(super::name_rite_offer_calls(), after_resolve);
-            let carried = label.house.seed;
-            label.draft.push('x');
-            assert_eq!(label.house.seed, carried);
-            assert!(label.draft.ends_with('x'));
-            assert_eq!(
-                super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
-                sentence
-            );
-            return;
-        }
-        panic!("POWRUSH_USER_DIR did not stay on the fresh Hour 1 house");
+        let mut label = rite_label(HouseName::default(), false);
+        assert!(!label.house.resolved);
+        assert_eq!(label.house.seed, 0);
+        label.house.persist();
+        assert_eq!(label.house.seed, 0);
+        let calls_before = super::name_rite_offer_calls();
+        let mut rite = super::NameRiteLine::default();
+        let sentence = super::arm_name_rite_offer(&mut label, true, &mut rite).expect("offer");
+        assert_ne!(label.house.seed, 0);
+        assert_eq!(
+            super::name_rite_offer_calls(),
+            calls_before.saturating_add(1)
+        );
+        let from_plate = label.draft.clone();
+        let from_memory = shared::house_name::name_rite::offer(label.house.seed);
+        let reloaded = HouseName::load_or_default();
+        let from_disk = shared::house_name::name_rite::offer(reloaded.seed);
+        assert_eq!(from_plate, from_memory);
+        assert_eq!(from_memory, from_disk);
+        assert_eq!(sentence, super::name_house_calls_you_line(&from_plate));
+        assert_eq!(rite.0, sentence);
+        label.house.skip();
+        label.persist_present = true;
+        assert!(label.house.resolved);
+        let after_resolve = super::name_rite_offer_calls();
+        assert_eq!(
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
+            sentence
+        );
+        assert!(super::arm_name_rite_offer(&mut label, true, &mut rite).is_none());
+        assert_eq!(rite.0, sentence);
+        assert_eq!(super::name_rite_offer_calls(), after_resolve);
+        let carried = label.house.seed;
+        label.draft.push('x');
+        assert_eq!(label.house.seed, carried);
+        assert!(label.draft.ends_with('x'));
+        assert_eq!(
+            super::name_house_hint_line(LaunchDoor::NameHouse, &label, Some(&rite)),
+            sentence
+        );
     }
 
     #[test]
@@ -7154,72 +7127,50 @@ mod tests {
         let scratch = NameRiteUserDir::new("settled-persist");
         let path = scratch.dir.join("powrush_house.json");
         let skipped = |house: &HouseName| house.resolved && house.name.is_empty();
-        for _ in 0..32 {
-            let _ = std::fs::remove_file(&path);
-            let _ = std::fs::remove_file(scratch.dir.join("powrush_house.json.bak"));
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            if !user_dir_is(&scratch.dir) {
-                continue;
-            }
-            let house = HouseName::default();
-            assert_eq!(house.seed, 0);
-            assert!(!house.resolved);
-            assert!(house.name.is_empty());
-            assert!(!skipped(&house));
-            let resolved = house.resolved;
-            let name = house.name.clone();
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            if !super::settled_mint_unresolved_zero_seed(&house) || !user_dir_is(&scratch.dir) {
-                continue;
-            }
-            assert_eq!(house.resolved, resolved);
-            assert_eq!(house.name, name);
-            assert_eq!(house.seed, 0);
-            assert!(!house.resolved);
-            assert!(!skipped(&house));
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            let saved = HouseName::load_or_default();
-            if !user_dir_is(&scratch.dir) || saved.seed == 0 || saved.resolved || !saved.name.is_empty()
-            {
-                continue;
-            }
-            let bytes = match std::fs::read(&path) {
-                Ok(bytes) => bytes,
-                Err(_) => continue,
-            };
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            if super::settled_mint_unresolved_zero_seed(&house) || !user_dir_is(&scratch.dir) {
-                continue;
-            }
-            assert_eq!(std::fs::read(&path).unwrap(), bytes);
-            assert_eq!(house.resolved, resolved);
-            assert_eq!(house.name, name);
+        let house = HouseName::default();
+        assert_eq!(house.seed, 0);
+        assert!(!house.resolved);
+        assert!(house.name.is_empty());
+        assert!(!skipped(&house));
+        let resolved = house.resolved;
+        let name = house.name.clone();
+        assert!(super::settled_mint_unresolved_zero_seed(&house));
+        assert_eq!(house.resolved, resolved);
+        assert_eq!(house.name, name);
+        assert_eq!(house.seed, 0);
+        assert!(!house.resolved);
+        assert!(!skipped(&house));
+        let saved = HouseName::load_or_default();
+        assert_ne!(saved.seed, 0);
+        assert!(!saved.resolved);
+        assert!(saved.name.is_empty());
+        let bytes = std::fs::read(&path).unwrap();
+        assert!(!super::settled_mint_unresolved_zero_seed(&house));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert_eq!(house.resolved, resolved);
+        assert_eq!(house.name, name);
 
-            let mut resolved_house = house.clone();
-            resolved_house.skip();
-            resolved_house.seed = 0;
-            assert!(resolved_house.resolved);
-            assert!(skipped(&resolved_house));
-            let resolved_flag = resolved_house.resolved;
-            let resolved_name = resolved_house.name.clone();
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &scratch.dir);
-            assert!(!super::settled_mint_unresolved_zero_seed(&resolved_house));
-            assert_eq!(resolved_house.resolved, resolved_flag);
-            assert_eq!(resolved_house.name, resolved_name);
-            assert!(skipped(&resolved_house));
-            assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        let mut resolved_house = house.clone();
+        resolved_house.skip();
+        resolved_house.seed = 0;
+        assert!(resolved_house.resolved);
+        assert!(skipped(&resolved_house));
+        let resolved_flag = resolved_house.resolved;
+        let resolved_name = resolved_house.name.clone();
+        assert!(!super::settled_mint_unresolved_zero_seed(&resolved_house));
+        assert_eq!(resolved_house.resolved, resolved_flag);
+        assert_eq!(resolved_house.name, resolved_name);
+        assert!(skipped(&resolved_house));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
 
-            let mut seeded = HouseName::default();
-            seeded.seed = 41;
-            assert!(!seeded.resolved);
-            assert!(!super::settled_mint_unresolved_zero_seed(&seeded));
-            assert!(!seeded.resolved);
-            assert!(seeded.name.is_empty());
-            assert_eq!(seeded.seed, 41);
-            assert_eq!(std::fs::read(&path).unwrap(), bytes);
-            return;
-        }
-        panic!("POWRUSH_USER_DIR did not stay on the settled persist house");
+        let mut seeded = HouseName::default();
+        seeded.seed = 41;
+        assert!(!seeded.resolved);
+        assert!(!super::settled_mint_unresolved_zero_seed(&seeded));
+        assert!(!seeded.resolved);
+        assert!(seeded.name.is_empty());
+        assert_eq!(seeded.seed, 41);
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
     }
 
 }
