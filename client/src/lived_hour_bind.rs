@@ -55,6 +55,22 @@ impl Default for LivedHourBind {
     }
 }
 
+/// One file in an hour-set persist that did not land.
+/// `detail` is absent on the ingest branch: `soft_write_if_enabled` returns a
+/// bool and drops the io error, so the warn names the file only.
+struct HourSetMiss {
+    path: &'static str,
+    detail: Option<String>,
+}
+
+/// Paths attempted, then paths that failed, both in attempt order.
+struct HourSetWrite {
+    /// Read by the hour-set tests. `persist` warns from `failed` only.
+    #[allow(dead_code)]
+    attempted: Vec<&'static str>,
+    failed: Vec<HourSetMiss>,
+}
+
 impl LivedHourBind {
     fn load_climate() -> ShardClimate {
         if let Ok(raw) = shared::user_persist::read_named(SHARD_CLIMATE_PATH) {
@@ -155,31 +171,73 @@ impl LivedHourBind {
             .map(|s| s.to_string())
     }
 
-    // CARD LR-02 SAVE-HOUR-SET-1 — ordered hour-set persist; tick file is the commit marker.
     pub fn persist(&self) {
+        // Never delete the blob. Never block the hour or WASD.
+        let set = self.write_hour_set();
+        for miss in &set.failed {
+            warn!("{}", hour_set_failure_line(miss));
+        }
+    }
+
+    /// CARD LR-02 SAVE-HOUR-SET-1 — climate, standing, week, then the tick file.
+    /// The tick path is the commit marker. A failed write is recorded and the
+    /// rest still run.
+    fn write_hour_set(&self) -> HourSetWrite {
+        let mut attempted = Vec::with_capacity(4);
+        let mut failed = Vec::new();
+        // Soft-fail climate / standing / week I/O — never block the hour.
+        record_named_json(
+            SHARD_CLIMATE_PATH,
+            self.climate.to_json(),
+            &mut attempted,
+            &mut failed,
+        );
+        record_named_json(
+            SHARD_STANDING_PATH,
+            self.standing.to_json(),
+            &mut attempted,
+            &mut failed,
+        );
+        record_named_json(
+            WEEK_AUDIT_PATH,
+            self.week.to_json(),
+            &mut attempted,
+            &mut failed,
+        );
         // Session persist always: bare LivedHour blob for Continuity (not Ra-Thor ingest).
         // L3: when POWRUSH_INGEST=on, soft-write versioned lattice overlay (nested hour).
         // Checklist "no tick" = no ingest overlay. Never delete the blob. Never block WASD.
+        attempted.push(LIVED_TICK_PATH);
         if lived_tick_ingest::ingest_enabled() {
-            let _ = lived_tick_ingest::soft_write_if_enabled(
+            if !lived_tick_ingest::soft_write_if_enabled(
                 &self.climate,
                 &self.standing,
                 &self.week,
                 &self.hour,
-            );
-        } else if let Ok(json) = self.hour.to_json() {
-            let _ = shared::user_persist::write_named(LIVED_TICK_PATH, json);
+            ) {
+                // soft_write_if_enabled returns a bool and drops the io error.
+                failed.push(HourSetMiss {
+                    path: LIVED_TICK_PATH,
+                    detail: None,
+                });
+            }
+        } else {
+            match self.hour.to_json() {
+                Ok(json) => {
+                    if let Err(err) = shared::user_persist::write_named(LIVED_TICK_PATH, json) {
+                        failed.push(HourSetMiss {
+                            path: LIVED_TICK_PATH,
+                            detail: Some(err.to_string()),
+                        });
+                    }
+                }
+                Err(err) => failed.push(HourSetMiss {
+                    path: LIVED_TICK_PATH,
+                    detail: Some(err.to_string()),
+                }),
+            }
         }
-        // Soft-fail climate / standing I/O — never block the hour.
-        if let Ok(json) = self.climate.to_json() {
-            let _ = shared::user_persist::write_named(SHARD_CLIMATE_PATH, json);
-        }
-        if let Ok(json) = self.standing.to_json() {
-            let _ = shared::user_persist::write_named(SHARD_STANDING_PATH, json);
-        }
-        if let Ok(json) = self.week.to_json() {
-            let _ = shared::user_persist::write_named(WEEK_AUDIT_PATH, json);
-        }
+        HourSetWrite { attempted, failed }
     }
 
     pub fn refresh_climate_slab(&mut self) {
@@ -323,6 +381,36 @@ impl LivedHourBind {
 
     pub fn tick(&mut self) {
         self.hour.tick();
+    }
+}
+
+fn record_named_json(
+    path: &'static str,
+    json: Result<String, impl std::fmt::Display>,
+    attempted: &mut Vec<&'static str>,
+    failed: &mut Vec<HourSetMiss>,
+) {
+    attempted.push(path);
+    match json {
+        Ok(body) => {
+            if let Err(err) = shared::user_persist::write_named(path, body) {
+                failed.push(HourSetMiss {
+                    path,
+                    detail: Some(err.to_string()),
+                });
+            }
+        }
+        Err(err) => failed.push(HourSetMiss {
+            path,
+            detail: Some(err.to_string()),
+        }),
+    }
+}
+
+fn hour_set_failure_line(miss: &HourSetMiss) -> String {
+    match &miss.detail {
+        Some(detail) => format!("lived hour persist failed for {}: {detail}", miss.path),
+        None => format!("lived hour persist failed for {}", miss.path),
     }
 }
 
@@ -608,5 +696,217 @@ mod tests {
         let slab = bind.climate_slab.as_deref().unwrap_or("");
         assert!(slab.contains("tons"));
         assert!(slab.contains("restored"));
+    }
+
+    // Env mutation is process-global — same ENV_LOCK pattern as shared::user_persist.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    struct ScratchDir(std::path::PathBuf);
+
+    impl ScratchDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "powrush-lr02-{}-{}-{tag}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0)
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("scratch");
+            Self(dir)
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn fresh_bind() -> LivedHourBind {
+        LivedHourBind {
+            hour: LivedHour::new_demo(),
+            climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
+            week: WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        }
+    }
+
+    fn hour_set_order() -> [&'static str; 4] {
+        [
+            SHARD_CLIMATE_PATH,
+            SHARD_STANDING_PATH,
+            WEEK_AUDIT_PATH,
+            LIVED_TICK_PATH,
+        ]
+    }
+
+    fn named_file(dir: &std::path::Path, logical: &str) -> std::path::PathBuf {
+        dir.join(shared::user_persist::persist_file_name(logical))
+    }
+
+    fn with_persist_env<R>(
+        dir: &std::path::Path,
+        ingest: Option<&str>,
+        body: impl FnOnce() -> R,
+    ) -> R {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+        let prev_dir = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        let prev_ingest = std::env::var("POWRUSH_INGEST").ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
+        match ingest {
+            Some(value) => std::env::set_var("POWRUSH_INGEST", value),
+            None => std::env::remove_var("POWRUSH_INGEST"),
+        }
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+        match &prev_dir {
+            Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
+            None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+        }
+        match &prev_ingest {
+            Some(value) => std::env::set_var("POWRUSH_INGEST", value),
+            None => std::env::remove_var("POWRUSH_INGEST"),
+        }
+        match result {
+            Ok(value) => value,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+
+    /// CARD LR-02 — write order is climate, standing, week, then tick last.
+    #[test]
+    fn hour_set_write_order_is_climate_standing_week_then_tick() {
+        let scratch = ScratchDir::new("order");
+        let bind = fresh_bind();
+        let set = with_persist_env(scratch.path(), None, || {
+            assert!(!lived_tick_ingest::ingest_enabled());
+            bind.persist();
+            let set = bind.write_hour_set();
+            for logical in hour_set_order() {
+                let path = named_file(scratch.path(), logical);
+                assert!(path.is_file(), "{}", path.display());
+                let raw = std::fs::read_to_string(&path).unwrap();
+                serde_json::from_str::<serde_json::Value>(&raw).expect(logical);
+            }
+            set
+        });
+        assert!(
+            set.failed.is_empty(),
+            "{:?}",
+            set.failed.iter().map(|m| m.path).collect::<Vec<_>>()
+        );
+        assert_eq!(set.attempted, hour_set_order());
+    }
+
+    /// CARD LR-02 — a directory at the standing path fails that write only.
+    #[test]
+    fn hour_set_reports_directory_failure_and_still_writes_the_rest() {
+        let scratch = ScratchDir::new("standing-dir");
+        let standing = named_file(scratch.path(), SHARD_STANDING_PATH);
+        std::fs::create_dir_all(&standing).unwrap();
+        let bind = fresh_bind();
+        let set = with_persist_env(scratch.path(), Some("off"), || {
+            bind.persist();
+            let set = bind.write_hour_set();
+            assert!(named_file(scratch.path(), SHARD_CLIMATE_PATH).is_file());
+            assert!(standing.is_dir(), "failed target stays a directory");
+            assert!(named_file(scratch.path(), WEEK_AUDIT_PATH).is_file());
+            assert!(named_file(scratch.path(), LIVED_TICK_PATH).is_file());
+            set
+        });
+        assert_eq!(set.attempted, hour_set_order());
+        assert_eq!(
+            set.failed.iter().map(|m| m.path).collect::<Vec<_>>(),
+            vec![SHARD_STANDING_PATH]
+        );
+        let detail = set.failed[0].detail.as_deref().expect("io error text");
+        assert!(!detail.is_empty());
+        let line = hour_set_failure_line(&set.failed[0]);
+        assert!(line.contains(SHARD_STANDING_PATH));
+        assert!(line.contains(detail));
+    }
+
+    /// CARD LR-02 — ingest off still writes the bare hour blob last.
+    #[test]
+    fn hour_set_tick_is_last_when_ingest_is_off() {
+        let scratch = ScratchDir::new("ingest-off");
+        let bind = fresh_bind();
+        let set = with_persist_env(scratch.path(), Some("off"), || {
+            assert!(!lived_tick_ingest::ingest_enabled());
+            let set = bind.write_hour_set();
+            let tick = named_file(scratch.path(), LIVED_TICK_PATH);
+            let raw = std::fs::read_to_string(&tick).unwrap();
+            assert_eq!(raw, bind.hour.to_json().unwrap());
+            assert!(LivedHour::from_json(&raw).is_ok());
+            assert!(LivedTickIngest::from_json(&raw).is_err());
+            assert!(!raw.contains("powrush_lived_tick_v1"));
+            set
+        });
+        assert!(set.failed.is_empty());
+        assert_eq!(set.attempted, hour_set_order());
+        assert_eq!(set.attempted.last().copied(), Some(LIVED_TICK_PATH));
+    }
+
+    /// CARD LR-02 — ingest branch names the tick file and keeps no io error text.
+    #[test]
+    fn hour_set_ingest_tick_failure_names_file_without_io_text() {
+        let scratch = ScratchDir::new("ingest-tick-dir");
+        let tick = named_file(scratch.path(), LIVED_TICK_PATH);
+        std::fs::create_dir_all(&tick).unwrap();
+        let bind = fresh_bind();
+        let set = with_persist_env(scratch.path(), Some("on"), || {
+            assert!(lived_tick_ingest::ingest_enabled());
+            let set = bind.write_hour_set();
+            assert!(named_file(scratch.path(), SHARD_CLIMATE_PATH).is_file());
+            assert!(named_file(scratch.path(), SHARD_STANDING_PATH).is_file());
+            assert!(named_file(scratch.path(), WEEK_AUDIT_PATH).is_file());
+            assert!(tick.is_dir(), "failed tick target stays a directory");
+            set
+        });
+        assert_eq!(set.attempted, hour_set_order());
+        assert_eq!(
+            set.failed.iter().map(|m| m.path).collect::<Vec<_>>(),
+            vec![LIVED_TICK_PATH]
+        );
+        assert!(set.failed[0].detail.is_none());
+        let line = hour_set_failure_line(&set.failed[0]);
+        assert_eq!(
+            line,
+            format!("lived hour persist failed for {}", LIVED_TICK_PATH)
+        );
+        assert!(!line.to_lowercase().contains("os error"));
+    }
+
+    /// CARD LR-02 — a failed to_json counts as a failed write and keeps the error text.
+    #[test]
+    fn hour_set_json_encode_failure_is_a_failed_write() {
+        let mut attempted = Vec::new();
+        let mut failed = Vec::new();
+        record_named_json(
+            SHARD_CLIMATE_PATH,
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "encode",
+            )),
+            &mut attempted,
+            &mut failed,
+        );
+        assert_eq!(attempted, vec![SHARD_CLIMATE_PATH]);
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0].path, SHARD_CLIMATE_PATH);
+        assert_eq!(failed[0].detail.as_deref(), Some("encode"));
+        let line = hour_set_failure_line(&failed[0]);
+        assert!(line.contains(SHARD_CLIMATE_PATH));
+        assert!(line.contains("encode"));
     }
 }
