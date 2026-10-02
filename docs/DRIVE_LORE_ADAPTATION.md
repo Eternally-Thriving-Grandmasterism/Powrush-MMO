@@ -12,6 +12,7 @@ Lived hands win every systems fight. Contact: info@Rathor.ai
 - Earth nukes disabled first. WWIII = false flags + kinetic / sun-lance / earthquake bombs. Fracture, low-G.
 - Portal edition beats teleport-beam edition (metal ring + blue vortex; Ambrosian-tech hint).
 - Cydruids rise from the cracked heart → **Depths** dress. Cydruid = **human housed in a cyborg frame** (not a treant / bark creature / tree-people). Body range = whole human body kept, machine worn, down to fully cyborg, in realistic parts; spine along the chakra path, and brain-only (or brain and face), are points on that range (steward ruling 2026-10-02 (CYDRUID-FORM range)). Nature = practice / attunement, not species. Heartwood Place may stay living-wood; the person is not a tree. Teal / leaf-metal = trim / metal accents, not bark-skin. Cite steward C0 · D0 Eden @ `2afff36` · `PLAYABLE_RACES` Cydruid block · X status 1998585780420427986 (cite only).
+- Hidden Cydruids quietly advance their technology in Earth's hollows (underground places on Earth) and help call the Quellorians, who advise the distant Ambrosians through Quellorian channels (steward 2026-10-02 (LORE-ORIGINS, unconfirmed)). Cite [Draek origin section 6](DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md#6-quellorian-foreknowledge-and-the-defense-of-earth) (Quellorian covert contact with Cydruid leadership) and [Open lore (unconfirmed)](DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md#open-lore-unconfirmed).
 - Quellorians late mercy → **Heartwood / Wards**.
 - Tableau of four practices = CODEX painting after the book, not Title.
 
