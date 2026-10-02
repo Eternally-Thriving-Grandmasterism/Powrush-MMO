@@ -155,6 +155,7 @@ impl LivedHourBind {
             .map(|s| s.to_string())
     }
 
+    // CARD LR-02 SAVE-HOUR-SET-1 — ordered hour-set persist; tick file is the commit marker.
     pub fn persist(&self) {
         // Session persist always: bare LivedHour blob for Continuity (not Ra-Thor ingest).
         // L3: when POWRUSH_INGEST=on, soft-write versioned lattice overlay (nested hour).
