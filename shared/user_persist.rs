@@ -67,9 +67,20 @@ pub fn write_named(named: &str, contents: impl AsRef<[u8]>) -> std::io::Result<(
     write_last_good(&persist_path(named), contents.as_ref())
 }
 
-/// Whether the named persist file exists in the resolved user dir.
+/// Whether [`read_named`] can return this persist file.
+///
+/// The live file counts when it parses as one JSON value
+/// (`serde_json::from_str::<serde_json::Value>`). When the live file is
+/// missing or does not parse, the sibling `.bak` counts only when that
+/// file parses the same way. A missing `.bak`, a non-JSON `.bak`, or only
+/// a `.tmp` sibling is false.
+///
+/// A live path that exists but is not JSON is false when the `.bak` does
+/// not parse. [`read_named`] returns `Err` in that case; true here means
+/// that call returns `Ok`.
 pub fn named_exists(named: &str) -> bool {
-    persist_path(named).exists()
+    let path = persist_path(named);
+    parses_as_json_file(&path) || parses_as_json_file(&sibling_path(&path, ".bak"))
 }
 
 /// Filename only (`data/powrush_house.json` → `powrush_house.json`).
@@ -530,6 +541,52 @@ mod tests {
             assert_eq!(read_named(name).unwrap(), first);
             fs::remove_file(dir.join(name)).unwrap();
             assert_eq!(read_named(name).unwrap(), first);
+        });
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn named_exists_follows_good_bak_when_live_file_is_absent() {
+        let dir = scratch("named-exists-bak");
+        // Live sibling so an empty user dir does not adopt cwd `data/`.
+        fs::write(dir.join("powrush_seal.json"), b"{}\n").unwrap();
+        let name = "powrush_hour_two.json";
+        let good = r#"{"complete":true}"#;
+        with_user_dir(&dir, || {
+            let live = dir.join(name);
+            let bak = dir.join("powrush_hour_two.json.bak");
+            let tmp = dir.join("powrush_hour_two.json.tmp");
+
+            assert!(!named_exists(name));
+
+            fs::write(&bak, good).unwrap();
+            assert!(named_exists(name));
+            assert_eq!(read_named(name).unwrap(), good);
+
+            fs::write(&bak, "not-json").unwrap();
+            assert!(!named_exists(name));
+            assert!(read_named(name).is_err());
+
+            fs::remove_file(&bak).unwrap();
+            fs::write(&tmp, good).unwrap();
+            assert!(!live.exists());
+            assert!(!named_exists(name));
+            assert!(read_named(name).is_err());
+
+            fs::remove_file(&tmp).unwrap();
+            fs::write(&live, good).unwrap();
+            assert!(named_exists(name));
+            assert_eq!(read_named(name).unwrap(), good);
+
+            // Corrupt live and no good bak: exists() would be true, read_named Err.
+            fs::write(&live, "not-json").unwrap();
+            assert!(live.exists());
+            assert!(!named_exists(name));
+            assert!(read_named(name).is_err());
+
+            fs::write(&bak, good).unwrap();
+            assert!(named_exists(name));
+            assert_eq!(read_named(name).unwrap(), good);
         });
         let _ = fs::remove_dir_all(&dir);
     }
