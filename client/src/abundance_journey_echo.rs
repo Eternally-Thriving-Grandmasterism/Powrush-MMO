@@ -5,7 +5,8 @@
  * non-extractive journey log. Complements My Mercy Journey (M).
  *
  * Persistence: local `data/powrush_abundance_journey.json` (sovereign offline).
- * Loads on startup; saves when lines or allocate totals change.
+ * Loads on startup. Writes only when the serialized journey changes, through
+ * `shared::user_persist::write_named` (tmp + rename + `.bak`).
  *
  * Toggle: **J** (Journey — ergonomic left-hand)
  *
@@ -14,7 +15,6 @@
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::fs;
 use std::path::PathBuf;
 
 use crate::living_practice_loop::LivingPracticeLoop;
@@ -57,6 +57,9 @@ pub struct AbundanceJourneyEcho {
     /// Dirty flag for soft disk write.
     pub dirty: bool,
     pub loaded: bool,
+    /// Last serialized JSON written, or the startup serialization when no
+    /// file was loaded. Compared so an unchanged journey does not rewrite.
+    last_saved: Option<String>,
 }
 
 impl AbundanceJourneyEcho {
@@ -76,22 +79,45 @@ fn persist_path() -> PathBuf {
     shared::user_persist::persist_path(PERSIST_PATH)
 }
 
-fn load_blob() -> Option<JourneyPersistBlob> {
-    let path = persist_path();
-    let bytes = fs::read(&path).ok()?;
-    serde_json::from_slice(&bytes).ok()
+fn journey_blob(echo: &AbundanceJourneyEcho, allocate: &RbeAllocateChoice) -> JourneyPersistBlob {
+    JourneyPersistBlob {
+        schema: "powrush_abundance_journey_v1".into(),
+        lines: echo.lines.clone(),
+        practice_sealed: echo.last_practice_sealed,
+        flow_total: allocate.flow_total,
+        reserve_total: allocate.reserve_total,
+        choices_made: allocate.choices_made,
+    }
 }
 
-fn save_blob(blob: &JourneyPersistBlob) {
-    let path = persist_path();
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
+/// True when `json` is not the last serialized save.
+///
+/// `None` means nothing has been saved yet, so the next blob should write.
+fn should_write_journey(last_saved: Option<&str>, json: &str) -> bool {
+    match last_saved {
+        Some(saved) => saved != json,
+        None => true,
     }
-    if let Ok(json) = serde_json::to_string_pretty(blob) {
-        if let Err(e) = fs::write(&path, json) {
-            warn!(target: "powrush::journey", "journey persist write failed: {e}");
-        } else {
+}
+
+fn load_blob() -> Option<(JourneyPersistBlob, String)> {
+    let raw = shared::user_persist::read_named(PERSIST_PATH).ok()?;
+    let blob = serde_json::from_str(&raw).ok()?;
+    Some((blob, raw))
+}
+
+/// Atomic write via `write_named` (tmp + rename + `.bak`). Returns whether
+/// the write succeeded. The warn line stays the failure log.
+fn save_blob(json: &str) -> bool {
+    match shared::user_persist::write_named(PERSIST_PATH, json) {
+        Ok(()) => {
+            let path = persist_path();
             info!(target: "powrush::journey", path = %path.display(), "journey echo saved");
+            true
+        }
+        Err(e) => {
+            warn!(target: "powrush::journey", "journey persist write failed: {e}");
+            false
         }
     }
 }
@@ -129,7 +155,7 @@ fn load_journey_persist(
         return;
     }
     echo.loaded = true;
-    if let Some(blob) = load_blob() {
+    let loaded = if let Some((blob, raw)) = load_blob() {
         if blob.schema.starts_with("powrush_abundance_journey") {
             echo.lines = blob.lines;
             echo.last_practice_sealed = blob.practice_sealed;
@@ -147,6 +173,21 @@ fn load_journey_persist(
                 reserve = allocate.reserve_total,
                 "journey echo loaded"
             );
+            Some(raw)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    // Seed from the file text when the schema is ours, otherwise from the
+    // serialized startup state. An idle boot then matches and writes nothing.
+    match loaded {
+        Some(raw) => echo.last_saved = Some(raw),
+        None => {
+            if let Ok(json) = serde_json::to_string_pretty(&journey_blob(&echo, &allocate)) {
+                echo.last_saved = Some(json);
+            }
         }
     }
 }
@@ -161,15 +202,12 @@ fn save_journey_persist(
     if !echo.dirty {
         return;
     }
-    let blob = JourneyPersistBlob {
-        schema: "powrush_abundance_journey_v1".into(),
-        lines: echo.lines.clone(),
-        practice_sealed: echo.last_practice_sealed,
-        flow_total: allocate.flow_total,
-        reserve_total: allocate.reserve_total,
-        choices_made: allocate.choices_made,
-    };
-    save_blob(&blob);
+    let blob = journey_blob(&echo, &allocate);
+    if let Ok(json) = serde_json::to_string_pretty(&blob) {
+        if should_write_journey(echo.last_saved.as_deref(), &json) && save_blob(&json) {
+            echo.last_saved = Some(json);
+        }
+    }
     echo.dirty = false;
 }
 
@@ -383,5 +421,199 @@ mod tests {
             singles.push(token);
         }
         assert_eq!(singles, vec!["J".to_string()]);
+    }
+
+    #[test]
+    fn should_write_journey_skips_same_json_and_writes_when_new() {
+        let same = r#"{"schema":"powrush_abundance_journey_v1"}"#;
+        assert!(!should_write_journey(Some(same), same));
+        assert!(should_write_journey(
+            Some(same),
+            r#"{"schema":"powrush_abundance_journey_v1","choices_made":1}"#
+        ));
+        assert!(should_write_journey(None, same));
+    }
+
+    struct ScratchDir(std::path::PathBuf);
+
+    impl ScratchDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "powrush-lr03-{}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0),
+                tag
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("scratch");
+            // A live powrush_* file keeps persist_dir from adopting cwd data/.
+            std::fs::write(dir.join("powrush_seal.json"), b"{}\n").expect("seal");
+            Self(dir)
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn with_user_dir<R>(dir: &std::path::Path, body: impl FnOnce() -> R) -> R {
+        let _guard = crate::test_env::lock();
+        let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+        match &prev {
+            Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
+            None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+        }
+        match result {
+            Ok(value) => value,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+
+    fn journey_file(dir: &std::path::Path) -> std::path::PathBuf {
+        dir.join(shared::user_persist::persist_file_name(PERSIST_PATH))
+    }
+
+    fn journey_sibling(dir: &std::path::Path, suffix: &str) -> std::path::PathBuf {
+        let file = journey_file(dir);
+        let mut name = file.file_name().expect("file name").to_os_string();
+        name.push(suffix);
+        file.with_file_name(name)
+    }
+
+    fn journey_app() -> bevy::prelude::App {
+        let mut app = bevy::prelude::App::new();
+        app.init_resource::<AbundanceJourneyEcho>()
+            .init_resource::<RbeAllocateChoice>()
+            .init_resource::<crate::living_practice_loop::LivingPracticeLoop>()
+            .add_systems(bevy::prelude::Startup, load_journey_persist)
+            .add_systems(
+                bevy::prelude::Update,
+                (absorb_practice_and_allocate, save_journey_persist).chain(),
+            );
+        app
+    }
+
+    /// CARD LR-03 — idle boot, including allocate change ticks that do not
+    /// alter the blob, must not create the journey file.
+    #[test]
+    fn idle_boot_does_not_write_journey_file() {
+        let scratch = ScratchDir::new("idle");
+        with_user_dir(scratch.path(), || {
+            let mut app = journey_app();
+            for _ in 0..8 {
+                app.update();
+            }
+            {
+                let mut allocate = app.world_mut().resource_mut::<RbeAllocateChoice>();
+                allocate.surplus_signal = 4.0;
+                allocate.panel_open = true;
+                allocate.eligible = true;
+            }
+            for _ in 0..4 {
+                app.update();
+            }
+            let path = journey_file(scratch.path());
+            assert!(!path.exists(), "idle boot created {}", path.display());
+            assert!(!journey_sibling(scratch.path(), ".bak").exists());
+            assert!(!journey_sibling(scratch.path(), ".tmp").exists());
+            let echo = app.world().resource::<AbundanceJourneyEcho>();
+            assert!(echo.last_saved.is_some());
+            assert!(!echo.dirty);
+        });
+    }
+
+    /// CARD LR-03 — a practice seal and a later allocation each write in the
+    /// same frame, through write_named (second write leaves `.bak`, no `.tmp`).
+    #[test]
+    fn practice_seal_and_allocate_save_same_frame() {
+        let scratch = ScratchDir::new("change");
+        with_user_dir(scratch.path(), || {
+            let mut app = journey_app();
+            app.update();
+            assert!(!journey_file(scratch.path()).exists());
+
+            app.world_mut()
+                .resource_mut::<crate::living_practice_loop::LivingPracticeLoop>()
+                .principle_sealed = true;
+            app.update();
+
+            let path = journey_file(scratch.path());
+            let first = std::fs::read_to_string(&path).expect("seal write");
+            assert!(first.contains("powrush_abundance_journey_v1"));
+            assert!(first.contains("Sealed Caps Across Climates"));
+            assert!(!journey_sibling(scratch.path(), ".bak").exists());
+            assert!(!journey_sibling(scratch.path(), ".tmp").exists());
+            assert_eq!(
+                app.world().resource::<AbundanceJourneyEcho>().last_saved.as_deref(),
+                Some(first.as_str())
+            );
+
+            {
+                let mut allocate = app.world_mut().resource_mut::<RbeAllocateChoice>();
+                allocate.surplus_signal = 2.0;
+                allocate.apply(crate::rbe_allocate_choice::AllocatePath::FlowOutward, 1.0);
+            }
+            app.update();
+
+            let second = std::fs::read_to_string(&path).expect("allocate write");
+            assert!(second.contains("Flowed outward"));
+            assert_ne!(second, first);
+            let bak = std::fs::read_to_string(journey_sibling(scratch.path(), ".bak"))
+                .expect("write_named keeps previous good as .bak");
+            assert_eq!(bak, first);
+            assert!(!journey_sibling(scratch.path(), ".tmp").exists());
+            assert_eq!(
+                app.world().resource::<AbundanceJourneyEcho>().last_saved.as_deref(),
+                Some(second.as_str())
+            );
+        });
+    }
+
+    /// CARD LR-03 — a loaded file is the last_saved seed. Idle frames after
+    /// reload must not rewrite it (no new `.bak`).
+    #[test]
+    fn reload_of_saved_journey_does_not_rewrite() {
+        let scratch = ScratchDir::new("reload");
+        let path = journey_file(scratch.path());
+        with_user_dir(scratch.path(), || {
+            let mut app = journey_app();
+            app.update();
+            app.world_mut()
+                .resource_mut::<AbundanceJourneyEcho>()
+                .push(JourneyKind::Note, "kept line");
+            app.update();
+            assert!(path.is_file());
+        });
+        let before = std::fs::read(&path).expect("saved");
+        let bak = journey_sibling(scratch.path(), ".bak");
+        let _ = std::fs::remove_file(&bak);
+        with_user_dir(scratch.path(), || {
+            let mut app = journey_app();
+            for _ in 0..8 {
+                app.update();
+            }
+            let echo = app.world().resource::<AbundanceJourneyEcho>();
+            assert_eq!(echo.lines.len(), 1);
+            assert_eq!(echo.lines[0].text, "kept line");
+            assert_eq!(
+                echo.last_saved.as_deref(),
+                Some(std::str::from_utf8(&before).unwrap())
+            );
+            assert!(!echo.dirty);
+        });
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(!bak.exists(), "idle reload must not write");
+        assert!(!journey_sibling(scratch.path(), ".tmp").exists());
     }
 }
