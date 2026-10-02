@@ -194,7 +194,7 @@ Most human to least. The human share is chosen in realistic parts.
 | **Part by part** | Limbs, then torso, swapped for machine parts | Those parts machine; the rest still human |
 | **Spine along the chakra path** | Spine kept with the brain (and optionally the face) | Robot body and limbs |
 | **Vessel** | Brain (or brain and face) housed | Robot body |
-| **Fully cyborg** | None kept | End of the upgrade path open to all humans |
+| **Fully cyborg** | No body part kept; the person remains | Every part machine; end of the upgrade path open to all humans |
 
 Robot body and limbs mean fewer infections and bionic powers. No point on the range grows bark, vines, or a heartwood-core-as-body. Teal / leaf-metal is **trim / metal accents**, not bark-skin (`ART_BIBLE`).
 
