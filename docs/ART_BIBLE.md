@@ -42,7 +42,7 @@ No Title race select. Visual only:
 
 Not STR/AGI. Not default-E change. No sixth people.
 
-Cydruid dress: **human housed in a cyborg frame**. Teal / leaf-metal is **trim / metal accents**, not bark-skin, not vines, not a heartwood-core-as-body. Nature is practice / attunement, not species. Heartwood Place may stay living-wood; the person is not a tree. Cite steward C0 · D0 Eden @ `2afff36` · `PLAYABLE_RACES` Cydruid block · X status 1998585780420427986 (cite only; do not fetch binaries). **0 meshes.**
+Cydruid dress: **human housed in a cyborg frame**. The human share ranges from whole body to fully cyborg, swapped in realistic parts (steward ruling 2026-10-02 (CYDRUID-FORM range)). Teal / leaf-metal is **trim / metal accents**, not bark-skin, not vines, not a heartwood-core-as-body. Nature is practice / attunement, not species. Heartwood Place may stay living-wood; the person is not a tree. Cite steward C0 · D0 Eden @ `2afff36` · `PLAYABLE_RACES` Cydruid block · X status 1998585780420427986 (cite only; do not fetch binaries). **0 meshes.**
 
 ### Quellorian Codex still rhyme
 
