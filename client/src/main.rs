@@ -6,7 +6,12 @@ use bevy::prelude::*;
 use powrush_client::PowrushClientBundle;
 use shared::peace_audio::audio_output_safe;
 
+/// Crash log file name. Not a `powrush_*` live persist name.
+const CRASH_LOG_FILE: &str = "crash.log";
+
 fn main() {
+    // LR-04 CRASH-LOG-HOOK-1: path resolve + panic hook land in the next commit.
+    let _crash_log_file = CRASH_LOG_FILE;
     // Lavapipe / Deck boxes often have no ALSA card. DefaultPlugins'
     // AudioPlugin talks to rodio/cpal — skip it when the fast probe
     // says there is no output so boot cannot hang. Mute is a later gate.
