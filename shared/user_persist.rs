@@ -54,6 +54,10 @@ pub fn read_named(named: &str) -> std::io::Result<String> {
 }
 
 /// Soft-write a persist file into the resolved user dir (creates the dir).
+///
+/// A good save parses as JSON (`serde_json::from_str::<serde_json::Value>`).
+/// LR-01 replaces the in-place `fs::write` with a sibling `.tmp` rename and
+/// a `.bak` copied only from a good save.
 pub fn write_named(named: &str, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
     let path = persist_path(named);
     if let Some(parent) = path.parent() {
