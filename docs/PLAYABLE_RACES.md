@@ -16,7 +16,7 @@ These five races form the foundation of player choice and faction alignment:
 1. **Quellorians (Aetherion Luminari)** — Elegant resonance masters of light and unity.
 2. **Draeks** — Hivemind biomechanical empire of consumption and domination.
 3. **Humans** — Adaptable, resilient survivors caught between two cosmic powers.
-4. **Cydruids** — Humans housed in a cyborg frame (Chakra: body kept, machine worn · Vessel: head/brain in robot body); nature is practice / attunement, not species.
+4. **Cydruids** — Humans in a cyborg frame, with the human share chosen in realistic parts (limbs, torso, and so on) from the whole body down to fully cyborg; nature is practice / attunement, not species.
 5. **Ambrosians** — Crystalline-organic resonance beings, living embodiments of harmonic attunement.
 
 Beyond these five, the Draek Dominion has enslaved **countless other species** as mind-controlled minions, broken-willed mercenaries, and cannon fodder. These enslaved races are not playable in their current state but serve as tragic narrative and mechanical elements (with potential future redemption or rebellion paths).
@@ -175,7 +175,7 @@ Humans are the most flexible playable race. They can fully commit to Quellorian 
 
 ## 5. Cydruids
 
-**Cite:** steward C0 · D0 Eden @ `2afff36` · this Cydruid block · X status 1998585780420427986 (cite only; do not fetch binaries). **Budget:** 0 meshes.
+**Cite:** steward C0 · D0 Eden @ `2afff36` · this Cydruid block · X status 1998585780420427986 (cite only; do not fetch binaries) · steward ruling 2026-10-02 (CYDRUID-FORM range). **Budget:** 0 meshes.
 
 **Law:** A Cydruid is a **human housed in a cyborg frame** — not a treant, not a bark creature, not tree-people. Nature is **practice / attunement**, not species. Heartwood Place may stay living-wood; **the person is not a tree.**
 
@@ -184,24 +184,29 @@ Humans are the most flexible playable race. They can fully commit to Quellorian 
 **Symbolism:** Human body kept or housed; machine worn or walked; nature as practice; guardianship without becoming the grove.
 **Core Theme:** "The frame is worn. The grove is practiced. The person remains."
 
-### Two paths (same People)
+### Body range (same People)
 
-| Path | Body | Frame |
+Most human to least. The human share is chosen in realistic parts.
+
+| Point | Human share | Frame |
 |---|---|---|
-| **Chakra** | Human body kept | Machine worn (harness, plates, teal / leaf-metal trim) |
-| **Vessel** | Human head / brain housed | Robot body walked |
+| **Chakra end** | Whole human body kept | Machine worn |
+| **Part by part** | Limbs, then torso, swapped for machine parts | Those parts machine; the rest still human |
+| **Spine along the chakra path** | Spine kept with the brain (and optionally the face) | Robot body and limbs |
+| **Vessel** | Brain (or brain and face) housed | Robot body |
+| **Fully cyborg** | No body part kept; the person remains | Every part machine; end of the upgrade path open to all humans |
 
-Neither path grows bark, vines, or a heartwood-core-as-body. Teal / leaf-metal is **trim / metal accents**, not bark-skin (`ART_BIBLE`).
+Robot body and limbs mean fewer infections and bionic powers. No point on the range grows bark, vines, or a heartwood-core-as-body. Teal / leaf-metal is **trim / metal accents**, not bark-skin (`ART_BIBLE`).
 
 ### Visual Design & Aesthetic
-- **Overall Form:** Human proportions in a cyborg frame. Chakra path: visible human skin and posture, machine worn. Vessel path: human head / brain in a robot body. Not tree-like. Not vine-covered.
+- **Overall Form:** Human proportions in a cyborg frame. Chakra end: whole human body kept, machine worn, visible human skin and posture. Vessel end: brain (or brain and face) housed in a robot body. Not tree-like. Not vine-covered.
 - **Color Palette:** Human skin + metal greys; teal / leaf-metal **trim and accents only** (not bark-skin). Soft gold fasteners. Instrument lights (cyan or amber) on the frame — not a glowing chest-core-as-heartwood.
 - **Armor & Clothing:** Worn machine — plates, harness, mesh. Repair is mechanical / practiced, not bark that grows back. Technology is bolted, fitted, or worn; it does not grow wooden limbs.
-- **Distinctive Features:** Human face (Chakra) or human head in a neck-ring (Vessel). Frame seams and teal / leaf-metal trim. No vines, no leaves that move with emotion, no heartwood-core-as-body.
+- **Distinctive Features:** Chakra end keeps the whole human body and face; Vessel end houses the brain (or brain and face) in a robot body. Frame seams and teal / leaf-metal trim. No vines, no leaves that move with emotion, no heartwood-core-as-body.
 - **Ships:** Frame-tech vessels with teal / leaf-metal trim. Not living-tree people. Heartwood Place may still read living-wood; the pilot is not the timber.
 
 ### Voice Acting Direction
-- **Vocal Quality:** Human voice, close-miked. Frame may add a slight metallic or filtered edge (more on Vessel). No woody reverb. No rustling-as-speech.
+- **Vocal Quality:** Human voice, close-miked. Frame may add a slight metallic or filtered edge (more toward the Vessel end, brain or brain and face in a robot body). No woody reverb. No rustling-as-speech.
 - **Delivery Style:** Measured, practiced, human. Thoughtful without sounding ancient-as-oak.
 - **Emotional Range:** Human spectrum — patient, sorrowful at wasted places, sharp when defending a practiced grove. Not "the forest speaking."
 - **Example Lines:**
