@@ -183,6 +183,10 @@ impl LivedHourBind {
     /// The tick path is the commit marker. A failed write is recorded and the
     /// rest still run.
     fn write_hour_set(&self) -> HourSetWrite {
+        // Other --lib tests call persist without setting POWRUSH_USER_DIR.
+        // They must wait out an override so they do not write into that scratch.
+        #[cfg(test)]
+        let _user_dir = crate::test_env::lock();
         let mut attempted = Vec::with_capacity(4);
         let mut failed = Vec::new();
         // Soft-fail climate / standing / week I/O — never block the hour.
@@ -698,9 +702,6 @@ mod tests {
         assert!(slab.contains("restored"));
     }
 
-    // Env mutation is process-global — same ENV_LOCK pattern as shared::user_persist.
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     struct ScratchDir(std::path::PathBuf);
 
     impl ScratchDir {
@@ -760,7 +761,7 @@ mod tests {
         ingest: Option<&str>,
         body: impl FnOnce() -> R,
     ) -> R {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+        let _guard = crate::test_env::lock();
         let prev_dir = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
         let prev_ingest = std::env::var("POWRUSH_INGEST").ok();
         std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);

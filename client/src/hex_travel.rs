@@ -835,8 +835,30 @@ mod tests {
         app.add_plugins(crate::input::InputPlugin);
         app.add_plugins(TitleScreenPlugin);
         app.add_plugins(HexTravelPlugin);
+        // Persist runs on this thread so it can reenter the user-dir lock.
+        single_thread_schedules(&mut app);
         app.update();
         app
+    }
+
+    fn single_thread_schedules(app: &mut App) {
+        use bevy::ecs::schedule::ExecutorKind;
+        let kind = ExecutorKind::SingleThreaded;
+        app.edit_schedule(bevy::prelude::Startup, |schedule| {
+            schedule.set_executor_kind(kind);
+        });
+        app.edit_schedule(bevy::prelude::PreUpdate, |schedule| {
+            schedule.set_executor_kind(kind);
+        });
+        app.edit_schedule(bevy::prelude::Update, |schedule| {
+            schedule.set_executor_kind(kind);
+        });
+        app.edit_schedule(bevy::prelude::PostUpdate, |schedule| {
+            schedule.set_executor_kind(kind);
+        });
+        app.edit_schedule(bevy::prelude::Last, |schedule| {
+            schedule.set_executor_kind(kind);
+        });
     }
 
     /// One real key edge: winit press event, frame, release event, frame.
@@ -952,6 +974,30 @@ mod tests {
         }
     }
 
+    /// Holds the shared user-dir lock and restores the previous override on drop.
+    struct UserDirEnvHold {
+        prev: Option<String>,
+        _lock: crate::test_env::UserDirEnvGuard,
+    }
+
+    impl UserDirEnvHold {
+        fn set(dir: &std::path::Path) -> Self {
+            let _lock = crate::test_env::lock();
+            let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
+            Self { prev, _lock }
+        }
+    }
+
+    impl Drop for UserDirEnvHold {
+        fn drop(&mut self) {
+            match &self.prev {
+                Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
+    }
+
     /// The walk that failed: Places → other hex → Esc there opens pause.
     #[test]
     fn leave_this_hex_lands_in_the_yard_and_esc_opens_pause_there() {
@@ -961,7 +1007,7 @@ mod tests {
             std::thread::current().id()
         ));
         let _ = std::fs::create_dir_all(&dir);
-        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        let _hold = UserDirEnvHold::set(&dir);
 
         let mut app = yard_app(PlaceId::Sanctuary);
         app.insert_resource(LivedHourBind::default());

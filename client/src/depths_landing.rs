@@ -176,6 +176,30 @@ mod tests {
         }
     }
 
+    /// Holds the shared user-dir lock and restores the previous override on drop.
+    struct UserDirEnvHold {
+        prev: Option<String>,
+        _lock: crate::test_env::UserDirEnvGuard,
+    }
+
+    impl UserDirEnvHold {
+        fn set(dir: &std::path::Path) -> Self {
+            let _lock = crate::test_env::lock();
+            let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
+            Self { prev, _lock }
+        }
+    }
+
+    impl Drop for UserDirEnvHold {
+        fn drop(&mut self) {
+            match &self.prev {
+                Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
+    }
+
     #[test]
     fn depths_use_restores_its_hex_file_without_take_or_stock() {
         let dir = std::env::temp_dir().join(format!(
@@ -184,7 +208,7 @@ mod tests {
             std::thread::current().id()
         ));
         let _ = std::fs::create_dir_all(&dir);
-        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        let _hold = UserDirEnvHold::set(&dir);
 
         let mut app = App::new();
         let bind = depths_bind();
@@ -200,6 +224,10 @@ mod tests {
             ..default()
         });
         app.add_systems(Update, use_depths_peace_node);
+        // Persist runs on this thread so it can reenter the user-dir lock.
+        app.edit_schedule(bevy::prelude::Update, |schedule| {
+            schedule.set_executor_kind(bevy::ecs::schedule::ExecutorKind::SingleThreaded);
+        });
 
         app.update();
 
@@ -224,7 +252,6 @@ mod tests {
         assert!(!PowrushNet::Off.title_online_enabled());
         assert!(!default_client_listens());
 
-        std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
