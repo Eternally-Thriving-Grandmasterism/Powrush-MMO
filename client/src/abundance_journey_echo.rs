@@ -185,7 +185,7 @@ fn load_journey_persist(
     match loaded {
         Some(raw) => echo.last_saved = Some(raw),
         None => {
-            if let Some(json) = serde_json::to_string_pretty(&journey_blob(&echo, &allocate)) {
+            if let Ok(json) = serde_json::to_string_pretty(&journey_blob(&echo, &allocate)) {
                 echo.last_saved = Some(json);
             }
         }
@@ -203,7 +203,7 @@ fn save_journey_persist(
         return;
     }
     let blob = journey_blob(&echo, &allocate);
-    if let Some(json) = serde_json::to_string_pretty(&blob) {
+    if let Ok(json) = serde_json::to_string_pretty(&blob) {
         if should_write_journey(echo.last_saved.as_deref(), &json) && save_blob(&json) {
             echo.last_saved = Some(json);
         }
