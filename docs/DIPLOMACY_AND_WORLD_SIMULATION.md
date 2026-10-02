@@ -53,6 +53,13 @@ pub struct WorldSimulationState {
 - Increased by: Successful consumption, Hivelord interventions, Crownstone sabotage that weakens Quellorians.
 - The hivemind does not "care" about standing in a human sense — it simply grows stronger or weaker.
 
+**Cydruid Standing**
+- Outsiders, Humans first, earn Cydruid trust through Cydruid Standing.
+- Rising trust unlocks the cyborg upgrades along the Body range.
+- There is no shop and no second currency.
+- For outsiders only, the cost of an upgrade starts at a premium and falls to parity as trust grows.
+- See `docs/PLAYABLE_RACES.md` §5 "Upgrade path" for the path itself.
+
 **Technical Note**: Standing affects boarding success rates, AI aggression, trade access, and RBE resource multipliers.
 
 ---
