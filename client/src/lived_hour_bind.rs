@@ -698,9 +698,6 @@ mod tests {
         assert!(slab.contains("restored"));
     }
 
-    // Env mutation is process-global — same ENV_LOCK pattern as shared::user_persist.
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     struct ScratchDir(std::path::PathBuf);
 
     impl ScratchDir {
@@ -760,7 +757,9 @@ mod tests {
         ingest: Option<&str>,
         body: impl FnOnce() -> R,
     ) -> R {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+        let _guard = crate::test_env::USER_DIR_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let prev_dir = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
         let prev_ingest = std::env::var("POWRUSH_INGEST").ok();
         std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);

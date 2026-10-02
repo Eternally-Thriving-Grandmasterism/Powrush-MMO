@@ -176,6 +176,32 @@ mod tests {
         }
     }
 
+    /// Holds the shared user-dir lock and restores the previous override on drop.
+    struct UserDirEnvHold {
+        prev: Option<String>,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl UserDirEnvHold {
+        fn set(dir: &std::path::Path) -> Self {
+            let _lock = crate::test_env::USER_DIR_ENV_LOCK
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
+            Self { prev, _lock }
+        }
+    }
+
+    impl Drop for UserDirEnvHold {
+        fn drop(&mut self) {
+            match &self.prev {
+                Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
+    }
+
     #[test]
     fn depths_use_restores_its_hex_file_without_take_or_stock() {
         let dir = std::env::temp_dir().join(format!(
@@ -184,7 +210,7 @@ mod tests {
             std::thread::current().id()
         ));
         let _ = std::fs::create_dir_all(&dir);
-        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        let _hold = UserDirEnvHold::set(&dir);
 
         let mut app = App::new();
         let bind = depths_bind();
@@ -224,7 +250,6 @@ mod tests {
         assert!(!PowrushNet::Off.title_online_enabled());
         assert!(!default_client_listens());
 
-        std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

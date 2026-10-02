@@ -4378,8 +4378,6 @@ fn persona_creator_buttons(
 
 #[cfg(test)]
 mod tests {
-    static USER_DIR_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     use super::*;
     use shared::house_name::{
         continue_cue, continue_cue_when_persist, esc_from_title_preserves_persist, YARD_REMEMBERS,
@@ -6604,7 +6602,7 @@ mod tests {
 
     #[test]
     fn mercy_persona_p4_soft_draft_commit_persists_when_flag_on() {
-        let _user_dir = USER_DIR_ENV_LOCK
+        let _user_dir = crate::test_env::USER_DIR_ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         // Flag on: Commit works when the creator path is exercised.
@@ -6618,7 +6616,10 @@ mod tests {
                 .unwrap_or(0)
         ));
         std::fs::create_dir_all(&dir).expect("temp user dir");
+        let prev_dir = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
         std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        // Drops before `_user_dir`, so a failed assert restores the env while the lock is held.
+        let _restore = RestoreUserDir(prev_dir);
         let mut state = PersonaCreatorState::default();
         assert!(try_open_persona_creator(&mut state, true));
         state.name_draft = "Mira".into();
@@ -6643,8 +6644,19 @@ mod tests {
         skip_persona_to_nameless(&mut state);
         assert!(!state.committed);
         assert!(state.draft.presentation.given_name.is_empty());
-        std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Restores the user-dir override on drop, including panic.
+    struct RestoreUserDir(Option<String>);
+
+    impl Drop for RestoreUserDir {
+        fn drop(&mut self) {
+            match &self.0 {
+                Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
     }
 
     #[test]
@@ -6787,7 +6799,7 @@ mod tests {
 
     impl NameRiteUserDir {
         fn new(tag: &str) -> Self {
-            let _lock = USER_DIR_ENV_LOCK
+            let _lock = crate::test_env::USER_DIR_ENV_LOCK
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
             let dir = std::env::temp_dir().join(format!(
