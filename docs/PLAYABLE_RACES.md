@@ -163,6 +163,7 @@ Players can embrace the full horror of the Draek Dominion or play as a more inde
 - **Moral Compass:** Strongest narrative reactivity to RBE standing and Crownstone decisions.
 - **Versatile Playstyle:** Excellent for players who want to switch alignments or remain independent.
 - **Vulnerability:** Can be corrupted or overwhelmed more easily than the other races if not careful.
+- **Cydruid upgrade path:** Humans can walk the Cydruid upgrade path by earning Cydruid standing. See §5 Upgrade path, and the Body range **Fully cyborg** row, which says that end of the path is open to all humans.
 
 ### Playable Role
 Humans are the most flexible playable race. They can fully commit to Quellorian harmony, fall into Draek domination, or walk a dangerous independent path that affects the larger simulation.
@@ -197,6 +198,27 @@ Most human to least. The human share is chosen in realistic parts.
 | **Fully cyborg** | No body part kept; the person remains | Every part machine; end of the upgrade path open to all humans |
 
 Robot body and limbs mean fewer infections and bionic powers. No point on the range grows bark, vines, or a heartwood-core-as-body. Teal / leaf-metal is **trim / metal accents**, not bark-skin (`ART_BIBLE`).
+
+### Upgrade path
+
+**Cite:** steward 2026-10-02 (CYDRUID-UPGRADE-PATH) · Body range above · `docs/DIPLOMACY_AND_WORLD_SIMULATION.md` §2.2 Faction Standing & Reputation. **Budget:** 0 meshes.
+
+A player who starts as a Cydruid picks one free cyborg upgrade at character creation. The other peoples do not get this upgrade.
+
+Fair counter-balance across peoples: each other people keeps its own fitting starting equivalent, in words only, from traits already in this file.
+
+- **Humans:** Adaptability and Moral Compass in §4 — draw from Resonance or from Hivemind practice, not both at full strength, with the strongest narrative reactivity to standing and Crownstone choices.
+- **Quellorians:** Resonance and harmony in §2 — project and receive harmonic fields, stronger in groups and near Ambrosians, in the service of unity.
+- **Draeks:** Hivemind in §3 — group strength while connected to the network, weakening when isolated.
+- **Ambrosians:** What §6 already says — attunement that can amplify Quellorian resonance, with the discordant risk and the redemption paths already written there.
+
+Outsiders (non-Cydruids, Humans first) unlock cyborg upgrades by earning Cydruid trust through the existing Faction Standing & Reputation system ([`docs/DIPLOMACY_AND_WORLD_SIMULATION.md` §2.2](DIPLOMACY_AND_WORLD_SIMULATION.md)). There is no shop and no second currency.
+
+For outsiders only, the cost starts at a premium and falls to parity with Cydruids as trust grows. This is not a price across the Body range.
+
+Humans and Cydruids start apart and can converge in mid and end game (steward 2026-10-02).
+
+One form throughout: every upgrade moves along the existing Body range above. The person is a human in a cyborg frame, and the CYDRUID-NOT-TREANT law holds. No upgrade grows bark, vines, or a heartwood-core-as-body.
 
 ### Visual Design & Aesthetic
 - **Overall Form:** Human proportions in a cyborg frame. Chakra end: whole human body kept, machine worn, visible human skin and posture. Vessel end: brain (or brain and face) housed in a robot body. Not tree-like. Not vine-covered.
