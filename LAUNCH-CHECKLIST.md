@@ -2,6 +2,8 @@
 > Workspace 21.88.0. Design ticks 23.1 / 23.2 are not Cargo versions.
 > Do not treat a “100% launch worthy” verdict as current ship state.
 > See docs/archive/README.md and docs/DOC_CANON.md.
+>
+> CARD LR-05 LAUNCH-CHECKLIST-ONE-1: client complete-marks are re-checked against `impl Plugin for PowrushClientBundle` (`client/src/lib.rs:135-199`). A client item with no plugin in that list is **not wired (planned)**. `simulation/**` and `server/**` rows stay as written.
 
 # LAUNCH-CHECKLIST.md — Powrush-MMO v21.0 Launch Candidate
 

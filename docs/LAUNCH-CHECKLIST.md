@@ -11,6 +11,8 @@
 
 # Powrush-MMO Launch Checklist v19.2.9
 
+CARD LR-05 LAUNCH-CHECKLIST-ONE-1: client `[x]` rows are re-checked against `impl Plugin for PowrushClientBundle` (`client/src/lib.rs:135-199`). A client item with no plugin in that list is **not wired (planned)**. `simulation/**` and `server/**` rows stay as written.
+
 **Status:** Core simulation, persistence, replication, Legacy Journal, and client Mercy Journey UI at high integrity.
 **Date:** 2026-06-23
 
