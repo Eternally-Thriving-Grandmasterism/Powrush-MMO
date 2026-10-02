@@ -71,6 +71,12 @@ pub mod resonance_flavors;
 pub mod mercy_transporters;
 pub mod steam_abundance_mirror;
 
+/// CARD CLIENT-ENV-LOCK-1 — one process-wide lock for `POWRUSH_USER_DIR` in `--lib` tests.
+#[cfg(test)]
+pub(crate) mod test_env {
+    pub(crate) static USER_DIR_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+}
+
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance};
 pub use input::InputPlugin;
 pub use lived_hour_support::LivedHourEconomyPlugin;
