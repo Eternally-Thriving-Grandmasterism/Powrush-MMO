@@ -52,6 +52,17 @@ This was the first fracture. The second would be far more damning.
 
 ---
 
+### Open lore (unconfirmed)
+
+Steward 2026-10-02 (LORE-ORIGINS, unconfirmed).
+
+1. Possible origin (unconfirmed): the Draeks may once have been human, or close to it, and remade themselves through genetics rather than machines. That remaking may have had severe consequences: the females dying and cloning becoming their sole way of survival. This sits beside the matriarchal canon in section 2 as an open option and does not replace it.
+2. The fled sect (deep secret, unconfirmed): rumor of a small ancient sect that fled before the catastrophe in section 3 and founded a hidden colony, with organic females who could one day help the species recover. Section 3 stays canon (all known females died); this is an unconfirmed rumor and a deep easter egg. Reaching the colony needs an Ambrosian alliance, because of distance and permissions across the galaxies of Powrush. Section 7: the Ambrosians stand off until triggered; this alliance is a possible trigger hook.
+
+No eating on screen; harvest stays clinical (DRIVE_LORE_ADAPTATION L11).
+
+---
+
 ## 4. The Ethical Collapse — When Survival Justified Atrocity
 
 Faced with extinction, the cloned Draek leadership made a series of increasingly desperate decisions:
