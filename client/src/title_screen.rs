@@ -6602,9 +6602,7 @@ mod tests {
 
     #[test]
     fn mercy_persona_p4_soft_draft_commit_persists_when_flag_on() {
-        let _user_dir = crate::test_env::USER_DIR_ENV_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let _user_dir = crate::test_env::lock();
         // Flag on: Commit works when the creator path is exercised.
         assert!(PERSONA_CREATOR_ENABLED);
         let dir = std::env::temp_dir().join(format!(
@@ -6794,14 +6792,12 @@ mod tests {
     struct NameRiteUserDir {
         prev: Option<String>,
         dir: std::path::PathBuf,
-        _lock: std::sync::MutexGuard<'static, ()>,
+        _lock: crate::test_env::UserDirEnvGuard,
     }
 
     impl NameRiteUserDir {
         fn new(tag: &str) -> Self {
-            let _lock = crate::test_env::USER_DIR_ENV_LOCK
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
+            let _lock = crate::test_env::lock();
             let dir = std::env::temp_dir().join(format!(
                 "powrush-name-rite-offer-{}-{}-{tag}",
                 std::process::id(),

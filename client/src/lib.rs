@@ -74,7 +74,43 @@ pub mod steam_abundance_mirror;
 /// CARD CLIENT-ENV-LOCK-1 — one process-wide lock for `POWRUSH_USER_DIR` in `--lib` tests.
 #[cfg(test)]
 pub(crate) mod test_env {
+    std::thread_local! {
+        static DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
     pub(crate) static USER_DIR_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Held for the whole span where the user-dir override is set.
+    /// Same-thread reentry lets `write_hour_set` run while the setter still holds it.
+    #[must_use]
+    pub(crate) struct UserDirEnvGuard {
+        guard: Option<std::sync::MutexGuard<'static, ()>>,
+    }
+
+    pub(crate) fn lock() -> UserDirEnvGuard {
+        DEPTH.with(|depth| {
+            let n = depth.get();
+            if n == 0 {
+                let guard = USER_DIR_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+                depth.set(1);
+                UserDirEnvGuard { guard: Some(guard) }
+            } else {
+                depth.set(n + 1);
+                UserDirEnvGuard { guard: None }
+            }
+        })
+    }
+
+    impl Drop for UserDirEnvGuard {
+        fn drop(&mut self) {
+            DEPTH.with(|depth| {
+                let n = depth.get();
+                if n > 0 {
+                    depth.set(n - 1);
+                }
+            });
+        }
+    }
 }
 
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance};
