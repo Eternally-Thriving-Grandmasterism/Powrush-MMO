@@ -1,8 +1,11 @@
-# CARD Q2 CAPTURE-IF-PATH — cite docs/Q2_CAPTURE_IF_PATH_CARD.md
-# Headless boot + one frame. PASS = process started AND /tmp/powrush-q2.png exists.
+# CARD Q2-RELOAD-GATE-1 (LR-06) — extends docs/Q2_CAPTURE_IF_PATH_CARD.md
+# Headless boot + one frame, then a second boot on the same POWRUSH_USER_DIR.
+# PASS = process started AND /tmp/powrush-q2.png exists AND the lived tick
+# still parses with flow, reserve, and satchel.takes at least the seeded counts.
+# Boot 2 may persist a changed tick. Do not require a byte-identical file.
 # Do not compare pixels to a golden. Lavapipe is software Vulkan — not a
 # Steam Deck / real GPU claim. Title Online stays grey. POWRUSH_NET=off.
-# Core gates on this same workflow remain required product-green.
+# Nothing listens. Core gates on this same workflow remain required product-green.
 name: Agent headless QA
 
 on:
@@ -57,26 +60,145 @@ jobs:
       - name: Build lived-hour binary (so the 45s boot timeout is not a compile)
         run: cargo build -p powrush-client
 
-      - name: Headless boot + one Q2 frame
+      - name: Headless boot + one Q2 frame + reload gate
         run: |
           set -euo pipefail
           export POWRUSH_NET=off
+          unset POWRUSH_INGEST || true
           export POWRUSH_Q2_FRAME=/tmp/powrush-q2.png
-          rm -f "$POWRUSH_Q2_FRAME"
+          # One dir for both boots. persist_path joins the filename into this
+          # directory (shared/user_persist.rs). Not cwd data/, not ~/.local/share.
+          POWRUSH_USER_DIR="$(mktemp -d /tmp/powrush-q2-user.XXXXXX)"
+          export POWRUSH_USER_DIR
+          TICK="$POWRUSH_USER_DIR/powrush_lived_tick.json"
+          # new_demo() is 3 nodes, empty satchel, allocation 0/0
+          # (shared/climate_node.rs). These counts are the wipe signal.
+          SEED_FLOW=2
+          SEED_RESERVE=3
+          SEED_TAKES=1
+          echo "Q2 user dir: $POWRUSH_USER_DIR"
+          echo "POWRUSH_NET=$POWRUSH_NET (Title Online grey; no listen). Lavapipe is not a GPU claim."
+          python3 - "$TICK" "$SEED_FLOW" "$SEED_RESERVE" "$SEED_TAKES" <<'PY'
+          import json
+          import sys
+
+          path, flow_s, reserve_s, takes_s = sys.argv[1:5]
+          flow = int(flow_s)
+          reserve = int(reserve_s)
+          n_takes = int(takes_s)
+          if flow < 1 or reserve < 1 or n_takes < 1:
+              raise SystemExit("seed counts must be non-zero flow, non-zero reserve, and a non-empty takes list")
+          # Bare LivedHour. load_or_demo tries LivedTickIngest first; this blob
+          # lacks schema/house/climate, so that parse fails and LivedHour::from_json
+          # accepts nodes + satchel.takes + allocation.flow/reserve.
+          hour = {
+              "nodes": [
+                  {"id": 1, "state": "Glowing", "fatigue": 0.0},
+                  {"id": 2, "state": "Glowing", "fatigue": 0.0},
+                  {"id": 3, "state": "Idle", "fatigue": 0.0},
+              ],
+              "satchel": {
+                  "takes": [{"node_id": 1, "kind": "tend"} for _ in range(n_takes)]
+              },
+              "allocation": {"flow": flow, "reserve": reserve},
+          }
+          with open(path, "w", encoding="utf-8") as fh:
+              json.dump(hour, fh, indent=2)
+              fh.write("\n")
+          print(f"seeded {path} flow={flow} reserve={reserve} takes={n_takes}")
+          PY
+          # Same checker before boot 1 (seed is real) and after boot 2.
+          # Runtime file only — not a repo PATH.
+          RELOAD_ASSERT=/tmp/powrush-q2-reload-assert.py
+          cat > "$RELOAD_ASSERT" <<'PY'
+          import json
+          import sys
+
+          def fail(msg):
+              print(f"FAIL: {msg}", file=sys.stderr)
+              raise SystemExit(1)
+
+          def as_count(name, value):
+              if isinstance(value, bool) or not isinstance(value, int):
+                  fail(f"{name} is not an integer ({value!r})")
+              return value
+
+          path, seed_flow, seed_reserve, seed_takes = sys.argv[1:5]
+          seed_flow = int(seed_flow)
+          seed_reserve = int(seed_reserve)
+          seed_takes = int(seed_takes)
+          try:
+              with open(path, "r", encoding="utf-8") as fh:
+                  raw = fh.read()
+          except OSError as err:
+              fail(f"lived tick missing at {path}: {err}")
+          if not raw.strip():
+              fail(f"lived tick empty at {path}")
+          try:
+              data = json.loads(raw)
+          except json.JSONDecodeError as err:
+              fail(f"lived tick is not JSON at {path}: {err}")
+          if not isinstance(data, dict):
+              fail("lived tick JSON is not an object")
+          nested = data.get("hour")
+          if isinstance(nested, dict) and "allocation" in nested and "satchel" in nested:
+              hour = nested
+          elif "allocation" in data and "satchel" in data:
+              hour = data
+          else:
+              fail("lived tick has no LivedHour (bare blob or nested hour)")
+          allocation = hour.get("allocation")
+          satchel = hour.get("satchel")
+          if not isinstance(allocation, dict) or not isinstance(satchel, dict):
+              fail("LivedHour allocation or satchel missing")
+          flow = as_count("flow", allocation.get("flow"))
+          reserve = as_count("reserve", allocation.get("reserve"))
+          takes = satchel.get("takes")
+          if not isinstance(takes, list):
+              fail(f"takes is not a list ({takes!r})")
+          short = []
+          if flow < seed_flow:
+              short.append(f"flow {flow} < seed {seed_flow}")
+          if reserve < seed_reserve:
+              short.append(f"reserve {reserve} < seed {seed_reserve}")
+          if len(takes) < seed_takes:
+              short.append(f"takes {len(takes)} < seed {seed_takes}")
+          if short:
+              fail(
+                  "lived tick fell below seed ("
+                  + "; ".join(short)
+                  + "); new_demo is allocation 0/0 and an empty satchel"
+              )
+          label = sys.argv[5] if len(sys.argv) > 5 else "reload"
+          print(
+              f"Q2 RELOAD PASS ({label}): {path} flow={flow} reserve={reserve} takes={len(takes)} "
+              f"(seed flow={seed_flow} reserve={seed_reserve} takes={seed_takes})"
+          )
+          PY
+          python3 "$RELOAD_ASSERT" "$TICK" "$SEED_FLOW" "$SEED_RESERVE" "$SEED_TAKES" "seed"
           chmod +x .cursor/run-client-headless.sh
-          # Hang guard only. PASS = process started + frame exists.
-          # Do not compare pixels. Lavapipe ≠ Steam Deck / real GPU.
-          # Title Online grey. POWRUSH_NET=off (unset/off). No listen.
-          set +e
-          timeout --signal=TERM --kill-after=5s 45s \
-            .cursor/run-client-headless.sh
-          rc=$?
-          set -e
-          if [[ ! -s /tmp/powrush-q2.png ]]; then
-            echo "FAIL: window never appears / process died before the frame (runner exit $rc)"
-            exit 1
-          fi
-          echo "Q2 PASS: frame exists at /tmp/powrush-q2.png ($(wc -c < /tmp/powrush-q2.png) bytes). No golden compare."
+          # Hang guard only. The headless script grabs the PNG and exits 0;
+          # timeout is the existing hang bound. Do not compare pixels.
+          # Lavapipe ≠ Steam Deck / real GPU. Title Online grey. No listen.
+          boot_once() {
+            local label="$1"
+            rm -f "$POWRUSH_Q2_FRAME"
+            echo "Q2 $label (POWRUSH_USER_DIR=$POWRUSH_USER_DIR)"
+            set +e
+            timeout --signal=TERM --kill-after=5s 45s \
+              .cursor/run-client-headless.sh
+            local rc=$?
+            set -e
+            if [[ ! -s "$POWRUSH_Q2_FRAME" ]]; then
+              echo "FAIL ($label): window never appears / process died before the frame (runner exit $rc)"
+              exit 1
+            fi
+            echo "Q2 PASS ($label): frame exists at $POWRUSH_Q2_FRAME ($(wc -c < "$POWRUSH_Q2_FRAME") bytes). No golden compare."
+          }
+          boot_once "boot 1"
+          echo "Before boot 2: reload bar is the seed (flow=$SEED_FLOW reserve=$SEED_RESERVE takes=$SEED_TAKES), not a byte match."
+          boot_once "boot 2"
+          python3 "$RELOAD_ASSERT" "$TICK" "$SEED_FLOW" "$SEED_RESERVE" "$SEED_TAKES" "boot 2"
 
       - name: Upload Q2 frame
         if: always()
