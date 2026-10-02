@@ -49,17 +49,22 @@ pub fn persist_path(named: &str) -> PathBuf {
 }
 
 /// Soft-read a persist file from the resolved user dir.
+///
+/// Returns the live file when it parses as JSON (`serde_json::Value`).
+/// When the live file is missing or does not parse, returns the sibling
+/// `.bak` if that file parses. Same good-save rule as [`write_named`].
 pub fn read_named(named: &str) -> std::io::Result<String> {
-    fs::read_to_string(persist_path(named))
+    read_with_bak_fallback(&persist_path(named))
 }
 
 /// Soft-write a persist file into the resolved user dir (creates the dir).
+///
+/// A good save parses as JSON (`serde_json::from_str::<serde_json::Value>`).
+/// This module does not parse a typed schema. The live file is copied to a
+/// sibling `.bak` only when it is a good save. Bytes then go to a sibling
+/// `.tmp`, and `fs::rename` moves that file into place.
 pub fn write_named(named: &str, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
-    let path = persist_path(named);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, contents)
+    write_last_good(&persist_path(named), contents.as_ref())
 }
 
 /// Whether the named persist file exists in the resolved user dir.
@@ -144,7 +149,10 @@ pub fn resolve_persist_dir(override_dir: Option<PathBuf>, os_dir: PathBuf) -> Pa
     }
 }
 
-/// True when `dir` already holds at least one `powrush_*` persist file.
+/// True when `dir` already holds at least one live `powrush_*` persist file.
+///
+/// Names ending in `.bak` or `.tmp` are siblings, not saves. `powrush_*.jsonl`
+/// still counts.
 pub fn persist_files_present(dir: &Path) -> bool {
     let Ok(rd) = fs::read_dir(dir) else {
         return false;
@@ -152,7 +160,7 @@ pub fn persist_files_present(dir: &Path) -> bool {
     rd.flatten().any(|e| {
         let name = e.file_name();
         let s = name.to_string_lossy();
-        s.starts_with("powrush_") && e.path().is_file()
+        is_live_persist_name(&s) && e.path().is_file()
     })
 }
 
@@ -163,7 +171,8 @@ pub enum AdoptKind {
     Copied,
 }
 
-/// Copy `powrush_*` from `cwd_data` into `user_dir` only when user dir is empty.
+/// Copy live `powrush_*` files from `cwd_data` into `user_dir` when the user
+/// dir has none. Skips names ending in `.bak` or `.tmp`. `.jsonl` is copied.
 pub fn maybe_adopt_cwd(user_dir: &Path, cwd_data: &Path) -> AdoptKind {
     if persist_files_present(user_dir) {
         return AdoptKind::SkippedUserHasFiles;
@@ -176,7 +185,7 @@ pub fn maybe_adopt_cwd(user_dir: &Path, cwd_data: &Path) -> AdoptKind {
         for entry in rd.flatten() {
             let name = entry.file_name();
             let s = name.to_string_lossy();
-            if !s.starts_with("powrush_") || !entry.path().is_file() {
+            if !is_live_persist_name(&s) || !entry.path().is_file() {
                 continue;
             }
             let dest = user_dir.join(&name);
@@ -214,6 +223,70 @@ pub fn is_writable_user_dir_rule(path: &Path) -> bool {
 pub fn is_f_book_fixture_dir(path: &Path) -> bool {
     let s = path.to_string_lossy();
     s.contains("f-book") || s.contains("tests/fixtures")
+}
+
+/// Live persist names are `powrush_*`, except sibling `.bak` and `.tmp`.
+fn is_live_persist_name(name: &str) -> bool {
+    name.starts_with("powrush_") && !name.ends_with(".bak") && !name.ends_with(".tmp")
+}
+
+fn sibling_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+/// A good save reads back fully and parses as one JSON value.
+fn parses_as_json_file(path: &Path) -> bool {
+    match fs::read_to_string(path) {
+        Ok(raw) => serde_json::from_str::<serde_json::Value>(&raw).is_ok(),
+        Err(_) => false,
+    }
+}
+
+fn read_with_bak_fallback(path: &Path) -> std::io::Result<String> {
+    match fs::read_to_string(path) {
+        Ok(raw) if serde_json::from_str::<serde_json::Value>(&raw).is_ok() => Ok(raw),
+        live => match fs::read_to_string(sibling_path(path, ".bak")) {
+            Ok(raw) if serde_json::from_str::<serde_json::Value>(&raw).is_ok() => Ok(raw),
+            _ => match live {
+                Err(err) => Err(err),
+                Ok(_) => Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "persist file is not json",
+                )),
+            },
+        },
+    }
+}
+
+fn ensure_parent(path: &Path) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+    Ok(())
+}
+
+/// Copy live → `.bak` when the live file parses, then write `contents` to
+/// the sibling `.tmp`. Does not rename, so a stop here leaves the live file
+/// as it was.
+fn stage_tmp(path: &Path, contents: &[u8]) -> std::io::Result<PathBuf> {
+    ensure_parent(path)?;
+    if parses_as_json_file(path) {
+        fs::copy(path, sibling_path(path, ".bak"))?;
+    }
+    let tmp = sibling_path(path, ".tmp");
+    fs::write(&tmp, contents)?;
+    Ok(tmp)
+}
+
+/// `.tmp` then rename. Copy live → `.bak` only when the live file parses as JSON.
+fn write_last_good(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    let tmp = stage_tmp(path, contents)?;
+    fs::rename(&tmp, path)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -395,5 +468,138 @@ mod tests {
         let dir = os_user_data_dir();
         assert!(!is_f_book_fixture_dir(&dir));
         assert!(!dir.to_string_lossy().contains("tests/fixtures/f-book"));
+    }
+
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn with_user_dir<R>(dir: &Path, body: impl FnOnce() -> R + std::panic::UnwindSafe) -> R {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
+        let prev = std::env::var(USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(USER_DIR_OVERRIDE_ENV, dir);
+        let result = std::panic::catch_unwind(body);
+        match prev {
+            Some(value) => std::env::set_var(USER_DIR_OVERRIDE_ENV, value),
+            None => std::env::remove_var(USER_DIR_OVERRIDE_ENV),
+        }
+        match result {
+            Ok(value) => value,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+
+    #[test]
+    fn torn_tmp_does_not_replace_good_live() {
+        let dir = scratch("torn");
+        let live = dir.join("powrush_note.json");
+        let old = br#"{"gen":1,"body":"old-good"}"#;
+        let partial = br#"{"gen":2,"body":"PAR"#;
+        let new = br#"{"gen":2,"body":"new-good"}"#;
+        write_last_good(&live, old).unwrap();
+        let tmp = stage_tmp(&live, partial).unwrap();
+        assert_eq!(fs::read(&live).unwrap(), old);
+        assert_eq!(fs::read(&tmp).unwrap(), partial);
+        assert_ne!(fs::read(&live).unwrap(), partial);
+        write_last_good(&live, new).unwrap();
+        let live_now = fs::read(&live).unwrap();
+        assert_eq!(live_now, new);
+        assert_ne!(live_now, partial);
+        assert!(!sibling_path(&live, ".tmp").exists());
+        assert!(serde_json::from_str::<serde_json::Value>(
+            std::str::from_utf8(&live_now).unwrap()
+        )
+        .is_ok());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bak_restore_read_named_falls_back_to_previous_good() {
+        let dir = scratch("bak-read");
+        fs::write(dir.join("powrush_seal.json"), b"{}\n").unwrap();
+        let name = "powrush_note.json";
+        let first = r#"{"gen":1,"body":"first-good"}"#;
+        let second = r#"{"gen":2,"body":"second-good"}"#;
+        with_user_dir(&dir, || {
+            write_named(name, first).unwrap();
+            write_named(name, second).unwrap();
+            let bak = dir.join("powrush_note.json.bak");
+            assert_eq!(fs::read_to_string(&bak).unwrap(), first);
+            assert_eq!(read_named(name).unwrap(), second);
+            fs::write(dir.join(name), b"").unwrap();
+            assert_eq!(read_named(name).unwrap(), first);
+            fs::write(dir.join(name), b"not-json").unwrap();
+            assert_eq!(read_named(name).unwrap(), first);
+            fs::remove_file(dir.join(name)).unwrap();
+            assert_eq!(read_named(name).unwrap(), first);
+        });
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn empty_live_is_not_copied_over_good_bak() {
+        let dir = scratch("empty-live");
+        let live = dir.join("powrush_note.json");
+        let first = br#"{"gen":1}"#;
+        let second = br#"{"gen":2}"#;
+        let third = br#"{"gen":3}"#;
+        write_last_good(&live, first).unwrap();
+        write_last_good(&live, second).unwrap();
+        let bak = sibling_path(&live, ".bak");
+        assert_eq!(fs::read(&bak).unwrap(), first);
+        fs::write(&live, b"").unwrap();
+        write_last_good(&live, third).unwrap();
+        assert_eq!(fs::read(&bak).unwrap(), first);
+        assert_ne!(fs::read(&bak).unwrap(), b"");
+        assert!(parses_as_json_file(&bak));
+        assert_eq!(fs::read(&live).unwrap(), third);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bak_or_tmp_only_cwd_is_not_counted_or_adopted() {
+        let root = scratch("skip-sib");
+        let cwd = root.join("cwd-data");
+        let user = root.join("user");
+        fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(&user).unwrap();
+        fs::write(cwd.join("powrush_house.json.bak"), r#"{"ok":1}"#).unwrap();
+        fs::write(cwd.join("powrush_house.json.tmp"), r#"{"partial":true}"#).unwrap();
+        fs::write(user.join("powrush_house.json.bak"), r#"{"kept":true}"#).unwrap();
+        assert!(!persist_files_present(&cwd));
+        assert!(!persist_files_present(&user));
+        assert_eq!(maybe_adopt_cwd(&user, &cwd), AdoptKind::SkippedCwdEmpty);
+        assert!(!user.join("powrush_house.json.tmp").exists());
+        assert_eq!(
+            fs::read_to_string(user.join("powrush_house.json.bak")).unwrap(),
+            r#"{"kept":true}"#
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn jsonl_persist_is_counted_and_adopted() {
+        let root = scratch("jsonl");
+        let cwd = root.join("cwd-data");
+        let user = root.join("user");
+        fs::create_dir_all(&cwd).unwrap();
+        fs::create_dir_all(&user).unwrap();
+        let genshare = "{\"hex\":\"a\"}\n";
+        let events = "{\"kind\":\"lived\"}\n";
+        fs::write(cwd.join("powrush_genshare.jsonl"), genshare).unwrap();
+        fs::write(cwd.join("powrush_lived_events.jsonl"), events).unwrap();
+        fs::write(cwd.join("powrush_genshare.jsonl.bak"), "stale-bak").unwrap();
+        fs::write(cwd.join("powrush_genshare.jsonl.tmp"), "partial-tmp").unwrap();
+        assert!(persist_files_present(&cwd));
+        assert_eq!(maybe_adopt_cwd(&user, &cwd), AdoptKind::Copied);
+        assert_eq!(
+            fs::read_to_string(user.join("powrush_genshare.jsonl")).unwrap(),
+            genshare
+        );
+        assert_eq!(
+            fs::read_to_string(user.join("powrush_lived_events.jsonl")).unwrap(),
+            events
+        );
+        assert!(!user.join("powrush_genshare.jsonl.bak").exists());
+        assert!(!user.join("powrush_genshare.jsonl.tmp").exists());
+        let _ = fs::remove_dir_all(&root);
     }
 }
