@@ -44,7 +44,7 @@ BANK / DO-NOT-COOK, still plugged in and still refused: `client/src/war_week.rs`
 
 Junction, no `pub mod` in `client/src/lib.rs`: `onboarding.rs`, `particles.rs`.
 
-Checked, no screen string and no log: `client/src/feel_move.rs` (Use buffer only). FEEL-MOVE stays HELD, outside this list. Also quiet: `living_body.rs`, `harvest_feel.rs`, `input.rs`, `net_mode.rs`, `soft_play_bindings.rs`, `local_settings.rs`, `lived_hour_support.rs`. `write_lived_tick` (`lived_sim_bridge.rs:155-167`) writes nothing, and `LivedHourBind::persist` owns `TICK_PATH` through `write_named`; take, tend and allocate append `EVENTS_PATH` through `emit_lived_event` in this same file (`lived_sim_bridge.rs:91`, append at L109).
+Checked, no screen string and no log: `client/src/feel_move.rs` (Use buffer only). FEEL-MOVE stays HELD, outside this list. Also quiet: `living_body.rs`, `harvest_feel.rs`, `input.rs`, `net_mode.rs`, `soft_play_bindings.rs`, `local_settings.rs`, `lived_hour_support.rs`. `write_lived_tick` (`lived_sim_bridge.rs:155-167`) writes nothing, and `LivedHourBind::persist` owns `TICK_PATH` through `write_named`; take, tend and allocate append `EVENTS_PATH` through `emit_lived_event` in this same file (`lived_sim_bridge.rs:91`, path at L109, append at L113-118).
 
 Past the cap of 12: `client/src/living_ecology.rs` logs `Heartwood + Spires + Abyssal threads seeded` at startup.
 
