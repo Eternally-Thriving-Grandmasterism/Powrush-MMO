@@ -103,9 +103,16 @@
  * `FogSettings` write. The fallback sun (shadows off) never gets
  * `VolumetricLight`.
  *
+ * CARD LIGHT-BLOOM-1 — High and Ultra insert `BloomSettings` on every world
+ * `Camera3d` and set `hdr` (VISUAL_TARGET L225, L226). Mobile / Low / Medium
+ * remove both. Intensity is [`LIGHT_BLOOM_INTENSITY`]. [`TierBloomSet`] is
+ * Update, not [`FogWriteSet`]. The lived UI camera copies that `hdr` in the
+ * same Update, after this set. No `FogSettings` write. No `AmbientLight` write.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
+use bevy::core_pipeline::bloom::BloomSettings;
 use bevy::pbr::{FogFalloff, FogSettings, VolumetricFogSettings, VolumetricLight};
 use bevy::prelude::*;
 
@@ -722,6 +729,9 @@ const ULTRA_VOLUMETRIC_SCATTERING_ASYMMETRY: f32 = 0.55;
 const ULTRA_VOLUMETRIC_LIGHT_TINT: Color = Color::srgb(1.0, 0.94, 0.82);
 const ULTRA_VOLUMETRIC_LIGHT_INTENSITY: f32 = 0.65;
 
+/// CARD LIGHT-BLOOM-1 — modest NATURAL bloom. Between 0.10 and 0.20.
+const LIGHT_BLOOM_INTENSITY: f32 = 0.12;
+
 /// Ultra-only light shafts for a Comfort graphics tier.
 ///
 /// [`Some`] only on [`GraphicsPreset::Ultra`]. Mobile, Low, Medium, and High
@@ -743,6 +753,22 @@ pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<VolumetricFogSetti
         scattering_asymmetry: ULTRA_VOLUMETRIC_SCATTERING_ASYMMETRY,
         light_tint: ULTRA_VOLUMETRIC_LIGHT_TINT,
         light_intensity: ULTRA_VOLUMETRIC_LIGHT_INTENSITY,
+    })
+}
+
+/// High / Ultra bloom for a Comfort graphics tier.
+///
+/// [`Some`] only on [`GraphicsPreset::High`] and [`GraphicsPreset::Ultra`]:
+/// [`BloomSettings::NATURAL`] with [`LIGHT_BLOOM_INTENSITY`]. Mobile, Low, and
+/// Medium return [`None`].
+/// Cite [`docs/VISUAL_TARGET.md`] L225 (High `BloomSettings`) and L226 (Ultra sun bloom).
+pub fn bloom_for(preset: GraphicsPreset) -> Option<BloomSettings> {
+    if preset != GraphicsPreset::High && preset != GraphicsPreset::Ultra {
+        return None;
+    }
+    Some(BloomSettings {
+        intensity: LIGHT_BLOOM_INTENSITY,
+        ..BloomSettings::NATURAL
     })
 }
 
@@ -823,6 +849,12 @@ pub enum FogWriteSet {
     ArrivalBeat,
 }
 
+/// CARD LIGHT-BLOOM-1 — Update home for [`sync_tier_bloom`]. Not a
+/// [`FogWriteSet`] member. The lived UI camera copies `hdr` after this set
+/// in the same Update.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TierBloomSet;
+
 /// Install the fog-writer chain. Empty slots are fine when a headless app
 /// adds only some of the plugins. Calling this more than once is the same
 /// chain, not a second order.
@@ -867,6 +899,7 @@ impl Plugin for ClimatePlanePlugin {
                         .in_set(FogWriteSet::ArrivalBeat),
                     update_climate_chip,
                     sync_ultra_volumetric,
+                    sync_tier_bloom.in_set(TierBloomSet),
                 ),
             );
     }
@@ -1068,6 +1101,41 @@ fn sync_ultra_volumetric(
         for (entity, _light, existing) in &lights {
             if existing.is_some() {
                 commands.entity(entity).remove::<VolumetricLight>();
+            }
+        }
+    }
+}
+
+/// CARD LIGHT-BLOOM-1 — High and Ultra set `hdr` and insert [`BloomSettings`]
+/// on every [`Camera3d`]. Mobile, Low, and Medium clear both. A flag or
+/// component that is already in the right state is left alone. Writes no
+/// [`FogSettings`] and no [`AmbientLight`]. Not in [`FogWriteSet`]. Missing
+/// settings stay Medium. The lived UI camera copies `hdr` after [`TierBloomSet`].
+fn sync_tier_bloom(
+    mut commands: Commands,
+    settings: Option<Res<LocalSettingsState>>,
+    mut cameras: Query<(Entity, &mut Camera, Option<&BloomSettings>), With<Camera3d>>,
+) {
+    let preset = settings
+        .as_ref()
+        .map(|state| state.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    if let Some(bloom) = bloom_for(preset) {
+        for (entity, mut camera, existing) in &mut cameras {
+            if !camera.hdr {
+                camera.hdr = true;
+            }
+            if existing.is_none() {
+                commands.entity(entity).insert(bloom.clone());
+            }
+        }
+    } else {
+        for (entity, mut camera, existing) in &mut cameras {
+            if camera.hdr {
+                camera.hdr = false;
+            }
+            if existing.is_some() {
+                commands.entity(entity).remove::<BloomSettings>();
             }
         }
     }
@@ -3273,4 +3341,442 @@ mod tests {
             "ClimatePlanePlugin did not register sync_ultra_volumetric"
         );
     }
+
+    /// CARD LIGHT-BLOOM-1 — Some only on High and Ultra. All five presets.
+    #[test]
+    fn bloom_for_some_only_on_high_and_ultra() {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        let natural = BloomSettings::NATURAL;
+        for preset in GraphicsPreset::ALL {
+            let got = bloom_for(preset);
+            if preset == GraphicsPreset::High || preset == GraphicsPreset::Ultra {
+                let bloom = got.expect("High/Ultra");
+                assert!((0.10..=0.20).contains(&LIGHT_BLOOM_INTENSITY));
+                assert_eq!(bloom.intensity, LIGHT_BLOOM_INTENSITY);
+                assert_eq!(bloom.low_frequency_boost, natural.low_frequency_boost);
+                assert_eq!(
+                    bloom.low_frequency_boost_curvature,
+                    natural.low_frequency_boost_curvature
+                );
+                assert_eq!(bloom.high_pass_frequency, natural.high_pass_frequency);
+                assert_eq!(bloom.composite_mode, natural.composite_mode);
+                assert_eq!(
+                    bloom.prefilter_settings.threshold,
+                    natural.prefilter_settings.threshold
+                );
+                assert_eq!(
+                    bloom.prefilter_settings.threshold_softness,
+                    natural.prefilter_settings.threshold_softness
+                );
+            } else {
+                assert!(got.is_none(), "{preset:?}");
+            }
+        }
+    }
+
+    /// CARD LIGHT-BLOOM-1 — High inserts hdr + BloomSettings. Low removes both.
+    /// A second High frame does not reinsert. A Camera2d is left alone.
+    /// Missing settings stay Medium (bloom off).
+    #[test]
+    fn sync_tier_bloom_inserts_on_high_and_removes_on_low() {
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(LocalSettingsState {
+            inner: LocalSettings::default(),
+            dirty: false,
+        });
+        app.add_systems(Update, sync_tier_bloom);
+
+        let world_cam = app.world_mut().spawn(Camera3dBundle::default()).id();
+        let ui_cam = app.world_mut().spawn(Camera2dBundle::default()).id();
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::High);
+        app.update();
+
+        let world = app.world().entity(world_cam);
+        assert!(world.get::<Camera>().unwrap().hdr);
+        let bloom = world.get::<BloomSettings>().expect("bloom");
+        assert_eq!(bloom.intensity, LIGHT_BLOOM_INTENSITY);
+        let ui = app.world().entity(ui_cam);
+        assert!(!ui.get::<Camera>().unwrap().hdr);
+        assert!(ui.get::<BloomSettings>().is_none());
+
+        app.update();
+        let world = app.world().entity(world_cam);
+        assert!(world.get::<Camera>().unwrap().hdr);
+        assert!(!world.get_ref::<BloomSettings>().unwrap().is_added());
+        assert!(ui_cam_hdr_still_false(&app, ui_cam));
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::Low);
+        app.update();
+        let world = app.world().entity(world_cam);
+        assert!(!world.get::<Camera>().unwrap().hdr);
+        assert!(world.get::<BloomSettings>().is_none());
+        assert!(ui_cam_hdr_still_false(&app, ui_cam));
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::High);
+        app.update();
+        let world = app.world().entity(world_cam);
+        assert!(world.get::<Camera>().unwrap().hdr);
+        assert_eq!(
+            world.get::<BloomSettings>().unwrap().intensity,
+            LIGHT_BLOOM_INTENSITY
+        );
+        assert!(ui_cam_hdr_still_false(&app, ui_cam));
+
+        let mut bare = App::new();
+        bare.add_plugins(MinimalPlugins);
+        bare.add_systems(Update, sync_tier_bloom);
+        let cam = bare.world_mut().spawn(Camera3dBundle::default()).id();
+        bare.update();
+        assert!(!bare.world().get::<Camera>(cam).unwrap().hdr);
+        assert!(bare.world().get::<BloomSettings>(cam).is_none());
+    }
+
+    /// CARD LIGHT-BLOOM-1 — registered in TierBloomSet, not FogWriteSet, and
+    /// the initialized system access does not write AmbientLight.
+    #[test]
+    fn sync_tier_bloom_set_excludes_fog_and_ambient_write() {
+        use bevy::ecs::schedule::NodeId;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, ClimatePlanePlugin));
+        app.world_mut()
+            .resource_scope(|world, mut schedules: Mut<Schedules>| {
+                let schedule = schedules.get_mut(Update).expect("Update schedule");
+                schedule.graph_mut().initialize(world);
+                let ambient = world
+                    .components()
+                    .resource_id::<AmbientLight>()
+                    .expect("AmbientLight registered");
+                let camera = world
+                    .components()
+                    .component_id::<Camera>()
+                    .expect("Camera registered");
+                let graph = schedule.graph();
+                let mut found = false;
+                for (node, system, _) in graph.systems() {
+                    if !system.name().contains("sync_tier_bloom") {
+                        continue;
+                    }
+                    found = true;
+                    let access = system.component_access();
+                    assert!(
+                        access.has_write(camera),
+                        "Camera write missing; access was not initialized"
+                    );
+                    assert!(
+                        !access.has_write(ambient),
+                        "sync_tier_bloom writes AmbientLight"
+                    );
+                    assert!(!access.has_write_all());
+                    let parents: Vec<NodeId> = graph
+                        .hierarchy()
+                        .graph()
+                        .all_edges()
+                        .filter(|(_, child, _)| *child == node)
+                        .map(|(parent, _, _)| parent)
+                        .collect();
+                    let mut in_tier = false;
+                    for parent in parents {
+                        if let Some(set) = graph.get_set_at(parent) {
+                            let label = format!("{set:?}");
+                            assert!(
+                                !label.contains("FogWriteSet"),
+                                "sync_tier_bloom landed in {label}"
+                            );
+                            if label.contains("TierBloomSet") {
+                                in_tier = true;
+                            }
+                        }
+                    }
+                    assert!(in_tier, "sync_tier_bloom is not in TierBloomSet");
+                }
+                assert!(found, "ClimatePlanePlugin did not register sync_tier_bloom");
+            });
+    }
+
+    /// Lavapipe one-frame. Not part of the headless gate (`--ignored`).
+    /// High: UI plate over a non-blank world, both cameras HDR.
+    /// Ultra: volumetric fog still on the world camera, plate still over the world.
+    #[test]
+    #[ignore = "lavapipe screenshot; DISPLAY and VK_ICD_FILENAMES"]
+    fn high_plate_over_world_and_ultra_volumetric_still_renders() {
+        use crate::living_practice_loop::SoftPlayerRealm;
+        use crate::ui_above_world::UiAboveWorldPlugin;
+        use shared::local_settings::LocalSettings;
+
+        let mut settings = LocalSettings::default();
+        settings.set_graphics_preset(GraphicsPreset::High);
+        let mut app = App::new();
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        resolution: (320.0_f32, 180.0_f32).into(),
+                        title: "light-bloom-1".into(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .disable::<bevy::audio::AudioPlugin>()
+                .disable::<bevy::winit::WinitPlugin>(),
+        )
+        .add_plugins({
+            let mut winit = bevy::winit::WinitPlugin::<bevy::winit::WakeUp>::default();
+            winit.run_on_any_thread = true;
+            winit
+        })
+        .init_resource::<SoftPlayerRealm>()
+        .insert_resource(LocalSettingsState {
+            inner: settings,
+            dirty: false,
+        })
+        .insert_resource(ProbeRun::new())
+        .add_plugins((UiAboveWorldPlugin, ClimatePlanePlugin))
+        .add_systems(Update, drive_bloom_probe);
+
+        let mesh = {
+            let mut meshes = app.world_mut().resource_mut::<Assets<Mesh>>();
+            meshes.add(Cuboid::new(1.2, 1.2, 1.2))
+        };
+        let material = {
+            let mut materials = app.world_mut().resource_mut::<Assets<StandardMaterial>>();
+            materials.add(StandardMaterial {
+                base_color: Color::srgb(0.9, 0.15, 0.1),
+                emissive: LinearRgba::new(4.0, 0.4, 0.1, 1.0),
+                ..default()
+            })
+        };
+        app.world_mut().spawn(Camera3dBundle {
+            camera: Camera {
+                order: crate::ui_above_world::WORLD_CAMERA_ORDER,
+                ..default()
+            },
+            transform: Transform::from_xyz(0.0, 2.2, 6.0)
+                .looking_at(Vec3::new(0.0, 0.4, 0.0), Vec3::Y),
+            ..default()
+        });
+        app.world_mut().spawn(DirectionalLightBundle {
+            directional_light: DirectionalLight {
+                illuminance: 12_000.0,
+                shadows_enabled: true,
+                ..default()
+            },
+            transform: Transform::from_xyz(4.0, 8.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        });
+        app.world_mut().spawn(PbrBundle {
+            mesh,
+            material,
+            transform: Transform::from_xyz(0.0, 0.7, 0.0),
+            ..default()
+        });
+        app.world_mut().spawn(NodeBundle {
+            style: Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(8.0),
+                left: Val::Px(8.0),
+                width: Val::Px(120.0),
+                height: Val::Px(36.0),
+                ..default()
+            },
+            background_color: Color::srgb(0.1, 0.85, 0.25).into(),
+            ..default()
+        });
+
+        let slots = app.world().resource::<ProbeRun>().slots.clone();
+        app.run();
+
+        let slots = slots.lock().expect("probe slots");
+        let high = slots.high.clone().expect("High frame");
+        let ultra = slots.ultra.clone().expect("Ultra frame");
+        assert_plate_over_world(&high.image, "High");
+        assert!(high.world_hdr && high.ui_hdr, "High hdr");
+        assert!(high.world_bloom && !high.ui_bloom, "High bloom");
+        assert!(high.ui_clear_none && high.ui_order_10, "High ui camera");
+        assert!(high.msaa_off, "High msaa");
+        save_probe_png(&high.image, "light-bloom-high.png");
+        assert_plate_over_world(&ultra.image, "Ultra");
+        assert!(ultra.world_hdr && ultra.ui_hdr, "Ultra hdr");
+        assert!(ultra.volumetric_fog && ultra.volumetric_light, "Ultra fog");
+        save_probe_png(&ultra.image, "light-bloom-ultra.png");
+    }
+}
+
+#[cfg(test)]
+fn ui_cam_hdr_still_false(app: &App, ui_cam: Entity) -> bool {
+    let ui = app.world().entity(ui_cam);
+    !ui.get::<Camera>().unwrap().hdr && ui.get::<BloomSettings>().is_none()
+}
+
+#[cfg(test)]
+#[derive(Clone)]
+struct ProbeShot {
+    image: bevy::render::texture::Image,
+    world_hdr: bool,
+    ui_hdr: bool,
+    world_bloom: bool,
+    ui_bloom: bool,
+    ui_clear_none: bool,
+    ui_order_10: bool,
+    volumetric_fog: bool,
+    volumetric_light: bool,
+    msaa_off: bool,
+}
+
+#[cfg(test)]
+struct ProbeSlots {
+    high: Option<ProbeShot>,
+    ultra: Option<ProbeShot>,
+}
+
+#[cfg(test)]
+#[derive(Resource)]
+struct ProbeRun {
+    tx: std::sync::mpsc::Sender<bevy::render::texture::Image>,
+    rx: std::sync::Mutex<std::sync::mpsc::Receiver<bevy::render::texture::Image>>,
+    frames: u32,
+    phase: u8,
+    requested: bool,
+    slots: std::sync::Arc<std::sync::Mutex<ProbeSlots>>,
+}
+
+#[cfg(test)]
+impl ProbeRun {
+    fn new() -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
+        Self {
+            tx,
+            rx: std::sync::Mutex::new(rx),
+            frames: 0,
+            phase: 0,
+            requested: false,
+            slots: std::sync::Arc::new(std::sync::Mutex::new(ProbeSlots {
+                high: None,
+                ultra: None,
+            })),
+        }
+    }
+}
+
+#[cfg(test)]
+fn drive_bloom_probe(
+    mut probe: ResMut<ProbeRun>,
+    mut settings: ResMut<LocalSettingsState>,
+    mut shots: ResMut<bevy::render::view::screenshot::ScreenshotManager>,
+    windows: Query<Entity, With<bevy::window::PrimaryWindow>>,
+    world_cams: Query<
+        (
+            &Camera,
+            Option<&BloomSettings>,
+            Option<&VolumetricFogSettings>,
+        ),
+        With<Camera3d>,
+    >,
+    ui_cams: Query<&Camera, With<crate::ui_above_world::LivedUiCamera>>,
+    ui_bloom_cams: Query<(), (With<crate::ui_above_world::LivedUiCamera>, With<BloomSettings>)>,
+    lights: Query<(), With<VolumetricLight>>,
+    msaa: Res<bevy::render::view::Msaa>,
+    mut exit: EventWriter<AppExit>,
+) {
+    use crate::ui_above_world::UI_CAMERA_ORDER;
+    use bevy::render::camera::ClearColorConfig;
+
+    probe.frames += 1;
+    if probe.frames >= 36 && !probe.requested {
+        if let Ok(window) = windows.get_single() {
+            probe.requested = true;
+            let tx = probe.tx.clone();
+            shots
+                .take_screenshot(window, move |img| {
+                    let _ = tx.send(img);
+                })
+                .expect("screenshot");
+        }
+    }
+    let received = probe.rx.lock().expect("shot inbox").try_recv().ok();
+    if let Some(image) = received {
+        let (world_cam, bloom, fog) = world_cams.get_single().expect("world camera");
+        let ui = ui_cams.get_single().expect("ui camera");
+        let shot = ProbeShot {
+            image,
+            world_hdr: world_cam.hdr,
+            ui_hdr: ui.hdr,
+            world_bloom: bloom.is_some(),
+            ui_bloom: !ui_bloom_cams.is_empty(),
+            ui_clear_none: matches!(ui.clear_color, ClearColorConfig::None),
+            ui_order_10: ui.order == UI_CAMERA_ORDER,
+            volumetric_fog: fog.is_some(),
+            volumetric_light: !lights.is_empty(),
+            msaa_off: matches!(*msaa, bevy::render::view::Msaa::Off),
+        };
+        let mut slots = probe.slots.lock().expect("probe slots");
+        if probe.phase == 0 {
+            slots.high = Some(shot);
+            drop(slots);
+            settings
+                .inner
+                .set_graphics_preset(GraphicsPreset::Ultra);
+            probe.phase = 1;
+            probe.frames = 0;
+            probe.requested = false;
+        } else {
+            slots.ultra = Some(shot);
+            drop(slots);
+            exit.send(AppExit::Success);
+        }
+    } else if probe.frames > 240 {
+        panic!("screenshot did not arrive in phase {}", probe.phase);
+    }
+}
+
+#[cfg(test)]
+fn assert_plate_over_world(image: &bevy::render::texture::Image, label: &str) {
+    use bevy::render::render_resource::TextureFormat;
+    let bpp = match image.texture_descriptor.format {
+        TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb | TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => 4,
+        _ => panic!("{label} unexpected screenshot format {:?}", image.texture_descriptor.format),
+    };
+    let mut plate = 0u32;
+    let mut world = 0u32;
+    for px in image.data.chunks_exact(bpp) {
+        let (r, g, b) = (px[0], px[1], px[2]);
+        let green = g > 140 && g > r.saturating_add(30) && g > b.saturating_add(30);
+        if green {
+            plate += 1;
+        } else if r as u16 + g as u16 + b as u16 > 90 {
+            world += 1;
+        }
+    }
+    assert!(plate > 20, "{label} UI plate missing ({plate} green px)");
+    assert!(
+        world > 100,
+        "{label} world blank under the plate ({world} non-black px)"
+    );
+}
+
+#[cfg(test)]
+fn save_probe_png(image: &bevy::render::texture::Image, name: &str) {
+    let dir = std::env::var("SHOT_DIR").unwrap_or_else(|_| "/opt/cursor/artifacts".into());
+    let path = std::path::Path::new(&dir).join(name);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let dynamic = image.clone().try_into_dynamic().expect("dynamic image");
+    dynamic
+        .to_rgb8()
+        .save(&path)
+        .unwrap_or_else(|err| panic!("save {}: {err}", path.display()));
 }
