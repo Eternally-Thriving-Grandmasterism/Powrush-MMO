@@ -7,12 +7,12 @@ Drop high-quality stems here. They are registered at startup into the **Audio Mo
 ```
 client/assets/audio/
   premade/
-    epic_dark_ambient.ogg
-    mercy_resonance_choir.ogg
-    council_chamber_hum.ogg
-    epiphany_crystal_hit.wav
-    divine_whisper_soft.wav
-    transition_stinger_a.wav
+    epic_dark_ambient.ogg        # tracked elsewhere: assets/music/epic_dark_ambient.ogg
+    mercy_resonance_choir.ogg    # planned, not in repo
+    council_chamber_hum.ogg      # planned, not in repo
+    epiphany_crystal_hit.wav     # planned, not in repo
+    divine_whisper_soft.wav      # planned, not in repo
+    transition_stinger_a.wav     # planned, not in repo
   (any extra .wav / .ogg / .mp3 / .flac — auto-scanned)
 ```
 
