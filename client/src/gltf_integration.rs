@@ -199,6 +199,18 @@ mod tests {
 
     #[test]
     fn lod_feel_labels_never_show_placeholder_paths() {
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::Low)),
+            "Capsule · reduced detail"
+        );
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::Medium)),
+            "Balanced · Place props"
+        );
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::High)),
+            "Fuller dress · nicest hold"
+        );
         for preset in GraphicsPreset::ALL {
             let label = lod_feel_label(mesh_lod_for_preset(preset));
             assert!(!label.is_empty());
@@ -242,7 +254,19 @@ mod tests {
         assert!(!place_dress_uses_authored_glb(&mid));
         assert!(!place_dress_uses_authored_glb(&high));
         assert_eq!(optional_authored_glb_present(), before);
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::Low)),
+            "Capsule · reduced detail"
+        );
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::Medium)),
+            "Balanced · Place props"
+        );
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::High)),
+            "Fuller dress · nicest hold"
+        );
         for preset in GraphicsPreset::ALL {
             let label = lod_feel_label(mesh_lod_for_preset(preset));
             assert!(!label.contains(".glb"), "{label}");
@@ -284,7 +308,19 @@ mod tests {
         assert!(face_is_not_class());
         assert!(practices_after_house());
         assert!(race_lobby_closed());
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::Low)),
+            "Capsule · reduced detail"
+        );
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::Medium)),
+            "Balanced · Place props"
+        );
+        assert_eq!(
+            lod_feel_label(mesh_lod_for_preset(GraphicsPreset::High)),
+            "Fuller dress · nicest hold"
+        );
         for preset in GraphicsPreset::ALL {
             let label = lod_feel_label(mesh_lod_for_preset(preset));
             assert!(!label.contains(".glb"), "{label}");

@@ -367,8 +367,8 @@ pub fn punch_scale_for_graphics(punch_scale: f32, preset: GraphicsPreset) -> f32
         return 0.0;
     }
     match preset {
-        GraphicsPreset::Low => scale * GRAPHICS_LOW_PUNCH_AMPLITUDE,
-        GraphicsPreset::Medium | GraphicsPreset::High => scale,
+        GraphicsPreset::Mobile | GraphicsPreset::Low => scale * GRAPHICS_LOW_PUNCH_AMPLITUDE,
+        GraphicsPreset::Medium | GraphicsPreset::High | GraphicsPreset::Ultra => scale,
     }
 }
 
@@ -1263,6 +1263,14 @@ mod tests {
         assert_eq!(punch_scale_for_graphics(1.0, GraphicsPreset::Medium), 1.0);
         assert_eq!(punch_scale_for_graphics(1.0, GraphicsPreset::High), 1.0);
         assert_eq!(
+            punch_scale_for_graphics(1.0, GraphicsPreset::Mobile),
+            punch_scale_for_graphics(1.0, GraphicsPreset::Low)
+        );
+        assert_eq!(
+            punch_scale_for_graphics(1.0, GraphicsPreset::Ultra),
+            punch_scale_for_graphics(1.0, GraphicsPreset::High)
+        );
+        assert_eq!(
             presence_punch_camera_delta(
                 1.0,
                 punch_scale_for_graphics(1.0, GraphicsPreset::Medium)
@@ -1276,8 +1284,13 @@ mod tests {
             ),
             full
         );
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
         assert!(!GraphicsPreset::Low.label().contains("Ultra"));
+        assert!(!GraphicsPreset::Medium.label().contains("Ultra"));
+        assert!(!GraphicsPreset::High.label().contains("Ultra"));
     }
 
     #[test]
@@ -1418,6 +1431,14 @@ mod tests {
         assert!((presence_lod_scale(GraphicsPreset::Low) - 0.65).abs() < f32::EPSILON);
         assert!((presence_lod_scale(GraphicsPreset::Medium) - 1.0).abs() < f32::EPSILON);
         assert!((presence_lod_scale(GraphicsPreset::High) - 1.15).abs() < f32::EPSILON);
+        assert_eq!(
+            presence_lod_scale(GraphicsPreset::Mobile),
+            presence_lod_scale(GraphicsPreset::Low)
+        );
+        assert_eq!(
+            presence_lod_scale(GraphicsPreset::Ultra),
+            presence_lod_scale(GraphicsPreset::High)
+        );
         assert!(presence_low_stays_capsule_readable());
         assert!(presence_still_capsule_readable(0.65));
         assert!(presence_still_capsule_readable(1.0));
@@ -1447,7 +1468,10 @@ mod tests {
         assert!(mesh_lod::face_is_not_class());
         assert!(mesh_lod::practices_after_house());
         assert!(mesh_lod::race_lobby_closed());
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
     }
 
     /// CARD L7 — Human wake is the existing Sanctuary yard helper.

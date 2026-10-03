@@ -425,11 +425,22 @@ mod tests {
         assert_eq!(high.place_dress_lod(), MeshLod::High);
 
         assert_eq!(feel.place_dress_lod(), MeshLod::Medium);
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        assert_eq!(GraphicsPreset::Mobile.mesh_lod(), MeshLod::Low);
+        assert_eq!(GraphicsPreset::Ultra.mesh_lod(), MeshLod::High);
+        for preset in [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+        ] {
+            assert!(!preset.label().contains("Ultra"));
+        }
         for preset in GraphicsPreset::ALL {
             let row = LocalMeshLodFeel { preset };
             assert_eq!(row.place_dress_lod(), row.mesh_lod());
-            assert!(!preset.label().contains("Ultra"));
         }
         assert!(!local_settings_opens_socket(&s));
         assert!(refuse_online_socket_toggle(true));

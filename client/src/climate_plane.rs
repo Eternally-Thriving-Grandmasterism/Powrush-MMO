@@ -1280,9 +1280,18 @@ mod tests {
         assert!(s.fog_start >= 12.0);
         assert!(s.fog_end > s.fog_start);
         assert!(s.fog_end > 20.0);
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
-        for preset in GraphicsPreset::ALL {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        for preset in [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+        ] {
             assert!(!preset.label().contains("Ultra"));
+        }
+        for preset in GraphicsPreset::ALL {
             assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
         }
         assert!(!is_graphite_warm_earth(look_for(Some(2)).ground));
@@ -1476,9 +1485,18 @@ mod tests {
             well_glow_scale_for_place(PlaceId::Heartwood),
             PLACE_WELL_GLOW_SCALE
         );
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
-        for preset in GraphicsPreset::ALL {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        for preset in [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+        ] {
             assert!(!preset.label().contains("Ultra"));
+        }
+        for preset in GraphicsPreset::ALL {
             assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
         }
         assert!(!is_living_wood_earth(s.fog));
@@ -1702,9 +1720,18 @@ mod tests {
             well_glow_scale_for_place(PlaceId::Heartwood),
             PLACE_WELL_GLOW_SCALE
         );
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
-        for preset in GraphicsPreset::ALL {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        for preset in [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+        ] {
             assert!(!preset.label().contains("Ultra"));
+        }
+        for preset in GraphicsPreset::ALL {
             assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
         }
     }
@@ -1899,9 +1926,18 @@ mod tests {
             well_glow_scale_for_place(PlaceId::Depths),
             PLACE_WELL_GLOW_SCALE
         );
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
-        for preset in GraphicsPreset::ALL {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        for preset in [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+        ] {
             assert!(!preset.label().contains("Ultra"));
+        }
+        for preset in GraphicsPreset::ALL {
             assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
         }
         // F1 / F2 / F3 dress stays intact under F4 fog.
@@ -2098,10 +2134,25 @@ mod tests {
         assert!(medium_high_hold_dressed_fog(Some(2)));
         assert!(medium_high_hold_dressed_fog(Some(1)));
 
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
         assert_eq!(WeatherFidelity::ALL.len(), 3);
-        for preset in GraphicsPreset::ALL {
+        assert_eq!(GraphicsPreset::Low.weather_fidelity(), WeatherFidelity::Low);
+        assert_eq!(
+            GraphicsPreset::Medium.weather_fidelity(),
+            WeatherFidelity::Medium
+        );
+        assert_eq!(GraphicsPreset::High.weather_fidelity(), WeatherFidelity::High);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        for preset in [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+        ] {
             assert!(!preset.label().contains("Ultra"));
+        }
+        for preset in GraphicsPreset::ALL {
             assert!(!preset.weather_fidelity().feel_label().contains("Ultra"));
         }
         assert!(!WeatherFidelity::Low.feel_label().contains("Ultra"));
@@ -2135,7 +2186,13 @@ mod tests {
             assert_eq!(high.fog_end, look.fog_end);
         }
         assert_eq!(WeatherFidelity::ALL.len(), 3);
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.weather_fidelity(), WeatherFidelity::Low);
+        assert_eq!(
+            GraphicsPreset::Medium.weather_fidelity(),
+            WeatherFidelity::Medium
+        );
+        assert_eq!(GraphicsPreset::High.weather_fidelity(), WeatherFidelity::High);
         assert!(!WeatherFidelity::Low.feel_label().contains("Ultra"));
     }
 
@@ -2219,13 +2276,33 @@ mod tests {
         assert!(mesh_lod::face_is_not_class());
         assert!(mesh_lod::practices_after_house());
         assert!(mesh_lod::race_lobby_closed());
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        assert_eq!(
+            mesh_lod::mesh_lod_for_preset(GraphicsPreset::Low),
+            mesh_lod::MeshLod::Low
+        );
+        assert_eq!(
+            mesh_lod::mesh_lod_for_preset(GraphicsPreset::Medium),
+            mesh_lod::MeshLod::Medium
+        );
+        assert_eq!(
+            mesh_lod::mesh_lod_for_preset(GraphicsPreset::High),
+            mesh_lod::MeshLod::High
+        );
         for preset in GraphicsPreset::ALL {
             let label = mesh_lod::lod_feel_label(mesh_lod::mesh_lod_for_preset(preset));
             assert!(!label.contains(".glb"), "{label}");
             assert!(!label.contains("Ultra"), "{label}");
             assert!(!label.contains("race lobby"), "{label}");
-            assert!(!preset.label().contains("Ultra"));
+            if matches!(
+                preset,
+                GraphicsPreset::Low | GraphicsPreset::Medium | GraphicsPreset::High
+            ) {
+                assert!(!preset.label().contains("Ultra"));
+            }
             assert!(climate_dress_copy_is_honest(look_for(Some(0)).name));
             let feel = crate::local_settings::LocalMeshLodFeel { preset };
             assert_eq!(feel.place_dress_lod(), mesh_lod::mesh_lod_for_preset(preset));

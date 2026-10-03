@@ -155,38 +155,47 @@ impl PeaceKey {
 
 
 /// Esc Comfort graphics fidelity preset. Device-safe default = Medium.
-/// Low = safer / lower fidelity; Medium = balanced Peace hour; High = nicest hold.
+/// Ladder: Mobile, Low, Medium, High, Ultra.
+/// Mobile matches Low fidelity; Ultra matches High fidelity. Labels differ.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum GraphicsPreset {
+    Mobile,
     Low,
     #[default]
     Medium,
     High,
+    Ultra,
 }
 
 impl GraphicsPreset {
-    pub const ALL: [GraphicsPreset; 3] = [
+    pub const ALL: [GraphicsPreset; 5] = [
+        GraphicsPreset::Mobile,
         GraphicsPreset::Low,
         GraphicsPreset::Medium,
         GraphicsPreset::High,
+        GraphicsPreset::Ultra,
     ];
 
-    /// Comfort-row label token (Low · Medium · High).
+    /// Comfort-row label token (Mobile · Low · Medium · High · Ultra).
     pub const fn label(self) -> &'static str {
         match self {
+            Self::Mobile => "Mobile",
             Self::Low => "Low",
             Self::Medium => "Medium",
             Self::High => "High",
+            Self::Ultra => "Ultra",
         }
     }
 
-    /// Cycle Low → Medium → High → Low.
+    /// Cycle Mobile → Low → Medium → High → Ultra → Mobile.
     pub const fn next(self) -> Self {
         match self {
+            Self::Mobile => Self::Low,
             Self::Low => Self::Medium,
             Self::Medium => Self::High,
-            Self::High => Self::Low,
+            Self::High => Self::Ultra,
+            Self::Ultra => Self::Mobile,
         }
     }
 }
@@ -234,21 +243,23 @@ impl MeshLod {
 }
 
 impl GraphicsPreset {
-    /// Map Comfort graphics preset → mesh LOD tier (1:1).
+    /// Map Comfort graphics preset → mesh LOD tier.
+    /// Mobile matches Low; Ultra matches High. Medium stays Medium.
     pub const fn mesh_lod(self) -> MeshLod {
         match self {
-            Self::Low => MeshLod::Low,
+            Self::Mobile | Self::Low => MeshLod::Low,
             Self::Medium => MeshLod::Medium,
-            Self::High => MeshLod::High,
+            Self::High | Self::Ultra => MeshLod::High,
         }
     }
 
-    /// Map Comfort graphics preset → weather-bed fidelity (1:1). EARTH-CLIMATE.
+    /// Map Comfort graphics preset → weather-bed fidelity. EARTH-CLIMATE.
+    /// Mobile matches Low; Ultra matches High. Medium stays Medium.
     pub const fn weather_fidelity(self) -> WeatherFidelity {
         match self {
-            Self::Low => WeatherFidelity::Low,
+            Self::Mobile | Self::Low => WeatherFidelity::Low,
             Self::Medium => WeatherFidelity::Medium,
-            Self::High => WeatherFidelity::High,
+            Self::High | Self::Ultra => WeatherFidelity::High,
         }
     }
 }
@@ -574,10 +585,10 @@ impl LocalSettings {
     }
 
     /// Apply the selected graphics preset to comfort fidelity fields.
-    /// Low = safer/lower fidelity; Medium = Peace balanced; High = nicest hold.
+    /// Mobile matches Low; Medium = Peace balanced; Ultra matches High.
     pub fn apply_graphics_preset(&mut self) {
         match self.graphics_preset {
-            GraphicsPreset::Low => {
+            GraphicsPreset::Mobile | GraphicsPreset::Low => {
                 self.brightness = 0.75;
                 self.text_scale = 1.10;
                 self.reduced_motion = true;
@@ -589,7 +600,7 @@ impl LocalSettings {
                 self.reduced_motion = false;
                 self.rumble = true;
             }
-            GraphicsPreset::High => {
+            GraphicsPreset::High | GraphicsPreset::Ultra => {
                 self.brightness = 1.25;
                 self.text_scale = DEFAULT_TEXT_SCALE;
                 self.reduced_motion = false;
@@ -600,7 +611,7 @@ impl LocalSettings {
         self.clamp_text_scale();
     }
 
-    /// Cycle Graphics Low → Medium → High and apply the bundle.
+    /// Cycle Mobile → Low → Medium → High → Ultra → Mobile and apply the bundle.
     pub fn cycle_graphics_preset(&mut self) {
         self.graphics_preset = self.graphics_preset.next();
         self.apply_graphics_preset();
@@ -1377,15 +1388,59 @@ mod tests {
         assert!((high.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
         assert!(!high.reduced_motion);
         assert!(high.rumble);
+
+        let mut mobile = LocalSettings::peace_defaults();
+        mobile.set_graphics_preset(GraphicsPreset::Mobile);
+        assert_eq!(mobile.graphics_preset, GraphicsPreset::Mobile);
+        assert_eq!(mobile.graphics_preset.label(), "Mobile");
+        assert_eq!(mobile.brightness, low.brightness);
+        assert_eq!(mobile.text_scale, low.text_scale);
+        assert_eq!(mobile.reduced_motion, low.reduced_motion);
+        assert_eq!(mobile.rumble, low.rumble);
+
+        let mut ultra = LocalSettings::peace_defaults();
+        ultra.set_graphics_preset(GraphicsPreset::Ultra);
+        assert_eq!(ultra.graphics_preset, GraphicsPreset::Ultra);
+        assert_eq!(ultra.graphics_preset.label(), "Ultra");
+        assert_eq!(ultra.brightness, high.brightness);
+        assert_eq!(ultra.text_scale, high.text_scale);
+        assert_eq!(ultra.reduced_motion, high.reduced_motion);
+        assert_eq!(ultra.rumble, high.rumble);
     }
 
     #[test]
     fn graphics_preset_cycle_and_persist_roundtrip() {
+        assert_eq!(
+            GraphicsPreset::ALL,
+            [
+                GraphicsPreset::Mobile,
+                GraphicsPreset::Low,
+                GraphicsPreset::Medium,
+                GraphicsPreset::High,
+                GraphicsPreset::Ultra,
+            ]
+        );
+        assert_eq!(GraphicsPreset::Mobile.next(), GraphicsPreset::Low);
+        assert_eq!(GraphicsPreset::Low.next(), GraphicsPreset::Medium);
+        assert_eq!(GraphicsPreset::Medium.next(), GraphicsPreset::High);
+        assert_eq!(GraphicsPreset::High.next(), GraphicsPreset::Ultra);
+        assert_eq!(GraphicsPreset::Ultra.next(), GraphicsPreset::Mobile);
+
         let mut s = LocalSettings::peace_defaults();
         assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
         s.cycle_graphics_preset();
         assert_eq!(s.graphics_preset, GraphicsPreset::High);
         assert!((s.brightness - 1.25).abs() < 0.01);
+        s.cycle_graphics_preset();
+        assert_eq!(s.graphics_preset, GraphicsPreset::Ultra);
+        assert_eq!(s.graphics_preset.label(), "Ultra");
+        assert!((s.brightness - 1.25).abs() < 0.01);
+        assert!(!s.reduced_motion);
+        s.cycle_graphics_preset();
+        assert_eq!(s.graphics_preset, GraphicsPreset::Mobile);
+        assert_eq!(s.graphics_preset.label(), "Mobile");
+        assert!(s.reduced_motion);
+        assert!(!s.rumble);
         s.cycle_graphics_preset();
         assert_eq!(s.graphics_preset, GraphicsPreset::Low);
         assert!(s.reduced_motion);
@@ -1415,6 +1470,8 @@ mod tests {
         assert_eq!(GraphicsPreset::Low.mesh_lod(), MeshLod::Low);
         assert_eq!(GraphicsPreset::Medium.mesh_lod(), MeshLod::Medium);
         assert_eq!(GraphicsPreset::High.mesh_lod(), MeshLod::High);
+        assert_eq!(GraphicsPreset::Mobile.mesh_lod(), GraphicsPreset::Low.mesh_lod());
+        assert_eq!(GraphicsPreset::Ultra.mesh_lod(), GraphicsPreset::High.mesh_lod());
         assert_eq!(MeshLod::default(), MeshLod::Medium);
 
         let mut s = LocalSettings::peace_defaults();
@@ -1450,6 +1507,14 @@ mod tests {
         assert_eq!(GraphicsPreset::Low.weather_fidelity(), WeatherFidelity::Low);
         assert_eq!(GraphicsPreset::Medium.weather_fidelity(), WeatherFidelity::Medium);
         assert_eq!(GraphicsPreset::High.weather_fidelity(), WeatherFidelity::High);
+        assert_eq!(
+            GraphicsPreset::Mobile.weather_fidelity(),
+            GraphicsPreset::Low.weather_fidelity()
+        );
+        assert_eq!(
+            GraphicsPreset::Ultra.weather_fidelity(),
+            GraphicsPreset::High.weather_fidelity()
+        );
         assert_eq!(WeatherFidelity::default(), WeatherFidelity::Medium);
 
         let mut s = LocalSettings::peace_defaults();
@@ -1483,6 +1548,44 @@ mod tests {
 
         assert!(WeatherFidelity::Low.intensity() < WeatherFidelity::Medium.intensity());
         assert!(WeatherFidelity::Medium.intensity() < WeatherFidelity::High.intensity());
+    }
+
+    /// Old on-disk JSON (`graphics_preset`: low / medium / high) still loads
+    /// to the same variant. `mobile` and `ultra` round-trip on the same writer.
+    #[test]
+    fn graphics_preset_old_three_tiers_load_and_mobile_ultra_roundtrip() {
+        let saved = [
+            (
+                r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"graphics_preset":"low","grove":"off"}"#,
+                GraphicsPreset::Low,
+            ),
+            (
+                r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"graphics_preset":"medium","grove":"off"}"#,
+                GraphicsPreset::Medium,
+            ),
+            (
+                r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.25,"text_scale":1.0,"graphics_preset":"high","grove":"off"}"#,
+                GraphicsPreset::High,
+            ),
+        ];
+        for (raw, preset) in saved {
+            let loaded = LocalSettings::from_json(raw).unwrap();
+            assert_eq!(loaded.graphics_preset, preset);
+            assert_eq!(loaded.graphics_preset.label(), preset.label());
+        }
+
+        for (preset, token) in [
+            (GraphicsPreset::Mobile, "mobile"),
+            (GraphicsPreset::Ultra, "ultra"),
+        ] {
+            let mut s = LocalSettings::peace_defaults();
+            s.graphics_preset = preset;
+            let raw = s.to_json().unwrap();
+            assert!(raw.contains(&format!("\"graphics_preset\": \"{token}\"")));
+            let back = LocalSettings::from_json(&raw).unwrap();
+            assert_eq!(back.graphics_preset, preset);
+            assert_eq!(back.graphics_preset.label(), preset.label());
+        }
     }
 
     #[test]

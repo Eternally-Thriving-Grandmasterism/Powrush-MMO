@@ -1602,8 +1602,22 @@ mod tests {
             "Comfort Low bumps text_scale so boot Want stays readable"
         );
         assert_eq!(garden_boot_want_line(true, false).expect("Want at Low"), spoken);
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
         assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::Low));
+        assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::Medium));
+        assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::High));
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        let mut mid = LocalSettings::peace_defaults();
+        let medium_scale = mid.text_scale;
+        mid.set_graphics_preset(GraphicsPreset::Medium);
+        assert_eq!(mid.graphics_preset, GraphicsPreset::Medium);
+        assert!((mid.text_scale - medium_scale).abs() < f32::EPSILON);
+        let mut high = LocalSettings::peace_defaults();
+        high.set_graphics_preset(GraphicsPreset::High);
+        assert_eq!(high.graphics_preset, GraphicsPreset::High);
+        assert!((high.text_scale - medium_scale).abs() < f32::EPSILON);
     }
 
     /// CARD L6 — skip House → SANCTUARY_WANT / GARDEN_WANT unchanged.

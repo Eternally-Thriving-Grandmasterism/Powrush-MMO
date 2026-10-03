@@ -45,8 +45,8 @@ const BED_GAIN_COMFORT_LOW_SCALE: f32 = 0.55;
 /// A muted banked gain of 0 stays 0.
 fn bed_playback_gain(banked: f32, preset: GraphicsPreset) -> f32 {
     match preset {
-        GraphicsPreset::Low => banked * BED_GAIN_COMFORT_LOW_SCALE,
-        GraphicsPreset::Medium | GraphicsPreset::High => banked,
+        GraphicsPreset::Mobile | GraphicsPreset::Low => banked * BED_GAIN_COMFORT_LOW_SCALE,
+        GraphicsPreset::Medium | GraphicsPreset::High | GraphicsPreset::Ultra => banked,
     }
 }
 
@@ -432,11 +432,19 @@ mod tests {
     }
 
     /// CARD OPT-AUDIO-COMFORT-LOW — Low is quieter than Medium for the same place.
-    /// Medium and High stay the banked constants. Mute still zeros. No Ultra.
+    /// Medium and High stay the banked constants. Mute still zeros.
+    /// Mobile matches Low. Ultra matches High.
     #[test]
     fn comfort_low_caps_bed_quieter_than_medium_high_stay_banked() {
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
-        for preset in GraphicsPreset::ALL {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
+        for preset in [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+        ] {
             assert!(!preset.label().contains("Ultra"));
         }
         assert!((BED_GAIN_COMFORT_LOW_SCALE - 0.55).abs() < f32::EPSILON);
@@ -477,7 +485,11 @@ mod tests {
             let low = bed_playback_gain(banked_voice, GraphicsPreset::Low);
             let mid = bed_playback_gain(banked_voice, GraphicsPreset::Medium);
             let high = bed_playback_gain(banked_voice, GraphicsPreset::High);
+            let mobile = bed_playback_gain(banked_voice, GraphicsPreset::Mobile);
+            let ultra = bed_playback_gain(banked_voice, GraphicsPreset::Ultra);
             assert!(low < mid);
+            assert!((mobile - low).abs() < f32::EPSILON);
+            assert!((ultra - high).abs() < f32::EPSILON);
             assert!(low > 0.0);
             assert!((mid - banked).abs() < f32::EPSILON);
             assert!((high - banked).abs() < f32::EPSILON);

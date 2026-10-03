@@ -1220,8 +1220,13 @@ mod tests {
                 spoken
             );
         }
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
         assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::Low));
+        assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::Medium));
+        assert!(GraphicsPreset::ALL.contains(&GraphicsPreset::High));
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
     }
 
     /// CARD L6 — Depths first minutes speak restore-not-Take, not Sanctuary well.
@@ -1405,8 +1410,13 @@ mod tests {
                 assert!(!line.contains('\n'));
             }
         }
-        assert_eq!(GraphicsPreset::ALL.len(), 3);
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(GraphicsPreset::Low.label(), "Low");
+        assert_eq!(GraphicsPreset::Medium.label(), "Medium");
+        assert_eq!(GraphicsPreset::High.label(), "High");
         assert!(!GraphicsPreset::Low.label().contains("Ultra"));
+        assert!(!GraphicsPreset::Medium.label().contains("Ultra"));
+        assert!(!GraphicsPreset::High.label().contains("Ultra"));
     }
 
 }
