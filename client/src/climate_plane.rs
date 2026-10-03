@@ -96,10 +96,17 @@
  * and Mobile / Low / Medium, stay the FOG-TIER-1 bed. No
  * `VolumetricFogSettings`.
  *
+ * CARD FOG-ULTRA-VOLUMETRIC-1 — Ultra inserts `VolumetricFogSettings` on
+ * every world `Camera3d` and `VolumetricLight` only on a `DirectionalLight`
+ * with shadows on (VISUAL_TARGET L177). Mobile / Low / Medium / High remove
+ * both. `fog_bed_for` stays byte-identical. Not in `FogWriteSet`. No
+ * `FogSettings` write. The fallback sun (shadows off) never gets
+ * `VolumetricLight`.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
-use bevy::pbr::{FogFalloff, FogSettings};
+use bevy::pbr::{FogFalloff, FogSettings, VolumetricFogSettings, VolumetricLight};
 use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, WeatherFidelity};
@@ -699,6 +706,46 @@ pub fn fog_bed_for(realm: Option<u8>, preset: GraphicsPreset) -> WeatherBed {
     bed
 }
 
+/// Ultra volumetric fog colour — warm aerial haze, not a whiteout.
+const ULTRA_VOLUMETRIC_FOG_COLOR: Color = Color::srgb(0.72, 0.68, 0.60);
+/// No environment-map light on the yard, so volumetric ambient stays off.
+const ULTRA_VOLUMETRIC_AMBIENT_COLOR: Color = Color::srgb(0.70, 0.67, 0.62);
+const ULTRA_VOLUMETRIC_AMBIENT_INTENSITY: f32 = 0.0;
+/// Half of Bevy's 64-step default. Shafts on Ultra, modest cost.
+const ULTRA_VOLUMETRIC_STEP_COUNT: u32 = 32;
+const ULTRA_VOLUMETRIC_MAX_DEPTH: f32 = 24.0;
+const ULTRA_VOLUMETRIC_ABSORPTION: f32 = 0.15;
+const ULTRA_VOLUMETRIC_SCATTERING: f32 = 0.22;
+/// Below Bevy's 0.1 default so shafts stay a veil, not a second weather bed.
+const ULTRA_VOLUMETRIC_DENSITY: f32 = 0.04;
+const ULTRA_VOLUMETRIC_SCATTERING_ASYMMETRY: f32 = 0.55;
+const ULTRA_VOLUMETRIC_LIGHT_TINT: Color = Color::srgb(1.0, 0.94, 0.82);
+const ULTRA_VOLUMETRIC_LIGHT_INTENSITY: f32 = 0.65;
+
+/// Ultra-only light shafts for a Comfort graphics tier.
+///
+/// [`Some`] only on [`GraphicsPreset::Ultra`]. Mobile, Low, Medium, and High
+/// return [`None`]. Does not change [`fog_bed_for`].
+/// Cite [`docs/VISUAL_TARGET.md`] L177.
+pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<VolumetricFogSettings> {
+    if preset != GraphicsPreset::Ultra {
+        return None;
+    }
+    Some(VolumetricFogSettings {
+        fog_color: ULTRA_VOLUMETRIC_FOG_COLOR,
+        ambient_color: ULTRA_VOLUMETRIC_AMBIENT_COLOR,
+        ambient_intensity: ULTRA_VOLUMETRIC_AMBIENT_INTENSITY,
+        step_count: ULTRA_VOLUMETRIC_STEP_COUNT,
+        max_depth: ULTRA_VOLUMETRIC_MAX_DEPTH,
+        absorption: ULTRA_VOLUMETRIC_ABSORPTION,
+        scattering: ULTRA_VOLUMETRIC_SCATTERING,
+        density: ULTRA_VOLUMETRIC_DENSITY,
+        scattering_asymmetry: ULTRA_VOLUMETRIC_SCATTERING_ASYMMETRY,
+        light_tint: ULTRA_VOLUMETRIC_LIGHT_TINT,
+        light_intensity: ULTRA_VOLUMETRIC_LIGHT_INTENSITY,
+    })
+}
+
 /// Couple FlowWeather band → Place mood breath / glow multiplier.
 /// Flow lifts; Anxiety tightens; Boredom mutes; Rise is neutral.
 pub fn place_band_mul(mood: PlaceMood, band: WeatherBandKind) -> f32 {
@@ -819,6 +866,7 @@ impl Plugin for ClimatePlanePlugin {
                         .after(breathe_weather_bed)
                         .in_set(FogWriteSet::ArrivalBeat),
                     update_climate_chip,
+                    sync_ultra_volumetric,
                 ),
             );
     }
@@ -977,6 +1025,51 @@ fn sync_place_dress_from_travel(
     let id = dress_realm_for_place(travel.current);
     if realm.current != id {
         realm.current = id;
+    }
+}
+
+/// CARD FOG-ULTRA-VOLUMETRIC-1 — Ultra puts [`VolumetricFogSettings`] on
+/// every [`Camera3d`] and [`VolumetricLight`] only on a [`DirectionalLight`]
+/// with `shadows_enabled`. Leaving Ultra removes both. A component that is
+/// already present is left in place. Writes no [`FogSettings`]. Not in
+/// [`FogWriteSet`]. The fallback sun (`shadows_enabled: false`) never
+/// receives [`VolumetricLight`].
+fn sync_ultra_volumetric(
+    mut commands: Commands,
+    settings: Option<Res<LocalSettingsState>>,
+    cameras: Query<(Entity, Option<&VolumetricFogSettings>), With<Camera3d>>,
+    lights: Query<(Entity, &DirectionalLight, Option<&VolumetricLight>)>,
+) {
+    let preset = settings
+        .as_ref()
+        .map(|state| state.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    if let Some(volumetric) = ultra_volumetric_for(preset) {
+        for (entity, existing) in &cameras {
+            if existing.is_none() {
+                commands.entity(entity).insert(volumetric);
+            }
+        }
+        for (entity, light, existing) in &lights {
+            if light.shadows_enabled {
+                if existing.is_none() {
+                    commands.entity(entity).insert(VolumetricLight);
+                }
+            } else if existing.is_some() {
+                commands.entity(entity).remove::<VolumetricLight>();
+            }
+        }
+    } else {
+        for (entity, existing) in &cameras {
+            if existing.is_some() {
+                commands.entity(entity).remove::<VolumetricFogSettings>();
+            }
+        }
+        for (entity, _light, existing) in &lights {
+            if existing.is_some() {
+                commands.entity(entity).remove::<VolumetricLight>();
+            }
+        }
     }
 }
 
@@ -3045,6 +3138,139 @@ mod tests {
         assert!(
             seen.iter().all(|found| *found),
             "Update graph missing a climate_plane fog writer: {seen:?}"
+        );
+    }
+
+    /// CARD FOG-ULTRA-VOLUMETRIC-1 — Some only on Ultra. All five presets.
+    #[test]
+    fn ultra_volumetric_for_some_only_on_ultra() {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        for preset in GraphicsPreset::ALL {
+            let got = ultra_volumetric_for(preset);
+            if preset == GraphicsPreset::Ultra {
+                let vol = got.expect("Ultra");
+                assert_eq!(vol.fog_color, ULTRA_VOLUMETRIC_FOG_COLOR);
+                assert_eq!(vol.ambient_color, ULTRA_VOLUMETRIC_AMBIENT_COLOR);
+                assert_eq!(vol.ambient_intensity, ULTRA_VOLUMETRIC_AMBIENT_INTENSITY);
+                assert_eq!(vol.step_count, ULTRA_VOLUMETRIC_STEP_COUNT);
+                assert_eq!(vol.max_depth, ULTRA_VOLUMETRIC_MAX_DEPTH);
+                assert_eq!(vol.absorption, ULTRA_VOLUMETRIC_ABSORPTION);
+                assert_eq!(vol.scattering, ULTRA_VOLUMETRIC_SCATTERING);
+                assert_eq!(vol.density, ULTRA_VOLUMETRIC_DENSITY);
+                assert_eq!(
+                    vol.scattering_asymmetry,
+                    ULTRA_VOLUMETRIC_SCATTERING_ASYMMETRY
+                );
+                assert_eq!(vol.light_tint, ULTRA_VOLUMETRIC_LIGHT_TINT);
+                assert_eq!(vol.light_intensity, ULTRA_VOLUMETRIC_LIGHT_INTENSITY);
+            } else {
+                assert!(got.is_none(), "{preset:?}");
+            }
+        }
+    }
+
+    /// CARD FOG-ULTRA-VOLUMETRIC-1 — Ultra inserts on the camera and the
+    /// shadows-on sun. The shadows-off fallback never gets VolumetricLight.
+    /// High removes both. This system writes no FogSettings.
+    #[test]
+    fn ultra_volumetric_inserts_on_ultra_and_removes_on_high() {
+        use bevy::ecs::schedule::NodeId;
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(LocalSettingsState {
+            inner: LocalSettings::default(),
+            dirty: false,
+        });
+        app.add_systems(Update, sync_ultra_volumetric);
+
+        let camera = app.world_mut().spawn(Camera3dBundle::default()).id();
+        let sun = app
+            .world_mut()
+            .spawn(DirectionalLightBundle {
+                directional_light: DirectionalLight {
+                    shadows_enabled: true,
+                    ..default()
+                },
+                ..default()
+            })
+            .id();
+        let fallback = app
+            .world_mut()
+            .spawn(DirectionalLightBundle {
+                directional_light: DirectionalLight {
+                    illuminance: 8_500.0,
+                    shadows_enabled: false,
+                    color: Color::srgb(1.0, 0.96, 0.88),
+                    ..default()
+                },
+                transform: Transform::from_xyz(8.0, 18.0, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
+                ..default()
+            })
+            .id();
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::Ultra);
+        app.update();
+
+        assert!(app.world().get::<VolumetricFogSettings>(camera).is_some());
+        assert!(app.world().get::<FogSettings>(camera).is_none());
+        assert!(app.world().get::<VolumetricLight>(sun).is_some());
+        assert!(app.world().get::<VolumetricLight>(fallback).is_none());
+
+        app.update();
+        assert!(app.world().get::<VolumetricFogSettings>(camera).is_some());
+        assert!(app.world().get::<VolumetricLight>(sun).is_some());
+        assert!(app.world().get::<VolumetricLight>(fallback).is_none());
+        assert!(app.world().get::<FogSettings>(camera).is_none());
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::High);
+        app.update();
+
+        assert!(app.world().get::<VolumetricFogSettings>(camera).is_none());
+        assert!(app.world().get::<VolumetricLight>(sun).is_none());
+        assert!(app.world().get::<VolumetricLight>(fallback).is_none());
+
+        let mut registered = App::new();
+        registered.add_plugins((MinimalPlugins, ClimatePlanePlugin));
+        let schedule = registered
+            .world()
+            .resource::<Schedules>()
+            .get(Update)
+            .expect("Update schedule");
+        let graph = schedule.graph();
+        let mut found = false;
+        for (node, system, _) in graph.systems() {
+            if !system.name().contains("sync_ultra_volumetric") {
+                continue;
+            }
+            found = true;
+            let parents: Vec<NodeId> = graph
+                .hierarchy()
+                .graph()
+                .all_edges()
+                .filter(|(_, child, _)| *child == node)
+                .map(|(parent, _, _)| parent)
+                .collect();
+            for parent in parents {
+                if let Some(set) = graph.get_set_at(parent) {
+                    let label = format!("{set:?}");
+                    assert!(
+                        !label.contains("FogWriteSet"),
+                        "sync_ultra_volumetric landed in {label}"
+                    );
+                }
+            }
+        }
+        assert!(
+            found,
+            "ClimatePlanePlugin did not register sync_ultra_volumetric"
         );
     }
 }
