@@ -19,6 +19,7 @@ use crate::harvest_feel::SoftRbePool;
 use crate::hex_travel::HexTravelState;
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::lived_hour_bind::LivedHourBind;
+use crate::local_settings::LocalSettingsState;
 use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_BORDER, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
 use crate::living_freshness::LivingFreshness;
@@ -73,6 +74,8 @@ struct WatchStripText;
 struct SatchelRoot;
 #[derive(Component)]
 struct SatchelBody;
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct SatchelFontBase(pub f32);
 #[derive(Component)]
 struct PickupFlashRoot;
 #[derive(Component)]
@@ -94,6 +97,7 @@ impl Plugin for HumanInventoryPlugin {
                     update_watch_strip,
                     update_satchel,
                     update_pickup_flash,
+                    scale_satchel_fonts,
                 ),
             );
     }
@@ -158,13 +162,16 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
             LivedUiPlate,
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                "SATCHEL",
-                TextStyle {
-                    font_size: 14.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
+            p.spawn((
+                TextBundle::from_section(
+                    "SATCHEL",
+                    TextStyle {
+                        font_size: 14.0,
+                        color: TITLE_TEXT_SECONDARY,
+                        ..default()
+                    },
+                ),
+                SatchelFontBase(14.0),
             ));
             p.spawn((
                 TextBundle::from_section(
@@ -176,14 +183,18 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     },
                 ),
                 SatchelBody,
+                SatchelFontBase(13.5),
             ));
-            p.spawn(TextBundle::from_section(
-                "I close · 1–3 highlight · R allocate surplus",
-                TextStyle {
-                    font_size: 11.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
+            p.spawn((
+                TextBundle::from_section(
+                    "I close · 1–3 highlight · R allocate surplus",
+                    TextStyle {
+                        font_size: 11.0,
+                        color: TITLE_TEXT_SECONDARY,
+                        ..default()
+                    },
+                ),
+                SatchelFontBase(11.0),
             ));
         });
 
@@ -378,6 +389,29 @@ pub fn satchel_temper_display(item: &TemperedItem) -> String {
         line.push_str(&format!(" · Ward: {}", ward_kind_satchel_name(ward)));
     }
     line
+}
+
+/// CARD UI-SCALE-SLABS-2 — satchel plate type follows `text_scale` (11–22).
+pub fn satchel_font_px(base: f32, text_scale: f32) -> f32 {
+    (base * text_scale).clamp(11.0, 22.0)
+}
+
+fn scale_satchel_fonts(
+    settings: Option<Res<LocalSettingsState>>,
+    mut q: Query<(&SatchelFontBase, &mut Text)>,
+) {
+    let scale = match &settings {
+        Some(state) => state.inner.text_scale,
+        None => 1.0,
+    };
+    for (base, mut text) in &mut q {
+        let px = satchel_font_px(base.0, scale);
+        for section in &mut text.sections {
+            if (section.style.font_size - px).abs() > 0.01 {
+                section.style.font_size = px;
+            }
+        }
+    }
 }
 
 fn update_satchel(
@@ -590,6 +624,79 @@ mod tests {
         assert!(!low.contains("market"));
         assert!(!low.contains("xp"));
         assert!(!dressed.contains("Threshold"));
+    }
+
+    /// CARD UI-SCALE-SLABS-2 — identity at 1.0, 1.35 step, clamp 11–22.
+    #[test]
+    fn satchel_font_px_follows_text_scale() {
+        for base in [14.0_f32, 13.5, 11.0] {
+            assert_eq!(satchel_font_px(base, 1.0), base);
+            assert_eq!(satchel_font_px(base, 0.1), 11.0);
+            assert_eq!(satchel_font_px(base, 5.0), 22.0);
+        }
+        assert!((satchel_font_px(14.0, 1.35) - 18.9).abs() < 1e-4);
+        assert!((satchel_font_px(13.5, 1.35) - 18.225).abs() < 1e-4);
+        assert!((satchel_font_px(11.0, 1.35) - 14.85).abs() < 1e-4);
+    }
+
+    /// CARD UI-SCALE-SLABS-2 — spawn stays at each plate base; one text-scale
+    /// bump resizes the three satchel texts and leaves their strings alone.
+    /// Peace defaults are explicit so the test does not read disk.
+    #[test]
+    fn satchel_plate_fonts_track_text_scale_bump() {
+        use bevy::MinimalPlugins;
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .add_systems(Startup, spawn_inventory_surfaces)
+            .add_systems(Update, scale_satchel_fonts);
+
+        app.update();
+        let spawned = satchel_font_rows(&app);
+        assert_eq!(spawned.len(), 3);
+        let bases: Vec<f32> = spawned.iter().map(|(base, _, _)| *base).collect();
+        assert_eq!(bases, vec![11.0, 13.5, 14.0]);
+        for (base, px, _) in &spawned {
+            assert_eq!(*px, *base);
+        }
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .bump_text_scale();
+        let new_scale = app
+            .world()
+            .resource::<LocalSettingsState>()
+            .inner
+            .text_scale;
+        app.update();
+
+        let after = satchel_font_rows(&app);
+        assert_eq!(after.len(), 3);
+        for (before, (base, px, value)) in spawned.iter().zip(after.iter()) {
+            assert_eq!(before.0, *base);
+            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(value, &before.2);
+        }
+    }
+
+    fn satchel_font_rows(app: &App) -> Vec<(f32, f32, String)> {
+        let mut rows = Vec::new();
+        for entity in app.world().iter_entities() {
+            let Some(base) = entity.get::<SatchelFontBase>() else {
+                continue;
+            };
+            let text = entity.get::<Text>().expect("satchel font text");
+            let section = text.sections.first().expect("satchel section");
+            rows.push((base.0, section.style.font_size, section.value.clone()));
+        }
+        rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("satchel font base"));
+        rows
     }
 
     #[test]
