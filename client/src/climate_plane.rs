@@ -98,7 +98,7 @@
  *
  * CARD FOG-ULTRA-VOLUMETRIC-1 — Ultra inserts `VolumetricFogSettings` on
  * every world `Camera3d` and `VolumetricLight` only on a `DirectionalLight`
- * with shadows on (VISUAL_TARGET L177). Mobile / Low / Medium / High remove
+ * with shadows on (VISUAL_TARGET L180). Mobile / Low / Medium / High remove
  * both. `fog_bed_for` stays byte-identical. Not in `FogWriteSet`. No
  * `FogSettings` write. The fallback sun (shadows off) never gets
  * `VolumetricLight`.
@@ -726,7 +726,7 @@ const ULTRA_VOLUMETRIC_LIGHT_INTENSITY: f32 = 0.65;
 ///
 /// [`Some`] only on [`GraphicsPreset::Ultra`]. Mobile, Low, Medium, and High
 /// return [`None`]. Does not change [`fog_bed_for`].
-/// Cite [`docs/VISUAL_TARGET.md`] L177.
+/// Cite [`docs/VISUAL_TARGET.md`] L180.
 pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<VolumetricFogSettings> {
     if preset != GraphicsPreset::Ultra {
         return None;
