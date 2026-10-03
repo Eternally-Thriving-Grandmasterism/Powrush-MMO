@@ -94,6 +94,7 @@ use shared::local_settings::PeaceKey;
 use crate::human_presence::SoftPresence;
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
+use crate::local_settings::LocalSettingsState;
 use crate::mercy_harvest_nodes::NearbyMercyNode;
 use crate::title_screen::LaunchDoor;
 use shared::ledger_bind::ContractState;
@@ -864,16 +865,35 @@ fn update_guidance_visibility(
     }
 }
 
+/// CARD UI-SCALE-SLABS-1 — guidance card type follows `text_scale` (11–22).
+pub fn guidance_card_font_px(text_scale: f32) -> f32 {
+    (17.0 * text_scale).clamp(11.0, 22.0)
+}
+
 fn update_guidance_text(
     guidance: Res<FirstSessionGuidance>,
     travel: Option<Res<HexTravelState>>,
     presence: Option<Res<SoftPresence>>,
+    settings: Option<Res<LocalSettingsState>>,
     mut last_place: Local<Option<&'static str>>,
     mut query: Query<&mut Text, With<FirstSessionGuidanceText>>,
 ) {
     let place = stood_place_label(travel.as_deref(), presence.as_deref());
     let place_changed = *last_place != place;
-    if !guidance.is_changed() && !place_changed {
+    let card_px = settings
+        .as_ref()
+        .map(|state| guidance_card_font_px(state.inner.text_scale))
+        .unwrap_or(17.0);
+    let settings_changed = settings
+        .as_ref()
+        .map(|state| state.is_changed())
+        .unwrap_or(false);
+    let font_differs = query.iter().any(|text| {
+        text.sections
+            .iter()
+            .any(|section| (section.style.font_size - card_px).abs() > 0.01)
+    });
+    if !guidance.is_changed() && !place_changed && !settings_changed && !font_differs {
         return;
     }
     *last_place = place;
@@ -883,6 +903,11 @@ fn update_guidance_text(
         card_line(&spoken_guidance(&guidance.objective, place))
     };
     for mut text in &mut query {
+        for section in text.sections.iter_mut() {
+            if (section.style.font_size - card_px).abs() > 0.01 {
+                section.style.font_size = card_px;
+            }
+        }
         if let Some(section) = text.sections.get_mut(0) {
             if section.value != prompt {
                 section.value = prompt.clone();
@@ -1031,6 +1056,65 @@ pub fn credit_share(guidance: &mut FirstSessionGuidance) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn guidance_card_font_follows_text_scale() {
+        assert_eq!(guidance_card_font_px(1.0), 17.0);
+        assert_eq!(guidance_card_font_px(1.35), 22.0);
+        assert!((guidance_card_font_px(0.85) - 14.45).abs() < 1e-4);
+        assert_eq!(guidance_card_font_px(0.1), 11.0);
+        assert_eq!(guidance_card_font_px(5.0), 22.0);
+    }
+
+    /// CARD UI-SCALE-SLABS-1 — spawn stays 17px; one text-scale bump resizes
+    /// the card and leaves the prompt string alone. Peace defaults, no disk.
+    #[test]
+    fn guidance_card_font_tracks_text_scale_bump() {
+        use bevy::MinimalPlugins;
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>()
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .add_systems(Startup, spawn_guidance_strip)
+            .add_systems(Update, update_guidance_text);
+
+        app.update();
+        let (spawned_px, prompt) = guidance_card_section(&app);
+        assert_eq!(spawned_px, 17.0);
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .bump_text_scale();
+        let new_scale = app
+            .world()
+            .resource::<LocalSettingsState>()
+            .inner
+            .text_scale;
+        app.update();
+
+        let (font_px, after) = guidance_card_section(&app);
+        assert_eq!(font_px, guidance_card_font_px(new_scale));
+        assert_eq!(after, prompt);
+    }
+
+    fn guidance_card_section(app: &App) -> (f32, String) {
+        let world = app.world();
+        for entity in world.iter_entities() {
+            if !entity.contains::<FirstSessionGuidanceText>() {
+                continue;
+            }
+            let text = entity.get::<Text>().expect("guidance text");
+            let section = text.sections.first().expect("guidance section");
+            return (section.style.font_size, section.value.clone());
+        }
+        panic!("guidance card text missing");
+    }
 
     #[test]
     fn hour_is_four_hands_then_ridge() {
