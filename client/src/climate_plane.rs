@@ -82,6 +82,14 @@
  * arrival beat stays after the bed. `lean_fog_toward_place` stays in
  * PostUpdate. No new writer.
  *
+ * CARD FOG-TIER-1 — [`fog_bed_for`] stills Mobile fog. Mobile and Low share
+ * [`WeatherFidelity::Low`], so the wash cannot differ inside
+ * [`weather_bed_for`]. Mobile keeps that bed with `breath_amp` 0: one still,
+ * weather-coloured wash (VISUAL_TARGET L174). That also stills the ambient
+ * pulse on Mobile. The answer beat and the arrival beat still apply.
+ * Low / Medium / High / Ultra stay the fidelity bed. No layered mist. No
+ * volumetric fog.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -531,7 +539,7 @@ impl Default for WeatherBandCoupling {
 
 /// Procedural weather bed — fog / tint / breath from ClimateLook + fidelity.
 /// No live Earth API. No binary weather pack. No second HUD.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WeatherBed {
     pub mood: PlaceMood,
     pub fog: Color,
@@ -648,6 +656,23 @@ pub fn weather_bed_for(realm: Option<u8>, fidelity: WeatherFidelity) -> WeatherB
         tint_strength: intensity,
         bed_density,
     }
+}
+
+/// Place fog bed for a Comfort graphics tier.
+///
+/// Wraps [`weather_bed_for`] with `preset.weather_fidelity()`. Mobile and Low
+/// share [`WeatherFidelity::Low`], so Mobile cannot differ inside that
+/// function. Mobile keeps the same bed and sets `breath_amp` to 0.0: one
+/// still, weather-coloured wash (VISUAL_TARGET L174). This also stills the
+/// ambient pulse on Mobile (answer beat and arrival beat still apply).
+/// Low, Medium, High, and Ultra return the byte-identical
+/// [`weather_bed_for`] result for `preset.weather_fidelity()`.
+pub fn fog_bed_for(realm: Option<u8>, preset: GraphicsPreset) -> WeatherBed {
+    let mut bed = weather_bed_for(realm, preset.weather_fidelity());
+    if preset == GraphicsPreset::Mobile {
+        bed.breath_amp = 0.0;
+    }
+    bed
 }
 
 /// Couple FlowWeather band → Place mood breath / glow multiplier.
@@ -1088,6 +1113,9 @@ fn lod_stone_tf(x: f32, y: f32, z: f32, scale: f32) -> Transform {
 /// Uses existing FogSettings / AmbientLight only — no second HUD, no sockets.
 /// Comfort Low beds are already capped in [`weather_bed_for`] (gentler fog,
 /// slower breath, thinner mist density). Medium and High keep the dressed ramp.
+/// CARD FOG-TIER-1 reads [`GraphicsPreset`] and calls [`fog_bed_for`]. Mobile
+/// `breath_amp` is 0, so this pulse (fog distance and ambient) is still.
+/// Answer beat and arrival beat still run after this writer.
 fn breathe_weather_bed(
     realm: Res<SoftPlayerRealm>,
     settings: Option<Res<LocalSettingsState>>,
@@ -1096,11 +1124,12 @@ fn breathe_weather_bed(
     mut ambient: ResMut<AmbientLight>,
     mut fogs: Query<&mut FogSettings>,
 ) {
-    let fidelity = settings
+    // Missing settings (headless) stay Medium. Same fallback as apply_climate_look.
+    let preset = settings
         .as_ref()
-        .map(|s| s.inner.weather_fidelity())
-        .unwrap_or(WeatherFidelity::Medium);
-    let bed = weather_bed_for(realm.current.or(Some(0)), fidelity);
+        .map(|s| s.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    let bed = fog_bed_for(realm.current.or(Some(0)), preset);
     let amp = coupled_breath_amp(&bed, coupling.band);
     let pulse = (time.elapsed_seconds() * bed.breath_hz * std::f32::consts::TAU).sin() * amp;
     // Fog distance breathes gently around the Place bed.
@@ -2836,6 +2865,105 @@ mod tests {
         assert_eq!(
             partial.world().resource::<FogWriteTape>().0.as_slice(),
             ["ClimateFeel", "ArrivalBeat"]
+        );
+    }
+
+    /// look_for arms: Sanctuary (None / 0), Threshold (1 and 4), Heartwood (2), Depths (3).
+    const FOG_TIER_REALMS: [Option<u8>; 6] = [None, Some(0), Some(1), Some(2), Some(3), Some(4)];
+
+    /// CARD FOG-TIER-1 — Mobile breath is still; every other field matches Low.
+    #[test]
+    fn fog_bed_for_mobile_stills_breath_and_matches_low_bed() {
+        for realm in FOG_TIER_REALMS {
+            let mobile = fog_bed_for(realm, GraphicsPreset::Mobile);
+            let low = weather_bed_for(realm, GraphicsPreset::Low.weather_fidelity());
+            assert_eq!(mobile.breath_amp, 0.0, "{realm:?}");
+            let mut expected = low;
+            expected.breath_amp = 0.0;
+            assert_eq!(mobile, expected, "{realm:?}");
+        }
+    }
+
+    /// CARD FOG-TIER-1 — Low / Medium / High / Ultra stay the fidelity bed.
+    #[test]
+    fn fog_bed_for_low_medium_high_ultra_matches_weather_bed_for() {
+        let tiers = [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+            GraphicsPreset::Ultra,
+        ];
+        for realm in FOG_TIER_REALMS {
+            for preset in tiers {
+                assert_eq!(
+                    fog_bed_for(realm, preset),
+                    weather_bed_for(realm, preset.weather_fidelity()),
+                    "{realm:?} {preset:?}"
+                );
+            }
+        }
+    }
+
+    fn fog_set_label_is(set: &dyn SystemSet, variant: &str) -> bool {
+        let label = format!("{set:?}");
+        label == variant || label.ends_with(&format!("::{variant}"))
+    }
+
+    /// CARD FOG-TIER-1 — ClimatePlanePlugin keeps the three climate_plane
+    /// writers in ClimateLook / PlaceBed / ArrivalBeat. Graph only; startup
+    /// does not run.
+    #[test]
+    fn climate_plane_writers_sit_in_fog_write_sets() {
+        use bevy::ecs::schedule::NodeId;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(ClimatePlanePlugin);
+
+        let schedule = app
+            .world()
+            .resource::<Schedules>()
+            .get(Update)
+            .expect("Update schedule");
+        let graph = schedule.graph();
+        let expect = [
+            ("apply_climate_look", "ClimateLook"),
+            ("breathe_weather_bed", "PlaceBed"),
+            ("apply_arrival_beat_fog", "ArrivalBeat"),
+        ];
+        let mut seen = [false; 3];
+        for (node, system, _) in graph.systems() {
+            let name = system.name();
+            for (i, (fn_name, set_name)) in expect.iter().enumerate() {
+                if !name.contains(fn_name) {
+                    continue;
+                }
+                let parents: Vec<NodeId> = graph
+                    .hierarchy()
+                    .graph()
+                    .all_edges()
+                    .filter(|(_, child, _)| *child == node)
+                    .map(|(parent, _, _)| parent)
+                    .collect();
+                let labels: Vec<String> = parents
+                    .iter()
+                    .filter_map(|parent| graph.get_set_at(*parent))
+                    .map(|set| format!("{set:?}"))
+                    .collect();
+                assert!(
+                    parents.iter().any(|parent| {
+                        graph
+                            .get_set_at(*parent)
+                            .is_some_and(|set| fog_set_label_is(set, set_name))
+                    }),
+                    "{name} missing FogWriteSet::{set_name}; parent sets: {labels:?}"
+                );
+                seen[i] = true;
+            }
+        }
+        assert!(
+            seen.iter().all(|found| *found),
+            "Update graph missing a climate_plane fog writer: {seen:?}"
         );
     }
 }
