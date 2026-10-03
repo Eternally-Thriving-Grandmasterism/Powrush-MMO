@@ -372,7 +372,7 @@ impl GuidanceObjective {
             GuidanceObjective::HourThreeHeld => "Hour three · the book is yours",
             GuidanceObjective::FeelFirstEpiphany => "The field answers",
             GuidanceObjective::MeetCouncilWhisper => "The field answers",
-            GuidanceObjective::FreeExploration => "this hex admits harm · optional",
+            GuidanceObjective::FreeExploration => "E tend · this hex admits harm · optional",
         }
     }
 
@@ -2388,5 +2388,86 @@ mod tests {
             Some("Threshold-near")
         );
         assert!(stood_place_label(None, Some(&body)).is_none());
+    }
+
+    /// CARD GUIDANCE-AFTER-BOOK-1 — after the book the card names E tend.
+    #[test]
+    fn free_exploration_prompt_equals_e_tend_after_book() {
+        assert_eq!(
+            GuidanceObjective::FreeExploration.prompt(),
+            "E tend · this hex admits harm · optional"
+        );
+    }
+
+    /// CARD GUIDANCE-AFTER-BOOK-1 — yard verb plus the harm sign. No combat words.
+    #[test]
+    fn free_exploration_prompt_contains_e_tend_and_harm_not_combat_or_kill() {
+        let prompt = GuidanceObjective::FreeExploration.prompt();
+        assert!(prompt.contains("E tend"));
+        assert!(prompt.contains("this hex admits harm"));
+        assert!(!prompt.contains("combat"));
+        assert!(!prompt.contains("kill"));
+    }
+
+    /// CARD GUIDANCE-AFTER-BOOK-1 — Hour three enters free exploration and stays.
+    /// The other fifteen prompts keep their main strings.
+    #[test]
+    fn hour_three_held_loops_free_exploration_other_prompts_stay() {
+        assert_eq!(
+            GuidanceObjective::HourThreeHeld.next(),
+            GuidanceObjective::FreeExploration
+        );
+        assert_eq!(
+            GuidanceObjective::FreeExploration.next(),
+            GuidanceObjective::FreeExploration
+        );
+
+        let main = [
+            (
+                GuidanceObjective::MoveAround,
+                "WASD walk · Space jump · Shift sprint",
+            ),
+            (GuidanceObjective::ApproachGlowingNode, "Walk to a glow"),
+            (GuidanceObjective::HarvestWithInteract, "E tend the glow"),
+            (
+                GuidanceObjective::OpenInventory,
+                "I satchel · House after allocate",
+            ),
+            (
+                GuidanceObjective::ShareAbundance,
+                "R then 1 flow · 2 reserve",
+            ),
+            (GuidanceObjective::StepCharter, "Tab the ridge"),
+            (GuidanceObjective::PlantHouse, "Q plant a House stake"),
+            (GuidanceObjective::OpenLedger, "L opens the Ledger"),
+            (GuidanceObjective::BindEscort, "E Bind then escort"),
+            (
+                GuidanceObjective::HourTwoHeld,
+                "climate on slab · week tons+restored",
+            ),
+            (
+                GuidanceObjective::PlantFabricator,
+                "Q after arrival — plant the fabricator",
+            ),
+            (
+                GuidanceObjective::EmbassySeat,
+                "Embassy lamp · E Request seat",
+            ),
+            (
+                GuidanceObjective::HourThreeHeld,
+                "Hour three · the book is yours",
+            ),
+            (GuidanceObjective::FeelFirstEpiphany, "The field answers"),
+            (GuidanceObjective::MeetCouncilWhisper, "The field answers"),
+        ];
+        assert_eq!(main.len(), 15);
+        for (objective, expected) in main {
+            assert_ne!(objective, GuidanceObjective::FreeExploration);
+            assert_eq!(objective.prompt(), expected);
+        }
+        assert_ne!(
+            GuidanceObjective::FreeExploration.prompt(),
+            "this hex admits harm · optional"
+        );
     }
 }
