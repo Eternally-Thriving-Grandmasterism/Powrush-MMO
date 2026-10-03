@@ -8,6 +8,7 @@ use std::panic::PanicHookInfo;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use powrush_client::PowrushClientBundle;
 use shared::peace_audio::audio_output_safe;
@@ -18,6 +19,17 @@ const CRASH_LOG_FILE: &str = "crash.log";
 
 /// Argument to `persist_path`. The file name stays [`CRASH_LOG_FILE`].
 const CRASH_LOG_PERSIST_NAME: &str = "data/crash.log";
+
+/// Console log of FPS and frame time. Bevy defaults stay, including the log interval.
+fn frame_time_log_plugin() -> LogDiagnosticsPlugin {
+    LogDiagnosticsPlugin {
+        filter: Some(vec![
+            FrameTimeDiagnosticsPlugin::FPS,
+            FrameTimeDiagnosticsPlugin::FRAME_TIME,
+        ]),
+        ..default()
+    }
+}
 
 fn main() {
     // Resolve once, before `App::new()`. `persist_path("data/crash.log")`
@@ -55,6 +67,7 @@ fn main() {
     App::new()
         .add_plugins(default_plugins)
         .add_plugins(PowrushClientBundle)
+        .add_plugins((FrameTimeDiagnosticsPlugin, frame_time_log_plugin()))
         .add_systems(Startup, spawn_sun_and_camera)
         .run();
 }
@@ -168,5 +181,55 @@ mod crash_log_hook_tests {
         assert_eq!(CRASH_LOG_FILE, "crash.log");
         assert_eq!(CRASH_LOG_PERSIST_NAME, "data/crash.log");
         assert!(CRASH_LOG_PERSIST_NAME.ends_with(CRASH_LOG_FILE));
+    }
+}
+
+#[cfg(test)]
+mod frame_time_log_tests {
+    use super::frame_time_log_plugin;
+    use bevy::diagnostic::{
+        DiagnosticsPlugin, DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
+    };
+    use bevy::prelude::*;
+
+    #[test]
+    fn frame_time_log_filters_fps_and_frame_time_only() {
+        let plugin = frame_time_log_plugin();
+        let filter = plugin.filter.expect("frame time log filter");
+        assert_eq!(
+            filter,
+            vec![
+                FrameTimeDiagnosticsPlugin::FPS,
+                FrameTimeDiagnosticsPlugin::FRAME_TIME,
+            ]
+        );
+        assert!(!filter.contains(&FrameTimeDiagnosticsPlugin::FRAME_COUNT));
+    }
+
+    #[test]
+    fn frame_time_log_keeps_bevy_default_interval() {
+        let plugin = frame_time_log_plugin();
+        assert_eq!(
+            plugin.wait_duration,
+            LogDiagnosticsPlugin::default().wait_duration
+        );
+        assert!(!plugin.debug);
+    }
+
+    #[test]
+    fn fps_and_frame_time_present_in_diagnostics_store_after_updates() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        // Bevy 0.14 MinimalPlugins does not add DiagnosticsPlugin. A second add panics.
+        if !app.is_plugin_added::<DiagnosticsPlugin>() {
+            app.add_plugins(DiagnosticsPlugin);
+        }
+        app.add_plugins((FrameTimeDiagnosticsPlugin, frame_time_log_plugin()));
+        for _ in 0..3 {
+            app.update();
+        }
+        let store = app.world().resource::<DiagnosticsStore>();
+        assert!(store.get(&FrameTimeDiagnosticsPlugin::FPS).is_some());
+        assert!(store.get(&FrameTimeDiagnosticsPlugin::FRAME_TIME).is_some());
     }
 }
