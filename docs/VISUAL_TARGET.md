@@ -58,10 +58,12 @@ The five-tier ladder exists in [`GraphicsPreset`](../shared/local_settings.rs) (
 | High | `GraphicsPreset::High` | `MeshLod::High` — fuller PersonaCommit dress | `WeatherFidelity::High` — richer beds, fuller band |
 | Ultra | Present · `GraphicsPreset::Ultra` (L168) | Uses High's `MeshLod` (`shared/local_settings.rs` L252) | Uses High's `WeatherFidelity` (L262) |
 
-`GraphicsPreset::mesh_lod` and `weather_fidelity` (`shared/local_settings.rs` L245–L265) take five tiers and map onto three. This card does not copy `WeatherFidelity::intensity` into a look target. Stills have no density, and Mobile / Ultra have no value.
+`GraphicsPreset::mesh_lod` and `weather_fidelity` (`shared/local_settings.rs` L245–L265) take five tiers and map onto three. This card does not copy `WeatherFidelity::intensity` into a look target. Stills have no density.
 On Mobile, `sky_for` flattens/desaturates the sky (#614, `client/src/climate_plane.rs` L300).
+On Mobile, `fog_bed_for` sets `breath_amp` to 0, a still wash (#617, `client/src/climate_plane.rs` L692).
+On High and Ultra, Depths `fog_end` is 13.6 instead of 16.0 via `HIGH_DEPTHS_FOG_END_MUL` 0.85 (#618, `client/src/climate_plane.rs` L669 + L209).
 
-Dead `QualityPreset` in `client/src/settings.rs` L45–L50 (`Seedling` / `FlowGuardian` / `Eternal`) is slated for removal in a later card, GFX-TIER-LADDER-1. This card does not remove it.
+Dead `QualityPreset` in `client/src/settings.rs` L45–L50 (`Seedling` / `FlowGuardian` / `Eternal`) is slated for removal in a later card. This card does not remove it.
 
 Each knob table states the Mobile look and the Ultra look. A look that only works at the top is marked **Ultra-only** and is never the baseline. Rows say what that tier adds over the tier above. Mute still kills Tend / Flow dust at every tier, including Ultra ([`ART_BIBLE.md`](ART_BIBLE.md) L21). No tier adds a second `Camera3d` (L22).
 
