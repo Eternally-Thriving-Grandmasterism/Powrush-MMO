@@ -48,17 +48,18 @@ Not used: Powrush Art Collection Draft (`1z9XZxPvBUOFkqq2GJBgjoNosn30Peqnj`), an
 
 ## Tier ladder
 
-A future five-tier ladder extends today’s [`GraphicsPreset`](../shared/local_settings.rs) (`shared/local_settings.rs` L157–L191). It does not invent a second preset enum. `Mobile` and `Ultra` are not variants in code today.
+The five-tier ladder exists in [`GraphicsPreset`](../shared/local_settings.rs) (`shared/local_settings.rs` L160–L169, impl L171–L201), landed in #613. It does not invent a second preset enum.
 
 | Doc tier | In code today | Mesh | Weather |
 |---|---|---|---|
-| Mobile | Absent | Not a `MeshLod` variant | Not a `WeatherFidelity` variant |
-| Low | `GraphicsPreset::Low` | `MeshLod::Low` — primitives / capsule (`shared/local_settings.rs` L195–L243) | `WeatherFidelity::Low` — gentler fog / soft breath (L245–L260) |
-| Medium (default) | `GraphicsPreset::Medium`, device-safe default | `MeshLod::Medium` — balanced Place props; optional glb if already on disk | `WeatherFidelity::Medium` — Place weather, Peace default |
+| Mobile | Present · `GraphicsPreset::Mobile` (L163) | Uses Low's `MeshLod` (`shared/local_settings.rs` L250) | Uses Low's `WeatherFidelity` (L260) |
+| Low | `GraphicsPreset::Low` | `MeshLod::Low` — primitives / capsule (`shared/local_settings.rs` L205–L243) | `WeatherFidelity::Low` — gentler fog / soft breath (L269–L313) |
+| Medium (default) | `GraphicsPreset::Medium`, device-safe default | `MeshLod::Medium` — balanced Place props; optional glb if already on disk (`shared/local_settings.rs` L205–L243) | `WeatherFidelity::Medium` — Place weather, Peace default (L269–L313) |
 | High | `GraphicsPreset::High` | `MeshLod::High` — fuller PersonaCommit dress | `WeatherFidelity::High` — richer beds, fuller band |
-| Ultra | Absent | Not a variant | Not a variant |
+| Ultra | Present · `GraphicsPreset::Ultra` (L168) | Uses High's `MeshLod` (`shared/local_settings.rs` L252) | Uses High's `WeatherFidelity` (L262) |
 
-`GraphicsPreset::mesh_lod` and `weather_fidelity` are 1:1 with Low / Medium / High. This card does not copy `WeatherFidelity::intensity` into a look target. Stills have no density, and Mobile / Ultra have no value.
+`GraphicsPreset::mesh_lod` and `weather_fidelity` (`shared/local_settings.rs` L245–L265) take five tiers and map onto three. This card does not copy `WeatherFidelity::intensity` into a look target. Stills have no density, and Mobile / Ultra have no value.
+On Mobile, `sky_for` flattens/desaturates the sky (#614, `client/src/climate_plane.rs` L300).
 
 Dead `QualityPreset` in `client/src/settings.rs` L45–L50 (`Seedling` / `FlowGuardian` / `Eternal`) is slated for removal in a later card, GFX-TIER-LADDER-1. This card does not remove it.
 
