@@ -50,6 +50,8 @@ Product-green for this slice is those two Core commands only.
 
 On Heartwood, the climate slab prefers Wards over a well: `wards_line.or(well_line)` in `client/src/climate_visible.rs`. A Ward post radius (`WARD_USE_RADIUS`) that also overlaps a well will show `WARDS_NOTICE`, claim Use (`wards_near` → `harvest_use_is_claimed`), and hide the well Idle/Glowing/Tended/Resting/Stressed sentence. That is a code overlap, not a GPU anecdote. A stranger who still treats every glow as harvest E can press E and get dress instead of take/tend. Not theatrical; not a Title Online issue.
 
+> **Update 2026-10-03 (LR-11):** #331 (`a10bb201`) now composes the climate slab line as "{well} · {WARDS_NOTICE}" with the well first when both are near. `client/src/climate_visible.rs` L416–424 is the P2/P3 comment plus the `compose_climate_slab_line` call; L606–619 is the compose function; the test `well_stays_ahead_of_wards_when_both_are_near` is at L1033. The Use-claim sentence above still holds: `client/src/first_harvest_epiphany.rs` L119 `harvest_use_is_claimed` still counts `wards_near`. Record only (not fixed here): where Wards overlaps a well, E still goes to Wards rather than the well tend — a runtime design item for Sherif.
+
 ---
 
 ## Title Online
@@ -66,6 +68,8 @@ Parked, not this PR:
 - **Depths slab line** `"Depths Peace · restored"` — today that string is `DepthsPeaceTend.last_line` + an info log after `restore_depths_hex`; `climate_visible` does not read that resource.
 
 Steward names which door. Agents do not freelance it here.
+
+> **Update 2026-10-03 (LR-11):** Both parked doors have shipped: P2 in #331 (`a10bb201`) and P3 in #332 (`739302a8`). `client/src/climate_visible.rs` L599 is `depths_restore_line`; the test `depths_restore_line_shows_on_existing_slab` is at L1056. `docs/LOCAL_COURT.md` L64–65 records the same two landings.
 
 ---
 
