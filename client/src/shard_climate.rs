@@ -9,6 +9,7 @@
 use bevy::pbr::FogSettings;
 use bevy::prelude::*;
 
+use crate::climate_plane::{configure_fog_write_sets, FogWriteSet};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 use crate::soft_play_bindings;
@@ -29,13 +30,15 @@ pub struct ShardClimatePlugin;
 
 impl Plugin for ShardClimatePlugin {
     fn build(&self, app: &mut App) {
+        // Same chain as ClimatePlanePlugin. Safe when that plugin is absent.
+        configure_fog_write_sets(app);
         app.init_resource::<CareTendHold>()
             .init_resource::<ClimateFeelMemory>()
             .add_systems(
                 Update,
                 (
                     hold_e_care_tend,
-                    paint_climate_feel,
+                    paint_climate_feel.in_set(FogWriteSet::ClimateFeel),
                     persist_climate_on_escape,
                 ),
             )

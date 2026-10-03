@@ -23,6 +23,7 @@ use shared::powrush_gen::{
     light_gen_enabled_with, scatter_from_seed, PowrushGen, ScatterKind,
 };
 
+use crate::climate_plane::{configure_fog_write_sets, FogWriteSet};
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
@@ -128,6 +129,7 @@ impl Plugin for LightGenPlugin {
             mode = door.mode.as_str(),
             "{line}"
         );
+        configure_fog_write_sets(app);
         app.insert_resource(door)
             .init_resource::<LightGenSpawned>()
             .add_systems(Startup, prepare_atlas)
@@ -137,7 +139,7 @@ impl Plugin for LightGenPlugin {
                     sync_light_gen_door,
                     ensure_atlas_when_light,
                     sync_scatter,
-                    paint_world_fog_from_climate,
+                    paint_world_fog_from_climate.in_set(FogWriteSet::LightDoor),
                     cull_scatter_when_plates_open,
                 )
                     .chain(),
