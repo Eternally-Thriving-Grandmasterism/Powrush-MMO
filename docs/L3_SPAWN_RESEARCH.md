@@ -46,7 +46,7 @@ Clerk quotes (tip):
 | Path | Symbol | What it does |
 |---|---|---|
 | `client/src/gltf_integration.rs` | `MeshLodPlan` · `plan_for_preset` | Comfort L/M/H presentation plan (primitives / optional on-disk glb). **Not** a standalone `MeshLodPlan` file — see GAP. |
-| `shared/local_settings.rs` | `MeshLod` · `GraphicsPreset` | Esc Comfort Low / Medium (default) / High → mesh + weather fidelity. No Ultra. |
+| `shared/local_settings.rs` | `MeshLod` · `GraphicsPreset` | Esc Comfort Mobile / Low / Medium (default) / High / Ultra → mesh + weather fidelity. |
 | `client/src/human_presence.rs` | `spawn_human_presence` | Startup stacked-capsule body on the yard; Comfort `MeshLodPlan` scales detail. Does not read `PeopleLanding`. |
 | `client/src/climate_plane.rs` | `spawn_climate_place` | Place-dress fog / tint / path stones for the current lived hex. Four Places stay four. |
 | `client/src/depths_landing.rs` | `DepthsLanding` · `DepthsPeaceTend` | Depths hex node + restore-not-Take. Lives on `PlaceId::Depths` after Places travel — not after a People-door cross. |
