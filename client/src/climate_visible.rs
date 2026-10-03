@@ -256,6 +256,11 @@ fn tick_wards_notice_glow(
     glow.glow = tick_well_glow_breath(glow.glow, time.delta_seconds());
 }
 
+/// CARD UI-SCALE-SLABS-1 — climate slab type follows `text_scale` (11–22).
+pub fn climate_slab_font_px(text_scale: f32) -> f32 {
+    (14.0 * text_scale).clamp(11.0, 22.0)
+}
+
 fn spawn_climate_state_slab(mut commands: Commands) {
     commands
         .spawn((
@@ -429,7 +434,16 @@ fn update_climate_state_slab(
         first_minutes,
         guidance_hidden,
     );
+    let slab_px = settings
+        .as_ref()
+        .map(|state| climate_slab_font_px(state.inner.text_scale))
+        .unwrap_or(14.0);
     for mut text in &mut text_q {
+        for section in text.sections.iter_mut() {
+            if (section.style.font_size - slab_px).abs() > 0.01 {
+                section.style.font_size = slab_px;
+            }
+        }
         if let Some(s) = text.sections.get_mut(0) {
             if s.value != line {
                 s.value = line.clone();
@@ -635,6 +649,15 @@ mod tests {
     use super::*;
     use shared::climate_node::LivedHour;
     use shared::threshold_shelf::THRESHOLD_PEACE_VERBS;
+
+    #[test]
+    fn climate_slab_font_follows_text_scale() {
+        assert_eq!(climate_slab_font_px(1.0), 14.0);
+        assert!((climate_slab_font_px(1.35) - 18.9).abs() < 1e-4);
+        assert!((climate_slab_font_px(0.85) - 11.9).abs() < 1e-4);
+        assert_eq!(climate_slab_font_px(0.1), 11.0);
+        assert_eq!(climate_slab_font_px(5.0), 22.0);
+    }
 
     #[test]
     fn demo_nodes_map_to_three_wells() {
