@@ -14,11 +14,18 @@
 //! stomp re-opens the bury. Fix: Msaa::Off; re-stamp UI+world camera orders
 //! every frame; strip IsDefaultUiCamera from world cams; TargetCamera-bind lived
 //! plates (pause / Ledger / Title / dress) to LivedUiCamera; respawn UI cam if
-//! missing. No new Camera3d. Contact: info@Rathor.ai
+//! missing. No new Camera3d.
+//!
+//! CARD LIGHT-BLOOM-1 — [`copy_lived_ui_hdr_from_world`] runs in the same
+//! Update, after [`TierBloomSet`], and copies the world `Camera3d` `hdr` onto
+//! this camera. No preset of its own. `ClearColorConfig::None`, order 10,
+//! `IsDefaultUiCamera`, and `Msaa::Off` stay. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 use bevy::render::camera::ClearColorConfig;
 use bevy::render::view::Msaa;
+
+use crate::climate_plane::TierBloomSet;
 
 /// World / yard Camera3d order (drawn first).
 pub const WORLD_CAMERA_ORDER: isize = 0;
@@ -78,6 +85,13 @@ impl Plugin for UiAboveWorldPlugin {
                     bind_lived_ui_plates,
                 )
                     .chain(),
+            )
+            .add_systems(
+                Update,
+                copy_lived_ui_hdr_from_world
+                    .after(TierBloomSet)
+                    .after(stamp_world_camera_order)
+                    .after(stamp_lived_ui_camera),
             );
     }
 }
@@ -166,6 +180,25 @@ fn strip_world_default_ui_camera(
     }
 }
 
+/// CARD LIGHT-BLOOM-1 — same Update as [`TierBloomSet`], ordered after it.
+/// The lived UI camera takes the world `Camera3d` `hdr` and nothing else.
+/// No graphics preset. Order, clear, and `IsDefaultUiCamera` stay on the
+/// stamp systems.
+fn copy_lived_ui_hdr_from_world(
+    world_cams: Query<&Camera, (With<Camera3d>, Without<LivedUiCamera>)>,
+    mut ui_cams: Query<&mut Camera, With<LivedUiCamera>>,
+) {
+    let Ok(world_cam) = world_cams.get_single() else {
+        return;
+    };
+    let hdr = world_cam.hdr;
+    for mut cam in &mut ui_cams {
+        if cam.hdr != hdr {
+            cam.hdr = hdr;
+        }
+    }
+}
+
 /// Parent lived plates to the UI camera so Settled HUD chips cannot retarget them.
 fn bind_lived_ui_plates(
     ui_cam: Query<Entity, With<LivedUiCamera>>,
@@ -216,5 +249,84 @@ mod tests {
         // Plugin build inserts Msaa::Off immediately.
         assert!(soft_gpu_msaa_is_off(*app.world().resource::<Msaa>()));
         assert!(ui_camera_draws_above_world());
+    }
+
+    /// CARD LIGHT-BLOOM-1 — UI `hdr` matches the world camera on the first
+    /// frame and on the frame a tier changes. Real plugins. Msaa stays Off.
+    /// Clear and order stay.
+    #[test]
+    fn lived_ui_hdr_matches_world_camera_on_every_tier() {
+        use crate::climate_plane::ClimatePlanePlugin;
+        use crate::living_practice_loop::SoftPlayerRealm;
+        use crate::local_settings::LocalSettingsState;
+        use shared::local_settings::{GraphicsPreset, LocalSettings};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<Assets<Mesh>>()
+            .init_resource::<Assets<StandardMaterial>>()
+            .init_resource::<SoftPlayerRealm>()
+            .insert_resource(Msaa::Sample4)
+            .insert_resource(LocalSettingsState {
+                inner: {
+                    let mut settings = LocalSettings::default();
+                    settings.set_graphics_preset(GraphicsPreset::High);
+                    settings
+                },
+                dirty: false,
+            })
+            .add_plugins((UiAboveWorldPlugin, ClimatePlanePlugin));
+        let world_cam = app
+            .world_mut()
+            .spawn(Camera3dBundle {
+                camera: Camera {
+                    order: WORLD_CAMERA_ORDER,
+                    ..default()
+                },
+                ..default()
+            })
+            .id();
+
+        app.update();
+        assert_hdr_pair(&app, world_cam, true, "High first frame");
+
+        for preset in GraphicsPreset::ALL {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .set_graphics_preset(preset);
+            app.update();
+            let expect = preset == GraphicsPreset::High || preset == GraphicsPreset::Ultra;
+            assert_hdr_pair(&app, world_cam, expect, preset.label());
+        }
+    }
+
+    fn assert_hdr_pair(app: &App, world_cam: Entity, expect_hdr: bool, label: &str) {
+        use bevy::core_pipeline::bloom::BloomSettings;
+        use bevy::render::camera::ClearColorConfig;
+
+        let world_ref = app.world();
+        let world_hdr = world_ref.get::<Camera>(world_cam).unwrap().hdr;
+        assert_eq!(world_hdr, expect_hdr, "{label} world hdr");
+        let mut ui_hdr = None;
+        let mut ui_order = None;
+        let mut ui_clear_none = false;
+        let mut bloom_on_ui = false;
+        for entity in world_ref.iter_entities() {
+            if entity.contains::<LivedUiCamera>() {
+                let cam = entity.get::<Camera>().unwrap();
+                ui_hdr = Some(cam.hdr);
+                ui_order = Some(cam.order);
+                ui_clear_none = matches!(cam.clear_color, ClearColorConfig::None);
+                bloom_on_ui = entity.contains::<BloomSettings>();
+            }
+        }
+        assert_eq!(ui_hdr.expect("ui camera"), world_hdr, "{label} ui hdr");
+        assert_eq!(ui_order.unwrap(), UI_CAMERA_ORDER, "{label}");
+        assert!(ui_clear_none, "{label} clear");
+        assert!(soft_gpu_msaa_is_off(*world_ref.resource::<Msaa>()), "{label}");
+        assert!(!bloom_on_ui, "{label} bloom on ui");
+        let world_bloom = world_ref.get::<BloomSettings>(world_cam).is_some();
+        assert_eq!(world_bloom, expect_hdr, "{label} world bloom");
     }
 }
