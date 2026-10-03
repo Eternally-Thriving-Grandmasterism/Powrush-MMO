@@ -38,15 +38,6 @@ pub struct GraphicsSettings {
     pub chromatic_aberration_intensity: f32,
     pub anisotropic_enabled: bool,
     pub anisotropic_level: u32,
-    pub quality_preset: QualityPreset,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
-pub enum QualityPreset {
-    Seedling,
-    FlowGuardian,
-    #[default]
-    Eternal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -112,7 +103,6 @@ pub fn load_client_settings() -> ClientSettings {
             chromatic_aberration_intensity: 0.6,
             anisotropic_enabled: true,
             anisotropic_level: 16,
-            quality_preset: QualityPreset::Eternal,
         },
         audio: AudioSettings { master_volume: 0.85, whispers_volume: 0.95, music_volume: 0.75 },
         experience: ExperienceSettings {
@@ -151,6 +141,40 @@ pub fn sync_all_settings(
 
     sim.pulse_speed = client.experience.rbe_orb_pulse_speed;
     sim.emissive_strength = client.experience.rbe_orb_emissive;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ClientSettings;
+
+    /// Old `config/client_settings.ron` documents still name `quality_preset`.
+    /// These structs have no `deny_unknown_fields`, so `ron::from_str` keeps loading them.
+    #[test]
+    fn old_ron_with_quality_preset_eternal_still_deserializes() {
+        let baseline = ron::to_string(&ClientSettings::default()).expect("default settings serialize");
+        let legacy = inject_removed_quality_preset(&baseline);
+        assert!(
+            legacy.contains("quality_preset: Eternal"),
+            "fixture must carry the removed field, got {legacy}"
+        );
+        let loaded: ClientSettings =
+            ron::from_str(&legacy).expect("old saves that still name quality_preset must load");
+        let round_trip = ron::to_string(&loaded).expect("loaded settings serialize");
+        assert_eq!(round_trip, baseline);
+    }
+
+    fn inject_removed_quality_preset(serialized_default: &str) -> String {
+        const NEEDLE: &str = "graphics:(";
+        let insert_at = serialized_default
+            .find(NEEDLE)
+            .map(|index| index + NEEDLE.len())
+            .unwrap_or_else(|| panic!("default RON has no graphics struct: {serialized_default}"));
+        let mut legacy = String::with_capacity(serialized_default.len() + 24);
+        legacy.push_str(&serialized_default[..insert_at]);
+        legacy.push_str("quality_preset: Eternal,");
+        legacy.push_str(&serialized_default[insert_at..]);
+        legacy
+    }
 }
 
 // End of client/src/settings.rs v18.96 — Language preference added for multilingual Divine Whispers.
