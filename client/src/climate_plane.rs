@@ -70,6 +70,11 @@
  * dress via the existing look_for table. Does not recook L7 fog WRITE.
  * Garden bounce is Sanctuary boot disk, not a fifth Place. Online grey.
  *
+ * CARD SKY-TIER-1 — Mobile clear color pulls the realm sky toward its own
+ * luminance (VISUAL_TARGET L149 "flat desaturated sky"). Low / Medium /
+ * High / Ultra keep look.sky. Boot ClearColor insert stays the Sanctuary
+ * sky. Fog beds stay on look.fog.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -281,6 +286,34 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             roughness: SANCTUARY_YARD_ROUGHNESS,
         },
     }
+}
+
+/// How far Mobile moves a realm sky toward a grey of its own luminance.
+/// VISUAL_TARGET L149: Mobile is "a flat desaturated sky".
+const MOBILE_SKY_TOWARD_LUMINANCE: f32 = 0.72;
+
+/// Realm clear-color for a Comfort graphics tier.
+///
+/// Mobile desaturates [`look_for`] sky toward its own luminance by
+/// [`MOBILE_SKY_TOWARD_LUMINANCE`]. VISUAL_TARGET L149: "flat desaturated sky".
+/// Low, Medium, High, and Ultra return that sky byte-identical.
+pub fn sky_for(realm: Option<u8>, preset: GraphicsPreset) -> Color {
+    let sky = look_for(realm).sky;
+    match preset {
+        GraphicsPreset::Mobile => sky_desaturated_toward_luminance(sky),
+        GraphicsPreset::Low
+        | GraphicsPreset::Medium
+        | GraphicsPreset::High
+        | GraphicsPreset::Ultra => sky,
+    }
+}
+
+/// Pull `sky` toward a linear grey of equal luminance. Chroma falls; luminance holds.
+fn sky_desaturated_toward_luminance(sky: Color) -> Color {
+    let linear = sky.to_linear();
+    let grey = LinearRgba::gray(linear.luminance());
+    let mixed = linear.mix(&grey, MOBILE_SKY_TOWARD_LUMINANCE);
+    Color::linear_rgba(mixed.red, mixed.green, mixed.blue, mixed.alpha)
 }
 
 /// Place weather mood — expressed via existing fog / sky tint / ambient breath.
@@ -638,6 +671,9 @@ pub fn coupled_breath_amp(bed: &WeatherBed, band: WeatherBandKind) -> f32 {
 #[derive(Resource, Debug)]
 pub struct ClimatePlane {
     pub applied: Option<u8>,
+    /// Graphics tier last written into the clear color. A tier switch re-applies
+    /// the sky on the same realm (CARD SKY-TIER-1).
+    pub applied_preset: Option<GraphicsPreset>,
     pub mood: PlaceMood,
 }
 
@@ -645,6 +681,7 @@ impl Default for ClimatePlane {
     fn default() -> Self {
         Self {
             applied: None,
+            applied_preset: None,
             mood: PlaceMood::SanctuarySkyYard,
         }
     }
@@ -869,6 +906,7 @@ fn attach_fog_when_world_camera_arrives(
 
 fn apply_climate_look(
     realm: Res<SoftPlayerRealm>,
+    settings: Option<Res<LocalSettingsState>>,
     mut plane: ResMut<ClimatePlane>,
     mut clear: ResMut<ClearColor>,
     mut ambient: ResMut<AmbientLight>,
@@ -879,10 +917,19 @@ fn apply_climate_look(
     mut fogs: Query<&mut FogSettings>,
 ) {
     let id = realm.current.unwrap_or(0);
-    if plane.applied == Some(id) && !realm.is_changed() {
+    // Missing settings (headless) stay Medium. Plain Res would panic there.
+    let preset = settings
+        .as_ref()
+        .map(|s| s.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    if plane.applied == Some(id)
+        && plane.applied_preset == Some(preset)
+        && !realm.is_changed()
+    {
         return;
     }
     plane.applied = Some(id);
+    plane.applied_preset = Some(preset);
     plane.mood = place_mood_for(Some(id));
     let look = look_for(Some(id));
     // Sanctuary well glow lifts on graphite earth. Other realms keep 2.2;
@@ -892,7 +939,7 @@ fn apply_climate_look(
     } else {
         2.2
     };
-    clear.0 = look.sky;
+    clear.0 = sky_for(Some(id), preset);
     ambient.color = look.ambient;
     ambient.brightness = look.ambient_bright;
 
@@ -2570,5 +2617,99 @@ mod tests {
         assert!(!garden_roster_is_race_portrait_lobby());
         assert!(mesh_lod::race_lobby_closed());
         assert!(!wrong_door_bounce_recooks_l7_fog());
+    }
+
+    /// Mobile sky luminance may sit this far from the realm sky.
+    const MOBILE_SKY_LUMINANCE_EPSILON: f32 = 1.0e-4;
+
+    fn sky_saturation(color: Color) -> f32 {
+        Hsva::from(color).saturation
+    }
+
+    /// CARD SKY-TIER-1 — Low / Medium / High / Ultra keep look.sky.
+    #[test]
+    fn sky_for_low_medium_high_ultra_matches_look_sky() {
+        let realms = [None, Some(0), Some(1), Some(2), Some(3)];
+        let tiers = [
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+            GraphicsPreset::Ultra,
+        ];
+        for realm in realms {
+            let sky = look_for(realm).sky;
+            for tier in tiers {
+                assert_eq!(sky_for(realm, tier), sky, "{realm:?} {tier:?}");
+            }
+        }
+    }
+
+    /// CARD SKY-TIER-1 — Mobile saturation drops; luminance stays with the realm sky.
+    #[test]
+    fn sky_for_mobile_saturation_below_medium_luminance_held() {
+        for realm in [None, Some(0), Some(1), Some(2), Some(3)] {
+            let medium = sky_for(realm, GraphicsPreset::Medium);
+            let mobile = sky_for(realm, GraphicsPreset::Mobile);
+            assert!(
+                sky_saturation(mobile) < sky_saturation(medium),
+                "{realm:?} mobile {} medium {}",
+                sky_saturation(mobile),
+                sky_saturation(medium)
+            );
+            let drift = (mobile.luminance() - medium.luminance()).abs();
+            assert!(
+                drift <= MOBILE_SKY_LUMINANCE_EPSILON,
+                "{realm:?} luminance drift {drift}"
+            );
+        }
+    }
+
+    /// CARD SKY-TIER-1 — a preset change rewrites clear color on the same realm.
+    #[test]
+    fn sky_tier_switch_updates_clear_without_realm_change() {
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        let boot = look_for(Some(0)).sky;
+        app.insert_resource(ClearColor(boot));
+        app.insert_resource(AmbientLight {
+            color: look_for(Some(0)).ambient,
+            brightness: look_for(Some(0)).ambient_bright,
+        });
+        app.init_resource::<Assets<StandardMaterial>>();
+        app.insert_resource(SoftPlayerRealm { current: Some(0) });
+        app.init_resource::<ClimatePlane>();
+        app.insert_resource(LocalSettingsState {
+            inner: LocalSettings::default(),
+            dirty: false,
+        });
+        app.add_systems(Update, apply_climate_look);
+        app.update();
+
+        let realm_before = app.world().resource::<SoftPlayerRealm>().current;
+        let before = app.world().resource::<ClearColor>().0;
+        assert_eq!(before, sky_for(Some(0), GraphicsPreset::Medium));
+        assert_eq!(
+            app.world().resource::<ClimatePlane>().applied_preset,
+            Some(GraphicsPreset::Medium)
+        );
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::Mobile);
+        app.update();
+
+        let after = app.world().resource::<ClearColor>().0;
+        assert_eq!(
+            app.world().resource::<SoftPlayerRealm>().current,
+            realm_before
+        );
+        assert_ne!(after, before);
+        assert_eq!(after, sky_for(Some(0), GraphicsPreset::Mobile));
+        assert_eq!(
+            app.world().resource::<ClimatePlane>().applied_preset,
+            Some(GraphicsPreset::Mobile)
+        );
     }
 }
