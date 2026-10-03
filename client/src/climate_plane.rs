@@ -90,6 +90,12 @@
  * Low / Medium / High / Ultra stay the fidelity bed. No layered mist. No
  * volumetric fog.
  *
+ * CARD FOG-HIGH-DEPTH-1 — High and Ultra on [`PlaceMood::DepthsWetStone`]
+ * (realm Some(3)) pull `fog_end` closer by [`HIGH_DEPTHS_FOG_END_MUL`]
+ * (VISUAL_TARGET L176, stronger depth fade in the cavern). Other moods,
+ * and Mobile / Low / Medium, stay the FOG-TIER-1 bed. No
+ * `VolumetricFogSettings`.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -658,6 +664,17 @@ pub fn weather_bed_for(realm: Option<u8>, fidelity: WeatherFidelity) -> WeatherB
     }
 }
 
+/// VISUAL_TARGET L176 High half: stronger depth fade in the cavern
+/// (`PlaceMood::DepthsWetStone`, realm Some(3)). Sits in 0.80..=0.90.
+pub const HIGH_DEPTHS_FOG_END_MUL: f32 = 0.85;
+
+/// Closer High/Ultra Depths fog end. The `start + 8.0` floor keeps a readable
+/// gap when the multiplier would close the ramp. Dressed Depths (3.5..16.0)
+/// stays above that floor.
+fn high_depths_fog_end(start: f32, end: f32) -> f32 {
+    (end * HIGH_DEPTHS_FOG_END_MUL).max(start + 8.0)
+}
+
 /// Place fog bed for a Comfort graphics tier.
 ///
 /// Wraps [`weather_bed_for`] with `preset.weather_fidelity()`. Mobile and Low
@@ -665,12 +682,19 @@ pub fn weather_bed_for(realm: Option<u8>, fidelity: WeatherFidelity) -> WeatherB
 /// function. Mobile keeps the same bed and sets `breath_amp` to 0.0: one
 /// still, weather-coloured wash (VISUAL_TARGET L174). This also stills the
 /// ambient pulse on Mobile (answer beat and arrival beat still apply).
-/// Low, Medium, High, and Ultra return the byte-identical
-/// [`weather_bed_for`] result for `preset.weather_fidelity()`.
+/// Low and Medium return the byte-identical [`weather_bed_for`] result for
+/// `preset.weather_fidelity()`. High and Ultra do too, except
+/// [`PlaceMood::DepthsWetStone`]: that cavern pulls `fog_end` closer
+/// (VISUAL_TARGET L176). Colours, `fog_start`, breath, and `bed_density` stay.
 pub fn fog_bed_for(realm: Option<u8>, preset: GraphicsPreset) -> WeatherBed {
     let mut bed = weather_bed_for(realm, preset.weather_fidelity());
     if preset == GraphicsPreset::Mobile {
         bed.breath_amp = 0.0;
+    }
+    if (preset == GraphicsPreset::High || preset == GraphicsPreset::Ultra)
+        && bed.mood == PlaceMood::DepthsWetStone
+    {
+        bed.fog_end = high_depths_fog_end(bed.fog_start, bed.fog_end);
     }
     bed
 }
@@ -2885,6 +2909,8 @@ mod tests {
     }
 
     /// CARD FOG-TIER-1 — Low / Medium / High / Ultra stay the fidelity bed.
+    /// CARD FOG-HIGH-DEPTH-1 skips only Depths (Some(3)) × High and × Ultra,
+    /// where `fog_end` is closer. Every other pair stays byte-identical.
     #[test]
     fn fog_bed_for_low_medium_high_ultra_matches_weather_bed_for() {
         let tiers = [
@@ -2895,11 +2921,66 @@ mod tests {
         ];
         for realm in FOG_TIER_REALMS {
             for preset in tiers {
+                if realm == Some(3)
+                    && matches!(preset, GraphicsPreset::High | GraphicsPreset::Ultra)
+                {
+                    continue;
+                }
                 assert_eq!(
                     fog_bed_for(realm, preset),
                     weather_bed_for(realm, preset.weather_fidelity()),
                     "{realm:?} {preset:?}"
                 );
+            }
+        }
+    }
+
+    /// CARD FOG-HIGH-DEPTH-1 — Depths High and Ultra fade closer than Medium.
+    #[test]
+    fn depths_high_ultra_fog_end_closer_than_medium() {
+        let medium = fog_bed_for(Some(3), GraphicsPreset::Medium).fog_end;
+        assert!(fog_bed_for(Some(3), GraphicsPreset::High).fog_end < medium);
+        assert!(fog_bed_for(Some(3), GraphicsPreset::Ultra).fog_end < medium);
+    }
+
+    /// CARD FOG-HIGH-DEPTH-1 — floor wins when the multiplier would close the
+    /// ramp. Dressed Depths (3.5, 16.0) stays above `start + 8.0`.
+    #[test]
+    fn high_depths_fog_end_floor_wins_on_synthetic_close_end() {
+        let floored = high_depths_fog_end(3.5, 12.0);
+        assert!((floored - 11.5).abs() < f32::EPSILON);
+        assert!((floored - (3.5 + 8.0)).abs() < f32::EPSILON);
+        let dressed = high_depths_fog_end(DEPTHS_FOG_START, DEPTHS_FOG_END);
+        assert!(dressed > DEPTHS_FOG_START + 8.0);
+        assert!((0.80..=0.90).contains(&HIGH_DEPTHS_FOG_END_MUL));
+    }
+
+    /// CARD FOG-HIGH-DEPTH-1 — only Depths × High/Ultra `fog_end` moves.
+    /// Mobile still sets `breath_amp` to 0 on the Low bed.
+    #[test]
+    fn fog_bed_for_moves_only_depths_high_ultra_fog_end() {
+        let realms = [None, Some(0), Some(1), Some(2), Some(3), Some(4)];
+        for realm in realms {
+            for preset in GraphicsPreset::ALL {
+                let got = fog_bed_for(realm, preset);
+                let mut baseline = weather_bed_for(realm, preset.weather_fidelity());
+                if preset == GraphicsPreset::Mobile {
+                    baseline.breath_amp = 0.0;
+                }
+                let depths_high = realm == Some(3)
+                    && matches!(preset, GraphicsPreset::High | GraphicsPreset::Ultra);
+                if depths_high {
+                    assert_eq!(
+                        got.fog_end,
+                        high_depths_fog_end(baseline.fog_start, baseline.fog_end),
+                        "{realm:?} {preset:?}"
+                    );
+                    let mut same = got;
+                    same.fog_end = baseline.fog_end;
+                    assert_eq!(same, baseline, "{realm:?} {preset:?}");
+                } else {
+                    assert_eq!(got, baseline, "{realm:?} {preset:?}");
+                }
             }
         }
     }
