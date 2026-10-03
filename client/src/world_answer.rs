@@ -2,12 +2,17 @@
  * World Answer — v22.2.0
  *
  * Allocate spends a satchel stack. Sky, fog, ambient, node pulse answer.
+ *
+ * CARD FOG-OWNER-1 — `paint_world_answer` is [`FogWriteSet::AnswerBeat`]:
+ * after the place weather bed, before the arrival beat. The writer body
+ * is unchanged, so the beat still wins only while it is live.
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::pbr::FogSettings;
 use bevy::prelude::*;
 
+use crate::climate_plane::{configure_fog_write_sets, FogWriteSet};
 use crate::harvest_feel::SoftRbePool;
 use crate::mercy_harvest_nodes::MercyHarvestNode;
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
@@ -83,10 +88,15 @@ pub struct WorldAnswerPlugin;
 
 impl Plugin for WorldAnswerPlugin {
     fn build(&self, app: &mut App) {
+        // Same chain as ClimatePlanePlugin. Safe when that plugin is absent.
+        configure_fog_write_sets(app);
         app.init_resource::<WorldAnswer>()
             .add_systems(
                 Update,
-                ((notice_allocate, note_place_answers).chain(), paint_world_answer),
+                (
+                    (notice_allocate, note_place_answers).chain(),
+                    paint_world_answer.in_set(FogWriteSet::AnswerBeat),
+                ),
             );
     }
 }

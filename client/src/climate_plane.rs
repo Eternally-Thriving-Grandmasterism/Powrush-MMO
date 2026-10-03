@@ -75,6 +75,13 @@
  * High / Ultra keep look.sky. Boot ClearColor insert stays the Sanctuary
  * sky. Fog beds stay on look.fog.
  *
+ * CARD FOG-OWNER-1 — one Update [`FogWriteSet`] chain owns the camera fog
+ * writers. Order: apply_climate_look, paint_climate_feel,
+ * paint_world_fog_from_climate, breathe_weather_bed, paint_world_answer,
+ * apply_arrival_beat_fog. The answer beat wins while it is live. The
+ * arrival beat stays after the bed. `lean_fog_toward_place` stays in
+ * PostUpdate. No new writer.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -700,10 +707,49 @@ struct ClimateNameRoot;
 #[derive(Component)]
 struct ClimateNameText;
 
+/// CARD FOG-OWNER-1 — Update order for every camera `FogSettings` writer.
+/// Place weather is the bed. The answer beat runs after that bed and wins
+/// while it is live. The arrival beat stays last. PostUpdate
+/// `lean_fog_toward_place` is outside this chain.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FogWriteSet {
+    /// `apply_climate_look`
+    ClimateLook,
+    /// `paint_climate_feel`
+    ClimateFeel,
+    /// `paint_world_fog_from_climate`
+    LightDoor,
+    /// `breathe_weather_bed`
+    PlaceBed,
+    /// `paint_world_answer`
+    AnswerBeat,
+    /// `apply_arrival_beat_fog`
+    ArrivalBeat,
+}
+
+/// Install the fog-writer chain. Empty slots are fine when a headless app
+/// adds only some of the plugins. Calling this more than once is the same
+/// chain, not a second order.
+pub fn configure_fog_write_sets(app: &mut App) {
+    app.configure_sets(
+        Update,
+        (
+            FogWriteSet::ClimateLook,
+            FogWriteSet::ClimateFeel,
+            FogWriteSet::LightDoor,
+            FogWriteSet::PlaceBed,
+            FogWriteSet::AnswerBeat,
+            FogWriteSet::ArrivalBeat,
+        )
+            .chain(),
+    );
+}
+
 pub struct ClimatePlanePlugin;
 
 impl Plugin for ClimatePlanePlugin {
     fn build(&self, app: &mut App) {
+        configure_fog_write_sets(app);
         app.init_resource::<ClimatePlane>()
             .init_resource::<WeatherBandCoupling>()
             .insert_resource(ClearColor(look_for(Some(0)).sky))
@@ -717,10 +763,12 @@ impl Plugin for ClimatePlanePlugin {
                 (
                     attach_fog_when_world_camera_arrives,
                     sync_place_dress_from_travel.before(apply_climate_look),
-                    apply_climate_look,
+                    apply_climate_look.in_set(FogWriteSet::ClimateLook),
                     apply_place_dress_mesh_lod,
-                    breathe_weather_bed,
-                    apply_arrival_beat_fog.after(breathe_weather_bed),
+                    breathe_weather_bed.in_set(FogWriteSet::PlaceBed),
+                    apply_arrival_beat_fog
+                        .after(breathe_weather_bed)
+                        .in_set(FogWriteSet::ArrivalBeat),
                     update_climate_chip,
                 ),
             );
@@ -2710,6 +2758,84 @@ mod tests {
         assert_eq!(
             app.world().resource::<ClimatePlane>().applied_preset,
             Some(GraphicsPreset::Mobile)
+        );
+    }
+
+    #[derive(Resource, Default)]
+    struct FogWriteTape(Vec<&'static str>);
+
+    fn tape_climate_look(mut tape: ResMut<FogWriteTape>) {
+        tape.0.push("ClimateLook");
+    }
+
+    fn tape_climate_feel(mut tape: ResMut<FogWriteTape>) {
+        tape.0.push("ClimateFeel");
+    }
+
+    fn tape_light_door(mut tape: ResMut<FogWriteTape>) {
+        tape.0.push("LightDoor");
+    }
+
+    fn tape_place_bed(mut tape: ResMut<FogWriteTape>) {
+        tape.0.push("PlaceBed");
+    }
+
+    fn tape_answer_beat(mut tape: ResMut<FogWriteTape>) {
+        tape.0.push("AnswerBeat");
+    }
+
+    fn tape_arrival_beat(mut tape: ResMut<FogWriteTape>) {
+        tape.0.push("ArrivalBeat");
+    }
+
+    /// CARD FOG-OWNER-1 — six Update slots. Markers are registered in reverse
+    /// so the chain, not add order, produces ClimateLook → ClimateFeel →
+    /// LightDoor → PlaceBed → AnswerBeat → ArrivalBeat. A second configure
+    /// and a two-slot app must stay panic-free.
+    #[test]
+    fn fog_write_set_orders_look_feel_light_bed_answer_arrival() {
+        let mut app = App::new();
+        configure_fog_write_sets(&mut app);
+        configure_fog_write_sets(&mut app);
+        app.init_resource::<FogWriteTape>();
+        app.add_systems(
+            Update,
+            (
+                tape_arrival_beat.in_set(FogWriteSet::ArrivalBeat),
+                tape_answer_beat.in_set(FogWriteSet::AnswerBeat),
+                tape_place_bed.in_set(FogWriteSet::PlaceBed),
+                tape_light_door.in_set(FogWriteSet::LightDoor),
+                tape_climate_feel.in_set(FogWriteSet::ClimateFeel),
+                tape_climate_look.in_set(FogWriteSet::ClimateLook),
+            ),
+        );
+        app.update();
+        assert_eq!(
+            app.world().resource::<FogWriteTape>().0.as_slice(),
+            [
+                "ClimateLook",
+                "ClimateFeel",
+                "LightDoor",
+                "PlaceBed",
+                "AnswerBeat",
+                "ArrivalBeat",
+            ]
+        );
+
+        let mut partial = App::new();
+        configure_fog_write_sets(&mut partial);
+        partial.init_resource::<FogWriteTape>();
+        partial.add_systems(
+            Update,
+            (
+                tape_arrival_beat.in_set(FogWriteSet::ArrivalBeat),
+                tape_climate_feel.in_set(FogWriteSet::ClimateFeel),
+            ),
+        );
+        partial.update();
+        assert_eq!(
+            partial.world().resource::<FogWriteTape>().0.as_slice(),
+            ["ClimateFeel", "ArrivalBeat"]
         );
     }
 }
