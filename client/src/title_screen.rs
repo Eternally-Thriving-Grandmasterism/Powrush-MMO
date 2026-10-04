@@ -170,24 +170,26 @@ pub mod gltf_integration;
 
 // --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
 // Soft GPU / Mesa must read Play · Continue · Online · Settings before the yard.
-/// Opaque dark plate behind menu text (light-on-dark).
-pub const TITLE_PLATE_BG: Color = Color::srgb(0.05, 0.07, 0.09);
-/// Full-screen dimmer over the world (opaque dark — stranger reads the door).
-pub const TITLE_DIM_BG: Color = Color::srgb(0.02, 0.03, 0.04);
-/// Primary menu / title text — high contrast on TITLE_PLATE_BG.
-pub const TITLE_TEXT_PRIMARY: Color = Color::srgb(0.96, 0.98, 0.94);
-/// Secondary cue / subtitle text.
-pub const TITLE_TEXT_SECONDARY: Color = Color::srgb(0.82, 0.92, 0.86);
-/// Enabled button fill (opaque).
-pub const TITLE_BTN_BG: Color = Color::srgb(0.12, 0.18, 0.15);
-/// Enabled button label.
-pub const TITLE_BTN_FG: Color = Color::srgb(0.96, 0.98, 0.95);
+// CARD VP-UI-REGAL-1 — regal crest: polished gold frames, royal purple fills,
+// near-black purple-tinted plates, warm cream / champagne text. Online grey stays.
+/// Opaque near-black plate behind menu text, faint royal purple tint (light-on-dark).
+pub const TITLE_PLATE_BG: Color = Color::srgb(0.07, 0.05, 0.09);
+/// Full-screen dimmer over the world (opaque near-black, faint purple — stranger reads the door).
+pub const TITLE_DIM_BG: Color = Color::srgb(0.04, 0.025, 0.05);
+/// Primary menu / title text — warm cream, high contrast on TITLE_PLATE_BG.
+pub const TITLE_TEXT_PRIMARY: Color = Color::srgb(0.98, 0.95, 0.86);
+/// Secondary cue / subtitle text — pale gold / champagne.
+pub const TITLE_TEXT_SECONDARY: Color = Color::srgb(0.90, 0.82, 0.62);
+/// Enabled button fill (opaque deep royal purple).
+pub const TITLE_BTN_BG: Color = Color::srgb(0.19, 0.08, 0.30);
+/// Enabled button label — warm champagne cream.
+pub const TITLE_BTN_FG: Color = Color::srgb(0.98, 0.94, 0.84);
 /// Disabled / Online-grey fill.
 pub const TITLE_BTN_DISABLED_BG: Color = Color::srgb(0.10, 0.11, 0.12);
 /// Disabled / Online-grey label.
 pub const TITLE_BTN_DISABLED_FG: Color = Color::srgb(0.55, 0.58, 0.60);
-/// Plate + button border (opaque green).
-pub const TITLE_BORDER: Color = Color::srgb(0.45, 0.78, 0.58);
+/// Plate + button border (opaque polished gold).
+pub const TITLE_BORDER: Color = Color::srgb(0.84, 0.69, 0.32);
 
 /// U5 Steam Deck layout contract. The title plate remains inside this surface.
 pub const DECK_TITLE_WIDTH: f32 = 1280.0;
@@ -7395,4 +7397,73 @@ mod tests {
         }
     }
 
+
+    // --- CARD VP-UI-REGAL-1 — regal crest palette bands ---------------------
+
+    /// (hue degrees 0..360, saturation 0..1, value 0..1) of an sRGB Color.
+    fn regal_hsv(c: Color) -> (f32, f32, f32) {
+        let s = c.to_srgba();
+        let (r, g, b) = (s.red, s.green, s.blue);
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        let d = max - min;
+        let sat = if max > 0.0 { d / max } else { 0.0 };
+        let hue = if d <= f32::EPSILON {
+            0.0
+        } else if max == r {
+            60.0 * (((g - b) / d).rem_euclid(6.0))
+        } else if max == g {
+            60.0 * ((b - r) / d + 2.0)
+        } else {
+            60.0 * ((r - g) / d + 4.0)
+        };
+        (hue, sat, max)
+    }
+
+    #[test]
+    fn vp_ui_regal_palette_sits_in_bands_and_online_grey_unchanged() {
+        let (h, s, v) = regal_hsv(TITLE_BORDER);
+        assert!((38.0..=50.0).contains(&h) && s >= 0.45 && v >= 0.70, "border gold {h} {s} {v}");
+        let (h, _, v) = regal_hsv(TITLE_BTN_BG);
+        assert!((265.0..=290.0).contains(&h) && v <= 0.35, "btn bg purple {h} {v}");
+        for (name, c) in [("plate", TITLE_PLATE_BG), ("dim", TITLE_DIM_BG)] {
+            let (h, _, v) = regal_hsv(c);
+            assert!((250.0..=290.0).contains(&h) && v <= 0.12, "{name} {h} {v}");
+        }
+        for (name, c) in [("primary", TITLE_TEXT_PRIMARY), ("btn fg", TITLE_BTN_FG)] {
+            let (h, s, v) = regal_hsv(c);
+            assert!(v >= 0.92 && s <= 0.20, "{name} cream {s} {v}");
+            assert!((30.0..=60.0).contains(&h), "{name} warm hue {h}");
+        }
+        // Pale gold / champagne: warm gold hue, light, more tint than the cream.
+        let (h, s, v) = regal_hsv(TITLE_TEXT_SECONDARY);
+        assert!((35.0..=55.0).contains(&h) && (0.15..=0.45).contains(&s) && v >= 0.80, "secondary {h} {s} {v}");
+        // Online grey is canon: byte-identical.
+        assert_eq!(TITLE_BTN_DISABLED_BG, Color::srgb(0.10, 0.11, 0.12));
+        assert_eq!(TITLE_BTN_DISABLED_FG, Color::srgb(0.55, 0.58, 0.60));
+    }
+
+    #[test]
+    fn vp_ui_regal_button_label_out_luminances_fill() {
+        let fg = title_luminance(TITLE_BTN_FG);
+        let bg = title_luminance(TITLE_BTN_BG);
+        assert!(fg - bg >= 0.55, "btn fg {fg} vs bg {bg}");
+    }
+
+    #[test]
+    fn vp_ui_regal_every_palette_const_is_opaque() {
+        for c in [
+            TITLE_PLATE_BG,
+            TITLE_DIM_BG,
+            TITLE_TEXT_PRIMARY,
+            TITLE_TEXT_SECONDARY,
+            TITLE_BTN_BG,
+            TITLE_BTN_FG,
+            TITLE_BTN_DISABLED_BG,
+            TITLE_BTN_DISABLED_FG,
+            TITLE_BORDER,
+        ] {
+            assert_eq!(title_alpha(c), 1.0, "{c:?}");
+        }
+    }
 }
