@@ -54,6 +54,9 @@ pub struct FirstHarvestEpiphany {
     pub pulse_until: f64,
     pub pulse_line: String,
     pub last_interact_at: f64,
+    /// CARD WELCOME-FIELD-1 — welcome-back plate deadline. `Some` only when
+    /// `maybe_welcome_back` actually wrote a line; `None` until then.
+    pub welcome_until: Option<f64>,
     pub harvests_this_session: u32,
     pub tends_this_session: u32,
     /// Frontier+ hex, no charter_id. E must not harvest.
@@ -93,6 +96,7 @@ impl Default for FirstHarvestEpiphany {
             pulse_until: 0.0,
             pulse_line: String::new(),
             last_interact_at: -999.0,
+            welcome_until: None,
             harvests_this_session: 0,
             tends_this_session: 0,
             peace_visitor: false,
@@ -423,7 +427,7 @@ fn maybe_welcome_back(
             s.value = line.clone();
         }
     }
-    state.last_interact_at = -(now + WELCOME_SECS);
+    state.welcome_until = Some(now + WELCOME_SECS);
 }
 
 /// Quit/rerun welcome. First Play stays quiet (glow 0). Held pack names the yard.
@@ -447,17 +451,16 @@ pub fn apply_resume_welcome(
 }
 
 fn welcome_visible(state: &FirstHarvestEpiphany, now: f64) -> bool {
-    // CARD VP-HUD-TOP-1 — show only when maybe_welcome_back actually wrote a
-    // line. It then sets `last_interact_at = -(now + WELCOME_SECS)`. When it
-    // sets `welcome_shown` without a line (first Play with echo loaded), the
-    // Default -999.0 sentinel stays, which must not read as a ~999 s window
-    // over an empty plate. Sentinel and decay are unchanged.
-    const NO_LINE_SENTINEL: f64 = -999.0;
-    let deadline = -state.last_interact_at;
-    let line_written = state.last_interact_at < 0.0
-        && state.last_interact_at != NO_LINE_SENTINEL
-        && deadline - now <= WELCOME_SECS;
-    state.welcome_shown && line_written && now < deadline
+    // CARD WELCOME-FIELD-1 — the deadline lives in `welcome_until`, set only
+    // when maybe_welcome_back wrote a line. An E interact after the write
+    // (`last_interact_at` later than the write time) hides it.
+    let Some(until) = state.welcome_until else {
+        return false;
+    };
+    // Not just `> 0.0`: with no negative write any more, a positive cooldown
+    // stamp from an E press before the write survives and must not hide it.
+    let interacted_since = state.last_interact_at > until - WELCOME_SECS;
+    state.welcome_shown && now < until && !interacted_since
 }
 
 fn mark_peace_visitor(hour: Res<HourSacred>, mut state: ResMut<FirstHarvestEpiphany>) {
@@ -902,35 +905,45 @@ mod tests {
         }
     }
 
-    /// CARD VP-HUD-TOP-1 — the sentinel in welcome_visible matches Default.
+    /// CARD WELCOME-FIELD-1 — Default keeps the -999.0 last_interact_at and
+    /// starts with no welcome deadline.
     #[test]
-    fn hud_top_welcome_sentinel_matches_default() {
-        assert_eq!(FirstHarvestEpiphany::default().last_interact_at, -999.0);
+    fn hud_top_welcome_default_has_no_deadline() {
+        let s = FirstHarvestEpiphany::default();
+        assert_eq!(s.last_interact_at, -999.0);
+        assert_eq!(s.welcome_until, None);
+        assert!(!welcome_visible(&s, 0.0));
     }
 
-    /// CARD VP-HUD-TOP-1 — welcome_shown with no line written (first Play,
-    /// echo loaded) keeps the plate hidden: no empty top-left bar.
+    /// CARD VP-HUD-TOP-1 / WELCOME-FIELD-1 — welcome_shown with no line written
+    /// (first Play, echo loaded) keeps the plate hidden: no empty top-left bar.
     #[test]
     fn hud_top_welcome_shown_without_line_is_not_visible() {
         let mut s = FirstHarvestEpiphany::default();
         s.welcome_shown = true;
-        for now in [0.0, 1.0, 5.9, 30.0, 500.0, 995.0, 998.9] {
+        assert_eq!(s.welcome_until, None);
+        for now in [0.0, 1.0, 5.9, 30.0, 500.0, 993.0, 995.0, 998.9, 1200.0] {
             assert!(!welcome_visible(&s, now), "no line, now={now}");
         }
     }
 
-    /// CARD VP-HUD-TOP-1 — once a line is written at `t`, the plate shows
-    /// until t + WELCOME_SECS, then hides; an E interact (positive) hides it.
+    /// Mirrors maybe_welcome_back's write at `t`.
+    fn hud_top_write_welcome_at(t: f64) -> FirstHarvestEpiphany {
+        let mut s = FirstHarvestEpiphany::default();
+        let line = apply_resume_welcome(&mut s, false, true, false, None);
+        assert!(line.is_some());
+        s.welcome_until = Some(t + WELCOME_SECS);
+        s
+    }
+
+    /// CARD VP-HUD-TOP-1 / WELCOME-FIELD-1 — once a line is written at `t`,
+    /// the plate shows until t + WELCOME_SECS, then hides; an E interact after
+    /// the write hides it. last_interact_at keeps its -999.0 default.
     #[test]
     fn hud_top_welcome_with_line_visible_until_welcome_secs() {
-        // 993.25: a late write whose window overlaps the old ~999 s sentinel
-        // span still shows. (A write at exactly t = 993.0 lands on -999.0.)
-        for t in [0.0, 2.5, 40.0, 993.25] {
-            let mut s = FirstHarvestEpiphany::default();
-            let line = apply_resume_welcome(&mut s, false, true, false, None);
-            assert!(line.is_some());
-            // Mirrors maybe_welcome_back's write.
-            s.last_interact_at = -(t + WELCOME_SECS);
+        for t in [0.0, 2.5, 40.0, 993.25, 2000.0] {
+            let mut s = hud_top_write_welcome_at(t);
+            assert_eq!(s.last_interact_at, -999.0, "write leaves last_interact_at");
             assert!(welcome_visible(&s, t), "at write t={t}");
             assert!(welcome_visible(&s, t + WELCOME_SECS - 0.01), "just before end t={t}");
             assert!(!welcome_visible(&s, t + WELCOME_SECS), "at end t={t}");
@@ -938,6 +951,45 @@ mod tests {
             s.last_interact_at = t + 1.0;
             assert!(!welcome_visible(&s, t + 1.5), "after E t={t}");
         }
+    }
+
+    /// CARD WELCOME-FIELD-1 — the t = 993.0 write that collided with the old
+    /// -999.0 sentinel on #644 now shows for the full WELCOME_SECS.
+    #[test]
+    fn welcome_field_line_written_at_993_stays_visible() {
+        let t = 993.0;
+        let s = hud_top_write_welcome_at(t);
+        assert_eq!(s.welcome_until, Some(999.0));
+        for dt in [0.0, 0.5, 3.0, 5.99] {
+            assert!(welcome_visible(&s, t + dt), "t=993 + {dt}");
+        }
+        assert!(!welcome_visible(&s, t + WELCOME_SECS), "ends at 999");
+    }
+
+    /// CARD WELCOME-FIELD-1 (Core ruling) — E pressed before the welcome line
+    /// is written leaves a positive last_interact_at that now survives the
+    /// write; the welcome must still show. An E after the write still hides it.
+    #[test]
+    fn welcome_field_e_before_write_still_shows_welcome() {
+        let mut s = FirstHarvestEpiphany::default();
+        s.last_interact_at = 38.5; // E at t = 38.5, before the write
+        assert!(apply_resume_welcome(&mut s, false, true, false, None).is_some());
+        s.welcome_until = Some(40.0 + WELCOME_SECS); // written at t = 40
+        assert_eq!(s.last_interact_at, 38.5, "write keeps the earlier stamp");
+        assert!(welcome_visible(&s, 40.0));
+        assert!(welcome_visible(&s, 45.9));
+        assert!(!welcome_visible(&s, 46.0));
+        s.last_interact_at = 41.0; // E after the write
+        assert!(!welcome_visible(&s, 41.5));
+    }
+
+    /// CARD WELCOME-FIELD-1 — the cooldown readers (hold_e_tend_blocked, the
+    /// L604 gate) still only act on a positive last_interact_at.
+    #[test]
+    fn welcome_field_cooldown_reads_positive_only() {
+        assert!(!hold_e_tend_blocked(0, 0, -999.0, 1.0));
+        assert!(hold_e_tend_blocked(0, 0, 10.0, 10.5));
+        assert!(!hold_e_tend_blocked(0, 0, 10.0, 11.5));
     }
 
     /// Playtest H2-RESUME: quit/rerun names the yard, skips WASD, First Play glow 0.
