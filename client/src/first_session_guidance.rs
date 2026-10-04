@@ -783,7 +783,7 @@ fn spawn_guidance_strip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(0.94).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
                 border_color: TITLE_BORDER.with_alpha(0.82).into(),
                 visibility: Visibility::Visible,
                 ..default()
@@ -2557,7 +2557,7 @@ mod tests {
     }
 
     /// CARD VP-HUD-GOLD-1 — the guidance strip spawns on the title palette:
-    /// gold rim (TITLE_BORDER, alpha 0.82), plate fill (alpha 0.94), cream
+    /// gold rim (TITLE_BORDER, alpha 0.82), opaque plate fill (alpha 1.0), cream
     /// text; no base colour reads green. The strip has no pulse, so rest is spawn.
     #[test]
     fn hud_gold_guidance_strip_is_title_palette() {
@@ -2587,7 +2587,7 @@ mod tests {
 
         for (c, want, alpha, what) in [
             (border, TITLE_BORDER, 0.82, "strip border"),
-            (bg, TITLE_PLATE_BG, 0.94, "strip fill"),
+            (bg, TITLE_PLATE_BG, 1.0, "strip fill"),
             (text, TITLE_TEXT_PRIMARY, 1.0, "strip text"),
         ] {
             let s = c.to_srgba();
@@ -2604,5 +2604,40 @@ mod tests {
                 s.blue
             );
         }
+    }
+
+    /// CARD VP-HUD-GOLD-1 (amended) — the guidance strip fill is opaque:
+    /// alpha exactly 1.0 at spawn and after its update systems run. The strip
+    /// has no pulse sync; its per-frame text/visibility systems leave the fill.
+    #[test]
+    fn hud_gold_guidance_strip_fill_alpha_is_opaque() {
+        use bevy::MinimalPlugins;
+        use shared::local_settings::LocalSettings;
+
+        fn fill_alpha(app: &mut App) -> f32 {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&BackgroundColor, With<FirstSessionGuidanceStrip>>();
+            q.single(app.world()).0.to_srgba().alpha
+        }
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_guidance_strip);
+        app.update();
+        assert_eq!(fill_alpha(&mut app), 1.0, "spawn fill alpha");
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>()
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .add_systems(Startup, spawn_guidance_strip)
+            .add_systems(Update, update_guidance_text);
+        app.update();
+        app.update();
+        assert_eq!(fill_alpha(&mut app), 1.0, "updated fill alpha");
     }
 }

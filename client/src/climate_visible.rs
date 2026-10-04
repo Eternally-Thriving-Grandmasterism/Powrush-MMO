@@ -297,7 +297,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(0.88).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
                 border_color: TITLE_BORDER_MUTED.with_alpha(0.42).into(),
                 visibility: Visibility::Hidden,
                 ..default()
@@ -389,7 +389,7 @@ fn update_climate_state_slab(
                 TITLE_PLATE_BG.to_srgba().red + pulse.bg_r,
                 TITLE_PLATE_BG.to_srgba().green + pulse.bg_g,
                 TITLE_PLATE_BG.to_srgba().blue + pulse.bg_b,
-                0.88,
+                1.0,
             )
             .into();
         }
@@ -1570,13 +1570,13 @@ mod tests {
     }
 
     /// CARD VP-HUD-GOLD-1 — at glow 0 the climate chip rests on the title
-    /// palette: muted gold rim (alpha 0.42), plate fill (alpha 0.88), cream text.
+    /// palette: muted gold rim (alpha 0.42), opaque plate fill (alpha 1.0), cream text.
     #[test]
     fn hud_gold_climate_chip_rest_is_title_palette() {
         let mut app = hud_gold_climate_app(false, 0.0);
         let (border, bg, text) = hud_gold_climate_colors(&mut app);
         hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "chip border");
-        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 0.88, "chip fill");
+        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "chip fill");
         hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "chip text");
     }
 
@@ -1590,7 +1590,7 @@ mod tests {
         app.update();
         let (border, bg, text) = hud_gold_climate_colors(&mut app);
         hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "chip spawn border");
-        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 0.88, "chip spawn fill");
+        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "chip spawn fill");
         hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "chip spawn text");
         for (c, what) in [(border, "border"), (bg, "fill"), (text, "text")] {
             hud_gold_not_green(c, what);
@@ -1604,7 +1604,7 @@ mod tests {
         let mut app = hud_gold_climate_app(true, 1.0);
         let (border, bg, _) = hud_gold_climate_colors(&mut app);
         hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "reduced border");
-        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 0.88, "reduced fill");
+        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "reduced fill");
 
         let mut app = hud_gold_climate_app(false, 1.0);
         let (border, _, _) = hud_gold_climate_colors(&mut app);
@@ -1616,5 +1616,26 @@ mod tests {
         assert!((b - (rest.blue + p.b)).abs() < 1e-6);
         assert!((a - (0.42 + p.a)).abs() < 1e-6);
         hud_gold_not_green(border, "lifted chip border");
+    }
+
+    /// CARD VP-HUD-GOLD-1 (amended) — the climate chip fill is opaque: alpha
+    /// is exactly 1.0 at spawn and after a pulse sync (rest, breath, reduced motion).
+    #[test]
+    fn hud_gold_climate_chip_fill_alpha_is_opaque() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_climate_state_slab);
+        app.update();
+        let (_, bg, _) = hud_gold_climate_colors(&mut app);
+        assert_eq!(bg.to_srgba().alpha, 1.0, "spawn fill alpha");
+        for (reduced, glow) in [(false, 0.0), (false, 0.5), (false, 1.0), (true, 1.0)] {
+            let mut app = hud_gold_climate_app(reduced, glow);
+            let (_, bg, _) = hud_gold_climate_colors(&mut app);
+            assert_eq!(
+                bg.to_srgba().alpha,
+                1.0,
+                "synced fill alpha (reduced {reduced}, glow {glow})"
+            );
+        }
     }
 }
