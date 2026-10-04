@@ -12,7 +12,10 @@ use bevy::prelude::*;
 
 use shared::skirmish_well::{SkirmishWell, WellHold, CONTEST_REACH, WELL_ANCHORS};
 
+use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
+
 use crate::coop_voice::VoiceYard;
+use crate::harvest_feel::{rumble_harvest, SoftRbePool};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::human_presence::SoftPresence;
 use crate::ledger_bind::LedgerYard;
@@ -152,14 +155,24 @@ fn mark_well_near(
         && !epi.peace_visitor;
 }
 
-fn pressure_hold(time: Res<Time>, mut yard: ResMut<WellYard>) {
+fn pressure_hold(
+    time: Res<Time>,
+    mut yard: ResMut<WellYard>,
+    mut pool: ResMut<SoftRbePool>,
+    gamepads: Res<Gamepads>,
+    mut rumble: EventWriter<GamepadRumbleRequest>,
+) {
     if yard.well.hold != WellHold::Human {
         return;
     }
     if time.elapsed_seconds_f64() < yard.hold_until {
         return;
     }
-    let _ = yard.well.traveler_answers();
+    let step = yard.well.traveler_answers();
+    if let Some(kick) = well_contest_kick(step) {
+        pool.kick = kick;
+        rumble_harvest(&mut rumble, &gamepads, false);
+    }
 }
 
 fn handle_well(
@@ -170,6 +183,9 @@ fn handle_well(
     epi: Res<FirstHarvestEpiphany>,
     mut yard: ResMut<WellYard>,
     mut moments: ResMut<ThrivingMoments>,
+    mut pool: ResMut<SoftRbePool>,
+    gamepads: Res<Gamepads>,
+    mut rumble: EventWriter<GamepadRumbleRequest>,
     time: Res<Time>,
 ) {
     if !near_first_well(&presence) {
@@ -186,11 +202,24 @@ fn handle_well(
     if step == "won" {
         yard.hold_until = time.elapsed_seconds_f64() + HOLD_SECS;
         yard.well_glow = 1.0;
+        if let Some(kick) = well_contest_kick(step) {
+            pool.kick = kick;
+            rumble_harvest(&mut rumble, &gamepads, true);
+        }
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstWell,
             time.elapsed_seconds_f64(),
         );
+    }
+}
+
+/// CARD WELL-CONTEST-FEEL-1 — win kicks harder than a loss. No new verb.
+fn well_contest_kick(step: &str) -> Option<f32> {
+    match step {
+        "won" => Some(1.0),
+        "lost" => Some(0.42),
+        _ => None,
     }
 }
 
@@ -292,6 +321,14 @@ mod tests {
     use super::*;
 
     #[test]
+    #[test]
+    fn well_contest_kick_is_win_then_loss() {
+        assert_eq!(well_contest_kick("won"), Some(1.0));
+        assert_eq!(well_contest_kick("lost"), Some(0.42));
+        assert_eq!(well_contest_kick("idle"), None);
+        assert!(well_contest_kick("won").unwrap() > well_contest_kick("lost").unwrap());
+    }
+
     fn far_from_spawn_is_not_near() {
         let p = SoftPresence::default();
         assert!(!near_first_well(&p));
