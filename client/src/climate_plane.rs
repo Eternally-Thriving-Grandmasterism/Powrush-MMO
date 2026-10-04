@@ -127,6 +127,7 @@ use crate::hour_sacred::PeopleLanding;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::local_settings::{LocalMeshLodFeel, LocalSettingsState};
 use crate::mercy_harvest_nodes::MercyHarvestNode;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 /// CARD H-2026-09-16-PLACE-LOD — Comfort MeshLodPlan (PATHS-only compile).
 #[path = "gltf_integration.rs"]
@@ -1151,8 +1152,8 @@ fn spawn_climate_chip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.08, 0.07, 0.05, 0.72).into(),
-                border_color: Color::srgba(0.86, 0.66, 0.29, 0.40).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
+                border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 ..default()
             },
             ClimateNameRoot,
@@ -1163,7 +1164,7 @@ fn spawn_climate_chip(mut commands: Commands) {
                     "Sanctuary Prime",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.94, 0.90, 0.78),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -1649,6 +1650,33 @@ fn is_teal_peace(c: Color) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD VP-HUD-TOP-1 — the Sanctuary Prime place chip rests on the title palette: opaque
+    /// plate, gold rim at alpha 1, cream text (no blue-grey / dim chrome).
+    #[test]
+    fn hud_top_climate_chip_rests_on_title_palette() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_climate_chip);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor), With<ClimateNameRoot>>();
+        let (border, bg) = q.single(app.world());
+        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let mut t = app.world_mut().query_filtered::<&Text, With<ClimateNameText>>();
+        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        for (got, want, what) in [
+            (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
+            (border, TITLE_BORDER.to_srgba(), "rim"),
+            (txt, TITLE_TEXT_PRIMARY.to_srgba(), "text"),
+        ] {
+            assert!((got.red - want.red).abs() < 1e-6, "{what} red");
+            assert!((got.green - want.green).abs() < 1e-6, "{what} green");
+            assert!((got.blue - want.blue).abs() < 1e-6, "{what} blue");
+            assert_eq!(got.alpha, 1.0, "{what} alpha");
+        }
+    }
 
     #[test]
     fn climates_disagree() {

@@ -447,7 +447,17 @@ pub fn apply_resume_welcome(
 }
 
 fn welcome_visible(state: &FirstHarvestEpiphany, now: f64) -> bool {
-    state.welcome_shown && state.last_interact_at < 0.0 && now < (-state.last_interact_at)
+    // CARD VP-HUD-TOP-1 — show only when maybe_welcome_back actually wrote a
+    // line. It then sets `last_interact_at = -(now + WELCOME_SECS)`. When it
+    // sets `welcome_shown` without a line (first Play with echo loaded), the
+    // Default -999.0 sentinel stays, which must not read as a ~999 s window
+    // over an empty plate. Sentinel and decay are unchanged.
+    const NO_LINE_SENTINEL: f64 = -999.0;
+    let deadline = -state.last_interact_at;
+    let line_written = state.last_interact_at < 0.0
+        && state.last_interact_at != NO_LINE_SENTINEL
+        && deadline - now <= WELCOME_SECS;
+    state.welcome_shown && line_written && now < deadline
 }
 
 fn mark_peace_visitor(hour: Res<HourSacred>, mut state: ResMut<FirstHarvestEpiphany>) {
@@ -889,6 +899,44 @@ mod tests {
                 quiet.welcome_glow, 0.0,
                 "non-hour-two welcome must not light glow: {line}"
             );
+        }
+    }
+
+    /// CARD VP-HUD-TOP-1 — the sentinel in welcome_visible matches Default.
+    #[test]
+    fn hud_top_welcome_sentinel_matches_default() {
+        assert_eq!(FirstHarvestEpiphany::default().last_interact_at, -999.0);
+    }
+
+    /// CARD VP-HUD-TOP-1 — welcome_shown with no line written (first Play,
+    /// echo loaded) keeps the plate hidden: no empty top-left bar.
+    #[test]
+    fn hud_top_welcome_shown_without_line_is_not_visible() {
+        let mut s = FirstHarvestEpiphany::default();
+        s.welcome_shown = true;
+        for now in [0.0, 1.0, 5.9, 30.0, 500.0, 995.0, 998.9] {
+            assert!(!welcome_visible(&s, now), "no line, now={now}");
+        }
+    }
+
+    /// CARD VP-HUD-TOP-1 — once a line is written at `t`, the plate shows
+    /// until t + WELCOME_SECS, then hides; an E interact (positive) hides it.
+    #[test]
+    fn hud_top_welcome_with_line_visible_until_welcome_secs() {
+        // 993.25: a late write whose window overlaps the old ~999 s sentinel
+        // span still shows. (A write at exactly t = 993.0 lands on -999.0.)
+        for t in [0.0, 2.5, 40.0, 993.25] {
+            let mut s = FirstHarvestEpiphany::default();
+            let line = apply_resume_welcome(&mut s, false, true, false, None);
+            assert!(line.is_some());
+            // Mirrors maybe_welcome_back's write.
+            s.last_interact_at = -(t + WELCOME_SECS);
+            assert!(welcome_visible(&s, t), "at write t={t}");
+            assert!(welcome_visible(&s, t + WELCOME_SECS - 0.01), "just before end t={t}");
+            assert!(!welcome_visible(&s, t + WELCOME_SECS), "at end t={t}");
+            assert!(!welcome_visible(&s, t + WELCOME_SECS + 10.0), "after end t={t}");
+            s.last_interact_at = t + 1.0;
+            assert!(!welcome_visible(&s, t + 1.5), "after E t={t}");
         }
     }
 
