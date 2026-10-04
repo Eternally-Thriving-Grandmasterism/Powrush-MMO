@@ -12,7 +12,7 @@ Peak memory still holds: walked · tended · week was the bill · yard remembere
 
 ---
 
-## 0. Steward asks (verbatim)
+## 0. Sherif's asks (verbatim)
 
 > "All right, but let's do better, and remember eventually Powrush-MMO will sort of have games layered on games, like the guilds formed by players will have to harvest with AI/AGI robots and drones like a modern factorio mixed with Transport Tycoon Deluxe. Also, players can manually harvest and do things in a simple and somewhat solo way like in ARK:Survival games and of course it needs to all be cohesive like the weekly guild wars of Conquer Online, and the faction, reputation and racial systems of World of Warcraft packaged altogether to offer the paths to failure and success for experimenting towards a truly player structured and managed economy potentially leading to an RBE or other variants like an advanced AGI-RBE or more primitive economic systems which can play out both naturally to some extent in the offline experience with the in-game NPCs which are like super advanced oblivion NPCs from ES:4 and in the online experience of course the real players make it truly happen altogether with an authoritative server which we should architect and design for maximal optimization from top and moste critical priorities all the way down appropriate and respectively for online gameplay of Powrush-MMO to thrive, and perform even better than this modernized remix of the genius behind Chris Sawyer's TTDX to inspire our work even more, Mates"
 >
@@ -30,7 +30,9 @@ Peak memory still holds: walked · tended · week was the bill · yard remembere
 >
 > — Sherif, 2026-10-04 2:52 PM ET
 
-A quote is a direction, not a lifted HOLD. Where this plan meets an existing refuse line (§9), the line stays until the Steward names the lift on its own ticket.
+A quote is a direction, not a lifted HOLD. Where this plan meets an existing refuse line (§9), the line stays until Sherif names the lift on its own ticket.
+
+In this doc, 'the Steward' means Sherif's own word as relayed. Only Sherif can lift a refuse line, open Online or name PATHS (§6.7).
 
 ---
 
