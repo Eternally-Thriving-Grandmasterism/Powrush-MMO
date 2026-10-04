@@ -449,22 +449,19 @@ fn track_nearby_node(
     }
 }
 
-fn pulse_harvested_nodes(
+/// CARD WELL-GLOW-OWNER-1 — pulse decay, vitality recovery and scale
+/// breathing only. The well emissive and its `PointLight` are painted by
+/// `climate_visible::paint_nodes_from_hour`, which runs after this and folds
+/// `pulse` into `well_glow`.
+pub(crate) fn pulse_harvested_nodes(
     time: Res<Time>,
     feel: Option<Res<BiomeFeel>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    mut nodes: Query<(
-        &mut MercyHarvestNode,
-        &mut Transform,
-        &Handle<StandardMaterial>,
-        Option<&Children>,
-    )>,
-    mut lights: Query<&mut PointLight>,
+    mut nodes: Query<(&mut MercyHarvestNode, &mut Transform)>,
 ) {
     let dt = time.delta_seconds();
     let t = time.elapsed_seconds();
     let mul = feel.map(|f| f.regen_mul).unwrap_or(1.0);
-    for (mut node, mut tf, handle, children) in &mut nodes {
+    for (mut node, mut tf) in &mut nodes {
         if node.pulse > 0.0 {
             node.pulse = (node.pulse - dt * 1.35).max(0.0);
         } else if node.vitality < 1.0 {
@@ -473,18 +470,6 @@ fn pulse_harvested_nodes(
         let breathe = 1.0 + (t * 1.7).sin() * 0.06 * node.vitality;
         let burst = 1.0 + node.pulse * 0.38;
         tf.scale = Vec3::splat(0.92 * breathe * burst);
-        if let Some(mat) = materials.get_mut(handle) {
-            let glow = 2.4 + node.pulse * 6.2;
-            mat.emissive = LinearRgba::from(mat.base_color) * glow;
-        }
-        if let Some(children) = children {
-            for child in children.iter() {
-                if let Ok(mut light) = lights.get_mut(*child) {
-                    light.intensity = 420.0 + node.pulse * 2800.0;
-                    light.range = 6.5 + node.pulse * 3.5;
-                }
-            }
-        }
     }
 }
 
@@ -760,6 +745,64 @@ fn try_soft_harvest_sting(
 mod tests {
     use super::*;
     use shared::temper::temper_copy_is_honest;
+
+    /// CARD WELL-GLOW-OWNER-1 — `pulse_harvested_nodes` alone never touches
+    /// the well material emissive or the child `PointLight`; it still decays
+    /// pulse and breathes scale.
+    #[test]
+    fn well_glow_owner_pulse_system_leaves_emissive_and_light_alone() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<Assets<StandardMaterial>>()
+            .add_systems(Update, pulse_harvested_nodes);
+        let emissive = LinearRgba::new(0.3, 0.2, 0.1, 1.0);
+        let handle = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial {
+                base_color: Color::srgb(0.86, 0.66, 0.29),
+                emissive,
+                ..default()
+            });
+        let light = app
+            .world_mut()
+            .spawn(PointLightBundle {
+                point_light: PointLight {
+                    intensity: 123.0,
+                    range: 4.5,
+                    ..default()
+                },
+                ..default()
+            })
+            .id();
+        let node = app
+            .world_mut()
+            .spawn((
+                MercyHarvestNode {
+                    name: "test",
+                    climate_id: 1,
+                    vitality: 1.0,
+                    harvests: 1,
+                    pulse: 1.0,
+                },
+                Transform::default(),
+                handle.clone(),
+            ))
+            .id();
+        app.world_mut().entity_mut(node).add_child(light);
+        app.update();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        app.update();
+        let world = app.world();
+        let mat = world.resource::<Assets<StandardMaterial>>().get(&handle).unwrap();
+        assert_eq!(mat.emissive, emissive, "emissive written");
+        let point = world.get::<PointLight>(light).unwrap();
+        assert_eq!(point.intensity, 123.0, "light intensity written");
+        assert_eq!(point.range, 4.5, "light range written");
+        let n = world.get::<MercyHarvestNode>(node).unwrap();
+        assert!(n.pulse < 1.0, "pulse still decays");
+        assert_ne!(world.get::<Transform>(node).unwrap().scale, Vec3::ONE, "scale breathes");
+    }
 
     #[test]
     fn harvest_leaves_node_alive() {

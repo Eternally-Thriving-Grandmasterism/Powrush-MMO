@@ -158,7 +158,8 @@ impl Plugin for ClimateVisiblePlugin {
             .add_systems(
                 Update,
                 (
-                    paint_nodes_from_hour,
+                    paint_nodes_from_hour
+                        .after(crate::mercy_harvest_nodes::pulse_harvested_nodes),
                     tick_week_feel_glow,
                     tick_wards_notice_glow,
                     update_climate_state_slab,
@@ -194,22 +195,42 @@ fn paint_nodes_from_hour(
 ) {
     // Boot yard is Sanctuary when travel has not landed yet.
     let place = travel.map(|t| t.current).unwrap_or(PlaceId::Sanctuary);
-    let scale = crate::climate_plane::well_glow_scale_for_place(place);
     for (node, handle, children) in &nodes {
         let state = well_state_in_hour(&bind.hour.nodes, node.climate_id);
         let mul = state.glow_mul();
+        let (emissive_mul, intensity, range) = well_glow(place, mul, node.pulse);
         if let Some(mat) = materials.get_mut(handle) {
-            mat.emissive = LinearRgba::from(mat.base_color) * (scale * mul);
+            mat.emissive = LinearRgba::from(mat.base_color) * emissive_mul;
         }
         if let Some(children) = children {
             for child in children.iter() {
                 if let Ok(mut light) = lights.get_mut(*child) {
-                    light.intensity = well_point_intensity(place, mul);
-                    light.range = well_point_range(place, mul);
+                    light.intensity = intensity;
+                    light.range = range;
                 }
             }
         }
     }
+}
+
+/// CARD WELL-GLOW-OWNER-1 — harvest-pulse flash on the well emissive multiplier.
+pub const WELL_PULSE_EMISSIVE: f32 = 6.2;
+/// CARD WELL-GLOW-OWNER-1 — harvest-pulse flash on the well light intensity.
+pub const WELL_PULSE_INTENSITY: f32 = 2800.0;
+/// CARD WELL-GLOW-OWNER-1 — harvest-pulse flash on the well light range.
+pub const WELL_PULSE_RANGE: f32 = 3.5;
+
+/// CARD WELL-GLOW-OWNER-1 — the one well glow: `(emissive_mul, intensity,
+/// range)` for a Place, the hour mood (`NodeState::glow_mul`) and the node
+/// harvest `pulse` (kept by `mercy_harvest_nodes::pulse_harvested_nodes`).
+/// At pulse 0 this is the hour painter alone.
+pub fn well_glow(place: PlaceId, mood: f32, pulse: f32) -> (f32, f32, f32) {
+    let scale = crate::climate_plane::well_glow_scale_for_place(place);
+    (
+        scale * mood + pulse * WELL_PULSE_EMISSIVE,
+        well_point_intensity(place, mood) + pulse * WELL_PULSE_INTENSITY,
+        well_point_range(place, mood) + pulse * WELL_PULSE_RANGE,
+    )
 }
 
 /// Point-light strength for a well. Sanctuary reads on graphite-warm earth;
@@ -649,6 +670,54 @@ mod tests {
     use super::*;
     use shared::climate_node::LivedHour;
     use shared::threshold_shelf::THRESHOLD_PEACE_VERBS;
+
+    const ALL_PLACES: [PlaceId; 3] = [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths];
+    const ALL_MOODS: [NodeState; 5] = [
+        NodeState::Glowing,
+        NodeState::Tended,
+        NodeState::Idle,
+        NodeState::Resting,
+        NodeState::Stressed,
+    ];
+
+    /// CARD WELL-GLOW-OWNER-1 — at pulse 0 `well_glow` is exactly the tip
+    /// hour painter (place scale × mood, well_point_intensity / _range) for
+    /// all three Places and every mood.
+    #[test]
+    fn well_glow_owner_pulse_zero_matches_hour_painter() {
+        for place in ALL_PLACES {
+            let scale = crate::climate_plane::well_glow_scale_for_place(place);
+            for state in ALL_MOODS {
+                let mood = state.glow_mul();
+                let (emissive_mul, intensity, range) = well_glow(place, mood, 0.0);
+                assert_eq!(emissive_mul, scale * mood, "{place:?} {state:?} emissive");
+                assert_eq!(intensity, well_point_intensity(place, mood), "{place:?} {state:?}");
+                assert_eq!(range, well_point_range(place, mood), "{place:?} {state:?}");
+            }
+        }
+    }
+
+    /// CARD WELL-GLOW-OWNER-1 — a full pulse flashes brighter and wider,
+    /// by the named consts.
+    #[test]
+    fn well_glow_owner_pulse_one_is_brighter_and_wider() {
+        assert_eq!(
+            (WELL_PULSE_EMISSIVE, WELL_PULSE_INTENSITY, WELL_PULSE_RANGE),
+            (6.2, 2800.0, 3.5)
+        );
+        for place in ALL_PLACES {
+            for state in ALL_MOODS {
+                let mood = state.glow_mul();
+                let calm = well_glow(place, mood, 0.0);
+                let flash = well_glow(place, mood, 1.0);
+                assert!(flash.0 > calm.0, "{place:?} {state:?} emissive");
+                assert!(flash.1 > calm.1, "{place:?} {state:?} intensity");
+                assert!(flash.2 > calm.2, "{place:?} {state:?} range");
+                assert!((flash.1 - calm.1 - WELL_PULSE_INTENSITY).abs() < 1e-3);
+                assert!((flash.2 - calm.2 - WELL_PULSE_RANGE).abs() < 1e-5);
+            }
+        }
+    }
 
     #[test]
     fn climate_slab_font_follows_text_scale() {
