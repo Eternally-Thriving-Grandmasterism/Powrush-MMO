@@ -33,6 +33,7 @@ use bevy::prelude::*;
 use shared::temper::{seat_ward, TemperError, TemperedItem, WardKind};
 
 use crate::fabricator::FabricatorYard;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::human_presence::SoftPresence;
@@ -319,18 +320,21 @@ fn spawn_mercy_nodes(
             "Sanctuary ember",
             1,
             Vec3::new(3.6, 0.55, 0.0),
+            // world: Sanctuary ember node material (mesh colour + emissive), not UI.
             Color::srgb(0.35, 0.95, 0.62),
         ),
         (
             "Verdant well",
             2,
             Vec3::new(-2.4, 0.55, 3.1),
+            // world: Verdant well node material (mesh colour + emissive), not UI.
             Color::srgb(0.45, 0.88, 0.95),
         ),
         (
             "Horizon seed",
             3,
             Vec3::new(1.2, 0.55, -3.4),
+            // world: Horizon seed node material (mesh colour + emissive), not UI.
             Color::srgb(0.95, 0.86, 0.42),
         ),
     ];
@@ -394,8 +398,8 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.03, 0.05, 0.04, 0.92).into(),
-                border_color: Color::srgba(0.72, 0.92, 0.78, 0.75).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -407,7 +411,7 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
                     care_cycle_card_line(false),
                     TextStyle {
                         font_size: 16.0,
-                        color: Color::srgb(0.94, 0.98, 0.90),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),

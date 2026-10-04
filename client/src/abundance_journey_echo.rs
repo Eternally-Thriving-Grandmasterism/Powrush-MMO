@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::living_practice_loop::LivingPracticeLoop;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
 use crate::soft_play_bindings;
 
@@ -228,8 +229,8 @@ fn spawn_echo_panel(mut commands: Commands) {
                     overflow: Overflow::clip_y(),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.07, 0.11, 0.94).into(),
-                border_color: Color::srgba(0.70, 0.85, 0.55, 0.50).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -240,7 +241,7 @@ fn spawn_echo_panel(mut commands: Commands) {
                 "ABUNDANCE JOURNEY",
                 TextStyle {
                     font_size: 15.0,
-                    color: Color::srgb(0.85, 0.95, 0.70),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));
@@ -249,7 +250,7 @@ fn spawn_echo_panel(mut commands: Commands) {
                     "• Acts of thriving will echo here",
                     TextStyle {
                         font_size: 12.5,
-                        color: Color::srgb(0.88, 0.92, 0.98),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -259,7 +260,7 @@ fn spawn_echo_panel(mut commands: Commands) {
                 JOURNEY_ECHO_FOOTER,
                 TextStyle {
                     font_size: 11.0,
-                    color: Color::srgb(0.55, 0.68, 0.75),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));

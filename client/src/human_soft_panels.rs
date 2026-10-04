@@ -9,6 +9,7 @@
 use bevy::prelude::*;
 
 use crate::abundance_journey_echo::AbundanceJourneyEcho;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::hex_travel::HexTravelState;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::soft_play_bindings;
@@ -71,8 +72,8 @@ fn spawn_soft_panels(mut commands: Commands) {
                     overflow: Overflow::clip_y(),
                     ..default()
                 },
-                background_color: Color::srgba(0.04, 0.07, 0.10, 0.94).into(),
-                border_color: Color::srgba(0.55, 0.90, 0.80, 0.50).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -83,7 +84,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                 "MY MERCY JOURNEY",
                 TextStyle {
                     font_size: 15.0,
-                    color: Color::srgb(0.75, 0.98, 0.88),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));
@@ -92,7 +93,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                     "Acts of thriving will gather here",
                     TextStyle {
                         font_size: 13.0,
-                        color: Color::srgb(0.90, 0.94, 1.0),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -102,7 +103,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                 "M toggle · J also opens the echo",
                 TextStyle {
                     font_size: 11.0,
-                    color: Color::srgb(0.55, 0.70, 0.75),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));
@@ -122,8 +123,8 @@ fn spawn_soft_panels(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.07, 0.12, 0.94).into(),
-                border_color: Color::srgba(0.50, 0.75, 0.95, 0.50).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -134,7 +135,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                 "REALM TRAVEL",
                 TextStyle {
                     font_size: 15.0,
-                    color: Color::srgb(0.78, 0.94, 1.0),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));
@@ -143,7 +144,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 13.0,
-                        color: Color::srgb(0.90, 0.95, 1.0),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -153,7 +154,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                 "Z toggle · 1–5 choose climate",
                 TextStyle {
                     font_size: 11.0,
-                    color: Color::srgb(0.55, 0.68, 0.80),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));

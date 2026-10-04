@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use shared::species_redemption::SpeciesRedemptionState;
 
 use crate::coop_voice::VoiceYard;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::crownstone::CrownstoneYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::HourSacred;
@@ -50,8 +51,8 @@ fn spawn_redemption_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.06, 0.10, 0.07, 0.92).into(),
-                border_color: Color::srgba(0.55, 0.82, 0.48, 0.50).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -63,7 +64,7 @@ fn spawn_redemption_slab(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.84, 0.96, 0.78),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),

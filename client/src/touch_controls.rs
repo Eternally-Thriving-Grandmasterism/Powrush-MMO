@@ -12,7 +12,7 @@ use bevy::prelude::*;
 
 use crate::input::{overlay_sticks_visible, InputMapSet, LastPointerKind, PlayerInput};
 use crate::local_settings::LocalSettingsState;
-use crate::title_screen::{HouseLabel, LaunchDoor};
+use crate::title_screen::{HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_BTN_ACTIVE_BG, TITLE_BTN_BG, TITLE_BTN_FG, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
 
 /// Minimum touch target (logical px) — INPUT_CANON ≥44dp.
@@ -71,6 +71,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     height: Val::Percent(100.0),
                     ..default()
                 },
+                // state: fully transparent full-screen hit root — no plate drawn.
                 background_color: Color::srgba(0.0, 0.0, 0.0, 0.0).into(),
                 visibility: Visibility::Hidden,
                 z_index: ZIndex::Global(LIVED_UI_Z_LEDGER - 1),
@@ -95,8 +96,8 @@ fn spawn_touch_overlay(mut commands: Commands) {
                         align_items: AlignItems::Center,
                         ..default()
                     },
-                    background_color: Color::srgba(0.12, 0.16, 0.14, 0.45).into(),
-                    border_color: Color::srgba(0.55, 0.72, 0.60, 0.55).into(),
+                    background_color: TITLE_PLATE_BG.into(),
+                    border_color: TITLE_BORDER.into(),
                     ..default()
                 },
                 TouchStickZone,
@@ -107,7 +108,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     "+",
                     TextStyle {
                         font_size: 22.0,
-                        color: Color::srgba(0.85, 0.95, 0.88, 0.85),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ));
@@ -123,7 +124,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     bottom: Val::Px(36.0),
                     ..default()
                 },
-                Color::srgba(0.18, 0.42, 0.28, 0.72),
+                TITLE_BTN_ACTIVE_BG,
             );
 
             // Top-right cluster: Pause / Q / L
@@ -136,7 +137,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     top: Val::Px(24.0),
                     ..default()
                 },
-                Color::srgba(0.20, 0.22, 0.28, 0.75),
+                TITLE_BTN_BG,
             );
             spawn_overlay_btn(
                 root,
@@ -147,7 +148,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     top: Val::Px(24.0 + TOUCH_HIT_MIN + 8.0),
                     ..default()
                 },
-                Color::srgba(0.20, 0.22, 0.28, 0.75),
+                TITLE_BTN_BG,
             );
             spawn_overlay_btn(
                 root,
@@ -158,7 +159,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     top: Val::Px(24.0 + 2.0 * (TOUCH_HIT_MIN + 8.0)),
                     ..default()
                 },
-                Color::srgba(0.20, 0.22, 0.28, 0.75),
+                TITLE_BTN_BG,
             );
         });
 }
@@ -188,7 +189,7 @@ fn spawn_overlay_btn<B: Component>(
                 ..default()
             },
             background_color: bg.into(),
-            border_color: Color::srgba(0.70, 0.80, 0.72, 0.65).into(),
+            border_color: TITLE_BORDER.into(),
             ..default()
         },
         marker,
@@ -198,7 +199,7 @@ fn spawn_overlay_btn<B: Component>(
             label,
             TextStyle {
                 font_size: 15.0,
-                color: Color::srgb(0.92, 0.96, 0.90),
+                color: TITLE_BTN_FG,
                 ..default()
             },
         ));

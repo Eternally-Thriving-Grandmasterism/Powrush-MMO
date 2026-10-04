@@ -28,6 +28,7 @@ use shared::climate_node::AllocKind;
 use shared::hex_travel::PlaceId;
 
 use crate::first_session_guidance::{credit_share, FirstSessionGuidance};
+use crate::title_screen::{TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_FG, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::harvest_feel::rumble_mercy_harvest;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::lived_sim_bridge::{emit_lived_event, LivedSimBridge};
@@ -233,8 +234,8 @@ fn spawn_allocate_panel(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: Color::srgba(0.04, 0.08, 0.10, 0.94).into(),
-                border_color: Color::srgba(0.55, 0.88, 0.70, 0.55).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -246,7 +247,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
                     "Allocate credit · Flow or Reserve",
                     TextStyle {
                         font_size: 15.0,
-                        color: Color::srgb(0.85, 0.98, 0.90),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -271,8 +272,8 @@ fn spawn_allocate_panel(mut commands: Commands) {
                             border: UiRect::all(Val::Px(1.0)),
                             ..default()
                         },
-                        background_color: Color::srgba(0.12, 0.28, 0.22, 0.95).into(),
-                        border_color: Color::srgb(0.45, 0.90, 0.70).into(),
+                        background_color: TITLE_BTN_BG.into(),
+                        border_color: TITLE_BORDER.into(),
                         ..default()
                     },
                     AllocateFlowButton,
@@ -282,7 +283,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
                         "Flow · field restore",
                         TextStyle {
                             font_size: 14.0,
-                            color: Color::srgb(0.90, 1.0, 0.95),
+                            color: TITLE_BTN_FG,
                             ..default()
                         },
                     ));
@@ -295,8 +296,8 @@ fn spawn_allocate_panel(mut commands: Commands) {
                             border: UiRect::all(Val::Px(1.0)),
                             ..default()
                         },
-                        background_color: Color::srgba(0.14, 0.18, 0.28, 0.95).into(),
-                        border_color: Color::srgb(0.55, 0.75, 0.95).into(),
+                        background_color: TITLE_BTN_BG.into(),
+                        border_color: TITLE_BORDER.into(),
                         ..default()
                     },
                     AllocateReserveButton,
@@ -306,7 +307,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
                         "Reserve · repair-rights",
                         TextStyle {
                             font_size: 14.0,
-                            color: Color::srgb(0.90, 0.95, 1.0),
+                            color: TITLE_BTN_FG,
                             ..default()
                         },
                     ));
@@ -317,7 +318,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
                 "1 Flow · 2 Reserve · R close · credit logistics",
                 TextStyle {
                     font_size: 12.0,
-                    color: Color::srgb(0.65, 0.80, 0.75),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));

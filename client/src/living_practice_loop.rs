@@ -10,6 +10,7 @@
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
 use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
@@ -199,8 +200,8 @@ fn spawn_practice_strip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.09, 0.08, 0.90).into(),
-                border_color: Color::srgba(0.45, 0.92, 0.72, 0.55).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -212,7 +213,7 @@ fn spawn_practice_strip(mut commands: Commands) {
                     PracticeSurface::SanctuaryCap.prompt(),
                     TextStyle {
                         font_size: 15.5,
-                        color: Color::srgb(0.86, 0.98, 0.92),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -288,11 +289,12 @@ fn update_practice_text(
         if let Some(section) = text.sections.get_mut(0) {
             section.value = body.clone();
             section.style.color = if celebrating {
+                // state: celebrate flash — warm gold, one breath, then back to the palette.
                 Color::srgb(1.0, 0.95, 0.55)
             } else if practice.principle_sealed {
-                Color::srgb(0.75, 1.0, 0.88)
+                TITLE_TEXT_SECONDARY
             } else {
-                Color::srgb(0.86, 0.98, 0.92)
+                TITLE_TEXT_PRIMARY
             };
         }
     }

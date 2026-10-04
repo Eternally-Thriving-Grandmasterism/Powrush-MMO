@@ -11,6 +11,7 @@
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::hex_travel::HexTravelState;
 use crate::local_session_persist::LocalSessionPersist;
 
@@ -62,8 +63,8 @@ fn spawn_whisper(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.04, 0.07, 0.08, 0.82).into(),
-                border_color: Color::srgba(0.70, 0.88, 0.62, 0.35).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -75,7 +76,7 @@ fn spawn_whisper(mut commands: Commands) {
                     LINE,
                     TextStyle {
                         font_size: 18.0,
-                        color: Color::srgb(0.90, 0.98, 0.88),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),

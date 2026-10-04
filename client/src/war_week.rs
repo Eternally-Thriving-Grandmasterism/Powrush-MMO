@@ -9,6 +9,7 @@ use shared::space_law::HexFlag;
 use shared::war_week::WarWeek;
 
 use crate::fabricator::FabricatorYard;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::hour_sacred::HourSacred;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -48,8 +49,8 @@ fn spawn_war_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.08, 0.09, 0.06, 0.92).into(),
-                border_color: Color::srgba(0.70, 0.88, 0.45, 0.50).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -61,7 +62,7 @@ fn spawn_war_slab(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.88, 0.98, 0.72),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
