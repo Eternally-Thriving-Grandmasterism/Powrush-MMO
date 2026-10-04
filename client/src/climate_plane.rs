@@ -101,8 +101,8 @@
  * every world `Camera3d` and `VolumetricLight` only on a `DirectionalLight`
  * with shadows on (VISUAL_TARGET L180). Mobile / Low / Medium / High remove
  * both. `fog_bed_for` stays byte-identical. Not in `FogWriteSet`. No
- * `FogSettings` write. The fallback sun (shadows off) never gets
- * `VolumetricLight`.
+ * `FogSettings` write. The one Sanctuary sun (shadows on) gets
+ * `VolumetricLight` on Ultra.
  *
  * CARD LIGHT-BLOOM-1 — High and Ultra insert `BloomSettings` on every world
  * `Camera3d` and set `hdr` (VISUAL_TARGET L225, L226). Mobile / Low / Medium
@@ -790,11 +790,8 @@ pub struct SanctuarySun {
     pub illuminance: f32,
     /// Sun position. The sun looks at the yard origin from here.
     pub position: Vec3,
-    /// Off. The VP-SKY-1 sky dome (Medium and up) sits between this sun and
-    /// the yard and casts into the shadow map, so a shadowed sun leaves the
-    /// yard dark on Medium / High / Ultra. On tip the unshadowed fallback was
-    /// the light that lit those presets. Off also keeps Mobile / Low free of
-    /// a shadow map.
+    /// On: one shadow map, as the tip `main.rs` sun had on every preset. The
+    /// sky dome is `NotShadowCaster`, so it does not shadow the yard.
     pub shadows_enabled: bool,
 }
 
@@ -803,7 +800,7 @@ pub const SANCTUARY_SUN: SanctuarySun = SanctuarySun {
     color: Color::srgb(1.0, 0.98, 0.94),
     illuminance: 12_000.0,
     position: Vec3::new(8.0, 18.0, 8.0),
-    shadows_enabled: false,
+    shadows_enabled: true,
 };
 
 impl SanctuarySun {
@@ -1183,8 +1180,8 @@ fn sync_place_dress_from_travel(
 /// every [`Camera3d`] and [`VolumetricLight`] only on a [`DirectionalLight`]
 /// with `shadows_enabled`. Leaving Ultra removes both. A component that is
 /// already present is left in place. Writes no [`FogSettings`]. Not in
-/// [`FogWriteSet`]. The fallback sun (`shadows_enabled: false`) never
-/// receives [`VolumetricLight`].
+/// [`FogWriteSet`]. A light with `shadows_enabled: false` never receives
+/// [`VolumetricLight`].
 fn sync_ultra_volumetric(
     mut commands: Commands,
     settings: Option<Res<LocalSettingsState>>,
@@ -3672,8 +3669,8 @@ mod tests {
     #[test]
     fn vp_grade_sanctuary_sun_source_is_pinned() {
         assert_eq!(SANCTUARY_SUN.illuminance, 12_000.0);
-        // Off: the Medium+ sky dome shadows a shadowed sun out of the yard.
-        assert!(!SANCTUARY_SUN.shadows_enabled);
+        // On (Core ruling); the dome is NotShadowCaster (sky_backdrop).
+        assert!(SANCTUARY_SUN.shadows_enabled);
         assert_eq!(SANCTUARY_SUN.position, Vec3::new(8.0, 18.0, 8.0));
         assert_eq!(SANCTUARY_SUN.color, Color::srgb(1.0, 0.98, 0.94));
         // Clean white, a hair warm: not the old beige-warm fallback tint.
@@ -3831,6 +3828,37 @@ mod tests {
             assert_eq!(section.gamma, 1.0);
             assert_eq!(section.gain, 1.0);
         }
+    }
+
+    /// CARD VP-GRADE-1 — Ultra puts VolumetricLight on the one shadowed
+    /// Sanctuary sun (main + fallback race, one sun). High removes it.
+    #[test]
+    fn vp_grade_ultra_volumetric_light_on_the_one_sanctuary_sun() {
+        use shared::local_settings::LocalSettings;
+        let mut app = climate_startup_app();
+        let mut settings = LocalSettings::default();
+        settings.set_graphics_preset(GraphicsPreset::Ultra);
+        app.insert_resource(LocalSettingsState {
+            inner: settings,
+            dirty: false,
+        });
+        app.add_systems(Startup, main_like_sun);
+        app.world_mut().spawn(Camera3dBundle::default());
+        app.update();
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query::<(&DirectionalLight, Option<&VolumetricLight>)>();
+        let lights: Vec<_> = q.iter(world).map(|(l, v)| (l.shadows_enabled, v.is_some())).collect();
+        assert_eq!(lights, vec![(true, true)], "one shadowed sun with VolumetricLight");
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::High);
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<(), With<VolumetricLight>>();
+        assert_eq!(q.iter(world).count(), 0, "High removes VolumetricLight");
     }
 
     fn tier_after_one_frame(preset: GraphicsPreset) -> (bool, Option<BloomSettings>) {

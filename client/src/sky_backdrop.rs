@@ -342,6 +342,26 @@ fn spawn_sky_backdrop(
     let (Some(mut meshes), Some(mut materials)) = (meshes, materials) else {
         return;
     };
+    // CARD VP-GRADE-1 — the dome neither casts nor receives sun shadows, so
+    // the shadowed Sanctuary sun reaches the yard through it.
+    commands.spawn((
+        PbrBundle {
+            mesh: meshes.add(gradient_dome(DOME_RADIUS)),
+            material: materials.add(StandardMaterial {
+                base_color: Color::WHITE,
+                unlit: true,
+                fog_enabled: false,
+                cull_mode: None,
+                ..default()
+            }),
+            transform: Transform::IDENTITY,
+            ..default()
+        },
+        SkyBackdropPart::Dome,
+        Name::new("VP-SKY-1 backdrop"),
+        bevy::pbr::NotShadowCaster,
+        bevy::pbr::NotShadowReceiver,
+    ));
     let mut spawn = |mesh: Mesh, mat: StandardMaterial, part: SkyBackdropPart, t: Transform| {
         commands.spawn((
             PbrBundle {
@@ -354,18 +374,6 @@ fn spawn_sky_backdrop(
             Name::new("VP-SKY-1 backdrop"),
         ));
     };
-    spawn(
-        gradient_dome(DOME_RADIUS),
-        StandardMaterial {
-            base_color: Color::WHITE,
-            unlit: true,
-            fog_enabled: false,
-            cull_mode: None,
-            ..default()
-        },
-        SkyBackdropPart::Dome,
-        Transform::IDENTITY,
-    );
     spawn(
         Plane3d::default().mesh().size(GROUND_SIZE, GROUND_SIZE).build(),
         lit(VALLEY_EARTH, 0.95),
@@ -593,6 +601,43 @@ mod tests {
         assert!(CONIFER_NEEDLE[1] > CONIFER_NEEDLE[0] && CONIFER_NEEDLE[1] > CONIFER_NEEDLE[2]);
         assert!(RIDGE_ROCK[2] > RIDGE_ROCK[0], "ridge leans blue-violet, not beige");
         assert!(!is_brownish(RIDGE_SNOW));
+    }
+
+    /// CARD VP-GRADE-1 — on Medium the dome is shown and carries
+    /// `NotShadowCaster` + `NotShadowReceiver`; no other part does.
+    #[test]
+    fn vp_grade_medium_dome_casts_and_receives_no_shadow() {
+        use bevy::pbr::{NotShadowCaster, NotShadowReceiver};
+        use shared::local_settings::LocalSettings;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .insert_resource(SoftPlayerRealm { current: Some(0) });
+        let mut inner = LocalSettings::default();
+        inner.set_graphics_preset(GraphicsPreset::Medium);
+        app.insert_resource(LocalSettingsState { inner, dirty: false });
+        app.add_plugins(SkyBackdropPlugin);
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query::<(
+            &SkyBackdropPart,
+            &Visibility,
+            Option<&NotShadowCaster>,
+            Option<&NotShadowReceiver>,
+        )>();
+        let mut domes = 0;
+        for (part, vis, caster, receiver) in q.iter(world) {
+            if *part == SkyBackdropPart::Dome {
+                domes += 1;
+                assert_ne!(*vis, Visibility::Hidden, "Medium shows the dome");
+                assert!(caster.is_some(), "dome casts shadows");
+                assert!(receiver.is_some(), "dome receives shadows");
+            } else {
+                assert!(caster.is_none() && receiver.is_none(), "{part:?} tagged");
+            }
+        }
+        assert_eq!(domes, 1);
     }
 
     #[test]
