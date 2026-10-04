@@ -57,7 +57,7 @@ use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::{LocalColorblindWells, LocalSettingsState};
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 use crate::depths_landing::DepthsPeaceTend;
-use crate::title_screen::{TITLE_BORDER_MUTED, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 #[derive(Component)]
 struct ClimateStateRoot;
@@ -298,7 +298,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
                     ..default()
                 },
                 background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER_MUTED.with_alpha(0.42).into(),
+                border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -379,10 +379,12 @@ fn update_climate_state_slab(
                 .unwrap_or(false);
             let pulse = well_slab_pulse(glow, reduced_motion);
             *border = Color::srgba(
-                TITLE_BORDER_MUTED.to_srgba().red + pulse.r,
-                TITLE_BORDER_MUTED.to_srgba().green + pulse.g,
-                TITLE_BORDER_MUTED.to_srgba().blue + pulse.b,
-                0.42 + pulse.a,
+                // VP-RIM-POLISH-1: the pulse lifts rim rgb (capped per channel);
+                // rim alpha stays 1.0, so pulse.a is not used on the rim.
+                (TITLE_BORDER.to_srgba().red + pulse.r).min(1.0),
+                (TITLE_BORDER.to_srgba().green + pulse.g).min(1.0),
+                (TITLE_BORDER.to_srgba().blue + pulse.b).min(1.0),
+                1.0,
             )
             .into();
             *bg = Color::srgba(
@@ -1570,12 +1572,12 @@ mod tests {
     }
 
     /// CARD VP-HUD-GOLD-1 — at glow 0 the climate chip rests on the title
-    /// palette: muted gold rim (alpha 0.42), opaque plate fill (alpha 1.0), cream text.
+    /// palette: gold rim (alpha 1.0, VP-RIM-POLISH-1), opaque plate fill (alpha 1.0), cream text.
     #[test]
     fn hud_gold_climate_chip_rest_is_title_palette() {
         let mut app = hud_gold_climate_app(false, 0.0);
         let (border, bg, text) = hud_gold_climate_colors(&mut app);
-        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "chip border");
+        hud_gold_assert_rgb(border, TITLE_BORDER, 1.0, "chip border");
         hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "chip fill");
         hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "chip text");
     }
@@ -1589,7 +1591,7 @@ mod tests {
             .add_systems(Startup, spawn_climate_state_slab);
         app.update();
         let (border, bg, text) = hud_gold_climate_colors(&mut app);
-        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "chip spawn border");
+        hud_gold_assert_rgb(border, TITLE_BORDER, 1.0, "chip spawn border");
         hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "chip spawn fill");
         hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "chip spawn text");
         for (c, what) in [(border, "border"), (bg, "fill"), (text, "text")] {
@@ -1603,19 +1605,38 @@ mod tests {
     fn hud_gold_climate_chip_reduced_motion_holds_gold_rest() {
         let mut app = hud_gold_climate_app(true, 1.0);
         let (border, bg, _) = hud_gold_climate_colors(&mut app);
-        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "reduced border");
+        hud_gold_assert_rgb(border, TITLE_BORDER, 1.0, "reduced border");
         hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "reduced fill");
 
         let mut app = hud_gold_climate_app(false, 1.0);
         let (border, _, _) = hud_gold_climate_colors(&mut app);
         let p = well_slab_pulse(1.0, false);
-        let rest = TITLE_BORDER_MUTED.to_srgba();
+        let rest = TITLE_BORDER.to_srgba();
         let (r, g, b, a) = hud_gold_rgb(border);
-        assert!((r - (rest.red + p.r)).abs() < 1e-6);
-        assert!((g - (rest.green + p.g)).abs() < 1e-6);
-        assert!((b - (rest.blue + p.b)).abs() < 1e-6);
-        assert!((a - (0.42 + p.a)).abs() < 1e-6);
+        assert!((r - (rest.red + p.r).min(1.0)).abs() < 1e-6);
+        assert!((g - (rest.green + p.g).min(1.0)).abs() < 1e-6);
+        assert!((b - (rest.blue + p.b).min(1.0)).abs() < 1e-6);
+        assert_eq!(a, 1.0, "rim alpha stays 1.0 under the pulse");
         hud_gold_not_green(border, "lifted chip border");
+    }
+
+    /// CARD VP-RIM-POLISH-1 — the rim pulse lives in rgb: at a full breath the
+    /// chip rim rgb differs from the gold rest, and rim alpha stays 1.0.
+    #[test]
+    fn rim_polish_climate_chip_peak_rim_rgb_differs_from_rest() {
+        let mut app = hud_gold_climate_app(false, 0.0);
+        let (rest, _, _) = hud_gold_climate_colors(&mut app);
+        let mut app = hud_gold_climate_app(false, 1.0);
+        let (peak, _, _) = hud_gold_climate_colors(&mut app);
+        let (rr, rg, rb, ra) = hud_gold_rgb(rest);
+        let (pr, pg, pb, pa) = hud_gold_rgb(peak);
+        assert!(
+            (pr - rr).abs() + (pg - rg).abs() + (pb - rb).abs() > 1e-3,
+            "peak rim rgb must differ from rest: rest=({rr},{rg},{rb}) peak=({pr},{pg},{pb})"
+        );
+        assert!(pr <= 1.0 && pg <= 1.0 && pb <= 1.0, "rim rgb capped at 1.0");
+        assert_eq!(ra, 1.0, "rest rim alpha");
+        assert_eq!(pa, 1.0, "peak rim alpha");
     }
 
     /// CARD VP-HUD-GOLD-1 (amended) — the climate chip fill is opaque: alpha
