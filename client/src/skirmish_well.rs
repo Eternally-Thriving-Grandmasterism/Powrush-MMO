@@ -18,7 +18,7 @@ use crate::human_presence::SoftPresence;
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
-use crate::title_screen::{TITLE_BORDER_MUTED, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 const HOLD_SECS: f64 = 6.0;
 
@@ -112,7 +112,7 @@ fn spawn_well_slab(mut commands: Commands) {
                     ..default()
                 },
                 background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER_MUTED.with_alpha(0.50).into(),
+                border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -257,10 +257,12 @@ fn update_well_slab(
         if show {
             let pulse = well_glow_pulse(glow);
             *border = Color::srgba(
-                TITLE_BORDER_MUTED.to_srgba().red + pulse.r,
-                TITLE_BORDER_MUTED.to_srgba().green + pulse.g,
-                TITLE_BORDER_MUTED.to_srgba().blue + pulse.b,
-                0.50 + pulse.a,
+                // VP-RIM-POLISH-1: the pulse lifts rim rgb (capped per channel);
+                // rim alpha stays 1.0, so pulse.a is not used on the rim.
+                (TITLE_BORDER.to_srgba().red + pulse.r).min(1.0),
+                (TITLE_BORDER.to_srgba().green + pulse.g).min(1.0),
+                (TITLE_BORDER.to_srgba().blue + pulse.b).min(1.0),
+                1.0,
             )
             .into();
             *bg = Color::srgba(
@@ -457,13 +459,13 @@ mod tests {
     }
 
     /// CARD VP-HUD-GOLD-1 — at glow 0 the well slab rests on the title
-    /// palette: muted gold rim (alpha 0.50), opaque plate fill (alpha 1.0), cream text.
+    /// palette: gold rim (alpha 1.0, VP-RIM-POLISH-1), opaque plate fill (alpha 1.0), cream text.
     #[test]
     fn hud_gold_well_slab_rest_is_title_palette() {
         let mut app = hud_gold_well_app(0.0);
         let (border, bg, text, vis) = hud_gold_well_colors(&mut app);
         assert_eq!(vis, Visibility::Visible);
-        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.50, "well border");
+        hud_gold_assert_rgb(border, TITLE_BORDER, 1.0, "well border");
         hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "well fill");
         hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "well text");
     }
@@ -477,7 +479,7 @@ mod tests {
             .add_systems(Startup, spawn_well_slab);
         app.update();
         let (border, bg, text, _) = hud_gold_well_colors(&mut app);
-        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.50, "well spawn border");
+        hud_gold_assert_rgb(border, TITLE_BORDER, 1.0, "well spawn border");
         hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "well spawn fill");
         hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "well spawn text");
         for (c, what) in [(border, "border"), (bg, "fill"), (text, "text")] {
@@ -492,19 +494,38 @@ mod tests {
         let mut app = hud_gold_well_app(1.0);
         let (border, bg, _, _) = hud_gold_well_colors(&mut app);
         let p = well_glow_pulse(1.0);
-        let rest = TITLE_BORDER_MUTED.to_srgba();
+        let rest = TITLE_BORDER.to_srgba();
         let fill = TITLE_PLATE_BG.to_srgba();
         let (r, g, b, a) = hud_gold_rgb(border);
-        assert!((r - (rest.red + p.r)).abs() < 1e-6);
-        assert!((g - (rest.green + p.g)).abs() < 1e-6);
-        assert!((b - (rest.blue + p.b)).abs() < 1e-6);
-        assert!((a - (0.50 + p.a)).abs() < 1e-6);
+        assert!((r - (rest.red + p.r).min(1.0)).abs() < 1e-6);
+        assert!((g - (rest.green + p.g).min(1.0)).abs() < 1e-6);
+        assert!((b - (rest.blue + p.b).min(1.0)).abs() < 1e-6);
+        assert_eq!(a, 1.0, "rim alpha stays 1.0 under the pulse");
         let (br, bgg, bb, ba) = hud_gold_rgb(bg);
         assert!((br - (fill.red + p.bg_r)).abs() < 1e-6);
         assert!((bgg - (fill.green + p.bg_g)).abs() < 1e-6);
         assert!((bb - (fill.blue + p.bg_b)).abs() < 1e-6);
         assert_eq!(ba, 1.0);
         hud_gold_not_green(border, "lifted border");
+    }
+
+    /// CARD VP-RIM-POLISH-1 — the rim pulse lives in rgb: at a full breath the
+    /// well rim rgb differs from the gold rest, and rim alpha stays 1.0.
+    #[test]
+    fn rim_polish_well_slab_peak_rim_rgb_differs_from_rest() {
+        let mut app = hud_gold_well_app(0.0);
+        let (rest, _, _, _) = hud_gold_well_colors(&mut app);
+        let mut app = hud_gold_well_app(1.0);
+        let (peak, _, _, _) = hud_gold_well_colors(&mut app);
+        let (rr, rg, rb, ra) = hud_gold_rgb(rest);
+        let (pr, pg, pb, pa) = hud_gold_rgb(peak);
+        assert!(
+            (pr - rr).abs() + (pg - rg).abs() + (pb - rb).abs() > 1e-3,
+            "peak rim rgb must differ from rest: rest=({rr},{rg},{rb}) peak=({pr},{pg},{pb})"
+        );
+        assert!(pr <= 1.0 && pg <= 1.0 && pb <= 1.0, "rim rgb capped at 1.0");
+        assert_eq!(ra, 1.0, "rest rim alpha");
+        assert_eq!(pa, 1.0, "peak rim alpha");
     }
 
     /// CARD VP-HUD-GOLD-1 (amended) — the well slab fill is opaque: alpha is

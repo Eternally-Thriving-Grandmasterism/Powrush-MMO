@@ -96,8 +96,9 @@ fn spawn_touch_overlay(mut commands: Commands) {
                         align_items: AlignItems::Center,
                         ..default()
                     },
-                    background_color: TITLE_PLATE_BG.into(),
-                    border_color: TITLE_BORDER.into(),
+                    // state: overlay stays see-through over play
+                    background_color: TITLE_PLATE_BG.with_alpha(0.45).into(),
+                    border_color: TITLE_BORDER.with_alpha(0.55).into(),
                     ..default()
                 },
                 TouchStickZone,
@@ -124,7 +125,8 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     bottom: Val::Px(36.0),
                     ..default()
                 },
-                TITLE_BTN_ACTIVE_BG,
+                // state: overlay stays see-through over play
+                TITLE_BTN_ACTIVE_BG.with_alpha(0.72),
             );
 
             // Top-right cluster: Pause / Q / L
@@ -137,7 +139,8 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     top: Val::Px(24.0),
                     ..default()
                 },
-                TITLE_BTN_BG,
+                // state: overlay stays see-through over play
+                TITLE_BTN_BG.with_alpha(0.75),
             );
             spawn_overlay_btn(
                 root,
@@ -148,7 +151,8 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     top: Val::Px(24.0 + TOUCH_HIT_MIN + 8.0),
                     ..default()
                 },
-                TITLE_BTN_BG,
+                // state: overlay stays see-through over play
+                TITLE_BTN_BG.with_alpha(0.75),
             );
             spawn_overlay_btn(
                 root,
@@ -159,7 +163,8 @@ fn spawn_touch_overlay(mut commands: Commands) {
                     top: Val::Px(24.0 + 2.0 * (TOUCH_HIT_MIN + 8.0)),
                     ..default()
                 },
-                TITLE_BTN_BG,
+                // state: overlay stays see-through over play
+                TITLE_BTN_BG.with_alpha(0.75),
             );
         });
 }
@@ -189,7 +194,8 @@ fn spawn_overlay_btn<B: Component>(
                 ..default()
             },
             background_color: bg.into(),
-            border_color: TITLE_BORDER.into(),
+            // state: overlay stays see-through over play
+            border_color: TITLE_BORDER.with_alpha(0.65).into(),
             ..default()
         },
         marker,

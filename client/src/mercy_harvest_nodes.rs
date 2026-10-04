@@ -764,7 +764,7 @@ mod tests {
             .world_mut()
             .resource_mut::<Assets<StandardMaterial>>()
             .add(StandardMaterial {
-                base_color: Color::srgb(0.86, 0.66, 0.29),
+                base_color: Color::srgb(0.86, 0.66, 0.29),  // world: test node material (gold), not UI
                 emissive,
                 ..default()
             });
