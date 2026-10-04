@@ -92,6 +92,7 @@ use crate::hour_sacred::{
 use shared::hex_travel::PlaceId;
 use shared::local_settings::PeaceKey;
 use crate::human_presence::SoftPresence;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
@@ -782,8 +783,8 @@ fn spawn_guidance_strip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.02, 0.03, 0.04, 0.94).into(),
-                border_color: Color::srgba(0.92, 0.96, 0.78, 0.82).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(0.94).into(),
+                border_color: TITLE_BORDER.with_alpha(0.82).into(),
                 visibility: Visibility::Visible,
                 ..default()
             },
@@ -795,7 +796,7 @@ fn spawn_guidance_strip(mut commands: Commands) {
                     card_line(GuidanceObjective::MoveAround.prompt()),
                     TextStyle {
                         font_size: 17.0,
-                        color: Color::srgb(0.96, 0.98, 0.88),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -2553,5 +2554,55 @@ mod tests {
             GuidanceObjective::FreeExploration.prompt(),
             "this hex admits harm · optional"
         );
+    }
+
+    /// CARD VP-HUD-GOLD-1 — the guidance strip spawns on the title palette:
+    /// gold rim (TITLE_BORDER, alpha 0.82), plate fill (alpha 0.94), cream
+    /// text; no base colour reads green. The strip has no pulse, so rest is spawn.
+    #[test]
+    fn hud_gold_guidance_strip_is_title_palette() {
+        use bevy::MinimalPlugins;
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>()
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .add_systems(Startup, spawn_guidance_strip)
+            .add_systems(Update, update_guidance_text);
+        app.update();
+
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor), With<FirstSessionGuidanceStrip>>();
+        let (border, bg) = q.single(app.world());
+        let (border, bg) = (border.0, bg.0);
+        let mut t = app
+            .world_mut()
+            .query_filtered::<&Text, With<FirstSessionGuidanceText>>();
+        let text = t.single(app.world()).sections[0].style.color;
+
+        for (c, want, alpha, what) in [
+            (border, TITLE_BORDER, 0.82, "strip border"),
+            (bg, TITLE_PLATE_BG, 0.94, "strip fill"),
+            (text, TITLE_TEXT_PRIMARY, 1.0, "strip text"),
+        ] {
+            let s = c.to_srgba();
+            let w = want.to_srgba();
+            assert!((s.red - w.red).abs() < 1e-6, "{what} red");
+            assert!((s.green - w.green).abs() < 1e-6, "{what} green");
+            assert!((s.blue - w.blue).abs() < 1e-6, "{what} blue");
+            assert!((s.alpha - alpha).abs() < 1e-6, "{what} alpha");
+            assert!(
+                !(s.green > s.red && s.green > s.blue),
+                "{what} reads green: {} {} {}",
+                s.red,
+                s.green,
+                s.blue
+            );
+        }
     }
 }

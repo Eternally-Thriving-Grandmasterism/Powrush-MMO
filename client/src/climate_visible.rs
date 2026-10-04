@@ -57,6 +57,7 @@ use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::{LocalColorblindWells, LocalSettingsState};
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 use crate::depths_landing::DepthsPeaceTend;
+use crate::title_screen::{TITLE_BORDER_MUTED, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 #[derive(Component)]
 struct ClimateStateRoot;
@@ -296,8 +297,8 @@ fn spawn_climate_state_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.06, 0.08, 0.07, 0.88).into(),
-                border_color: Color::srgba(0.48, 0.78, 0.58, 0.42).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(0.88).into(),
+                border_color: TITLE_BORDER_MUTED.with_alpha(0.42).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -309,7 +310,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.84, 0.96, 0.86),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -378,16 +379,16 @@ fn update_climate_state_slab(
                 .unwrap_or(false);
             let pulse = well_slab_pulse(glow, reduced_motion);
             *border = Color::srgba(
-                0.48 + pulse.r,
-                0.78 + pulse.g,
-                0.58 + pulse.b,
+                TITLE_BORDER_MUTED.to_srgba().red + pulse.r,
+                TITLE_BORDER_MUTED.to_srgba().green + pulse.g,
+                TITLE_BORDER_MUTED.to_srgba().blue + pulse.b,
                 0.42 + pulse.a,
             )
             .into();
             *bg = Color::srgba(
-                0.06 + pulse.bg_r,
-                0.08 + pulse.bg_g,
-                0.07 + pulse.bg_b,
+                TITLE_PLATE_BG.to_srgba().red + pulse.bg_r,
+                TITLE_PLATE_BG.to_srgba().green + pulse.bg_g,
+                TITLE_PLATE_BG.to_srgba().blue + pulse.bg_b,
                 0.88,
             )
             .into();
@@ -1511,4 +1512,109 @@ mod tests {
         assert!(!GraphicsPreset::High.label().contains("Ultra"));
     }
 
+    /// CARD VP-HUD-GOLD-1 — rgb channels of one colour (srgb space).
+    fn hud_gold_rgb(c: Color) -> (f32, f32, f32, f32) {
+        let s = c.to_srgba();
+        (s.red, s.green, s.blue, s.alpha)
+    }
+
+    fn hud_gold_assert_rgb(c: Color, want: Color, alpha: f32, what: &str) {
+        let (r, g, b, a) = hud_gold_rgb(c);
+        let (wr, wg, wb, _) = hud_gold_rgb(want);
+        assert!((r - wr).abs() < 1e-6, "{what} red {r} vs {wr}");
+        assert!((g - wg).abs() < 1e-6, "{what} green {g} vs {wg}");
+        assert!((b - wb).abs() < 1e-6, "{what} blue {b} vs {wb}");
+        assert!((a - alpha).abs() < 1e-6, "{what} alpha {a} vs {alpha}");
+    }
+
+    fn hud_gold_not_green(c: Color, what: &str) {
+        let (r, g, b, _) = hud_gold_rgb(c);
+        assert!(!(g > r && g > b), "{what} reads green: {r} {g} {b}");
+    }
+
+    /// Spawn the climate chip and run its sync once (Peace defaults, no disk
+    /// settings). `week_glow` feeds the same breath the Take · Tend bind fires.
+    fn hud_gold_climate_app(reduced_motion: bool, week_glow: f32) -> App {
+        use shared::local_settings::LocalSettings;
+        let mut inner = LocalSettings::peace_defaults();
+        inner.reduced_motion = reduced_motion;
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(NearbyMercyNode::default())
+            .insert_resource(LivedHourBind::default())
+            .insert_resource(HexTravelState::default())
+            .insert_resource(WeekFeelGlow {
+                glow: week_glow,
+                ..default()
+            })
+            .insert_resource(WardsNoticeGlow::default())
+            .insert_resource(LocalColorblindWells::default())
+            .insert_resource(LocalSettingsState { inner, dirty: false })
+            .add_systems(Startup, spawn_climate_state_slab)
+            .add_systems(Update, update_climate_state_slab);
+        app.update();
+        app
+    }
+
+    fn hud_gold_climate_colors(app: &mut App) -> (Color, Color, Color) {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor), With<ClimateStateRoot>>();
+        let (border, bg) = q.single(app.world());
+        let (border, bg) = (border.0, bg.0);
+        let mut t = app
+            .world_mut()
+            .query_filtered::<&Text, With<ClimateStateText>>();
+        let text = t.single(app.world()).sections[0].style.color;
+        (border, bg, text)
+    }
+
+    /// CARD VP-HUD-GOLD-1 — at glow 0 the climate chip rests on the title
+    /// palette: muted gold rim (alpha 0.42), plate fill (alpha 0.88), cream text.
+    #[test]
+    fn hud_gold_climate_chip_rest_is_title_palette() {
+        let mut app = hud_gold_climate_app(false, 0.0);
+        let (border, bg, text) = hud_gold_climate_colors(&mut app);
+        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "chip border");
+        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 0.88, "chip fill");
+        hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "chip text");
+    }
+
+    /// CARD VP-HUD-GOLD-1 — spawn colours carry the palette; no base colour
+    /// on the chip reads green (green above both red and blue).
+    #[test]
+    fn hud_gold_climate_chip_base_colours_not_green() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_climate_state_slab);
+        app.update();
+        let (border, bg, text) = hud_gold_climate_colors(&mut app);
+        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "chip spawn border");
+        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 0.88, "chip spawn fill");
+        hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "chip spawn text");
+        for (c, what) in [(border, "border"), (bg, "fill"), (text, "text")] {
+            hud_gold_not_green(c, what);
+        }
+    }
+
+    /// CARD VP-HUD-GOLD-1 — reduced motion with a full breath pending holds
+    /// the chip at the gold rest base; without it the pulse still adds on top.
+    #[test]
+    fn hud_gold_climate_chip_reduced_motion_holds_gold_rest() {
+        let mut app = hud_gold_climate_app(true, 1.0);
+        let (border, bg, _) = hud_gold_climate_colors(&mut app);
+        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.42, "reduced border");
+        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 0.88, "reduced fill");
+
+        let mut app = hud_gold_climate_app(false, 1.0);
+        let (border, _, _) = hud_gold_climate_colors(&mut app);
+        let p = well_slab_pulse(1.0, false);
+        let rest = TITLE_BORDER_MUTED.to_srgba();
+        let (r, g, b, a) = hud_gold_rgb(border);
+        assert!((r - (rest.red + p.r)).abs() < 1e-6);
+        assert!((g - (rest.green + p.g)).abs() < 1e-6);
+        assert!((b - (rest.blue + p.b)).abs() < 1e-6);
+        assert!((a - (0.42 + p.a)).abs() < 1e-6);
+        hud_gold_not_green(border, "lifted chip border");
+    }
 }
