@@ -20,6 +20,7 @@ use std::path::PathBuf;
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::soft_play_bindings;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 const SHARE_PATH: &str = "data/powrush_lattice_flow_share.json";
 const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
@@ -97,8 +98,8 @@ fn spawn_peer_presence_chip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.04, 0.06, 0.09, 0.82).into(),
-                border_color: Color::srgba(0.55, 0.72, 0.90, 0.35).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
+                border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -110,7 +111,7 @@ fn spawn_peer_presence_chip(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 12.5,
-                        color: Color::srgb(0.82, 0.90, 1.0),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -252,6 +253,33 @@ fn update_peer_presence_chip(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD VP-HUD-TOP-1 — the peer-presence chip rests on the title palette: opaque
+    /// plate, gold rim at alpha 1, cream text (no blue-grey / dim chrome).
+    #[test]
+    fn hud_top_peer_presence_chip_rests_on_title_palette() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_peer_presence_chip);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor), With<PeerPresenceRoot>>();
+        let (border, bg) = q.single(app.world());
+        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let mut t = app.world_mut().query_filtered::<&Text, With<PeerPresenceText>>();
+        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        for (got, want, what) in [
+            (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
+            (border, TITLE_BORDER.to_srgba(), "rim"),
+            (txt, TITLE_TEXT_PRIMARY.to_srgba(), "text"),
+        ] {
+            assert!((got.red - want.red).abs() < 1e-6, "{what} red");
+            assert!((got.green - want.green).abs() < 1e-6, "{what} green");
+            assert!((got.blue - want.blue).abs() < 1e-6, "{what} blue");
+            assert_eq!(got.alpha, 1.0, "{what} alpha");
+        }
+    }
 
     #[test]
     fn envelope_roundtrip() {
