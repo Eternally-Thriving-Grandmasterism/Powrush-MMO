@@ -164,7 +164,7 @@ The world is more than Houses and wells. Every entity below is a **world entity*
 | **Automated NPC humans** | Villagers, haulers, menders, guards (§5) | Work posts and chains; have needs (food, rest, shelter, belonging) and morale that shift output, the Medieval Dynasty way |
 | **Animals** | Herd animals, pack animals, wildlife (`client/src/living_ecology.rs` deer and ecology props are the seed) | **Husbandry:** feed, shelter and breed; output (wool, milk, pull) follows care. **Herding:** animals move on routes like haulers, at a slower rate. **Wildlife ecology:** a population per hex with regrowth and predator/prey balance; overhunting collapses it, rest restores it |
 | **Space aliens** | The playable alien peoples (Quellorian, Draek, Ambrosian, `docs/PLAYABLE_RACES.md`) and non-playable alien fauna and fleets (`docs/FLEET_CLASSES.md`, `docs/DRAEK_FLEET_AI_SYSTEMS.md`) | Peoples per §3d; fauna as wildlife; fleets as later Sky content, after Online |
-| **Advanced tech** | Resonance tech, crystalline and organic ship designs, Cydruid machine parts (`docs/AMBROSIAN_CRYSTALLINE_SHIP_DESIGNS.md`, `docs/CYDRUID_ORGANIC_SHIP_DESIGNS.md`) | High-tier chain outputs and infrastructure with high upkeep and high reliability when maintained |
+| **Advanced tech** | Resonance tech, crystalline and organic ship designs, Cydruid machine parts (`docs/AMBROSIAN_CRYSTALLINE_SHIP_DESIGNS.md`, `docs/CYDRUID_ORGANIC_SHIP_DESIGNS.md`; technique only, no bark, leaf or root look, per `docs/PLAYABLE_RACES.md` C0) | High-tier chain outputs and infrastructure with high upkeep and high reliability when maintained |
 | **Droids** | Companions (§6), guild automation droids (§3b) | Workers and companions with upkeep; offline droids follow §6.7 |
 
 Supporting or bolstering an entity means repairing it, paying its upkeep, guarding it, or reinforcing it (raising its reliability ceiling or its defence for a week). Support from another House earns standing with the owner and the owner's faction.
@@ -729,6 +729,7 @@ These lines stand until the Steward lifts them on a named ticket. The plan is de
 | No daily login, loot box, season pass | `GODSPEED_PREP` | Holidays are calendar mood, never streaks or paid |
 | Peace is the default; lethal is opt-in after the book (DeclaredLethal) | `GDD_IMMERSION_REVISION` §2.1, §4 | `world_harm_mode` defaults to `off`; `declared` reuses the existing DeclaredLethal path; Sanctuary Prime is always protected (§3g) |
 | Hour finishes with zero persons; no person combat | `NPC_SCHEDULE_SPEC` | Kept for offline NPCs and companions |
+| Persons never break Peace and never fight | `NPC_SCHEDULE_SPEC` L113 | This refuse line stands until Sherif lifts it on a ticket. The offline NPC-raid opt-in in §3g stays a direction only, behind card 13 HARM-MODE-1 (JUNCTION) |
 | New `shared` files need a named PATH | `AGENTS.md`, `NEXT_NAMED_CARDS` | Cards below that add a file are JUNCTION until the Steward names them |
 
 ---
