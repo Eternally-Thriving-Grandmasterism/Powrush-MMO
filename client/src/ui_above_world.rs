@@ -301,6 +301,83 @@ mod tests {
         }
     }
 
+    /// CARD VP-GRADE-1 — the lived UI camera stays bare: no tonemapping
+    /// other than `Tonemapping::None`, no `ColorGrading`, on every tier.
+    /// The world camera, spawned as `main.rs` does, keeps AgX + the grade.
+    /// `hdr` is not pinned here: it follows the world camera (High / Ultra).
+    #[test]
+    fn vp_grade_lived_ui_camera_has_no_tonemapping_or_grade() {
+        use crate::climate_plane::{world_color_grading, ClimatePlanePlugin, WORLD_TONEMAPPING};
+        use crate::living_practice_loop::SoftPlayerRealm;
+        use crate::local_settings::LocalSettingsState;
+        use bevy::core_pipeline::tonemapping::Tonemapping;
+        use bevy::render::view::ColorGrading;
+        use shared::local_settings::{GraphicsPreset, LocalSettings};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<Assets<Mesh>>()
+            .init_resource::<Assets<StandardMaterial>>()
+            .init_resource::<SoftPlayerRealm>()
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::default(),
+                dirty: false,
+            })
+            .add_plugins((UiAboveWorldPlugin, ClimatePlanePlugin));
+        let world_cam = app
+            .world_mut()
+            .spawn(Camera3dBundle {
+                camera: Camera {
+                    order: WORLD_CAMERA_ORDER,
+                    ..default()
+                },
+                tonemapping: WORLD_TONEMAPPING,
+                color_grading: world_color_grading(),
+                ..default()
+            })
+            .id();
+
+        for preset in GraphicsPreset::ALL {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .set_graphics_preset(preset);
+            app.update();
+            let world_ref = app.world();
+            let mut ui_seen = 0;
+            for entity in world_ref.iter_entities() {
+                if !entity.contains::<LivedUiCamera>() {
+                    continue;
+                }
+                ui_seen += 1;
+                let tonemapping = entity.get::<Tonemapping>().copied();
+                assert!(
+                    matches!(tonemapping, None | Some(Tonemapping::None)),
+                    "{} ui tonemapping {tonemapping:?}",
+                    preset.label()
+                );
+                assert!(
+                    !entity.contains::<ColorGrading>(),
+                    "{} ui has ColorGrading",
+                    preset.label()
+                );
+            }
+            assert_eq!(ui_seen, 1, "{} one lived UI camera", preset.label());
+            assert_eq!(
+                world_ref.get::<Tonemapping>(world_cam).copied(),
+                Some(Tonemapping::AgX),
+                "{} world tonemapping",
+                preset.label()
+            );
+            let grade = world_ref.get::<ColorGrading>(world_cam).expect("world grade");
+            assert_eq!(
+                grade.global.post_saturation,
+                world_color_grading().global.post_saturation
+            );
+            assert_eq!(grade.midtones.saturation, world_color_grading().midtones.saturation);
+        }
+    }
+
     fn assert_hdr_pair(app: &App, world_cam: Entity, expect_hdr: bool, label: &str) {
         use bevy::core_pipeline::bloom::BloomSettings;
         use bevy::render::camera::ClearColorConfig;

@@ -73,24 +73,23 @@ fn main() {
 }
 
 fn spawn_sun_and_camera(mut commands: Commands) {
+    use powrush_client::climate_plane::{
+        spawn_sanctuary_sun_once, world_color_grading, WORLD_TONEMAPPING,
+    };
     // World camera order 0 — lived UI Camera2d (order 10) draws above on soft GPU.
+    // CARD VP-GRADE-1 — AgX + the one world grade; the UI camera stays bare.
     commands.spawn(Camera3dBundle {
         camera: Camera {
             order: powrush_client::ui_above_world::WORLD_CAMERA_ORDER,
             ..default()
         },
+        tonemapping: WORLD_TONEMAPPING,
+        color_grading: world_color_grading(),
         transform: Transform::from_xyz(0.0, 8.0, 14.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
-    commands.spawn(DirectionalLightBundle {
-        directional_light: DirectionalLight {
-            illuminance: 12_000.0,
-            shadows_enabled: true,
-            ..default()
-        },
-        transform: Transform::from_xyz(8.0, 18.0, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..default()
-    });
+    // CARD VP-GRADE-1 — the one Sanctuary sun (climate_plane::SANCTUARY_SUN).
+    spawn_sanctuary_sun_once(&mut commands);
 }
 
 /// One crash line: `{epoch} {message} {file}:{line}\n`, or without
