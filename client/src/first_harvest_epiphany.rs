@@ -19,6 +19,7 @@ use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
@@ -296,8 +297,8 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.03, 0.10, 0.07, 0.78).into(),
-                border_color: Color::srgba(0.55, 0.95, 0.72, 0.50).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Visible,
                 ..default()
             },
@@ -309,7 +310,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     "Walk toward a glowing node",
                     TextStyle {
                         font_size: 16.0,
-                        color: Color::srgb(0.82, 1.0, 0.90),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -332,8 +333,8 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.2)),
                     ..default()
                 },
-                background_color: Color::srgba(0.07, 0.12, 0.08, 0.90).into(),
-                border_color: Color::srgba(0.85, 0.98, 0.55, 0.62).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -345,7 +346,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 16.0,
-                        color: Color::srgb(0.96, 1.0, 0.82),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -365,8 +366,8 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.07, 0.10, 0.88).into(),
-                border_color: Color::srgba(0.70, 0.82, 0.95, 0.40).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.with_alpha(0.40).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -379,7 +380,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 13.5,
-                        color: Color::srgb(0.86, 0.92, 1.0),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -776,18 +777,21 @@ fn update_welcome_back(
         if show {
             // Rest colors stay the existing welcome card; lift matches well_glow.
             let a = 0.40 + glow * 0.40;
+            // state: welcome-back pulse — palette rest base + the existing glow lift.
+            let rim = TITLE_BORDER.to_srgba();
+            let plate = TITLE_PLATE_BG.to_srgba();
             *border = Color::srgba(
-                (0.70 + glow * 0.20).min(1.0),
-                (0.82 + glow * 0.16).min(1.0),
-                (0.95 + glow * 0.04).min(1.0),
+                (rim.red + glow * 0.20).min(1.0),
+                (rim.green + glow * 0.16).min(1.0),
+                (rim.blue + glow * 0.04).min(1.0),
                 a,
             )
             .into();
             *bg = Color::srgba(
-                0.05 + glow * 0.08,
-                0.07 + glow * 0.10,
-                0.10 + glow * 0.06,
-                0.88,
+                plate.red + glow * 0.08,
+                plate.green + glow * 0.10,
+                plate.blue + glow * 0.06,
+                1.0,
             )
             .into();
         }

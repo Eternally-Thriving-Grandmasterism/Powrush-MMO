@@ -116,8 +116,8 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.04, 0.06, 0.07, 0.78).into(),
-                border_color: Color::srgba(0.55, 0.80, 0.62, 0.35).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -129,7 +129,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 13.0,
-                        color: Color::srgb(0.86, 0.96, 0.88),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -212,8 +212,8 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.08, 0.12, 0.06, 0.88).into(),
-                border_color: Color::srgba(0.85, 0.95, 0.45, 0.55).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -225,7 +225,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 16.0,
-                        color: Color::srgb(0.98, 1.0, 0.72),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),

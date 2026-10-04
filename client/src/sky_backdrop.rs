@@ -631,8 +631,8 @@ mod tests {
             if *part == SkyBackdropPart::Dome {
                 domes += 1;
                 assert_ne!(*vis, Visibility::Hidden, "Medium shows the dome");
-                assert!(caster.is_some(), "dome casts shadows");
-                assert!(receiver.is_some(), "dome receives shadows");
+                assert!(caster.is_some(), "dome carries NotShadowCaster (casts no shadow)");
+                assert!(receiver.is_some(), "dome carries NotShadowReceiver (receives no shadow)");
             } else {
                 assert!(caster.is_none() && receiver.is_none(), "{part:?} tagged");
             }

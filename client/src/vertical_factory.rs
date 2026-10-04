@@ -18,6 +18,7 @@ use shared::space_law::{HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
 use crate::input::{InputMapSet, PlayerInput};
@@ -83,8 +84,8 @@ fn spawn_factory_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.05, 0.07, 0.06, 0.90).into(),
-                border_color: Color::srgba(0.70, 0.88, 0.55, 0.45).into(),
+                background_color: TITLE_PLATE_BG.into(),
+                border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -96,7 +97,7 @@ fn spawn_factory_slab(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.90, 0.98, 0.82),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),

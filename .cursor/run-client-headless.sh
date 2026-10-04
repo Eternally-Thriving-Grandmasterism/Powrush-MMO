@@ -119,6 +119,12 @@ if (( settle_budget > 10 )); then
 fi
 settle_end=$((SECONDS + settle_budget))
 try=0
+# CARD VP-PANELS-REGAL-1 — 2 s wait before try 1 only, so the first grab
+# lands after the first presented frame. Later tries keep the 2 s re-grab.
+# Budget <= 0 still takes its one grab at once (stays under the 45 s guard).
+if (( settle_budget > 0 )); then
+  sleep 2
+fi
 while :; do
   try=$((try + 1))
   if ! kill -0 "$client_pid" 2>/dev/null; then

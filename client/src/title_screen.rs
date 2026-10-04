@@ -7530,4 +7530,140 @@ mod tests {
         assert_eq!(title_alpha(TITLE_BTN_ACTIVE_BG), 1.0);
         assert_eq!(title_alpha(TITLE_BORDER_MUTED), 1.0);
     }
+
+    /// CARD VP-PANELS-REGAL-1 — every colour literal in one source, as
+    /// (line, form, args). Matches `Color::{srgb,srgba,rgb,rgba,hsl,hsla}(…)`;
+    /// a literal is skipped only when its own or the previous line carries a
+    /// `// world:` reason (world materials stay; UI moves to the palette).
+    /// Computed colours (non-numeric args, e.g. pulse sums) are not literals.
+    fn vp_panels_colour_literals(src: &str) -> Vec<(usize, String, Vec<f32>)> {
+        const FORMS: [&str; 6] = ["srgba", "srgb", "rgba", "rgb", "hsla", "hsl"];
+        let lines: Vec<&str> = src.lines().collect();
+        let mut line_starts = Vec::with_capacity(lines.len());
+        let mut at = 0usize;
+        for l in &lines {
+            line_starts.push(at);
+            at += l.len() + 1;
+        }
+        let line_of = |pos: usize| match line_starts.binary_search(&pos) {
+            Ok(i) => i,
+            Err(i) => i - 1,
+        };
+        let mut out = Vec::new();
+        let mut search = 0usize;
+        while let Some(off) = src[search..].find("Color::") {
+            let start = search + off;
+            let rest = &src[start + "Color::".len()..];
+            search = start + "Color::".len();
+            let Some(form) = FORMS
+                .iter()
+                .find(|f| rest.starts_with(&format!("{f}(")))
+            else {
+                continue;
+            };
+            let args_start = form.len() + 1;
+            let Some(close) = rest[args_start..].find(')') else {
+                continue;
+            };
+            let args: Vec<Option<f32>> = rest[args_start..args_start + close]
+                .split(',')
+                .map(|a| a.trim())
+                .filter(|a| !a.is_empty())
+                .map(|a| a.trim_end_matches("_f32").parse::<f32>().ok())
+                .collect();
+            if args.len() < 3 || args.iter().any(|a| a.is_none()) {
+                continue;
+            }
+            let line = line_of(start);
+            let world = lines[line].contains("// world:")
+                || (line > 0 && lines[line - 1].contains("// world:"));
+            if world {
+                continue;
+            }
+            out.push((
+                line + 1,
+                form.to_string(),
+                args.into_iter().map(|a| a.unwrap()).collect(),
+            ));
+        }
+        out
+    }
+
+    /// (hue degrees, HSV saturation) for one literal. hsl/hsla take the
+    /// written hue + saturation; rgb forms convert from their channels.
+    fn vp_panels_hue_sat(form: &str, a: &[f32]) -> (f32, f32) {
+        if form.starts_with("hsl") {
+            return (a[0].rem_euclid(360.0), a[1]);
+        }
+        let (r, g, b) = (a[0], a[1], a[2]);
+        let max = r.max(g).max(b);
+        let min = r.min(g).min(b);
+        let d = max - min;
+        if d <= f32::EPSILON || max <= f32::EPSILON {
+            return (0.0, 0.0);
+        }
+        let h = if max == r {
+            60.0 * ((g - b) / d).rem_euclid(6.0)
+        } else if max == g {
+            60.0 * ((b - r) / d) + 120.0
+        } else {
+            60.0 * ((r - g) / d) + 240.0
+        };
+        (h.rem_euclid(360.0), d / max)
+    }
+
+    /// CARD VP-PANELS-REGAL-1 — the 12 panel files carry no mint-green colour
+    /// literal (hue 120–170°, saturation >= 0.30) in any form: srgb, srgba,
+    /// rgb, rgba, hsl, hsla. World materials marked `// world:` are exempt.
+    #[test]
+    fn vp_panels_regal_no_mint_green_literal_in_panel_files() {
+        let files: [(&str, &str); 12] = [
+            ("first_harvest_epiphany.rs", include_str!("first_harvest_epiphany.rs")),
+            ("human_inventory.rs", include_str!("human_inventory.rs")),
+            ("vertical_factory.rs", include_str!("vertical_factory.rs")),
+            ("war_week.rs", include_str!("war_week.rs")),
+            ("first_whisper.rs", include_str!("first_whisper.rs")),
+            ("human_soft_panels.rs", include_str!("human_soft_panels.rs")),
+            ("rbe_allocate_choice.rs", include_str!("rbe_allocate_choice.rs")),
+            ("species_redemption.rs", include_str!("species_redemption.rs")),
+            ("living_practice_loop.rs", include_str!("living_practice_loop.rs")),
+            ("abundance_journey_echo.rs", include_str!("abundance_journey_echo.rs")),
+            ("mercy_harvest_nodes.rs", include_str!("mercy_harvest_nodes.rs")),
+            ("touch_controls.rs", include_str!("touch_controls.rs")),
+        ];
+        let mut mint = Vec::new();
+        for (name, src) in files {
+            for (line, form, args) in vp_panels_colour_literals(src) {
+                let (h, s) = vp_panels_hue_sat(&form, &args);
+                if (120.0..=170.0).contains(&h) && s >= 0.30 {
+                    mint.push(format!("{name}:{line} Color::{form}{args:?} hue {h:.0} sat {s:.2}"));
+                }
+            }
+        }
+        assert!(mint.is_empty(), "mint-green literal left in panel files: {mint:#?}");
+    }
+
+    /// The scanner itself sees every form, so the panel test cannot pass by
+    /// missing a spelling. Each sample below is mint; the world line is exempt.
+    #[test]
+    fn vp_panels_regal_scanner_sees_every_literal_form() {
+        let sample = "a = Color::srgb(0.30, 0.90, 0.60);\n\
+                      b = Color::srgba(0.30, 0.90, 0.60, 0.5);\n\
+                      c = Color::rgb(0.30, 0.90, 0.60);\n\
+                      d = Color::rgba(0.30, 0.90, 0.60, 1.0);\n\
+                      e = Color::hsl(150.0, 0.60, 0.50);\n\
+                      f = Color::hsla(150.0, 0.60, 0.50, 1.0);\n\
+                      // world: node mesh\n\
+                      g = Color::srgb(0.30, 0.90, 0.60);\n\
+                      h = Color::srgba(x + 0.1, 0.9, 0.6, 1.0);\n";
+        let lits = vp_panels_colour_literals(sample);
+        let forms: Vec<&str> = lits.iter().map(|(_, f, _)| f.as_str()).collect();
+        assert_eq!(forms, ["srgb", "srgba", "rgb", "rgba", "hsl", "hsla"]);
+        for (_, form, args) in &lits {
+            let (h, s) = vp_panels_hue_sat(form, args);
+            assert!((120.0..=170.0).contains(&h) && s >= 0.30, "{form} {h} {s}");
+        }
+        let (h, _) = vp_panels_hue_sat("srgb", &[0.84, 0.69, 0.32]);
+        assert!(!(120.0..=170.0).contains(&h), "TITLE_BORDER gold is not mint");
+    }
 }
