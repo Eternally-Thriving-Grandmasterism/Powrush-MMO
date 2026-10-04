@@ -47,6 +47,10 @@ Peak memory still holds: walked · tended · week was the bill · yard remembere
 >
 > — Sherif, 2026-10-04 4:20 PM ET
 
+> "The rarer and more difficult a challenge, the higher the tier of rewards, with some realism simular to real life fluctuations with some ordered abd structured reliability when continuously maintaining the infrastructure and requirements like in Chris Sawyer games and similar such as ARK:SE games and others such as Medieval Dynasty with economics, resource harvesting, auromated NPCs like humans and even animals, and so on for Powrush-MMO which includes more too like space aliens, advanced tech, and droids to name examples which all may be bolstered and supported or even maliciously or naively destroyed by other players when online, but never offline unless enabled as a server setting mode, Mate!"
+>
+> — Sherif, 2026-10-04 4:24 PM ET
+
 A quote is a direction, not a lifted HOLD. Where this plan meets an existing refuse line (§9), the line stays until Sherif names the lift on its own ticket.
 
 In this doc, 'the Steward' means Sherif's own word as relayed. Only Sherif can lift a refuse line, open Online or name PATHS (§6.7).
@@ -55,7 +59,7 @@ In this doc, 'the Steward' means Sherif's own word as relayed. Only Sherif can l
 
 ## 1. Borrow law
 
-We borrow **technique only** from six references: ARK (solo gather, build, upkeep), Factorio (production chains, throughput simulation), Transport Tycoon Deluxe / OpenTTD (routes, depots, cargo flow, upkeep), Conquer Online (weekly guild war cadence), World of Warcraft (factions, reputation, races) and Oblivion (scheduled NPCs with needs and goals). We never borrow their characters, names, places, art, text or UI. Player-facing words stay Powrush words (`docs/PRE_RELEASE_LAW.md` refuses franchise strings). The keep / transform / refuse tables in `docs/GDD_IMMERSION_REVISION.md` §2 still apply; this file extends them to Online and does not restate them.
+We borrow **technique only** from seven references: ARK (solo gather, build, upkeep, spoilage, taming), Factorio (production chains, throughput simulation), Chris Sawyer's Transport Tycoon Deluxe and OpenTTD (routes, depots, cargo flow, upkeep, vehicle and station reliability and servicing), Medieval Dynasty (villagers with needs and jobs, husbandry, seasons), Conquer Online (weekly guild war cadence), World of Warcraft (factions, reputation, races) and Oblivion (scheduled NPCs with needs and goals). We never borrow their characters, names, places, art, text or UI. Player-facing words stay Powrush words (`docs/PRE_RELEASE_LAW.md` refuses franchise strings). The keep / transform / refuse tables in `docs/GDD_IMMERSION_REVISION.md` §2 still apply; this file extends them to Online and does not restate them.
 
 ---
 
@@ -151,6 +155,54 @@ Four layers, one economy. Each layer is a game you can play on its own for an ev
 
 A layer may not have its own currency, its own score or its own world. One ledger, one week bill family, one map of Places and hexes. A design that needs a separate token for a layer is a bolt-on and is refused.
 
+### 3f. The wider cast
+
+The world is more than Houses and wells. Every entity below is a **world entity** under the same rules: it has an owner or steward, upkeep, reliability (§4.5) and standing effects, and it can be supported, bolstered or harmed under §3g.
+
+| Kind | Examples from canon | Role in the layers |
+|---|---|---|
+| **Automated NPC humans** | Villagers, haulers, menders, guards (§5) | Work posts and chains; have needs (food, rest, shelter, belonging) and morale that shift output, the Medieval Dynasty way |
+| **Animals** | Herd animals, pack animals, wildlife (`client/src/living_ecology.rs` deer and ecology props are the seed) | **Husbandry:** feed, shelter and breed; output (wool, milk, pull) follows care. **Herding:** animals move on routes like haulers, at a slower rate. **Wildlife ecology:** a population per hex with regrowth and predator/prey balance; overhunting collapses it, rest restores it |
+| **Space aliens** | The playable alien peoples (Quellorian, Draek, Ambrosian, `docs/PLAYABLE_RACES.md`) and non-playable alien fauna and fleets (`docs/FLEET_CLASSES.md`, `docs/DRAEK_FLEET_AI_SYSTEMS.md`) | Peoples per §3d; fauna as wildlife; fleets as later Sky content, after Online |
+| **Advanced tech** | Resonance tech, crystalline and organic ship designs, Cydruid machine parts (`docs/AMBROSIAN_CRYSTALLINE_SHIP_DESIGNS.md`, `docs/CYDRUID_ORGANIC_SHIP_DESIGNS.md`) | High-tier chain outputs and infrastructure with high upkeep and high reliability when maintained |
+| **Droids** | Companions (§6), guild automation droids (§3b) | Workers and companions with upkeep; offline droids follow §6.7 |
+
+Supporting or bolstering an entity means repairing it, paying its upkeep, guarding it, or reinforcing it (raising its reliability ceiling or its defence for a week). Support from another House earns standing with the owner and the owner's faction.
+
+### 3g. Support, bolster and destruction
+
+Online, other players can **support** or **bolster** what someone else built, or **destroy** it, maliciously or by accident. Destruction is real enough to matter, bounded enough that griefing doesn't ruin play.
+
+**Server setting: `world_harm_mode`.** One named setting per server, and a matching local setting offline. **Default `off` everywhere.**
+
+| Mode | Who can harm others' infrastructure, NPCs, animals and droids | Where |
+|---|---|---|
+| **`off`** (default) | Nobody. Accidents bounce off ("this belongs to House X"). | Everywhere |
+| **`declared`** | Players inside a weekly war instance (§3c) or on a hex with DeclaredLethal set (the existing opt-in after the book) | War instances and declared hexes only |
+| **`frontier`** | As `declared`, plus frontier hexes outside homestead cores | Frontier; never homestead cores |
+| **`open`** | Anyone, under the consequences below | Everywhere except protected areas |
+
+Always protected, in every mode: **Sanctuary Prime**, a homestead's core (hearth, bench, store), new players for their first 2 real weeks (target), and every Place during a holiday ceasefire (§7.4).
+
+**Offline:** nothing is ever destroyed by anyone else. The local `world_harm_mode` is `off` by default. A player may turn it on to let NPC factions raid their frontier, as a harder offline mode; Sanctuary stays protected, and turning it back off stops raids at the next sim day.
+
+**Consequences (online):**
+
+| Act | Inside war rules (`declared` instance or hex) | Outside war rules |
+|---|---|---|
+| **Malicious destruction** | Allowed and expected; capped by war rules (siege damage drops a target to ruin, never deletes it) | Large standing loss with the victim's House and faction; own faction censure; the victim's allies may declare against the attacker's House; event log entry for review |
+| **Naive destruction** (bad drone order, route through a field, stray fire) | Normal war cost | Small standing loss; automatic repair claim against the actor; a confirm prompt before any act that would harm another's property |
+| **Support / bolster** | Allies may repair and guard mid-war | Standing gain with the owner and their faction |
+
+**Mitigation, so griefing doesn't ruin play:**
+
+- **Ruins, not deletion.** A destroyed thing becomes a ruin that keeps salvage (target 50% of its build cost) and can be rebuilt with Mend. Nothing is wiped (`docs/GODSPEED_PREP.md`).
+- **Insurance.** Houses and guilds may pay a premium in Reserve into an insurance pool, in the double-entry ledger (§8 P3). A claim pays repair materials less a deductible. Malicious damage outside war rules is charged back to the attacker's House first.
+- **Repair.** Mend restores; allies can help; repair speed rises with reliability record (§4.5).
+- **Guards.** Hired or owned guards (NPC humans or droids) defend depots and routes; they count against the zone budget (§6.3).
+- **Caps.** Damage per target per day is capped (target: at most one tier of damage per day outside war); repeated attacks on the same victim escalate consequences.
+- **Review.** Every harm act is in the event log (§8 P2), so exploits can be reviewed and rolled back.
+
 ---
 
 ## 4. Economy spectrum
@@ -207,6 +259,62 @@ Failure is recoverable. Stressed nodes recover with Mend; regimes can change by 
 **Regime label** is derived, never set: e.g. transfer mix dominated by commons and managed allocation, needs-met ≥ 0.8, restore ratio ≥ 1.0 and Gini ≤ 0.35 reads as R5. Thresholds are design targets to tune, not facts.
 
 The NEVC Contributor / Zombie class stays a teaching signal, not wages, not an abundance score (README).
+
+### 4.5 Realistic fluctuation with structured reliability
+
+The world varies like real life, and care makes it dependable.
+
+**Fluctuation (bounded, seeded, deterministic):**
+
+- Yield = base × season × weather × event × (1 + ε). Seasons come from the calendar cycle (§7.2), weather from the existing flow-weather moods, events from the server calendar.
+- ε is bounded (target ±15%) and seeded by (world seed, hex, sim day), so a replay gives the same harvest (§8 P1).
+- **Spoilage** (ARK technique): perishables lose value in store each sim day unless kept in a cold store or processed. Spoilage is a sink, and it rewards logistics that move goods on time.
+- **Ratios and prices:** NPC barter ratios drift within bounds with supply and season. Player prices, if exchange (R3) is ever lifted, are set by players, never by the server.
+
+**Structured reliability (Chris Sawyer technique):**
+
+- Every vehicle, drone, depot, extractor and station has **reliability** from 0 to 1. It decays with use and time.
+- **Breakdowns** are a seeded roll against reliability, so a neglected hauler stalls on its route and its flow drops to zero until it is repaired.
+- **Servicing** at a depot restores reliability. A route can set a service interval (TTD-style), at an upkeep cost.
+- **Maintenance record:** infrastructure that is serviced on time week after week raises its **reliability ceiling** step by step (target +1 point per maintained week, up to 0.99), and its output variance narrows. Neglect drops the ceiling back down. This is the "ordered and structured reliability" the steer asks for: steady care earns a steadily more dependable chain.
+- **Station rating** (TTD technique): a node or depot that is served often gives a larger share of its output to that route; one served rarely gives less and lets some output go to waste.
+- **Villager needs and work** (Medieval Dynasty technique): NPC workers with met needs work steadily; unmet needs lower morale and output, and in time they leave for a better-run House.
+- **Animals:** husbandry output follows feed, shelter and care; neglected herds thin out; wildlife regrows when left to rest (§3f).
+
+All of it runs on the logistics and ledger ticks (§8 P7, P3), as rates, not per-item entities.
+
+### 4.6 Challenge reward tiers
+
+The rarer and harder a challenge, the higher its reward tier.
+
+**Tier score** = rarity + difficulty + cooperation, each scored 0 to 3:
+
+| Axis | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| **Rarity** | Always available | Weekly | Seasonal (once per cycle season) | Once per cycle, or a rare spawn |
+| **Difficulty** (target success rate for a prepared group) | > 90% | 60–90% | 30–60% | < 30% |
+| **Cooperation** | Solo | Party (2–5 players) | Guild (6+ players) | Cross-guild and cross-faction |
+
+| Tier | Score | Example |
+|---|---|---|
+| **T1 Common** | 0–2 | Mend a Stressed node cluster alone |
+| **T2 Uncommon** | 3–4 | Weekly party escort through a frontier corridor |
+| **T3 Rare** | 5–6 | Seasonal guild restore of a collapsed wildlife hex |
+| **T4 Epic** | 7–8 | Seasonal cross-guild rebuild of a ruined depot network |
+| **T5 Legendary** | 9 | Once-per-cycle, cross-faction server project (§7.4) |
+
+**Two kinds of reward, kept apart:**
+
+- **Discovery and epiphany rewards** keep the §11.3 law: cosmetic only, never the ledger. A higher tier only makes the cosmetic rarer (a finer thread, a rarer title).
+- **Challenge rewards in the economy layers** may give **real output** (stock, blueprints, Reserve), scaled by tier and posted through the double-entry ledger from a named source, `challenge_reward` (§8 P3).
+
+**Anti-farm limits for challenge output:**
+
+- Once per character per challenge per cycle; repeats give story and cosmetics only.
+- A per-cycle **emission cap** per server for `challenge_reward`, sized against the §4.4 indicators, so tiers can't flood the economy.
+- Shares split by server-measured contribution, never by who was in the party list.
+- Companion-assisted runs follow §6.4: one-time completion only.
+- No reward for destroying your own or an alt's property, and no reward for harm acts outside war rules (§3g).
 
 ---
 
@@ -491,6 +599,7 @@ Each module talks through typed messages, so moving one to its own process later
 - Movement: the client predicts its own body (local body law); the server checks a speed and collision envelope and corrects only outside it.
 - Every ledger change is server-side. The client never writes stock, Reserve, standing or score.
 - Rate limits per op per player (target: Use ≤ 10/s, chat ≤ 2/s). Behaviour flags feed review, never auto-bans.
+- Harm intents (§3g) are checked against `world_harm_mode`, protected areas, ceasefires and damage caps before apply; the server, not the client, decides whether a hit lands.
 - Sanctioned automation (guild drones) removes most of the reason for external bots, and nodes tiring (Resting / Stressed) caps what any macro can take.
 - Presence is server-authored only (`SHARD_JOIN` F4).
 
@@ -516,6 +625,7 @@ Each module talks through typed messages, so moving one to its own process later
 - Cross-zone or cross-guild transfers go through the ledger module as one atomic step; zones hold no balances of their own.
 - Transaction kinds are tagged (barter, credit, exchange, commons, managed, upkeep, war) so §4 indicators fall out of the ledger.
 - An invariant checker runs every ledger tick and halts that shard's writes on a mismatch.
+- Named sources and sinks include `challenge_reward` (capped per cycle, §4.6), `spoilage` and `wear` (§4.5), and `insurance_premium` / `insurance_claim` through a pool account (§3g).
 
 ### P4. ECS on the server
 
@@ -617,6 +727,7 @@ These lines stand until the Steward lifts them on a named ticket. The plan is de
 | Reputation grind refused as belonging | `GDD_IMMERSION_REVISION` §2.2 | Reputation = standing, moved only by verbs |
 | Weekly wars parked Sky weather | `GDD_IMMERSION_REVISION` §2.1 | §3c is Online only, score stays tons + restored |
 | No daily login, loot box, season pass | `GODSPEED_PREP` | Holidays are calendar mood, never streaks or paid |
+| Peace is the default; lethal is opt-in after the book (DeclaredLethal) | `GDD_IMMERSION_REVISION` §2.1, §4 | `world_harm_mode` defaults to `off`; `declared` reuses the existing DeclaredLethal path; Sanctuary Prime is always protected (§3g) |
 | Hour finishes with zero persons; no person combat | `NPC_SCHEDULE_SPEC` | Kept for offline NPCs and companions |
 | New `shared` files need a named PATH | `AGENTS.md`, `NEXT_NAMED_CARDS` | Cards below that add a file are JUNCTION until the Steward names them |
 
@@ -672,7 +783,7 @@ Append every applied envelope with tick and sequence to `events.jsonl` under `--
 
 **PATHS:** `shared/ledger_tx.rs` (new) · `shared/lib.rs` (+1 `pub mod`)
 
-Accounts, tagged transaction kinds, idempotency ids, named sources and sinks, invariant check. Tests. JUNCTION (new file).
+Accounts, tagged transaction kinds, idempotency ids, named sources and sinks (including `challenge_reward` with a per-cycle emission cap, `spoilage`, `wear` and an insurance pool), invariant check. Tests. JUNCTION (new file).
 
 ### 9. CARD VOTE-ENGINE-1 — proposals, ballots, calendar as pure rules
 
@@ -691,6 +802,18 @@ A `--load-bots N --script file` mode that replays intents against the loopback l
 **PATHS:** `docs/LAYERED_GAMES_AND_SERVER.md`
 
 Docs only. For each epiphany in §11, write the **observation bar** a human playtester checks: the still frame or moment that shows the system teaching (e.g. restore ratio visibly greening a hex on **L**), the honest-fail frame (a Stressed frontier after an extract-only week), and the indicator from §4.4 that would show it in numbers later. Map each one to the existing `content/epiphany_scenarios/*.json` where one already fits, and name its two codex entries (conclusion and opposite) and its §11.3 reward trigger. No client, no shared code, no new text plate, no invented playtest minutes. Online grey. Later Hands cards (indicator reads, NPC memory lines) wait on Sherif naming PATHS.
+
+### 12. CARD RELIABILITY-1 — fluctuation and reliability on the flow graph
+
+**PATHS:** `shared/flow_graph.rs` (after FLOW-GRAPH-1 lands)
+
+Add reliability per node and edge, seeded breakdown rolls, service intervals, the maintenance-record ceiling, station rating, spoilage per sim day, and bounded seeded yield ε (§4.5). Tests: same seed gives the same breakdowns; a serviced route's ceiling rises and its variance narrows; a neglected one stalls; ε never leaves its bound. No client, no wall clock.
+
+### 13. CARD HARM-MODE-1 — `world_harm_mode` as pure rules
+
+**PATHS:** `shared/harm_mode.rs` (new) · `shared/lib.rs` (+1 `pub mod`)
+
+`WorldHarmMode { Off, Declared, Frontier, Open }`, default `Off`, plus a pure `may_harm(actor, target, hex, mode, war, ceasefire, protection)` check, the consequence table for malicious vs naive acts, ruin-not-delete, and damage caps (§3g). Tests: `Off` never allows; offline default is `Off`; Sanctuary Prime, homestead cores, new players and ceasefires are always protected. No client, no socket. JUNCTION (new file). Online grey.
 
 ### HOLD until `online yes` and named PATHS
 
@@ -746,6 +869,7 @@ Discovery, whether an epiphany (§11.1) or an Easter egg (§7.8), earns rewards 
 
 **Reward law:**
 
+- **Tiers for discovery are prestige only.** A rarer or harder discovery (§4.6 tier score) earns a rarer cosmetic, never more power. Challenge rewards with real output are a separate kind and live in §4.6.
 - **Never the ledger.** No Reserve, stock, standing, currency, stat, drop rate or yield. Nothing a reward gives can be traded, sold or spent (§4, §8 P3).
 - **Never sold.** No discovery reward, thread or title is ever on a store, in a bundle or behind real money.
 - **Never loud.** No server-wide broadcast, no fanfare, no pop-up at the moment of discovery. The codex entry is waiting the next time the book is opened. The first-finder line sits quietly in the server history.
@@ -769,8 +893,11 @@ See §10, CARD EPIPHANY-PLAY-1 (docs first, Online grey).
 - Performance, scale or certification claims. Every number here is a target.
 - Epiphanies delivered as lectures, text walls or quizzes, or rewards that favour a "right" answer over its opposite.
 - Discovery or RUSH rewards that touch the ledger, pay currency or stats, are sold, or are announced loudly.
+- Destruction that deletes: harm leaves a ruin with salvage, never a wipe. Harm to anyone's work while `world_harm_mode` is `off`, on Sanctuary Prime, on homestead cores, on new players, or during a ceasefire.
+- Offline harm by anyone other than opted-in NPC raids under a local `world_harm_mode` the player turned on.
+- Unbounded or wall-clock randomness in yields, breakdowns or spoilage; challenge output beyond its per-cycle emission cap.
 - Transmog or wardrobe as a discovery reward; threads and flourishes stay on the one item (`docs/FACTION_HERALDRY.md`).
 
 ## 13. Cite
 
-`README.md` · `AGENTS.md` · `docs/ONLINE_LADDER.md` · `docs/NET_OFFLINE_CONTRACT.md` · `docs/SHARD_JOIN.md` · `docs/SIM_AND_HAND_CANON.md` · `docs/STUDIO_ARCHITECTURE_ORDER.md` · `docs/GDD_IMMERSION_REVISION.md` · `docs/CREDIT_RESERVE_LOGISTICS.md` · `docs/NPC_SCHEDULE_SPEC.md` · `docs/OFFLINE_ECONOMY_COURT.md` · `docs/OFFLINE_SKU.md` · `docs/RBE_FIRST_HOUR.md` · `docs/FUN_WITHOUT_WOW.md` · `docs/PRE_RELEASE_LAW.md` · `docs/GODSPEED_PREP.md` · `docs/PLAYABLE_RACES.md` · `docs/FACTIONS_OVERVIEW.md` · `docs/COUNCIL_SYSTEM.md` · `docs/LORE_BIBLE.md` · `docs/REPLICATION_PREDICTION_ARCHITECTURE.md` · `docs/SPATIAL_INTEREST_ARCHITECTURE.md` · `docs/BEVY_CLIMB_PLAN.md` · `docs/EPIPHANY_CATALYST_SYSTEMS.md` · `docs/FACTION_HERALDRY.md` · `content/epiphany_scenarios/` · `shared/hex_protocol.rs` · `shared/hex_shard_apply.rs` · `shared/vertical_factory.rs` · `shared/fabricator.rs` · `shared/war_week.rs` · `shared/week_audit.rs` · `shared/shard_standing.rs` · `shared/shard_sim.rs` · `shared/nevc_adapter.rs` · `client/src/living_day.rs` (cite only) · `powrush-shard/README.md` · `server/src/spatial/` (cite only)
+`README.md` · `AGENTS.md` · `docs/ONLINE_LADDER.md` · `docs/NET_OFFLINE_CONTRACT.md` · `docs/SHARD_JOIN.md` · `docs/SIM_AND_HAND_CANON.md` · `docs/STUDIO_ARCHITECTURE_ORDER.md` · `docs/GDD_IMMERSION_REVISION.md` · `docs/CREDIT_RESERVE_LOGISTICS.md` · `docs/NPC_SCHEDULE_SPEC.md` · `docs/OFFLINE_ECONOMY_COURT.md` · `docs/OFFLINE_SKU.md` · `docs/RBE_FIRST_HOUR.md` · `docs/FUN_WITHOUT_WOW.md` · `docs/PRE_RELEASE_LAW.md` · `docs/GODSPEED_PREP.md` · `docs/PLAYABLE_RACES.md` · `docs/FACTIONS_OVERVIEW.md` · `docs/COUNCIL_SYSTEM.md` · `docs/LORE_BIBLE.md` · `docs/REPLICATION_PREDICTION_ARCHITECTURE.md` · `docs/SPATIAL_INTEREST_ARCHITECTURE.md` · `docs/BEVY_CLIMB_PLAN.md` · `docs/EPIPHANY_CATALYST_SYSTEMS.md` · `docs/FACTION_HERALDRY.md` · `docs/FLEET_CLASSES.md` · `docs/DRAEK_FLEET_AI_SYSTEMS.md` · `docs/AMBROSIAN_CRYSTALLINE_SHIP_DESIGNS.md` · `docs/CYDRUID_ORGANIC_SHIP_DESIGNS.md` · `client/src/living_ecology.rs` (cite only) · `content/epiphany_scenarios/` · `shared/hex_protocol.rs` · `shared/hex_shard_apply.rs` · `shared/vertical_factory.rs` · `shared/fabricator.rs` · `shared/war_week.rs` · `shared/week_audit.rs` · `shared/shard_standing.rs` · `shared/shard_sim.rs` · `shared/nevc_adapter.rs` · `client/src/living_day.rs` (cite only) · `powrush-shard/README.md` · `server/src/spatial/` (cite only)
