@@ -3,9 +3,9 @@
 //! Bevy's built-in default face is a FiraMono subset. It has no `·`, `—`,
 //! `•`, `…` or `×`, so those rendered as tofu boxes on every plate. This
 //! plugin swaps the default font handle for Fira Sans Regular (SIL OFL 1.1,
-//! `assets/fonts/OFL.txt`, upstream google/fonts `ofl/firasans`). Panels that
-//! already load `fonts/FiraSans-Regular.ttf` / `fonts/FiraSans-Bold.ttf`
-//! now find those files on disk.
+//! `client/assets/fonts/OFL.txt`, upstream google/fonts `ofl/firasans`). The
+//! files live in `client/assets/fonts/`, so the panel `asset_server` loads of
+//! `fonts/FiraSans-Regular.ttf` / `fonts/FiraSans-Bold.ttf` now resolve there.
 //!
 //! The bytes are embedded, so the default face never depends on the asset
 //! folder being present. No new graphics menu. No layout change.
@@ -13,8 +13,8 @@
 
 use bevy::prelude::*;
 
-/// Fira Sans Regular, embedded. Same file as `assets/fonts/FiraSans-Regular.ttf`.
-pub const UI_FONT_REGULAR: &[u8] = include_bytes!("../../assets/fonts/FiraSans-Regular.ttf");
+/// Fira Sans Regular, embedded. Same file as `client/assets/fonts/FiraSans-Regular.ttf`.
+pub const UI_FONT_REGULAR: &[u8] = include_bytes!("../assets/fonts/FiraSans-Regular.ttf");
 
 /// Replaces Bevy's default font asset (the handle every `TextStyle::default()` uses).
 pub struct UiFontPlugin;
@@ -116,7 +116,7 @@ mod tests {
         for ch in "·—–•…×→←−°◊‖+()ÉçñAz09".chars() {
             assert!(has_glyph(UI_FONT_REGULAR, ch), "missing glyph {ch:?}");
         }
-        let bold = include_bytes!("../../assets/fonts/FiraSans-Bold.ttf");
+        let bold = include_bytes!("../assets/fonts/FiraSans-Bold.ttf");
         for ch in "·—•…×→".chars() {
             assert!(has_glyph(bold, ch), "bold missing glyph {ch:?}");
         }
@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn licence_file_ships_beside_the_fonts() {
-        let ofl = include_str!("../../assets/fonts/OFL.txt");
+        let ofl = include_str!("../assets/fonts/OFL.txt");
         assert!(ofl.contains("SIL Open Font License, Version 1.1"));
         assert!(ofl.contains("Mozilla Foundation"));
     }
