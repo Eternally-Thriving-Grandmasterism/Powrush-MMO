@@ -43,6 +43,10 @@ Peak memory still holds: walked · tended · week was the bill · yard remembere
 >
 > — Sherif, 2026-10-04 3:32 PM ET
 
+> "Perhaps more rewards are in order, wisely and thoughtfully altogether respectively and appropriately, Mates!"
+>
+> — Sherif, 2026-10-04 4:20 PM ET
+
 A quote is a direction, not a lifted HOLD. Where this plan meets an existing refuse line (§9), the line stays until Sherif names the lift on its own ticket.
 
 In this doc, 'the Steward' means Sherif's own word as relayed. Only Sherif can lift a refuse line, open Online or name PATHS (§6.7).
@@ -445,9 +449,15 @@ Powrush also reads as **Proof of Work Rush**: the work of tending and restoring 
 
 Rules:
 
-- **A quiet wink.** No reward, no announcement, no toast, no achievement, no journal entry, no quest marker, no patch note pointing at it. A player who notices it has noticed it. That's all.
+- **A quiet wink, a quiet reward.** No announcement, no toast, no pop-up, no quest marker, no patch note pointing at it. A player who reads a carving on its holiday earns the quiet rewards below, and nothing louder.
+- **What finding a carving earns** (see §11.3 for the shared reward law):
+  - **Codex entry.** A short journal or codex page appears the next time the player opens the book, not at the moment of finding: "Restore, Uplift, Share, Harvest" for #1, "Real Unity Shapes History" for #2, each with one line of the well's or the lamp's lore.
+  - **Crest flourish or tabard thread.** A thin gold thread the player may stitch into their own House tabard or crest, on that one item, following `docs/FACTION_HERALDRY.md` (physical, not projected; no transmog, no wardrobe). #1 gives a well-stone gold thread; #2 gives a lamp-light thread.
+  - **Rare title.** "Reader of the Stone" (#1) or "Witness of the Lamp" (#2), shown only if the player chooses to wear it.
+  - **Small sound reveal.** The well's or the lamp's bed carries a faint extra phrase for that player on later visits during the same holiday.
+  - **First finder (online, opt-in).** The first player on each server to read each carving may choose to have one line added to that server's history (§7.6), e.g. "Week of the Bill, cycle 3: the stone was first read by House Vysholt". Off by default; declining costs nothing.
 - **Rare.** Each carving shows only on its holiday window, and the carving is faint enough that only a player standing close at the stone, in daylight, reads it.
-- **Purely cosmetic.** No ledger output, no standing, no Reserve, no item, no power. It doesn't change the well's life or the lamp.
+- **Purely cosmetic.** No ledger output, no standing, no Reserve, no stat, no power. The thread and the title are cosmetic only. It doesn't change the well's life or the lamp.
 - **Not a verb.** E on the stone tends the well as always; the carving has no Use of its own (`docs/PRE_RELEASE_LAW.md`: a verb that does nothing is a lie, so the carving is dress, not a verb).
 - **Deterministic.** Shown from the calendar and the sim day, never from wall clock inside \(F\), so it can be tested.
 - **Never a sale or a hint system.** Not on the store page, not in a loading tip, not in a holiday banner.
@@ -680,7 +690,7 @@ A `--load-bots N --script file` mode that replays intents against the loopback l
 
 **PATHS:** `docs/LAYERED_GAMES_AND_SERVER.md`
 
-Docs only. For each epiphany in §11, write the **observation bar** a human playtester checks: the still frame or moment that shows the system teaching (e.g. restore ratio visibly greening a hex on **L**), the honest-fail frame (a Stressed frontier after an extract-only week), and the indicator from §4.4 that would show it in numbers later. Map each one to the existing `content/epiphany_scenarios/*.json` where one already fits. No client, no shared code, no new text plate, no invented playtest minutes. Online grey. Later Hands cards (indicator reads, NPC memory lines) wait on Sherif naming PATHS.
+Docs only. For each epiphany in §11, write the **observation bar** a human playtester checks: the still frame or moment that shows the system teaching (e.g. restore ratio visibly greening a hex on **L**), the honest-fail frame (a Stressed frontier after an extract-only week), and the indicator from §4.4 that would show it in numbers later. Map each one to the existing `content/epiphany_scenarios/*.json` where one already fits, and name its two codex entries (conclusion and opposite) and its §11.3 reward trigger. No client, no shared code, no new text plate, no invented playtest minutes. Online grey. Later Hands cards (indicator reads, NPC memory lines) wait on Sherif naming PATHS.
 
 ### HOLD until `online yes` and named PATHS
 
@@ -718,11 +728,32 @@ An epiphany here is a realisation the **systems** let a player reach on their ow
 2. **Let players reach the opposite conclusion.** Hoarding, domination and extraction must also be able to win, for a while and at a real cost. If only one strategy can succeed, the game is preaching through its rules.
 3. **Discovery is optional.** No epiphany gates a Place, a quest, a war or the hour. A player who never notices any of them still finishes and has fun.
 4. **Show, then measure.** The land, the ledger and the people show it first. Numbers (§4.4) are there for players who look, never pushed.
-5. **No reward for the "right" answer.** An epiphany gives no item, Reserve, standing or achievement. The world changing is the payoff.
+5. **Reward the noticing, never a "right" answer.** An epiphany earns a quiet codex entry for having noticed, whichever way the player went. Reaching the opposite conclusion (hoarding paid off, domination won the week) earns **its own** codex entry, written just as respectfully. Nothing about the reward says one path was correct.
 6. **Failure is honest and recoverable.** Every "absent" path in §11.1 can be mended. Nothing is wiped (`docs/GODSPEED_PREP.md`: failure teaches).
 7. **Same rules offline and online.** Offline, NPC Houses (§5) make each epiphany reachable alone. Online, real players make it real.
 
-### 11.3 Card
+### 11.3 Thoughtful rewards for discovery
+
+Discovery, whether an epiphany (§11.1) or an Easter egg (§7.8), earns rewards that are **meaningful but give no power and no economy edge**.
+
+| Reward | What it is | Where it lives |
+|---|---|---|
+| **Codex entry** | A short journal page in the House book, in the world's voice, never a lesson summary. Each epiphany has two: one for the conclusion, one for its opposite. | Offline and online |
+| **Crest flourish or tabard thread** | A small stitch, edge or charge the player may add to their own crest or tabard, on that one item (`docs/FACTION_HERALDRY.md`: physical, no transmog, no wardrobe). It fits the realistic faction-gear customization and fades and restitches like any finish. | Offline and online |
+| **Rare title** | A worn-if-chosen title, e.g. "Mender of Long Weeks" for restoring outlasts taking, or "Keeper of the Full Depot" for its opposite | Offline and online |
+| **Lore or sound reveal** | A small extra: one more line from an NPC who remembers, or a faint phrase in a Place's bed | Offline and online |
+| **First finder mention** | One line in the server history (§7.6) for the first player on each server to reach a given discovery | Online, **opt-in**, off by default |
+
+**Reward law:**
+
+- **Never the ledger.** No Reserve, stock, standing, currency, stat, drop rate or yield. Nothing a reward gives can be traded, sold or spent (§4, §8 P3).
+- **Never sold.** No discovery reward, thread or title is ever on a store, in a bundle or behind real money.
+- **Never loud.** No server-wide broadcast, no fanfare, no pop-up at the moment of discovery. The codex entry is waiting the next time the book is opened. The first-finder line sits quietly in the server history.
+- **Reward the noticing.** Detection uses the same indicators as §4.4 (for example, a restore ratio held at or above 1.0 for three House weeks, or a guild's needs-met ratio rising after it opened a commons). Each epiphany has a matching opposite trigger, so both conclusions are recognised.
+- **Once per character.** Each reward is earned once. Repeats give nothing extra, so there is nothing to farm.
+- **Deterministic and testable.** Triggers read sim state and the calendar, never wall clock inside \(F\).
+
+### 11.4 Card
 
 See §10, CARD EPIPHANY-PLAY-1 (docs first, Online grey).
 
@@ -736,9 +767,10 @@ See §10, CARD EPIPHANY-PLAY-1 (docs first, Online grey).
 - Holidays rooted in real-world religious or national days, or holidays that sell anything.
 - Borrowing characters, names, art, text or UI from any reference game.
 - Performance, scale or certification claims. Every number here is a target.
-- Epiphanies delivered as lectures, text walls, quizzes, or rewards for reaching the "right" answer.
-- A RUSH carving that pays, announces, or is sold.
+- Epiphanies delivered as lectures, text walls or quizzes, or rewards that favour a "right" answer over its opposite.
+- Discovery or RUSH rewards that touch the ledger, pay currency or stats, are sold, or are announced loudly.
+- Transmog or wardrobe as a discovery reward; threads and flourishes stay on the one item (`docs/FACTION_HERALDRY.md`).
 
 ## 13. Cite
 
-`README.md` · `AGENTS.md` · `docs/ONLINE_LADDER.md` · `docs/NET_OFFLINE_CONTRACT.md` · `docs/SHARD_JOIN.md` · `docs/SIM_AND_HAND_CANON.md` · `docs/STUDIO_ARCHITECTURE_ORDER.md` · `docs/GDD_IMMERSION_REVISION.md` · `docs/CREDIT_RESERVE_LOGISTICS.md` · `docs/NPC_SCHEDULE_SPEC.md` · `docs/OFFLINE_ECONOMY_COURT.md` · `docs/OFFLINE_SKU.md` · `docs/RBE_FIRST_HOUR.md` · `docs/FUN_WITHOUT_WOW.md` · `docs/PRE_RELEASE_LAW.md` · `docs/GODSPEED_PREP.md` · `docs/PLAYABLE_RACES.md` · `docs/FACTIONS_OVERVIEW.md` · `docs/COUNCIL_SYSTEM.md` · `docs/LORE_BIBLE.md` · `docs/REPLICATION_PREDICTION_ARCHITECTURE.md` · `docs/SPATIAL_INTEREST_ARCHITECTURE.md` · `docs/BEVY_CLIMB_PLAN.md` · `docs/EPIPHANY_CATALYST_SYSTEMS.md` · `content/epiphany_scenarios/` · `shared/hex_protocol.rs` · `shared/hex_shard_apply.rs` · `shared/vertical_factory.rs` · `shared/fabricator.rs` · `shared/war_week.rs` · `shared/week_audit.rs` · `shared/shard_standing.rs` · `shared/shard_sim.rs` · `shared/nevc_adapter.rs` · `client/src/living_day.rs` (cite only) · `powrush-shard/README.md` · `server/src/spatial/` (cite only)
+`README.md` · `AGENTS.md` · `docs/ONLINE_LADDER.md` · `docs/NET_OFFLINE_CONTRACT.md` · `docs/SHARD_JOIN.md` · `docs/SIM_AND_HAND_CANON.md` · `docs/STUDIO_ARCHITECTURE_ORDER.md` · `docs/GDD_IMMERSION_REVISION.md` · `docs/CREDIT_RESERVE_LOGISTICS.md` · `docs/NPC_SCHEDULE_SPEC.md` · `docs/OFFLINE_ECONOMY_COURT.md` · `docs/OFFLINE_SKU.md` · `docs/RBE_FIRST_HOUR.md` · `docs/FUN_WITHOUT_WOW.md` · `docs/PRE_RELEASE_LAW.md` · `docs/GODSPEED_PREP.md` · `docs/PLAYABLE_RACES.md` · `docs/FACTIONS_OVERVIEW.md` · `docs/COUNCIL_SYSTEM.md` · `docs/LORE_BIBLE.md` · `docs/REPLICATION_PREDICTION_ARCHITECTURE.md` · `docs/SPATIAL_INTEREST_ARCHITECTURE.md` · `docs/BEVY_CLIMB_PLAN.md` · `docs/EPIPHANY_CATALYST_SYSTEMS.md` · `docs/FACTION_HERALDRY.md` · `content/epiphany_scenarios/` · `shared/hex_protocol.rs` · `shared/hex_shard_apply.rs` · `shared/vertical_factory.rs` · `shared/fabricator.rs` · `shared/war_week.rs` · `shared/week_audit.rs` · `shared/shard_standing.rs` · `shared/shard_sim.rs` · `shared/nevc_adapter.rs` · `client/src/living_day.rs` (cite only) · `powrush-shard/README.md` · `server/src/spatial/` (cite only)
