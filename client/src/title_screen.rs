@@ -168,6 +168,7 @@ use shared::pause_ledger_face::lethal_sign_row;
 #[path = "gltf_integration.rs"]
 pub mod gltf_integration;
 
+// <title-palette> — every colour literal in this file (outside tests) lives below.
 // --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
 // Soft GPU / Mesa must read Play · Continue · Online · Settings before the yard.
 // CARD VP-UI-REGAL-1 — regal crest: polished gold frames, royal purple fills,
@@ -190,6 +191,13 @@ pub const TITLE_BTN_DISABLED_BG: Color = Color::srgb(0.10, 0.11, 0.12);
 pub const TITLE_BTN_DISABLED_FG: Color = Color::srgb(0.55, 0.58, 0.60);
 /// Plate + button border (opaque polished gold).
 pub const TITLE_BORDER: Color = Color::srgb(0.84, 0.69, 0.32);
+/// CARD VP-UI-REGAL-2 — active Settings tab fill: a lighter royal purple than
+/// TITLE_BTN_BG (still purple: blue and red above green).
+pub const TITLE_BTN_ACTIVE_BG: Color = Color::srgb(0.32, 0.16, 0.48);
+/// CARD VP-UI-REGAL-2 — inactive Settings tab border: quiet champagne gold,
+/// dimmer than TITLE_BORDER (not bronze / brown / beige).
+pub const TITLE_BORDER_MUTED: Color = Color::srgb(0.66, 0.58, 0.36);
+// </title-palette> — every colour literal in this file (outside tests) lives above.
 
 /// U5 Steam Deck layout contract. The title plate remains inside this surface.
 pub const DECK_TITLE_WIDTH: f32 = 1280.0;
@@ -1836,7 +1844,7 @@ fn spawn_name_house_panel(mut commands: Commands) {
                     "Name your House",
                     TextStyle {
                         font_size: 18.0,
-                        color: Color::srgb(0.88, 0.98, 0.92),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ));
@@ -1845,7 +1853,7 @@ fn spawn_name_house_panel(mut commands: Commands) {
                         NAME_HOUSE_HINT,
                         TextStyle {
                             font_size: 12.0,
-                            color: Color::srgb(0.60, 0.78, 0.70),
+                            color: TITLE_TEXT_SECONDARY,
                             ..default()
                         },
                     ),
@@ -1856,7 +1864,7 @@ fn spawn_name_house_panel(mut commands: Commands) {
                         "_",
                         TextStyle {
                             font_size: 16.0,
-                            color: Color::srgb(0.92, 0.98, 0.94),
+                            color: TITLE_TEXT_PRIMARY,
                             ..default()
                         },
                     ),
@@ -1907,7 +1915,7 @@ fn spawn_house_dress_panel(mut commands: Commands) {
                     "House seals · heritage",
                     TextStyle {
                         font_size: 18.0,
-                        color: Color::srgb(0.88, 0.98, 0.92),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ));
@@ -1915,7 +1923,7 @@ fn spawn_house_dress_panel(mut commands: Commands) {
                     "Cosmetic only. Skip keeps none. No combat kits.",
                     TextStyle {
                         font_size: 12.0,
-                        color: Color::srgb(0.60, 0.78, 0.70),
+                        color: TITLE_TEXT_SECONDARY,
                         ..default()
                     },
                 ));
@@ -2806,14 +2814,14 @@ fn sync_pause_tabs(
     for (btn, mut bg, mut border) in &mut btns {
         let active = btn.0 == *tab;
         *bg = if active {
-            Color::srgb(0.16, 0.26, 0.20).into()
+            TITLE_BTN_ACTIVE_BG.into()
         } else {
             TITLE_BTN_BG.into()
         };
         *border = if active {
             TITLE_BORDER.into()
         } else {
-            Color::srgb(0.28, 0.40, 0.32).into()
+            TITLE_BORDER_MUTED.into()
         };
     }
 }
@@ -7465,5 +7473,61 @@ mod tests {
         ] {
             assert_eq!(title_alpha(c), 1.0, "{c:?}");
         }
+    }
+    // --- CARD VP-UI-REGAL-2 — no inline colours, settings tab consts ---------
+
+    #[test]
+    fn vp_ui_regal2_no_color_srgb_outside_palette_block() {
+        let src = include_str!("title_screen.rs");
+        let body = src
+            .split("\n#[cfg(test)]\nmod tests {")
+            .next()
+            .expect("non-test prefix");
+        let open = body.find("// <title-palette>").expect("palette open marker");
+        let close = body.find("// </title-palette>").expect("palette close marker");
+        assert!(open < close, "palette markers out of order");
+        assert_eq!(body.matches("// <title-palette>").count(), 1);
+        assert_eq!(body.matches("// </title-palette>").count(), 1);
+        let outside = format!("{}{}", &body[..open], &body[close..]);
+        let stray: Vec<&str> = outside
+            .lines()
+            .filter(|l| l.contains("Color::srgb"))
+            .collect();
+        assert!(stray.is_empty(), "inline Color::srgb outside palette: {stray:?}");
+        assert!(body[open..close].contains("pub const TITLE_BTN_ACTIVE_BG"));
+        assert!(body[open..close].contains("pub const TITLE_BORDER_MUTED"));
+    }
+
+    #[test]
+    fn vp_ui_regal2_active_tab_is_lighter_purple() {
+        let a = TITLE_BTN_ACTIVE_BG.to_srgba();
+        assert!(a.blue > a.green && a.red > a.green, "still purple {a:?}");
+        assert!(title_luminance(TITLE_BTN_ACTIVE_BG) > title_luminance(TITLE_BTN_BG));
+        let (_, _, v_active) = regal_hsv(TITLE_BTN_ACTIVE_BG);
+        let (_, _, v_btn) = regal_hsv(TITLE_BTN_BG);
+        assert!(v_active > v_btn, "active V {v_active} vs btn V {v_btn}");
+    }
+
+    #[test]
+    fn vp_ui_regal2_muted_border_is_quiet_champagne_gold() {
+        let (h, s, v) = regal_hsv(TITLE_BORDER_MUTED);
+        assert!((40.0..=50.0).contains(&h), "hue {h}");
+        assert!((0.30..=0.50).contains(&s), "sat {s}");
+        assert!((0.55..=0.70).contains(&v), "value {v}");
+        let (_, _, v_border) = regal_hsv(TITLE_BORDER);
+        assert!(v < v_border, "muted V {v} vs border V {v_border}");
+    }
+
+    #[test]
+    fn vp_ui_regal2_button_label_out_luminances_active_tab() {
+        let fg = title_luminance(TITLE_BTN_FG);
+        let bg = title_luminance(TITLE_BTN_ACTIVE_BG);
+        assert!(fg - bg >= 0.55, "btn fg {fg} vs active bg {bg}");
+    }
+
+    #[test]
+    fn vp_ui_regal2_new_consts_are_opaque() {
+        assert_eq!(title_alpha(TITLE_BTN_ACTIVE_BG), 1.0);
+        assert_eq!(title_alpha(TITLE_BORDER_MUTED), 1.0);
     }
 }
