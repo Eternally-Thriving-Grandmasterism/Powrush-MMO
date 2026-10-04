@@ -339,9 +339,9 @@ fn update_echo_body(
             .take(10)
             .map(|l| {
                 let mark = match l.kind {
-                    JourneyKind::PracticeSeal => "◎",
+                    JourneyKind::PracticeSeal => "(•)",
                     JourneyKind::FlowOutward => "→",
-                    JourneyKind::StewardReserve => "◇",
+                    JourneyKind::StewardReserve => "◊",
                     JourneyKind::Note => "•",
                 };
                 format!("{} {}", mark, l.text)

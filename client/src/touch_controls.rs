@@ -104,7 +104,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
             ))
             .with_children(|z| {
                 z.spawn(TextBundle::from_section(
-                    "⊕",
+                    "+",
                     TextStyle {
                         font_size: 22.0,
                         color: Color::srgba(0.85, 0.95, 0.88, 0.85),
@@ -129,7 +129,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
             // Top-right cluster: Pause / Q / L
             spawn_overlay_btn(
                 root,
-                "❚❚",
+                "‖",
                 TouchPauseBtn,
                 UiRect {
                     right: Val::Px(24.0),

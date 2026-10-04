@@ -70,6 +70,7 @@ pub mod foundation_lattice;
 pub mod resonance_flavors;
 pub mod mercy_transporters;
 pub mod steam_abundance_mirror;
+pub mod ui_font;
 
 /// CARD CLIENT-ENV-LOCK-1 — one process-wide lock for `POWRUSH_USER_DIR` in `--lib` tests.
 #[cfg(test)]
@@ -134,6 +135,7 @@ impl PowrushClientBundle {
 
 impl Plugin for PowrushClientBundle {
     fn build(&self, app: &mut App) {
+        app.add_plugins(ui_font::UiFontPlugin);
         app.add_plugins(hour_sacred::HourSacredPlugin);
         app.add_plugins(ui_above_world::UiAboveWorldPlugin);
         app.add_plugins(title_screen::TitleScreenPlugin);

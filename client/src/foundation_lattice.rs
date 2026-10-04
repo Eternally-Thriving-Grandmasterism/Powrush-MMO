@@ -141,17 +141,17 @@ fn climate_order(s: PracticeSurface) -> u8 {
 fn climate_mark(surface: PracticeSurface, current: PracticeSurface, sealed: bool) -> &'static str {
     if sealed {
         return if matches!(surface, PracticeSurface::PrincipleSealed) {
-            "◎"
+            "(•)"
         } else {
-            "○"
+            "°"
         };
     }
     let cur = climate_order(current);
     let here = climate_order(surface);
     if here == cur {
-        "●"
+        "•"
     } else if here < cur {
-        "○"
+        "°"
     } else {
         "·"
     }
@@ -216,7 +216,7 @@ fn build_lattice_body(
 
     let resonance_block = format!(
         "RESONANCE  (G cycle)\n\
-●  {}\n\
+•  {}\n\
 {}\n\
 {}",
         resonance.current.title(),
@@ -237,7 +237,7 @@ fn build_lattice_body(
 \n\
 ALLOCATE DIRECTION\n\
 →  Flow outward     {flow:.1}\n\
-◇  Steward reserve  {reserve:.1}\n\
+◊  Steward reserve  {reserve:.1}\n\
 Last path  {last}\n\
 Choices    {choices}\n\
 \n\
