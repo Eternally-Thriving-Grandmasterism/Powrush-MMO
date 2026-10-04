@@ -18,6 +18,7 @@ use crate::human_presence::SoftPresence;
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
+use crate::title_screen::{TITLE_BORDER_MUTED, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 const HOLD_SECS: f64 = 6.0;
 
@@ -110,8 +111,8 @@ fn spawn_well_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.07, 0.09, 0.08, 0.92).into(),
-                border_color: Color::srgba(0.55, 0.78, 0.62, 0.50).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
+                border_color: TITLE_BORDER_MUTED.with_alpha(0.50).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -123,7 +124,7 @@ fn spawn_well_slab(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.82, 0.96, 0.84),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -256,17 +257,17 @@ fn update_well_slab(
         if show {
             let pulse = well_glow_pulse(glow);
             *border = Color::srgba(
-                0.55 + pulse.r,
-                0.78 + pulse.g,
-                0.62 + pulse.b,
+                TITLE_BORDER_MUTED.to_srgba().red + pulse.r,
+                TITLE_BORDER_MUTED.to_srgba().green + pulse.g,
+                TITLE_BORDER_MUTED.to_srgba().blue + pulse.b,
                 0.50 + pulse.a,
             )
             .into();
             *bg = Color::srgba(
-                0.07 + pulse.bg_r,
-                0.09 + pulse.bg_g,
-                0.08 + pulse.bg_b,
-                0.92,
+                TITLE_PLATE_BG.to_srgba().red + pulse.bg_r,
+                TITLE_PLATE_BG.to_srgba().green + pulse.bg_g,
+                TITLE_PLATE_BG.to_srgba().blue + pulse.bg_b,
+                1.0,
             )
             .into();
         }
@@ -401,5 +402,126 @@ mod tests {
         );
         assert_eq!(skirmish_well_word(WellHold::Human, f32::NAN, 0), "Tended");
         assert_eq!(skirmish_well_word(WellHold::Traveler, 0.0, 0), "Idle");
+    }
+
+    /// CARD VP-HUD-GOLD-1 — rgb channels of one colour (srgb space).
+    fn hud_gold_rgb(c: Color) -> (f32, f32, f32, f32) {
+        let s = c.to_srgba();
+        (s.red, s.green, s.blue, s.alpha)
+    }
+
+    fn hud_gold_assert_rgb(c: Color, want: Color, alpha: f32, what: &str) {
+        let (r, g, b, a) = hud_gold_rgb(c);
+        let (wr, wg, wb, _) = hud_gold_rgb(want);
+        assert!((r - wr).abs() < 1e-6, "{what} red {r} vs {wr}");
+        assert!((g - wg).abs() < 1e-6, "{what} green {g} vs {wg}");
+        assert!((b - wb).abs() < 1e-6, "{what} blue {b} vs {wb}");
+        assert!((a - alpha).abs() < 1e-6, "{what} alpha {a} vs {alpha}");
+    }
+
+    fn hud_gold_not_green(c: Color, what: &str) {
+        let (r, g, b, _) = hud_gold_rgb(c);
+        assert!(!(g > r && g > b), "{what} reads green: {r} {g} {b}");
+    }
+
+    /// Spawn the well slab, stand on the first well, run the sync once.
+    fn hud_gold_well_app(glow: f32) -> App {
+        let (x, y, z) = WELL_ANCHORS[0];
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(SoftPresence {
+                position: Vec3::new(x, y, z),
+                ..default()
+            })
+            .insert_resource(WellYard {
+                well_glow: glow,
+                ..default()
+            })
+            .add_systems(Startup, spawn_well_slab)
+            .add_systems(Update, update_well_slab);
+        app.update();
+        app
+    }
+
+    fn hud_gold_well_colors(app: &mut App) -> (Color, Color, Color, Visibility) {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor, &Visibility), With<WellSlabRoot>>();
+        let (border, bg, vis) = q.single(app.world());
+        let (border, bg, vis) = (border.0, bg.0, *vis);
+        let mut t = app
+            .world_mut()
+            .query_filtered::<&Text, With<WellSlabText>>();
+        let text = t.single(app.world()).sections[0].style.color;
+        (border, bg, text, vis)
+    }
+
+    /// CARD VP-HUD-GOLD-1 — at glow 0 the well slab rests on the title
+    /// palette: muted gold rim (alpha 0.50), opaque plate fill (alpha 1.0), cream text.
+    #[test]
+    fn hud_gold_well_slab_rest_is_title_palette() {
+        let mut app = hud_gold_well_app(0.0);
+        let (border, bg, text, vis) = hud_gold_well_colors(&mut app);
+        assert_eq!(vis, Visibility::Visible);
+        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.50, "well border");
+        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "well fill");
+        hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "well text");
+    }
+
+    /// CARD VP-HUD-GOLD-1 — the spawn colours (before any sync) carry the
+    /// same palette; none of the base colours reads green.
+    #[test]
+    fn hud_gold_well_slab_base_colours_not_green() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_well_slab);
+        app.update();
+        let (border, bg, text, _) = hud_gold_well_colors(&mut app);
+        hud_gold_assert_rgb(border, TITLE_BORDER_MUTED, 0.50, "well spawn border");
+        hud_gold_assert_rgb(bg, TITLE_PLATE_BG, 1.0, "well spawn fill");
+        hud_gold_assert_rgb(text, TITLE_TEXT_PRIMARY, 1.0, "well spawn text");
+        for (c, what) in [(border, "border"), (bg, "fill"), (text, "text")] {
+            hud_gold_not_green(c, what);
+        }
+    }
+
+    /// CARD VP-HUD-GOLD-1 — the contest-win breath still adds on top of the
+    /// gold rest base (pulse untouched); the lifted rim stays gold, not green.
+    #[test]
+    fn hud_gold_well_slab_pulse_adds_on_gold_base() {
+        let mut app = hud_gold_well_app(1.0);
+        let (border, bg, _, _) = hud_gold_well_colors(&mut app);
+        let p = well_glow_pulse(1.0);
+        let rest = TITLE_BORDER_MUTED.to_srgba();
+        let fill = TITLE_PLATE_BG.to_srgba();
+        let (r, g, b, a) = hud_gold_rgb(border);
+        assert!((r - (rest.red + p.r)).abs() < 1e-6);
+        assert!((g - (rest.green + p.g)).abs() < 1e-6);
+        assert!((b - (rest.blue + p.b)).abs() < 1e-6);
+        assert!((a - (0.50 + p.a)).abs() < 1e-6);
+        let (br, bgg, bb, ba) = hud_gold_rgb(bg);
+        assert!((br - (fill.red + p.bg_r)).abs() < 1e-6);
+        assert!((bgg - (fill.green + p.bg_g)).abs() < 1e-6);
+        assert!((bb - (fill.blue + p.bg_b)).abs() < 1e-6);
+        assert_eq!(ba, 1.0);
+        hud_gold_not_green(border, "lifted border");
+    }
+
+    /// CARD VP-HUD-GOLD-1 (amended) — the well slab fill is opaque: alpha is
+    /// exactly 1.0 at spawn and after a pulse sync at rest and at full breath.
+    #[test]
+    fn hud_gold_well_slab_fill_alpha_is_opaque() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_well_slab);
+        app.update();
+        let (_, bg, _, _) = hud_gold_well_colors(&mut app);
+        assert_eq!(bg.to_srgba().alpha, 1.0, "spawn fill alpha");
+        for glow in [0.0, 0.5, 1.0] {
+            let mut app = hud_gold_well_app(glow);
+            let (_, bg, _, vis) = hud_gold_well_colors(&mut app);
+            assert_eq!(vis, Visibility::Visible);
+            assert_eq!(bg.to_srgba().alpha, 1.0, "synced fill alpha at glow {glow}");
+        }
     }
 }
