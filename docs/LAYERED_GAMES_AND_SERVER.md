@@ -22,6 +22,10 @@ Peak memory still holds: walked · tended · week was the bill · yard remembere
 >
 > — Sherif, 2026-10-04 2:46 PM ET
 
+> "Perhaps the online version has to be hired and paid for by 1 or more pf the players like if they own their own droid, or the guild offers the privilege of summoning a droid for example then they can do it online, but offline its easier to access in a rational and logical way, as well as simply fill in gaps where real players pr important NPCs may, should, could or perhaps occasionally or even rarely be available for Easter eggs and seasonal things, my Dear Brilliant Legendary Mates!"
+>
+> — Sherif, 2026-10-04 2:49 PM ET
+
 > "Let's have a holiday schedule also with tastefulness and make it based on the in game universe, and have more in game holidays exist based on each online server community's decisions like a global vote by the guild leaders and/or their Councils to give players a sense of true ownership of their decisions, diplomacy amongst other real players, and beyond by expanding and extrapolating from all this properly and effectively, Mates!"
 >
 > — Sherif, 2026-10-04 2:52 PM ET
@@ -241,7 +245,7 @@ If the budget is exceeded, demote the furthest agents a tier; never drop a frame
 
 ## 6. NPC companions online
 
-Sherif's 2:46 PM steer. Online, scheduled NPCs may also be **companions**, but they **never replace humans** and are **opt-in only**.
+Sherif's 2:46 PM and 2:49 PM steers. Online, scheduled NPCs may also be **companions**, but they **never replace humans** and are **opt-in only**. Online they are **hired, owned or summoned and paid for in in-game resources**; offline they are easier to reach.
 
 ### 6.1 When companions are allowed
 
@@ -254,7 +258,7 @@ Sherif's 2:46 PM steer. Online, scheduled NPCs may also be **companions**, but t
 
 ### 6.2 Rules
 
-1. **Opt-in, default off.** A player turns companions on per party. Nobody is placed beside a companion without choosing it.
+1. **Opt-in, default off.** A player turns companions on per party and pays for them (§6.5–§6.6). Nobody is placed beside a companion without choosing it.
 2. **Humans first.** Group finder offers human players first. A companion slot **yields** to a human who joins; the companion leaves at the next safe moment.
 3. **At least one human leads.** Companion parties need a human in range. If the leader is idle past a timeout (target 3 min), companions stand down.
 4. **Labelled honestly.** Companions show as companions. They never count in presence (`SHARD_JOIN` F4: presence is real houses or silence).
@@ -285,7 +289,42 @@ Companions are server entities in the zone's tick and count against its budget.
 | Displacing humans | Human-first group finder; slot yield on join. |
 | Load abuse (spawning many) | Per-party cap and per-zone share; queue past the share. |
 
-### 6.5 Card
+### 6.5 Hiring, owning and summoning (online)
+
+Online, a companion is never free and never a menu default. There are three ways to get one, all paid in **in-game resources**:
+
+| Way | Who pays | What it is |
+|---|---|---|
+| **Hired** | One player, or several players splitting the fee | A companion for one quest or one session, paid in Reserve or goods at a hall or Embassy post |
+| **Owned droid** | One player | A personal droid built or bought in game, kept at the player's homestead |
+| **Guild summon** | The guild, as a privilege its leaders grant | A droid the guild keeps, summoned by members the guild allows, charged to the guild store |
+
+### 6.6 Costs, upkeep and the logistics tie
+
+- **In-game resources only, never real money.** No cash purchase, no paid tier, no premium summon. This holds for every way above.
+- Companions are **economy sinks**. Hiring burns a fee. Owned and guild droids carry **upkeep**: power cells and MendSpool for repair, charged on the ledger tick like any other machine (§8 P3).
+- Droid parts and power cells come from the **logistics layer** (§3b). A guild that runs a droid bay needs the chain that feeds it, so companions draw on the economy and produce nothing back into it (§6.4).
+- An unpaid droid goes Resting, the same as a tired node or an unkept homestead. It is never deleted.
+- Fee and upkeep sizes are tuning targets, set so a droid costs about as much as the help it gives in a group quest, and recorded as `companion_fee` and `companion_upkeep` transaction kinds so the §4 indicators can see the sink.
+
+### 6.7 Offline access
+
+Offline, companions are **easier to reach**, and how you get one still makes sense in the world. A neighbour from a nearby NPC House walks with you because your standing with that House is good, or your House keeps a droid at its bench after the fabricator makes one. Nothing is paid in real money, and the hour still finishes with zero companions (`NPC_SCHEDULE_SPEC`).
+
+**Reconciling with the offline drone refuse.** `docs/OFFLINE_ECONOMY_COURT.md` refuses "drones / robots as product" in Offline 1.0, and §9 keeps that line. The plan handles it this way:
+
+- Offline companions that are **people** (NPC House neighbours, §5) fit inside today's law, because they are scheduled persons who use the same verbs and never harvest for you.
+- Offline **droids**, whether as companions or as guild automation, stay refused offline until **Sherif lifts that line** on a named ticket. Lifting it is Sherif's call alone. This doc records the proposal and how to lift it, and does not lift the line itself.
+- Even after the lift, an offline droid companion follows §6.4: it does not Take, carry or trade, so it can't become a harvest bot.
+
+### 6.8 Gap-fillers, rare visitors and seasonal NPCs
+
+- **Filling gaps.** When there aren't enough real players for a group, or a key NPC (a guide, an Embassy steward, a post keeper) isn't around, a companion or stand-in can fill the part. A stand-in yields as soon as the real player or key NPC returns.
+- **Rare and seasonal.** Some notable NPCs show up only rarely, as **Easter eggs** (an unannounced visit at one Place, at a low chance per in-game week, target ≤ 5%) or as **seasonal visitors** tied to the holiday calendar (§7.2), such as a Luminari figure on Auroral Night or a Draek guide on Depths Return.
+- Rare and seasonal NPCs carry story, a greeting and maybe a cosmetic keepsake. They carry **no** power items and **no** ledger output, and you can't hire them.
+- Offline, they appear on the House-week calendar; online, on the server calendar. Both are deterministic from the seed and calendar, so they can be tested.
+
+### 6.9 Card
 
 See §10, CARD COMPANION-RULES-1 (shared rules and tests, no server) and the HOLD server card that follows.
 
@@ -527,7 +566,7 @@ These lines stand until the Steward lifts them on a named ticket. The plan is de
 | Existing line | Where | What this plan does |
 |---|---|---|
 | Title Online grey; no listen; `server/` parked | `ONLINE_LADDER`, `AGENTS.md` | Everything in §6–§8 server-side is HOLD |
-| Drones / robots as product refused (Offline 1.0); automated harvest bots refused Online until named law | `OFFLINE_ECONOMY_COURT` | Guild automation (§3b) is proposed for Online 2.0 and needs a named lift. Offline NPC Houses stay hands-and-House scale |
+| Drones / robots as product refused (Offline 1.0); automated harvest bots refused Online until named law | `OFFLINE_ECONOMY_COURT` | Guild automation (§3b) and online droid companions (§6.5) are proposed for Online 2.0. Offline droids stay refused until Sherif lifts the line (§6.7). Offline NPC Houses stay hands-and-House scale |
 | Market HOLD; no gold, ticker, sell | `OFFLINE_SKU`, `CREDIT_RESERVE_LOGISTICS` | R3 is designed but HOLD; no server-minted gold; ratios in Reserve units |
 | No race lobby at Title | `GDD_IMMERSION_REVISION` §4 | Peoples chosen after House |
 | Reputation grind refused as belonging | `GDD_IMMERSION_REVISION` §2.2 | Reputation = standing, moved only by verbs |
@@ -576,7 +615,7 @@ L0–L3 tiers, deterministic promote/demote, a per-tick work counter tests can a
 
 **PATHS:** `shared/companion_policy.rs` (new) · `shared/lib.rs` (+1 `pub mod`)
 
-Pure checks: opt-in default off; allowed vs excluded content (raid boss, war, territory, governance); human-first slot yield; per-party cap; zero ledger output except one-time quest completion; reduced standing rate. Tests for each abuse row in §6.4. JUNCTION (new file).
+Pure checks: opt-in default off; allowed vs excluded content (raid boss, war, territory, governance); human-first slot yield; per-party cap; zero ledger output except one-time quest completion; reduced standing rate; hire / own / guild-summon paths paid in in-game resources only (no real-money path exists); upkeep and Resting when unpaid; rare and seasonal visitor windows from seed + calendar. Tests for each abuse row in §6.4 and each cost rule in §6.6. JUNCTION (new file). Offline droids stay refused until Sherif lifts the `OFFLINE_ECONOMY_COURT` line (§6.7).
 
 ### 7. CARD SHARD-EVENTLOG-1 — append-only log + replay in the lab
 
@@ -622,6 +661,7 @@ A `--load-bots N --script file` mode that replays intents against the loopback l
 - Gold, price ticker, auction house, NFT, paid power, loot boxes, daily login, season pass.
 - A separate currency or score per layer.
 - Companions that replace humans, appear in presence counts, fight in wars, face raid bosses, vote, or produce stock.
+- Companions, droids or summons sold for real money.
 - Holidays rooted in real-world religious or national days, or holidays that sell anything.
 - Borrowing characters, names, art, text or UI from any reference game.
 - Performance, scale or certification claims. Every number here is a target.
