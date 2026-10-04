@@ -374,7 +374,7 @@ impl GuidanceObjective {
             GuidanceObjective::HourThreeHeld => "Hour three · the book is yours",
             GuidanceObjective::FeelFirstEpiphany => "The field answers",
             GuidanceObjective::MeetCouncilWhisper => "The field answers",
-            GuidanceObjective::FreeExploration => "E tend · this hex admits harm · optional",
+            GuidanceObjective::FreeExploration => "E tend the well · harm stays optional",
         }
     }
 
@@ -2480,7 +2480,7 @@ mod tests {
     fn free_exploration_prompt_equals_e_tend_after_book() {
         assert_eq!(
             GuidanceObjective::FreeExploration.prompt(),
-            "E tend · this hex admits harm · optional"
+            "E tend the well · harm stays optional"
         );
     }
 
@@ -2489,7 +2489,8 @@ mod tests {
     fn free_exploration_prompt_contains_e_tend_and_harm_not_combat_or_kill() {
         let prompt = GuidanceObjective::FreeExploration.prompt();
         assert!(prompt.contains("E tend"));
-        assert!(prompt.contains("this hex admits harm"));
+        assert!(prompt.contains("the well"));
+        assert!(prompt.contains("harm stays optional"));
         assert!(!prompt.contains("combat"));
         assert!(!prompt.contains("kill"));
     }
