@@ -101,8 +101,8 @@
  * every world `Camera3d` and `VolumetricLight` only on a `DirectionalLight`
  * with shadows on (VISUAL_TARGET L180). Mobile / Low / Medium / High remove
  * both. `fog_bed_for` stays byte-identical. Not in `FogWriteSet`. No
- * `FogSettings` write. The fallback sun (shadows off) never gets
- * `VolumetricLight`.
+ * `FogSettings` write. The one Sanctuary sun (shadows on) gets
+ * `VolumetricLight` on Ultra.
  *
  * CARD LIGHT-BLOOM-1 — High and Ultra insert `BloomSettings` on every world
  * `Camera3d` and set `hdr` (VISUAL_TARGET L225, L226). Mobile / Low / Medium
@@ -777,6 +777,123 @@ pub fn bloom_for(preset: GraphicsPreset) -> Option<BloomSettings> {
     })
 }
 
+/// CARD VP-GRADE-1 — the one Sanctuary sun. `main.rs`
+/// `spawn_sun_and_camera` and the [`spawn_climate_place`] fallback both
+/// spawn through [`spawn_sanctuary_sun_once`], so colour, lux, direction,
+/// and shadows have this single source.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SanctuarySun {
+    /// Sun colour. A clean, very slightly warm white so the green valley
+    /// and blue haze stay lively, not beige.
+    pub color: Color,
+    /// Direct light in lux.
+    pub illuminance: f32,
+    /// Sun position. The sun looks at the yard origin from here.
+    pub position: Vec3,
+    /// On: one shadow map, as the tip `main.rs` sun had on every preset. The
+    /// sky dome is `NotShadowCaster`, so it does not shadow the yard.
+    pub shadows_enabled: bool,
+}
+
+/// CARD VP-GRADE-1 — Sanctuary sun values (see [`SanctuarySun`]).
+pub const SANCTUARY_SUN: SanctuarySun = SanctuarySun {
+    color: Color::srgb(1.0, 0.98, 0.94),
+    illuminance: 12_000.0,
+    position: Vec3::new(8.0, 18.0, 8.0),
+    shadows_enabled: true,
+};
+
+impl SanctuarySun {
+    /// The [`DirectionalLight`] for this sun.
+    pub fn directional_light(&self) -> DirectionalLight {
+        DirectionalLight {
+            color: self.color,
+            illuminance: self.illuminance,
+            shadows_enabled: self.shadows_enabled,
+            ..default()
+        }
+    }
+
+    /// Placed at [`SanctuarySun::position`], looking at the yard origin.
+    pub fn transform(&self) -> Transform {
+        Transform::from_translation(self.position).looking_at(Vec3::ZERO, Vec3::Y)
+    }
+
+    /// The full light bundle.
+    pub fn bundle(&self) -> DirectionalLightBundle {
+        DirectionalLightBundle {
+            directional_light: self.directional_light(),
+            transform: self.transform(),
+            ..default()
+        }
+    }
+}
+
+/// CARD VP-GRADE-1 — spawn [`SANCTUARY_SUN`] unless a [`DirectionalLight`]
+/// already exists when the command applies. `main.rs` and the
+/// [`spawn_climate_place`] fallback both run in `Startup` with no order
+/// between them, so neither system's query sees the other's light. The
+/// check therefore runs inside the command: whichever applies first spawns
+/// the sun and the other spawns nothing. Exactly one sun.
+pub fn spawn_sanctuary_sun_once(commands: &mut Commands) {
+    commands.add(|world: &mut World| {
+        let mut lights = world.query_filtered::<(), With<DirectionalLight>>();
+        if lights.iter(world).next().is_none() {
+            world.spawn((SANCTUARY_SUN.bundle(), Name::new("SanctuarySun")));
+        }
+    });
+}
+
+/// CARD VP-GRADE-1 — world camera tonemapper. Was Bevy 0.14.2's default
+/// `TonyMcMapface` (no explicit value on the tip world camera). AgX is
+/// neutral with little hue shift, so the blue sky stays blue and the green
+/// valley stays green as brights roll off. Same LUT cost as TonyMcMapface
+/// (`tonemapping_luts` is a Bevy default feature). World camera only.
+pub const WORLD_TONEMAPPING: bevy::core_pipeline::tonemapping::Tonemapping =
+    bevy::core_pipeline::tonemapping::Tonemapping::AgX;
+
+/// CARD VP-GRADE-1 — saturation after tonemapping. AgX is "somewhat
+/// desaturated" next to TonyMcMapface (Bevy's own note). On the Low and
+/// Medium valley stills this brings the field and conifers back to about
+/// tip saturation at a brighter exposure. Not neon.
+pub const WORLD_GRADE_POST_SATURATION: f32 = 1.5;
+/// CARD VP-GRADE-1 — saturation before tonemapping, same on shadows,
+/// midtones, and highlights.
+pub const WORLD_GRADE_SATURATION: f32 = 1.12;
+/// CARD VP-GRADE-1 — midtone contrast. A touch of depth, no crushed shadows.
+pub const WORLD_GRADE_MIDTONE_CONTRAST: f32 = 1.06;
+/// CARD VP-GRADE-1 — shadow lift. Keeps the conifer belt green, not black.
+pub const WORLD_GRADE_SHADOW_LIFT: f32 = 0.01;
+
+/// CARD VP-GRADE-1 — the world camera [`ColorGrading`](bevy::render::view::ColorGrading).
+/// Bright, lively blue-sky valley: colour back after AgX, a touch of
+/// midtone contrast, a hair of shadow lift. No exposure, temperature, tint,
+/// or hue shift, so nothing drifts brown or beige. World camera only; the lived UI
+/// camera stays bare.
+pub fn world_color_grading() -> bevy::render::view::ColorGrading {
+    use bevy::render::view::{ColorGrading, ColorGradingGlobal, ColorGradingSection};
+    ColorGrading {
+        global: ColorGradingGlobal {
+            post_saturation: WORLD_GRADE_POST_SATURATION,
+            ..default()
+        },
+        shadows: ColorGradingSection {
+            saturation: WORLD_GRADE_SATURATION,
+            lift: WORLD_GRADE_SHADOW_LIFT,
+            ..default()
+        },
+        midtones: ColorGradingSection {
+            saturation: WORLD_GRADE_SATURATION,
+            contrast: WORLD_GRADE_MIDTONE_CONTRAST,
+            ..default()
+        },
+        highlights: ColorGradingSection {
+            saturation: WORLD_GRADE_SATURATION,
+            ..default()
+        },
+    }
+}
+
 /// Couple FlowWeather band → Place mood breath / glow multiplier.
 /// Flow lifts; Anxiety tightens; Boredom mutes; Rise is neutral.
 pub fn place_band_mul(mood: PlaceMood, band: WeatherBandKind) -> f32 {
@@ -994,17 +1111,10 @@ fn spawn_climate_place(
         }
     }
 
+    // CARD VP-GRADE-1 — fallback sun is the one SANCTUARY_SUN. The check
+    // re-runs when the command applies, so main's sun is never doubled.
     if lights.iter().next().is_none() {
-        commands.spawn(DirectionalLightBundle {
-            directional_light: DirectionalLight {
-                illuminance: 8_500.0,
-                shadows_enabled: false,
-                color: Color::srgb(1.0, 0.96, 0.88),
-                ..default()
-            },
-            transform: Transform::from_xyz(8.0, 18.0, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        });
+        spawn_sanctuary_sun_once(&mut commands);
     }
 
     info!(target: "powrush::climate", "climate plane seeded — Sanctuary Prime warm yard");
@@ -1070,8 +1180,8 @@ fn sync_place_dress_from_travel(
 /// every [`Camera3d`] and [`VolumetricLight`] only on a [`DirectionalLight`]
 /// with `shadows_enabled`. Leaving Ultra removes both. A component that is
 /// already present is left in place. Writes no [`FogSettings`]. Not in
-/// [`FogWriteSet`]. The fallback sun (`shadows_enabled: false`) never
-/// receives [`VolumetricLight`].
+/// [`FogWriteSet`]. A light with `shadows_enabled: false` never receives
+/// [`VolumetricLight`].
 fn sync_ultra_volumetric(
     mut commands: Commands,
     settings: Option<Res<LocalSettingsState>>,
@@ -3553,6 +3663,266 @@ mod tests {
                 }
                 assert!(found, "ClimatePlanePlugin did not register sync_tier_bloom");
             });
+    }
+
+    /// CARD VP-GRADE-1 — the one sun source is pinned.
+    #[test]
+    fn vp_grade_sanctuary_sun_source_is_pinned() {
+        assert_eq!(SANCTUARY_SUN.illuminance, 12_000.0);
+        // On (Core ruling); the dome is NotShadowCaster (sky_backdrop).
+        assert!(SANCTUARY_SUN.shadows_enabled);
+        assert_eq!(SANCTUARY_SUN.position, Vec3::new(8.0, 18.0, 8.0));
+        assert_eq!(SANCTUARY_SUN.color, Color::srgb(1.0, 0.98, 0.94));
+        // Clean white, a hair warm: not the old beige-warm fallback tint.
+        let c = SANCTUARY_SUN.color.to_srgba();
+        assert!(c.red >= c.green && c.green >= c.blue);
+        assert!(c.blue >= 0.92, "sun drifts beige: {c:?}");
+        let light = SANCTUARY_SUN.directional_light();
+        assert_eq!(light.color, SANCTUARY_SUN.color);
+        assert_eq!(light.illuminance, SANCTUARY_SUN.illuminance);
+        assert_eq!(light.shadows_enabled, SANCTUARY_SUN.shadows_enabled);
+        let tf = SANCTUARY_SUN.transform();
+        assert_eq!(tf.translation, SANCTUARY_SUN.position);
+        let toward_origin = (Vec3::ZERO - SANCTUARY_SUN.position).normalize();
+        assert!(tf.forward().as_vec3().dot(toward_origin) > 0.9999);
+    }
+
+    fn sun_lights(app: &mut App) -> Vec<(DirectionalLight, Transform)> {
+        let world = app.world_mut();
+        let mut q = world.query::<(&DirectionalLight, &Transform)>();
+        q.iter(world).map(|(l, t)| (l.clone(), *t)).collect()
+    }
+
+    fn assert_is_sanctuary_sun(light: &DirectionalLight, tf: &Transform) {
+        let want = SANCTUARY_SUN.directional_light();
+        assert_eq!(light.color, want.color);
+        assert_eq!(light.illuminance, want.illuminance);
+        assert_eq!(light.shadows_enabled, want.shadows_enabled);
+        assert_eq!(*tf, SANCTUARY_SUN.transform());
+    }
+
+    fn climate_startup_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<Assets<Mesh>>()
+            .init_resource::<Assets<StandardMaterial>>()
+            .init_resource::<SoftPlayerRealm>()
+            .add_plugins(ClimatePlanePlugin);
+        app
+    }
+
+    /// Stand-in for `main.rs` `spawn_sun_and_camera`: same call, same Startup.
+    fn main_like_sun(mut commands: Commands) {
+        spawn_sanctuary_sun_once(&mut commands);
+    }
+
+    /// CARD VP-GRADE-1 — the fallback alone spawns exactly SANCTUARY_SUN.
+    #[test]
+    fn vp_grade_fallback_sun_is_sanctuary_sun() {
+        let mut app = climate_startup_app();
+        app.update();
+        let lights = sun_lights(&mut app);
+        assert_eq!(lights.len(), 1, "fallback sun count");
+        assert_is_sanctuary_sun(&lights[0].0, &lights[0].1);
+    }
+
+    /// CARD VP-GRADE-1 — main's sun and the fallback race in one Startup.
+    /// Tip spawned two suns here (12 000 lux shadowed + 8 500 lux fallback,
+    /// the `no Camera3d yet` Startup race).
+    /// Now exactly one SANCTUARY_SUN lands, whichever applies first.
+    #[test]
+    fn vp_grade_main_and_fallback_spawn_one_sanctuary_sun() {
+        for main_first in [true, false] {
+            let mut app = climate_startup_app();
+            if main_first {
+                app.add_systems(Startup, main_like_sun.before(spawn_climate_place));
+            } else {
+                app.add_systems(Startup, main_like_sun.after(spawn_climate_place));
+            }
+            app.update();
+            app.update();
+            let lights = sun_lights(&mut app);
+            assert_eq!(lights.len(), 1, "main_first={main_first}");
+            assert_is_sanctuary_sun(&lights[0].0, &lights[0].1);
+        }
+        let mut app = climate_startup_app();
+        app.add_systems(Startup, main_like_sun);
+        app.update();
+        let lights = sun_lights(&mut app);
+        assert_eq!(lights.len(), 1, "unordered Startup");
+        assert_is_sanctuary_sun(&lights[0].0, &lights[0].1);
+    }
+
+    fn fn_body<'a>(src: &'a str, sig: &str) -> &'a str {
+        let start = src.find(sig).unwrap_or_else(|| panic!("missing {sig}"));
+        let rest = &src[start..];
+        let mut depth = 0i32;
+        for (i, ch) in rest.char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return &rest[..=i];
+                    }
+                }
+                _ => {}
+            }
+        }
+        panic!("unbalanced {sig}");
+    }
+
+    /// CARD VP-GRADE-1 — both spawn sites read the one source: main's
+    /// `spawn_sun_and_camera` and the climate fallback call
+    /// `spawn_sanctuary_sun_once` and carry no sun literals of their own.
+    /// Main's world camera takes WORLD_TONEMAPPING and world_color_grading().
+    #[test]
+    fn vp_grade_both_sun_spawns_and_world_camera_read_climate_source() {
+        let main_src = include_str!("main.rs");
+        let main_fn = fn_body(main_src, "fn spawn_sun_and_camera(");
+        let climate_src = include_str!("climate_plane.rs");
+        let fallback_fn = fn_body(climate_src, "fn spawn_climate_place(");
+        for (label, body) in [("main", main_fn), ("fallback", fallback_fn)] {
+            assert!(body.contains("spawn_sanctuary_sun_once(&mut commands)"), "{label}");
+            for literal in ["DirectionalLightBundle", "illuminance", "shadows_enabled"] {
+                assert!(!body.contains(literal), "{label} has its own {literal}");
+            }
+        }
+        assert!(main_fn.contains("tonemapping: WORLD_TONEMAPPING"));
+        assert!(main_fn.contains("color_grading: world_color_grading()"));
+        assert_eq!(main_fn.matches("Camera3dBundle").count(), 1);
+        assert!(!fallback_fn.contains("Camera3dBundle"));
+    }
+
+    /// CARD VP-GRADE-1 — AgX on the world camera; the grade is subtle.
+    #[test]
+    fn vp_grade_world_tonemapping_is_agx_and_grade_is_subtle() {
+        use bevy::core_pipeline::tonemapping::Tonemapping;
+        assert_eq!(WORLD_TONEMAPPING, Tonemapping::AgX);
+        assert_ne!(WORLD_TONEMAPPING, Tonemapping::default(), "not Bevy's TonyMcMapface");
+        assert_eq!(Tonemapping::default(), Tonemapping::TonyMcMapface);
+        let grade = world_color_grading();
+        assert_eq!(WORLD_GRADE_POST_SATURATION, 1.5);
+        assert_eq!(WORLD_GRADE_SATURATION, 1.12);
+        assert_eq!(WORLD_GRADE_MIDTONE_CONTRAST, 1.06);
+        assert_eq!(WORLD_GRADE_SHADOW_LIFT, 0.01);
+        assert_eq!(grade.global.post_saturation, WORLD_GRADE_POST_SATURATION);
+        assert_eq!(grade.midtones.contrast, WORLD_GRADE_MIDTONE_CONTRAST);
+        assert_eq!(grade.shadows.lift, WORLD_GRADE_SHADOW_LIFT);
+        // Subtle: AgX colour back, not neon; a touch of contrast; no exposure.
+        assert!((1.0..=1.6).contains(&grade.global.post_saturation));
+        assert!((1.0..=1.08).contains(&grade.midtones.contrast));
+        assert_eq!(grade.shadows.contrast, 1.0);
+        assert_eq!(grade.highlights.contrast, 1.0);
+        assert!((0.0..=0.03).contains(&grade.shadows.lift));
+        assert_eq!(grade.midtones.lift, 0.0);
+        assert_eq!(grade.highlights.lift, 0.0);
+        assert_eq!(grade.global.exposure, 0.0);
+        // No colour cast: nothing pushes toward brown / beige.
+        assert_eq!(grade.global.temperature, 0.0);
+        assert_eq!(grade.global.tint, 0.0);
+        assert_eq!(grade.global.hue, 0.0);
+        for section in grade.all_sections() {
+            assert_eq!(section.saturation, WORLD_GRADE_SATURATION);
+            assert!((1.0..=1.15).contains(&section.saturation));
+            assert_eq!(section.gamma, 1.0);
+            assert_eq!(section.gain, 1.0);
+        }
+    }
+
+    /// CARD VP-GRADE-1 — Ultra puts VolumetricLight on the one shadowed
+    /// Sanctuary sun (main + fallback race, one sun). High removes it.
+    #[test]
+    fn vp_grade_ultra_volumetric_light_on_the_one_sanctuary_sun() {
+        use shared::local_settings::LocalSettings;
+        let mut app = climate_startup_app();
+        let mut settings = LocalSettings::default();
+        settings.set_graphics_preset(GraphicsPreset::Ultra);
+        app.insert_resource(LocalSettingsState {
+            inner: settings,
+            dirty: false,
+        });
+        app.add_systems(Startup, main_like_sun);
+        app.world_mut().spawn(Camera3dBundle::default());
+        app.update();
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query::<(&DirectionalLight, Option<&VolumetricLight>)>();
+        let lights: Vec<_> = q.iter(world).map(|(l, v)| (l.shadows_enabled, v.is_some())).collect();
+        assert_eq!(lights, vec![(true, true)], "one shadowed sun with VolumetricLight");
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::High);
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<(), With<VolumetricLight>>();
+        assert_eq!(q.iter(world).count(), 0, "High removes VolumetricLight");
+    }
+
+    fn tier_after_one_frame(preset: GraphicsPreset) -> (bool, Option<BloomSettings>) {
+        use shared::local_settings::LocalSettings;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        let mut settings = LocalSettings::default();
+        settings.set_graphics_preset(preset);
+        app.insert_resource(LocalSettingsState {
+            inner: settings,
+            dirty: false,
+        });
+        app.add_systems(Update, sync_tier_bloom);
+        let cam = app.world_mut().spawn(Camera3dBundle::default()).id();
+        app.update();
+        let world = app.world();
+        (
+            world.get::<Camera>(cam).unwrap().hdr,
+            world.get::<BloomSettings>(cam).cloned(),
+        )
+    }
+
+    /// CARD VP-GRADE-1 — Mobile: hdr off, bloom off (as tip).
+    #[test]
+    fn vp_grade_preset_mobile_hdr_off_bloom_off() {
+        assert!(bloom_for(GraphicsPreset::Mobile).is_none());
+        let (hdr, bloom) = tier_after_one_frame(GraphicsPreset::Mobile);
+        assert!(!hdr);
+        assert!(bloom.is_none());
+    }
+
+    /// CARD VP-GRADE-1 — Low: hdr off, bloom off (as tip).
+    #[test]
+    fn vp_grade_preset_low_hdr_off_bloom_off() {
+        assert!(bloom_for(GraphicsPreset::Low).is_none());
+        let (hdr, bloom) = tier_after_one_frame(GraphicsPreset::Low);
+        assert!(!hdr);
+        assert!(bloom.is_none());
+    }
+
+    /// CARD VP-GRADE-1 — Medium: hdr off, bloom held off in this PR
+    /// (Medium bloom waits on Sherif; VISUAL_TARGET L224 unchanged).
+    #[test]
+    fn vp_grade_preset_medium_hdr_off_bloom_off() {
+        assert!(bloom_for(GraphicsPreset::Medium).is_none());
+        let (hdr, bloom) = tier_after_one_frame(GraphicsPreset::Medium);
+        assert!(!hdr);
+        assert!(bloom.is_none());
+    }
+
+    /// CARD VP-GRADE-1 — High: hdr on, bloom on at LIGHT_BLOOM_INTENSITY.
+    #[test]
+    fn vp_grade_preset_high_hdr_on_bloom_on() {
+        let (hdr, bloom) = tier_after_one_frame(GraphicsPreset::High);
+        assert!(hdr);
+        assert_eq!(bloom.expect("High bloom").intensity, LIGHT_BLOOM_INTENSITY);
+    }
+
+    /// CARD VP-GRADE-1 — Ultra: hdr on, bloom on at LIGHT_BLOOM_INTENSITY.
+    #[test]
+    fn vp_grade_preset_ultra_hdr_on_bloom_on() {
+        let (hdr, bloom) = tier_after_one_frame(GraphicsPreset::Ultra);
+        assert!(hdr);
+        assert_eq!(bloom.expect("Ultra bloom").intensity, LIGHT_BLOOM_INTENSITY);
     }
 
     /// Lavapipe one-frame. Not part of the headless gate (`--ignored`).
