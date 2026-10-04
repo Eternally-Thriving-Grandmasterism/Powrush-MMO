@@ -221,7 +221,7 @@ Bevy 0.14.2, verified in the locked crates, and not given numbers here: `BloomSe
 |---|---|
 | Mobile | Base look. One node glow, and that glow means Use. A tired node is a faint ember, not a second accent. No bloom. Empty lamp disk. No extra shadow map. Tend / Flow dust off. |
 | Low | Adds one directional light and a simple contact shadow. Dust stays off. |
-| Medium (default) | Adds soft daylight or a low sun when the Place still shows it, and keeps a single focal emissive. Capped Tend / Flow dust may appear (`03_tend_bloom.jpg`) and goes off with Mute. Bloom stays off. |
+| Medium (default) | Adds soft daylight or a low sun when the Place still shows it, and keeps a single focal emissive. Capped Tend / Flow dust may appear (`03_tend_bloom.jpg`) and goes off with Mute. Gentle `BloomSettings`, below High's: a soft warm glow on the well and the sun, never a haze. |
 | High | Adds `BloomSettings` on the Use glow only, and cascaded shadows (`CascadeShadowConfig`) so near feet and far domes both keep a shadow. No intensity is set. |
 | Ultra | **Ultra-only:** heavy sun bloom and mirror-bright floors from trailer frames 15, 19, and 30; `ScreenSpaceAmbientOcclusionSettings`; `TemporalAntiAliasSettings`. Lightning in `09_crownstone.jpg` stays Codex and is not added to the yard. |
 
