@@ -105,8 +105,10 @@
  * `VolumetricLight` on Ultra.
  *
  * CARD LIGHT-BLOOM-1 — High and Ultra insert `BloomSettings` on every world
- * `Camera3d` and set `hdr` (VISUAL_TARGET L225, L226). Mobile / Low / Medium
- * remove both. Intensity is [`LIGHT_BLOOM_INTENSITY`]. [`TierBloomSet`] is
+ * `Camera3d` and set `hdr` (VISUAL_TARGET L225, L226). CARD VP-BLOOM-MED-1 —
+ * Medium does too, gently, at [`MEDIUM_BLOOM_INTENSITY`] (VISUAL_TARGET L224).
+ * Mobile / Low remove both. High / Ultra intensity is [`LIGHT_BLOOM_INTENSITY`].
+ * A tier change replaces a camera's bloom whose intensity differs. [`TierBloomSet`] is
  * Update, not [`FogWriteSet`]. The lived UI camera copies that `hdr` in the
  * same Update, after this set. No `FogSettings` write. No `AmbientLight` write.
  *
@@ -737,6 +739,10 @@ const ULTRA_VOLUMETRIC_LIGHT_INTENSITY: f32 = 0.65;
 /// CARD LIGHT-BLOOM-1 — modest NATURAL bloom. Between 0.10 and 0.20.
 const LIGHT_BLOOM_INTENSITY: f32 = 0.12;
 
+/// CARD VP-BLOOM-MED-1 — gentle Medium bloom: a warm glow on the well and sun,
+/// never a haze. Half of High's [`LIGHT_BLOOM_INTENSITY`].
+const MEDIUM_BLOOM_INTENSITY: f32 = 0.06;
+
 /// Ultra-only light shafts for a Comfort graphics tier.
 ///
 /// [`Some`] only on [`GraphicsPreset::Ultra`]. Mobile, Low, Medium, and High
@@ -761,13 +767,21 @@ pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<VolumetricFogSetti
     })
 }
 
-/// High / Ultra bloom for a Comfort graphics tier.
+/// Medium / High / Ultra bloom for a Comfort graphics tier.
 ///
-/// [`Some`] only on [`GraphicsPreset::High`] and [`GraphicsPreset::Ultra`]:
-/// [`BloomSettings::NATURAL`] with [`LIGHT_BLOOM_INTENSITY`]. Mobile, Low, and
-/// Medium return [`None`].
-/// Cite [`docs/VISUAL_TARGET.md`] L225 (High `BloomSettings`) and L226 (Ultra sun bloom).
+/// [`GraphicsPreset::Medium`]: [`BloomSettings::NATURAL`] with the gentle
+/// [`MEDIUM_BLOOM_INTENSITY`] (CARD VP-BLOOM-MED-1). [`GraphicsPreset::High`]
+/// and [`GraphicsPreset::Ultra`]: [`BloomSettings::NATURAL`] with
+/// [`LIGHT_BLOOM_INTENSITY`]. Mobile and Low return [`None`].
+/// Cite [`docs/VISUAL_TARGET.md`] L224 (Medium gentle glow), L225 (High
+/// `BloomSettings`) and L226 (Ultra sun bloom).
 pub fn bloom_for(preset: GraphicsPreset) -> Option<BloomSettings> {
+    if preset == GraphicsPreset::Medium {
+        return Some(BloomSettings {
+            intensity: MEDIUM_BLOOM_INTENSITY,
+            ..BloomSettings::NATURAL
+        });
+    }
     if preset != GraphicsPreset::High && preset != GraphicsPreset::Ultra {
         return None;
     }
@@ -1221,11 +1235,14 @@ fn sync_ultra_volumetric(
     }
 }
 
-/// CARD LIGHT-BLOOM-1 — High and Ultra set `hdr` and insert [`BloomSettings`]
-/// on every [`Camera3d`]. Mobile, Low, and Medium clear both. A flag or
-/// component that is already in the right state is left alone. Writes no
-/// [`FogSettings`] and no [`AmbientLight`]. Not in [`FogWriteSet`]. Missing
-/// settings stay Medium. The lived UI camera copies `hdr` after [`TierBloomSet`].
+/// CARD LIGHT-BLOOM-1 — Medium, High and Ultra set `hdr` and insert
+/// [`BloomSettings`] on every [`Camera3d`]. Mobile and Low clear both. CARD
+/// VP-BLOOM-MED-1 — a camera whose bloom intensity differs from
+/// [`bloom_for`] gets it replaced (High → Medium drops to
+/// [`MEDIUM_BLOOM_INTENSITY`]). A flag or component that is already in the
+/// right state is left alone. Writes no [`FogSettings`] and no
+/// [`AmbientLight`]. Not in [`FogWriteSet`]. Missing settings stay Medium
+/// (gentle bloom on). The lived UI camera copies `hdr` after [`TierBloomSet`].
 fn sync_tier_bloom(
     mut commands: Commands,
     settings: Option<Res<LocalSettingsState>>,
@@ -1240,7 +1257,7 @@ fn sync_tier_bloom(
             if !camera.hdr {
                 camera.hdr = true;
             }
-            if existing.is_none() {
+            if existing.map_or(true, |have| have.intensity != bloom.intensity) {
                 commands.entity(entity).insert(bloom.clone());
             }
         }
@@ -3500,17 +3517,27 @@ mod tests {
         );
     }
 
-    /// CARD LIGHT-BLOOM-1 — Some only on High and Ultra. All five presets.
+    /// CARD LIGHT-BLOOM-1 + VP-BLOOM-MED-1 — Some on Medium, High and Ultra.
+    /// Medium at MEDIUM_BLOOM_INTENSITY, High/Ultra at LIGHT_BLOOM_INTENSITY,
+    /// all NATURAL otherwise. Mobile and Low None. All five presets.
     #[test]
-    fn bloom_for_some_only_on_high_and_ultra() {
+    fn bloom_for_some_on_medium_high_and_ultra() {
         assert_eq!(GraphicsPreset::ALL.len(), 5);
         let natural = BloomSettings::NATURAL;
         for preset in GraphicsPreset::ALL {
             let got = bloom_for(preset);
-            if preset == GraphicsPreset::High || preset == GraphicsPreset::Ultra {
-                let bloom = got.expect("High/Ultra");
+            if preset == GraphicsPreset::Medium
+                || preset == GraphicsPreset::High
+                || preset == GraphicsPreset::Ultra
+            {
+                let bloom = got.expect("Medium/High/Ultra");
                 assert!((0.10..=0.20).contains(&LIGHT_BLOOM_INTENSITY));
-                assert_eq!(bloom.intensity, LIGHT_BLOOM_INTENSITY);
+                let want = if preset == GraphicsPreset::Medium {
+                    MEDIUM_BLOOM_INTENSITY
+                } else {
+                    LIGHT_BLOOM_INTENSITY
+                };
+                assert_eq!(bloom.intensity, want, "{preset:?}");
                 assert_eq!(bloom.low_frequency_boost, natural.low_frequency_boost);
                 assert_eq!(
                     bloom.low_frequency_boost_curvature,
@@ -3534,7 +3561,7 @@ mod tests {
 
     /// CARD LIGHT-BLOOM-1 — High inserts hdr + BloomSettings. Low removes both.
     /// A second High frame does not reinsert. A Camera2d is left alone.
-    /// Missing settings stay Medium (bloom off).
+    /// Missing settings stay Medium (CARD VP-BLOOM-MED-1: gentle bloom on).
     #[test]
     fn sync_tier_bloom_inserts_on_high_and_removes_on_low() {
         use shared::local_settings::LocalSettings;
@@ -3598,8 +3625,70 @@ mod tests {
         bare.add_systems(Update, sync_tier_bloom);
         let cam = bare.world_mut().spawn(Camera3dBundle::default()).id();
         bare.update();
-        assert!(!bare.world().get::<Camera>(cam).unwrap().hdr);
-        assert!(bare.world().get::<BloomSettings>(cam).is_none());
+        assert!(bare.world().get::<Camera>(cam).unwrap().hdr);
+        assert_eq!(
+            bare.world().get::<BloomSettings>(cam).unwrap().intensity,
+            MEDIUM_BLOOM_INTENSITY
+        );
+    }
+
+    /// CARD VP-BLOOM-MED-1 — Medium's gentle bloom sits below High's.
+    #[test]
+    fn vp_bloom_med_intensity_between_zero_and_high() {
+        assert!(MEDIUM_BLOOM_INTENSITY > 0.0);
+        assert!(MEDIUM_BLOOM_INTENSITY < LIGHT_BLOOM_INTENSITY);
+    }
+
+    /// CARD VP-BLOOM-MED-1 — High then Medium replaces bloom down to
+    /// MEDIUM_BLOOM_INTENSITY (not left at High's). Medium then Low removes
+    /// both bloom and hdr.
+    #[test]
+    fn vp_bloom_med_high_to_medium_replaces_and_medium_to_low_removes() {
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(LocalSettingsState {
+            inner: LocalSettings::default(),
+            dirty: false,
+        });
+        app.add_systems(Update, sync_tier_bloom);
+        let cam = app.world_mut().spawn(Camera3dBundle::default()).id();
+
+        let set = |app: &mut App, preset: GraphicsPreset| {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .set_graphics_preset(preset);
+            app.update();
+        };
+
+        set(&mut app, GraphicsPreset::High);
+        assert!(app.world().get::<Camera>(cam).unwrap().hdr);
+        assert_eq!(
+            app.world().get::<BloomSettings>(cam).unwrap().intensity,
+            LIGHT_BLOOM_INTENSITY
+        );
+
+        set(&mut app, GraphicsPreset::Medium);
+        assert!(app.world().get::<Camera>(cam).unwrap().hdr);
+        assert_eq!(
+            app.world().get::<BloomSettings>(cam).unwrap().intensity,
+            MEDIUM_BLOOM_INTENSITY
+        );
+
+        // A second Medium frame leaves the matching bloom alone.
+        app.update();
+        assert!(!app
+            .world()
+            .entity(cam)
+            .get_ref::<BloomSettings>()
+            .unwrap()
+            .is_added());
+
+        set(&mut app, GraphicsPreset::Low);
+        assert!(!app.world().get::<Camera>(cam).unwrap().hdr);
+        assert!(app.world().get::<BloomSettings>(cam).is_none());
     }
 
     /// CARD LIGHT-BLOOM-1 — registered in TierBloomSet, not FogWriteSet, and
@@ -3899,14 +3988,20 @@ mod tests {
         assert!(bloom.is_none());
     }
 
-    /// CARD VP-GRADE-1 — Medium: hdr off, bloom held off in this PR
-    /// (Medium bloom waits on Sherif; VISUAL_TARGET L224 unchanged).
+    /// CARD VP-BLOOM-MED-1 — Medium: hdr on, gentle bloom on at
+    /// MEDIUM_BLOOM_INTENSITY (VISUAL_TARGET L224).
     #[test]
-    fn vp_grade_preset_medium_hdr_off_bloom_off() {
-        assert!(bloom_for(GraphicsPreset::Medium).is_none());
+    fn vp_grade_preset_medium_hdr_on_bloom_gentle() {
+        assert_eq!(
+            bloom_for(GraphicsPreset::Medium).expect("Medium bloom").intensity,
+            MEDIUM_BLOOM_INTENSITY
+        );
         let (hdr, bloom) = tier_after_one_frame(GraphicsPreset::Medium);
-        assert!(!hdr);
-        assert!(bloom.is_none());
+        assert!(hdr);
+        assert_eq!(
+            bloom.expect("Medium bloom").intensity,
+            MEDIUM_BLOOM_INTENSITY
+        );
     }
 
     /// CARD VP-GRADE-1 — High: hdr on, bloom on at LIGHT_BLOOM_INTENSITY.

@@ -296,7 +296,11 @@ mod tests {
                 .inner
                 .set_graphics_preset(preset);
             app.update();
-            let expect = preset == GraphicsPreset::High || preset == GraphicsPreset::Ultra;
+            // CARD VP-BLOOM-MED-1 — Medium joins High / Ultra: hdr on, world
+            // bloom on (gentle), UI camera still no BloomSettings.
+            let expect = preset == GraphicsPreset::Medium
+                || preset == GraphicsPreset::High
+                || preset == GraphicsPreset::Ultra;
             assert_hdr_pair(&app, world_cam, expect, preset.label());
         }
     }
@@ -304,7 +308,7 @@ mod tests {
     /// CARD VP-GRADE-1 — the lived UI camera stays bare: no tonemapping
     /// other than `Tonemapping::None`, no `ColorGrading`, on every tier.
     /// The world camera, spawned as `main.rs` does, keeps AgX + the grade.
-    /// `hdr` is not pinned here: it follows the world camera (High / Ultra).
+    /// `hdr` is not pinned here: it follows the world camera (Medium / High / Ultra).
     #[test]
     fn vp_grade_lived_ui_camera_has_no_tonemapping_or_grade() {
         use crate::climate_plane::{world_color_grading, ClimatePlanePlugin, WORLD_TONEMAPPING};
