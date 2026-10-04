@@ -1,7 +1,7 @@
 # ART_BIBLE.md — Powrush visual constitution
 
 **Contact:** info@Rathor.ai
-**Independent of xAI.** No certification / AGSi warranty / legal-product claims.
+No certification / AGSi warranty / legal-product claims.
 **Law:** Glow is the Use target. Fog is weather. The week is the bill. Art that hides the bill is vetoed.
 See also: PHYSICS_GRAPHICS_CANON.md, AUDIO_DIRECTION.md, IMAGINE_TRAILER_PACK.md, DRIVE_LORE_ADAPTATION.md.
 
@@ -16,14 +16,14 @@ Do not fuse. Mothership bay in a HANDS still is a defect.
 
 ## One shader family
 
-Gritty low-poly volume, high-detail light. Desaturated earth + one biome accent.
+Gritty low-poly volume, high-detail light. Lively valley colour + one biome accent (council ruling VISUAL-PASS-1 (a), 2026-10-04: no brown or beige earth).
 Climate fog behind plates, never through type. Node glow = Use. Lamp disk empty.
 Water is a bath. Particles: Tend/Flow dust only, capped, off with Mute.
 No second Camera3d. Grove light opt-in.
 
 | Place | Accent | Must | Must not |
 |---|---|---|---|
-| Sanctuary | warm gold well | one glow, readable plate | Brood Spire, fleet |
+| Sanctuary | warm gold well | blue-sky valley, one glow, readable plate | Brood Spire, fleet, brown / beige earth |
 | Heartwood | amber lamp | ribs **outside** water | ribs in the pool |
 | Threshold | iron + tend seam | E Tends the pipe | harvest toast |
 | Depths | teal Peace | *Depths Peace · restored* | Take on that hex |

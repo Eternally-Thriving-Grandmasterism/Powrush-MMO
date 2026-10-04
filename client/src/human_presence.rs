@@ -925,6 +925,7 @@ fn follow_camera(
     pool: Option<Res<SoftRbePool>>,
     feedback: Res<LocalFeedbackFeel>,
     mesh_lod: Option<Res<LocalMeshLodFeel>>,
+    realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
 ) {
     let kick = pool.map(|p| p.kick).unwrap_or(0.0);
@@ -945,11 +946,27 @@ fn follow_camera(
     let look = if look_down {
         Vec3::new(presence.position.x, 0.45, presence.position.z)
     } else {
-        presence.position + Vec3::Y * (0.45 + look_lift)
+        presence.position + Vec3::Y * (follow_look_height_for_realm(realm.and_then(|r| r.current)) + look_lift)
     };
     for mut cam in &mut cams {
         cam.translation = cam.translation.lerp(desired, 0.12);
         cam.look_at(look, Vec3::Y);
+    }
+}
+
+/// CARD VP-SKY-1 — rest look height in the Sanctuary valley, so the sky and
+/// the mountain ring sit in frame.
+pub const SANCTUARY_FOLLOW_LOOK_Y: f32 = 1.15;
+/// Rest look height everywhere else (unchanged from before VP-SKY-1).
+pub const FOLLOW_LOOK_Y: f32 = 0.45;
+
+/// Rest look height above the presence for the follow camera, by realm.
+/// Sanctuary (`None` / `Some(0)`) is 1.15; every other realm stays 0.45.
+/// The Ambrosian look-down in `follow_camera` does not use this.
+pub fn follow_look_height_for_realm(realm: Option<u8>) -> f32 {
+    match realm {
+        None | Some(0) => SANCTUARY_FOLLOW_LOOK_Y,
+        _ => FOLLOW_LOOK_Y,
     }
 }
 
@@ -1023,6 +1040,25 @@ pub fn presence_copy_is_honest(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD VP-SKY-1 — follow-camera look height: Sanctuary 1.15, every other
+    /// realm 0.45, and the Ambrosian look-down stays exactly 0.45.
+    #[test]
+    fn vp_sky_follow_look_height_sanctuary_other_and_ambrosian() {
+        assert_eq!(follow_look_height_for_realm(None), 1.15);
+        assert_eq!(follow_look_height_for_realm(Some(0)), 1.15);
+        for realm in 1u8..=8 {
+            assert_eq!(follow_look_height_for_realm(Some(realm)), 0.45, "realm {realm}");
+        }
+        // Ambrosian look-down literal in follow_camera is untouched.
+        let src = include_str!("human_presence.rs");
+        let body = &src[src.find("fn follow_camera(").expect("follow_camera")..];
+        let body = &body[..body.find("\n}\n").expect("end of follow_camera")];
+        assert!(body.contains(
+            "let look = if look_down {\n        Vec3::new(presence.position.x, 0.45, presence.position.z)\n    } else {"
+        ));
+        assert!(body.contains("follow_look_height_for_realm(realm.and_then(|r| r.current))"));
+    }
 
     #[test]
     fn accel_ramps_toward_walk() {

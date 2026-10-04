@@ -212,14 +212,14 @@ fn spawn_ecology(
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
 ) {
     let trunk = meshes.add(Cylinder::new(0.22, 2.4));
-    let canopy = meshes.add(Sphere::new(0.85));
+    let canopy = meshes.add(Cone { radius: 1.05, height: 2.6 });
     let wood = materials.add(StandardMaterial {
         base_color: Color::srgb(0.28, 0.18, 0.10),
         perceptual_roughness: 0.9,
         ..default()
     });
     let leaf = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.16, 0.42, 0.20),
+        base_color: Color::srgb(0.10, 0.32, 0.16),
         perceptual_roughness: 0.7,
         ..default()
     });
@@ -490,6 +490,135 @@ fn pulse_mycelium(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Leaf / needle green: green clearly leads both other channels.
+    fn is_leaf_or_green_skin(c: Color) -> bool {
+        let c = c.to_srgba();
+        c.green > c.red + 0.08 && c.green > c.blue + 0.08
+    }
+
+    /// Bark brown: warm, R > G > B with a clear spread, darker than tan.
+    fn is_bark(c: Color) -> bool {
+        let c = c.to_srgba();
+        c.red > c.green && c.green > c.blue && c.red - c.blue >= 0.12 && c.red <= 0.34
+    }
+
+    /// CARD VP-SKY-1 — Clerk's no-tree-people check. Leaf, bark and
+    /// green-skin materials appear only on the tree belt and the yard canopy
+    /// and trunks; no character, NPC or golem rig gets one; ecology props
+    /// are still not persons.
+    #[test]
+    fn vp_sky_no_tree_people_leaf_and_bark_only_on_trees() {
+        use crate::human_presence::{HumanPresence, HumanPresencePlugin};
+        use crate::local_human_sim::LocalHumanSimPlugin;
+        use crate::sky_backdrop::{SkyBackdropPart, SkyBackdropPlugin};
+        assert!(!ecology_props_are_persons());
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .add_plugins((
+                LivingEcologyPlugin,
+                SkyBackdropPlugin,
+                HumanPresencePlugin,
+                LocalHumanSimPlugin,
+            ));
+        app.finish();
+        app.cleanup();
+        app.world_mut().run_schedule(Startup);
+
+        let world = app.world_mut();
+        let mut q = world.query::<(
+            Entity,
+            &Handle<StandardMaterial>,
+            Option<&Handle<Mesh>>,
+            Option<&EcologyProp>,
+            Option<&SkyBackdropPart>,
+            Option<&Name>,
+        )>();
+        let rows: Vec<_> = q
+            .iter(world)
+            .map(|(e, m, mesh, eco, sky, name)| {
+                (
+                    e,
+                    m.clone(),
+                    mesh.cloned(),
+                    eco.map(|p| p.kind),
+                    sky.copied(),
+                    name.map(|n| n.as_str().to_string()),
+                )
+            })
+            .collect();
+        // Rig = the player person (HumanPresence root and every descendant)
+        // and the practice travelers (named roster).
+        let mut rigs = std::collections::HashSet::new();
+        let mut roots = world.query_filtered::<Entity, With<HumanPresence>>();
+        let mut stack: Vec<Entity> = roots.iter(world).collect();
+        assert!(!stack.is_empty(), "player rig spawned");
+        while let Some(e) = stack.pop() {
+            rigs.insert(e);
+            if let Some(children) = world.get::<Children>(e) {
+                stack.extend(children.iter().copied());
+            }
+        }
+        let travelers = ["Mira", "Ko", "Ren"];
+        for (e, _, _, _, _, name) in &rows {
+            if name.as_deref().is_some_and(|n| travelers.contains(&n)) {
+                rigs.insert(*e);
+            }
+        }
+        assert!(rigs.len() > travelers.len(), "rigs found: {}", rigs.len());
+
+        let mats = world.resource::<Assets<StandardMaterial>>();
+        let is_tree = |eco: &Option<PropKind>, sky: &Option<SkyBackdropPart>| {
+            *eco == Some(PropKind::Tree)
+                || matches!(sky, Some(SkyBackdropPart::BeltFull | SkyBackdropPart::BeltLow))
+        };
+        // The tree code's own leaf, needle and bark tones.
+        let tree_tones = [
+            Color::srgb(0.10, 0.32, 0.16),
+            Color::srgb(0.28, 0.18, 0.10),
+            Color::srgb(0.10, 0.30, 0.16),
+            Color::srgb(0.30, 0.22, 0.15),
+        ]
+        .map(|c| c.to_srgba());
+        // Tree meshes and materials: every handle used by a tree entity.
+        let tree_meshes: std::collections::HashSet<_> = rows
+            .iter()
+            .filter(|r| is_tree(&r.3, &r.4))
+            .filter_map(|r| r.2.as_ref().map(|m| m.id()))
+            .collect();
+        let tree_mats: std::collections::HashSet<_> = rows
+            .iter()
+            .filter(|r| is_tree(&r.3, &r.4))
+            .map(|r| r.1.id())
+            .collect();
+        let mut tree_leaf = 0;
+        for (e, mat, mesh, eco, sky, name) in &rows {
+            let c = mats.get(mat).expect("material").base_color;
+            if rigs.contains(e) {
+                assert!(
+                    !is_leaf_or_green_skin(c) && !is_bark(c),
+                    "rig {name:?} wears leaf/bark/green-skin {:?}",
+                    c.to_srgba()
+                );
+                assert!(eco.is_none() && sky.is_none(), "rig {name:?} is tagged as dress");
+            }
+            let tree = is_tree(eco, sky);
+            if tree_tones.contains(&c.to_srgba()) || tree_mats.contains(&mat.id()) {
+                assert!(tree, "tree material off the trees on {name:?} {:?}", c.to_srgba());
+                tree_leaf += 1;
+            }
+            if let Some(m) = mesh {
+                if tree_meshes.contains(&m.id()) {
+                    assert!(tree, "tree mesh off the trees on {name:?}");
+                }
+            }
+        }
+        // 5 yard trunks + 5 canopies + full and low belts (bark + needle each).
+        assert_eq!(tree_leaf, 5 + 5 + 4);
+    }
 
     #[test]
     fn place_mood_dress_maps_realm_to_four_places() {
