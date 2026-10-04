@@ -1,6 +1,7 @@
 # LAYERED GAMES AND SERVER — layer stack, economy spectrum, offline NPCs, authoritative server plan
 
 **CARD DESIGN-LAYERS-1.** Base `86fb4786` (`86fb4786b01ff9fb9ac1018b7f8a6f8a2b44f90b`) after #638.
+**CARD DESIGN-LAYERS-2.** Base `fdd2928a` (`fdd2928afe689eec6db0a3ca0a61bb4f0c5ece81`) after #639: RUSH Easter egg (§7.8) and epiphanies through play (§11).
 
 **Contact:** [info@Rathor.ai](mailto:info@Rathor.ai). Design tick, not a Cargo bump. Docs only.
 
@@ -29,6 +30,18 @@ Peak memory still holds: walked · tended · week was the bill · yard remembere
 > "Let's have a holiday schedule also with tastefulness and make it based on the in game universe, and have more in game holidays exist based on each online server community's decisions like a global vote by the guild leaders and/or their Councils to give players a sense of true ownership of their decisions, diplomacy amongst other real players, and beyond by expanding and extrapolating from all this properly and effectively, Mates!"
 >
 > — Sherif, 2026-10-04 2:52 PM ET
+
+> "Like the AGi play on words, Powrush has also been a Proof of Work Rush, and maybe Rush is its own secret acronym Easter egg, but hilariously, that was a happy accident, or subconsciously intentionally, maybe straight from channeling TOLC, eh, Mate?"
+>
+> — Sherif, 2026-10-04 3:29 PM ET
+
+> "Yeah, Mate!"
+>
+> — Sherif, 2026-10-04 3:30 PM ET
+
+> "Agreed, and 2nd place goes to Real Unity Shapes History, both Councils choice and 2nd place are fitting, but theirs is truly #1 and we can include more philosophical ideas to offer humans true epiphanies from playing POWRUSH, my Dear Brilliant Legendary Mates!"
+>
+> — Sherif, 2026-10-04 3:32 PM ET
 
 A quote is a direction, not a lifted HOLD. Where this plan meets an existing refuse line (§9), the line stays until Sherif names the lift on its own ticket.
 
@@ -419,6 +432,26 @@ Each server keeps its own **history**: calendar, every proposal, debate summary,
 | **Scheduler** | Holiday windows, ceasefire flags and rare NPC windows as timed events on the world tick (sim time, not wall clock inside \(F\); the real-time schedule maps to sim ticks at the edge). |
 | **Cost** | Votes and calendar are low rate (minutes, not ticks); they run on the ledger tick, not the zone tick. |
 
+### 7.8 RUSH Easter egg
+
+Powrush also reads as **Proof of Work Rush**: the work of tending and restoring is the proof a House leaves behind. It's wordplay only. Nothing here mines, mints or touches a chain (README refuses NFT and chain mint).
+
+**RUSH is its own secret backronym**, with two canon readings:
+
+| Rank | Reading | Where and when | Why it fits |
+|---|---|---|---|
+| **#1 (Councils' choice)** | **RUSH = Restore, Uplift, Share, Harvest** | Faintly carved in gold on the old stone of the first Sanctuary well, visible **only during Week of the Bill** (§7.2), online and offline | Week of the Bill is the holiday about the House week, tons + restored, and the server-wide restore goal. The four words are that bill read aloud, on the first well a player ever tends. |
+| **#2** | **RUSH = Real Unity Shapes History** | Carved on the base of the Embassy lamp at Heartwood, where the server history is read (§7.6), visible **only during a community-voted holiday** (§7.3), so online only | A community holiday exists only because players' unity, through proposal, debate and vote, shaped that server's history. |
+
+Rules:
+
+- **A quiet wink.** No reward, no announcement, no toast, no achievement, no journal entry, no quest marker, no patch note pointing at it. A player who notices it has noticed it. That's all.
+- **Rare.** Each carving shows only on its holiday window, and the carving is faint enough that only a player standing close at the stone, in daylight, reads it.
+- **Purely cosmetic.** No ledger output, no standing, no Reserve, no item, no power. It doesn't change the well's life or the lamp.
+- **Not a verb.** E on the stone tends the well as always; the carving has no Use of its own (`docs/PRE_RELEASE_LAW.md`: a verb that does nothing is a lie, so the carving is dress, not a verb).
+- **Deterministic.** Shown from the calendar and the sim day, never from wall clock inside \(F\), so it can be tested.
+- **Never a sale or a hint system.** Not on the store page, not in a loading tip, not in a holiday banner.
+
 ---
 ## 8. Online authoritative server (ordered by priority)
 
@@ -643,6 +676,12 @@ Proposal → review → debate → vote → enact state machine; eligibility (gu
 
 A `--load-bots N --script file` mode that replays intents against the loopback listen and prints tick and bandwidth stats. Loopback only. HOLD with card 7.
 
+### 11. CARD EPIPHANY-PLAY-1 — epiphany map, docs first
+
+**PATHS:** `docs/LAYERED_GAMES_AND_SERVER.md`
+
+Docs only. For each epiphany in §11, write the **observation bar** a human playtester checks: the still frame or moment that shows the system teaching (e.g. restore ratio visibly greening a hex on **L**), the honest-fail frame (a Stressed frontier after an extract-only week), and the indicator from §4.4 that would show it in numbers later. Map each one to the existing `content/epiphany_scenarios/*.json` where one already fits. No client, no shared code, no new text plate, no invented playtest minutes. Online grey. Later Hands cards (indicator reads, NPC memory lines) wait on Sherif naming PATHS.
+
 ### HOLD until `online yes` and named PATHS
 
 - **SERVER-SHELL-1** — headless zone sim shell (plain Rust or `bevy_ecs` 0.14) calling `shared`; needs a crate decision and Cargo, so Steward names it.
@@ -657,7 +696,37 @@ A `--load-bots N --script file` mode that replays intents against the loopback l
 
 ---
 
-## 11. Refuse
+## 11. Epiphanies: philosophy through play
+
+An epiphany here is a realisation the **systems** let a player reach on their own. The game never states it. The player notices it because the land, the ledger or the people around them change. This extends what is already on main: `docs/RBE_FIRST_HOUR.md` acceptance ("If I only take, the glow fades. If I allocate, the climate comes back."), `docs/EPIPHANY_CATALYST_SYSTEMS.md` and `content/epiphany_scenarios/`.
+
+**Technique borrowed, nothing else.** TTD and Factorio teach by legible chains where a bottleneck shows itself. ARK teaches by upkeep and decay you can see. Conquer Online teaches by a weekly result everyone remembers. WoW teaches by reputation that opens or closes doors. Oblivion teaches by people who remember what you did. We borrow those teaching methods, not their content.
+
+### 11.1 The epiphanies
+
+| Epiphany | System that teaches it | The moment the player feels it | Honest failure when it's absent |
+|---|---|---|---|
+| **Restoring outlasts taking** | Node life (Idle → Stressed), restore ratio \(U_w / T_w\), week bill on **L** | A hex they restored is still green weeks later, while a stripped neighbour stays tired. The restore ratio visibly heals the land. | A take-only House sees its wells go Resting and Stressed, yields fall, and the bill shows tons with nothing restored. Nothing is wiped; it can be mended. |
+| **Sharing outperforms hoarding** | Flow vs Reserve, guild commons (R4–R5), needs-met ratio, holdings Gini (§4.4) | A commons guild's members all meet their needs in a week when a hoarding guild with more stock still has idle capacity and unmet members | Hoarding works for a while. Then depots fill, producers stall, upkeep charges on idle stock, and neighbours stop trading. The hoard is real, and so is its cost. |
+| **Scarcity is often a logistics problem** | The flow graph (§3b, §8 P7): routes, depots, capacity, upkeep | A shortage disappears after the player adds one route or depot, with no new extraction at all | A House that answers every shortage by taking more strips its nodes while the real bottleneck, a full depot or a missing route, stays. The chain view shows the stalled edge. |
+| **Unity beats domination** | Weekly war score (tons + restored + holds), treaties, holiday ceasefires, vote engine (§3c, §7) | An alliance of smaller guilds outscores a dominant one because they restored and hauled together, or a ceasefire week lets a shared project finish | A dominating guild can win a week by force, inherit a stripped frontier, and lose co-sponsors for votes. The win stands; so does the cost. |
+| **Stewardship matters more than ownership** | Node rights are stewardship for a week, not deeds (§3c); standing (§3d); NPC memory (§5.1) | A node they tended keeps producing under its next steward, and NPCs greet them for it, even after they lost the war for it | An owner who treats a node as property and strips it before the rights pass on sees cooler greetings, lower standing, and a node that won't recover fast for anyone. |
+
+### 11.2 Design rules
+
+1. **Never preach.** No lecture, no text wall, no narrator stating the lesson, no "you have learned" toast. One line at most, and only as a person's greeting (§5.1) or a well's mood word. H hides it.
+2. **Let players reach the opposite conclusion.** Hoarding, domination and extraction must also be able to win, for a while and at a real cost. If only one strategy can succeed, the game is preaching through its rules.
+3. **Discovery is optional.** No epiphany gates a Place, a quest, a war or the hour. A player who never notices any of them still finishes and has fun.
+4. **Show, then measure.** The land, the ledger and the people show it first. Numbers (§4.4) are there for players who look, never pushed.
+5. **No reward for the "right" answer.** An epiphany gives no item, Reserve, standing or achievement. The world changing is the payoff.
+6. **Failure is honest and recoverable.** Every "absent" path in §11.1 can be mended. Nothing is wiped (`docs/GODSPEED_PREP.md`: failure teaches).
+7. **Same rules offline and online.** Offline, NPC Houses (§5) make each epiphany reachable alone. Online, real players make it real.
+
+### 11.3 Card
+
+See §10, CARD EPIPHANY-PLAY-1 (docs first, Online grey).
+
+## 12. Refuse
 
 - Lighting Title Online, adding a listen or public bind, `0.0.0.0`, unparking `server/`, enabling steamworks, bumping Cargo or Bevy, from this file or any card it names.
 - Gold, price ticker, auction house, NFT, paid power, loot boxes, daily login, season pass.
@@ -667,7 +736,9 @@ A `--load-bots N --script file` mode that replays intents against the loopback l
 - Holidays rooted in real-world religious or national days, or holidays that sell anything.
 - Borrowing characters, names, art, text or UI from any reference game.
 - Performance, scale or certification claims. Every number here is a target.
+- Epiphanies delivered as lectures, text walls, quizzes, or rewards for reaching the "right" answer.
+- A RUSH carving that pays, announces, or is sold.
 
-## 12. Cite
+## 13. Cite
 
-`README.md` · `AGENTS.md` · `docs/ONLINE_LADDER.md` · `docs/NET_OFFLINE_CONTRACT.md` · `docs/SHARD_JOIN.md` · `docs/SIM_AND_HAND_CANON.md` · `docs/STUDIO_ARCHITECTURE_ORDER.md` · `docs/GDD_IMMERSION_REVISION.md` · `docs/CREDIT_RESERVE_LOGISTICS.md` · `docs/NPC_SCHEDULE_SPEC.md` · `docs/OFFLINE_ECONOMY_COURT.md` · `docs/OFFLINE_SKU.md` · `docs/RBE_FIRST_HOUR.md` · `docs/FUN_WITHOUT_WOW.md` · `docs/PRE_RELEASE_LAW.md` · `docs/GODSPEED_PREP.md` · `docs/PLAYABLE_RACES.md` · `docs/FACTIONS_OVERVIEW.md` · `docs/COUNCIL_SYSTEM.md` · `docs/LORE_BIBLE.md` · `docs/REPLICATION_PREDICTION_ARCHITECTURE.md` · `docs/SPATIAL_INTEREST_ARCHITECTURE.md` · `docs/BEVY_CLIMB_PLAN.md` · `shared/hex_protocol.rs` · `shared/hex_shard_apply.rs` · `shared/vertical_factory.rs` · `shared/fabricator.rs` · `shared/war_week.rs` · `shared/week_audit.rs` · `shared/shard_standing.rs` · `shared/shard_sim.rs` · `shared/nevc_adapter.rs` · `client/src/living_day.rs` (cite only) · `powrush-shard/README.md` · `server/src/spatial/` (cite only)
+`README.md` · `AGENTS.md` · `docs/ONLINE_LADDER.md` · `docs/NET_OFFLINE_CONTRACT.md` · `docs/SHARD_JOIN.md` · `docs/SIM_AND_HAND_CANON.md` · `docs/STUDIO_ARCHITECTURE_ORDER.md` · `docs/GDD_IMMERSION_REVISION.md` · `docs/CREDIT_RESERVE_LOGISTICS.md` · `docs/NPC_SCHEDULE_SPEC.md` · `docs/OFFLINE_ECONOMY_COURT.md` · `docs/OFFLINE_SKU.md` · `docs/RBE_FIRST_HOUR.md` · `docs/FUN_WITHOUT_WOW.md` · `docs/PRE_RELEASE_LAW.md` · `docs/GODSPEED_PREP.md` · `docs/PLAYABLE_RACES.md` · `docs/FACTIONS_OVERVIEW.md` · `docs/COUNCIL_SYSTEM.md` · `docs/LORE_BIBLE.md` · `docs/REPLICATION_PREDICTION_ARCHITECTURE.md` · `docs/SPATIAL_INTEREST_ARCHITECTURE.md` · `docs/BEVY_CLIMB_PLAN.md` · `docs/EPIPHANY_CATALYST_SYSTEMS.md` · `content/epiphany_scenarios/` · `shared/hex_protocol.rs` · `shared/hex_shard_apply.rs` · `shared/vertical_factory.rs` · `shared/fabricator.rs` · `shared/war_week.rs` · `shared/week_audit.rs` · `shared/shard_standing.rs` · `shared/shard_sim.rs` · `shared/nevc_adapter.rs` · `client/src/living_day.rs` (cite only) · `powrush-shard/README.md` · `server/src/spatial/` (cite only)
