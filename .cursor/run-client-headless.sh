@@ -108,13 +108,34 @@ if [[ "$window_up" -ne 1 ]]; then
 fi
 
 # One presentable frame — do not compare pixels.
-sleep 2
-if ! kill -0 "$client_pid" 2>/dev/null; then
-  echo "FAIL: process died before the frame"
-  exit 1
+# Settle loop: lavapipe can present an all-black first frame (~3,072 B PNG).
+# Grab; if the PNG is <= 4096 bytes, wait 2 s and grab again, within a budget
+# of min(10, 43 - SECONDS) s so the 35 s window wait + settle stays under the
+# workflow's 45 s guard. Budget <= 0 → one grab. The last grab always stands:
+# a black frame is never a FAIL (no pixel compare).
+settle_budget=$((43 - SECONDS))
+if (( settle_budget > 10 )); then
+  settle_budget=10
 fi
-
-grab_frame "$Q2_FRAME"
+settle_end=$((SECONDS + settle_budget))
+try=0
+while :; do
+  try=$((try + 1))
+  if ! kill -0 "$client_pid" 2>/dev/null; then
+    echo "FAIL: process died before the frame"
+    exit 1
+  fi
+  grab_frame "$Q2_FRAME"
+  bytes=0
+  if [[ -s "$Q2_FRAME" ]]; then
+    bytes=$(wc -c < "$Q2_FRAME")
+  fi
+  echo "Q2 settle: try $try bytes $bytes (budget ${settle_budget}s)"
+  if (( bytes > 4096 )) || (( settle_budget <= 0 )) || (( SECONDS + 2 > settle_end )); then
+    break
+  fi
+  sleep 2
+done
 if [[ ! -s "$Q2_FRAME" ]]; then
   echo "FAIL: frame file missing or empty: $Q2_FRAME"
   exit 1
