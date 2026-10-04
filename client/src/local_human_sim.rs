@@ -62,7 +62,7 @@ fn seed_travelers(
     let mesh = meshes.add(Capsule3d::new(0.22, 0.95));
     let roster = [
         ("Mira", Color::srgb(0.42, 0.28, 0.55), 0usize),
-        ("Ko", Color::srgb(0.22, 0.48, 0.32), 1),
+        ("Ko", Color::srgb(0.24, 0.36, 0.62), 1),
         ("Ren", Color::srgb(0.38, 0.34, 0.28), 2),
     ];
     for (name, color, well) in roster {

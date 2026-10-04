@@ -22,8 +22,9 @@
  * Cite [`docs/PLACE_DRESS_SPEC.md`] · [`docs/MESH_PERSONA_COURT.md`]
  * · [`docs/ART_BIBLE.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
  *
- * CARD FLESH-SANCTUARY-DRESS — Sanctuary yard earth is graphite-warm.
- * The warm-gold well stays the one readable glow on that earth. Comfort
+ * CARD FLESH-SANCTUARY-DRESS — superseded by CARD VP-SKY-1 (council ruling
+ * VISUAL-PASS-1 (a), 2026-10-04): Sanctuary is a blue-sky valley, not
+ * graphite-warm. The warm-gold well stays the one readable glow on that earth. Comfort
  * L/M/H held (no Ultra). Cite PEAK_MEMORY_LAW: walked to a well · tended
  * it · week was the bill · yard remembered. No new Place. No `.glb`.
  *
@@ -140,17 +141,21 @@ const NODE_ANCHORS: [Vec3; 3] = [
 /// this file stays the only F1 edit path.
 const SANCTUARY_WELL_GOLD: Color = Color::srgb(0.86, 0.66, 0.29);
 
-/// CARD FLESH-SANCTUARY-DRESS — graphite-warm yard earth (one family).
-/// Warm grey-gold pulled toward graphite so the well stays the one glow.
-/// Cite PLACE_DRESS Sanctuary yard · ART_BIBLE Human warm grey-gold ·
-/// DRIVE_PLACE_CITE warm gold well. Not Draek graphite-crimson.
-const SANCTUARY_GRAPHITE_EARTH: Color = Color::srgb(0.20, 0.19, 0.17);
-const SANCTUARY_GRAPHITE_STONE: Color = Color::srgb(0.27, 0.26, 0.24);
-const SANCTUARY_GRAPHITE_SKY: Color = Color::srgb(0.58, 0.56, 0.52);
-const SANCTUARY_GRAPHITE_FOG: Color = Color::srgba(0.44, 0.42, 0.39, 1.0);
-const SANCTUARY_GRAPHITE_AMBIENT: Color = Color::srgb(0.70, 0.67, 0.62);
+/// CARD VP-SKY-1 — Sanctuary blue-sky valley (council ruling 2026-10-04,
+/// VISUAL-PASS-1 (a)): lively colours drawn from the powrush.com art, no
+/// brown, beige or graphite-warm earth. Green valley earth, pale cool path
+/// stone, blue sky, blue haze, sky-blue ambient. The warm-gold well stays the
+/// one accent. Replaces FLESH-SANCTUARY-DRESS graphite-warm.
+const SANCTUARY_VALLEY_EARTH: Color = Color::srgb(0.33, 0.40, 0.20);
+const SANCTUARY_VALLEY_STONE: Color = Color::srgb(0.70, 0.72, 0.76);
+const SANCTUARY_VALLEY_SKY: Color = Color::srgb(0.55, 0.72, 0.92);
+const SANCTUARY_VALLEY_FOG: Color = Color::srgba(0.70, 0.79, 0.90, 1.0);
+const SANCTUARY_VALLEY_AMBIENT: Color = Color::srgb(0.70, 0.80, 1.0);
+/// Sanctuary haze opens past the yard so the valley and mountain ring read.
+pub const SANCTUARY_FOG_START: f32 = 45.0;
+pub const SANCTUARY_FOG_END: f32 = 650.0;
 
-/// Readable warm-gold well on graphite earth. Other Places keep the shared
+/// Readable warm-gold well on valley earth. Other Places keep the shared
 /// greybox paint scale. Comfort L/M/H do not retint this. No Ultra.
 pub const SANCTUARY_WELL_GLOW_SCALE: f32 = 3.2;
 /// Shared well paint scale (Heartwood / Depths). Sanctuary lifts above this.
@@ -302,21 +307,21 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             ambient_bright: 90.0,
             roughness: DEPTHS_WET_STONE_ROUGHNESS,
         },
-        // Sanctuary Prime — graphite-warm yard / teaching Peace
-        // (PLACE_DRESS_SPEC · FLESH-SANCTUARY-DRESS). One material family:
-        // graphite-warm earth ground + path stones; well node is the single
-        // warm-gold accent, kept readable against that earth. Not Heartwood
-        // green, not Brood Spire, not Market chrome. Not Draek crimson.
+        // Sanctuary Prime — blue-sky valley / teaching Peace (VP-SKY-1,
+        // council ruling VISUAL-PASS-1 (a)). Green valley earth, pale cool
+        // path stones, blue sky and haze; well node is the single warm-gold
+        // accent, kept readable against that earth. Not Heartwood bark, not
+        // Brood Spire, not Market chrome. Not Draek crimson.
         _ => ClimateLook {
             name: "Sanctuary Prime",
-            ground: SANCTUARY_GRAPHITE_EARTH,
-            sky: SANCTUARY_GRAPHITE_SKY,
-            fog: SANCTUARY_GRAPHITE_FOG,
-            ambient: SANCTUARY_GRAPHITE_AMBIENT,
+            ground: SANCTUARY_VALLEY_EARTH,
+            sky: SANCTUARY_VALLEY_SKY,
+            fog: SANCTUARY_VALLEY_FOG,
+            ambient: SANCTUARY_VALLEY_AMBIENT,
             node: SANCTUARY_WELL_GOLD,
-            stone: SANCTUARY_GRAPHITE_STONE,
-            fog_start: 12.0,
-            fog_end: 40.0,
+            stone: SANCTUARY_VALLEY_STONE,
+            fog_start: SANCTUARY_FOG_START,
+            fog_end: SANCTUARY_FOG_END,
             ambient_bright: 250.0,
             roughness: SANCTUARY_YARD_ROUGHNESS,
         },
@@ -515,8 +520,8 @@ pub fn place_dress_still_readable(scale: f32) -> bool {
     let d = look_for(Some(3));
     scale > 0.5
         && scale <= 1.15 + f32::EPSILON
-        && is_graphite_warm_earth(s.ground)
-        && is_graphite_warm_earth(s.stone)
+        && is_valley_earth(s.ground)
+        && is_valley_stone(s.stone)
         && is_warm_gold_well(s.node)
         && is_living_wood_earth(h.ground)
         && is_pipe_edge_iron(t.ground)
@@ -1190,7 +1195,7 @@ fn apply_climate_look(
     plane.applied_preset = Some(preset);
     plane.mood = place_mood_for(Some(id));
     let look = look_for(Some(id));
-    // Sanctuary well glow lifts on graphite earth. Other realms keep 2.2;
+    // Sanctuary well glow lifts on valley earth. Other realms keep 2.2;
     // lived paint in climate_visible owns the per-tick scale after this.
     let node_glow = if look.name == "Sanctuary Prime" {
         SANCTUARY_WELL_GLOW_SCALE
@@ -1372,13 +1377,45 @@ fn srgb3(c: Color) -> (f32, f32, f32) {
 
 /// Graphite-warm earth: warm grey-gold with tight chroma (FLESH-SANCTUARY-DRESS).
 /// Inside [`is_warm_yard_earth`], greyer than tan dirt, still warm (R≈G > B).
+#[cfg(test)]
 fn is_graphite_warm_earth(c: Color) -> bool {
     let (r, g, b) = srgb3(c);
     is_warm_yard_earth(c) && (r - g) <= 0.025 && (r - b) <= 0.05 && (0.16..=0.32).contains(&r)
 }
 
+/// VP-SKY-1 valley earth: green leads, clearly not brown or beige.
+fn is_valley_earth(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    g > r + 0.04 && g > b + 0.12 && (0.28..=0.60).contains(&g)
+}
+
+/// VP-SKY-1 path stone: pale and cool-neutral (granite), not beige.
+fn is_valley_stone(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    (r + g + b) / 3.0 >= 0.55 && b >= r && g >= r && (b - r) <= 0.12
+}
+
+/// VP-SKY-1 sky / ambient: blue leads (B > G > R), bright.
+fn is_valley_sky(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    b > g && g > r && b >= 0.75 && (b - r) >= 0.25
+}
+
+/// VP-SKY-1 haze: pale blue (B > G > R), lighter than the sky.
+fn is_valley_haze(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    b > g && g > r && b >= 0.75 && (b - r) >= 0.12
+}
+
+/// The banned family for Sanctuary (Sherif: no brown, beige, "poop" colours):
+/// warm yard earth, or any warm low-chroma R >= G >= B tone.
+fn is_brown_beige_family(c: Color) -> bool {
+    let (r, g, b) = srgb3(c);
+    is_warm_yard_earth(c) || (r >= g && g >= b && (r - b) >= 0.03 && (r - b) < 0.45 && r < 0.95)
+}
+
 /// Emissive paint scale for a lived Place well. Sanctuary lifts so the
-/// warm-gold accent stays readable on graphite-warm earth (ART_BIBLE: one glow).
+/// warm-gold accent stays readable on valley earth (ART_BIBLE: one glow).
 /// Heartwood and Depths keep the shared scale. Comfort L/M/H do not retint.
 pub fn well_glow_scale_for_place(place: PlaceId) -> f32 {
     match place {
@@ -1502,16 +1539,16 @@ mod tests {
     }
 
     #[test]
-    fn sanctuary_greybox_is_one_warm_yard_family() {
+    fn sanctuary_valley_is_one_lively_family() {
         let s = look_for(Some(0));
         assert!(
-            is_warm_yard_earth(s.ground),
-            "Sanctuary ground must read warm yard earth, got {:?}",
+            is_valley_earth(s.ground),
+            "Sanctuary ground must read green valley earth, got {:?}",
             srgb3(s.ground)
         );
         assert!(
-            is_warm_yard_earth(s.stone),
-            "Sanctuary stones must share yard earth family, got {:?}",
+            is_valley_stone(s.stone),
+            "Sanctuary path stones must read pale cool stone, got {:?}",
             srgb3(s.stone)
         );
         assert!(
@@ -1519,20 +1556,20 @@ mod tests {
             "Sanctuary well must be warm-gold accent, got {:?}",
             srgb3(s.node)
         );
-        // Ground + stone stay one family: same warm bias; path stones catch
-        // a touch more light so they read as yard dressing, not a second biome.
+        // Path stones catch more light than the earth so they read as yard
+        // dressing on the valley floor.
         let (gr, gg, gb) = srgb3(s.ground);
         let (sr, sg, sb) = srgb3(s.stone);
         let g_lum = (gr + gg + gb) / 3.0;
         let s_lum = (sr + sg + sb) / 3.0;
         assert!(
             s_lum > g_lum,
-            "path stones should sit slightly above ground luminance"
+            "path stones should sit above ground luminance"
         );
-        assert!(
-            (sr - gr).abs() < 0.12 && (sg - gg).abs() < 0.12 && (sb - gb).abs() < 0.12,
-            "stone drifted out of the yard earth family"
-        );
+        // Council ruling VISUAL-PASS-1 (a): no brown / beige in Sanctuary dress.
+        for c in [s.ground, s.stone, s.sky, s.fog, s.ambient] {
+            assert!(!is_brown_beige_family(c), "brown/beige in Sanctuary: {:?}", srgb3(c));
+        }
         // F1 Sanctuary stays warm-yard; F2 Heartwood is living-wood — not
         // the same family, and Sanctuary must not wear Heartwood dress.
         let h = look_for(Some(2));
@@ -1547,30 +1584,31 @@ mod tests {
         assert!(!is_amber_lamp(s.node));
     }
 
-    /// CARD FLESH-SANCTUARY-DRESS — graphite-warm earth, readable warm-gold well.
+    /// CARD VP-SKY-1 — blue-sky valley, readable warm-gold well (council
+    /// ruling VISUAL-PASS-1 (a), replaces FLESH-SANCTUARY-DRESS graphite-warm).
     /// Comfort stays Low / Medium / High. No Ultra. Other Places keep their dress.
     #[test]
-    fn flesh_sanctuary_dress_is_graphite_warm_with_readable_well() {
+    fn vp_sky_sanctuary_is_blue_sky_valley_with_readable_well() {
         let s = look_for(Some(0));
-        assert!(is_graphite_warm_earth(s.ground), "{:?}", srgb3(s.ground));
-        assert!(is_graphite_warm_earth(s.stone), "{:?}", srgb3(s.stone));
-        assert_eq!(srgb3(s.ground), srgb3(SANCTUARY_GRAPHITE_EARTH));
-        assert_eq!(srgb3(s.stone), srgb3(SANCTUARY_GRAPHITE_STONE));
-        assert_eq!(srgb3(s.sky), srgb3(SANCTUARY_GRAPHITE_SKY));
-        assert_eq!(srgb3(s.fog), srgb3(SANCTUARY_GRAPHITE_FOG));
-        assert_eq!(srgb3(s.ambient), srgb3(SANCTUARY_GRAPHITE_AMBIENT));
-        // Weather stays in the yard family so fog is not a second biome.
-        assert!(is_warm_yard_earth(s.fog));
-        assert!(is_warm_yard_earth(s.sky));
-        assert!(is_warm_yard_earth(s.ambient));
+        assert!(is_valley_earth(s.ground), "{:?}", srgb3(s.ground));
+        assert!(is_valley_stone(s.stone), "{:?}", srgb3(s.stone));
+        assert_eq!(srgb3(s.ground), srgb3(SANCTUARY_VALLEY_EARTH));
+        assert_eq!(srgb3(s.stone), srgb3(SANCTUARY_VALLEY_STONE));
+        assert_eq!(srgb3(s.sky), srgb3(SANCTUARY_VALLEY_SKY));
+        assert_eq!(srgb3(s.fog), srgb3(SANCTUARY_VALLEY_FOG));
+        assert_eq!(srgb3(s.ambient), srgb3(SANCTUARY_VALLEY_AMBIENT));
+        // Weather is the valley: blue sky, pale blue haze, sky-blue ambient.
+        assert!(is_valley_haze(s.fog));
+        assert!(is_valley_sky(s.sky));
+        assert!(is_valley_sky(s.ambient));
         assert!(is_warm_gold_well(s.node));
         let (gr, gg, gb) = srgb3(s.ground);
         let (nr, ng, nb) = srgb3(s.node);
         let earth = (gr + gg + gb) / 3.0;
         let well = (nr + ng + nb) / 3.0;
         assert!(
-            well > earth + 0.35,
-            "warm-gold well must read above graphite earth ({well} vs {earth})"
+            well > earth + 0.25,
+            "warm-gold well must read above valley earth ({well} vs {earth})"
         );
         assert!(SANCTUARY_WELL_GLOW_SCALE > PLACE_WELL_GLOW_SCALE);
         assert_eq!(
@@ -1585,10 +1623,13 @@ mod tests {
             well_glow_scale_for_place(PlaceId::Depths),
             PLACE_WELL_GLOW_SCALE
         );
-        // Wells sit inside the clear band; horizon stays a yard, not Depths night.
+        // Wells sit inside the clear band; haze opens past the yard so the
+        // valley and mountain ring read. Not Depths night.
         assert!(s.fog_start >= 12.0);
         assert!(s.fog_end > s.fog_start);
-        assert!(s.fog_end > 20.0);
+        assert!(s.fog_end >= 400.0);
+        assert_eq!(s.fog_start, SANCTUARY_FOG_START);
+        assert_eq!(s.fog_end, SANCTUARY_FOG_END);
         assert_eq!(GraphicsPreset::ALL.len(), 5);
         assert_eq!(GraphicsPreset::Low.label(), "Low");
         assert_eq!(GraphicsPreset::Medium.label(), "Medium");
@@ -1655,10 +1696,10 @@ mod tests {
 
     #[test]
     fn place_readable_from_sanctuary_dress_before_slab() {
-        // Nameable from presentation alone: warm yard + warm-gold well + name.
+        // Nameable from presentation alone: valley earth + warm-gold well + name.
         let s = look_for(Some(0));
         assert_eq!(s.name, "Sanctuary Prime");
-        assert!(is_warm_yard_earth(s.ground));
+        assert!(is_valley_earth(s.ground));
         assert!(is_warm_gold_well(s.node));
         assert!(s.fog_end > s.fog_start);
         assert!(climate_dress_copy_is_honest(s.name));
@@ -2064,7 +2105,7 @@ mod tests {
         assert!(!is_amber_lamp(t.node));
         assert!(climate_dress_copy_is_honest(t.name));
         // F1 / F2 dress stays intact under F3.
-        assert!(is_warm_yard_earth(s.ground));
+        assert!(is_valley_earth(s.ground));
         assert!(is_living_wood_earth(h.ground));
         assert_eq!(s.roughness, SANCTUARY_YARD_ROUGHNESS);
         assert_eq!(h.roughness, HEARTWOOD_WOOD_ROUGHNESS);
@@ -2250,14 +2291,14 @@ mod tests {
             assert!(place_dress_still_readable(place_dress_lod_scale(preset)));
         }
         // F1 / F2 / F3 dress stays intact under F4 fog.
-        // Sanctuary graphite is the earth (ground + stone). Sky and fog stay
-        // the named warm-yard graphite family, brighter than that earth band.
-        assert!(is_graphite_warm_earth(s.ground));
-        assert!(is_graphite_warm_earth(s.stone));
-        assert_eq!(srgb3(s.sky), srgb3(SANCTUARY_GRAPHITE_SKY));
-        assert_eq!(srgb3(s.fog), srgb3(SANCTUARY_GRAPHITE_FOG));
-        assert!(is_warm_yard_earth(s.fog));
-        assert!(is_warm_yard_earth(s.sky));
+        // Sanctuary is the blue-sky valley (VP-SKY-1): green earth, pale
+        // stone, blue sky and haze.
+        assert!(is_valley_earth(s.ground));
+        assert!(is_valley_stone(s.stone));
+        assert_eq!(srgb3(s.sky), srgb3(SANCTUARY_VALLEY_SKY));
+        assert_eq!(srgb3(s.fog), srgb3(SANCTUARY_VALLEY_FOG));
+        assert!(is_valley_haze(s.fog));
+        assert!(is_valley_sky(s.sky));
         assert!(is_living_wood_earth(h.ground));
         assert!(is_living_wood_earth(h.fog));
         assert!(is_living_wood_earth(h.sky));
@@ -2294,7 +2335,7 @@ mod tests {
         assert!(!is_tend_seam(d.node));
         assert!(climate_dress_copy_is_honest(d.name));
         // F1 / F2 / F3 dress stays intact under F4.
-        assert!(is_warm_yard_earth(s.ground));
+        assert!(is_valley_earth(s.ground));
         assert!(is_living_wood_earth(h.ground));
         assert!(is_pipe_edge_iron(t.ground));
         assert_eq!(s.roughness, SANCTUARY_YARD_ROUGHNESS);
@@ -2436,8 +2477,15 @@ mod tests {
 
         let yard_low = weather_bed_for(Some(0), GraphicsPreset::Low.weather_fidelity());
         let yard_mid = weather_bed_for(Some(0), WeatherFidelity::Medium);
-        assert!(low_bed_gentler_than_medium(&yard_low, &yard_mid));
-        assert!(is_warm_yard_earth(yard_low.fog));
+        // VP-SKY-1: the open valley already sits past the Low floors, so Low
+        // keeps the Medium distances; breath and tint stay gentler.
+        assert_eq!(yard_low.mood, yard_mid.mood);
+        assert!(yard_low.fog_start >= yard_mid.fog_start);
+        assert!(yard_low.fog_end >= yard_mid.fog_end);
+        assert!(yard_low.breath_hz < yard_mid.breath_hz);
+        assert!(yard_low.breath_amp < yard_mid.breath_amp);
+        assert!(yard_low.tint_strength < yard_mid.tint_strength);
+        assert!(is_valley_haze(yard_low.fog));
         assert!(is_warm_gold_well(look_for(Some(0)).node));
         assert!(medium_high_hold_dressed_fog(Some(0)));
         assert!(medium_high_hold_dressed_fog(Some(2)));

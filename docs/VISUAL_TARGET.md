@@ -3,7 +3,7 @@
 **CARD:** ART-TARGET-1
 **Base:** `6b6fe4d19ba96bec26e93928dcc7e31f859038c6` (main tip). Bevy pin 0.14; lockfile crate `bevy` 0.14.2.
 **Contact:** info@Rathor.ai
-**Independent of xAI.** No certification / AGSi warranty / legal-product claims.
+No certification / AGSi warranty / legal-product claims.
 
 This file turns the intended look into procedural knobs. It does not ship meshes, images, hex targets, or a new preset enum. Cite Drive files by name and file id only. No image is embedded.
 
@@ -96,7 +96,7 @@ Node stills sit closer to desaturated earth. `01_glow_field.jpg` (`1PCI6iuZkMZc_
 Working target until Sherif rules: [`ART_BIBLE.md`](ART_BIBLE.md) L19, quoted:
 
 ```
-Gritty low-poly volume, high-detail light. Desaturated earth + one biome accent.
+Gritty low-poly volume, high-detail light. Lively valley colour + one biome accent (council ruling VISUAL-PASS-1 (a), 2026-10-04: no brown or beige earth).
 ```
 
 Ambrosian accent, [`ART_BIBLE.md`](ART_BIBLE.md) L41, quoted:
@@ -107,7 +107,7 @@ Ambrosian accent, [`ART_BIBLE.md`](ART_BIBLE.md) L41, quoted:
 
 Place accents (L26–L29): Sanctuary warm gold well; Heartwood amber lamp; Threshold iron + tend seam; Depths teal Peace. Practice accents (L37–L40): Human warm grey-gold; Draek dry red / bronze; Quellorian iridescent violet / pink and pale gold. Cydruid accent is the L39 quote in the exclusion. One accent. No sixth people (L43).
 
-**GAP-AMBROSIAN-ACCENT.** For Sherif. The corrected Ambrosian stills show warm stone / cream / teal / gold / a cyan focal. L41 says `prism cool`. This card does not pick a side. Until he rules, this knob follows [`ART_BIBLE.md`](ART_BIBLE.md): desaturated earth, one accent, Ambrosian word `prism cool`. The sampled hexes are not adopted. L41 gives no hex for `prism cool`. This card invents none.
+**GAP-AMBROSIAN-ACCENT.** For Sherif. The corrected Ambrosian stills show warm stone / cream / teal / gold / a cyan focal. L41 says `prism cool`. This card does not pick a side. Until he rules, this knob follows [`ART_BIBLE.md`](ART_BIBLE.md): lively valley colour, one accent, Ambrosian word `prism cool`. The sampled hexes are not adopted. L41 gives no hex for `prism cool`. This card invents none.
 
 **GAP-TEAL-OVERLAP.** L39’s Cydruid accent is teal trim. The same Ambrosian stills also lean teal. Two practices would share teal if the stills were adopted. They are not. Depths may stay teal Peace (L29) because that line is canon, not because an Ambrosian painting used teal.
 
@@ -123,7 +123,7 @@ Mute, invert-Y, remaps, colorblind tokens, grey Online — if Title is in frame,
 
 | Tier | What this tier shows |
 |---|---|
-| Mobile | Base look. Desaturated earth and one accent. Ambrosian accent word is `prism cool`. No second accent. No sampled hex. No trailer saturation. |
+| Mobile | Base look. Lively valley colour and one accent. Ambrosian accent word is `prism cool`. No second accent. No sampled hex. No trailer saturation. |
 | Low | Adds a clearer split of that one accent on large surfaces (node, door, trim). Still one accent. |
 | Medium (default) | Adds the Place accent from L26–L29 when the player is in that Place. Ambrosian practice word stays `prism cool`. |
 | High | Adds the same one accent on fuller dress trim (`MeshLod::High`). No second hue family. |
@@ -141,7 +141,7 @@ Trailer, lowest precedence: frame 15 pink-lilac sunset and a huge planet and moo
 
 ### Canon
 
-Sky is weather and Place, not a second palette. L19 still holds: desaturated earth, one accent. L22: no second `Camera3d`. A cubemap is not named in the cited docs. **GAP-SKYBOX-ASSET.**
+Sky is weather and Place, not a second palette. L19, as amended by the council ruling VISUAL-PASS-1 (a), 2026-10-04: lively valley colour, one accent; the Sanctuary sky is blue. VP-SKY-1 draws a procedural gradient dome mesh, not a cubemap. L22: no second `Camera3d`. A cubemap is not named in the cited docs. **GAP-SKYBOX-ASSET.**
 
 Bevy 0.14.2 has `Skybox` in `bevy_core_pipeline` (verified in the 0.14.2 crate). This card does not assign an image to it.
 
@@ -235,7 +235,7 @@ Bevy 0.14.2, verified in the locked crates, and not given numbers here: `BloomSe
 
 ### Canon
 
-L19: gritty low-poly volume, high-detail light, desaturated earth, one accent. L21: water is a bath. L27: Heartwood ribs stay outside the water. L39: leaf-metal is trim, not bark-skin. Moss on stone, a vine on a prop, and a leaf emblem on armor or a banner are props. They are not a body.
+L19: gritty low-poly volume, high-detail light, lively valley colour, one accent. L21: water is a bath. L27: Heartwood ribs stay outside the water. L39: leaf-metal is trim, not bark-skin. Moss on stone, a vine on a prop, and a leaf emblem on armor or a banner are props. They are not a body.
 
 [`ART_BIBLE.md`](ART_BIBLE.md) L57, the C-16 line: Heartwood / Wards borrow only the restrained colour rhyme from the waterfall crystalline city, never the city mesh.
 
