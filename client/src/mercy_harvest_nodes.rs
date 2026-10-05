@@ -554,6 +554,20 @@ fn watch_idle_after_tend(
     }
 }
 
+
+/// CARD TEMPER-HOOK-DIGIT1 — Digit1 crafts a Tend Hook when the bench can.
+/// Hidden, unplanted, or empty spool stays a refusal. No gold. No new verb.
+fn craft_hands_tend_hook(
+    fab: &mut shared::fabricator::Fabricator,
+) -> Result<shared::temper::TemperedItem, &'static str> {
+    let id = fab
+        .last_tempered
+        .as_ref()
+        .map(|item| item.id.saturating_add(1))
+        .unwrap_or(1);
+    fab.craft_tend_hook(id, "hands")
+}
+
 /// Esc / 3 dismiss always. 1 Temper · 2 Ward. Never reads WASD or E.
 fn handle_care_cycle_input(
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -577,6 +591,17 @@ fn handle_care_cycle_input(
         return;
     }
     if keyboard.just_pressed(KeyCode::Digit1) {
+        match craft_hands_tend_hook(&mut yard.fab) {
+            Ok(item) => info!(
+                target: "powrush::temper",
+                "Tend Hook crafted · id {}",
+                item.id
+            ),
+            Err(reason) => info!(
+                target: "powrush::temper",
+                "Tend Hook refused — {reason}"
+            ),
+        }
         offer.choose(CareCycleChoice::TemperTool);
         return;
     }
@@ -888,6 +913,26 @@ mod tests {
         offer.choose(CareCycleChoice::TemperTool);
         assert!(!offer.active);
         assert_eq!(offer.choice, Some(CareCycleChoice::TemperTool));
+
+    #[test]
+    fn digit1_temper_crafts_hook_when_spool_is_stocked() {
+        let mut fab = shared::fabricator::Fabricator::default();
+        fab.planted = true;
+        fab.spool_stock = 1;
+        let item = craft_hands_tend_hook(&mut fab).expect("hook");
+        assert_eq!(item.tier, shared::temper::ToolTier::TendHook);
+        assert_eq!(fab.last_tempered.as_ref().map(|i| i.id), Some(item.id));
+        assert_eq!(fab.spool_stock, 0);
+    }
+
+    #[test]
+    fn digit1_temper_refuses_without_spool() {
+        let mut fab = shared::fabricator::Fabricator::default();
+        fab.planted = true;
+        assert_eq!(craft_hands_tend_hook(&mut fab), Err("missing_spool"));
+        assert!(fab.last_tempered.is_none());
+    }
+
 
         offer.active = true;
         offer.choose(CareCycleChoice::DistillWard);
