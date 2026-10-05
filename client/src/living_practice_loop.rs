@@ -57,6 +57,16 @@ impl PracticeSurface {
         }
     }
 
+    /// Yard line under the three-climate seal. The seal sentence stays in `prompt`.
+    pub fn after_seal(&self) -> Option<&'static str> {
+        match self {
+            PracticeSurface::PrincipleSealed => Some("E tend the well · the principle holds"),
+            PracticeSurface::SanctuaryCap
+            | PracticeSurface::VerdantSurge
+            | PracticeSurface::HorizonScarcity => None,
+        }
+    }
+
     pub fn next(&self) -> Self {
         match self {
             PracticeSurface::SanctuaryCap => PracticeSurface::VerdantSurge,
@@ -260,18 +270,15 @@ fn update_practice_visibility(
     }
 }
 
-fn update_practice_text(
-    practice: Res<LivingPracticeLoop>,
-    time: Res<Time>,
-    mut query: Query<&mut Text, With<LivingPracticeText>>,
-) {
-    if !practice.is_changed() && practice.celebrate_until <= 0.0 {
-        return;
-    }
-    let now = time.elapsed_seconds_f64();
+/// Strip copy. After the seal, the next line names the well. No fourth climate.
+fn practice_strip_body(practice: &LivingPracticeLoop, now: f64) -> String {
     let celebrating = now < practice.celebrate_until;
-    let body = if practice.principle_sealed {
-        practice.surface.prompt().to_string()
+    if practice.principle_sealed {
+        let seal = practice.surface.prompt();
+        match practice.surface.after_seal() {
+            Some(well) => format!("{seal}\n{well}"),
+            None => seal.to_string(),
+        }
     } else if celebrating {
         format!(
             "Surface cleared · {} → next climate",
@@ -284,7 +291,20 @@ fn update_practice_text(
             practice.mercy_harvests_on_surface,
             practice.harvests_needed
         )
-    };
+    }
+}
+
+fn update_practice_text(
+    practice: Res<LivingPracticeLoop>,
+    time: Res<Time>,
+    mut query: Query<&mut Text, With<LivingPracticeText>>,
+) {
+    if !practice.is_changed() && practice.celebrate_until <= 0.0 {
+        return;
+    }
+    let now = time.elapsed_seconds_f64();
+    let celebrating = now < practice.celebrate_until;
+    let body = practice_strip_body(&practice, now);
     for mut text in &mut query {
         if let Some(section) = text.sections.get_mut(0) {
             section.value = body.clone();
@@ -442,6 +462,35 @@ mod tests {
         assert!(loop_.credit_mercy_harvest(5.0));
         assert!(loop_.credit_mercy_harvest(6.0));
         assert!(loop_.principle_sealed);
+        assert_eq!(loop_.surface.next(), PracticeSurface::PrincipleSealed);
+    }
+
+    #[test]
+    fn after_seal_line_names_the_well_and_keeps_the_seal() {
+        let seal =
+            "You carried the same principle across three climates. Sovereign exploration continues.";
+        assert_eq!(PracticeSurface::PrincipleSealed.prompt(), seal);
+        assert_eq!(
+            PracticeSurface::PrincipleSealed.after_seal(),
+            Some("E tend the well · the principle holds")
+        );
+        assert!(PracticeSurface::SanctuaryCap.after_seal().is_none());
+        assert!(PracticeSurface::VerdantSurge.after_seal().is_none());
+        assert!(PracticeSurface::HorizonScarcity.after_seal().is_none());
+
+        let mut loop_ = LivingPracticeLoop::default();
+        loop_.active = true;
+        for t in 1..=6 {
+            assert!(loop_.credit_mercy_harvest(t as f64));
+        }
+        assert!(loop_.principle_sealed);
+        assert_eq!(loop_.surface, PracticeSurface::PrincipleSealed);
+        let body = practice_strip_body(&loop_, 6.0);
+        assert_eq!(
+            body,
+            format!("{seal}\nE tend the well · the principle holds")
+        );
+        assert!(!body.contains("next climate"));
     }
 
     #[test]
