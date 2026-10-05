@@ -2,9 +2,11 @@
 
 use bevy::prelude::*;
 
+use crate::first_harvest_epiphany::wards_may_claim_use;
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
 use crate::input::PlayerInput;
+use crate::skirmish_well::near_first_well;
 use shared::heartwood_wards::{
     WardDress, WardVerb, WARD_POST_CENTERS, WARD_POST_SIZE, WARD_SEALS, WARD_USE_RADIUS,
 };
@@ -96,9 +98,12 @@ fn use_heartwood_wards(
     }
     let body = Vec2::new(presence.position.x, presence.position.z);
     let near = near_ward_post(body);
+    // Same reach `mark_well_near` / `handle_well` already use. Not a new radius.
+    let well_in_reach = near_first_well(&presence);
     session.near = near;
     if let Some(epiphany) = epiphany.as_deref_mut() {
         epiphany.wards_near = near;
+        epiphany.well_in_reach = well_in_reach;
     }
     if !near {
         return;
@@ -108,18 +113,34 @@ fn use_heartwood_wards(
         session.last_line = session.dress.apply(WardVerb::Look).into();
         info!(target: "powrush::wards", "{}", session.last_line);
     }
-    if input.interact {
-        session.last_line = session.dress.apply(WardVerb::Tend).into();
-        info!(target: "powrush::wards", "{}", session.last_line);
-        let Some(echo) = echo.as_mut() else {
-            return;
-        };
-        let text = ward_place_line(travel.chip_name());
-        if echo.lines.iter().any(|existing| existing.text == text) {
-            return;
-        }
-        echo.push(crate::abundance_journey_echo::JourneyKind::Note, text);
+    // CARD WELL-BEFORE-WARDS-1 — a well in reach owns E. Wards claim Use only alone.
+    if !claim_ward_use(near, well_in_reach, input.interact, &mut session) {
+        return;
     }
+    let Some(echo) = echo.as_mut() else {
+        return;
+    };
+    let text = ward_place_line(travel.chip_name());
+    if echo.lines.iter().any(|existing| existing.text == text) {
+        return;
+    }
+    echo.push(crate::abundance_journey_echo::JourneyKind::Note, text);
+}
+
+/// E dresses the posts only when Wards may claim Use.
+/// A well in the skirmish reach makes this return false.
+pub(crate) fn claim_ward_use(
+    near: bool,
+    well_in_reach: bool,
+    interact: bool,
+    session: &mut WardSession,
+) -> bool {
+    if !interact || !wards_may_claim_use(near, well_in_reach) {
+        return false;
+    }
+    session.last_line = session.dress.apply(WardVerb::Tend).into();
+    info!(target: "powrush::wards", "{}", session.last_line);
+    true
 }
 
 fn near_ward_post(body: Vec2) -> bool {
@@ -192,6 +213,27 @@ mod tests {
             echo.lines[0].text,
             "Heartwood · Well · Grove · Ember tended"
         );
+    }
+
+    /// CARD WELL-BEFORE-WARDS-1 — a post with no well in reach still claims Use.
+    #[test]
+    fn wards_only_still_claim_use() {
+        let mut app = tend_app(PlaceId::Heartwood, true, true);
+        app.init_resource::<crate::first_harvest_epiphany::FirstHarvestEpiphany>();
+        app.update();
+        let epi = app
+            .world()
+            .resource::<crate::first_harvest_epiphany::FirstHarvestEpiphany>();
+        assert!(epi.wards_near);
+        assert!(!epi.well_in_reach);
+        assert!(epi.harvest_use_is_claimed());
+        assert!(crate::first_harvest_epiphany::wards_may_claim_use(
+            epi.wards_near,
+            epi.well_in_reach
+        ));
+        let session = app.world().resource::<WardSession>();
+        assert_eq!(session.dress.tends, 1);
+        assert_eq!(session.last_line, shared::heartwood_wards::WARDS_NOTICE);
     }
 
     #[test]

@@ -75,6 +75,9 @@ pub struct FirstHarvestEpiphany {
     pub hybrid_near: bool,
     /// At the first well, traveler holds or dawn. E Contest / Rise; do not harvest.
     pub well_near: bool,
+    /// CARD WELL-BEFORE-WARDS-1 — body is inside the skirmish well reach
+    /// (`near_first_well`). Wards may claim Use only while this is false.
+    pub well_in_reach: bool,
     /// At the Heartwood Threshold pipe. E Tends the node; do not harvest.
     pub threshold_near: bool,
     /// At the Heartwood Wards posts. E tends session dress; do not harvest.
@@ -107,6 +110,7 @@ impl Default for FirstHarvestEpiphany {
             redemption_near: false,
             hybrid_near: false,
             well_near: false,
+            well_in_reach: false,
             threshold_near: false,
             wards_near: false,
             depths_near: false,
@@ -115,13 +119,22 @@ impl Default for FirstHarvestEpiphany {
     }
 }
 
+/// CARD WELL-BEFORE-WARDS-1 — Wards claim Use only when no well is in reach.
+/// `well_in_reach` is the skirmish well reach (`near_first_well`), not a new radius.
+pub(crate) fn wards_may_claim_use(wards_near: bool, well_in_reach: bool) -> bool {
+    wards_near && !well_in_reach
+}
+
 impl FirstHarvestEpiphany {
     /// A door already owns this Use edge, so nothing may speak or credit a
     /// harvest from it — not the harvest tap, not the practice strip, not the
-    /// climate ledger. The Threshold pipe, Wards posts, and Depths Peace node
-    /// are those doors; Take stays the choice everywhere else.
+    /// climate ledger. The Threshold pipe and the Depths Peace node are those
+    /// doors. Wards posts are too, but only when no well is in the reach
+    /// `near_first_well` already uses. Take stays the choice everywhere else.
     pub fn harvest_use_is_claimed(&self) -> bool {
-        self.threshold_near || self.wards_near || self.depths_near
+        self.threshold_near
+            || self.depths_near
+            || wards_may_claim_use(self.wards_near, self.well_in_reach)
     }
 
     pub fn prompt_visible(&self, now: f64, guidance: &FirstSessionGuidance) -> bool {
@@ -1028,8 +1041,89 @@ mod tests {
     fn wards_claim_use_as_dress_not_take() {
         let mut s = FirstHarvestEpiphany::default();
         s.wards_near = true;
+        assert!(!s.well_in_reach);
         assert!(s.harvest_use_is_claimed());
         assert!(!s.threshold_near);
+    }
+
+    /// CARD WELL-BEFORE-WARDS-1 — Ward post and skirmish well both in reach.
+    /// E tends the well. Wards do not claim Use. The climate slab line is untouched.
+    #[test]
+    fn both_near_e_tends_the_well() {
+        use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
+        use bevy::prelude::*;
+        use shared::ledger_bind::LedgerBoard;
+        use shared::skirmish_well::{WellHold, WELL_ANCHORS};
+
+        use crate::coop_voice::VoiceYard;
+        use crate::harvest_feel::SoftRbePool;
+        use crate::heartwood_wards::{claim_ward_use, WardSession};
+        use crate::human_presence::SoftPresence;
+        use crate::ledger_bind::LedgerYard;
+        use crate::skirmish_well::{
+            handle_well, mark_well_near, near_first_well, skirmish_well_word, WellYard,
+        };
+        use crate::soft_play_bindings;
+        use crate::thriving_moments::ThrivingMoments;
+
+        let (x, y, z) = WELL_ANCHORS[0];
+        let presence = SoftPresence {
+            position: Vec3::new(x, y, z),
+            ..Default::default()
+        };
+        assert!(near_first_well(&presence));
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(presence)
+            .init_resource::<WellYard>()
+            .init_resource::<VoiceYard>()
+            .insert_resource(LedgerYard {
+                board: LedgerBoard::default(),
+                sash_open: false,
+            })
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<ThrivingMoments>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<Gamepads>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_event::<GamepadRumbleRequest>()
+            .add_systems(PreUpdate, mark_well_near)
+            .add_systems(Update, handle_well);
+
+        app.world_mut()
+            .resource_mut::<FirstHarvestEpiphany>()
+            .wards_near = true;
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(soft_play_bindings::INTERACT);
+        app.update();
+
+        let well_in_reach = {
+            let epi = app.world().resource::<FirstHarvestEpiphany>();
+            assert!(epi.wards_near, "ward post still in reach");
+            assert!(epi.well_in_reach, "skirmish well reach");
+            assert!(
+                !epi.harvest_use_is_claimed(),
+                "wards must not claim Use while a well is in reach"
+            );
+            assert!(!wards_may_claim_use(epi.wards_near, epi.well_in_reach));
+            epi.well_in_reach
+        };
+
+        let yard = app.world().resource::<WellYard>();
+        assert_eq!(yard.well.wins, 1);
+        assert_eq!(yard.well.hold, WellHold::Human);
+        assert_eq!(
+            skirmish_well_word(yard.well.hold, 0.0, yard.well.losses),
+            "Tended",
+            "rested well word after E"
+        );
+        assert!(yard.well.last_line.contains("The well is yours"));
+
+        let mut wards = WardSession::default();
+        assert!(!claim_ward_use(true, well_in_reach, true, &mut wards));
+        assert_eq!(wards.dress.tends, 0);
     }
 
     #[test]
