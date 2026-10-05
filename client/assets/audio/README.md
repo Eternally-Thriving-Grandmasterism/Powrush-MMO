@@ -1,30 +1,11 @@
-# Premade Audio Stems
+# Client audio folder
 
-Drop high-quality stems here. They are registered at startup into the **Audio Moments** catalog (hotkey **M**).
+Git tracks this README only. No audio file is tracked under `client/assets/audio/`.
 
-## Recommended layout
+This folder is not a premade stem catalog. Nothing here is registered at startup, and hotkey M does not load it.
 
-```
-client/assets/audio/
-  premade/
-    epic_dark_ambient.ogg        # tracked elsewhere: assets/music/epic_dark_ambient.ogg
-    mercy_resonance_choir.ogg    # planned, not in repo
-    council_chamber_hum.ogg      # planned, not in repo
-    epiphany_crystal_hit.wav     # planned, not in repo
-    divine_whisper_soft.wav      # planned, not in repo
-    transition_stinger_a.wav     # planned, not in repo
-  (any extra .wav / .ogg / .mp3 / .flac — auto-scanned)
-```
+The lived mixer does not load this folder. It loads `assets/audio/peace_yard_bed.ogg` and `assets/audio/peace_well_sting.ogg` (`shared/peace_audio.rs` `BED_ASSET` and `STING_ASSET`).
 
-Missing files still get catalog placeholders (`asset pending drop`) so the UI list is stable during production.
-
-## Formats
-
-WAV, OGG, MP3, FLAC.
-
-## Steam Cloud
-
-Player-created recipe catalogs stage to `steam_cloud/audio_moments/catalog_cloud_v1.json`.
-Configure Steamworks Auto-Cloud on that path. Premade game assets ship with the build; they are not cloud-synced.
+`epic_dark_ambient.ogg` is tracked at `assets/music/epic_dark_ambient.ogg`. It is not wired.
 
 Contact: info@Rathor.ai
