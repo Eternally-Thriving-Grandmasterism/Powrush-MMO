@@ -185,6 +185,8 @@ How to verify after Hour 1 allocate:
 
 Stop. Embassy / Crownstone / Hybrid / myth / fabricator are **not** this seat.
 
+After a MendSpool is stocked, the fabricator slab names Digit1; an empty spool does not.
+
 ## Pass / fail
 
 **Success (PLAYTEST-1):** a stranger can **take → tend → allocate** in **under 20 minutes** without a wiki.
