@@ -94,7 +94,7 @@ Parked. Each stays parked until a **named** steward law (or named Hands slice) s
 
 | Parked | Why it waits | Unpark condition |
 |---|---|---|
-| **Satchel strip, pickup flash, plate padding** | The always-on satchel strip and the pickup flash follow `text_scale` after #660, clamped 11–22. Plate padding and width stay fixed (GAP-PLATE-PADDING). This docs rung writes no `client/**`. | Later Hands slice — **YELLOW** + a **SLICE CARD**; Core gate green. Not this PR. |
+| **Plate padding and width** | Plate padding and width stay fixed (GAP-PLATE-PADDING). This docs rung writes no `client/**`. | Later Hands slice — **YELLOW** + a **SLICE CARD**; Core gate green. Not this PR. |
 | **Person mesh / anim** | Scale is chrome, not a body. | Named art / mesh slice after a playtest note. |
 | **Collision** | UI scale does not retune physics layers. | Named physics slice; `PHYSICS_GRAPHICS_CANON` stays law. |
 | **Art pack** | No new textures, fonts-as-assets, or plate art from this file. | Named art slice. |
