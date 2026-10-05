@@ -136,19 +136,22 @@ fn spawn_well_slab(mut commands: Commands) {
         });
 }
 
-fn near_first_well(presence: &SoftPresence) -> bool {
+/// Reach the first well already uses. Wards consult this same check.
+pub(crate) fn near_first_well(presence: &SoftPresence) -> bool {
     let (x, y, z) = WELL_ANCHORS[0];
     presence.position.distance(Vec3::new(x, y, z)) <= CONTEST_REACH
 }
 
-fn mark_well_near(
+pub(crate) fn mark_well_near(
     presence: Res<SoftPresence>,
     yard: Res<WellYard>,
     voice: Res<VoiceYard>,
     ledger: Res<LedgerYard>,
     mut epi: ResMut<FirstHarvestEpiphany>,
 ) {
-    epi.well_near = near_first_well(&presence)
+    let in_reach = near_first_well(&presence);
+    epi.well_in_reach = in_reach;
+    epi.well_near = in_reach
         && yard.well.wants_interact()
         && !voice.sash_open
         && !ledger.sash_open
@@ -175,7 +178,7 @@ fn pressure_hold(
     }
 }
 
-fn handle_well(
+pub(crate) fn handle_well(
     keyboard: Res<ButtonInput<KeyCode>>,
     presence: Res<SoftPresence>,
     voice: Res<VoiceYard>,
@@ -237,7 +240,7 @@ const SKIRMISH_PLACE_DRESS: &str = "dirt under the well · Lives in Peace";
 /// A contest-win pulse (`well_glow` > 0) is Glowing and outranks the hold.
 /// Human after the breath settles is Tended. Aftercare is the dawn seam:
 /// Resting. Traveler after a loss is Stressed. Traveler before any loss is Idle.
-fn skirmish_well_word(hold: WellHold, glow: f32, losses: u32) -> &'static str {
+pub(crate) fn skirmish_well_word(hold: WellHold, glow: f32, losses: u32) -> &'static str {
     if glow.is_finite() && glow > 0.0 {
         return "Glowing";
     }
