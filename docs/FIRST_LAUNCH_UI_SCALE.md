@@ -45,7 +45,7 @@ Title opaque contrast stays law (`LAUNCH_UX` After-D3). Scale may not wash the T
 
 Scale **existing** plates and slabs: Title · pause / Settings · lived-hour card · satchel (**I**) · ledger sash (**L**) · climate slab · Q house/proof faces. That is the chrome (`FUN_WITHOUT_WOW` §2.3, `PLACE_CLARITY_HOUR` §3, README Quiet law).
 
-**What scales today** (tip `1d99f022`): the pause / Settings rows (inline `(15.0 * text_scale).clamp(11.0, 22.0)`, `client/src/title_screen.rs:3231`) · the climate slab (`climate_slab_font_px`, `client/src/climate_visible.rs:260-261`) · the lived-hour card (`guidance_card_font_px`, `client/src/first_session_guidance.rs:869-870`) · the satchel plate title / body / hint (`satchel_font_px` + `SatchelFontBase`, `client/src/human_inventory.rs:395-396`). On these four surfaces each size is (base × `text_scale`) clamped to 11–22 px. The Garden Want line has its own clamp: `garden_boot_want_font_px` (`client/src/title_screen.rs:2211-2212`) is 14 × `text_scale` held to 1.0–1.6, then 13–22 px. Not yet scaled: the always-on satchel strip and the pickup flash (`client/src/human_inventory.rs:131`, `:227`; GAP-SATCHEL-STRIP-SCOPE) and plate padding / width (GAP-PLATE-PADDING).
+**What scales today** (tip `1d99f022`): the pause / Settings rows (inline `(15.0 * text_scale).clamp(11.0, 22.0)`, `client/src/title_screen.rs:3231`) · the climate slab (`climate_slab_font_px`, `client/src/climate_visible.rs:260-261`) · the lived-hour card (`guidance_card_font_px`, `client/src/first_session_guidance.rs:869-870`) · the satchel plate title / body / hint (`satchel_font_px` + `SatchelFontBase`, `client/src/human_inventory.rs:395-396`). On these four surfaces each size is (base × `text_scale`) clamped to 11–22 px. The Garden Want line has its own clamp: `garden_boot_want_font_px` (`client/src/title_screen.rs:2211-2212`) is 14 × `text_scale` held to 1.0–1.6, then 13–22 px. The always-on satchel strip and the pickup flash follow `text_scale` after #660, clamped 11–22. Plate padding and width stay fixed (GAP-PLATE-PADDING).
 
 **No second HUD.** No parallel “AA overlay,” no F-row combat bar, no XP bar, no talent panel, no Living Practice overlay, no Online lighting, no fake peer flourish. Scale is a **multiplier on the one surface**, not a second surface.
 
@@ -94,7 +94,7 @@ Parked. Each stays parked until a **named** steward law (or named Hands slice) s
 
 | Parked | Why it waits | Unpark condition |
 |---|---|---|
-| **Satchel strip, pickup flash, plate padding** | The always-on satchel strip and the pickup flash stay fixed (`client/src/human_inventory.rs:131`, `:227`). Plate padding / width stays fixed (GAP-PLATE-PADDING). This docs rung writes no `client/**`. | Later Hands slice — **YELLOW** + a **SLICE CARD**; Core gate green. Not this PR. |
+| **Satchel strip, pickup flash, plate padding** | The always-on satchel strip and the pickup flash follow `text_scale` after #660, clamped 11–22. Plate padding and width stay fixed (GAP-PLATE-PADDING). This docs rung writes no `client/**`. | Later Hands slice — **YELLOW** + a **SLICE CARD**; Core gate green. Not this PR. |
 | **Person mesh / anim** | Scale is chrome, not a body. | Named art / mesh slice after a playtest note. |
 | **Collision** | UI scale does not retune physics layers. | Named physics slice; `PHYSICS_GRAPHICS_CANON` stays law. |
 | **Art pack** | No new textures, fonts-as-assets, or plate art from this file. | Named art slice. |
