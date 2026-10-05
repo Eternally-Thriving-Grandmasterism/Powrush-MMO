@@ -25,17 +25,17 @@ Compare thoughtful AA chrome hygiene (Wildstar / WoW **readable plates**, contra
 
 **When:** Title **Settings** (S0) and the same opaque Settings plate from pause / Digit3 (`LAUNCH_UX` D1–D2, After-D3 comfort). First run is still **offline**. The stranger may open Settings from Title **before** Hands, enlarge chrome, then Play.
 
-**What:** One **Text scale** row on that existing plate — not a new HUD, not a boot wizard, not a second pause. It is live: the Settings row reads `Text scale · 1.00` (`text_scale_btn_label`, `{:.2}`, `client/src/title_screen.rs:2883-2884`) and steps 0.85–1.35 by 0.05, default 1.0 (`shared/local_settings.rs:34-37`). Brightness stays the sibling comfort row. The value persists as `text_scale` beside Grove in `powrush_settings.json` in the OS user-data folder (`shared/local_settings.rs:3-4`, field at `:339-340`); this file does not write that JSON.
+**What:** One **Text scale** row on that existing plate — not a new HUD, not a boot wizard, not a second pause. It is live: the Settings row reads `Text scale · 1.00 · Standard` (`text_scale_btn_label`, `client/src/title_screen.rs:2893-2894`) and steps 0.85–1.35 by 0.05, default 1.0 (`shared/local_settings.rs:34-37`). 0.85 is Compact. 1.00 is Standard. 1.05 and above is Comfort (`text_scale_preset_name`, `shared/local_settings.rs:421-430`). Default stays 1.00. Brightness stays the sibling comfort row. The value persists as `text_scale` beside Grove in `powrush_settings.json` in the OS user-data folder (`shared/local_settings.rs:3-4`, field at `:338-340`); this file does not write that JSON.
 
-**Recommended defaults** (names for later Hands; values are intent, not a Cargo claim):
+**Bands on that row** (default stays 1.00):
 
-| Preset | Intent | Who it is for |
-|---|---|---|
-| **Comfort** | Larger type and plate padding. Named rows (Play / Continue / Settings, pause Resume / Title / Quit, lived-hour card) read first. | First launch, Deck / 1280×800, soft GPU, anyone who found the yard tiny. |
-| **Standard** | Steward default once Comfort has been tried or declined. Matches current After-D3 Text scale as shipped-feel, not a new look. | Returning House; laptop at a desk. |
-| **Compact** | Tighter chrome for high-res / far seating — still one HUD, still hideable by **H**. | Optional; never the first-launch default. |
+| Band | Step | Intent | Who it is for |
+|---|---|---|---|
+| **Compact** | 0.85 · 0.90 | Tighter chrome for high-res / far seating — still one HUD, still hideable by **H**. | Optional; never the cold Title number. |
+| **Standard** | 0.95 · 1.00 | Shipped After-D3 scale. The default row reads `Text scale · 1.00 · Standard`. | Cold Title; returning House; laptop at a desk. |
+| **Comfort** | 1.05 and above | Larger type. Named rows (Play / Continue / Settings, pause Resume / Title / Quit, lived-hour card) read first. | Deck / 1280×800, soft GPU, anyone who steps the same row up. |
 
-**First-launch recommendation:** default the **control's recommended pick to Comfort** (or an equivalent larger step of the existing Text scale) so the stranger can enlarge chrome before the yard feels tiny. Compact is never auto-picked on a cold Title. A continuous slider may sit under the three named presets; presets win the sentence.
+The stranger steps the same control. Compact is never the cold Title number. A continuous slider may sit under the three names; the name on the row is the sentence.
 
 Title opaque contrast stays law (`LAUNCH_UX` After-D3). Scale may not wash the Title into the climate breath, and may not add a peer count.
 
@@ -94,7 +94,7 @@ Parked. Each stays parked until a **named** steward law (or named Hands slice) s
 
 | Parked | Why it waits | Unpark condition |
 |---|---|---|
-| **Remaining client wiring** (named presets Comfort / Standard / Compact — LR-14; the satchel strip and pickup flash; plate padding / width) | Text scale already drives the four §2 surfaces. This docs rung writes no `client/**`. | Later Hands slice — **YELLOW** + a **SLICE CARD**; Core gate green. Not this PR. |
+| **Satchel strip, pickup flash, plate padding** | The always-on satchel strip and the pickup flash stay fixed (`client/src/human_inventory.rs:131`, `:227`). Plate padding / width stays fixed (GAP-PLATE-PADDING). This docs rung writes no `client/**`. | Later Hands slice — **YELLOW** + a **SLICE CARD**; Core gate green. Not this PR. |
 | **Person mesh / anim** | Scale is chrome, not a body. | Named art / mesh slice after a playtest note. |
 | **Collision** | UI scale does not retune physics layers. | Named physics slice; `PHYSICS_GRAPHICS_CANON` stays law. |
 | **Art pack** | No new textures, fonts-as-assets, or plate art from this file. | Named art slice. |
