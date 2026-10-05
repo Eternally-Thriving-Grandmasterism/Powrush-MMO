@@ -76,6 +76,12 @@
  * Same tend · week-bill · Continue. No new card. No Title chrome. Online grey.
  * Peak memory stays: walked · tended · week was the bill · yard remembered.
  *
+ * CARD DOOR-LINE-AFTER-TEND-1 — after one Tend, the satchel card speaks the
+ * door line. Each People names the existing landing: Human Sanctuary yard,
+ * Ambrosian Sanctuary well-from-above, Cydruid Heartwood, Quellorian
+ * Threshold, Draek Depths (teal way-home). Before that Tend the line is
+ * absent. No Title race select. No fifth Place. No new fog. Online grey.
+ *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
 
@@ -848,6 +854,43 @@ fn spoken_guidance(objective: &GuidanceObjective, place: Option<&str>) -> String
     prompt.to_string()
 }
 
+/// CARD DOOR-LINE-AFTER-TEND-1 — after one Tend, name each People and the
+/// landing already on [`PeopleLanding`]. Before that Tend, no line.
+/// Cydruid stays the people name (`as_str`); human-in-frame stays on
+/// [`HousePeople::people_line`]. Not a Title race select.
+fn door_line_after_tend(tended_once: bool) -> Option<String> {
+    if !god_plane_doors_ignited(tended_once) {
+        return None;
+    }
+    Some(
+        HOUSE_PEOPLES
+            .iter()
+            .map(|people| format!("{} {}", people.as_str(), people.landing().landing_line()))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
+/// The post-tend satchel card is the lived guidance that speaks the door line.
+/// Every other card keeps its own sentence.
+fn door_line_on_card(guidance: &FirstSessionGuidance) -> Option<String> {
+    if guidance.objective != GuidanceObjective::OpenInventory {
+        return None;
+    }
+    door_line_after_tend(guidance.harvests_completed >= 1)
+}
+
+fn lived_card_line(guidance: &FirstSessionGuidance, place: Option<&str>) -> String {
+    if guidance.dismissed {
+        return String::new();
+    }
+    let spoken = card_line(&spoken_guidance(&guidance.objective, place));
+    match door_line_on_card(guidance) {
+        Some(door) => format!("{spoken}\n{door}"),
+        None => spoken,
+    }
+}
+
 fn update_guidance_visibility(
     guidance: Res<FirstSessionGuidance>,
     bind: Option<Res<LivedHourBind>>,
@@ -898,11 +941,7 @@ fn update_guidance_text(
         return;
     }
     *last_place = place;
-    let prompt = if guidance.dismissed {
-        String::new()
-    } else {
-        card_line(&spoken_guidance(&guidance.objective, place))
-    };
+    let prompt = lived_card_line(&guidance, place);
     for mut text in &mut query {
         for section in text.sections.iter_mut() {
             if (section.style.font_size - card_px).abs() > 0.01 {
@@ -2555,6 +2594,111 @@ mod tests {
             GuidanceObjective::FreeExploration.prompt(),
             "this hex admits harm · optional"
         );
+    }
+
+    /// CARD DOOR-LINE-AFTER-TEND-1 — after one Tend the satchel card names each
+    /// People and the existing landing. Before that Tend the line is absent.
+    /// Satchel sentence stays. No Title race select, fifth Place, fog, or Online.
+    #[test]
+    fn door_line_after_one_tend_names_people_and_landing() {
+        use bevy::MinimalPlugins;
+        use shared::hex_travel::{PlaceId, LOCAL_HEXES};
+        use shared::persona::STEWARD_ONLINE_YES;
+
+        assert!(door_line_after_tend(false).is_none());
+        let door = door_line_after_tend(true).expect("one Tend ignites the door line");
+        assert!(door.contains("Human Sanctuary yard"));
+        assert!(door.contains("Ambrosian Sanctuary well-from-above"));
+        assert!(door.contains("Cydruid Heartwood"));
+        assert!(door.contains("Quellorian Threshold"));
+        assert!(door.contains("Draek Depths"));
+        assert!(door.contains("Depths (teal way-home)"));
+        assert_eq!(
+            HousePeople::Cydruid.people_line(),
+            "Cydruid · human-in-frame"
+        );
+        assert!(!door.contains("treant"));
+        assert!(!door.to_lowercase().contains("race"));
+        assert!(!door.to_lowercase().contains("select"));
+        assert!(!door.to_lowercase().contains("lobby"));
+        assert!(!door.to_lowercase().contains("online"));
+        assert!(!door.to_lowercase().contains("fog"));
+        assert!(!door.contains("Market"));
+        assert!(!door.contains("Garden"));
+        assert_eq!(
+            GuidanceObjective::OpenInventory.prompt(),
+            "I satchel · House after allocate"
+        );
+        assert!(crate::hour_sacred::four_place_landings_only());
+        assert_eq!(HOUSE_PEOPLES.len(), 5);
+        assert_eq!(LOCAL_HEXES.len(), 3);
+        assert_eq!(PeopleLanding::Threshold.place_id(), PlaceId::Heartwood);
+        assert_eq!(
+            PeopleLanding::SanctuaryWellFromAbove.place_id(),
+            PlaceId::Sanctuary
+        );
+        assert!(!STEWARD_ONLINE_YES);
+        assert!(!crate::title_screen::title_has_race_portraits());
+        assert_eq!(
+            crate::title_screen::TITLE_CHROME_PLAY,
+            "Play — first Hands"
+        );
+
+        let quiet = FirstSessionGuidance::default();
+        assert!(door_line_on_card(&quiet).is_none());
+        assert!(!lived_card_line(&quiet, None).contains("Sanctuary yard"));
+
+        let mut tended = FirstSessionGuidance::default();
+        tended.moved_distance = 5.0;
+        tended.advance_if_ready();
+        tended.near_glow = true;
+        tended.advance_if_ready();
+        assert_eq!(tended.objective, GuidanceObjective::HarvestWithInteract);
+        assert!(door_line_on_card(&tended).is_none());
+        credit_harvest(&mut tended);
+        assert_eq!(tended.objective, GuidanceObjective::OpenInventory);
+        let card = lived_card_line(&tended, None);
+        assert!(card.contains("I satchel · House after allocate"));
+        assert!(card.contains(&door));
+        assert!(card.contains("H hides"));
+
+        let skipped = FirstSessionGuidance {
+            objective: GuidanceObjective::OpenInventory,
+            harvests_completed: 0,
+            ..Default::default()
+        };
+        assert!(door_line_on_card(&skipped).is_none());
+        tended.inventory_opened = true;
+        tended.advance_if_ready();
+        assert_eq!(tended.objective, GuidanceObjective::ShareAbundance);
+        let later = lived_card_line(&tended, None);
+        assert!(later.contains("R then 1 flow"));
+        assert!(!later.contains("Sanctuary well-from-above"));
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>()
+            .add_systems(Startup, spawn_guidance_strip)
+            .add_systems(Update, update_guidance_text);
+        app.update();
+        let (_, before) = guidance_card_section(&app);
+        assert!(!before.contains("Human Sanctuary yard"));
+        {
+            let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
+            guidance.moved_distance = 5.0;
+            guidance.advance_if_ready();
+            guidance.near_glow = true;
+            guidance.advance_if_ready();
+            credit_harvest(&mut guidance);
+        }
+        app.update();
+        let (_, after) = guidance_card_section(&app);
+        assert!(after.contains("Human Sanctuary yard"));
+        assert!(after.contains("Ambrosian Sanctuary well-from-above"));
+        assert!(after.contains("Cydruid Heartwood"));
+        assert!(after.contains("Quellorian Threshold"));
+        assert!(after.contains("Draek Depths"));
+        assert!(after.contains("I satchel · House after allocate"));
     }
 
     /// CARD VP-HUD-GOLD-1 — the guidance strip spawns on the title palette:
