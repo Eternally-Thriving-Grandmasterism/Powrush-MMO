@@ -66,10 +66,18 @@ impl Default for HumanInventory {
     }
 }
 
+/// CARD PICKUP-STRIP-SCALE-1 — always-on satchel strip spawn size.
+const WATCH_STRIP_FONT_BASE: f32 = 13.0;
+/// CARD PICKUP-STRIP-SCALE-1 — pickup flash spawn size.
+const PICKUP_FLASH_FONT_BASE: f32 = 16.0;
+
 #[derive(Component)]
 struct WatchStripRoot;
 #[derive(Component)]
 struct WatchStripText;
+/// Watch-strip or pickup-flash base px. Plate type stays on [`SatchelFontBase`].
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+struct StripFlashFontBase(f32);
 #[derive(Component)]
 struct SatchelRoot;
 #[derive(Component)]
@@ -98,6 +106,7 @@ impl Plugin for HumanInventoryPlugin {
                     update_satchel,
                     update_pickup_flash,
                     scale_satchel_fonts,
+                    scale_strip_and_flash_fonts,
                 ),
             );
     }
@@ -128,12 +137,13 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                 TextBundle::from_section(
                     "",
                     TextStyle {
-                        font_size: 13.0,
+                        font_size: WATCH_STRIP_FONT_BASE,
                         color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
                 WatchStripText,
+                StripFlashFontBase(WATCH_STRIP_FONT_BASE),
             ));
         });
 
@@ -224,12 +234,13 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                 TextBundle::from_section(
                     "",
                     TextStyle {
-                        font_size: 16.0,
+                        font_size: PICKUP_FLASH_FONT_BASE,
                         color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
                 PickupFlashText,
+                StripFlashFontBase(PICKUP_FLASH_FONT_BASE),
             ));
         });
 }
@@ -394,6 +405,26 @@ pub fn satchel_temper_display(item: &TemperedItem) -> String {
 /// CARD UI-SCALE-SLABS-2 — satchel plate type follows `text_scale` (11–22).
 pub fn satchel_font_px(base: f32, text_scale: f32) -> f32 {
     (base * text_scale).clamp(11.0, 22.0)
+}
+
+/// CARD PICKUP-STRIP-SCALE-1 — watch strip and pickup flash follow the same step.
+/// Plate bases stay on [`scale_satchel_fonts`]. Width and padding stay fixed.
+fn scale_strip_and_flash_fonts(
+    settings: Option<Res<LocalSettingsState>>,
+    mut q: Query<(&StripFlashFontBase, &mut Text)>,
+) {
+    let scale = match &settings {
+        Some(state) => state.inner.text_scale,
+        None => 1.0,
+    };
+    for (base, mut text) in &mut q {
+        let px = satchel_font_px(base.0, scale);
+        for section in &mut text.sections {
+            if (section.style.font_size - px).abs() > 0.01 {
+                section.style.font_size = px;
+            }
+        }
+    }
 }
 
 fn scale_satchel_fonts(
@@ -696,6 +727,145 @@ mod tests {
             rows.push((base.0, section.style.font_size, section.value.clone()));
         }
         rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("satchel font base"));
+        rows
+    }
+
+    /// CARD PICKUP-STRIP-SCALE-1 — strip 13 and flash 16 follow the satchel
+    /// text_scale step. Identity at 1.0, 1.35 step, clamp 11–22.
+    /// Plate bases stay 14 / 13.5 / 11.
+    #[test]
+    fn strip_and_flash_font_px_follows_text_scale() {
+        for base in [WATCH_STRIP_FONT_BASE, PICKUP_FLASH_FONT_BASE] {
+            assert_eq!(satchel_font_px(base, 1.0), base);
+            assert_eq!(satchel_font_px(base, 0.1), 11.0);
+            assert_eq!(satchel_font_px(base, 5.0), 22.0);
+        }
+        assert!((satchel_font_px(WATCH_STRIP_FONT_BASE, 1.35) - 17.55).abs() < 1e-4);
+        assert!((satchel_font_px(PICKUP_FLASH_FONT_BASE, 1.35) - 21.6).abs() < 1e-4);
+        assert_eq!(satchel_font_px(14.0, 1.0), 14.0);
+        assert_eq!(satchel_font_px(13.5, 1.0), 13.5);
+        assert_eq!(satchel_font_px(11.0, 1.0), 11.0);
+    }
+
+    /// CARD PICKUP-STRIP-SCALE-1 — spawn stays 13 and 16; one text-scale bump
+    /// resizes the strip and the flash and leaves their strings alone.
+    /// The three satchel plate fonts still follow `satchel_font_px`.
+    #[test]
+    fn strip_and_flash_fonts_track_text_scale_bump() {
+        use bevy::MinimalPlugins;
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .add_systems(Startup, spawn_inventory_surfaces)
+            .add_systems(Update, (scale_satchel_fonts, scale_strip_and_flash_fonts));
+
+        app.update();
+        let strip = strip_flash_font_rows(&app);
+        assert_eq!(strip.len(), 2);
+        assert_eq!(
+            strip
+                .iter()
+                .map(|(base, px, value, kind)| (*base, *px, value.as_str(), *kind))
+                .collect::<Vec<_>>(),
+            vec![
+                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE, "", "strip"),
+                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE, "", "flash"),
+            ]
+        );
+        let plate = satchel_font_rows(&app);
+        assert_eq!(plate.len(), 3);
+        for (base, px, _) in &plate {
+            assert_eq!(*px, *base);
+        }
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .bump_text_scale();
+        let new_scale = app
+            .world()
+            .resource::<LocalSettingsState>()
+            .inner
+            .text_scale;
+        app.update();
+
+        let after = strip_flash_font_rows(&app);
+        assert_eq!(after.len(), 2);
+        for (before, (base, px, value, kind)) in strip.iter().zip(after.iter()) {
+            assert_eq!(before.0, *base);
+            assert_eq!(before.3, *kind);
+            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(value, &before.2);
+            assert!(*px > *base);
+        }
+        let plate_after = satchel_font_rows(&app);
+        assert_eq!(plate_after.len(), 3);
+        for (before, (base, px, value)) in plate.iter().zip(plate_after.iter()) {
+            assert_eq!(before.0, *base);
+            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(value, &before.2);
+        }
+
+        for extreme in [0.1_f32, 5.0] {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .text_scale = extreme;
+            app.update();
+            for (base, px, _, _) in strip_flash_font_rows(&app) {
+                assert_eq!(px, satchel_font_px(base, extreme));
+            }
+            for (base, px, _) in satchel_font_rows(&app) {
+                assert_eq!(px, satchel_font_px(base, extreme));
+            }
+        }
+    }
+
+    /// CARD PICKUP-STRIP-SCALE-1 — no settings resource keeps the spawn sizes.
+    #[test]
+    fn strip_and_flash_fonts_stay_spawn_size_without_settings() {
+        use bevy::MinimalPlugins;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_inventory_surfaces)
+            .add_systems(Update, scale_strip_and_flash_fonts);
+        app.update();
+        let rows = strip_flash_font_rows(&app);
+        assert_eq!(
+            rows.iter()
+                .map(|(base, px, _, kind)| (*base, *px, *kind))
+                .collect::<Vec<_>>(),
+            vec![
+                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE, "strip"),
+                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE, "flash"),
+            ]
+        );
+    }
+
+    fn strip_flash_font_rows(app: &App) -> Vec<(f32, f32, String, &'static str)> {
+        let mut rows = Vec::new();
+        for entity in app.world().iter_entities() {
+            let Some(base) = entity.get::<StripFlashFontBase>() else {
+                continue;
+            };
+            let kind = if entity.get::<WatchStripText>().is_some() {
+                "strip"
+            } else if entity.get::<PickupFlashText>().is_some() {
+                "flash"
+            } else {
+                panic!("StripFlashFontBase without strip or flash text");
+            };
+            let text = entity.get::<Text>().expect("strip flash font text");
+            let section = text.sections.first().expect("strip flash section");
+            rows.push((base.0, section.style.font_size, section.value.clone(), kind));
+        }
+        rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("strip flash font base"));
         rows
     }
 
