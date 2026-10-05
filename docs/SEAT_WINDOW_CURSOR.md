@@ -12,6 +12,18 @@ CARD SEAT-WINDOW-CURSOR-1. Docs only. The 2026-10-04 window records #646–#650.
 
 Do not re-cook them. Rust on these stamps stays as landed.
 
+## Spent — SEAT-WINDOW-CURSOR-2
+
+CARD SEAT-WINDOW-CURSOR-2. Docs only. This file also records #658–#662. Tip after these squashes is `9844ad7` (`9844ad791860c902e24bd5893326b97081a1b3c1`).
+
+- #658 `514a74d` — scale doc names Standard. Compact, Standard, and Comfort. Default stays 1.00.
+- #659 `39803ff` — stocked MendSpool names Digit1. An empty spool does not.
+- #660 `6079676` — strip and flash follow text_scale. The satchel plate is unchanged.
+- #661 `53d88d8` — doc matches #660. Padding stays fixed.
+- #662 `9844ad7` — parked row is plate padding and width. Strip and flash stay scaled.
+
+Do not re-cook them. Rust on these stamps stays as landed. Padding stays fixed.
+
 ## Still refused
 
 - Online, Steam, App ID, meshes, Bevy pin, payments. Title Online stays grey.
