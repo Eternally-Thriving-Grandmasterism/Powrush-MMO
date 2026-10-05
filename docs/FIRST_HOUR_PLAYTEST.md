@@ -136,6 +136,8 @@ Door: `./scripts/play-offline.sh q1` or `./scripts/play-offline.sh --script-run`
 
 PASS/FAIL lines are appended only after that door runs. Agents do not invent OS / GPU / minutes.
 
+After one Tend, a door may name the people and the landing; Human and Ambrosian share Sanctuary; crossing is one way this session.
+
 ### CARD Q1 SCRIPT-RUN 2026-09-22
 
 Door: `./scripts/play-offline.sh --script-run` · `POWRUSH_NET=off` · no interactive walk · no WASD  
