@@ -417,6 +417,19 @@ fn default_brightness() -> f32 {
     DEFAULT_BRIGHTNESS
 }
 
+
+/// CARD UI-TEXT-PRESET-1 — name the existing step. Does not change the number.
+/// 0.85 is Compact. 1.00 is Standard. 1.05 and above is Comfort.
+pub fn text_scale_preset_name(scale: f32) -> &'static str {
+    if !scale.is_finite() || scale < 0.925 {
+        "Compact"
+    } else if scale < 1.05 {
+        "Standard"
+    } else {
+        "Comfort"
+    }
+}
+
 fn default_text_scale() -> f32 {
     DEFAULT_TEXT_SCALE
 }

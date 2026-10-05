@@ -1696,7 +1696,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                 );
                 spawn_settings_row(
                     comfort,
-                    "Text scale · 1.00",
+                    "Text scale · 1.00 · Standard",
                     SettingsTextScaleBtn,
                     SettingsTextScaleLabel,
                 );
@@ -2891,7 +2891,7 @@ pub fn brightness_btn_label(s: &LocalSettings) -> String {
 }
 
 pub fn text_scale_btn_label(s: &LocalSettings) -> String {
-    format!("Text scale · {:.2}", s.text_scale)
+    format!("Text scale · {:.2} · {}", s.text_scale, shared::local_settings::text_scale_preset_name(s.text_scale))
 }
 
 pub fn graphics_preset_btn_label(s: &LocalSettings) -> String {
@@ -6014,7 +6014,7 @@ mod tests {
         assert_eq!(invert_btn_label(&s), "Invert-Y · off");
         assert_eq!(hide_slabs_btn_label(&s), "Hide guidance · off");
         assert_eq!(brightness_btn_label(&s), "Brightness · 1.00");
-        assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00");
+        assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00 · Standard");
         assert_eq!(graphics_preset_btn_label(&s), "Graphics · Medium");
         assert_eq!(s.graphics_preset, GraphicsPreset::Medium);
         assert_eq!(grove_btn_label(&s), "Scenery · off");
@@ -6146,7 +6146,7 @@ mod tests {
         assert_eq!(hide_slabs_btn_label(&back), "Hide guidance · on");
         assert_eq!(look_btn_label(&back), "Look · 1.50");
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
-        assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10");
+        assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10 · Comfort");
         assert_eq!(graphics_preset_btn_label(&back), "Graphics · High");
         assert_eq!(grove_btn_label(&back), "Scenery · on");
         assert_eq!(reduced_motion_btn_label(&back), "Reduced motion · on");
