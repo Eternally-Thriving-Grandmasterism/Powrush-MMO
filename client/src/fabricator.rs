@@ -8,6 +8,9 @@
 //! Threshold-near / Depths). Threshold-near is Heartwood plus shelf reach.
 //! `None` keeps the exact slab. Civic proof of place, not gear. No gold.
 //! No Market. One string, one slab. Online grey. Bevy pin 0.14.
+//!
+//! CARD TEMPER-VISIBLE-1 — a stocked MendSpool names Digit1 on this slab.
+//! Empty spool does not name a craft. No new recipe. No gold.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -183,7 +186,22 @@ pub fn fabricator_line_at_place(line: &str, place: Option<&str>) -> String {
 
 pub fn fabricator_slab_at_place(fab: &Fabricator, place: Option<&str>) -> String {
     let body = fabricator_spoken_body(fab, place);
-    fabricator_line_at_place(&body, place)
+    let line = fabricator_line_at_place(&body, place);
+    append_digit1_when_mend_spool_stocked(fab, line)
+}
+
+/// CARD TEMPER-VISIBLE-1 — Digit1 is the Tend Hook key already on the bench.
+/// Name it only while a MendSpool is stocked and the temper recipe is visible.
+/// Empty spool keeps the civic sentence and does not name a craft.
+fn append_digit1_when_mend_spool_stocked(fab: &Fabricator, line: String) -> String {
+    if !mend_spool_names_digit1(fab) || line.contains("Digit1") {
+        return line;
+    }
+    format!("{line} · Digit1")
+}
+
+fn mend_spool_names_digit1(fab: &Fabricator) -> bool {
+    fab.planted && fab.spool_stock > 0 && shared::fabricator::tend_hook_recipe_visible()
 }
 
 fn handle_fab_q(
@@ -356,7 +374,10 @@ mod tests {
         assert_eq!(fab.craft_next(), "crafted");
         let mend = fab.last_line.clone();
         assert!(mend.contains("MendSpool ran"));
-        assert_eq!(fabricator_slab_at_place(&fab, None), fab.slab_line());
+        assert_eq!(
+            fabricator_slab_at_place(&fab, None),
+            format!("{} · Digit1", fab.slab_line())
+        );
         let named_mend = fabricator_line_at_place(&mend, Some("Heartwood"));
         assert_eq!(named_mend, format!("Heartwood · {mend}"));
 
@@ -364,9 +385,12 @@ mod tests {
         let proof = fab.last_line.clone();
         assert!(proof.contains("Proof Pack"));
         assert!(fab.pack.unlocked());
-        assert_eq!(fabricator_slab_at_place(&fab, None), fab.slab_line());
+        assert_eq!(
+            fabricator_slab_at_place(&fab, None),
+            format!("{} · Digit1", fab.slab_line())
+        );
         let named_proof = fabricator_slab_at_place(&fab, Some("Depths"));
-        assert_eq!(named_proof, format!("Depths · {proof}"));
+        assert_eq!(named_proof, format!("Depths · {proof} · Digit1"));
 
         let lane = "LaneCrate ran — the lane holds a crate";
         let named_lane = fabricator_line_at_place(lane, Some("Threshold-near"));
@@ -433,5 +457,57 @@ mod tests {
             };
         }
         assert!(!STEWARD_ONLINE_YES);
+    }
+
+    /// CARD TEMPER-VISIBLE-1 — stocked MendSpool names Digit1.
+    /// Empty spool does not name a craft. Digit1 still refuses without a spool.
+    #[test]
+    fn temper_visible_digit1_names_stocked_spool_and_refuses_empty() {
+        use shared::fabricator::{manufacture_copy_is_honest, Recipe};
+        use shared::temper::ToolTier;
+
+        let mut fab = Fabricator::default();
+        let empty = fabricator_slab_at_place(&fab, None);
+        assert!(!slab_names_a_craft(&empty), "{empty}");
+        assert_eq!(fab.craft_tend_hook(1, "hands"), Err("unplanted"));
+
+        assert_eq!(fab.plant(), "planted");
+        let planted_empty = fabricator_slab_at_place(&fab, Some("Sanctuary"));
+        assert!(planted_empty.starts_with("Sanctuary · "));
+        assert!(!slab_names_a_craft(&planted_empty), "{planted_empty}");
+        assert_eq!(fab.craft_tend_hook(1, "hands"), Err("missing_spool"));
+        assert!(fab.last_tempered.is_none());
+        assert_eq!(fab.spool_stock, 0);
+        let still_empty = fabricator_slab_at_place(&fab, None);
+        assert!(!slab_names_a_craft(&still_empty), "{still_empty}");
+
+        assert_eq!(fab.craft(Recipe::MendSpool), "crafted");
+        assert_eq!(fab.spool_stock, 1);
+        let stocked = fabricator_slab_at_place(&fab, None);
+        assert!(stocked.contains("Digit1"), "{stocked}");
+        assert_eq!(stocked.matches("Digit1").count(), 1);
+        assert!(stocked.starts_with(&fab.slab_line()));
+        assert!(manufacture_copy_is_honest(&stocked), "{stocked}");
+        assert!(!stocked.to_lowercase().contains("gold"));
+        let named = fabricator_slab_at_place(&fab, Some("Heartwood"));
+        assert_eq!(named, format!("Heartwood · {} · Digit1", fab.last_line));
+        assert_eq!(named.matches('\n').count(), 0);
+        assert_eq!(named.matches("Digit1").count(), 1);
+        assert!(manufacture_copy_is_honest(&named), "{named}");
+
+        let item = fab.craft_tend_hook(1, "hands").expect("hook");
+        assert_eq!(item.tier, ToolTier::TendHook);
+        assert_eq!(fab.spool_stock, 0);
+        let spent = fabricator_slab_at_place(&fab, Some("Heartwood"));
+        assert!(!slab_names_a_craft(&spent), "{spent}");
+        assert_eq!(fab.craft_tend_hook(2, "hands"), Err("missing_spool"));
+    }
+
+    fn slab_names_a_craft(line: &str) -> bool {
+        line.contains("Digit1")
+            || line.contains("Tend Hook")
+            || line
+                .split(|c: char| !c.is_ascii_alphanumeric())
+                .any(|word| word.eq_ignore_ascii_case("craft"))
     }
 }
