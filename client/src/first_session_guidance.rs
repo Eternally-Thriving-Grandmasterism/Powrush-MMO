@@ -84,8 +84,14 @@
  *
  * CARD DOOR-LINE-CAN-CROSS-1 — that door line stays quiet unless a cross
  * is possible: House live, one Tend, and no door crossed yet. Skip House
- * stays light and shows no door line. The line names the existing E/Q
- * door keys. No new key. No Title race select. No fifth Place. Online grey.
+ * stays light and shows no door line. No new key. No Title race select.
+ * No fifth Place. Online grey.
+ *
+ * CARD DOOR-LINE-NOT-EQ-1 — E and Q do not call try_cross_people_door.
+ * E is take and tend. Q plants the House. Those binds stay. While a cross
+ * is possible the satchel door line names the five landings. It does not
+ * name E or Q as the door key. No new key. No Title race select. No fifth
+ * Place. No Online.
  *
  * Contact: info@Rathor.ai | Thunder locked in. Yoi ⚡
  */
@@ -96,8 +102,8 @@ use crate::embassy::EmbassyYard;
 use crate::fabricator::FabricatorYard;
 use crate::hex_travel::{apply_people_landing, decline_people_door_land, HexTravelState};
 use crate::hour_sacred::{
-    confirm_gate_seal, doors_are_unsealed, god_plane_doors_ignited, is_gate_seal_confirm_verb,
-    offer_house_peoples, skip_house_stays_light, soul_is_light, try_cross_people_door,
+    confirm_gate_seal, doors_are_unsealed, god_plane_doors_ignited, offer_house_peoples,
+    skip_house_stays_light, soul_is_light, try_cross_people_door,
     HousePeople, PeopleLanding, HourSacred, HOUSE_PEOPLES, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
 };
 use shared::hex_travel::PlaceId;
@@ -859,16 +865,6 @@ fn spoken_guidance(objective: &GuidanceObjective, place: Option<&str>) -> String
     prompt.to_string()
 }
 
-/// Existing door keys. E and Q already confirm a People-door. No new key.
-fn existing_cross_key_label() -> String {
-    [PeaceKey::E, PeaceKey::Q]
-        .into_iter()
-        .filter(|key| is_gate_seal_confirm_verb(*key))
-        .map(|key| key.display_label())
-        .collect::<Vec<_>>()
-        .join(" · ")
-}
-
 fn door_people_lines() -> String {
     HOUSE_PEOPLES
         .iter()
@@ -887,19 +883,16 @@ fn cross_is_possible(guidance: &FirstSessionGuidance) -> bool {
         && !already_crossed
 }
 
-/// CARD DOOR-LINE-CAN-CROSS-1 — name each People, the existing landing, and
-/// the existing E/Q door keys. Only while a cross is possible. Cydruid stays
-/// the people name (`as_str`); human-in-frame stays on
+/// CARD DOOR-LINE-NOT-EQ-1 — name each People and the existing landing.
+/// Only while a cross is possible. E stays take and tend. Q plants the House.
+/// Neither is the door key, and the line does not name them. No new key.
+/// Cydruid stays the people name (`as_str`); human-in-frame stays on
 /// [`HousePeople::people_line`]. Not a Title race select.
 fn door_line_when_cross_possible(guidance: &FirstSessionGuidance) -> Option<String> {
     if !cross_is_possible(guidance) {
         return None;
     }
-    Some(format!(
-        "{}\n{}",
-        existing_cross_key_label(),
-        door_people_lines()
-    ))
+    Some(door_people_lines())
 }
 
 /// The lived card speaks the door line only while a cross is possible.
@@ -2624,31 +2617,37 @@ mod tests {
         );
     }
 
-    /// CARD DOOR-LINE-CAN-CROSS-1 — the satchel door line names each People,
-    /// the existing landing, and the existing E/Q door keys only when a cross
-    /// is possible: House live, one Tend, no door crossed yet. One Tend with
-    /// House skipped stays light and shows no door line. No Title race select,
+    /// CARD DOOR-LINE-NOT-EQ-1 — the satchel door line names each People and
+    /// the five landings only when a cross is possible: House live, one Tend,
+    /// no door crossed yet. It does not name E or Q as the door key. E stays
+    /// take and tend. Q stays plant the House. One Tend with House skipped
+    /// stays light and shows no door line. No new key. No Title race select,
     /// fifth Place, fog, or Online.
     #[test]
-    fn door_line_only_when_cross_possible_names_existing_key() {
+    fn door_line_when_cross_possible_names_landings_not_eq() {
+        use bevy::prelude::KeyCode;
         use bevy::MinimalPlugins;
         use shared::hex_travel::{PlaceId, LOCAL_HEXES};
         use shared::persona::STEWARD_ONLINE_YES;
 
-        let keys = existing_cross_key_label();
+        let e = PeaceKey::E.display_label();
+        let q = PeaceKey::Q.display_label();
+        assert_eq!(e, "E");
+        assert_eq!(q, "Q");
+        assert_eq!(crate::soft_play_bindings::INTERACT, KeyCode::KeyE);
+        assert_eq!(crate::soft_play_bindings::BUILD_WHEEL, KeyCode::KeyQ);
         assert_eq!(
-            keys,
-            format!(
-                "{} · {}",
-                PeaceKey::E.display_label(),
-                PeaceKey::Q.display_label()
-            )
+            GuidanceObjective::HarvestWithInteract.prompt(),
+            "E tend the glow"
         );
-        assert!(is_gate_seal_confirm_verb(PeaceKey::E));
-        assert!(is_gate_seal_confirm_verb(PeaceKey::Q));
-        assert!(!is_gate_seal_confirm_verb(PeaceKey::Digit1));
-        assert!(!is_gate_seal_confirm_verb(PeaceKey::I));
-        assert!(!keys.contains(PeaceKey::Digit1.display_label()));
+        assert_eq!(
+            GuidanceObjective::PlantHouse.prompt(),
+            "Q plant a House stake"
+        );
+        let names_key = |line: &str, label: &str| {
+            line.split(|c: char| !c.is_ascii_alphanumeric())
+                .any(|token| token == label)
+        };
 
         let quiet = FirstSessionGuidance::default();
         assert!(door_line_on_card(&quiet).is_none());
@@ -2671,7 +2670,8 @@ mod tests {
         assert!(skipped_card.contains("I satchel · House after allocate"));
         assert!(skipped_card.contains("H hides"));
         assert!(!skipped_card.contains("Sanctuary yard"));
-        assert!(!skipped_card.contains(&keys));
+        assert!(!names_key(&skipped_card, e));
+        assert!(!names_key(&skipped_card, q));
 
         let ready = FirstSessionGuidance {
             house_live: true,
@@ -2681,7 +2681,10 @@ mod tests {
         };
         assert!(!ready.stays_light_peace());
         let door = door_line_on_card(&ready).expect("House and one Tend can cross");
-        assert!(door.starts_with(&keys));
+        assert_eq!(door, door_people_lines());
+        assert!(!door.contains("E · Q"));
+        assert!(!names_key(&door, e));
+        assert!(!names_key(&door, q));
         assert!(door.contains("Human Sanctuary yard"));
         assert!(door.contains("Ambrosian Sanctuary well-from-above"));
         assert!(door.contains("Cydruid Heartwood"));
@@ -2728,6 +2731,22 @@ mod tests {
         assert!(card.contains("I satchel · House after allocate"));
         assert!(card.contains(&door));
         assert!(card.contains("H hides"));
+        assert!(!names_key(&card, e));
+        assert!(!names_key(&card, q));
+
+        let planting = FirstSessionGuidance {
+            house_live: true,
+            harvests_completed: 1,
+            objective: GuidanceObjective::PlantHouse,
+            ..Default::default()
+        };
+        let plant_door = door_line_on_card(&planting).expect("plant still can cross");
+        let plant_card = lived_card_line(&planting, None);
+        assert!(plant_card.contains("Q plant a House stake"));
+        assert!(names_key(&plant_card, q));
+        assert!(!names_key(&plant_door, e));
+        assert!(!names_key(&plant_door, q));
+        assert!(plant_door.contains("Quellorian Threshold"));
 
         let house_only = FirstSessionGuidance {
             house_live: true,
@@ -2796,7 +2815,8 @@ mod tests {
         ledger.objective = GuidanceObjective::OpenLedger;
         let ledger_card = lived_card_line(&ledger, None);
         assert!(ledger_card.contains("L opens the Ledger"));
-        assert!(ledger_card.contains(&keys));
+        assert!(!names_key(&ledger_card, e));
+        assert!(!names_key(&ledger_card, q));
         assert!(ledger_card.contains("Human Sanctuary yard"));
 
         let mut app = App::new();
@@ -2825,7 +2845,9 @@ mod tests {
         }
         app.update();
         let (_, after) = guidance_card_section(&app);
-        assert!(after.contains(&keys));
+        assert!(!names_key(&after, e));
+        assert!(!names_key(&after, q));
+        assert!(!after.contains("E · Q"));
         assert!(after.contains("Human Sanctuary yard"));
         assert!(after.contains("Ambrosian Sanctuary well-from-above"));
         assert!(after.contains("Cydruid Heartwood"));
@@ -2839,7 +2861,8 @@ mod tests {
         app.update();
         let (_, crossed_paint) = guidance_card_section(&app);
         assert!(!crossed_paint.contains("Human Sanctuary yard"));
-        assert!(!crossed_paint.contains(&keys));
+        assert!(!names_key(&crossed_paint, e));
+        assert!(!names_key(&crossed_paint, q));
         assert!(crossed_paint.contains("I satchel · House after allocate"));
     }
 
