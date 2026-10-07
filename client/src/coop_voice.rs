@@ -42,7 +42,7 @@ fn spawn_voice_slab(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(88.0),
+                    bottom: Val::Px(144.0),
                     left: Val::Percent(50.0),
                     width: Val::Px(560.0),
                     margin: UiRect::left(Val::Px(-280.0)),
@@ -179,6 +179,28 @@ mod tests {
             assert!((got.blue - want.blue).abs() < 1e-6, "{what} blue");
             assert_eq!(got.alpha, 1.0, "{what} alpha");
         }
+    }
+
+    /// CARD VOICE-ABOVE-LEDGER-1 — voice slab bottom clears the ledger
+    /// (ledger bottom 16 + Model B height 119 = 135, plus a 9 px gap).
+    #[test]
+    fn voice_above_ledger1_slab_bottom_clears_ledger() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_voice_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<VoiceSlabRoot>>();
+        let bottom = q.single(app.world()).bottom;
+        assert_eq!(bottom, Val::Px(144.0));
+        let Val::Px(px) = bottom else {
+            panic!("voice slab bottom is not Val::Px");
+        };
+        assert!(
+            px > 135.0,
+            "voice slab bottom {px} must clear ledger top 135"
+        );
     }
 
     #[test]
