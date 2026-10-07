@@ -16,6 +16,7 @@ use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
 use crate::resonance_flavors::ResonanceState;
 use crate::hour_sacred::HourSacred;
 use crate::soft_play_bindings;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 
 #[derive(Resource, Debug)]
 pub struct FoundationLattice {
@@ -68,8 +69,8 @@ fn spawn_lattice_panel(mut commands: Commands) {
                     overflow: Overflow::clip_y(),
                     ..default()
                 },
-                background_color: Color::srgba(0.04, 0.07, 0.09, 0.95).into(),
-                border_color: Color::srgba(0.55, 0.82, 0.72, 0.50).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
+                border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -80,7 +81,7 @@ fn spawn_lattice_panel(mut commands: Commands) {
                 "FOUNDATION LATTICE",
                 TextStyle {
                     font_size: 15.5,
-                    color: Color::srgb(0.78, 0.96, 0.88),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));
@@ -89,7 +90,7 @@ fn spawn_lattice_panel(mut commands: Commands) {
                     "Loading soft foundations…",
                     TextStyle {
                         font_size: 12.5,
-                        color: Color::srgb(0.86, 0.92, 0.96),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -99,7 +100,7 @@ fn spawn_lattice_panel(mut commands: Commands) {
                 soft_play_bindings::soft_play_legend(),
                 TextStyle {
                     font_size: 10.5,
-                    color: Color::srgb(0.52, 0.68, 0.72),
+                    color: TITLE_TEXT_SECONDARY,
                     ..default()
                 },
             ));
@@ -306,6 +307,46 @@ fn update_lattice_body(
 mod tests {
     use super::*;
     use crate::resonance_flavors::ResonanceFlavor;
+
+    /// CARD VP-SLABS-REGAL-2 — the foundation lattice panel rests on the title
+    /// palette: opaque TITLE_PLATE_BG plate, TITLE_BORDER rim at alpha 1, the
+    /// heading and legend in TITLE_TEXT_SECONDARY, the body in TITLE_TEXT_PRIMARY.
+    #[test]
+    fn slabs_regal2_lattice_panel_rests_on_title_palette() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_lattice_panel);
+        app.update();
+        let mut q = app.world_mut().query_filtered::<(
+            &BorderColor,
+            &BackgroundColor,
+            &Children,
+        ), With<FoundationLatticeRoot>>();
+        let (border, bg, children) = q.single(app.world());
+        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let kids: Vec<Entity> = children.iter().copied().collect();
+        assert_eq!(kids.len(), 3, "heading, body, legend");
+        let colour = |e: Entity| {
+            app.world().get::<Text>(e).expect("text child").sections[0]
+                .style
+                .color
+                .to_srgba()
+        };
+        let (heading, body, legend) = (colour(kids[0]), colour(kids[1]), colour(kids[2]));
+        assert!(app.world().get::<FoundationLatticeBody>(kids[1]).is_some());
+        for (got, want, what) in [
+            (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
+            (border, TITLE_BORDER.to_srgba(), "rim"),
+            (heading, TITLE_TEXT_SECONDARY.to_srgba(), "heading"),
+            (body, TITLE_TEXT_PRIMARY.to_srgba(), "body"),
+            (legend, TITLE_TEXT_SECONDARY.to_srgba(), "legend"),
+        ] {
+            assert!((got.red - want.red).abs() < 1e-6, "{what} red");
+            assert!((got.green - want.green).abs() < 1e-6, "{what} green");
+            assert!((got.blue - want.blue).abs() < 1e-6, "{what} blue");
+            assert_eq!(got.alpha, 1.0, "{what} alpha");
+        }
+    }
 
     #[test]
     fn body_contains_core_layers() {
