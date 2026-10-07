@@ -17,7 +17,7 @@ Climate, guidance, and satchel already follow the number. LR-04 crash log and LR
 ## Still refused
 
 - Online, Steam, App ID, meshes, Bevy pin, payments.
-- LR-07 sync workflow. No PAT.
+- LR-07 retired: #673 deleted `.github/workflows/sync-from-ra-thor.yml` at 8b8fa141, and Ra-Thor contributes through PRs into this repo with no cross-repo sync.
 - Playtest minutes. A human writes those blanks. This seat does not invent them.
 - Living Thunder is another room and stays on HOLD. Do not import comic files here.
 
