@@ -28,6 +28,7 @@ use crate::soft_play_bindings;
 use crate::input::{InputMapSet, PlayerInput};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::vertical_factory::FactoryYard;
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 #[derive(Resource, Debug, Clone)]
 pub struct FabricatorYard {
@@ -81,8 +82,8 @@ fn spawn_fab_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.07, 0.06, 0.10, 0.90).into(),
-                border_color: Color::srgba(0.78, 0.70, 0.92, 0.45).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
+                border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -94,7 +95,7 @@ fn spawn_fab_slab(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.92, 0.88, 1.0),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -272,9 +273,24 @@ fn update_fab_slab(
             Visibility::Hidden
         };
         if show {
-            let a = 0.45 + glow * 0.45;
-            *border = Color::srgba(0.78 + glow * 0.18, 0.70 + glow * 0.22, 0.92, a).into();
-            *bg = Color::srgba(0.07 + glow * 0.10, 0.06 + glow * 0.08, 0.10 + glow * 0.12, 0.90).into();
+            // VP-SLABS-REGAL-1 (#643 pattern): rest on the title palette; the
+            // bench_glow lift rides in rgb (capped per channel), rim alpha 1.0.
+            let rim = TITLE_BORDER.to_srgba();
+            let plate = TITLE_PLATE_BG.to_srgba();
+            *border = Color::srgba(
+                (rim.red + glow * 0.18).min(1.0),
+                (rim.green + glow * 0.22).min(1.0),
+                rim.blue, // no blue lift on the rim, as before
+                1.0,
+            )
+            .into();
+            *bg = Color::srgba(
+                (plate.red + glow * 0.10).min(1.0),
+                (plate.green + glow * 0.08).min(1.0),
+                (plate.blue + glow * 0.12).min(1.0),
+                1.0,
+            )
+            .into();
         }
     }
     if !show {
@@ -294,6 +310,109 @@ fn update_fab_slab(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD VP-SLABS-REGAL-1 — the fabricator slab rests on the title palette: opaque
+    /// TITLE_PLATE_BG plate, TITLE_BORDER rim at alpha 1, TITLE_TEXT_PRIMARY text.
+    #[test]
+    fn slabs_regal_fab_slab_rests_on_title_palette() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_fab_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor), With<FabSlabRoot>>();
+        let (border, bg) = q.single(app.world());
+        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let mut t = app.world_mut().query_filtered::<&Text, With<FabSlabText>>();
+        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        for (got, want, what) in [
+            (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
+            (border, TITLE_BORDER.to_srgba(), "rim"),
+            (txt, TITLE_TEXT_PRIMARY.to_srgba(), "text"),
+        ] {
+            assert!((got.red - want.red).abs() < 1e-6, "{what} red");
+            assert!((got.green - want.green).abs() < 1e-6, "{what} green");
+            assert!((got.blue - want.blue).abs() < 1e-6, "{what} blue");
+            assert_eq!(got.alpha, 1.0, "{what} alpha");
+        }
+    }
+
+    /// Fab slab app with the slab showing (Hour two held, charter skin live,
+    /// factory tutorial complete) at the given bench_glow.
+    fn slabs_regal_fab_app(glow: f32) -> App {
+        use crate::hour_sacred::{try_mark_hour_two_held, try_plant_house, try_ridge_tab};
+        use shared::space_law::SpaceSession;
+        use shared::vertical_factory::VerticalFactory;
+
+        let mut hour = HourSacred {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        };
+        assert!(try_ridge_tab(&mut hour, true));
+        let mut factory = VerticalFactory::default();
+        assert!(try_plant_house(&mut hour, &mut factory));
+        assert!(try_mark_hour_two_held(&mut hour, true, true));
+        while !factory.tutorial_complete() {
+            if factory.advance() == "unfounded" {
+                break;
+            }
+        }
+        assert!(hour.complete && hour.charter_skin_live() && factory.tutorial_complete());
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(hour)
+            .insert_resource(FactoryYard { factory })
+            .insert_resource(FabricatorYard {
+                fab: Fabricator::default(),
+                bench_glow: glow,
+            })
+            .add_systems(Startup, spawn_fab_slab)
+            .add_systems(Update, update_fab_slab);
+        app.update();
+        app
+    }
+
+    fn slabs_regal_fab_colors(app: &mut App) -> (Srgba, Srgba, Visibility) {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor, &Visibility), With<FabSlabRoot>>();
+        let (border, bg, vis) = q.single(app.world());
+        (border.0.to_srgba(), bg.0.to_srgba(), *vis)
+    }
+
+    /// CARD VP-SLABS-REGAL-1 — the bench_glow pulse rides in rgb on the gold
+    /// rest base: at rest the shown slab is the palette, at peak the rim rgb
+    /// differs (capped at 1.0) and rim and plate alpha stay 1.0.
+    #[test]
+    fn slabs_regal_fab_pulse_peak_rim_rgb_differs_from_rest() {
+        let mut app = slabs_regal_fab_app(0.0);
+        let (rest, rest_bg, vis) = slabs_regal_fab_colors(&mut app);
+        assert_eq!(vis, Visibility::Visible);
+        let rim = TITLE_BORDER.to_srgba();
+        let plate = TITLE_PLATE_BG.to_srgba();
+        assert!((rest.red - rim.red).abs() < 1e-6);
+        assert!((rest.green - rim.green).abs() < 1e-6);
+        assert!((rest.blue - rim.blue).abs() < 1e-6);
+        assert!((rest_bg.red - plate.red).abs() < 1e-6);
+        assert!((rest_bg.green - plate.green).abs() < 1e-6);
+        assert!((rest_bg.blue - plate.blue).abs() < 1e-6);
+        assert_eq!(rest.alpha, 1.0);
+        assert_eq!(rest_bg.alpha, 1.0);
+
+        let mut app = slabs_regal_fab_app(1.0);
+        let (peak, peak_bg, _) = slabs_regal_fab_colors(&mut app);
+        let moved = (peak.red - rest.red).abs()
+            + (peak.green - rest.green).abs()
+            + (peak.blue - rest.blue).abs();
+        assert!(moved > 1e-3, "peak rim rgb must differ from rest");
+        assert!((peak.red - (rim.red + 0.18).min(1.0)).abs() < 1e-6);
+        assert!((peak.green - (rim.green + 0.22).min(1.0)).abs() < 1e-6);
+        assert!(peak.red <= 1.0 && peak.green <= 1.0 && peak.blue <= 1.0);
+        assert_eq!(peak.alpha, 1.0, "rim alpha stays 1.0 under the pulse");
+        assert_eq!(peak_bg.alpha, 1.0, "plate alpha stays 1.0 under the pulse");
+    }
 
     #[test]
     fn peace_does_not_plant() {
