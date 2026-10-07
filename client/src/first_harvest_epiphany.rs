@@ -27,7 +27,9 @@ use shared::hex_travel::PlaceId;
 use crate::harvest_feel::{credit_soft_and_global, rumble_harvest, rumble_mercy_harvest, SoftRbePool};
 use crate::hour_sacred::HourSacred;
 use crate::input::PlayerInput;
-use crate::mercy_harvest_nodes::{apply_node_harvest, apply_node_tend, MercyHarvestNode, NearbyMercyNode};
+use crate::mercy_harvest_nodes::{
+    apply_node_harvest, apply_node_tend, CareCycleOffer, MercyHarvestNode, NearbyMercyNode,
+};
 use crate::lived_hour_support::RbeGlobalState;
 use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
@@ -722,6 +724,7 @@ fn update_world_care_prompt(
     guidance: Res<FirstSessionGuidance>,
     nearby: Res<NearbyMercyNode>,
     time: Res<Time>,
+    care: Option<Res<CareCycleOffer>>,
     mut root: Query<&mut Visibility, With<WorldCarePromptRoot>>,
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
 ) {
@@ -732,7 +735,7 @@ fn update_world_care_prompt(
         state.first_harvest_lived,
         guidance.dismissed,
         state.prompt_visible(now, &guidance),
-    );
+    ) && !care.is_some_and(|c| c.active);
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -1190,6 +1193,54 @@ mod tests {
             &pulse,
             true
         ));
+    }
+
+    /// CARD CARE-PROMPT-YIELD-1 — an active care strip hides the world-care
+    /// prompt that would otherwise share the centred bottom-128 anchor.
+    /// `active: false` keeps the pre-gate Visible result.
+    #[test]
+    fn care_prompt_yield_1_hides_when_care_cycle_active() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<NearbyMercyNode>()
+            .add_systems(Update, update_world_care_prompt);
+        app.world_mut().spawn((WorldCarePromptRoot, Visibility::Hidden));
+        {
+            let mut nearby = app.world_mut().resource_mut::<NearbyMercyNode>();
+            nearby.in_range = true;
+            nearby.nodes_exist = true;
+        }
+
+        let mut active = CareCycleOffer::default();
+        active.active = true;
+        app.insert_resource(active);
+        app.update();
+        assert_eq!(
+            world_care_prompt_vis(&mut app),
+            Visibility::Hidden,
+            "active care strip yields the world-care prompt"
+        );
+
+        let mut quiet = CareCycleOffer::default();
+        quiet.active = false;
+        app.insert_resource(quiet);
+        app.update();
+        assert_eq!(
+            world_care_prompt_vis(&mut app),
+            Visibility::Visible,
+            "inactive care strip leaves the in-range prompt visible"
+        );
+    }
+
+    fn world_care_prompt_vis(app: &mut App) -> Visibility {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Visibility, With<WorldCarePromptRoot>>();
+        *q.iter(app.world())
+            .next()
+            .expect("world-care prompt root")
     }
 
     #[test]
