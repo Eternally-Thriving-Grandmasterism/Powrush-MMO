@@ -20,6 +20,7 @@ use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
+use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use shared::fabricator::ProofPack;
 use shared::space_law::HexFlag;
 
@@ -71,8 +72,8 @@ fn spawn_embassy_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.08, 0.07, 0.12, 0.92).into(),
-                border_color: Color::srgba(0.82, 0.74, 0.95, 0.50).into(),
+                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
+                border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -84,7 +85,7 @@ fn spawn_embassy_slab(mut commands: Commands) {
                     "",
                     TextStyle {
                         font_size: 14.0,
-                        color: Color::srgb(0.94, 0.90, 1.0),
+                        color: TITLE_TEXT_PRIMARY,
                         ..default()
                     },
                 ),
@@ -228,6 +229,33 @@ fn update_embassy_slab(
 mod tests {
     use super::*;
     use shared::space_law::HexFlag;
+
+    /// CARD VP-SLABS-REGAL-2 — the embassy lamp slab rests on the title palette: opaque
+    /// TITLE_PLATE_BG plate, TITLE_BORDER rim at alpha 1, TITLE_TEXT_PRIMARY text.
+    #[test]
+    fn slabs_regal2_embassy_slab_rests_on_title_palette() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_embassy_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor), With<EmbassySlabRoot>>();
+        let (border, bg) = q.single(app.world());
+        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let mut t = app.world_mut().query_filtered::<&Text, With<EmbassySlabText>>();
+        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        for (got, want, what) in [
+            (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
+            (border, TITLE_BORDER.to_srgba(), "rim"),
+            (txt, TITLE_TEXT_PRIMARY.to_srgba(), "text"),
+        ] {
+            assert!((got.red - want.red).abs() < 1e-6, "{what} red");
+            assert!((got.green - want.green).abs() < 1e-6, "{what} green");
+            assert!((got.blue - want.blue).abs() < 1e-6, "{what} blue");
+            assert_eq!(got.alpha, 1.0, "{what} alpha");
+        }
+    }
 
     #[test]
     fn peace_hides_lamp() {
