@@ -16,7 +16,7 @@ jobs:
           token: ${{ secrets.RA_THOR_SYNC_PAT || github.token }}
           fetch-depth: 0
 
-      - name: Mercy Gate 1: Protocol Compliance Check
+      - name: "Mercy Gate 1: Protocol Compliance Check"
         run: |
           echo "⚡ Checking RESTORATION_AND_MERGE_PROTOCOL compliance..."
           if [ -f docs/RESTORATION_AND_MERGE_PROTOCOL.md ]; then
@@ -45,6 +45,8 @@ jobs:
           mkdir -p engine client shared docs
           # Placeholder for actual sync logic - update paths as new PATSAGi files are added
           echo "Sync simulation complete. No destructive overwrites."
+          # Drop the scratch Ra-Thor checkout so create-pull-request never commits it as a stray gitlink.
+          rm -rf ra-thor-source
 
       - name: Create Draft PR with Council Justification (if changes)
         uses: peter-evans/create-pull-request@v6
