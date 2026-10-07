@@ -29,7 +29,7 @@ use crate::input::{InputMapSet, PlayerInput};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
-use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
+use crate::title_screen::{HouseLabel, TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
 
 #[derive(Resource, Debug, Clone)]
@@ -105,7 +105,7 @@ fn spawn_ledger_slab(mut commands: Commands) {
                     ..default()
                 },
                 background_color: TITLE_PLATE_BG.into(),
-                border_color: Color::srgb(0.70, 0.78, 0.92).into(),
+                border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 visibility: Visibility::Hidden,
                 z_index: ZIndex::Global(LIVED_UI_Z_LEDGER),
                 ..default()
@@ -394,6 +394,35 @@ fn house_week_from_rooms(
 mod tests {
     use super::*;
     use shared::space_law::HexFlag;
+
+    /// CARD VP-SLABS-REGAL-3 — the ledger slab rests on the title palette:
+    /// opaque TITLE_PLATE_BG plate, TITLE_BORDER rim at alpha 1, TITLE_TEXT_PRIMARY text.
+    #[test]
+    fn slabs_regal3_ledger_slab_rests_on_title_palette() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_ledger_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(&BorderColor, &BackgroundColor), With<LedgerSlabRoot>>();
+        let (border, bg) = q.single(app.world());
+        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let mut t = app
+            .world_mut()
+            .query_filtered::<&Text, With<LedgerSlabText>>();
+        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        for (got, want, what) in [
+            (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
+            (border, TITLE_BORDER.to_srgba(), "rim"),
+            (txt, TITLE_TEXT_PRIMARY.to_srgba(), "text"),
+        ] {
+            assert!((got.red - want.red).abs() < 1e-6, "{what} red");
+            assert!((got.green - want.green).abs() < 1e-6, "{what} green");
+            assert!((got.blue - want.blue).abs() < 1e-6, "{what} blue");
+            assert_eq!(got.alpha, 1.0, "{what} alpha");
+        }
+    }
 
     /// L sash open on Sanctuary with the book, painted by the real system.
     fn painted_ledger_plate(yard_climate: ShardClimate, bill: HouseWeekBill) -> String {
