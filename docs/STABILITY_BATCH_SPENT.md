@@ -12,7 +12,7 @@
 
 ## Still refused
 
-- **LR-07.** Do not edit `.github/workflows/sync-from-ra-thor.yml`. No PAT. Not a product gate.
+- **LR-07.** Retired: #673 deleted `.github/workflows/sync-from-ra-thor.yml` at 8b8fa141. Ra-Thor contributes through PRs into this repo with no cross-repo sync.
 
 ## Not this stamp
 
