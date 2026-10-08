@@ -41,6 +41,7 @@ use crate::lived_hour_bind::LivedHourBind;
 use crate::lived_sim_bridge::{sync_lived_hour_use, LivedSimBridge};
 use crate::rbe_allocate_choice::{allocate_owns_digit2, RbeAllocateChoice};
 use crate::living_ecology::BiomeFeel;
+use crate::hud_anchor_registry::ACTION_BAR;
 use crate::living_practice_loop::SoftPlayerRealm;
 
 pub const HARVEST_REACH: f32 = 2.85;
@@ -388,10 +389,9 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(128.0),
-                    left: Val::Percent(50.0),
+                    bottom: ACTION_BAR.bottom(),
+                    right: ACTION_BAR.right(),
                     width: Val::Px(560.0),
-                    margin: UiRect::left(Val::Px(-280.0)),
                     padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
@@ -1213,5 +1213,31 @@ mod tests {
         offer.dismiss();
         assert!(!offer.is_active());
         assert_eq!(offer.choice, Some(CareCycleChoice::Dismiss));
+    }
+
+    /// CARD HUD-ANCHOR-REGISTRY-1 — CareStrip sits on ACTION_BAR.
+    #[test]
+    fn care_strip_lands_on_action_bar() {
+        use crate::hud_anchor_registry::{ACTION_BAR, ID_CARE_STRIP};
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_care_cycle_strip);
+        app.update();
+        let mut query = app
+            .world_mut()
+            .query_filtered::<&Style, With<CareCycleStrip>>();
+        let style = query.single(app.world()).clone();
+        assert_eq!(style.bottom, ACTION_BAR.bottom());
+        assert_eq!(style.right, ACTION_BAR.right());
+        assert_eq!(style.left, Val::Auto);
+        assert_eq!(style.width, Val::Px(ACTION_BAR.occupant(ID_CARE_STRIP).width));
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.padding, UiRect::axes(Val::Px(16.0), Val::Px(10.0)));
+        assert_eq!(style.border, UiRect::all(Val::Px(2.0)));
+        let mut text = app
+            .world_mut()
+            .query_filtered::<&Text, With<CareCycleStripText>>();
+        assert_eq!(text.single(app.world()).sections[0].style.font_size, 16.0);
     }
 }

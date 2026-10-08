@@ -21,6 +21,7 @@ use bevy::prelude::*;
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
+use crate::hud_anchor_registry::ACTION_BAR;
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
 use shared::hex_travel::PlaceId;
@@ -306,10 +307,9 @@ fn spawn_lived_surfaces(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(128.0),
-                    left: Val::Percent(50.0),
+                    bottom: ACTION_BAR.bottom(),
+                    right: ACTION_BAR.right(),
                     width: Val::Px(460.0),
-                    margin: UiRect::left(Val::Px(-230.0)),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
@@ -1362,5 +1362,59 @@ mod tests {
         let week = GuidanceObjective::HourTwoHeld.prompt();
         assert!(week.contains("week"));
         assert!(week.contains("tons"));
+    }
+
+    /// CARD HUD-ANCHOR-REGISTRY-1 — CarePrompt sits on ACTION_BAR.
+    /// Pulse and Welcome keep their coded anchors.
+    #[test]
+    fn care_prompt_lands_on_action_bar_pulse_and_welcome_stay() {
+        use crate::hud_anchor_registry::{ACTION_BAR, ID_CARE_PROMPT};
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_lived_surfaces);
+        app.update();
+
+        let mut prompt = app
+            .world_mut()
+            .query_filtered::<&Style, With<WorldCarePromptRoot>>();
+        let prompt = prompt.single(app.world()).clone();
+        assert_eq!(prompt.bottom, ACTION_BAR.bottom());
+        assert_eq!(prompt.right, ACTION_BAR.right());
+        assert_eq!(prompt.left, Val::Auto);
+        assert_eq!(prompt.width, Val::Px(ACTION_BAR.occupant(ID_CARE_PROMPT).width));
+        assert_eq!(prompt.margin, UiRect::default());
+        assert_eq!(prompt.padding, UiRect::axes(Val::Px(14.0), Val::Px(8.0)));
+        assert_eq!(prompt.border, UiRect::all(Val::Px(1.0)));
+
+        let mut pulse = app
+            .world_mut()
+            .query_filtered::<&Style, With<HarvestPulseRoot>>();
+        let pulse = pulse.single(app.world()).clone();
+        assert_eq!(pulse.top, Val::Px(118.0));
+        assert_eq!(pulse.left, Val::Percent(50.0));
+        assert_eq!(pulse.width, Val::Px(560.0));
+        assert_eq!(pulse.margin.left, Val::Px(-280.0));
+
+        let mut welcome = app
+            .world_mut()
+            .query_filtered::<&Style, With<WelcomeBackRoot>>();
+        let welcome = welcome.single(app.world()).clone();
+        assert_eq!(welcome.top, Val::Px(16.0));
+        assert_eq!(welcome.left, Val::Px(16.0));
+        assert_eq!(welcome.width, Val::Px(380.0));
+
+        let mut prompt_text = app
+            .world_mut()
+            .query_filtered::<&Text, With<WorldCarePromptText>>();
+        assert_eq!(prompt_text.single(app.world()).sections[0].style.font_size, 16.0);
+        let mut pulse_text = app
+            .world_mut()
+            .query_filtered::<&Text, With<HarvestPulseText>>();
+        assert_eq!(pulse_text.single(app.world()).sections[0].style.font_size, 16.0);
+        let mut welcome_text = app
+            .world_mut()
+            .query_filtered::<&Text, With<WelcomeBackText>>();
+        assert_eq!(welcome_text.single(app.world()).sections[0].style.font_size, 13.5);
     }
 }

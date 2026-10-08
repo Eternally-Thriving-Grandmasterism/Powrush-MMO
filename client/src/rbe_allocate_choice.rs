@@ -28,6 +28,7 @@ use shared::climate_node::AllocKind;
 use shared::hex_travel::PlaceId;
 
 use crate::first_session_guidance::{credit_share, FirstSessionGuidance};
+use crate::hud_anchor_registry::ALLOCATE_DOCK;
 use crate::title_screen::{TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_FG, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::harvest_feel::rumble_mercy_harvest;
 use crate::lived_hour_bind::LivedHourBind;
@@ -224,10 +225,9 @@ fn spawn_allocate_panel(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(140.0),
-                    left: Val::Percent(50.0),
+                    bottom: ALLOCATE_DOCK.bottom(),
+                    right: ALLOCATE_DOCK.right(),
                     width: Val::Px(520.0),
-                    margin: UiRect::left(Val::Px(-260.0)),
                     padding: UiRect::all(Val::Px(16.0)),
                     flex_direction: FlexDirection::Column,
                     row_gap: Val::Px(10.0),
@@ -766,5 +766,31 @@ mod tests {
         assert_eq!(bind.climate.reserve_pool, 0);
         assert!(bind.hour.allocation.reserve_bank_line().is_none());
         assert_eq!(bind.last_line, "satchel empty");
+    }
+
+    /// CARD HUD-ANCHOR-REGISTRY-1 — Allocate sits on ALLOCATE_DOCK.
+    #[test]
+    fn allocate_panel_lands_on_allocate_dock() {
+        use crate::hud_anchor_registry::{ALLOCATE_DOCK, ID_ALLOCATE};
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_allocate_panel);
+        app.update();
+        let mut query = app
+            .world_mut()
+            .query_filtered::<&Style, With<AllocatePanelRoot>>();
+        let style = query.single(app.world()).clone();
+        assert_eq!(style.bottom, ALLOCATE_DOCK.bottom());
+        assert_eq!(style.right, ALLOCATE_DOCK.right());
+        assert_eq!(style.left, Val::Auto);
+        assert_eq!(style.width, Val::Px(ALLOCATE_DOCK.occupant(ID_ALLOCATE).width));
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.padding, UiRect::all(Val::Px(16.0)));
+        assert_eq!(style.border, UiRect::all(Val::Px(1.5)));
+        let mut text = app
+            .world_mut()
+            .query_filtered::<&Text, With<AllocateBodyText>>();
+        assert_eq!(text.single(app.world()).sections[0].style.font_size, 15.0);
     }
 }
