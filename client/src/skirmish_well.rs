@@ -354,7 +354,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn well_contest_kick_is_win_then_loss() {
         assert_eq!(well_contest_kick("won"), Some(1.0));
         assert_eq!(well_contest_kick("lost"), Some(0.42));

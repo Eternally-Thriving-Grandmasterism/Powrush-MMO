@@ -54,7 +54,7 @@ Person-scale combat is this file. `docs/DOGFIGHT_MECHANICS.md`, `docs/BOARDING_M
 | Term | Meaning |
 |---|---|
 | **Proficiency** | A bracket key. It rises from practised verbs. It is not XP, not a damage bonus, and not a Place gate. The world does not scale to it. |
-| **Newcomer Aegis** | The personal bubble that blocks all damage between players for a newcomer outside a dome. PvE damage always goes through. It is not the item Ward, and it is not a Heartwood Ward. |
+| **Newcomer Aegis** | The personal bubble that blocks all player-vs-player damage for a newcomer outside a dome. PvE damage always goes through. It is not the item Ward, and it is not a Heartwood Ward. |
 | **Heartwood Wards** | Well · Grove · Ember seal posts (`docs/PLACES_BIBLE.md`). Dress and tend. They are not shields. |
 | **Faction Sanctuary Dome** | A permanent faction energy dome over a starter area. No damage between players inside. PvE damage always goes through. |
 | **Canopy** | A crafted, temporary shield generator. Pocket, Squad, or Hold. |
@@ -91,7 +91,7 @@ Offline, the same ground is PvE or Peace. Sanctuary Prime stays a yard: no comba
 
 Leaving a dome, a homestead core, or the Depths landing plays one edge warning (§16): a banded shimmer for 15 m and a toast. The toast reads "Dome edge. Contested wilds ahead." or "Gate ahead. Lawless past this line." Entering the lawless deep asks for a confirm. With the Aegis up it reads "Lawless. Your Aegis still holds. Equipped gear stays on you." With the Aegis down it reads "Lawless. You can be struck. Equipped gear stays on you. Marked and Outlaw can lose carried goods."
 
-Holiday ceasefires (`docs/LAYERED_GAMES_AND_SERVER.md` §7.4) and the Day of the Broken Light (§7.2, no war that day) close war instances and stand player damage down everywhere for the window. Domes keep working.
+Holiday ceasefires (`docs/LAYERED_GAMES_AND_SERVER.md` §7.4) and the Day of the Broken Light (§7.2, no war that day) close war instances and stand player-vs-player damage down everywhere for the window. Domes keep working.
 
 ---
 
@@ -144,7 +144,7 @@ Rules:
 - No canopy within 40 m of a contested objective: Charter Pole, war statue, battleground node, banner, convoy, Lane Trial beacon, or Relay.
 - The footprint is a banded ring on the ground plus a soft dome. Pattern first, colour second.
 - Enemies siege it. Sapper shots hurt it. When integrity hits 0, the dome drops and the generator becomes a ruin with 50% of its cell cost as salvage (`docs/LAYERED_GAMES_AND_SERVER.md` §3g ruins, not deletion).
-- A living canopy blocks all damage between players across its skin. PvE damage always goes through. Siege shots damage the generator. People inside stay safe until integrity hits 0. They may Tend, craft, and revive.
+- A living canopy blocks all player-vs-player damage across its skin. PvE damage always goes through. Siege shots damage the generator. People inside stay safe until integrity hits 0. They may Tend, craft, and revive.
 - Uses: a safe rest, a crafting stop, a regroup, a raid camp before a boss. A canopy is not a capturable objective and scores nothing.
 
 Offline, Pocket and Squad canopies are PvE camp tools once that card exists. Hold waits until group play exists. They never appear in the Hour 1 yard.
