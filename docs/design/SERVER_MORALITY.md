@@ -160,6 +160,8 @@ Technique borrowed: World of Warcraft's AQ40 war effort, a server-wide collectio
 
 The time leap is a world rewind. It has nothing to do with network prediction and reconciliation ([ARCHITECTURE_LAYERS_AND_DATAFLOW](../ARCHITECTURE_LAYERS_AND_DATAFLOW.md) L35). This file never calls it by that layer's term.
 
+The time leap rewinds **this same world**. It does not open a second timeline or a parallel world, and it does not send anyone to a second realm or map ([RITE_DOS_BANK](../RITE_DOS_BANK.md) L15). There is one server, one map, and one history before and after the leap. The fields on the restore list take earlier values on that same world, players stay where they stand, and the record carries on in one line (§3.4.1 keep list). No player-facing text, dress, or event may show or imply another world.
+
 #### Electricity (new proposed resource)
 
 Electricity is a **new proposed resource**. Nothing in the repo uses it as a game resource yet. It is written as plain "electricity". It has no coined currency name and no item name.
@@ -182,7 +184,7 @@ When every tier is full and every faction quota is met, the trigger opens. It is
 
 #### The time leap rewinds the world, not the players
 
-The leap restores world state from a kept world snapshot taken before the ruin. Per-zone snapshots are already planned ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2). Keeping some of them longer for the leap is proposed here. The leap uses the newest kept snapshot taken while the meter sat outside the hell band, and no older than `snapshot_max_age` (§9). If no snapshot qualifies, the leap cannot fire, and the server climbs out by tending.
+The leap restores world state from a kept world snapshot taken before the ruin. The world snapshot is **proposed server state, not built**, and **online later**. It is a saved copy of this world's own restore-list fields, held by the server. It is not a second world, and nobody can visit it or see it. Per-zone snapshots appear only as a plan in [LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2, and that plan is not built either. Keeping some of them longer for the leap is proposed here. The leap uses the newest kept snapshot taken while the meter sat outside the hell band, and no older than `snapshot_max_age` (§9). If no snapshot qualifies, the leap cannot fire, and the server climbs out by tending.
 
 **Restore list (world state only).** These return to their snapshot condition.
 
@@ -307,7 +309,7 @@ These files were not edited.
 2. [COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8 carries infamy, righteousness, and allegiance on a server move. §4 here keeps that and refuses only that grief, meter state, and grudges travel. A covert allegiance carries the same way, still hidden.
 3. [FACTION_LEADERS](FACTION_LEADERS.md) §11 clash 10 asks how Unbound standing sits beside the two §8 doors. This file does not answer it and adds no third door. Double agents ride on the existing two.
 4. [DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2 marks Draek standing as an inverted scale. The meter is not a faction scale. A server can be heaven while the Dominion is strong on it.
-5. [LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2 plans per-zone snapshots for crash recovery: last snapshot plus a replay of the log tail. The time leap in §3.4.1 needs some world snapshots kept for longer, and it restores only the world-state fields on its restore list. A later card should say how long-kept snapshots sit beside the recovery ones. This file does not change P2.
+5. [LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2 plans per-zone snapshots for crash recovery: last snapshot plus a replay of the log tail. Neither P2 nor its snapshots are built. The time leap in §3.4.1 needs some world snapshots kept for longer, as proposed server state that is not built and is online later, and it restores only the world-state fields on its restore list. A later card should say how long-kept snapshots sit beside the recovery ones. This file does not change P2.
 
 ---
 
@@ -324,6 +326,8 @@ These files were not edited.
 | A time leap that rewinds personal progress: levels, gear, skills, earned items, memories, or the personal record | The leap rewinds the world, not the players (§3.4.1 keep list) |
 | A time leap that rewinds the ledger, the server history, or the event log | The record is never rewound (§3.4.1) |
 | A time leap that deletes anything built after the snapshot, or restores a salvaged ruin and duplicates goods | Nothing is deleted. Nothing is duplicated |
+| A time leap that shows or implies a second timeline, a parallel world, or a second realm or map | The leap rewinds this same world ([RITE_DOS_BANK](../RITE_DOS_BANK.md) L15) |
+| A world snapshot players can visit, browse, or see as a place | The snapshot is proposed server state, not built, and online later. It is not a place |
 | A time leap triggered from a healthy server | The effort opens only in the hell band |
 | A withdrawable electricity reserve, or one a single griefer can empty | Deposit-only, locked tiers, drain caps (§3.4.1) |
 | A war effort one faction can finish alone | Every faction carries a quota. It is a server-wide effort |
