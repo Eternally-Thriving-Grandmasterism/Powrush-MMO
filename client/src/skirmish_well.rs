@@ -15,6 +15,7 @@ use shared::skirmish_well::{SkirmishWell, WellHold, CONTEST_REACH, WELL_ANCHORS}
 use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
 
 use crate::coop_voice::VoiceYard;
+use crate::hud_anchor_registry::WELL;
 use crate::harvest_feel::{rumble_harvest, SoftRbePool};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::human_presence::SoftPresence;
@@ -106,8 +107,8 @@ fn spawn_well_slab(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(132.0),
-                    left: Val::Px(16.0),
+                    bottom: WELL.bottom(),
+                    left: WELL.left(),
                     width: Val::Px(420.0),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::FlexStart,
@@ -322,6 +323,34 @@ fn update_well_slab(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Well position is the registry, Style is the coded literal.
+    #[test]
+    fn well_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_well_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<WellSlabRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(132.0),
+            left: Val::Px(16.0),
+            width: Val::Px(420.0),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+            justify_content: JustifyContent::FlexStart,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.bottom, WELL.bottom());
+        assert_eq!(style.left, WELL.left());
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.width, Val::Px(WELL.width));
+    }
 
     #[test]
     #[test]

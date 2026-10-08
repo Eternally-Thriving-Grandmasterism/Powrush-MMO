@@ -21,7 +21,7 @@ use bevy::prelude::*;
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
-use crate::hud_anchor_registry::{action_bar_prompts_showing, ACTION_BAR};
+use crate::hud_anchor_registry::{action_bar_prompts_showing, ACTION_BAR, PULSE, WELCOME};
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
 use shared::hex_travel::PlaceId;
@@ -342,10 +342,10 @@ fn spawn_lived_surfaces(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(118.0),
-                    left: Val::Percent(50.0),
+                    top: PULSE.top(),
+                    left: PULSE.left(),
                     width: Val::Px(560.0),
-                    margin: UiRect::left(Val::Px(-280.0)),
+                    margin: PULSE.margin(),
                     padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
@@ -378,8 +378,8 @@ fn spawn_lived_surfaces(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(16.0),
-                    left: Val::Px(16.0),
+                    top: WELCOME.top(),
+                    left: WELCOME.left(),
                     width: Val::Px(380.0),
                     padding: UiRect::all(Val::Px(12.0)),
                     border: UiRect::all(Val::Px(1.0)),
@@ -1473,7 +1473,8 @@ mod tests {
     }
 
     /// CARD HUD-ANCHOR-REGISTRY-1 — CarePrompt sits on ACTION_BAR.
-    /// Pulse and Welcome keep their coded anchors.
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Pulse and Welcome read the registry and
+    /// stay on the coded anchors.
     #[test]
     fn care_prompt_lands_on_action_bar_pulse_and_welcome_stay() {
         use crate::hud_anchor_registry::{ACTION_BAR, ID_CARE_PROMPT};
@@ -1503,6 +1504,23 @@ mod tests {
         assert_eq!(pulse.left, Val::Percent(50.0));
         assert_eq!(pulse.width, Val::Px(560.0));
         assert_eq!(pulse.margin.left, Val::Px(-280.0));
+        assert_eq!(pulse.top, PULSE.top());
+        assert_eq!(pulse.left, PULSE.left());
+        assert_eq!(pulse.margin, PULSE.margin());
+        assert_eq!(pulse.width, Val::Px(PULSE.width));
+        let pulse_coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(118.0),
+            left: Val::Percent(50.0),
+            width: Val::Px(560.0),
+            margin: UiRect::left(Val::Px(-280.0)),
+            padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            border: UiRect::all(Val::Px(1.2)),
+            ..default()
+        };
+        assert_eq!(pulse, pulse_coded);
 
         let mut welcome = app
             .world_mut()
@@ -1511,6 +1529,20 @@ mod tests {
         assert_eq!(welcome.top, Val::Px(16.0));
         assert_eq!(welcome.left, Val::Px(16.0));
         assert_eq!(welcome.width, Val::Px(380.0));
+        assert_eq!(welcome.top, WELCOME.top());
+        assert_eq!(welcome.left, WELCOME.left());
+        assert_eq!(welcome.margin, UiRect::default());
+        assert_eq!(welcome.width, Val::Px(WELCOME.width));
+        let welcome_coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(16.0),
+            left: Val::Px(16.0),
+            width: Val::Px(380.0),
+            padding: UiRect::all(Val::Px(12.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(welcome, welcome_coded);
 
         let mut prompt_text = app
             .world_mut()

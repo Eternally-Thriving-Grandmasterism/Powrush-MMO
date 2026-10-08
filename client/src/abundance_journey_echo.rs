@@ -17,6 +17,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+use crate::hud_anchor_registry::JOURNEY;
 use crate::living_practice_loop::LivingPracticeLoop;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
@@ -218,8 +219,8 @@ fn spawn_echo_panel(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(12.0),
-                    left: Val::Percent(2.0),
+                    top: JOURNEY.top(),
+                    left: JOURNEY.left(),
                     width: Val::Px(360.0),
                     max_height: Val::Px(280.0),
                     padding: UiRect::all(Val::Px(14.0)),
@@ -360,6 +361,37 @@ fn update_echo_body(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Journey position is the registry, Style is the coded literal.
+    #[test]
+    fn journey_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_echo_panel);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<JourneyEchoRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Percent(12.0),
+            left: Val::Percent(2.0),
+            width: Val::Px(360.0),
+            max_height: Val::Px(280.0),
+            padding: UiRect::all(Val::Px(14.0)),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(6.0),
+            border: UiRect::all(Val::Px(1.5)),
+            overflow: Overflow::clip_y(),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, JOURNEY.top());
+        assert_eq!(style.left, JOURNEY.left());
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.width, Val::Px(JOURNEY.width));
+    }
 
     #[test]
     fn push_caps_at_24() {

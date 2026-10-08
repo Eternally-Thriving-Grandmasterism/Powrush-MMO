@@ -1,11 +1,15 @@
 //! CARD HUD-ANCHOR-REGISTRY-1 — step 2a of the UI layout epic.
+//! CARD HUD-ANCHOR-REGISTRY-2B — the 19 as-is joiners from design §2.4,
+//! plus rows 16 and 17 (Redemption, Hybrid) as position-only joiners.
 //!
-//! Anchor records follow design §2.1. This card fills three of them, from §2.5:
-//! `ACTION_BAR`, `VOICE`, and `ALLOCATE_DOCK`. No plugin: slabs read the
-//! anchors when they spawn, and the R2 yield runs inside the slabs' own
-//! visibility systems. Presets, push, cover, and edit mode stay later cards.
+//! Anchor records follow design §2.1. Step 2a fills three of them, from §2.5:
+//! `ACTION_BAR`, `VOICE`, and `ALLOCATE_DOCK`. Step 2b moves each as-is
+//! joiner's coded position into [`HudCodedPlace`]. Spawn sites read those
+//! Vals. Each centred joiner keeps its own `margin_left`. No plugin: slabs
+//! read the anchors when they spawn, and the R2 yield runs inside the slabs'
+//! own visibility systems. Presets, push, cover, and edit mode stay later cards.
 
-use bevy::ui::Val;
+use bevy::ui::{UiRect, Val};
 
 use crate::first_harvest_epiphany::{world_care_prompt_visible, FirstHarvestEpiphany};
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
@@ -168,6 +172,452 @@ pub const ALLOCATE_DOCK: HudAnchor = HudAnchor {
 
 pub const ANCHORS: &[HudAnchor] = &[ACTION_BAR, VOICE, ALLOCATE_DOCK];
 
+pub const ID_FACTORY: &str = "Factory";
+pub const ID_SPILL: &str = "Spill";
+pub const ID_FAB: &str = "Fab";
+pub const ID_EMBASSY: &str = "Embassy";
+pub const ID_REDEMPTION: &str = "Redemption";
+pub const ID_HYBRID: &str = "Hybrid";
+pub const ID_COMPASS: &str = "Compass";
+pub const ID_WELL: &str = "Well";
+pub const ID_PULSE: &str = "Pulse";
+pub const ID_WELCOME: &str = "Welcome";
+pub const ID_CLIMATE_STATE: &str = "ClimateState";
+pub const ID_WATCH: &str = "Watch";
+pub const ID_PICKUP: &str = "Pickup";
+pub const ID_SOVEREIGN: &str = "Sovereign";
+pub const ID_THRIVING: &str = "Thriving";
+pub const ID_MERCY: &str = "Mercy";
+pub const ID_REALM: &str = "Realm";
+pub const ID_WHISPER: &str = "Whisper";
+pub const ID_JOURNEY: &str = "Journey";
+pub const ID_PEER: &str = "Peer";
+pub const ID_PLACE_NAME: &str = "PlaceName";
+
+/// One as-is joiner (§2.4). Position Vals are that slab's coded literals.
+/// `margin_left` is set only for a centred slab, and it is that slab's own
+/// half-width margin. It is never a shared constant.
+#[derive(Clone, Copy, Debug)]
+pub struct HudCodedPlace {
+    pub id: &'static str,
+    pub row: u8,
+    pub class: u8,
+    pub width: f32,
+    /// Model B height from design §2.3. Not written onto `Style`.
+    pub height_b: f32,
+    pub top: Val,
+    pub right: Val,
+    pub bottom: Val,
+    pub left: Val,
+    pub margin_left: Option<f32>,
+}
+
+const fn coded(
+    id: &'static str,
+    row: u8,
+    class: u8,
+    width: f32,
+    height_b: f32,
+    top: Val,
+    right: Val,
+    bottom: Val,
+    left: Val,
+    margin_left: Option<f32>,
+) -> HudCodedPlace {
+    HudCodedPlace {
+        id,
+        row,
+        class,
+        width,
+        height_b,
+        top,
+        right,
+        bottom,
+        left,
+        margin_left,
+    }
+}
+
+/// Row 8. Top 16, centred, margin −260, width 520.
+pub const FACTORY: HudCodedPlace = coded(
+    ID_FACTORY,
+    8,
+    5,
+    520.0,
+    52.0,
+    Val::Px(16.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(50.0),
+    Some(-260.0),
+);
+/// Row 10. Top 52, left 16, width 520.
+pub const SPILL: HudCodedPlace = coded(
+    ID_SPILL,
+    10,
+    5,
+    520.0,
+    52.0,
+    Val::Px(52.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Px(16.0),
+    None,
+);
+/// Row 12. Top 88, centred, margin −260, width 520.
+pub const FAB: HudCodedPlace = coded(
+    ID_FAB,
+    12,
+    5,
+    520.0,
+    52.0,
+    Val::Px(88.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(50.0),
+    Some(-260.0),
+);
+/// Row 13. Top 124, right 16, width 420.
+pub const EMBASSY: HudCodedPlace = coded(
+    ID_EMBASSY,
+    13,
+    5,
+    420.0,
+    52.0,
+    Val::Px(124.0),
+    Val::Px(16.0),
+    Val::Auto,
+    Val::Auto,
+    None,
+);
+/// Row 16. Top 204, right 16. Position only. Width stays the coded literal at the spawn.
+pub const REDEMPTION: HudCodedPlace = coded(
+    ID_REDEMPTION,
+    16,
+    5,
+    420.0,
+    52.0,
+    Val::Px(204.0),
+    Val::Px(16.0),
+    Val::Auto,
+    Val::Auto,
+    None,
+);
+/// Row 17. Top 244, right 16. Position only. Width stays the coded literal at the spawn.
+pub const HYBRID: HudCodedPlace = coded(
+    ID_HYBRID,
+    17,
+    5,
+    420.0,
+    52.0,
+    Val::Px(244.0),
+    Val::Px(16.0),
+    Val::Auto,
+    Val::Auto,
+    None,
+);
+/// Row 18. Bottom 92, right 16, width 420.
+pub const COMPASS: HudCodedPlace = coded(
+    ID_COMPASS,
+    18,
+    5,
+    420.0,
+    52.0,
+    Val::Auto,
+    Val::Px(16.0),
+    Val::Px(92.0),
+    Val::Auto,
+    None,
+);
+/// Row 19. Bottom 132, left 16, width 420.
+pub const WELL: HudCodedPlace = coded(
+    ID_WELL,
+    19,
+    5,
+    420.0,
+    52.0,
+    Val::Auto,
+    Val::Auto,
+    Val::Px(132.0),
+    Val::Px(16.0),
+    None,
+);
+/// Row 28. Top 118, centred, margin −280, width 560.
+pub const PULSE: HudCodedPlace = coded(
+    ID_PULSE,
+    28,
+    4,
+    560.0,
+    60.8,
+    Val::Px(118.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(50.0),
+    Some(-280.0),
+);
+/// Row 29. Top 16, left 16, width 380.
+pub const WELCOME: HudCodedPlace = coded(
+    ID_WELCOME,
+    29,
+    4,
+    380.0,
+    58.4,
+    Val::Px(16.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Px(16.0),
+    None,
+);
+/// Row 31. Bottom 176, left 16, width 420.
+pub const CLIMATE_STATE: HudCodedPlace = coded(
+    ID_CLIMATE_STATE,
+    31,
+    5,
+    420.0,
+    52.0,
+    Val::Auto,
+    Val::Auto,
+    Val::Px(176.0),
+    Val::Px(16.0),
+    None,
+);
+/// Row 32. Bottom 16, left 16, width 340. Satchel (row 33) stays coded.
+pub const WATCH: HudCodedPlace = coded(
+    ID_WATCH,
+    32,
+    5,
+    340.0,
+    53.2,
+    Val::Auto,
+    Val::Auto,
+    Val::Px(16.0),
+    Val::Px(16.0),
+    None,
+);
+/// Row 34. Top 38%, centred, margin −180, width 360.
+pub const PICKUP: HudCodedPlace = coded(
+    ID_PICKUP,
+    34,
+    4,
+    360.0,
+    56.4,
+    Val::Percent(38.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(50.0),
+    Some(-180.0),
+);
+/// Row 35. Top 52, centred, margin −260, width 520.
+pub const SOVEREIGN: HudCodedPlace = coded(
+    ID_SOVEREIGN,
+    35,
+    4,
+    520.0,
+    56.0,
+    Val::Px(52.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(50.0),
+    Some(-260.0),
+);
+/// Row 38. Top 48, centred, margin −310, width 620.
+pub const THRIVING: HudCodedPlace = coded(
+    ID_THRIVING,
+    38,
+    4,
+    620.0,
+    58.0,
+    Val::Px(48.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(50.0),
+    Some(-310.0),
+);
+/// Row 39. Top 10%, right 2%, width 360.
+pub const MERCY: HudCodedPlace = coded(
+    ID_MERCY,
+    39,
+    1,
+    360.0,
+    320.0,
+    Val::Percent(10.0),
+    Val::Percent(2.0),
+    Val::Auto,
+    Val::Auto,
+    None,
+);
+/// Row 40. Top 18%, left 2%, width 300.
+pub const REALM: HudCodedPlace = coded(
+    ID_REALM,
+    40,
+    1,
+    300.0,
+    170.0,
+    Val::Percent(18.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(2.0),
+    None,
+);
+/// Row 41. Top 28%, centred, margin −210, width 420.
+pub const WHISPER: HudCodedPlace = coded(
+    ID_WHISPER,
+    41,
+    4,
+    420.0,
+    69.0,
+    Val::Percent(28.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(50.0),
+    Some(-210.0),
+);
+/// Row 42. Top 12%, left 2%, width 360.
+pub const JOURNEY: HudCodedPlace = coded(
+    ID_JOURNEY,
+    42,
+    1,
+    360.0,
+    280.0,
+    Val::Percent(12.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(2.0),
+    None,
+);
+/// Row 43. Bottom 16, right 16, width 280.
+pub const PEER: HudCodedPlace = coded(
+    ID_PEER,
+    43,
+    5,
+    280.0,
+    52.0,
+    Val::Auto,
+    Val::Px(16.0),
+    Val::Px(16.0),
+    Val::Auto,
+    None,
+);
+/// Row 44. Top 18, centred, margin −140, width 280.
+pub const PLACE_NAME: HudCodedPlace = coded(
+    ID_PLACE_NAME,
+    44,
+    5,
+    280.0,
+    31.0,
+    Val::Px(18.0),
+    Val::Auto,
+    Val::Auto,
+    Val::Percent(50.0),
+    Some(-140.0),
+);
+
+/// The 21 coded joiners. Rows 16 and 17 are position only. Satchel is not here.
+pub const CODED_JOINERS: &[HudCodedPlace] = &[
+    FACTORY,
+    SPILL,
+    FAB,
+    EMBASSY,
+    REDEMPTION,
+    HYBRID,
+    COMPASS,
+    WELL,
+    PULSE,
+    WELCOME,
+    CLIMATE_STATE,
+    WATCH,
+    PICKUP,
+    SOVEREIGN,
+    THRIVING,
+    MERCY,
+    REALM,
+    WHISPER,
+    JOURNEY,
+    PEER,
+    PLACE_NAME,
+];
+
+impl HudCodedPlace {
+    pub const fn top(self) -> Val {
+        self.top
+    }
+
+    pub const fn right(self) -> Val {
+        self.right
+    }
+
+    pub const fn bottom(self) -> Val {
+        self.bottom
+    }
+
+    pub const fn left(self) -> Val {
+        self.left
+    }
+
+    /// This slab's own coded centring margin (`UiRect::left`).
+    pub fn margin(self) -> UiRect {
+        let px = self
+            .margin_left
+            .unwrap_or_else(|| panic!("hud place {} is not centred", self.id));
+        UiRect::left(Val::Px(px))
+    }
+
+    pub fn rect(self, view_w: f32, view_h: f32) -> HudRect {
+        slab_rect(
+            self.slab_place(),
+            self.width,
+            self.height_b,
+            view_w,
+            view_h,
+        )
+    }
+
+    fn slab_place(self) -> SlabPlace {
+        if let Some(margin_left) = self.margin_left {
+            return match self.top {
+                Val::Px(top) => SlabPlace::TopCentre { top, margin_left },
+                Val::Percent(pct) => SlabPlace::TopPercentCentre {
+                    top_fraction: pct / 100.0,
+                    margin_left,
+                },
+                _ => panic!("centred joiner {} has no top", self.id),
+            };
+        }
+        match (self.top, self.bottom, self.left, self.right) {
+            (Val::Px(top), Val::Auto, Val::Px(left), Val::Auto) => SlabPlace::TopLeft { top, left },
+            (Val::Auto, Val::Px(bottom), Val::Px(left), Val::Auto) => {
+                SlabPlace::BottomLeft { bottom, left }
+            }
+            (Val::Auto, Val::Px(bottom), Val::Auto, Val::Px(right)) => {
+                SlabPlace::BottomRight { bottom, right }
+            }
+            (Val::Px(top), Val::Auto, Val::Auto, Val::Px(right)) => {
+                SlabPlace::TopRight { top, right }
+            }
+            (Val::Percent(top), Val::Auto, Val::Auto, Val::Percent(right)) => {
+                SlabPlace::TopPercentRightPercent {
+                    top_fraction: top / 100.0,
+                    right_fraction: right / 100.0,
+                }
+            }
+            (Val::Percent(top), Val::Auto, Val::Percent(left), Val::Auto) => {
+                SlabPlace::TopPercentLeftPercent {
+                    top_fraction: top / 100.0,
+                    left_fraction: left / 100.0,
+                }
+            }
+            _ => panic!("no slab place for {}", self.id),
+        }
+    }
+}
+
+pub fn coded_joiner(id: &str) -> &HudCodedPlace {
+    CODED_JOINERS
+        .iter()
+        .find(|place| place.id == id)
+        .unwrap_or_else(|| panic!("no coded joiner {id}"))
+}
+
 impl HudAnchor {
     pub fn occupant(&self, id: &str) -> &HudOccupant {
         self.occupants
@@ -275,8 +725,10 @@ pub enum SlabPlace {
     BottomLeft { bottom: f32, left: f32 },
     TopRight { top: f32, right: f32 },
     TopCentre { top: f32, margin_left: f32 },
+    TopLeft { top: f32, left: f32 },
     BottomPercentLeft { bottom_fraction: f32, left: f32 },
     TopPercentRightPercent { top_fraction: f32, right_fraction: f32 },
+    TopPercentLeftPercent { top_fraction: f32, left_fraction: f32 },
     TopPercentCentre { top_fraction: f32, margin_left: f32 },
 }
 
@@ -304,6 +756,7 @@ pub fn slab_rect(place: SlabPlace, width: f32, height: f32, view_w: f32, view_h:
             let x0 = view_w * 0.5 + margin_left;
             (x0, top, x0 + width, top + height)
         }
+        SlabPlace::TopLeft { top, left } => (left, top, left + width, top + height),
         SlabPlace::BottomPercentLeft {
             bottom_fraction,
             left,
@@ -318,6 +771,14 @@ pub fn slab_rect(place: SlabPlace, width: f32, height: f32, view_w: f32, view_h:
             let top = view_h * top_fraction;
             let x1 = view_w - view_w * right_fraction;
             (x1 - width, top, x1, top + height)
+        }
+        SlabPlace::TopPercentLeftPercent {
+            top_fraction,
+            left_fraction,
+        } => {
+            let top = view_h * top_fraction;
+            let left = view_w * left_fraction;
+            (left, top, left + width, top + height)
         }
         SlabPlace::TopPercentCentre {
             top_fraction,
@@ -677,6 +1138,114 @@ mod tests {
         assert_eq!(strip_vis::<FirstSessionGuidanceStrip>(&mut app), Visibility::Hidden);
     }
 
+    /// CARD HUD-ANCHOR-REGISTRY-2B. Each centred joiner's margin is its own
+    /// coded value. Factory, Fab and Sovereign are each −260. The other five
+    /// centred margins are −280, −180, −310, −210 and −140.
+    #[test]
+    fn centred_joiner_margins_equal_coded() {
+        let coded = [
+            (ID_FACTORY, -260.0),
+            (ID_FAB, -260.0),
+            (ID_PULSE, -280.0),
+            (ID_PICKUP, -180.0),
+            (ID_SOVEREIGN, -260.0),
+            (ID_THRIVING, -310.0),
+            (ID_WHISPER, -210.0),
+            (ID_PLACE_NAME, -140.0),
+        ];
+        assert_eq!(coded.len(), 8);
+        let mut margins = Vec::new();
+        for (id, want) in coded {
+            let place = coded_joiner(id);
+            assert!(
+                place.margin_left == Some(want),
+                "{id} stores its own margin {want}"
+            );
+            assert_eq!(place.margin(), UiRect::left(Val::Px(want)), "{id}");
+            assert_eq!(place.left(), Val::Percent(50.0), "{id}");
+            margins.push(want);
+        }
+        let mut unique = margins.clone();
+        unique.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        unique.dedup();
+        assert_eq!(
+            unique,
+            vec![-310.0, -280.0, -260.0, -210.0, -180.0, -140.0],
+            "six distinct half-width margins"
+        );
+        let centred: Vec<_> = CODED_JOINERS
+            .iter()
+            .filter(|place| place.margin_left.is_some())
+            .map(|place| place.id)
+            .collect();
+        assert_eq!(centred.len(), coded.len());
+        for place in CODED_JOINERS {
+            if place.margin_left.is_none() {
+                assert!(
+                    !coded.iter().any(|(id, _)| *id == place.id),
+                    "{} is not centred",
+                    place.id
+                );
+            }
+        }
+    }
+
+    /// The 21 coded joiners equal the coded Style literals. Satchel is absent.
+    /// Rows 16 and 17 are position only: top and right come from the record.
+    /// These literals are the code at `8a79ce3d`, which matches design §2.4
+    /// for the original 19, and the coded spawn positions for rows 16 and 17.
+    #[test]
+    fn as_is_joiners_match_coded_style_literals() {
+        assert_eq!(CODED_JOINERS.len(), 21);
+        assert!(CODED_JOINERS.iter().all(|place| place.id != "Satchel"));
+        let rows: Vec<u8> = CODED_JOINERS.iter().map(|place| place.row).collect();
+        assert_eq!(
+            rows,
+            vec![
+                8, 10, 12, 13, 16, 17, 18, 19, 28, 29, 31, 32, 34, 35, 38, 39, 40, 41, 42, 43, 44
+            ]
+        );
+
+        let literals = [
+            (ID_FACTORY, Val::Px(16.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 5),
+            (ID_SPILL, Val::Px(52.0), Val::Auto, Val::Auto, Val::Px(16.0), 520.0, 5),
+            (ID_FAB, Val::Px(88.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 5),
+            (ID_EMBASSY, Val::Px(124.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
+            (ID_REDEMPTION, Val::Px(204.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
+            (ID_HYBRID, Val::Px(244.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
+            (ID_COMPASS, Val::Auto, Val::Px(16.0), Val::Px(92.0), Val::Auto, 420.0, 5),
+            (ID_WELL, Val::Auto, Val::Auto, Val::Px(132.0), Val::Px(16.0), 420.0, 5),
+            (ID_PULSE, Val::Px(118.0), Val::Auto, Val::Auto, Val::Percent(50.0), 560.0, 4),
+            (ID_WELCOME, Val::Px(16.0), Val::Auto, Val::Auto, Val::Px(16.0), 380.0, 4),
+            (ID_CLIMATE_STATE, Val::Auto, Val::Auto, Val::Px(176.0), Val::Px(16.0), 420.0, 5),
+            (ID_WATCH, Val::Auto, Val::Auto, Val::Px(16.0), Val::Px(16.0), 340.0, 5),
+            (ID_PICKUP, Val::Percent(38.0), Val::Auto, Val::Auto, Val::Percent(50.0), 360.0, 4),
+            (ID_SOVEREIGN, Val::Px(52.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 4),
+            (ID_THRIVING, Val::Px(48.0), Val::Auto, Val::Auto, Val::Percent(50.0), 620.0, 4),
+            (ID_MERCY, Val::Percent(10.0), Val::Percent(2.0), Val::Auto, Val::Auto, 360.0, 1),
+            (ID_REALM, Val::Percent(18.0), Val::Auto, Val::Auto, Val::Percent(2.0), 300.0, 1),
+            (ID_WHISPER, Val::Percent(28.0), Val::Auto, Val::Auto, Val::Percent(50.0), 420.0, 4),
+            (ID_JOURNEY, Val::Percent(12.0), Val::Auto, Val::Auto, Val::Percent(2.0), 360.0, 1),
+            (ID_PEER, Val::Auto, Val::Px(16.0), Val::Px(16.0), Val::Auto, 280.0, 5),
+            (ID_PLACE_NAME, Val::Px(18.0), Val::Auto, Val::Auto, Val::Percent(50.0), 280.0, 5),
+        ];
+        assert_eq!(literals.len(), 21);
+        for id in [ID_REDEMPTION, ID_HYBRID] {
+            let place = coded_joiner(id);
+            assert!(place.margin_left.is_none(), "{id} is not centred");
+            assert_eq!(place.margin_left, None);
+        }
+        for (id, top, right, bottom, left, width, class) in literals {
+            let place = coded_joiner(id);
+            assert_eq!(place.top(), top, "{id} top");
+            assert_eq!(place.right(), right, "{id} right");
+            assert_eq!(place.bottom(), bottom, "{id} bottom");
+            assert_eq!(place.left(), left, "{id} left");
+            assert_eq!(place.width, width, "{id} width");
+            assert_eq!(place.class, u8::try_from(class).unwrap(), "{id} class");
+        }
+    }
+
     fn press(app: &mut App, key: KeyCode) {
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -705,20 +1274,8 @@ mod tests {
                 view_w,
                 view_h,
             ),
-            "Well" => slab_rect(
-                SlabPlace::BottomLeft { bottom: 132.0, left: 16.0 },
-                420.0,
-                52.0,
-                view_w,
-                view_h,
-            ),
-            "ClimateState" => slab_rect(
-                SlabPlace::BottomLeft { bottom: 176.0, left: 16.0 },
-                420.0,
-                52.0,
-                view_w,
-                view_h,
-            ),
+            "Well" => WELL.rect(view_w, view_h),
+            "ClimateState" => CLIMATE_STATE.rect(view_w, view_h),
             "Satchel" => slab_rect(
                 SlabPlace::BottomPercentLeft {
                     bottom_fraction: 0.22,
@@ -736,50 +1293,11 @@ mod tests {
                 view_w,
                 view_h,
             ),
-            "Hybrid" => slab_rect(
-                SlabPlace::TopRight { top: 244.0, right: 16.0 },
-                420.0,
-                52.0,
-                view_w,
-                view_h,
-            ),
-            "Redemption" => slab_rect(
-                SlabPlace::TopRight { top: 204.0, right: 16.0 },
-                420.0,
-                52.0,
-                view_w,
-                view_h,
-            ),
-            "Pickup" => slab_rect(
-                SlabPlace::TopPercentCentre {
-                    top_fraction: 0.38,
-                    margin_left: -180.0,
-                },
-                360.0,
-                56.4,
-                view_w,
-                view_h,
-            ),
-            "Whisper" => slab_rect(
-                SlabPlace::TopPercentCentre {
-                    top_fraction: 0.28,
-                    margin_left: -210.0,
-                },
-                420.0,
-                69.0,
-                view_w,
-                view_h,
-            ),
-            "Mercy" => slab_rect(
-                SlabPlace::TopPercentRightPercent {
-                    top_fraction: 0.10,
-                    right_fraction: 0.02,
-                },
-                360.0,
-                320.0,
-                view_w,
-                view_h,
-            ),
+            "Hybrid" => HYBRID.rect(view_w, view_h),
+            "Redemption" => REDEMPTION.rect(view_w, view_h),
+            "Pickup" => PICKUP.rect(view_w, view_h),
+            "Whisper" => WHISPER.rect(view_w, view_h),
+            "Mercy" => MERCY.rect(view_w, view_h),
             "Places" => slab_rect(
                 SlabPlace::TopPercentCentre {
                     top_fraction: 0.18,

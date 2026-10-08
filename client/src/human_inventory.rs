@@ -14,6 +14,7 @@ use shared::pause_ledger_face::face_from;
 use shared::temper::{lumen_slots, TemperedItem, ToolTier, WardKind};
 
 use crate::companion_bond::CompanionBond;
+use crate::hud_anchor_registry::{PICKUP, WATCH};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::hex_travel::HexTravelState;
@@ -118,8 +119,8 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(16.0),
-                    left: Val::Px(16.0),
+                    bottom: WATCH.bottom(),
+                    left: WATCH.left(),
                     width: Val::Px(340.0),
                     padding: UiRect::all(Val::Px(10.0)),
                     border: UiRect::all(Val::Px(1.0)),
@@ -213,10 +214,10 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(38.0),
-                    left: Val::Percent(50.0),
+                    top: PICKUP.top(),
+                    left: PICKUP.left(),
                     width: Val::Px(360.0),
-                    margin: UiRect::left(Val::Px(-180.0)),
+                    margin: PICKUP.margin(),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
@@ -543,6 +544,75 @@ mod tests {
     use shared::pause_ledger_face::{face_from, face_is_steward_honest, LETHAL_DECLARED_LINE};
     use shared::temper::temper_copy_is_honest;
     use shared::week_audit::WeekAudit;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Watch and Pickup read the registry.
+    /// Satchel stays `bottom: Val::Percent(22.0)` and is not a joiner.
+    #[test]
+    fn watch_and_pickup_styles_match_coded_places_satchel_stays() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_inventory_surfaces);
+        app.update();
+
+        let mut watch_q = app
+            .world_mut()
+            .query_filtered::<&Style, With<WatchStripRoot>>();
+        let watch = watch_q.single(app.world()).clone();
+        let watch_coded = Style {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(16.0),
+            left: Val::Px(16.0),
+            width: Val::Px(340.0),
+            padding: UiRect::all(Val::Px(10.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(watch, watch_coded);
+        assert_eq!(watch.bottom, WATCH.bottom());
+        assert_eq!(watch.left, WATCH.left());
+        assert_eq!(watch.width, Val::Px(WATCH.width));
+
+        let mut satchel_q = app
+            .world_mut()
+            .query_filtered::<&Style, With<SatchelRoot>>();
+        let satchel = satchel_q.single(app.world()).clone();
+        let satchel_coded = Style {
+            position_type: PositionType::Absolute,
+            bottom: Val::Percent(22.0),
+            left: Val::Px(16.0),
+            width: Val::Px(300.0),
+            padding: UiRect::all(Val::Px(14.0)),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(6.0),
+            border: UiRect::all(Val::Px(1.5)),
+            ..default()
+        };
+        assert_eq!(satchel, satchel_coded);
+        assert!(crate::hud_anchor_registry::CODED_JOINERS
+            .iter()
+            .all(|place| place.id != "Satchel"));
+
+        let mut pickup_q = app
+            .world_mut()
+            .query_filtered::<&Style, With<PickupFlashRoot>>();
+        let pickup = pickup_q.single(app.world()).clone();
+        let pickup_coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Percent(38.0),
+            left: Val::Percent(50.0),
+            width: Val::Px(360.0),
+            margin: UiRect::left(Val::Px(-180.0)),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(pickup, pickup_coded);
+        assert_eq!(pickup.top, PICKUP.top());
+        assert_eq!(pickup.left, PICKUP.left());
+        assert_eq!(pickup.margin, PICKUP.margin());
+        assert_eq!(pickup.width, Val::Px(PICKUP.width));
+    }
 
     #[test]
     fn slots_are_three() {

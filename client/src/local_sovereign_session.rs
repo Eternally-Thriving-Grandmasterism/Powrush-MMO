@@ -18,6 +18,7 @@
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::hud_anchor_registry::SOVEREIGN;
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
@@ -79,10 +80,10 @@ fn spawn_banner(
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(52.0),
-                    left: Val::Percent(50.0),
+                    top: SOVEREIGN.top(),
+                    left: SOVEREIGN.left(),
                     width: Val::Px(520.0),
-                    margin: UiRect::left(Val::Px(-260.0)),
+                    margin: SOVEREIGN.margin(),
                     padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
@@ -172,6 +173,36 @@ fn update_banner(
 mod tests {
     use super::*;
     use shared::hex_travel::PlaceId;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Sovereign position is the registry, Style is the coded literal.
+    #[test]
+    fn sovereign_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_banner);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<SovereignBannerRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(52.0),
+            left: Val::Percent(50.0),
+            width: Val::Px(520.0),
+            margin: UiRect::left(Val::Px(-260.0)),
+            padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, SOVEREIGN.top());
+        assert_eq!(style.left, SOVEREIGN.left());
+        assert_eq!(style.margin, SOVEREIGN.margin());
+        assert_eq!(style.width, Val::Px(SOVEREIGN.width));
+    }
 
     /// CARD VP-SLABS-REGAL-1 — the sovereign session banner rests on the title palette: opaque
     /// TITLE_PLATE_BG plate, TITLE_BORDER rim at alpha 1, TITLE_TEXT_PRIMARY text.

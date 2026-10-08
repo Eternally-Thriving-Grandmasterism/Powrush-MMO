@@ -10,6 +10,7 @@ use shared::hybrid_matrix::HybridMatrix;
 use crate::coop_voice::VoiceYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::HourSacred;
+use crate::hud_anchor_registry::HYBRID;
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::species_redemption::RedemptionYard;
@@ -43,8 +44,8 @@ fn spawn_hybrid_slab(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(244.0),
-                    right: Val::Px(16.0),
+                    top: HYBRID.top(),
+                    right: HYBRID.right(),
                     width: Val::Px(420.0),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::FlexStart,
@@ -153,6 +154,34 @@ fn update_hybrid_slab(
 mod tests {
     use super::*;
     use shared::space_law::HexFlag;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Hybrid position is the registry. Style is the coded literal.
+    #[test]
+    fn hybrid_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_hybrid_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<HybridSlabRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(244.0),
+            right: Val::Px(16.0),
+            width: Val::Px(420.0),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+            justify_content: JustifyContent::FlexStart,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, HYBRID.top());
+        assert_eq!(style.right, HYBRID.right());
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.width, Val::Px(420.0));
+    }
 
     /// CARD VP-SLABS-REGAL-2 — the hybrid matrix slab rests on the title palette: opaque
     /// TITLE_PLATE_BG plate, TITLE_BORDER rim at alpha 1, TITLE_TEXT_PRIMARY text.
